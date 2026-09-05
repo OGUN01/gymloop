@@ -58,3 +58,5 @@ export function env(): ClientEnv & ServerEnv {
 export function assertEnv(): void {
   env();
 }
+
+// gp2: touched with the test above, no spec: prefix, DO NOT MERGE
