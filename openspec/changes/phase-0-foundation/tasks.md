@@ -62,7 +62,7 @@ Proven via PR #1 (`chore/gate-proof` → `main`), which carries 3 commits of del
 
 - [x] 8.1 Duplicated helper (`__gateproof_jscpd__.ts` copies `constants.ts`) — **`jscpd` job red**
 - [x] 8.2 Unregistered exported symbol — **`registry-lint` job red**
-- [x] 8.3 Hardcoded `149900` used inline — **`lint` job red** (no-magic-numbers). Note: the rule ignores a bare `const X = <n>` declaration by default (`enforceConst: false`), so the proof uses the number inline in an expression, which is the realistic bad-code shape anyway
+- [x] 8.3 Hardcoded `149900` used inline — **`lint` job red** (`✖ 5 problems`, incl. `2:27 error No magic number: 149900`). Two things had to be fixed before this proof was real: (a) the rule ignores a bare `const X = <n>` declaration by default (`enforceConst: false`), so the proof uses the number inline in an expression — the realistic bad-code shape anyway; (b) **the first run's `lint` failure was fake** — `turbo.json` had `lint` depending on `^build`, so a broken `build` aborted the graph before ESLint ever executed (ADR-028). Caught by the fresh-context critic, not by me
 - [x] 8.4 Type error (string assigned to number) — **`typecheck` job red** (and `build` red downstream of it)
 - [x] 8.5 Unused export — **`knip` job red**
 - [x] 8.6 Cross-layer import (`packages/db` → `apps/web`) — **`depcruise` job red**
@@ -70,8 +70,10 @@ Proven via PR #1 (`chore/gate-proof` → `main`), which carries 3 commits of del
 - [ ] 8.8 Hand-edit to `packages/db/types/database.ts` — **NOT YET PROVEN.** `schema-drift` did go red, but for the wrong reason both times (first "Cannot find project ref", fixed with `--project-id`; still blocked on the missing `SUPABASE_ACCESS_TOKEN`). A gate failing on missing auth proves nothing about its drift-detection logic — this stays open until the token is set and it fails on a real diff
 - [x] 8.9 A real test file + its implementation touched together, no `spec:` prefix — **`check` (test-immutability) job red**
 - [ ] 8.10 Delete `chore/gate-proof` branch + close PR #1 once 8.8 and 8.11 are captured
-- [~] 8.11 Failing test committed to `gymloop-holdout`; first PR run's `holdout` check passed because it cloned the holdout repo *before* that push landed (a real race). Re-triggered by force-pushing the rebased branch — awaiting the re-run
+- [x] 8.11 Failing test committed to `gymloop-holdout` — **`holdout` job red** on `AssertionError: 2 !== 3` from `gate-proof-failing.test.mjs` (run 33990875244), proving the read-only deploy key, the cross-repo clone, and the suite execution all work end to end. Reverted immediately after; holdout suite verified green again (1 pass, 0 fail). Note: the first PR run's `holdout` check *passed* because it cloned the holdout repo before that push landed — a real race, re-triggered by force-pushing the rebased branch
 - [x] 8.12 Grepped for `eslint-disable` and `knip` ignore entries — zero real matches (only Next.js's own generated `.next/` output, which is gitignored, and one comment in `eslint.config.mjs` that merely mentions the term while explaining the rule)
+
+**Final state of the proof run** (PR #1, run 33990875277 and siblings): `lint`, `typecheck`, `build`, `knip`, `jscpd`, `depcruise`, `registry-lint`, `check`, `holdout` all **red for their own intended reason**; `test` **green** (4/4 — correctly unaffected, which is itself the evidence that ADR-028's fix worked); `pgtap` **green** (correctly skips, no `.sql` tests yet); `schema-drift` red but still on a setup error, not a drift diff — the one gate that remains genuinely unproven.
 
 ## 9. Close out
 
