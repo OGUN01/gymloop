@@ -18,7 +18,15 @@ export const DEFAULT_TIMEZONE = 'Asia/Kolkata';
 export const DEFAULT_CURRENCY = 'INR';
 export const SUPPORTED_LOCALES = ['en', 'hi'] as const;
 
-/** Renewal reminder windows in days relative to expiry: 14/7/3/0/+3 (§8). */
+/**
+ * Renewal reminder windows, as **days BEFORE expiry**.
+ * Positive = before expiry, 0 = on the expiry date, negative = after it.
+ * So [14, 7, 3, 0, -3] is the spec's "14 / 7 / 3 / 0 / +3" — the spec's
+ * trailing "+3" means three days PAST expiry, which is -3 on this axis.
+ * The sign is stated here because it is the one thing a reader will get
+ * backwards, and getting it backwards sends renewal chasers to the wrong
+ * members (PAY-001 in docs/domain-rules.md).
+ */
 export const RENEWAL_REMINDER_DAYS = [14, 7, 3, 0, -3] as const;
 
 export const TRIAL_DAYS = 14;

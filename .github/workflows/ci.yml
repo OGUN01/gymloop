@@ -88,3 +88,16 @@ jobs:
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm run registry-lint
+
+  # AGENTS.md hard rule #4's second half. Was honour-system until a
+  # fresh-context critic noted it was stated as constitutional while nothing
+  # enforced it — a rule that can be silently bypassed is a preference.
+  escape-hatches:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check-escape-hatches

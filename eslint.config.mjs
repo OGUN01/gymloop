@@ -68,4 +68,19 @@ export default tseslint.config(
       'no-magic-numbers': 'off',
     },
   },
+  {
+    // Node-run build tooling: CI scripts and root config files. These were
+    // not covered by any lint task at all until a fresh-context critic
+    // pointed it out — and they failed with 14 no-undef errors when first
+    // linted, because the flat config declared no Node globals anywhere.
+    // Declared inline rather than adding the `globals` package for two
+    // names. process.env stays banned here too — these read process.argv.
+    files: ['scripts/**/*.mjs', '*.config.mjs', '*.mjs'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+      },
+    },
+  },
 );

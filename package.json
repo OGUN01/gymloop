@@ -7,7 +7,8 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "lint": "turbo run lint",
+    "lint": "turbo run lint && pnpm run lint:root",
+    "lint:root": "eslint scripts eslint.config.mjs .dependency-cruiser.mjs",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:scripts": "vitest run scripts",
@@ -15,7 +16,8 @@
     "jscpd": "jscpd --exit-code 1",
     "depcruise": "dependency-cruiser --config .dependency-cruiser.mjs apps packages",
     "registry-lint": "node scripts/registry-lint.mjs",
-    "check-test-immutability": "node scripts/check-test-immutability.mjs"
+    "check-test-immutability": "node scripts/check-test-immutability.mjs",
+    "check-escape-hatches": "node scripts/check-escape-hatches.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

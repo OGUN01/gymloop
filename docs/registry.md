@@ -13,7 +13,7 @@ Update this file in the same commit that adds the export. One row per symbol, ke
 | `GYM_CODE_LENGTH` | `packages/shared/src/config/constants.ts` | Length of the 6-char gym invite code (§5) | Phase 2 (identity), member app gym-finder |
 | `PLAN_TIER_PRICES_PAISE` | `packages/shared/src/config/constants.ts` | Monthly SaaS tier prices in integer paise (§5) | Phase 6 (platform billing) |
 | `PRODUCT_NAME` | `packages/shared/src/config/constants.ts` | The one place the placeholder product name lives | Everywhere the name is displayed |
-| `RENEWAL_REMINDER_DAYS` | `packages/shared/src/config/constants.ts` | Renewal reminder windows relative to expiry: 14/7/3/0/-3 (§8) | Phase 5 (renewals) |
+| `RENEWAL_REMINDER_DAYS` | `packages/shared/src/config/constants.ts` | Renewal reminder windows as **days before expiry** — `[14, 7, 3, 0, -3]`; negative means after expiry, so `-3` is the spec's "+3 days past due" (PAY-001) | Phase 5 (renewals) |
 | `ROLES` | `packages/shared/src/config/constants.ts` | Fixed v1 role set (§6) | Phase 2 (identity/RLS), Phase 6 (super admin) |
 | `SUPABASE_REGION` | `packages/shared/src/config/constants.ts` | ap-south-1 (Mumbai) — latency-driven choice, see `docs/decisions.md` | Infra docs, onboarding checks |
 | `SUPPORTED_LOCALES` | `packages/shared/src/config/constants.ts` | English + Hindi (§4) | i18n setup, all UI phases |

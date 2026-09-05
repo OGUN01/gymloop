@@ -23,6 +23,31 @@ describe('findUnregisteredExports', () => {
     expect(findUnregisteredExports(files, '# empty registry\n')).toEqual([]);
   });
 
+  it('flags `export async function` — async sits between export and function', () => {
+    const files = [{ path: 'apps/web/app/api/handler.ts', content: 'export async function POST() {}\n' }];
+    const missing = findUnregisteredExports(files, '# empty registry\n');
+    expect(missing).toEqual([{ path: 'apps/web/app/api/handler.ts', name: 'POST' }]);
+  });
+
+  it('flags braced re-exports, including renamed ones', () => {
+    const files = [
+      { path: 'packages/shared/src/a.ts', content: "export { alpha, beta as gamma } from './x';\n" },
+    ];
+    const missing = findUnregisteredExports(files, '# empty registry\n');
+    expect(missing.map((m) => m.name).sort()).toEqual(['alpha', 'gamma']);
+  });
+
+  it('requires a backticked registry cell, not a bare substring match', () => {
+    const files = [{ path: 'packages/shared/src/a.ts', content: 'export const Role = 1;\n' }];
+    // "Role" appears in prose but not as a registered `Role` cell.
+    const prose = 'Every Role in the system is fixed in v1.\n';
+    expect(findUnregisteredExports(files, prose)).toEqual([
+      { path: 'packages/shared/src/a.ts', name: 'Role' },
+    ]);
+    // Now genuinely registered.
+    expect(findUnregisteredExports(files, '| `Role` | path | purpose | user |\n')).toEqual([]);
+  });
+
   it('ignores Next.js route-convention files but still flags a real component export', () => {
     const files = [
       { path: 'apps/web/app/page.tsx', content: 'export const metadata = {};\n' },

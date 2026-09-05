@@ -11,6 +11,7 @@ import { pathToFileURL } from 'node:url';
 
 const TEST_PATH_RE = /(^tests\/|\/__tests__\/|\.test\.(ts|tsx|js)$)/;
 const IMPLEMENTATION_EXT_RE = /\.(ts|tsx|js|mjs|sql)$/;
+const SHORT_SHA_LENGTH = 12;
 
 // scripts/** is CI/build tooling — it never goes through the EARS-spec →
 // tests-first → implementation pipeline this rule exists to protect (the
@@ -88,7 +89,7 @@ function main() {
   if (violations.length > 0) {
     console.error('check-test-immutability: violating commits:\n');
     for (const { sha, reason } of violations) {
-      console.error(`  ${sha.slice(0, 12)}  ${reason}`);
+      console.error(`  ${sha.slice(0, SHORT_SHA_LENGTH)}  ${reason}`);
     }
     process.exit(1);
   }

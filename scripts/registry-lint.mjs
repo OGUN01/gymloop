@@ -16,7 +16,15 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-const EXPORT_RE = /^export\s+(?:const|function|class|type|interface|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)/gm;
+// Declaration exports. `async` sits between `export` and `function`, so it
+// must be optional here — without it every `export async function` (i.e.
+// every Route Handler and async util from Phase 2 on) is invisible to this
+// gate. Found by a fresh-context critic auditing Phase 0.
+const EXPORT_DECL_RE =
+  /^export\s+(?:async\s+)?(?:const|let|var|function\*?|class|type|interface|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)/gm;
+
+// Braced exports: `export { a, b as c }` and `export { x } from './y'`.
+const EXPORT_BRACE_RE = /^export\s*\{([^}]*)\}/gm;
 
 const ROUTE_CONVENTION_FILES = new Set([
   'page',
@@ -43,14 +51,45 @@ function isLintableSourceFile(filePath) {
   return filePath.startsWith('packages/') || filePath.startsWith('apps/');
 }
 
+/**
+ * Registered means the name appears as a backticked cell in a registry
+ * table (`| \`NAME\` | ... |`), NOT merely as a substring of the file. A
+ * bare `registryContent.includes(name)` passes any export called `Role`,
+ * `env`, or `TRIAL` purely because those letters already occur somewhere in
+ * the prose — a false-negative machine for a rule whose whole point is
+ * "if it is not in the registry, it does not exist".
+ */
+function isRegistered(name, registryContent) {
+  return new RegExp('`' + name.replace(/[$]/g, '\\$&') + '`').test(registryContent);
+}
+
+/** Every exported name in one file: declarations plus braced re-exports. */
+function exportedNames(content) {
+  const names = [];
+  for (const match of content.matchAll(EXPORT_DECL_RE)) {
+    names.push(match[1]);
+  }
+  for (const match of content.matchAll(EXPORT_BRACE_RE)) {
+    for (const clause of match[1].split(',')) {
+      // `a`, `a as b`, `default as b` — the exported name is what follows
+      // `as`, otherwise the bare identifier.
+      const parts = clause.trim().split(/\s+as\s+/);
+      const name = (parts[parts.length - 1] ?? '').trim();
+      if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name) && name !== 'default') {
+        names.push(name);
+      }
+    }
+  }
+  return names;
+}
+
 /** Pure, testable: given file contents and the registry text, list unregistered exports. */
 export function findUnregisteredExports(files, registryContent) {
   const missing = [];
   for (const { path, content } of files) {
     if (!isLintableSourceFile(path)) continue;
-    for (const match of content.matchAll(EXPORT_RE)) {
-      const name = match[1];
-      if (!registryContent.includes(name)) {
+    for (const name of exportedNames(content)) {
+      if (!isRegistered(name, registryContent)) {
         missing.push({ path, name });
       }
     }
