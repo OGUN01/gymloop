@@ -1,0 +1,1 @@
+export const GATE_PROOF_UNREGISTERED_SYMBOL = 'x';
