@@ -19,15 +19,32 @@ export const DEFAULT_CURRENCY = 'INR';
 export const SUPPORTED_LOCALES = ['en', 'hi'] as const;
 
 /**
- * Renewal reminder windows, as **days BEFORE expiry**.
- * Positive = before expiry, 0 = on the expiry date, negative = after it.
- * So [14, 7, 3, 0, -3] is the spec's "14 / 7 / 3 / 0 / +3" — the spec's
- * trailing "+3" means three days PAST expiry, which is -3 on this axis.
- * The sign is stated here because it is the one thing a reader will get
- * backwards, and getting it backwards sends renewal chasers to the wrong
- * members (PAY-001 in docs/domain-rules.md).
+ * Renewal reminder windows (PAY-001).
+ *
+ * Each window carries an explicit `daysFromExpiry` on a single stated axis:
+ * **negative = before expiry, 0 = the expiry date itself, positive = after
+ * expiry.** So the spec's "14 / 7 / 3 / 0 / +3" is -14, -7, -3, 0, +3 —
+ * the spec's trailing "+3" is literally `+3` here, not a sign flip.
+ *
+ * This replaced a bare `RENEWAL_REMINDER_DAYS = [14, 7, 3, 0, -3]`. That
+ * form was transcribed wrongly into four separate documents, because a bare
+ * signed integer forces every reader to recall an axis stated somewhere
+ * else, and the spec's own notation ("+3") contradicted the constant's sign.
+ * The `id` is the real safeguard: `expiry_plus_3` cannot be misread even by
+ * someone who ignores the sign entirely.
+ *
+ * Phase 4 reads this to decide when to message members. Inverting the axis
+ * sends renewal chasers to people who have already paid.
  */
-export const RENEWAL_REMINDER_DAYS = [14, 7, 3, 0, -3] as const;
+export const RENEWAL_REMINDER_WINDOWS = [
+  { id: 'expiry_minus_14', daysFromExpiry: -14 },
+  { id: 'expiry_minus_7', daysFromExpiry: -7 },
+  { id: 'expiry_minus_3', daysFromExpiry: -3 },
+  { id: 'expiry_day', daysFromExpiry: 0 },
+  { id: 'expiry_plus_3', daysFromExpiry: 3 },
+] as const;
+
+export type RenewalReminderWindowId = (typeof RENEWAL_REMINDER_WINDOWS)[number]['id'];
 
 export const TRIAL_DAYS = 14;
 export const GYM_CODE_LENGTH = 6;

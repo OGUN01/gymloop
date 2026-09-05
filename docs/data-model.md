@@ -38,7 +38,7 @@ Money is **integer paise**, never floating point, with an explicit currency colu
 
 ## Per-gym configuration ("the template that makes this sellable")
 
-One row per organization, minimum: name, logo, brand accent, address, timezone, currency, opening hours, GSTIN, invoice prefix + financial-year reset, week-start day, plans/prices/discounts, no-show threshold days, streak rule type, renewal reminder windows (`RENEWAL_REMINDER_DAYS` = `[14, 7, 3, 0, -3]`, as **days before expiry** — negative means after, so `-3` is three days past due; see PAY-001), grace-period days after expiry, allowed pause reasons + approver, max freeze days/year, holiday calendar, follow-up outcome list, add-on catalogue, staff/trainers, trainer-to-member cap, message templates, receipt/invoice numbering.
+One row per organization, minimum: name, logo, brand accent, address, timezone, currency, opening hours, GSTIN, invoice prefix + financial-year reset, week-start day, plans/prices/discounts, no-show threshold days, streak rule type, renewal reminder windows (`RENEWAL_REMINDER_WINDOWS`; each has an explicit `daysFromExpiry` where negative = before expiry and positive = after, so the post-due window is `+3` — see PAY-001), grace-period days after expiry, allowed pause reasons + approver, max freeze days/year, holiday calendar, follow-up outcome list, add-on catalogue, staff/trainers, trainer-to-member cap, message templates, receipt/invoice numbering.
 
 ## RLS policy map (shape, not final policy text)
 

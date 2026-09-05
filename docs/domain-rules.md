@@ -34,7 +34,7 @@ Canonical status vocabularies referenced below are defined in `docs/data-model.m
 
 ## Renewals and payments (PAY)
 
-- **PAY-001** THE SYSTEM SHALL send renewal reminders at configurable day-offsets relative to membership expiry, defaulting to 14, 7 and 3 days **before** expiry, on the expiry date itself, and 3 days **after** expiry. Encoded in `RENEWAL_REMINDER_DAYS` as `[14, 7, 3, 0, -3]`, where the axis is *days before expiry* — so the final "3 days after" is `-3`.
+- **PAY-001** THE SYSTEM SHALL send renewal reminders at configurable day-offsets relative to membership expiry, defaulting to 14, 7 and 3 days **before** expiry, on the expiry date itself, and 3 days **after** expiry. Encoded in `RENEWAL_REMINDER_WINDOWS`, each window carrying an explicit `daysFromExpiry` on one axis: **negative = before expiry, 0 = the expiry date, positive = after**. So the windows are `-14, -7, -3, 0, +3` and this requirement's "+3" is literally `+3`.
 - **PAY-002** THE SYSTEM SHALL send at most one reminder message per configured stage.
 - **PAY-003** WHEN a membership's renewal payment is verified, OR the membership is cancelled, OR the member opts out of renewal messaging THEN THE SYSTEM SHALL stop sending further renewal reminders for that renewal cycle.
 - **PAY-004** WHEN a renewal payment fails THE SYSTEM SHALL escalate on a path distinct from the no-response path (different message, different staff-facing signal).
