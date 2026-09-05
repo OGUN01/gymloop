@@ -58,18 +58,20 @@
 
 ## 8. Prove every gate fails
 
-- [ ] 8.1 Branch `chore/gate-proof`; commit a duplicated helper — verify `jscpd` job goes red, capture output
-- [ ] 8.2 Commit an unregistered exported symbol — verify `registry-lint` job goes red, capture output
-- [ ] 8.3 Commit a hardcoded number replacing a constants.ts value — verify `lint` (no-magic-numbers) job goes red, capture output
-- [ ] 8.4 Commit a type error — verify `typecheck` job goes red, capture output
-- [ ] 8.5 Commit an unused export — verify `knip` job goes red, capture output
-- [ ] 8.6 Commit a cross-layer import (db → ui) — verify `depcruise` job goes red, capture output
-- [ ] 8.7 Commit `packages/shared` importing `next/headers` — verify `depcruise` portability rule goes red, capture output
-- [ ] 8.8 Hand-edit `packages/db/types/database.ts` — verify the `db.yml` drift job goes red, capture output
-- [ ] 8.9 Commit touching `tests/**` and `src/**` together without a `spec:` prefix — verify `test-immutability` job goes red, capture output
-- [ ] 8.10 Delete `chore/gate-proof` branch after all 7 proofs above are captured
-- [ ] 8.11 Separately: commit a deliberately failing test to `gymloop-holdout`, verify `holdout.yml` on `gymloop` goes red, capture output, then revert the holdout commit
-- [ ] 8.12 Grep the repo for `eslint-disable` and `knip` ignore entries — verify zero matches
+Proven via PR #1 (`chore/gate-proof` → `main`), which carries 3 commits of deliberate violations. Workflows only trigger on push-to-`main` or `pull_request`, so a real PR — not just a branch push — is what makes these checks run.
+
+- [x] 8.1 Duplicated helper (`__gateproof_jscpd__.ts` copies `constants.ts`) — **`jscpd` job red**
+- [x] 8.2 Unregistered exported symbol — **`registry-lint` job red**
+- [x] 8.3 Hardcoded `149900` used inline — **`lint` job red** (no-magic-numbers). Note: the rule ignores a bare `const X = <n>` declaration by default (`enforceConst: false`), so the proof uses the number inline in an expression, which is the realistic bad-code shape anyway
+- [x] 8.4 Type error (string assigned to number) — **`typecheck` job red** (and `build` red downstream of it)
+- [x] 8.5 Unused export — **`knip` job red**
+- [x] 8.6 Cross-layer import (`packages/db` → `apps/web`) — **`depcruise` job red**
+- [x] 8.7 `packages/shared` importing `next/headers` — **`depcruise` job red** (same job, second distinct rule)
+- [ ] 8.8 Hand-edit to `packages/db/types/database.ts` — **NOT YET PROVEN.** `schema-drift` did go red, but for the wrong reason both times (first "Cannot find project ref", fixed with `--project-id`; still blocked on the missing `SUPABASE_ACCESS_TOKEN`). A gate failing on missing auth proves nothing about its drift-detection logic — this stays open until the token is set and it fails on a real diff
+- [x] 8.9 A real test file + its implementation touched together, no `spec:` prefix — **`check` (test-immutability) job red**
+- [ ] 8.10 Delete `chore/gate-proof` branch + close PR #1 once 8.8 and 8.11 are captured
+- [~] 8.11 Failing test committed to `gymloop-holdout`; first PR run's `holdout` check passed because it cloned the holdout repo *before* that push landed (a real race). Re-triggered by force-pushing the rebased branch — awaiting the re-run
+- [x] 8.12 Grepped for `eslint-disable` and `knip` ignore entries — zero real matches (only Next.js's own generated `.next/` output, which is gitignored, and one comment in `eslint.config.mjs` that merely mentions the term while explaining the rule)
 
 ## 9. Close out
 
