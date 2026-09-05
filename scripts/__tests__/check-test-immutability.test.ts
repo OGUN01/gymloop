@@ -1,7 +1,24 @@
+import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { evaluateCommit } from '../check-test-immutability.mjs';
 
 describe('evaluateCommit', () => {
+  it('treats supabase/tests/** (pgTAP) as test files — a pgTAP test plus a migration in one commit violates', () => {
+    const result = evaluateCommit({
+      files: ['supabase/tests/rls_members.sql', 'supabase/migrations/20260901000000_members.sql'],
+      message: 'add members table and its RLS test',
+    });
+    expect(result.violates).toBe(true);
+  });
+
+  it('can be imported when process.argv[1] is undefined (node --input-type=module -e)', () => {
+    const scripts = ['check-test-immutability', 'registry-lint', 'check-escape-hatches'].map(
+      (name) => new URL(`../${name}.mjs`, import.meta.url).href,
+    );
+    const source = scripts.map((href) => `await import(${JSON.stringify(href)});`).join('\n');
+    expect(() => execFileSync(process.execPath, ['--input-type=module', '-e', source], { stdio: 'pipe' })).not.toThrow();
+  });
+
   it('violates when a commit touches a test file and an implementation file with no spec: prefix', () => {
     const result = evaluateCommit({
       files: ['packages/shared/src/config/__tests__/env.test.ts', 'packages/shared/src/config/env.ts'],

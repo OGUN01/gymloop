@@ -21,10 +21,10 @@ Note: this table is the 33 gates from §11. The separate CI-mechanism table in �
 | # | Gate | Automated? | Enforced by | Status |
 |---|---|---|---|---|
 | 6 | Every table has `tenant_id` (or reachable via one) with RLS enabled | Yes (once tables exist) | pgTAP suite, `db.yml` | N/A — Phase 1, no tables yet |
-| 7 | pgTAP cross-tenant leak suite per table | Yes (once tables exist) | `supabase/tests/`, `db.yml` | N/A — Phase 1 |
+| 7 | pgTAP cross-tenant leak suite per table | Yes (once tables exist) | `supabase/tests/`, `db.yml` `pgtap` job — runs against the Cloud project after `migrate`, never concurrently (workflow `concurrency`), every file `BEGIN … ROLLBACK` (enforced by `pgtap-rollback` / `scripts/check-pgtap-rollback.mjs`, ADR-030) | N/A — Phase 1 writes the first tests; the runner and the rollback check are wired |
 | 8 | RLS columns indexed, tenant read from JWT claim not a per-row subquery | Yes (once policies exist) | pgTAP + migration review | N/A — Phase 1 |
-| 9 | Forward-only migrations applied by CI | **No** | Nothing. `db.yml` has only `schema-drift` (a text diff) and `pgtap` (a stub) — no job runs `supabase db push` or any migration command | **NOT wired.** Previously claimed "Wired", which was false. Blocked on OPEN-005 below |
-| 10 | DB enums generate TS types, drift fails CI | Yes | `db.yml` schema-drift job (`supabase gen types --project-id` against Cloud, vs committed) | **Proven failing** on `chore/gate-proof`: authenticated, generated from Cloud, and caught exactly the hand-edit (`-export type GateProofBogusHandEdit = true;`). Green on `main` in the same round, so it distinguishes good from bad rather than failing always |
+| 9 | Forward-only migrations applied by CI | Yes | `db.yml` `migrate` job: `supabase db push --linked` on merge to `main`, in merge order; `--dry-run` only on a PR. Sessions never push (ADR-030 resolved OPEN-005) | Wired; no migrations exist yet to apply. Not yet proven red — the first real migration in Phase 1 is the proof |
+| 10 | DB enums generate TS types, drift fails CI | Yes | `db.yml` schema-drift job (`supabase gen types --project-id` against Cloud, vs committed), run after `migrate`; on a PR that changes `supabase/migrations` it is skipped with a notice and verified on the post-merge run of `main` (ADR-030) | **Proven failing** on `chore/gate-proof`: authenticated, generated from Cloud, and caught exactly the hand-edit (`-export type GateProofBogusHandEdit = true;`). Green on `main` in the same round, so it distinguishes good from bad rather than failing always |
 | 11 | A full demo gym seeded by one command | Yes (mechanism, once written) | Seed script | N/A — Phase 1 |
 
 ## Backend correctness

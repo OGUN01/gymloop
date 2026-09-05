@@ -69,6 +69,61 @@ describe('findEscapeHatches', () => {
     ]);
   });
 
+  it('flags an inline ESLint config comment that switches a rule off, in every spelling', () => {
+    const files = [
+      { path: 'packages/shared/src/a.ts', content: '/* eslint no-magic-numbers: "off" */\nconst y = 42;\n' },
+      { path: 'packages/shared/src/b.ts', content: '/* eslint no-magic-numbers: 0 */\n' },
+      { path: 'packages/shared/src/c.ts', content: '/* eslint no-magic-numbers: off, no-restricted-properties: off */\n' },
+      { path: 'packages/shared/src/d.ts', content: '/*eslint @typescript-eslint/no-unused-vars:0*/\n' },
+    ];
+    expect(findEscapeHatches(files)).toEqual([
+      { path: 'packages/shared/src/a.ts', line: 1, kind: 'eslint inline config' },
+      { path: 'packages/shared/src/b.ts', line: 1, kind: 'eslint inline config' },
+      { path: 'packages/shared/src/c.ts', line: 1, kind: 'eslint inline config' },
+      { path: 'packages/shared/src/d.ts', line: 1, kind: 'eslint inline config' },
+    ]);
+    // Not inline config: eslint-env, and prose mentioning eslint.
+    expect(
+      findEscapeHatches([
+        { path: 'packages/shared/src/e.ts', content: '/* eslint-env node */\n/* the eslint rule set is constitutional */\n' },
+      ]),
+    ).toEqual([]);
+  });
+
+  it('flags a nested ESLint config file anywhere except the root eslint.config.mjs', () => {
+    const files = [
+      { path: 'eslint.config.mjs', content: 'export default [];\n' },
+      { path: 'packages/shared/eslint.config.mjs', content: 'export default [];\n' },
+      { path: 'apps/web/eslint.config.ts', content: 'export default [];\n' },
+      { path: 'apps/web/.eslintrc.json', content: '{}\n' },
+      { path: 'packages/db/.eslintrc', content: '{}\n' },
+    ];
+    expect(findEscapeHatches(files)).toEqual([
+      { path: 'packages/shared/eslint.config.mjs', line: 1, kind: 'nested eslint config' },
+      { path: 'apps/web/eslint.config.ts', line: 1, kind: 'nested eslint config' },
+      { path: 'apps/web/.eslintrc.json', line: 1, kind: 'nested eslint config' },
+      { path: 'packages/db/.eslintrc', line: 1, kind: 'nested eslint config' },
+    ]);
+  });
+
+  it('flags a knip ignore in every config filename knip honours, quoted or bare keys', () => {
+    const files = [
+      { path: 'knip.jsonc', content: '{\n  "ignore": ["a"]\n}\n' },
+      { path: '.knip.json', content: '{\n  "ignoreDependencies": ["a"]\n}\n' },
+      { path: '.knip.jsonc', content: '{\n  "ignoreBinaries": ["a"]\n}\n' },
+      { path: 'knip.ts', content: 'export default {\n  ignore: ["a"],\n};\n' },
+      { path: 'knip.js', content: 'module.exports = {\n  ignoreWorkspaces: ["a"],\n};\n' },
+      { path: 'knip.mjs', content: 'export default {\n  ignoreMembers: ["a"],\n};\n' },
+      { path: 'knip.config.mjs', content: 'export default {\n  ignore: ["a"],\n};\n' },
+      { path: 'knip.config.cjs', content: 'module.exports = {\n  ignore: ["a"],\n};\n' },
+      { path: 'knip.config.json', content: '{\n  "ignore": ["a"]\n}\n' },
+      { path: 'knip.config.jsonc', content: '{\n  "ignoreExportsUsedInFile": true\n}\n' },
+    ];
+    expect(findEscapeHatches(files)).toEqual(
+      files.map(({ path }) => ({ path, line: 2, kind: 'knip ignore entry' })),
+    );
+  });
+
   it('ignores non-source files and clean source', () => {
     const found = findEscapeHatches([
       { path: 'docs/decisions.md', content: 'We discussed eslint-disable and banned it.\n' },

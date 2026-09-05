@@ -1,8 +1,11 @@
 /**
  * Layer boundaries for the monorepo (docs/architecture.md, "Boundaries").
  * Two invariants:
- *   1. packages/* never import from apps/* (packages are consumed by apps,
- *      never the reverse).
+ *   1. packages/* and supabase/functions/* never import from apps/* (both
+ *      are consumed by apps, never the reverse). The CLI is pointed at the
+ *      `supabase` parent dir rather than `supabase/functions`: dependency-
+ *      cruiser errors on a path that does not exist yet, and `supabase/`
+ *      holds nothing else cruisable (config.toml, .sql migrations).
  *   2. packages/shared stays platform-free: no Node core builtin, and no
  *      npm package it doesn't itself list as a dependency (which next and
  *      react-dom, deliberately, never will be) — it's consumed by web,
@@ -23,9 +26,9 @@ export default {
   forbidden: [
     {
       name: 'packages-not-to-apps',
-      comment: 'packages/* must not depend on apps/* — packages are consumed by apps, never the reverse.',
+      comment: 'packages/* and supabase/functions/* must not depend on apps/* — both are consumed by apps, never the reverse.',
       severity: 'error',
-      from: { path: '^packages' },
+      from: { path: '^(packages|supabase/functions)' },
       to: { path: '^apps' },
     },
     {

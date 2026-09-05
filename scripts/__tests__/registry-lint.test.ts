@@ -72,4 +72,71 @@ describe('findUnregisteredExports', () => {
     const missing = findUnregisteredExports(files, '# empty registry\n');
     expect(missing).toEqual([{ path: 'apps/web/app/some-widget.tsx', name: 'Widget' }]);
   });
+
+  it('flags an indented export — the anchor must not require column 0', () => {
+    const files = [{ path: 'packages/shared/src/a.ts', content: '  export const gp3Indented = 1;\n' }];
+    expect(findUnregisteredExports(files, '# empty registry\n')).toEqual([
+      { path: 'packages/shared/src/a.ts', name: 'gp3Indented' },
+    ]);
+  });
+
+  it('flags braced type re-exports: `export type { T }`', () => {
+    const files = [{ path: 'packages/shared/src/a.ts', content: "export type { Gp3T } from './t';\nexport type { Gp3U as Gp3V };\n" }];
+    expect(findUnregisteredExports(files, '# empty registry\n').map((m) => m.name)).toEqual(['Gp3T', 'Gp3V']);
+  });
+
+  it('flags namespace re-exports: `export * as ns from`', () => {
+    const files = [{ path: 'packages/shared/src/a.ts', content: "export * as gp3ns from './d';\n" }];
+    expect(findUnregisteredExports(files, '# empty registry\n')).toEqual([
+      { path: 'packages/shared/src/a.ts', name: 'gp3ns' },
+    ]);
+  });
+
+  it('flags destructured declarations: object and array patterns, const/let/var', () => {
+    const files = [
+      {
+        path: 'packages/shared/src/a.ts',
+        content: [
+          'export const { gp3A, gp3B: gp3C, gp3D = 1 } = obj;',
+          'export let [gp3E, gp3F] = arr;',
+          'export var {\n  gp3G,\n  gp3H,\n} = obj;',
+          '',
+        ].join('\n'),
+      },
+    ];
+    expect(findUnregisteredExports(files, '# empty registry\n').map((m) => m.name)).toEqual([
+      'gp3A', 'gp3C', 'gp3D', 'gp3E', 'gp3F', 'gp3G', 'gp3H',
+    ]);
+    // gp3B is the source key, not the bound name — registering the bound names is enough.
+    expect(
+      findUnregisteredExports(files, '`gp3A` `gp3C` `gp3D` `gp3E` `gp3F` `gp3G` `gp3H`\n'),
+    ).toEqual([]);
+  });
+
+  it('exempts only framework-mandated names in route-convention files, not reusable helpers', () => {
+    const files = [
+      {
+        path: 'apps/web/app/api/members/route.ts',
+        content: [
+          'export const runtime = "edge";',
+          'export const dynamic = "force-dynamic";',
+          'export async function GET() {}',
+          'export async function POST() {}',
+          'export function gp3ListMembers() {}',
+          '',
+        ].join('\n'),
+      },
+      {
+        path: 'apps/web/app/layout.tsx',
+        content: 'export const metadata = {};\nexport async function generateMetadata() {}\nexport default function RootLayout() {}\n',
+      },
+    ];
+    expect(findUnregisteredExports(files, '# empty registry\n')).toEqual([
+      { path: 'apps/web/app/api/members/route.ts', name: 'gp3ListMembers' },
+    ]);
+    // Outside apps/*/app/, a file merely named route.ts gets no exemption.
+    expect(
+      findUnregisteredExports([{ path: 'packages/shared/src/route.ts', content: 'export const GET = 1;\n' }], '# empty\n'),
+    ).toEqual([{ path: 'packages/shared/src/route.ts', name: 'GET' }]);
+  });
 });

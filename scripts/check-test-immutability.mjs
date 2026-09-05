@@ -9,7 +9,8 @@
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-const TEST_PATH_RE = /(^tests\/|\/__tests__\/|\.test\.(ts|tsx|js)$)/;
+// supabase/tests/** holds the pgTAP RLS tests — a test suite like any other.
+const TEST_PATH_RE = /(^tests\/|^supabase\/tests\/|\/__tests__\/|\.test\.(ts|tsx|js)$)/;
 const IMPLEMENTATION_EXT_RE = /\.(ts|tsx|js|mjs|sql)$/;
 const SHORT_SHA_LENGTH = 12;
 
@@ -97,6 +98,6 @@ function main() {
 }
 
 // See registry-lint.mjs for why this isn't `file://${process.argv[1]}`.
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }

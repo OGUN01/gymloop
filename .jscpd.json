@@ -1,5 +1,5 @@
 {
-  "path": ["apps", "packages", "scripts"],
+  "path": ["apps", "packages", "scripts", "supabase/functions"],
   "reporters": ["console"],
   "threshold": 0,
   "minLines": 5,

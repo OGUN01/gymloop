@@ -26,6 +26,45 @@ const ESLINT_DISABLE_RE = /(\/\/|\/\*)\s*eslint-disable(-next-line|-line)?\b/;
 // exactly the setting where someone reaches for it.
 const TS_SUPPRESS_RE = /(\/\/|\/\*)\s*@ts-(ignore|expect-error|nocheck)\b/;
 
+// Inline config comment: `/* eslint no-magic-numbers: "off" */` (also `: 0`,
+// unquoted `: off`, several rules comma-separated) switches a rule off for
+// the whole file without ever saying "disable". ESLint only honours block
+// comments for this, and the rule name must be followed by a colon — which
+// is what keeps `eslint-env`, `eslint-disable` and prose out.
+const ESLINT_INLINE_CONFIG_RE = /\/\*\s*eslint\s+[\w@/-]+\s*:/;
+
+// A nested flat config or legacy .eslintrc anywhere below the root replaces
+// the root constitutional config for that subtree. Only the root file is
+// legitimate.
+const ESLINT_CONFIG_PATH_RE = /(^|\/)(eslint\.config\.[cm]?[jt]s|\.eslintrc(\.[a-z]+)?)$/;
+const ROOT_ESLINT_CONFIG = 'eslint.config.mjs';
+
+// Every filename knip reads config from, plus package.json's "knip" key.
+const KNIP_CONFIG_FILES = new Set([
+  'knip.json',
+  'knip.jsonc',
+  '.knip.json',
+  '.knip.jsonc',
+  'knip.ts',
+  'knip.js',
+  'knip.mjs',
+  'knip.config.ts',
+  'knip.config.js',
+  'knip.config.mjs',
+  'knip.config.cjs',
+  'knip.config.json',
+  'knip.config.jsonc',
+  'package.json',
+]);
+// knip's suppression keys, as opposed to legitimate config like `entry`,
+// `project`, or `workspaces`. Quoted (JSON) or bare (TS/JS object) keys.
+const KNIP_IGNORE_KEY_RE =
+  /["']?\b(ignore|ignoreDependencies|ignoreBinaries|ignoreWorkspaces|ignoreExportsUsedInFile|ignoreMembers)\b["']?\s*:/;
+
+function isCheckedPath(path) {
+  return SOURCE_EXT_RE.test(path) || KNIP_CONFIG_FILES.has(path) || ESLINT_CONFIG_PATH_RE.test(path);
+}
+
 const SELF_REFERENTIAL_FILES = new Set([
   'scripts/check-escape-hatches.mjs',
   'scripts/__tests__/check-escape-hatches.test.ts',
@@ -40,6 +79,9 @@ export function findEscapeHatches(files) {
     // Excluded by exact path, NOT by a blanket "skip all tests" rule: a real
     // suppression hidden in a product test must still be caught.
     if (SELF_REFERENTIAL_FILES.has(path)) continue;
+    if (ESLINT_CONFIG_PATH_RE.test(path) && path !== ROOT_ESLINT_CONFIG) {
+      found.push({ path, line: 1, kind: 'nested eslint config' });
+    }
     if (SOURCE_EXT_RE.test(path)) {
       for (const [index, line] of content.split('\n').entries()) {
         if (ESLINT_DISABLE_RE.test(line)) {
@@ -48,14 +90,14 @@ export function findEscapeHatches(files) {
         if (TS_SUPPRESS_RE.test(line)) {
           found.push({ path, line: index + 1, kind: 'TypeScript suppression' });
         }
+        if (ESLINT_INLINE_CONFIG_RE.test(line)) {
+          found.push({ path, line: index + 1, kind: 'eslint inline config' });
+        }
       }
     }
-    // knip reads config from any of these, not just knip.json.
-    if (path === 'knip.json' || path === 'knip.config.ts' || path === 'knip.config.js' || path === 'package.json') {
-      // knip's suppression keys, as opposed to legitimate config like
-      // `entry`, `project`, or `workspaces`.
+    if (KNIP_CONFIG_FILES.has(path)) {
       for (const [index, line] of content.split('\n').entries()) {
-        if (/"(ignore|ignoreDependencies|ignoreBinaries|ignoreWorkspaces|ignoreExportsUsedInFile|ignoreMembers)"/.test(line)) {
+        if (KNIP_IGNORE_KEY_RE.test(line)) {
           found.push({ path, line: index + 1, kind: 'knip ignore entry' });
         }
       }
@@ -69,14 +111,7 @@ function main() {
     .trim()
     .split('\n')
     .filter(Boolean)
-    .filter(
-      (p) =>
-        SOURCE_EXT_RE.test(p) ||
-        p === 'knip.json' ||
-        p === 'knip.config.ts' ||
-        p === 'knip.config.js' ||
-        p === 'package.json',
-    );
+    .filter(isCheckedPath);
 
   const files = tracked.map((path) => ({ path, content: readFileSync(path, 'utf8') }));
   const found = findEscapeHatches(files);
@@ -94,6 +129,6 @@ function main() {
 }
 
 // See registry-lint.mjs for why this isn't `file://${process.argv[1]}`.
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }

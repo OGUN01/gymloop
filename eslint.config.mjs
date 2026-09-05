@@ -25,12 +25,16 @@ export default tseslint.config(
       // packages/shared/src/config/constants.ts. Scoped narrowly so it stays
       // enforceable instead of getting neutralised by eslint-disable comments.
       //
-      // KNOWN LIMIT, stated here so nobody mistakes this for full coverage:
-      // ESLint's `enforceConst` defaults to false, so `const X = 86400000`
-      // is NOT reported — only numbers used inline in expressions are. That
-      // is the most common shape of a hardcoded constant, and this rule does
-      // not catch it. Turning enforceConst on would flag constants.ts itself
-      // and every legitimate named constant; the gap is accepted, not hidden.
+      // KNOWN LIMITS, stated here so nobody mistakes this for full coverage:
+      // 1. ESLint's `enforceConst` defaults to false, so `const X = 86400000`
+      //    is NOT reported — only numbers used inline in expressions are. That
+      //    is the most common shape of a hardcoded constant, and this rule does
+      //    not catch it. (constants.ts is not the reason: it already has the
+      //    rule switched off in a later block. Turning enforceConst on would
+      //    flag every legitimately named local constant elsewhere.)
+      // 2. `detectObjects` is false, so a number used as an object-literal
+      //    property value (`{ retries: 3 }`) is NOT reported either.
+      // Both gaps are accepted, not hidden.
       'no-magic-numbers': [
         'error',
         {

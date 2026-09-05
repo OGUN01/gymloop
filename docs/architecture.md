@@ -32,7 +32,7 @@ openspec/
 supabase/
   config.toml       EXISTS. Project id + local stack config.
   migrations/       DOES NOT EXIST YET — created by Phase 1. Applied by CI only, never by hand.
-  tests/            DOES NOT EXIST YET — created by Phase 1. pgTAP suites.
+  tests/            DOES NOT EXIST YET — created by Phase 1. pgTAP suites, every file BEGIN … ROLLBACK (ADR-030).
 tests/              DOES NOT EXIST YET — created by the phase that first needs each layer.
   visible/          Phase 1+. Tests the implementer sees, derived from EARS specs before implementation.
   e2e/              Phase 3+. Playwright, the four journeys (docs/gates.md gate 32).
@@ -107,9 +107,9 @@ These are what Playwright must cover end to end. They are the product, expressed
 
 | Layer | Tool | Covers |
 |---|---|---|
-| Database | pgTAP | RLS, tenant isolation, constraints, triggers |
+| Database | pgTAP against the Cloud project, rollback-wrapped (ADR-030) | RLS, tenant isolation, constraints, triggers |
 | Unit | Vitest | Streak calculation, absent-days, money, timezone maths |
-| Integration | Vitest against a real local Supabase (`supabase start`) — **not mocks** | API contracts, state machines, idempotency |
+| Integration | Vitest against the real Cloud project (ADR-030 — no Docker, no `supabase start`) — **not mocks** | API contracts, state machines, idempotency |
 | E2E | Playwright (MCP to author, CI to run) | The four journeys above |
 | Load | k6 | 100 gyms × 500 members, morning check-in spike |
 | Holdout | Same runners, CI-only, separate private repo | Anti-gaming signal |

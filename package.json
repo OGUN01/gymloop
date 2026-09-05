@@ -14,10 +14,11 @@
     "test:scripts": "vitest run scripts",
     "knip": "knip",
     "jscpd": "jscpd --exit-code 1",
-    "depcruise": "dependency-cruiser --config .dependency-cruiser.mjs apps packages",
+    "depcruise": "dependency-cruiser --config .dependency-cruiser.mjs apps packages supabase",
     "registry-lint": "node scripts/registry-lint.mjs",
     "check-test-immutability": "node scripts/check-test-immutability.mjs",
-    "check-escape-hatches": "node scripts/check-escape-hatches.mjs"
+    "check-escape-hatches": "node scripts/check-escape-hatches.mjs",
+    "check-pgtap-rollback": "node scripts/check-pgtap-rollback.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
