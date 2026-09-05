@@ -1,0 +1,27 @@
+name: Holdout
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Clones github.com/OGUN01/gymloop-holdout via a read-only deploy key and
+# runs its suite. This is the anti-gaming signal (master prompt §9) —
+# implementers never see this repo's contents. Phase 0's holdout repo holds
+# only a minimal self-contained test proving the clone-and-run mechanism
+# actually works; from Phase 1 onward its tests exercise this repo's real
+# implementation.
+jobs:
+  holdout:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout github.com/OGUN01/gymloop-holdout
+        uses: actions/checkout@v7
+        with:
+          repository: OGUN01/gymloop-holdout
+          ssh-key: ${{ secrets.HOLDOUT_DEPLOY_KEY }}
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test

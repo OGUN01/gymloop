@@ -1,0 +1,30 @@
+name: Test immutability
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Determine the commit range to check
+        id: range
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "range=${{ github.event.pull_request.base.sha }}..${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "range=${{ github.event.before }}..${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+      # A commit touching tests/** and implementation together needs an
+      # explicit `spec:` message prefix — AGENTS.md hard rule #10. Checked
+      # per-commit in the range, not just the final diff, so one bad commit
+      # can't hide inside an otherwise-compliant-looking push/PR.
+      - run: node scripts/check-test-immutability.mjs "${{ steps.range.outputs.range }}"

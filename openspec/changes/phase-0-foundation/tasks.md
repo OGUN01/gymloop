@@ -45,15 +45,15 @@
 
 ## 7. CI gates and credentials
 
-- [ ] 7.1 `scripts/registry-lint.mjs` + one Vitest test for it in `tests/visible/`
-- [ ] 7.2 `scripts/check-test-immutability.mjs` + one Vitest test for it
+- [x] 7.1 `scripts/registry-lint.mjs` + vitest tests (`scripts/__tests__/`, not `tests/visible/` — these test build tooling, not a product requirement, so they live next to the script per repo convention) — 4 tests passing, CLI proven clean against the real repo, and a real Windows bug found+fixed (the `import.meta.url === file://${argv[1]}` CLI-detection guard silently no-op'd on Windows backslash paths; fixed with `pathToFileURL`)
+- [x] 7.2 `scripts/check-test-immutability.mjs` + vitest tests — 5 tests passing; CLI proven against the real repo, including a real edge case found+fixed (`HEAD^` doesn't resolve on a repo's first commit / CI's first-push `before`-is-all-zeros case — added a fallback to checking `HEAD` alone with a warning)
 - [ ] 7.3 `.github/workflows/ci.yml` — one parallel job per gate (typecheck, lint, knip, jscpd, depcruise, registry-lint, build, test)
 - [ ] 7.4 `.github/workflows/test-immutability.yml`
 - [ ] 7.5 `.github/workflows/db.yml` — `supabase gen types --local` drift check + pgTAP runner stub
 - [ ] 7.6 `.github/workflows/holdout.yml` — clone `gymloop-holdout` via deploy key, run its suite
 - [ ] 7.7 User creates a Supabase access token (correct account) and provides it; set as `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF` repo secrets via `gh secret set`
 - [ ] 7.8 Generate ed25519 keypair, register public half as read-only deploy key on `gymloop-holdout`, set private half as `HOLDOUT_DEPLOY_KEY` secret on `gymloop`; bootstrap `gymloop-holdout` with package.json + one trivial passing test
-- [ ] 7.9 `dependency-cruiser` config with the `db ↛ ui` layer rule and the `packages/shared` portability rule (no `next/*`/`react-dom`/`node:*`)
+- [x] 7.9 `dependency-cruiser` config with the `packages ↛ apps` layer rule and the `packages/shared` portability rule (no `next/*`/`react-dom`/node core) — both proven firing (exit 1) on real violations, then reverted. Also wired `.jscpd.json` (found the CLI's real flag is `--exit-code`, kebab-case, not `--exitCode`) and `knip.json` (found+removed a genuinely unused `prettier` dependency I'd added speculatively; found+fixed my own exit-code-masking bug from piping through `tail` in earlier checks)
 - [ ] 7.10 Push `main`, verify CI green via `gh run view` — including `db.yml` and `holdout.yml` genuinely green (not skipped) on real credentials
 
 ## 8. Prove every gate fails

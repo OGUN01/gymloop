@@ -10,8 +10,9 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:scripts": "vitest run scripts",
     "knip": "knip",
-    "jscpd": "jscpd .",
+    "jscpd": "jscpd --exit-code 1",
     "depcruise": "dependency-cruiser --config .dependency-cruiser.mjs apps packages",
     "registry-lint": "node scripts/registry-lint.mjs",
     "check-test-immutability": "node scripts/check-test-immutability.mjs"
@@ -22,7 +23,6 @@
     "eslint": "10.10.0",
     "jscpd": "5.1.2",
     "knip": "6.34.0",
-    "prettier": "3.9.6",
     "turbo": "2.10.12",
     "typescript": "6.0.3",
     "typescript-eslint": "8.69.0",

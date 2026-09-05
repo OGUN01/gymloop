@@ -1,0 +1,11 @@
+{
+  "path": ["apps", "packages", "scripts"],
+  "reporters": ["console"],
+  "threshold": 0,
+  "minLines": 5,
+  "minTokens": 50,
+  "format": ["typescript", "tsx", "javascript"],
+  "gitignore": true,
+  "ignore": ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**", "packages/db/types/database.ts"],
+  "absolute": false
+}
