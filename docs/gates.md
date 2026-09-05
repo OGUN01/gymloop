@@ -73,6 +73,26 @@ Gates **3** and **10** are proven failing against a real bad commit (PR #1, `cho
 
 Beyond the numbered 33, Phase 0's own anti-slop CI mechanisms (master prompt §10) were each proven red for their own reason on the same PR: `jscpd` (duplicated file), `knip` (unused files), `dependency-cruiser` (both the layer rule and the `packages/shared` portability rule), `registry-lint` (5 unregistered exports), `lint`/`no-magic-numbers` (`149900`), `typecheck` (a real type error), and the holdout clone-and-run (`AssertionError: 2 !== 3` from a deliberately failing test in the private holdout repo, since reverted).
 
-**`escape-hatches` is the exception: it works but has never been proven red in CI.** It was added after the gate-proof PR closed, so it was never in that check list — `scripts/__tests__/check-escape-hatches.test.ts` and a local run are its only evidence. By this project's own standard ("a gate that has never failed is not a gate"), treat it as unproven in CI until the next phase's proof run includes it.
+### Round 2: every gate re-proven by failure *reason*, not exit code
+
+The first round exposed that a red job proves nothing on its own — two gates were red while testing nothing. So a second proof run (PR #2, `chore/gate-proof-2`) re-verified **all eleven** mechanisms against the stricter standard, and added `escape-hatches`, which had never been proven in CI at all. Each reason below is quoted from that run's CI logs:
+
+| Gate | Failure reason in CI |
+|---|---|
+| `lint` | `No magic number: 149900` — ESLint genuinely executed this time |
+| `typecheck` | `error TS2322: Type 'string' is not assignable to type 'number'.` |
+| `knip` | `Unused files (8)` |
+| `jscpd` | `found too many duplicates (10.5%) over threshold (0.0%)` |
+| `depcruise` | `packages-not-to-apps: packages/db/gp2-layer.ts → apps/web/app/page.tsx` **and** `shared-not-to-unresolvable: …__gp2_portability__.ts → next/headers` |
+| `registry-lint` | `gp2NeverImported` (+3 more) missing from the registry |
+| `escape-hatches` | `suppression directives found (AGENTS.md hard rule #4): __gp2_escapehatch__.ts:1 eslint-disable` |
+| `schema-drift` | committed types `out of date` — caught `Gp2BogusHandEdit` |
+| `check` (test-immutability) | `touches both test files and implementation files without a \`spec:\` commit-message prefix` |
+| `holdout` | `AssertionError … 'paid' !== 'pending'` from the private holdout repo |
+| `build` | fails on its own `tsc`, not a cascade (turbo dependency removed, ADR-028) |
+
+`test` and `pgtap` stayed **green** in the same run. That is the point of the exercise: a gate that fails on everything is jammed, not wired.
+
+Worth noting what `escape-hatches` caught that nothing else would: ESLint reported the planted directive only as an *unused* `eslint-disable` **warning**, which does not fail a build. Without this gate, a suppression comment would have passed CI silently.
 
 **One caveat worth carrying forward:** the first proof run's `lint` and `test` failures were *false* — `turbo.json` made both depend on `^build`, so a broken build aborted the graph before ESLint or Vitest ran. A fresh-context critic caught it; ADR-028 fixed it. The lesson generalises: a red job is not evidence a gate works until you read *why* it went red.
