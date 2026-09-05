@@ -12,12 +12,23 @@ import { pathToFileURL } from 'node:url';
 const TEST_PATH_RE = /(^tests\/|\/__tests__\/|\.test\.(ts|tsx|js)$)/;
 const IMPLEMENTATION_EXT_RE = /\.(ts|tsx|js|mjs|sql)$/;
 
+// scripts/** is CI/build tooling — it never goes through the EARS-spec →
+// tests-first → implementation pipeline this rule exists to protect (the
+// concern is an implementer quietly loosening a product test derived from
+// an approved spec to make their own broken code pass). A script and its
+// own test are legitimately authored together in one commit. Found this
+// scoping gap by actually running the rule against this repo's own
+// scripts/ commit, not by reasoning about it in the abstract.
+function isScriptsPath(path) {
+  return path.startsWith('scripts/');
+}
+
 function isTestPath(path) {
-  return TEST_PATH_RE.test(path);
+  return !isScriptsPath(path) && TEST_PATH_RE.test(path);
 }
 
 function isImplementationPath(path) {
-  return IMPLEMENTATION_EXT_RE.test(path) && !isTestPath(path);
+  return !isScriptsPath(path) && IMPLEMENTATION_EXT_RE.test(path) && !TEST_PATH_RE.test(path);
 }
 
 /** Pure, testable. */

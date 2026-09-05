@@ -64,6 +64,8 @@ The **Open Decisions** section at the bottom is different in kind: these are gen
 
 **ADR-026 — `no-magic-numbers`'s `ignore` list includes `[0, 1, -1]`, discovered via a real lint failure, not decided upfront.** Every `z.string().min(1)` in `env.ts` tripped the rule as originally scoped (`ignoreArrayIndexes`/`ignoreDefaultValues`/`ignoreEnums` don't cover an arbitrary call argument), and zod has no `.nonempty()` method for strings (confirmed against current docs) — there is no numeric-literal-free way to express "non-empty string" in zod. Confirmed with the user rather than silently widened, per the standing instruction to treat any apparent need for a rule exception as a finding, not a line to quietly add.
 
+**ADR-027 — `scripts/**` is entirely exempt from the test-immutability rule.** Discovered by actually running `check-test-immutability.mjs` against this repo's own commit that added it — the rule flagged its own authoring commit (a script and its test, added together) as a violation. The rule's actual purpose (master prompt §9) is to stop an implementer quietly loosening a *product* test derived from an approved EARS spec — CI/build tooling under `scripts/` never goes through that pipeline, so a script and its own test belong in one commit. Rejected: adding a `spec:` prefix to qualify — that prefix means "human-approved specification change," which this isn't.
+
 ## Open decisions (resolve deliberately when the phase starts)
 
 These are unresolved by intent, not by oversight. Do not invent an answer while building the phase named — read this entry, make the call, and convert it into a numbered ADR above recording what was chosen and why.
