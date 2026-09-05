@@ -21,6 +21,12 @@ cp .env.example .env.local   # fill in real values — never commit .env.local
 pnpm build && pnpm lint && pnpm typecheck && pnpm test
 ```
 
+Also available, and run in CI: `pnpm knip`, `pnpm jscpd`, `pnpm depcruise`, `pnpm registry-lint`, `pnpm check-escape-hatches`.
+
+**OpenSpec** is invoked as `pnpm dlx @fission-ai/openspec@1.12.0 <command>` — pinned to that version, and deliberately not a repo dependency (nothing imports it, so `knip` would flag it, and silencing that needs an ignore entry `AGENTS.md` rule #4 bans). The generated `openspec-*` skills say plain `openspec …`; prefix them.
+
+You will also need the `supabase` CLI on your PATH for schema work, and Docker running for pgTAP from Phase 1 onward.
+
 Supabase work goes through the `supabase` CLI, never the MCP server (`AGENTS.md` hard rule #2 — it's authenticated to the wrong account for this project).
 
 ## Repository layout

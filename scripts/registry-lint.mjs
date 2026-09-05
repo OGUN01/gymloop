@@ -21,7 +21,7 @@ import { pathToFileURL } from 'node:url';
 // every Route Handler and async util from Phase 2 on) is invisible to this
 // gate. Found by a fresh-context critic auditing Phase 0.
 const EXPORT_DECL_RE =
-  /^export\s+(?:async\s+)?(?:const|let|var|function\*?|class|type|interface|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)/gm;
+  /^export\s+(?:default\s+)?(?:async\s+)?(?:const|let|var|function\*?|class|type|interface|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)/gm;
 
 // Braced exports: `export { a, b as c }` and `export { x } from './y'`.
 const EXPORT_BRACE_RE = /^export\s*\{([^}]*)\}/gm;
@@ -48,7 +48,15 @@ function isLintableSourceFile(filePath) {
   if (filePath.includes('/__tests__/')) return false;
   if (filePath === 'packages/db/types/database.ts') return false; // generated
   if (filePath.startsWith('apps/') && filePath.includes('/app/') && isRouteConventionFile(filePath)) return false;
-  return filePath.startsWith('packages/') || filePath.startsWith('apps/');
+  // supabase/functions/** is included deliberately: ADR-012 puts the Razorpay
+  // webhooks and cron jobs there from Phase 5, which is the highest-risk code
+  // in the product. It was invisible to every gate until a verification pass
+  // pointed out that the prefix check only covered packages/ and apps/.
+  return (
+    filePath.startsWith('packages/') ||
+    filePath.startsWith('apps/') ||
+    filePath.startsWith('supabase/functions/')
+  );
 }
 
 /**

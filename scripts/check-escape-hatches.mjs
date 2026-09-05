@@ -20,6 +20,12 @@ const SOURCE_EXT_RE = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
 // word flags the documentation that explains the ban.
 const ESLINT_DISABLE_RE = /(\/\/|\/\*)\s*eslint-disable(-next-line|-line)?\b/;
 
+// The other way to silence a gate in a `strict` TypeScript repo. Rule #4's
+// literal text names only eslint-disable and knip ignores, but suppressing
+// the typechecker is the same act — and `strict` plus generated DB types is
+// exactly the setting where someone reaches for it.
+const TS_SUPPRESS_RE = /(\/\/|\/\*)\s*@ts-(ignore|expect-error|nocheck)\b/;
+
 const SELF_REFERENTIAL_FILES = new Set([
   'scripts/check-escape-hatches.mjs',
   'scripts/__tests__/check-escape-hatches.test.ts',
@@ -39,9 +45,13 @@ export function findEscapeHatches(files) {
         if (ESLINT_DISABLE_RE.test(line)) {
           found.push({ path, line: index + 1, kind: 'eslint-disable' });
         }
+        if (TS_SUPPRESS_RE.test(line)) {
+          found.push({ path, line: index + 1, kind: 'TypeScript suppression' });
+        }
       }
     }
-    if (path === 'knip.json') {
+    // knip reads config from any of these, not just knip.json.
+    if (path === 'knip.json' || path === 'knip.config.ts' || path === 'knip.config.js' || path === 'package.json') {
       // knip's suppression keys, as opposed to legitimate config like
       // `entry`, `project`, or `workspaces`.
       for (const [index, line] of content.split('\n').entries()) {
@@ -59,7 +69,14 @@ function main() {
     .trim()
     .split('\n')
     .filter(Boolean)
-    .filter((p) => SOURCE_EXT_RE.test(p) || p === 'knip.json');
+    .filter(
+      (p) =>
+        SOURCE_EXT_RE.test(p) ||
+        p === 'knip.json' ||
+        p === 'knip.config.ts' ||
+        p === 'knip.config.js' ||
+        p === 'package.json',
+    );
 
   const files = tracked.map((path) => ({ path, content: readFileSync(path, 'utf8') }));
   const found = findEscapeHatches(files);

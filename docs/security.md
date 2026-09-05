@@ -33,7 +33,7 @@ Every mutation of financial data, an attendance correction, a follow-up record, 
 - **Export**: members can request a portable export of their personal data (DPD-005).
 - **Erasure**: members can request erasure; financial records under legal hold are retained per their retention period and excluded from erasure (DPD-006, INT-001).
 - **Retention**: a per-table retention policy is defined once Phase 1 finalizes the schema — this section is the pointer for where that table lives once written, not the policy itself (DPD-007).
-- **Breach notification**: a runbook is required before launch (who is notified, within what window, by what channel) — written alongside the Phase 1 retention policy, tracked as a Phase 1 exit item in `docs/roadmap.md`.
+- **Breach notification**: a runbook is required before launch (who is notified, within what window, by what channel) — written alongside the per-table retention policy once Phase 1 finalises the schema. Neither is currently an exit criterion of any phase in `docs/roadmap.md` — that is a real gap, not an oversight to be assumed away: whoever plans Phase 1 must either add both to its exit criteria or consciously defer them to Phase 8 with a note here.
 - **Photos vs IDs**: member photos are permitted; no government-issued ID is stored in v1 (DPD-008).
 
 ## Credential rotation — outstanding

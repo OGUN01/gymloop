@@ -40,6 +40,22 @@ describe('findEscapeHatches', () => {
     expect(found).toEqual([{ path: 'apps/web/app/x.ts', line: 1, kind: 'eslint-disable' }]);
   });
 
+  it('flags TypeScript suppressions — the other way to silence a gate in a strict repo', () => {
+    const found = findEscapeHatches([
+      { path: 'packages/shared/src/a.ts', content: 'const x = 1;\n// @ts-' + 'ignore\nconst y: number = "s";\n' },
+    ]);
+    expect(found).toEqual([
+      { path: 'packages/shared/src/a.ts', line: 2, kind: 'TypeScript suppression' },
+    ]);
+  });
+
+  it('flags a knip ignore hidden in package.json, not just knip.json', () => {
+    const found = findEscapeHatches([
+      { path: 'package.json', content: '{\n  "knip": {\n    "ignore": ["scripts/**"]\n  }\n}\n' },
+    ]);
+    expect(found).toEqual([{ path: 'package.json', line: 3, kind: 'knip ignore entry' }]);
+  });
+
   it('skips its own fixtures but not other test files', () => {
     const directive = '// ' + 'eslint-disable-next-line no-undef\n';
     expect(

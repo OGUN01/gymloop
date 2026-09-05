@@ -16,7 +16,8 @@ packages/
                     nothing to generate until Route Handlers exist. Generator tool is an open decision,
                     see docs/decisions.md OPEN-002.
 docs/               This layer — on-demand knowledge, pulled when a session needs it, not always loaded. EXISTS.
-scripts/            CI gate implementations (registry-lint, check-test-immutability) + their tests. EXISTS.
+scripts/            CI gate implementations (registry-lint, check-test-immutability, check-escape-hatches)
+                    + their tests. EXISTS. Also linted and registry-checked, unlike in Phase 0 as first built.
 .claude/
   skills/           Procedures — progressive disclosure, ~100 tokens each at rest until invoked. EXISTS.
                     Five domain skills (new-feature, db-migration, new-api-endpoint, rls-policy,

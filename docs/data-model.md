@@ -38,7 +38,7 @@ Money is **integer paise**, never floating point, with an explicit currency colu
 
 ## Per-gym configuration ("the template that makes this sellable")
 
-One row per organization, minimum: name, logo, brand accent, address, timezone, currency, opening hours, GSTIN, invoice prefix + financial-year reset, week-start day, plans/prices/discounts, no-show threshold days, streak rule type, renewal reminder windows (14/7/3/0/+3, `packages/shared` `RENEWAL_REMINDER_DAYS`), grace-period days after expiry, allowed pause reasons + approver, max freeze days/year, holiday calendar, follow-up outcome list, add-on catalogue, staff/trainers, trainer-to-member cap, message templates, receipt/invoice numbering.
+One row per organization, minimum: name, logo, brand accent, address, timezone, currency, opening hours, GSTIN, invoice prefix + financial-year reset, week-start day, plans/prices/discounts, no-show threshold days, streak rule type, renewal reminder windows (`RENEWAL_REMINDER_DAYS` = `[14, 7, 3, 0, -3]`, as **days before expiry** — negative means after, so `-3` is three days past due; see PAY-001), grace-period days after expiry, allowed pause reasons + approver, max freeze days/year, holiday calendar, follow-up outcome list, add-on catalogue, staff/trainers, trainer-to-member cap, message templates, receipt/invoice numbering.
 
 ## RLS policy map (shape, not final policy text)
 
@@ -54,4 +54,4 @@ Flag, do not silently accept: membership without expiry date · paid order witho
 
 ## What Phase 1 must produce (exit criteria, see `docs/roadmap.md`)
 
-Schema, enums, RLS, indexes, `supabase gen types` output, and a seed script — pgTAP cross-tenant suite green on every table, one command seeds a complete demo gym (see the seed-data spec in the archived Phase 0 change / master prompt §12 for the exact seed shape: one Tier-2 neighbourhood gym, 30 members, 3 trainers + 1 front-desk user, 4 plan tiers, 6 members absent 10–20 days, 5 memberships expiring within 7 days, PT/diet/supplement add-ons, a few leads at different stages).
+Schema, enums, RLS, indexes, `supabase gen types` output, and a seed script — pgTAP cross-tenant suite green on every table, one command seeds a complete demo gym (the exact seed shape, recorded here because Phase 0 never wrote a separate seed spec and the master prompt is disposable: one Tier-2 neighbourhood gym, 30 members, 3 trainers + 1 front-desk user, 4 plan tiers, 6 members absent 10–20 days, 5 memberships expiring within 7 days, PT/diet/supplement add-ons, a few leads at different stages).

@@ -8,7 +8,7 @@
   "scripts": {
     "build": "turbo run build",
     "lint": "turbo run lint && pnpm run lint:root",
-    "lint:root": "eslint scripts eslint.config.mjs .dependency-cruiser.mjs",
+    "lint:root": "eslint scripts eslint.config.mjs .dependency-cruiser.mjs --no-error-on-unmatched-pattern supabase/functions",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:scripts": "vitest run scripts",

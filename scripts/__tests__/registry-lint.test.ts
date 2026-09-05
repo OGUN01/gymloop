@@ -37,6 +37,22 @@ describe('findUnregisteredExports', () => {
     expect(missing.map((m) => m.name).sort()).toEqual(['alpha', 'gamma']);
   });
 
+  it('flags `export default function` — default sits before the declaration keyword', () => {
+    const files = [{ path: 'packages/shared/src/widget.ts', content: 'export default function Widget() {}\n' }];
+    expect(findUnregisteredExports(files, '# empty registry\n')).toEqual([
+      { path: 'packages/shared/src/widget.ts', name: 'Widget' },
+    ]);
+  });
+
+  it('covers supabase/functions/** — Phase 5 webhooks must not be invisible to the gate', () => {
+    const files = [
+      { path: 'supabase/functions/razorpay-webhook/index.ts', content: 'export async function handler() {}\n' },
+    ];
+    expect(findUnregisteredExports(files, '# empty registry\n')).toEqual([
+      { path: 'supabase/functions/razorpay-webhook/index.ts', name: 'handler' },
+    ]);
+  });
+
   it('requires a backticked registry cell, not a bare substring match', () => {
     const files = [{ path: 'packages/shared/src/a.ts', content: 'export const Role = 1;\n' }];
     // "Role" appears in prose but not as a registered `Role` cell.
