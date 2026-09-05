@@ -15,7 +15,7 @@ This file is always loaded and stays small. Everything else is pulled on demand 
 7. **Migrations are applied by CI only, never by hand.** Forward-only.
 8. **Money is integer paise, never floating point**, with an explicit currency and a tested rounding rule.
 9. **Every table needs `tenant_id` (or a JOIN to one) with RLS.** Tenant id comes from the JWT claim, never a per-row subquery. RLS-referenced columns are indexed.
-10. **Tests derive from the EARS spec before implementation, written by a session that hasn't seen the implementation.** A holdout suite in `github.com/OGUN01/gymloop-holdout` is never seen by the implementer. Test files are immutable to the implementer — a commit touching `tests/**` and `src/**` together needs an explicit `spec:` prefix, signalling a human-approved spec change.
+10. **Tests derive from the EARS spec before implementation, written by a session that hasn't seen the implementation.** A holdout suite in `github.com/OGUN01/gymloop-holdout` is never seen by the implementer. Test files are immutable to the implementer — a commit touching `tests/**` and `src/**` together needs an explicit `spec:` prefix, signalling a human-approved spec change. In practice this means **two commits**: the test, committed red, then the implementation that turns it green. If you are genuinely changing what a requirement *says* (not just how it is built), that is the `spec:` case. Phase 0 tripped this gate on its own author by combining the two — see `docs/gates.md`, "The strongest evidence was unplanned".
 11. **`packages/shared` stays platform-free**: no `next/*`, `react-dom`, or `node:*` imports; no DOM lib. It's consumed by web, mobile, and Edge Functions.
 
 ## Session hygiene

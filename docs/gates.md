@@ -93,6 +93,14 @@ The first round exposed that a red job proves nothing on its own — two gates w
 
 `test` and `pgtap` stayed **green** in the same run. That is the point of the exercise: a gate that fails on everything is jammed, not wired.
 
+### The strongest evidence was unplanned
+
+Immediately after round 2, `test-immutability` went red on `main` — not on a planted violation, but on commit `4d71390`, which changed `constants.ts` and added `__tests__/constants.test.ts` together with no `spec:` prefix. Its author was the same session that built the gate.
+
+It was a true positive twice over. The methodology (master prompt §9) requires tests committed **red first**, with the implementer then forbidden from touching test files; combining them in one commit is precisely what the rule exists to prevent. And because that commit changed how PAY-001 is *encoded* across docs, code and tests, it was a specification change — so `spec:` was the correct prefix and simply wasn't used.
+
+Eleven planted violations prove the gates fire on purpose-built bad commits. This one proves the gate fires on a real mistake nobody intended to make, which is the case that actually matters. The failed run stays in history; the range moves on with the next push, so `main` returns to green without rewriting pushed history.
+
 Worth noting what `escape-hatches` caught that nothing else would: ESLint reported the planted directive only as an *unused* `eslint-disable` **warning**, which does not fail a build. Without this gate, a suppression comment would have passed CI silently.
 
 **One caveat worth carrying forward:** the first proof run's `lint` and `test` failures were *false* — `turbo.json` made both depend on `^build`, so a broken build aborted the graph before ESLint or Vitest ran. A fresh-context critic caught it; ADR-028 fixed it. The lesson generalises: a red job is not evidence a gate works until you read *why* it went red.
