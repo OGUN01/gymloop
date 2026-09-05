@@ -16,8 +16,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # The access token is enough: the CLI mints a temporary login role through
+  # the Management API (POST /v1/projects/{ref}/cli/login-role), so no DB
+  # password secret exists or is needed. Proven on PR #3.
   SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
   PROJECT_REF: pecxrpskmfeuyzngvewq
 
 jobs:
@@ -52,8 +54,7 @@ jobs:
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
-      # Nothing to link or push until the first migration exists — and the
-      # SUPABASE_DB_PASSWORD secret is only needed from that point.
+      # Nothing to link or push until the first migration exists.
       - name: Are there any migrations?
         id: has
         run: |
