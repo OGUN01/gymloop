@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: supabase/setup-cli@v3
-        with: { version: 2.116.0 }
+        with: { version: 2.110.0 }
       - name: Start local Supabase
         run: supabase start
       # Compared against the LOCAL stack (docs/decisions.md ADR-024), not
@@ -36,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: supabase/setup-cli@v3
-        with: { version: 2.116.0 }
+        with: { version: 2.110.0 }
       - name: Start local Supabase
         run: supabase start
       - name: Run pgTAP suite

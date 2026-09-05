@@ -1,0 +1,28 @@
+# Gymloop
+
+Multi-tenant SaaS for Indian gyms. See `AGENTS.md` for the product summary, hard rules, and a routing table to every doc — read that first, always.
+
+## How a new session starts work
+
+1. **Read `AGENTS.md`.** It's small on purpose and routes to everything else.
+2. **Check `docs/roadmap.md`** for which phase is current and which model/effort to run it at.
+3. **Check `openspec/changes/`** for an in-flight proposal. If one exists for the work you're picking up, continue it. If not, open one (`.claude/skills/openspec-propose/`) before writing any code — this project's methodology (`AGENTS.md`, "Methodology") requires an approved EARS spec before implementation.
+4. **Search `docs/registry.md` and grep the codebase** before writing any helper, constant, type, hook, or component. If it already exists, reuse it. If it doesn't, you'll register what you add before you're done.
+5. **Write tests from the spec before touching implementation**, in a fresh context that hasn't seen how you're about to build it. A holdout suite in `github.com/OGUN01/gymloop-holdout` exists for exactly this reason — never read it.
+6. **Build, get a fresh-context critic's sign-off against the named quality bar, run the gates in `docs/gates.md`, then archive the change** (fold into `openspec/specs/`, update `docs/registry.md`, `/clear`).
+
+One feature per session. If something in the docs is genuinely ambiguous or contradictory, that's a specification question — escalate it, don't invent an answer (`docs/decisions.md`'s Open Decisions section already tracks the ones we know about).
+
+## Local setup
+
+```
+pnpm install
+cp .env.example .env.local   # fill in real values — never commit .env.local
+pnpm build && pnpm lint && pnpm typecheck && pnpm test
+```
+
+Supabase work goes through the `supabase` CLI, never the MCP server (`AGENTS.md` hard rule #2 — it's authenticated to the wrong account for this project).
+
+## Repository layout
+
+See `docs/architecture.md` for the full folder map and the reasoning behind what's built versus deliberately deferred (`apps/mobile`, `packages/api-client`).

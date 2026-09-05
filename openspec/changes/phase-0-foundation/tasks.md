@@ -47,14 +47,14 @@
 
 - [x] 7.1 `scripts/registry-lint.mjs` + vitest tests (`scripts/__tests__/`, not `tests/visible/` — these test build tooling, not a product requirement, so they live next to the script per repo convention) — 4 tests passing, CLI proven clean against the real repo, and a real Windows bug found+fixed (the `import.meta.url === file://${argv[1]}` CLI-detection guard silently no-op'd on Windows backslash paths; fixed with `pathToFileURL`)
 - [x] 7.2 `scripts/check-test-immutability.mjs` + vitest tests — 5 tests passing; CLI proven against the real repo, including a real edge case found+fixed (`HEAD^` doesn't resolve on a repo's first commit / CI's first-push `before`-is-all-zeros case — added a fallback to checking `HEAD` alone with a warning)
-- [ ] 7.3 `.github/workflows/ci.yml` — one parallel job per gate (typecheck, lint, knip, jscpd, depcruise, registry-lint, build, test)
-- [ ] 7.4 `.github/workflows/test-immutability.yml`
-- [ ] 7.5 `.github/workflows/db.yml` — `supabase gen types --local` drift check + pgTAP runner stub
-- [ ] 7.6 `.github/workflows/holdout.yml` — clone `gymloop-holdout` via deploy key, run its suite
-- [ ] 7.7 User creates a Supabase access token (correct account) and provides it; set as `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF` repo secrets via `gh secret set`
-- [ ] 7.8 Generate ed25519 keypair, register public half as read-only deploy key on `gymloop-holdout`, set private half as `HOLDOUT_DEPLOY_KEY` secret on `gymloop`; bootstrap `gymloop-holdout` with package.json + one trivial passing test
+- [x] 7.3 `.github/workflows/ci.yml` — one parallel job per gate (typecheck, lint, knip, jscpd, depcruise, registry-lint, build, test)
+- [x] 7.4 `.github/workflows/test-immutability.yml` — found+fixed a real self-referential bug: the rule flagged its own authoring commit (scripts/** exempted, ADR-027)
+- [x] 7.5 `.github/workflows/db.yml` — `supabase gen types --local` drift check (comment-stripped diff, since the committed file's header would otherwise always mismatch) + pgTAP runner stub (gracefully no-ops, no schema yet)
+- [x] 7.6 `.github/workflows/holdout.yml` — clone `gymloop-holdout` via deploy key (`actions/checkout` `repository:`+`ssh-key:`), run its suite
+- [ ] 7.7 **Not done — needs the user.** Create a Supabase access token (while logged into the account owning `pecxrpskmfeuyzngvewq`/org `gjjnocawiprbwdkktogn`) at supabase.com/dashboard/account/tokens; I'll set it as `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF` via `gh secret set`. **Not a Phase 0 blocker**: `db.yml` uses `--local` (ADR-024), needing no remote auth; the token only matters for Phase 1's `supabase db push`.
+- [x] 7.8 Generated ed25519 keypair; public half registered as a read-only deploy key on `gymloop-holdout` (`gh api` confirms `read_only: true`); private half set as `HOLDOUT_DEPLOY_KEY` on `gymloop`; local copies deleted; `gymloop-holdout` bootstrapped with package.json + one trivial `node:test` (zero deps), verified passing locally before push
 - [x] 7.9 `dependency-cruiser` config with the `packages ↛ apps` layer rule and the `packages/shared` portability rule (no `next/*`/`react-dom`/node core) — both proven firing (exit 1) on real violations, then reverted. Also wired `.jscpd.json` (found the CLI's real flag is `--exit-code`, kebab-case, not `--exitCode`) and `knip.json` (found+removed a genuinely unused `prettier` dependency I'd added speculatively; found+fixed my own exit-code-masking bug from piping through `tail` in earlier checks)
-- [ ] 7.10 Push `main`, verify CI green via `gh run view` — including `db.yml` and `holdout.yml` genuinely green (not skipped) on real credentials
+- [~] 7.10 Pushed `main`; first real run showed `CI` and `Test immutability` green but `DB` and `Holdout` genuinely red — both fixed with real causes, not assumptions: (1) `db.yml` was pinned to Supabase CLI 2.116.0 while the locally-committed `database.ts` was generated with 2.110.0 — different versions emit different type-gen templates (extra `__InternalSupabase` block, different conditional-type parens) even against an identical empty schema; re-pinned CI to 2.110.0 to match (docs/decisions.md ADR-024 addendum). (2) `holdout.yml`'s `pnpm/action-setup@v6` had no version to auto-detect (`gymloop-holdout` has no `packageManager` field) and no lockfile existed for `--frozen-lockfile`; pinned the version explicitly and generated+committed a real `pnpm-lock.yaml` in `gymloop-holdout`. Re-pushing to confirm green for real.
 
 ## 8. Prove every gate fails
 
@@ -73,7 +73,7 @@
 
 ## 9. Close out
 
-- [ ] 9.1 `README.md` — how a new session starts work
+- [x] 9.1 `README.md` — how a new session starts work
 - [ ] 9.2 Fresh-context critic sub-agent audits deliverables against the master prompt's §13 items and §11's 33 gates — capture its report
 - [ ] 9.3 Archive this change into `openspec/specs/`, recording which gate proved what (Task 8's captured output) in the archived record
 - [ ] 9.4 Final commit to `main`, verify CI green

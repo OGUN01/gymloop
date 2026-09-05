@@ -20,7 +20,11 @@ jobs:
         with:
           repository: OGUN01/gymloop-holdout
           ssh-key: ${{ secrets.HOLDOUT_DEPLOY_KEY }}
+      # gymloop-holdout has no packageManager field of its own (it's a
+      # minimal placeholder repo) — pin the version explicitly rather than
+      # relying on auto-detection, matching the rest of this project.
       - uses: pnpm/action-setup@v6
+        with: { version: 12.3.4 }
       - uses: actions/setup-node@v7
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
