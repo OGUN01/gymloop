@@ -58,3 +58,5 @@ export function env(): ClientEnv & ServerEnv {
 export function assertEnv(): void {
   env();
 }
+
+// gate-proof: touched together with the test file above, no spec: prefix, DO NOT MERGE

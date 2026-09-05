@@ -54,3 +54,5 @@ describe('env.ts', () => {
     expect(second).toEqual(first);
   });
 });
+
+// gate-proof: touched together with env.ts below, no spec: prefix, DO NOT MERGE
