@@ -22,7 +22,7 @@ Note: this table is the 33 gates from §11. The separate CI-mechanism table in �
 | 7 | pgTAP cross-tenant leak suite per table | Yes (once tables exist) | `supabase/tests/`, `db.yml` | N/A — Phase 1 |
 | 8 | RLS columns indexed, tenant read from JWT claim not a per-row subquery | Yes (once policies exist) | pgTAP + migration review | N/A — Phase 1 |
 | 9 | Forward-only migrations applied by CI | Yes (mechanism) | `db.yml` | Wired, no migrations exist yet to apply |
-| 10 | DB enums generate TS types, drift fails CI | Yes | `db.yml` schema-drift job (`supabase gen types --project-id` against Cloud, vs committed) | **NOT yet proven.** The job goes red on `chore/gate-proof`, but on a setup error, not a drift diff — `SUPABASE_ACCESS_TOKEN` is unset, so the comparison never runs. A gate failing on missing auth proves nothing about its detection logic |
+| 10 | DB enums generate TS types, drift fails CI | Yes | `db.yml` schema-drift job (`supabase gen types --project-id` against Cloud, vs committed) | **Proven failing** on `chore/gate-proof`: authenticated, generated from Cloud, and caught exactly the hand-edit (`-export type GateProofBogusHandEdit = true;`). Green on `main` in the same round, so it distinguishes good from bad rather than failing always |
 | 11 | A full demo gym seeded by one command | Yes (mechanism, once written) | Seed script | N/A — Phase 1 |
 
 ## Backend correctness
@@ -69,7 +69,7 @@ Note: this table is the 33 gates from §11. The separate CI-mechanism table in �
 
 ## What Phase 0 actually proves
 
-Gate **3** is proven failing against a real bad commit (PR #1, `chore/gate-proof`). Gate **10** is **not** — see its row. Gates **1** and **5** are process gates this very change followed. Gate **16**'s convention (integer paise) and gate **19**'s env-validation half are real code, not placeholders. Every other gate is honestly `N/A` until the phase that needs it — a gate marked `N/A` here is not a gap in Phase 0, it is Phase 0 correctly not building product it wasn't asked to build (master prompt §3).
+Gates **3** and **10** are proven failing against a real bad commit (PR #1, `chore/gate-proof`) — and, importantly, proven *green on `main` in the same round*, so each distinguishes a good commit from a bad one rather than merely failing always. Gates **1** and **5** are process gates this very change followed. Gate **16**'s convention (integer paise) and gate **19**'s env-validation half are real code, not placeholders. Every other gate is honestly `N/A` until the phase that needs it — a gate marked `N/A` here is not a gap in Phase 0, it is Phase 0 correctly not building product it wasn't asked to build (master prompt §3).
 
 Beyond the numbered 33, Phase 0's own anti-slop CI mechanisms (master prompt §10) were each proven red for their own reason on the same PR: `jscpd` (duplicated file), `knip` (unused files), `dependency-cruiser` (both the layer rule and the `packages/shared` portability rule), `registry-lint` (5 unregistered exports), `lint`/`no-magic-numbers` (`149900`), `typecheck` (a real type error), and the holdout clone-and-run (`AssertionError: 2 !== 3` from a deliberately failing test in the private holdout repo, since reverted).
 

@@ -36,6 +36,12 @@ Every mutation of financial data, an attendance correction, a follow-up record, 
 - **Breach notification**: a runbook is required before launch (who is notified, within what window, by what channel) — written alongside the Phase 1 retention policy, tracked as a Phase 1 exit item in `docs/roadmap.md`.
 - **Photos vs IDs**: member photos are permitted; no government-issued ID is stored in v1 (DPD-008).
 
+## Credential rotation — outstanding
+
+**`SUPABASE_ACCESS_TOKEN` must be rotated.** The token currently set as a repo secret was transmitted in plaintext through a chat conversation during Phase 0 to unblock the drift gate. It is a personal access token scoped to the whole Supabase account (it can see `gymloop`, `FitAi`, and `gamer_addaz`), not to one project — so its blast radius is every project in that account, not just this one. Revoke it at `supabase.com/dashboard/account/tokens`, issue a replacement, and update the secret with `gh secret set SUPABASE_ACCESS_TOKEN -R OGUN01/gymloop`. Nothing in the repo needs to change — only the secret's value.
+
+More generally: any credential that has passed through a chat transcript, a terminal history, or a CI log should be treated as disclosed and rotated, regardless of how briefly it was exposed.
+
 ## Rate limiting and bot protection
 
 Cloudflare Turnstile is required on OTP requests, signup, and any other public (unauthenticated) endpoint. Rate limiting applies at the edge (Cloudflare) and, for state-changing mutations, at the Route Handler layer — gate 24.
