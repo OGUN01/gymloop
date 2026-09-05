@@ -20,11 +20,20 @@ const SOURCE_EXT_RE = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
 // word flags the documentation that explains the ban.
 const ESLINT_DISABLE_RE = /(\/\/|\/\*)\s*eslint-disable(-next-line|-line)?\b/;
 
+const SELF_REFERENTIAL_FILES = new Set([
+  'scripts/check-escape-hatches.mjs',
+  'scripts/__tests__/check-escape-hatches.test.ts',
+]);
+
 /** Pure, testable. `files` is [{ path, content }]. */
 export function findEscapeHatches(files) {
   const found = [];
   for (const { path, content } of files) {
-    if (path === 'scripts/check-escape-hatches.mjs') continue; // this file names them to detect them
+    // This checker and its tests necessarily contain the very strings they
+    // detect — the detector names them, and the tests use them as fixtures.
+    // Excluded by exact path, NOT by a blanket "skip all tests" rule: a real
+    // suppression hidden in a product test must still be caught.
+    if (SELF_REFERENTIAL_FILES.has(path)) continue;
     if (SOURCE_EXT_RE.test(path)) {
       for (const [index, line] of content.split('\n').entries()) {
         if (ESLINT_DISABLE_RE.test(line)) {

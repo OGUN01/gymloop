@@ -1,6 +1,6 @@
 # The 33 gates
 
-From master prompt §11. **Automated** means a CI job or tool fails the build on violation, not that a human remembers to check. **Status** is reported honestly per `AGENTS.md`'s grounding rule — most product-correctness gates have nothing to gate yet in Phase 0, which builds infrastructure, not product. What Phase 0 proves is that the *mechanism* for catching a violation works (`openspec/changes/archive/*-phase-0-foundation/` records which gate was proven against a deliberately bad commit, with captured CI output).
+From master prompt §11. **Automated** means a CI job or tool fails the build on violation, not that a human remembers to check. **Status** is reported honestly per `AGENTS.md`'s grounding rule — most product-correctness gates have nothing to gate yet in Phase 0, which builds infrastructure, not product. What Phase 0 proves is that the *mechanism* for catching a violation works (`openspec/changes/archive/2026-09-06-phase-0-foundation/` records which gate was proven against a deliberately bad commit, with captured CI output).
 
 Note: this table is the 33 gates from §11. The separate CI-mechanism table in §10 (knip, jscpd, dependency-cruiser, registry-lint, test-immutability) is the *tooling* — several of those mechanisms enforce more than one numbered gate below.
 

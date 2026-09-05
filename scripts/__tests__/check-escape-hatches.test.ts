@@ -40,6 +40,19 @@ describe('findEscapeHatches', () => {
     expect(found).toEqual([{ path: 'apps/web/app/x.ts', line: 1, kind: 'eslint-disable' }]);
   });
 
+  it('skips its own fixtures but not other test files', () => {
+    const directive = '// ' + 'eslint-disable-next-line no-undef\n';
+    expect(
+      findEscapeHatches([{ path: 'scripts/__tests__/check-escape-hatches.test.ts', content: directive }]),
+    ).toEqual([]);
+    // A suppression hidden in a *product* test is still a violation.
+    expect(
+      findEscapeHatches([{ path: 'packages/shared/src/config/__tests__/env.test.ts', content: directive }]),
+    ).toEqual([
+      { path: 'packages/shared/src/config/__tests__/env.test.ts', line: 1, kind: 'eslint-disable' },
+    ]);
+  });
+
   it('ignores non-source files and clean source', () => {
     const found = findEscapeHatches([
       { path: 'docs/decisions.md', content: 'We discussed eslint-disable and banned it.\n' },

@@ -37,4 +37,4 @@ This supersedes the three-phase policy in `MASTER-BUILD-PROMPT.md`'s header (whi
 | **7 · Design & UI** | Bar capture → tokens → mockups → web, then mobile | Blind critic picks ours over the captured bar (with the crop-tool verification above) |
 | **8 · Hardening** | Load test, a11y, backup drill, launch checklist | All 33 gates green (`docs/gates.md`) |
 
-Each phase opens its own OpenSpec change (`openspec/changes/000N-<phase-name>/`) and follows the Gauntlet Loop (`AGENTS.md`) — bar, spec, tests-first, build, fresh-context critic, gates, archive. Phase 0's own change is the template: see `openspec/changes/archive/*-phase-0-foundation/` once archived.
+Each phase opens its own OpenSpec change (`openspec/changes/000N-<phase-name>/`) and follows the Gauntlet Loop (`AGENTS.md`) — bar, spec, tests-first, build, fresh-context critic, gates, archive. Phase 0's own change is the worked template — proposal, design, tasks, and the evidence trail of what was proven and what went wrong on the way: `openspec/changes/archive/2026-09-06-phase-0-foundation/`.
