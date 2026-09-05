@@ -17,3 +17,30 @@ Pre-flight, in this order — do not start writing implementation code before st
 8. **Archive.** Fold the OpenSpec change into `openspec/specs/`, update `docs/registry.md` with every new exported symbol, `/clear`.
 
 If this feature touches the database, an API route, RLS, or payments, also read the matching skill below — they cover invariants this one doesn't repeat.
+
+## Parallel execution within a phase
+
+1. **CONTRACT FIRST, SERIAL.** One agent fixes the shared conventions for this phase and writes them to the relevant doc before any fan-out: naming, `tenant_id` placement, timestamps, the RLS policy template, the index rule, the error envelope shape. Nothing fans out until this is committed. Parallel agents working without a fixed contract produce dialects, not speed.
+
+2. **FAN OUT BY CLUSTER, NOT BY FILE.** Split along boundaries that barely touch each other. For Phase 1 the clusters are: tenancy, membership, attendance, retention, money, catalogue, comms, platform. Each agent owns its cluster end to end — spec, tests, DDL, RLS, pgTAP — so no two agents edit the same file.
+
+3. **DELEGATE ASYNCHRONOUSLY.** Do not spawn-and-block. Keep working while sub-agents run; intervene only if one goes off track or is missing context.
+
+4. **CRITICS STAY BLIND.** The agent that verifies a cluster must not be the agent that built it, and must not have seen how it was built. Fresh context, no build history.
+
+5. **EACH AGENT SEARCHES `docs/registry.md` BEFORE WRITING** and registers what it adds. This is the only thing preventing two parallel agents from writing the same helper twice.
+
+6. **MERGE SERIALLY.** Clusters land one at a time, each passing the full gate set before the next merges. Parallel building, serial merging.
+
+### Two seams in the Phase 1 cluster list that need deciding before fan-out
+
+Raised for the human to settle, not silently resolved — treating either as independent would produce exactly the dialects rule 1 exists to prevent:
+
+- **`tenancy` is not a peer cluster; it is the contract.** `organization → branch`, the `tenant_id` column, and the RLS policy template are what every other cluster builds on. It belongs in rule 1's serial pass, before fan-out, not alongside the clusters that depend on it.
+- **`money` and `membership` share a state boundary.** A verified payment is what extends a membership (PAY-008 in `docs/domain-rules.md`), so the two will collide on that seam. Either one agent owns both, or the contract pass fixes the seam explicitly first.
+
+With tenancy settled serially, that leaves six fan-out clusters: `membership+money` (one agent, shared state machine), `attendance`, `retention`, `catalogue`, `comms`, `platform`.
+
+### Why this is written down here
+
+Phase 0 ran the single-agent version of this and paid for it. The gates it built looked green-or-red correctly while two of them were actually jammed — `lint` went red having executed zero lint rules, and `schema-drift` died on auth before diffing anything. A blind critic found both; self-review had not. Rules 4 and 6 exist because of that, and rule 1 exists because the alternative to a fixed contract is discovering three naming conventions at merge time.
