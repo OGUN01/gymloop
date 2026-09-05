@@ -24,9 +24,14 @@ jobs:
       - uses: actions/checkout@v7
       - uses: supabase/setup-cli@v3
         with: { version: 2.110.0 }
+      # --project-id, not --linked: a fresh CI checkout has no prior
+      # `supabase link` state (supabase/.temp/ is gitignored — it's a local
+      # session artifact, not something to commit), and --project-id
+      # generates directly from the project id with no link step needed.
+      # Verified byte-identical output to --linked against the same project.
       - name: Generate types from Cloud and diff against committed
         run: |
-          supabase gen types typescript --linked > /tmp/fresh.ts
+          supabase gen types typescript --project-id pecxrpskmfeuyzngvewq > /tmp/fresh.ts
           grep -v '^[[:space:]]*//' /tmp/fresh.ts | grep -v '^[[:space:]]*$' > /tmp/fresh.stripped.ts
           grep -v '^[[:space:]]*//' packages/db/types/database.ts | grep -v '^[[:space:]]*$' > /tmp/committed.stripped.ts
           if ! diff -u /tmp/committed.stripped.ts /tmp/fresh.stripped.ts; then
