@@ -2,6 +2,8 @@
 
 From master prompt §11. **Automated** means a CI job or tool fails the build on violation, not that a human remembers to check. **Status** is reported honestly per `AGENTS.md`'s grounding rule — most product-correctness gates have nothing to gate yet in Phase 0, which builds infrastructure, not product. What Phase 0 proves is that the *mechanism* for catching a violation works (`openspec/changes/archive/2026-09-06-phase-0-foundation/` records which gate was proven against a deliberately bad commit, with captured CI output).
 
+Note on `knip`, since the spec bills it as "unused exports/files/deps": in this repo it reliably catches unused **files** and **dependencies**, but **not unused exports**, because `packages/shared` and `packages/db` declare `main` pointing at a barrel that `export *`s everything — knip treats an entry file's exports as public API by design. The "built twice, wired once" protection for *exports* therefore rests on `registry-lint`, not on knip. Verified by appending an unused export to `constants.ts` (knip clean) versus adding an orphan file (knip red).
+
 Note: this table is the 33 gates from §11. The separate CI-mechanism table in §10 (knip, jscpd, dependency-cruiser, registry-lint, test-immutability) is the *tooling* — several of those mechanisms enforce more than one numbered gate below.
 
 ## Spec & contract
@@ -21,7 +23,7 @@ Note: this table is the 33 gates from §11. The separate CI-mechanism table in �
 | 6 | Every table has `tenant_id` (or reachable via one) with RLS enabled | Yes (once tables exist) | pgTAP suite, `db.yml` | N/A — Phase 1, no tables yet |
 | 7 | pgTAP cross-tenant leak suite per table | Yes (once tables exist) | `supabase/tests/`, `db.yml` | N/A — Phase 1 |
 | 8 | RLS columns indexed, tenant read from JWT claim not a per-row subquery | Yes (once policies exist) | pgTAP + migration review | N/A — Phase 1 |
-| 9 | Forward-only migrations applied by CI | Yes (mechanism) | `db.yml` | Wired, no migrations exist yet to apply |
+| 9 | Forward-only migrations applied by CI | **No** | Nothing. `db.yml` has only `schema-drift` (a text diff) and `pgtap` (a stub) — no job runs `supabase db push` or any migration command | **NOT wired.** Previously claimed "Wired", which was false. Blocked on OPEN-005 below |
 | 10 | DB enums generate TS types, drift fails CI | Yes | `db.yml` schema-drift job (`supabase gen types --project-id` against Cloud, vs committed) | **Proven failing** on `chore/gate-proof`: authenticated, generated from Cloud, and caught exactly the hand-edit (`-export type GateProofBogusHandEdit = true;`). Green on `main` in the same round, so it distinguishes good from bad rather than failing always |
 | 11 | A full demo gym seeded by one command | Yes (mechanism, once written) | Seed script | N/A — Phase 1 |
 

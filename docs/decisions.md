@@ -85,6 +85,18 @@ The deeper problem the two bugs exposed: the app's real database is **always** S
 
 **ADR-028 — `turbo.json`'s `lint`, `typecheck`, and `test` tasks declare no `dependsOn`, so every gate runs independently.** They originally each declared `dependsOn: ["^build"]`. A fresh-context critic auditing the gate-proof PR caught what that actually did: when the deliberate type error broke `build`, turbo aborted the whole task graph *before ESLint ever executed* — the `lint` job went red having run zero lint rules, and the `test` job went red while all 4 tests actually passed. The `no-magic-numbers` proof was therefore worthless, and a real type error would mask every lint finding in normal development too. This directly contradicted the design principle stated in `db.yml`'s own comment ("every gate is its own parallel job — a bad commit must show every gate it breaks at once, not stop at the first failure"): running the gates as parallel CI *jobs* achieves nothing if turbo serialises them again underneath. The dependency was pointless as well as harmful — `packages/shared` and `packages/db` are consumed as TypeScript source (`main` points at `src/index.ts` / `types/database.ts`), their "build" scripts are bare `tsc --noEmit` producing no artifacts at all, and turbo had been signalling exactly that with `no output files found for task @gymloop/db#build` on every run. Verified after the fix: `lint` now catches the magic number, `test` passes 4/4 independently, `typecheck` still fails on the real type error.
 
+**ADR-029 — `AGENTS.md` deliberately omits the master prompt §10 instruction to "archive, clear and restart" at ~70% context.** §10 mandates that line; `AGENTS.md` says the opposite ("you have a large context window; don't stop or suggest a new session on account of context limits"). Recorded as an ADR because a blind critic correctly flagged it as an undocumented spec deviation. Reason: that threshold was calibrated for smaller context windows, and surfacing context countdowns to a model with a 1M-token window triggers a documented failure mode where it truncates its own work or proposes a handoff mid-task. Rejected: keeping the line as written (it would have caused exactly that behaviour during Phase 0, which ran long); deleting it silently (which is what happened first, and is why this ADR exists).
+
+## Known enforcement gaps
+
+Stated plainly so nobody mistakes a documented rule for an enforced one. A blind critic found each of these by testing what the gates actually catch rather than what they claim to.
+
+- **`AGENTS.md` rule #5 (status vocabularies must be Postgres enums) and rule #8 (money as integer paise) have no CI job.** Nothing stops a future session adding `export const MEMBER_STATUSES = [...]` to `constants.ts` — `registry-lint` would only ask that it be registered. ADR-021 and review are the whole defence. If Phase 1 wants these enforced, the check is "no exported array of status-like string literals outside `packages/db`".
+- **`supabase/functions/**` is linted and registry-checked, but not typechecked, dependency-cruised or duplication-checked** — no tsconfig includes it, `depcruise` cruises `apps packages`, `.jscpd.json` scans `apps packages scripts`. ADR-012 puts the Razorpay webhooks there in Phase 5. Extend all three when that directory gets its first file.
+- **`scripts/**/*.test.ts` is run by vitest but typechecked by nothing.**
+- **The `process.env` ban is defeated by aliasing.** `const p = process; p.env.SECRET` is not caught; destructuring and computed access are. `no-restricted-properties` matches on the object name, so any rebinding escapes it.
+- **`check-escape-hatches` reads knip config only from `knip.json`, `knip.config.{ts,js}` and `package.json`** — knip also honours `knip.jsonc`, `knip.config.mjs` and `.knip.json`. An ignore entry in one of those is invisible to the gate.
+
 ## Open decisions (resolve deliberately when the phase starts)
 
 These are unresolved by intent, not by oversight. Do not invent an answer while building the phase named — read this entry, make the call, and convert it into a numbered ADR above recording what was chosen and why.
@@ -105,3 +117,17 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 - **Consequence for messaging (ADR-016):** WhatsApp Business API and UPI Autopay are **table stakes, not extras**. WhatsApp API lands in Phase 1.5 as the paid tier; Razorpay mandate tables go into the schema from day one (`docs/data-model.md`) so Phase 2 needs no migration to enable Autopay.
 - **WhatsApp cost basis:** utility template messages run roughly **₹0.14/message** all-in. From **1 Oct 2026** Meta also bills *service* messages at the utility rate — which is what makes the per-gym credit wallet (ADR-016) necessary rather than optional.
 - The original single-gym blueprint's pricing (₹10,000 one-time build + ₹500/month) is a per-gym project quote and does **not** apply to this product.
+
+---
+
+## Open decisions added after the Phase 0 blind critic
+
+- **OPEN-005 (Phase 1 — Data model). `AGENTS.md` hard rule #7 and ADR-024 are mutually exclusive as written, and Phase 1 hits it on its first migration.** Rule #7 says migrations are applied by CI only, never by hand. ADR-024's `schema-drift` job diffs the committed types against **live Supabase Cloud**. So a migration cannot pass CI until it is already applied to Cloud — and if only CI may apply it, nothing can ever apply it first. Gate 9 ("forward-only migrations applied by CI") is correspondingly **not implemented**: no workflow runs `supabase db push` or any migration command.
+
+  Resolve deliberately before writing the first migration. The options, none of which Phase 0 should pick on Phase 1's behalf:
+  1. **CI applies, then verifies** — a job runs `supabase db push` against Cloud on merge to `main`, and the drift check runs after it. Keeps rule #7 literally true, but gives CI write access to the production database and makes a bad migration a production event rather than a failed check.
+  2. **Verify against migrations, not Cloud** — revert the drift comparison to an ephemeral database built from the committed migrations (`supabase start` + `--local`). Hermetic and safe, but ADR-024 records concrete reasons this was abandoned: `--local` and `--linked` emit structurally different output, and it cost ~5-6 min of Docker per run.
+  3. **Split the two questions** — a hermetic "do the migrations produce the committed types?" check (option 2's mechanism) *plus* a separate, non-blocking "has Cloud drifted from the migrations?" monitor. Costs two jobs; stops conflating a code-correctness question with a deployment-state question, which is arguably why the conflict exists at all.
+  4. **Amend rule #7** to "migrations are authored in the repo and applied through a reviewed, audited path", and say plainly what that path is.
+
+  Whichever is chosen, update `AGENTS.md` rule #7, ADR-024, and gate 9's row in `docs/gates.md` in the same change — the three currently disagree.

@@ -39,7 +39,7 @@ let cachedServer: ServerEnv | undefined;
  * Validated on first access, not at module load. An eager parse here would
  * throw during `next build` in CI (where no env vars are set), turning the
  * build gate red on missing secrets instead of on broken code — see
- * docs/decisions.md, "lazy env validation".
+ * docs/decisions.md ADR-023.
  */
 export function clientEnv(): ClientEnv {
   return (cachedClient ??= clientSchema.parse(process.env));

@@ -15,4 +15,4 @@ The rules below are gates 19–21 (`docs/gates.md`) and requirements PAY-001 thr
 6. **Never store raw card or UPI credentials** anywhere in this codebase, including logs. Razorpay's own tokenized references only.
 7. **Offline payments (no gateway connected) are a first-class path, not a degraded one** — front-desk-recorded cash/UPI/card with staff attribution, a receipt, and the same renewal-pipeline effect as a verified online payment. Most early gyms will be in this state; it must be fully exercised in tests, not treated as an edge case.
 
-Every change here needs a duplicate-webhook-delivery test and a payment-provider-unreachable test before it's considered done — see `docs/gates.md` gate 13 and gate 17.
+Every change here needs a duplicate-webhook-delivery test and a payment-provider-unreachable test before it's considered done — see `docs/gates.md` gate 13 (idempotency) and gate 21 (never `paid` without a verified provider response).

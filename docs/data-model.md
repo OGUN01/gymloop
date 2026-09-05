@@ -1,5 +1,15 @@
 # Data model
 
+## v1 scope — what the schema must support
+
+Transcribed from master prompt §7, which is disposable once Phase 0 archives. This is the checklist Phase 1's schema is measured against; a capability listed here with nowhere to live in the schema is a gap, not a Phase 2 item.
+
+Member profile and active membership · gym plans, prices, discounts and expiry rules · QR check-in with assisted front-desk fallback · attendance history · configurable no-show red list · follow-up outcomes and next actions · weekly goal / streak · renewal options with verified payment state · offline payment recording · GST invoices · PT, diet and product catalogue · basic add-on orders and usage state · **lead / enquiry management** (walk-in → trial → conversion, with source tracking) · coupon codes on renewal · owner dashboard and daily summary · super-admin console · consent, opt-out and audit history · CSV/Excel member import with column mapping and duplicate-phone detection · three gym presets (neighbourhood gym / premium studio / functional box).
+
+**Phase 2 — the schema must accommodate these, but do not build them:** multi-branch UI (`organization → branch` from day one) · full trainer app · class/batch scheduling · UPI Autopay via Razorpay subscriptions (**mandate tables in the schema now**) · staff payroll and trainer commission · body measurements and progress photos · wearables · referrals · advanced inventory · anonymised cross-gym benchmarking · WhatsApp Business API · per-permission role matrix.
+
+> **This file does not yet specify tables or relationships.** Master prompt §10 defines it as "tables, enums, relationships, RLS policy map"; Phase 0 wrote the enums, the tenancy shape and the policy *shape*, but no table list. That is Phase 1's first deliverable, and it should be written here before any migration — a blind critic flagged the absence, so it is a known gap rather than an oversight.
+
 This is the **specification** Phase 1 implements — tables, enums, relationships, and the RLS policy shape. It is not DDL; migrations are written and applied by CI only, never by hand (`AGENTS.md`).
 
 ## Tenancy
@@ -10,7 +20,7 @@ Hierarchy from day one, so Phase 2's multi-branch UI needs no schema change: **o
 
 ## Canonical status vocabularies
 
-These become **Postgres enums** in Phase 1, generated into `packages/db/types/database.ts` by `supabase gen types`, and from there into zod schemas shared by API, web and mobile. They are **not** TypeScript constants — see `docs/decisions.md`, "statuses as Postgres enums, not TypeScript constants". Never invent a parallel vocabulary for any of these.
+These become **Postgres enums** in Phase 1, generated into `packages/db/types/database.ts` by `supabase gen types`, and from there into zod schemas shared by API, web and mobile. They are **not** TypeScript constants — see `docs/decisions.md` ADR-021. Never invent a parallel vocabulary for any of these.
 
 | Vocabulary | Values |
 |---|---|

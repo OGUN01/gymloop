@@ -4,24 +4,26 @@
 
 ## Model and effort policy
 
-**Rule:** run Fable 5.1 where being wrong is expensive and hard to detect (schema/RLS mistakes surface as a data leak weeks later; a payment bug surfaces as a support ticket after money has moved; a rendered UI's fidelity to a design bar is a judgment call, not a compiler error). Run Opus 5 where errors surface immediately and cheaply (a broken auth flow fails its own tests within the session; scaffolding either builds or doesn't).
+**Every phase that builds or designs runs on Claude Fable 5.1.** This is a deliberate product-owner decision: quality is the constraint, not cost. **Do not substitute a cheaper model to save tokens, and do not propose it.** Effort is the only lever that varies.
 
-| Phase | Model | Effort |
-|---|---|---|
-| 0 — Foundation | Opus 5 | high |
-| 0 — final critic | Fable 5.1 | xhigh |
-| 1 — Data model + RLS | Fable 5.1 | xhigh |
-| 2 — Identity & tenancy | Opus 5 | high |
-| 3 — Core domain | Fable 5.1 | high |
-| 4 — Retention engine | Fable 5.1 | high |
-| 5 — Money | Fable 5.1 | xhigh |
-| 6 — Growth surfaces | Opus 5 | high |
-| 7 — Design & UI | Fable 5.1 | xhigh |
-| 8 — Hardening | Fable 5.1 | xhigh |
+| Phase | Model | Effort | Why this effort |
+|---|---|---|---|
+| 0 · Foundation | Fable 5.1 | `high` | Scaffolding — errors surface instantly. |
+| 0 · final critic | Fable 5.1 | `xhigh` | Deep judgement on whether the gates really fire. |
+| 1 · Data model + RLS | Fable 5.1 | `xhigh` | An RLS hole is silent and leaks another gym's members. |
+| 2 · Identity & tenancy | Fable 5.1 | `high` | Well-trodden auth wiring; role tests fail loudly. |
+| 3 · Core domain | Fable 5.1 | `xhigh` | Double-scan, offline replay, exactly-once. Concurrency bugs are silent. |
+| 4 · Retention engine | Fable 5.1 | `xhigh` | Per-timezone scans, no duplicate open cases. |
+| 5 · Money | Fable 5.1 | `xhigh` | Webhook idempotency, never-mark-paid. Real money, real disputes. |
+| 6 · Growth surfaces | Fable 5.1 | `high` | Mostly CRUD over an already-proven core. |
+| **7 · Design & UI** | Fable 5.1 | `max` | **The design must be the best part of this product.** Also a vision task — see below. |
+| 8 · Hardening | Fable 5.1 | `xhigh` | Last look before real gyms. |
 
-This supersedes the three-phase policy in `MASTER-BUILD-PROMPT.md`'s header (which named only Phases 1, 4, and 5 for Fable) — that policy is superseded, not merely extended; treat this table as authoritative.
+**At `xhigh` and `max`, set a large `max_tokens`.** It is a hard ceiling on thinking *plus* response, so a long deliverable can otherwise be drafted in thinking and truncated in the reply. Because effort is the only lever, the instructions against unrequested refactoring, tidying and test sprawl matter *more*, not less: higher effort makes those behaviours more likely, and they are the cost of running hot everywhere.
 
-**Phase 7 is Fable because it is a vision task**: the blind critic judges rendered screens against captured competitor screenshots (`docs/architecture.md`'s quality-bar table). At low effort a vision-capable critic judges from overall impression without zooming into the details that actually distinguish a Linear-grade dashboard from an adequate one — which makes the comparison worthless. **Give the Phase 7 critic a crop tool** (a bounding-box-in, cropped-and-enlarged-region-out tool, or a PIL/OpenCV-equipped container) and **verify from the run logs that it actually called it** before trusting a "picks ours over the bar" verdict — an unverified claim of visual comparison is not evidence of one.
+**Phase 7 is a vision task.** The blind critic judges rendered screens against captured screenshots of the bars in `docs/architecture.md`'s "Quality bars" section. **Give that critic a crop tool** (bounding box in, cropped-and-enlarged region out) or a container with PIL/OpenCV, and **check the logs that it actually called it** — at lower effort it judges from an overall impression without zooming, which makes the blind comparison worthless. Loop until our screen wins the blind comparison; never lower the bar.
+
+> **Correction, recorded rather than quietly fixed.** This table previously assigned Opus 5 to phases 0, 2 and 6 and lowered effort on 3, 4 and 7, justified by a claim that the master prompt's header "named only Phases 1, 4, and 5 for Fable." That claim was false against the file as committed — the header assigns Fable 5.1 to every phase and says in terms not to substitute a cheaper model. A blind critic caught it before Phase 1 started. The table above is now the header's, verbatim. If this policy is ever changed again, change it *because someone decided to*, and record that decision as an ADR — not by describing the source inaccurately.
 
 ## Phases (master prompt §12)
 

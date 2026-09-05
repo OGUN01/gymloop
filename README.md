@@ -18,7 +18,7 @@ One feature per session. If something in the docs is genuinely ambiguous or cont
 ```
 pnpm install
 cp .env.example .env.local   # fill in real values — never commit .env.local
-pnpm build && pnpm lint && pnpm typecheck && pnpm test
+pnpm build && pnpm lint && pnpm typecheck && pnpm test && pnpm test:scripts
 ```
 
 Also available, and run in CI: `pnpm knip`, `pnpm jscpd`, `pnpm depcruise`, `pnpm registry-lint`, `pnpm check-escape-hatches`.

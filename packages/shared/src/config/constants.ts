@@ -4,8 +4,7 @@
  * Status vocabularies (member, membership, no-show case, payment, add-on
  * order, notification, follow-up outcome — see docs/data-model.md) are
  * Postgres enums generated into packages/db/types/database.ts. They do not
- * belong here — see docs/decisions.md, "statuses as Postgres enums, not
- * TypeScript constants".
+ * belong here — see docs/decisions.md ADR-021.
  *
  * Registered in docs/registry.md. Adding an exported symbol here without
  * registering it fails the registry-lint CI gate.
