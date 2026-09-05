@@ -1,0 +1,74 @@
+# Decisions
+
+Append-only ADR log. One decision per entry, with rejected alternatives and why. Update an existing entry rather than duplicating it; delete an entry that turns out to be wrong (with a note on what replaced it, in the entry that replaces it).
+
+The **Open Decisions** section at the bottom is different in kind: these are genuine unknowns intentionally left unresolved, tied to the phase that must resolve them. A future session reaching that phase must make the call deliberately — reading this list first — rather than inventing an answer under deadline pressure or rediscovering the gap mid-build.
+
+---
+
+## Locked stack (master prompt §4)
+
+**ADR-001 — Monorepo: pnpm + Turborepo.** `apps/web`, `apps/mobile`, `packages/shared`, `packages/db`, `packages/api-client`. Rejected: Nx (heavier, more opinionated than this project needs), Lerna (superseded by pnpm workspaces + Turborepo for this scale), a polyrepo (would fragment the single source-of-truth doc framework across repos).
+
+**ADR-002 — Web: Next.js App Router + React + TypeScript strict + Tailwind, on Vercel.** Rejected: Remix (smaller ecosystem for this team's needs), plain Vite SPA (loses SSR/route handlers needed for the API split in ADR-012), self-hosted Node server (Vercel's India edge presence and zero-ops deploy win for a small team).
+
+**ADR-003 — Mobile: Expo + React Native, New Architecture mandatory, EAS Build + OTA.** Rejected: Flutter (explicitly rejected by the master prompt — different language/ecosystem from the web stack, no code-sharing with `packages/shared`), native iOS/Android (2x the engineering surface for a small team). Version pinning deferred — see ADR-020.
+
+**ADR-004 — Database/Auth: Supabase Postgres, ap-south-1 (Mumbai).** Rejected: **Neon** — no India region (nearest is Singapore/Sydney), and India latency is a stated product requirement (a metro-gate-speed QR check-in cannot round-trip to Singapore). Rejected: self-hosted Postgres (loses Supabase's Auth, RLS tooling, and generated-types workflow that this whole doc framework is built around). Provisioned project: ref `pecxrpskmfeuyzngvewq`, org `gjjnocawiprbwdkktogn` — see `AGENTS.md` for the multi-account trap this created.
+
+**ADR-005 — Tenancy: single database, Row-Level Security, `tenant_id` from a JWT claim.** Rejected: database-per-tenant (operationally heavy at hundreds of small gyms, migrations must run N times), schema-per-tenant (Postgres schema-per-tenant hits connection-pooling and migration-tooling friction at this scale). RLS with an indexed, JWT-sourced tenant claim is the standard Supabase multi-tenancy pattern and is what gates 6-8 (`docs/gates.md`) exist to verify.
+
+**ADR-006 — Object storage: Cloudflare R2 + Cloudflare Images, short-lived presigned URLs.** Rejected: S3 directly (R2 has zero egress fees, which matters for member photo/video-heavy usage at scale), public bucket URLs (presigned URLs enforce the authorization check server-side before any access).
+
+**ADR-007 — Edge/security: Cloudflare DNS, CDN, WAF, Turnstile.** Rejected: reCAPTCHA (Turnstile is privacy-friendlier and free at this scale, and the team already standardized on Cloudflare for DNS/CDN).
+
+**ADR-008 — Payments: Razorpay, each gym connects its own account.** Rejected: a platform-custodial payment model where Gymloop holds member money (would require a payment aggregator license in India — out of scope for a software SaaS); Stripe (weak UPI/domestic-India rail support compared to Razorpay); PayU/Instamojo (Razorpay has the strongest Indian developer ecosystem and is what competitors' integrations are benchmarked against — see `docs/gates.md`'s no-competitor-benchmarking-for-the-loop caveat, this is infra choice, not the loop itself).
+
+**ADR-009 — Jobs: `pg_cron` for scheduled scans, `pgmq`/Supabase Queues for dispatch with retry + dead-letter.** Rejected: an external queue (SQS, BullMQ+Redis) — adds an operational dependency outside Supabase for a workload (daily scans, notification dispatch) that Postgres-native tooling handles at this scale, and keeps everything in one place for the `tenant_id`-carrying structured logs (ADR-010).
+
+**ADR-010 — Observability: Sentry (web, mobile, edge) + structured JSON logs carrying `tenant_id`.** Rejected: a self-hosted error tracker (operational overhead not justified pre-revenue); logs without a tenant dimension (would make gate 28's per-tenant incident triage impossible).
+
+**ADR-011 — i18n: English + Hindi from day one.** Not deferred to a later phase — Indian gym staff and members routinely mix languages, and retrofitting i18n into components built English-only is expensive; see market-position research (below).
+
+**ADR-012 — API architecture: mutations via Next.js Route Handlers (zod + typed error envelope); reads direct via supabase-js + RLS; Supabase Edge Functions only for Razorpay webhooks and cron.** Rejected: GraphQL (adds a resolver layer with no clear win over direct RLS reads for this data shape); tRPC (couples client/server in a way that complicates the shared `packages/api-client` used by both web and mobile); Edge Functions for all backend logic (Vercel Route Handlers are colocated with the web app and simpler to deploy; Edge Functions are reserved for the two things that must sit next to the database regardless of Vercel's availability — webhooks and cron).
+
+**ADR-013 — Explicitly rejected, do not reconsider:** Cloudflare Workers as the backend, Cloudflare D1 as the database, Neon, Flutter, no-code builders.
+
+## Locked product decisions (master prompt §5)
+
+**ADR-014 — Distribution: one member app for all gyms, joined by invite QR / 6-char gym code / automatic phone-number match against an imported roster.** Phone-number auto-match is the path that actually works for non-technical members and gets the UX investment. In-app branding is gym logo + one accent colour + gym name; a member in two gyms gets a header switcher.
+
+**ADR-015 — Payments: per-gym Razorpay account, platform takes no cut, offline-first is a first-class state.** Most early gyms will have no gateway connected — that state must be fully functional (cash/UPI/card recorded by front desk, with attribution, receipts, and a working renewal pipeline), not a degraded fallback. Onboarding verifies both API keys and the webhook secret with a real ₹1 test payment before go-live.
+
+**ADR-016 — Messaging v1: push notifications (Expo + FCM/APNs) + click-to-WhatsApp (`wa.me` deep links).** No SMS, no DLT registration in v1. Written as a provider interface with a per-gym credit wallet from day one, because Indian competitors (GymForce, Akton, GymFito, AdviceFit) already ship WhatsApp Business API — see market-position research, this is table stakes arriving in Phase 1.5, not a nice-to-have. Rejected for v1: WhatsApp Business API directly (cost and Meta approval lead time not justified before product-market fit), SMS/DLT (India's DLT registration overhead is significant for a pre-revenue product).
+
+**ADR-017 — Commercial: hosted SaaS, tiers by active-member count (~₹1,499/₹2,999/₹4,999/month), 14-day full-feature trial, manual super-admin activation at launch.** Rejected: matching competitors' ~₹89/month pricing — beating rock-bottom Indian gym software on price proves nothing; the product differentiates on the retention loop (no-show red list, follow-up outcomes, measurable recovery), not on being cheaper. In-app platform billing of gyms is Phase 1.5; v1 activation is manual.
+
+## This session's decisions (Phase 0)
+
+**ADR-018 — TypeScript pinned to 6.0.3, not the newer 7.0.2.** `typescript-eslint@8.69.0`'s peer range is `>=4.8.4 <6.1.0`; TS 7 breaks it. Verified via `npm view` before pinning. Fall back to `5.9.3` if a future Phase's type-generation surfaces a TS 6-specific issue — record that as a new ADR entry if it happens, don't silently downgrade.
+
+**ADR-019 — `apps/mobile` and `packages/api-client` deferred rather than stubbed.** Confirmed with the user. An empty package trips the `knip` unused-export gate this same change arms; mobile UI is explicitly Phase 7 work in the build order. Rejected: scaffolding all five `apps/*`/`packages/*` per §4's literal layout now — contradicts §14's "no scaffolding for later." `docs/architecture.md` documents the full five-package target layout so a future session reads the gap as a decision, not a bug.
+
+**ADR-020 — Expo/React Native version deliberately left unpinned until Phase 7.** §4's SDK 56/RN 0.85 pin was already one SDK behind current (57.0.20/RN 0.87.1) when this session checked. Pinning "whatever's current now" would only repeat that staleness by Phase 7. The version is chosen when Phase 7 starts, against whatever is current then.
+
+**ADR-021 — Canonical status vocabularies (`docs/data-model.md`) are Postgres enums generated into `packages/db/types/database.ts`, never hand-written TypeScript constants.** The master prompt's own truth chain is Postgres enum → `supabase gen types` → generated TS types → derived zod schemas (§10). Writing them into `packages/shared/src/config/constants.ts` now would create a second source Phase 1 would then have to reconcile or delete.
+
+**ADR-022 — `packages/shared` is kept platform-free from day 0**: its `tsconfig.json` sets `"lib": ["ES2022"]` (no DOM) and `"types": ["node"]` explicitly (TS 6's automatic `@types` discovery did not pick up `@types/node` in this workspace layout — verified by a failing typecheck before the explicit `types` array was added); a `dependency-cruiser` rule forbids importing `next/*`, `react-dom`, or `node:*` from it. It is consumed by web, mobile, and Edge Functions — a platform leak here becomes a Phase 7 blocker discovered at the worst time.
+
+**ADR-023 — `packages/shared/src/config/env.ts` validates lazily (on first property access, cached) rather than eagerly at module load.** An eager `zod.parse()` throws during `next build` in CI, where no env vars are set, turning the build gate red on missing secrets rather than on broken code. Rejected: seeding CI with placeholder secret values — puts fake secrets in a checked-in workflow file and trains future sessions that a green build implies a valid environment. A documented consequence: `clientEnv()`/`env()` require a real `process.env` object (server components, Route Handlers, Edge Functions, Node scripts) — a `"use client"` component must read `process.env.NEXT_PUBLIC_X` as a literal expression directly (Next.js's client-bundle replacement only rewrites literal member expressions), not call these functions; read server-side and pass the value down as a prop.
+
+**ADR-024 — The schema-drift CI gate compares `supabase gen types --local` (after `supabase start`) against the committed `packages/db/types/database.ts`, not `--linked` against the remote.** Hermetic, can't false-red on remote unavailability, and asserts the actual invariant (committed migrations and committed types agree). `SUPABASE_ACCESS_TOKEN` is still a required repo secret for Phase 1's `supabase db push`.
+
+**ADR-025 — The real OpenSpec CLI is `@fission-ai/openspec`, not the package published as `openspec` on npm.** The bare `openspec` name is a dead 2022 package (`openspecio`, last published 2022-05-12) unrelated to the actively maintained tool this project uses.
+
+**ADR-026 — `no-magic-numbers`'s `ignore` list includes `[0, 1, -1]`, discovered via a real lint failure, not decided upfront.** Every `z.string().min(1)` in `env.ts` tripped the rule as originally scoped (`ignoreArrayIndexes`/`ignoreDefaultValues`/`ignoreEnums` don't cover an arbitrary call argument), and zod has no `.nonempty()` method for strings (confirmed against current docs) — there is no numeric-literal-free way to express "non-empty string" in zod. Confirmed with the user rather than silently widened, per the standing instruction to treat any apparent need for a rule exception as a finding, not a line to quietly add.
+
+## Open decisions (resolve deliberately when the phase starts)
+
+These are unresolved by intent, not by oversight. Do not invent an answer while building the phase named — read this entry, make the call, and convert it into a numbered ADR above recording what was chosen and why.
+
+- **OPEN-001 (Phase 2 — Identity & tenancy).** How is the very first `super_admin` account created? §5 requires gym self-signup to go through super-admin approval before going live, which means the platform cannot bootstrap its own first admin through that same signup flow. Needs a deliberate answer: a one-time seed script gated behind a secret, a `supabase` CLI/SQL runbook step documented in `docs/security.md`, or an invite-only bootstrap endpoint — whichever is chosen must not become a general-purpose backdoor for creating admins later.
+- **OPEN-002 (Phase 2 — Identity & tenancy).** What generates `packages/api-client`, "one generated client" consumed by both web and mobile (§4)? The master prompt names the requirement but not a tool. Candidates to evaluate against the zod-schemas-from-generated-types chain (§10): `openapi-typescript` + a hand-rolled fetch wrapper, `ts-rest`, `orval`, or a thin hand-written client if route handlers are few enough that generation adds more ceremony than it saves.
+- **OPEN-003 (Phase 5 — Money).** GST invoice PDF generation approach. No library or service is named in the master prompt. Candidates: a PDF library run server-side (e.g. an HTML-to-PDF render in a Route Handler or Edge Function), a headless-browser render, or a third-party invoicing/PDF API. Must satisfy the per-gym invoice-numbering and financial-year-reset config already specified in `docs/data-model.md`, and must not require a client-side-only library that can't run in a Route Handler.
+- **OPEN-004 (Phase 6 — Growth surfaces).** Transactional email provider. Not named in the master prompt. Needed at minimum for staff email-based auth flows (§12 Phase 2 names "email staff" as an identity mechanism distinct from member phone-OTP) and plausibly for receipt/invoice delivery and the owner's daily summary. Candidates: Resend, Postmark, AWS SES. Evaluate against India-region deliverability and Supabase Auth's custom-SMTP hook if staff auth ends up needing it earlier than Phase 6 — if so, pull this decision forward rather than leaving staff auth on Supabase's default (rate-limited, not for production) email sending.

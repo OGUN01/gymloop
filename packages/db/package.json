@@ -1,0 +1,17 @@
+{
+  "name": "@gymloop/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./types/database.ts",
+  "types": "./types/database.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "echo \"nothing to lint - types/database.ts is generated and globally ignored\"",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"no tests yet - types-only package\""
+  },
+  "devDependencies": {
+    "typescript": "6.0.3"
+  }
+}

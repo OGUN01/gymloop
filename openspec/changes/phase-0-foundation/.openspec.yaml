@@ -1,0 +1,15 @@
+schema: spec-driven
+created: 2026-09-06
+goal: All 10 items of MASTER-BUILD-PROMPT.md section 13 done, with every CI gate
+  proven to fail on a deliberately bad commit.
+skip_specs: true
+skip_specs_reason: >
+  Pure scaffolding/tooling (repo layout, CI gates, doc framework) - no
+  application behavior changes. Every substantive artifact this change
+  produces already has a canonical home the master build prompt names
+  explicitly (docs/domain-rules.md, docs/gates.md, docs/architecture.md,
+  docs/data-model.md, docs/security.md, docs/registry.md, docs/decisions.md).
+  A duplicate openspec/specs/ entry for the same content would violate the
+  project's own anti-duplication rule. Application-capability specs
+  (data-model, identity, core-domain, retention-engine, money, growth-surfaces)
+  start in Phase 1.

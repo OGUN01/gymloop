@@ -1,0 +1,31 @@
+{
+  "name": "gymloop",
+  "private": true,
+  "packageManager": "pnpm@12.3.4",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "knip": "knip",
+    "jscpd": "jscpd .",
+    "depcruise": "dependency-cruiser --config .dependency-cruiser.mjs apps packages",
+    "registry-lint": "node scripts/registry-lint.mjs",
+    "check-test-immutability": "node scripts/check-test-immutability.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "dependency-cruiser": "18.2.0",
+    "eslint": "10.10.0",
+    "jscpd": "5.1.2",
+    "knip": "6.34.0",
+    "prettier": "3.9.6",
+    "turbo": "2.10.12",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.69.0",
+    "vitest": "5.0.0"
+  }
+}

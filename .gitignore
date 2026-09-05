@@ -1,0 +1,29 @@
+# --- secrets: never commit ---
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# --- deps / build ---
+node_modules/
+.next/
+.turbo/
+dist/
+build/
+.expo/
+*.tsbuildinfo
+
+# --- supabase ---
+supabase/.branches/
+supabase/.temp/
+
+# --- reports ---
+coverage/
+.jscpd/
+
+# --- os / editor ---
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json

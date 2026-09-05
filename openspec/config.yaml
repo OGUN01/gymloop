@@ -1,0 +1,53 @@
+schema: spec-driven
+
+context: |
+  Gymloop: multi-tenant SaaS for Indian gyms (Super Admin -> Gyms -> Members).
+  Core loop: record attendance -> detect silent-churn risk -> contact early ->
+  bring the member back -> collect renewal on time -> deliver add-ons -> show
+  the owner what worked. Every feature must serve that loop.
+
+  Stack (locked, do not re-litigate): pnpm + Turborepo monorepo
+  (apps/web, apps/mobile [deferred], packages/shared, packages/db,
+  packages/api-client [deferred]). Next.js 16.3 App Router + React 19.2 +
+  TypeScript strict + Tailwind, on Vercel. Expo/React Native for mobile
+  (version chosen at Phase 7, deliberately unpinned now). Supabase Postgres,
+  ap-south-1 (Mumbai) - project ref pecxrpskmfeuyzngvewq. Single database,
+  Row-Level Security, tenant_id from a JWT claim (never a per-row subquery).
+  Cloudflare R2 for storage. Razorpay per-gym for payments. pg_cron + pgmq
+  for jobs. English + Hindi.
+
+  API architecture: mutations go through Next.js Route Handlers (zod-validated,
+  typed error envelope); reads go direct through supabase-js + RLS; Supabase
+  Edge Functions only for Razorpay webhooks and cron jobs.
+
+  Money is integer paise, never floating point. All scheduled logic is
+  timezone-correct per gym. Canonical status vocabularies (member, membership,
+  no-show case, payment, add-on order, notification, follow-up outcome) are
+  Postgres enums, generated into packages/db/types/database.ts by
+  `supabase gen types` - never hand-written TypeScript constants.
+
+  Methodology: the Gauntlet Loop (bar -> spec -> tests-first -> build ->
+  fresh-context critic -> gates -> archive), no round-count budget, exits on
+  win. Tests derive from EARS specs written before implementation; a holdout
+  suite in github.com/OGUN01/gymloop-holdout is never seen by the implementer;
+  test files are immutable to the implementer (a `spec:` commit prefix signals
+  an approved spec change). "If it is not in docs/registry.md, it does not
+  exist" - search the registry and grep the codebase before writing any
+  helper, constant, type or component.
+
+  Do not use the Supabase MCP server for this project - it is authenticated
+  to a different account. All Supabase work goes through the `supabase` CLI.
+
+rules:
+  proposal:
+    - State the problem/need first, then the change - never open with the solution.
+    - Name what is explicitly out of scope.
+  tasks:
+    - Order tasks so tests/specs precede implementation, never the reverse.
+  specs:
+    - Write requirements in EARS form (WHEN/WHILE/IF ... THE SYSTEM SHALL ...).
+
+operations:
+  archive:
+    guidance:
+      - Record which CI gate proved which failure mode, with captured output, not just that gates exist.
