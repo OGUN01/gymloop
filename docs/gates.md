@@ -22,7 +22,7 @@ Note: this table is the 33 gates from §11. The separate CI-mechanism table in �
 | 7 | pgTAP cross-tenant leak suite per table | Yes (once tables exist) | `supabase/tests/`, `db.yml` | N/A — Phase 1 |
 | 8 | RLS columns indexed, tenant read from JWT claim not a per-row subquery | Yes (once policies exist) | pgTAP + migration review | N/A — Phase 1 |
 | 9 | Forward-only migrations applied by CI | Yes (mechanism) | `db.yml` | Wired, no migrations exist yet to apply |
-| 10 | DB enums generate TS types, drift fails CI | Yes | `db.yml` schema-drift job (`supabase gen types --local` vs committed) | **Proven failing** on `chore/gate-proof` (hand-edited `database.ts`) |
+| 10 | DB enums generate TS types, drift fails CI | Yes | `db.yml` schema-drift job (`supabase gen types --linked` against Cloud, vs committed) | **Proven failing** on `chore/gate-proof` (hand-edited `database.ts`) |
 | 11 | A full demo gym seeded by one command | Yes (mechanism, once written) | Seed script | N/A — Phase 1 |
 
 ## Backend correctness

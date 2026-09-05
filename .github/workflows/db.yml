@@ -6,48 +6,57 @@ on:
   pull_request:
 
 jobs:
+  # Compared against Cloud (--linked), not a local Docker Postgres. The
+  # app's real database is always Supabase Cloud — --local's disposable
+  # Postgres+PostgREST only approximates it, and turned out not to even
+  # match reliably (docs/decisions.md ADR-024): --local and --linked emit
+  # different template output for the identical schema, independent of CLI
+  # version. --linked checks the invariant that actually matters (does the
+  # committed file match what's really deployed) directly, and needs no
+  # Docker, so this job is fast. The real risk this accepts — a transient
+  # network failure to Supabase's API causing a spurious red — is smaller
+  # than the bug class it avoids, and is what a re-run is for.
   schema-drift:
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
     steps:
       - uses: actions/checkout@v7
       - uses: supabase/setup-cli@v3
         with: { version: 2.110.0 }
-      - name: Start local Supabase
-        run: supabase start
-      # Compared against the LOCAL stack (docs/decisions.md ADR-024), not
-      # --linked against the remote — hermetic, and asserts the actual
-      # invariant: committed migrations and committed types agree. --linked
-      # and --local emit genuinely different template output even against an
-      # identical schema (verified: a PostgREST-version-dependent
-      # __InternalSupabase block, different conditional-type parenthesization
-      # — not a CLI version mismatch, both sides pinned to the same version),
-      # so the committed file must itself be generated with --local. Comment
-      # and blank lines are stripped from both sides before comparing, since
-      # the committed file carries a "generated, do not edit" header that
-      # `supabase gen types` itself never produces.
-      - name: Generate types from the local stack and diff against committed
+      - name: Generate types from Cloud and diff against committed
         run: |
-          supabase gen types typescript --local > /tmp/fresh.ts
+          supabase gen types typescript --linked > /tmp/fresh.ts
           grep -v '^[[:space:]]*//' /tmp/fresh.ts | grep -v '^[[:space:]]*$' > /tmp/fresh.stripped.ts
           grep -v '^[[:space:]]*//' packages/db/types/database.ts | grep -v '^[[:space:]]*$' > /tmp/committed.stripped.ts
           if ! diff -u /tmp/committed.stripped.ts /tmp/fresh.stripped.ts; then
-            echo "::error::packages/db/types/database.ts is out of date. Regenerate with (after 'supabase start'): supabase gen types typescript --local > packages/db/types/database.ts"
+            echo "::error::packages/db/types/database.ts is out of date. Regenerate with: supabase gen types typescript --linked > packages/db/types/database.ts"
             exit 1
           fi
           echo "packages/db/types/database.ts matches the schema."
 
+  # Docker/local Postgres is used ONLY here, and only once real pgTAP tests
+  # exist — they need an isolated, disposable database (running destructive
+  # tests against shared Cloud state would be unsafe), unlike the drift
+  # check above. Phase 0 has zero .sql tests, so this exits before ever
+  # touching Docker; Phase 1's real tests are what makes it start doing so.
   pgtap:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: supabase/setup-cli@v3
-        with: { version: 2.110.0 }
-      - name: Start local Supabase
-        run: supabase start
-      - name: Run pgTAP suite
+      - name: Check for pgTAP tests
+        id: check
         run: |
           if [ -z "$(find supabase/tests -name '*.sql' 2>/dev/null)" ]; then
             echo "No pgTAP tests yet (schema is Phase 1 — docs/gates.md gates 6-11). Nothing to run."
-            exit 0
+            echo "has_tests=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_tests=true" >> "$GITHUB_OUTPUT"
           fi
-          supabase test db
+      - if: steps.check.outputs.has_tests == 'true'
+        uses: supabase/setup-cli@v3
+        with: { version: 2.110.0 }
+      - if: steps.check.outputs.has_tests == 'true'
+        run: supabase start
+      - if: steps.check.outputs.has_tests == 'true'
+        run: supabase test db

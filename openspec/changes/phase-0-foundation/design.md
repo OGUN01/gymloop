@@ -36,7 +36,7 @@ See `proposal.md` — Why. Starting state, verified this session: empty repo fol
 
 [Lazy env validation is a less obvious pattern than eager parsing, and a later session may "simplify" it back] → mitigated by an ADR entry naming the exact failure mode (CI build gate false-reds on missing secrets) that eager parsing reintroduces.
 
-[Docker daemon not running locally] → blocks `supabase start`, so the schema-drift gate and pgTAP cannot run locally this session; the drift-gate proof in this change instead runs in GitHub Actions (which provides its own runner), and local Docker is a Phase 1 prerequisite, reported as a follow-up rather than fixed here.
+[Docker daemon not running locally] → blocks `supabase start`, so pgTAP cannot run locally this session; the schema-drift gate was redesigned mid-change to compare against Supabase Cloud (`--linked`) rather than a local Docker Postgres, after the local-Docker version cost two real bugs and ~5-6 minutes of CI time per run for no corresponding benefit (`docs/decisions.md` ADR-024) — so Docker is no longer on the schema-drift path at all. Local Docker remains a Phase 1 prerequisite for pgTAP specifically, reported as a follow-up rather than fixed here.
 
 [Two-key setup for holdout access is more moving parts than a single PAT] → mitigated by scoping: a leaked deploy key exposes read-only access to one already-private repo, versus a PAT which typically carries broader scope.
 
