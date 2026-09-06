@@ -1,0 +1,43 @@
+-- Cluster: tenancy (contract) — a repair to merge 1, forward-only.
+--
+-- Makes the `extensions` schema resolvable to the role CI's pgTAP runner
+-- actually connects as, so `select plan(n)` finds pgTAP.
+--
+-- Why this exists, proven rather than assumed. 20260906115131_tenancy.sql
+-- installs pgTAP into `extensions`, which is what the phase specification and
+-- Supabase's own guidance both require — pgTAP in `public` would put roughly a
+-- thousand functions into the schema `supabase gen types` reads, and
+-- packages/db/types/database.ts is not the place for them. But the first
+-- post-apply run of db.yml's `pgtap` job still failed every file with
+-- `function plan(integer) does not exist`, which is name resolution, not
+-- privilege. The reason, read out of pg_roles against this project: the CLI
+-- mints a temporary login role, `cli_login_postgres`, and that role carries no
+-- rolconfig at all, so its search_path is the built-in `"$user", public`.
+-- `postgres` does carry `search_path = "$user", public, extensions`, which is
+-- why the same files pass under `supabase db query --linked` and fail under
+-- `supabase test db --linked`.
+--
+-- `alter role cli_login_postgres set search_path ...` is the narrower fix and
+-- is not available: attempting it returns `42501 permission denied to alter
+-- role — only roles with the CREATEROLE attribute and the ADMIN option on role
+-- "cli_login_postgres" may alter this role`. The database default is the one
+-- durable, role-independent place left, and `alter database` is permitted here
+-- (both facts verified inside `begin … rollback` before this file was written).
+--
+-- This grants no capability that did not already exist: every function in
+-- `extensions` is already callable schema-qualified, and `execute` on an
+-- extension's functions is granted to `public` by default. Only unqualified
+-- name resolution changes. Roles that set their own search_path — `postgres`,
+-- `supabase_admin`, `supabase_auth_admin`, `supabase_storage_admin`,
+-- `supabase_realtime_admin` — are unaffected, a role-level setting overriding
+-- the database default. PostgREST sets its own search_path per request.
+--
+-- The timestamp is deliberately 115132, one second after the tenancy migration
+-- and before every cluster migration still to merge, rather than the one
+-- `supabase migration new` produced. See docs/decisions.md ADR-045: a repair
+-- numbered after already-applied history would leave every later cluster file
+-- behind the remote head, where `supabase db push` skips it unless
+-- `--include-all` is passed, and silently skipping a migration is a worse
+-- failure than an invented timestamp.
+
+alter database postgres set search_path to "$user", public, extensions;

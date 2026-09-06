@@ -46,7 +46,334 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      branches: {
+        Row: {
+          address: string | null
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          tenant_id: string
+          timezone: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          tenant_id: string
+          timezone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          tenant_id?: string
+          timezone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branches_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      members: {
+        Row: {
+          branch_id: string
+          created_at: string
+          date_of_birth: string | null
+          email: string | null
+          erased_at: string | null
+          full_name: string
+          gender: string | null
+          id: string
+          joined_on: string
+          member_code: string | null
+          motivation_push_enabled: boolean
+          notes: string | null
+          phone: string
+          photo_url: string | null
+          rest_days: number[]
+          status: Database["public"]["Enums"]["member_status"]
+          tenant_id: string
+          updated_at: string
+          user_id: string | null
+          weekly_goal_visits: number | null
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string | null
+          erased_at?: string | null
+          full_name: string
+          gender?: string | null
+          id?: string
+          joined_on?: string
+          member_code?: string | null
+          motivation_push_enabled?: boolean
+          notes?: string | null
+          phone: string
+          photo_url?: string | null
+          rest_days?: number[]
+          status?: Database["public"]["Enums"]["member_status"]
+          tenant_id: string
+          updated_at?: string
+          user_id?: string | null
+          weekly_goal_visits?: number | null
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string | null
+          erased_at?: string | null
+          full_name?: string
+          gender?: string | null
+          id?: string
+          joined_on?: string
+          member_code?: string | null
+          motivation_push_enabled?: boolean
+          notes?: string | null
+          phone?: string
+          photo_url?: string | null
+          rest_days?: number[]
+          status?: Database["public"]["Enums"]["member_status"]
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string | null
+          weekly_goal_visits?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "members_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "members_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_settings: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          brand_accent: string | null
+          checkin_dedupe_seconds: number
+          city: string | null
+          created_at: string
+          financial_year_start_month: number
+          grace_period_days: number
+          gstin: string | null
+          invoice_prefix: string
+          logo_url: string | null
+          max_freeze_days_per_year: number
+          no_show_threshold_days: number
+          opening_hours: Json
+          pause_approver_role: Database["public"]["Enums"]["app_role"]
+          pause_reasons: string[]
+          pincode: string | null
+          preset: Database["public"]["Enums"]["gym_preset"] | null
+          receipt_prefix: string
+          renewal_reminder_days_from_expiry: number[] | null
+          state: string | null
+          streak_rule_type: Database["public"]["Enums"]["streak_rule_type"]
+          tenant_id: string
+          trainer_member_cap: number | null
+          updated_at: string
+          week_start_day: number
+          weekly_goal_default: number
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          brand_accent?: string | null
+          checkin_dedupe_seconds?: number
+          city?: string | null
+          created_at?: string
+          financial_year_start_month?: number
+          grace_period_days?: number
+          gstin?: string | null
+          invoice_prefix?: string
+          logo_url?: string | null
+          max_freeze_days_per_year?: number
+          no_show_threshold_days?: number
+          opening_hours?: Json
+          pause_approver_role?: Database["public"]["Enums"]["app_role"]
+          pause_reasons?: string[]
+          pincode?: string | null
+          preset?: Database["public"]["Enums"]["gym_preset"] | null
+          receipt_prefix?: string
+          renewal_reminder_days_from_expiry?: number[] | null
+          state?: string | null
+          streak_rule_type?: Database["public"]["Enums"]["streak_rule_type"]
+          tenant_id: string
+          trainer_member_cap?: number | null
+          updated_at?: string
+          week_start_day?: number
+          weekly_goal_default?: number
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          brand_accent?: string | null
+          checkin_dedupe_seconds?: number
+          city?: string | null
+          created_at?: string
+          financial_year_start_month?: number
+          grace_period_days?: number
+          gstin?: string | null
+          invoice_prefix?: string
+          logo_url?: string | null
+          max_freeze_days_per_year?: number
+          no_show_threshold_days?: number
+          opening_hours?: Json
+          pause_approver_role?: Database["public"]["Enums"]["app_role"]
+          pause_reasons?: string[]
+          pincode?: string | null
+          preset?: Database["public"]["Enums"]["gym_preset"] | null
+          receipt_prefix?: string
+          renewal_reminder_days_from_expiry?: number[] | null
+          state?: string | null
+          streak_rule_type?: Database["public"]["Enums"]["streak_rule_type"]
+          tenant_id?: string
+          trainer_member_cap?: number | null
+          updated_at?: string
+          week_start_day?: number
+          weekly_goal_default?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          activated_at: string | null
+          created_at: string
+          currency: string
+          gym_code: string
+          id: string
+          name: string
+          status: Database["public"]["Enums"]["organization_status"]
+          tier: string | null
+          timezone: string
+          trial_ends_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          activated_at?: string | null
+          created_at?: string
+          currency?: string
+          gym_code: string
+          id?: string
+          name: string
+          status?: Database["public"]["Enums"]["organization_status"]
+          tier?: string | null
+          timezone?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activated_at?: string | null
+          created_at?: string
+          currency?: string
+          gym_code?: string
+          id?: string
+          name?: string
+          status?: Database["public"]["Enums"]["organization_status"]
+          tier?: string | null
+          timezone?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      staff: {
+        Row: {
+          branch_id: string | null
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          is_active: boolean
+          max_active_clients: number | null
+          phone: string | null
+          qualification: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          tenant_id: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id?: string
+          is_active?: boolean
+          max_active_clients?: number | null
+          phone?: string | null
+          qualification?: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          tenant_id: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          is_active?: boolean
+          max_active_clients?: number | null
+          phone?: string | null
+          qualification?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -55,7 +382,23 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      app_role:
+        | "super_admin"
+        | "platform_support"
+        | "gym_owner"
+        | "gym_manager"
+        | "front_desk"
+        | "trainer"
+        | "member"
+      gym_preset: "neighbourhood_gym" | "premium_studio" | "functional_box"
+      member_status: "active" | "paused" | "expired" | "cancelled" | "blocked"
+      organization_status:
+        | "pending_approval"
+        | "trial"
+        | "active"
+        | "suspended"
+        | "closed"
+      streak_rule_type: "visit_streak" | "weekly_goal" | "calendar_streak"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -185,6 +528,26 @@ export const Constants = {
     Enums: {},
   },
   public: {
-    Enums: {},
+    Enums: {
+      app_role: [
+        "super_admin",
+        "platform_support",
+        "gym_owner",
+        "gym_manager",
+        "front_desk",
+        "trainer",
+        "member",
+      ],
+      gym_preset: ["neighbourhood_gym", "premium_studio", "functional_box"],
+      member_status: ["active", "paused", "expired", "cancelled", "blocked"],
+      organization_status: [
+        "pending_approval",
+        "trial",
+        "active",
+        "suspended",
+        "closed",
+      ],
+      streak_rule_type: ["visit_streak", "weekly_goal", "calendar_streak"],
+    },
   },
 } as const
