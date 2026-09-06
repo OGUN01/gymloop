@@ -75,7 +75,7 @@ THE SYSTEM SHALL provide, for every tenant-scoped table, at least one btree inde
 - **THEN** the result SHALL be empty
 
 #### Scenario: An unindexed foreign key
-- **WHEN** the schema is inspected for foreign-key columns that are not the leading column of any index
+- **WHEN** the schema is inspected for foreign-key columns that neither lead an index of their own nor sit immediately after the tenant column in a tenant-leading composite index
 - **THEN** the result SHALL be empty
 
 ### Requirement: Table privileges are granted deliberately, not inherited

@@ -63,7 +63,9 @@ apps/web Route Handlers, apps/mobile, packages/api-client
 
 Canonical status vocabularies (member, membership, no-show case, payment, add-on order, notification, follow-up outcome — `docs/data-model.md`) live at the top of this chain as Postgres enums. They are never hand-written as TypeScript constants (`docs/decisions.md` ADR-021) — that would be a second, driftable source of truth for exactly the kind of thing `docs/registry.md` exists to prevent duplicating.
 
-`packages/shared/src/config/constants.ts` holds everything that is genuinely **not** part of this chain: product name, default timezone/currency, supported locales, reminder-day offsets, trial length, tier prices, the fixed role list.
+`packages/shared/src/config/constants.ts` holds everything that is genuinely **not** part of this chain: product name, default timezone/currency, supported locales, reminder-day offsets, trial length, tier prices.
+
+The role list is **not** among them, though this paragraph once said it was. Phase 1 found that four columns need the role set as their domain, and a column's domain is a database type — so `app_role` is a Postgres enum at the top of the chain above, and `ROLES`/`Role` were deleted from `constants.ts` (`docs/decisions.md` ADR-031).
 
 ## Boundaries (enforced by `dependency-cruiser`, `.dependency-cruiser.mjs`)
 

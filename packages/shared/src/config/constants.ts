@@ -57,17 +57,15 @@ export const PLAN_TIER_PRICES_PAISE = {
 
 export const SUPABASE_REGION = 'ap-south-1';
 
-/** Fixed v1 role set (§6). A per-permission matrix is Phase 2. */
-export const ROLES = [
-  'super_admin',
-  'platform_support',
-  'gym_owner',
-  'gym_manager',
-  'front_desk',
-  'trainer',
-  'member',
-] as const;
+/*
+ * The v1 role set is NOT here. It is the `app_role` Postgres enum, generated
+ * into packages/db/types/database.ts — see docs/decisions.md ADR-031. Four
+ * columns need it as their domain (`staff.role`, `platform_users.role`,
+ * `organization_settings.pause_approver_role`, `audit_log.actor_role`), and a
+ * column's domain is a database type. A `ROLES` array here as well would be a
+ * second role vocabulary that can drift, which is what ADR-021 and this file's
+ * header rule out for exactly the same reason. Do not re-add it.
+ */
 
-export type Role = (typeof ROLES)[number];
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 export type PlanTier = keyof typeof PLAN_TIER_PRICES_PAISE;

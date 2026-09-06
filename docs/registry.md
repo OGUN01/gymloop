@@ -14,7 +14,6 @@ Update this file in the same commit that adds the export. One row per symbol, ke
 | `PLAN_TIER_PRICES_PAISE` | `packages/shared/src/config/constants.ts` | Monthly SaaS tier prices in integer paise (§5) | Phase 6 (platform billing) |
 | `PRODUCT_NAME` | `packages/shared/src/config/constants.ts` | The one place the placeholder product name lives | Everywhere the name is displayed |
 | `RENEWAL_REMINDER_WINDOWS` | `packages/shared/src/config/constants.ts` | Renewal reminder windows, each with an explicit `daysFromExpiry`: **negative = before expiry, 0 = expiry date, positive = after** (so the spec's "+3" is `+3`). Ids (`expiry_minus_14` … `expiry_plus_3`) are unambiguous without reading the sign (PAY-001) | Phase 4 (reminders), Phase 5 (renewals) |
-| `ROLES` | `packages/shared/src/config/constants.ts` | Fixed v1 role set (§6) | Phase 2 (identity/RLS), Phase 6 (super admin) |
 | `SUPABASE_REGION` | `packages/shared/src/config/constants.ts` | ap-south-1 (Mumbai) — latency-driven choice, see `docs/decisions.md` | Infra docs, onboarding checks |
 | `SUPPORTED_LOCALES` | `packages/shared/src/config/constants.ts` | English + Hindi (§4) | i18n setup, all UI phases |
 | `TRIAL_DAYS` | `packages/shared/src/config/constants.ts` | 14-day full-feature trial length (§5) | Phase 2 (gym signup/onboarding) |
@@ -29,7 +28,6 @@ _None yet — canonical status vocabularies are specified in `docs/data-model.md
 |---|---|---|---|
 | `PlanTier` | `packages/shared/src/config/constants.ts` | `keyof typeof PLAN_TIER_PRICES_PAISE` | Phase 6 (platform billing) |
 | `RenewalReminderWindowId` | `packages/shared/src/config/constants.ts` | `'expiry_minus_14' \| … \| 'expiry_plus_3'` — the window id, so reminder state can be keyed by name rather than by a signed offset | Phase 4 (reminders), Phase 5 (renewals) |
-| `Role` | `packages/shared/src/config/constants.ts` | `(typeof ROLES)[number]` | Phase 2 (identity/RLS) |
 | `SupportedLocale` | `packages/shared/src/config/constants.ts` | `(typeof SUPPORTED_LOCALES)[number]` | i18n setup |
 
 ## Utilities

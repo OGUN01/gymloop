@@ -16,9 +16,252 @@ Single Postgres database, Row-Level Security on every table, `tenant_id` injecte
 
 Hierarchy from day one, so Phase 2's multi-branch UI needs no schema change: **organization → branch → member**. A "gym" in every other doc is an `organization`; v1 UI only ever shows one `branch` per organization, but the column exists now.
 
+## Conventions (the contract)
+
+Fixed before the first migration and binding on every table in the list that follows. Six cluster agents write their migrations in parallel against this section; anything left to taste here comes back as six dialects. A cluster that needs an exception records an ADR in `docs/decisions.md` first — it does not quietly deviate, and it never edits another cluster's file.
+
+### Naming
+
+All identifiers lowercase `snake_case` and unquoted, so nothing ever needs quoting again.
+
+| Object | Pattern | Example |
+|---|---|---|
+| table | plural noun | `memberships`, `no_show_cases` (`staff` and `attendance` are mass nouns and stay as the list writes them) |
+| column | `snake_case`; FK `<referenced_singular>_id`; money `*_paise`; timestamp `*_at`; date `*_on`; boolean `is_*`/`has_*` | `recorded_by_staff_id`, `price_paise`, `paid_at`, `joined_on`, `is_active` |
+| enum type | singular, in `public` | `payment_status` |
+| primary key | auto-named `<table>_pkey` — never named by hand | `members_pkey` |
+| foreign key | declared inline on the column, auto-named `<table>_<column>_fkey` | `members_branch_id_fkey` |
+| unique (total) | table constraint `<table>_<columns>_key` | `plans_tenant_id_name_key` |
+| unique (partial) | `create unique index <table>_<columns>[_<qualifier>]_key` | `memberships_member_id_live_key` |
+| index | `create index <table>_<columns>[_<qualifier>]_idx` | `attendance_tenant_id_member_id_checked_in_at_idx` |
+| check | `<table>_<rule>_chk` | `organizations_gym_code_format_chk` |
+| exclusion | `<table>_<rule>_excl` | `pt_sessions_trainer_overlap_excl` |
+| policy | `<table>_tenant_all`, `<table>_platform_all`, `<table>_tenant_select` | `payments_tenant_all` |
+| trigger | `<table>_touch_updated_at` | `members_touch_updated_at` |
+| migration file | `supabase migration new <cluster>` — never invent the timestamp | `20260906120000_tenancy.sql` |
+
+`<columns>` is the index's columns in index order joined by `_`, without `desc` and without the `where` clause. `<qualifier>` is one word naming what a partial index selects (`live`, `open`, `default`, `unprocessed`) and exists because two partial indexes over the same columns otherwise collide.
+
+### Migration file layout
+
+One file per cluster. Statements in this order, so all seven files read the same:
+
+1. extensions — `create extension if not exists <ext> with schema extensions;`
+2. enum types — `create type public.<name> as enum (…)`
+3. tables — inline defaults, `not null`, primary key, foreign keys, and every check expressible on one column
+4. constraints not expressible inline — multi-column checks and exclusion constraints, via `alter table … add constraint`
+5. indexes
+6. `alter table public.<table> enable row level security;`
+7. policies
+8. privileges — `revoke`, then `grant`, per table
+9. triggers
+
+No `begin`/`commit` inside a migration; only pgTAP files are transaction-wrapped (ADR-030). No `drop`, and no `alter` against a table another cluster created. Head the file with a comment naming the cluster and the sections of this document it implements.
+
+### Every table
+
+- Primary key `id uuid primary key default gen_random_uuid()`. `gen_random_uuid()` is core in Postgres 17 and needs no extension. The five tables the list gives a natural or composite key (`organization_settings`, `razorpay_accounts`, `messaging_wallets`, `document_counters`, `platform_users`) use that key and have no `id`. No `bigint generated always as identity` anywhere; ADR-035 argues that departure from Supabase's own guidance.
+- `created_at timestamptz not null default now()` on every table, no exceptions. (`messaging_wallets` and `document_counters` are written below without one; the rule wins.) Four tables also carry a **domain** timestamp — `consents.recorded_at`, `audit_log.occurred_at`, `webhook_events.received_at`, `qr_sessions.issued_at` — and keep both. They are not duplicates: `created_at` is when the row was inserted, the domain column is when the thing it records happened, and a backfill or a delayed webhook makes them differ. Do not collapse them.
+- `updated_at timestamptz not null default now()` on exactly the tables the list gives one, each maintained by the shared trigger below and by nothing else. A table with no `updated_at` gets no trigger.
+- Columns are `not null` unless the list marks `∅`. `text`, never `varchar(n)` — a length limit is a check constraint. `jsonb`, never `json`. An instant is `timestamptz`; a calendar day the gym reasons about in its own timezone is `date` (MNY-004).
+- Money is an integer number of paise in a `bigint` column named `*_paise`, never `numeric` and never floating point (MNY-001). Every table carrying a money column carries exactly one currency column, `currency text not null default 'INR'`, with `constraint <table>_currency_chk check (currency ~ '^[A-Z]{3}$')` (MNY-002). Basis-point columns (`gst_rate_bp`, `percent_bp`) and `messaging_wallets.balance_credits` are not money and take no currency column. The rounding rule for derived amounts is Phase 5's (MNY-003); no cluster invents one.
+
+`updated_at` is maintained by one function and one trigger per table, never by application code:
+
+```sql
+create or replace function app.touch_updated_at()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+create trigger members_touch_updated_at
+  before update on public.members
+  for each row execute function app.touch_updated_at();
+```
+
+The function is created once, by the contract migration. A second copy of it is the failure this paragraph exists to prevent.
+
+### The `app` schema and the two JWT accessors
+
+Phase 2's custom access-token hook will set two claims: `tenant_id` (a uuid as a string) and `app_role` (a label from the `app_role` enum). Phase 1 fixes the claim names and writes the accessors; it does not build the hook. ADR-032 records why, and what was rejected.
+
+The accessors live in `app`, not `public`. `supabase/config.toml` exposes only `public` and `graphql_public` to the Data API, so nothing in `app` is reachable as an RPC and nothing in `app` appears in `packages/db/types/database.ts`. Both are `stable` and `security invoker`: they read a GUC and never touch a table, so `security definer` would buy nothing and would hand a caller elevated context for free.
+
+```sql
+create schema if not exists app;
+grant usage on schema app to authenticated, service_role;
+
+create or replace function app.current_tenant_id()
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select nullif(
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'tenant_id',
+    ''
+  )::uuid
+$$;
+
+create or replace function app.is_platform()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'app_role',
+    ''
+  ) in ('super_admin', 'platform_support')
+$$;
+```
+
+`current_setting(…, true)` returns null instead of raising when the setting is absent, so a session with no claims yields `null` from `current_tenant_id()` and `false` from `is_platform()` — no exception, and a policy comparing against null simply matches no rows. A claim that is present but is not a uuid raises `22P02` on the cast; that is correct and deliberate. A malformed claim must fail loudly rather than degrade into "sees nothing" and be mistaken for an empty gym.
+
+`execute` on both is already granted to `public` by default, so the schema `usage` grant is the only privilege a policy needs. `anon` gets neither.
+
+**There is no third accessor.** A per-role helper (`app.is_owner()`, `app.has_permission(…)`) belongs to Phase 2's role matrix, not to Phase 1's tenant isolation; writing one now puts a permission model in the schema before the hook that feeds it exists.
+
+### Row-Level Security
+
+`alter table … enable row level security` in the same migration that creates the table, always. Never `force row level security`: `force` subjects the table owner to its own policies, and the owner is `postgres` — the role that applies migrations and runs the seed, with no JWT. Every policy would then evaluate against a null claim and the seed would write nothing. Isolation is proven for `authenticated`, the role that actually carries a user request, and that is what the pgTAP suite asserts (gate 7). Nobody should later read the absence of `force` as an oversight.
+
+Two permissive policies per tenant-scoped table, both `for all to authenticated`. Every accessor call is wrapped in `(select …)` so the planner evaluates it once as an InitPlan instead of once per row — at 100 gyms × 500 members that wrapper is the difference between an index scan and a per-row function call:
+
+```sql
+alter table public.<table> enable row level security;
+
+create policy <table>_tenant_all on public.<table>
+  for all to authenticated
+  using (tenant_id = (select app.current_tenant_id()))
+  with check (tenant_id = (select app.current_tenant_id()));
+
+create policy <table>_platform_all on public.<table>
+  for all to authenticated
+  using ((select app.is_platform()))
+  with check ((select app.is_platform()));
+```
+
+`with check` is not optional. `using` alone governs which rows are visible and updatable *from*; without `with check` an authenticated user can insert a row into another tenant, or move one there.
+
+`organizations` compares `id`, being the tenant itself:
+
+```sql
+create policy organizations_tenant_all on public.organizations
+  for all to authenticated
+  using (id = (select app.current_tenant_id()))
+  with check (id = (select app.current_tenant_id()));
+```
+
+`impersonation_sessions` gives the gym read access only — it may see who impersonated it and when, and may not write that record:
+
+```sql
+create policy impersonation_sessions_tenant_select on public.impersonation_sessions
+  for select to authenticated
+  using (tenant_id = (select app.current_tenant_id()));
+```
+
+with `impersonation_sessions_platform_all` beside it, unchanged from the template.
+
+Under a missing claim `app.current_tenant_id()` is null, `tenant_id = null` is null rather than true, and `app.is_platform()` is false; both permissive policies fail, they OR to false, and the query returns zero rows. Zero rows, not an error — a policy that raised would let a caller tell "nothing here" apart from "wrong tenant", and the pgTAP null-claim case asserts the silent-empty behaviour. The same arithmetic keeps `audit_log`'s null-`tenant_id` rows invisible to every gym without needing a second policy: `null = <uuid>` is null.
+
+### Privileges
+
+Verified against `pg_default_acl`: in schema `public`, default privileges grant **all** — insert, select, update, delete, truncate, references, trigger, maintain — to `anon`, `authenticated` and `service_role` on every table created by `postgres`, which is the role migrations run as. RLS restricts which *rows* are reachable; it does not remove the privilege, and `truncate` is not filtered by RLS at all. A table that enables RLS but never revokes is one dropped policy away from being world-writable. So, every table without exception:
+
+```sql
+revoke all on public.<table> from anon, authenticated;
+grant select, insert, update on public.<table> to authenticated;
+```
+
+Both lines are written out per table. Never the `on all tables in schema public` form — a later cluster running it re-grants across every other cluster's tables. `service_role` is never revoked from; it is the Edge Functions' and the seed's role and bypasses RLS by design. `anon` is granted nothing anywhere in v1: a public surface that ever needs data (a gym-code lookup, say) goes through a Route Handler on `service_role`, not through an `anon` grant.
+
+Three tiers, and the grant line is the whole difference:
+
+| Tier | Grant to `authenticated` | Tables |
+|---|---|---|
+| normal | `select, insert, update` | `organizations`, `organization_settings`, `branches`, `staff`, `members`, `plans`, `coupons`, `document_counters`, `razorpay_accounts`, `qr_sessions`, `organization_holidays`, `addon_products`, `pt_sessions`, `message_templates`, `notifications`, `member_devices`, `messaging_wallets`, `platform_users`, `leads`, `member_imports` |
+| append-only | `select, insert` | `attendance_corrections`, `follow_ups`, `consents`, `audit_log`, `messaging_wallet_ledger`, `webhook_events` |
+| history | `select, insert, update` | `memberships`, `membership_pauses`, `payments`, `refunds`, `invoices`, `razorpay_mandates`, `attendance`, `no_show_cases`, `addon_orders`, `impersonation_sessions` |
+
+Append-only is a privilege, not a trigger: an insert-only grant cannot be forgotten in a code path the way a guard can. `webhook_events` is append-only for `authenticated` even though `processed_at` is stamped after insert — the stamp is written by the webhook Edge Function on `service_role`.
+
+`history` and `normal` carry the same grant today and are still named apart, because the missing `delete` means different things: on a history table it is permanent (INT-001 — cancel, refund, correct, never remove), on a normal table it is Phase 1's default. **`delete` is granted to `authenticated` on no table in Phase 1** — no v1 flow hard-deletes a row. A later phase that genuinely needs one adds the grant deliberately, per table, with the reason recorded in `docs/decisions.md`.
+
+No sequence grants are needed anywhere: keys are uuid and no column is `generated as identity`.
+
+A pgTAP meta-test asserts the outcome rather than the syntax — `anon` holds no privilege on any table in `public`, and `authenticated` holds `delete` on none.
+
+### Indexes
+
+Three rules, all mechanically checkable, all asserted by a pgTAP meta-test over `pg_index` for every table in `public`:
+
+1. Every tenant-scoped table has at least one **non-partial** btree index whose **first column** is its tenant column. A composite leading with `tenant_id` satisfies it; a composite leading with anything else does not, and neither does a partial index — a policy predicate applies to every row, so an index that covers only some of them leaves the rest on a sequential scan. The primary key discharges the rule for `organizations` (`id`) and for the tenant-keyed tables whose key starts with `tenant_id`. Four tables in the list below enumerate indexes that do not include one: `attendance_corrections`, `follow_ups`, `consents` (no tenant-leading index at all) and `refunds` (only a partial unique one). The owning cluster adds `<table>_tenant_id_idx`, or extends an existing composite to lead with `tenant_id` where that serves a real query.
+2. Every foreign-key column is indexed: it either leads an index of its own, or it sits immediately after the tenant column in a tenant-leading composite — `(tenant_id, member_id, checked_in_at desc)` indexes `attendance.member_id`, and no separate one is added. The second form counts because every read here is tenant-scoped, and the referential-integrity scan a standalone index would serve happens only when a parent key is deleted or updated: Phase 1 grants `delete` nowhere, and a uuid key is never updated. Unlike rule 1, **rule 2 accepts a partial index** — `no_show_cases.member_id` leads only `(member_id) where status in (…)` and `members.user_id` sits only in `(tenant_id, user_id) where user_id is not null`, and both are sufficient, because the RI probe is `where <fk> = $1`, which implies the partial predicate, so the planner can use the index. The meta-test must encode this difference or it will fail four tables that are correct.
+3. Every column appearing in an RLS policy predicate is indexed. With the template above that is the tenant column, so rule 1 discharges it; it is stated separately because it stops being automatic the moment a policy grows a second term.
+
+The meta-test iterates the catalogue, so it covers tables that do not exist yet as well as today's. A table that cannot satisfy all three is a schema bug; the exception is not negotiated with the test afterwards.
+
+### Enums
+
+Every vocabulary in `## Enums` below is a Postgres enum (ADR-021), created as `create type public.<name> as enum (…)` with the labels in the order that section lists — the order is part of the contract, because it is what `supabase gen types` emits and what any `order by` on the column follows. Each type is created exactly once, by the cluster that owns it; a second `create type` in a parallel migration is an apply failure on merge.
+
+| Cluster | Enums it creates |
+|---|---|
+| tenancy | `app_role`, `organization_status`, `gym_preset`, `streak_rule_type`, `member_status` |
+| membership+money | `membership_status`, `payment_status`, `payment_method`, `refund_kind`, `refund_status`, `mandate_status` |
+| attendance | `attendance_source` |
+| catalogue | `addon_kind`, `addon_order_status`, `pt_session_status` |
+| retention | `no_show_case_status`, `contact_channel`, `follow_up_outcome` |
+| comms | `notification_channel`, `notification_status`, `consent_purpose` |
+| platform | `lead_source`, `lead_stage`, `import_status` |
+
+`app_role` is created by the contract migration because four clusters need it, and it is the only role vocabulary the system has (ADR-031). Nothing enforces a legal transition in Phase 1 — the graphs in `## Enums` are documentation until the phase that first mutates each status (3, 4, 5) writes the enforcement and the illegal-transition tests (gate 14).
+
+### Audit rows
+
+`audit_log.action` is `<record_type>.<verb>`, both halves lowercase snake_case: `payment.refunded`, `membership.cancelled`, `attendance.corrected`, `impersonation_session.started`. The format is a constraint, and it replaces the list's `≠ ''` on that column — a pattern requiring the dot already excludes the empty string:
+
+```sql
+constraint audit_log_action_format_chk
+  check (action ~ '^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$')
+```
+
+Phase 1 creates the table with its indexes, RLS and privileges — and **nothing writes to it**. No audit trigger, no `security definer` writer function, no application write. INT-003's rows arrive with the phases that perform the actions (3+), which is also the first point at which the actor is knowable. A cluster agent that adds an audit trigger has built Phase 3 early and wrong.
+
+### Tenant-path exceptions
+
+Exactly two, both in the platform cluster (ADR-033). `platform_users` has no `tenant_id` at all and carries only `platform_users_platform_all`. `audit_log` has a nullable `tenant_id`: a row with one belongs to that gym, a row without one is platform-level and reachable only through the platform policy. Every other table in the list is `direct`, and a pgTAP meta-test asserts that no third table is missing tenant scoping — so this is a closed list, not a precedent. A third exception needs an ADR before the migration, not after.
+
+### The contract migration
+
+The `tenancy` cluster is the contract migration and merges alone, before any fan-out. It creates, in this order: `create extension if not exists pgtap with schema extensions;` · schema `app` and its `usage` grant · `app.current_tenant_id()`, `app.is_platform()`, `app.touch_updated_at()` · the five tenancy enums · `organizations`, `organization_settings`, `branches`, `staff`, `members` with their indexes, RLS, policies, privileges and triggers.
+
+That list is exactly what the other six clusters depend on and none of them re-creates: the schema, the three functions, `app_role`, and `organizations` as the foreign-key target of every `tenant_id`. `btree_gist` is the one other extension Phase 1 installs and belongs to the catalogue cluster, its only user (`pt_sessions`). `pgcrypto` and `uuid-ossp` are already installed on the project; no migration creates them.
+
+### What a cluster agent must not do
+
+- Run `supabase db push`, `supabase db reset`, or any other mutating Supabase command. CI applies migrations on merge to `main`, in merge order (ADR-030). Never the Supabase MCP server — it is authenticated to a different account (`AGENTS.md` rule 2).
+- Edit another cluster's migration, or `alter` a table another cluster created. A cross-cluster seam is carried by the later table's foreign key (`addon_orders.payment_id`), never by an alter.
+- Hand-edit `packages/db/types/database.ts`. It is regenerated from Cloud after the apply (`AGENTS.md` rule 6).
+- Write an `eslint-disable`, a `knip` ignore, or any other escape hatch (`AGENTS.md` rule 4).
+- Create a `security definer` function, a view, a materialised view, or any trigger other than `<table>_touch_updated_at`.
+- Put behaviour in the database: no state-machine enforcement, no audit writes, no derived balances, no `pg_cron` job. Phase 3+ owns behaviour; Phase 1 owns shape.
+- Grant anything to `anon`; add `force row level security`; add a third accessor; add a third tenant-path exception; create an extension other than the two named above.
+- Edit `docs/data-model.md`. This section and the table list are the specification the migrations implement — changing either is a `spec:` commit with human approval (`AGENTS.md` rule 10).
+
 ## Tables
 
-The v1 schema, table by table. **Cluster** is the migration that creates the table and the agent that owns it (`.claude/skills/new-feature/SKILL.md`, "Parallel execution within a phase"). **Tenant path** is how RLS reaches the tenant id: `direct` means the row carries `tenant_id`; the two exceptions are named. Conventions every table follows without repeating them here — id, timestamps, the policy pair, the privilege block, the index rule — are in "Conventions (the contract)" below. Only what is *specific* to a table is listed under it.
+The v1 schema, table by table. **Cluster** is the migration that creates the table and the agent that owns it (`.claude/skills/new-feature/SKILL.md`, "Parallel execution within a phase"). **Tenant path** is how RLS reaches the tenant id: `direct` means the row carries `tenant_id`; the two exceptions are named. Conventions every table follows without repeating them here — id, timestamps, the policy pair, the privilege block, the index rule — are in "Conventions (the contract)" above. Only what is *specific* to a table is listed under it.
 
 Column notation: `name type` then constraints; `→ table` is a foreign key; `∅` means nullable (everything else is `not null`); `=x` is the default; money columns are integer paise (`*_paise bigint`) next to one `currency` column per table.
 
@@ -154,6 +397,10 @@ Column notation: `name type` then constraints; `→ table` is a foreign key; `�
 **`notifications`** — every scheduled or sent message; the de-dupe key is what makes PAY-002 (one message per stage) structural. Tenant path: direct.
 - `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `channel notification_channel` · `template_key text ∅` · `status notification_status =scheduled` · `dedupe_key text ∅` (e.g. `renewal:<membership_id>:expiry_minus_7`) · `scheduled_for timestamptz =now()` · `sent_at timestamptz ∅` · `delivered_at timestamptz ∅` · `clicked_at timestamptz ∅` · `converted_at timestamptz ∅` · `failed_reason text ∅` · `related_type text ∅` · `related_id uuid ∅` · `payload jsonb ={}` · `created_at`, `updated_at`
 - Indexes: unique `(tenant_id, dedupe_key) where dedupe_key is not null`; `(tenant_id, status, scheduled_for)`; `member_id`; `(related_type, related_id)`.
+
+**`member_devices`** — the devices a member has registered for push, ADR-016's v1 primary channel. A `notifications` row with no device to deliver to is a dead end, so this table exists in Phase 1 rather than arriving with a Phase 3 migration. Deliberately minimal: it carries no delivery-receipt state, which belongs on `notifications`. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `platform text` check in (`ios`, `android`, `web`) · `push_token text` unique (globally — a token identifies one app install, so the same token at two gyms is the same device and must not be duplicated) · `last_seen_at timestamptz =now()` · `is_active boolean =true` · `created_at`, `updated_at`
+- Indexes: unique `(push_token)`; `(tenant_id, member_id)`.
 
 **`consents`** — versioned, append-only consent entries (DPD-002/003/004, INT-002). Current state = latest row per (member, purpose). Tenant path: direct.
 - `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `purpose consent_purpose` · `granted boolean` · `version text` check ≠ '' · `source text` check ≠ '' · `recorded_at timestamptz =now()` · `recorded_by_staff_id uuid ∅` → staff
