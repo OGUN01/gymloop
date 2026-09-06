@@ -4,20 +4,20 @@
 
 ## Model and effort policy
 
-**Every phase that builds or designs runs on Claude Fable 5.1.** This is a deliberate product-owner decision: quality is the constraint, not cost. **Do not substitute a cheaper model to save tokens, and do not propose it.** Effort is the only lever that varies.
+**Build phases run on Claude Opus 5 at `xhigh`; the design phase runs on Claude Fable 5.1 at `max`.** Product-owner decision, 2026-09-06, made while Phase 1 was running: the first Fable run was cut off by the account usage limit after thirty minutes, and the owner chose Opus 5 for the build phases so runs complete, keeping Fable for Phase 7 where the blind visual comparison is the whole point. This supersedes the master prompt header's Fable-everywhere rule by the owner's own call, not by a session's. Effort stays `xhigh` on every build phase — the model changed, the bar did not. **Do not lower effort or substitute a smaller model than Opus 5, and do not propose it.**
 
 | Phase | Model | Effort | Why this effort |
 |---|---|---|---|
 | 0 · Foundation | Fable 5.1 | `high` | Scaffolding — errors surface instantly. |
 | 0 · final critic | Fable 5.1 | `xhigh` | Deep judgement on whether the gates really fire. |
-| 1 · Data model + RLS | Fable 5.1 | `xhigh` | An RLS hole is silent and leaks another gym's members. |
-| 2 · Identity & tenancy | Fable 5.1 | `high` | Well-trodden auth wiring; role tests fail loudly. |
-| 3 · Core domain | Fable 5.1 | `xhigh` | Double-scan, offline replay, exactly-once. Concurrency bugs are silent. |
-| 4 · Retention engine | Fable 5.1 | `xhigh` | Per-timezone scans, no duplicate open cases. |
-| 5 · Money | Fable 5.1 | `xhigh` | Webhook idempotency, never-mark-paid. Real money, real disputes. |
-| 6 · Growth surfaces | Fable 5.1 | `high` | Mostly CRUD over an already-proven core. |
+| 1 · Data model + RLS | Opus 5 | `xhigh` | An RLS hole is silent and leaks another gym's members. |
+| 2 · Identity & tenancy | Opus 5 | `xhigh` | Well-trodden auth wiring; role tests fail loudly. |
+| 3 · Core domain | Opus 5 | `xhigh` | Double-scan, offline replay, exactly-once. Concurrency bugs are silent. |
+| 4 · Retention engine | Opus 5 | `xhigh` | Per-timezone scans, no duplicate open cases. |
+| 5 · Money | Opus 5 | `xhigh` | Webhook idempotency, never-mark-paid. Real money, real disputes. |
+| 6 · Growth surfaces | Opus 5 | `xhigh` | Mostly CRUD over an already-proven core. |
 | **7 · Design & UI** | Fable 5.1 | `max` | **The design must be the best part of this product.** Also a vision task — see below. |
-| 8 · Hardening | Fable 5.1 | `xhigh` | Last look before real gyms. |
+| 8 · Hardening | Opus 5 | `xhigh` | Last look before real gyms. |
 
 **At `xhigh` and `max`, set a large `max_tokens`.** It is a hard ceiling on thinking *plus* response, so a long deliverable can otherwise be drafted in thinking and truncated in the reply. Because effort is the only lever, the instructions against unrequested refactoring, tidying and test sprawl matter *more*, not less: higher effort makes those behaviours more likely, and they are the cost of running hot everywhere.
 
