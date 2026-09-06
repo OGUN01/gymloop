@@ -34,7 +34,7 @@ All identifiers lowercase `snake_case` and unquoted, so nothing ever needs quoti
 | unique (total) | table constraint `<table>_<columns>_key` | `plans_tenant_id_name_key` |
 | unique (partial) | `create unique index <table>_<columns>[_<qualifier>]_key` | `memberships_member_id_live_key` |
 | index | `create index <table>_<columns>[_<qualifier>]_idx` | `attendance_tenant_id_member_id_checked_in_at_idx` |
-| check | `<table>_<rule>_chk` | `organizations_gym_code_format_chk` |
+| check | `<table>_<rule>_chk`, where `<rule>` is: `<column>_format` for a regex, `<column>` for a range or bound, and a short phrase for a multi-column rule | `organizations_gym_code_format_chk`, `plans_price_paise_chk`, `payments_paid_has_reference_chk` |
 | exclusion | `<table>_<rule>_excl` | `pt_sessions_trainer_overlap_excl` |
 | policy | `<table>_tenant_all`, `<table>_platform_all`, `<table>_tenant_select` | `payments_tenant_all` |
 | trigger | `<table>_touch_updated_at` | `members_touch_updated_at` |
@@ -64,7 +64,8 @@ No `begin`/`commit` inside a migration; only pgTAP files are transaction-wrapped
 - `created_at timestamptz not null default now()` on every table, no exceptions. (`messaging_wallets` and `document_counters` are written below without one; the rule wins.) Four tables also carry a **domain** timestamp — `consents.recorded_at`, `audit_log.occurred_at`, `webhook_events.received_at`, `qr_sessions.issued_at` — and keep both. They are not duplicates: `created_at` is when the row was inserted, the domain column is when the thing it records happened, and a backfill or a delayed webhook makes them differ. Do not collapse them.
 - `updated_at timestamptz not null default now()` on exactly the tables the list gives one, each maintained by the shared trigger below and by nothing else. A table with no `updated_at` gets no trigger.
 - Columns are `not null` unless the list marks `∅`. `text`, never `varchar(n)` — a length limit is a check constraint. `jsonb`, never `json`. An instant is `timestamptz`; a calendar day the gym reasons about in its own timezone is `date` (MNY-004).
-- Money is an integer number of paise in a `bigint` column named `*_paise`, never `numeric` and never floating point (MNY-001). Every table carrying a money column carries exactly one currency column, `currency text not null default 'INR'`, with `constraint <table>_currency_chk check (currency ~ '^[A-Z]{3}$')` (MNY-002). Basis-point columns (`gst_rate_bp`, `percent_bp`) and `messaging_wallets.balance_credits` are not money and take no currency column. The rounding rule for derived amounts is Phase 5's (MNY-003); no cluster invents one.
+- Money is an integer number of paise in a `bigint` column named `*_paise`, never `numeric` and never floating point (MNY-001). Every table carrying a money column carries exactly one currency column, `currency text not null default 'INR'`, with `constraint <table>_currency_chk check (currency ~ '^[A-Z]{3}$')` (MNY-002). Basis-point columns (`gst_rate_bp`, `percent_bp`) and `messaging_wallets.balance_credits` are not money and take no currency column. The rounding rule for derived amounts is Phase 5's (MNY-003); no cluster invents one. **Every `currency` column carries the check, including `organizations.currency`, which has no money column beside it** — it is the gym's default currency and a malformed value there propagates into every amount derived from it.
+- **`=today_ist` means `default (now() at time zone 'Asia/Kolkata')::date`, never `current_date`.** This is MNY-004 applied to a column default. `current_date` evaluates in the *session* timezone, and every Supabase connection is UTC — so between 00:00 and 05:30 IST, which is real gym traffic, `current_date` returns yesterday. The literal duplicates `DEFAULT_TIMEZONE` in `packages/shared/src/config/constants.ts` because a migration cannot import a TypeScript constant and a column default cannot reach `organizations.timezone`; if that constant ever changes, these defaults are the second place to change. A gym outside IST needs the application to supply the gym-local date explicitly, which is Phase 3's job — the default is only correct for the timezone every v1 gym is in. Two columns use it: `members.joined_on` and `no_show_cases.opened_on`.
 
 `updated_at` is maintained by one function and one trigger per table, never by application code:
 
@@ -242,6 +243,35 @@ Phase 1 creates the table with its indexes, RLS and privileges — and **nothing
 
 Exactly two, both in the platform cluster (ADR-033). `platform_users` has no `tenant_id` at all and carries only `platform_users_platform_all`. `audit_log` has a nullable `tenant_id`: a row with one belongs to that gym, a row without one is platform-level and reachable only through the platform policy. Every other table in the list is `direct`, and a pgTAP meta-test asserts that no third table is missing tenant scoping — so this is a closed list, not a precedent. A third exception needs an ADR before the migration, not after.
 
+### How a pgTAP test assumes a role
+
+Part of the contract, not of any one cluster: twelve blind authors write isolation tests in parallel, and three dialects of "act as gym A" would make their results incomparable. Every test file uses this shape.
+
+CI's pgTAP session connects as `postgres` — verified against the project: `current_user` and `session_user` are both `postgres`, `is_superuser` is off, and it is a member of `anon`, `authenticated`, `service_role` and `supabase_privileged_role`. `postgres` owns every table a migration creates, and because the contract forbids `force row level security`, it bypasses RLS. So fixtures are inserted as the owner and isolation is asserted after switching role. Both the role and the claims are transaction-local, so the file's closing `ROLLBACK` undoes them:
+
+```sql
+-- fixtures, as the owner: RLS does not apply
+insert into public.organizations (id, name, gym_code) values ('…'::uuid, 'Gym A', 'AAAAAA');
+
+-- act as a signed-in user of Gym A
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '<gym-a-uuid>', 'app_role', 'gym_owner')::text,
+  true
+);
+set local role authenticated;
+
+-- … assertions …
+
+reset role;
+select set_config('request.jwt.claims', '', true);
+```
+
+A missing claim is the empty string, or never setting the GUC at all; both must yield `null` from `app.current_tenant_id()` and zero rows, without raising. Assert privileges with the three-argument form — `has_table_privilege('authenticated', 'public.payments', 'DELETE')` — so the assertion does not depend on which role the session happens to be. "Refused for want of privilege" is `throws_ok(…)` on SQLSTATE `42501`; an exclusion-constraint violation is `23P01`; a malformed uuid cast is `22P02`. Note the asymmetry that catches people out: an RLS policy does **not** raise on `select` or `update`, it filters, so assert zero rows — but a failing `with check` **does** raise `42501` on `insert`.
+
+One parser constraint from `scripts/check-pgtap-rollback.mjs`: it strips comments, splits on `;`, uppercases, and rejects any file containing a statement that is exactly `COMMIT` or exactly `END`. A `do $$ … end $$;` block therefore fails the check even though it is valid SQL. Write plain SQL and pgTAP functions; no anonymous PL/pgSQL blocks in a test file.
+
 ### The contract migration
 
 The `tenancy` cluster is the contract migration and merges alone, before any fan-out. It creates, in this order: `create extension if not exists pgtap with schema extensions;` · schema `app` and its `usage` grant · `app.current_tenant_id()`, `app.is_platform()`, `app.touch_updated_at()` · the five tenancy enums · `organizations`, `organization_settings`, `branches`, `staff`, `members` with their indexes, RLS, policies, privileges and triggers.
@@ -283,7 +313,7 @@ Column notation: `name type` then constraints; `→ table` is a foreign key; `�
 - Indexes: unique `(tenant_id, user_id) where user_id is not null`; `(tenant_id, role)`; `branch_id`.
 
 **`members`** — the gym's customer. Tenant path: direct.
-- `id uuid` pk · `tenant_id` → organizations · `branch_id` → branches (home branch) · `user_id uuid ∅` → `auth.users(id)` on delete set null (null until the member joins the app; phone auto-match sets it) · `member_code text ∅` (gym-visible id, front-desk search) · `full_name text` · `phone text` check E.164 · `email text ∅` · `gender text ∅` · `date_of_birth date ∅` · `photo_url text ∅` (DPD-008: photos yes, government ID never — there is no column for one) · `status member_status =active` · `joined_on date =current_date` · `weekly_goal_visits smallint ∅` check 1–14 · `rest_days smallint[] ={}` (weekday numbers, 0 = Sunday; STK-002) · `motivation_push_enabled boolean =true` (STK-004) · `notes text ∅` · `erased_at timestamptz ∅` (DPD-006: personal columns blanked, row and financial history kept) · `created_at`, `updated_at`
+- `id uuid` pk · `tenant_id` → organizations · `branch_id` → branches (home branch) · `user_id uuid ∅` → `auth.users(id)` on delete set null (null until the member joins the app; phone auto-match sets it) · `member_code text ∅` (gym-visible id, front-desk search) · `full_name text` · `phone text` check E.164 · `email text ∅` · `gender text ∅` · `date_of_birth date ∅` · `photo_url text ∅` (DPD-008: photos yes, government ID never — there is no column for one) · `status member_status =active` · `joined_on date =today_ist` · `weekly_goal_visits smallint ∅` check 1–14 · `rest_days smallint[] ={}` (weekday numbers, 0 = Sunday; STK-002) · `motivation_push_enabled boolean =true` (STK-004) · `notes text ∅` · `erased_at timestamptz ∅` (DPD-006: personal columns blanked, row and financial history kept) · `created_at`, `updated_at`
 - Indexes: unique `(tenant_id, phone)` (CSV import duplicate-phone detection); unique `(tenant_id, member_code) where member_code is not null`; `(tenant_id, status)`; `branch_id`; unique `(tenant_id, user_id) where user_id is not null`.
 
 ### Cluster: membership+money (one agent — PAY-008 makes the verified payment the thing that activates a membership)
@@ -361,7 +391,7 @@ Column notation: `name type` then constraints; `→ table` is a foreign key; `�
 ### Cluster: retention
 
 **`no_show_cases`** — opened by the daily scan when absence crosses the gym's threshold; exactly one live case per member (NSH-003/004). Tenant path: direct.
-- `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `status no_show_case_status =open` · `opened_on date =current_date` · `last_attended_on date ∅` · `absent_days_at_open integer` check ≥ 0 · `threshold_days integer` check > 0 (snapshot of the setting) · `assigned_to_staff_id uuid ∅` → staff · `contacted_at timestamptz ∅` · `next_follow_up_at timestamptz ∅` · `returned_at timestamptz ∅` · `closed_at timestamptz ∅` · `created_at`, `updated_at`
+- `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `status no_show_case_status =open` · `opened_on date =today_ist` · `last_attended_on date ∅` · `absent_days_at_open integer` check ≥ 0 · `threshold_days integer` check > 0 (snapshot of the setting) · `assigned_to_staff_id uuid ∅` → staff · `contacted_at timestamptz ∅` · `next_follow_up_at timestamptz ∅` · `returned_at timestamptz ∅` · `closed_at timestamptz ∅` · `created_at`, `updated_at`
 - Indexes: unique partial `(member_id) where status in ('open','contacted','follow_up_due')`; `(tenant_id, status)`; `assigned_to_staff_id`; `(tenant_id, next_follow_up_at) where status = 'follow_up_due'`.
 - Privileges: no `delete` for `authenticated` (INT-001: follow-up history, and the case that holds it, is kept).
 
