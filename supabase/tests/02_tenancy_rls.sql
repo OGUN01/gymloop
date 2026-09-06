@@ -15,6 +15,10 @@
 
 begin;
 
+-- The CLI mints a NOINHERIT login role for CI (docs/decisions.md ADR-046):
+-- the owner role is assumed explicitly, never inherited from the connection.
+set local role postgres;
+
 select plan(32);
 
 -- ---------------------------------------------------------------------------
@@ -75,7 +79,7 @@ select throws_ok(
   'spec "Writing with no claim at all": the row-security check rejects a claimless insert'
 );
 
-reset role;
+set local role postgres;
 
 -- ---------------------------------------------------------------------------
 -- An empty claim string, the other half of "a missing tenant claim"
@@ -112,7 +116,7 @@ select throws_ok(
   'spec "A missing tenant claim grants nothing": an empty claim string cannot insert'
 );
 
-reset role;
+set local role postgres;
 
 -- ---------------------------------------------------------------------------
 -- Acting as a gym_owner of gym A
@@ -219,7 +223,7 @@ select throws_ok(
   'spec "Deleting another tenant''s row" / INT-001: authenticated holds no delete privilege on organizations'
 );
 
-reset role;
+set local role postgres;
 
 -- ---------------------------------------------------------------------------
 -- Back as the owner: gym B is untouched by everything above
@@ -268,7 +272,7 @@ select is(
   'spec "A platform role reads every tenant": super_admin sees both gyms'' members'
 );
 
-reset role;
+set local role postgres;
 
 select set_config(
   'request.jwt.claims',
@@ -285,7 +289,7 @@ select is(
   'spec "A platform role reads every tenant": platform_support is the second platform role'
 );
 
-reset role;
+set local role postgres;
 
 select set_config(
   'request.jwt.claims',
@@ -302,7 +306,7 @@ select is(
   'spec "A gym-side role is not a platform role": gym_owner stays inside its own tenant'
 );
 
-reset role;
+set local role postgres;
 
 select set_config(
   'request.jwt.claims',
@@ -319,7 +323,7 @@ select is(
   'spec "One gym can never reach another gym''s rows": isolation holds regardless of the caller''s role within gym A'
 );
 
-reset role;
+set local role postgres;
 select set_config('request.jwt.claims', '', true);
 
 select * from finish();

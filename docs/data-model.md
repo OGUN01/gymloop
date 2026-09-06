@@ -249,9 +249,16 @@ Exactly two, both in the platform cluster (ADR-033). `platform_users` has no `te
 
 Part of the contract, not of any one cluster: twelve blind authors write isolation tests in parallel, and three dialects of "act as gym A" would make their results incomparable. Every test file uses this shape.
 
-CI's pgTAP session connects as `postgres` — verified against the project: `current_user` and `session_user` are both `postgres`, `is_superuser` is off, and it is a member of `anon`, `authenticated`, `service_role` and `supabase_privileged_role`. `postgres` owns every table a migration creates **and holds `BYPASSRLS`**, so it bypasses row security unconditionally — not because the contract omits `force`, which would not have mattered either way (see the correction under § Row-Level Security). So fixtures are inserted as the owner and isolation is asserted after switching role; `set local role authenticated` re-imposes RLS because `BYPASSRLS` is evaluated against the *current* role. Both the role and the claims are transaction-local, so the file's closing `ROLLBACK` undoes them:
+CI's pgTAP session connects as **`cli_login_postgres`**, not as `postgres`. This paragraph previously said the opposite, and the opposite is false — `docs/decisions.md` ADR-046 records how it was measured and what it broke. `supabase test db --linked` runs `pg_prove` against the temporary login role the CLI mints, and that role is a **`NOINHERIT`** member of `postgres` with **no `BYPASSRLS`**, no privilege on any table in `public`, and no `USAGE` on `extensions`, `app` or `auth`. Under it, `select plan(58)` fails with `function plan(integer) does not exist` — the function is there and executable, the schema is simply invisible — and no fixture can be inserted at all. (`supabase db query --linked` *does* report `current_user = postgres`, which is exactly why the wrong belief survived: the two CLI commands do not authenticate the same way.)
+
+The membership carries the `SET` option, so the session can take the roles it needs. **Every file therefore assumes the owner role explicitly, immediately after `begin;`, and never relies on inheriting it** — and where a file previously said `reset role;` it says `set local role postgres;`, because `reset role` returns to the *session* role, which here can do nothing. Both are transaction-local, so the closing `ROLLBACK` undoes them. `set local role authenticated` still works from this session (`pg_has_role('cli_login_postgres','authenticated','SET')` is true), so the isolation half of every file is unchanged.
+
+As `postgres` the session owns every table a migration creates and holds `BYPASSRLS`, so fixtures are inserted with row security not applying, and isolation is asserted after switching role — `set local role authenticated` re-imposes RLS because ownership and `BYPASSRLS` are both evaluated against the *current* role. The absence of `force row level security` is irrelevant either way (see the correction under § Row-Level Security).
 
 ```sql
+-- take the owner role; the connection does not give it to us
+set local role postgres;
+
 -- fixtures, as the owner: RLS does not apply
 insert into public.organizations (id, name, gym_code) values ('…'::uuid, 'Gym A', 'AAAAAA');
 
@@ -266,11 +273,13 @@ set local role authenticated;
 
 -- … assertions …
 
-reset role;
+set local role postgres;
 select set_config('request.jwt.claims', '', true);
 ```
 
 A missing claim is the empty string, or never setting the GUC at all; both must yield `null` from `app.current_tenant_id()` and zero rows, without raising. Assert privileges with the three-argument form — `has_table_privilege('authenticated', 'public.payments', 'DELETE')` — so the assertion does not depend on which role the session happens to be. "Refused for want of privilege" is `throws_ok(…)` on SQLSTATE `42501`; an exclusion-constraint violation is `23P01`; a malformed uuid cast is `22P02`. Note the asymmetry that catches people out: an RLS policy does **not** raise on `select` or `update`, it filters, so assert zero rows — but a failing `with check` **does** raise `42501` on `insert`.
+
+Three pgTAP mechanics that cost this phase a round trip each, recorded so the next author does not pay again. **`throws_ok` has a three-argument form whose third argument is the expected error *message*, not the description** — `throws_ok(sql, '23514', 'a negative count is rejected')` therefore asserts that Postgres said "a negative count is rejected", which it never does, and the test fails against a perfectly correct constraint. Always pass four arguments with `null` for the message: `throws_ok(sql, '23514', null, 'a negative count is rejected')`. **`results_eq` compares the two cursors as records, so it aborts the whole file with `42P22 could not determine which collation to use` if their text collations differ** — a catalogue column of type `name` (`attname`, `typname`, `polname`, `relname`, `conname`) cast to `text` carries collation `"C"`, and a bare string literal in a `values (…)` list carries none. Write `a.attname::text collate "default"` on the actual side and cast every literal on the expected side. **`finish()` is the authority on whether a file passed**: it emits nothing when the plan matched and nothing failed, and a line beginning `# Looks like you` otherwise — counting `ok` lines is not equivalent, because an assertion inside a top-level `with … select` statement still runs and still counts against the plan.
 
 One parser constraint from `scripts/check-pgtap-rollback.mjs`: it strips comments, splits on `;`, uppercases, and rejects any file containing a statement that is exactly `COMMIT` or exactly `END`. A `do $$ … end $$;` block therefore fails the check even though it is valid SQL. Write plain SQL and pgTAP functions; no anonymous PL/pgSQL blocks in a test file.
 

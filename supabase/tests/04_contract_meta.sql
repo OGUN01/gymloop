@@ -18,6 +18,10 @@
 
 begin;
 
+-- The CLI mints a NOINHERIT login role for CI (docs/decisions.md ADR-046):
+-- the owner role is assumed explicitly, never inherited from the connection.
+set local role postgres;
+
 select plan(21);
 
 -- ---------------------------------------------------------------------------
