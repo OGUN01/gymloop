@@ -32,7 +32,7 @@ If this feature touches the database, an API route, RLS, or payments, also read 
 
 5. **EACH AGENT SEARCHES `docs/registry.md` BEFORE WRITING** and registers what it adds. This is the only thing preventing two parallel agents from writing the same helper twice.
 
-6. **MERGE SERIALLY.** Clusters land one at a time, each passing the full gate set before the next merges. Parallel building, serial merging.
+6. **LAND SERIALLY, ON `main`.** No branches, no PRs (`AGENTS.md`, session hygiene). Clusters are pushed to `main` one at a time, each waiting for the previous push's full gate set — including the post-push DB apply and pgTAP — to be green before the next push. Parallel building, serial landing.
 
 ### Two seams in the Phase 1 cluster list that need deciding before fan-out
 

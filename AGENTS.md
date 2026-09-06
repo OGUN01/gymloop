@@ -20,7 +20,7 @@ This file is always loaded and stays small. Everything else is pulled on demand 
 
 ## Session hygiene
 
-One feature per session. `/clear` between features. Archive the OpenSpec change (`openspec/changes/<name>/` → `openspec/specs/`) before stopping — an unarchived change leaves the next session reading stale in-flight state instead of current truth. You have a large context window; don't stop or suggest a new session on account of context limits.
+One feature per session. `/clear` between features. **Work on `main` directly** — one developer, no feature branches, no pull requests (owner decision, 2026-09-06): the gates run on every push, `test-immutability` checks every commit in the push, and the blind critic is the review. Push each coherent unit as soon as it is green locally, tests first, then implementation; migrations are applied by CI from that push (ADR-030), so wait for the previous push's DB run before pushing the next migration. Archive the OpenSpec change (`openspec/changes/<name>/` → `openspec/specs/`) before stopping — an unarchived change leaves the next session reading stale in-flight state instead of current truth. You have a large context window; don't stop or suggest a new session on account of context limits.
 
 ## Methodology
 
