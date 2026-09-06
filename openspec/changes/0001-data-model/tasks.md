@@ -14,13 +14,13 @@ Each cluster is two commits in one push (ADR-038): the pgTAP tests, then the mig
 - [x] 1.6 `tenancy` cluster: blind visible pgTAP author, blind holdout pgTAP author, implementer — all three from the spec, none reading the others.
 - [x] 1.7 Orchestrator review of the contract migration against the contract document, line by line, plus an ADR-042 replay of the migration against all four visible pgTAP files inside `begin … rollback` on Cloud: 130 assertions, 0 failures, and `information_schema` verified empty afterwards.
 - [x] 1.8 Push tests alone; the red `db.yml` run is **34047023577** — `pgtap` FAIL, reason `function plan(integer) does not exist`, on all four visible files *and* both holdout files, which is also the first proof that the holdout half of the job really runs. `pgtap-rollback`, `migrate` and `schema-drift` green in the same run, so the job discriminates rather than failing always. Then push the migration.
-- [ ] 1.9 Regenerate `packages/db/types/database.ts` from Cloud after the apply; confirm `schema-drift` green.
+- [x] 1.9 Regenerate `packages/db/types/database.ts` from Cloud after the apply; `schema-drift` green in run 34047869109.
 
 ## 2. Fan-out clusters (parallel build, serial landing, in dependency order)
 
 Each: blind visible pgTAP author · blind holdout pgTAP author · implementer · blind critic. Each agent searches `docs/registry.md` before writing and registers what it adds.
 
-- [ ] 2.1 `membership+money` — 6 enums, 11 tables. Depends on tenancy.
+- [x] 2.1 `membership+money` — 6 enums, 11 tables. Depends on tenancy.
 - [ ] 2.2 `attendance` — 1 enum, 4 tables. Depends on `memberships`.
 - [ ] 2.3 `catalogue` — `btree_gist`, 3 enums, 3 tables. Depends on `payments`.
 - [ ] 2.4 `retention` — 3 enums, 2 tables. Depends on tenancy only.

@@ -26,8 +26,14 @@ Postgres enums (ADR-021), created by the migration named below and generated int
 |---|---|---|---|
 | `app_role` | `supabase/migrations/20260906115131_tenancy.sql` | The one role vocabulary: `super_admin`, `platform_support`, `gym_owner`, `gym_manager`, `front_desk`, `trainer`, `member` (ADR-031 — replaces the retired `ROLES`/`Role`) | `staff.role` and `organization_settings.pause_approver_role` (both checked down to the four gym-side labels); the `app_role` JWT claim `app.is_platform()` reads; Phase 2's `platform_users.role` and `audit_log.actor_role` |
 | `gym_preset` | `supabase/migrations/20260906115131_tenancy.sql` | The three sellable gym presets: `neighbourhood_gym`, `premium_studio`, `functional_box` | `organization_settings.preset` |
+| `mandate_status` | `supabase/migrations/20260906115146_membership_money.sql` | Razorpay subscription mandate states, mirroring the provider's: `created`, `authenticated`, `active`, `paused`, `halted`, `cancelled`, `completed`, `expired` | `razorpay_mandates.status` — schema reserved, unused until Phase 2 wires UPI Autopay |
 | `member_status` | `supabase/migrations/20260906115131_tenancy.sql` | Member lifecycle: `active`, `paused`, `expired`, `cancelled`, `blocked` | `members.status` |
+| `membership_status` | `supabase/migrations/20260906115146_membership_money.sql` | A membership period's lifecycle: `pending`, `active`, `frozen`, `expired`, `cancelled`. `pending`→`active` only on a verified payment (PAY-008); a renewal is a new row, never an edit | `memberships.status`; the `memberships_member_id_live_key` partial unique index, which reads `active` and `frozen` as "live" |
 | `organization_status` | `supabase/migrations/20260906115131_tenancy.sql` | Gym account lifecycle: `pending_approval`, `trial`, `active`, `suspended`, `closed` | `organizations.status`; Phase 6 (platform console) |
+| `payment_method` | `supabase/migrations/20260906115146_membership_money.sql` | How the money was collected: `razorpay`, `cash`, `upi`, `card`, `bank_transfer`. Anything but `razorpay` carries staff attribution (PAY-011) | `payments.method` |
+| `payment_status` | `supabase/migrations/20260906115146_membership_money.sql` | Payment lifecycle, provider-owned (PAY-006/007): `created`, `pending`, `paid`, `failed`, `refunded`, `reversed` | `payments.status` |
+| `refund_kind` | `supabase/migrations/20260906115146_membership_money.sql` | Whether money went back as a `refund` or a `reversal` (PAY-010 — always its own row, never a mutation of the payment) | `refunds.kind` |
+| `refund_status` | `supabase/migrations/20260906115146_membership_money.sql` | Refund lifecycle: `requested`, `processing`, `completed`, `failed` | `refunds.status` |
 | `streak_rule_type` | `supabase/migrations/20260906115131_tenancy.sql` | The three configurable streak rules (STK-001): `visit_streak`, `weekly_goal`, `calendar_streak` | `organization_settings.streak_rule_type` |
 
 ## Database functions
