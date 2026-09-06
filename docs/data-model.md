@@ -8,8 +8,6 @@ Member profile and active membership · gym plans, prices, discounts and expiry 
 
 **Phase 2 — the schema must accommodate these, but do not build them:** multi-branch UI (`organization → branch` from day one) · full trainer app · class/batch scheduling · UPI Autopay via Razorpay subscriptions (**mandate tables in the schema now**) · staff payroll and trainer commission · body measurements and progress photos · wearables · referrals · advanced inventory · anonymised cross-gym benchmarking · WhatsApp Business API · per-permission role matrix.
 
-> **This file does not yet specify tables or relationships.** Master prompt §10 defines it as "tables, enums, relationships, RLS policy map"; Phase 0 wrote the enums, the tenancy shape and the policy *shape*, but no table list. That is Phase 1's first deliverable, and it should be written here before any migration — a blind critic flagged the absence, so it is a known gap rather than an oversight.
-
 This is the **specification** Phase 1 implements — tables, enums, relationships, and the RLS policy shape. It is not DDL; migrations are written and applied by CI only, never by hand (`AGENTS.md`).
 
 ## Tenancy
@@ -18,21 +16,219 @@ Single Postgres database, Row-Level Security on every table, `tenant_id` injecte
 
 Hierarchy from day one, so Phase 2's multi-branch UI needs no schema change: **organization → branch → member**. A "gym" in every other doc is an `organization`; v1 UI only ever shows one `branch` per organization, but the column exists now.
 
-## Canonical status vocabularies
+## Tables
 
-These become **Postgres enums** in Phase 1, generated into `packages/db/types/database.ts` by `supabase gen types`, and from there into zod schemas shared by API, web and mobile. They are **not** TypeScript constants — see `docs/decisions.md` ADR-021. Never invent a parallel vocabulary for any of these.
+The v1 schema, table by table. **Cluster** is the migration that creates the table and the agent that owns it (`.claude/skills/new-feature/SKILL.md`, "Parallel execution within a phase"). **Tenant path** is how RLS reaches the tenant id: `direct` means the row carries `tenant_id`; the two exceptions are named. Conventions every table follows without repeating them here — id, timestamps, the policy pair, the privilege block, the index rule — are in "Conventions (the contract)" below. Only what is *specific* to a table is listed under it.
 
-| Vocabulary | Values |
-|---|---|
-| Member | `active`, `paused`, `expired`, `cancelled`, `blocked` |
-| Membership | `pending`, `active`, `frozen`, `expired`, `cancelled` |
-| No-show case | `open`, `contacted`, `follow_up_due`, `returned`, `closed` |
-| Payment | `created`, `pending`, `paid`, `failed`, `refunded`, `reversed` |
-| Add-on order | `pending`, `paid`, `active`, `completed`, `cancelled`, `refunded` |
-| Notification | `scheduled`, `sent`, `delivered`, `failed`, `clicked`, `converted`, `opted_out` |
-| Follow-up outcome | `will_return`, `injured`, `travelling`, `timing_issue`, `unhappy`, `no_response`, `cancelled` |
+Column notation: `name type` then constraints; `→ table` is a foreign key; `∅` means nullable (everything else is `not null`); `=x` is the default; money columns are integer paise (`*_paise bigint`) next to one `currency` column per table.
 
-Each needs an explicit legal-transition table plus illegal-transition tests (gate 14) when Phase 1 implements it — this file records the vocabulary, not the transition graph; the transition graph is written alongside the migration that creates the enum.
+### Cluster: tenancy (the contract migration)
+
+**`organizations`** — the tenant. Tenant path: `id` *is* the tenant id (the one table whose policies compare `id`, not `tenant_id`).
+- `id uuid` pk · `name text` · `gym_code text` unique, check `^[A-Z0-9]{6}$` (must agree with `GYM_CODE_LENGTH`) · `status organization_status =pending_approval` · `tier text ∅` (platform billing tier, Phase 6 decides its vocabulary) · `trial_ends_at timestamptz ∅` · `activated_at timestamptz ∅` · `timezone text =Asia/Kolkata` (IANA) · `currency text =INR` · `created_at`, `updated_at`
+- Indexes: `gym_code` (unique), `status`.
+
+**`organization_settings`** — the per-gym template, one row per organization. Tenant path: `tenant_id` is the pk.
+- `tenant_id uuid` pk → organizations · `preset gym_preset ∅` · `logo_url text ∅` · `brand_accent text ∅` check `^#[0-9a-fA-F]{6}$` · `address_line1 text ∅` · `address_line2 text ∅` · `city text ∅` · `state text ∅` · `pincode text ∅` check `^[1-9][0-9]{5}$` · `gstin text ∅` check `^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$` · `invoice_prefix text =INV` · `receipt_prefix text =RCPT` · `financial_year_start_month smallint =4` check 1–12 · `week_start_day smallint =1` check 0–6 (0 = Sunday) · `opening_hours jsonb ={}` · `no_show_threshold_days smallint =7` check > 0 · `checkin_dedupe_seconds integer =120` check ≥ 0 (ATT-004 window) · `streak_rule_type streak_rule_type =visit_streak` · `weekly_goal_default smallint =3` check 1–14 · `renewal_reminder_days_from_expiry smallint[] ∅` (null = platform default `RENEWAL_REMINDER_WINDOWS`; same axis: negative before, positive after) · `grace_period_days smallint =0` check ≥ 0 · `pause_reasons text[] ={}` · `pause_approver_role app_role =gym_manager` · `max_freeze_days_per_year smallint =30` check ≥ 0 · `trainer_member_cap smallint ∅` check > 0 · `created_at`, `updated_at`
+
+**`branches`** — Phase 2 multi-branch; v1 creates exactly one, flagged default. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `name text` · `address text ∅` · `timezone text ∅` (overrides the organization's when set) · `is_default boolean =false` · `created_at`, `updated_at`
+- Indexes: unique partial `(tenant_id) where is_default` — one default branch per organization. Unique `(tenant_id, name)`.
+
+**`staff`** — every gym-side login: owner, manager, front desk, trainer. Trainers are staff rows with `role = trainer`. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `user_id uuid ∅` → `auth.users(id)` on delete set null · `branch_id uuid ∅` → branches (null = all branches) · `role app_role` check in (`gym_owner`, `gym_manager`, `front_desk`, `trainer`) · `full_name text` · `phone text ∅` check E.164 `^\+[1-9][0-9]{7,14}$` · `email text ∅` · `is_active boolean =true` · `qualification text ∅` (ADD-002, trainers) · `max_active_clients smallint ∅` check > 0 (trainer-to-member cap) · `created_at`, `updated_at`
+- Indexes: unique `(tenant_id, user_id) where user_id is not null`; `(tenant_id, role)`; `branch_id`.
+
+**`members`** — the gym's customer. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `branch_id` → branches (home branch) · `user_id uuid ∅` → `auth.users(id)` on delete set null (null until the member joins the app; phone auto-match sets it) · `member_code text ∅` (gym-visible id, front-desk search) · `full_name text` · `phone text` check E.164 · `email text ∅` · `gender text ∅` · `date_of_birth date ∅` · `photo_url text ∅` (DPD-008: photos yes, government ID never — there is no column for one) · `status member_status =active` · `joined_on date =current_date` · `weekly_goal_visits smallint ∅` check 1–14 · `rest_days smallint[] ={}` (weekday numbers, 0 = Sunday; STK-002) · `motivation_push_enabled boolean =true` (STK-004) · `notes text ∅` · `erased_at timestamptz ∅` (DPD-006: personal columns blanked, row and financial history kept) · `created_at`, `updated_at`
+- Indexes: unique `(tenant_id, phone)` (CSV import duplicate-phone detection); unique `(tenant_id, member_code) where member_code is not null`; `(tenant_id, status)`; `branch_id`; unique `(tenant_id, user_id) where user_id is not null`.
+
+### Cluster: membership+money (one agent — PAY-008 makes the verified payment the thing that activates a membership)
+
+**`plans`** — a gym's membership tiers. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `name text` · `description text ∅` · `duration_days integer` check > 0 · `price_paise bigint` check ≥ 0 · `currency text =INR` · `gst_rate_bp smallint =0` check 0–10000 (basis points; 1800 = 18 %) · `max_freeze_days smallint =0` check ≥ 0 · `is_active boolean =true` · `sort_order smallint =0` · `created_at`, `updated_at`
+- Indexes: unique `(tenant_id, name)`; `(tenant_id, is_active)`.
+
+**`coupons`** — discount codes on renewal (v1) and add-ons. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `code text` · `percent_bp integer ∅` check 0–10000 · `flat_paise bigint ∅` check ≥ 0 · check exactly one of `percent_bp`/`flat_paise` is non-null · `currency text =INR` · `valid_from timestamptz ∅` · `valid_until timestamptz ∅` · `max_redemptions integer ∅` check > 0 · `redeemed_count integer =0` check ≥ 0 · `applies_to_plans boolean =true` · `applies_to_addons boolean =false` · `is_active boolean =true` · `created_at`, `updated_at`
+- Indexes: unique `(tenant_id, code)`.
+
+**`memberships`** — a member's paid period on a plan; a renewal is a new row linked by `renewal_of_membership_id`. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `plan_id` → plans · `status membership_status =pending` · `starts_on date ∅` · `ends_on date ∅` · check `status = 'pending' or (starts_on is not null and ends_on is not null)` (DQA-001 made structural: only a pending row may lack an expiry) · check `ends_on >= starts_on` · `price_paise bigint` check ≥ 0 (snapshot of the plan price) · `discount_paise bigint =0` check ≥ 0 · `currency text =INR` · `coupon_id uuid ∅` → coupons · `renewal_of_membership_id uuid ∅` → memberships · `activated_at timestamptz ∅` · `cancelled_at timestamptz ∅` · `cancel_reason text ∅` · `created_at`, `updated_at`
+- Indexes: unique partial `(member_id) where status in ('active','frozen')` — at most one live membership per member; `(tenant_id, status, ends_on)` (expiry and reminder scans); `member_id`; `plan_id`; `coupon_id`; `renewal_of_membership_id`.
+- Privileges: no `delete` for `authenticated` (INT-001 — cancel, never delete).
+
+**`membership_pauses`** — approved freezes (STK-002, NSH-002). Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `membership_id` → memberships · `starts_on date` · `ends_on date` check ≥ starts_on · `reason text` check ≠ '' · `requested_by_staff_id uuid ∅` → staff · `approved_by_staff_id uuid ∅` → staff · `approved_at timestamptz ∅` · `rejected_at timestamptz ∅` · check not both `approved_at` and `rejected_at` · `created_at`, `updated_at`
+- Indexes: `membership_id`; `(tenant_id, starts_on, ends_on)`; `requested_by_staff_id`; `approved_by_staff_id`.
+
+**`payments`** — one row per attempt to collect money, gateway or offline. The provider is the source of truth for `status` (PAY-006); a `created`/`pending` row is never `paid` (PAY-007). Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `membership_id uuid ∅` → memberships (what this payment buys; add-on orders point at payments from their side) · `mandate_id uuid ∅` → razorpay_mandates · `coupon_id uuid ∅` → coupons · `amount_paise bigint` check > 0 · `currency text =INR` · `status payment_status =created` · `method payment_method` · `provider text ∅` (`razorpay`) · `provider_order_id text ∅` · `provider_payment_id text ∅` · `receipt_number text ∅` · `recorded_by_staff_id uuid ∅` → staff · `idempotency_key text ∅` · `paid_at timestamptz ∅` · `failed_reason text ∅` · `notes text ∅` · `created_at`, `updated_at`
+- Checks: `status <> 'paid' or provider_payment_id is not null or receipt_number is not null` (DQA-002 made structural) · `method = 'razorpay' or recorded_by_staff_id is not null` (PAY-011: an offline payment carries staff attribution) · `method <> 'razorpay' or provider_order_id is not null`.
+- Indexes: unique `(tenant_id, provider, provider_payment_id) where provider_payment_id is not null`; unique `(tenant_id, receipt_number) where receipt_number is not null`; unique `(tenant_id, idempotency_key) where idempotency_key is not null`; `member_id`; `membership_id`; `mandate_id`; `coupon_id`; `recorded_by_staff_id`; `(tenant_id, status, created_at)`.
+- Privileges: no `delete` for `authenticated` (INT-001).
+
+**`refunds`** — refunds and reversals as their own rows, never a mutation of the payment (PAY-010). Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `payment_id` → payments · `kind refund_kind` · `amount_paise bigint` check > 0 · `currency text =INR` · `status refund_status =requested` · `provider_refund_id text ∅` · `reason text` check ≠ '' · `initiated_by_staff_id uuid ∅` → staff · `processed_at timestamptz ∅` · `created_at`, `updated_at`
+- Indexes: `payment_id`; `initiated_by_staff_id`; unique `(tenant_id, provider_refund_id) where provider_refund_id is not null`.
+- Privileges: no `delete` for `authenticated`.
+
+**`webhook_events`** — every Razorpay delivery, verified or not (`docs/security.md`, payment integrity). The unique key is what makes PAY-009 idempotent. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `provider text =razorpay` · `event_id text` · `event_type text` · `payload jsonb` · `signature_valid boolean` · `received_at timestamptz =now()` · `processed_at timestamptz ∅` · `processing_error text ∅`
+- Indexes: unique `(tenant_id, provider, event_id)`; partial `(tenant_id, received_at) where processed_at is null`.
+- Privileges: no `delete` for `authenticated`. No `updated_at`: rows are written once, then `processed_at` is stamped.
+
+**`invoices`** — GST invoices, numbered per gym per financial year. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `payment_id` → payments, unique · `invoice_number text` · `financial_year text` check `^[0-9]{4}-[0-9]{2}$` (e.g. `2026-27`) · `issued_at timestamptz =now()` · `seller_gstin text ∅` · `buyer_name text` · `buyer_gstin text ∅` · `place_of_supply text ∅` · `taxable_paise bigint` check ≥ 0 · `cgst_paise bigint =0` check ≥ 0 · `sgst_paise bigint =0` check ≥ 0 · `igst_paise bigint =0` check ≥ 0 · `total_paise bigint` check ≥ 0 · `currency text =INR` · `line_items jsonb =[]` · `pdf_url text ∅` · `created_at`, `updated_at`
+- Indexes: unique `(tenant_id, invoice_number)`; `(tenant_id, financial_year)`.
+- Privileges: no `delete` for `authenticated`.
+
+**`document_counters`** — next number per gym, per document kind, per financial year (invoice prefix + financial-year reset from the settings row). Tenant path: direct.
+- `tenant_id` → organizations · `kind text` check in (`invoice`, `receipt`) · `financial_year text` check as invoices · `next_number integer =1` check > 0 · `updated_at` · pk `(tenant_id, kind, financial_year)`.
+
+**`razorpay_accounts`** — a gym's own Razorpay connection (ADR-008/015). Secrets live in Supabase Vault; this row holds only the Vault secret ids (Phase 5 wires Vault). Tenant path: `tenant_id` is the pk.
+- `tenant_id uuid` pk → organizations · `key_id text` · `key_secret_vault_id uuid` · `webhook_secret_vault_id uuid` · `verified_at timestamptz ∅` (the ₹1 test payment) · `is_enabled boolean =false` · `created_at`, `updated_at`
+
+**`razorpay_mandates`** — UPI Autopay via Razorpay Subscriptions; schema reserved now, unused until Phase 2 wires `subscription.*` webhooks. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `provider_customer_id text ∅` · `provider_subscription_id text` · `provider_plan_id text ∅` · `status mandate_status =created` · `max_amount_paise bigint` check > 0 · `currency text =INR` · `authenticated_at timestamptz ∅` · `next_charge_at timestamptz ∅` · `ends_at timestamptz ∅` · `cancelled_at timestamptz ∅` · `raw jsonb ∅` · `created_at`, `updated_at`
+- Indexes: unique `(tenant_id, provider_subscription_id)`; `member_id`; `(tenant_id, status)`.
+- Privileges: no `delete` for `authenticated`.
+
+### Cluster: attendance
+
+**`qr_sessions`** — rotating / session-bound QR codes (ATT-003). Only a hash of the token is stored. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `branch_id` → branches · `token_hash text` unique · `issued_at timestamptz =now()` · `expires_at timestamptz` check > issued_at · `revoked_at timestamptz ∅` · `created_by_staff_id uuid ∅` → staff · `created_at`
+- Indexes: `(tenant_id, expires_at)`; `branch_id`; `created_by_staff_id`.
+
+**`attendance`** — one row per visit. Check-out is optional (ATT-008). Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `branch_id` → branches · `member_id` → members · `membership_id uuid ∅` → memberships (the live membership at check-in) · `checked_in_at timestamptz =now()` · `checked_out_at timestamptz ∅` check ≥ checked_in_at · `source attendance_source` · `qr_session_id uuid ∅` → qr_sessions · `assisted_by_staff_id uuid ∅` → staff · `assist_reason text ∅` · `client_event_id uuid ∅` (device-generated key for offline replay) · `offline_recorded_at timestamptz ∅` · `replayed_at timestamptz ∅` · `created_at`
+- Checks: `source <> 'front_desk' or (assisted_by_staff_id is not null and assist_reason is not null and assist_reason <> '')` (ATT-005/006) · `(assisted_by_staff_id is null) = (assist_reason is null)` · `(offline_recorded_at is null) = (replayed_at is null)` (ATT-007's audit stamp is both timestamps or neither).
+- Indexes: unique `(tenant_id, client_event_id) where client_event_id is not null` (exactly-once replay); `(tenant_id, member_id, checked_in_at desc)`; `(tenant_id, checked_in_at)`; `membership_id`; `branch_id`; `qr_session_id`; `assisted_by_staff_id`.
+- Privileges: no `delete` for `authenticated` — a wrong visit is corrected, never removed. No `updated_at`.
+
+**`attendance_corrections`** — append-only. A correction without a reason is impossible, not merely flagged (DQA-003). Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `attendance_id` → attendance · `corrected_by_staff_id` → staff · `reason text` check ≠ '' · `before jsonb` · `after jsonb` · `created_at`
+- Indexes: `attendance_id`; `corrected_by_staff_id`.
+- Privileges: append-only — no `update`, no `delete` for `authenticated` (INT-001).
+
+**`organization_holidays`** — the gym's holiday calendar (a holiday is never a streak break). Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `holiday_on date` · `name text ∅` · `created_at`
+- Indexes: unique `(tenant_id, holiday_on)`.
+
+### Cluster: retention
+
+**`no_show_cases`** — opened by the daily scan when absence crosses the gym's threshold; exactly one live case per member (NSH-003/004). Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `status no_show_case_status =open` · `opened_on date =current_date` · `last_attended_on date ∅` · `absent_days_at_open integer` check ≥ 0 · `threshold_days integer` check > 0 (snapshot of the setting) · `assigned_to_staff_id uuid ∅` → staff · `contacted_at timestamptz ∅` · `next_follow_up_at timestamptz ∅` · `returned_at timestamptz ∅` · `closed_at timestamptz ∅` · `created_at`, `updated_at`
+- Indexes: unique partial `(member_id) where status in ('open','contacted','follow_up_due')`; `(tenant_id, status)`; `assigned_to_staff_id`; `(tenant_id, next_follow_up_at) where status = 'follow_up_due'`.
+- Privileges: no `delete` for `authenticated` (INT-001: follow-up history, and the case that holds it, is kept).
+
+**`follow_ups`** — the contact log, append-only (NSH-007). A correction is a new row pointing at the one it corrects. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `case_id` → no_show_cases · `staff_id` → staff · `channel contact_channel` · `outcome follow_up_outcome` · `notes text ∅` · `next_action text ∅` · `next_follow_up_at timestamptz ∅` · `corrects_follow_up_id uuid ∅` → follow_ups · `created_at`
+- Indexes: `(case_id, created_at)`; `staff_id`; `corrects_follow_up_id`.
+- Privileges: append-only — no `update`, no `delete` for `authenticated`.
+
+### Cluster: catalogue
+
+**`addon_products`** — PT packages, diet plans, products/supplements. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `kind addon_kind` · `name text` · `description text ∅` · `price_paise bigint` check ≥ 0 · `currency text =INR` · `gst_rate_bp smallint =0` check 0–10000 · `validity_days integer ∅` check > 0 · `session_count integer ∅` check > 0 · `trainer_staff_id uuid ∅` → staff · `stock_quantity integer ∅` check ≥ 0 (DQA-004/ADD-004 made structural) · `cancellation_terms text ∅` (ADD-002) · `is_active boolean =true` · `sort_order smallint =0` · `created_at`, `updated_at`
+- Checks: `kind <> 'pt_package' or session_count is not null` · `kind <> 'product' or stock_quantity is not null`.
+- Indexes: unique `(tenant_id, name)`; `(tenant_id, kind, is_active)`; `trainer_staff_id`.
+
+**`addon_orders`** — a member's purchase of an add-on and its usage state. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `addon_product_id` → addon_products · `payment_id uuid ∅` → payments · `status addon_order_status =pending` · `quantity integer =1` check > 0 · `unit_price_paise bigint` check ≥ 0 · `total_paise bigint` check ≥ 0 · `currency text =INR` · `trainer_staff_id uuid ∅` → staff · `sessions_total integer ∅` check > 0 · `sessions_used integer =0` check ≥ 0 · `starts_on date ∅` · `expires_on date ∅` check ≥ starts_on · `cancelled_at timestamptz ∅` · `created_at`, `updated_at`
+- Checks: `sessions_total is null or sessions_used <= sessions_total` (ADD-004) · `status in ('pending','cancelled') or payment_id is not null or total_paise = 0` (a paid order carries its payment).
+- Indexes: `member_id`; `addon_product_id`; `payment_id`; `trainer_staff_id`; `(tenant_id, status)`.
+- Privileges: no `delete` for `authenticated` (INT-001).
+
+**`pt_sessions`** — scheduled personal-training sessions; a trainer cannot be double-booked (DQA-005 as an exclusion constraint). Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `addon_order_id` → addon_orders · `trainer_staff_id` → staff · `member_id` → members · `starts_at timestamptz` · `ends_at timestamptz` check > starts_at · `status pt_session_status =scheduled` · `notes text ∅` · `created_at`, `updated_at`
+- Constraints: `exclude using gist (trainer_staff_id with =, tstzrange(starts_at, ends_at) with &&) where (status in ('scheduled','completed'))` — needs `btree_gist`, created in this cluster's migration.
+- Indexes: `addon_order_id`; `member_id`; `(tenant_id, trainer_staff_id, starts_at)`.
+
+### Cluster: comms
+
+**`message_templates`** — per-gym copy per channel and locale. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `key text` · `channel notification_channel` · `locale text =en` check `^[a-z]{2}$` · `body text` · `is_active boolean =true` · `created_at`, `updated_at`
+- Indexes: unique `(tenant_id, key, channel, locale)`.
+
+**`notifications`** — every scheduled or sent message; the de-dupe key is what makes PAY-002 (one message per stage) structural. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `channel notification_channel` · `template_key text ∅` · `status notification_status =scheduled` · `dedupe_key text ∅` (e.g. `renewal:<membership_id>:expiry_minus_7`) · `scheduled_for timestamptz =now()` · `sent_at timestamptz ∅` · `delivered_at timestamptz ∅` · `clicked_at timestamptz ∅` · `converted_at timestamptz ∅` · `failed_reason text ∅` · `related_type text ∅` · `related_id uuid ∅` · `payload jsonb ={}` · `created_at`, `updated_at`
+- Indexes: unique `(tenant_id, dedupe_key) where dedupe_key is not null`; `(tenant_id, status, scheduled_for)`; `member_id`; `(related_type, related_id)`.
+
+**`consents`** — versioned, append-only consent entries (DPD-002/003/004, INT-002). Current state = latest row per (member, purpose). Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `purpose consent_purpose` · `granted boolean` · `version text` check ≠ '' · `source text` check ≠ '' · `recorded_at timestamptz =now()` · `recorded_by_staff_id uuid ∅` → staff
+- Indexes: `(member_id, purpose, recorded_at desc)`; `recorded_by_staff_id`.
+- Privileges: append-only — no `update`, no `delete` for `authenticated` (withdrawal is a new row with `granted = false`).
+
+**`messaging_wallets`** — the per-gym credit wallet ADR-016 requires from day one. Tenant path: `tenant_id` is the pk.
+- `tenant_id uuid` pk → organizations · `balance_credits bigint =0` check ≥ 0 · `updated_at`
+
+**`messaging_wallet_ledger`** — every credit movement, append-only; the balance is the sum. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `delta_credits bigint` check ≠ 0 · `reason text` check ≠ '' · `notification_id uuid ∅` → notifications · `created_at`
+- Indexes: `(tenant_id, created_at)`; `notification_id`.
+- Privileges: append-only.
+
+### Cluster: platform
+
+**`platform_users`** — Super Admin and platform support. Tenant path: **none, by design** (ADR-033) — visible only to platform roles.
+- `user_id uuid` pk → `auth.users(id)` on delete cascade · `role app_role` check in (`super_admin`, `platform_support`) · `full_name text` · `email text` · `is_active boolean =true` · `created_at`, `updated_at`
+- RLS: only the platform-access policy; no tenant policy.
+
+**`impersonation_sessions`** — a platform user acting as a gym owner (`docs/security.md`, Impersonation). Tenant path: direct (the target gym).
+- `id uuid` pk · `tenant_id` → organizations · `actor_user_id uuid` → platform_users · `reason text` check ≠ '' · `started_at timestamptz =now()` · `expires_at timestamptz` check > started_at · `ended_at timestamptz ∅` · `created_at`
+- Indexes: `actor_user_id`; `(tenant_id, started_at desc)`.
+- RLS: platform-access policy for everything; the tenant policy is **select only** (the gym can see who impersonated it and when).
+- Privileges: no `delete` for `authenticated` (INT-003 history).
+
+**`audit_log`** — INT-003. Append-only; rows with a null tenant are platform-level (role changes among platform users) and visible only to platform roles. Tenant path: direct, nullable.
+- `id uuid` pk · `tenant_id uuid ∅` → organizations · `actor_user_id uuid ∅` · `actor_role app_role ∅` · `impersonation_session_id uuid ∅` → impersonation_sessions · `action text` check ≠ '' (`<record_type>.<verb>`) · `record_type text` check ≠ '' · `record_id uuid ∅` · `before jsonb ∅` · `after jsonb ∅` · `reason text ∅` · `occurred_at timestamptz =now()`
+- Indexes: `(tenant_id, occurred_at desc)`; `(record_type, record_id)`; `impersonation_session_id`.
+- Privileges: append-only — no `update`, no `delete` for `authenticated`. Audit rows are themselves under INT-001.
+
+**`leads`** — enquiries: walk-in → trial → conversion, with source tracking. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `branch_id` → branches · `full_name text` · `phone text` check E.164 · `email text ∅` · `source lead_source` · `stage lead_stage =new` · `assigned_to_staff_id uuid ∅` → staff · `trial_at timestamptz ∅` · `converted_member_id uuid ∅` → members · `converted_at timestamptz ∅` · `lost_reason text ∅` · `notes text ∅` · `created_at`, `updated_at`
+- Checks: `stage <> 'converted' or converted_member_id is not null`.
+- Indexes: `(tenant_id, stage)`; `(tenant_id, phone)`; `branch_id`; `assigned_to_staff_id`; `converted_member_id`.
+
+**`member_imports`** — a CSV/Excel import run with its column mapping and duplicate report. Tenant path: direct.
+- `id uuid` pk · `tenant_id` → organizations · `uploaded_by_staff_id` → staff · `file_name text` · `column_mapping jsonb` · `status import_status =pending` · `row_count integer ∅` check ≥ 0 · `imported_count integer ∅` check ≥ 0 · `duplicate_count integer ∅` check ≥ 0 · `error_report jsonb ∅` · `created_at`, `updated_at`
+- Indexes: `uploaded_by_staff_id`; `(tenant_id, created_at desc)`.
+
+### Foreign-key direction across clusters (merge order)
+
+`tenancy` → `membership+money` (needs members, staff) → `attendance` (needs memberships) → `catalogue` (needs payments) → `retention`, `comms`, `platform` (need only tenancy). A cluster never references a table from a cluster merged after it; where two clusters share a seam (payments ↔ add-on orders) the later table carries the foreign key (`addon_orders.payment_id`).
+
+## Enums
+
+### The seven canonical status vocabularies (with legal transitions — gate 14)
+
+Each list below is the enum's label set, then its legal transitions; anything not listed is illegal. Phase 1 documents the graph next to the enum (this is that); the code that enforces it, and the illegal-transition tests, arrive with the phase that first mutates the status (3, 4, 5).
+
+- **`member_status`**: `active`, `paused`, `expired`, `cancelled`, `blocked`. Transitions: active→paused, paused→active, active→expired, expired→active (renewal), active→cancelled, paused→cancelled, expired→cancelled, any→blocked, blocked→active.
+- **`membership_status`**: `pending`, `active`, `frozen`, `expired`, `cancelled`. Transitions: pending→active (verified payment only, PAY-008), pending→cancelled, active→frozen, frozen→active, active→expired, frozen→expired, active→cancelled, frozen→cancelled. `expired` and `cancelled` are terminal; a renewal is a new row.
+- **`no_show_case_status`**: `open`, `contacted`, `follow_up_due`, `returned`, `closed`. Transitions: open→contacted, contacted→follow_up_due, follow_up_due→contacted, open|contacted|follow_up_due→returned (a check-in, NSH-005), returned→closed, open|contacted|follow_up_due→closed. `closed` is terminal.
+- **`payment_status`**: `created`, `pending`, `paid`, `failed`, `refunded`, `reversed`. Transitions: created→pending, created→paid, pending→paid, created→failed, pending→failed, paid→refunded, paid→reversed. Never anything→paid except from created/pending on a verified provider event (PAY-007/008). `failed`, `refunded`, `reversed` are terminal.
+- **`addon_order_status`**: `pending`, `paid`, `active`, `completed`, `cancelled`, `refunded`. Transitions: pending→paid, paid→active, active→completed, pending→cancelled, paid→cancelled, paid|active→refunded. `completed`, `cancelled`, `refunded` are terminal.
+- **`notification_status`**: `scheduled`, `sent`, `delivered`, `failed`, `clicked`, `converted`, `opted_out`. Transitions: scheduled→sent, scheduled→opted_out, scheduled→failed, sent→delivered, sent→failed, delivered→clicked, clicked→converted, delivered→converted.
+- **`follow_up_outcome`**: `will_return`, `injured`, `travelling`, `timing_issue`, `unhappy`, `no_response`, `cancelled`. Not a state machine — an outcome is recorded once per follow-up row.
+
+### Attribute vocabularies (closed sets, also Postgres enums)
+
+- `app_role`: `super_admin`, `platform_support`, `gym_owner`, `gym_manager`, `front_desk`, `trainer`, `member` — the one source for roles (replaces `ROLES` in `packages/shared`, ADR-031).
+- `organization_status`: `pending_approval`, `trial`, `active`, `suspended`, `closed`. Transitions: pending_approval→trial, pending_approval→active, trial→active, trial→closed, active→suspended, suspended→active, active→closed, suspended→closed.
+- `gym_preset`: `neighbourhood_gym`, `premium_studio`, `functional_box`.
+- `streak_rule_type`: `visit_streak`, `weekly_goal`, `calendar_streak` (STK-001).
+- `payment_method`: `razorpay`, `cash`, `upi`, `card`, `bank_transfer`.
+- `refund_kind`: `refund`, `reversal`. `refund_status`: `requested`, `processing`, `completed`, `failed` (requested→processing→completed|failed; requested→failed).
+- `mandate_status` (mirrors Razorpay subscription states): `created`, `authenticated`, `active`, `paused`, `halted`, `cancelled`, `completed`, `expired`.
+- `attendance_source`: `qr`, `front_desk`.
+- `addon_kind`: `pt_package`, `diet_plan`, `product`.
+- `pt_session_status`: `scheduled`, `completed`, `cancelled`, `no_show` (scheduled→completed|cancelled|no_show).
+- `notification_channel`: `push`, `whatsapp_link`, `in_app`, `sms`, `email` (v1 sends only the first three — ADR-016).
+- `consent_purpose`: `marketing`, `service` (INT-002 — independently withdrawable).
+- `contact_channel`: `call`, `whatsapp`, `in_person`, `sms`.
+- `lead_source`: `walk_in`, `referral`, `instagram`, `google`, `website`, `phone`, `other`. `lead_stage`: `new`, `contacted`, `trial_scheduled`, `trial_done`, `converted`, `lost` (new→contacted→trial_scheduled→trial_done→converted; any non-terminal→lost).
+- `import_status`: `pending`, `processing`, `completed`, `failed`.
 
 ## Phase 2 accommodations required in the schema now
 
