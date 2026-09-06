@@ -21,7 +21,7 @@ Each cluster is two commits in one push (ADR-038): the pgTAP tests, then the mig
 Each: blind visible pgTAP author · blind holdout pgTAP author · implementer · blind critic. Each agent searches `docs/registry.md` before writing and registers what it adds.
 
 - [x] 2.1 `membership+money` — 6 enums, 11 tables. Depends on tenancy.
-- [ ] 2.2 `attendance` — 1 enum, 4 tables. Depends on `memberships`.
+- [x] 2.2 `attendance` — 1 enum, 4 tables. Depends on `memberships`.
 - [ ] 2.3 `catalogue` — `btree_gist`, 3 enums, 3 tables. Depends on `payments`.
 - [ ] 2.4 `retention` — 3 enums, 2 tables. Depends on tenancy only.
 - [ ] 2.5 `comms` — 3 enums, 6 tables. Depends on tenancy only.

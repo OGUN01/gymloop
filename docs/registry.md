@@ -25,6 +25,7 @@ Postgres enums (ADR-021), created by the migration named below and generated int
 | Name | File | Purpose | Used by |
 |---|---|---|---|
 | `app_role` | `supabase/migrations/20260906115131_tenancy.sql` | The one role vocabulary: `super_admin`, `platform_support`, `gym_owner`, `gym_manager`, `front_desk`, `trainer`, `member` (ADR-031 — replaces the retired `ROLES`/`Role`) | `staff.role` and `organization_settings.pause_approver_role` (both checked down to the four gym-side labels); the `app_role` JWT claim `app.is_platform()` reads; Phase 2's `platform_users.role` and `audit_log.actor_role` |
+| `attendance_source` | `supabase/migrations/20260906115149_attendance.sql` | How a visit was recorded: `qr`, `front_desk` — the discriminator behind the assisted-check-in constraint that requires the acting staff member and a non-empty reason (ATT-005/006) | `attendance.source` |
 | `gym_preset` | `supabase/migrations/20260906115131_tenancy.sql` | The three sellable gym presets: `neighbourhood_gym`, `premium_studio`, `functional_box` | `organization_settings.preset` |
 | `mandate_status` | `supabase/migrations/20260906115146_membership_money.sql` | Razorpay subscription mandate states, mirroring the provider's: `created`, `authenticated`, `active`, `paused`, `halted`, `cancelled`, `completed`, `expired` | `razorpay_mandates.status` — schema reserved, unused until Phase 2 wires UPI Autopay |
 | `member_status` | `supabase/migrations/20260906115131_tenancy.sql` | Member lifecycle: `active`, `paused`, `expired`, `cancelled`, `blocked` | `members.status` |

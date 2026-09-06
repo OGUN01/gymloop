@@ -87,6 +87,187 @@ export type Database = {
           },
         ]
       }
+      coupons: {
+        Row: {
+          applies_to_addons: boolean
+          applies_to_plans: boolean
+          code: string
+          created_at: string
+          currency: string
+          flat_paise: number | null
+          id: string
+          is_active: boolean
+          max_redemptions: number | null
+          percent_bp: number | null
+          redeemed_count: number
+          tenant_id: string
+          updated_at: string
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          applies_to_addons?: boolean
+          applies_to_plans?: boolean
+          code: string
+          created_at?: string
+          currency?: string
+          flat_paise?: number | null
+          id?: string
+          is_active?: boolean
+          max_redemptions?: number | null
+          percent_bp?: number | null
+          redeemed_count?: number
+          tenant_id: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          applies_to_addons?: boolean
+          applies_to_plans?: boolean
+          code?: string
+          created_at?: string
+          currency?: string
+          flat_paise?: number | null
+          id?: string
+          is_active?: boolean
+          max_redemptions?: number | null
+          percent_bp?: number | null
+          redeemed_count?: number
+          tenant_id?: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupons_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_counters: {
+        Row: {
+          created_at: string
+          financial_year: string
+          kind: string
+          next_number: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          financial_year: string
+          kind: string
+          next_number?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          financial_year?: string
+          kind?: string
+          next_number?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_counters_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          buyer_gstin: string | null
+          buyer_name: string
+          cgst_paise: number
+          created_at: string
+          currency: string
+          financial_year: string
+          id: string
+          igst_paise: number
+          invoice_number: string
+          issued_at: string
+          line_items: Json
+          payment_id: string
+          pdf_url: string | null
+          place_of_supply: string | null
+          seller_gstin: string | null
+          sgst_paise: number
+          taxable_paise: number
+          tenant_id: string
+          total_paise: number
+          updated_at: string
+        }
+        Insert: {
+          buyer_gstin?: string | null
+          buyer_name: string
+          cgst_paise?: number
+          created_at?: string
+          currency?: string
+          financial_year: string
+          id?: string
+          igst_paise?: number
+          invoice_number: string
+          issued_at?: string
+          line_items?: Json
+          payment_id: string
+          pdf_url?: string | null
+          place_of_supply?: string | null
+          seller_gstin?: string | null
+          sgst_paise?: number
+          taxable_paise: number
+          tenant_id: string
+          total_paise: number
+          updated_at?: string
+        }
+        Update: {
+          buyer_gstin?: string | null
+          buyer_name?: string
+          cgst_paise?: number
+          created_at?: string
+          currency?: string
+          financial_year?: string
+          id?: string
+          igst_paise?: number
+          invoice_number?: string
+          issued_at?: string
+          line_items?: Json
+          payment_id?: string
+          pdf_url?: string | null
+          place_of_supply?: string | null
+          seller_gstin?: string | null
+          sgst_paise?: number
+          taxable_paise?: number
+          tenant_id?: string
+          total_paise?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: true
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       members: {
         Row: {
           branch_id: string
@@ -164,6 +345,176 @@ export type Database = {
           },
           {
             foreignKeyName: "members_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      membership_pauses: {
+        Row: {
+          approved_at: string | null
+          approved_by_staff_id: string | null
+          created_at: string
+          ends_on: string
+          id: string
+          membership_id: string
+          reason: string
+          rejected_at: string | null
+          requested_by_staff_id: string | null
+          starts_on: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by_staff_id?: string | null
+          created_at?: string
+          ends_on: string
+          id?: string
+          membership_id: string
+          reason: string
+          rejected_at?: string | null
+          requested_by_staff_id?: string | null
+          starts_on: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by_staff_id?: string | null
+          created_at?: string
+          ends_on?: string
+          id?: string
+          membership_id?: string
+          reason?: string
+          rejected_at?: string | null
+          requested_by_staff_id?: string | null
+          starts_on?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_pauses_approved_by_staff_id_fkey"
+            columns: ["approved_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_pauses_membership_id_fkey"
+            columns: ["membership_id"]
+            isOneToOne: false
+            referencedRelation: "memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_pauses_requested_by_staff_id_fkey"
+            columns: ["requested_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_pauses_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      memberships: {
+        Row: {
+          activated_at: string | null
+          cancel_reason: string | null
+          cancelled_at: string | null
+          coupon_id: string | null
+          created_at: string
+          currency: string
+          discount_paise: number
+          ends_on: string | null
+          id: string
+          member_id: string
+          plan_id: string
+          price_paise: number
+          renewal_of_membership_id: string | null
+          starts_on: string | null
+          status: Database["public"]["Enums"]["membership_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          activated_at?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          coupon_id?: string | null
+          created_at?: string
+          currency?: string
+          discount_paise?: number
+          ends_on?: string | null
+          id?: string
+          member_id: string
+          plan_id: string
+          price_paise: number
+          renewal_of_membership_id?: string | null
+          starts_on?: string | null
+          status?: Database["public"]["Enums"]["membership_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          activated_at?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          coupon_id?: string | null
+          created_at?: string
+          currency?: string
+          discount_paise?: number
+          ends_on?: string | null
+          id?: string
+          member_id?: string
+          plan_id?: string
+          price_paise?: number
+          renewal_of_membership_id?: string | null
+          starts_on?: string | null
+          status?: Database["public"]["Enums"]["membership_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memberships_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_renewal_of_membership_id_fkey"
+            columns: ["renewal_of_membership_id"]
+            isOneToOne: false
+            referencedRelation: "memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -311,6 +662,360 @@ export type Database = {
         }
         Relationships: []
       }
+      payments: {
+        Row: {
+          amount_paise: number
+          coupon_id: string | null
+          created_at: string
+          currency: string
+          failed_reason: string | null
+          id: string
+          idempotency_key: string | null
+          mandate_id: string | null
+          member_id: string
+          membership_id: string | null
+          method: Database["public"]["Enums"]["payment_method"]
+          notes: string | null
+          paid_at: string | null
+          provider: string | null
+          provider_order_id: string | null
+          provider_payment_id: string | null
+          receipt_number: string | null
+          recorded_by_staff_id: string | null
+          status: Database["public"]["Enums"]["payment_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_paise: number
+          coupon_id?: string | null
+          created_at?: string
+          currency?: string
+          failed_reason?: string | null
+          id?: string
+          idempotency_key?: string | null
+          mandate_id?: string | null
+          member_id: string
+          membership_id?: string | null
+          method: Database["public"]["Enums"]["payment_method"]
+          notes?: string | null
+          paid_at?: string | null
+          provider?: string | null
+          provider_order_id?: string | null
+          provider_payment_id?: string | null
+          receipt_number?: string | null
+          recorded_by_staff_id?: string | null
+          status?: Database["public"]["Enums"]["payment_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_paise?: number
+          coupon_id?: string | null
+          created_at?: string
+          currency?: string
+          failed_reason?: string | null
+          id?: string
+          idempotency_key?: string | null
+          mandate_id?: string | null
+          member_id?: string
+          membership_id?: string | null
+          method?: Database["public"]["Enums"]["payment_method"]
+          notes?: string | null
+          paid_at?: string | null
+          provider?: string | null
+          provider_order_id?: string | null
+          provider_payment_id?: string | null
+          receipt_number?: string | null
+          recorded_by_staff_id?: string | null
+          status?: Database["public"]["Enums"]["payment_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_mandate_id_fkey"
+            columns: ["mandate_id"]
+            isOneToOne: false
+            referencedRelation: "razorpay_mandates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_membership_id_fkey"
+            columns: ["membership_id"]
+            isOneToOne: false
+            referencedRelation: "memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_recorded_by_staff_id_fkey"
+            columns: ["recorded_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plans: {
+        Row: {
+          created_at: string
+          currency: string
+          description: string | null
+          duration_days: number
+          gst_rate_bp: number
+          id: string
+          is_active: boolean
+          max_freeze_days: number
+          name: string
+          price_paise: number
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          description?: string | null
+          duration_days: number
+          gst_rate_bp?: number
+          id?: string
+          is_active?: boolean
+          max_freeze_days?: number
+          name: string
+          price_paise: number
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          description?: string | null
+          duration_days?: number
+          gst_rate_bp?: number
+          id?: string
+          is_active?: boolean
+          max_freeze_days?: number
+          name?: string
+          price_paise?: number
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plans_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      razorpay_accounts: {
+        Row: {
+          created_at: string
+          is_enabled: boolean
+          key_id: string
+          key_secret_vault_id: string
+          tenant_id: string
+          updated_at: string
+          verified_at: string | null
+          webhook_secret_vault_id: string
+        }
+        Insert: {
+          created_at?: string
+          is_enabled?: boolean
+          key_id: string
+          key_secret_vault_id: string
+          tenant_id: string
+          updated_at?: string
+          verified_at?: string | null
+          webhook_secret_vault_id: string
+        }
+        Update: {
+          created_at?: string
+          is_enabled?: boolean
+          key_id?: string
+          key_secret_vault_id?: string
+          tenant_id?: string
+          updated_at?: string
+          verified_at?: string | null
+          webhook_secret_vault_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "razorpay_accounts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      razorpay_mandates: {
+        Row: {
+          authenticated_at: string | null
+          cancelled_at: string | null
+          created_at: string
+          currency: string
+          ends_at: string | null
+          id: string
+          max_amount_paise: number
+          member_id: string
+          next_charge_at: string | null
+          provider_customer_id: string | null
+          provider_plan_id: string | null
+          provider_subscription_id: string
+          raw: Json | null
+          status: Database["public"]["Enums"]["mandate_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          authenticated_at?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          currency?: string
+          ends_at?: string | null
+          id?: string
+          max_amount_paise: number
+          member_id: string
+          next_charge_at?: string | null
+          provider_customer_id?: string | null
+          provider_plan_id?: string | null
+          provider_subscription_id: string
+          raw?: Json | null
+          status?: Database["public"]["Enums"]["mandate_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          authenticated_at?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          currency?: string
+          ends_at?: string | null
+          id?: string
+          max_amount_paise?: number
+          member_id?: string
+          next_charge_at?: string | null
+          provider_customer_id?: string | null
+          provider_plan_id?: string | null
+          provider_subscription_id?: string
+          raw?: Json | null
+          status?: Database["public"]["Enums"]["mandate_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "razorpay_mandates_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "razorpay_mandates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      refunds: {
+        Row: {
+          amount_paise: number
+          created_at: string
+          currency: string
+          id: string
+          initiated_by_staff_id: string | null
+          kind: Database["public"]["Enums"]["refund_kind"]
+          payment_id: string
+          processed_at: string | null
+          provider_refund_id: string | null
+          reason: string
+          status: Database["public"]["Enums"]["refund_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_paise: number
+          created_at?: string
+          currency?: string
+          id?: string
+          initiated_by_staff_id?: string | null
+          kind: Database["public"]["Enums"]["refund_kind"]
+          payment_id: string
+          processed_at?: string | null
+          provider_refund_id?: string | null
+          reason: string
+          status?: Database["public"]["Enums"]["refund_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_paise?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          initiated_by_staff_id?: string | null
+          kind?: Database["public"]["Enums"]["refund_kind"]
+          payment_id?: string
+          processed_at?: string | null
+          provider_refund_id?: string | null
+          reason?: string
+          status?: Database["public"]["Enums"]["refund_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refunds_initiated_by_staff_id_fkey"
+            columns: ["initiated_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refunds_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refunds_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff: {
         Row: {
           branch_id: string | null
@@ -374,6 +1079,56 @@ export type Database = {
           },
         ]
       }
+      webhook_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          event_type: string
+          id: string
+          payload: Json
+          processed_at: string | null
+          processing_error: string | null
+          provider: string
+          received_at: string
+          signature_valid: boolean
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          event_type: string
+          id?: string
+          payload: Json
+          processed_at?: string | null
+          processing_error?: string | null
+          provider?: string
+          received_at?: string
+          signature_valid: boolean
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          processing_error?: string | null
+          provider?: string
+          received_at?: string
+          signature_valid?: boolean
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -391,13 +1146,38 @@ export type Database = {
         | "trainer"
         | "member"
       gym_preset: "neighbourhood_gym" | "premium_studio" | "functional_box"
+      mandate_status:
+        | "created"
+        | "authenticated"
+        | "active"
+        | "paused"
+        | "halted"
+        | "cancelled"
+        | "completed"
+        | "expired"
       member_status: "active" | "paused" | "expired" | "cancelled" | "blocked"
+      membership_status:
+        | "pending"
+        | "active"
+        | "frozen"
+        | "expired"
+        | "cancelled"
       organization_status:
         | "pending_approval"
         | "trial"
         | "active"
         | "suspended"
         | "closed"
+      payment_method: "razorpay" | "cash" | "upi" | "card" | "bank_transfer"
+      payment_status:
+        | "created"
+        | "pending"
+        | "paid"
+        | "failed"
+        | "refunded"
+        | "reversed"
+      refund_kind: "refund" | "reversal"
+      refund_status: "requested" | "processing" | "completed" | "failed"
       streak_rule_type: "visit_streak" | "weekly_goal" | "calendar_streak"
     }
     CompositeTypes: {
@@ -539,7 +1319,24 @@ export const Constants = {
         "member",
       ],
       gym_preset: ["neighbourhood_gym", "premium_studio", "functional_box"],
+      mandate_status: [
+        "created",
+        "authenticated",
+        "active",
+        "paused",
+        "halted",
+        "cancelled",
+        "completed",
+        "expired",
+      ],
       member_status: ["active", "paused", "expired", "cancelled", "blocked"],
+      membership_status: [
+        "pending",
+        "active",
+        "frozen",
+        "expired",
+        "cancelled",
+      ],
       organization_status: [
         "pending_approval",
         "trial",
@@ -547,6 +1344,17 @@ export const Constants = {
         "suspended",
         "closed",
       ],
+      payment_method: ["razorpay", "cash", "upi", "card", "bank_transfer"],
+      payment_status: [
+        "created",
+        "pending",
+        "paid",
+        "failed",
+        "refunded",
+        "reversed",
+      ],
+      refund_kind: ["refund", "reversal"],
+      refund_status: ["requested", "processing", "completed", "failed"],
       streak_rule_type: ["visit_streak", "weekly_goal", "calendar_streak"],
     },
   },
