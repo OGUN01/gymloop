@@ -20,7 +20,25 @@ Update this file in the same commit that adds the export. One row per symbol, ke
 
 ## Enums
 
-_None yet — canonical status vocabularies are specified in `docs/data-model.md` and become Postgres enums in Phase 1, generated into `packages/db/types/database.ts`. They are registered here once generated, not before._
+Postgres enums (ADR-021), created by the migration named below and generated into `packages/db/types/database.ts` — never hand-written as a TypeScript constant. `docs/data-model.md` § Enums holds every label set and its legal-transition graph, and its ownership table says which cluster creates which type: **each type is created exactly once**, and a second `create type` in a parallel migration is an apply failure on merge. The other 19 v1 enums are registered by the clusters that create them.
+
+| Name | File | Purpose | Used by |
+|---|---|---|---|
+| `app_role` | `supabase/migrations/20260906115131_tenancy.sql` | The one role vocabulary: `super_admin`, `platform_support`, `gym_owner`, `gym_manager`, `front_desk`, `trainer`, `member` (ADR-031 — replaces the retired `ROLES`/`Role`) | `staff.role` and `organization_settings.pause_approver_role` (both checked down to the four gym-side labels); the `app_role` JWT claim `app.is_platform()` reads; Phase 2's `platform_users.role` and `audit_log.actor_role` |
+| `gym_preset` | `supabase/migrations/20260906115131_tenancy.sql` | The three sellable gym presets: `neighbourhood_gym`, `premium_studio`, `functional_box` | `organization_settings.preset` |
+| `member_status` | `supabase/migrations/20260906115131_tenancy.sql` | Member lifecycle: `active`, `paused`, `expired`, `cancelled`, `blocked` | `members.status` |
+| `organization_status` | `supabase/migrations/20260906115131_tenancy.sql` | Gym account lifecycle: `pending_approval`, `trial`, `active`, `suspended`, `closed` | `organizations.status`; Phase 6 (platform console) |
+| `streak_rule_type` | `supabase/migrations/20260906115131_tenancy.sql` | The three configurable streak rules (STK-001): `visit_streak`, `weekly_goal`, `calendar_streak` | `organization_settings.streak_rule_type` |
+
+## Database functions
+
+Functions in the private `app` schema — not exposed by `supabase/config.toml`, so none is an RPC and none appears in `packages/db/types/database.ts`. All three are `security invoker` with `set search_path = ''`. Created once, by the contract migration; a second copy in another cluster's migration is the duplication this table exists to prevent. **There is no third accessor** — a per-role helper belongs to Phase 2's role matrix (ADR-032).
+
+| Name | File | Purpose | Used by |
+|---|---|---|---|
+| `app.current_tenant_id()` | `supabase/migrations/20260906115131_tenancy.sql` | Reads the `tenant_id` JWT claim as a uuid; `null` when the claim is absent or empty, raises `22P02` when it is present but malformed (ADR-032) | The `<table>_tenant_all` policy on every tenant-scoped table, always as `(select app.current_tenant_id())` |
+| `app.is_platform()` | `supabase/migrations/20260906115131_tenancy.sql` | True when the `app_role` JWT claim is `super_admin` or `platform_support`; false when the claim is absent (ADR-032) | The `<table>_platform_all` policy on every table, always as `(select app.is_platform())` |
+| `app.touch_updated_at()` | `supabase/migrations/20260906115131_tenancy.sql` | Sets `new.updated_at := now()` on update | One `<table>_touch_updated_at` trigger per table that has an `updated_at` column — the only trigger Phase 1 creates |
 
 ## Types
 

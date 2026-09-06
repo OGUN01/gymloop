@@ -11,9 +11,9 @@ Each cluster is two commits in one push (ADR-038): the pgTAP tests, then the mig
 - [x] 1.3 Fix the contract's own defects found on that read: `member_devices` missing from the table list, the tenancy spec's foreign-key index scenario contradicting index rule 2, `design.md` describing a pull-request flow the owner replaced with trunk-only, `ROLES`/`Role` still present after ADR-031 retired them.
 - [x] 1.4 Number the two decisions that had none: ADR-037 (the privilege contract, its `pg_default_acl` basis re-verified against Cloud) and ADR-038 (two commits, one push, and the red pgTAP run bought once).
 - [x] 1.5 Push the contract to `main` and confirm CI green.
-- [ ] 1.6 `tenancy` cluster: blind visible pgTAP author, blind holdout pgTAP author, implementer — all three from the spec, none reading the others.
-- [ ] 1.7 Orchestrator review of the contract migration against the contract document, line by line.
-- [ ] 1.8 Push tests alone; record the red `db.yml` run as evidence the pgTAP runner discriminates (ADR-038). Then push the migration.
+- [x] 1.6 `tenancy` cluster: blind visible pgTAP author, blind holdout pgTAP author, implementer — all three from the spec, none reading the others.
+- [x] 1.7 Orchestrator review of the contract migration against the contract document, line by line, plus an ADR-042 replay of the migration against all four visible pgTAP files inside `begin … rollback` on Cloud: 130 assertions, 0 failures, and `information_schema` verified empty afterwards.
+- [x] 1.8 Push tests alone; the red `db.yml` run is **34047023577** — `pgtap` FAIL, reason `function plan(integer) does not exist`, on all four visible files *and* both holdout files, which is also the first proof that the holdout half of the job really runs. `pgtap-rollback`, `migrate` and `schema-drift` green in the same run, so the job discriminates rather than failing always. Then push the migration.
 - [ ] 1.9 Regenerate `packages/db/types/database.ts` from Cloud after the apply; confirm `schema-drift` green.
 
 ## 2. Fan-out clusters (parallel build, serial landing, in dependency order)
