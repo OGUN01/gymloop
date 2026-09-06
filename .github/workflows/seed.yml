@@ -1,0 +1,33 @@
+name: Seed demo gym
+
+# Gate 11 ("a full demo gym seeded by one command"). Manual only, and that is
+# the whole design: a seed is data, not schema, so it is deliberately NOT part
+# of the forward-only migration stream applied on every merge (ADR-030) — it
+# must never run unattended against the one Cloud project that will later hold
+# a real gym's rows (OPEN-006). Sessions do not hold database credentials, so
+# CI runs it, exactly as it runs migrations. See docs/decisions.md ADR-034.
+#
+# The one command is:  gh workflow run seed.yml -R OGUN01/gymloop
+on:
+  workflow_dispatch:
+
+# Same group as db.yml, so a seed can never run while a migration is applying.
+concurrency:
+  group: db-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  PROJECT_REF: pecxrpskmfeuyzngvewq
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: supabase/setup-cli@v3
+        with: { version: 2.110.0 }
+      - run: supabase link --project-ref "$PROJECT_REF" --yes
+      # supabase/seed.sql is idempotent: re-running it converges on the same
+      # demo gym rather than duplicating it, so a second dispatch is safe.
+      - run: supabase db query --linked -f supabase/seed.sql
