@@ -27,6 +27,16 @@ Also available, and run in CI: `pnpm knip`, `pnpm jscpd`, `pnpm depcruise`, `pnp
 
 You will also need the `supabase` CLI on your PATH for schema work. Docker is not used anywhere: pgTAP runs against the Cloud project, every test file wrapped `BEGIN … ROLLBACK` (`docs/decisions.md` ADR-030).
 
+## Seeding a demo gym
+
+One command, and it runs in CI rather than from your shell — sessions hold no database credentials and CI owns every write to Cloud (`docs/decisions.md` ADR-030, ADR-034):
+
+```
+gh workflow run seed.yml -R OGUN01/gymloop
+```
+
+That applies `supabase/seed.sql` to the linked project. It is idempotent: run it again and you get the same demo gym, not a second one. The seed is deliberately not part of the migration stream — a demo gym must not be recreated every time an unrelated migration merges.
+
 Supabase work goes through the `supabase` CLI, never the MCP server (`AGENTS.md` hard rule #2 — it's authenticated to the wrong account for this project).
 
 ## Repository layout
