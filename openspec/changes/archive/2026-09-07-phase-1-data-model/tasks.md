@@ -30,7 +30,7 @@ Each: blind visible pgTAP author · blind holdout pgTAP author · implementer ·
 ## 3. Seed and close
 
 - [x] 3.1 `supabase/seed.sql` — idempotent, the exact demo gym `docs/data-model.md` specifies, applied only by `gh workflow run seed.yml` (ADR-034).
-- [ ] 3.2 Final full pgTAP run on `main`, visible plus holdout, every table.
-- [ ] 3.3 Final regeneration of the generated types; `schema-drift` green.
-- [ ] 3.4 Blind final critic against the backend bar: green isolation suite on every table, every table isolated under every role including a missing claim, zero visible-versus-holdout gap, Supabase RLS best practices.
-- [ ] 3.5 Archive: fold into `openspec/specs/`, update `docs/registry.md` (enums from the generated types, the three `app` functions), `docs/gates.md` rows 6–11 with the CI run ids, `docs/data-model.md`, `docs/decisions.md`. Run report as the archived change's `README.md`.
+- [x] 3.2 Final full pgTAP run on `main`, visible plus holdout, every table.
+- [x] 3.3 Final regeneration of the generated types; `schema-drift` green.
+- [x] 3.4 Blind final critic against the backend bar: green isolation suite on every table, every table isolated under every role including a missing claim, zero visible-versus-holdout gap, Supabase RLS best practices.
+- [x] 3.5 Archive: fold into `openspec/specs/`, update `docs/registry.md` (enums from the generated types, the three `app` functions), `docs/gates.md` rows 6–11 with the CI run ids, `docs/data-model.md`, `docs/decisions.md`. Run report as the archived change's `README.md`.
