@@ -22,7 +22,7 @@ begin;
 -- the owner role is assumed explicitly, never inherited from the connection.
 set local role postgres;
 
-select plan(23);
+select plan(26);
 
 -- ---------------------------------------------------------------------------
 -- 1. Row-Level Security is on everywhere
@@ -364,6 +364,124 @@ select is_empty(
                       where a.attrelid = c.oid and a.attnum = i.indkey[0]), '')
            <> case when c.relname = 'organizations' then 'id' else 'tenant_id' end$$,
   'ADR-047 / ADR-049: every unique and exclusion constraint in public leads with the tenant column, bar the two the contract makes global on purpose (organizations.gym_code identifies a gym across the platform, qr_sessions.token_hash is a secret) -- the fifth instance, invoices (tenant_id, payment_id), was found by a human, and this assertion is what makes it the last one that has to be'
+);
+
+-- ---------------------------------------------------------------------------
+-- ADR-052 / docs/data-model.md "Foreign keys re-check the tenant". The cause
+-- under the ADR-047/ADR-049 class, closed structurally: Postgres runs
+-- referential-integrity probes with row security off, so a single-column
+-- foreign key lets a gym write a row INTO ITS OWN TENANT whose member_id,
+-- staff_id, membership_id or payment_id belongs to another gym. Every key
+-- whose parent is tenant-scoped is therefore composite,
+-- `(tenant_id, <column>) references <parent> (tenant_id, id)`.
+--
+-- Iterated over the catalogue, not listed: a table Phase 2 adds with a plain
+-- `member_id uuid references public.members (id)` fails the first assertion
+-- below on the day it merges, with nobody editing this file.
+--
+-- The four exemptions are NAMED rather than inferred, so that a schema which
+-- accidentally removes a parent's tenant column does not silently acquire an
+-- exemption along with it.
+-- ---------------------------------------------------------------------------
+
+select is_empty(
+  $$select c.relname || '.' || con.conname
+      from pg_constraint con
+      join pg_class c on c.oid = con.conrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      join pg_class pc on pc.oid = con.confrelid
+      join pg_namespace pn on pn.oid = pc.relnamespace
+     where con.contype = 'f' and n.nspname = 'public'
+       -- exemption 1: a table's own tenant_id -> organizations (id), which IS
+       -- the tenant check and has nothing above it to re-check against
+       and not (pn.nspname = 'public' and pc.relname = 'organizations'
+                and array_length(con.conkey, 1) = 1
+                and (select a.attname from pg_attribute a
+                      where a.attrelid = con.conrelid and a.attnum = con.conkey[1]) = 'tenant_id')
+       -- exemption 2: auth.users, outside this schema and outside tenancy
+       and not (pn.nspname = 'auth' and pc.relname = 'users')
+       -- exemption 3: platform_users, which carries no tenant column (ADR-033)
+       and not (pn.nspname = 'public' and pc.relname = 'platform_users')
+       -- exemption 4: audit_log, whose tenant_id is nullable (ADR-033), so a
+       -- composite key would silently stop enforcing under match simple on
+       -- exactly the platform-level rows that most need an intact reference
+       and c.relname <> 'audit_log'
+       -- the rule bites exactly when the PARENT is tenant-scoped
+       and exists (select 1 from pg_attribute pa
+                    where pa.attrelid = pc.oid and pa.attname = 'tenant_id'
+                      and pa.attnum > 0 and not pa.attisdropped)
+       and not (
+         array_length(con.conkey, 1) = 2
+         and (select a.attname from pg_attribute a
+               where a.attrelid = con.conrelid and a.attnum = con.conkey[1]) = 'tenant_id'
+         and (select a.attname from pg_attribute a
+               where a.attrelid = con.confrelid and a.attnum = con.confkey[1]) = 'tenant_id'
+         and (select a.attname from pg_attribute a
+               where a.attrelid = con.confrelid and a.attnum = con.confkey[2]) = 'id'
+       )$$,
+  'ADR-052: every foreign key whose parent carries a tenant column is composite `(tenant_id, <column>) references <parent> (tenant_id, id)` -- a single-column key does not re-check the tenant, and the RI probe that would catch it runs with row security off'
+);
+
+-- The obligation on the other end of the key. A primary key on `id` alone does
+-- not discharge it: Postgres matches a referenced column list against a unique
+-- index over exactly those columns, so without this the composite key above
+-- cannot be declared at all.
+--
+-- The obligation only exists for a parent referenced by a key the first
+-- assertion actually requires to be composite -- so this query mirrors that
+-- assertion's exemptions rather than asking about every foreign key blind to
+-- them. Three of the four are already structurally impossible to hit here:
+-- exemption 1's parent is `organizations`, which has no `tenant_id` column of
+-- its own to trip the `exists` below; exemption 2's parent, `auth.users`, is
+-- already outside `pn.nspname = 'public'`; and exemption 3's parent,
+-- `platform_users`, "carries no tenant column at all" (ADR-033) and so also
+-- fails that same `exists`. Only exemption 4 bites here and must be named
+-- explicitly: `audit_log` is the REFERENCING table of
+-- `audit_log.impersonation_session_id -> impersonation_sessions (id)`, kept
+-- single-column deliberately (nullable `tenant_id`, ADR-033/ADR-052), so
+-- `impersonation_sessions` is not "referenced by such a key" and carries no
+-- obligation -- do not remove this exclusion because it looks redundant with
+-- the `exists` above; it is the one exemption that same-`exists` trick can't
+-- reach, because it depends on the CHILD table, not the parent.
+select is_empty(
+  $$select pc.relname::text collate "default"
+      from pg_constraint con
+      join pg_class pc on pc.oid = con.confrelid
+      join pg_namespace pn on pn.oid = pc.relnamespace
+      join pg_class c on c.oid = con.conrelid
+      join pg_namespace n on n.oid = c.relnamespace
+     where con.contype = 'f' and n.nspname = 'public' and pn.nspname = 'public'
+       and c.relname <> 'audit_log'
+       and exists (select 1 from pg_attribute pa
+                    where pa.attrelid = pc.oid and pa.attname = 'tenant_id'
+                      and pa.attnum > 0 and not pa.attisdropped)
+       and not exists (
+         select 1
+           from pg_index i
+           join pg_attribute a0 on a0.attrelid = i.indrelid and a0.attnum = i.indkey[0]
+           join pg_attribute a1 on a1.attrelid = i.indrelid and a1.attnum = i.indkey[1]
+          where i.indrelid = pc.oid and i.indisunique and i.indisvalid
+            and i.indpred is null and i.indnkeyatts = 2
+            and a0.attname = 'tenant_id' and a1.attname = 'id'
+       )$$,
+  'ADR-052: every tenant-scoped table that is referenced by a foreign key the rule requires to be composite carries `unique (tenant_id, id)`, which is what makes it a legal target for that key -- a parent referenced only by an exempt key (audit_log''s deliberately single-column reference) has no such obligation'
+);
+
+-- The third consequence, and the one that is invisible until an optional
+-- reference is left null. A composite key is `match simple`: a row is exempt
+-- from the check if ANY key column is null, and since every tenant_id in the
+-- pair is `not null`, the exemption fires exactly when the optional foreign
+-- key is itself null -- which is the intended reading of "no reference".
+-- `match full` would reject a legitimately null optional reference across all
+-- fifty keys, and the contract says never to write it.
+select is_empty(
+  $$select c.relname || '.' || con.conname
+      from pg_constraint con
+      join pg_class c on c.oid = con.conrelid
+      join pg_namespace n on n.oid = c.relnamespace
+     where con.contype = 'f' and n.nspname = 'public'
+       and con.confmatchtype <> 's'$$,
+  'ADR-052: no foreign key in public is declared MATCH FULL or MATCH PARTIAL -- a null optional reference means no reference, and match full would reject it'
 );
 
 -- ---------------------------------------------------------------------------

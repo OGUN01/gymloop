@@ -404,13 +404,16 @@ select ok(
 );
 
 -- ---------------------------------------------------------------------------
--- The cross-tenant trainer. A foreign key does not enforce tenancy and the
--- policy's `with check` inspects only tenant_id, so a row owned by Gym A may
--- point trainer_staff_id at Gym B's staff row. These three assert what the
--- schema actually does, not what one would prefer: the write is ACCEPTED.
--- That is a gap the application layer has to close (ADD-002 advertises the
--- trainer's qualification, ADD-003 checks that trainer's availability) and a
--- finding for the orchestrator, not a weakened assertion.
+-- The cross-tenant trainer, and ADR-052 closed it. These three assertions used
+-- to record the gap: a foreign key did not enforce tenancy and the policy's
+-- `with check` inspects only tenant_id, so a row owned by Gym A could point
+-- trainer_staff_id at Gym B's staff row and the write was ACCEPTED. Every one
+-- of these keys is now `(tenant_id, trainer_staff_id) references staff
+-- (tenant_id, id)`, so the row is refused with 23503 — by the referential
+-- integrity probe, which is the only check in the statement that runs with row
+-- security off and can therefore see Gym B's staff row at all. RLS is not what
+-- refuses it: the row carries Gym A's tenant_id and Gym A is the caller, so
+-- the `with check` is satisfied and 42501 would be the wrong answer.
 -- ---------------------------------------------------------------------------
 
 select set_config(
@@ -422,24 +425,40 @@ select set_config(
 );
 set local role authenticated;
 
-select lives_ok(
+select throws_ok(
   $$ insert into public.addon_products (tenant_id, kind, name, price_paise, session_count, trainer_staff_id)
      values ('a0000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'PT with a Gym B trainer',
              500000, 5, 'b0000000-0000-4000-8000-000000000003'::uuid) $$,
-  'ADD-002 gap: addon_products.trainer_staff_id may point at another gym''s staff row; the policy checks only tenant_id'
+  '23503'::char(5),
+  null,
+  'ADD-002 (ADR-052): addon_products.trainer_staff_id naming another gym''s staff row is rejected with 23503 — the key is (tenant_id, trainer_staff_id)'
 );
 
+-- The other half of `match simple`, and the half a composite key gets wrong if
+-- it is written `match full`: trainer_staff_id is optional, and leaving it null
+-- is still "no reference", not "a broken reference". Under match full the row
+-- above and this one would both be refused, because tenant_id is not null and
+-- the pair would then be partially null.
 select lives_ok(
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, session_count)
+     values ('a0000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'PT with no trainer',
+             500000, 5) $$,
+  'ADD-002 (ADR-052): a null trainer_staff_id is still accepted — the composite key is match simple, so a row is exempt from the check when the optional column is null'
+);
+
+select throws_ok(
   $$ insert into public.addon_orders (tenant_id, member_id, addon_product_id,
                                       quantity, unit_price_paise, total_paise, trainer_staff_id)
      values ('a0000000-0000-4000-8000-000000000001'::uuid,
              'a0000000-0000-4000-8000-000000000005'::uuid,
              'a0000000-0000-4000-8000-000000000006'::uuid,
              1, 500000, 500000, 'b0000000-0000-4000-8000-000000000003'::uuid) $$,
-  'ADD-003 gap: addon_orders.trainer_staff_id may point at another gym''s staff row; the policy checks only tenant_id'
+  '23503'::char(5),
+  null,
+  'ADD-003 (ADR-052): addon_orders.trainer_staff_id naming another gym''s staff row is rejected with 23503'
 );
 
-select lives_ok(
+select throws_ok(
   $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
                                      starts_at, ends_at)
      values ('a0000000-0000-4000-8000-000000000001'::uuid,
@@ -447,25 +466,19 @@ select lives_ok(
              'b0000000-0000-4000-8000-000000000003'::uuid,
              'a0000000-0000-4000-8000-000000000005'::uuid,
              timestamptz '2026-11-05 10:00:00+05:30', timestamptz '2026-11-05 11:00:00+05:30') $$,
-  'DQA-005 gap: pt_sessions.trainer_staff_id may point at another gym''s staff row; the policy checks only tenant_id'
+  '23503'::char(5),
+  null,
+  'DQA-005 (ADR-052): pt_sessions.trainer_staff_id naming another gym''s staff row is rejected with 23503 — the session cannot be written, so Gym A cannot appear in Gym B''s trainer''s calendar at all'
 );
 
--- And the consequence is bounded by ADR-047: the exclusion constraint leads
--- with `tenant_id with =`, so a Gym A row naming a Gym B trainer cannot
--- collide with that trainer's Gym B bookings. Gym A cannot fill a calendar it
--- cannot see, and no 23P01 raised against an invisible row answers a question
--- about Gym B.
-
-select lives_ok(
-  $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
-                                     starts_at, ends_at)
-     values ('a0000000-0000-4000-8000-000000000001'::uuid,
-             'a0000000-0000-4000-8000-000000000007'::uuid,
-             'b0000000-0000-4000-8000-000000000003'::uuid,
-             'a0000000-0000-4000-8000-000000000005'::uuid,
-             timestamptz '2026-11-01 10:30:00+05:30', timestamptz '2026-11-01 11:30:00+05:30') $$,
-  'DQA-005 / ADR-047: the trainer exclusion constraint is tenant-scoped, so a Gym A session overlapping Gym B''s booking for that trainer is accepted, not rejected: no cross-tenant block and no existence oracle'
-);
+-- Removed with ADR-052: an assertion that a Gym A session naming a Gym B
+-- trainer and overlapping that trainer's Gym B booking was ACCEPTED, because
+-- ADR-047's exclusion constraint leads with `tenant_id with =`. The row it
+-- needed can no longer be written at all — the composite key refuses it before
+-- the exclusion constraint has anything to compare — so the assertion has no
+-- reachable state and its own throws_ok twin sits two assertions above. The
+-- exclusion constraint's tenant-leading shape is still asserted, over the
+-- catalogue rather than behaviourally, in 04_contract_meta.sql.
 
 -- ---------------------------------------------------------------------------
 -- DQA-005 inside one tenant, asserted through the policy rather than as the

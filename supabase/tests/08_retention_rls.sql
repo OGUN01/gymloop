@@ -174,16 +174,20 @@ select lives_ok(
              'a0000000-0000-4000-8000-000000000003'::uuid, 'in_person', 'timing_issue')$q$,
   'NSH-007: gym A may append to the contact log in its own tenant');
 
--- Honest behaviour, not the behaviour one might hope for: a foreign key does not
--- enforce tenancy, and the policy's `with check` inspects tenant_id only. A case
--- carrying gym A's tenant_id but pointing at gym B's member is ACCEPTED by the
--- schema. The application layer closes this; the schema does not. (Finding.)
-select lives_ok(
+-- ADR-052, and this assertion used to say the opposite. The foreign key now
+-- re-checks the tenant: `(tenant_id, member_id) references members (tenant_id,
+-- id)`. Gym A's `with check` is satisfied — the row carries gym A's tenant_id
+-- and gym A is the caller — so RLS admits it and it is the composite key that
+-- refuses, with 23503. That is the point of the rule: the referential-integrity
+-- probe runs with row security off, so it is the only check in the statement
+-- that can see gym B's member at all.
+select throws_ok(
   $q$insert into public.no_show_cases (id, tenant_id, member_id, absent_days_at_open, threshold_days)
      values ('a0000000-0000-4000-8000-000000000022'::uuid,
              'a0000000-0000-4000-8000-000000000001'::uuid,
              'b0000000-0000-4000-8000-000000000011'::uuid, 10, 7)$q$,
-  'NSH-003: a case whose member_id belongs to another gym is accepted — FKs do not enforce tenancy');
+  '23503', null,
+  'NSH-003 (ADR-052): a case written into gym A''s own tenant naming gym B''s member is rejected with 23503 — the foreign key is composite and re-checks the tenant');
 
 set local role postgres;
 select set_config('request.jwt.claims', '', true);

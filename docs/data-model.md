@@ -207,6 +207,20 @@ No sequence grants are needed anywhere: keys are uuid and no column is `generate
 
 A pgTAP meta-test asserts the outcome rather than the syntax — `anon` holds no privilege on any table in `public`, and `authenticated` holds `delete` on none.
 
+### Foreign keys re-check the tenant
+
+**Every foreign key whose parent is tenant-scoped is composite: `(tenant_id, <column>) references <parent> (tenant_id, id)`.** Every tenant-scoped table **that is referenced by such a key** therefore also carries `unique (tenant_id, id)`, in that column order, which is what makes it a legal target. The qualifier is not pedantry: `messaging_wallets` and `razorpay_accounts` are keyed on `tenant_id` alone and `document_counters` on `(tenant_id, kind, financial_year)`, so none of the three has an `id` column to put in such a key. They are tenant-scoped and they are not parents, and the rule is satisfied by their having nothing to satisfy.
+
+The rule exists because a single-column foreign key does not check tenancy, and **Postgres runs referential-integrity probes with row security off** — so RLS, the whole tenant defence, is not consulted during that check. Under single-column keys a gym can write a row *into its own tenant*, satisfying every policy, whose `member_id`, `staff_id`, `membership_id` or `payment_id` belongs to **another gym**. The row is junk rather than a leak: nothing of the other gym becomes readable. But it is the root cause under every instance of the ADR-047/ADR-049 class, because a constraint also ignores RLS, so the junk row can take a slot the other gym then can never claim — permanently, since `delete` is granted nowhere. ADR-047 and ADR-049 tenant-scoped the constraints and so removed every consequence; this rule removes the ability. See **ADR-052**.
+
+Consequences worth stating, because each has bitten a schema somewhere:
+
+- **A null referencing column still means "no reference."** The composite key is `match simple` (the default), under which a row is exempt from the check if **any** key column is null. Every `tenant_id` here is `not null`, so the exemption fires exactly when the optional foreign key is itself null, which is the intended behaviour. Never write `match full` — it would reject a legitimately null optional reference.
+- **`match simple` is why `audit_log` is exempt.** Its `tenant_id` is nullable by ADR-033, so a composite key there would silently stop enforcing on precisely the platform-level rows that most need an intact reference. Its foreign key stays single-column.
+- **Three references are outside tenancy and stay single-column**: a table's own `tenant_id → organizations (id)`, which *is* the tenant check; anything referencing `auth.users`; and anything referencing `platform_users`, which carries no tenant column at all.
+- The referencing pair `(tenant_id, <column>)` satisfies index rule 2's second form on its own, so a composite key adds no separate index obligation.
+- Constraint naming is unchanged: `<table>_<column>_fkey`.
+
 ### Indexes
 
 Three rules, all mechanically checkable, all asserted by a pgTAP meta-test over `pg_index` for every table in `public`:

@@ -886,14 +886,22 @@ select throws_ok($$
 $$, '23505'::char(5), null::text,
   'spec "A second active membership" (ADR-047): a second live membership for the same member in the same gym is rejected');
 
-select lives_ok($$
+-- ADR-052, and this assertion used to say the opposite. The premise it rested
+-- on — that gym B can name gym A's member id at all — is gone: the key is now
+-- `(tenant_id, member_id) references members (tenant_id, id)`, so the write is
+-- refused with 23503 rather than accepted. ADR-047's tenant-scoping of the
+-- live-membership index is unchanged and still asserted, by shape, in
+-- 05_membership_money_structure.sql and 04_contract_meta.sql; what changed is
+-- that the row it bounded can no longer be written. Run as the owner, so RLS
+-- is not in the way and the foreign key is the only thing that can refuse.
+select throws_ok($$
   insert into public.memberships
     (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
   values ('b0000000-0000-4000-8000-0000000000e2', 'b0000000-0000-4000-8000-000000000001',
           'a0000000-0000-4000-8000-0000000000e0', 'b0000000-0000-4000-8000-000000000005',
           'active', date '2026-11-01', date '2026-11-30', 100000)
-$$,
-  'spec "A member has at most one live membership" (ADR-047): the same member id live under a different tenant is accepted — the key is tenant-scoped, so gym B cannot block gym A''s member');
+$$, '23503'::char(5), null::text,
+  'ADR-052: a membership written into gym B''s tenant naming gym A''s member is rejected with 23503 — the referential-integrity probe runs with row security off, so the composite key is what sees the other tenant''s member and refuses');
 
 -- The live-membership predicate is `status in ('active','frozen')`, and until
 -- now nothing in the suite read `frozen` at all: the structure test only asks
@@ -1010,13 +1018,19 @@ select throws_ok($$
 $$, '23505'::char(5), null::text,
   'ADR-049: invoicing the same payment twice inside one gym is rejected — the invoice_number is fresh, so (tenant_id, payment_id) is the only key that can raise');
 
-select lives_ok($$
+-- ADR-052 supersedes the second half of that pair, and it used to assert the
+-- opposite. `invoices.payment_id` is now `(tenant_id, payment_id) references
+-- payments (tenant_id, id)`, so gym B naming gym A's payment id is refused at
+-- the key rather than accepted-but-harmless. ADR-049's tenant-scoped unique is
+-- untouched and is what the assertion above still proves; this is the cause
+-- ADR-052 closed underneath it.
+select throws_ok($$
   insert into public.invoices
     (id, tenant_id, payment_id, invoice_number, financial_year, buyer_name, taxable_paise, total_paise)
   values ('b0000000-0000-4000-8000-0000000000e5', 'b0000000-0000-4000-8000-000000000001',
           'a0000000-0000-4000-8000-000000000009', 'B/2026-27/9', '2026-27', 'B Member', 84746, 100000)
-$$,
-  'ADR-049: the same payment id under a different tenant is accepted — the key is tenant-scoped, so gym A''s invoice cannot deny gym B the slot for a payment id gym B cannot even see');
+$$, '23503'::char(5), null::text,
+  'ADR-052: an invoice written into gym B''s tenant naming gym A''s payment is rejected with 23503 — the invoice_number and the (tenant_id, payment_id) key are both free, so the composite foreign key is the only thing that can raise');
 
 select * from finish();
 
