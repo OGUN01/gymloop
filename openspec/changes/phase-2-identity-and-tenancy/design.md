@@ -177,6 +177,14 @@ Splitting read from write gives the stated behaviour on every path: a permitted 
 
 The cost is one extra policy per table — roughly 130 rather than 86. That is the price of the semantics being uniform, and a policy is cheap.
 
+**No policy admits a command the grant denies — on either side.** *(This paragraph exists because a blind author found the hole and neither of the other two did.)* Four tables grant `authenticated` `select` and nothing else: `messaging_wallets`, `messaging_wallet_ledger`, `webhook_events`, `audit_log` (ADR-047, ADR-049). §8.3 justified their gym-side select-only policy by saying a policy permitting what the grant denies is a contradiction a critic should not have to find. **The same argument applies to `<t>_platform_write`, and the first draft did not say so** — it left the platform side reading as if every table got the pair.
+
+So the rule, stated once and covering both sides: **a write policy exists on a table exactly when `authenticated` holds `insert` or `update` on it.** Those four tables therefore carry `<t>_platform_select` and no `<t>_platform_write`. A super admin is an `authenticated` session and holds no write grant there, so such a policy would be inert in any case — the wallet's arithmetic, its ledger, every audit row and every webhook record are written by `service_role`, which is never revoked from and bypasses RLS entirely.
+
+`impersonation_sessions` is **not** one of the four and the distinction is worth being exact about: its grant *is* `select, insert, update` (the history tier), and a super admin genuinely creates sessions through it. It carries `<t>_platform_write`. What it does not carry is `<t>_tenant_write` — a gym may read the record of being impersonated and may not write it — and that is a policy decision, not a grant one. The read-only five are five for two different reasons, and conflating them is how the wrong table ends up writable.
+
+The resulting counts are `<t>_platform_write` on 32 tables and `<t>_tenant_write` on 30, which is less tidy than "every table has both". **The invariant that replaces it is stronger, not weaker**, because it ties two things that must agree: for every table in `public`, if `authenticated` holds neither `insert` nor `update`, then no policy on that table is `for all`, `for insert` or `for update`. A meta-test asserts that over the catalogue, and it keeps holding when a later phase changes a grant.
+
 **Naming.** `<t>_tenant_select`, `<t>_tenant_write`, `<t>_platform_select`, `<t>_platform_write`, `<t>_member_select`. `<t>_tenant_all` and `<t>_platform_all` cease to exist. `docs/data-model.md`'s naming table lists only `<table>_tenant_all`, `<table>_platform_all` and `<table>_tenant_select`, so it takes a `spec:` edit in this change to add the three new patterns — the implementer was right to flag that it does not currently license `<t>_member_select` either.
 
 ### 8.2 The four gates, and no fifth
@@ -237,7 +245,7 @@ Written as functions rather than inline role lists so that changing which roles 
 | `impersonation_sessions` | `is_gym_admin()` | *(select-only policy)* | — |
 | `platform_users` | **no gym-side policy at all** — the platform pair only, unmodified | — | — |
 
-Thirty-six rows, one per table in `public`. **The four read-only tables plus `impersonation_sessions` carry `<t>_tenant_select` (`for select`) instead of `<t>_tenant_all`**, matching what `impersonation_sessions` already does and matching the naming convention's existing `<table>_tenant_select` entry. Their privilege grant already withholds insert and update (ADR-047/049); making the policy say the same thing removes a policy that permits what the grant denies, which is exactly the kind of contradiction a critic should find and here does not have to.
+Thirty-six rows, one per table in `public`. **All thirty-five tenant-scoped tables carry `<t>_tenant_select`** — that is §8.1's shape, not a special case. The five marked *(select-only policy)* above simply carry **no `<t>_tenant_write`**: the four whose grant already withholds insert and update (ADR-047/049), plus `impersonation_sessions`, whose grant permits writes but whose *policy* denies them to the gym, because a gym may read the record of being impersonated and may not author it. Making the policy say what the grant already says removes a policy that permits what the grant denies — the contradiction §8.1 now generalises to the platform side as well.
 
 ### 8.4 Decisions inside the matrix that a reader will want justified
 
