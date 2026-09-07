@@ -103,7 +103,10 @@ One `auth.users` row may match **several** `staff` rows in different tenants, or
   | `record_type` | `impersonation_session` |
   | `record_id` | the session's `id` |
   | `action` | `impersonation_session.started` / `impersonation_session.ended` |
-  | `reason` | the session's `reason` on start; null on end |
+  | `reason` | the session's `reason`, on **both** rows — an auditor reading only the end row should not have to join to learn why the session existed |
+  | `before` / `after` | **required by INT-003**, which says an audit row carries a before/after summary. On start: `before` null, `after` the session's `started_at`, `expires_at` and target tenant. On end: `before` the session as it stood (`ended_at` null), `after` the `ended_at` that was set. |
+
+  *The `before`/`after` row above is a correction. The first version of this table listed the other seven columns and stopped, and the implementer — reading a contract that had just been made exact — took the literal reading and dropped the jsonb summary it had already written. That was the right call on the text and the wrong outcome, because INT-003 requires the summary and this table was simply incomplete. Recorded rather than silently patched: when a contract becomes precise, an omission from it starts reading as a prohibition, which is a new failure mode that arrives with the precision.*
 
   `record_id` and `impersonation_session_id` both carry the session id, and that is deliberate rather than redundant: `record_id` says what this row is *about*, and `impersonation_session_id` is the column every other audit row uses to say what session it was written *under*. A query for "everything done during session X" finds the start and end rows through the same column as the rest.
 - **Expiry needs no job.** A session past `expires_at` stops being live by the definition above, so the next refresh drops the claims. Nothing sweeps the table. **The asymmetry, stated rather than papered over:** an expired session's *end* audit row is written when someone ends it, not when it expires — so `audit_log` shows starts without matching ends for abandoned sessions, and a reader must use `expires_at` rather than assume an end row exists.
