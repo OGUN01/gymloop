@@ -91,6 +91,21 @@ One `auth.users` row may match **several** `staff` rows in different tenants, or
 - **An impersonating token** carries `tenant_id` = the session's target, `app_role` = `gym_owner`, `impersonation_session_id` = the session id, and **no `staff_id`, no `member_id`**. `app.is_platform()` is therefore **false** on it: an impersonator acts *as the gym*, with the gym's reach, not with both. A token that is simultaneously platform-wide and gym-scoped has a strictly larger blast radius than either, for no product reason.
 - **One *open* session per actor**, enforced by a partial unique index on `actor_user_id where ended_at is null`, named `impersonation_sessions_actor_user_id_open_key`. **Only the "open" half of liveness is enforceable by an index** — `now()` is not immutable, so `expires_at > now()` cannot appear in an index predicate. The qualifier in the name is therefore `open`, not `live`, following the naming rule that `<qualifier>` names what the partial index selects. The consequence is exact and worth stating: an actor may hold one *open* session, which may have expired. The hook still treats it as not live, so it sets no claims; but a second session cannot be created until the expired one is ended. That is the correct trade — it forces an explicit end, which is what writes the audit row.
 - **The audit rows are written by the database.** A trigger on `impersonation_sessions` writes the start row on insert and the end row on the update that sets `ended_at`. INT-003 requires both. A caller who must remember is a caller who will eventually forget — and `audit_log` is read-only to `authenticated` (ADR-049), so the caller could not write it anyway.
+
+  **The exact row, because "naming the acting user" was ambiguous enough that a blind author flagged it.** The trigger fires under `service_role` or `postgres` and therefore holds no JWT, so every value comes from the session row, never from a claim:
+
+  | Column | Value |
+  |---|---|
+  | `tenant_id` | the session's target tenant |
+  | `actor_user_id` | `impersonation_sessions.actor_user_id` — **not** a claim |
+  | `actor_role` | `super_admin` |
+  | `impersonation_session_id` | the session's `id` |
+  | `record_type` | `impersonation_session` |
+  | `record_id` | the session's `id` |
+  | `action` | `impersonation_session.started` / `impersonation_session.ended` |
+  | `reason` | the session's `reason` on start; null on end |
+
+  `record_id` and `impersonation_session_id` both carry the session id, and that is deliberate rather than redundant: `record_id` says what this row is *about*, and `impersonation_session_id` is the column every other audit row uses to say what session it was written *under*. A query for "everything done during session X" finds the start and end rows through the same column as the rest.
 - **Expiry needs no job.** A session past `expires_at` stops being live by the definition above, so the next refresh drops the claims. Nothing sweeps the table. **The asymmetry, stated rather than papered over:** an expired session's *end* audit row is written when someone ends it, not when it expires — so `audit_log` shows starts without matching ends for abandoned sessions, and a reader must use `expires_at` rather than assume an end row exists.
 
 ## 7. `is_active` and role changes are load-bearing (OPEN-009)
