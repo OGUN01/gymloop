@@ -10,20 +10,56 @@ import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const SQL_COMMENT_RE = /--[^\n]*|\/\*[\s\S]*?\*\//g;
+const DOLLAR_TAG_RE = /\$[A-Za-z_]*\$/y;
+const COMMIT_IN_BODY_RE = /\bCOMMIT\b/;
 
-function statementsOf(sql) {
-  return sql
-    .replace(SQL_COMMENT_RE, '')
-    .split(';')
-    .map((s) => s.trim().toUpperCase())
-    .filter(Boolean);
+/**
+ * Split on top-level semicolons only. A `;` inside a $tag$ … $tag$ body is not
+ * a statement boundary — without this, the `end;` closing an ordinary plpgsql
+ * DO block became a top-level statement reading exactly END, which the COMMIT
+ * check below treats as a synonym for COMMIT, and correctly rollback-wrapped
+ * files were rejected with a message that said the opposite of the truth.
+ *
+ * Returns { statements, bodies } so the caller can hold the two to different
+ * rules: structure is a property of the top-level statements, but a COMMIT is a
+ * bug wherever it appears — since Postgres 11 a plpgsql block can genuinely
+ * commit, so ignoring bodies would trade a false alarm for a silent hole.
+ */
+function partsOf(sql) {
+  const src = sql.replace(SQL_COMMENT_RE, '');
+  const statements = [];
+  const bodies = [];
+  let buf = '';
+  let i = 0;
+  while (i < src.length) {
+    DOLLAR_TAG_RE.lastIndex = i;
+    const tag = DOLLAR_TAG_RE.exec(src);
+    if (tag) {
+      const close = src.indexOf(tag[0], i + tag[0].length);
+      const end = close === -1 ? src.length : close + tag[0].length;
+      bodies.push(src.slice(i + tag[0].length, close === -1 ? src.length : close).toUpperCase());
+      buf += src.slice(i, end);
+      i = end;
+      continue;
+    }
+    if (src[i] === ';') {
+      statements.push(buf.trim().toUpperCase());
+      buf = '';
+      i += 1;
+      continue;
+    }
+    buf += src[i];
+    i += 1;
+  }
+  if (buf.trim()) statements.push(buf.trim().toUpperCase());
+  return { statements: statements.filter(Boolean), bodies };
 }
 
 /** Pure, testable. `files` is [{ path, content }]. */
 export function findNonRolledBackTests(files) {
   const found = [];
   for (const { path, content } of files) {
-    const stmts = statementsOf(content);
+    const { statements: stmts, bodies } = partsOf(content);
     const first = stmts[0];
     if (first !== 'BEGIN' && first !== 'START TRANSACTION') {
       found.push({ path, reason: 'does not start with BEGIN' });
@@ -31,7 +67,11 @@ export function findNonRolledBackTests(files) {
     if (stmts.at(-1) !== 'ROLLBACK') {
       found.push({ path, reason: 'does not end with ROLLBACK' });
     }
-    if (stmts.some((s) => s === 'COMMIT' || s === 'END')) {
+    // `END` is a synonym for COMMIT only as a top-level statement; inside a
+    // plpgsql body it closes the block and means nothing of the sort.
+    const commits =
+      stmts.some((s) => s === 'COMMIT' || s === 'END') || bodies.some((b) => COMMIT_IN_BODY_RE.test(b));
+    if (commits) {
       found.push({ path, reason: 'contains COMMIT' });
     }
   }
