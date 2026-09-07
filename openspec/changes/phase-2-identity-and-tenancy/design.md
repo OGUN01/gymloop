@@ -89,6 +89,7 @@ One `auth.users` row may match **several** `staff` rows in different tenants, or
 - **A session is live** when `ended_at is null and expires_at > now()`. That expression appears in exactly one function and never inline in two places.
 - **Only `super_admin` may impersonate.** The hook checks for a live session only for an identity that resolved as a platform user with that role. `platform_support` may not — that is one half of making the two roles distinguishable.
 - **An impersonating token** carries `tenant_id` = the session's target, `app_role` = `gym_owner`, `impersonation_session_id` = the session id, and **no `staff_id`, no `member_id`**. `app.is_platform()` is therefore **false** on it: an impersonator acts *as the gym*, with the gym's reach, not with both. A token that is simultaneously platform-wide and gym-scoped has a strictly larger blast radius than either, for no product reason.
+- **An impersonation session names its own author, and this is enforced by the policy rather than by convention.** `_platform_write` gates the *caller*; without a further term it says nothing about the `actor_user_id` **column**, so a `super_admin` could create a session naming a different platform user as the actor — including a `platform_support` account, which is otherwise forbidden to impersonate at all. The audit trail would then name the wrong person, which is the one thing an impersonation audit row exists to get right. `impersonation_sessions_platform_write` therefore carries `and actor_user_id = (select auth.uid())` on both `using` and `with check`. *(Found by the blind visible-suite author, who noticed its own fixture depended on the gap being permitted and asked rather than assuming. `actor_user_id` already leads `impersonation_sessions_actor_user_id_idx`, so index rule 3 is discharged.)*
 - **One *open* session per actor**, enforced by a partial unique index on `actor_user_id where ended_at is null`, named `impersonation_sessions_actor_user_id_open_key`. **Only the "open" half of liveness is enforceable by an index** — `now()` is not immutable, so `expires_at > now()` cannot appear in an index predicate. The qualifier in the name is therefore `open`, not `live`, following the naming rule that `<qualifier>` names what the partial index selects. The consequence is exact and worth stating: an actor may hold one *open* session, which may have expired. The hook still treats it as not live, so it sets no claims; but a second session cannot be created until the expired one is ended. That is the correct trade — it forces an explicit end, which is what writes the audit row.
 - **The audit rows are written by the database.** A trigger on `impersonation_sessions` writes the start row on insert and the end row on the update that sets `ended_at`. INT-003 requires both. A caller who must remember is a caller who will eventually forget — and `audit_log` is read-only to `authenticated` (ADR-049), so the caller could not write it anyway.
 
@@ -121,6 +122,22 @@ Two halves, different mechanisms.
 
 - **A trigger revokes live sessions.** On `platform_users`, `staff` and `members`, when the identity stops being active by section 4's per-table definition — `is_active` going `true → false`, or a member's `status` becoming `cancelled`/`blocked`, or `erased_at` being set — **or when `role` changes** on the two tables that have one, the user's rows in `auth.sessions` are deleted. `members` carries no `role` column, so it writes no role-change audit row; that asymmetry is real and is not an omission. Deleting the session invalidates the refresh token, so the access token in hand is the last one that user will ever hold. A role change counts because a stale `app_role` claim is a stale privilege, and INT-003 requires an audit row for a role change in any case — the same trigger writes it.
 - **A deliberately chosen `jwt_expiry`**, so the residual window is a number someone chose rather than a default nobody read. It goes in `config.toml`. The trade is real and must be recorded: every refresh runs the hook, so a short lifetime is a load decision as much as a security one.
+
+**The audit row these triggers write, specified column by column.** §6 got this treatment for impersonation and this did not, which a blind author correctly called the same class of gap. Two events are audited on the identity tables:
+
+| Column | On a role change | On a deactivation |
+|---|---|---|
+| `action` | `staff.role_changed` / `platform_user.role_changed` | `staff.deactivated` / `platform_user.deactivated` / `member.deactivated` |
+| `record_type` | `staff` / `platform_user` | `staff` / `platform_user` / `member` |
+| `record_id` | the row's `id`, or `user_id` for `platform_users`, which has no `id` | same |
+| `tenant_id` | the row's tenant; null for `platform_users` | same |
+| `actor_user_id` | `auth.uid()` — this trigger *does* run under the caller's session, unlike §6's | same |
+| `actor_role` | the caller's role claim, resolved through the enum's catalogue so a forged label records as null rather than raising | same |
+| `before` / `after` | `{"role": <old>}` / `{"role": <new>}` | `{"is_active": true}` / `{"is_active": false}`; for a member, the `status` and `erased_at` that changed |
+
+**Deactivation is audited even though INT-003 does not list it.** INT-003 names a role change and not a deactivation, so this is an addition, made deliberately and recorded here rather than slipped in. The reason: deactivating a compromised super admin is the single most security-relevant write in this schema, the trigger is already firing on that transition to revoke sessions, and a schema that audits "front desk became a manager" but not "the super admin was switched off" is inconsistent in the direction that matters. `members` has no `role`, so it writes only the deactivation row.
+
+**Deactivating one identity signs the user out of every gym, and that is correct rather than merely convenient.** A blind author noticed that the trigger deletes *all* of a user's `auth.sessions`, so a staff member employed at two gyms who is deactivated at one is signed out of both. There is no narrower option — a session row carries no tenant, so there is nothing to filter on — but the wider behaviour is also the right one: the deactivated identity may be the very tenant the user's current token names, and the only way to be sure the next token's claims are correct is to make the next token be minted. The cost is one re-authentication at the other gym. Stated so nobody later reads it as a bug.
 
 **The residual window is real and must be written down**, not designed away: between the trigger firing and the current access token expiring, a deactivated user still holds valid claims. Any requirement claiming otherwise is false, and a test asserting otherwise is testing a fiction.
 
@@ -162,10 +179,14 @@ create policy <t>_tenant_write on public.<t>
 -- and, only on the tables a member may read
 create policy <t>_member_select on public.<t>
   for select to authenticated
-  using (tenant_id = (select app.current_tenant_id()) and <member gate>);
+  using (tenant_id = (select app.current_tenant_id())
+         and (select app.current_app_role()) = 'member'
+         and <member gate>);
 ```
 
 Every accessor stays wrapped in `(select …)` so the planner evaluates it once as an InitPlan — unchanged from Phase 1, and it matters more now that a predicate makes two calls.
+
+**Why the member policy names the role explicitly.** *(Added after the blind visible-suite author pointed out that it did not.)* The member gate on its own reads a `member_id` claim, and §3 guarantees that only a member token ever carries one. But that guarantee lives in the hook, not in the policy — so a token carrying `app_role: 'trainer'` **and** a `member_id` would read a member's rows through the member policy. On the five `M(all)` tables this grants nothing, since a trainer reads them anyway. On `consents`, `notifications`, `member_devices` and `payments` it is a real widening: a trainer is outside those read gates. The hook never mints such a pair and a client cannot forge one, so this is not an exploitable hole today — it is a policy whose correctness depends on a property of a different component. One clause makes each policy self-contained, which is the same argument ADR-047 made for tenant-scoping a constraint that RLS already covered.
 
 **Why the write policy is `for all` and not `for update, insert`.** Postgres policy commands are `ALL`, `SELECT`, `INSERT`, `UPDATE`, `DELETE` — there is no two-command form. `for all` with the write gate on `using` covers insert, update and delete; its `using` also applies to `SELECT`, but permissive policies OR together and the write gate is a subset of the read gate on every row of the matrix, so `SELECT` still resolves to the read gate. No table gets more read access than the matrix gives it.
 
@@ -175,7 +196,7 @@ That is not a spec defect to be edited away. **Zero rows rather than an error is
 
 Splitting read from write gives the stated behaviour on every path: a permitted `SELECT` passes the read policy; a forbidden `UPDATE` fails the write policy's `using` and touches **zero rows**; a forbidden `INSERT` still raises `42501`, because there is no existing row for a `using` clause to filter and `with check` is the only gate an insert meets. The specs say exactly that, per operation, and now they are achievable.
 
-The cost is one extra policy per table — roughly 130 rather than 86. That is the price of the semantics being uniform, and a policy is cheap.
+The cost is one extra policy per table. The final count is **147** — `_platform_select` 36, `_platform_write` 32, `_tenant_select` 35, `_tenant_write` 30, `_member_select` 14 — against 86 under the single-policy shape. That is the price of the semantics being uniform, and a policy is cheap.
 
 **No policy admits a command the grant denies — on either side.** *(This paragraph exists because a blind author found the hole and neither of the other two did.)* Four tables grant `authenticated` `select` and nothing else: `messaging_wallets`, `messaging_wallet_ledger`, `webhook_events`, `audit_log` (ADR-047, ADR-049). §8.3 justified their gym-side select-only policy by saying a policy permitting what the grant denies is a contradiction a critic should not have to find. **The same argument applies to `<t>_platform_write`, and the first draft did not say so** — it left the platform side reading as if every table got the pair.
 
@@ -271,7 +292,7 @@ The lazy reading of that architecture note is that no session needs write polici
 
 `docs/data-model.md`: *"Every column appearing in an RLS policy predicate is indexed … it stops being automatic the moment a policy grows a second term."* Phase 1 discharged it through rule 1 because `tenant_id` was the only term. Every `member_id` in the matrix above is now a policy term.
 
-**Measured against the live schema: every table with a member gate already has an index leading with `member_id` or with `(tenant_id, member_id)`** — `attendance`, `memberships`, `payments`, `notifications`, `member_devices`, `consents`, `addon_orders`, `pt_sessions`, `no_show_cases`, `razorpay_mandates`. `members`' gate is on `id`, its primary key. `organizations`' is on `id`, likewise. **Phase 2 therefore adds no index for the matrix**, and the meta-test that asserts rule 3 must accept a standalone `member_id` index as satisfying it — the same distinction rule 2 already makes.
+**Measured against the live schema: every table with a member gate already has an index leading with `member_id` or with `(tenant_id, member_id)`** — `attendance`, `memberships`, `payments`, `notifications`, `member_devices`, `consents`, `addon_orders`, `pt_sessions`. (`no_show_cases` and `razorpay_mandates` carry a `member_id` column and are indexed on it, but the matrix gives them **no member gate**, so they are not part of this obligation — the distinction between having the column and having the policy term is the whole of index rule 3.) `members`' gate is on `id`, its primary key. `organizations`' is on `id`, likewise. **Phase 2 therefore adds no index for the matrix**, and the meta-test that asserts rule 3 must accept a standalone `member_id` index as satisfying it — the same distinction rule 2 already makes.
 
 ## 9. The first `super_admin` (OPEN-001)
 
@@ -279,7 +300,7 @@ The gym self-signup flow requires super-admin approval, so the platform cannot b
 
 **A manually dispatched GitHub workflow, refusing to run twice.** The same pattern as the seed (ADR-034): `workflow_dispatch`, an email as input, running against Cloud with the CI credentials. It resolves `auth.users` by that email — so the human must already have signed up through the ordinary email flow, and the workflow never creates an auth identity — and inserts one `platform_users` row **only if `platform_users` is empty**.
 
-The emptiness check is the entire safety property, and it is a `where not exists` in the statement rather than a check in a script: after the first row exists the workflow is inert, permanently, and running it again is a no-op rather than a second admin. Every subsequent platform account is created by an existing `super_admin` through `platform_users_super_admin_all`, which is auditable and revocable. A backdoor that closes itself after one use is not a backdoor.
+The emptiness check is the entire safety property, and it is a `where not exists` in the statement rather than a check in a script: after the first row exists the workflow is inert, permanently, and running it again is a no-op rather than a second admin. Every subsequent platform account is created by an existing `super_admin` through the ordinary `platform_users_platform_write` policy, which is auditable and revocable. A backdoor that closes itself after one use is not a backdoor.
 
 ## 10. Auth configuration
 

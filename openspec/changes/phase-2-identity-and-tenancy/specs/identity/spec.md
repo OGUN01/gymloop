@@ -153,6 +153,17 @@ INT-003 names a role change as an audited event. THE SYSTEM SHALL write an `audi
 - **WHEN** a staff row's `role` is changed
 - **THEN** an `audit_log` row SHALL exist for that record naming the previous and the new role
 
+### Requirement: A deactivation writes an audit row
+THE SYSTEM SHALL write an `audit_log` row when an identity is deactivated, recording the actor, the record and the before and after state. INT-003 names a role change and not a deactivation; this is a deliberate addition, because switching off a compromised platform account is the most security-relevant write in the schema and a log that records a promotion but not a revocation is inconsistent in the direction that matters.
+
+#### Scenario: Deactivating a staff member is audited
+- **WHEN** a staff row is updated to `is_active` false
+- **THEN** an `audit_log` row SHALL exist for that record whose action names a deactivation and whose before and after record the change
+
+#### Scenario: Cancelling a member is audited
+- **WHEN** a `members` row is updated to status `cancelled`
+- **THEN** an `audit_log` row SHALL exist for that member recording the status change
+
 ### Requirement: The first platform account is created once and never again
 THE SYSTEM SHALL provide a way to create the very first `super_admin` from an already-registered authentication user, and that mechanism SHALL be inert once any `platform_users` row exists — so it cannot become a general-purpose way to create platform accounts.
 

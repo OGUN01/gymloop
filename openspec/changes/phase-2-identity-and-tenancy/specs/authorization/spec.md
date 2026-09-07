@@ -134,6 +134,10 @@ THE SYSTEM SHALL return to a `member` session, from each table carrying a member
 - **WHEN** that same caller selects from `staff`, `coupons`, `qr_sessions`, `no_show_cases`, `follow_ups`, `organization_settings`, `invoices`, `refunds`, `membership_pauses`, `attendance_corrections`, `message_templates`, `leads`, `member_imports`, `razorpay_accounts`, `razorpay_mandates`, `document_counters`, `messaging_wallets`, `messaging_wallet_ledger`, `webhook_events`, `audit_log` or `impersonation_sessions`, each holding rows for their own gym
 - **THEN** zero rows SHALL be returned from every one of them
 
+#### Scenario: A member claim carried by a session that is not a member
+- **WHEN** a caller whose role claim is `trainer` also carries a `member_id` claim naming a member of their gym, and selects from `consents`, `notifications`, `member_devices` or `payments`
+- **THEN** zero rows SHALL be returned — the member policy SHALL require the role as well as the claim, rather than relying on the token issuer never pairing the two
+
 #### Scenario: A member with no member claim
 - **WHEN** a caller whose role claim is `member` and whose tenant claim is gym A carries no `member_id` claim, and selects from a member-scoped table holding gym A's rows
 - **THEN** zero rows SHALL be returned

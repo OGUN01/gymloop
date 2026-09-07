@@ -17,6 +17,17 @@ THE SYSTEM SHALL set impersonation claims only for an identity that resolves as 
 - **WHEN** a caller whose role claim is `super_admin` inserts an `impersonation_sessions` row with a reason and a future expiry
 - **THEN** the insert SHALL succeed
 
+### Requirement: A session names its own author
+THE SYSTEM SHALL reject an impersonation session whose actor is anybody but the caller creating it, so that the audit trail cannot be made to name a different platform user — including a `platform_support` account, which may not impersonate at all.
+
+#### Scenario: A super admin naming someone else as the actor
+- **WHEN** a caller whose role claim is `super_admin` inserts an impersonation session whose actor is a different platform user
+- **THEN** the insert SHALL be rejected by the row-security policy
+
+#### Scenario: A super admin naming itself
+- **WHEN** that same caller inserts an impersonation session whose actor is itself
+- **THEN** the insert SHALL succeed
+
 ### Requirement: An impersonating token acts as the gym, not as the platform
 WHILE a live impersonation session exists for the acting super admin, THE SYSTEM SHALL issue a token carrying the session's target as `tenant_id`, `gym_owner` as `app_role`, and the session's id as `impersonation_session_id`, and carrying neither `staff_id` nor `member_id`. The token SHALL NOT satisfy the platform test — an impersonator has the gym's reach, not the gym's reach *and* the platform's.
 
