@@ -177,6 +177,14 @@ with `impersonation_sessions_platform_all` beside it, unchanged from the templat
 
 Under a missing claim `app.current_tenant_id()` is null, `tenant_id = null` is null rather than true, and `app.is_platform()` is false; both permissive policies fail, they OR to false, and the query returns zero rows. Zero rows, not an error — a policy that raised would let a caller tell "nothing here" apart from "wrong tenant", and the pgTAP null-claim case asserts the silent-empty behaviour. The same arithmetic keeps `audit_log`'s null-`tenant_id` rows invisible to every gym without needing a second policy: `null = <uuid>` is null.
 
+### A third globally-scoped constraint (Phase 2)
+
+ADR-047 requires every unique and exclusion constraint in `public` to lead with the tenant column, and names two exemptions: `organizations.gym_code`, which identifies a gym across the platform, and `qr_sessions.token_hash`, which is a secret. Phase 2 adds a third: **`impersonation_sessions_actor_user_id_open_key`**, a partial unique index on `actor_user_id where ended_at is null`.
+
+It is global deliberately. Scoping it to the tenant would defeat it — a super admin could hold an open impersonation session in fifty gyms at once, and the access-token hook would have no way to decide which tenant the resulting token names. One open session *per actor across the platform* is the requirement. ADR-047's danger, a gym taking a constraint slot another gym can never see or reclaim, does not apply: no gym-side role may insert into `impersonation_sessions` at all, so the only writers are platform accounts.
+
+The exemption was found by ADR-047's own meta-test failing during the pre-push replay, which is the meta-test working. A fourth exemption should be argued the same way — in this document, before the constraint merges.
+
 ### The role matrix (Phase 2)
 
 Phase 1 shipped one gym-side policy per table, `tenant_id = app.current_tenant_id()`, and nothing more — so every signed-in session read its whole gym. That was the recorded scope and it was `OPEN-013`. **Phase 2 replaces the template above with a role-gated pair of policies per table**, and the authoritative statement of which role may read and write which table is `openspec/specs/authorization/spec.md` together with its 36-row matrix. What follows is the shape; the matrix is the content.
