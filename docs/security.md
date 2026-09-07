@@ -2,9 +2,23 @@
 
 ## Tenancy isolation (RLS)
 
-Single Postgres database, Row-Level Security on every table. `tenant_id` (the organization id) is injected into the JWT via a custom access-token hook at auth time, and RLS policies read it from the JWT claim — **never** via a per-row subquery against another table (that pattern is slow and has historically been the source of cross-tenant leaks in Supabase RLS setups). Every RLS-referenced column is indexed. A pgTAP cross-tenant leak suite runs per table: Gym A must never be able to read, update, or delete Gym B's rows under any role, including edge cases like a null/missing tenant claim. See `docs/data-model.md` for the policy-map shape; the actual policies are written in Phase 1.
+Single Postgres database, Row-Level Security on every table. `tenant_id` (the organization id) is injected into the JWT via a custom access-token hook at auth time, and RLS policies read it from the JWT claim — **never** via a per-row subquery against another table (that pattern is slow and has historically been the source of cross-tenant leaks in Supabase RLS setups). Every RLS-referenced column is indexed. A pgTAP cross-tenant leak suite runs per table: Gym A must never be able to read, update, or delete Gym B's rows under any role, including edge cases like a null/missing tenant claim. See `docs/data-model.md` for the policy-map shape. Phase 1 wrote the policies; Phase 2 replaced every one of them with the role matrix below, because tenant isolation alone left every signed-in session reading its whole gym.
 
-`super_admin` and `platform_support` see across all tenants by explicit RLS policy design (a policy branch keyed on role), not by disabling RLS or using the service-role key from application code paths a user can reach.
+`super_admin` and `platform_support` see across all tenants by explicit RLS policy design (a policy branch keyed on role), not by disabling RLS or using the service-role key from application code paths a user can reach. **They differ on the write side**: the platform read policy is keyed on either role, the platform write policy on `super_admin` alone, so a support account reads everywhere and writes nowhere — including its own `platform_users` row, which it could otherwise have updated to promote itself (ADR-056).
+
+## Identity and the role matrix (Phase 2)
+
+**A tenant claim alone grants nothing.** Phase 1 gave every table one gym-side policy, `tenant_id = app.current_tenant_id()`, so any signed-in session with a gym's tenant claim read every row in that gym. Phase 2 replaced that with a per-table read gate and write gate over the seven roles, plus a member-scoped read policy on the fourteen tables a member may see (ADR-055, and the matrix in `openspec/specs/authorization/`). A trainer reads the retention loop and no money; a manager cannot promote itself, because only `gym_owner` writes `staff`; a member reads its own rows and the gym's catalogue and writes nothing directly.
+
+**Claims come from a Postgres access-token hook** in the `app` schema, `security definer`, executable only by `supabase_auth_admin`. It resolves a signed-in user against `platform_users`, then `staff`, then `members`, stopping at the first table the user appears in, and stamps `tenant_id`, `app_role`, and one of `member_id` / `staff_id`. **A hook that raises issues no token to anyone**, so its body sits inside an exception handler that returns the event unchanged: a failure degrades to a session that reads nothing, never to a sign-in outage (ADR-054).
+
+### Revoking access, and the window that remains
+
+An access token is a copy of a database row taken when the token was issued. Changing the row does not change a token already in someone's browser. Two mechanisms, and one honest gap:
+
+- **The claim.** An inactive identity resolves to no claims at all, and resolution *stops* rather than falling through — a deactivated super admin does not silently become a member. Active means `is_active` for `platform_users` and `staff`; for a member it means `status` is neither `cancelled` nor `blocked` and `erased_at` is null. A `paused` or `expired` member signs in normally, because renewing is what they sign in to do.
+- **The sessions already issued.** A trigger deletes the user's `auth.sessions` rows when an identity stops being active or its role changes, which invalidates the refresh token. Deactivating one identity signs the user out of *every* gym they belong to; there is no narrower option, since a session row carries no tenant, and forcing a fresh token is the only way to be sure the claims are right.
+- **The residual window is fifteen minutes.** `jwt_expiry` is 900 seconds rather than the 3600 default. Between the trigger firing and the current access token expiring, a revoked user still holds valid claims. **This is stated rather than designed away**: it is the number to quote in an incident, and any claim that revocation is instant is false.
 
 ## Impersonation
 
@@ -13,6 +27,20 @@ Super Admin may impersonate a gym owner for support. Every impersonation session
 - Shows a persistent red banner in the UI for the duration of the session.
 - Writes an audit row on start and on end (actor, target gym, reason, start/end timestamps).
 - Auto-expires — an impersonation session has a hard TTL, not an indefinite one ended only by manual logout.
+
+### How that is enforced (Phase 2)
+
+The reason, the hard expiry and the audit rows were specified in Phase 1's schema; Phase 2 supplies the behaviour.
+
+- Only `super_admin` may impersonate. `platform_support` cannot create a session and gets no impersonation claims.
+- **A session names its own author** — the policy requires `actor_user_id = auth.uid()`, so an admin cannot create a session attributed to someone else. The audit trail naming the right person is the one thing it exists for.
+- An impersonating token carries the target gym's `tenant_id` and `app_role = 'gym_owner'`, and **is not a platform session**: it has the gym's reach, not the gym's reach plus the platform's.
+- One *open* session per actor, enforced by a partial unique index. Only the "open" half is indexable (`now()` is not immutable), so an expired session still blocks a new one until it is explicitly ended — which is what writes the end audit row.
+- **The database writes both audit rows**, on insert and on the update that sets `ended_at`. A caller who must remember would eventually forget, and `audit_log` is not writable by a signed-in session in any case.
+- **An expired session that nobody ends leaves a start row with no end row.** Nothing sweeps the table. Read `expires_at` on the session rather than assuming an end row exists.
+
+The red banner and the mandatory reason prompt are UI obligations that Phase 7 owes; Phase 2 supplies the `impersonation_session_id` claim they read.
+
 
 ## Payment integrity
 
@@ -61,6 +89,8 @@ The clock starts at the event named in "Retained from". "Erasable" says whether 
 **What must be built before this is real** (Phase 8, not Phase 1): a job that applies these durations, an erasure routine implementing the `blank`/`delete`/`hold` column, and a legal review of every duration above.
 
 ## Credential rotation — outstanding
+
+**`SUPABASE_DB_PASSWORD` must be rotated too.** Supplied by the owner on 2026-09-07 as a deliberate temporary build credential (ADR-051), on the grounds that the application is not live. It is a repository secret and appears in no committed file. Rotate it when the build phases end.
 
 **`SUPABASE_ACCESS_TOKEN` must be rotated.** The token currently set as a repo secret was transmitted in plaintext through a chat conversation during Phase 0 to unblock the drift gate. It is a personal access token scoped to the whole Supabase account (it can see `gymloop`, `FitAi`, and `gamer_addaz`), not to one project — so its blast radius is every project in that account, not just this one. Revoke it at `supabase.com/dashboard/account/tokens`, issue a replacement, and update the secret with `gh secret set SUPABASE_ACCESS_TOKEN -R OGUN01/gymloop`. Nothing in the repo needs to change — only the secret's value.
 
