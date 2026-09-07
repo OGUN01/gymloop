@@ -5,7 +5,7 @@ This is the **contract**. Phase 1's most expensive lesson was that an ambiguous 
 Two facts about the platform were established by measurement before this was written, and both change the design:
 
 - **A Postgres auth hook fails closed, with a two-second budget.** Supabase propagates a hook's exception into an HTTP error and issues no token; it does not fall through to a token without claims (`supabase.com/docs/guides/auth/auth-hooks`). The hook is global. **An unhandled exception in this one function locks every user of the product out of sign-in *and* token refresh simultaneously.** That single fact drives section 2's exception rule.
-- **`supabase config push` exists in CLI 2.110.0** and pushes `config.toml` to the linked Cloud project, so the hook can be enabled without a Dashboard click — which means it can be enabled by CI, like everything else here.
+- **The hook can be enabled without a Dashboard click**, so enabling it is CI's work like everything else here. `supabase config push` exists in CLI 2.110.0 and is the obvious route; §10 explains why it is nonetheless the wrong one on this repo, and what replaces it.
 
 ## 1. Where the hook lives, and why not in `public`
 
@@ -223,9 +223,21 @@ The emptiness check is the entire safety property, and it is a `where not exists
 
 ## 10. Auth configuration
 
-`supabase config push` (CLI 2.110.0) pushes `config.toml` to the linked project, so this is CI's work, not a Dashboard click — consistent with hard rule 7.
+`supabase config push` (CLI 2.110.0) can push `config.toml` to the linked project. **It is the wrong tool here, and the reason is worth stating because it is the obvious choice.**
 
-**The risk that goes with it:** `config push` pushes the *whole* file, so any local-development default sitting in `config.toml` becomes the Cloud project's setting. Before the first push, `config.toml` must be read end to end against what the Cloud project currently has, and the diff must be deliberate. This is a one-way operation on a production project and it is the second-most dangerous thing in this phase after the hook itself.
+`config push` pushes the *whole file*. This repo's `config.toml` is 414 lines of Supabase's local-development defaults — `site_url = "http://127.0.0.1:3000"`, `additional_redirect_urls = ["https://127.0.0.1:3000"]`, a local SMTP block, storage and realtime sections — none of which has ever been reconciled against what the Cloud project actually has. Pushing it to enable one hook would silently set a production project's site URL to localhost, which breaks every email link the moment staff email sign-in is used. There is no `--dry-run`.
+
+**Instead: a manually dispatched GitHub workflow that PATCHes exactly the fields this phase decides**, against `PATCH /v1/projects/{ref}/config/auth`, using the `SUPABASE_ACCESS_TOKEN` repo secret. Same pattern as the seed (ADR-034): `workflow_dispatch`, CI credentials, one reviewable file. The body carries only:
+
+```json
+{ "hook_custom_access_token_enabled": true,
+  "hook_custom_access_token_uri": "pg-functions://postgres/app/custom_access_token_hook",
+  "jwt_exp": <the chosen lifetime> }
+```
+
+Three fields changed, nothing else touched, and the diff is the file. `config.toml` is updated in the same change so the repo still *describes* the project truthfully — it is the record, not the mechanism, until someone reconciles the other 400 lines deliberately.
+
+**A known unknown:** an open Supabase issue reports the Management API rejecting a `send_email` hook PATCH with "Auth Hooks can only be configured on Team or Enterprise Plans", on a project where the Dashboard had already enabled it. Whether the same gate applies to `hook_custom_access_token_*` is not established. If the PATCH is refused for that reason, the fallback is the Dashboard toggle, done once by the owner and recorded — not a wholesale `config push` sneaked in as a workaround.
 
 Settings this phase decides: `[auth.hook.custom_access_token]` enabled with the `app`-schema URI; `[auth] jwt_expiry` (section 7); phone sign-in for members and email sign-in for staff.
 

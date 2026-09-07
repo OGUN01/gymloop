@@ -44,9 +44,9 @@ Order matters. Migrations are applied by CI on merge (ADR-030) and a push must w
 
 ## 5 — Configuration
 
-- [ ] Read `supabase/config.toml` end to end against what the Cloud project currently has, and make the diff deliberate **before** the first `supabase config push` — it pushes the whole file to a production project.
-- [ ] `[auth.hook.custom_access_token]` enabled, `uri = "pg-functions://postgres/app/custom_access_token_hook"`.
-- [ ] `[auth] jwt_expiry` set explicitly and below the 3600 default.
+- [ ] **Do not `supabase config push`** — it pushes all 414 lines, including `site_url = "http://127.0.0.1:3000"`, and there is no dry run (`design.md` §10).
+- [ ] A manually dispatched workflow PATCHing exactly three fields of `/v1/projects/{ref}/config/auth`: the hook enabled, its `pg-functions://postgres/app/…` URI, and `jwt_exp`.
+- [ ] Mirror the same three settings into `supabase/config.toml` so the repo describes the project truthfully — as the record, not the mechanism.
 - [ ] Phone sign-in for members and email sign-in for staff, with the SMS-provider gap recorded rather than faked.
 - [ ] The bootstrap workflow for the first `super_admin` (`design.md` §9), inert once `platform_users` is non-empty.
 
