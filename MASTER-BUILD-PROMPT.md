@@ -203,7 +203,7 @@ Every unit of work follows this loop. There is **no budget cap**; the loop exits
 |---|---|---|
 | Database | pgTAP | RLS, tenant isolation, constraints, triggers |
 | Unit | Vitest | Streak calculation, absent-days, money, timezone maths |
-| Integration | Vitest against a real local Supabase (`supabase start`) — **not mocks** | API contracts, state machines, idempotency |
+| Integration | Vitest against the real Cloud project — **not mocks**, and **not** a local `supabase start` stack, which ADR-030 removed along with every other use of Docker | API contracts, state machines, idempotency |
 | E2E | Playwright (MCP to author, CI to run) | The four journeys below |
 | Load | k6 | 100 gyms × 500 members, morning check-in spike |
 | Holdout | Same runners, CI-only, separate private repo | Anti-gaming signal |

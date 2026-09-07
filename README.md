@@ -25,7 +25,7 @@ Also available, and run in CI: `pnpm knip`, `pnpm jscpd`, `pnpm depcruise`, `pnp
 
 **OpenSpec** is invoked as `pnpm dlx @fission-ai/openspec@1.12.0 <command>` — pinned to that version, and deliberately not a repo dependency (nothing imports it, so `knip` would flag it, and silencing that needs an ignore entry `AGENTS.md` rule #4 bans). The generated `openspec-*` skills say plain `openspec …`; prefix them.
 
-You will also need the `supabase` CLI on your PATH for schema work. Docker is not used anywhere: pgTAP runs against the Cloud project, every test file wrapped `BEGIN … ROLLBACK` (`docs/decisions.md` ADR-030).
+You will also need the `supabase` CLI on your PATH for schema work. Docker is not used anywhere: pgTAP runs against the Cloud project, every test file wrapped `BEGIN … ROLLBACK` (`docs/decisions.md` ADR-030). **There is no local database and there is nothing to start.** `supabase start`, `supabase db reset` and `supabase test db` all want a local stack or a Docker image and will simply fail here — `supabase test db` pulls a `pg_prove` container, so the pgTAP suite runs in CI and nowhere else. What works locally is the read-only and linked commands: `supabase link`, `supabase gen types --linked`, `supabase migration new`, and `supabase db query --linked "select ..."`.
 
 Supabase work goes through the `supabase` CLI, never the MCP server (`AGENTS.md` hard rule #2 — it's authenticated to the wrong account for this project).
 
