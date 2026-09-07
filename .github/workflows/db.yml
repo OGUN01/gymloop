@@ -155,12 +155,21 @@ jobs:
       # `failed to retrieve database credentials` and then trips its circuit
       # breaker, so the tail of the suite reports no result at all — which
       # looks like a test failure and is not one (docs/decisions.md ADR-048).
-      # Two invocations with a pause between them stay under that ceiling.
-      # Both must pass: the step fails the job if either half does, so this
+      # Three invocations with pauses between them stay under that ceiling.
+      # Two was not enough: run 34093344925 passed 17 of the 18 visible files
+      # and then could not open a connection for the 18th at all (Tests: 0,
+      # `EAUTHQUERY: unsupported or invalid secret format`), because 18 files
+      # plus the link is the boundary. Nine per invocation leaves margin.
+      # Every invocation must pass: any one failing fails the job, so this
       # buys reliability without buying a weaker gate.
       - if: steps.check.outputs.run == 'true'
-        name: pgTAP — the visible suite
-        run: supabase test db --linked supabase/tests
+        name: pgTAP — the visible suite, tenancy through attendance
+        run: supabase test db --linked supabase/tests/0[1-6]*.sql
+      - if: steps.check.outputs.run == 'true'
+        run: sleep 30
+      - if: steps.check.outputs.run == 'true'
+        name: pgTAP — the visible suite, catalogue through platform
+        run: supabase test db --linked supabase/tests/0[7-9]*.sql supabase/tests/10_*.sql
       - if: steps.check.outputs.run == 'true'
         run: sleep 30
       - if: steps.check.outputs.run == 'true'
