@@ -62,30 +62,53 @@ select ok(
 );
 
 -- ---------------------------------------------------------------------------
--- Policy inventory. Both exceptions to the two-policy template live here, and
--- the exception is the point: a stray tenant policy on platform_users, or an
--- `impersonation_sessions_tenant_all` in place of the select-only one, would
--- pass a behaviour test that only ever read.
+-- Policy inventory. Both exceptions to the template live here, and the
+-- exception is the point: a stray gym-side policy on platform_users, or an
+-- `impersonation_sessions_tenant_write` beside the select-only one, would pass
+-- a behaviour test that only ever read.
 -- ---------------------------------------------------------------------------
 
+-- Phase 2 splits the platform policy in two everywhere (design.md 8.1):
+-- `_platform_select` on is_platform() so support still reads, `_platform_write`
+-- on `= super_admin` so support writes nothing. On this table that split is
+-- what closes OPEN-009 -- under the single platform_users_platform_all a
+-- support account could update its own row to super_admin, because the policy
+-- was gated on is_platform() and support is a platform role. It needs no
+-- bespoke pair: the ordinary template says exactly that. The tenant half of the
+-- rule is unchanged -- ADR-033 still means there is no gym-side policy here,
+-- because there is no tenant to scope to.
 select policies_are(
   'public', 'platform_users',
-  ARRAY['platform_users_platform_all'],
-  'platform_users carries only the platform policy and no tenant policy (ADR-033)'
+  ARRAY['platform_users_platform_select', 'platform_users_platform_write'],
+  'platform_users carries the ordinary platform pair and no gym-side policy (ADR-033, design.md 8.4)'
 );
 
+-- Three, not four. impersonation_sessions is NOT one of the four read-only
+-- tables: its grant is select, insert, update (the history tier) and a super
+-- admin genuinely creates sessions through it, so it carries
+-- `_platform_write`. What it lacks is `_tenant_write` -- a gym may read the
+-- record of being impersonated and may not author it -- and that is a policy
+-- decision rather than a grant one (design.md 8.1).
 select policies_are(
   'public', 'impersonation_sessions',
-  ARRAY['impersonation_sessions_tenant_select', 'impersonation_sessions_platform_all'],
-  'impersonation_sessions carries a select-only tenant policy beside the platform one (docs/data-model.md, Row-Level Security)'
+  ARRAY['impersonation_sessions_tenant_select',
+        'impersonation_sessions_platform_select',
+        'impersonation_sessions_platform_write'],
+  'impersonation_sessions carries a select-only gym-side policy beside the full platform pair (design.md 8.1, 8.3)'
 );
 
 -- ---------------------------------------------------------------------------
--- Nothing writes to audit_log in Phase 1 (docs/data-model.md, "Audit rows"):
--- no audit trigger, no writer function. The only trigger this cluster may
--- carry is the shared updated_at one, on the three tables that have an
--- updated_at column — impersonation_sessions and audit_log have none, so they
--- carry no trigger at all. An agent that built Phase 3 early fails here.
+-- Nothing writes to audit_log from `leads` or `member_imports`, and nothing
+-- ever will: the shared updated_at trigger is the only one those two carry.
+--
+-- Phase 2 changes this for the other three tables and the scope of the
+-- assertion narrows with it, rather than the assertion being deleted.
+-- platform_users gains the session-revocation and role-change trigger
+-- (design.md 7) and impersonation_sessions gains the audit-row trigger
+-- (design.md 6), so both are excluded here and covered by name in
+-- 14_impersonation and 15_identity_triggers. audit_log itself must still carry
+-- nothing — a trigger on the audit table is how an append-only log stops being
+-- one — and it stays in the list for exactly that reason.
 -- ---------------------------------------------------------------------------
 
 select results_eq(
@@ -95,12 +118,11 @@ select results_eq(
        join pg_namespace n on n.oid = c.relnamespace
       where not t.tgisinternal
         and n.nspname = 'public'
-        and c.relname in ('platform_users', 'impersonation_sessions', 'audit_log', 'leads', 'member_imports')
+        and c.relname in ('audit_log', 'leads', 'member_imports')
       order by 1, 2$q$,
   $q$values ('leads'::text, 'leads_touch_updated_at'::text),
-           ('member_imports'::text, 'member_imports_touch_updated_at'::text),
-           ('platform_users'::text, 'platform_users_touch_updated_at'::text)$q$,
-  'the platform cluster carries no trigger beyond the shared updated_at ones — no audit trigger in Phase 1 (docs/data-model.md, Audit rows)'
+           ('member_imports'::text, 'member_imports_touch_updated_at'::text)$q$,
+  'leads and member_imports carry the shared updated_at trigger and nothing else, and audit_log carries no trigger at all (docs/data-model.md, Audit rows)'
 );
 
 -- The action format is `<record_type>.<verb>`, both halves lowercase. The
@@ -145,13 +167,19 @@ insert into auth.users (id) values
 insert into public.platform_users (user_id, role, full_name, email) values
   ('a0000000-0000-4000-8000-000000000010'::uuid, 'super_admin', 'Platform Root', 'root.rls@gymloop.test');
 
-insert into public.impersonation_sessions (id, tenant_id, actor_user_id, reason, started_at, expires_at) values
+-- Both rows name the same actor, which Phase 2 makes a constraint question:
+-- design.md section 6 puts a partial unique index on `actor_user_id where
+-- ended_at is null`, so one actor may hold at most one LIVE session. The gym A
+-- session is therefore ended here. The gym B one is left live, because a later
+-- assertion in this file ends it as super_admin and expects one row affected.
+insert into public.impersonation_sessions (id, tenant_id, actor_user_id, reason, started_at, expires_at, ended_at) values
   ('a0000000-0000-4000-8000-000000000004'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
    'a0000000-0000-4000-8000-000000000010'::uuid, 'Gym A raised a billing dispute',
-   timestamptz '2026-09-06 10:00:00+05:30', timestamptz '2026-09-06 11:00:00+05:30'),
+   timestamptz '2026-09-06 10:00:00+05:30', timestamptz '2026-09-06 11:00:00+05:30',
+   timestamptz '2026-09-06 10:45:00+05:30'),
   ('b0000000-0000-4000-8000-000000000004'::uuid, 'b0000000-0000-4000-8000-000000000001'::uuid,
    'a0000000-0000-4000-8000-000000000010'::uuid, 'Gym B onboarding support',
-   timestamptz '2026-09-06 12:00:00+05:30', timestamptz '2026-09-06 13:00:00+05:30');
+   timestamptz '2026-09-06 12:00:00+05:30', timestamptz '2026-09-06 13:00:00+05:30', null);
 
 -- Three audit rows: one per gym, plus one platform-level row whose tenant_id
 -- is null (ADR-033's second exemption).
@@ -199,7 +227,7 @@ select results_eq(
                    'b0000000-0000-4000-8000-000000000007'::uuid)
       order by id$q$,
   $q$values ('a0000000-0000-4000-8000-000000000007'::uuid)$q$,
-  'as gym A, leads returns gym A rows and not gym B rows (gate 7, leads_tenant_all)'
+  'as gym A, leads returns gym A rows and not gym B rows (gate 7, leads_tenant_select)'
 );
 
 with crossed as (
@@ -363,9 +391,13 @@ select set_config('request.jwt.claims', '', true);
 -- what carries the read, not a tenant match.
 -- ===========================================================================
 
+-- `sub` is the actor, not a random uuid, because design.md 6 gates
+-- impersonation_sessions_platform_write on `actor_user_id = (select
+-- auth.uid())` and this block ends one of those sessions further down. Every
+-- other assertion in the block is indifferent to it.
 select set_config(
   'request.jwt.claims',
-  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+  json_build_object('sub', 'a0000000-0000-4000-8000-000000000010', 'role', 'authenticated',
                     'app_role', 'super_admin')::text,
   true
 );
@@ -401,7 +433,7 @@ select results_eq(
 select lives_ok(
   $q$insert into public.platform_users (user_id, role, full_name, email)
      values ('a0000000-0000-4000-8000-000000000012'::uuid, 'platform_support', 'New Support', 'support.rls@gymloop.test')$q$,
-  'as super_admin, writing a platform user is allowed (ADR-033, platform_users_platform_all)'
+  'as super_admin, writing a platform user is allowed (ADR-033, platform_users_platform_write)'
 );
 
 select results_eq(

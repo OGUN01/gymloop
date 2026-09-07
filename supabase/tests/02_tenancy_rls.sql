@@ -334,11 +334,16 @@ select set_config(
 );
 set local role authenticated;
 
+-- The READ side only, and Phase 2 is what makes that qualifier load-bearing:
+-- design.md 8.4 leaves `using (is_platform())` alone -- support reads
+-- everything, which is its job -- and narrows the with check on every table to
+-- super_admin. So this assertion says what it always said and no longer says
+-- anything about what support may write; that half is 13_role_matrix_write.
 select is(
   (select count(*) from public.members
     where tenant_id in ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000b1')),
   2::bigint,
-  'spec "A platform role reads every tenant": platform_support is the second platform role'
+  'spec "A platform role reads every tenant": platform_support is the second platform role, and its READ reach is unchanged by the role matrix'
 );
 
 set local role postgres;
@@ -369,10 +374,18 @@ select set_config(
 );
 set local role authenticated;
 
+-- Phase 2 narrows what this claim was allowed to say. `members` reads
+-- is_staff() under the role matrix (design.md 8.3) and front_desk is a staff
+-- role, so this caller still sees gym A's one member -- but "isolation holds
+-- regardless of the caller's role", which is what this assertion used to
+-- claim, is no longer true of the system: a trainer reads no payments and
+-- front desk reads no audit_log. What survives, and what is asserted, is that
+-- tenant isolation is orthogonal to the role gate rather than replaced by it.
+-- The role matrix itself is 12_role_matrix_read and 13_role_matrix_write.
 select is(
   (select count(*) from public.members),
   1::bigint,
-  'spec "One gym can never reach another gym''s rows": isolation holds regardless of the caller''s role within gym A'
+  'spec "One gym can never reach another gym''s rows": tenant isolation holds for a second gym-side role, front_desk, on a table its read gate admits'
 );
 
 set local role postgres;

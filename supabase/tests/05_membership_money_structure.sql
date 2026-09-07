@@ -208,29 +208,45 @@ select is_empty($$
      and not c.relrowsecurity
 $$, 'contract: row level security is enabled on every table of this cluster');
 
-select is_empty($$
-  select t.name
-    from (values ('plans'), ('coupons'), ('memberships'), ('membership_pauses'), ('payments'),
-                 ('refunds'), ('webhook_events'), ('invoices'), ('document_counters'),
-                 ('razorpay_accounts'), ('razorpay_mandates')) as t(name)
-   where not exists (
-     select 1 from pg_policies p
-      where p.schemaname = 'public' and p.tablename = t.name
-        and p.policyname = t.name || '_tenant_all'
-   )
-$$, 'contract: every table of this cluster has its <table>_tenant_all policy');
+-- Phase 2 splits both policies in two (design.md 8.1): `<t>_tenant_all` and
+-- `<t>_platform_all` cease to exist, and the gym-side and platform-side
+-- policies each become a `for select` read half and a `for all` write half.
+-- The rule this cluster owns is unchanged -- every one of its tables carries a
+-- named gym-side policy and a named platform-side one, rather than relying on
+-- a shared default -- so the assertion keeps its meaning and takes the new
+-- names. `webhook_events` is the one exception and it is named rather than
+-- implied: ADR-049 grants `authenticated` select only on it, so it carries
+-- neither write policy (design.md 8.1, "no policy admits a command the grant
+-- denies"). 04_contract_meta asserts that rule over the whole catalogue; here
+-- it is only an exclusion.
 
 select is_empty($$
-  select t.name
+  select n.name || n.suffix
     from (values ('plans'), ('coupons'), ('memberships'), ('membership_pauses'), ('payments'),
                  ('refunds'), ('webhook_events'), ('invoices'), ('document_counters'),
                  ('razorpay_accounts'), ('razorpay_mandates')) as t(name)
+    cross join (values ('_tenant_select'), ('_platform_select')) as s(suffix)
+    cross join lateral (values (t.name, s.suffix)) as n(name, suffix)
    where not exists (
      select 1 from pg_policies p
-      where p.schemaname = 'public' and p.tablename = t.name
-        and p.policyname = t.name || '_platform_all'
+      where p.schemaname = 'public' and p.tablename = n.name
+        and p.policyname = n.name || n.suffix
    )
-$$, 'contract: the platform branch is a separate named policy on every table');
+$$, 'contract, as design.md 8.1 renames it: every table of this cluster has its <table>_tenant_select and its <table>_platform_select policy, named rather than defaulted');
+
+select is_empty($$
+  select n.name || n.suffix
+    from (values ('plans'), ('coupons'), ('memberships'), ('membership_pauses'), ('payments'),
+                 ('refunds'), ('invoices'), ('document_counters'),
+                 ('razorpay_accounts'), ('razorpay_mandates')) as t(name)
+    cross join (values ('_tenant_write'), ('_platform_write')) as s(suffix)
+    cross join lateral (values (t.name, s.suffix)) as n(name, suffix)
+   where not exists (
+     select 1 from pg_policies p
+      where p.schemaname = 'public' and p.tablename = n.name
+        and p.policyname = n.name || n.suffix
+   )
+$$, 'contract: and its two write policies -- webhook_events excepted, since ADR-049 grants it select only and a write policy there would permit what the grant denies');
 
 select * from finish();
 

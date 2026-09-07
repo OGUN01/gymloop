@@ -14,6 +14,41 @@
 -- claim, never from a subquery", "Every column a policy filters on is indexed"
 -- and "Table privileges are granted deliberately, not inherited".
 --
+-- PHASE 2. The policy section below no longer describes Phase 1's two-policy
+-- template. Phase 2 replaces it with five names -- <t>_platform_select,
+-- <t>_platform_write, <t>_tenant_select, <t>_tenant_write, <t>_member_select --
+-- and `_all` ceases to exist anywhere (design.md 8.1). Read and write are
+-- separate policies because that is the only shape that produces the behaviour
+-- the specs state: a refused UPDATE affects zero rows in silence, a refused
+-- INSERT raises 42501. Under one `for all` policy carrying the read gate on
+-- using and the write gate on with check, the refused UPDATE raises instead --
+-- an existence oracle inside the tenant, which is the thing
+-- docs/data-model.md's "zero rows, not an error" rule exists to prevent.
+--
+-- The matrix in design.md section 8.3 is transcribed ONCE here, into the
+-- `m(tbl, read_gate, write_gate, member_gate)` values list. That transcription
+-- is the catalogue half of the matrix and it is deliberately not repeated in
+-- 12_role_matrix_read or 13_role_matrix_write: those two are behaviour, this is
+-- shape, and a second transcription would be a second chance to typo the
+-- contract.
+--
+-- What the shape half catches that behaviour cannot: a policy dropped rather
+-- than made wrong (every assertion here is written as a PRESENCE test, so a
+-- missing policy is an offending row and not an empty result), a gate that is
+-- correct for the roles a test happens to exercise but wrong for one it does
+-- not, a member policy created on a table that should have none, a fifth gate
+-- function invented for one table, a write policy on a table whose grant
+-- withholds writes, and a policy predicate that grew a column with no index
+-- behind it.
+--
+-- Two predicates are not the bare template, and both are named rather than
+-- tolerated: impersonation_sessions' platform write policy carries
+-- `and actor_user_id = (select auth.uid())` (design.md 6 -- a super admin may
+-- only open a session in its own name), and every member policy carries
+-- `and (select app.current_app_role()) = 'member'` (design.md 8.1 -- the gate
+-- must not depend on the hook never pairing a member_id claim with another
+-- role).
+--
 -- ADR-030: one transaction, BEGIN ... ROLLBACK, nothing committed.
 
 begin;
@@ -22,7 +57,7 @@ begin;
 -- the owner role is assumed explicitly, never inherited from the connection.
 set local role postgres;
 
-select plan(26);
+select plan(28);
 
 -- ---------------------------------------------------------------------------
 -- 1. Row-Level Security is on everywhere
@@ -71,150 +106,343 @@ select is_empty(
 );
 
 -- ---------------------------------------------------------------------------
--- 5-9. Both policies exist by name on every table, with the two documented
---      shape exceptions and no others (docs/data-model.md, Row-Level Security)
--- ---------------------------------------------------------------------------
-
-select is_empty(
-  $$select c.relname::text collate "default"
-      from pg_class c join pg_namespace n on n.oid = c.relnamespace
-     where n.nspname = 'public' and c.relkind in ('r', 'p')
-       and not exists (
-         select 1 from pg_policy p
-          where p.polrelid = c.oid and p.polname = c.relname || '_platform_all'
-       )$$,
-  'spec "Platform roles cross tenants by policy": every table carries its <table>_platform_all policy'
-);
-
-select is_empty(
-  $$select c.relname::text collate "default"
-      from pg_class c join pg_namespace n on n.oid = c.relnamespace
-     where n.nspname = 'public' and c.relkind in ('r', 'p')
-       and c.relname <> 'platform_users'
-       and not exists (
-         select 1 from pg_policy p
-          where p.polrelid = c.oid
-            and p.polname = c.relname || case when c.relname = 'impersonation_sessions'
-                                              then '_tenant_select' else '_tenant_all' end
-       )$$,
-  'docs/data-model.md Row-Level Security: every table carries its tenant policy, named by the template, with impersonation_sessions the one exception'
-);
-
-select is_empty(
-  $$select p.polname::text collate "default" from pg_policy p
-     where p.polrelid = to_regclass('public.platform_users')
-       and p.polname <> 'platform_users_platform_all'$$,
-  'ADR-033: platform_users carries only the platform policy, because it has no tenant to scope to'
-);
-
-select is_empty(
-  $$select p.polname::text collate "default" from pg_policy p
-     where p.polrelid = to_regclass('public.impersonation_sessions')
-       and p.polname = 'impersonation_sessions_tenant_select' and p.polcmd <> 'r'$$,
-  'docs/data-model.md Row-Level Security: a gym may read who impersonated it and may not write that record'
-);
-
--- The comparison below normalises `pg_get_expr` output -- the alias the
--- deparser gives a scalar subquery, then whitespace, then parentheses, then
--- case -- and compares the result with the contract predicate
--- `id = (select app.current_tenant_id())` reduced the same way, which is
--- `id=selectapp.current_tenant_id`. Parentheses go because whether the
--- deparser wraps the whole expression is its business, not the policy's;
--- nothing that differs from the contract predicate can normalise onto it,
--- since the token sequence itself would have to match.
+-- 5-6. The platform pair, and the rule that decides which tables get the write
+--      half of it (design.md 8.1, "No policy admits a command the grant
+--      denies -- on either side").
 --
--- Asserted as a PRESENCE, not as the absence of an offending row: an
--- is_empty() over `polname = ... and <the predicate looks wrong>` is satisfied
--- by zero rows, so a renamed policy, a `using (true)` policy and a DROPPED
--- policy all pass it. This form fails unless the policy exists and IS the
--- contract's predicate, on both clauses.
-select ok(
-  exists (
-    select 1 from pg_policy p
-     where p.polrelid = to_regclass('public.organizations')
-       and p.polname = 'organizations_tenant_all'
-       and p.polcmd = '*'
-       and lower(regexp_replace(regexp_replace(regexp_replace(
-             coalesce(pg_get_expr(p.polqual, p.polrelid), ''),
-             '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g'))
-           = 'id=selectapp.current_tenant_id'
-       and lower(regexp_replace(regexp_replace(regexp_replace(
-             coalesce(pg_get_expr(p.polwithcheck, p.polrelid), ''),
-             '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g'))
-           = 'id=selectapp.current_tenant_id'
-  ),
-  'docs/data-model.md Row-Level Security: organizations_tenant_all exists and IS `id = (select app.current_tenant_id())` on both using and with check, organizations being the tenant itself'
+-- Which tables carry `<t>_platform_write` is NOT asserted from a list of the
+-- thirty-two. It is computed from the grant: a write policy exists on a table
+-- exactly when `authenticated` holds insert or update on it. That is the whole
+-- point of the invariant -- a list of thirty-two goes stale the day a later
+-- phase changes a grant, and the two would then disagree silently, which is
+-- the failure the rule exists to prevent.
+--
+-- Both clauses of `<t>_platform_write` carry `= 'super_admin'`, not just the
+-- with check. Read and write are separate policies now, so support's reach
+-- comes entirely from `<t>_platform_select`; leaving is_platform() on the
+-- write policy's USING would let a support session UPDATE every row on the
+-- platform and be visible in no read test at all.
+--
+-- The `= 'super_admin'` comparison is matched by regex rather than by
+-- equality, because app.current_app_role() returns text (design.md 3) and
+-- whether the deparser writes the literal as `'super_admin'` or
+-- `'super_admin'::text` is its business.
+-- ---------------------------------------------------------------------------
+
+select is_empty(
+  $$with t as (
+      select c.oid, c.relname::text as relname,
+             (has_table_privilege('authenticated', c.oid, 'INSERT')
+              or has_table_privilege('authenticated', c.oid, 'UPDATE')) as writable
+        from pg_class c join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public' and c.relkind in ('r', 'p')
+    ),
+    chk(tbl, clause, actual, want) as (
+      select relname, 'platform_select using',
+             (select pg_get_expr(p.polqual, p.polrelid) from pg_policy p
+               where p.polrelid = t.oid and p.polname::text = t.relname || '_platform_select'),
+             '^selectapp\.is_platform$'
+        from t
+      union all
+      select relname, 'platform_select command',
+             (select p.polcmd::text from pg_policy p
+               where p.polrelid = t.oid and p.polname::text = t.relname || '_platform_select'),
+             '^r$'
+        from t
+      union all
+      select relname, 'platform_write using',
+             (select pg_get_expr(p.polqual, p.polrelid) from pg_policy p
+               where p.polrelid = t.oid and p.polname::text = t.relname || '_platform_write'),
+             case when not writable then null
+                  else '^selectapp\.current_app_role=' || chr(39) || 'super_admin' || chr(39)
+                       || '(::text)?'
+                       || case when relname = 'impersonation_sessions'
+                               then 'andactor_user_id=selectauth\.uid' else '' end
+                       || '$'
+             end
+        from t
+      union all
+      select relname, 'platform_write with check',
+             (select pg_get_expr(p.polwithcheck, p.polrelid) from pg_policy p
+               where p.polrelid = t.oid and p.polname::text = t.relname || '_platform_write'),
+             case when not writable then null
+                  else '^selectapp\.current_app_role=' || chr(39) || 'super_admin' || chr(39)
+                       || '(::text)?'
+                       || case when relname = 'impersonation_sessions'
+                               then 'andactor_user_id=selectauth\.uid' else '' end
+                       || '$'
+             end
+        from t
+      union all
+      select relname, 'platform_write command',
+             (select p.polcmd::text from pg_policy p
+               where p.polrelid = t.oid and p.polname::text = t.relname || '_platform_write'),
+             case when writable then '^\*$' end
+        from t
+    )
+    select tbl || ' ' || clause || ' => ' || coalesce(actual, '<absent>')
+      from chk
+     where case
+             when want is null then actual is not null
+             else coalesce(lower(regexp_replace(regexp_replace(regexp_replace(actual,
+                    '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g')), '')
+                  !~ want
+           end$$,
+  'design.md 8.1 / 8.4 / 6: every table carries <t>_platform_select for select on is_platform(), and carries <t>_platform_write for all on `current_app_role() = super_admin` -- on both its clauses -- exactly when authenticated holds insert or update on it. Which tables those are is read from the grant, not from a list, so the invariant survives a later phase changing one. impersonation_sessions carries one extra term, `actor_user_id = (select auth.uid())`, on both clauses: without it a super admin could open a session naming a different platform user -- including a platform_support account, which may not impersonate at all -- and the audit trail would then name the wrong person, which is the one thing an impersonation audit row exists to get right'
+);
+
+select is_empty(
+  $$select c.relname || '.' || p.polname || ' is for ' ||
+           case p.polcmd when '*' then 'ALL' when 'a' then 'INSERT'
+                         when 'w' then 'UPDATE' else p.polcmd::text end
+      from pg_policy p
+      join pg_class c on c.oid = p.polrelid
+      join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public'
+       and not has_table_privilege('authenticated', c.oid, 'INSERT')
+       and not has_table_privilege('authenticated', c.oid, 'UPDATE')
+       and p.polcmd in ('*', 'a', 'w')$$,
+  'design.md 8.1: if authenticated holds neither insert nor update on a table, no policy on it is for all, for insert or for update. This is the general form of ADR-047/049''s select-only rule and it covers BOTH sides -- the first draft of the contract applied it to the gym-side policy and left the platform side reading as if every table got the write half. A policy permitting what the grant denies is a contradiction a critic should not have to find'
 );
 
 -- ---------------------------------------------------------------------------
--- 10-13. The policy predicates themselves: one accessor, a with check on every
---        `for all` policy, `to authenticated`, and no cross-table lookup
+-- 7. THE MATRIX. design.md section 8.3, one row per table, transcribed once.
+--
+-- Every predicate is normalised the way Phase 1 normalised its own: the alias
+-- the deparser gives a scalar subquery, then whitespace, then parentheses,
+-- then case. `using (tenant_id = (select app.current_tenant_id()) and (select
+-- app.is_staff()))` reduces to
+-- `tenant_id=selectapp.current_tenant_idandselectapp.is_staff`, and the
+-- expected form is built from the matrix row by the same rule. So a policy
+-- written `using (true)`, one with a second ORed term, one that reaches the
+-- claim without the accessor, one that drops the `(select ...)` InitPlan
+-- wrapper, and one whose gate was copied from the table above it all fail --
+-- none of which a `like '%is_staff%'` could see.
+--
+-- Four things this assertion does that a behaviour test cannot:
+--
+--   * It is a PRESENCE test. A table whose gym-side policy was DROPPED has a
+--     null predicate, which matches no expected form, so it is an offending
+--     row rather than an empty result.
+--   * It checks READ and WRITE as separate policies, which is what design.md
+--     8.1 now requires and what the authorization spec's "A refused write
+--     affects zero rows; a refused insert raises" depends on. A single `for
+--     all` policy carrying the read gate on using and the write gate on with
+--     check -- the shape the contract's first draft had -- shows up here as a
+--     missing <t>_tenant_select and a <t>_tenant_write whose using is the read
+--     gate, and it is that shape which makes a refused UPDATE raise 42501
+--     instead of touching zero rows.
+--   * It checks that <t>_tenant_write carries the write gate on BOTH clauses.
+--     The write gate on with check alone leaves using unrestricted; the write
+--     gate on using alone lets a permitted caller move a row out of the gate.
+--   * It checks the member column in both directions. A table the matrix marks
+--     `--` is offending if a <table>_member_select exists at all, which is how
+--     "a member policy created on a table that should have none" is caught --
+--     razorpay_mandates and no_show_cases both carry a member_id and both are
+--     `--`, so they are exactly where a pattern-matching hand goes wrong. And
+--     platform_users carries nulls in all three columns, so any gym-side
+--     policy on it is an offending row.
+--
+-- The one thing it pins that the contract states rather than requires: the
+-- ORDER of the two conjuncts, tenant term first. design.md 8.1 writes the
+-- template that way and a policy written the other way round is equivalent;
+-- this assertion would fail it. That is deliberate -- thirty-five policies
+-- that all read alike is worth more than tolerance -- but it is stated here so
+-- a failure of that shape is recognised for what it is.
 -- ---------------------------------------------------------------------------
 
--- The predicate itself, not a substring of it. `pg_get_expr` output and the
--- contract's own text are put through the same normalisation (subquery alias,
--- whitespace, parentheses, case) and compared for equality -- so
--- `using (true)`, a second ORed term, a policy that reaches the claim without
--- the accessor, and a policy that drops the `(select ...)` InitPlan wrapper
--- all fail, none of which a `like '%current_tenant_id%'` can see.
 select is_empty(
-  $$with pol as (
-      select c.relname::text as relname,
-             p.polname::text as polname,
-             pg_get_expr(p.polqual, p.polrelid) as actual,
-             case when p.polname = c.relname || '_platform_all'
-                    then '( SELECT app.is_platform() AS is_platform)'
-                  when c.relname = 'organizations'
-                    then '(id = ( SELECT app.current_tenant_id() AS current_tenant_id))'
-                  else '(tenant_id = ( SELECT app.current_tenant_id() AS current_tenant_id))'
-             end as canon
-        from pg_policy p
-        join pg_class c on c.oid = p.polrelid
-        join pg_namespace n on n.oid = c.relnamespace
-       where n.nspname = 'public'
-         and p.polname in (c.relname || '_tenant_all',
-                           c.relname || '_tenant_select',
-                           c.relname || '_platform_all')
+  $$with m(tbl, read_gate, write_gate, member_gate) as (values
+      ('organizations',           'is_staff',        'owner',           'all'),
+      ('organization_settings',   'is_staff',        'is_gym_admin',    null),
+      ('branches',                'is_staff',        'is_gym_admin',    'all'),
+      ('staff',                   'is_staff',        'owner',           null),
+      ('members',                 'is_staff',        'is_front_office', 'self'),
+      ('plans',                   'is_staff',        'is_gym_admin',    'all'),
+      ('coupons',                 'is_front_office', 'is_gym_admin',    null),
+      ('memberships',             'is_staff',        'is_front_office', 'own'),
+      ('membership_pauses',       'is_staff',        'is_front_office', null),
+      ('payments',                'is_front_office', 'is_front_office', 'own'),
+      ('refunds',                 'is_front_office', 'is_gym_admin',    null),
+      ('invoices',                'is_front_office', 'is_front_office', null),
+      ('document_counters',       'is_front_office', 'is_front_office', null),
+      ('razorpay_accounts',       'is_gym_admin',    'owner',           null),
+      ('razorpay_mandates',       'is_front_office', 'is_front_office', null),
+      ('attendance',              'is_staff',        'is_front_office', 'own'),
+      ('attendance_corrections',  'is_staff',        'is_front_office', null),
+      ('qr_sessions',             'is_front_office', 'is_front_office', null),
+      ('organization_holidays',   'is_staff',        'is_gym_admin',    'all'),
+      ('no_show_cases',           'is_staff',        'is_staff',        null),
+      ('follow_ups',              'is_staff',        'is_staff',        null),
+      ('addon_products',          'is_staff',        'is_gym_admin',    'all'),
+      ('addon_orders',            'is_staff',        'is_front_office', 'own'),
+      ('pt_sessions',             'is_staff',        'is_staff',        'own'),
+      ('consents',                'is_front_office', 'is_front_office', 'own'),
+      ('notifications',           'is_front_office', 'is_gym_admin',    'own'),
+      ('member_devices',          'is_front_office', 'is_front_office', 'own'),
+      ('message_templates',       'is_staff',        'is_gym_admin',    null),
+      ('leads',                   'is_front_office', 'is_front_office', null),
+      ('member_imports',          'is_gym_admin',    'is_gym_admin',    null),
+      ('messaging_wallets',       'is_gym_admin',    null,              null),
+      ('messaging_wallet_ledger', 'is_gym_admin',    null,              null),
+      ('webhook_events',          'is_gym_admin',    null,              null),
+      ('audit_log',               'is_gym_admin',    null,              null),
+      ('impersonation_sessions',  'is_gym_admin',    null,              null),
+      ('platform_users',          null,              null,              null)
+    ),
+    x as (
+      select m.tbl, m.read_gate, m.write_gate, m.member_gate,
+             case when m.tbl = 'organizations' then 'id' else 'tenant_id' end as tcol,
+             to_regclass('public.' || m.tbl) as rel
+        from m
+    ),
+    g(tbl, tcol, read_gate, write_gate, member_gate,
+      rd_using, rd_cmd, wr_using, wr_check, wr_cmd, mb_using, mb_cmd) as (
+      select x.tbl, x.tcol, x.read_gate, x.write_gate, x.member_gate,
+             (select pg_get_expr(p.polqual, p.polrelid) from pg_policy p
+               where p.polrelid = x.rel and p.polname::text = x.tbl || '_tenant_select'),
+             (select p.polcmd::text from pg_policy p
+               where p.polrelid = x.rel and p.polname::text = x.tbl || '_tenant_select'),
+             (select pg_get_expr(p.polqual, p.polrelid) from pg_policy p
+               where p.polrelid = x.rel and p.polname::text = x.tbl || '_tenant_write'),
+             (select pg_get_expr(p.polwithcheck, p.polrelid) from pg_policy p
+               where p.polrelid = x.rel and p.polname::text = x.tbl || '_tenant_write'),
+             (select p.polcmd::text from pg_policy p
+               where p.polrelid = x.rel and p.polname::text = x.tbl || '_tenant_write'),
+             (select pg_get_expr(p.polqual, p.polrelid) from pg_policy p
+               where p.polrelid = x.rel and p.polname::text = x.tbl || '_member_select'),
+             (select p.polcmd::text from pg_policy p
+               where p.polrelid = x.rel and p.polname::text = x.tbl || '_member_select')
+        from x
+    ),
+    want(tbl, clause, actual, pat) as (
+      select tbl, 'tenant_select using', rd_using,
+             case when read_gate is null then null
+                  else '^' || tcol || '=selectapp\.current_tenant_idandselectapp\.' || read_gate || '$'
+             end
+        from g
+      union all
+      select tbl, 'tenant_select command', rd_cmd,
+             case when read_gate is null then null else '^r$' end from g
+      union all
+      select tbl, 'tenant_write using', wr_using,
+             case when write_gate is null then null
+                  when write_gate = 'owner'
+                    then '^' || tcol || '=selectapp\.current_tenant_idandselectapp\.current_app_role='
+                         || chr(39) || 'gym_owner' || chr(39) || '(::text)?$'
+                  else '^' || tcol || '=selectapp\.current_tenant_idandselectapp\.' || write_gate || '$'
+             end
+        from g
+      union all
+      select tbl, 'tenant_write with check', wr_check,
+             case when write_gate is null then null
+                  when write_gate = 'owner'
+                    then '^' || tcol || '=selectapp\.current_tenant_idandselectapp\.current_app_role='
+                         || chr(39) || 'gym_owner' || chr(39) || '(::text)?$'
+                  else '^' || tcol || '=selectapp\.current_tenant_idandselectapp\.' || write_gate || '$'
+             end
+        from g
+      union all
+      select tbl, 'tenant_write command', wr_cmd,
+             case when write_gate is null then null else '^\*$' end from g
+      union all
+      select tbl, 'member_select using', mb_using,
+             case when member_gate is null then null
+                  else '^' || tcol || '=selectapp\.current_tenant_idandselectapp\.current_app_role='
+                       || chr(39) || 'member' || chr(39) || '(::text)?and'
+                       || case member_gate
+                            when 'all'  then 'selectapp\.current_member_idisnotnull'
+                            when 'self' then 'id=selectapp\.current_member_id'
+                            else             'member_id=selectapp\.current_member_id'
+                          end
+                       || '$'
+             end
+        from g
+      union all
+      select tbl, 'member_select command', mb_cmd,
+             case when member_gate is null then null else '^r$' end from g
     )
-    select relname || '.' || polname || ' using => ' || coalesce(actual, '<null>')
-      from pol
-     where lower(regexp_replace(regexp_replace(regexp_replace(coalesce(actual, ''),
-             '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g'))
-       is distinct from
-           lower(regexp_replace(regexp_replace(regexp_replace(canon,
-             '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g'))$$,
-  'ADR-032 / docs/data-model.md Row-Level Security: every policy USING clause equals the contract predicate exactly -- the tenant pair compares the tenant column to the one accessor, the platform pair is the is_platform() accessor, and nothing else is permitted'
+    select tbl || ' ' || clause || ' => ' || coalesce(actual, '<absent>')
+      from want
+     where case
+             when pat is null then actual is not null
+             else coalesce(lower(regexp_replace(regexp_replace(regexp_replace(actual,
+                    '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g')), '')
+                  !~ pat
+           end$$,
+  'spec "Every table''s read gate matches the matrix" / "Every table''s write gate matches the matrix" / "A refused write affects zero rows; a refused insert raises" / "A member reads only their own rows" -- design.md 8.3, all thirty-six tables, seven clauses each, in both directions'
 );
 
--- `polwithcheck is not null` is not the rule. A policy written
--- `for all using (tenant_id = ...) with check (true)` satisfies non-nullness
--- and still permits a cross-tenant INSERT, and an UPDATE that moves the
--- caller's own row into another tenant -- the exact pair the contract says
--- `with check` exists to stop. So the predicate is compared, not its presence.
+-- ---------------------------------------------------------------------------
+-- 8. No policy outside the naming template, and specifically nothing named
+--    `_all`. Permissive policies OR together, so ONE extra policy anywhere
+--    widens that table for everybody, and every assertion above is written in
+--    terms of the template's names and would not see it. `<t>_tenant_all` and
+--    `<t>_platform_all` ceased to exist when read and write split (design.md
+--    8.1, Naming); a leftover one is not a harmless old name, it is a policy
+--    whose using clause is a read gate applied to writes.
+-- ---------------------------------------------------------------------------
+
 select is_empty(
-  $$with pol as (
-      select c.relname::text as relname,
-             p.polname::text as polname,
-             pg_get_expr(p.polwithcheck, p.polrelid) as actual,
-             case when p.polname = c.relname || '_platform_all'
-                    then '( SELECT app.is_platform() AS is_platform)'
-                  when c.relname = 'organizations'
-                    then '(id = ( SELECT app.current_tenant_id() AS current_tenant_id))'
-                  else '(tenant_id = ( SELECT app.current_tenant_id() AS current_tenant_id))'
-             end as canon
-        from pg_policy p
-        join pg_class c on c.oid = p.polrelid
-        join pg_namespace n on n.oid = c.relnamespace
-       where n.nspname = 'public' and p.polcmd = '*'
-    )
-    select relname || '.' || polname || ' with check => ' || coalesce(actual, '<null>')
-      from pol
-     where lower(regexp_replace(regexp_replace(regexp_replace(coalesce(actual, ''),
-             '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g'))
-       is distinct from
-           lower(regexp_replace(regexp_replace(regexp_replace(canon,
-             '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g'))$$,
-  'docs/data-model.md Row-Level Security: on every `for all` policy the WITH CHECK predicate equals the USING predicate -- a null one, or a `true` one, lets a caller insert a row into another tenant or move one there'
+  $$select c.relname || '.' || p.polname
+      from pg_policy p
+      join pg_class c on c.oid = p.polrelid
+      join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public'
+       and p.polname::text not in (c.relname || '_platform_select',
+                                   c.relname || '_platform_write',
+                                   c.relname || '_tenant_select',
+                                   c.relname || '_tenant_write',
+                                   c.relname || '_member_select')$$,
+  'design.md 8.1 Naming: the five template names are the only policies in public, and no policy is named _all any more. A sixth permissive policy on any table ORs into every decision that table makes'
+);
+
+-- ---------------------------------------------------------------------------
+-- 9-11. The gate vocabulary: it exists, it is closed, and no policy reaches
+--       past it to the claims themselves.
+-- ---------------------------------------------------------------------------
+
+select is_empty(
+  $$select f.name
+      from unnest(array['current_app_role', 'is_staff', 'is_gym_admin', 'is_front_office',
+                        'current_member_id', 'current_staff_id', 'current_impersonation_id']) as f(name)
+     where to_regprocedure('app.' || f.name || '()') is null$$,
+  'spec "The gates exist as functions": the three role-set gates and the four claim readers live in app, written as functions rather than as inline role lists so that changing which roles count as staff is one edit and not thirty-five'
+);
+
+select is(
+  (select pg_get_function_result(to_regprocedure('app.current_app_role()')::oid)),
+  'text',
+  'spec "An unrecognised role grants nothing and raises nothing" / design.md 3: app.current_app_role() returns TEXT and casts nothing. Returning public.app_role would raise 22P02 on a forged label -- and inconsistently, since the gate functions would return false and yield zero rows while the policies comparing the role directly would raise, so one forged claim would behave differently table by table'
+);
+
+select is_empty(
+  $$select distinct n2.nspname || '.' || pr.proname
+      from pg_policy p
+      join pg_class c on c.oid = p.polrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      join pg_depend d on d.classid = 'pg_policy'::regclass and d.objid = p.oid
+                      and d.refclassid = 'pg_proc'::regclass
+      join pg_proc pr on pr.oid = d.refobjid
+      join pg_namespace n2 on n2.oid = pr.pronamespace
+     where n.nspname = 'public'
+       and (n2.nspname || '.' || pr.proname) not in
+           ('app.current_tenant_id', 'app.is_platform', 'app.current_app_role',
+            'app.is_staff', 'app.is_gym_admin', 'app.is_front_office', 'app.current_member_id',
+            'auth.uid')$$,
+  'design.md 8.2, "the four gates, and no fifth": the set of functions any policy in public depends on is closed. auth.uid() is on the list and is not a gate -- it is the one place a policy compares a COLUMN to the caller (impersonation_sessions.actor_user_id, design.md 6), which is a different thing from deciding what the caller may do. A table needing a fifth distinct gate is a signal that the table is wrong, not that the vocabulary is too small -- and app.can_do_x() is how the per-permission matrix that v1 explicitly deferred gets built by accident'
+);
+
+select is_empty(
+  $$select c.relname || '.' || p.polname
+      from pg_policy p
+      join pg_class c on c.oid = p.polrelid
+      join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public'
+       and (coalesce(pg_get_expr(p.polqual, p.polrelid), '') || ' ' ||
+            coalesce(pg_get_expr(p.polwithcheck, p.polrelid), ''))
+           ~ 'current_setting|request\.jwt'$$,
+  'spec "No policy reads the claims directly": every claim is read through an app accessor. A policy that reaches into request.jwt.claims itself is one that will not be fixed when the claim contract changes, and it defeats the single point of change the accessors exist to be'
 );
 
 select is_empty(
@@ -292,6 +520,59 @@ select is_empty(
   'spec "An unindexed foreign key" / gate 8, index rule 2: every foreign-key column leads an index or sits immediately after the tenant column, and here a partial index counts'
 );
 
+-- Index rule 3, which Phase 1 discharged through rule 1 because tenant_id was
+-- the only term any policy filtered on. Every member_id in the Phase 2 matrix
+-- is now a policy term as well.
+--
+-- design.md section 8.6 states, from measurement, that no index is needed:
+-- every table with a member gate already carries one leading with member_id or
+-- with (tenant_id, member_id), and the two gates on `id` are primary keys.
+-- That was checked against the live schema while this file was written and it
+-- holds. So this assertion is not there to fail today -- it is the meta-test
+-- section 8.6 asks for, written so that a policy which LATER grows a term with
+-- no index behind it fails on the day it merges, with nobody editing this
+-- file.
+--
+-- It reads the predicate rather than a list: any column of the table whose
+-- name appears as a whole word in either clause of any of its policies must
+-- lead an index or sit immediately after the tenant column. The word boundary
+-- is what stops `is_platform` matching member_devices.platform and
+-- `current_app_role` matching staff.role -- the same trap ADR-044 recorded,
+-- where `like '%tenant_id%'` matched the substring inside current_tenant_id.
+select is_empty(
+  $$with cols as (
+      select distinct c.oid as relid, c.relname::text as relname, a.attname::text as attname
+        from pg_policy p
+        join pg_class c on c.oid = p.polrelid
+        join pg_namespace n on n.oid = c.relnamespace
+        join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
+       where n.nspname = 'public'
+         and (coalesce(pg_get_expr(p.polqual, p.polrelid), '') || ' ' ||
+              coalesce(pg_get_expr(p.polwithcheck, p.polrelid), ''))
+             ~ ('\m' || a.attname || '\M')
+    )
+    select cols.relname || '.' || cols.attname
+      from cols
+     where not exists (
+       select 1
+         from pg_index i
+         join pg_class ic on ic.oid = i.indexrelid
+         join pg_am am on am.oid = ic.relam
+        where i.indrelid = cols.relid and i.indisvalid and am.amname = 'btree'
+          and (
+            (select a0.attname from pg_attribute a0
+              where a0.attrelid = cols.relid and a0.attnum = i.indkey[0]) = cols.attname
+            or (
+              (select a0.attname from pg_attribute a0
+                where a0.attrelid = cols.relid and a0.attnum = i.indkey[0]) = 'tenant_id'
+              and (select a1.attname from pg_attribute a1
+                    where a1.attrelid = cols.relid and a1.attnum = i.indkey[1]) = cols.attname
+            )
+          )
+     )$$,
+  'spec "Every column a policy filters on is still indexed" / design.md 8.6, index rule 3: every column named in any policy predicate leads an index or sits immediately after the tenant column. A standalone member_id index satisfies it, the same distinction rule 2 already makes -- and this is the assertion that makes 8.6''s "Phase 2 therefore adds no index" a checked claim rather than a measurement someone took once'
+);
+
 -- ---------------------------------------------------------------------------
 -- 16-18. Privileges (ADR-037). Asserted with the three-argument form so the
 --        result does not depend on the session's current role.
@@ -359,11 +640,12 @@ select is_empty(
        and (i.indisunique or i.indisexclusion)
        and not i.indisprimary
        and c.relname <> 'platform_users'
-       and ic.relname not in ('organizations_gym_code_key', 'qr_sessions_token_hash_key')
+       and ic.relname not in ('organizations_gym_code_key', 'qr_sessions_token_hash_key',
+                              'impersonation_sessions_actor_user_id_open_key')
        and coalesce((select a.attname::text from pg_attribute a
                       where a.attrelid = c.oid and a.attnum = i.indkey[0]), '')
            <> case when c.relname = 'organizations' then 'id' else 'tenant_id' end$$,
-  'ADR-047 / ADR-049: every unique and exclusion constraint in public leads with the tenant column, bar the two the contract makes global on purpose (organizations.gym_code identifies a gym across the platform, qr_sessions.token_hash is a secret) -- the fifth instance, invoices (tenant_id, payment_id), was found by a human, and this assertion is what makes it the last one that has to be'
+  'ADR-047 / ADR-049: every unique and exclusion constraint in public leads with the tenant column, bar the THREE the contract makes global on purpose. organizations.gym_code identifies a gym across the platform; qr_sessions.token_hash is a secret; and impersonation_sessions_actor_user_id_open_key (design.md 6) is global because tenant-scoping it would defeat it -- a super admin could then hold an open session in fifty gyms at once and the hook would have no way to decide which tenant an impersonating token names. ADR-047''s actual danger, a gym taking a constraint slot another gym can neither see nor reclaim, cannot arise on that index because no gym-side role may insert into impersonation_sessions at all. The fifth instance of the rule, invoices (tenant_id, payment_id), was found by a human; this assertion is what makes it the last one that has to be, and it earned its keep again in Phase 2 by catching that third index before it merged'
 );
 
 -- ---------------------------------------------------------------------------
@@ -485,15 +767,28 @@ select is_empty(
 );
 
 -- ---------------------------------------------------------------------------
--- 19-21. What Phase 1 owns is shape, not behaviour
---        (docs/data-model.md, "What a cluster agent must not do")
+-- 29-31. What is elevated, and what may carry a trigger.
+--
+-- Phase 1's rule was "no security definer function anywhere in public or app",
+-- and Phase 2 has to break half of it: the access-token hook must be security
+-- definer (design.md 1, so that supabase_auth_admin needs no grant on the five
+-- tables the hook reads), and so must the revocation trigger (design.md 7, so
+-- that deleting from auth.sessions does not depend on the gym owner holding a
+-- privilege there). The rule that survives is the one that was doing the work:
+-- nothing elevated in `public`, which is the schema the Data API exposes, and
+-- nothing elevated anywhere without a pinned search_path, which is what turns
+-- a security definer function into an escalation.
 -- ---------------------------------------------------------------------------
 
 select is_empty(
   $$select n.nspname || '.' || p.proname
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname in ('public', 'app') and p.prosecdef$$,
-  'ADR-032: no security definer function exists in public or app, so no caller is handed elevated context'
+     where p.prosecdef
+       and (n.nspname = 'public'
+            or (n.nspname = 'app'
+                and not exists (select 1 from unnest(coalesce(p.proconfig, '{}'::text[])) c
+                                 where c like 'search_path=%')))$$,
+  'ADR-032 / design.md 1 and 7: no security definer function in public at all -- public is the schema config.toml exposes to the Data API and supabase gen types reads -- and every security definer function in app pins its search_path. Phase 2 adds two elevated functions on purpose; an elevated function with a resolvable search_path is a different thing entirely'
 );
 
 select is_empty(
@@ -509,8 +804,9 @@ select is_empty(
       join pg_class c on c.oid = t.tgrelid
       join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public' and not t.tgisinternal
-       and t.tgname <> c.relname || '_touch_updated_at'$$,
-  'docs/data-model.md "What a cluster agent must not do": the shared updated_at trigger is the only trigger Phase 1 creates — no state machine, no audit writer'
+       and t.tgname <> c.relname || '_touch_updated_at'
+       and c.relname not in ('staff', 'members', 'platform_users', 'impersonation_sessions')$$,
+  'docs/data-model.md "What a cluster agent must not do", narrowed by design.md 6 and 7: the shared updated_at trigger is still the only trigger on thirty-two of the thirty-six tables. The four exemptions are the identity tables (session revocation and the role-change audit row) and impersonation_sessions (the start and end audit rows) -- everything else stays free of state machines and audit writers, which is what stops an audit trigger appearing on payments because it seemed useful'
 );
 
 select * from finish();
