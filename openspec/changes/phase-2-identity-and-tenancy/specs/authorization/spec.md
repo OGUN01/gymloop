@@ -17,6 +17,32 @@ THE SYSTEM SHALL require both a matching tenant and a recognised role for any gy
 - **WHEN** that same caller inserts a row whose `tenant_id` is their own gym
 - **THEN** the insert SHALL be rejected by the row-security policy
 
+### Requirement: A refused write affects zero rows; a refused insert raises
+THE SYSTEM SHALL separate the read gate and the write gate into distinct policies, so that a caller permitted to read a table but not to write it sees an `UPDATE` affect **zero rows** rather than raise. An `INSERT` it is not permitted to make SHALL still be rejected by the row-security policy, there being no existing row for a read gate to filter.
+
+#### Scenario: The read gate and the write gate are separate policies
+- **WHEN** the gym-side policies on a table whose read gate and write gate differ are inspected
+- **THEN** there SHALL be a `SELECT` policy carrying the read gate and a separate policy carrying the write gate, and no single policy SHALL carry the read gate on `USING` and the write gate on `WITH CHECK`
+
+#### Scenario: A refused update is silent
+- **WHEN** a caller who may read a table but not write it updates a row of it in their own tenant
+- **THEN** zero rows SHALL be affected and no error SHALL be raised
+
+#### Scenario: A refused insert is not silent
+- **WHEN** that same caller inserts a row into that table in their own tenant
+- **THEN** the insert SHALL be rejected by the row-security policy
+
+### Requirement: An unrecognised role grants nothing and raises nothing
+THE SYSTEM SHALL treat an `app_role` claim outside the seven-value vocabulary as conferring no privilege, on every table, and SHALL NOT raise. The role claim SHALL be compared as text and never cast to the enum, so that one forged claim does not behave differently from table to table.
+
+#### Scenario: A role claim that is not a role
+- **WHEN** a caller sets an `app_role` claim of `superuser` together with a valid tenant claim, and selects from every table in `public`
+- **THEN** zero rows SHALL be returned from each, and no error SHALL be raised
+
+#### Scenario: A role claim that is not a role, attempting a write
+- **WHEN** that same caller updates a row in their claimed tenant
+- **THEN** zero rows SHALL be affected and no error SHALL be raised
+
 ### Requirement: The gate vocabulary is closed
 THE SYSTEM SHALL express every gym-side policy gate using exactly four predicates — the acting role, whether it is any of the four gym-side staff roles, whether it is an owner or manager, and whether it is a staff role other than trainer — and SHALL define each as a function in the `app` schema rather than repeating a role list inline.
 
@@ -63,7 +89,7 @@ FOR every table in `public`, THE SYSTEM SHALL admit a write by exactly the roles
 
 #### Scenario: A manager promoting itself
 - **WHEN** a caller whose role claim is `gym_manager` updates a `staff` row in their own gym to set its role to `gym_owner`
-- **THEN** zero rows SHALL be affected and the row SHALL be unchanged
+- **THEN** zero rows SHALL be affected, no error SHALL be raised, and the row SHALL be unchanged
 
 #### Scenario: A manager inserting a staff member
 - **WHEN** that same caller inserts a `staff` row into their own gym
@@ -143,7 +169,7 @@ THE SYSTEM SHALL let `platform_support` read across all tenants, as `super_admin
 
 #### Scenario: Support writing a gym's data
 - **WHEN** that same caller updates a row belonging to a gym, or inserts one
-- **THEN** the update SHALL affect zero rows and the insert SHALL be rejected by the row-security policy
+- **THEN** the update SHALL affect zero rows without raising, and the insert SHALL be rejected by the row-security policy
 
 #### Scenario: Support promoting itself
 - **WHEN** that same caller updates their own `platform_users` row to set its role to `super_admin`

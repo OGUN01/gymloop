@@ -74,7 +74,7 @@ THE SYSTEM SHALL resolve a user against `platform_users`, then `staff`, then `me
 - **THEN** the returned claims SHALL carry `app_role` of `member`, the member's `tenant_id`, and that member's id as `member_id`
 
 ### Requirement: An inactive identity gets nothing, and does not fall through
-IF the identity row matched by the resolution order has `is_active` false, THEN THE SYSTEM SHALL stop resolving and SHALL return a token carrying no Gymloop claims. It SHALL NOT continue to the next table in the order.
+IF the user has rows in a table but none of them is active, THEN THE SYSTEM SHALL stop resolving and SHALL return a token carrying no Gymloop claims. It SHALL NOT continue to the next table in the order. An identity is active when its `is_active` is true, for `platform_users` and `staff`; a member is active when its `status` is neither `cancelled` nor `blocked` and its erasure timestamp is null — a `paused` or `expired` member signs in normally, because renewing is what they sign in to do.
 
 #### Scenario: A deactivated super admin
 - **WHEN** the hook is called for a user whose `platform_users` row has `is_active` false
@@ -87,6 +87,18 @@ IF the identity row matched by the resolution order has `is_active` false, THEN 
 #### Scenario: A deactivated staff member
 - **WHEN** the hook is called for a user whose only `staff` row has `is_active` false
 - **THEN** the returned claims SHALL carry no `app_role` and no `tenant_id`
+
+#### Scenario: A lapsed member can still sign in
+- **WHEN** the hook is called for a user whose only `members` row has status `expired`, and again for one whose status is `paused`
+- **THEN** both SHALL return `app_role` of `member` with that member's `tenant_id` and `member_id`
+
+#### Scenario: A cancelled or blocked member cannot
+- **WHEN** the hook is called for a user whose only `members` row has status `cancelled`, and again for one whose status is `blocked`
+- **THEN** both SHALL return claims carrying no `app_role`, no `tenant_id` and no `member_id`
+
+#### Scenario: An erased member cannot
+- **WHEN** the hook is called for a user whose only `members` row has status `active` and a non-null erasure timestamp
+- **THEN** the returned claims SHALL carry no `app_role`, no `tenant_id` and no `member_id`
 
 ### Requirement: One token is for exactly one gym, and the requested gym is validated
 WHERE a user has identity rows in more than one tenant, THE SYSTEM SHALL issue a token for exactly one of them. It SHALL read the requested tenant from the user's `raw_app_meta_data` key `active_tenant_id`, SHALL honour it only if the user has an active row in that tenant, and SHALL otherwise fall back to the user's active row with the earliest `created_at`, ties broken by the lower `id`, without raising.
@@ -108,7 +120,7 @@ WHERE a user has identity rows in more than one tenant, THE SYSTEM SHALL issue a
 - **THEN** both calls SHALL return the same `tenant_id`, being the row with the earliest creation time
 
 ### Requirement: Deactivation and role change revoke the sessions already issued
-A claim is a copy of a row taken when the token was issued, so changing the row changes nothing about a token already held. THE SYSTEM SHALL delete the user's authentication sessions when an identity row's `is_active` goes from true to false, and when an identity row's `role` changes, so that the access token in hand is the last one that user receives.
+A claim is a copy of a row taken when the token was issued, so changing the row changes nothing about a token already held. THE SYSTEM SHALL delete the user's authentication sessions when an identity row stops being active — `is_active` going from true to false, or a member's status becoming `cancelled` or `blocked`, or a member's erasure timestamp being set — and when an identity row's `role` changes, so that the access token in hand is the last one that user receives. `members` carries no role column and so writes no role-change audit row.
 
 #### Scenario: Deactivating a staff member
 - **WHEN** a staff row with a linked user is updated to `is_active` false
@@ -121,6 +133,14 @@ A claim is a copy of a row taken when the token was issued, so changing the row 
 #### Scenario: Deactivating a platform user
 - **WHEN** a `platform_users` row is updated to `is_active` false
 - **THEN** that user SHALL have no rows in the authentication session table afterwards
+
+#### Scenario: Cancelling a member
+- **WHEN** a `members` row with a linked user is updated to status `cancelled`
+- **THEN** that user SHALL have no rows in the authentication session table afterwards
+
+#### Scenario: Pausing a member revokes nothing
+- **WHEN** a `members` row with a linked user is updated from status `active` to `paused`
+- **THEN** that user's authentication sessions SHALL be unchanged
 
 #### Scenario: An unrelated update revokes nothing
 - **WHEN** a staff row's `full_name` is updated and neither `is_active` nor `role` changes

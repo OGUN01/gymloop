@@ -42,7 +42,7 @@ ADR-032 fixed two claim names and warned that Phase 2's hook must set **exactly*
 Rules, each because a policy depends on it:
 
 - **A claim is absent, or it is a well-formed value.** Never an empty string, never JSON `null`. Phase 1's accessors `nullif(…, '')` defensively, but a hook emitting `"tenant_id": ""` makes `app.current_tenant_id()` return null on a session that *does* have a tenant — which reads as "sees nothing" and is indistinguishable from a bug. If the hook has no value for a claim, it omits the key.
-- **`app_role` is never a value outside the enum.** `app.current_app_role()` casts to `public.app_role`; an unknown label raises `22P02`. That is the correct loud failure and is the behaviour ADR-032 chose for a malformed `tenant_id`.
+- **`app_role` is never a value outside the enum** — but nothing raises if one appears. **`app.current_app_role()` returns `text` and performs no cast.** *(Revised: the first draft had it return `public.app_role` and raise `22P02` on an unknown label, by analogy with ADR-032's malformed-`tenant_id` rule. The analogy is wrong and the implementer was right to say so.* A malformed `tenant_id` cannot mean anything at all, so raising is the only honest answer. An unrecognised **role** has an obvious and safe meaning — *this session holds no privileges* — and it is the reading every gate would reach anyway. Worse, a cast makes the failure mode inconsistent across the schema: the gate functions would return false and yield zero rows, while the handful of policies comparing the role directly would raise, so the same forged claim behaves differently table by table. Text comparison throughout means an unknown role reads nothing, writes nothing, and raises nowhere.*)
 - **A platform token carries no gym claims.** `app_role` in (`super_admin`, `platform_support`) ⇒ no `tenant_id`, no `member_id`, no `staff_id` — unless it is impersonating, which is section 6.
 - **A member token carries `tenant_id` and `member_id`, and never `staff_id`.**
 - **A staff token carries `tenant_id` and `staff_id`, and never `member_id`** — even when the same human is also a member of that gym. One token is one identity.
@@ -59,7 +59,17 @@ The hook resolves `event->>'user_id'` against three tables **in this order, stop
 
 The order answers a real question — a platform engineer who is also a member of a test gym must get their platform identity — and it is fixed here so that no implementer has to choose.
 
-- **If the matched row has `is_active = false`, resolution stops. It does not fall through to the next table**, and the token gets no Gymloop claims. A deactivated super admin must not silently become a member. This is stated because "skip the inactive row and keep looking" is the obvious alternative reading and it is wrong.
+**What "active" means, per table.** *(Revised: the first draft said `is_active` for all three tables. `members` has no such column — its lifecycle column is `status member_status`, values `active | paused | expired | cancelled | blocked`, plus `erased_at`. The implementer caught it. Naming a column that does not exist is precisely the kind of contract defect that produces the same wrong guess in every agent that reads it.)*
+
+| Table | An identity is active when |
+|---|---|
+| `platform_users` | `is_active` |
+| `staff` | `is_active` |
+| `members` | `status not in ('cancelled', 'blocked')` **and** `erased_at is null` |
+
+A `paused` or `expired` member **signs in normally**. That is not leniency — the renewal loop is the product, and a member whose membership lapsed is exactly the person who must be able to log in and pay. `cancelled` and `blocked` are the two states that mean the gym has ended the relationship. `erased_at` is DPD-006: a member whose personal data has been erased must not hold a live session, and the retention table already says the row survives for the financial history that references it.
+
+**Resolution is committed by the table, not by the row.** A user may have several `staff` rows or several `members` rows, so "the matched row" is not well defined until a tenant is chosen — and choosing the tenant is section 5, which runs *after*. The rule is therefore: **if the user has any row in a table, resolution commits to that table.** If none of that table's rows is active, resolution **stops and returns no claims**; it does not fall through to the next table. A deactivated super admin must not silently become a member. This is stated because "skip the inactive row and keep looking" is the obvious alternative reading, it is wrong, and it is also the only reading consistent with section 5's scenario where a user active in gym A and deactivated in gym B gets gym A.
 - **If no row matches anywhere, the token gets no Gymloop claims.** That is the state of a freshly signed-up `auth.users` row no gym has linked yet. It is a **supported state, not an error**: `app.current_tenant_id()` is null, `app.is_platform()` is false, both policies fail, the session reads zero rows and raises nothing.
 - **The hook never raises for a data reason.** The failure modes it must survive are: no matching row; an inactive row; several matching rows (section 5); an expired impersonation session (section 6); and a null `event->>'user_id'`. Section 2's handler is the backstop, not the plan.
 
@@ -79,7 +89,7 @@ One `auth.users` row may match **several** `staff` rows in different tenants, or
 - **A session is live** when `ended_at is null and expires_at > now()`. That expression appears in exactly one function and never inline in two places.
 - **Only `super_admin` may impersonate.** The hook checks for a live session only for an identity that resolved as a platform user with that role. `platform_support` may not — that is one half of making the two roles distinguishable.
 - **An impersonating token** carries `tenant_id` = the session's target, `app_role` = `gym_owner`, `impersonation_session_id` = the session id, and **no `staff_id`, no `member_id`**. `app.is_platform()` is therefore **false** on it: an impersonator acts *as the gym*, with the gym's reach, not with both. A token that is simultaneously platform-wide and gym-scoped has a strictly larger blast radius than either, for no product reason.
-- **One live session per actor**, enforced by a partial unique index on `actor_user_id where ended_at is null`. Which target the claims point at is then never ambiguous, and the hook needs no ordering rule.
+- **One *open* session per actor**, enforced by a partial unique index on `actor_user_id where ended_at is null`, named `impersonation_sessions_actor_user_id_open_key`. **Only the "open" half of liveness is enforceable by an index** — `now()` is not immutable, so `expires_at > now()` cannot appear in an index predicate. The qualifier in the name is therefore `open`, not `live`, following the naming rule that `<qualifier>` names what the partial index selects. The consequence is exact and worth stating: an actor may hold one *open* session, which may have expired. The hook still treats it as not live, so it sets no claims; but a second session cannot be created until the expired one is ended. That is the correct trade — it forces an explicit end, which is what writes the audit row.
 - **The audit rows are written by the database.** A trigger on `impersonation_sessions` writes the start row on insert and the end row on the update that sets `ended_at`. INT-003 requires both. A caller who must remember is a caller who will eventually forget — and `audit_log` is read-only to `authenticated` (ADR-049), so the caller could not write it anyway.
 - **Expiry needs no job.** A session past `expires_at` stops being live by the definition above, so the next refresh drops the claims. Nothing sweeps the table. **The asymmetry, stated rather than papered over:** an expired session's *end* audit row is written when someone ends it, not when it expires — so `audit_log` shows starts without matching ends for abandoned sessions, and a reader must use `expires_at` rather than assume an end row exists.
 
@@ -91,7 +101,7 @@ Two halves, different mechanisms.
 
 **Half two — the tokens already issued.** A claim is a copy of a row taken at issue time; changing the row changes nothing about a token already in a browser, and Supabase's default access-token lifetime is one hour. Two mechanisms, both required:
 
-- **A trigger revokes live sessions.** On `platform_users`, `staff` and `members`, when `is_active` goes `true → false` **or when `role` changes**, the user's rows in `auth.sessions` are deleted. Deleting the session invalidates the refresh token, so the access token in hand is the last one that user will ever hold. A role change counts because a stale `app_role` claim is a stale privilege, and INT-003 requires an audit row for a role change in any case — the same trigger writes it.
+- **A trigger revokes live sessions.** On `platform_users`, `staff` and `members`, when the identity stops being active by section 4's per-table definition — `is_active` going `true → false`, or a member's `status` becoming `cancelled`/`blocked`, or `erased_at` being set — **or when `role` changes** on the two tables that have one, the user's rows in `auth.sessions` are deleted. `members` carries no `role` column, so it writes no role-change audit row; that asymmetry is real and is not an omission. Deleting the session invalidates the refresh token, so the access token in hand is the last one that user will ever hold. A role change counts because a stale `app_role` claim is a stale privilege, and INT-003 requires an audit row for a role change in any case — the same trigger writes it.
 - **A deliberately chosen `jwt_expiry`**, so the residual window is a number someone chose rather than a default nobody read. It goes in `config.toml`. The trade is real and must be recorded: every refresh runs the hook, so a short lifetime is a load decision as much as a security one.
 
 **The residual window is real and must be written down**, not designed away: between the trigger firing and the current access token expiring, a deactivated user still holds valid claims. Any requirement claiming otherwise is false, and a test asserting otherwise is testing a fiction.
@@ -102,32 +112,52 @@ Two halves, different mechanisms.
 
 ### 8.1 Shape
 
-Every tenant-scoped table carries up to three policies. Two exist today; one is new.
+*Revised after the implementer's reading. The first draft of this section gave each table one `for all` gym-side policy with a read gate on `using` and a write gate on `with check`. That shape does not produce the behaviour the specs state, and the correction is recorded rather than quietly made — see the note at the end of this section.*
+
+Every tenant-scoped table carries up to four policies.
 
 ```sql
--- Phase 1's platform policy, write side narrowed (section 8.4)
-create policy <t>_platform_all on public.<t>
+-- platform read: support and super admin both see across tenants
+create policy <t>_platform_select on public.<t>
+  for select to authenticated
+  using ((select app.is_platform()));
+
+-- platform write: super admin only (section 8.4)
+create policy <t>_platform_write on public.<t>
   for all to authenticated
-  using     ((select app.is_platform()))
+  using     ((select app.current_app_role()) = 'super_admin')
   with check ((select app.current_app_role()) = 'super_admin');
 
--- Phase 1's gym-side policy, predicate tightened: being in the gym is no longer enough
-create policy <t>_tenant_all on public.<t>
+-- gym-side read
+create policy <t>_tenant_select on public.<t>
+  for select to authenticated
+  using (tenant_id = (select app.current_tenant_id()) and <read gate>);
+
+-- gym-side write
+create policy <t>_tenant_write on public.<t>
   for all to authenticated
-  using     (tenant_id = (select app.current_tenant_id()) and <read gate>)
+  using     (tenant_id = (select app.current_tenant_id()) and <write gate>)
   with check (tenant_id = (select app.current_tenant_id()) and <write gate>);
 
--- new, and only on the tables a member may read
+-- and, only on the tables a member may read
 create policy <t>_member_select on public.<t>
   for select to authenticated
   using (tenant_id = (select app.current_tenant_id()) and <member gate>);
 ```
 
-Every accessor stays wrapped in `(select …)` so the planner evaluates it once as an InitPlan — unchanged from Phase 1, and it matters more now that there are two calls per predicate.
+Every accessor stays wrapped in `(select …)` so the planner evaluates it once as an InitPlan — unchanged from Phase 1, and it matters more now that a predicate makes two calls.
 
-**Why the member policy is `for select` and separate.** Permissive policies OR together, so a member's `UPDATE` is governed only by `<t>_tenant_all`, whose read gate is false for a member: the update matches zero rows regardless of the `update` privilege. Writing it as `for all` with a write gate of `false` is the same outcome expressed less clearly.
+**Why the write policy is `for all` and not `for update, insert`.** Postgres policy commands are `ALL`, `SELECT`, `INSERT`, `UPDATE`, `DELETE` — there is no two-command form. `for all` with the write gate on `using` covers insert, update and delete; its `using` also applies to `SELECT`, but permissive policies OR together and the write gate is a subset of the read gate on every row of the matrix, so `SELECT` still resolves to the read gate. No table gets more read access than the matrix gives it.
 
-**Why `<t>_tenant_all` keeps its name.** It is now a staff-side policy, and `tenant_all` reads like a lie. Renaming thirty-five policies costs a churned diff across every RLS test file for a naming improvement. The name stays, `docs/data-model.md` carries the sentence explaining it, and this paragraph exists so a later session does not "fix" it.
+**Why this is not the shape the first draft had, and why it matters.** With a single `for all` policy whose `using` was the read gate, an `UPDATE` by a caller who may read but not write behaves like this: `using` admits the row, the row is updated, and then `with check` rejects the new version — Postgres raises **`42501`**. Three scenarios in the authorization spec say such an update "SHALL affect **zero rows**": a manager promoting itself on `staff`, front desk repricing a `plans` row, and `platform_support` updating a gym's data. Under the old shape all three raise instead.
+
+That is not a spec defect to be edited away. **Zero rows rather than an error is Phase 1's established, documented and tested semantics** — `docs/data-model.md` argues it explicitly: *"Zero rows, not an error — a policy that raised would let a caller tell 'nothing here' apart from 'wrong tenant'."* An error on update is an existence oracle inside the tenant, which is a smaller version of exactly what ADR-047 was about. And decisively: two blind authors wrote their assertions from the spec, so editing the spec to match the implementation would be tests following code, which is the one thing hard rule 10 exists to prevent.
+
+Splitting read from write gives the stated behaviour on every path: a permitted `SELECT` passes the read policy; a forbidden `UPDATE` fails the write policy's `using` and touches **zero rows**; a forbidden `INSERT` still raises `42501`, because there is no existing row for a `using` clause to filter and `with check` is the only gate an insert meets. The specs say exactly that, per operation, and now they are achievable.
+
+The cost is one extra policy per table — roughly 130 rather than 86. That is the price of the semantics being uniform, and a policy is cheap.
+
+**Naming.** `<t>_tenant_select`, `<t>_tenant_write`, `<t>_platform_select`, `<t>_platform_write`, `<t>_member_select`. `<t>_tenant_all` and `<t>_platform_all` cease to exist. `docs/data-model.md`'s naming table lists only `<table>_tenant_all`, `<table>_platform_all` and `<table>_tenant_select`, so it takes a `spec:` edit in this change to add the three new patterns — the implementer was right to flag that it does not currently license `<t>_member_select` either.
 
 ### 8.2 The four gates, and no fifth
 
@@ -144,7 +174,9 @@ Written as functions rather than inline role lists so that changing which roles 
 
 ### 8.3 The matrix
 
-`M` in the member column means the member policy exists with gate `member_id = (select app.current_member_id())`; `M(all)` means the gate is the tenant match alone (the whole gym's rows are visible to its members); `M(self)` means `id = (select app.current_member_id())`; `—` means **no member policy is created for this table**, and a member reads nothing from it.
+`M` in the member column means the member policy exists with gate `member_id = (select app.current_member_id())`; `M(self)` means `id = (select app.current_member_id())`; `M(all)` means **`(select app.current_member_id()) is not null`** — every member of the gym sees every row; `—` means **no member policy is created for this table**, and a member reads nothing from it.
+
+*Revised: `M(all)` first read "the tenant match alone", which was a contradiction the implementer caught. A gate of `true` would hand these tables to any session carrying a tenant claim and no role at all — flatly against the authorization spec's first requirement, that a tenant claim alone grants nothing. `current_member_id() is not null` selects exactly the sessions the hook gives a `member_id` to, and it also satisfies the spec's "a member with no member claim reads zero rows" scenario, which a gate of `true` would have failed.*
 
 | Table | read gate | write gate | member |
 |---|---|---|---|
