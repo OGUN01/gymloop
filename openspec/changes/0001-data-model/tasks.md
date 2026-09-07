@@ -22,14 +22,14 @@ Each: blind visible pgTAP author · blind holdout pgTAP author · implementer ·
 
 - [x] 2.1 `membership+money` — 6 enums, 11 tables. Depends on tenancy.
 - [x] 2.2 `attendance` — 1 enum, 4 tables. Depends on `memberships`.
-- [ ] 2.3 `catalogue` — `btree_gist`, 3 enums, 3 tables. Depends on `payments`.
-- [ ] 2.4 `retention` — 3 enums, 2 tables. Depends on tenancy only.
-- [ ] 2.5 `comms` — 3 enums, 6 tables. Depends on tenancy only.
-- [ ] 2.6 `platform` — 3 enums, 5 tables. Depends on tenancy only.
+- [x] 2.3 `catalogue` — `btree_gist`, 3 enums, 3 tables. Depends on `payments`.
+- [x] 2.4 `retention` — 3 enums, 2 tables. Depends on tenancy only.
+- [x] 2.5 `comms` — 3 enums, 6 tables. Depends on tenancy only.
+- [x] 2.6 `platform` — 3 enums, 5 tables. Depends on tenancy only.
 
 ## 3. Seed and close
 
-- [ ] 3.1 `supabase/seed.sql` — idempotent, the exact demo gym `docs/data-model.md` specifies, applied only by `gh workflow run seed.yml` (ADR-034).
+- [x] 3.1 `supabase/seed.sql` — idempotent, the exact demo gym `docs/data-model.md` specifies, applied only by `gh workflow run seed.yml` (ADR-034).
 - [ ] 3.2 Final full pgTAP run on `main`, visible plus holdout, every table.
 - [ ] 3.3 Final regeneration of the generated types; `schema-drift` green.
 - [ ] 3.4 Blind final critic against the backend bar: green isolation suite on every table, every table isolated under every role including a missing claim, zero visible-versus-holdout gap, Supabase RLS best practices.

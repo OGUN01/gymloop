@@ -1,10 +1,3 @@
-// GENERATED FILE — DO NOT HAND-EDIT.
-// Source of truth is the Postgres schema, not this file (docs/architecture.md,
-// "one truth chain for data"). Regenerate with:
-//   supabase gen types typescript --linked > packages/db/types/database.ts
-// CI diffs this file against a fresh generation on every push
-// (.github/workflows/db.yml) — drift fails the build.
-
 export type Json =
   | string
   | number
@@ -46,6 +39,395 @@ export type Database = {
   }
   public: {
     Tables: {
+      addon_orders: {
+        Row: {
+          addon_product_id: string
+          cancelled_at: string | null
+          created_at: string
+          currency: string
+          expires_on: string | null
+          id: string
+          member_id: string
+          payment_id: string | null
+          quantity: number
+          sessions_total: number | null
+          sessions_used: number
+          starts_on: string | null
+          status: Database["public"]["Enums"]["addon_order_status"]
+          tenant_id: string
+          total_paise: number
+          trainer_staff_id: string | null
+          unit_price_paise: number
+          updated_at: string
+        }
+        Insert: {
+          addon_product_id: string
+          cancelled_at?: string | null
+          created_at?: string
+          currency?: string
+          expires_on?: string | null
+          id?: string
+          member_id: string
+          payment_id?: string | null
+          quantity?: number
+          sessions_total?: number | null
+          sessions_used?: number
+          starts_on?: string | null
+          status?: Database["public"]["Enums"]["addon_order_status"]
+          tenant_id: string
+          total_paise: number
+          trainer_staff_id?: string | null
+          unit_price_paise: number
+          updated_at?: string
+        }
+        Update: {
+          addon_product_id?: string
+          cancelled_at?: string | null
+          created_at?: string
+          currency?: string
+          expires_on?: string | null
+          id?: string
+          member_id?: string
+          payment_id?: string | null
+          quantity?: number
+          sessions_total?: number | null
+          sessions_used?: number
+          starts_on?: string | null
+          status?: Database["public"]["Enums"]["addon_order_status"]
+          tenant_id?: string
+          total_paise?: number
+          trainer_staff_id?: string | null
+          unit_price_paise?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "addon_orders_addon_product_id_fkey"
+            columns: ["addon_product_id"]
+            isOneToOne: false
+            referencedRelation: "addon_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addon_orders_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addon_orders_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addon_orders_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addon_orders_trainer_staff_id_fkey"
+            columns: ["trainer_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      addon_products: {
+        Row: {
+          cancellation_terms: string | null
+          created_at: string
+          currency: string
+          description: string | null
+          gst_rate_bp: number
+          id: string
+          is_active: boolean
+          kind: Database["public"]["Enums"]["addon_kind"]
+          name: string
+          price_paise: number
+          session_count: number | null
+          sort_order: number
+          stock_quantity: number | null
+          tenant_id: string
+          trainer_staff_id: string | null
+          updated_at: string
+          validity_days: number | null
+        }
+        Insert: {
+          cancellation_terms?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          gst_rate_bp?: number
+          id?: string
+          is_active?: boolean
+          kind: Database["public"]["Enums"]["addon_kind"]
+          name: string
+          price_paise: number
+          session_count?: number | null
+          sort_order?: number
+          stock_quantity?: number | null
+          tenant_id: string
+          trainer_staff_id?: string | null
+          updated_at?: string
+          validity_days?: number | null
+        }
+        Update: {
+          cancellation_terms?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          gst_rate_bp?: number
+          id?: string
+          is_active?: boolean
+          kind?: Database["public"]["Enums"]["addon_kind"]
+          name?: string
+          price_paise?: number
+          session_count?: number | null
+          sort_order?: number
+          stock_quantity?: number | null
+          tenant_id?: string
+          trainer_staff_id?: string | null
+          updated_at?: string
+          validity_days?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "addon_products_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addon_products_trainer_staff_id_fkey"
+            columns: ["trainer_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance: {
+        Row: {
+          assist_reason: string | null
+          assisted_by_staff_id: string | null
+          branch_id: string
+          checked_in_at: string
+          checked_out_at: string | null
+          client_event_id: string | null
+          created_at: string
+          id: string
+          member_id: string
+          membership_id: string | null
+          offline_recorded_at: string | null
+          qr_session_id: string | null
+          replayed_at: string | null
+          source: Database["public"]["Enums"]["attendance_source"]
+          tenant_id: string
+        }
+        Insert: {
+          assist_reason?: string | null
+          assisted_by_staff_id?: string | null
+          branch_id: string
+          checked_in_at?: string
+          checked_out_at?: string | null
+          client_event_id?: string | null
+          created_at?: string
+          id?: string
+          member_id: string
+          membership_id?: string | null
+          offline_recorded_at?: string | null
+          qr_session_id?: string | null
+          replayed_at?: string | null
+          source: Database["public"]["Enums"]["attendance_source"]
+          tenant_id: string
+        }
+        Update: {
+          assist_reason?: string | null
+          assisted_by_staff_id?: string | null
+          branch_id?: string
+          checked_in_at?: string
+          checked_out_at?: string | null
+          client_event_id?: string | null
+          created_at?: string
+          id?: string
+          member_id?: string
+          membership_id?: string | null
+          offline_recorded_at?: string | null
+          qr_session_id?: string | null
+          replayed_at?: string | null
+          source?: Database["public"]["Enums"]["attendance_source"]
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_assisted_by_staff_id_fkey"
+            columns: ["assisted_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_membership_id_fkey"
+            columns: ["membership_id"]
+            isOneToOne: false
+            referencedRelation: "memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_qr_session_id_fkey"
+            columns: ["qr_session_id"]
+            isOneToOne: false
+            referencedRelation: "qr_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_corrections: {
+        Row: {
+          after: Json
+          attendance_id: string
+          before: Json
+          corrected_by_staff_id: string
+          created_at: string
+          id: string
+          reason: string
+          tenant_id: string
+        }
+        Insert: {
+          after: Json
+          attendance_id: string
+          before: Json
+          corrected_by_staff_id: string
+          created_at?: string
+          id?: string
+          reason: string
+          tenant_id: string
+        }
+        Update: {
+          after?: Json
+          attendance_id?: string
+          before?: Json
+          corrected_by_staff_id?: string
+          created_at?: string
+          id?: string
+          reason?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_corrections_attendance_id_fkey"
+            columns: ["attendance_id"]
+            isOneToOne: false
+            referencedRelation: "attendance"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_corrected_by_staff_id_fkey"
+            columns: ["corrected_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_log: {
+        Row: {
+          action: string
+          actor_role: Database["public"]["Enums"]["app_role"] | null
+          actor_user_id: string | null
+          after: Json | null
+          before: Json | null
+          created_at: string
+          id: string
+          impersonation_session_id: string | null
+          occurred_at: string
+          reason: string | null
+          record_id: string | null
+          record_type: string
+          tenant_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_role?: Database["public"]["Enums"]["app_role"] | null
+          actor_user_id?: string | null
+          after?: Json | null
+          before?: Json | null
+          created_at?: string
+          id?: string
+          impersonation_session_id?: string | null
+          occurred_at?: string
+          reason?: string | null
+          record_id?: string | null
+          record_type: string
+          tenant_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_role?: Database["public"]["Enums"]["app_role"] | null
+          actor_user_id?: string | null
+          after?: Json | null
+          before?: Json | null
+          created_at?: string
+          id?: string
+          impersonation_session_id?: string | null
+          occurred_at?: string
+          reason?: string | null
+          record_id?: string | null
+          record_type?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_impersonation_session_id_fkey"
+            columns: ["impersonation_session_id"]
+            isOneToOne: false
+            referencedRelation: "impersonation_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branches: {
         Row: {
           address: string | null
@@ -80,6 +462,67 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "branches_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consents: {
+        Row: {
+          created_at: string
+          granted: boolean
+          id: string
+          member_id: string
+          purpose: Database["public"]["Enums"]["consent_purpose"]
+          recorded_at: string
+          recorded_by_staff_id: string | null
+          source: string
+          tenant_id: string
+          version: string
+        }
+        Insert: {
+          created_at?: string
+          granted: boolean
+          id?: string
+          member_id: string
+          purpose: Database["public"]["Enums"]["consent_purpose"]
+          recorded_at?: string
+          recorded_by_staff_id?: string | null
+          source: string
+          tenant_id: string
+          version: string
+        }
+        Update: {
+          created_at?: string
+          granted?: boolean
+          id?: string
+          member_id?: string
+          purpose?: Database["public"]["Enums"]["consent_purpose"]
+          recorded_at?: string
+          recorded_by_staff_id?: string | null
+          source?: string
+          tenant_id?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consents_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consents_recorded_by_staff_id_fkey"
+            columns: ["recorded_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consents_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -184,6 +627,125 @@ export type Database = {
           },
         ]
       }
+      follow_ups: {
+        Row: {
+          case_id: string
+          channel: Database["public"]["Enums"]["contact_channel"]
+          corrects_follow_up_id: string | null
+          created_at: string
+          id: string
+          next_action: string | null
+          next_follow_up_at: string | null
+          notes: string | null
+          outcome: Database["public"]["Enums"]["follow_up_outcome"]
+          staff_id: string
+          tenant_id: string
+        }
+        Insert: {
+          case_id: string
+          channel: Database["public"]["Enums"]["contact_channel"]
+          corrects_follow_up_id?: string | null
+          created_at?: string
+          id?: string
+          next_action?: string | null
+          next_follow_up_at?: string | null
+          notes?: string | null
+          outcome: Database["public"]["Enums"]["follow_up_outcome"]
+          staff_id: string
+          tenant_id: string
+        }
+        Update: {
+          case_id?: string
+          channel?: Database["public"]["Enums"]["contact_channel"]
+          corrects_follow_up_id?: string | null
+          created_at?: string
+          id?: string
+          next_action?: string | null
+          next_follow_up_at?: string | null
+          notes?: string | null
+          outcome?: Database["public"]["Enums"]["follow_up_outcome"]
+          staff_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follow_ups_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "no_show_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follow_ups_corrects_follow_up_id_fkey"
+            columns: ["corrects_follow_up_id"]
+            isOneToOne: false
+            referencedRelation: "follow_ups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follow_ups_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follow_ups_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      impersonation_sessions: {
+        Row: {
+          actor_user_id: string
+          created_at: string
+          ended_at: string | null
+          expires_at: string
+          id: string
+          reason: string
+          started_at: string
+          tenant_id: string
+        }
+        Insert: {
+          actor_user_id: string
+          created_at?: string
+          ended_at?: string | null
+          expires_at: string
+          id?: string
+          reason: string
+          started_at?: string
+          tenant_id: string
+        }
+        Update: {
+          actor_user_id?: string
+          created_at?: string
+          ended_at?: string | null
+          expires_at?: string
+          id?: string
+          reason?: string
+          started_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "impersonation_sessions_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "platform_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "impersonation_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           buyer_gstin: string | null
@@ -264,6 +826,203 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          assigned_to_staff_id: string | null
+          branch_id: string
+          converted_at: string | null
+          converted_member_id: string | null
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          lost_reason: string | null
+          notes: string | null
+          phone: string
+          source: Database["public"]["Enums"]["lead_source"]
+          stage: Database["public"]["Enums"]["lead_stage"]
+          tenant_id: string
+          trial_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_to_staff_id?: string | null
+          branch_id: string
+          converted_at?: string | null
+          converted_member_id?: string | null
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id?: string
+          lost_reason?: string | null
+          notes?: string | null
+          phone: string
+          source: Database["public"]["Enums"]["lead_source"]
+          stage?: Database["public"]["Enums"]["lead_stage"]
+          tenant_id: string
+          trial_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_to_staff_id?: string | null
+          branch_id?: string
+          converted_at?: string | null
+          converted_member_id?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          lost_reason?: string | null
+          notes?: string | null
+          phone?: string
+          source?: Database["public"]["Enums"]["lead_source"]
+          stage?: Database["public"]["Enums"]["lead_stage"]
+          tenant_id?: string
+          trial_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_assigned_to_staff_id_fkey"
+            columns: ["assigned_to_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_converted_member_id_fkey"
+            columns: ["converted_member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_devices: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          last_seen_at: string
+          member_id: string
+          platform: string
+          push_token: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_seen_at?: string
+          member_id: string
+          platform: string
+          push_token: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_seen_at?: string
+          member_id?: string
+          platform?: string
+          push_token?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_devices_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_devices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_imports: {
+        Row: {
+          column_mapping: Json
+          created_at: string
+          duplicate_count: number | null
+          error_report: Json | null
+          file_name: string
+          id: string
+          imported_count: number | null
+          row_count: number | null
+          status: Database["public"]["Enums"]["import_status"]
+          tenant_id: string
+          updated_at: string
+          uploaded_by_staff_id: string
+        }
+        Insert: {
+          column_mapping: Json
+          created_at?: string
+          duplicate_count?: number | null
+          error_report?: Json | null
+          file_name: string
+          id?: string
+          imported_count?: number | null
+          row_count?: number | null
+          status?: Database["public"]["Enums"]["import_status"]
+          tenant_id: string
+          updated_at?: string
+          uploaded_by_staff_id: string
+        }
+        Update: {
+          column_mapping?: Json
+          created_at?: string
+          duplicate_count?: number | null
+          error_report?: Json | null
+          file_name?: string
+          id?: string
+          imported_count?: number | null
+          row_count?: number | null
+          status?: Database["public"]["Enums"]["import_status"]
+          tenant_id?: string
+          updated_at?: string
+          uploaded_by_staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_imports_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_imports_uploaded_by_staff_id_fkey"
+            columns: ["uploaded_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]
@@ -515,6 +1274,307 @@ export type Database = {
           },
           {
             foreignKeyName: "memberships_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_templates: {
+        Row: {
+          body: string
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at: string
+          id: string
+          is_active: boolean
+          key: string
+          locale: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key: string
+          locale?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          locale?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_templates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messaging_wallet_ledger: {
+        Row: {
+          created_at: string
+          delta_credits: number
+          id: string
+          notification_id: string | null
+          reason: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          delta_credits: number
+          id?: string
+          notification_id?: string | null
+          reason: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          delta_credits?: number
+          id?: string
+          notification_id?: string | null
+          reason?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messaging_wallet_ledger_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messaging_wallet_ledger_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messaging_wallets: {
+        Row: {
+          balance_credits: number
+          created_at: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          balance_credits?: number
+          created_at?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          balance_credits?: number
+          created_at?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messaging_wallets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      no_show_cases: {
+        Row: {
+          absent_days_at_open: number
+          assigned_to_staff_id: string | null
+          closed_at: string | null
+          contacted_at: string | null
+          created_at: string
+          id: string
+          last_attended_on: string | null
+          member_id: string
+          next_follow_up_at: string | null
+          opened_on: string
+          returned_at: string | null
+          status: Database["public"]["Enums"]["no_show_case_status"]
+          tenant_id: string
+          threshold_days: number
+          updated_at: string
+        }
+        Insert: {
+          absent_days_at_open: number
+          assigned_to_staff_id?: string | null
+          closed_at?: string | null
+          contacted_at?: string | null
+          created_at?: string
+          id?: string
+          last_attended_on?: string | null
+          member_id: string
+          next_follow_up_at?: string | null
+          opened_on?: string
+          returned_at?: string | null
+          status?: Database["public"]["Enums"]["no_show_case_status"]
+          tenant_id: string
+          threshold_days: number
+          updated_at?: string
+        }
+        Update: {
+          absent_days_at_open?: number
+          assigned_to_staff_id?: string | null
+          closed_at?: string | null
+          contacted_at?: string | null
+          created_at?: string
+          id?: string
+          last_attended_on?: string | null
+          member_id?: string
+          next_follow_up_at?: string | null
+          opened_on?: string
+          returned_at?: string | null
+          status?: Database["public"]["Enums"]["no_show_case_status"]
+          tenant_id?: string
+          threshold_days?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "no_show_cases_assigned_to_staff_id_fkey"
+            columns: ["assigned_to_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "no_show_cases_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "no_show_cases_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          channel: Database["public"]["Enums"]["notification_channel"]
+          clicked_at: string | null
+          converted_at: string | null
+          created_at: string
+          dedupe_key: string | null
+          delivered_at: string | null
+          failed_reason: string | null
+          id: string
+          member_id: string
+          payload: Json
+          related_id: string | null
+          related_type: string | null
+          scheduled_for: string
+          sent_at: string | null
+          status: Database["public"]["Enums"]["notification_status"]
+          template_key: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          channel: Database["public"]["Enums"]["notification_channel"]
+          clicked_at?: string | null
+          converted_at?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          delivered_at?: string | null
+          failed_reason?: string | null
+          id?: string
+          member_id: string
+          payload?: Json
+          related_id?: string | null
+          related_type?: string | null
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["notification_status"]
+          template_key?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          clicked_at?: string | null
+          converted_at?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          delivered_at?: string | null
+          failed_reason?: string | null
+          id?: string
+          member_id?: string
+          payload?: Json
+          related_id?: string | null
+          related_type?: string | null
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["notification_status"]
+          template_key?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_holidays: {
+        Row: {
+          created_at: string
+          holiday_on: string
+          id: string
+          name: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          holiday_on: string
+          id?: string
+          name?: string | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          holiday_on?: string
+          id?: string
+          name?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_holidays_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -833,6 +1893,165 @@ export type Database = {
           },
         ]
       }
+      platform_users: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string
+          is_active: boolean
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name: string
+          is_active?: boolean
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string
+          is_active?: boolean
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      pt_sessions: {
+        Row: {
+          addon_order_id: string
+          created_at: string
+          ends_at: string
+          id: string
+          member_id: string
+          notes: string | null
+          starts_at: string
+          status: Database["public"]["Enums"]["pt_session_status"]
+          tenant_id: string
+          trainer_staff_id: string
+          updated_at: string
+        }
+        Insert: {
+          addon_order_id: string
+          created_at?: string
+          ends_at: string
+          id?: string
+          member_id: string
+          notes?: string | null
+          starts_at: string
+          status?: Database["public"]["Enums"]["pt_session_status"]
+          tenant_id: string
+          trainer_staff_id: string
+          updated_at?: string
+        }
+        Update: {
+          addon_order_id?: string
+          created_at?: string
+          ends_at?: string
+          id?: string
+          member_id?: string
+          notes?: string | null
+          starts_at?: string
+          status?: Database["public"]["Enums"]["pt_session_status"]
+          tenant_id?: string
+          trainer_staff_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pt_sessions_addon_order_id_fkey"
+            columns: ["addon_order_id"]
+            isOneToOne: false
+            referencedRelation: "addon_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pt_sessions_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pt_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pt_sessions_trainer_staff_id_fkey"
+            columns: ["trainer_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qr_sessions: {
+        Row: {
+          branch_id: string
+          created_at: string
+          created_by_staff_id: string | null
+          expires_at: string
+          id: string
+          issued_at: string
+          revoked_at: string | null
+          tenant_id: string
+          token_hash: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          created_by_staff_id?: string | null
+          expires_at: string
+          id?: string
+          issued_at?: string
+          revoked_at?: string | null
+          tenant_id: string
+          token_hash: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          created_by_staff_id?: string | null
+          expires_at?: string
+          id?: string
+          issued_at?: string
+          revoked_at?: string | null
+          tenant_id?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qr_sessions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_sessions_created_by_staff_id_fkey"
+            columns: ["created_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       razorpay_accounts: {
         Row: {
           created_at: string
@@ -1137,6 +2356,14 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      addon_kind: "pt_package" | "diet_plan" | "product"
+      addon_order_status:
+        | "pending"
+        | "paid"
+        | "active"
+        | "completed"
+        | "cancelled"
+        | "refunded"
       app_role:
         | "super_admin"
         | "platform_support"
@@ -1145,7 +2372,34 @@ export type Database = {
         | "front_desk"
         | "trainer"
         | "member"
+      attendance_source: "qr" | "front_desk"
+      consent_purpose: "marketing" | "service"
+      contact_channel: "call" | "whatsapp" | "in_person" | "sms"
+      follow_up_outcome:
+        | "will_return"
+        | "injured"
+        | "travelling"
+        | "timing_issue"
+        | "unhappy"
+        | "no_response"
+        | "cancelled"
       gym_preset: "neighbourhood_gym" | "premium_studio" | "functional_box"
+      import_status: "pending" | "processing" | "completed" | "failed"
+      lead_source:
+        | "walk_in"
+        | "referral"
+        | "instagram"
+        | "google"
+        | "website"
+        | "phone"
+        | "other"
+      lead_stage:
+        | "new"
+        | "contacted"
+        | "trial_scheduled"
+        | "trial_done"
+        | "converted"
+        | "lost"
       mandate_status:
         | "created"
         | "authenticated"
@@ -1162,6 +2416,26 @@ export type Database = {
         | "frozen"
         | "expired"
         | "cancelled"
+      no_show_case_status:
+        | "open"
+        | "contacted"
+        | "follow_up_due"
+        | "returned"
+        | "closed"
+      notification_channel:
+        | "push"
+        | "whatsapp_link"
+        | "in_app"
+        | "sms"
+        | "email"
+      notification_status:
+        | "scheduled"
+        | "sent"
+        | "delivered"
+        | "failed"
+        | "clicked"
+        | "converted"
+        | "opted_out"
       organization_status:
         | "pending_approval"
         | "trial"
@@ -1176,6 +2450,7 @@ export type Database = {
         | "failed"
         | "refunded"
         | "reversed"
+      pt_session_status: "scheduled" | "completed" | "cancelled" | "no_show"
       refund_kind: "refund" | "reversal"
       refund_status: "requested" | "processing" | "completed" | "failed"
       streak_rule_type: "visit_streak" | "weekly_goal" | "calendar_streak"
@@ -1309,6 +2584,15 @@ export const Constants = {
   },
   public: {
     Enums: {
+      addon_kind: ["pt_package", "diet_plan", "product"],
+      addon_order_status: [
+        "pending",
+        "paid",
+        "active",
+        "completed",
+        "cancelled",
+        "refunded",
+      ],
       app_role: [
         "super_admin",
         "platform_support",
@@ -1318,7 +2602,37 @@ export const Constants = {
         "trainer",
         "member",
       ],
+      attendance_source: ["qr", "front_desk"],
+      consent_purpose: ["marketing", "service"],
+      contact_channel: ["call", "whatsapp", "in_person", "sms"],
+      follow_up_outcome: [
+        "will_return",
+        "injured",
+        "travelling",
+        "timing_issue",
+        "unhappy",
+        "no_response",
+        "cancelled",
+      ],
       gym_preset: ["neighbourhood_gym", "premium_studio", "functional_box"],
+      import_status: ["pending", "processing", "completed", "failed"],
+      lead_source: [
+        "walk_in",
+        "referral",
+        "instagram",
+        "google",
+        "website",
+        "phone",
+        "other",
+      ],
+      lead_stage: [
+        "new",
+        "contacted",
+        "trial_scheduled",
+        "trial_done",
+        "converted",
+        "lost",
+      ],
       mandate_status: [
         "created",
         "authenticated",
@@ -1337,6 +2651,23 @@ export const Constants = {
         "expired",
         "cancelled",
       ],
+      no_show_case_status: [
+        "open",
+        "contacted",
+        "follow_up_due",
+        "returned",
+        "closed",
+      ],
+      notification_channel: ["push", "whatsapp_link", "in_app", "sms", "email"],
+      notification_status: [
+        "scheduled",
+        "sent",
+        "delivered",
+        "failed",
+        "clicked",
+        "converted",
+        "opted_out",
+      ],
       organization_status: [
         "pending_approval",
         "trial",
@@ -1353,6 +2684,7 @@ export const Constants = {
         "refunded",
         "reversed",
       ],
+      pt_session_status: ["scheduled", "completed", "cancelled", "no_show"],
       refund_kind: ["refund", "reversal"],
       refund_status: ["requested", "processing", "completed", "failed"],
       streak_rule_type: ["visit_streak", "weekly_goal", "calendar_streak"],
