@@ -165,29 +165,141 @@ select hasnt_column('public', 'follow_ups', 'updated_at',
   'NSH-007: follow_ups has no updated_at — an append-only row is never touched');
 
 -- ---------------------------------------------------------------------------
--- 36-42  Every foreign key resolves.
+-- 36-42  Every foreign key resolves. ADR-052 / docs/data-model.md "Foreign
+--        keys re-check the tenant": a foreign key whose parent is
+--        tenant-scoped is composite, (tenant_id, <column>) references
+--        <parent> (tenant_id, id) -- fk_ok's signature is single-column and
+--        cannot express that, so the five below that point at tenant-scoped
+--        parents are asserted as a catalogue shape instead, in the same style
+--        04_contract_meta.sql uses for its ADR-052 rules. Each still names
+--        the parent, which is the property these exist to prove.
+--        tenant_id -> organizations stays fk_ok: it IS the tenant check
+--        (ADR-052's own exemption) and is legitimately single-column.
 -- ---------------------------------------------------------------------------
 
 select fk_ok('public', 'no_show_cases', 'tenant_id', 'public', 'organizations', 'id',
   'NSH-003: no_show_cases.tenant_id references organizations');
 
-select fk_ok('public', 'no_show_cases', 'member_id', 'public', 'members', 'id',
-  'NSH-003: no_show_cases.member_id references members');
+select ok(
+  exists(
+    select 1
+      from pg_constraint con
+      join pg_class c on c.oid = con.conrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      join pg_class pc on pc.oid = con.confrelid
+      join pg_namespace pn on pn.oid = pc.relnamespace
+     where con.contype = 'f' and n.nspname = 'public' and c.relname = 'no_show_cases'
+       and pn.nspname = 'public' and pc.relname = 'members'
+       and array_length(con.conkey, 1) = 2
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.conrelid and a.attnum = con.conkey[1]) = 'tenant_id'
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.conrelid and a.attnum = con.conkey[2]) = 'member_id'
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.confrelid and a.attnum = con.confkey[1]) = 'tenant_id'
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.confrelid and a.attnum = con.confkey[2]) = 'id'
+  ),
+  'NSH-003 (ADR-052): no_show_cases.member_id is a composite FK (tenant_id, member_id) references members (tenant_id, id)'
+);
 
-select fk_ok('public', 'no_show_cases', 'assigned_to_staff_id', 'public', 'staff', 'id',
-  'NSH-003: no_show_cases.assigned_to_staff_id references staff');
+select ok(
+  exists(
+    select 1
+      from pg_constraint con
+      join pg_class c on c.oid = con.conrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      join pg_class pc on pc.oid = con.confrelid
+      join pg_namespace pn on pn.oid = pc.relnamespace
+     where con.contype = 'f' and n.nspname = 'public' and c.relname = 'no_show_cases'
+       and pn.nspname = 'public' and pc.relname = 'staff'
+       and array_length(con.conkey, 1) = 2
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.conrelid and a.attnum = con.conkey[1]) = 'tenant_id'
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.conrelid and a.attnum = con.conkey[2]) = 'assigned_to_staff_id'
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.confrelid and a.attnum = con.confkey[1]) = 'tenant_id'
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.confrelid and a.attnum = con.confkey[2]) = 'id'
+  ),
+  'NSH-003 (ADR-052): no_show_cases.assigned_to_staff_id is a composite FK (tenant_id, assigned_to_staff_id) references staff (tenant_id, id)'
+);
 
 select fk_ok('public', 'follow_ups', 'tenant_id', 'public', 'organizations', 'id',
   'NSH-007: follow_ups.tenant_id references organizations');
 
-select fk_ok('public', 'follow_ups', 'case_id', 'public', 'no_show_cases', 'id',
-  'NSH-007: follow_ups.case_id references no_show_cases');
+select ok(
+  exists(
+    select 1
+      from pg_constraint con
+      join pg_class c on c.oid = con.conrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      join pg_class pc on pc.oid = con.confrelid
+      join pg_namespace pn on pn.oid = pc.relnamespace
+     where con.contype = 'f' and n.nspname = 'public' and c.relname = 'follow_ups'
+       and pn.nspname = 'public' and pc.relname = 'no_show_cases'
+       and array_length(con.conkey, 1) = 2
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.conrelid and a.attnum = con.conkey[1]) = 'tenant_id'
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.conrelid and a.attnum = con.conkey[2]) = 'case_id'
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.confrelid and a.attnum = con.confkey[1]) = 'tenant_id'
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.confrelid and a.attnum = con.confkey[2]) = 'id'
+  ),
+  'NSH-007 (ADR-052): follow_ups.case_id is a composite FK (tenant_id, case_id) references no_show_cases (tenant_id, id)'
+);
 
-select fk_ok('public', 'follow_ups', 'staff_id', 'public', 'staff', 'id',
-  'NSH-007: follow_ups.staff_id references staff');
+select ok(
+  exists(
+    select 1
+      from pg_constraint con
+      join pg_class c on c.oid = con.conrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      join pg_class pc on pc.oid = con.confrelid
+      join pg_namespace pn on pn.oid = pc.relnamespace
+     where con.contype = 'f' and n.nspname = 'public' and c.relname = 'follow_ups'
+       and pn.nspname = 'public' and pc.relname = 'staff'
+       and array_length(con.conkey, 1) = 2
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.conrelid and a.attnum = con.conkey[1]) = 'tenant_id'
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.conrelid and a.attnum = con.conkey[2]) = 'staff_id'
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.confrelid and a.attnum = con.confkey[1]) = 'tenant_id'
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.confrelid and a.attnum = con.confkey[2]) = 'id'
+  ),
+  'NSH-007 (ADR-052): follow_ups.staff_id is a composite FK (tenant_id, staff_id) references staff (tenant_id, id)'
+);
 
-select fk_ok('public', 'follow_ups', 'corrects_follow_up_id', 'public', 'follow_ups', 'id',
-  'NSH-007: corrects_follow_up_id is a self-referencing FK — a correction is a new row');
+-- follow_ups is itself tenant-scoped, so its self-reference (a correction
+-- points at the follow_up it corrects) is composite too -- conrelid and
+-- confrelid both resolve to follow_ups, joined via separate aliases.
+select ok(
+  exists(
+    select 1
+      from pg_constraint con
+      join pg_class c on c.oid = con.conrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      join pg_class pc on pc.oid = con.confrelid
+      join pg_namespace pn on pn.oid = pc.relnamespace
+     where con.contype = 'f' and n.nspname = 'public' and c.relname = 'follow_ups'
+       and pn.nspname = 'public' and pc.relname = 'follow_ups'
+       and array_length(con.conkey, 1) = 2
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.conrelid and a.attnum = con.conkey[1]) = 'tenant_id'
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.conrelid and a.attnum = con.conkey[2]) = 'corrects_follow_up_id'
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.confrelid and a.attnum = con.confkey[1]) = 'tenant_id'
+       and (select a.attname from pg_attribute a
+             where a.attrelid = con.confrelid and a.attnum = con.confkey[2]) = 'id'
+  ),
+  'NSH-007 (ADR-052): corrects_follow_up_id is a self-referencing composite FK (tenant_id, corrects_follow_up_id) references follow_ups (tenant_id, id) — a correction is a new row'
+);
 
 -- ---------------------------------------------------------------------------
 -- 43-45  ADR-039 / MNY-004: opened_on defaults to the IST-local calendar day,
