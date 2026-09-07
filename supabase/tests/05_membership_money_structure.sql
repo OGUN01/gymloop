@@ -18,7 +18,7 @@ begin;
 -- the owner role is assumed explicitly, never inherited from the connection.
 set local role postgres;
 
-select plan(39);
+select plan(40);
 
 -- ---------------------------------------------------------------------------
 -- The eleven tables of the cluster.
@@ -157,6 +157,30 @@ select has_column('public', 'razorpay_accounts', 'webhook_secret_vault_id',
   'PAY-005: razorpay_accounts references the webhook Vault entry instead');
 select col_type_is('public', 'razorpay_accounts', 'webhook_secret_vault_id', 'uuid',
   'PAY-005: webhook_secret_vault_id is a Vault secret id');
+
+-- ---------------------------------------------------------------------------
+-- spec "A member has at most one live membership" / ADR-047 — the live-
+-- membership key is tenant-scoped. A key on member_id alone lets one gym take
+-- the slot for another gym's member id and block it permanently, since Phase 1
+-- grants delete on nothing.
+-- ---------------------------------------------------------------------------
+
+select is(
+  (select count(*)
+     from pg_index i
+     join pg_class c on c.oid = i.indrelid
+     join pg_namespace n on n.oid = c.relnamespace
+     join pg_attribute a0 on a0.attrelid = i.indrelid and a0.attnum = i.indkey[0]
+     join pg_attribute a1 on a1.attrelid = i.indrelid and a1.attnum = i.indkey[1]
+    where n.nspname = 'public'
+      and c.relname = 'memberships'
+      and i.indisunique
+      and i.indpred is not null
+      and i.indnkeyatts = 2
+      and a0.attname = 'tenant_id'
+      and a1.attname = 'member_id'),
+  1::bigint,
+  'spec "A member has at most one live membership" (ADR-047): exactly one unique PARTIAL index on memberships, keyed on (tenant_id, member_id)');
 
 -- ---------------------------------------------------------------------------
 -- Tenancy shape (AGENTS.md rule 9, contract § Row-Level Security).

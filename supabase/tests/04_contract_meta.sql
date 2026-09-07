@@ -253,9 +253,10 @@ select is_empty(
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public' and c.relkind in ('r', 'p')
        and c.relname in ('attendance_corrections', 'follow_ups', 'consents',
-                         'audit_log', 'messaging_wallet_ledger', 'webhook_events')
+                         'messaging_wallet_ledger', 'webhook_events',
+                         'audit_log', 'messaging_wallets')
        and has_table_privilege('authenticated', c.oid, 'UPDATE')$$,
-  'spec "Attempting to alter an append-only row" / INT-001, NSH-007, DPD-004: the six append-only tables withhold update, checked for whichever of them exist yet'
+  'spec "Attempting to alter an append-only row" / INT-001, NSH-007, DPD-004: the five append-only tables and the two read-only ones (ADR-047: audit_log, messaging_wallets) withhold update, checked for whichever of them exist yet'
 );
 
 -- ---------------------------------------------------------------------------

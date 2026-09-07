@@ -13,7 +13,7 @@ begin;
 -- the owner role is assumed explicitly, never inherited from the connection.
 set local role postgres;
 
-select plan(30);
+select plan(32);
 
 -- ---------------------------------------------------------------------------
 -- Enums. Label order is part of the contract (docs/data-model.md, "Enums") —
@@ -102,7 +102,9 @@ select throws_ok(
 );
 
 -- ---------------------------------------------------------------------------
--- Requirement: An impersonation session always has a reason and an expiry.
+-- Requirement: An impersonation session always has a reason and an expiry,
+-- and (ADR-047) cannot record an end that precedes its start — the row is an
+-- eight-year legal-hold record of a support session.
 -- ---------------------------------------------------------------------------
 
 select lives_ok(
@@ -113,7 +115,7 @@ select lives_ok(
              'Billing dispute raised by the owner',
              timestamptz '2026-09-06 10:00:00+05:30',
              timestamptz '2026-09-06 11:00:00+05:30')$q$,
-  'an impersonation session with a reason and a later expiry is accepted (docs/security.md, Impersonation)'
+  'an impersonation session with a reason, a later expiry and a null ended_at is accepted (docs/security.md, Impersonation)'
 );
 
 select throws_ok(
@@ -136,6 +138,29 @@ select throws_ok(
              timestamptz '2026-09-06 10:00:00+05:30')$q$,
   '23514', null,
   'an impersonation session whose expiry is not after its start is rejected (spec: A session that never expires)'
+);
+
+select throws_ok(
+  $q$insert into public.impersonation_sessions (tenant_id, actor_user_id, reason, started_at, expires_at, ended_at)
+     values ('aaaaaaaa-0000-4000-8000-000000000001'::uuid,
+             'aaaaaaaa-0000-4000-8000-000000000005'::uuid,
+             'Session that ended before it began',
+             timestamptz '2026-09-06 10:00:00+05:30',
+             timestamptz '2026-09-06 11:00:00+05:30',
+             timestamptz '2026-09-06 09:59:00+05:30')$q$,
+  '23514', null,
+  'ADR-047: an impersonation session whose ended_at precedes its started_at is rejected (docs/security.md, Impersonation)'
+);
+
+select lives_ok(
+  $q$insert into public.impersonation_sessions (tenant_id, actor_user_id, reason, started_at, expires_at, ended_at)
+     values ('aaaaaaaa-0000-4000-8000-000000000001'::uuid,
+             'aaaaaaaa-0000-4000-8000-000000000005'::uuid,
+             'Support session closed early',
+             timestamptz '2026-09-06 10:00:00+05:30',
+             timestamptz '2026-09-06 11:00:00+05:30',
+             timestamptz '2026-09-06 10:30:00+05:30')$q$,
+  'ADR-047: an impersonation session ended after it started is accepted, and a null ended_at stays accepted (docs/security.md, Impersonation)'
 );
 
 -- ---------------------------------------------------------------------------

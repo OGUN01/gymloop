@@ -297,9 +297,12 @@ select lives_ok(
 
 -- ---------------------------------------------------------------------------
 -- 53-58  NSH-003 / NSH-004 made structural: at most one LIVE case per member,
---        enforced by the unique partial index over (member_id) where status in
---        ('open','contacted','follow_up_due'). A repeated scan run cannot open a
---        duplicate; a genuinely new case after the last one resolved still can.
+--        enforced by the unique partial index over (tenant_id, member_id) where
+--        status in ('open','contacted','follow_up_due') — tenant-scoped per
+--        ADR-047, so one gym cannot take the open-case slot for another gym's
+--        member and block that gym's daily scan for ever. A repeated scan run
+--        cannot open a duplicate; a genuinely new case after the last one
+--        resolved still can.
 -- ---------------------------------------------------------------------------
 
 select is(
@@ -307,15 +310,17 @@ select is(
      from pg_index i
      join pg_class c on c.oid = i.indrelid
      join pg_namespace n on n.oid = c.relnamespace
-     join pg_attribute a on a.attrelid = i.indrelid and a.attnum = i.indkey[0]
+     join pg_attribute a0 on a0.attrelid = i.indrelid and a0.attnum = i.indkey[0]
+     join pg_attribute a1 on a1.attrelid = i.indrelid and a1.attnum = i.indkey[1]
     where n.nspname = 'public'
       and c.relname = 'no_show_cases'
       and i.indisunique
       and i.indpred is not null
-      and i.indnkeyatts = 1
-      and a.attname = 'member_id'),
+      and i.indnkeyatts = 2
+      and a0.attname = 'tenant_id'
+      and a1.attname = 'member_id'),
   1::bigint,
-  'NSH-003/NSH-004: exactly one unique PARTIAL index keyed on member_id alone');
+  'NSH-003/NSH-004 (ADR-047): exactly one unique PARTIAL index, keyed on (tenant_id, member_id)');
 
 select throws_ok(
   $q$insert into public.no_show_cases (tenant_id, member_id, absent_days_at_open, threshold_days)

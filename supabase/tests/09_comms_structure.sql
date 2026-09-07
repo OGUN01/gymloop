@@ -20,7 +20,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(70);
+select plan(71);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures, inserted as the owner: the contract forbids `force row level
@@ -210,7 +210,7 @@ select throws_ok(
 );
 
 -- ---------------------------------------------------------------------------
--- 39-46. Uniqueness. PAY-002 is made structural here: the unique partial index
+-- 39-47. Uniqueness. PAY-002 is made structural here: the unique partial index
 -- on notifications (tenant_id, dedupe_key) where dedupe_key is not null is what
 -- stops a reminder job that runs twice from sending twice.
 -- ---------------------------------------------------------------------------
@@ -252,12 +252,19 @@ select lives_ok(
   'PAY-002: two notifications with a null dedupe key in the same gym are both accepted — the index is partial (spec scenario: ad-hoc messages with no key)'
 );
 
-select throws_ok(
+select lives_ok(
   $q$ insert into public.member_devices (tenant_id, member_id, platform, push_token)
       values ('b0000000-0000-4000-8000-000000000001'::uuid,
               'b0000000-0000-4000-8000-000000000004'::uuid, 'ios', 'tok-comms-structure-a1') $q$,
+  'comms (ADR-047): push_token is unique PER GYM, not globally — a member may belong to two gyms, so the same handset registered at a second gym is accepted (spec scenario: the same push token registered twice)'
+);
+
+select throws_ok(
+  $q$ insert into public.member_devices (tenant_id, member_id, platform, push_token)
+      values ('a0000000-0000-4000-8000-000000000001'::uuid,
+              'a0000000-0000-4000-8000-000000000004'::uuid, 'ios', 'tok-comms-structure-a1') $q$,
   '23505'::text, null::text,
-  'comms: push_token is unique GLOBALLY, not per gym — a token identifies one app install, so the same token at a second gym is the same device and is rejected (spec scenario: the same push token registered twice)'
+  'comms (ADR-047): the same push token registered twice within one gym is still rejected — (tenant_id, push_token) is unique'
 );
 
 select lives_ok(
@@ -275,7 +282,7 @@ select throws_ok(
 );
 
 -- ---------------------------------------------------------------------------
--- 47-51. Consent is per (member, purpose), append-only, and the two purposes
+-- 48-52. Consent is per (member, purpose), append-only, and the two purposes
 -- are independently withdrawable (INT-002, DPD-003, DPD-004). Current state is
 -- the latest row per (member, purpose), so there is deliberately NO unique
 -- constraint on (member_id, purpose) to violate.
@@ -322,7 +329,7 @@ select is(
 );
 
 -- ---------------------------------------------------------------------------
--- 52-62. Append-only is a privilege, not a trigger (contract: Privileges;
+-- 53-63. Append-only is a privilege, not a trigger (contract: Privileges;
 -- INT-001, DPD-004, and the same shape NSH-007 gives follow-ups). An
 -- insert-only grant cannot be forgotten in a code path the way a guard can.
 -- Asserted with the three-argument form so it does not depend on the session role.
@@ -381,7 +388,7 @@ set local role postgres;
 select set_config('request.jwt.claims', '', true);
 
 -- ---------------------------------------------------------------------------
--- 63-70. `updated_at` triggers exist on exactly the tables the list gives an
+-- 64-71. `updated_at` triggers exist on exactly the tables the list gives an
 -- `updated_at`, and on no others: "a table with no updated_at gets no trigger"
 -- (contract: Every table). consents and messaging_wallet_ledger are append-only
 -- and have neither.

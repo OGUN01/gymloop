@@ -15,7 +15,7 @@
 --   leads, member_imports        ordinary tenant-scoped tables
 --   platform_users              no tenant column at all, platform policy only
 --   impersonation_sessions      tenant policy is `for select` only
---   audit_log                   nullable tenant_id, append-only by privilege
+--   audit_log                   nullable tenant_id, read-only by privilege (ADR-047)
 --
 -- ADR-030: transaction-wrapped, never committed.
 
@@ -47,13 +47,13 @@ select ok(
 );
 
 select ok(
-  has_table_privilege('authenticated', 'public.audit_log', 'INSERT'),
-  'authenticated holds INSERT on audit_log (INT-003 storage is appendable)'
+  not has_table_privilege('authenticated', 'public.audit_log', 'INSERT'),
+  'authenticated holds no INSERT on audit_log — ADR-047 made it read-only, so a gym cannot forge a row naming a platform user as the actor; every audit write is service_role (INT-003)'
 );
 
 select ok(
   not has_table_privilege('authenticated', 'public.audit_log', 'UPDATE'),
-  'authenticated holds no UPDATE on audit_log — append-only is a privilege (spec: Editing an audit row)'
+  'authenticated holds no UPDATE on audit_log — ADR-047 made it read-only to authenticated, and the tier is a privilege, not a trigger (spec: Editing an audit row)'
 );
 
 select ok(

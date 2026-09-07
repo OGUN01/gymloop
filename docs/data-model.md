@@ -32,7 +32,7 @@ All identifiers lowercase `snake_case` and unquoted, so nothing ever needs quoti
 | primary key | auto-named `<table>_pkey` — never named by hand | `members_pkey` |
 | foreign key | declared inline on the column, auto-named `<table>_<column>_fkey` | `members_branch_id_fkey` |
 | unique (total) | table constraint `<table>_<columns>_key` | `plans_tenant_id_name_key` |
-| unique (partial) | `create unique index <table>_<columns>[_<qualifier>]_key` | `memberships_member_id_live_key` |
+| unique (partial) | `create unique index <table>_<columns>[_<qualifier>]_key` | `memberships_tenant_id_member_id_live_key` |
 | index | `create index <table>_<columns>[_<qualifier>]_idx` | `attendance_tenant_id_member_id_checked_in_at_idx` |
 | check | `<table>_<rule>_chk`, where `<rule>` is: `<column>_format` for a regex, `<column>` for a range or bound, and a short phrase for a multi-column rule | `organizations_gym_code_format_chk`, `plans_price_paise_chk`, `payments_paid_has_reference_chk` |
 | exclusion | `<table>_<rule>_excl` | `pt_sessions_trainer_overlap_excl` |
@@ -192,11 +192,12 @@ Three tiers, and the grant line is the whole difference:
 
 | Tier | Grant to `authenticated` | Tables |
 |---|---|---|
-| normal | `select, insert, update` | `organizations`, `organization_settings`, `branches`, `staff`, `members`, `plans`, `coupons`, `document_counters`, `razorpay_accounts`, `qr_sessions`, `organization_holidays`, `addon_products`, `pt_sessions`, `message_templates`, `notifications`, `member_devices`, `messaging_wallets`, `platform_users`, `leads`, `member_imports` |
-| append-only | `select, insert` | `attendance_corrections`, `follow_ups`, `consents`, `audit_log`, `messaging_wallet_ledger`, `webhook_events` |
+| normal | `select, insert, update` | `organizations`, `organization_settings`, `branches`, `staff`, `members`, `plans`, `coupons`, `document_counters`, `razorpay_accounts`, `qr_sessions`, `organization_holidays`, `addon_products`, `pt_sessions`, `message_templates`, `notifications`, `member_devices`, `platform_users`, `leads`, `member_imports` |
+| append-only | `select, insert` | `attendance_corrections`, `follow_ups`, `consents`, `messaging_wallet_ledger`, `webhook_events` |
+| read-only | `select` | `messaging_wallets`, `audit_log` — **ADR-047**. Both are records *about* the gym that the gym must not be able to write. A signed-in gym user holding `update` on `messaging_wallets` can set its own credit balance to any number, leaving no ledger row; a gym holding `insert` on `audit_log` can forge a row naming a platform user as the actor, and nobody can ever delete it. Neither has a v1 flow in which a user session writes it: the wallet's arithmetic and every audit write run on `service_role`, which is never revoked from. |
 | history | `select, insert, update` | `memberships`, `membership_pauses`, `payments`, `refunds`, `invoices`, `razorpay_mandates`, `attendance`, `no_show_cases`, `addon_orders`, `impersonation_sessions` |
 
-Append-only is a privilege, not a trigger: an insert-only grant cannot be forgotten in a code path the way a guard can. `webhook_events` is append-only for `authenticated` even though `processed_at` is stamped after insert — the stamp is written by the webhook Edge Function on `service_role`.
+Read-only and append-only are both privileges, not triggers: an insert-only grant cannot be forgotten in a code path the way a guard can. `webhook_events` is append-only for `authenticated` even though `processed_at` is stamped after insert — the stamp is written by the webhook Edge Function on `service_role`.
 
 `history` and `normal` carry the same grant today and are still named apart, because the missing `delete` means different things: on a history table it is permanent (INT-001 — cancel, refund, correct, never remove), on a normal table it is Phase 1's default. **`delete` is granted to `authenticated` on no table in Phase 1** — no v1 flow hard-deletes a row. A later phase that genuinely needs one adds the grant deliberately, per table, with the reason recorded in `docs/decisions.md`.
 
@@ -209,7 +210,7 @@ A pgTAP meta-test asserts the outcome rather than the syntax — `anon` holds no
 Three rules, all mechanically checkable, all asserted by a pgTAP meta-test over `pg_index` for every table in `public`:
 
 1. Every tenant-scoped table has at least one **non-partial** btree index whose **first column** is its tenant column. A composite leading with `tenant_id` satisfies it; a composite leading with anything else does not, and neither does a partial index — a policy predicate applies to every row, so an index that covers only some of them leaves the rest on a sequential scan. The primary key discharges the rule for `organizations` (`id`) and for the tenant-keyed tables whose key starts with `tenant_id`. Four tables in the list below enumerate indexes that do not include one: `attendance_corrections`, `follow_ups`, `consents` (no tenant-leading index at all) and `refunds` (only a partial unique one). The owning cluster adds `<table>_tenant_id_idx`, or extends an existing composite to lead with `tenant_id` where that serves a real query.
-2. Every foreign-key column is indexed: it either leads an index of its own, or it sits immediately after the tenant column in a tenant-leading composite — `(tenant_id, member_id, checked_in_at desc)` indexes `attendance.member_id`, and no separate one is added. The second form counts because every read here is tenant-scoped, and the referential-integrity scan a standalone index would serve happens only when a parent key is deleted or updated: Phase 1 grants `delete` nowhere, and a uuid key is never updated. Unlike rule 1, **rule 2 accepts a partial index** — `no_show_cases.member_id` leads only `(member_id) where status in (…)` and `members.user_id` sits only in `(tenant_id, user_id) where user_id is not null`, and both are sufficient, because the RI probe is `where <fk> = $1`, which implies the partial predicate, so the planner can use the index. The meta-test must encode this difference or it will fail four tables that are correct.
+2. Every foreign-key column is indexed: it either leads an index of its own, or it sits immediately after the tenant column in a tenant-leading composite — `(tenant_id, member_id, checked_in_at desc)` indexes `attendance.member_id`, and no separate one is added. The second form counts because every read here is tenant-scoped, and the referential-integrity scan a standalone index would serve happens only when a parent key is deleted or updated: Phase 1 grants `delete` nowhere, and a uuid key is never updated. Unlike rule 1, **rule 2 accepts a partial index** — `no_show_cases.member_id` sits immediately after `tenant_id` in the partial `(tenant_id, member_id) where status in (…)` (ADR-047 tenant-scoped it; it used to lead `(member_id) where status in (…)` alone) and `members.user_id` sits only in `(tenant_id, user_id) where user_id is not null`, and both are sufficient, because the RI probe is `where <fk> = $1`, which implies the partial predicate, so the planner can use the index. The meta-test must encode this difference or it will fail four tables that are correct.
 3. Every column appearing in an RLS policy predicate is indexed. With the template above that is the tenant column, so rule 1 discharges it; it is stated separately because it stops being automatic the moment a policy grows a second term.
 
 The meta-test iterates the catalogue, so it covers tables that do not exist yet as well as today's. A table that cannot satisfy all three is a schema bug; the exception is not negotiated with the test afterwards.
@@ -339,7 +340,7 @@ Column notation: `name type` then constraints; `→ table` is a foreign key; `�
 
 **`memberships`** — a member's paid period on a plan; a renewal is a new row linked by `renewal_of_membership_id`. Tenant path: direct.
 - `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `plan_id` → plans · `status membership_status =pending` · `starts_on date ∅` · `ends_on date ∅` · check `status = 'pending' or (starts_on is not null and ends_on is not null)` (DQA-001 made structural: only a pending row may lack an expiry) · check `ends_on >= starts_on` · `price_paise bigint` check ≥ 0 (snapshot of the plan price) · `discount_paise bigint =0` check ≥ 0 · `currency text =INR` · `coupon_id uuid ∅` → coupons · `renewal_of_membership_id uuid ∅` → memberships · `activated_at timestamptz ∅` · `cancelled_at timestamptz ∅` · `cancel_reason text ∅` · `created_at`, `updated_at`
-- Indexes: unique partial `(member_id) where status in ('active','frozen')` — at most one live membership per member; `(tenant_id, status, ends_on)` (expiry and reminder scans); `member_id`; `plan_id`; `coupon_id`; `renewal_of_membership_id`.
+- Indexes: unique partial `(tenant_id, member_id) where status in ('active','frozen')` — at most one live membership per member (**tenant-scoped, ADR-047**: a key without `tenant_id` lets one gym take the slot for another gym's member id and block it permanently); `(tenant_id, status, ends_on)` (expiry and reminder scans); `member_id`; `plan_id`; `coupon_id`; `renewal_of_membership_id`.
 - Privileges: no `delete` for `authenticated` (INT-001 — cancel, never delete).
 
 **`membership_pauses`** — approved freezes (STK-002, NSH-002). Tenant path: direct.
@@ -348,7 +349,7 @@ Column notation: `name type` then constraints; `→ table` is a foreign key; `�
 
 **`payments`** — one row per attempt to collect money, gateway or offline. The provider is the source of truth for `status` (PAY-006); a `created`/`pending` row is never `paid` (PAY-007). Tenant path: direct.
 - `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `membership_id uuid ∅` → memberships (what this payment buys; add-on orders point at payments from their side) · `mandate_id uuid ∅` → razorpay_mandates · `coupon_id uuid ∅` → coupons · `amount_paise bigint` check > 0 · `currency text =INR` · `status payment_status =created` · `method payment_method` · `provider text ∅` (`razorpay`) · `provider_order_id text ∅` · `provider_payment_id text ∅` · `receipt_number text ∅` · `recorded_by_staff_id uuid ∅` → staff · `idempotency_key text ∅` · `paid_at timestamptz ∅` · `failed_reason text ∅` · `notes text ∅` · `created_at`, `updated_at`
-- Checks: `status <> 'paid' or provider_payment_id is not null or receipt_number is not null` (DQA-002 made structural) · `method = 'razorpay' or recorded_by_staff_id is not null` (PAY-011: an offline payment carries staff attribution) · `method <> 'razorpay' or provider_order_id is not null`.
+- Checks: `provider_payment_id is null or provider is not null` (**ADR-047**: `provider` is nullable and sits *inside* `payments_tenant_id_provider_provider_payment_id_key`, and a unique index treats rows with a null key column as distinct — so without this check the duplicate-provider-reference guard never fires) · `status <> 'paid' or provider_payment_id is not null or receipt_number is not null` (DQA-002 made structural) · `method = 'razorpay' or recorded_by_staff_id is not null` (PAY-011: an offline payment carries staff attribution) · `method <> 'razorpay' or provider_order_id is not null`.
 - Indexes: unique `(tenant_id, provider, provider_payment_id) where provider_payment_id is not null`; unique `(tenant_id, receipt_number) where receipt_number is not null`; unique `(tenant_id, idempotency_key) where idempotency_key is not null`; `member_id`; `membership_id`; `mandate_id`; `coupon_id`; `recorded_by_staff_id`; `(tenant_id, status, created_at)`.
 - Privileges: no `delete` for `authenticated` (INT-001).
 
@@ -403,7 +404,7 @@ Column notation: `name type` then constraints; `→ table` is a foreign key; `�
 
 **`no_show_cases`** — opened by the daily scan when absence crosses the gym's threshold; exactly one live case per member (NSH-003/004). Tenant path: direct.
 - `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `status no_show_case_status =open` · `opened_on date =today_ist` · `last_attended_on date ∅` · `absent_days_at_open integer` check ≥ 0 · `threshold_days integer` check > 0 (snapshot of the setting) · `assigned_to_staff_id uuid ∅` → staff · `contacted_at timestamptz ∅` · `next_follow_up_at timestamptz ∅` · `returned_at timestamptz ∅` · `closed_at timestamptz ∅` · `created_at`, `updated_at`
-- Indexes: unique partial `(member_id) where status in ('open','contacted','follow_up_due')`; `(tenant_id, status)`; `assigned_to_staff_id`; `(tenant_id, next_follow_up_at) where status = 'follow_up_due'`.
+- Indexes: unique partial `(tenant_id, member_id) where status in ('open','contacted','follow_up_due')` (**tenant-scoped, ADR-047**); `(tenant_id, status)`; `assigned_to_staff_id`; `(tenant_id, next_follow_up_at) where status = 'follow_up_due'`.
 - Privileges: no `delete` for `authenticated` (INT-001: follow-up history, and the case that holds it, is kept).
 
 **`follow_ups`** — the contact log, append-only (NSH-007). A correction is a new row pointing at the one it corrects. Tenant path: direct.
@@ -426,7 +427,7 @@ Column notation: `name type` then constraints; `→ table` is a foreign key; `�
 
 **`pt_sessions`** — scheduled personal-training sessions; a trainer cannot be double-booked (DQA-005 as an exclusion constraint). Tenant path: direct.
 - `id uuid` pk · `tenant_id` → organizations · `addon_order_id` → addon_orders · `trainer_staff_id` → staff · `member_id` → members · `starts_at timestamptz` · `ends_at timestamptz` check > starts_at · `status pt_session_status =scheduled` · `notes text ∅` · `created_at`, `updated_at`
-- Constraints: `exclude using gist (trainer_staff_id with =, tstzrange(starts_at, ends_at) with &&) where (status in ('scheduled','completed'))` — needs `btree_gist`, created in this cluster's migration.
+- Constraints: `exclude using gist (tenant_id with =, trainer_staff_id with =, tstzrange(starts_at, ends_at) with &&) where (status in ('scheduled','completed'))` — the leading `tenant_id` term is **ADR-047**: without it a gym can fill another gym's trainer's calendar with rows that gym cannot see, read or delete — needs `btree_gist`, created in this cluster's migration.
 - Indexes: `addon_order_id`; `member_id`; `(tenant_id, trainer_staff_id, starts_at)`.
 
 ### Cluster: comms
@@ -440,8 +441,8 @@ Column notation: `name type` then constraints; `→ table` is a foreign key; `�
 - Indexes: unique `(tenant_id, dedupe_key) where dedupe_key is not null`; `(tenant_id, status, scheduled_for)`; `member_id`; `(related_type, related_id)`.
 
 **`member_devices`** — the devices a member has registered for push, ADR-016's v1 primary channel. A `notifications` row with no device to deliver to is a dead end, so this table exists in Phase 1 rather than arriving with a Phase 3 migration. Deliberately minimal: it carries no delivery-receipt state, which belongs on `notifications`. Tenant path: direct.
-- `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `platform text` check in (`ios`, `android`, `web`) · `push_token text` unique (globally — a token identifies one app install, so the same token at two gyms is the same device and must not be duplicated) · `last_seen_at timestamptz =now()` · `is_active boolean =true` · `created_at`, `updated_at`
-- Indexes: unique `(push_token)`; `(tenant_id, member_id)`.
+- `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `platform text` check in (`ios`, `android`, `web`) · `push_token text` unique **per gym** (ADR-047 reversed the global unique this line used to specify: a member may belong to two gyms, and a globally unique token means whichever gym registers the device first silently denies push at the other, permanently, since Phase 1 grants `delete` nowhere) · `last_seen_at timestamptz =now()` · `is_active boolean =true` · `created_at`, `updated_at`
+- Indexes: unique `(tenant_id, push_token)`; `(tenant_id, member_id)`.
 
 **`consents`** — versioned, append-only consent entries (DPD-002/003/004, INT-002). Current state = latest row per (member, purpose). Tenant path: direct.
 - `id uuid` pk · `tenant_id` → organizations · `member_id` → members · `purpose consent_purpose` · `granted boolean` · `version text` check ≠ '' · `source text` check ≠ '' · `recorded_at timestamptz =now()` · `recorded_by_staff_id uuid ∅` → staff
@@ -463,7 +464,7 @@ Column notation: `name type` then constraints; `→ table` is a foreign key; `�
 - RLS: only the platform-access policy; no tenant policy.
 
 **`impersonation_sessions`** — a platform user acting as a gym owner (`docs/security.md`, Impersonation). Tenant path: direct (the target gym).
-- `id uuid` pk · `tenant_id` → organizations · `actor_user_id uuid` → platform_users · `reason text` check ≠ '' · `started_at timestamptz =now()` · `expires_at timestamptz` check > started_at · `ended_at timestamptz ∅` · `created_at`
+- `id uuid` pk · `tenant_id` → organizations · `actor_user_id uuid` → platform_users · `reason text` check ≠ '' · `started_at timestamptz =now()` · `expires_at timestamptz` check > started_at · `ended_at timestamptz ∅` check `ended_at is null or ended_at >= started_at` (**ADR-047**) · `created_at`
 - Indexes: `actor_user_id`; `(tenant_id, started_at desc)`.
 - RLS: platform-access policy for everything; the tenant policy is **select only** (the gym can see who impersonated it and when).
 - Privileges: no `delete` for `authenticated` (INT-003 history).

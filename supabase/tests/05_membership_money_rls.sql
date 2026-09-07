@@ -34,7 +34,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(123);
+select plan(127);
 
 -- ===========================================================================
 -- Fixtures, inserted as the owner. The contract forbids `force row level
@@ -824,6 +824,73 @@ select throws_ok($$
           'Gym A Rupees Plan', 30, 100000, 'Rupees')
 $$, '23514'::char(5), null::text,
   'MNY-002: a currency of Rupees is rejected, per the spec scenario');
+
+-- ===========================================================================
+-- 124-127. ADR-047 — the two constraints the contract gained after the blind
+-- critics. Both are check/index shape, not policy, so they are asserted as the
+-- owner like the currency block above.
+--
+-- The live-membership key is (tenant_id, member_id): a second live membership
+-- inside one gym is still refused, and gym B naming gym A's member id — which
+-- the schema permits, since no foreign key re-checks the tenant (OPEN-008) —
+-- no longer takes the slot gym A needs for a member gym B cannot even see.
+--
+-- Its own member and its own live row, established here: the fixture member's
+-- membership has been through several status transitions by this point in the
+-- file, and `cancelled` sits outside the index predicate, so an assertion that
+-- leaned on it would be measuring file order rather than the key.
+-- ===========================================================================
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('a0000000-0000-4000-8000-0000000000e0', 'a0000000-0000-4000-8000-000000000001',
+   'a0000000-0000-4000-8000-000000000002', 'A Live Key Member', '+919000000003');
+
+insert into public.memberships
+  (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('a0000000-0000-4000-8000-0000000000e1', 'a0000000-0000-4000-8000-000000000001',
+   'a0000000-0000-4000-8000-0000000000e0', 'a0000000-0000-4000-8000-000000000005',
+   'active', date '2026-10-01', date '2026-10-31', 100000);
+
+select throws_ok($$
+  insert into public.memberships
+    (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+  values ('a0000000-0000-4000-8000-0000000000e2', 'a0000000-0000-4000-8000-000000000001',
+          'a0000000-0000-4000-8000-0000000000e0', 'a0000000-0000-4000-8000-000000000005',
+          'active', date '2026-11-01', date '2026-11-30', 100000)
+$$, '23505'::char(5), null::text,
+  'spec "A second active membership" (ADR-047): a second live membership for the same member in the same gym is rejected');
+
+select lives_ok($$
+  insert into public.memberships
+    (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+  values ('b0000000-0000-4000-8000-0000000000e2', 'b0000000-0000-4000-8000-000000000001',
+          'a0000000-0000-4000-8000-0000000000e0', 'b0000000-0000-4000-8000-000000000005',
+          'active', date '2026-11-01', date '2026-11-30', 100000)
+$$,
+  'spec "A member has at most one live membership" (ADR-047): the same member id live under a different tenant is accepted — the key is tenant-scoped, so gym B cannot block gym A''s member');
+
+-- payments: `provider` is nullable and sits inside the unique key on
+-- (tenant_id, provider, provider_payment_id), and a unique index treats rows
+-- with a null key column as distinct — so a provider reference without a
+-- provider names a duplicate the key would never catch.
+
+select throws_ok($$
+  insert into public.payments
+    (id, tenant_id, member_id, amount_paise, method, provider_order_id, provider_payment_id)
+  values ('a0000000-0000-4000-8000-0000000000d2', 'a0000000-0000-4000-8000-000000000001',
+          'a0000000-0000-4000-8000-000000000004', 100000, 'razorpay',
+          'order_mmrlsa_1', 'pay_mmrlsa_1')
+$$, '23514'::char(5), null::text,
+  'PAY-009 (ADR-047): a payment carrying a provider_payment_id with no provider is rejected');
+
+select lives_ok($$
+  insert into public.payments
+    (id, tenant_id, member_id, amount_paise, method, provider, provider_order_id, provider_payment_id)
+  values ('a0000000-0000-4000-8000-0000000000d3', 'a0000000-0000-4000-8000-000000000001',
+          'a0000000-0000-4000-8000-000000000004', 100000, 'razorpay', 'razorpay',
+          'order_mmrlsa_2', 'pay_mmrlsa_2')
+$$,
+  'PAY-009 (ADR-047): the same payment with provider set is accepted — the check bounds the null, it does not forbid the reference');
 
 select * from finish();
 

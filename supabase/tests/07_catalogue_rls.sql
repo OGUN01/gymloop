@@ -429,12 +429,13 @@ select lives_ok(
   'DQA-005 gap: pt_sessions.trainer_staff_id may point at another gym''s staff row; the policy checks only tenant_id'
 );
 
--- And the consequence: the exclusion constraint has no tenant term, so once a
--- Gym A row names a Gym B trainer it collides with that trainer's Gym B
--- bookings. The rejection is correct -- a person cannot be in two places --
--- but it reports the existence of an invisible row, so it is an oracle.
+-- And the consequence is bounded by ADR-047: the exclusion constraint leads
+-- with `tenant_id with =`, so a Gym A row naming a Gym B trainer cannot
+-- collide with that trainer's Gym B bookings. Gym A cannot fill a calendar it
+-- cannot see, and no 23P01 raised against an invisible row answers a question
+-- about Gym B.
 
-select throws_ok(
+select lives_ok(
   $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
                                      starts_at, ends_at)
      values ('a0000000-0000-4000-8000-000000000001'::uuid,
@@ -442,9 +443,7 @@ select throws_ok(
              'b0000000-0000-4000-8000-000000000003'::uuid,
              'a0000000-0000-4000-8000-000000000005'::uuid,
              timestamptz '2026-11-01 10:30:00+05:30', timestamptz '2026-11-01 11:30:00+05:30') $$,
-  '23P01'::char(5),
-  null,
-  'DQA-005: the trainer exclusion constraint has no tenant term, so a Gym A session overlapping Gym B''s booking for that trainer is rejected: correct, and an existence oracle'
+  'DQA-005 / ADR-047: the trainer exclusion constraint is tenant-scoped, so a Gym A session overlapping Gym B''s booking for that trainer is accepted, not rejected: no cross-tenant block and no existence oracle'
 );
 
 -- ---------------------------------------------------------------------------

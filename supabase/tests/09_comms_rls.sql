@@ -131,7 +131,9 @@ select results_eq(
 -- filters, it does not raise. consents and messaging_wallet_ledger are omitted
 -- here on purpose: they are append-only, `authenticated` holds no UPDATE on them
 -- at all, so the refusal is a privilege error (42501) rather than a filtered
--- update, and 09_comms_structure.sql asserts it in that form.
+-- update, and 09_comms_structure.sql asserts it in that form. messaging_wallets
+-- is in the same position since ADR-047 made it read-only, so its assertion
+-- below is the privilege error, not a filtered update.
 
 with u as (
   update public.message_templates set body = 'cross-tenant write'
@@ -154,12 +156,12 @@ with u as (
 )
 select is(count(*), 0::bigint, 'gate 7: gym A updating gym B member_devices by pk affects zero rows') from u;
 
-with u as (
-  update public.messaging_wallets set balance_credits = 999
-   where tenant_id = 'b0000000-0000-4000-8000-000000000001'::uuid
-  returning 1
-)
-select is(count(*), 0::bigint, 'gate 7: gym A updating gym B messaging_wallets by pk affects zero rows') from u;
+select throws_ok(
+  $q$ update public.messaging_wallets set balance_credits = 999
+       where tenant_id = 'b0000000-0000-4000-8000-000000000001'::uuid $q$,
+  '42501'::text, null::text,
+  'gate 7 (ADR-047): gym A updating gym B messaging_wallets is refused for want of privilege — the wallet is read-only to authenticated, so the balance cannot be set by any gym session'
+);
 
 -- 11-16. insert of a row carrying Gym B's tenant_id raises 42501 — `with check`
 -- is what stops a caller writing into, or moving a row to, another tenant.
@@ -195,7 +197,7 @@ select throws_ok(
   $q$ insert into public.messaging_wallets (tenant_id, balance_credits)
       values ('b0000000-0000-4000-8000-000000000001'::uuid, 1) $q$,
   '42501'::text, null::text,
-  'gate 7: gym A inserting a messaging_wallets row for gym B is rejected by with check'
+  'gate 7 (ADR-047): gym A inserting a messaging_wallets row for gym B is rejected for want of privilege — the wallet is read-only to authenticated'
 );
 select throws_ok(
   $q$ insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason)
