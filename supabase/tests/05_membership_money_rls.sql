@@ -3,7 +3,7 @@
 -- Cluster: membership+money. Cross-tenant half — the leak matrix for all
 -- eleven tables this cluster owns, plus the privilege assertions that are
 -- specific to money and history: INT-001 (no delete, no truncate),
--- webhook_events append-only, PAY-005 (no credential column), and the
+-- webhook_events read-only (ADR-049), PAY-005 (no credential column), and the
 -- MNY-002 currency-format check.
 --
 -- The structural half lives in 05_membership_money_structure.sql (tables,
@@ -34,7 +34,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(127);
+select plan(136);
 
 -- ===========================================================================
 -- Fixtures, inserted as the owner. The contract forbids `force row level
@@ -183,11 +183,11 @@ select ok(not has_table_privilege('authenticated', 'public.razorpay_mandates', '
   'INT-001: authenticated holds no TRUNCATE on razorpay_mandates');
 
 select ok(not has_table_privilege('authenticated', 'public.webhook_events', 'UPDATE'),
-  'PAY-009: webhook_events is append-only for authenticated, so it holds no UPDATE');
+  'PAY-009 (ADR-049): webhook_events is read-only to authenticated, so it holds no UPDATE');
 select ok(has_table_privilege('authenticated', 'public.webhook_events', 'SELECT'),
-  'PAY-009: webhook_events is append-only for authenticated, so it holds SELECT');
-select ok(has_table_privilege('authenticated', 'public.webhook_events', 'INSERT'),
-  'PAY-009: webhook_events is append-only for authenticated, so it holds INSERT');
+  'PAY-009 (ADR-049): webhook_events is read-only to authenticated, so it holds SELECT and nothing else');
+select ok(not has_table_privilege('authenticated', 'public.webhook_events', 'INSERT'),
+  'ADR-049: webhook_events withholds INSERT from authenticated — signature_valid and payload are client-supplied, so an insert grant lets a gym write the record of a payment webhook it verified itself; only service_role writes this table');
 
 -- ===========================================================================
 -- 18-24. PAY-005 — no column can hold a raw card number or a raw UPI
@@ -297,6 +297,19 @@ select throws_ok($$
 $$, '42501'::char(5), null::text,
   'RLS tenancy isolation: memberships insert carrying gym B tenant_id is refused by with check');
 
+-- The other half of what `with check` is for, and the half nothing in this
+-- suite covered: "an authenticated user can insert a row into another tenant,
+-- OR MOVE ONE THERE" (docs/data-model.md, Row-Level Security). The row is gym
+-- A's own, so the USING clause admits it and the update is not filtered away;
+-- the NEW row carries gym B's tenant_id, so WITH CHECK fails and the statement
+-- RAISES 42501 rather than affecting zero rows. A policy written
+-- `with check (true)` beside a correct `using` would let this one succeed.
+select throws_ok($$
+  update public.memberships set tenant_id = 'b0000000-0000-4000-8000-000000000001'
+   where id = 'a0000000-0000-4000-8000-000000000007'::uuid
+$$, '42501'::char(5), null::text,
+  'RLS tenancy isolation: gym A moving its OWN memberships row into gym B raises 42501 from the with check — not a filtered zero-row update, because the row is visible to the caller and it is the new tenant_id that is refused');
+
 -- --- membership_pauses ----------------------------------------------------
 select results_eq(
   $$ select distinct tenant_id from public.membership_pauses $$,
@@ -358,9 +371,11 @@ $$, '42501'::char(5), null::text,
   'RLS tenancy isolation: refunds insert carrying gym B tenant_id is refused by with check');
 
 -- --- webhook_events -------------------------------------------------------
--- webhook_events is append-only for authenticated, so the cross-tenant update
--- is refused for want of privilege (42501) before RLS is ever consulted.
--- That is the correct outcome, and stricter than "affects zero rows".
+-- webhook_events is read-only to authenticated (ADR-049), so both the
+-- cross-tenant update and the cross-tenant insert are refused for want of
+-- privilege (42501) before RLS is ever consulted. That is the correct outcome,
+-- and stricter than "affects zero rows" or "rejected by with check" — but it
+-- also means neither of the two assertions below is evidence about RLS.
 select results_eq(
   $$ select distinct tenant_id from public.webhook_events $$,
   $$ values ('a0000000-0000-4000-8000-000000000001'::uuid) $$,
@@ -376,7 +391,7 @@ select throws_ok($$
   values ('b0000000-0000-4000-8000-0000000000f7', 'b0000000-0000-4000-8000-000000000001',
           'evt_mmrlsb_2', 'payment.captured', '{}'::jsonb, true)
 $$, '42501'::char(5), null::text,
-  'RLS tenancy isolation: webhook_events insert carrying gym B tenant_id is refused by with check');
+  'ADR-049: webhook_events insert carrying gym B tenant_id is refused for want of privilege — the table is read-only to authenticated, so the refusal never reaches the with check');
 
 -- --- invoices -------------------------------------------------------------
 select results_eq(
@@ -484,6 +499,17 @@ select throws_ok($$
    where id = 'a0000000-0000-4000-8000-00000000000b'::uuid
 $$, '42501'::char(5), null::text,
   'PAY-009: an authenticated caller updating webhook_events in its own tenant is refused for want of privilege');
+
+-- ADR-049: the refusal that matters is the one inside the caller's OWN tenant.
+-- A cross-tenant insert would be refused by the policy even with the grant in
+-- place; only this one shows the grant is gone, and it is the grant that stops
+-- a gym forging `signature_valid = true` for a webhook it never received.
+select throws_ok($$
+  insert into public.webhook_events (id, tenant_id, event_id, event_type, payload, signature_valid)
+  values ('a0000000-0000-4000-8000-0000000000fc', 'a0000000-0000-4000-8000-000000000001',
+          'evt_mmrlsa_forged', 'payment.captured', '{}'::jsonb, true)
+$$, '42501'::char(5), null::text,
+  'ADR-049: an authenticated caller inserting a webhook_events row in its own tenant is refused for want of privilege — a gym cannot forge the record of a payment webhook it verified itself');
 
 -- ===========================================================================
 -- 61-71. The platform branch (docs/security.md): super_admin sees across all
@@ -665,7 +691,7 @@ select throws_ok($$
   values ('b0000000-0000-4000-8000-0000000000f7', 'b0000000-0000-4000-8000-000000000001',
           'evt_mmrlsb_2', 'payment.captured', '{}'::jsonb, true)
 $$, '42501'::char(5), null::text,
-  'RLS tenancy isolation: webhook_events insert with no claims is refused');
+  'ADR-049: webhook_events insert with no claims is refused for want of privilege — read-only to authenticated whatever the claims say');
 
 select lives_ok($$ select 1 from public.invoices $$,
   'RLS tenancy isolation: invoices select with no claims does not raise');
@@ -869,6 +895,84 @@ select lives_ok($$
 $$,
   'spec "A member has at most one live membership" (ADR-047): the same member id live under a different tenant is accepted — the key is tenant-scoped, so gym B cannot block gym A''s member');
 
+-- The live-membership predicate is `status in ('active','frozen')`, and until
+-- now nothing in the suite read `frozen` at all: the structure test only asks
+-- that indpred is not null, and the collision above is active-against-active.
+-- An index declared `where status = 'active'` alone would pass both, and would
+-- let a member hold a frozen membership and an active one at the same time.
+-- So: the two statuses inside the predicate collide with each other, and the
+-- three outside it (pending, expired, cancelled) do not block a new live row.
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('a0000000-0000-4000-8000-0000000000b1', 'a0000000-0000-4000-8000-000000000001',
+   'a0000000-0000-4000-8000-000000000002', 'A Frozen Member',    '+919000000011'),
+  ('a0000000-0000-4000-8000-0000000000b2', 'a0000000-0000-4000-8000-000000000001',
+   'a0000000-0000-4000-8000-000000000002', 'A Expired Member',   '+919000000012'),
+  ('a0000000-0000-4000-8000-0000000000b3', 'a0000000-0000-4000-8000-000000000001',
+   'a0000000-0000-4000-8000-000000000002', 'A Cancelled Member', '+919000000013'),
+  ('a0000000-0000-4000-8000-0000000000b4', 'a0000000-0000-4000-8000-000000000001',
+   'a0000000-0000-4000-8000-000000000002', 'A Pending Member',   '+919000000014');
+
+insert into public.memberships
+  (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('a0000000-0000-4000-8000-0000000000b5', 'a0000000-0000-4000-8000-000000000001',
+   'a0000000-0000-4000-8000-0000000000b1', 'a0000000-0000-4000-8000-000000000005',
+   'frozen',    date '2026-10-01', date '2026-10-31', 100000),
+  ('a0000000-0000-4000-8000-0000000000b6', 'a0000000-0000-4000-8000-000000000001',
+   'a0000000-0000-4000-8000-0000000000b2', 'a0000000-0000-4000-8000-000000000005',
+   'expired',   date '2026-08-01', date '2026-08-31', 100000),
+  ('a0000000-0000-4000-8000-0000000000b7', 'a0000000-0000-4000-8000-000000000001',
+   'a0000000-0000-4000-8000-0000000000b3', 'a0000000-0000-4000-8000-000000000005',
+   'cancelled', date '2026-08-01', date '2026-08-31', 100000),
+  ('a0000000-0000-4000-8000-0000000000b8', 'a0000000-0000-4000-8000-000000000001',
+   'a0000000-0000-4000-8000-0000000000b4', 'a0000000-0000-4000-8000-000000000005',
+   'pending',   date '2026-12-01', date '2026-12-31', 100000);
+
+select throws_ok($$
+  insert into public.memberships
+    (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+  values ('a0000000-0000-4000-8000-0000000000d7', 'a0000000-0000-4000-8000-000000000001',
+          'a0000000-0000-4000-8000-0000000000e0', 'a0000000-0000-4000-8000-000000000005',
+          'frozen', date '2026-12-01', date '2026-12-31', 100000)
+$$, '23505'::char(5), null::text,
+  'spec "A member has at most one live membership": a FROZEN membership for a member who already holds an active one is rejected — frozen is inside the index predicate, which an index on active alone would not catch');
+
+select throws_ok($$
+  insert into public.memberships
+    (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+  values ('a0000000-0000-4000-8000-0000000000d8', 'a0000000-0000-4000-8000-000000000001',
+          'a0000000-0000-4000-8000-0000000000b1', 'a0000000-0000-4000-8000-000000000005',
+          'active', date '2026-12-01', date '2026-12-31', 100000)
+$$, '23505'::char(5), null::text,
+  'spec "A member has at most one live membership": an ACTIVE membership for a member who already holds a frozen one is rejected — the collision is symmetric across the two live statuses');
+
+select lives_ok($$
+  insert into public.memberships
+    (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+  values ('a0000000-0000-4000-8000-0000000000d9', 'a0000000-0000-4000-8000-000000000001',
+          'a0000000-0000-4000-8000-0000000000b2', 'a0000000-0000-4000-8000-000000000005',
+          'active', date '2026-12-01', date '2026-12-31', 100000)
+$$,
+  'spec "A member has at most one live membership": an expired membership sits outside the predicate, so a renewal for that member is accepted');
+
+select lives_ok($$
+  insert into public.memberships
+    (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+  values ('a0000000-0000-4000-8000-0000000000da', 'a0000000-0000-4000-8000-000000000001',
+          'a0000000-0000-4000-8000-0000000000b3', 'a0000000-0000-4000-8000-000000000005',
+          'active', date '2026-12-01', date '2026-12-31', 100000)
+$$,
+  'spec "A member has at most one live membership": a cancelled membership sits outside the predicate, so a fresh one for that member is accepted');
+
+select lives_ok($$
+  insert into public.memberships
+    (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+  values ('a0000000-0000-4000-8000-0000000000db', 'a0000000-0000-4000-8000-000000000001',
+          'a0000000-0000-4000-8000-0000000000b4', 'a0000000-0000-4000-8000-000000000005',
+          'active', date '2026-12-01', date '2026-12-31', 100000)
+$$,
+  'spec "A member has at most one live membership": a pending membership sits outside the predicate, so the activated row PAY-008 writes beside it is accepted');
+
 -- payments: `provider` is nullable and sits inside the unique key on
 -- (tenant_id, provider, provider_payment_id), and a unique index treats rows
 -- with a null key column as distinct — so a provider reference without a
@@ -891,6 +995,28 @@ select lives_ok($$
           'order_mmrlsa_2', 'pay_mmrlsa_2')
 $$,
   'PAY-009 (ADR-047): the same payment with provider set is accepted — the check bounds the null, it does not forbid the reference');
+
+-- ADR-049 — invoices.payment_id is unique PER GYM, `(tenant_id, payment_id)`,
+-- the fifth instance of the ADR-047 class. A global unique on this column lets
+-- gym A name gym B's payment id in its own invoice and take, permanently, the
+-- slot gym B needs: a 23505 against a row gym B cannot see, update or delete.
+-- Both halves are asserted, because only the pair distinguishes the two shapes.
+
+select throws_ok($$
+  insert into public.invoices
+    (id, tenant_id, payment_id, invoice_number, financial_year, buyer_name, taxable_paise, total_paise)
+  values ('a0000000-0000-4000-8000-0000000000e5', 'a0000000-0000-4000-8000-000000000001',
+          'a0000000-0000-4000-8000-000000000009', 'A/2026-27/9', '2026-27', 'A Member', 84746, 100000)
+$$, '23505'::char(5), null::text,
+  'ADR-049: invoicing the same payment twice inside one gym is rejected — the invoice_number is fresh, so (tenant_id, payment_id) is the only key that can raise');
+
+select lives_ok($$
+  insert into public.invoices
+    (id, tenant_id, payment_id, invoice_number, financial_year, buyer_name, taxable_paise, total_paise)
+  values ('b0000000-0000-4000-8000-0000000000e5', 'b0000000-0000-4000-8000-000000000001',
+          'a0000000-0000-4000-8000-000000000009', 'B/2026-27/9', '2026-27', 'B Member', 84746, 100000)
+$$,
+  'ADR-049: the same payment id under a different tenant is accepted — the key is tenant-scoped, so gym A''s invoice cannot deny gym B the slot for a payment id gym B cannot even see');
 
 select * from finish();
 

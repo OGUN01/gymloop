@@ -19,7 +19,7 @@ begin;
 -- the owner role is assumed explicitly, never inherited from the connection.
 set local role postgres;
 
-select plan(32);
+select plan(36);
 
 -- ---------------------------------------------------------------------------
 -- Two gyms, fully populated, inserted as the owner
@@ -174,6 +174,49 @@ select lives_ok(
 select lives_ok(
   $$update public.branches set name = 'hijacked' where tenant_id = '00000000-0000-4000-8000-0000000000b1'$$,
   'spec "Updating another tenant''s row": branches, filtered not raised'
+);
+
+-- organizations, organization_settings and staff all carry an UPDATE grant and
+-- had no cross-tenant update assertion at all, unlike branches and members. A
+-- policy filters an update, so the observable outcome is zero rows affected —
+-- counted here rather than only asserted not to raise, because "did not raise"
+-- is also what a successful hijack looks like.
+
+with attempt as (
+  update public.organizations set name = 'hijacked'
+   where id = '00000000-0000-4000-8000-0000000000b1'
+  returning 1
+)
+select is((select count(*) from attempt), 0::bigint,
+  'spec "Updating another tenant''s row": organizations compares id, so gym A updating gym B by primary key affects zero rows');
+
+with attempt as (
+  update public.organization_settings set city = 'hijacked'
+   where tenant_id = '00000000-0000-4000-8000-0000000000b1'
+  returning 1
+)
+select is((select count(*) from attempt), 0::bigint,
+  'spec "Updating another tenant''s row": organization_settings, keyed by tenant_id, affects zero rows');
+
+with attempt as (
+  update public.staff set full_name = 'hijacked'
+   where id = '00000000-0000-4000-8000-0000000000b3'
+  returning 1
+)
+select is((select count(*) from attempt), 0::bigint,
+  'spec "Updating another tenant''s row": staff, affects zero rows');
+
+-- The half of `with check` nothing in this suite covered: the contract says it
+-- stops a caller inserting a row into another tenant "or moving one there".
+-- The row below is gym A's own, so USING admits it and the update is not
+-- filtered away; the NEW row carries gym B's tenant_id, so WITH CHECK fails and
+-- the statement RAISES 42501 instead of affecting zero rows. A policy written
+-- `with check (true)` beside a correct `using` would let it through.
+select throws_ok(
+  $$update public.members set tenant_id = '00000000-0000-4000-8000-0000000000b1'
+     where id = '00000000-0000-4000-8000-0000000000a4'$$,
+  '42501', null,
+  'spec "Inserting a row labelled with another tenant": gym A moving its OWN member row into gym B raises 42501 from the with check — the row is visible to the caller, so this is not a filtered update'
 );
 
 select throws_ok(

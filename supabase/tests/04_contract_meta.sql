@@ -22,7 +22,7 @@ begin;
 -- the owner role is assumed explicitly, never inherited from the connection.
 set local role postgres;
 
-select plan(21);
+select plan(23);
 
 -- ---------------------------------------------------------------------------
 -- 1. Row-Level Security is on everywhere
@@ -114,12 +114,36 @@ select is_empty(
   'docs/data-model.md Row-Level Security: a gym may read who impersonated it and may not write that record'
 );
 
-select is_empty(
-  $$select p.polname::text collate "default" from pg_policy p
+-- The comparison below normalises `pg_get_expr` output -- the alias the
+-- deparser gives a scalar subquery, then whitespace, then parentheses, then
+-- case -- and compares the result with the contract predicate
+-- `id = (select app.current_tenant_id())` reduced the same way, which is
+-- `id=selectapp.current_tenant_id`. Parentheses go because whether the
+-- deparser wraps the whole expression is its business, not the policy's;
+-- nothing that differs from the contract predicate can normalise onto it,
+-- since the token sequence itself would have to match.
+--
+-- Asserted as a PRESENCE, not as the absence of an offending row: an
+-- is_empty() over `polname = ... and <the predicate looks wrong>` is satisfied
+-- by zero rows, so a renamed policy, a `using (true)` policy and a DROPPED
+-- policy all pass it. This form fails unless the policy exists and IS the
+-- contract's predicate, on both clauses.
+select ok(
+  exists (
+    select 1 from pg_policy p
      where p.polrelid = to_regclass('public.organizations')
        and p.polname = 'organizations_tenant_all'
-       and pg_get_expr(p.polqual, p.polrelid) ~ '\mtenant_id\M'$$,
-  'docs/data-model.md Row-Level Security: the organizations tenant policy compares id, being the tenant itself'
+       and p.polcmd = '*'
+       and lower(regexp_replace(regexp_replace(regexp_replace(
+             coalesce(pg_get_expr(p.polqual, p.polrelid), ''),
+             '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g'))
+           = 'id=selectapp.current_tenant_id'
+       and lower(regexp_replace(regexp_replace(regexp_replace(
+             coalesce(pg_get_expr(p.polwithcheck, p.polrelid), ''),
+             '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g'))
+           = 'id=selectapp.current_tenant_id'
+  ),
+  'docs/data-model.md Row-Level Security: organizations_tenant_all exists and IS `id = (select app.current_tenant_id())` on both using and with check, organizations being the tenant itself'
 );
 
 -- ---------------------------------------------------------------------------
@@ -127,24 +151,70 @@ select is_empty(
 --        `for all` policy, `to authenticated`, and no cross-table lookup
 -- ---------------------------------------------------------------------------
 
+-- The predicate itself, not a substring of it. `pg_get_expr` output and the
+-- contract's own text are put through the same normalisation (subquery alias,
+-- whitespace, parentheses, case) and compared for equality -- so
+-- `using (true)`, a second ORed term, a policy that reaches the claim without
+-- the accessor, and a policy that drops the `(select ...)` InitPlan wrapper
+-- all fail, none of which a `like '%current_tenant_id%'` can see.
 select is_empty(
-  $$select c.relname || '.' || p.polname
-      from pg_policy p
-      join pg_class c on c.oid = p.polrelid
-      join pg_namespace n on n.oid = c.relnamespace
-     where n.nspname = 'public'
-       and p.polname in (c.relname || '_tenant_all', c.relname || '_tenant_select')
-       and pg_get_expr(p.polqual, p.polrelid) not like '%current_tenant_id%'$$,
-  'ADR-032 / spec "The accessor reads the claim": every tenant policy reads the claim through the one accessor'
+  $$with pol as (
+      select c.relname::text as relname,
+             p.polname::text as polname,
+             pg_get_expr(p.polqual, p.polrelid) as actual,
+             case when p.polname = c.relname || '_platform_all'
+                    then '( SELECT app.is_platform() AS is_platform)'
+                  when c.relname = 'organizations'
+                    then '(id = ( SELECT app.current_tenant_id() AS current_tenant_id))'
+                  else '(tenant_id = ( SELECT app.current_tenant_id() AS current_tenant_id))'
+             end as canon
+        from pg_policy p
+        join pg_class c on c.oid = p.polrelid
+        join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public'
+         and p.polname in (c.relname || '_tenant_all',
+                           c.relname || '_tenant_select',
+                           c.relname || '_platform_all')
+    )
+    select relname || '.' || polname || ' using => ' || coalesce(actual, '<null>')
+      from pol
+     where lower(regexp_replace(regexp_replace(regexp_replace(coalesce(actual, ''),
+             '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g'))
+       is distinct from
+           lower(regexp_replace(regexp_replace(regexp_replace(canon,
+             '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g'))$$,
+  'ADR-032 / docs/data-model.md Row-Level Security: every policy USING clause equals the contract predicate exactly -- the tenant pair compares the tenant column to the one accessor, the platform pair is the is_platform() accessor, and nothing else is permitted'
 );
 
+-- `polwithcheck is not null` is not the rule. A policy written
+-- `for all using (tenant_id = ...) with check (true)` satisfies non-nullness
+-- and still permits a cross-tenant INSERT, and an UPDATE that moves the
+-- caller's own row into another tenant -- the exact pair the contract says
+-- `with check` exists to stop. So the predicate is compared, not its presence.
 select is_empty(
-  $$select c.relname || '.' || p.polname
-      from pg_policy p
-      join pg_class c on c.oid = p.polrelid
-      join pg_namespace n on n.oid = c.relnamespace
-     where n.nspname = 'public' and p.polcmd = '*' and p.polwithcheck is null$$,
-  'docs/data-model.md Row-Level Security: with check is not optional, or a caller can insert a row into another tenant'
+  $$with pol as (
+      select c.relname::text as relname,
+             p.polname::text as polname,
+             pg_get_expr(p.polwithcheck, p.polrelid) as actual,
+             case when p.polname = c.relname || '_platform_all'
+                    then '( SELECT app.is_platform() AS is_platform)'
+                  when c.relname = 'organizations'
+                    then '(id = ( SELECT app.current_tenant_id() AS current_tenant_id))'
+                  else '(tenant_id = ( SELECT app.current_tenant_id() AS current_tenant_id))'
+             end as canon
+        from pg_policy p
+        join pg_class c on c.oid = p.polrelid
+        join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public' and p.polcmd = '*'
+    )
+    select relname || '.' || polname || ' with check => ' || coalesce(actual, '<null>')
+      from pol
+     where lower(regexp_replace(regexp_replace(regexp_replace(coalesce(actual, ''),
+             '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g'))
+       is distinct from
+           lower(regexp_replace(regexp_replace(regexp_replace(canon,
+             '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g'))$$,
+  'docs/data-model.md Row-Level Security: on every `for all` policy the WITH CHECK predicate equals the USING predicate -- a null one, or a `true` one, lets a caller insert a row into another tenant or move one there'
 );
 
 select is_empty(
@@ -256,7 +326,44 @@ select is_empty(
                          'messaging_wallet_ledger', 'webhook_events',
                          'audit_log', 'messaging_wallets')
        and has_table_privilege('authenticated', c.oid, 'UPDATE')$$,
-  'spec "Attempting to alter an append-only row" / INT-001, NSH-007, DPD-004: the five append-only tables and the two read-only ones (ADR-047: audit_log, messaging_wallets) withhold update, checked for whichever of them exist yet'
+  'spec "Attempting to alter an append-only row" / INT-001, NSH-007, DPD-004: the three append-only tables (attendance_corrections, follow_ups, consents) and the four read-only ones (ADR-047: audit_log, messaging_wallets; ADR-049: messaging_wallet_ledger, webhook_events) withhold update, checked for whichever of them exist yet'
+);
+
+select is_empty(
+  $$select c.relname::text collate "default"
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relkind in ('r', 'p')
+       and c.relname in ('audit_log', 'messaging_wallets',
+                         'messaging_wallet_ledger', 'webhook_events')
+       and has_table_privilege('authenticated', c.oid, 'INSERT')$$,
+  'ADR-047 / ADR-049: the four read-only tables withhold INSERT as well as UPDATE -- the balance is the sum of the ledger, so a gym that may append a ledger row mints its own messaging credits, and a gym that may insert a webhook_events row forges the record of a payment it verified itself, signature_valid included'
+);
+
+-- ---------------------------------------------------------------------------
+-- The ADR-047 / ADR-049 class as a rule over the catalogue, rather than as a
+-- list of the five instances a human happened to find. A constraint ignores
+-- RLS, so a globally scoped unique or exclusion constraint lets one gym take a
+-- slot another gym needs, in a row that gym cannot see, update or delete
+-- (Phase 1 grants delete nowhere). Two keys are global on purpose and are
+-- named here; every other one, on every table this phase or a later one
+-- creates, must lead with the tenant column.
+-- ---------------------------------------------------------------------------
+
+select is_empty(
+  $$select ic.relname::text collate "default"
+      from pg_index i
+      join pg_class ic on ic.oid = i.indexrelid
+      join pg_class c on c.oid = i.indrelid
+      join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relkind in ('r', 'p')
+       and (i.indisunique or i.indisexclusion)
+       and not i.indisprimary
+       and c.relname <> 'platform_users'
+       and ic.relname not in ('organizations_gym_code_key', 'qr_sessions_token_hash_key')
+       and coalesce((select a.attname::text from pg_attribute a
+                      where a.attrelid = c.oid and a.attnum = i.indkey[0]), '')
+           <> case when c.relname = 'organizations' then 'id' else 'tenant_id' end$$,
+  'ADR-047 / ADR-049: every unique and exclusion constraint in public leads with the tenant column, bar the two the contract makes global on purpose (organizations.gym_code identifies a gym across the platform, qr_sessions.token_hash is a secret) -- the fifth instance, invoices (tenant_id, payment_id), was found by a human, and this assertion is what makes it the last one that has to be'
 );
 
 -- ---------------------------------------------------------------------------

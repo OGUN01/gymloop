@@ -20,7 +20,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(71);
+select plan(72);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures, inserted as the owner: the contract forbids `force row level
@@ -321,11 +321,22 @@ select is(
   'DPD-004: the earlier marketing row still exists after withdrawal — consent history is not deleted (spec scenario: withdrawing consent)'
 );
 
-select is(
-  (select granted from public.consents
-    where member_id = 'a0000000-0000-4000-8000-000000000004'::uuid and purpose = 'service'),
-  true,
-  'INT-002: withdrawing marketing consent left the service consent row unchanged (spec scenario: withdrawing one purpose leaves the other)'
+-- This assertion used to read the `service` row after inserting a `marketing`
+-- row and check that `service` was unchanged, which no schema can make fail.
+-- What INT-002 actually claims is about the DERIVED current state the contract
+-- defines — "current state = latest row per (member, purpose)" — so that is what
+-- is read: the marketing withdrawal is current for marketing and has not
+-- displaced the service grant. This does fail against a real defect, e.g. a
+-- recorded_at the writer cannot set (a trigger stamping it, or a generated
+-- column), which would make the two marketing rows unorderable and resolve the
+-- current marketing state back to `true`.
+select results_eq(
+  $q$ select distinct on (purpose) purpose::text collate "default" as purpose_text, granted
+        from public.consents
+       where member_id = 'a0000000-0000-4000-8000-000000000004'::uuid
+       order by purpose, recorded_at desc $q$,
+  $q$ values ('marketing'::text, false), ('service'::text, true) $q$,
+  'INT-002: current state is the latest row per (member, purpose) — marketing now reads withdrawn and service still reads granted (spec scenario: withdrawing one purpose leaves the other)'
 );
 
 -- ---------------------------------------------------------------------------
@@ -346,10 +357,10 @@ select ok(not has_table_privilege('authenticated', 'public.consents', 'DELETE'),
 
 select ok(has_table_privilege('authenticated', 'public.messaging_wallet_ledger', 'SELECT'),
   'comms: authenticated may read messaging_wallet_ledger');
-select ok(has_table_privilege('authenticated', 'public.messaging_wallet_ledger', 'INSERT'),
-  'comms: authenticated may append a messaging_wallet_ledger row');
+select ok(not has_table_privilege('authenticated', 'public.messaging_wallet_ledger', 'INSERT'),
+  'ADR-049: authenticated holds no INSERT on messaging_wallet_ledger — the contract says the balance IS the sum of the ledger, so an append grant would let a gym mint its own messaging credits and defeat ADR-047''s read-only wallet');
 select ok(not has_table_privilege('authenticated', 'public.messaging_wallet_ledger', 'UPDATE'),
-  'INT-001: authenticated holds no UPDATE on messaging_wallet_ledger — append-only');
+  'ADR-049: authenticated holds no UPDATE on messaging_wallet_ledger — read-only, not append-only');
 select ok(not has_table_privilege('authenticated', 'public.messaging_wallet_ledger', 'DELETE'),
   'INT-001: authenticated holds no DELETE on messaging_wallet_ledger — the balance is the sum of an unbroken ledger');
 
@@ -384,14 +395,25 @@ select throws_ok(
   'INT-001: an authenticated caller updating a ledger row in their own tenant is refused for want of privilege (spec scenario: editing the ledger)'
 );
 
+-- ADR-049, and the refusal that has to hold inside the caller's OWN tenant: a
+-- cross-tenant insert would be refused by the policy even with the grant still
+-- in place, so only this one shows the grant is gone. Without it the wallet
+-- being read-only buys nothing — the gym simply appends its own credit rows.
+select throws_ok(
+  $q$ insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason)
+      values ('a0000000-0000-4000-8000-000000000001'::uuid, 500, 'self-issued credits') $q$,
+  '42501'::text, null::text,
+  'ADR-049: an authenticated caller appending a ledger row in their own tenant is refused for want of privilege — the balance is the sum of the ledger, so this is the same hole ADR-047 closed on messaging_wallets'
+);
+
 set local role postgres;
 select set_config('request.jwt.claims', '', true);
 
 -- ---------------------------------------------------------------------------
 -- 64-71. `updated_at` triggers exist on exactly the tables the list gives an
 -- `updated_at`, and on no others: "a table with no updated_at gets no trigger"
--- (contract: Every table). consents and messaging_wallet_ledger are append-only
--- and have neither.
+-- (contract: Every table). consents is append-only and messaging_wallet_ledger
+-- is read-only (ADR-049); neither has an updated_at or a trigger.
 -- ---------------------------------------------------------------------------
 
 select has_trigger('public', 'message_templates', 'message_templates_touch_updated_at',

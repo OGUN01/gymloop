@@ -17,7 +17,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(39);
+select plan(40);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures for two gyms, inserted as postgres (owner, bypasses RLS — the
@@ -165,6 +165,18 @@ select lives_ok($$
   where id = 'b0000000-0000-4000-8000-000000000008'
 $$, 'RLS update — Gym A''s update of a Gym B organization_holidays row matches nothing rather than raising');
 
+-- The other direction, which nothing in the suite covered: not "reach into Gym
+-- B" but "push your own row out to Gym B". docs/data-model.md gives this as the
+-- second reason `with check` exists — a caller "can insert a row into another
+-- tenant, or move one there". The row is Gym A's, so the USING clause admits it
+-- and the update is not filtered to zero rows; the NEW row carries Gym B's
+-- tenant_id, so the WITH CHECK fails and the statement RAISES 42501.
+select throws_ok($$
+  update public.attendance set tenant_id = 'b0000000-0000-4000-8000-000000000001'
+  where id = 'a0000000-0000-4000-8000-000000000005'
+$$, '42501'::char(5), null,
+  'RLS update — Gym A moving its OWN attendance row into Gym B raises 42501 from the with check, rather than being filtered away');
+
 select throws_ok($$
   update public.attendance_corrections set reason = 'leaked'
   where id = 'b0000000-0000-4000-8000-000000000007'
@@ -205,9 +217,14 @@ select is(
   (select name from public.organization_holidays where id = 'b0000000-0000-4000-8000-000000000008'),
   'Republic Day B'::text, 'RLS update — Gym B''s organization_holidays row is untouched');
 
+-- This one follows a PRIVILEGE refusal (attendance_corrections is append-only,
+-- so the update above raised 42501 before RLS was consulted), not a filtered
+-- update. It therefore proves that the refused statement left no trace — it is
+-- not, and must not be read as, evidence about the policy.
 select is(
   (select reason from public.attendance_corrections where id = 'b0000000-0000-4000-8000-000000000007'),
-  'gym B reason'::text, 'RLS update — Gym B''s attendance_corrections row is untouched');
+  'gym B reason'::text,
+  'INT-001 — the refused append-only update left Gym B''s attendance_corrections row untouched (the refusal was for want of privilege, not by RLS)');
 
 -- ---------------------------------------------------------------------------
 -- The platform branch: `super_admin` crosses tenants by policy, not by

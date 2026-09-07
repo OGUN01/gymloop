@@ -19,7 +19,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(29);
+select plan(30);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures for two gyms, inserted as the owner: RLS does not apply to the table
@@ -90,6 +90,19 @@ select is(
   (select count(*) from attempted),
   0::bigint,
   'NSH-003: gym A updating gym B''s case by primary key affects zero rows');
+
+-- And the move outward, which "affects zero rows" cannot see. The contract gives
+-- this as the second reason `with check` exists: without it a caller can insert a
+-- row into another tenant "or move one there". Gym A's own case is visible to the
+-- USING clause, so the update is not filtered; the new tenant_id is gym B's, so
+-- the WITH CHECK fails and the statement RAISES 42501. The case is `closed`, which
+-- is outside the live-case index predicate, so no unique key can raise first.
+select throws_ok(
+  $q$update public.no_show_cases
+        set tenant_id = 'b0000000-0000-4000-8000-000000000001'::uuid
+      where id = 'a0000000-0000-4000-8000-000000000020'::uuid$q$,
+  '42501', null,
+  'NSH-003: gym A moving its OWN case into gym B raises 42501 from the with check, rather than being filtered to zero rows');
 
 -- follow_ups is append-only, so an update is refused for want of privilege
 -- before RLS is ever consulted — cross-tenant and own-tenant alike.
@@ -300,11 +313,15 @@ select is(
   'open',
   'NSH-003: gym B''s case is still open — gym A''s update reached nothing');
 
+-- This follows a PRIVILEGE refusal: `authenticated` holds DELETE on nothing, so
+-- gym A's delete raised 42501 before RLS was ever consulted. It proves the
+-- refused statement left no trace; it is not evidence about the policy, and the
+-- description says so rather than implying tenant isolation did the work.
 select is(
   (select count(*) from public.no_show_cases
     where id = 'b0000000-0000-4000-8000-000000000020'::uuid),
   1::bigint,
-  'INT-001: gym B''s case is still present after gym A''s delete attempt');
+  'INT-001: gym B''s case survived gym A''s delete attempt, which was refused for want of privilege — no DELETE is granted to authenticated on any table');
 
 select is(
   (select count(*) from public.follow_ups

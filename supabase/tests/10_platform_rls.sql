@@ -27,7 +27,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(39);
+select plan(40);
 
 -- ---------------------------------------------------------------------------
 -- Privileges. Asserted with the three-argument form so the result does not
@@ -210,6 +210,18 @@ with crossed as (
 select is(
   (select count(*) from crossed), 0::bigint,
   'as gym A, updating a gym B lead affects zero rows — a policy filters, it does not raise (gate 7)'
+);
+
+-- The move outward, which zero-rows cannot see. docs/data-model.md gives it as
+-- the second reason `with check` is not optional: without it a caller can insert
+-- a row into another tenant "or move one there". Gym A's own lead is admitted by
+-- the USING clause, so this update is not filtered; the new tenant_id is gym B's,
+-- so the WITH CHECK fails and the statement RAISES 42501.
+select throws_ok(
+  $q$update public.leads set tenant_id = 'b0000000-0000-4000-8000-000000000001'::uuid
+      where id = 'a0000000-0000-4000-8000-000000000007'::uuid$q$,
+  '42501', null,
+  'as gym A, moving its OWN lead into gym B raises 42501 from the with check rather than affecting zero rows (gate 7)'
 );
 
 select throws_ok(

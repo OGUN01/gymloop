@@ -29,7 +29,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(36);
+select plan(37);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures, inserted as postgres. It owns these tables and the contract
@@ -171,6 +171,19 @@ select is(
   (select count(*) from leaked),
   0::bigint,
   'catalogue RLS: updating Gym B''s pt_sessions row by primary key as Gym A affects zero rows'
+);
+
+-- The reverse move, which the three assertions above cannot see: docs/data-model.md
+-- says `with check` exists because without it a caller "can insert a row into
+-- another tenant, OR MOVE ONE THERE". This row is Gym A's own, so the USING
+-- clause admits it and the update is not filtered to zero rows; the new
+-- tenant_id is Gym B's, so the WITH CHECK fails and the statement RAISES 42501.
+select throws_ok(
+  $$ update public.addon_orders set tenant_id = 'b0000000-0000-4000-8000-000000000001'::uuid
+      where id = 'a0000000-0000-4000-8000-000000000007'::uuid $$,
+  '42501'::char(5),
+  null,
+  'catalogue RLS: Gym A moving its OWN addon_orders row into Gym B raises 42501 from the with check — a filtered update would have affected zero rows instead'
 );
 
 -- insert: a failing `with check` does raise, 42501. Every row below is

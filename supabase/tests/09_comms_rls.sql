@@ -20,7 +20,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(60);
+select plan(61);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures for two gyms, inserted as the owner: the contract forbids `force row
@@ -128,12 +128,13 @@ select results_eq(
 );
 
 -- 7-10. update of Gym B's row by primary key affects zero rows — the policy
--- filters, it does not raise. consents and messaging_wallet_ledger are omitted
--- here on purpose: they are append-only, `authenticated` holds no UPDATE on them
--- at all, so the refusal is a privilege error (42501) rather than a filtered
--- update, and 09_comms_structure.sql asserts it in that form. messaging_wallets
--- is in the same position since ADR-047 made it read-only, so its assertion
--- below is the privilege error, not a filtered update.
+-- filters, it does not raise. consents is omitted here on purpose: it is
+-- append-only, `authenticated` holds no UPDATE on it at all, so the refusal is a
+-- privilege error (42501) rather than a filtered update, and
+-- 09_comms_structure.sql asserts it in that form. messaging_wallets and
+-- messaging_wallet_ledger are in the same position — read-only to
+-- `authenticated` since ADR-047 and ADR-049 respectively — so their assertions
+-- are privilege errors, not filtered updates.
 
 with u as (
   update public.message_templates set body = 'cross-tenant write'
@@ -155,6 +156,20 @@ with u as (
   returning 1
 )
 select is(count(*), 0::bigint, 'gate 7: gym A updating gym B member_devices by pk affects zero rows') from u;
+
+-- The move outward. docs/data-model.md gives this as the second reason `with
+-- check` exists: without it a caller can insert a row into another tenant "or
+-- move one there". Gym A's own notification is admitted by the USING clause, so
+-- the update is not filtered to zero rows; the new tenant_id is gym B's, so the
+-- WITH CHECK fails and the statement RAISES 42501. The dedupe key travels with
+-- the row and does not collide with gym B's, so the policy is the only thing
+-- that can refuse it.
+select throws_ok(
+  $q$ update public.notifications set tenant_id = 'b0000000-0000-4000-8000-000000000001'::uuid
+       where id = 'a0000000-0000-4000-8000-000000000006'::uuid $q$,
+  '42501'::text, null::text,
+  'gate 7: gym A moving its OWN notifications row into gym B raises 42501 from the with check, rather than being filtered away'
+);
 
 select throws_ok(
   $q$ update public.messaging_wallets set balance_credits = 999
@@ -203,7 +218,7 @@ select throws_ok(
   $q$ insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason)
       values ('b0000000-0000-4000-8000-000000000001'::uuid, -50, 'planted') $q$,
   '42501'::text, null::text,
-  'gate 7: gym A inserting a messaging_wallet_ledger row for gym B is rejected by with check'
+  'gate 7 (ADR-049): gym A inserting a messaging_wallet_ledger row for gym B is rejected for want of privilege — the ledger is read-only to authenticated, so the refusal never reaches the with check'
 );
 
 -- 17-22. delete of Gym B's row is refused for want of privilege — Phase 1 grants
@@ -434,10 +449,14 @@ select is(
   (select balance_credits from public.messaging_wallets where tenant_id = 'b0000000-0000-4000-8000-000000000001'::uuid),
   250::bigint,
   'gate 7: gym B messaging_wallets balance is unchanged');
+-- The next two follow PRIVILEGE refusals, not RLS filtering: `authenticated`
+-- holds DELETE on no table at all, so both deletes raised 42501 before any
+-- policy was consulted. They prove the refused statements left no trace; they
+-- are not evidence about tenant isolation, and say so.
 select is(
   (select count(*) from public.consents where id = 'b0000000-0000-4000-8000-000000000008'::uuid),
   1::bigint,
-  'DPD-004: gym B consent row is still in place after gym A tried to delete it');
+  'DPD-004/INT-001: gym B''s consent row survived gym A''s delete attempt, which was refused for want of privilege — no DELETE is granted on any table');
 select is(
   (select count(*) from public.messaging_wallet_ledger where id = 'b0000000-0000-4000-8000-000000000009'::uuid),
   1::bigint,

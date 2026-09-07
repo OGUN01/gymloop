@@ -58,11 +58,15 @@ THE SYSTEM SHALL hold message copy per organisation, keyed by template key, chan
 - **THEN** the write SHALL be rejected
 
 ### Requirement: A push notification has somewhere to go
-THE SYSTEM SHALL store the devices a member has registered for push (ADR-016's v1 primary channel), one row per push token, so a scheduled notification has a delivery target.
+THE SYSTEM SHALL store the devices a member has registered for push (ADR-016's v1 primary channel), one row per push token **per organisation** (ADR-047), so a scheduled notification has a delivery target and a member who belongs to two gyms can still be reached by both.
 
-#### Scenario: The same push token registered twice
-- **WHEN** a second device row is written with an existing push token
+#### Scenario: The same push token registered twice at the same gym
+- **WHEN** a second device row is written for the same organisation with an existing push token
 - **THEN** the write SHALL be rejected
+
+#### Scenario: The same push token registered at a second gym
+- **WHEN** the same push token is written for a different organisation
+- **THEN** the write SHALL succeed
 
 #### Scenario: A member with several devices
 - **WHEN** a second device row is written for the same member with a different push token
