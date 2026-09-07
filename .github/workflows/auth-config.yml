@@ -1,0 +1,103 @@
+name: Apply auth configuration
+
+# Enables the custom access-token hook and sets the access-token lifetime on the
+# Cloud project. Manual only, for the same reason the seed is (ADR-034): this is
+# configuration of a live project, not part of the forward-only migration stream.
+#
+# WHY NOT `supabase config push`, which exists in CLI 2.110.0 and is the obvious
+# tool: it pushes the WHOLE of supabase/config.toml — 414 lines of Supabase's
+# local-development defaults, including site_url = "http://127.0.0.1:3000", the
+# local SMTP block, and storage and realtime sections that have never been
+# reconciled against what this project actually has. There is no --dry-run.
+# Enabling one hook that way would silently set a production project's site URL
+# to localhost and break every email link. So this patches exactly three fields
+# and touches nothing else. supabase/config.toml carries the same three values as
+# the repo's record of the project — not as the mechanism that sets them.
+#
+# ORDERING: the hook must not be enabled before the migration that creates
+# app.custom_access_token_hook has been applied. A Postgres auth hook fails
+# closed — if Auth is pointed at a function that does not exist, token issuance
+# raises and NOBODY CAN SIGN IN. Run this only after db.yml's migrate job is
+# green for that migration. The step below checks the function exists first and
+# refuses to patch if it does not, so the ordering does not rest on memory.
+#
+#   gh workflow run auth-config.yml -R OGUN01/gymloop
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: db-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+  PROJECT_REF: pecxrpskmfeuyzngvewq
+  # pg-functions://<database>/<schema>/<function>. The schema is `app`, not
+  # `public`: config.toml exposes only public and graphql_public to the Data
+  # API and packages/db/types/database.ts is generated from public, so a hook
+  # in public would be a PostgREST RPC and a permanent schema-drift diff.
+  HOOK_URI: pg-functions://postgres/app/custom_access_token_hook
+  # 15 minutes. The default is 3600. This number is the ceiling on how long a
+  # revoked privilege keeps working: deactivating a user deletes their
+  # auth.sessions rows, which kills the refresh token, but the access token
+  # already in hand stays valid until it expires. The trade is that every
+  # refresh executes the hook, so this is a load decision as well as a security
+  # one — four refreshes per user per hour rather than one.
+  JWT_EXP: 900
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: supabase/setup-cli@v3
+        with: { version: 2.110.0 }
+      - run: supabase link --project-ref "$PROJECT_REF" --yes
+
+      - name: Refuse to enable a hook whose function does not exist
+        run: |
+          set -euo pipefail
+          supabase db query --linked \
+            "select count(*) as hook_exists from pg_proc p
+               join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'app'
+                and p.proname = 'custom_access_token_hook';" | tee /tmp/hook.json
+          grep -q '"hook_exists": 1' /tmp/hook.json || {
+            echo "::error::app.custom_access_token_hook does not exist on $PROJECT_REF."
+            echo "::error::Enabling the hook now would fail token issuance for every user."
+            echo "::error::Apply the migration first and wait for db.yml to be green."
+            exit 1
+          }
+
+      - name: Patch the three auth settings
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/auth.json -w '%{http_code}' \
+            -X PATCH "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"hook_custom_access_token_enabled\": true,
+                 \"hook_custom_access_token_uri\": \"$HOOK_URI\",
+                 \"jwt_exp\": $JWT_EXP}")
+          echo "HTTP $code"
+          # The response echoes the whole auth config, including secrets. Print
+          # only the three fields this workflow set.
+          python3 - <<'PY'
+          import json
+          d = json.load(open('/tmp/auth.json'))
+          if isinstance(d, dict) and 'message' in d and len(d) <= 2:
+              print('API said:', d['message'])
+          else:
+              for k in ('hook_custom_access_token_enabled',
+                        'hook_custom_access_token_uri', 'jwt_exp'):
+                  print(f'{k} = {d.get(k, "<absent>")}')
+          PY
+          # A known unknown, recorded rather than assumed away: an open Supabase
+          # issue reports this endpoint refusing a send_email hook with "Auth
+          # Hooks can only be configured on Team or Enterprise Plans", on a
+          # project where the Dashboard had already enabled it. Whether the same
+          # gate applies to hook_custom_access_token_* is not established. If
+          # that is the message above, the fallback is the Dashboard toggle done
+          # once by the owner and recorded — never a wholesale `config push`.
+          [ "$code" = "200" ]

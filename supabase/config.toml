@@ -162,7 +162,14 @@ site_url = "http://127.0.0.1:3000"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = ["https://127.0.0.1:3000"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
-jwt_expiry = 3600
+# Gymloop sets 15 minutes deliberately. Deactivating a user deletes their
+# auth.sessions rows, which kills the refresh token, but an access token already
+# issued stays valid until it expires -- so this number is the ceiling on how
+# long a revoked privilege keeps working. The cost is that every refresh runs
+# the access-token hook, four times an hour per user instead of once.
+# Applied to the Cloud project by .github/workflows/auth-config.yml, not by
+# `supabase config push` -- see the note on the hook stanza below.
+jwt_expiry = 900
 # JWT issuer URL. If not set, defaults to auth.external_url.
 # jwt_issuer = ""
 # Path to JWT signing key. DO NOT commit your signing keys file to git.
@@ -255,8 +262,13 @@ otp_expiry = 3600
 # content_path = "./templates/password_changed_notification.html"
 
 [auth.sms]
+# Members sign in by phone OTP; staff sign in by email. Enabled here as the
+# record of the intent -- but NOT exercisable end to end yet: no SMS provider
+# credential exists, so [auth.sms.twilio] below is still disabled and no OTP can
+# actually be delivered. That gap is named in the Phase 2 design rather than
+# discovered in Phase 3, and it closes when the owner supplies a provider.
 # Allow/disallow new user signups via SMS to your project.
-enable_signup = false
+enable_signup = true
 # If enabled, users need to confirm their phone number before signing in.
 enable_confirmations = false
 # Template for sending OTP to users
@@ -281,9 +293,24 @@ max_frequency = "5s"
 # uri = "pg-functions://postgres/auth/before-user-created-hook"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
-# [auth.hook.custom_access_token]
-# enabled = true
-# uri = "pg-functions://<database>/<schema>/<hook_name>"
+#
+# Gymloop's hook resolves a signed-in auth.users row to exactly one identity --
+# platform user, staff member, or gym member -- and stamps the claims every RLS
+# policy in the schema reads. The schema is `app`, not `public`: config.toml
+# exposes only public and graphql_public to the Data API and
+# packages/db/types/database.ts is generated from public, so a hook in public
+# would be a PostgREST RPC and a permanent schema-drift diff.
+#
+# THIS FILE IS THE RECORD, NOT THE MECHANISM. These values are applied to the
+# Cloud project by .github/workflows/auth-config.yml, which patches exactly
+# three fields of the Management API's auth config. Do NOT run
+# `supabase config push` to apply them: it pushes all 414 lines of this file,
+# including site_url = "http://127.0.0.1:3000" above, to a production project,
+# with no --dry-run. The other ~400 lines here have never been reconciled
+# against what the project actually has.
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/app/custom_access_token_hook"
 
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
 [auth.sms.twilio]

@@ -36,7 +36,7 @@ All identifiers lowercase `snake_case` and unquoted, so nothing ever needs quoti
 | index | `create index <table>_<columns>[_<qualifier>]_idx` | `attendance_tenant_id_member_id_checked_in_at_idx` |
 | check | `<table>_<rule>_chk`, where `<rule>` is: `<column>_format` for a regex, `<column>` for a range or bound, and a short phrase for a multi-column rule | `organizations_gym_code_format_chk`, `plans_price_paise_chk`, `payments_paid_has_reference_chk` |
 | exclusion | `<table>_<rule>_excl` | `pt_sessions_trainer_overlap_excl` |
-| policy | `<table>_tenant_all`, `<table>_platform_all`, `<table>_tenant_select` | `payments_tenant_all` |
+| policy | `<table>_<audience>_<command>`, where `<audience>` is `tenant`, `platform` or `member` and `<command>` is `select` or `write` | `payments_tenant_select`, `payments_tenant_write`, `payments_member_select` |
 | trigger | `<table>_touch_updated_at` | `members_touch_updated_at` |
 | migration file | `supabase migration new <cluster>` — never invent the timestamp | `20260906120000_tenancy.sql` |
 
@@ -176,6 +176,42 @@ create policy impersonation_sessions_tenant_select on public.impersonation_sessi
 with `impersonation_sessions_platform_all` beside it, unchanged from the template.
 
 Under a missing claim `app.current_tenant_id()` is null, `tenant_id = null` is null rather than true, and `app.is_platform()` is false; both permissive policies fail, they OR to false, and the query returns zero rows. Zero rows, not an error — a policy that raised would let a caller tell "nothing here" apart from "wrong tenant", and the pgTAP null-claim case asserts the silent-empty behaviour. The same arithmetic keeps `audit_log`'s null-`tenant_id` rows invisible to every gym without needing a second policy: `null = <uuid>` is null.
+
+### The role matrix (Phase 2)
+
+Phase 1 shipped one gym-side policy per table, `tenant_id = app.current_tenant_id()`, and nothing more — so every signed-in session read its whole gym. That was the recorded scope and it was `OPEN-013`. **Phase 2 replaces the template above with a role-gated pair of policies per table**, and the authoritative statement of which role may read and write which table is `openspec/specs/authorization/spec.md` together with its 36-row matrix. What follows is the shape; the matrix is the content.
+
+```sql
+create policy <t>_platform_select on public.<t>
+  for select to authenticated
+  using ((select app.is_platform()));
+
+create policy <t>_platform_write on public.<t>
+  for all to authenticated
+  using     ((select app.current_app_role()) = 'super_admin')
+  with check ((select app.current_app_role()) = 'super_admin');
+
+create policy <t>_tenant_select on public.<t>
+  for select to authenticated
+  using (tenant_id = (select app.current_tenant_id()) and <read gate>);
+
+create policy <t>_tenant_write on public.<t>
+  for all to authenticated
+  using     (tenant_id = (select app.current_tenant_id()) and <write gate>)
+  with check (tenant_id = (select app.current_tenant_id()) and <write gate>);
+
+create policy <t>_member_select on public.<t>   -- only where a member may read
+  for select to authenticated
+  using (tenant_id = (select app.current_tenant_id()) and <member gate>);
+```
+
+**Read and write are separate policies, and that is the whole point of the shape.** The obvious alternative — one `for all` policy carrying the read gate on `using` and the write gate on `with check` — does not produce the behaviour this document already specifies elsewhere. Under it, a caller who may read a table but not write it issues an `UPDATE`, `using` admits the row, `with check` rejects the new version, and Postgres raises `42501`. The RLS section above states the contrary rule in terms: *"Zero rows, not an error — a policy that raised would let a caller tell 'nothing here' apart from 'wrong tenant'."* Splitting the policies restores it: a refused `UPDATE` fails the write policy's `using` and affects zero rows, while a refused `INSERT` still raises, because an insert meets only a `with check` and there is no existing row for a `using` clause to filter. The two operations differ, deliberately, and the difference is testable.
+
+The write policy is `for all` rather than `for insert, update` because Postgres has no two-command policy form. Its `using` therefore also applies to `SELECT`; that is harmless, because permissive policies OR together and the write gate is a subset of the read gate on every row of the matrix, so reads still resolve to the read gate.
+
+**Four gates, and no fifth.** `app.current_app_role()` (which returns `text` and never casts, so an unrecognised role grants nothing anywhere rather than raising on some tables and not others), `app.is_staff()`, `app.is_gym_admin()`, `app.is_front_office()`. A table that seems to need a fifth distinct gate is evidence the table is wrong, not that the vocabulary is too small — v1 explicitly defers a per-permission role matrix, and inventing `app.can_do_x()` is how one gets built by accident.
+
+**Index rule 3 stops being automatic here.** It was discharged by rule 1 while `tenant_id` was the only policy term. Every `member_id` in the matrix is now a term of its own; each was checked against the live schema and each already had an index, so the matrix added none — but the rule is live from now on, and the next policy to grow a term carries an index obligation with it.
 
 ### Privileges
 

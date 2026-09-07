@@ -1,0 +1,80 @@
+name: Bootstrap the first platform user
+
+# OPEN-001's answer (see openspec/specs/identity, "The first platform account is
+# created once and never again"). Gym self-signup requires super-admin approval,
+# so the platform cannot bootstrap its own first admin through that flow — and
+# whatever does it must not become a general-purpose way to create admins later.
+#
+# The safety property is a `where not exists` inside the statement, not a check
+# in a script: once ANY platform_users row exists this workflow is permanently
+# inert, and a second dispatch is a no-op rather than a second admin. Every
+# platform account after the first is created by an existing super_admin through
+# platform_users_super_admin_write, which is auditable and revocable.
+#
+# It never creates an authentication identity. The person must already have
+# signed up through the ordinary email flow; this only labels an existing
+# auth.users row. If the email is not registered, the run inserts nothing and
+# says so.
+#
+#   gh workflow run bootstrap-platform-user.yml -R OGUN01/gymloop \
+#     -f email=someone@example.com -f full_name="Their Name"
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: The email of an already-registered auth user
+        required: true
+      full_name:
+        description: The name to record on the platform_users row
+        required: true
+
+# Same group as db.yml and seed.yml, so this can never run while a migration is
+# applying.
+concurrency:
+  group: db-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+  PROJECT_REF: pecxrpskmfeuyzngvewq
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: supabase/setup-cli@v3
+        with: { version: 2.110.0 }
+      - run: supabase link --project-ref "$PROJECT_REF" --yes
+
+      - name: Insert the first super_admin, if and only if there is none
+        env:
+          BOOTSTRAP_EMAIL: ${{ inputs.email }}
+          BOOTSTRAP_NAME: ${{ inputs.full_name }}
+        run: |
+          set -euo pipefail
+          # `supabase db query` runs through the Management API, not psql, so
+          # there are no :'var' bindings to bind an input to. The inputs are
+          # therefore escaped as SQL string literals the standard way — every
+          # single quote doubled — so a quote in an address stays inside the
+          # literal instead of ending it. standard_conforming_strings is on by
+          # default, so a backslash is literal too and needs no handling.
+          sql_literal() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/''/g")"; }
+          EMAIL_SQL="$(sql_literal "$BOOTSTRAP_EMAIL")"
+          NAME_SQL="$(sql_literal "$BOOTSTRAP_NAME")"
+
+          cat > /tmp/bootstrap.sql <<SQL
+          insert into public.platform_users (user_id, role, full_name, email)
+          select u.id, 'super_admin', $NAME_SQL, u.email
+          from auth.users u
+          where u.email = $EMAIL_SQL
+            and not exists (select 1 from public.platform_users);
+
+          select
+            (select count(*) from public.platform_users) as platform_users_now,
+            exists (select 1 from auth.users where email = $EMAIL_SQL)
+              as email_is_registered;
+          SQL
+
+          supabase db query --linked -f /tmp/bootstrap.sql
