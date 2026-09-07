@@ -261,22 +261,30 @@ select set_config(
 );
 set local role authenticated;
 
+-- Scoped to this file's two fixture tenants. The claim is that a platform role
+-- is NOT tenant-filtered — it reaches gym A AND gym B — which is provable
+-- against a table that also holds the demo seed's rows (ADR-034) and, later, a
+-- real gym's (OPEN-006). Unscoped, the assertion would be about how much data
+-- happens to be in the database.
 select results_eq(
-  $$ select id from public.addon_products order by id $$,
+  $$ select id from public.addon_products
+      where tenant_id in ('a0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001') order by id $$,
   $$ values ('a0000000-0000-4000-8000-000000000006'::uuid),
             ('b0000000-0000-4000-8000-000000000006'::uuid) $$,
   'catalogue RLS: a super_admin sees addon_products rows from both gyms'
 );
 
 select results_eq(
-  $$ select id from public.addon_orders order by id $$,
+  $$ select id from public.addon_orders
+      where tenant_id in ('a0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001') order by id $$,
   $$ values ('a0000000-0000-4000-8000-000000000007'::uuid),
             ('b0000000-0000-4000-8000-000000000007'::uuid) $$,
   'catalogue RLS: a super_admin sees addon_orders rows from both gyms'
 );
 
 select results_eq(
-  $$ select id from public.pt_sessions order by id $$,
+  $$ select id from public.pt_sessions
+      where tenant_id in ('a0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001') order by id $$,
   $$ values ('a0000000-0000-4000-8000-000000000008'::uuid),
             ('b0000000-0000-4000-8000-000000000008'::uuid) $$,
   'catalogue RLS: a super_admin sees pt_sessions rows from both gyms'

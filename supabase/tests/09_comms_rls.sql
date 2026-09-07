@@ -272,17 +272,35 @@ select set_config(
 );
 set local role authenticated;
 
-select is((select count(*) from public.message_templates), 2::bigint,
+-- Each count is scoped to this file's two fixture tenants. The claim is that a
+-- platform role is NOT tenant-filtered — two tenants come back where a gym
+-- session sees one — and that is provable against a table that also holds the
+-- demo seed's rows (ADR-034) and, later, a real gym's (OPEN-006). An unscoped
+-- count is an assertion about the size of the database, and raising it to
+-- today's number would be the same bug with a larger constant.
+select is((select count(*) from public.message_templates
+   where tenant_id in ('a0000000-0000-4000-8000-000000000001',
+                       'b0000000-0000-4000-8000-000000000001')), 2::bigint,
   'gate 7: a super_admin sees message_templates from both gyms');
-select is((select count(*) from public.notifications), 2::bigint,
+select is((select count(*) from public.notifications
+   where tenant_id in ('a0000000-0000-4000-8000-000000000001',
+                       'b0000000-0000-4000-8000-000000000001')), 2::bigint,
   'gate 7: a super_admin sees notifications from both gyms');
-select is((select count(*) from public.member_devices), 2::bigint,
+select is((select count(*) from public.member_devices
+   where tenant_id in ('a0000000-0000-4000-8000-000000000001',
+                       'b0000000-0000-4000-8000-000000000001')), 2::bigint,
   'gate 7: a super_admin sees member_devices from both gyms');
-select is((select count(*) from public.consents), 2::bigint,
+select is((select count(*) from public.consents
+   where tenant_id in ('a0000000-0000-4000-8000-000000000001',
+                       'b0000000-0000-4000-8000-000000000001')), 2::bigint,
   'gate 7: a super_admin sees consents from both gyms');
-select is((select count(*) from public.messaging_wallets), 2::bigint,
+select is((select count(*) from public.messaging_wallets
+   where tenant_id in ('a0000000-0000-4000-8000-000000000001',
+                       'b0000000-0000-4000-8000-000000000001')), 2::bigint,
   'gate 7: a super_admin sees messaging_wallets from both gyms');
-select is((select count(*) from public.messaging_wallet_ledger), 2::bigint,
+select is((select count(*) from public.messaging_wallet_ledger
+   where tenant_id in ('a0000000-0000-4000-8000-000000000001',
+                       'b0000000-0000-4000-8000-000000000001')), 2::bigint,
   'gate 7: a super_admin sees messaging_wallet_ledger from both gyms');
 
 set local role postgres;

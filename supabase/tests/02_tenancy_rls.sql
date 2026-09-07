@@ -303,14 +303,22 @@ select set_config(
 );
 set local role authenticated;
 
+-- Scoped to this file's two fixture tenants. The claim is that a platform role
+-- is NOT tenant-filtered — it sees gym A's rows and gym B's rows — and that is
+-- provable without assuming the database holds nothing else. The project also
+-- carries the demo seed (ADR-034) and will later carry a real gym's rows
+-- (OPEN-006), so an unscoped count asserts the size of the database rather than
+-- the reach of the policy.
 select is(
-  (select count(*) from public.organizations),
+  (select count(*) from public.organizations
+    where id in ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000b1')),
   2::bigint,
   'spec "A platform role reads every tenant": super_admin sees both gyms in organizations'
 );
 
 select is(
-  (select count(*) from public.members),
+  (select count(*) from public.members
+    where tenant_id in ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000b1')),
   2::bigint,
   'spec "A platform role reads every tenant": super_admin sees both gyms'' members'
 );
@@ -327,7 +335,8 @@ select set_config(
 set local role authenticated;
 
 select is(
-  (select count(*) from public.members),
+  (select count(*) from public.members
+    where tenant_id in ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000b1')),
   2::bigint,
   'spec "A platform role reads every tenant": platform_support is the second platform role'
 );

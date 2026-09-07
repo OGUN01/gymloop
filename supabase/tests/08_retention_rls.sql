@@ -200,14 +200,21 @@ select set_config(
 );
 set local role authenticated;
 
+-- Scoped to this file's two fixture tenants. What is under test is that a
+-- platform role is NOT tenant-filtered — both gyms come back, not one — and
+-- that holds whatever else the table contains. The project carries the demo
+-- seed (ADR-034) and will later carry a real gym's rows (OPEN-006), so an
+-- unscoped `distinct tenant_id` asserts the tenant count of the database.
 select results_eq(
-  'select distinct tenant_id from public.no_show_cases order by 1',
+  $q$select distinct tenant_id from public.no_show_cases
+      where tenant_id in ('a0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001') order by 1$q$,
   array['a0000000-0000-4000-8000-000000000001'::uuid,
         'b0000000-0000-4000-8000-000000000001'::uuid],
   'NSH-003: super_admin sees no_show_cases from both gyms');
 
 select results_eq(
-  'select distinct tenant_id from public.follow_ups order by 1',
+  $q$select distinct tenant_id from public.follow_ups
+      where tenant_id in ('a0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001') order by 1$q$,
   array['a0000000-0000-4000-8000-000000000001'::uuid,
         'b0000000-0000-4000-8000-000000000001'::uuid],
   'NSH-007: super_admin sees follow_ups from both gyms');
