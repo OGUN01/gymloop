@@ -121,7 +121,9 @@ Two halves, different mechanisms.
 
 **The residual window is real and must be written down**, not designed away: between the trigger firing and the current access token expiring, a deactivated user still holds valid claims. Any requirement claiming otherwise is false, and a test asserting otherwise is testing a fiction.
 
-**Verify before relying.** That a `security definer` function owned by `postgres` may delete from `auth.sessions` on this project is an assumption until it is replayed against Cloud inside `begin … rollback` (ADR-042). If it cannot, the fallback is recorded as an ADR — not improvised.
+**Verify before relying.** That a `security definer` function owned by `postgres` may delete from `auth.sessions` on this project is an assumption until it is replayed against Cloud inside `begin … rollback` (ADR-042). If it cannot, the fallback is recorded as an ADR — not improvised. *(Measured: `postgres` holds `DELETE` on `auth.sessions` and `rolbypassrls`, and `auth.refresh_tokens` cascades from `sessions(id)`, so deleting the session takes the refresh token with it. The mechanism is available.)*
+
+**One consequence §3 created and did not mention**, found by the implementer. `audit_log.actor_role` is `public.app_role`, but `app.current_app_role()` now returns `text` and casts nothing — so the role-change audit row needs a cast the accessor no longer performs. A plain `::public.app_role` would raise `22P02` on a forged claim, which would turn an audit write into a failed UPDATE and reintroduce exactly the failure mode §3 removed. **The cast must therefore be total**: resolve the label through the enum's own catalogue, so an unrecognised role records as `null` and nothing raises. Not through an inline list of the seven labels, which is a second role vocabulary and would drift — the same argument ADR-031 made when it deleted `ROLES` from `packages/shared`.
 
 ## 8. The role matrix
 
@@ -177,7 +179,7 @@ The cost is one extra policy per table — roughly 130 rather than 86. That is t
 ### 8.2 The four gates, and no fifth
 
 ```sql
-app.current_app_role()  -- public.app_role, null when the claim is absent
+app.current_app_role()  -- text, never cast; null when the claim is absent
 app.is_staff()          -- role in (gym_owner, gym_manager, front_desk, trainer)
 app.is_gym_admin()      -- role in (gym_owner, gym_manager)
 app.is_front_office()   -- role in (gym_owner, gym_manager, front_desk)  -- i.e. staff who are not trainers
@@ -230,7 +232,7 @@ Written as functions rather than inline role lists so that changing which roles 
 | `webhook_events` | `is_gym_admin()` | *(select-only policy)* | — |
 | `audit_log` | `is_gym_admin()` | *(select-only policy)* | — |
 | `impersonation_sessions` | `is_gym_admin()` | *(select-only policy)* | — |
-| `platform_users` | **no gym-side policy at all** | — | — |
+| `platform_users` | **no gym-side policy at all** — the platform pair only, unmodified | — | — |
 
 Thirty-six rows, one per table in `public`. **The four read-only tables plus `impersonation_sessions` carry `<t>_tenant_select` (`for select`) instead of `<t>_tenant_all`**, matching what `impersonation_sessions` already does and matching the naming convention's existing `<table>_tenant_select` entry. Their privilege grant already withholds insert and update (ADR-047/049); making the policy say the same thing removes a policy that permits what the grant denies, which is exactly the kind of contradiction a critic should find and here does not have to.
 
@@ -245,8 +247,8 @@ Thirty-six rows, one per table in `public`. **The four read-only tables plus `im
 - **`organization_settings` is not readable by members**, though it holds the gym's opening hours, because it also holds `gstin`, `trainer_member_cap` and every threshold the retention engine runs on. A member-facing subset belongs in a Route Handler or a view, not in a column-level grant.
 - **Members read no `staff` rows.** `staff` carries `phone`, `email` and `role` for every employee. **Named consequence:** ADD-002 requires a member to see a PT trainer's qualification before purchase, and this matrix makes that impossible to do by direct read. Phase 6 must serve it from a Route Handler. That is written here so Phase 6 finds it in the contract rather than discovering it in a failing test.
 - **`invoices`, `refunds` and `membership_pauses` have no member policy because they have no `member_id` column**, and the tenancy spec forbids a policy expression referencing any table but its own — so a member gate would have to be a join, which is not available. A member reading their own invoice goes through a Route Handler in Phase 5. **No column is added to these tables in Phase 2**; adding one to satisfy a policy is a schema change driven by an access-control convenience, and it should be argued on its own merits if Phase 5 wants it.
-- **The platform write side narrows to `super_admin`.** `<t>_platform_all` keeps `is_platform()` on `using` (support reads everything, which is its job) and takes `current_app_role() = 'super_admin'` on `with check`. Across all thirty-six tables that is what finally makes `platform_support` and `super_admin` different, and it costs one clause per table.
-- **`platform_users` splits in two.** `platform_users_super_admin_all` (`for all`, gated on `= 'super_admin'`) and `platform_users_support_select` (`for select`, gated on `= 'platform_support'`). Under Phase 1 a support account could update its own row to `super_admin`; this is the other half of OPEN-009 and the reason `platform_users` cannot simply inherit the narrowed template.
+- **The platform write side narrows to `super_admin`.** `<t>_platform_select` carries `is_platform()` — support reads everything, which is its job — and `<t>_platform_write` carries `current_app_role() = 'super_admin'`. Across all thirty-six tables that is what finally makes `platform_support` and `super_admin` different, and it costs one policy per table.
+- **`platform_users` needs no special case, and that is a change from this document's first draft.** It was going to take a bespoke pair, `platform_users_super_admin_all` and `platform_users_support_select`, because under Phase 1 a support account could update its own row to `super_admin` and the old single `_platform_all` policy could not express the difference. Once §8.1 split platform read from platform write, the bespoke pair became **identical in meaning to the template**: `_platform_select` on `is_platform()` lets support read the roster, `_platform_write` on `= 'super_admin'` stops it writing its own row. So `platform_users` carries the ordinary platform pair and no gym-side policy at all, and the schema is left with no policy named `_all` anywhere. The implementer noticed the leftover names and asked; the right answer was to delete the special case rather than rename it.
 
 ### 8.5 Members write nothing directly
 
