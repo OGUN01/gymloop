@@ -103,24 +103,24 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "addon_orders_addon_product_id_fkey"
-            columns: ["addon_product_id"]
+            columns: ["tenant_id", "addon_product_id"]
             isOneToOne: false
             referencedRelation: "addon_products"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "addon_orders_member_id_fkey"
-            columns: ["member_id"]
+            columns: ["tenant_id", "member_id"]
             isOneToOne: false
             referencedRelation: "members"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "addon_orders_payment_id_fkey"
-            columns: ["payment_id"]
+            columns: ["tenant_id", "payment_id"]
             isOneToOne: false
             referencedRelation: "payments"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "addon_orders_tenant_id_fkey"
@@ -131,10 +131,10 @@ export type Database = {
           },
           {
             foreignKeyName: "addon_orders_trainer_staff_id_fkey"
-            columns: ["trainer_staff_id"]
+            columns: ["tenant_id", "trainer_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
@@ -206,10 +206,10 @@ export type Database = {
           },
           {
             foreignKeyName: "addon_products_trainer_staff_id_fkey"
-            columns: ["trainer_staff_id"]
+            columns: ["tenant_id", "trainer_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
@@ -268,38 +268,38 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "attendance_assisted_by_staff_id_fkey"
-            columns: ["assisted_by_staff_id"]
+            columns: ["tenant_id", "assisted_by_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "attendance_branch_id_fkey"
-            columns: ["branch_id"]
+            columns: ["tenant_id", "branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "attendance_member_id_fkey"
-            columns: ["member_id"]
+            columns: ["tenant_id", "member_id"]
             isOneToOne: false
             referencedRelation: "members"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "attendance_membership_id_fkey"
-            columns: ["membership_id"]
+            columns: ["tenant_id", "membership_id"]
             isOneToOne: false
             referencedRelation: "memberships"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "attendance_qr_session_id_fkey"
-            columns: ["qr_session_id"]
+            columns: ["tenant_id", "qr_session_id"]
             isOneToOne: false
             referencedRelation: "qr_sessions"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "attendance_tenant_id_fkey"
@@ -344,17 +344,17 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "attendance_corrections_attendance_id_fkey"
-            columns: ["attendance_id"]
+            columns: ["tenant_id", "attendance_id"]
             isOneToOne: false
             referencedRelation: "attendance"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "attendance_corrections_corrected_by_staff_id_fkey"
-            columns: ["corrected_by_staff_id"]
+            columns: ["tenant_id", "corrected_by_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "attendance_corrections_tenant_id_fkey"
@@ -509,17 +509,17 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "consents_member_id_fkey"
-            columns: ["member_id"]
+            columns: ["tenant_id", "member_id"]
             isOneToOne: false
             referencedRelation: "members"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "consents_recorded_by_staff_id_fkey"
-            columns: ["recorded_by_staff_id"]
+            columns: ["tenant_id", "recorded_by_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "consents_tenant_id_fkey"
@@ -670,24 +670,24 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "follow_ups_case_id_fkey"
-            columns: ["case_id"]
+            columns: ["tenant_id", "case_id"]
             isOneToOne: false
             referencedRelation: "no_show_cases"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "follow_ups_corrects_follow_up_id_fkey"
-            columns: ["corrects_follow_up_id"]
+            columns: ["tenant_id", "corrects_follow_up_id"]
             isOneToOne: false
             referencedRelation: "follow_ups"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "follow_ups_staff_id_fkey"
-            columns: ["staff_id"]
+            columns: ["tenant_id", "staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "follow_ups_tenant_id_fkey"
@@ -816,10 +816,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "invoices_payment_id_fkey"
-            columns: ["payment_id"]
-            isOneToOne: false
+            columns: ["tenant_id", "payment_id"]
+            isOneToOne: true
             referencedRelation: "payments"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "invoices_tenant_id_fkey"
@@ -888,24 +888,24 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "leads_assigned_to_staff_id_fkey"
-            columns: ["assigned_to_staff_id"]
+            columns: ["tenant_id", "assigned_to_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "leads_branch_id_fkey"
-            columns: ["branch_id"]
+            columns: ["tenant_id", "branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "leads_converted_member_id_fkey"
-            columns: ["converted_member_id"]
+            columns: ["tenant_id", "converted_member_id"]
             isOneToOne: false
             referencedRelation: "members"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "leads_tenant_id_fkey"
@@ -953,10 +953,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "member_devices_member_id_fkey"
-            columns: ["member_id"]
+            columns: ["tenant_id", "member_id"]
             isOneToOne: false
             referencedRelation: "members"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "member_devices_tenant_id_fkey"
@@ -1020,10 +1020,10 @@ export type Database = {
           },
           {
             foreignKeyName: "member_imports_uploaded_by_staff_id_fkey"
-            columns: ["uploaded_by_staff_id"]
+            columns: ["tenant_id", "uploaded_by_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
@@ -1097,10 +1097,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "members_branch_id_fkey"
-            columns: ["branch_id"]
+            columns: ["tenant_id", "branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "members_tenant_id_fkey"
@@ -1157,24 +1157,24 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "membership_pauses_approved_by_staff_id_fkey"
-            columns: ["approved_by_staff_id"]
+            columns: ["tenant_id", "approved_by_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "membership_pauses_membership_id_fkey"
-            columns: ["membership_id"]
+            columns: ["tenant_id", "membership_id"]
             isOneToOne: false
             referencedRelation: "memberships"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "membership_pauses_requested_by_staff_id_fkey"
-            columns: ["requested_by_staff_id"]
+            columns: ["tenant_id", "requested_by_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "membership_pauses_tenant_id_fkey"
@@ -1246,31 +1246,31 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "memberships_coupon_id_fkey"
-            columns: ["coupon_id"]
+            columns: ["tenant_id", "coupon_id"]
             isOneToOne: false
             referencedRelation: "coupons"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "memberships_member_id_fkey"
-            columns: ["member_id"]
+            columns: ["tenant_id", "member_id"]
             isOneToOne: false
             referencedRelation: "members"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "memberships_plan_id_fkey"
-            columns: ["plan_id"]
+            columns: ["tenant_id", "plan_id"]
             isOneToOne: false
             referencedRelation: "plans"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "memberships_renewal_of_membership_id_fkey"
-            columns: ["renewal_of_membership_id"]
+            columns: ["tenant_id", "renewal_of_membership_id"]
             isOneToOne: false
             referencedRelation: "memberships"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "memberships_tenant_id_fkey"
@@ -1353,10 +1353,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "messaging_wallet_ledger_notification_id_fkey"
-            columns: ["notification_id"]
+            columns: ["tenant_id", "notification_id"]
             isOneToOne: false
             referencedRelation: "notifications"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "messaging_wallet_ledger_tenant_id_fkey"
@@ -1451,17 +1451,17 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "no_show_cases_assigned_to_staff_id_fkey"
-            columns: ["assigned_to_staff_id"]
+            columns: ["tenant_id", "assigned_to_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "no_show_cases_member_id_fkey"
-            columns: ["member_id"]
+            columns: ["tenant_id", "member_id"]
             isOneToOne: false
             referencedRelation: "members"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "no_show_cases_tenant_id_fkey"
@@ -1536,10 +1536,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "notifications_member_id_fkey"
-            columns: ["member_id"]
+            columns: ["tenant_id", "member_id"]
             isOneToOne: false
             referencedRelation: "members"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "notifications_tenant_id_fkey"
@@ -1795,38 +1795,38 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "payments_coupon_id_fkey"
-            columns: ["coupon_id"]
+            columns: ["tenant_id", "coupon_id"]
             isOneToOne: false
             referencedRelation: "coupons"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "payments_mandate_id_fkey"
-            columns: ["mandate_id"]
+            columns: ["tenant_id", "mandate_id"]
             isOneToOne: false
             referencedRelation: "razorpay_mandates"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "payments_member_id_fkey"
-            columns: ["member_id"]
+            columns: ["tenant_id", "member_id"]
             isOneToOne: false
             referencedRelation: "members"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "payments_membership_id_fkey"
-            columns: ["membership_id"]
+            columns: ["tenant_id", "membership_id"]
             isOneToOne: false
             referencedRelation: "memberships"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "payments_recorded_by_staff_id_fkey"
-            columns: ["recorded_by_staff_id"]
+            columns: ["tenant_id", "recorded_by_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "payments_tenant_id_fkey"
@@ -1966,17 +1966,17 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "pt_sessions_addon_order_id_fkey"
-            columns: ["addon_order_id"]
+            columns: ["tenant_id", "addon_order_id"]
             isOneToOne: false
             referencedRelation: "addon_orders"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "pt_sessions_member_id_fkey"
-            columns: ["member_id"]
+            columns: ["tenant_id", "member_id"]
             isOneToOne: false
             referencedRelation: "members"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "pt_sessions_tenant_id_fkey"
@@ -1987,10 +1987,10 @@ export type Database = {
           },
           {
             foreignKeyName: "pt_sessions_trainer_staff_id_fkey"
-            columns: ["trainer_staff_id"]
+            columns: ["tenant_id", "trainer_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
@@ -2031,17 +2031,17 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "qr_sessions_branch_id_fkey"
-            columns: ["branch_id"]
+            columns: ["tenant_id", "branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "qr_sessions_created_by_staff_id_fkey"
-            columns: ["created_by_staff_id"]
+            columns: ["tenant_id", "created_by_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "qr_sessions_tenant_id_fkey"
@@ -2151,10 +2151,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "razorpay_mandates_member_id_fkey"
-            columns: ["member_id"]
+            columns: ["tenant_id", "member_id"]
             isOneToOne: false
             referencedRelation: "members"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "razorpay_mandates_tenant_id_fkey"
@@ -2214,17 +2214,17 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "refunds_initiated_by_staff_id_fkey"
-            columns: ["initiated_by_staff_id"]
+            columns: ["tenant_id", "initiated_by_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "refunds_payment_id_fkey"
-            columns: ["payment_id"]
+            columns: ["tenant_id", "payment_id"]
             isOneToOne: false
             referencedRelation: "payments"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "refunds_tenant_id_fkey"
@@ -2284,10 +2284,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "staff_branch_id_fkey"
-            columns: ["branch_id"]
+            columns: ["tenant_id", "branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "staff_tenant_id_fkey"
