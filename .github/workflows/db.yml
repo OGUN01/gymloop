@@ -16,10 +16,14 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # The access token is enough: the CLI mints a temporary login role through
-  # the Management API (POST /v1/projects/{ref}/cli/login-role), so no DB
-  # password secret exists or is needed. Proven on PR #3.
+  # The access token alone does work — the CLI mints a temporary login role
+  # through the Management API (POST /v1/projects/{ref}/cli/login-role) — but
+  # that role has a connection ceiling around twenty, and `pg_prove` opens one
+  # connection per test file, so the tail of the suite would fail to connect
+  # at all (docs/decisions.md ADR-048). With the password set the CLI connects
+  # as `postgres` directly, on a stable credential, and the ceiling is gone.
   SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
   PROJECT_REF: pecxrpskmfeuyzngvewq
 
 jobs:
@@ -148,30 +152,9 @@ jobs:
         with: { version: 2.110.0 }
       - if: steps.check.outputs.run == 'true'
         run: supabase link --project-ref "$PROJECT_REF" --yes
-      # Split deliberately, and it is not cosmetic. `pg_prove` opens one
-      # connection per file, and the CLI authenticates each one as the
-      # temporary login role it mints through the Management API. Past
-      # roughly twenty connections in a burst the pooler starts answering
-      # `failed to retrieve database credentials` and then trips its circuit
-      # breaker, so the tail of the suite reports no result at all — which
-      # looks like a test failure and is not one (docs/decisions.md ADR-048).
-      # Three invocations with pauses between them stay under that ceiling.
-      # Two was not enough: run 34093344925 passed 17 of the 18 visible files
-      # and then could not open a connection for the 18th at all (Tests: 0,
-      # `EAUTHQUERY: unsupported or invalid secret format`), because 18 files
-      # plus the link is the boundary. Nine per invocation leaves margin.
-      # Every invocation must pass: any one failing fails the job, so this
-      # buys reliability without buying a weaker gate.
+      # One invocation again. It was split three ways while the CLI had to mint
+      # a temporary login role per connection (ADR-048); with a stable
+      # SUPABASE_DB_PASSWORD the CLI connects as `postgres` and the ceiling
+      # that forced the split is gone.
       - if: steps.check.outputs.run == 'true'
-        name: pgTAP — the visible suite, tenancy through attendance
-        run: supabase test db --linked supabase/tests/0[1-6]*.sql
-      - if: steps.check.outputs.run == 'true'
-        run: sleep 30
-      - if: steps.check.outputs.run == 'true'
-        name: pgTAP — the visible suite, catalogue through platform
-        run: supabase test db --linked supabase/tests/0[7-9]*.sql supabase/tests/10_*.sql
-      - if: steps.check.outputs.run == 'true'
-        run: sleep 30
-      - if: steps.check.outputs.run == 'true'
-        name: pgTAP — the holdout suite (AGENTS.md hard rule 10)
-        run: supabase test db --linked holdout/supabase/tests
+        run: supabase test db --linked ${{ steps.paths.outputs.dirs }}
