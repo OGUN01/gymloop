@@ -92,8 +92,11 @@ export function pageSizeFrom(limit: string | undefined, fallback: number, max: n
  * So a cursor's numeric part is checked against the column's real domain, not
  * against JavaScript's idea of a whole number.
  */
-export const INT4_MIN = -2147483648;
-export const INT4_MAX = 2147483647;
+// Module-local: `isInt4` is the export, these are how it decides. Exporting
+// them made `knip` right to complain — nothing outside this file needs the
+// bounds, only the question they answer.
+const INT4_MIN = -2147483648;
+const INT4_MAX = 2147483647;
 
 /** A value a Postgres `integer` column can hold, and render without an exponent. */
 export function isInt4(value: unknown): value is number {

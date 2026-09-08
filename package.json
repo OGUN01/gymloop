@@ -18,7 +18,8 @@
     "registry-lint": "node scripts/registry-lint.mjs",
     "check-test-immutability": "node scripts/check-test-immutability.mjs",
     "check-escape-hatches": "node scripts/check-escape-hatches.mjs",
-    "check-pgtap-rollback": "node scripts/check-pgtap-rollback.mjs"
+    "check-pgtap-rollback": "node scripts/check-pgtap-rollback.mjs",
+    "gates": "bash scripts/gates.sh"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
