@@ -42,7 +42,7 @@ begin;
 -- the owner role is assumed explicitly, never inherited from the connection.
 set local role postgres;
 
-select plan(28);
+select plan(35);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Five platform accounts, each in a different session state, so
@@ -87,7 +87,8 @@ insert into auth.users (id) values
   ('14000000-0000-4000-8000-0000000000a3'::uuid),
   ('14000000-0000-4000-8000-0000000000a4'::uuid),
   ('14000000-0000-4000-8000-0000000000a5'::uuid),
-  ('14000000-0000-4000-8000-0000000000a6'::uuid);
+  ('14000000-0000-4000-8000-0000000000a6'::uuid),
+  ('14000000-0000-4000-8000-0000000000a7'::uuid);
 
 insert into public.platform_users (user_id, role, full_name, email) values
   ('14000000-0000-4000-8000-0000000000a1'::uuid, 'super_admin',      'Live Actor',    'a1.14@gymloop.test'),
@@ -95,8 +96,33 @@ insert into public.platform_users (user_id, role, full_name, email) values
   ('14000000-0000-4000-8000-0000000000a3'::uuid, 'super_admin',      'Lapsed Actor',  'a3.14@gymloop.test'),
   ('14000000-0000-4000-8000-0000000000a4'::uuid, 'super_admin',      'Ended Actor',   'a4.14@gymloop.test'),
   ('14000000-0000-4000-8000-0000000000a5'::uuid, 'super_admin',      'Idle Actor',    'a5.14@gymloop.test'),
-  ('14000000-0000-4000-8000-0000000000a6'::uuid, 'super_admin',      'Other Actor',   'a6.14@gymloop.test');
+  ('14000000-0000-4000-8000-0000000000a6'::uuid, 'super_admin',      'Other Actor',   'a6.14@gymloop.test'),
+  ('14000000-0000-4000-8000-0000000000a7'::uuid, 'super_admin',      'Anchor Actor',  'a7.14@gymloop.test');
 
+-- THESE FIXTURES BACKDATE `started_at`, AND THEY HAVE TO.
+--
+-- Sessions 52 and 53 are EXPIRED: their expires_at is in the past. Inside a
+-- transaction that is the only way an expired session can exist at all --
+-- `now()` is the transaction timestamp and never advances, so a row inserted
+-- here with a future expiry stays live for the whole file no matter what else
+-- happens. Expiry is half of liveness and section 6 leans on it twice (the
+-- hook hands an expired session's actor back its super_admin token; a lapsed
+-- session leaves a start with no end), so losing the ability to write one
+-- loses that half everywhere.
+--
+-- The immutability trigger therefore clamps the anchor FORWARD ONLY --
+-- `least(coalesce(new.started_at, now()), now())` -- and not to `now()`
+-- unconditionally. A future anchor is the defect: it buys a session that is
+-- live for a decade. A past anchor is ordinary history, and forbidding it would
+-- take the backdated fixtures in this file, in 12, in 13 and in both 10_ files
+-- with it: clamped to now(), every one of those rows fails
+-- `impersonation_sessions_expires_at_after_started_at_chk` and the file aborts
+-- before its first assertion. The clamp that closes the hole does not need to
+-- reach the past to close it.
+--
+-- Assertion 10 asserts that directly, so this dependency is named rather than
+-- merely relied on: a file that aborts in its fixtures reports nothing at all,
+-- which is the worst signal a suite can give.
 insert into public.impersonation_sessions (id, tenant_id, actor_user_id, reason, started_at, expires_at, ended_at) values
   ('14000000-0000-4000-8000-000000000051'::uuid, '14000000-0000-4000-8000-000000000001'::uuid,
    '14000000-0000-4000-8000-0000000000a1'::uuid, 'billing dispute',
@@ -205,6 +231,86 @@ select is(
 );
 
 -- ---------------------------------------------------------------------------
+-- 7-10. The ANCHOR, which is where the hard TTL was open.
+--
+-- `impersonation_sessions_ttl_chk` bounds the SPAN, `started_at` to
+-- `expires_at`. It says nothing about where the span sits. So
+-- `started_at = now() + interval '10 years'` with
+-- `expires_at = started_at + interval '2 hours'` satisfies the TTL, satisfies
+-- `expires_at > started_at`, and is LIVE RIGHT NOW -- `ended_at is null and
+-- expires_at > now()` is true today and stays true for a decade. A bound on the
+-- length of a session is not a bound on the session. The anchor is corrected
+-- forward only: `least(coalesce(new.started_at, now()), now())`.
+--
+-- Four assertions, three scenarios, and the mapping is one-to-one:
+--
+--   7      a future anchor whose expiry is the maximum after IT is REFUSED,
+--          because the bound is measured from the corrected anchor and the span
+--          it then names is a decade
+--   8, 9   a future anchor whose expiry is within the maximum of the PRESENT is
+--          corrected and stored -- 8 that the row lands at all, 9 that the
+--          anchor it landed with is not in the future
+--   10     an already-expired session is writable, which is the case the
+--          backdated fixtures in this file, in 12, in 13 and in both 10_ files
+--          all depend on
+--
+-- 7 is the one to keep if only one could be kept. It is written as the LIVENESS
+-- property and not as a test of the stored column, because liveness is what
+-- failed: the row it offers carries a perfectly legal two-hour span, which is
+-- why both existing constraints and the liveness predicate all admitted it. A
+-- test that only read `started_at` back would pass against an implementation
+-- that clamps the column while leaving some other route to a decade-long live
+-- row.
+--
+-- All four run as the owner: the subject is the trigger, and inserting through
+-- a policy would add an actor term that has nothing to do with it.
+-- ---------------------------------------------------------------------------
+
+select throws_ok(
+  $$insert into public.impersonation_sessions (tenant_id, actor_user_id, reason, started_at, expires_at)
+    values ('14000000-0000-4000-8000-000000000001',
+            '14000000-0000-4000-8000-0000000000a7',
+            'live for a decade',
+            now() + interval '10 years',
+            now() + interval '10 years 2 hours')$$,
+  '23514', null,
+  'spec "A future anchor whose expiry is the maximum after it is refused": a session anchored ten years out cannot be live for ten years. The span the caller wrote is a legal two hours and the row is refused anyway, because the anchor is corrected to the time of writing before the constraint sees it -- so the span the TTL actually measures is the decade. This is the row the defect admitted: expires_at > started_at held, the TTL held, and `ended_at is null and expires_at > now()` held today and for the next ten years'
+);
+
+select lives_ok(
+  $$insert into public.impersonation_sessions (id, tenant_id, actor_user_id, reason, started_at, expires_at)
+    values ('14000000-0000-4000-8000-000000000058',
+            '14000000-0000-4000-8000-000000000001',
+            '14000000-0000-4000-8000-0000000000a7',
+            'anchored in the future, written now',
+            now() + interval '10 years',
+            now() + interval '1 hour')$$,
+  'spec "A future anchor with an expiry within the maximum of the present is corrected and stored": the expiry is ONE HOUR out -- measured from the present, not from the anchor the caller asked for -- which is what makes this row storable once the anchor is corrected. Under the defect the same row is REJECTED, because an expiry an hour away does not exceed a started_at a decade away. Assertion 7 offers the other shape and is refused; the two together are what distinguish correcting the anchor from refusing the row, and the spec says the stored value is the time of writing'
+);
+
+select is(
+  (select count(*) from public.impersonation_sessions
+    where id = '14000000-0000-4000-8000-000000000058'::uuid
+      and started_at <= now()),
+  1::bigint,
+  'spec "A future anchor with an expiry within the maximum of the present is corrected and stored", the stored half: the anchor is the time of writing, not the decade the caller asked for. Asserted as `<= now()` rather than `= now()` because the correction is forward-only -- `least(started_at, now())` -- so a caller who supplies a PAST anchor keeps it, and the requirement is only that nobody can place one in the future'
+);
+
+-- Actor a4, not a7: a7 now holds session 58 from the assertion above, and an
+-- expired session is still an OPEN one -- ended_at is null is what the unique
+-- index reads -- so a second row for a7 would collide with it and report the
+-- index rather than the trigger. a4's only session was ended long ago.
+select lives_ok(
+  $$insert into public.impersonation_sessions (tenant_id, actor_user_id, reason, started_at, expires_at)
+    values ('14000000-0000-4000-8000-000000000001',
+            '14000000-0000-4000-8000-0000000000a4',
+            'a session that has already lapsed',
+            now() - interval '3 hour',
+            now() - interval '2 hour')$$,
+  'spec "An already-expired session is writable": the correction is forward-only, so a past anchor is kept and a row that is already past its expiry can be written. This is not a convenience for tests -- inside a transaction `now()` never advances, so a backdated row is the ONLY way an expired session can exist, and expiry is half of liveness. Section 6 leans on that half twice: the hook hands an expired session''s actor back its super_admin token, and a lapsed session leaves a start with no matching end. A clamp written `:= now()` rather than `least(..., now())` would take this row, the two expired fixtures above, and the backdated fixtures in 12, 13 and both 10_ files with it'
+);
+
+-- ---------------------------------------------------------------------------
 -- WHICH CLAIM SETS THIS FILE MAY SET BY HAND, AND WHICH IT MAY NOT
 --
 -- Everything from here down sets `request.jwt.claims` directly, which is a
@@ -241,7 +347,7 @@ select is(
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
--- 7-11. Actor a5, holding no session, so `super_admin` is what the hook gives
+-- 11-15. Actor a5, holding no session, so `super_admin` is what the hook gives
 --       it. The bounded lifetime, the audit privilege, the actor term, and the
 --       create itself.
 -- ---------------------------------------------------------------------------
@@ -316,7 +422,7 @@ select is(
 set local role postgres;
 
 -- ---------------------------------------------------------------------------
--- 12-16. INSIDE session 55. From the instant it was created the hook gives a5
+-- 16-21. INSIDE session 55. From the instant it was created the hook gives a5
 --        `gym_owner`, the target tenant and the session id -- and never
 --        `super_admin` again until the session ends. These are the only claims
 --        a5 can hold now, so everything else a5 does is done through them.
@@ -353,7 +459,7 @@ select throws_ok(
             'a second gym at the same time',
             now() + interval '1 hour')$$,
   '42501', null,
-  'spec "A second live session": the actor cannot open a second one, and the refusal is RLS rather than the index -- while its first session is live it holds gym_owner, which _platform_write refuses, and _impersonator_write is `for update` and covers no insert at all. The index is the backstop for the case no policy can see, which is assertion 19'
+  'spec "A second live session": the actor cannot open a second one, and the refusal is RLS rather than the index -- while its first session is live it holds gym_owner, which _platform_write refuses, and _impersonator_write is `for update` and covers no insert at all. The index is the backstop for the case no policy can see, which is assertion 24'
 );
 
 with crossed as (
@@ -384,10 +490,27 @@ select is(
   'spec "The impersonator ends its own session": one row, and this is the assertion the fourth policy exists for. The previous version of this file asserted the same thing with a hand-set super_admin claim -- one the hook cannot mint while the session is live -- and so passed against a schema where ending was impossible for everybody'
 );
 
+-- The session is ended now, so `ended_at is not null` -- the one term the write
+-- policy checks -- is satisfied by every subsequent update. That is exactly
+-- when the immutability trigger has to carry the weight on its own, and it is
+-- why `returning` is used: an assertion that read the row back afterwards would
+-- pass identically against an update that affected NO rows, which is the
+-- vacuity this file has already been caught by once.
+with reopened as (
+  update public.impersonation_sessions
+     set expires_at = now() + interval '30 minutes'
+   where id = '14000000-0000-4000-8000-000000000055'::uuid
+  returning expires_at
+)
+select is(
+  (select count(*) from reopened where expires_at = now() + interval '2 hours'), 1::bigint,
+  'spec "A session is written once and then only ended": the update reaches the row -- one row, so this is not a filtered no-op -- and the expiry it tried to move is still the two hours the session was created with. Once ended_at is set, the with check clause stops discriminating, so from here on nothing but the trigger prevents an ended session being quietly reopened'
+);
+
 set local role postgres;
 
 -- ---------------------------------------------------------------------------
--- 17-18. Actor a5 again, and `super_admin` is mintable again BECAUSE the
+-- 22-23. Actor a5 again, and `super_admin` is mintable again BECAUSE the
 --        session above was ended. The order of this file is the claim contract.
 -- ---------------------------------------------------------------------------
 
@@ -423,7 +546,7 @@ select lives_ok(
 set local role postgres;
 
 -- ---------------------------------------------------------------------------
--- 19. Actor a3, whose only session EXPIRED without being ended. The hook gives
+-- 24. Actor a3, whose only session EXPIRED without being ended. The hook gives
 --     it super_admin, because expiry is half of liveness -- and the index still
 --     refuses a second, because `open` is the only half an index can express.
 -- ---------------------------------------------------------------------------
@@ -443,13 +566,13 @@ select throws_ok(
             'the lapsed actor tries again',
             now() + interval '1 hour')$$,
   '23505', null,
-  'design.md 6: a3''s session expired two hours ago and was never ended, so the hook treats it as not live and hands back super_admin (assertion 2) -- which is precisely why this insert reaches the index at all, where assertion 13''s could not. It is still refused, because the index predicate is `ended_at is null` and cannot mention now(). That is the stated trade: it forces an explicit end, which is what writes the end audit row'
+  'design.md 6: a3''s session expired two hours ago and was never ended, so the hook treats it as not live and hands back super_admin (assertion 2) -- which is precisely why this insert reaches the index at all, where assertion 17''s could not. It is still refused, because the index predicate is `ended_at is null` and cannot mention now(). That is the stated trade: it forces an explicit end, which is what writes the end audit row'
 );
 
 set local role postgres;
 
 -- ---------------------------------------------------------------------------
--- 20-23. The roles that may not create a session, and the two kinds of session
+-- 25-28. The roles that may not create a session, and the two kinds of session
 --        that may not end one.
 -- ---------------------------------------------------------------------------
 
@@ -507,7 +630,7 @@ select is(
 
 set local role postgres;
 
--- 23. A gym_manager claim carrying an impersonation_session_id.
+-- 28. A gym_manager claim carrying an impersonation_session_id.
 --
 -- THIS IS A TOKEN THE HOOK CANNOT MINT, deliberately. §3 gives
 -- impersonation_session_id only alongside app_role gym_owner, so the pair below
@@ -542,7 +665,7 @@ select is(
 set local role postgres;
 
 -- ---------------------------------------------------------------------------
--- 24. An EXPIRED session, ended by its own still-valid token.
+-- 29. An EXPIRED session, ended by its own still-valid token.
 --
 --     Deliberately not a hook-mintable claim set at this instant -- the hook
 --     would now give a3 super_admin, because the session is no longer live.
@@ -580,7 +703,66 @@ select is(
 set local role postgres;
 
 -- ---------------------------------------------------------------------------
--- 25-28. The token itself, as RLS sees it. These are the claims assertion 1
+-- 30-31. Ending a session WHILE RETARGETING IT, as the impersonator of session
+--        56 -- the second defect, and the one with no escalation in it at all.
+--
+--        `_impersonator_write` pinned `ended_at is not null` and nothing else,
+--        so one statement could end a session AND move it to another gym and
+--        rewrite why it existed. The audit trigger reads the NEW row, so the
+--        end row would land in a gym that was never impersonated, carrying a
+--        reason that was never given, while the gym actually impersonated kept
+--        a start row with no matching end. Nobody gains a privilege; the audit
+--        trail simply stops being true, which is the one thing INT-003 exists
+--        to prevent.
+--
+--        Two assertions, because they are two different claims: the first is
+--        the MECHANISM (the write lands, and the trigger put both columns
+--        back), the second is the REQUIREMENT (the end row names the gym that
+--        was actually impersonated). A test of the session row alone would be
+--        satisfied by an implementation that leaves the row alone and still
+--        audits from the values the caller supplied.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', '14000000-0000-4000-8000-0000000000a6', 'role', 'authenticated',
+                    'tenant_id', '14000000-0000-4000-8000-000000000002',
+                    'app_role', 'gym_owner',
+                    'impersonation_session_id', '14000000-0000-4000-8000-000000000056')::text,
+  true
+);
+set local role authenticated;
+
+with retargeted as (
+  update public.impersonation_sessions
+     set ended_at  = now(),
+         tenant_id = '14000000-0000-4000-8000-000000000001'::uuid,
+         reason    = 'a gym we never entered'
+   where id = '14000000-0000-4000-8000-000000000056'::uuid
+  returning tenant_id, reason
+)
+select is(
+  (select count(*) from retargeted
+    where tenant_id = '14000000-0000-4000-8000-000000000002'::uuid
+      and reason = 'a different actor, the same gym'),
+  1::bigint,
+  'spec "A session is written once and then only ended", the mechanism: the end lands -- one row, not a filtered no-op -- and both columns the statement tried to move come back unchanged. `returning` reads the row the trigger produced, so this cannot be satisfied by an update that quietly matched nothing'
+);
+
+select is(
+  (select count(*) from public.audit_log
+    where record_id = '14000000-0000-4000-8000-000000000056'::uuid
+      and action = 'impersonation_session.ended'
+      and tenant_id = '14000000-0000-4000-8000-000000000002'::uuid
+      and reason = 'a different actor, the same gym'),
+  1::bigint,
+  'spec "A session is written once and then only ended", the requirement: the end audit row names the gym that was actually impersonated and the reason actually given. This is the assertion that matters -- the session row being unchanged is how it is achieved, but an audit trail that says a gym was entered when it was not is the harm, and the trigger writes that row from the NEW tuple'
+);
+
+set local role postgres;
+
+-- ---------------------------------------------------------------------------
+-- 32-35. The token itself, as RLS sees it. These are the claims assertion 1
 --        proved the hook mints, now set as the session's claims: the point is
 --        that a token which is simultaneously platform-wide and gym-scoped
 --        would have a strictly larger blast radius than either, for no product
