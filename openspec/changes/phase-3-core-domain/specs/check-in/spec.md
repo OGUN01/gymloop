@@ -68,6 +68,19 @@ WHILE two check-ins for the same member arrive concurrently, THE SYSTEM SHALL re
 - **WHEN** the same check-in is submitted twice carrying the same client event id
 - **THEN** exactly one attendance row SHALL exist, and the second submission SHALL NOT be reported as an error to the caller
 
+#### Scenario: One client event id, two members
+- **WHEN** a submission carries a client event id already recorded against a **different** member of the same gym
+- **THEN** the submission SHALL be refused, and SHALL NOT be answered with the other member's attendance row. The uniqueness the database holds is `(tenant_id, client_event_id)` and says nothing about the member, so "the same attempt arriving twice" cannot be concluded from the id alone. A client that reuses an id across members — a fixed string, a counter reset by a reinstall — otherwise gets the front desk told that the person standing in front of them is already checked in, under their own name, with nothing recorded. *(Found by the blind handler-suite author.)*
+
+### Requirement: A refusal the handler does not recognise is answered as a failure
+THE SYSTEM SHALL answer an unrecognised SQLSTATE as a server error, and SHALL NOT let a code that merely resembles a known one produce a success status.
+
+A refusal table keyed by SQLSTATE is looked up by a code that arrives from outside. **Every JavaScript object answers to `constructor`, `toString` and `valueOf`**, so a plain index into that table returns an inherited function for those keys — truthy, with no status on it — and a response built from it carries HTTP 200 while its body says the check-in failed. A caller that reads the status and not the body then records a visit that does not exist. The lookup must therefore ask whether the table *owns* the key.
+
+#### Scenario: A SQLSTATE that is a property of every object
+- **WHEN** the database refuses with a code such as `constructor` or `toString`
+- **THEN** the response SHALL carry a failure status, never 200
+
 ### Requirement: An assisted check-in names the staff member and the reason
 WHEN staff record a check-in on a member's behalf, THE SYSTEM SHALL require the acting staff member and a non-empty reason, and SHALL record the source as `front_desk` (ATT-005, ATT-006).
 
