@@ -87,8 +87,22 @@ Created once, by the migration named; a second copy is the duplication this tabl
 |---|---|---|---|
 | `assertEnv` | `packages/shared/src/config/env.ts` | Fail-fast env validation for server entrypoints (boot-time, not lazy) | Server app/Edge Function entrypoints |
 | `clientEnv` | `packages/shared/src/config/env.ts` | Validated `NEXT_PUBLIC_*` vars — **server-side call only**, see file header comment on the Next.js client-bundling constraint | Server components/Route Handlers that pass public config to client components |
+| `createServerSupabase` | `apps/web/lib/supabase/server.ts` | The request-scoped `supabase-js` client carrying the caller's own session, built on `@supabase/ssr`'s `createServerClient` with the current `getAll`/`setAll` cookie pair. **The only Supabase client in the app** — every read is a Server Component render and every write a Server Action, so no browser client (and so no `"use client"` read of `process.env`) is needed. Created fresh per request; never cache it in a module variable | `apps/web/app/sign-in/page.tsx`, `apps/web/app/(console)/layout.tsx`, `apps/web/app/(console)/console/page.tsx`, `apps/web/app/not-linked/page.tsx`, `apps/web/lib/auth-actions.ts` |
 | `env` | `packages/shared/src/config/env.ts` | Combined client+server validated env, lazily parsed and cached | Server-side code needing both |
 | `serverEnv` | `packages/shared/src/config/env.ts` | Validated server-only secrets | Route Handlers, Edge Functions |
+| `signIn` | `apps/web/lib/auth-actions.ts` | Server Action: `signInWithPassword` from a native `<form>`, then `revalidatePath('/', 'layout')` and redirect to the console. On failure redirects to `/sign-in?failed=1` — one message for every failure mode, so the page is not an email-enumeration oracle | `apps/web/app/sign-in/page.tsx` |
+| `signOut` | `apps/web/lib/auth-actions.ts` | Server Action: clears the session and redirects to sign-in | `apps/web/app/(console)/layout.tsx`, `apps/web/app/not-linked/page.tsx` |
+| `supabaseCredentials` | `apps/web/lib/supabase/credentials.ts` | The `(url, anonKey)` tuple both `createServerClient` call sites spread, read through `clientEnv()` and never `process.env` (hard rule 3) | `apps/web/lib/supabase/server.ts`, `apps/web/lib/supabase/proxy-session.ts` |
+| `updateSession` | `apps/web/lib/supabase/proxy-session.ts` | Refreshes the Supabase session on every matched request and returns the response carrying the refreshed cookie — the only place a refresh can be persisted, since a Server Component may not write cookies. Performs **no** redirect: the layout decides who may see a page, and a proxy-level redirect would swallow the not-linked state | `apps/web/proxy.ts` |
+
+## Next.js file conventions
+
+Exports Next.js itself names. Page, layout and Route Handler exports are exempt from `registry-lint` by convention; `proxy.ts` sits at the app root rather than under `app/`, so its exports are not — and both are listed here anyway, because a session looking for "where does the session get refreshed" should find it in this file.
+
+| Name | File | Purpose | Used by |
+|---|---|---|---|
+| `config` | `apps/web/proxy.ts` | The proxy `matcher` — every path except Next's static assets. Not a magic value, a route pattern | Next.js |
+| `proxy` | `apps/web/proxy.ts` | The Next 16 proxy entry point (renamed from `middleware` in 16.0.0, and defaulting to the Node.js runtime — a copied `middleware.ts` does not run at all). Delegates to `updateSession` | Next.js, on every matched request |
 
 ## Hooks
 
