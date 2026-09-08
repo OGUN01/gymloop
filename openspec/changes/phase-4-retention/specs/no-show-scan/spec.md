@@ -4,6 +4,20 @@ Noticing that a member has stopped coming, before they decide they have left. Ph
 
 Every failure here is **silent**. A case that is never opened looks exactly like a member who is fine. A paused member wrongly flagged looks exactly like a real churn risk until a human phones them about it. A scan that runs twice at a timezone boundary opens nothing visibly wrong. That is why the scan gets the full blind arrangement (ADR-059).
 
+## The interface, because it is a contract and not a detail
+
+THE SYSTEM SHALL expose the scan as a database function:
+
+```
+app.run_no_show_scan(p_tenant_id uuid, p_today date default null) returns integer
+```
+
+returning the number of cases it opened. `p_today` exists so a test can put the gym at a chosen calendar day; **when it is null the function SHALL derive the day from the gym's own configured timezone**, and that is the path production takes.
+
+Two reasons this is in the spec rather than left to the implementer. First, a blind test author cannot write a single assertion without knowing what to call — naming the entry point is what makes the arrangement possible at all. Second, the scan belongs in the database for the same reason every other rule in this product does: `no_show_cases` grants `insert` to `authenticated`, so a scan living only in an Edge Function is a scan with a way round it, and the one-open-case-per-member guarantee would be a property of the job rather than of the table.
+
+The Edge Function on cron is then a caller: it selects the gyms and invokes this per gym. It holds no rule of its own, and nothing about the correctness of a scan depends on it running.
+
 ## Requirements
 
 ### Requirement: The scan runs once per calendar day, in each gym's own timezone
