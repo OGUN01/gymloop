@@ -292,12 +292,19 @@ select is(
 
 -- ---------------------------------------------------------------------------
 -- Platform roles cross tenants through the policy branch, with RLS still on
+--
+-- Neither block carries a tenant claim, and that is the claim contract rather
+-- than tidiness: design.md 3 says a platform token carries no tenant_id, no
+-- member_id and no staff_id unless it is impersonating. Both assertions passed
+-- with one -- is_staff() is false for a platform role, so the tenant term
+-- contributed nothing -- but a test that sets a claim set the hook cannot mint
+-- is the pattern the next author copies, and the phase has already spent a
+-- NO-GO on one that was not merely decorative.
 -- ---------------------------------------------------------------------------
 
 select set_config(
   'request.jwt.claims',
   json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
-                    'tenant_id', '00000000-0000-4000-8000-0000000000a1',
                     'app_role', 'super_admin')::text,
   true
 );
@@ -328,7 +335,6 @@ set local role postgres;
 select set_config(
   'request.jwt.claims',
   json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
-                    'tenant_id', '00000000-0000-4000-8000-0000000000a1',
                     'app_role', 'platform_support')::text,
   true
 );

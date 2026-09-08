@@ -381,6 +381,15 @@ select is_empty(
 --    `<t>_platform_all` ceased to exist when read and write split (design.md
 --    8.1, Naming); a leftover one is not a harmless old name, it is a policy
 --    whose using clause is a read gate applied to writes.
+--
+--    `impersonation_sessions_impersonator_write` is admitted as a NAMED
+--    EXCEPTION ON ONE TABLE rather than as a sixth suffix, and the difference
+--    is the whole value of this assertion. It exists because that one table has
+--    a row an impersonating token must be able to end, which is a fact about
+--    impersonation and not a pattern; a second table growing an
+--    `_impersonator_write` would be a mistake, and written this way it still
+--    fails here on the day it appears. Widening the vocabulary to six suffixes
+--    would have made that mistake invisible.
 -- ---------------------------------------------------------------------------
 
 select is_empty(
@@ -393,8 +402,10 @@ select is_empty(
                                    c.relname || '_platform_write',
                                    c.relname || '_tenant_select',
                                    c.relname || '_tenant_write',
-                                   c.relname || '_member_select')$$,
-  'design.md 8.1 Naming: the five template names are the only policies in public, and no policy is named _all any more. A sixth permissive policy on any table ORs into every decision that table makes'
+                                   c.relname || '_member_select')
+       and not (c.relname = 'impersonation_sessions'
+                and p.polname::text = 'impersonation_sessions_impersonator_write')$$,
+  'design.md 8.1 Naming: the five template names are the only policies in public, no policy is named _all any more, and the single exception is impersonation_sessions_impersonator_write -- named on its own table rather than admitted as a sixth suffix, so that the same name on any other table is still an offending row. A further permissive policy anywhere ORs into every decision that table makes'
 );
 
 -- ---------------------------------------------------------------------------
@@ -429,8 +440,8 @@ select is_empty(
        and (n2.nspname || '.' || pr.proname) not in
            ('app.current_tenant_id', 'app.is_platform', 'app.current_app_role',
             'app.is_staff', 'app.is_gym_admin', 'app.is_front_office', 'app.current_member_id',
-            'auth.uid')$$,
-  'design.md 8.2, "the four gates, and no fifth": the set of functions any policy in public depends on is closed. auth.uid() is on the list and is not a gate -- it is the one place a policy compares a COLUMN to the caller (impersonation_sessions.actor_user_id, design.md 6), which is a different thing from deciding what the caller may do. A table needing a fifth distinct gate is a signal that the table is wrong, not that the vocabulary is too small -- and app.can_do_x() is how the per-permission matrix that v1 explicitly deferred gets built by accident'
+            'auth.uid', 'app.current_impersonation_id')$$,
+  'design.md 8.2, "the four gates, and no fifth": the set of functions any policy in public depends on is closed. Two entries on the list are not gates, and both are there for the same reason -- they identify WHICH ROW, not what the caller may do. auth.uid() is compared to impersonation_sessions.actor_user_id, and app.current_impersonation_id() to impersonation_sessions.id (design.md 6). The four that decide privilege are still four. A table needing a fifth distinct gate is a signal that the table is wrong, not that the vocabulary is too small -- and app.can_do_x() is how the per-permission matrix that v1 explicitly deferred gets built by accident'
 );
 
 select is_empty(
@@ -534,11 +545,31 @@ select is_empty(
 -- file.
 --
 -- It reads the predicate rather than a list: any column of the table whose
--- name appears as a whole word in either clause of any of its policies must
--- lead an index or sit immediately after the tenant column. The word boundary
--- is what stops `is_platform` matching member_devices.platform and
--- `current_app_role` matching staff.role -- the same trap ADR-044 recorded,
--- where `like '%tenant_id%'` matched the substring inside current_tenant_id.
+-- name appears as a whole word in a policy's USING clause must lead an index or
+-- sit immediately after the tenant column. The word boundary is what stops
+-- `is_platform` matching member_devices.platform and `current_app_role`
+-- matching staff.role -- the same trap ADR-044 recorded, where
+-- `like '%tenant_id%'` matched the substring inside current_tenant_id.
+--
+-- USING ONLY, and this is the one assertion in the file that reads one clause
+-- rather than both -- deliberately, because it is the one asking about SCANS.
+-- A `using` clause selects rows, so a predicate over an unindexed column is a
+-- scan, which is the cost index rule 3 exists to prevent. A `with check` clause
+-- is evaluated against a single row already in hand, the one being written; it
+-- drives no scan and an index behind it would serve nothing. The two
+-- assertions below this one -- "no policy reads the claims directly" and the
+-- closed gate vocabulary -- read `polqual || polwithcheck`, and that is equally
+-- deliberate: those are statements about the CONTENT of a policy, and a
+-- violation hiding in a `with check` would be just as real. Do not make the
+-- three consistent; they are asking different questions.
+--
+-- What the narrowing does not weaken: all thirty `<t>_tenant_write` policies
+-- carry identical `using` and `with check`, so every column in them still
+-- appears in `polqual`. The only thing exempted is a column appearing
+-- EXCLUSIVELY in a `with check`, which today is exactly
+-- `impersonation_sessions.ended_at` -- put there by
+-- impersonation_sessions_impersonator_write (design.md 6) to make ending the
+-- session the only thing that path can do.
 select is_empty(
   $$with cols as (
       select distinct c.oid as relid, c.relname::text as relname, a.attname::text as attname
@@ -547,9 +578,7 @@ select is_empty(
         join pg_namespace n on n.oid = c.relnamespace
         join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
        where n.nspname = 'public'
-         and (coalesce(pg_get_expr(p.polqual, p.polrelid), '') || ' ' ||
-              coalesce(pg_get_expr(p.polwithcheck, p.polrelid), ''))
-             ~ ('\m' || a.attname || '\M')
+         and coalesce(pg_get_expr(p.polqual, p.polrelid), '') ~ ('\m' || a.attname || '\M')
     )
     select cols.relname || '.' || cols.attname
       from cols
@@ -570,7 +599,7 @@ select is_empty(
             )
           )
      )$$,
-  'spec "Every column a policy filters on is still indexed" / design.md 8.6, index rule 3: every column named in any policy predicate leads an index or sits immediately after the tenant column. A standalone member_id index satisfies it, the same distinction rule 2 already makes -- and this is the assertion that makes 8.6''s "Phase 2 therefore adds no index" a checked claim rather than a measurement someone took once'
+  'spec "Every column a policy filters on is still indexed" / design.md 8.6, index rule 3: every column named in a policy USING clause leads an index or sits immediately after the tenant column -- a with check drives no scan, so a column appearing only there needs no index and impersonation_sessions.ended_at is exempt for that reason. A standalone member_id index satisfies it, the same distinction rule 2 already makes -- and this is the assertion that makes 8.6''s "Phase 2 therefore adds no index" a checked claim rather than a measurement someone took once'
 );
 
 -- ---------------------------------------------------------------------------

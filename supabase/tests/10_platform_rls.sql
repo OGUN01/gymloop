@@ -83,18 +83,23 @@ select policies_are(
   'platform_users carries the ordinary platform pair and no gym-side policy (ADR-033, design.md 8.4)'
 );
 
--- Three, not four. impersonation_sessions is NOT one of the four read-only
--- tables: its grant is select, insert, update (the history tier) and a super
--- admin genuinely creates sessions through it, so it carries
--- `_platform_write`. What it lacks is `_tenant_write` -- a gym may read the
--- record of being impersonated and may not author it -- and that is a policy
--- decision rather than a grant one (design.md 8.1).
+-- Four, and every one of them is a decision. impersonation_sessions is NOT one
+-- of the four read-only tables: its grant is select, insert, update (the
+-- history tier) and a super admin genuinely creates sessions through it, so it
+-- carries `_platform_write`. What it lacks is `_tenant_write` -- a gym may read
+-- the record of being impersonated and may not author it, which is a policy
+-- decision rather than a grant one (design.md 8.1). And it carries one policy
+-- no other table has: `_impersonator_write`, the only path by which a live
+-- session can be ended at all, because while a session is live its actor holds
+-- gym_owner and not super_admin (design.md 6). The behaviour of all four is
+-- 14_impersonation's; what this asserts is that there is no fifth.
 select policies_are(
   'public', 'impersonation_sessions',
   ARRAY['impersonation_sessions_tenant_select',
         'impersonation_sessions_platform_select',
-        'impersonation_sessions_platform_write'],
-  'impersonation_sessions carries a select-only gym-side policy beside the full platform pair (design.md 8.1, 8.3)'
+        'impersonation_sessions_platform_write',
+        'impersonation_sessions_impersonator_write'],
+  'impersonation_sessions carries a select-only gym-side policy, the full platform pair, and the impersonator''s own end-my-session policy -- and nothing else (design.md 6, 8.1, 8.3)'
 );
 
 -- ---------------------------------------------------------------------------
@@ -167,11 +172,20 @@ insert into auth.users (id) values
 insert into public.platform_users (user_id, role, full_name, email) values
   ('a0000000-0000-4000-8000-000000000010'::uuid, 'super_admin', 'Platform Root', 'root.rls@gymloop.test');
 
--- Both rows name the same actor, which Phase 2 makes a constraint question:
+-- Both rows name the same actor and BOTH are ended, and the second half of
+-- that is not tidiness.
+--
 -- design.md section 6 puts a partial unique index on `actor_user_id where
--- ended_at is null`, so one actor may hold at most one LIVE session. The gym A
--- session is therefore ended here. The gym B one is left live, because a later
--- assertion in this file ends it as super_admin and expects one row affected.
+-- ended_at is null`, so one actor may hold at most one OPEN session -- which is
+-- why the gym A row is ended. The gym B row is ended for a different and
+-- sharper reason: while a session is live, the hook gives its actor
+-- `app_role = gym_owner`, never `super_admin`. A later assertion in this file
+-- acts as super_admin with `sub` set to this actor, and if either row were
+-- still open that claim set could not be minted -- the assertion would be
+-- testing a token that does not occur. With both ended it is exactly what the
+-- hook returns for this user. (A blind critic found that shape in
+-- 14_impersonation, where it hid an operation nobody could perform;
+-- 14_impersonation now owns the reachable end-a-session path in full.)
 insert into public.impersonation_sessions (id, tenant_id, actor_user_id, reason, started_at, expires_at, ended_at) values
   ('a0000000-0000-4000-8000-000000000004'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
    'a0000000-0000-4000-8000-000000000010'::uuid, 'Gym A raised a billing dispute',
@@ -179,7 +193,8 @@ insert into public.impersonation_sessions (id, tenant_id, actor_user_id, reason,
    timestamptz '2026-09-06 10:45:00+05:30'),
   ('b0000000-0000-4000-8000-000000000004'::uuid, 'b0000000-0000-4000-8000-000000000001'::uuid,
    'a0000000-0000-4000-8000-000000000010'::uuid, 'Gym B onboarding support',
-   timestamptz '2026-09-06 12:00:00+05:30', timestamptz '2026-09-06 13:00:00+05:30', null);
+   timestamptz '2026-09-06 12:00:00+05:30', timestamptz '2026-09-06 13:00:00+05:30',
+   timestamptz '2026-09-06 12:45:00+05:30');
 
 -- Three audit rows: one per gym, plus one platform-level row whose tenant_id
 -- is null (ADR-033's second exemption).
@@ -391,10 +406,13 @@ select set_config('request.jwt.claims', '', true);
 -- what carries the read, not a tenant match.
 -- ===========================================================================
 
--- `sub` is the actor, not a random uuid, because design.md 6 gates
+-- `sub` is the actor, not a random uuid, for two reasons. design.md 6 gates
 -- impersonation_sessions_platform_write on `actor_user_id = (select
--- auth.uid())` and this block ends one of those sessions further down. Every
--- other assertion in the block is indifferent to it.
+-- auth.uid())`, and this block writes one of those rows further down. And the
+-- claim set has to be one the hook would mint for THIS user: it holds no open
+-- session (both fixture rows are ended above), so `super_admin` with no tenant
+-- and no impersonation claim is precisely what it gets. Every other assertion
+-- in the block is indifferent to `sub`.
 select set_config(
   'request.jwt.claims',
   json_build_object('sub', 'a0000000-0000-4000-8000-000000000010', 'role', 'authenticated',
@@ -446,14 +464,14 @@ select results_eq(
   'as super_admin, both gyms impersonation sessions are visible (docs/security.md, Impersonation)'
 );
 
-with ended as (
+with rewritten as (
   update public.impersonation_sessions set ended_at = timestamptz '2026-09-06 12:30:00+05:30'
    where id = 'b0000000-0000-4000-8000-000000000004'::uuid
   returning 1
 )
 select is(
-  (select count(*) from ended), 1::bigint,
-  'as super_admin, an impersonation session is writable — the platform policy is for all (docs/data-model.md, Row-Level Security)'
+  (select count(*) from rewritten), 1::bigint,
+  'as super_admin, an impersonation session row is writable where the gym-side policy is select-only — impersonation_sessions_platform_write is `for all` and this actor satisfies both its terms, the super_admin role and actor_user_id = auth.uid() (design.md 8.1). The row is already ended, which is what makes the claim set mintable; the reachable path for ending a LIVE session belongs to its own impersonating token and is asserted in 14_impersonation'
 );
 
 select results_eq(
