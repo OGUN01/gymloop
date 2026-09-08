@@ -26,6 +26,10 @@ One feature per session. `/clear` between features. **Work on `main` directly** 
 
 Every unit of work follows the **Gauntlet Loop**, no round-count budget, exits on win: bar (name a fetchable comparable reference) → spec (EARS, human-approved) → tests (visible + holdout, written first, implementation-blind, committed red) → build (make them green, may not touch test files) → gauntlet (fresh-context critic, blind comparison, win or loop) → gates (`docs/gates.md`) → archive (fold into specs, update the registry, `/clear`). If a critic rejects the same dimension three times, that's evidence the requirement is under-specified — escalate to the human, never silently lower the bar.
 
+**Calibrated by failure mode from Phase 3 onward (ADR-059).** The full blind arrangement — separate visible-test author, holdout author, implementer and fresh-context critic, none reading the others — is in force wherever **a mistake is silent**: any RLS or policy change, the whole money path, and anything touching identity or the claim contract. For work whose defects are loud (a screen, a CRUD endpoint) it relaxes to one implementer, with the spec-first and tests-first rules and every CI gate unchanged. **And: fix the contract, then fan out — never edit it while agents are working against it.** That one mistake cost about a third of Phase 2's round-trips.
+
+**Phases 3 to 6 ship a screen, not just a schema** (ADR-059). Each phase ends with something the owner can click. Phase 7 makes the UI excellent; it no longer builds it from nothing.
+
 ## Routing table
 
 | Need | Read |
