@@ -75,6 +75,12 @@ The test is the one `assisted_by_staff_id` already gets on `attendance` — a su
 - **WHEN** a staff member inserts a pause with `requested_by_staff_id` left null
 - **THEN** the insert SHALL be refused — a freeze nobody is recorded as having asked for is the same hole with the name left blank
 
+#### Scenario: A session with no staff identity inserts a pause
+- **WHEN** a session inside row security but carrying no `staff_id` claim — an impersonating platform admin, or a plain `super_admin` — inserts a pause
+- **THEN** the insert SHALL be refused, whatever it names as the requester. There is nobody to record as having asked, and **the rule must say so in words rather than relying on a comparison**: a guard written as "the requester must equal the acting staff member" is silent when both are null, because `null is distinct from null` is false. The first version of this rule was written that way and its own comment claimed it closed this case.
+
+**The general form, which cost this capability two rounds:** *a rule that reads a nullable column is not a rule until the null case is written down.* Both defects of the third critic round were this — the comparison above, and an approver column left ungoverned for as long as the approval was null.
+
 ### Requirement: A pause cannot be created already decided
 WHEN a session subject to row security inserts a pause carrying `approved_at` **or `rejected_at`**, THE SYSTEM SHALL refuse it, whatever role that session holds.
 
@@ -141,6 +147,27 @@ Once a pause carries a decision, THE SYSTEM SHALL refuse any change to **any col
 #### Scenario: Backdating a decided pause
 - **WHEN** a staff member updates a decided pause's `created_at`
 - **THEN** the write SHALL be refused
+
+### Requirement: An approver is recorded only where there is an approval
+THE SYSTEM SHALL keep `approved_by_staff_id` empty unless `approved_at` is set — the two are one fact and SHALL be written together or not at all.
+
+**Every rule governing the approver is gated on there being an approval, so while `approved_at` is null the column is nobody's business and anyone's to write.** A front-desk member of staff rejected their own request and named a manager as its approver in the same statement: the transition guard excludes `approved_by_staff_id` from its comparison (correctly, since an *approval* must write it), and the checks that would have caught it — approver-is-actor, approver-is-not-requester, approver-holds-the-configured-role — all sit below a `return` taken when `approved_at is null`. The settled guard then froze the row, so the false attribution can never be corrected: three separate attempts were refused with `GL024`.
+
+The same forgery was reachable in two statements by writing the column onto a pending row, so this belongs to the table as an invariant rather than to a branch of a trigger — **a `check` constraint holds for every writer including the ones the trigger deliberately exempts**, and it is the shape of statement that cannot be got round by reaching the column from a direction nobody enumerated.
+
+Nothing reads `approved_by_staff_id` on a screen yet, which is why this was latent rather than visible; the first "who decided what" export makes it visible, and by then it is unfixable.
+
+#### Scenario: Rejecting while naming an approver
+- **WHEN** a staff member sets `rejected_at` and `approved_by_staff_id` in the same statement
+- **THEN** the write SHALL be refused
+
+#### Scenario: Naming an approver on a pending pause
+- **WHEN** a staff member sets `approved_by_staff_id` on a pause that has not been decided
+- **THEN** the write SHALL be refused
+
+#### Scenario: Approving
+- **WHEN** the configured approver sets `approved_at` and `approved_by_staff_id` together
+- **THEN** it SHALL succeed — they are one fact and this is what writing them together looks like
 
 ### Requirement: The statement that decides may decide and nothing else
 WHEN a pause moves from pending to decided, THE SYSTEM SHALL permit that statement to write only the decision columns, and SHALL refuse it if it also changes what is being decided.

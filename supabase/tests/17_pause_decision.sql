@@ -69,6 +69,24 @@
 --   column but `updated_at`, proven at the two columns the previous guard
 --   left open: `id` (40) and `created_at` (41).
 --
+--   Extended again, against the specific defects a blind critic found in a
+--   guard already believed correct. "The person who asked is stamped from the
+--   session" now also covers a session with no `staff_id` claim at all — an
+--   impersonating token or a plain super_admin, minted with `app_role` and
+--   `tenant_id` and deliberately nothing more (43-45): naming a real colleague
+--   as requester is already refused today (43), but the case the guard's own
+--   comment claimed to close — no requester named, from a session with no
+--   staff identity either, `null is distinct from null` being false — is not
+--   (44, and 45's row-state check, both currently red). The new requirement
+--   "An approver is recorded only where there is an approval" (46-51) proves
+--   `approved_by_staff_id` is gated on `approved_at` and not merely on the
+--   transition guard: rejecting while naming an approver (46/47), and naming
+--   one on a still-pending pause (48/49), are both currently accepted by the
+--   database — every one of 46-49 is red — while setting both together, an
+--   actual approval, still succeeds and reads back correctly (50/51). These
+--   six red assertions are not a suite defect; they are the two holes the
+--   spec was written to close, caught.
+--
 -- ADR-030: one transaction, BEGIN … ROLLBACK, nothing committed.
 -- ADR-046: the owner role is assumed explicitly, never inherited.
 -- ADR-050: every count is scoped to this file's own two fixture tenants — this
@@ -82,7 +100,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(42);
+select plan(51);
 
 
 -- ---------------------------------------------------------------------------
@@ -1080,6 +1098,189 @@ select is(
   18,
   'the two fixture gyms hold exactly the eighteen pauses this file created: every refusal above refused, and none of them left a partial row'
 );
+
+-- ---------------------------------------------------------------------------
+-- A session with no staff identity inserts a pause (43-45)
+--
+-- Extends "The person who asked is stamped from the session, then never
+-- changes" to the exact shape the blind critic found: a guard written as
+-- `new.requested_by_staff_id is distinct from v_actor_staff_id` is silent
+-- when BOTH sides are null, because `null is distinct from null` is false.
+-- The fixture below is not "no requester named" from a session that HAS a
+-- staff_id — that is assertion 38. It is a session that itself carries no
+-- staff_id claim at all: the shape app.custom_access_token_hook mints for a
+-- live impersonation session or a plain super_admin — app_role and tenant_id,
+-- and nothing identifying a staff member. This tests that claim shape, not
+-- the hook that mints it (docs/security.md; the hook has its own suite).
+-- Two inserts, not one: 43 names a real colleague as the requester —
+-- "whatever it names as the requester" — and 44 is the literal hole, naming
+-- nobody, the exact row the null-is-distinct-from-null guard was silent on.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '17000000-0000-4000-8000-000000000001',
+                    'app_role', 'gym_owner')::text,
+  true);
+set local role authenticated;
+
+-- 43
+select throws_ok($$
+  insert into public.membership_pauses
+    (id, tenant_id, membership_id, starts_on, ends_on, reason, requested_by_staff_id)
+  values ('17000000-0000-4000-8000-0000000000f5'::uuid,
+          '17000000-0000-4000-8000-000000000001'::uuid,
+          '17000000-0000-4000-8000-000000000051'::uuid,
+          current_date + 1, current_date + 8, 'no staff identity, colleague named',
+          '17000000-0000-4000-8000-000000000022'::uuid)
+$$, null::char(5), null,
+  'scenario "A session with no staff identity inserts a pause" — a session carrying app_role and tenant_id but no staff_id claim cannot insert a pause naming manager 22 as the requester. There is nobody acting to record, whatever the insert names'
+);
+
+-- 44 — the literal hole: no staff_id on the session AND no requester named.
+-- `new.requested_by_staff_id is distinct from v_actor_staff_id` is false when
+-- both sides are null, so a guard written that way lets exactly this insert
+-- through silently.
+select throws_ok($$
+  insert into public.membership_pauses
+    (id, tenant_id, membership_id, starts_on, ends_on, reason, requested_by_staff_id)
+  values ('17000000-0000-4000-8000-0000000000f6'::uuid,
+          '17000000-0000-4000-8000-000000000001'::uuid,
+          '17000000-0000-4000-8000-000000000051'::uuid,
+          current_date + 1, current_date + 8, 'no staff identity, no requester',
+          null)
+$$, null::char(5), null,
+  'scenario "A session with no staff identity inserts a pause" — a null requester from a session with no staff_id claim must still be refused. A guard that reads this as "the requester equals the acting staff member" is comparing null to null and finding no difference'
+);
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+-- 45
+select is(
+  (select count(*)::int from public.membership_pauses
+    where id in ('17000000-0000-4000-8000-0000000000f5'::uuid,
+                 '17000000-0000-4000-8000-0000000000f6'::uuid)),
+  0,
+  'neither insert attempted by the staff-less session landed — not the one naming a colleague, not the one naming nobody'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- An approver is recorded only where there is an approval (46-51)
+--
+-- Three fresh pending pauses in gym A (configured approver: gym_manager), all
+-- requested by the owner (24) so that no assertion here can be decided by the
+-- separation-of-duties rule already proven at 7-12 — the only rule any of
+-- these three writes can be refused by is this one.
+-- ---------------------------------------------------------------------------
+
+set local role postgres;
+
+insert into public.membership_pauses
+  (id, tenant_id, membership_id, starts_on, ends_on, reason, requested_by_staff_id) values
+  ('17000000-0000-4000-8000-000000000072'::uuid, '17000000-0000-4000-8000-000000000001'::uuid, '17000000-0000-4000-8000-000000000051'::uuid, current_date + 1, current_date + 8, 'reject and name approver', '17000000-0000-4000-8000-000000000024'::uuid),
+  ('17000000-0000-4000-8000-000000000073'::uuid, '17000000-0000-4000-8000-000000000001'::uuid, '17000000-0000-4000-8000-000000000051'::uuid, current_date + 1, current_date + 8, 'name approver while pending', '17000000-0000-4000-8000-000000000024'::uuid),
+  ('17000000-0000-4000-8000-000000000074'::uuid, '17000000-0000-4000-8000-000000000001'::uuid, '17000000-0000-4000-8000-000000000051'::uuid, current_date + 1, current_date + 8, 'proper approval', '17000000-0000-4000-8000-000000000024'::uuid);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '17000000-0000-4000-8000-000000000001',
+                    'app_role', 'front_desk',
+                    'staff_id', '17000000-0000-4000-8000-000000000021')::text,
+  true);
+set local role authenticated;
+
+-- 46 — rejecting needs no configured role and no second person (13-16), and
+-- naming an approver here is the only thing wrong with the statement.
+select throws_ok($$
+  update public.membership_pauses
+     set rejected_at = now(),
+         approved_by_staff_id = '17000000-0000-4000-8000-000000000021'::uuid
+   where id = '17000000-0000-4000-8000-000000000072'::uuid
+$$, null::char(5), null,
+  'scenario "Rejecting while naming an approver" — front desk may reject freely, but cannot name an approver on a rejection. The two are one fact and a rejection is not it'
+);
+
+set local role postgres;
+
+-- 47
+select results_eq(
+  $$
+    select rejected_at is null, approved_at is null, approved_by_staff_id is null
+      from public.membership_pauses
+     where id = '17000000-0000-4000-8000-000000000072'::uuid
+  $$,
+  $$ values (true, true, true) $$,
+  'the refused write left pause 072 exactly pending — not rejected either, since the whole statement was refused as one'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '17000000-0000-4000-8000-000000000001',
+                    'app_role', 'gym_manager',
+                    'staff_id', '17000000-0000-4000-8000-000000000022')::text,
+  true);
+set local role authenticated;
+
+-- 48 — everything else about this write is correct: gym A's configured role,
+-- recording itself, not the requester. The only thing wrong is that
+-- approved_at is untouched — the pause is still pending.
+select throws_ok($$
+  update public.membership_pauses
+     set approved_by_staff_id = '17000000-0000-4000-8000-000000000022'::uuid
+   where id = '17000000-0000-4000-8000-000000000073'::uuid
+$$, null::char(5), null,
+  'scenario "Naming an approver on a pending pause" — approved_by_staff_id is nobody''s business while approved_at is null, even for the gym''s own configured approver'
+);
+
+set local role postgres;
+
+-- 49
+select results_eq(
+  $$
+    select approved_by_staff_id is null, approved_at is null
+      from public.membership_pauses
+     where id = '17000000-0000-4000-8000-000000000073'::uuid
+  $$,
+  $$ values (true, true) $$,
+  'pause 073 is still pending with no approver recorded — the refusal left nothing half-written'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '17000000-0000-4000-8000-000000000001',
+                    'app_role', 'gym_manager',
+                    'staff_id', '17000000-0000-4000-8000-000000000023')::text,
+  true);
+set local role authenticated;
+
+-- 50 — the two written together, which is what an approval is.
+select lives_ok($$
+  update public.membership_pauses
+     set approved_at = now(),
+         approved_by_staff_id = '17000000-0000-4000-8000-000000000023'::uuid
+   where id = '17000000-0000-4000-8000-000000000074'::uuid
+$$, 'scenario "Approving" — setting approved_at and approved_by_staff_id together is what an approval is, and this closes the requirement in the direction that stops it being read as "forbid the column entirely"'
+);
+
+set local role postgres;
+
+-- 51
+select results_eq(
+  $$
+    select approved_by_staff_id, approved_at is not null, rejected_at is null
+      from public.membership_pauses
+     where id = '17000000-0000-4000-8000-000000000074'::uuid
+  $$,
+  $$ values ('17000000-0000-4000-8000-000000000023'::uuid, true, true) $$,
+  'the approval landed and reads back correctly: manager 23 recorded, timestamped, not also rejected'
+);
+
 
 select * from finish();
 
