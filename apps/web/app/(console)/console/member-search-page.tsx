@@ -1,3 +1,4 @@
+import { MEMBER_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
@@ -21,6 +22,7 @@ export function MemberSearchPage({
   phone,
   errorMessage,
   nextCursor,
+  pageSize,
   children,
 }: {
   title: string;
@@ -29,20 +31,25 @@ export function MemberSearchPage({
   phone: string;
   errorMessage: string | null;
   nextCursor: string | null;
+  pageSize: number;
   children: ReactNode;
 }) {
-  // The search term travels with the cursor. Without it, page two of a search
-  // for "9876" is page two of the whole roster, which is the kind of wrong that
-  // looks like the search silently clearing itself.
+  // **Everything that shaped this page travels with the cursor.** Without the
+  // search term, page two of a search for "9876" is page two of the whole
+  // roster — the kind of wrong that looks like the search clearing itself. The
+  // first version of this link carried `q` and forgot `limit`, so asking for
+  // five members gave five, and "Next page" gave fifty; found by clicking it.
   const nextHref =
     nextCursor === null
       ? null
       : // A bare query string resolves against the page the link is rendered on,
         // so this works from all three screens without any of them naming
         // itself — and keeps working if one is ever moved.
-        `?${new URLSearchParams(
-          phone ? { q: phone, cursor: nextCursor } : { cursor: nextCursor },
-        ).toString()}`;
+        `?${new URLSearchParams({
+          ...(phone ? { q: phone } : {}),
+          ...(pageSize === MEMBER_PAGE_SIZE_DEFAULT ? {} : { limit: String(pageSize) }),
+          cursor: nextCursor,
+        }).toString()}`;
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">
       <div className="flex items-baseline justify-between">

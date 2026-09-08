@@ -17,6 +17,7 @@ export default async function MembersPage({
       phone={search.phone}
       errorMessage={search.errorMessage}
       nextCursor={search.nextCursor}
+      pageSize={search.pageSize}
     >
       {search.members.length > 0 ? (
         <table className="mt-6 w-full border-collapse text-left text-sm">

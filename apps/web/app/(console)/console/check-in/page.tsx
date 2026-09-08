@@ -26,6 +26,7 @@ export default async function CheckInPage({
       phone={search.phone}
       errorMessage={search.errorMessage}
       nextCursor={search.nextCursor}
+      pageSize={search.pageSize}
     >
       <CheckInGate members={search.members} />
     </MemberSearchPage>

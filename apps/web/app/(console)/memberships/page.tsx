@@ -25,6 +25,7 @@ export default async function MembershipsPage({
       phone={search.phone}
       errorMessage={search.errorMessage}
       nextCursor={search.nextCursor}
+      pageSize={search.pageSize}
     >
       {search.members.length > 0 ? (
         <ul className="mt-6 divide-y divide-neutral-100 border-y border-neutral-200">
