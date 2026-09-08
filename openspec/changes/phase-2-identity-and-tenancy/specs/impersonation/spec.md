@@ -112,6 +112,10 @@ THE SYSTEM SHALL set an impersonation session's start time itself rather than ac
 - **WHEN** that same caller ends the session and in the same statement changes its stated reason
 - **THEN** the stored reason SHALL be unchanged
 
+#### Scenario: Re-opening a session that has ended
+- **WHEN** a caller clears the end time on an impersonation session that has already ended
+- **THEN** the stored end time SHALL be unchanged, and the session SHALL NOT become live again
+
 #### Scenario: Extending a session that has been ended
 - **WHEN** a caller changes the expiry of an impersonation session after it has ended
 - **THEN** the stored expiry SHALL be unchanged
