@@ -66,7 +66,7 @@ begin;
 -- holds BYPASSRLS, is assumed explicitly rather than inherited.
 set local role postgres;
 
-select plan(38);
+select plan(39);
 
 -- ---------------------------------------------------------------------------
 -- pg_temp.attempt(): run a write, return 'ok' or the SQLSTATE, never abort.
@@ -76,6 +76,25 @@ select plan(38);
 -- file asks after a refused write is "what does the row say now", not "did
 -- Postgres raise". A policy-filtered update raises nothing and changes nothing;
 -- a trigger raises; both are refusals and the spec picks neither.
+--
+-- CALL IT ONLY ONE OF TWO WAYS, and never as a bare top-level `select`:
+--
+--   do $do$ begin perform pg_temp.attempt($$ … $$); end $do$;   -- result discarded
+--   select is(pg_temp.attempt($$ … $$), 'ok', '…');             -- result asserted
+--
+-- CI pipes psql in tuples-only unaligned mode straight into `prove`, so a bare
+-- `select pg_temp.attempt(…)` prints its return value on a line of its own —
+-- and when the write succeeds that value is the string `ok`, which is VALID
+-- TAP. `prove` counts each one as an unnumbered extra test, and the run fails
+-- with "tests out of sequence" against a plan that was perfectly correct. The
+-- assertions are fine; the stream is carrying tests nobody wrote. Nothing in a
+-- local `supabase db query` run can see this: it shows only the last result set,
+-- and num_failed() counts failed assertions while knowing nothing about how
+-- many lines were printed.
+--
+-- Prefer the asserting form wherever the write is MEANT to succeed — a setup
+-- step that quietly fails is how a suite ends up proving something other than
+-- what it says.
 -- ---------------------------------------------------------------------------
 create function pg_temp.attempt(sql text) returns text
 language plpgsql as $fn$
@@ -233,11 +252,11 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-00000000a022')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a022',
          approved_at = now()
-   where id = '170000ff-0000-4000-8000-000000000101'$$);
+   where id = '170000ff-0000-4000-8000-000000000101'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -258,11 +277,11 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-00000000a024')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a024',
          approved_at = now()
-   where id = '170000ff-0000-4000-8000-000000000102'$$);
+   where id = '170000ff-0000-4000-8000-000000000102'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -282,11 +301,11 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-00000000b021')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000b021',
          approved_at = now()
-   where id = '170000ff-0000-4000-8000-0000000001b1'$$);
+   where id = '170000ff-0000-4000-8000-0000000001b1'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -307,11 +326,11 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-00000000b022')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000b022',
          approved_at = now()
-   where id = '170000ff-0000-4000-8000-0000000001b2'$$);
+   where id = '170000ff-0000-4000-8000-0000000001b2'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -334,11 +353,11 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-00000000a022')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a023',
          approved_at = now()
-   where id = '170000ff-0000-4000-8000-000000000104'$$);
+   where id = '170000ff-0000-4000-8000-000000000104'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -358,11 +377,11 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-00000000a021')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a021',
          approved_at = now()
-   where id = '170000ff-0000-4000-8000-000000000103'$$);
+   where id = '170000ff-0000-4000-8000-000000000103'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -381,11 +400,11 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-00000000a025')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a025',
          approved_at = now()
-   where id = '170000ff-0000-4000-8000-000000000122'$$);
+   where id = '170000ff-0000-4000-8000-000000000122'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -417,27 +436,27 @@ select set_config('request.jwt.claims',
 set local role authenticated;
 
 -- (a) On its own, on a pending pause. The spec states this one.
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set requested_by_staff_id = '170000ff-0000-4000-8000-00000000a023'
-   where id = '170000ff-0000-4000-8000-00000000010f'$$);
+   where id = '170000ff-0000-4000-8000-00000000010f'$$); end $do$;
 
 -- (b) Carried by a REJECTION — which the spec says is ungoverned, needing no
 --     role and no second person. Ungoverned as to the decision is not
 --     ungoverned as to the record of who asked.
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set rejected_at = now(),
          requested_by_staff_id = '170000ff-0000-4000-8000-00000000a023'
-   where id = '170000ff-0000-4000-8000-000000000120'$$);
+   where id = '170000ff-0000-4000-8000-000000000120'$$); end $do$;
 
 -- (c) On a pause that is ALREADY APPROVED — where "a decided pause stays
 --     decided" makes the approval rules stop applying, and stopping is exactly
 --     what ADR-067 warns is read as permission.
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set requested_by_staff_id = '170000ff-0000-4000-8000-00000000a023'
-   where id = '170000ff-0000-4000-8000-000000000111'$$);
+   where id = '170000ff-0000-4000-8000-000000000111'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -471,16 +490,16 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-00000000a021')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set requested_by_staff_id = '170000ff-0000-4000-8000-00000000a023'
-   where id = '170000ff-0000-4000-8000-000000000105'$$);
+   where id = '170000ff-0000-4000-8000-000000000105'$$); end $do$;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a021',
          approved_at = now()
-   where id = '170000ff-0000-4000-8000-000000000105'$$);
+   where id = '170000ff-0000-4000-8000-000000000105'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -509,36 +528,36 @@ set local role authenticated;
 -- Move an approved freeze onto a DIFFERENT member's membership. Manager A2's
 -- authorisation, given for member A1, now vouches for member A2's freeze.
 -- Composite keys (ADR-052) permit this: both memberships are in tenant A.
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set membership_id = '170000ff-0000-4000-8000-00000000a052'
-   where id = '170000ff-0000-4000-8000-000000000112'$$);
+   where id = '170000ff-0000-4000-8000-000000000112'$$); end $do$;
 
 -- Stretch an approved seven-day freeze to two years. Nothing about the approval
 -- record changes; the money the gym does not collect changes by a hundredfold.
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set ends_on = date '2028-10-08'
-   where id = '170000ff-0000-4000-8000-000000000113'$$);
+   where id = '170000ff-0000-4000-8000-000000000113'$$); end $do$;
 
 -- Flip an approval into a rejection. Setting rejected_at alone would hit
 -- membership_pauses_not_approved_and_rejected_chk, so this clears approved_at
 -- in the same statement — one write that changes a decision by a route neither
 -- the approval rules nor the rejection rules were written about.
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_at = null, approved_by_staff_id = null, rejected_at = now()
-   where id = '170000ff-0000-4000-8000-000000000114'$$);
+   where id = '170000ff-0000-4000-8000-000000000114'$$); end $do$;
 
 -- Control. A PENDING pause is still being negotiated and no rule freezes its
 -- dates. If this is refused, the implementation has over-enforced — it is
 -- protecting a decision that has not been made.
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set starts_on = date '2026-10-05',
          ends_on = date '2026-10-19',
          reason = 'H17 amended before any decision'
-   where id = '170000ff-0000-4000-8000-000000000121'$$);
+   where id = '170000ff-0000-4000-8000-000000000121'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -586,10 +605,10 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-00000000a024')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_at = null, approved_by_staff_id = null
-   where id = '170000ff-0000-4000-8000-000000000110'$$);
+   where id = '170000ff-0000-4000-8000-000000000110'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -610,11 +629,11 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-00000000a023')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a023',
          approved_at = now()
-   where id = '170000ff-0000-4000-8000-000000000115'$$);
+   where id = '170000ff-0000-4000-8000-000000000115'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -645,25 +664,25 @@ set local role authenticated;
 -- Approving. The recorded approver has to be SOME staff row to satisfy the
 -- composite key, so the impersonator names one — which is the whole problem:
 -- the session has no identity of its own to be checked against.
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a022',
          approved_at = now()
-   where id = '170000ff-0000-4000-8000-000000000109'$$);
+   where id = '170000ff-0000-4000-8000-000000000109'$$); end $do$;
 
 -- Rewriting a decision already made.
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a023'
-   where id = '170000ff-0000-4000-8000-000000000116'$$);
+   where id = '170000ff-0000-4000-8000-000000000116'$$); end $do$;
 
 -- Rejecting. The spec's requirement says "record or alter a DECISION", and a
 -- rejection is a decision; its two scenarios only name approvals. Asserted as
 -- a refusal because the requirement's words are broader than its examples.
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set rejected_at = now()
-   where id = '170000ff-0000-4000-8000-00000000010a'$$);
+   where id = '170000ff-0000-4000-8000-00000000010a'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -692,11 +711,11 @@ select set_config('request.jwt.claims',
                     'app_role', 'super_admin')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a022',
          approved_at = now()
-   where id = '170000ff-0000-4000-8000-00000000010b'$$);
+   where id = '170000ff-0000-4000-8000-00000000010b'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -716,11 +735,11 @@ select set_config('request.jwt.claims',
                     'member_id', '170000ff-0000-4000-8000-00000000a041')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a022',
          approved_at = now()
-   where id = '170000ff-0000-4000-8000-00000000010c'$$);
+   where id = '170000ff-0000-4000-8000-00000000010c'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -739,10 +758,10 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-00000000a026')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set rejected_at = now()
-   where id = '170000ff-0000-4000-8000-000000000108'$$);
+   where id = '170000ff-0000-4000-8000-000000000108'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -764,11 +783,11 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-0000000000ff')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a022',
          approved_at = now()
-   where id = '170000ff-0000-4000-8000-00000000010d'$$);
+   where id = '170000ff-0000-4000-8000-00000000010d'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -791,10 +810,10 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-00000000a024')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set rejected_at = now()
-   where id = '170000ff-0000-4000-8000-000000000106'$$);
+   where id = '170000ff-0000-4000-8000-000000000106'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -811,10 +830,10 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-00000000a021')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set rejected_at = now()
-   where id = '170000ff-0000-4000-8000-000000000107'$$);
+   where id = '170000ff-0000-4000-8000-000000000107'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -837,11 +856,11 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-00000000a022')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a022',
          approved_at = now()
-   where id = '170000ff-0000-4000-8000-0000000001b3'$$);
+   where id = '170000ff-0000-4000-8000-0000000001b3'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -880,7 +899,7 @@ set local role authenticated;
 
 -- Born approved: naming a colleague as requester and itself as approver, so
 -- every rule above would have been satisfied had it been an update.
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   insert into public.membership_pauses
     (id, tenant_id, membership_id, starts_on, ends_on, reason,
      requested_by_staff_id, approved_by_staff_id, approved_at)
@@ -888,37 +907,45 @@ select pg_temp.attempt($$
           '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
           'H17 born approved by a staff session',
           '170000ff-0000-4000-8000-00000000a021', '170000ff-0000-4000-8000-00000000a022',
-          now())$$);
+          now())$$); end $do$;
 
 -- Born REJECTED. The requirement names approved_at only, and the spec is
 -- explicit that refusing a freeze is not the governed act. A control: an
 -- implementation that refuses any decided-at-birth row has over-enforced.
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   insert into public.membership_pauses
     (id, tenant_id, membership_id, starts_on, ends_on, reason,
      requested_by_staff_id, rejected_at)
   values ('170000ff-0000-4000-8000-000000000135', '170000ff-0000-4000-8000-00000000a001',
           '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
-          'H17 born rejected', '170000ff-0000-4000-8000-00000000a021', now())$$);
+          'H17 born rejected', '170000ff-0000-4000-8000-00000000a021', now())$$); end $do$;
 
 -- Half born. approved_by_staff_id is set at insert — a column no requirement
 -- forbids on insert, because the spec's reasoning is that insert-time rules are
 -- vacuous — and approved_at is stamped afterwards, on its own, by the same
 -- person. The approver was never checked at insert and, at update, is not being
 -- changed. This is the born-approved defect taken in two moves.
-select pg_temp.attempt($$
+-- This insert is asserted rather than discarded, and the reason is worth
+-- stating: the assertion below passes if EITHER move was refused, so a setup
+-- write that quietly failed would make it green for a reason that has nothing
+-- to do with what it claims. Naming the expected outcome here is what stops
+-- that. It is also a claim in its own right — no requirement forbids recording
+-- a proposed approver on an undecided pause, only arriving already decided.
+select is(pg_temp.attempt($$
   insert into public.membership_pauses
     (id, tenant_id, membership_id, starts_on, ends_on, reason,
      requested_by_staff_id, approved_by_staff_id)
   values ('170000ff-0000-4000-8000-000000000130', '170000ff-0000-4000-8000-00000000a001',
           '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
           'H17 half born', '170000ff-0000-4000-8000-00000000a022',
-          '170000ff-0000-4000-8000-00000000a022')$$);
+          '170000ff-0000-4000-8000-00000000a022')$$),
+  'ok',
+  'A pause may be created naming a proposed approver while still undecided — only arriving already DECIDED is refused, so the next assertion is about the update and not about this insert having failed');
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_at = now()
-   where id = '170000ff-0000-4000-8000-000000000130'$$);
+   where id = '170000ff-0000-4000-8000-000000000130'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -946,8 +973,8 @@ select ok(
 -- Both claims below are IDENTICAL to a session tested earlier except for the
 -- missing `sub`, so that a failure here isolates the inference rather than
 -- restating a defect already named:
---   the insert mirrors assertion 28's session exactly (gym_manager, staff_id
---   Manager A2), so once 28 is green a failure here is about `sub` alone;
+--   the insert mirrors assertion 29's session exactly (gym_manager, staff_id
+--   Manager A2), so a failure here is about `sub` alone;
 --   the update mirrors assertion 2's session exactly (front_desk, staff_id
 --   Front Desk A), which assertion 2 has already established is refused when
 --   the same token carries a `sub`.
@@ -958,7 +985,7 @@ select set_config('request.jwt.claims',
                     'staff_id', '170000ff-0000-4000-8000-00000000a022')::text, true);
 set local role authenticated;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   insert into public.membership_pauses
     (id, tenant_id, membership_id, starts_on, ends_on, reason,
      requested_by_staff_id, approved_by_staff_id, approved_at)
@@ -966,7 +993,7 @@ select pg_temp.attempt($$
           '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
           'H17 born approved, no sub claim',
           '170000ff-0000-4000-8000-00000000a021', '170000ff-0000-4000-8000-00000000a022',
-          now())$$);
+          now())$$); end $do$;
 
 -- And on the update path. front_desk is not gym A's configured approver, which
 -- assertion 2 proved is refused for exactly this staff member — the only
@@ -977,11 +1004,11 @@ select set_config('request.jwt.claims',
                     'app_role', 'front_desk',
                     'staff_id', '170000ff-0000-4000-8000-00000000a024')::text, true);
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
      set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a024',
          approved_at = now()
-   where id = '170000ff-0000-4000-8000-00000000010e'$$);
+   where id = '170000ff-0000-4000-8000-00000000010e'$$); end $do$;
 
 reset role;
 set local role postgres;
@@ -1029,7 +1056,7 @@ select lives_ok(
 
 set local role service_role;
 
-select pg_temp.attempt($$
+do $do$ begin perform pg_temp.attempt($$
   insert into public.membership_pauses
     (id, tenant_id, membership_id, starts_on, ends_on, reason,
      requested_by_staff_id, approved_by_staff_id, approved_at)
@@ -1037,7 +1064,7 @@ select pg_temp.attempt($$
           '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
           'H17 born approved by service_role',
           '170000ff-0000-4000-8000-00000000a021', '170000ff-0000-4000-8000-00000000a022',
-          now())$$);
+          now())$$); end $do$;
 
 reset role;
 set local role postgres;
