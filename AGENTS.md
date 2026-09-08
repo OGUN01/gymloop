@@ -45,6 +45,7 @@ Every unit of work follows the **Gauntlet Loop**, no round-count budget, exits o
 | How to start a new feature / migration / endpoint / RLS policy / payment flow | `.claude/skills/*/SKILL.md` |
 | Current system truth vs. in-flight proposals | `openspec/specs/`, `openspec/changes/` |
 | Real values for env vars | `.env.local` (gitignored) — names only in `.env.example` |
+| Sign-ins for simulating any role against the demo gym | `docs/demo-accounts.md` |
 
 ## Provisioned infrastructure (do not recreate)
 
