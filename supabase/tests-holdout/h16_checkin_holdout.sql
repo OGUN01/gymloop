@@ -28,7 +28,7 @@ begin;
 -- holds BYPASSRLS, is assumed explicitly rather than inherited.
 set local role postgres;
 
-select plan(43);
+select plan(49);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Two gyms whose de-duplication windows are DIFFERENT and NEITHER of
@@ -48,7 +48,10 @@ values ('aa000016-0000-4000-8000-000000000001', 45),
 
 insert into public.branches (id, tenant_id, name)
 values ('aa000016-0000-4000-8000-000000000011', 'aa000016-0000-4000-8000-000000000001', 'H16 Main A'),
-       ('aa000016-0000-4000-8000-000000000012', 'aa000016-0000-4000-8000-000000000002', 'H16 Main B');
+       ('aa000016-0000-4000-8000-000000000012', 'aa000016-0000-4000-8000-000000000002', 'H16 Main B'),
+       -- A second branch in gym A, solely so the generic column sweep below has
+       -- a valid alternate branch_id to probe with instead of a random uuid.
+       ('aa000016-0000-4000-8000-000000000013', 'aa000016-0000-4000-8000-000000000001', 'H16 Second Branch A');
 
 insert into public.staff (id, tenant_id, branch_id, role, full_name)
 values ('aa000016-0000-4000-8000-000000000021', 'aa000016-0000-4000-8000-000000000001',
@@ -86,7 +89,13 @@ values ('aa000016-0000-4000-8000-000000000031', 'aa000016-0000-4000-8000-0000000
        ('aa000016-0000-4000-8000-000000000037', 'aa000016-0000-4000-8000-000000000001',
         'aa000016-0000-4000-8000-000000000011', 'H16 Assisted Member A', '+919600160007'),
        ('aa000016-0000-4000-8000-000000000038', 'aa000016-0000-4000-8000-000000000001',
-        'aa000016-0000-4000-8000-000000000011', 'H16 No Checkout Member A', '+919600160008');
+        'aa000016-0000-4000-8000-000000000011', 'H16 No Checkout Member A', '+919600160008'),
+       -- Dedicated to the checked_out_at attack-surface probes further down
+       -- (row 072), kept separate from ...0038 so those probes setting and
+       -- re-setting checked_out_at do not add a second row to the count
+       -- ATT-008 already scoped to ...0038's own visits.
+       ('aa000016-0000-4000-8000-000000000039', 'aa000016-0000-4000-8000-000000000001',
+        'aa000016-0000-4000-8000-000000000011', 'H16 Checkout Probe Member A', '+919600160009');
 
 insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
 values ('aa000016-0000-4000-8000-000000000041', 'aa000016-0000-4000-8000-000000000001',
@@ -109,6 +118,12 @@ values ('aa000016-0000-4000-8000-000000000041', 'aa000016-0000-4000-8000-0000000
        -- reason or the assertion silently tests ATT-001 instead.
        ('aa000016-0000-4000-8000-000000000047', 'aa000016-0000-4000-8000-000000000001',
         'aa000016-0000-4000-8000-000000000038', 'aa000016-0000-4000-8000-000000000025',
+        'active', date '2026-03-01', date '2026-12-31', 100000),
+       -- ...039's own membership: its attendance row (072) is a QR check-in,
+       -- and app.enforce_check_in() requires a live membership for that
+       -- source even on a trusted-context fixture insert.
+       ('aa000016-0000-4000-8000-000000000048', 'aa000016-0000-4000-8000-000000000001',
+        'aa000016-0000-4000-8000-000000000039', 'aa000016-0000-4000-8000-000000000025',
         'active', date '2026-03-01', date '2026-12-31', 100000);
 
 insert into public.memberships (id, tenant_id, member_id, plan_id, status, price_paise)
@@ -146,6 +161,41 @@ values ('aa000016-0000-4000-8000-000000000061', 'aa000016-0000-4000-8000-0000000
         'aa000016-0000-4000-8000-000000000045',
         timestamptz '2026-04-01 06:00:00+05:30', 'qr',
         'aa000016-0000-4000-8000-000000000054');
+
+-- Three dedicated rows for the "written once" assertions further down, kept
+-- separate from every row another assertion already depends on so neither the
+-- generic sweep nor the open-column probes disturb an earlier count — and kept
+-- separate from EACH OTHER too: the generic sweep probes id last, and if id is
+-- not frozen, every later attack aimed at the same row by its original id
+-- would silently match nothing once the sweep has already renumbered it,
+-- making that later attack prove nothing at all.
+--   ...070 — an assisted (front_desk) row with every optional column
+--            populated, so the sweep alone has something in every column to
+--            change. Nothing else in this file targets it afterward.
+--   ...071 — a second assisted (front_desk) row, for the combined-write
+--            attacks (forging offline provenance, erasing the assisted pair)
+--            that must land on a row the sweep has not touched.
+--   ...072 — a plain QR row with no check-out yet, for the checked_out_at
+--            attack-surface probes (check-out-before-check-in, repeated
+--            check-out).
+insert into public.attendance (id, tenant_id, branch_id, member_id, membership_id,
+                               checked_in_at, source, assisted_by_staff_id, assist_reason)
+values ('aa000016-0000-4000-8000-000000000070', 'aa000016-0000-4000-8000-000000000001',
+        'aa000016-0000-4000-8000-000000000011', 'aa000016-0000-4000-8000-000000000037',
+        'aa000016-0000-4000-8000-000000000041',
+        timestamptz '2026-04-05 09:00:00+05:30', 'front_desk',
+        'aa000016-0000-4000-8000-000000000021', 'h16 sweep fixture, original reason'),
+       ('aa000016-0000-4000-8000-000000000071', 'aa000016-0000-4000-8000-000000000001',
+        'aa000016-0000-4000-8000-000000000011', 'aa000016-0000-4000-8000-000000000037',
+        'aa000016-0000-4000-8000-000000000041',
+        timestamptz '2026-04-05 09:30:00+05:30', 'front_desk',
+        'aa000016-0000-4000-8000-000000000021', 'h16 combined-write fixture, original reason');
+
+insert into public.attendance (id, tenant_id, branch_id, member_id, checked_in_at, source, qr_session_id)
+values ('aa000016-0000-4000-8000-000000000072', 'aa000016-0000-4000-8000-000000000001',
+        'aa000016-0000-4000-8000-000000000011', 'aa000016-0000-4000-8000-000000000039',
+        timestamptz '2026-04-05 10:00:00+05:30', 'qr',
+        'aa000016-0000-4000-8000-000000000051');
 
 
 -- ---------------------------------------------------------------------------
@@ -647,6 +697,238 @@ select throws_ok(
   null::char(5), null::text,
   'ATT-004: the same five minute gap is refused at gym B, whose window is ten minutes — each gym''s de-duplication uses its own value');
 
+
+-- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- THE GENERIC COLUMN SWEEP — "every column except checked_out_at", asserted as
+-- a shape rather than transcribed as the nine (now known to be wrong) names
+-- the first version of this rule listed. pg_temp.frozen_probe() enumerates
+-- information_schema.columns itself, so id, created_at, offline_recorded_at
+-- and replayed_at — ADR-070's own four misses — are covered along with
+-- anything nobody has named yet. Each FK column is perturbed with a real
+-- alternate row rather than a random uuid, so a refusal is attributable to the
+-- freeze rule and not to an incidental foreign-key violation.
+--
+-- offline_recorded_at and replayed_at are excluded from the loop: Phase 1's
+-- own attendance_offline_stamp_pair_chk refuses setting either one alone
+-- regardless of any freeze rule, which would make a single-column probe of
+-- either one prove nothing about THIS rule. That combined attack is tested
+-- separately, right below, by setting both together in one statement — which
+-- satisfies the pair check and leaves only the freeze rule able to refuse it.
+-- ---------------------------------------------------------------------------
+
+-- pg_temp.attempt(): run a write, return 'ok' or the SQLSTATE, never abort.
+-- Security invoker. Used below only where the write is meant to be REFUSED
+-- and the assertion that follows checks row state rather than an error —
+-- exactly ADR-069's shape, so its result is always consumed by an assertion
+-- or discarded through `perform` inside a do block, never a bare top-level
+-- `select`.
+create function pg_temp.attempt(sql text) returns text
+language plpgsql as $fn$
+begin
+  execute sql;
+  return 'ok';
+exception when others then
+  return sqlstate;
+end;
+$fn$;
+
+create function pg_temp.frozen_probe(
+  p_table text, p_row_id uuid, p_excluded text[], p_fk_overrides jsonb default '{}'::jsonb
+) returns text[] language plpgsql as $fn$
+declare
+  before_row jsonb;
+  after_row jsonb;
+  col record;
+  new_val text;
+  leaked text[] := '{}';
+  id_survived boolean;
+begin
+  execute format('select to_jsonb(t) from public.%I t where id = %L', p_table, p_row_id)
+    into before_row;
+
+  -- id is tested LAST and separately (below), never inside this loop: if id
+  -- itself is not frozen and leaks first, every later UPDATE in this loop is
+  -- still keyed `where id = p_row_id` against a row that has already moved,
+  -- so it would silently match zero rows and every remaining column would
+  -- misreport as leaked too. Testing id last, by existence rather than by
+  -- value-diff, keeps the per-column results below trustworthy regardless of
+  -- what id does.
+  for col in
+    select c.column_name, c.data_type
+      from information_schema.columns c
+     where c.table_schema = 'public' and c.table_name = p_table
+       and c.column_name <> all(p_excluded)
+       and c.column_name <> 'id'
+     order by c.ordinal_position
+  loop
+    if p_fk_overrides ? col.column_name then
+      new_val := quote_literal(p_fk_overrides ->> col.column_name);
+    elsif col.column_name = 'source' then
+      new_val := quote_literal(case when before_row ->> 'source' = 'front_desk' then 'qr' else 'front_desk' end);
+    elsif col.data_type = 'uuid' then
+      new_val := 'gen_random_uuid()';
+    elsif col.data_type = 'date' then
+      new_val := quote_literal(((before_row ->> col.column_name)::date + 1)::text);
+    elsif col.data_type = 'timestamp with time zone' then
+      if before_row ->> col.column_name is null then
+        new_val := 'now()';
+      else
+        new_val := quote_literal(((before_row ->> col.column_name)::timestamptz + interval '1 second')::text);
+      end if;
+    elsif col.data_type = 'text' then
+      new_val := quote_literal(coalesce(before_row ->> col.column_name, '') || '_frozen_probe');
+    elsif col.data_type = 'boolean' then
+      new_val := (not coalesce((before_row ->> col.column_name)::boolean, false))::text;
+    elsif col.data_type in ('integer', 'smallint', 'bigint', 'numeric') then
+      new_val := (coalesce((before_row ->> col.column_name)::numeric, 0) + 1)::text;
+    else
+      leaked := leaked || (col.column_name || ' [UNPROBED TYPE ' || col.data_type || ']');
+      continue;
+    end if;
+
+    begin
+      execute format('update public.%I set %I = %s where id = %L',
+        p_table, col.column_name, new_val, p_row_id);
+    exception when others then
+      null;
+    end;
+  end loop;
+
+  execute format('select to_jsonb(t) from public.%I t where id = %L', p_table, p_row_id)
+    into after_row;
+
+  for col in
+    select c.column_name
+      from information_schema.columns c
+     where c.table_schema = 'public' and c.table_name = p_table
+       and c.column_name <> all(p_excluded)
+       and c.column_name <> 'id'
+  loop
+    if (before_row ->> col.column_name) is distinct from (after_row ->> col.column_name) then
+      leaked := leaked || col.column_name;
+    end if;
+  end loop;
+
+  -- id, last, by existence under the original value rather than by comparing
+  -- values (there is nothing left to compare it to once it might have moved).
+  if 'id' <> all(p_excluded) then
+    begin
+      execute format('update public.%I set id = gen_random_uuid() where id = %L', p_table, p_row_id);
+    exception when others then
+      null;
+    end;
+
+    execute format('select exists(select 1 from public.%I where id = %L)', p_table, p_row_id)
+      into id_survived;
+
+    if not id_survived then
+      leaked := leaked || 'id'::text;
+    end if;
+  end if;
+
+  return leaked;
+end;
+$fn$;
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', 'aa000016-0000-4000-8000-000000000001',
+                    'app_role', 'front_desk',
+                    'staff_id', 'aa000016-0000-4000-8000-000000000021')::text,
+  true
+);
+set local role authenticated;
+
+select is(
+  pg_temp.frozen_probe('attendance', 'aa000016-0000-4000-8000-000000000070'::uuid,
+    array['tenant_id', 'checked_out_at', 'offline_recorded_at', 'replayed_at'],
+    jsonb_build_object('branch_id', 'aa000016-0000-4000-8000-000000000013',
+                        'member_id', 'aa000016-0000-4000-8000-000000000036',
+                        'membership_id', 'aa000016-0000-4000-8000-000000000046',
+                        'assisted_by_staff_id', 'aa000016-0000-4000-8000-000000000023',
+                        'qr_session_id', 'aa000016-0000-4000-8000-000000000051')),
+  '{}'::text[],
+  'A recorded visit freezes every column but checked_out_at — swept from the catalogue rather than a hand-typed list, so id, created_at and any column nobody has named yet are covered too, not just the nine the first version of this rule listed');
+
+-- The combined attack the pair check alone cannot answer: stamp BOTH offline
+-- columns together on a visit that was recorded live. Satisfies
+-- attendance_offline_stamp_pair_chk, so only the freeze rule stands between a
+-- front-office session and forged offline provenance on this row.
+do $do$ begin perform pg_temp.attempt($$
+  update public.attendance
+     set offline_recorded_at = now(), replayed_at = now()
+   where id = 'aa000016-0000-4000-8000-000000000071'$$); end $do$;
+
+-- Erasing the assisted pair, as the spec's own scenario states it: flip
+-- source to 'qr' and null BOTH assist columns in the same statement. Nulling
+-- just one alone is already refused by the Phase 1 pair check regardless of
+-- this rule, so the meaningful attack is the combined write, which satisfies
+-- every Phase 1 check and leaves only the freeze rule to answer.
+do $do$ begin perform pg_temp.attempt($$
+  update public.attendance
+     set source = 'qr', assisted_by_staff_id = null, assist_reason = null
+   where id = 'aa000016-0000-4000-8000-000000000071'$$); end $do$;
+
+reset role;
+set local role postgres;
+
+select ok(
+  (select offline_recorded_at is null and replayed_at is null
+     from public.attendance
+    where id = 'aa000016-0000-4000-8000-000000000071'),
+  'Offline provenance cannot be forged onto a visit recorded live, even by setting both paired columns together in one statement that satisfies Phase 1''s own pair check');
+
+select ok(
+  (select source = 'front_desk' and assisted_by_staff_id is not null and assist_reason is not null
+     from public.attendance
+    where id = 'aa000016-0000-4000-8000-000000000071'),
+  'The assisted pair cannot be erased by flipping source to qr and nulling both columns together — ATT-005 exists so that marking somebody else present is attributable, and an attributable record that can be un-attributed in one statement is not one');
+
+-- ---------------------------------------------------------------------------
+-- THE ONE OPEN COLUMN AS AN ATTACK SURFACE. checked_out_at is deliberately
+-- left writable; the question is what a caller can do with only that.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', 'aa000016-0000-4000-8000-000000000001',
+                    'app_role', 'front_desk',
+                    'staff_id', 'aa000016-0000-4000-8000-000000000021')::text,
+  true
+);
+set local role authenticated;
+
+-- A check-out before the check-in. Not a defence this rule is responsible
+-- for — attendance_checked_out_at_after_checked_in_at_chk already refuses it
+-- — but the open column is exactly where that pre-existing guard has to keep
+-- working once every other column is frozen.
+select throws_ok(
+  $$update public.attendance
+       set checked_out_at = timestamptz '2026-04-05 09:59:00+05:30'
+     where id = 'aa000016-0000-4000-8000-000000000072'$$,
+  '23514', null,
+  'A check-out before the check-in is still refused through the one open column, by Phase 1''s own ordering check');
+
+select lives_ok(
+  $$update public.attendance
+       set checked_out_at = timestamptz '2026-04-05 10:30:00+05:30'
+     where id = 'aa000016-0000-4000-8000-000000000072'$$,
+  'A valid check-out, at or after the check-in time, succeeds through the one column the rule leaves open');
+
+-- A SECOND check-out on the same visit, overwriting the first. Nothing in the
+-- spec's text restricts checked_out_at once it has already been set once — it
+-- is simply the column the freeze rule does not apply to — so this is asserted
+-- as succeeding under the literal rule. If a gym''s product sense says a visit
+-- should only be checked out once, that is a rule this spec does not yet
+-- state, and this assertion is where that gap would be found.
+select lives_ok(
+  $$update public.attendance
+       set checked_out_at = timestamptz '2026-04-05 11:00:00+05:30'
+     where id = 'aa000016-0000-4000-8000-000000000072'$$,
+  'A second check-out on the same visit, overwriting the first, is not refused by anything this spec states — checked_out_at is unconditionally open, not open-once');
 
 -- ---------------------------------------------------------------------------
 -- Closing check, as the owner: nothing this file attempted left a gym A member

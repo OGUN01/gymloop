@@ -66,7 +66,7 @@ begin;
 -- holds BYPASSRLS, is assumed explicitly rather than inherited.
 set local role postgres;
 
-select plan(39);
+select plan(47);
 
 -- ---------------------------------------------------------------------------
 -- pg_temp.attempt(): run a write, return 'ok' or the SQLSTATE, never abort.
@@ -201,7 +201,9 @@ from (values
   ('170000ff-0000-4000-8000-00000000010f'::uuid), -- reassign requester, alone
   ('170000ff-0000-4000-8000-000000000120'::uuid), -- reject AND reassign requester, one statement
   ('170000ff-0000-4000-8000-000000000121'::uuid), -- edit dates on a pending pause (control)
-  ('170000ff-0000-4000-8000-000000000122'::uuid)  -- gym owner approves (not A's configured role)
+  ('170000ff-0000-4000-8000-000000000122'::uuid), -- gym owner approves (not A's configured role)
+  ('170000ff-0000-4000-8000-000000000123'::uuid), -- approve-and-amend, one statement
+  ('170000ff-0000-4000-8000-000000000124'::uuid)  -- reject-and-amend, one statement
 ) as t(id);
 
 -- Pause in gym B, whose configured approver is front_desk.
@@ -237,8 +239,22 @@ from (values
   ('170000ff-0000-4000-8000-000000000113'::uuid), -- extend ends_on
   ('170000ff-0000-4000-8000-000000000114'::uuid), -- flip approval to rejection
   ('170000ff-0000-4000-8000-000000000115'::uuid), -- a second qualified approver overwrites
-  ('170000ff-0000-4000-8000-000000000116'::uuid)  -- impersonator rewrites the decision
+  ('170000ff-0000-4000-8000-000000000116'::uuid), -- impersonator rewrites the decision
+  ('170000ff-0000-4000-8000-000000000117'::uuid)  -- dedicated target for the generic column sweep
 ) as t(id);
+
+-- A decided-by-REJECTION row, dedicated and separate from the approved fixtures
+-- above. "A decided pause stays decided" is stated for the freeze in general,
+-- but every worked scenario in the spec is an approval — this row is what lets
+-- the generic sweep below ask whether a REJECTED pause is frozen too, or
+-- whether the guard was written watching only approved_at.
+insert into public.membership_pauses
+  (id, tenant_id, membership_id, starts_on, ends_on, reason,
+   requested_by_staff_id, rejected_at)
+values ('170000ff-0000-4000-8000-000000000118', '170000ff-0000-4000-8000-00000000a001',
+        '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
+        'H17 rejected freeze, sweep target', '170000ff-0000-4000-8000-00000000a021',
+        timestamptz '2026-09-01 10:00:00+05:30');
 
 -- ---------------------------------------------------------------------------
 -- 1-4. THE GYM DECIDES WHICH ROLE APPROVES — and it is the gym's row that
@@ -909,16 +925,20 @@ do $do$ begin perform pg_temp.attempt($$
           '170000ff-0000-4000-8000-00000000a021', '170000ff-0000-4000-8000-00000000a022',
           now())$$); end $do$;
 
--- Born REJECTED. The requirement names approved_at only, and the spec is
--- explicit that refusing a freeze is not the governed act. A control: an
--- implementation that refuses any decided-at-birth row has over-enforced.
+-- Born REJECTED. The spec now names rejected_at explicitly alongside
+-- approved_at: "a pause arrives pending or it does not arrive" is the rule and
+-- half of it used to not be enforced. requested_by_staff_id is deliberately
+-- the ACTOR of this very insert (a022, the session's own claim), not a021 as
+-- the earlier fixtures in this file use — a born-rejected row naming a
+-- colleague as requester would be refused for two reasons at once, and this
+-- assertion exists to isolate the rejected-at-birth rule alone.
 do $do$ begin perform pg_temp.attempt($$
   insert into public.membership_pauses
     (id, tenant_id, membership_id, starts_on, ends_on, reason,
      requested_by_staff_id, rejected_at)
   values ('170000ff-0000-4000-8000-000000000135', '170000ff-0000-4000-8000-00000000a001',
           '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
-          'H17 born rejected', '170000ff-0000-4000-8000-00000000a021', now())$$); end $do$;
+          'H17 born rejected', '170000ff-0000-4000-8000-00000000a022', now())$$); end $do$;
 
 -- Half born. approved_by_staff_id is set at insert — a column no requirement
 -- forbids on insert, because the spec's reasoning is that insert-time rules are
@@ -955,10 +975,10 @@ select is_empty(
      where id = '170000ff-0000-4000-8000-000000000131'$$,
   'A session subject to row security cannot insert a pause that is already approved — a row that arrives at the destination was never governed on the way');
 
-select isnt_empty(
+select is_empty(
   $$select 1 from public.membership_pauses
      where id = '170000ff-0000-4000-8000-000000000135'$$,
-  'A pause may be born REJECTED: the requirement names approved_at, and refusing this would govern the one act the spec says is not the commercial one');
+  'A pause may NOT be born rejected either, now that the spec names rejected_at alongside approved_at — a born-rejected row would permanently record a refusal against a request nobody made, with no way to undo it. (Requester was the actor of the insert itself, so only this rule, not requester-immutability, can be what refuses it.)');
 
 select ok(
   (select approved_at is null from public.membership_pauses
@@ -1091,6 +1111,304 @@ select lives_ok(
   'The seed still creates already-approved pauses — row security does not apply to it, and imposing this rule there protects nothing a policy is not already protecting');
 
 -- ---------------------------------------------------------------------------
+-- 37-40. THE NEW INSERT-TIME RULE, ISOLATED FROM THE BORN-DECIDED RULE.
+--
+-- ADR-070's own finding: immutability-on-UPDATE was defeated by insert-then-
+-- approve, because INSERT is where requested_by_staff_id first enters and was
+-- still whatever the caller typed. These four probe the insert itself, on a
+-- PENDING pause, so no other rule (born-decided, self-approval) can be what
+-- refuses them — a clean read on whether this specific rule exists.
+-- ---------------------------------------------------------------------------
+
+select set_config('request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '170000ff-0000-4000-8000-00000000a001',
+                    'app_role', 'front_desk',
+                    'staff_id', '170000ff-0000-4000-8000-00000000a024')::text, true);
+set local role authenticated;
+
+-- (a) A pending pause naming a COLLEAGUE as requester. Nothing about this row
+--     is decided, so only "the requester is the acting staff member at insert"
+--     can refuse it.
+do $do$ begin perform pg_temp.attempt($$
+  insert into public.membership_pauses
+    (id, tenant_id, membership_id, starts_on, ends_on, reason, requested_by_staff_id)
+  values ('170000ff-0000-4000-8000-000000000119', '170000ff-0000-4000-8000-00000000a001',
+          '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
+          'H17 insert naming a colleague as requester',
+          '170000ff-0000-4000-8000-00000000a021')$$); end $do$;
+
+-- (b) A pending pause naming NOBODY — requested_by_staff_id left null. The
+--     column is nullable, so nothing but this rule stands between a caller and
+--     a freeze nobody is recorded as having asked for.
+do $do$ begin perform pg_temp.attempt($$
+  insert into public.membership_pauses
+    (id, tenant_id, membership_id, starts_on, ends_on, reason)
+  values ('170000ff-0000-4000-8000-00000000011a', '170000ff-0000-4000-8000-00000000a001',
+          '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
+          'H17 insert naming nobody as requester')$$); end $do$;
+
+-- (c) Positive control: the acting session names ITSELF. If this is refused
+--     too, the rule has over-enforced and the two negatives above are not
+--     evidence of anything.
+do $do$ begin perform pg_temp.attempt($$
+  insert into public.membership_pauses
+    (id, tenant_id, membership_id, starts_on, ends_on, reason, requested_by_staff_id)
+  values ('170000ff-0000-4000-8000-00000000011b', '170000ff-0000-4000-8000-00000000a001',
+          '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
+          'H17 insert naming the acting session as requester',
+          '170000ff-0000-4000-8000-00000000a024')$$); end $do$;
+
+reset role;
+set local role postgres;
+
+select is_empty(
+  $$select 1 from public.membership_pauses
+     where id = '170000ff-0000-4000-8000-000000000119'$$,
+  'A pending pause cannot be created naming a colleague as requester — the acting staff member at INSERT is the only legitimate requester, exactly as ADR-070 argues, isolated here from the born-decided rule by leaving the row undecided');
+
+select is_empty(
+  $$select 1 from public.membership_pauses
+     where id = '170000ff-0000-4000-8000-00000000011a'$$,
+  'A pending pause cannot be created naming nobody as requester — a nullable column is not an escape hatch from the same rule');
+
+select is(
+  (select requested_by_staff_id from public.membership_pauses
+    where id = '170000ff-0000-4000-8000-00000000011b'),
+  '170000ff-0000-4000-8000-00000000a024'::uuid,
+  'A staff member may still open a pause naming themselves as requester — the insert-time rule is not a ban on inserting, only on inserting a false record');
+
+-- (d) The seed's own carve-out, now for the new rule: a trusted context (no
+--     claims at all, the seed's own shape) inserting a REJECTED pause naming a
+--     requester who never touched this session. If this rule is keyed on
+--     row_security_active() like every other rule in this file ought to be, it
+--     does not apply here at all.
+select set_config('request.jwt.claims', '', true);
+
+select lives_ok(
+  $$insert into public.membership_pauses
+      (id, tenant_id, membership_id, starts_on, ends_on, reason,
+       requested_by_staff_id, rejected_at)
+    values ('170000ff-0000-4000-8000-00000000011c', '170000ff-0000-4000-8000-00000000a001',
+            '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
+            'H17 seed inserts a rejected pause naming whoever it likes',
+            '170000ff-0000-4000-8000-00000000a021', now())$$,
+  'The seed is exempt from BOTH new rules at once: an already-rejected pause naming a requester the session never was — if either carve-out is keyed on the claim rather than row_security_active(), this is where a leftover or absent claim would show it');
+
+-- ---------------------------------------------------------------------------
+-- 41-42. THE GENERIC COLUMN SWEEP.
+--
+-- "Every column except X" is a claim about a SET. A hand-typed list of frozen
+-- columns is exactly the shape that was wrong twice already (ADR-070: id and
+-- created_at, both times). pg_temp.frozen_probe() enumerates
+-- information_schema.columns itself, so a column added tomorrow is swept in
+-- without this file being edited, and perturbs each with a value chosen to be
+-- valid if no freeze rule existed — an FK column gets a real alternate row, not
+-- a random uuid — so a refusal here is attributable to the freeze rule and not
+-- to an incidental foreign-key or check violation.
+--
+-- Run twice: once against an APPROVED row, once against a REJECTED one. The
+-- spec's own worked examples are all approvals; running it against a rejected
+-- row is what asks whether "a decided pause" was ever meant to include one.
+-- approved_at and rejected_at cannot both be probed on the same row — Phase
+-- 1's own CHECK constraint refuses that regardless of any freeze rule — so
+-- each run excludes whichever of the pair is not already set on that row.
+-- ---------------------------------------------------------------------------
+
+create function pg_temp.frozen_probe(
+  p_table text, p_row_id uuid, p_excluded text[], p_fk_overrides jsonb default '{}'::jsonb
+) returns text[] language plpgsql as $fn$
+declare
+  before_row jsonb;
+  after_row jsonb;
+  col record;
+  new_val text;
+  leaked text[] := '{}';
+  id_survived boolean;
+begin
+  execute format('select to_jsonb(t) from public.%I t where id = %L', p_table, p_row_id)
+    into before_row;
+
+  -- id is tested LAST and separately (below), never inside this loop: if id
+  -- itself is not frozen and leaks first, every later UPDATE in this loop is
+  -- still keyed `where id = p_row_id` against a row that has already moved,
+  -- so it would silently match zero rows and every remaining column would
+  -- misreport as leaked too. Testing id last, by existence rather than by
+  -- value-diff, keeps the per-column results below trustworthy regardless of
+  -- what id does.
+  for col in
+    select c.column_name, c.data_type
+      from information_schema.columns c
+     where c.table_schema = 'public' and c.table_name = p_table
+       and c.column_name <> all(p_excluded)
+       and c.column_name <> 'id'
+     order by c.ordinal_position
+  loop
+    if p_fk_overrides ? col.column_name then
+      new_val := quote_literal(p_fk_overrides ->> col.column_name);
+    elsif col.column_name = 'source' then
+      new_val := quote_literal(case when before_row ->> 'source' = 'front_desk' then 'qr' else 'front_desk' end);
+    elsif col.data_type = 'uuid' then
+      new_val := 'gen_random_uuid()';
+    elsif col.data_type = 'date' then
+      new_val := quote_literal(((before_row ->> col.column_name)::date + 1)::text);
+    elsif col.data_type = 'timestamp with time zone' then
+      if before_row ->> col.column_name is null then
+        new_val := 'now()';
+      else
+        new_val := quote_literal(((before_row ->> col.column_name)::timestamptz + interval '1 second')::text);
+      end if;
+    elsif col.data_type = 'text' then
+      new_val := quote_literal(coalesce(before_row ->> col.column_name, '') || '_frozen_probe');
+    elsif col.data_type = 'boolean' then
+      new_val := (not coalesce((before_row ->> col.column_name)::boolean, false))::text;
+    elsif col.data_type in ('integer', 'smallint', 'bigint', 'numeric') then
+      new_val := (coalesce((before_row ->> col.column_name)::numeric, 0) + 1)::text;
+    else
+      leaked := leaked || (col.column_name || ' [UNPROBED TYPE ' || col.data_type || ']');
+      continue;
+    end if;
+
+    begin
+      execute format('update public.%I set %I = %s where id = %L',
+        p_table, col.column_name, new_val, p_row_id);
+    exception when others then
+      null;
+    end;
+  end loop;
+
+  execute format('select to_jsonb(t) from public.%I t where id = %L', p_table, p_row_id)
+    into after_row;
+
+  for col in
+    select c.column_name
+      from information_schema.columns c
+     where c.table_schema = 'public' and c.table_name = p_table
+       and c.column_name <> all(p_excluded)
+       and c.column_name <> 'id'
+  loop
+    if (before_row ->> col.column_name) is distinct from (after_row ->> col.column_name) then
+      leaked := leaked || col.column_name;
+    end if;
+  end loop;
+
+  -- id, last, by existence under the original value rather than by comparing
+  -- values (there is nothing left to compare it to once it might have moved).
+  if 'id' <> all(p_excluded) then
+    begin
+      execute format('update public.%I set id = gen_random_uuid() where id = %L', p_table, p_row_id);
+    exception when others then
+      null;
+    end;
+
+    execute format('select exists(select 1 from public.%I where id = %L)', p_table, p_row_id)
+      into id_survived;
+
+    if not id_survived then
+      leaked := leaked || 'id'::text;
+    end if;
+  end if;
+
+  return leaked;
+end;
+$fn$;
+
+select set_config('request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '170000ff-0000-4000-8000-00000000a001',
+                    'app_role', 'front_desk',
+                    'staff_id', '170000ff-0000-4000-8000-00000000a024')::text, true);
+set local role authenticated;
+
+select is(
+  pg_temp.frozen_probe('membership_pauses', '170000ff-0000-4000-8000-000000000117'::uuid,
+    array['tenant_id', 'updated_at', 'rejected_at'],
+    jsonb_build_object('membership_id', '170000ff-0000-4000-8000-00000000a052',
+                        'requested_by_staff_id', '170000ff-0000-4000-8000-00000000a023',
+                        'approved_by_staff_id', '170000ff-0000-4000-8000-00000000a023')),
+  '{}'::text[],
+  'An APPROVED pause freezes every column but updated_at — swept from the catalogue rather than a hand-typed list, so id and created_at (ADR-070''s own two misses) are covered along with anything nobody has named yet');
+
+select is(
+  pg_temp.frozen_probe('membership_pauses', '170000ff-0000-4000-8000-000000000118'::uuid,
+    array['tenant_id', 'updated_at', 'approved_at', 'approved_by_staff_id'],
+    jsonb_build_object('membership_id', '170000ff-0000-4000-8000-00000000a052',
+                        'requested_by_staff_id', '170000ff-0000-4000-8000-00000000a023')),
+  '{}'::text[],
+  'A REJECTED pause freezes just as hard as an approved one — the spec''s worked scenarios name only approvals, and a guard built by watching approved_at alone would leave every rejected pause permanently editable');
+
+-- ---------------------------------------------------------------------------
+-- 43-44. THE STATEMENT THAT DOES THE DECIDING: may it also amend?
+--
+-- Every rule above is about a row that is ALREADY decided. "Once a pause
+-- carries a decision" reads as a precondition on the row BEFORE the
+-- statement — which leaves open whether the very statement that first grants
+-- or refuses a freeze may also, in the same breath, move what it is granting.
+-- The Purpose section's own words ("an authorisation is an authorisation of
+-- something") argue no; the requirement's literal text does not say so. Two
+-- fresh PENDING pauses, attacked in one statement each, so no earlier
+-- assertion's fixture is disturbed and the closing OUTCOMES count below is
+-- unaffected unless this is where the money actually moves.
+-- ---------------------------------------------------------------------------
+
+-- Approve pause 123 AND stretch its ends_on in the same UPDATE. Manager A2
+-- holds gym A's configured role and did not request it, so the approval half
+-- of this statement is, on its own, entirely lawful.
+select set_config('request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '170000ff-0000-4000-8000-00000000a001',
+                    'app_role', 'gym_manager',
+                    'staff_id', '170000ff-0000-4000-8000-00000000a022')::text, true);
+set local role authenticated;
+
+do $do$ begin perform pg_temp.attempt($$
+  update public.membership_pauses
+     set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a022',
+         approved_at = now(),
+         ends_on = date '2028-10-08'
+   where id = '170000ff-0000-4000-8000-000000000123'$$); end $do$;
+
+-- Reject pause 124 AND stretch its ends_on in the same UPDATE. Front desk may
+-- reject on its own, with no role check at all — so if amending rides along
+-- with a reject just as easily as with an approval, the hole is not specific
+-- to the two-person rule.
+select set_config('request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '170000ff-0000-4000-8000-00000000a001',
+                    'app_role', 'front_desk',
+                    'staff_id', '170000ff-0000-4000-8000-00000000a024')::text, true);
+set local role authenticated;
+
+do $do$ begin perform pg_temp.attempt($$
+  update public.membership_pauses
+     set rejected_at = now(),
+         ends_on = date '2028-10-08'
+   where id = '170000ff-0000-4000-8000-000000000124'$$); end $do$;
+
+reset role;
+set local role postgres;
+
+select ok(
+  not (
+    (select approved_at is not null from public.membership_pauses
+      where id = '170000ff-0000-4000-8000-000000000123')
+    and
+    (select ends_on <> date '2026-10-08' from public.membership_pauses
+      where id = '170000ff-0000-4000-8000-000000000123')
+  ),
+  'A pause cannot be granted for different dates than it was requested for by amending ends_on in the same statement that approves it — either both changes land or neither does, and only "neither" leaves the freeze the approver actually read intact. (If this is red: the guard reads OLD.approved_at to decide whether a row is already decided, which is the correct check for every OTHER assertion in this file, but means the FIRST statement that decides a row is not yet "a decided pause" while it runs — a genuine spec ambiguity, not necessarily this rule''s defect, and worth escalating rather than silently accepting either reading.)');
+
+select ok(
+  not (
+    (select rejected_at is not null from public.membership_pauses
+      where id = '170000ff-0000-4000-8000-000000000124')
+    and
+    (select ends_on <> date '2026-10-08' from public.membership_pauses
+      where id = '170000ff-0000-4000-8000-000000000124')
+  ),
+  'Rejecting a pause cannot smuggle a date change through alongside it — rejection needs no role and no second person, so if the amend rides along here too, the hole is in every decision, not only approvals');
+
+-- ---------------------------------------------------------------------------
 -- 34-36. OUTCOMES, SCOPED TO THIS FILE'S TENANTS (ADR-050).
 --
 -- Every assertion above names one row and one route. These three ask the
@@ -1113,11 +1431,12 @@ select results_eq(
            ('170000ff-0000-4000-8000-000000000114'::uuid),  -- fixture, not flipped
            ('170000ff-0000-4000-8000-000000000115'::uuid),  -- fixture, not re-approved
            ('170000ff-0000-4000-8000-000000000116'::uuid),  -- fixture, not rewritten
+           ('170000ff-0000-4000-8000-000000000117'::uuid),  -- fixture, sweep target, unchanged
            ('170000ff-0000-4000-8000-000000000132'::uuid),  -- postgres, no claims
            ('170000ff-0000-4000-8000-000000000133'::uuid),  -- service_role, exempt
            ('170000ff-0000-4000-8000-000000000136'::uuid),  -- postgres, claims still set
            ('170000ff-0000-4000-8000-0000000001b1'::uuid)$$, -- gym B's configured approver
-  'Exactly twelve freezes are granted across both gyms — the two the configured approvers gave, the seven that were already decided, and the three the exempt contexts seeded. Any thirteenth is money a gym stopped collecting on nobody''s authority');
+  'Exactly thirteen freezes are granted across both gyms — the two the configured approvers gave, the eight that were already decided (including the sweep target), and the three the exempt contexts seeded. Any fourteenth is money a gym stopped collecting on nobody''s authority — and in particular neither the approve-and-amend nor the reject-and-amend probe below may have slipped a pause into this set');
 
 select is_empty(
   $$select id from public.membership_pauses

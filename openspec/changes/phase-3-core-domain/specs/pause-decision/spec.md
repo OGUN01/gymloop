@@ -141,3 +141,22 @@ Once a pause carries a decision, THE SYSTEM SHALL refuse any change to **any col
 #### Scenario: Backdating a decided pause
 - **WHEN** a staff member updates a decided pause's `created_at`
 - **THEN** the write SHALL be refused
+
+### Requirement: The statement that decides may decide and nothing else
+WHEN a pause moves from pending to decided, THE SYSTEM SHALL permit that statement to write only the decision columns, and SHALL refuse it if it also changes what is being decided.
+
+**A guard that reads `old` to ask "was this already decided?" is blind to the statement doing the deciding.** Everything above governs the row before and after; nothing governed the transition itself. So an approver approved and moved `ends_on` in one statement — a seven-day freeze granted as a two-year one — and every rule held: the approver was the configured role, was not the requester, and the row was pending when the statement began. The record then reads as a properly authorised freeze that nobody requested and nobody approved in that form.
+
+This is the third appearance of one shape in this capability: **the rule was attached to the states, and the transition between them is a place a rule can be left out of.** The approver's authority is to grant the request that was made, not to alter it and grant that instead — a granter who can rewrite what they are granting makes the requester's half of the two-person rule decorative.
+
+#### Scenario: Approving and extending in one statement
+- **WHEN** the configured approver sets `approved_at` and `ends_on` in the same statement
+- **THEN** the write SHALL be refused
+
+#### Scenario: Rejecting and amending in one statement
+- **WHEN** a staff member sets `rejected_at` and changes any other column in the same statement
+- **THEN** the write SHALL be refused
+
+#### Scenario: Approving on its own
+- **WHEN** the configured approver sets only the decision columns
+- **THEN** the approval SHALL succeed — this is the transition working, and the case a careless fix breaks
