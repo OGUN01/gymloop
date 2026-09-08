@@ -70,30 +70,41 @@
 -- repeating them here would test the same rule through a second window
 -- rather than a new one.
 --
--- HOW THIS WAS RUN — no local stack, and the view is not applied to Cloud
--- yet. Verified by splicing supabase/migrations/20260909130000_red_list_view.sql
--- into a scratch copy immediately after `begin;` (follow_ups and
--- no_show_cases already exist on Cloud, so 20260909110000_follow_ups.sql did
--- not need splicing), run via `supabase db query --linked -f` against a
--- Windows scratch path, `begin … rollback`, nothing committed. Confirmed two
--- ways per ADR-069: `select num_failed() as failures;` on the line before
--- `select * from finish();` returned 0, and — because a CLI query shows only
--- the last result set — a second scratch copy rerouted every assertion's
--- select into a temp table (`insert into pg_temp.tap_capture(line) select
--- ok(...)`, granting the temp table and its sequence to `authenticated` for
--- the role-switched assertions) so the whole numbered TAP stream could be
--- read back in one result set: `ok 1` through `ok 12`, in order, nothing out
--- of sequence, nothing extra.
+-- HOW THIS WAS RUN — no local stack. The view itself
+-- (20260909130000_red_list_view.sql) and its scan/follow-up dependencies are
+-- already on Cloud; only 20260909170000_the_critic_was_right_four_times.sql
+-- is unmerged, and is what the with-fix runs below splice in. Run via
+-- `supabase db query --linked -f` against a Windows scratch path,
+-- `begin … rollback`, nothing committed, with `select num_failed() as
+-- failures;` on the line before `select * from finish();`, plus checkpoint
+-- copies truncated at assertions 12 and 16 to localise which new assertion
+-- accounted for each failure.
 --
--- 12 assertions, plan(12), 12 TAP lines. All 12 GREEN on this run — the
--- migration this file was written against, sight unseen, already does what
--- the spec asks for every scenario this file covers.
+-- ORIGINAL 1-12: confirmed GREEN today (0 failures through assertion 12),
+-- unaffected by the additions below.
+--
+-- NEW 13-19, three scenarios from the tightened spec (see the section
+-- headers above each): "Days absent counts in the gym's own day" (13-16),
+-- "run_no_show_scan_all() is not executable by authenticated or anon"
+-- (17-18), "A nightly schedule exists" (19). Without the fix: 4 of 19 red —
+-- 14 (gym C's days_absent, wrong because UTC's current_date and gym C's own
+-- day disagree at the instant this was run; gym D's 16 happens to agree
+-- with UTC at the same instant and is green — see the section header for
+-- why exactly one of the pair is always wrong, never both, never neither),
+-- 17, 18 (authenticated and anon both currently hold execute on
+-- run_no_show_scan_all — confirmed directly via has_function_privilege
+-- before writing the assertions), and 19 (pg_cron is not installed at all
+-- yet — confirmed via pg_extension — so no nightly job can exist). With
+-- 20260909170000_the_critic_was_right_four_times.sql spliced in immediately
+-- after `begin;` in a separate scratch copy: all 19 GREEN, including a
+-- direct recheck that assertions 14 AND 16 both read 15 (not just whichever
+-- one UTC happened to agree with before the fix).
 --
 -- ADR-030: one transaction, BEGIN … ROLLBACK, nothing committed.
 -- ADR-046: the owner role is assumed explicitly, never inherited.
--- ADR-050: every count here is scoped to this file's own two fixture
---          tenants (20000000-…) — this database permanently holds a seeded
---          demo gym, and an assertion over a whole table is a time bomb.
+-- ADR-050: every count here is scoped to this file's own fixture tenants
+--          (20000000-…) — this database permanently holds a seeded demo
+--          gym, and an assertion over a whole table is a time bomb.
 -- ADR-066: the assertion that matters most, above.
 -- ADR-069: every assertion routes through a pgTAP function (ok / is /
 --          results_eq / throws_ok); nothing here is a bare top-level select
@@ -106,7 +117,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(12);
+select plan(19);
 
 
 -- ---------------------------------------------------------------------------
@@ -344,6 +355,176 @@ select is(
   'open',
   'the three refused writes through the view left the underlying case exactly as it was — a case moves because a follow-up was logged or a member came back, never because somebody wrote to the list they were reading'
 );
+
+
+-- ---------------------------------------------------------------------------
+-- Days absent counts in the gym's own day, never UTC (13-16)
+--
+-- current_date evaluates in the session timezone and every Supabase
+-- connection is UTC — ADR-039, quoted verbatim in the header of the
+-- migration that created opened_on (20260906115156_retention.sql). Gyms C
+-- and D sit in Etc/GMT-12 (UTC+12) and Etc/GMT+12 (UTC-12): fixed offsets,
+-- no DST, exactly 24h apart, so their own calendar "today" differs by
+-- exactly one day at every instant — the same construction 18_no_show_scan
+-- uses and for the same reason, captured once into a temp table so every
+-- assertion below reasons about the same two dates the fixtures were built
+-- from. Each member's last_attended_on is set 15 days before THEIR OWN
+-- gym's today, so the correct days_absent is 15 for both, always.
+--
+-- The discriminating property: UTC's current_date always equals EXACTLY ONE
+-- of the two gyms' own today (never both, never neither — see 18's header
+-- for the proof), so a view reading current_date computes the right number
+-- for whichever gym UTC happens to agree with at run time, and a number
+-- off by exactly one day for the other. Which gym that is varies with when
+-- this file happens to run; that at least one of assertions 14/16 is wrong
+-- for that bug does not.
+-- ---------------------------------------------------------------------------
+
+create temp table tz_fixture as
+select
+  (now() at time zone 'Etc/GMT-12')::date as date_a,
+  (now() at time zone 'Etc/GMT+12')::date as date_b;
+
+insert into public.organizations (id, name, gym_code, timezone) values
+  ('20000000-0000-4000-8000-000000000401'::uuid, 'Red List Gym C', 'RED20C', 'Etc/GMT-12'),
+  ('20000000-0000-4000-8000-000000000402'::uuid, 'Red List Gym D', 'RED20D', 'Etc/GMT+12');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('20000000-0000-4000-8000-000000000411'::uuid, '20000000-0000-4000-8000-000000000401'::uuid, 'C Main', true),
+  ('20000000-0000-4000-8000-000000000412'::uuid, '20000000-0000-4000-8000-000000000402'::uuid, 'D Main', true);
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('20000000-0000-4000-8000-000000000421'::uuid, '20000000-0000-4000-8000-000000000401'::uuid, '20000000-0000-4000-8000-000000000411'::uuid, 'front_desk', 'C Desk'),
+  ('20000000-0000-4000-8000-000000000422'::uuid, '20000000-0000-4000-8000-000000000402'::uuid, '20000000-0000-4000-8000-000000000412'::uuid, 'front_desk', 'D Desk');
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('20000000-0000-4000-8000-000000000431'::uuid, '20000000-0000-4000-8000-000000000401'::uuid, '20000000-0000-4000-8000-000000000411'::uuid, 'M TZ C', '+9120000000431'),
+  ('20000000-0000-4000-8000-000000000432'::uuid, '20000000-0000-4000-8000-000000000402'::uuid, '20000000-0000-4000-8000-000000000412'::uuid, 'M TZ D', '+9120000000432');
+
+insert into public.no_show_cases
+  (id, tenant_id, member_id, status, opened_on, last_attended_on, absent_days_at_open, threshold_days)
+select '20000000-0000-4000-8000-000000000441'::uuid, '20000000-0000-4000-8000-000000000401'::uuid, '20000000-0000-4000-8000-000000000431'::uuid, 'open'::public.no_show_case_status, date_a - 3, date_a - 15, 12, 7
+  from tz_fixture
+union all
+select '20000000-0000-4000-8000-000000000442'::uuid, '20000000-0000-4000-8000-000000000402'::uuid, '20000000-0000-4000-8000-000000000432'::uuid, 'open'::public.no_show_case_status, date_b - 3, date_b - 15, 12, 7
+  from tz_fixture;
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '20000000-0000-4000-8000-000000000401',
+                    'app_role', 'front_desk',
+                    'staff_id', '20000000-0000-4000-8000-000000000421')::text,
+  true);
+set local role authenticated;
+
+-- 13 — the guard, immediately before the read it protects (see the file
+-- header and the assertion-2 guard above: a lingering postgres role makes
+-- this whole read meaningless, and it has been found four times in this repo).
+select ok(
+  row_security_active('public.no_show_cases'),
+  'GUARD — querying as authenticated (front_desk, gym C / Etc/GMT-12), not postgres: row_security_active is true for the days-absent read that follows'
+);
+
+-- 14
+select is(
+  (select days_absent from public.red_list_cases where id = '20000000-0000-4000-8000-000000000441'::uuid),
+  15,
+  'scenario "Days absent counts in the gym''s own day" — gym C (Etc/GMT-12): last_attended_on is 15 days before gym C''s OWN today, and days_absent must read 15 regardless of what UTC''s current_date happens to be right now'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '20000000-0000-4000-8000-000000000402',
+                    'app_role', 'front_desk',
+                    'staff_id', '20000000-0000-4000-8000-000000000422')::text,
+  true);
+set local role authenticated;
+
+-- 15
+select ok(
+  row_security_active('public.no_show_cases'),
+  'GUARD — querying as authenticated (front_desk, gym D / Etc/GMT+12), not postgres: row_security_active is true for the days-absent read that follows'
+);
+
+-- 16 — the discriminating half of the pair: gym D''s own today is ALWAYS
+-- exactly one day away from gym C''s (assertion 14''s), so UTC''s current_date
+-- cannot agree with both — whichever of 14/16 UTC does not coincidentally
+-- agree with is forced wrong by a current_date-based bug, on any run.
+select is(
+  (select days_absent from public.red_list_cases where id = '20000000-0000-4000-8000-000000000442'::uuid),
+  15,
+  'scenario "Days absent counts in the gym''s own day" — gym D (Etc/GMT+12), read at the same real instant as gym C: days_absent must read 15 measured against gym D''s OWN today, which is always exactly one calendar day away from gym C''s'
+);
+
+set local role postgres;
+
+
+-- ---------------------------------------------------------------------------
+-- run_no_show_scan_all() is not executable by authenticated or by anon (17-18)
+--
+-- public.run_no_show_scan_all() (confirmed in the catalogue: zero arguments,
+-- returns record) is the Edge Function's own entry point, and it is meant to
+-- run only on the nightly schedule, as postgres. `revoke ... from public`
+-- does NOT remove Supabase's own explicit per-role grants to authenticated
+-- and anon — every fresh function starts world-executable via those grants
+-- regardless of what is revoked from PUBLIC, and that gap is exactly the bug
+-- these two assertions pin: has_function_privilege is what actually proves
+-- the ACL, not the presence of a revoke statement anywhere in a migration.
+-- ---------------------------------------------------------------------------
+
+-- 17
+select ok(
+  not has_function_privilege('authenticated', 'public.run_no_show_scan_all()', 'execute'),
+  'requirement — authenticated does NOT hold execute on public.run_no_show_scan_all(); revoking from PUBLIC alone does not touch Supabase''s explicit per-role grant to authenticated, which is the actual ACL entry that has to be revoked'
+);
+
+-- 18
+select ok(
+  not has_function_privilege('anon', 'public.run_no_show_scan_all()', 'execute'),
+  'requirement — anon does NOT hold execute on public.run_no_show_scan_all() either, asserted separately from authenticated because Supabase grants each role its own ACL entry'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- A nightly schedule exists (19)
+--
+-- This pins a MECHANISM — that some pg_cron job runs the scan nightly — not
+-- its exact cron expression or job name, which are the implementer's call.
+-- Guarded with a DO block rather than a bare `select ... from cron.job`
+-- because pg_cron is not installed on this project until the fix creates
+-- it: without the guard, this assertion would raise `schema "cron" does not
+-- exist` and abort the whole transaction on every run before the fix lands,
+-- rather than simply reporting red (ADR-069's tap-stream trap, the DO-block
+-- side of it — this is not a bare top-level select of a helper, it is one
+-- `perform ok(...)` inside a guarded block, so exactly one TAP line is
+-- still produced either way).
+-- ---------------------------------------------------------------------------
+
+-- 19
+do $do$
+declare
+  v_scheduled boolean;
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    execute $sql$
+      select exists (
+        select 1 from cron.job
+         where command ilike '%run_no_show_scan_all%'
+           and active
+      )
+    $sql$ into v_scheduled;
+  else
+    v_scheduled := false;
+  end if;
+
+  perform ok(
+    v_scheduled,
+    'requirement — a cron.job row exists and is active, running public.run_no_show_scan_all(); this pins that SOME nightly mechanism exists, not which schedule or job name'
+  );
+end
+$do$;
 
 
 select * from finish();

@@ -24,7 +24,7 @@
 -- reason: no RLS write-gate exercise, no jwt claims, one thing on trial per
 -- section — the scan's own logic.
 --
--- NINE TENANTS, EACH PROVING EXACTLY ONE THING
+-- TEN TENANTS, EACH PROVING EXACTLY ONE THING
 --
 --   18…010000  the threshold boundary itself, N-1 and N+1, same fixture
 --   18…020000  never attended, measured from the membership's own start
@@ -38,6 +38,10 @@
 --               and approved-but-ended, as three different members
 --   18…080000  membership not live: expired, cancelled, pending
 --   18…090000  idempotence, the return value, and one case per member
+--   18…0a0000  a membership whose end date has passed: still 'active', but
+--               ends_on before the scan date — a control member, identical
+--               but for ends_on, proves the scan does not simply stop
+--               flagging everybody
 --
 -- WHY Etc/GMT-12 AND Etc/GMT+12 FOR THE TIMEZONE SECTION
 --
@@ -86,9 +90,23 @@
 -- (NSH-006/007), or app.enforce_check_in() is in scope here; those belong
 -- to their own capabilities.
 --
+-- An active membership with a null ends_on is not attempted either, for a
+-- different reason: it cannot exist. See gym 10's fixture comment — the
+-- structural constraint that forbids it was confirmed unchanged by the fix,
+-- empirically, without reading the fix's text.
+--
+-- 37 assertions, plan(37), 37 TAP lines. Confirmed against Cloud via
+-- `supabase db query --linked -f`, begin…rollback, nothing committed, with
+-- `select num_failed() as failures;` on the line before `select * from
+-- finish();` in scratch copies — both as the file stands today (2 of the 37
+-- red: 35 and 37, gym 10's new scenario; assertions 1-34 unaffected, 0
+-- failures) and with 20260909170000_the_critic_was_right_four_times.sql
+-- spliced in immediately after `begin;` in a separate scratch copy (0 of 37
+-- red — every assertion, including the pre-existing 34, green).
+--
 -- ADR-030: one transaction, BEGIN … ROLLBACK, nothing committed.
 -- ADR-046: the owner role is assumed explicitly, never inherited.
--- ADR-050: every count is scoped to this file's own nine fixture tenants —
+-- ADR-050: every count is scoped to this file's own ten fixture tenants —
 --          this database permanently holds a seeded demo gym, and an
 --          assertion over a whole table is a time bomb.
 -- ADR-064: paused is derived from membership_pauses, never a status value —
@@ -103,7 +121,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(34);
+select plan(37);
 
 
 -- ---------------------------------------------------------------------------
@@ -759,6 +777,92 @@ select is(
       and member_id = '18000000-0000-4000-8000-000000090202'::uuid),
   0,
   'the member short of the threshold still has no case after the second run either'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Fixtures: gym 10 — a membership whose end date has passed (35-37)
+--
+-- Two members, identical in every respect that could open or refuse a case
+-- — same starts_on, same plan, same absence, no pause — differing ONLY in
+-- ends_on: Control's is far in the future, Lapsed's is five days before the
+-- scan date, while both memberships still read 'active'. Only the ends_on
+-- rule can tell them apart, so a scan that flags neither, or flags both,
+-- fails here regardless of which specific check it is missing.
+--
+-- A THIRD fixture — an active membership with a null ends_on, to prove a
+-- fix cannot pass by treating null as "already expired" — was drafted and
+-- then dropped: `memberships_dated_unless_pending_chk`
+-- (20260906115146_membership_money.sql, DQA-001 made structural: "only a
+-- pending row may lack an expiry") refuses any non-pending status paired
+-- with a null ends_on at the INSERT itself, before any scan logic ever
+-- runs. Confirmed empirically, not by reading the fix: a scratch copy with
+-- 20260909170000_the_critic_was_right_four_times.sql spliced in (bytes
+-- only, never opened as text) was queried afterwards via
+-- pg_get_constraintdef(), inside the same rolled-back transaction, and the
+-- constraint is unchanged by the fix. An active, null-ends_on row cannot
+-- exist in this schema, applied or not — there is no state left for that
+-- assertion to distinguish.
+-- ---------------------------------------------------------------------------
+
+insert into public.organizations (id, name, gym_code) values
+  ('18000000-0000-4000-8000-0000000a0000'::uuid, 'No-Show Gym 10', 'NSHW10');
+
+insert into public.organization_settings (tenant_id, no_show_threshold_days) values
+  ('18000000-0000-4000-8000-0000000a0000'::uuid, 7);
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('18000000-0000-4000-8000-0000000a0101'::uuid, '18000000-0000-4000-8000-0000000a0000'::uuid, 'Main', true);
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('18000000-0000-4000-8000-0000000a0201'::uuid, '18000000-0000-4000-8000-0000000a0000'::uuid, '18000000-0000-4000-8000-0000000a0101'::uuid, 'G10 Control', '+9170000100201'),
+  ('18000000-0000-4000-8000-0000000a0202'::uuid, '18000000-0000-4000-8000-0000000a0000'::uuid, '18000000-0000-4000-8000-0000000a0101'::uuid, 'G10 Lapsed',  '+9170000100202');
+
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('18000000-0000-4000-8000-0000000a0301'::uuid, '18000000-0000-4000-8000-0000000a0000'::uuid, 'G10 Monthly', 30, 150000);
+
+-- Both memberships: 'active', same starts_on. Control's ends_on is far in
+-- the future; Lapsed's is 5 days before the scan date — the ONLY column
+-- that differs between the two rows.
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('18000000-0000-4000-8000-0000000a0401'::uuid, '18000000-0000-4000-8000-0000000a0000'::uuid, '18000000-0000-4000-8000-0000000a0201'::uuid, '18000000-0000-4000-8000-0000000a0301'::uuid, 'active', '2026-06-20'::date - 200, '2026-06-20'::date + 100, 150000),
+  ('18000000-0000-4000-8000-0000000a0402'::uuid, '18000000-0000-4000-8000-0000000a0000'::uuid, '18000000-0000-4000-8000-0000000a0202'::uuid, '18000000-0000-4000-8000-0000000a0301'::uuid, 'active', '2026-06-20'::date - 200, '2026-06-20'::date - 5,   150000);
+
+-- Both members: 20 days absent — well past the 7-day threshold — so absence
+-- is never in question for either; only ends_on can tell them apart.
+insert into public.attendance (id, tenant_id, branch_id, member_id, membership_id, checked_in_at, source) values
+  ('18000000-0000-4000-8000-0000000a0601'::uuid, '18000000-0000-4000-8000-0000000a0000'::uuid, '18000000-0000-4000-8000-0000000a0101'::uuid, '18000000-0000-4000-8000-0000000a0201'::uuid, '18000000-0000-4000-8000-0000000a0401'::uuid,
+   (('2026-06-20'::date - 20) + time '12:00') at time zone 'Asia/Kolkata', 'qr'),
+  ('18000000-0000-4000-8000-0000000a0602'::uuid, '18000000-0000-4000-8000-0000000a0000'::uuid, '18000000-0000-4000-8000-0000000a0101'::uuid, '18000000-0000-4000-8000-0000000a0202'::uuid, '18000000-0000-4000-8000-0000000a0402'::uuid,
+   (('2026-06-20'::date - 20) + time '12:00') at time zone 'Asia/Kolkata', 'qr');
+
+-- 35 — the return value: exactly one case, not zero (a scan that flags
+-- nobody) and not two (a scan that never checks ends_on at all).
+select is(
+  app.run_no_show_scan('18000000-0000-4000-8000-0000000a0000'::uuid, '2026-06-20'::date),
+  1,
+  'scenario "A membership whose end date has passed" — of the two otherwise-identical members, exactly one (the control, whose ends_on has not passed) opens a case'
+);
+
+-- 36 — the positive control MUST be flagged, read back: without this, a fix
+-- that refuses every membership (never opens a case for anybody) would pass
+-- assertion 37 for the wrong reason.
+select is(
+  (select count(*)::int from public.no_show_cases
+    where tenant_id = '18000000-0000-4000-8000-0000000a0000'::uuid
+      and member_id = '18000000-0000-4000-8000-0000000a0201'::uuid
+      and status = 'open'),
+  1,
+  'the control member — active, ends_on 100 days in the future, 20 days absent — has exactly one open case; ends_on being in the future is the only thing that distinguishes it from Lapsed'
+);
+
+-- 37
+select is(
+  (select count(*)::int from public.no_show_cases
+    where tenant_id = '18000000-0000-4000-8000-0000000a0000'::uuid
+      and member_id = '18000000-0000-4000-8000-0000000a0202'::uuid),
+  0,
+  'scenario "A membership whose end date has passed" — the member still reads active, but ends_on is 5 days before the scan date: no case is opened, though absence and everything else about the row is identical to the flagged control'
 );
 
 

@@ -23,6 +23,21 @@ THE SYSTEM SHALL list the gym's cases that are not closed, ordered so the member
 - **WHEN** a case opened at eight days absent is viewed three days later
 - **THEN** the list SHALL show eleven days, not eight
 
+#### Scenario: Days absent counts in the gym's own day
+- **WHEN** the list is read at 05:00 in a gym whose timezone is ahead of UTC
+- **THEN** the number SHALL be the one the gym would count, not the one UTC would
+
+**Never `current_date`** (ADR-039, stated five lines from the column this reads in the migration that created it): every Supabase connection is UTC, so `current_date` is a UTC date while `opened_on` was stamped by the scan from the gym's own timezone. Subtracting one from the other is off by one for the five and a half hours between midnight IST and 05:30 IST — **every morning, for every gym not in UTC, precisely during the pre-6am window this screen exists for**. A case opened at eight days against a seven-day threshold would display "7 days away": a number below the gym's own threshold, on a case that exists only because the threshold was crossed.
+
+### Requirement: An unusable cursor shows the first page, never a database error
+THE SYSTEM SHALL validate every part of a decoded cursor as the type it will be used as, and SHALL answer anything unusable with the first page.
+
+`typeof value === 'number'` is not that check. `JSON.parse` yields `Infinity` for `1e999` and `1e+21` for `1e21`, both of which are numbers and neither of which is an integer PostgREST will accept — they reach the database as `22P02 invalid input syntax for type integer` and the screen renders the message verbatim. The roster escaped this only because both its cursor fields are strings; this is the first numeric cursor, and a type check is not a validity check.
+
+#### Scenario: A cursor carrying a number Postgres cannot read
+- **WHEN** a cursor's numeric part decodes to `Infinity`, a value in exponent form, or anything that is not an integer
+- **THEN** the first page SHALL be shown and no database message SHALL reach the screen
+
 #### Scenario: A returned member
 - **WHEN** a member with an open case checks in and the case closes
 - **THEN** they SHALL leave the list, and their case's follow-up history SHALL still exist

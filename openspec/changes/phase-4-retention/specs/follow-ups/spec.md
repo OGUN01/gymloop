@@ -70,6 +70,14 @@ The status is derived from what happened, not set by the caller: a caller who co
 - **WHEN** a follow-up is logged against a case that is already `closed`
 - **THEN** it SHALL be refused — the member came back, and the case is a finished record
 
+#### Scenario: A correction does not re-decide the schedule
+- **WHEN** a follow-up carrying `corrects_follow_up_id` is recorded
+- **THEN** the case's status and `next_follow_up_at` SHALL be left as they were
+
+**A correction corrects the record; it does not make a new decision about the member.** This was unasked in the first version and the answer it fell into is the dangerous one: staff log "will return — ring Friday", notice a minute later that the outcome was wrong, and file a correction, which is the *only* way to fix anything on an append-only log. Deriving status from the correction blanks `next_follow_up_at`, drops the case out of `no_show_cases_tenant_id_next_follow_up_at_due_idx` — the index built for "which follow-ups are due" — and nobody rings on Friday.
+
+The failure is silent, it is caused by staff doing exactly the right thing, and it is the outcome this whole phase exists to prevent.
+
 ### Requirement: A case can be assigned, and assignment is not a decision about the member
 THE SYSTEM SHALL allow a case to be assigned to a staff member of the same gym, and SHALL refuse assignment to anybody else.
 

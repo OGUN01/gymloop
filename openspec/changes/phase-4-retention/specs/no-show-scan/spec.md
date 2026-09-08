@@ -75,6 +75,14 @@ THE SYSTEM SHALL exclude from evaluation any member whose membership is not live
 - **WHEN** a member's membership is `expired`, `cancelled` or `pending`
 - **THEN** no case SHALL be opened — they are not a member who stopped coming, they are a member who stopped
 
+#### Scenario: A membership whose end date has passed
+- **WHEN** a member's membership still reads `active` but its `ends_on` is before the scan date
+- **THEN** no case SHALL be opened
+
+**Expiry is derived from the date, exactly as paused is derived from the pause** — and for the same reason, which the first version of this spec made for one and not the other. **Nothing in this product ever writes `memberships.status = 'expired'`**: grep the migrations, `apps/` and `packages/` and the label appears only in the enum's own definition. ADR-064 already said why — a status flip needs a scheduler this project does not have.
+
+So a lapsed membership sits at `active` indefinitely, and a scan trusting the column opens a churn case for somebody whose membership ended weeks ago. Because their absence keeps growing, that case rises to the **top** of the red list and stays there: the first person the front desk is told to ring every morning, about a membership that no longer exists. The demo data already contains one — a member whose `ends_on` was 2026-09-05 and whose status still reads `active`.
+
 ### Requirement: Exactly one open case per member, however often the scan runs
 THE SYSTEM SHALL open exactly one case for a member and SHALL NOT open a second while one is open (NSH-003, NSH-004). This SHALL hold when two scans run concurrently, not merely when they run in sequence.
 

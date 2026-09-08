@@ -20,13 +20,35 @@
 -- scenario and of ADR-066: a rule living only in a Route Handler has a
 -- supported way round it.
 --
--- 28 assertions, plan(28), 28 TAP lines. Confirmed by running a scratch copy
--- with `select num_failed() as failures;` and, separately, a copy where
--- every assertion's select was rerouted into a temp table so every TAP line
--- could be inspected (the CLI shows only the last result set) — both against
--- Cloud via `supabase db query --linked -f`, begin…rollback, nothing
--- committed. 11 of 28 are red today, because the rules mostly do not exist
--- yet:
+-- 32 assertions, plan(32), 32 TAP lines. Confirmed against Cloud via
+-- `supabase db query --linked -f`, begin…rollback, nothing committed, with
+-- `select num_failed() as failures;` on the line before `select * from
+-- finish();`, plus checkpoint copies truncated at assertions 24, 25, 26 and
+-- 28 to localise exactly which assertion accounts for each failure (the CLI
+-- shows only the last result set, so num_failed() at a chosen cut point is
+-- how a specific assertion's status is isolated without it).
+--
+-- ORIGINAL 1-24: all confirmed GREEN as this file stands today (0 failures
+-- through assertion 24) — Cloud has moved on since this file was first
+-- written; whatever the state was when the RED/GREEN breakdown below this
+-- paragraph was first drafted, requirements 1-4 (attribution, append-only,
+-- the concurrency-lock catalogue check, and the closed-case refusal) are
+-- now all built and green. That breakdown is kept, unedited, as the
+-- record of what was true at the time; it is not current truth.
+--
+-- NEW 25-28, "A correction does not re-decide the schedule": exactly ONE
+-- red without the fix — 26, the assertion that matters (status and
+-- next_follow_up_at both unchanged after a correction). 25 (the correction
+-- insert itself, lives_ok), 27 and 28 (the positive control: an ordinary
+-- follow-up on an identically-staged case DOES move to contacted) are
+-- green today, which is expected — this section's whole point is that only
+-- the derive-on-correction path is broken, not follow-up handling in
+-- general. All 32 (1-32) are GREEN with
+-- 20260909170000_the_critic_was_right_four_times.sql spliced in immediately
+-- after `begin;` in a separate scratch copy.
+--
+-- THE ORIGINAL RED/GREEN BREAKDOWN, AS FIRST WRITTEN (now superseded by the
+-- paragraph above — kept for its own record, not as current status):
 --
 --   RED (11) — the rule under test is not built: 3, 4 (naming a colleague is
 --   not refused, ADR-071's shape: requirement 1); 5, 6 (a claimless session's
@@ -60,7 +82,9 @@
 --   (tenant_id, assigned_to_staff_id) references staff (tenant_id, id)
 --   already refuses assigning a tenant A case to a tenant B staff member —
 --   nothing in this requirement needed the implementer to add anything, and
---   assertions 25-28 exist to prove that rather than assume it).
+--   assertions 25-28 exist to prove that rather than assume it). These
+--   numbers are from the ORIGINAL 28-assertion file and do not match the
+--   current numbering (the new section shifted the old 25-28 to 29-32).
 --
 -- WHAT IS NOT ATTEMPTED
 --
@@ -92,7 +116,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(28);
+select plan(32);
 
 
 -- ---------------------------------------------------------------------------
@@ -134,7 +158,9 @@ insert into public.members (id, tenant_id, branch_id, full_name, phone) values
   ('19000000-0000-4000-8000-00000000003a'::uuid, '19000000-0000-4000-8000-000000000001'::uuid, '19000000-0000-4000-8000-000000000011'::uuid, 'M Closed',            '+911900000041'),
   ('19000000-0000-4000-8000-00000000003b'::uuid, '19000000-0000-4000-8000-000000000001'::uuid, '19000000-0000-4000-8000-000000000011'::uuid, 'M Assign Success',    '+911900000042'),
   ('19000000-0000-4000-8000-00000000003c'::uuid, '19000000-0000-4000-8000-000000000001'::uuid, '19000000-0000-4000-8000-000000000011'::uuid, 'M Assign Cross',      '+911900000043'),
-  ('19000000-0000-4000-8000-00000000003d'::uuid, '19000000-0000-4000-8000-000000000001'::uuid, '19000000-0000-4000-8000-000000000011'::uuid, 'M Privilege',         '+911900000044');
+  ('19000000-0000-4000-8000-00000000003d'::uuid, '19000000-0000-4000-8000-000000000001'::uuid, '19000000-0000-4000-8000-000000000011'::uuid, 'M Privilege',         '+911900000044'),
+  ('19000000-0000-4000-8000-00000000003e'::uuid, '19000000-0000-4000-8000-000000000001'::uuid, '19000000-0000-4000-8000-000000000011'::uuid, 'M Corr No Redecide',  '+911900000045'),
+  ('19000000-0000-4000-8000-00000000003f'::uuid, '19000000-0000-4000-8000-000000000001'::uuid, '19000000-0000-4000-8000-000000000011'::uuid, 'M NonCorr Control',   '+911900000046');
 
 -- Thirteen cases, one per member, tenant A. All 'open' (the default) except
 -- the one built already 'closed'. absent_days_at_open/threshold_days are
@@ -153,7 +179,9 @@ insert into public.no_show_cases
   ('19000000-0000-4000-8000-00000000005a'::uuid, '19000000-0000-4000-8000-000000000001'::uuid, '19000000-0000-4000-8000-00000000003a'::uuid, 'closed', current_date - 10, 10, 7),
   ('19000000-0000-4000-8000-00000000005b'::uuid, '19000000-0000-4000-8000-000000000001'::uuid, '19000000-0000-4000-8000-00000000003b'::uuid, 'open',   current_date - 10, 10, 7),
   ('19000000-0000-4000-8000-00000000005c'::uuid, '19000000-0000-4000-8000-000000000001'::uuid, '19000000-0000-4000-8000-00000000003c'::uuid, 'open',   current_date - 10, 10, 7),
-  ('19000000-0000-4000-8000-00000000005d'::uuid, '19000000-0000-4000-8000-000000000001'::uuid, '19000000-0000-4000-8000-00000000003d'::uuid, 'open',   current_date - 10, 10, 7);
+  ('19000000-0000-4000-8000-00000000005d'::uuid, '19000000-0000-4000-8000-000000000001'::uuid, '19000000-0000-4000-8000-00000000003d'::uuid, 'open',   current_date - 10, 10, 7),
+  ('19000000-0000-4000-8000-00000000005e'::uuid, '19000000-0000-4000-8000-000000000001'::uuid, '19000000-0000-4000-8000-00000000003e'::uuid, 'open',   current_date - 10, 10, 7),
+  ('19000000-0000-4000-8000-00000000005f'::uuid, '19000000-0000-4000-8000-000000000001'::uuid, '19000000-0000-4000-8000-00000000003f'::uuid, 'open',   current_date - 10, 10, 7);
 
 -- The 'closed' fixture also gets its own closed_at, so a scenario that reads
 -- it back afterwards sees a genuinely finished record rather than a status
@@ -634,8 +662,116 @@ select results_eq(
 
 
 -- ---------------------------------------------------------------------------
+-- Scenario: A correction does not re-decide the schedule (25-28)
+--
+-- Two cases, each brought to follow_up_due by an identical first follow-up
+-- (same fixed next_follow_up_at, so a wrong implementation cannot pass by
+-- coincidence of now()-derived timestamps). The two diverge in exactly one
+-- respect after that: case 05e receives a CORRECTION of that first entry
+-- (corrects_follow_up_id set, no next_follow_up_at of its own); case 05f
+-- receives an ordinary SECOND follow-up (no corrects_follow_up_id, no
+-- next_follow_up_at). Status derivation is not itself under test here — 19-22
+-- already prove a follow-up naming next_follow_up_at produces follow_up_due
+-- and one naming none produces contacted — so the setup step for each case
+-- is a plain insert, not its own TAP assertion (ADR-069): asserting it here
+-- too would just repeat 19-22 under a new number.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '19000000-0000-4000-8000-000000000001'::uuid,
+                    'app_role', 'front_desk',
+                    'staff_id', '19000000-0000-4000-8000-000000000021')::text,
+  true);
+set local role authenticated;
+
+-- Setup — not asserted (see header note): both cases start identically, at
+-- follow_up_due, with the same fixed instant.
+insert into public.follow_ups (id, tenant_id, case_id, staff_id, channel, outcome, next_follow_up_at)
+values ('19000000-0000-4000-8000-00000000008a'::uuid,
+        '19000000-0000-4000-8000-000000000001'::uuid,
+        '19000000-0000-4000-8000-00000000005e'::uuid,
+        '19000000-0000-4000-8000-000000000021'::uuid,
+        'call', 'timing_issue', '2026-10-10 09:00:00+05:30'::timestamptz);
+
+insert into public.follow_ups (id, tenant_id, case_id, staff_id, channel, outcome, next_follow_up_at)
+values ('19000000-0000-4000-8000-00000000008b'::uuid,
+        '19000000-0000-4000-8000-000000000001'::uuid,
+        '19000000-0000-4000-8000-00000000005f'::uuid,
+        '19000000-0000-4000-8000-000000000021'::uuid,
+        'call', 'timing_issue', '2026-10-10 09:00:00+05:30'::timestamptz);
+
+-- 25 — the correction itself: naming corrects_follow_up_id, no next_follow_up_at
+-- of its own, on the same case as the entry it corrects.
+select lives_ok($$
+  insert into public.follow_ups (id, tenant_id, case_id, staff_id, channel, outcome, corrects_follow_up_id)
+  values ('19000000-0000-4000-8000-00000000008c'::uuid,
+          '19000000-0000-4000-8000-000000000001'::uuid,
+          '19000000-0000-4000-8000-00000000005e'::uuid,
+          '19000000-0000-4000-8000-000000000021'::uuid,
+          'call', 'no_response',
+          '19000000-0000-4000-8000-00000000008a'::uuid)
+$$, 'scenario "A correction does not re-decide the schedule" — a correction of the entry that set follow_up_due, itself naming no next_follow_up_at, is not refused');
+
+set local role postgres;
+
+-- 26 — THE assertion that matters: status and next_follow_up_at are BOTH
+-- exactly what they were before the correction. Checked together, in one
+-- row, because nulling the date and changing the status are separate halves
+-- of the same bug and either one alone would leave the other undetected.
+select results_eq(
+  $$
+    select status::text collate "default", next_follow_up_at
+      from public.no_show_cases
+     where id = '19000000-0000-4000-8000-00000000005e'::uuid
+  $$,
+  $$ values ('follow_up_due'::text, '2026-10-10 09:00:00+05:30'::timestamptz) $$,
+  'scenario "A correction does not re-decide the schedule" — after the correction, the case is STILL follow_up_due and STILL carries the ORIGINAL next_follow_up_at; a correction corrects the record, it does not make a new decision about the member'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '19000000-0000-4000-8000-000000000001'::uuid,
+                    'app_role', 'front_desk',
+                    'staff_id', '19000000-0000-4000-8000-000000000021')::text,
+  true);
+set local role authenticated;
+
+-- 27 — positive control, same starting state (follow_up_due) as case 05e,
+-- but this is an ORDINARY follow-up (no corrects_follow_up_id), naming no
+-- next_follow_up_at of its own — the shape this whole section exists to
+-- distinguish from a correction.
+select lives_ok($$
+  insert into public.follow_ups (id, tenant_id, case_id, staff_id, channel, outcome)
+  values ('19000000-0000-4000-8000-00000000008d'::uuid,
+          '19000000-0000-4000-8000-000000000001'::uuid,
+          '19000000-0000-4000-8000-00000000005f'::uuid,
+          '19000000-0000-4000-8000-000000000021'::uuid,
+          'call', 'no_response')
+$$, 'positive control — a NON-correction follow-up naming no next_follow_up_at, on a case that was follow_up_due, is not refused');
+
+set local role postgres;
+
+-- 28 — the control MUST move: a fix that never re-derives status at all
+-- would pass assertion 26 for the wrong reason (nothing ever changes
+-- anything), and this is what rules that out. A scan that flags nobody, and
+-- a follow-up rule that decides nothing, fail the same way.
+select results_eq(
+  $$
+    select status::text collate "default", next_follow_up_at
+      from public.no_show_cases
+     where id = '19000000-0000-4000-8000-00000000005f'::uuid
+  $$,
+  $$ values ('contacted'::text, null::timestamptz) $$,
+  'positive control — unlike the correction, the ordinary follow-up DOES re-decide the schedule: the case moves to contacted and next_follow_up_at is cleared, exactly as 19-20 already prove for a fresh case'
+);
+
+
+-- ---------------------------------------------------------------------------
 -- Requirement: A case can be assigned, and assignment is not a decision about
--- the member (25-28)
+-- the member (29-32)
 --
 -- follow_ups grants nothing here — this requirement is about
 -- no_show_cases.assigned_to_staff_id, which authenticated already holds
@@ -653,7 +789,7 @@ select set_config(
   true);
 set local role authenticated;
 
--- 25
+-- 29
 select lives_ok($$
   update public.no_show_cases
      set assigned_to_staff_id = '19000000-0000-4000-8000-000000000023'::uuid
@@ -662,7 +798,7 @@ $$, 'scenario "Assigning to a colleague" — assigning a case to another staff m
 
 set local role postgres;
 
--- 26
+-- 30
 select results_eq(
   $$ select assigned_to_staff_id from public.no_show_cases
       where id = '19000000-0000-4000-8000-00000000005b'::uuid $$,
@@ -679,7 +815,7 @@ select set_config(
   true);
 set local role authenticated;
 
--- 27
+-- 31
 select throws_ok($$
   update public.no_show_cases
      set assigned_to_staff_id = '19000000-0000-4000-8000-000000000025'::uuid
@@ -689,7 +825,7 @@ $$, null::char(5), null,
 
 set local role postgres;
 
--- 28
+-- 32
 select results_eq(
   $$ select assigned_to_staff_id from public.no_show_cases
       where id = '19000000-0000-4000-8000-00000000005c'::uuid $$,
