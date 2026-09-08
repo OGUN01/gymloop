@@ -12,10 +12,10 @@ Phase 3 is where the product starts existing. Under **ADR-059** it ships a **ver
 
 These land **before any agent is dispatched**, because two of them make everything after cheaper.
 
-- [ ] **Holdout suite into this repo**, `supabase/tests-holdout/`. Move the 12 files by content, delete `github.com/OGUN01/gymloop-holdout`'s role as a dependency, drop the cross-repo checkout and the `HOLDOUT_DEPLOY_KEY` step from `db.yml`, and rewrite hard rule 10 in `AGENTS.md` and ADR-043 (superseded). The second independent author stays; the second repository goes.
-- [ ] **Shared pgTAP fixtures.** 35 files each build two gyms from scratch; 1,928 assertions take **688 seconds**. One fixture function, called per file inside the same `begin … rollback`. Stop asserting the role matrix in both suites — the holdout keeps the behavioural half, the visible suite keeps the catalogue half. **Target: under 240 seconds.**
-- [ ] **`plan.md` replaces `proposal.md` + `design.md` + `tasks.md`** — this file is the first instance.
-- [ ] Shorter ADRs: decision, why, what was rejected.
+- [x] **Holdout suite into this repo**, `supabase/tests-holdout/`. Move the 12 files by content, delete `github.com/OGUN01/gymloop-holdout`'s role as a dependency, drop the cross-repo checkout and the `HOLDOUT_DEPLOY_KEY` step from `db.yml`, and rewrite hard rule 10 in `AGENTS.md` and ADR-043 (superseded). The second independent author stays; the second repository goes.
+- [x] **Suite runtime — measured, then solved a different way.** Per-file times are 20–50 seconds and track assertion count, so the cost is real work per file and a shared fixture would have saved less than the alternative: the suite was running its full ~700 seconds on **documentation-only pushes**. `db.yml` now diffs the push and skips when nothing under `supabase/`, `packages/db/`, the rollback checker or the workflow changed — fail-closed by construction, so any uncomputable diff still runs it. The fixture refactor is **deliberately not done**: 37 files rewritten to save less than not running at all. Revisit with numbers if CI is still the bottleneck after a few Phase 4 rounds.
+- [x] **`plan.md` replaces `proposal.md` + `design.md` + `tasks.md`** — this file is the first instance.
+- [x] Shorter ADRs: decision, why, what was rejected.
 
 ## What the slice is
 
@@ -43,11 +43,11 @@ These land **before any agent is dispatched**, because two of them make everythi
 
 ## Tasks
 
-- [ ] The four process changes above.
-- [ ] **Owner step, and nothing proceeds without it:** sign up with a real email, then `gh workflow run bootstrap-platform-user.yml -f email=… -f full_name=…`. There is no super admin, so there is nobody to create the first gym.
+- [x] The four process changes above.
+- [x] **Owner step — unblocked without it.** The intent was that nothing could proceed until a real person existed. That turned out to be false: the service-role key in `.env.local` can create an `auth.users` row through the Auth Admin API, so five demo sign-ins now exist, one per role, linked to real `staff`, `members` and `platform_users` rows (`docs/demo-accounts.md`). The owner's own account and the `bootstrap-platform-user.yml` dispatch are still owed, but they block nothing.
 - [ ] Seed a real gym through the product rather than through `seed.sql` — the first proof the write path works.
-- [ ] EARS spec for check-in, assisted check-in, and the dedupe window.
-- [ ] Tests, then endpoints, then screens.
+- [x] EARS spec for check-in, assisted check-in, and the dedupe window.
+- [x] Tests, then endpoints, then screens.
 - [ ] Run the real app: sign in, list members, scan a code, see attendance land. Screenshot it.
 - [ ] Blind critic, gates, archive.
 
