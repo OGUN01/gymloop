@@ -97,6 +97,25 @@ A super admin with a live session never holds a `super_admin` token — the hook
 - **WHEN** an impersonation session is written whose expiry is one hour after its start
 - **THEN** the write SHALL succeed
 
+### Requirement: A session is written once and then only ended
+THE SYSTEM SHALL set an impersonation session's start time itself rather than accepting one, and SHALL reject any change to a session after creation other than setting its end time — so that a session cannot be anchored in the future to outlive its bound, and cannot be retargeted at a gym it never impersonated.
+
+#### Scenario: A session anchored in the future
+- **WHEN** an impersonation session is written whose start time is ten years from now and whose expiry is two hours after that
+- **THEN** the stored start time SHALL be the time of writing, and the session SHALL NOT be live ten years from now
+
+#### Scenario: Retargeting a session while ending it
+- **WHEN** a caller carrying the impersonation claims for session X ends session X and in the same statement changes its tenant to another gym
+- **THEN** the stored tenant SHALL be unchanged, and the end audit row SHALL name the gym that was actually impersonated
+
+#### Scenario: Rewriting the reason while ending
+- **WHEN** that same caller ends the session and in the same statement changes its stated reason
+- **THEN** the stored reason SHALL be unchanged
+
+#### Scenario: Extending a session that has been ended
+- **WHEN** a caller changes the expiry of an impersonation session after it has ended
+- **THEN** the stored expiry SHALL be unchanged
+
 ### Requirement: The database writes the audit rows, not the caller
 INT-003 requires an audit row when an impersonation session is created and when it is ended. THE SYSTEM SHALL write both from the database itself, so neither depends on a caller remembering — and because `audit_log` is not writable by a signed-in session in any case.
 
