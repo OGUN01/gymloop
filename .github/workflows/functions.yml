@@ -1,0 +1,56 @@
+name: Deploy Edge Functions
+
+# `supabase/functions/no-show-scan` existed in the repo, was documented in two
+# places as "the door an operator opens to re-run after an incident", and was
+# **never deployed** — `supabase functions list` returned an empty array. A
+# blind critic found the gap by asking the platform rather than reading the
+# prose. That is this project's most-repeated defect shape (ADR-070, ADR-071,
+# ADR-074): documentation asserting a capability the system does not have.
+#
+# Two ways to make prose and reality agree: delete the claim, or make it true.
+# Made true, because Phase 5's Razorpay webhook is an Edge Function that must
+# be deployed for the product to take money online at all — so the pipeline is
+# needed regardless, and building it now means the webhook lands into something
+# that already works rather than arriving with its own deployment story.
+#
+# On push, not manual: a function whose deployment is a thing somebody
+# remembers to do is a function that drifts from the repo, and "deployed"
+# becomes a claim nobody can check. The path filter keeps it off every unrelated
+# commit.
+#
+# NOT the schedule. `pg_cron` runs the nightly scan (ADR-077), and this deploys
+# the manual entry point beside it. `CRON_SECRET` must be set in the project's
+# function secrets for that entry point to answer anything but 500 — the
+# function refuses rather than defaulting, because a scheduled job with a public
+# URL is a public URL.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - '.github/workflows/functions.yml'
+
+concurrency:
+  group: functions-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  PROJECT_REF: pecxrpskmfeuyzngvewq
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: supabase/setup-cli@v3
+        with: { version: 2.110.0 }
+      # Typechecked first, in its own runtime. `supabase/functions/**` is Deno,
+      # so no tsconfig can reach it and `pnpm -r typecheck` never saw it — the
+      # gap `ci.yml`'s `deno-check` job closed at the start of Phase 5. Repeated
+      # here so a deploy cannot outrun the check on a path-filtered push.
+      - uses: denoland/setup-deno@v2
+        with: { deno-version: v2.x }
+      - run: deno check supabase/functions/**/*.ts
+      - run: supabase functions deploy no-show-scan --project-ref "$PROJECT_REF"

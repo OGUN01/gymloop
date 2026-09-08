@@ -424,6 +424,18 @@ The check that means something is the **column's own domain**: `days_absent` is 
 
 Contributing cause, worth as much as the rule: **there was no test file for `apps/web/lib/red-list.ts` at all.** The roster had one and its cursor survived two critics; the red list had none and its cursor was wrong twice.
 
+**ADR-080 - A case is closed when its membership ends, and "live" means all three states.** ADR-075 stopped the scan *opening* a case for a lapsed membership and nothing closed the ones already open. Two were live in the demo gym, a third arrived the next day on its own — no manual writes, just a membership reaching its end date. Because `days_absent` grows without bound they climb to the top of the red list and stay there, so the front desk is told every morning to ring the person at the top about coming back to a membership that no longer exists. It is also an inconsistency the product does not mean to have: the same member is in scope or out of it depending only on *when* their membership expired relative to the case.
+
+**The wording was settled by a blind test author refusing to guess.** The requirement first said "an open case"; the author pointed out that `no_show_cases_tenant_id_member_id_open_key` treats `open`, `contacted` and `follow_up_due` as one open case, asserted only the literal reading, and reported the ambiguity instead of choosing. It means all three — the red list renders everything that is not `returned` or `closed`, so a `contacted` case for a lapsed member sits at the top exactly as an `open` one does, and one somebody has already rung about is the more embarrassing to keep suggesting.
+
+Two details worth the lines: the case is **closed, never deleted** (NSH-005's reasoning — it is the record that somebody tried), and `returned_at` is deliberately **not** stamped, because they did not return, their membership ended, and reusing that column would make the two indistinguishable in the only place the difference is recorded.
+
+**ADR-081 - The Edge Function is deployed by CI, on push.** A blind critic found `supabase/functions/no-show-scan` documented in two places as an operator's manual re-run path and **never deployed** — `supabase functions list` returned `{"functions":[]}`. It found this by asking the platform rather than reading the prose, which is how every instance of this shape has been found (ADR-070, ADR-071, ADR-074).
+
+Two ways to make prose and reality agree: delete the claim or make it true. Made true, because Phase 5's Razorpay webhook is an Edge Function that must be deployed for the product to take money online at all — the pipeline is needed regardless, and building it now means the webhook arrives into something that already works.
+
+**On push rather than manual dispatch**, unlike the seed: a function whose deployment is something somebody remembers to do is a function that drifts from the repo, and "deployed" becomes a claim nobody can check — which is the defect this ADR exists to close. `deno check` runs in the deploy job as well as in CI, so a path-filtered push cannot outrun the typecheck.
+
 ## Known enforcement gaps
 
 Stated plainly so nobody mistakes a documented rule for an enforced one. A blind critic found each of these by testing what the gates actually catch rather than what they claim to.
