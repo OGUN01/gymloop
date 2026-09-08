@@ -110,3 +110,22 @@ THE SYSTEM SHALL return a bounded page of members with a documented default and 
 #### Scenario: Asking for the next page
 - **WHEN** more members exist than one page holds
 - **THEN** the result SHALL carry what is needed to request the next page, and SHALL NOT carry it when the list is exhausted
+
+#### Scenario: Everything that shaped the page travels with the cursor
+- **WHEN** a page reached by a cursor was reached from a search or a non-default page size
+- **THEN** that search and that page size SHALL still apply — a cursor names a place in an ordering, and a page reaching it with different parameters is looking at a different ordering
+
+### Requirement: A cursor is validated, not merely decoded
+THE SYSTEM SHALL check that a decoded cursor's parts are what they claim to be before any of them reaches a query, and SHALL answer an unusable cursor with the first page rather than with an error.
+
+**Encoding is not validation and base64 is not a signature.** A cursor arrives in a query string; a caller can write whatever they like into one. The member cursor carries a name and an id, and both are interpolated into a PostgREST filter — where `,` `.` `(` `)` are grammar, so an unescaped value is not a value but a clause. A crafted cursor therefore appended its own `WHERE` fragment and returned rows the keyset had excluded. It crossed no tenant boundary — row security still filtered, and the caller was already staff of that gym — but *an attacker-controlled filter fragment reaching the database from a query string* is the shape, not the blast radius, and this codebase's whole argument is that the endpoint is not the boundary. An id that is a uuid must be checked to be one; a name must be quoted as `fullName` already is.
+
+The same check answers the second half: an id of `"x"` decodes, passes a `typeof` guard, and reaches Postgres as `22P02 invalid input syntax for type uuid`, whose message the screen renders verbatim.
+
+#### Scenario: A crafted cursor carrying filter syntax
+- **WHEN** a cursor is supplied whose parts contain PostgREST filter grammar
+- **THEN** it SHALL NOT alter which rows the query selects
+
+#### Scenario: A cursor that decodes to nonsense
+- **WHEN** a cursor decodes successfully but its id is not a uuid
+- **THEN** the first page SHALL be shown, and no database error message SHALL be rendered

@@ -31,7 +31,7 @@ import { MEMBER_PAGE_SIZE_DEFAULT, MEMBER_PAGE_SIZE_MAX } from '@gymloop/shared'
 
 type Result = { data: unknown; error: { code: string; message: string } | null };
 
-const CHAIN_METHODS = ['select', 'ilike', 'eq', 'order', 'limit', 'range'];
+const CHAIN_METHODS = ['select', 'ilike', 'eq', 'order', 'limit', 'range', 'or'];
 
 const state: {
   results: Result[];
@@ -137,6 +137,91 @@ describe('loadMemberSearch — pagination (gate 26)', () => {
 
     await loadMemberSearch(searchParamsOf({ q: '9876' }));
 
+    expect(callsOf('ilike')).toEqual([['phone', '%9876%']]);
+  });
+});
+
+/**
+ * `loadMemberSearch` — cursor validation, grounded in the staff-console
+ * spec's "A cursor is validated, not merely decoded":
+ *
+ * The member cursor carries a name and an id, both interpolated into a
+ * PostgREST `or=(...)` filter, where `,` `.` `(` `)` are grammar rather than
+ * characters. What a blind critic proved against the live database: the id
+ * was checked only with `typeof id === 'string'`, so a crafted id could
+ * append its own filter clause and widen the rows returned; separately, an
+ * id of `"x"` decodes fine and reaches Postgres as a raw `22P02` error,
+ * rendered verbatim to the front desk. The fix this suite is proving:
+ * anything that isn't a genuine uuid falls back to the first page with no
+ * error, and nothing unquoted from the cursor reaches the query builder.
+ *
+ * Per the brief, none of this asserts the cursor's encoding, its internal
+ * JSON shape, or which validation mechanism is used — only the query built
+ * and the page returned. Constructing test cursors still requires *some*
+ * encoding, so these use the one named in the brief (base64 of a JSON
+ * `{ fullName, id }`) purely to build inputs, exactly as `searchParamsOf`
+ * builds inputs for the pagination tests above.
+ */
+const VALID_UUID = '123e4567-e89b-12d3-a456-426614174000';
+
+const encodeCursor = (payload: unknown): string => Buffer.from(JSON.stringify(payload)).toString('base64');
+
+describe('loadMemberSearch — cursor validation (staff-console: "a cursor is validated, not merely decoded")', () => {
+  it.each([
+    { label: 'a non-uuid id ("x")', cursor: encodeCursor({ fullName: 'A', id: 'x' }) },
+    { label: 'an empty-string id', cursor: encodeCursor({ fullName: 'A', id: '' }) },
+    {
+      label: 'a uuid with filter grammar appended to the id',
+      cursor: encodeCursor({ fullName: 'A', id: `${VALID_UUID}),full_name.ilike.*` }),
+    },
+    { label: 'a non-string id', cursor: encodeCursor({ fullName: 'A', id: 42 }) },
+    { label: 'a cursor that does not decode to usable JSON at all', cursor: 'not-a-real-cursor-at-all' },
+  ])('yields the first page with no error for $label', async ({ cursor }) => {
+    state.results = [ok(membersOfLength(3))];
+
+    const result = await loadMemberSearch(searchParamsOf({ cursor }));
+
+    expect(result.errorMessage).toBeNull();
+    expect(result.members.length).toBeGreaterThan(0);
+    // "First page" means no cursor filter was built at all — not merely
+    // that one was built and happened not to match anything.
+    expect(callsOf('or')).toEqual([]);
+  });
+
+  it('never lets filter grammar carried in the cursor reach the query builder unquoted', async () => {
+    state.results = [ok(membersOfLength(3))];
+    const maliciousName = 'Evil),full_name.ilike.*x*,id.gt.(0';
+    const cursor = encodeCursor({ fullName: maliciousName, id: VALID_UUID });
+
+    const result = await loadMemberSearch(searchParamsOf({ cursor }));
+
+    expect(result.errorMessage).toBeNull();
+    // A stub can't prove PostgREST's parser treats a quoted span as an inert
+    // literal — only a live database could, and the spec scenario itself is
+    // about what the query builder is handed, not about the parser. What
+    // this can prove is that the code never hands the builder raw grammar:
+    // strip every double-quoted span (PostgREST's own escape for a literal
+    // value inside `or=(...)`) out of whatever was passed to `.or()`, and
+    // check the malicious text isn't sitting outside one — i.e. it was
+    // either quoted or never included at all.
+    const rawFilterText = callsOf('or').flat().map(String).join('\n');
+    const withoutQuotedSpans = rawFilterText.replace(/"[^"]*"/g, '');
+    expect(withoutQuotedSpans).not.toContain(maliciousName);
+  });
+
+  it('keeps the search term and page size in effect on a page reached by cursor', async () => {
+    // "Everything that shaped the page travels with the cursor": a cursor
+    // names a place in an ordering, and that ordering is defined by the
+    // search term and page size too. Proves loadMemberSearch keeps honoring
+    // `q` and `limit` from the request rather than dropping them once a
+    // cursor is present.
+    state.results = [ok(membersOfLength(5))];
+    const cursor = encodeCursor({ fullName: 'Member 0', id: VALID_UUID });
+
+    const result = await loadMemberSearch(searchParamsOf({ q: '9876', limit: '25', cursor }));
+
+    expect(result.errorMessage).toBeNull();
+    expect(result.pageSize).toBe(25);
     expect(callsOf('ilike')).toEqual([['phone', '%9876%']]);
   });
 });
