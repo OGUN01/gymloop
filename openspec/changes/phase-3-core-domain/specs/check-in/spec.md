@@ -84,6 +84,8 @@ A refusal table keyed by SQLSTATE is looked up by a code that arrives from outsi
 ### Requirement: An attendance row is written once and never edited
 THE SYSTEM SHALL make a recorded visit unmodifiable by an ordinary session. A correction is a new row in `attendance_corrections`, which already grants `select, insert` and no `update`; the visit itself stands.
 
+**Every column except `checked_out_at`, not a list of frozen ones.** The first version named nine columns and a blind critic found the four it did not: `id`, the identity of the visit that `POST /api/check-in` hands back and that `attendance_corrections.attendance_id` points at, so a visit could be renumbered out from under anything holding it; `created_at`, the row's only audit timestamp; and `offline_recorded_at`/`replayed_at`, Phase 7's offline provenance, stampable today onto a row that was never offline. A denylist of frozen columns goes stale the day a column is added — and this one was stale on the day it was written. **A new column must be frozen by default**, which only an allowlist of what may still change can give. `checked_out_at` is that allowlist; `tenant_id` is outside the comparison entirely, because the write policy's `with check` already refuses moving a row to another gym and a `before` trigger raising first would answer ahead of the policy.
+
 **This is the rule the whole capability rests on and it was specified only for `INSERT`.** Every guard above — the de-duplication window, the live-membership gate, the scanned session's validity, the acting staff member — is enforced by a `before insert` trigger, so each one is a property of *inserting*, not a property of `attendance`. `authenticated` holds `update` on the table and the write policy is `is_front_office()` for ALL commands, which means one `UPDATE` reaches past all of them: two rows inside the window, a visit re-attributed to a member with no live membership, an expired gate session named on a row that was scanned with a valid one, or the assisted pair blanked so the record that one person marked another present is gone. **Widening the trigger's event list is not the fix here** — an `update` to `attendance` is not a check-in arriving, it is a check-in being rewritten, and there is no such operation in this product.
 
 #### Scenario: Moving a visit inside the de-duplication window
@@ -97,6 +99,18 @@ THE SYSTEM SHALL make a recorded visit unmodifiable by an ordinary session. A co
 #### Scenario: Reassigning a visit
 - **WHEN** a front-office session updates a recorded visit's `member_id` or `qr_session_id`
 - **THEN** the update SHALL be refused
+
+#### Scenario: Renumbering a visit
+- **WHEN** a front-office session updates a recorded visit's `id`
+- **THEN** the update SHALL be refused — the id is what the check-in response handed the client and what a correction points at
+
+#### Scenario: Forging offline provenance
+- **WHEN** a front-office session stamps `offline_recorded_at` or `replayed_at` on a visit that was recorded live, or rewrites `created_at`
+- **THEN** the update SHALL be refused
+
+#### Scenario: Recording a check-out
+- **WHEN** a front-office session sets `checked_out_at` on a recorded visit
+- **THEN** it SHALL succeed — a check-out is a later fact about a visit that happened, not a rewrite of it, and this is the one column the rule leaves open
 
 ### Requirement: An assisted check-in names the staff member and the reason
 WHEN staff record a check-in on a member's behalf, THE SYSTEM SHALL require the acting staff member and a non-empty reason, and SHALL record the source as `front_desk` (ATT-005, ATT-006).

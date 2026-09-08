@@ -28,6 +28,13 @@
 --   check-ins are refused by composite foreign keys (4, 28, 29). The gym's own
 --   definition of a live membership is exactly {active, frozen} (2).
 --
+--   Extended for this revision. "An attendance row is written once" now also
+--   covers renumbering a visit's id, forging offline provenance on a visit
+--   recorded live (both halves of the stamp pair, so the CHECK constraint is
+--   satisfied and cannot be what refuses it), rewriting created_at, and — the
+--   column the guard leaves open — a check-out that actually succeeds and
+--   reads back set (42-46).
+--
 --   Approximated, and said so. pgTAP runs one transaction on one connection,
 --   and `dblink` is available on this project but NOT installed (verified
 --   against the project, 2026-09-08) — installing it is a migration, and a
@@ -57,7 +64,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(41);
+select plan(46);
 
 
 -- ---------------------------------------------------------------------------
@@ -884,6 +891,171 @@ select is(
       and member_id = '16000000-0000-4000-8000-00000000003a'::uuid),
   0,
   'scenario "Naming a colleague as the acting staff member" — no attendance row exists for that member afterwards: the write is refused outright, not quietly rewritten into a different one'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- An attendance row is written once — the columns the first pass at this
+-- guard left open (42-44)
+--
+-- Renumbering: the id is what the check-in response handed the client and
+-- what a correction points at, and this file has not tried moving it yet.
+-- A Frozen's row (member 33) is reused — assertion 39 already proved its
+-- qr_session_id cannot be forged, so it is known-decided-nothing-else-wrong
+-- going into this attempt.
+--
+-- Forging offline provenance: attendance_offline_stamp_pair_chk forces
+-- offline_recorded_at and replayed_at to be set together, so a forging
+-- attempt that sets only one is refused by the CHECK and proves nothing about
+-- the written-once guard. Both are set together below on a fresh visit
+-- (A Colleague, member 3a) that was recorded live — plain 'qr', no offline
+-- columns touched at insert — so the CHECK is satisfied and only the
+-- written-once guard can be what refuses it. created_at is rewritten on the
+-- same row, independent of the stamp pair.
+--
+-- All three attempts are wrapped in exception-swallowing sub-blocks, exactly
+-- as the four above them: "the update SHALL be refused" has two correct
+-- shapes (an exception, or a policy silently filtering the row to zero
+-- effect), and a throws_ok would call the second one a failure.
+-- ---------------------------------------------------------------------------
+
+insert into public.attendance (tenant_id, branch_id, member_id, source, qr_session_id, checked_in_at) values
+  ('16000000-0000-4000-8000-000000000001'::uuid, '16000000-0000-4000-8000-000000000011'::uuid,
+   '16000000-0000-4000-8000-00000000003a'::uuid, 'qr', '16000000-0000-4000-8000-000000000061'::uuid,
+   now() - interval '3 hours');
+
+create temp table attendance_3a_snapshot as
+  select created_at from public.attendance
+   where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+     and member_id = '16000000-0000-4000-8000-00000000003a'::uuid;
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '16000000-0000-4000-8000-000000000001',
+                    'app_role', 'front_desk',
+                    'staff_id', '16000000-0000-4000-8000-000000000021')::text,
+  true);
+set local role authenticated;
+
+do $do$
+begin
+  -- "Renumbering a visit": change A Frozen's visit onto a new id.
+  begin
+    update public.attendance
+       set id = '16000000-0000-4000-8000-0000000000f1'::uuid
+     where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+       and member_id = '16000000-0000-4000-8000-000000000033'::uuid;
+  exception when others then null;
+  end;
+
+  -- "Forging offline provenance", the stamp pair: both columns set together,
+  -- so attendance_offline_stamp_pair_chk is satisfied and not what refuses it.
+  begin
+    update public.attendance
+       set offline_recorded_at = now() - interval '2 hours',
+           replayed_at = now()
+     where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+       and member_id = '16000000-0000-4000-8000-00000000003a'::uuid;
+  exception when others then null;
+  end;
+
+  -- "Forging offline provenance", created_at: rewritten on the same visit,
+  -- independent of the stamp pair above.
+  begin
+    update public.attendance
+       set created_at = now() - interval '10 days'
+     where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+       and member_id = '16000000-0000-4000-8000-00000000003a'::uuid;
+  exception when others then null;
+  end;
+end
+$do$;
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+-- 42
+select results_eq(
+  $$
+    select count(*) filter (where id <> '16000000-0000-4000-8000-0000000000f1'::uuid)::int,
+           count(*) filter (where id = '16000000-0000-4000-8000-0000000000f1'::uuid)::int
+    from public.attendance
+    where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+      and member_id = '16000000-0000-4000-8000-000000000033'::uuid
+  $$,
+  $$ values (1, 0) $$,
+  'scenario "Renumbering a visit" — A Frozen''s visit is still findable at the id it always had, and the id the rewrite attempted names no row'
+);
+
+-- 43
+select results_eq(
+  $$
+    select offline_recorded_at, replayed_at
+    from public.attendance
+    where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+      and member_id = '16000000-0000-4000-8000-00000000003a'::uuid
+  $$,
+  $$ values (null::timestamptz, null::timestamptz) $$,
+  'scenario "Forging offline provenance" — the visit recorded live still carries no stamp on either column of the offline pair. The forging attempt set both together, so attendance_offline_stamp_pair_chk was satisfied and only the written-once guard could have refused it'
+);
+
+-- 44
+select is(
+  (select a.created_at = s.created_at
+     from public.attendance a, attendance_3a_snapshot s
+    where a.tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+      and a.member_id = '16000000-0000-4000-8000-00000000003a'::uuid),
+  true,
+  'scenario "Forging offline provenance" — created_at still reads what it read when the visit was recorded, not ten days earlier'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Recording a check-out — the one column the written-once guard leaves open
+-- (45-46)
+--
+-- This is the case a careless fix breaks: closing the written-once hole by
+-- also freezing checked_out_at would make this scenario refuse, and the
+-- product has no other way to close a visit. A Active's row (member 31, from
+-- assertions 6-7) has not been touched since, and is still open.
+-- clock_timestamp() is used rather than now(), which is constant for the
+-- whole transaction and would tie checked_out_at to the exact value
+-- checked_in_at already holds.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '16000000-0000-4000-8000-000000000001',
+                    'app_role', 'front_desk',
+                    'staff_id', '16000000-0000-4000-8000-000000000021')::text,
+  true);
+set local role authenticated;
+
+-- 45 — proves the statement does not throw. Not sufficient on its own: a
+-- policy-filtered zero-row update also does not throw, which is exactly why
+-- assertion 46 reads the row back.
+select lives_ok($$
+  update public.attendance
+     set checked_out_at = clock_timestamp()
+   where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+     and member_id = '16000000-0000-4000-8000-000000000031'::uuid
+$$, 'scenario "Recording a check-out" — setting checked_out_at on a recorded visit does not throw');
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+-- 46
+select results_eq(
+  $$
+    select checked_out_at is not null, checked_out_at >= checked_in_at
+    from public.attendance
+    where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+      and member_id = '16000000-0000-4000-8000-000000000031'::uuid
+  $$,
+  $$ values (true, true) $$,
+  'scenario "Recording a check-out" — the check-out actually landed on the row, at or after the check-in it closes: a check-out is a later fact about a visit that happened, not a rewrite of it, and it is the one column this rule leaves open'
 );
 
 

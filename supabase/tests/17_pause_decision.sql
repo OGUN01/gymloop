@@ -60,6 +60,15 @@
 --   trainer session would see zero rows affected and no error, which would
 --   make a `throws_ok` here silently untrustworthy.
 --
+--   Extended for this revision. "The person who asked is stamped from the
+--   session" now governs INSERT as well as UPDATE (37/38): naming a colleague
+--   as requester, and leaving the column null, are both refused on the way
+--   in, not only once the pause exists. "A pause cannot be created already
+--   decided" now refuses a born-rejected row exactly as it refuses a
+--   born-approved one (39). "A decided pause stays decided" now freezes every
+--   column but `updated_at`, proven at the two columns the previous guard
+--   left open: `id` (40) and `created_at` (41).
+--
 -- ADR-030: one transaction, BEGIN … ROLLBACK, nothing committed.
 -- ADR-046: the owner role is assumed explicitly, never inherited.
 -- ADR-050: every count is scoped to this file's own two fixture tenants — this
@@ -73,7 +82,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(37);
+select plan(42);
 
 
 -- ---------------------------------------------------------------------------
@@ -898,10 +907,172 @@ select lives_ok($$
           now())
 $$, 'requirement "A pause cannot be created already decided" — "a session subject to row security" and not "whoever is asking": the seed creates an already-approved pause as postgres, and a constraint that no context can bypass would take the demo data and Phase 4''s no-show scan down with it');
 
--- 37 — ADR-050: scoped to this file's own two tenants. Seventeen pauses were
+-- ---------------------------------------------------------------------------
+-- The person who asked is stamped from the session, then never changes — now
+-- an INSERT rule too, not only an UPDATE one (37-38)
+--
+-- Immutability on UPDATE alone left the column inside the writer's reach at
+-- the statement that SETS it: a manager could insert a pause naming a
+-- colleague (or nobody) as requester and approve it next, and the two-person
+-- rule proven at assertions 7-12 never sees anything wrong, because on an
+-- insert requested_by_staff_id is nothing but the caller's own input. Both
+-- rows below are plain pending inserts — no approval column touched — so the
+-- only rule that can refuse either is this one.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '17000000-0000-4000-8000-000000000001',
+                    'app_role', 'front_desk',
+                    'staff_id', '17000000-0000-4000-8000-000000000021')::text,
+  true);
+set local role authenticated;
+
+-- 37
+select throws_ok($$
+  insert into public.membership_pauses
+    (id, tenant_id, membership_id, starts_on, ends_on, reason, requested_by_staff_id)
+  values ('17000000-0000-4000-8000-0000000000f1'::uuid,
+          '17000000-0000-4000-8000-000000000001'::uuid,
+          '17000000-0000-4000-8000-000000000051'::uuid,
+          current_date + 1, current_date + 8, 'colleague named as requester',
+          '17000000-0000-4000-8000-000000000022'::uuid)
+$$, null::char(5), null,
+  'scenario "Inserting a pause in a colleague''s name" — a front-desk session of gym A cannot file a pending pause under manager 22''s name. requested_by_staff_id has to be the acting staff member from the moment the row exists, not only once it is decided'
+);
+
+-- 38
+select throws_ok($$
+  insert into public.membership_pauses
+    (id, tenant_id, membership_id, starts_on, ends_on, reason, requested_by_staff_id)
+  values ('17000000-0000-4000-8000-0000000000f2'::uuid,
+          '17000000-0000-4000-8000-000000000001'::uuid,
+          '17000000-0000-4000-8000-000000000051'::uuid,
+          current_date + 1, current_date + 8, 'no requester named',
+          null)
+$$, null::char(5), null,
+  'scenario "Inserting a pause in nobody''s name" — a freeze nobody is recorded as having asked for is the same hole with the name left blank; requested_by_staff_id being nullable in the schema does not make null an acceptable value on the way in'
+);
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+
+-- ---------------------------------------------------------------------------
+-- A pause cannot be created already decided — now rejected_at too (39)
+--
+-- "A pause arrives pending or it does not arrive" is the rule and half of it
+-- was not the rule. The requester named below is the acting staff member
+-- itself, so the only thing that can refuse this insert is the born-decided
+-- guard and not the requester rule just proven above.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '17000000-0000-4000-8000-000000000001',
+                    'app_role', 'front_desk',
+                    'staff_id', '17000000-0000-4000-8000-000000000021')::text,
+  true);
+set local role authenticated;
+
+-- 39
+select throws_ok($$
+  insert into public.membership_pauses
+    (id, tenant_id, membership_id, starts_on, ends_on, reason,
+     requested_by_staff_id, rejected_at)
+  values ('17000000-0000-4000-8000-0000000000f3'::uuid,
+          '17000000-0000-4000-8000-000000000001'::uuid,
+          '17000000-0000-4000-8000-000000000051'::uuid,
+          current_date + 1, current_date + 8, 'born rejected',
+          '17000000-0000-4000-8000-000000000021'::uuid,
+          now())
+$$, null::char(5), null,
+  'scenario "A pause born rejected" — a session subject to row security cannot insert a pause carrying rejected_at either. A born-rejected row moves no money, so it looks harmless, but it lands already decided and the settled-row guard would then freeze a refusal against a request nobody made'
+);
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+
+-- ---------------------------------------------------------------------------
+-- A decided pause stays decided — now every column but updated_at (40-41)
+--
+-- The first version of this guard named seven columns. A blind critic found
+-- the two it did not: id, so a decided pause could be renumbered and become
+-- unfindable at the id anything else was holding, and created_at, the row's
+-- only record of when it was asked for. Two already-decided pauses, not one:
+-- if id-renumbering is the very thing left unguarded, running it and the
+-- created_at attack against the same row would leave the created_at check
+-- unable to find the row any more — a false negative that proves nothing
+-- about created_at at all. Pause 068 (decided by manager 22 at assertions
+-- 23-24) takes the id attempt; pause 070 (decided by the trusted context at
+-- assertions 33-34) takes the created_at attempt, untouched by the other.
+-- tenant_id is deliberately not tested here — the write policy's own with
+-- check already refuses moving the row to another gym, and a trigger raising
+-- first would answer ahead of the policy.
+-- ---------------------------------------------------------------------------
+
+create temp table pause_070_snapshot as
+  select id, created_at from public.membership_pauses
+   where id = '17000000-0000-4000-8000-000000000070'::uuid;
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '17000000-0000-4000-8000-000000000001',
+                    'app_role', 'gym_manager',
+                    'staff_id', '17000000-0000-4000-8000-000000000023')::text,
+  true);
+set local role authenticated;
+
+do $$
+begin
+  update public.membership_pauses
+     set id = '17000000-0000-4000-8000-0000000000f4'::uuid
+   where id = '17000000-0000-4000-8000-000000000068'::uuid;
+exception when others then null;
+end $$;
+
+do $$
+begin
+  update public.membership_pauses
+     set created_at = now() - interval '400 days'
+   where id = '17000000-0000-4000-8000-000000000070'::uuid;
+exception when others then null;
+end $$;
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+-- 40
+select results_eq(
+  $$
+    select count(*) filter (where id = '17000000-0000-4000-8000-000000000068'::uuid)::int,
+           count(*) filter (where id = '17000000-0000-4000-8000-0000000000f4'::uuid)::int
+    from public.membership_pauses
+  $$,
+  $$ values (1, 0) $$,
+  'scenario "Renumbering a decided pause" — pause 068 is still findable at the id anything else is holding, and the id the rewrite attempted names no row'
+);
+
+-- 41
+select is(
+  (select p.created_at = s.created_at
+     from public.membership_pauses p
+     join pause_070_snapshot s on true
+    where p.id = '17000000-0000-4000-8000-000000000070'::uuid),
+  true,
+  'scenario "Backdating a decided pause" — created_at still reads what it read before the decision was made, not four hundred days earlier'
+);
+
+
+-- 42 — ADR-050: scoped to this file's own two tenants. Seventeen pauses were
 -- inserted as fixtures and assertion 36 legitimately added an eighteenth; the
--- refused insert at 35 left nothing behind, and no refused update created a
--- row of its own.
+-- refused inserts at 35, 37, 38 and 39 left nothing behind, and no refused
+-- update — including the id and created_at rewrites just above — created or
+-- renamed a row of its own.
 select is(
   (select count(*)::int from public.membership_pauses
     where tenant_id in ('17000000-0000-4000-8000-000000000001'::uuid,
