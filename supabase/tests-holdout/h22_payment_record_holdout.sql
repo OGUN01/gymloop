@@ -92,7 +92,7 @@ begin;
 
 set local role postgres;
 
-select plan(100);
+select plan(133);
 
 -- ---------------------------------------------------------------------------
 -- 0. Fixtures.
@@ -176,7 +176,17 @@ insert into public.members (id, tenant_id, branch_id, full_name, phone) values
   ('220000ff-0022-4000-8000-500000000014'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 CrossMember Owner',    '+919220000020'),
   ('220000ff-0022-4000-8000-500000000015'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 CrossMember Payer',    '+919220000021'),
   ('220000ff-0022-4000-8000-500000000016'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 Refusal Is Policys',   '+919220000022'),
-  ('220000ff-0022-4000-8000-500000000017'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 Pending OpenEnded',    '+919220000023');
+  ('220000ff-0022-4000-8000-500000000017'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 Pending OpenEnded',    '+919220000023'),
+  ('220000ff-0022-4000-8000-500000000018'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 Receipt Squat',        '+919220000024'),
+  ('220000ff-0022-4000-8000-500000000019'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 SecondOrder Collision','+919220000025'),
+  ('220000ff-0022-4000-8000-500000000020'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 MultiRow Ten',         '+919220000026'),
+  ('220000ff-0022-4000-8000-500000000021'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 MultiRow B1',          '+919220000027'),
+  ('220000ff-0022-4000-8000-500000000022'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 MultiRow B2',          '+919220000028'),
+  ('220000ff-0022-4000-8000-500000000023'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 MixedPaidCreated',     '+919220000029'),
+  ('220000ff-0022-4000-8000-500000000024'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 UpdateMixed',          '+919220000030'),
+  ('220000ff-0022-4000-8000-500000000025'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 SameMembershipTwice',  '+919220000031'),
+  ('220000ff-0022-4000-8000-500000000026'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 MixedCurrency',        '+919220000032'),
+  ('220000ff-0022-4000-8000-500000000027'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 WrongCurrencySimple',  '+919220000033');
 
 insert into public.members (id, tenant_id, branch_id, full_name, phone) values
   ('220000ff-0022-4000-8000-500000000101'::uuid, '220000ff-0022-4000-8000-100000000002'::uuid, '220000ff-0022-4000-8000-200000000002'::uuid, 'H22 B Membership Owner', '+919220000101');
@@ -208,6 +218,25 @@ insert into public.memberships (id, tenant_id, member_id, plan_id, status, start
 
 insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
   ('220000ff-0022-4000-8000-600000000021'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000017'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'pending', (select today from gym_today where org_key='A') - 5, null, 100000);
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency) values
+  ('220000ff-0022-4000-8000-600000000030'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000020'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000000031'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000021'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000000032'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000022'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 50000,  'INR'),
+  ('220000ff-0022-4000-8000-600000000033'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000023'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000000034'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000024'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000000035'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000025'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000000036'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000026'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000000037'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000027'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR');
+
+-- SecondOrder: one member holding BOTH an already-active membership and a
+-- separate pending, dateless one — the fixture for the "made active by a
+-- payment" second-order collision probe.
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('220000ff-0022-4000-8000-600000000038'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000019'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000);
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('220000ff-0022-4000-8000-600000000039'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000019'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'pending', null, null, 100000);
 
 insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
   ('220000ff-0022-4000-8000-600000000101'::uuid, '220000ff-0022-4000-8000-100000000002'::uuid, '220000ff-0022-4000-8000-500000000101'::uuid, '220000ff-0022-4000-8000-400000000002'::uuid, 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000);
@@ -897,6 +926,27 @@ select is(
   (select today from gym_today where org_key = 'P') + 30,
   'gym P: ends_on runs the plan''s duration from the gym''s own today, not from any UTC or session-local date');
 
+select is(
+  (select status from public.memberships where id = '220000ff-0022-4000-8000-600000000201'::uuid)::text,
+  'active',
+  'gym P (ADR-084): the membership is made active in the same step, not left pending — dated but pending is a membership its own member is refused at the gate');
+
+-- ADR-084's own named consequence: the member it was paid for is admitted
+-- at the gate the same day. `app.enforce_check_in()`'s active/frozen gate
+-- (read via pg_get_functiondef, which is not one of the four forbidden
+-- functions) only runs on the QR-scan path (`qr_session_id is not null`) —
+-- an assisted front-desk check-in skips that block entirely and would pass
+-- regardless of membership status, which would prove nothing about ADR-084
+-- at all. A real QR session is staged so the gate this scenario is
+-- actually about is the one being exercised.
+insert into public.qr_sessions (id, tenant_id, branch_id, token_hash, expires_at, created_by_staff_id) values
+  ('220000ff-0022-4000-8000-900000000001'::uuid, '220000ff-0022-4000-8000-100000000003'::uuid, '220000ff-0022-4000-8000-200000000003'::uuid, 'h22-gate-check-token-hash', now() + interval '1 day', '220000ff-0022-4000-8000-300000000031'::uuid);
+
+select lives_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('220000ff-0022-4000-8000-100000000003', '220000ff-0022-4000-8000-200000000003', '220000ff-0022-4000-8000-500000000201', '220000ff-0022-4000-8000-600000000201', now(), 'qr', '220000ff-0022-4000-8000-900000000001')$$,
+  'gym P (ADR-084): the member it was paid for scans in at the gate the same day and is admitted — a membership that has been paid for admits its member, which app.enforce_check_in()''s active/frozen gate would otherwise refuse on a merely-dated-but-pending row');
+
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
     values ('220000ff-0022-4000-8000-700000000091', '220000ff-0022-4000-8000-100000000004', '220000ff-0022-4000-8000-500000000211', '220000ff-0022-4000-8000-600000000211', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000041')$$,
@@ -912,6 +962,11 @@ select is(
   (select today from gym_today where org_key = 'M') + 30,
   'gym M: ends_on runs the plan''s duration from gym M''s own today — the two gyms cannot both be right if either reads a UTC or session date instead of its own');
 
+select is(
+  (select status from public.memberships where id = '220000ff-0022-4000-8000-600000000211'::uuid)::text,
+  'active',
+  'gym M (ADR-084): made active too — evaluated independently of gym P''s row');
+
 -- The open-ended shape: starts_on set, ends_on null, reachable only via
 -- `pending` (see header note) — paying for it should not manufacture an
 -- end date out of nothing.
@@ -923,6 +978,46 @@ select lives_ok(
 select ok(
   (select ends_on is null from public.memberships where id = '220000ff-0022-4000-8000-600000000021'::uuid),
   'gym A: ends_on remains null — a genuinely open-ended membership has not ended, so there is nothing to move (only reachable here as `pending`, per the header note)');
+
+-- (4)'S SECOND-ORDER EFFECT, NOT SETTLED BY THE SPEC. A membership made
+-- `active` by a payment now has to share memberships_tenant_id_member_id_live_key
+-- (one live — active/frozen — membership per member) with whatever ELSE
+-- that member already holds live. A member with an already-active
+-- membership who ALSO holds a separate pending, dateless one (reachable —
+-- see the header note; e.g. a second package sold before the first
+-- expired) creates exactly this collision the moment the second one is
+-- paid for. The spec does not say what should happen — refuse the
+-- payment, refuse only the activation while still granting the period, or
+-- something else. This stages it and reports which one the live schema
+-- currently does, rather than asserting a side of an unresolved question.
+-- The one thing that MUST hold regardless is that the pre-existing active
+-- membership is not silently altered as a side effect of the second one's
+-- payment, and that IS asserted below.
+set local role postgres;
+
+create temp table h22_second_order_outcome (outcome text);
+do $$
+begin
+  begin
+    insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+      values ('220000ff-0022-4000-8000-700000000150', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000019', '220000ff-0022-4000-8000-600000000039', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001');
+    insert into h22_second_order_outcome(outcome) values ('succeeded');
+  exception when others then
+    insert into h22_second_order_outcome(outcome) values (sqlstate || ': ' || sqlerrm);
+  end;
+end;
+$$;
+
+select diag(
+  format('second-order OUTCOME: paying member 500000000019''s second, previously-pending membership (600000000039) while their first (600000000038) is already active resulted in: %s. Membership 600000000039''s own status is now %s. The spec does not settle this; report, do not resolve.',
+    (select outcome from h22_second_order_outcome),
+    coalesce((select status::text from public.memberships where id = '220000ff-0022-4000-8000-600000000039'::uuid), 'no such row')
+  ));
+
+select is(
+  (select row(status, ends_on, starts_on) from public.memberships where id = '220000ff-0022-4000-8000-600000000038'::uuid),
+  (select row('active'::membership_status, (select today from gym_today where org_key = 'A') + 10, (select today from gym_today where org_key = 'A') - 10)),
+  'second-order: whatever happened to the second membership, the member''s PRE-EXISTING active membership is completely untouched — not deactivated, not re-dated, not silently superseded');
 
 -- ---------------------------------------------------------------------------
 -- 11. A refusal is the policy's to give: a member session inserting its own
@@ -961,6 +1056,261 @@ select is(
   (select next_number from public.document_counters where tenant_id = '220000ff-0022-4000-8000-100000000001' and kind = 'receipt' and financial_year = (select fy from gym_today where org_key = 'A')),
   (select n from h22_ctr_before_refusal),
   'refusal is the policy''s: and the receipt counter is completely unchanged by the refused attempt — nothing was allocated, named, or touched on a table the member has no business knowing exists');
+
+-- ---------------------------------------------------------------------------
+-- 13. A receipt number is the counter's alone, at every status (new
+--     requirement, added after a second critic round). A caller-supplied
+--     receipt_number on an RLS-governed session is IGNORED, not refused —
+--     the row is still written, just numberless until it is actually paid.
+--     A squatted number that survives permanently jams the book (the next
+--     real payment collides, the failing insert rolls the counter increment
+--     back with it, and every later payment collides on the same number),
+--     so this proves the squat leaves no trace AND that ordinary allocation
+--     keeps working right after it. A trusted writer is the named
+--     exception ("for every session row security applies to"), so its own
+--     supplied value is kept — the mirror of the paid_at rule two
+--     requirements up. And a genuinely failed statement (not a squat, an
+--     honest constraint violation) must not leave the counter part-advanced
+--     for the next real payment to trip over.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+set local role authenticated;
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, receipt_number, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000000110', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000018', null, 1000, 'cash', 'created', 'SQUAT-1', '220000ff-0022-4000-8000-300000000001')$$,
+  'receipt/squat: a created payment carrying a caller-supplied receipt_number is written — the row itself is not refused');
+
+select ok(
+  (select receipt_number is null from public.payments where id = '220000ff-0022-4000-8000-700000000110'::uuid),
+  'receipt/squat: and the supplied number was ignored, not kept — the row is numberless until it is actually paid');
+
+select lives_ok(
+  $$update public.payments set receipt_number = 'SQUAT-2' where id = '220000ff-0022-4000-8000-700000000110'$$,
+  'receipt/squat: the same session then tries to squat a DIFFERENT number onto the still-created row by UPDATE — the row update itself is not refused either');
+
+select ok(
+  (select receipt_number is null from public.payments where id = '220000ff-0022-4000-8000-700000000110'::uuid),
+  'receipt/squat: and it is still ignored — the column stays null, not "SQUAT-2"');
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000000111', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000018', null, 1000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'receipt/squat: the gym''s next REAL paid payment, after the squat attempt, is recorded normally');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000000112', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000018', null, 1000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'receipt/squat: and a second one right after it is too — no jam, no collision');
+
+select ok(
+  (select count(distinct receipt_number) = 2 from public.payments
+     where id in ('220000ff-0022-4000-8000-700000000111'::uuid, '220000ff-0022-4000-8000-700000000112'::uuid)
+       and receipt_number is not null),
+  'receipt/squat: both real payments were numbered, and numbered with two DIFFERENT numbers — the squat left no stale value for either to collide with');
+
+-- Trusted writer exception: the rule is scoped to sessions row security
+-- applies to. A trusted (service_role) writer's own supplied value is kept.
+set local role service_role;
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, receipt_number, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000000114', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000018', null, 1000, 'cash', 'created', 'H22-TRUSTED-KEPT-2', '220000ff-0022-4000-8000-300000000001')$$,
+  'receipt/trusted-writer: a service_role session — not one row security applies to — supplies its own receipt_number on a created row');
+
+set local role postgres;
+
+select is(
+  (select receipt_number from public.payments where id = '220000ff-0022-4000-8000-700000000114'::uuid),
+  'H22-TRUSTED-KEPT-2',
+  'receipt/trusted-writer: and it is kept exactly, not nulled out — the ignore-rule names sessions row security applies to, which service_role is not');
+
+-- A genuinely failed statement (an honest constraint violation, not a
+-- squat) must not leave the counter part-advanced.
+create temp table h22_ctr_before_honest_failure as
+  select next_number as n from public.document_counters
+   where tenant_id = '220000ff-0022-4000-8000-100000000001'
+     and kind = 'receipt'
+     and financial_year = (select fy from gym_today where org_key = 'A');
+grant select on h22_ctr_before_honest_failure to public;
+
+select throws_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000000115', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000018', null, 0, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  '23514', null, 'receipt/honest-failure: a paid payment with amount_paise = 0 is refused by payments_amount_paise_chk — unrelated to receipt numbering, but a real statement failure to prove the counter survives');
+
+select is(
+  (select next_number from public.document_counters where tenant_id = '220000ff-0022-4000-8000-100000000001' and kind = 'receipt' and financial_year = (select fy from gym_today where org_key = 'A')),
+  (select n from h22_ctr_before_honest_failure),
+  'receipt/honest-failure: the counter is completely unchanged by the failed statement — whatever the allocator attempted rolled back with the rest of it, so the NEXT real payment does not inherit a stray increment');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000000116', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000018', null, 1000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'receipt/honest-failure: and a real payment right after the failed one is recorded normally');
+
+select is(
+  (select next_number from public.document_counters where tenant_id = '220000ff-0022-4000-8000-100000000001' and kind = 'receipt' and financial_year = (select fy from gym_today where org_key = 'A')),
+  (select n + 1 from h22_ctr_before_honest_failure),
+  'receipt/honest-failure: advancing by exactly one from where the failed statement left it, not skipping and not colliding');
+
+-- ---------------------------------------------------------------------------
+-- 14. The count is per PAYMENT, however many arrive in one statement, and
+--     the money must be the membership's own currency. A rule that
+--     re-derives the total from the table inside an AFTER ... FOR EACH ROW
+--     trigger cannot tell rows in the same statement apart — by the time
+--     ANY row-level AFTER trigger fires, every row of that statement is
+--     already visible in the table (Postgres fires row-level AFTER
+--     triggers at the end of the statement, not interleaved with each
+--     row's own insertion), so a naive "read the total, subtract my own
+--     amount" computation sees the FINAL total for every row and grants a
+--     period to each one that, alone, looks like it crossed the line. Ten
+--     rows of one whole multiple therefore reads as ten crossings. Each
+--     battery below attacks a different seam of whatever replaces that
+--     per-row re-derivation.
+-- ---------------------------------------------------------------------------
+
+-- Seam: the plain multi-row case the spec itself measures — ten rows,
+-- one membership, one whole multiple of the price.
+select lives_ok(
+  format(
+    $sql$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+      select gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000020',
+             '220000ff-0022-4000-8000-600000000030', 10000, 'cash', 'paid', %L, '220000ff-0022-4000-8000-300000000001'
+      from generate_series(1, 10)$sql$,
+    now()
+  ),
+  'multi-row/ten: ten payments of 10000 each (one whole multiple of the 100000 price) are written by a single insert ... select');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000030'::uuid),
+  (select today from gym_today where org_key = 'A') + 10 + 30,
+  'multi-row/ten: exactly ONE period is granted for the statement''s total — not ten, which is what ten independent per-row crossings would grant (300 days on this 30-day plan, the spec''s own measured defect)');
+
+-- Seam: mixed statement — two DIFFERENT memberships written by the same
+-- statement, each reaching a different multiple of its OWN price.
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id) values
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000021', '220000ff-0022-4000-8000-600000000031', 25000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'),
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000021', '220000ff-0022-4000-8000-600000000031', 25000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'),
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000021', '220000ff-0022-4000-8000-600000000031', 25000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'),
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000021', '220000ff-0022-4000-8000-600000000031', 25000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'),
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000022', '220000ff-0022-4000-8000-600000000032', 40000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'),
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000022', '220000ff-0022-4000-8000-600000000032', 40000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'),
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000022', '220000ff-0022-4000-8000-600000000032', 20000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'multi-row/mixed-memberships: one statement carries 4 rows against membership B1 (100000 total, its own 100000 price) and 3 rows against membership B2 (100000 total, its own 50000 price)');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000031'::uuid),
+  (select today from gym_today where org_key = 'A') + 10 + 30,
+  'multi-row/mixed-memberships: B1 gains exactly one period (100000 / 100000 = 1) — unaffected by B2''s rows in the same statement');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000032'::uuid),
+  (select today from gym_today where org_key = 'A') + 10 + 60,
+  'multi-row/mixed-memberships: B2 gains exactly two periods (100000 / 50000 = 2) in the SAME statement — each membership''s own total, not a shared or confused one');
+
+-- Seam: some rows paid, some not, in one statement.
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id) values
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000023', '220000ff-0022-4000-8000-600000000033', 60000, 'cash', 'paid',    now(), '220000ff-0022-4000-8000-300000000001'),
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000023', '220000ff-0022-4000-8000-600000000033', 40000, 'cash', 'paid',    now(), '220000ff-0022-4000-8000-300000000001'),
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000023', '220000ff-0022-4000-8000-600000000033', 50000, 'cash', 'created', null,  '220000ff-0022-4000-8000-300000000001')$$,
+  'multi-row/mixed-status: one statement carries two paid rows (60000+40000=100000, exactly one multiple) and one merely-created row (50000) against the same membership');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000033'::uuid),
+  (select today from gym_today where org_key = 'A') + 10 + 30,
+  'multi-row/mixed-status: exactly one period, from the 100000 that is actually paid — the created row''s 50000 is not money that arrived and must not join the total');
+
+-- Seam: an UPDATE, not an INSERT, moving some rows to paid and others to
+-- failed within one statement.
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id) values
+    ('220000ff-0022-4000-8000-700000000130', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000024', '220000ff-0022-4000-8000-600000000034', 30000, 'cash', 'pending', '220000ff-0022-4000-8000-300000000001'),
+    ('220000ff-0022-4000-8000-700000000131', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000024', '220000ff-0022-4000-8000-600000000034', 70000, 'cash', 'pending', '220000ff-0022-4000-8000-300000000001'),
+    ('220000ff-0022-4000-8000-700000000132', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000024', '220000ff-0022-4000-8000-600000000034', 50000, 'cash', 'pending', '220000ff-0022-4000-8000-300000000001')$$,
+  'multi-row/update: three pending payments against one membership are set up (30000, 70000, 50000)');
+
+select lives_ok(
+  $$update public.payments
+      set status = case when id in ('220000ff-0022-4000-8000-700000000130', '220000ff-0022-4000-8000-700000000131') then 'paid'::public.payment_status else 'failed'::public.payment_status end,
+          paid_at = case when id in ('220000ff-0022-4000-8000-700000000130', '220000ff-0022-4000-8000-700000000131') then now() else null end,
+          failed_reason = case when id = '220000ff-0022-4000-8000-700000000132' then 'h22 multi-row update, this one fails' else null end
+      where id in ('220000ff-0022-4000-8000-700000000130', '220000ff-0022-4000-8000-700000000131', '220000ff-0022-4000-8000-700000000132')$$,
+  'multi-row/update: one UPDATE moves two of the three rows to paid (30000+70000=100000, exactly one multiple) and the third to failed, all in the same statement');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000034'::uuid),
+  (select today from gym_today where org_key = 'A') + 10 + 30,
+  'multi-row/update: exactly one period — the row moved to failed contributes nothing, and the two moved to paid are counted as their statement''s own total, not three independent per-row guesses');
+
+-- Seam: the SAME membership touched twice at different amounts in one
+-- statement, summing to just past one multiple.
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id) values
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000025', '220000ff-0022-4000-8000-600000000035', 40000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'),
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000025', '220000ff-0022-4000-8000-600000000035', 70000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'multi-row/uneven: one statement pays 40000 then 70000 (110000 total) against one membership priced at 100000');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000035'::uuid),
+  (select today from gym_today where org_key = 'A') + 10 + 30,
+  'multi-row/uneven: exactly one period (110000 crosses 100000 once) — a per-row guess using the final total for both unequal rows would double-grant, since each row alone (40000 and 70000) still looks like the one that crossed 100000 against a shared final total');
+
+-- Seam: currency, INSIDE a multi-row statement against one membership —
+-- one row in the membership's own currency, one row in a currency the gym
+-- does not price this membership in.
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id) values
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000026', '220000ff-0022-4000-8000-600000000036', 100000, 'INR', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'),
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000026', '220000ff-0022-4000-8000-600000000036', 100000, 'USD', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'multi-row/currency: one statement pays 100000 INR (matching the membership''s own currency) and 100000 USD against the same membership');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000036'::uuid),
+  (select today from gym_today where org_key = 'A') + 10 + 30,
+  'multi-row/currency: exactly one period, from the INR row alone — the USD row does not join the total even though it is against the same membership in the same statement');
+
+-- Seam: the plain, single-row version of the currency rule.
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000000140', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000027', '220000ff-0022-4000-8000-600000000037', 100000, 'USD', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'currency/simple: a single paid payment for the full price, but in USD against an INR-priced membership, is recorded');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000037'::uuid),
+  (select today from gym_today where org_key = 'A') + 10,
+  'currency/simple: and grants no period — money in a currency the gym does not price this membership in does not count, however much of it arrives');
+
+-- Seam: concurrency. THE SPEC NOW REQUIRES the extension serialised on the
+-- membership (an implicit `for update` on the membership row, the same
+-- shape app.enforce_refund_total() already takes on the payment). This
+-- file runs as ONE transaction on ONE connection (ADR-030) and cannot open
+-- a second one, so the actual race — two transactions each recording half
+-- the price concurrently, each seeing only its own row, each granting
+-- nothing, permanently — CANNOT be staged here. Unlike the receipt
+-- counter's race (h21/h18's own precedent), there is no single-row value
+-- to pre-set that would simulate a concurrent commit landing between this
+-- session's read and write: the defect is two READERS missing each
+-- other's WRITE, not one writer racing a known prior value, and this file
+-- has no way to hold this transaction inside the trigger's own critical
+-- section while a second session runs concurrently against it. NOT
+-- STAGED. A real test needs two live connections (e.g. two psql sessions,
+-- one paused mid-trigger with pg_sleep or an advisory lock while the
+-- other commits) and belongs in an integration or pgbench harness outside
+-- pgTAP's one-transaction model, not in this file.
 
 -- ---------------------------------------------------------------------------
 -- 12. Elevation must still justify itself (ADR-066): the same closed

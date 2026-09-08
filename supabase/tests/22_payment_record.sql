@@ -113,11 +113,38 @@
 -- in a receipt book is explainable, a reused number is not." Assertions
 -- 34-37 below are written against that corrected wording.
 --
--- PLAN COUNT: 72. Confirmed against Cloud via `supabase db query --linked -f`
+-- A second critic round added one whole requirement ("A receipt number is
+-- the counter's alone, at every status") and four paragraphs with their own
+-- scenarios under "A period is granted…" and "A payment against a
+-- membership with no dates…". Sections 10-13 (assertions 73-90) are that
+-- extension; everything through 72 is unchanged from the first two passes.
+--
+-- The coordinator then caught this file's own arithmetic error in Section
+-- 11: memberships 091/092 started at `ends_on = today + 30` (one period
+-- already on them) while the expected result after ten more payments was
+-- also asserted as `today + 30` — the value zero additional periods would
+-- produce, not the value one correctly-granted period produces
+-- (`greatest(today + 30, today) + 30 = today + 60`). As written, assertions
+-- 80/82 could only ever pass by the extension rule doing nothing to these
+-- two memberships, which is the opposite of what "ten rows totalling one
+-- multiple grant exactly one period" means. Fixed per the coordinator's own
+-- preference — 091/092/093 now start at `ends_on = today` (genuinely fresh,
+-- nothing bought yet), so `today → today + 30` is one period with nothing
+-- else in the arithmetic — rather than by inflating the expected value to
+-- match the broken fixture. Assertions 83/84 (ten rows totalling TWO
+-- multiples grant exactly two periods) are the coordinator's own addition,
+-- on a third fresh membership (093): one multiple granting one period is
+-- also what a rule granting exactly one period per statement regardless of
+-- amount would produce, so it alone cannot tell "counts the money" apart
+-- from "grants one per statement" — two multiples can, and does, since the
+-- current defect (below) turns out to grant one period per ROW rather than
+-- per multiple, which two multiples in ten rows exposes just as sharply.
+--
+-- PLAN COUNT: 90. Confirmed against Cloud via `supabase db query --linked -f`
 -- through scratchpad/tapcount.py (begin…rollback, nothing committed — the
 -- run completed and returned, itself confirming the rollback path executes).
--- `plan_line` is `1..72`, `ok_count` 25 + `not_ok_count` 47 = 72 matching the
--- plan exactly, `total_lines` 74 = the plan line + 72 assertions + finish()'s
+-- `plan_line` is `1..90`, `ok_count` 82 + `not_ok_count` 8 = 90 matching the
+-- plan exactly, `total_lines` 92 = the plan line + 90 assertions + finish()'s
 -- one diagnostic comment row. node scripts/check-pgtap-rollback.mjs was run
 -- against this file's own content in isolation (via its exported pure
 -- `findNonRolledBackTests`, not the CLI entry point, which always scans
@@ -131,112 +158,52 @@
 -- change, reported here only so it is not mistaken for something this file
 -- broke.
 --
--- RED (47) — the rule under test is not built, exactly as expected:
---   1-7, 11 (eight of the eleven frozen-field UPDATE attempts on a paid
---   payment succeed outright — amount_paise, currency, member_id,
---   membership_id, method, receipt_number, paid_at, idempotency_key are
---   all still writable after paid; only provider, provider_order_id and
---   provider_payment_id, 8-10, already refuse); 12 (the full-row snapshot
---   is therefore not unchanged); 15 (paid → created succeeds — the first
---   half of the farm); 16 (status reads back as created); 17 (the
---   membership was extended twice, 60 days on a 30-day plan, not once —
---   the farm buys exactly what the brief described); 20/21 (refunded →
---   paid revives the payment); 22/23 (created → refunded, not in the
---   allowed table, still succeeds); 24/25 (pending → created, backward,
---   still succeeds) — Requirement 2's transition table does not exist as
---   a check on UPDATE at all today, every transition is currently legal;
---   27/29 (a desk session's caller-supplied paid_at, two years off in
---   either direction, is stored verbatim rather than the instant of
---   recording — the exact defect named in the brief); 32/33 (next_number
---   can be walked backward — the one direction the corrected requirement
---   still forbids, and it is not refused: decreasing lands the counter at
---   4, not 5); 35/37 (both read as failures here, but neither is an
---   independent defect from 32/33's own — since the decrease at 32 was not
---   refused, 34's forward jump starts from 4 rather than 5, landing the
---   counter at 9 rather than the 10 a correctly-refused decrease would have
---   produced, and 36's own legitimate +1 then lands at 10 rather than 11 for
---   the same reason; 32/33/35/37 together are one finding — the missing
---   decrease-refusal — not three, and 34/36 are correctly GREEN in the
---   meantime because nothing about "forward only" asks them to behave any
---   differently while the counter sits at the wrong value); 40/41 (a refund raised past its
---   payment's ceiling on UPDATE succeeds — refunds_enforce_total is BEFORE
---   INSERT only per the catalogue, and nothing runs on UPDATE at all);
---   42/43 (a refund's amount_paise can also simply be decreased — the
---   freeze is not conditional on the ceiling, and neither exists yet);
---   44/45 (a refund's payment_id can be repointed to an unrelated payment);
---   46/47 (recording a refund AS 'failed' against an already-fully-refunded
---   payment dies on GL036 instead of being permitted — app.enforce_refund_
---   total's existing INSERT-time ceiling sums every refund regardless of
---   its own status, so a failed retry is refused by the very ceiling it is
---   supposed to be exempt from — this is PAY's failed-rows defect read
---   backward: excluding failed rows from the sum without excluding them
---   from the comparison was the bug that let a refund exceed the payment;
---   not excluding them from either is this one); 48/49 (a refund naming a
---   colleague as initiated_by_staff_id is recorded, not refused — the
---   attribution rule proven four times over for payments has no refunds
---   counterpart yet); 51 (a refund naming nobody is recorded with
---   initiated_by_staff_id left null, not auto-attributed to the acting
---   staff member); 52/53 (a claimless session's refund is recorded rather
---   than refused, landing a third row); 54/55 (a payment naming another
---   member's membership is recorded on INSERT, and that other member's
---   membership is extended by it — the exact defect the brief names);
---   56/57 (the same repoint succeeds on UPDATE too); 59 (a single 50%
---   payment already extends a 30-day membership by a full 30 days — "two
---   half payments bought two months" reproduced exactly, on the first
---   half alone); 61 (the second half adds a third full period on top,
---   landing at three periods' worth of date for two periods' worth of
---   money); 63 (a lone part payment, 30% of price, still grants a full
---   period); 65 (so does a payment against a zero-price membership — it
---   does not raise, per 64, but it still wrongly extends); 67 (a single
---   double payment grants only one period, not two — the current rule
---   grants exactly one period per paid payment regardless of amount, in
---   every direction: too generous below one multiple, not generous enough
---   above it); 69 (a membership with null starts_on/ends_on is left
---   completely untouched by a full payment — dated nowhere, given no
---   period).
+-- Between this file's earlier passes and this one, migrations landed on
+-- Cloud that fix nearly everything the first two rounds found (`supabase
+-- migration list --linked` now shows 20260910120000 and 20260910130000
+-- applied, neither opened). Assertions 1-72 are UNCHANGED from the previous
+-- pass — every one of them still asserts exactly what it asserted before —
+-- but almost all of them now read GREEN against the live implementation,
+-- which is the suite doing its job on the earlier rounds' fixes, not a
+-- rewrite.
 --
--- GREEN (25), and each is said here because it is coverage the suite earns
--- rather than the rule proving itself:
---   8-10 (provider, provider_order_id and provider_payment_id already
---   refuse a change on a paid payment, unlike the other eight frozen
---   columns — a real, if partial, head start on Requirement 1); 13/14
---   (notes may still be corrected on a paid payment, exactly as required —
---   true today because nothing currently restricts UPDATE at all, and it
---   will stay true once the freeze rule exists, because notes is
---   deliberately outside it); 18/19 (failed → pending, the one legitimate
---   backward edge, already succeeds — also true by current absence of any
---   restriction, and correct either way); 26/28 (a desk session's INSERT
---   with a wildly off paid_at is not refused — the recording itself is
---   fine, only the stored value at 27/29 is wrong); 30/31 (a service_role
---   webhook write keeps its own supplied paid_at exactly — the trusted
---   writer half of Requirement 3 already works, asymmetric with the
---   RLS-bound half exactly as the requirement describes); 34 (a forward
---   jump on next_number succeeds, correctly, under the corrected "forward
---   only" wording — coincidentally true today for the same reason 32 is
---   wrong, that nothing currently restricts next_number in either
---   direction, but it will stay true once 32/33's decrease-refusal is
---   built, because a forward jump is meant to succeed); 36 (the allocator
---   still advances the counter by exactly one from wherever it was left —
---   true regardless of 32's own bug, since 36 only ever asks "is this one
---   more than whatever is there now"); 38/39 (deleting
---   a document_counters row is already refused, and the row still exists
---   afterward — the one full Requirement 4 scenario that already holds);
---   50 (a refund naming nobody is not itself refused — only failing to
---   auto-attribute, at 51, is wrong); 58/60/62/64/66 (every payment in
---   Section 8 is recorded without being refused — Requirement 8 is entirely
---   about what the payment then does to the membership, not about whether
---   it is accepted, and none of these five is); 68/70 (a payment against a
---   no-dates membership, in either the null/null or the starts_on-only
---   shape, is recorded without raising); 71 (the starts_on-only, open-ended
---   membership is left completely untouched, which is what the requirement
---   asks for — reached here because the current rule appears to skip any
---   membership whose ends_on is already null outright, the same behaviour
---   that wrongly produces 69's failure for the null/null case; the two
---   assertions are one mechanism read from both sides, not two different
---   ones, and only one side happens to want what it does); 72
---   (memberships_dated_unless_pending_chk is exactly what the catalogue
---   showed before this file was written, and is what makes both of
---   Section 9's null-date fixtures reachable at all).
+-- RED (8) — the four new defects, each still live:
+--   74/76 (the new requirement: a caller-supplied receipt_number is still
+--   kept on a created payment, both on the INSERT that writes it and on a
+--   direct hand-edit while it is still created — "at every status" is not
+--   built yet, on either write shape); 80/82/84 (the multi-row defect,
+--   reproduced on both statement shapes named in the brief AND on the
+--   coordinator's two-multiples control: ten rows against a fresh
+--   membership land at `today + 300` days regardless of whether their total
+--   is one multiple of the price (80/82) or two (84) — the rule currently
+--   grants one period per ROW in the statement, not one period per multiple
+--   of money, which is a sharper diagnosis than "buys too much" alone would
+--   have given); 88 (a paid payment whose currency differs from the
+--   membership's still grants a period, because nothing compares the two);
+--   89/90 (a dateless pending membership is dated but left pending, and its
+--   member is consequently refused at a live QR check-in the same day — the
+--   exact chain the brief names, proven through the check-in gate's own
+--   already-built logic rather than asserted as a bare status value).
+--
+-- GREEN (82) — everything else: 1-73, 75, 77-79, 81, 83, 85-87. This is
+-- every assertion from the first two passes (1-72) plus six of this round's
+-- own new ones:
+--   73/75/77/78 (the new requirement's write paths are none of them
+--   refused outright — recording a forged number, hand-editing one, and the
+--   gym's next paid payment are all accepted; only the STORED value, at
+--   74/76, is wrong, and the next payment is in fact numbered normally at
+--   78 — no collision, because nothing squatted a number in the first
+--   place under the current, still-open bug); 79/81/83 (all three multi-row
+--   statements are accepted, not refused — the defect is entirely in the
+--   periods granted, at 80/82/84, never in whether the write lands); 85/86
+--   (the control: app.enforce_refund_total() refuses two refunds in one
+--   insert … select exactly as it would refuse one, and the whole
+--   statement leaves no row behind — proving this section's multi-row
+--   technique actually exercises the AFTER-trigger-sees-the-whole-statement
+--   shape rather than passing vacuously, which is what makes 80/82/84's own
+--   RED trustworthy rather than a testing artifact); 87 (a payment in
+--   another currency is recorded, not refused — the defect is that it also
+--   wrongly extends, at 88, not that it is rejected).
 
 begin;
 
@@ -244,7 +211,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(72);
+select plan(90);
 
 
 -- ---------------------------------------------------------------------------
@@ -1562,6 +1529,438 @@ select is(
   $chk$CHECK (((status = 'pending'::membership_status) OR ((starts_on IS NOT NULL) AND (ends_on IS NOT NULL))))$chk$,
   'memberships_dated_unless_pending_chk still permits null dates on a pending membership only, and nowhere else'
 );
+
+
+-- ===========================================================================
+-- SECTION 10 (new requirement: "A receipt number is the counter's alone, at
+-- every status") — a second critic round, added after this file's first two
+-- passes. Tenant 10. Assertions 73-78.
+--
+-- The forging session is `authenticated` throughout — "for every session row
+-- security applies to" is the requirement's own scope, and postgres/
+-- service_role are the trusted writers excluded from it (the same shape as
+-- Requirement 3's paid_at rule). Both the INSERT and UPDATE paths are tested,
+-- since the requirement's own wording ("at every status") does not stop at
+-- the write that creates the row.
+-- ===========================================================================
+
+insert into public.organizations (id, name, gym_code) values
+  ('22000000-0000-4000-8000-000000000010'::uuid, 'PayRec Gym 10', 'PYR22X');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('22000000-0000-4000-8000-000000000020'::uuid, '22000000-0000-4000-8000-000000000010'::uuid, 'G10 Main', true);
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('22000000-0000-4000-8000-000000000033'::uuid, '22000000-0000-4000-8000-000000000010'::uuid,
+   '22000000-0000-4000-8000-000000000020'::uuid, 'front_desk', 'T10 Desk');
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000000055'::uuid, '22000000-0000-4000-8000-000000000010'::uuid,
+   '22000000-0000-4000-8000-000000000020'::uuid, 'M10 Forger', '+912200000055'),
+  ('22000000-0000-4000-8000-000000000056'::uuid, '22000000-0000-4000-8000-000000000010'::uuid,
+   '22000000-0000-4000-8000-000000000020'::uuid, 'M10 Legit', '+912200000056');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000010',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000000033')::text,
+  true);
+set local role authenticated;
+
+-- 73 — scenario "A number typed onto an unpaid payment": the row itself is
+-- not refused (the forged number is simply not what the requirement is
+-- about — recording the payment is fine).
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, amount_paise, status, method, recorded_by_staff_id, receipt_number)
+  values ('22000000-0000-4000-8000-000000001023'::uuid, '22000000-0000-4000-8000-000000000010'::uuid,
+          '22000000-0000-4000-8000-000000000055'::uuid, 100000, 'created', 'cash',
+          '22000000-0000-4000-8000-000000000033'::uuid, '2026-27/999999')
+$$, 'a created payment carrying a caller-supplied receipt_number is recorded, not refused');
+
+set local role postgres;
+
+-- 74
+select results_eq(
+  $$ select receipt_number is null from public.payments where id = '22000000-0000-4000-8000-000000001023'::uuid $$,
+  $$ values (true) $$,
+  'scenario "A number typed onto an unpaid payment" — the caller-supplied number is not kept on a created payment'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000010',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000000033')::text,
+  true);
+set local role authenticated;
+
+-- 75 — the same rule on UPDATE: the payment is still not paid (Requirement
+-- 1's freeze does not yet apply), and a direct hand-edit is attempted.
+select lives_ok($$
+  update public.payments set receipt_number = '2026-27/888888'
+   where id = '22000000-0000-4000-8000-000000001023'::uuid
+$$, 'a direct hand-edit of receipt_number on a still-created payment is not refused as a write');
+
+set local role postgres;
+
+-- 76
+select results_eq(
+  $$ select receipt_number is null from public.payments where id = '22000000-0000-4000-8000-000000001023'::uuid $$,
+  $$ values (true) $$,
+  'the hand-edited number is not kept either — "at every status" before paid means every write, not only the first one'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000010',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000000033')::text,
+  true);
+set local role authenticated;
+
+-- 77 — the gym's next paid payment, an unrelated member, numbered normally:
+-- the squatted number (had it been kept) is exactly what would have jammed
+-- this write via payments_tenant_id_receipt_number_key.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000001024'::uuid, '22000000-0000-4000-8000-000000000010'::uuid,
+          '22000000-0000-4000-8000-000000000056'::uuid, 100000, 'paid', 'cash',
+          '22000000-0000-4000-8000-000000000033'::uuid)
+$$, 'scenario "A number typed onto an unpaid payment" — the gym''s next paid payment is not refused');
+
+set local role postgres;
+
+-- 78
+select results_eq(
+  $$ select receipt_number is not null from public.payments where id = '22000000-0000-4000-8000-000000001024'::uuid $$,
+  $$ values (true) $$,
+  'the next paid payment is numbered normally — no collision, no jammed counter'
+);
+
+
+-- ===========================================================================
+-- SECTION 11 (Requirement 8 extension: "The count is per PAYMENT, however
+-- many arrive in one statement") — a second critic round. Tenant 11.
+-- Assertions 79-86.
+--
+-- The two fixture-only inserts below (the ten 'created' rows ahead of the
+-- multi-row UPDATE) run as postgres, each carrying its own receipt_number by
+-- hand — a trusted writer is outside Section 10's rule by construction, so
+-- this section's own arithmetic is not entangled with whether that rule is
+-- built. The two statements actually under test — the INSERT … SELECT and
+-- the multi-row UPDATE — run as authenticated, matching "through one
+-- supabase-js call."
+-- ===========================================================================
+
+insert into public.organizations (id, name, gym_code) values
+  ('22000000-0000-4000-8000-000000000011'::uuid, 'PayRec Gym 11', 'PYR22Y');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('22000000-0000-4000-8000-000000000021'::uuid, '22000000-0000-4000-8000-000000000011'::uuid, 'G11 Main', true);
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('22000000-0000-4000-8000-000000000034'::uuid, '22000000-0000-4000-8000-000000000011'::uuid,
+   '22000000-0000-4000-8000-000000000021'::uuid, 'front_desk', 'T11 Desk');
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000000057'::uuid, '22000000-0000-4000-8000-000000000011'::uuid,
+   '22000000-0000-4000-8000-000000000021'::uuid, 'M11a', '+912200000057'),
+  ('22000000-0000-4000-8000-000000000058'::uuid, '22000000-0000-4000-8000-000000000011'::uuid,
+   '22000000-0000-4000-8000-000000000021'::uuid, 'M11b', '+912200000058'),
+  ('22000000-0000-4000-8000-000000000059'::uuid, '22000000-0000-4000-8000-000000000011'::uuid,
+   '22000000-0000-4000-8000-000000000021'::uuid, 'M11c', '+912200000059'),
+  ('22000000-0000-4000-8000-000000000062'::uuid, '22000000-0000-4000-8000-000000000011'::uuid,
+   '22000000-0000-4000-8000-000000000021'::uuid, 'M11d', '+912200000062');
+
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('22000000-0000-4000-8000-000000000065'::uuid, '22000000-0000-4000-8000-000000000011'::uuid, 'G11 Plan (30d)', 30, 100000);
+
+create temp table today_t11 as
+  select (now() at time zone o.timezone)::date as d
+    from public.organizations o where o.id = '22000000-0000-4000-8000-000000000011'::uuid;
+
+-- 091: the INSERT … SELECT target. 092: the multi-row UPDATE target. 093:
+-- the two-multiples control, added after the coordinator caught this
+-- section's own arithmetic bug — see below. All three price 100000
+-- (₹1,000/30 days, the brief's own numbers). Genuinely fresh: ends_on =
+-- today, nothing bought yet, so a granted period is visible as a plain
+-- offset from today rather than hidden inside an already-paid-for period.
+--
+-- The coordinator caught this: this section originally started 091/092 at
+-- ends_on = today + 30 (one period already on the membership from nothing)
+-- while asserting the SAME today + 30 as the expected result after ten more
+-- payments. That expected value is what zero additional periods granted
+-- would produce — greatest(today + 30, today) + 30 = today + 60 is what one
+-- correctly-granted period actually gives, so the assertion could only ever
+-- pass by the rule doing nothing, never by the rule counting the money
+-- right. Fixed by starting at zero rather than by inflating the expected
+-- value, per the coordinator's own preference: "today → today + 30 shows
+-- exactly one period being granted with nothing else in the arithmetic."
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('22000000-0000-4000-8000-000000000091'::uuid, '22000000-0000-4000-8000-000000000011'::uuid,
+   '22000000-0000-4000-8000-000000000057'::uuid, '22000000-0000-4000-8000-000000000065'::uuid,
+   'active', (select d from today_t11), (select d from today_t11), 100000),
+  ('22000000-0000-4000-8000-000000000092'::uuid, '22000000-0000-4000-8000-000000000011'::uuid,
+   '22000000-0000-4000-8000-000000000058'::uuid, '22000000-0000-4000-8000-000000000065'::uuid,
+   'active', (select d from today_t11), (select d from today_t11), 100000),
+  ('22000000-0000-4000-8000-000000000093'::uuid, '22000000-0000-4000-8000-000000000011'::uuid,
+   '22000000-0000-4000-8000-000000000062'::uuid, '22000000-0000-4000-8000-000000000065'::uuid,
+   'active', (select d from today_t11), (select d from today_t11), 100000);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000011',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000000034')::text,
+  true);
+set local role authenticated;
+
+-- 79 — scenario "Many payments in one statement", the INSERT … SELECT shape
+-- named directly: ten rows of 10000 paise each (100000 total — exactly one
+-- multiple of the membership's own 100000 price), one statement.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id, receipt_number)
+  select ('22000000-0000-4000-8000-000000103' || lpad(gs::text, 3, '0'))::uuid,
+         '22000000-0000-4000-8000-000000000011'::uuid,
+         '22000000-0000-4000-8000-000000000057'::uuid,
+         '22000000-0000-4000-8000-000000000091'::uuid,
+         10000, 'paid', 'cash', '22000000-0000-4000-8000-000000000034'::uuid,
+         'T11-RCT-' || lpad(gs::text, 3, '0')
+    from generate_series(1, 10) as gs
+$$, 'scenario "Many payments in one statement" — ten payments in one insert … select are not refused');
+
+set local role postgres;
+
+-- 80 — the whole point: total money (100000) buys exactly one 30-day
+-- period, not ten (300 days, the measured defect).
+select results_eq(
+  $$ select ends_on from public.memberships where id = '22000000-0000-4000-8000-000000000091'::uuid $$,
+  $$ select (select d from today_t11) + 30 $$,
+  'scenario "Many payments in one statement" — ten rows totalling one multiple of the price grant exactly one period, not ten'
+);
+
+-- Fixture only (postgres, trusted writer, outside Section 10's rule): ten
+-- 'created' rows against membership 092, each already carrying its own
+-- receipt_number so the later flip to 'paid' needs no allocation to satisfy
+-- payments_paid_has_reference_chk — isolating this section's own UPDATE
+-- assertion from receipt allocation entirely.
+insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id, receipt_number)
+select ('22000000-0000-4000-8000-000000104' || lpad(gs::text, 3, '0'))::uuid,
+       '22000000-0000-4000-8000-000000000011'::uuid,
+       '22000000-0000-4000-8000-000000000058'::uuid,
+       '22000000-0000-4000-8000-000000000092'::uuid,
+       10000, 'created', 'cash', '22000000-0000-4000-8000-000000000034'::uuid,
+       'T11B-RCT-' || lpad(gs::text, 3, '0')
+  from generate_series(1, 10) as gs;
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000011',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000000034')::text,
+  true);
+set local role authenticated;
+
+-- 81 — the UPDATE equivalent named directly: one statement flips all ten
+-- 'created' rows to 'paid' at once.
+select lives_ok($$
+  update public.payments set status = 'paid'
+   where tenant_id = '22000000-0000-4000-8000-000000000011'::uuid
+     and membership_id = '22000000-0000-4000-8000-000000000092'::uuid
+     and status = 'created'
+$$, 'scenario "Many payments in one statement" — the multi-row update equivalent is not refused');
+
+set local role postgres;
+
+-- 82
+select results_eq(
+  $$ select ends_on from public.memberships where id = '22000000-0000-4000-8000-000000000092'::uuid $$,
+  $$ select (select d from today_t11) + 30 $$,
+  'the multi-row update grants exactly one period too, not ten — the same rule, the other write shape'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000011',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000000034')::text,
+  true);
+set local role authenticated;
+
+-- 83 — the coordinator's own addition: one multiple granting one period is
+-- also what a rule that ignores the count entirely (grants exactly one
+-- period per statement, regardless of amount) would produce, so 79/80 and
+-- 81/82 alone do not distinguish "counts the money" from "grants one per
+-- statement". Ten rows totalling TWO multiples (20000 each, 200000 total
+-- against the same 100000 price) does distinguish them.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id, receipt_number)
+  select ('22000000-0000-4000-8000-000000106' || lpad(gs::text, 3, '0'))::uuid,
+         '22000000-0000-4000-8000-000000000011'::uuid,
+         '22000000-0000-4000-8000-000000000062'::uuid,
+         '22000000-0000-4000-8000-000000000093'::uuid,
+         20000, 'paid', 'cash', '22000000-0000-4000-8000-000000000034'::uuid,
+         'T11D-RCT-' || lpad(gs::text, 3, '0')
+    from generate_series(1, 10) as gs
+$$, 'ten rows totalling two multiples of the price, in one insert … select, are not refused');
+
+set local role postgres;
+
+-- 84 — exactly two periods, not one and not ten.
+select results_eq(
+  $$ select ends_on from public.memberships where id = '22000000-0000-4000-8000-000000000093'::uuid $$,
+  $$ select (select d from today_t11) + 60 $$,
+  'ten rows totalling two multiples of the price grant exactly two periods'
+);
+
+-- A refunds fixture (postgres): one paid payment, no membership needed.
+insert into public.payments (id, tenant_id, member_id, amount_paise, status, method, recorded_by_staff_id, receipt_number) values
+  ('22000000-0000-4000-8000-000000001040'::uuid, '22000000-0000-4000-8000-000000000011'::uuid,
+   '22000000-0000-4000-8000-000000000059'::uuid, 100000, 'paid', 'cash',
+   '22000000-0000-4000-8000-000000000034'::uuid, 'T11C-RCT-0001');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000011',
+                    'app_role', 'gym_manager',
+                    'staff_id', '22000000-0000-4000-8000-000000000034')::text,
+  true);
+set local role authenticated;
+
+-- 85 — the control: app.enforce_refund_total() is already correct under the
+-- identical multi-row shape (two refunds of 60000 each, 120000 total,
+-- against a 100000 payment, in one insert … select). This is what proves
+-- the multi-row technique itself works — if the whole statement were
+-- silently accepted, 79-84's own "not refused" results would say nothing
+-- about whether this suite's technique can catch the defect at all.
+select throws_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
+  select ('22000000-0000-4000-8000-000000205' || lpad(gs::text, 3, '0'))::uuid,
+         '22000000-0000-4000-8000-000000000011'::uuid,
+         '22000000-0000-4000-8000-000000001040'::uuid,
+         'refund', 60000, 'multi-row control ' || gs,
+         '22000000-0000-4000-8000-000000000034'::uuid
+    from generate_series(1, 2) as gs
+$$, null::char(5), null,
+  'control: two refunds in one insert … select, together exceeding the payment, are refused exactly as a single one would be');
+
+set local role postgres;
+
+-- 86
+select results_eq(
+  $$ select count(*)::int from public.refunds where payment_id = '22000000-0000-4000-8000-000000001040'::uuid $$,
+  $$ values (0) $$,
+  'control: the whole multi-row insert left no refund rows behind — the existing ceiling is genuinely statement-safe, unlike the extension'
+);
+
+
+-- ===========================================================================
+-- SECTION 12 (Requirement 8 extension: "The money must be the membership's
+-- own currency") — a second critic round. Reuses tenant 8 (Requirement 8's
+-- own tenant): the arithmetic this adds to is the same rule Section 8
+-- already measures, and totals are scoped per membership_id, not per
+-- tenant, so a fresh membership here pollutes nothing already asserted.
+-- Assertions 87-88.
+-- ===========================================================================
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000000060'::uuid, '22000000-0000-4000-8000-000000000008'::uuid,
+   '22000000-0000-4000-8000-000000000018'::uuid, 'M8g', '+912200000060');
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency) values
+  ('22000000-0000-4000-8000-000000000090'::uuid, '22000000-0000-4000-8000-000000000008'::uuid,
+   '22000000-0000-4000-8000-000000000060'::uuid, '22000000-0000-4000-8000-000000000063'::uuid,
+   'active', (select d from today_t8), (select d from today_t8) + 30, 100000, 'INR');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000008',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000000031')::text,
+  true);
+set local role authenticated;
+
+-- 87 — scenario "A payment in another currency": the amount (100000) exactly
+-- matches the membership's own price, in a currency (USD) that is not its
+-- own (INR). The console never sets currency; this is a direct write.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id, receipt_number)
+  values ('22000000-0000-4000-8000-000000001041'::uuid, '22000000-0000-4000-8000-000000000008'::uuid,
+          '22000000-0000-4000-8000-000000000060'::uuid, '22000000-0000-4000-8000-000000000090'::uuid,
+          100000, 'USD', 'paid', 'cash', '22000000-0000-4000-8000-000000000031'::uuid, 'T8-RCT-0006')
+$$, 'a paid payment in a currency other than the membership''s own is recorded, not refused');
+
+set local role postgres;
+
+-- 88
+select results_eq(
+  $$ select ends_on from public.memberships where id = '22000000-0000-4000-8000-000000000090'::uuid $$,
+  $$ select (select d from today_t8) + 30 $$,
+  'scenario "A payment in another currency" — no period is granted, despite the amount exactly matching the price'
+);
+
+
+-- ===========================================================================
+-- SECTION 13 (Requirement 9 extension: "it SHALL be made active at the same
+-- time" and scenario "The member it was paid for") — a second critic round.
+-- Reuses tenant 9 (Requirement 9's own tenant and its assertion 68's own
+-- payment, 1021, against membership 089). Assertions 89-90.
+-- ===========================================================================
+
+-- 89 — the second half of the paragraph assertion 69 already covers the
+-- first half of (dates set): the membership is also made active, not left
+-- pending with real dates and a member the gate would still refuse.
+select results_eq(
+  $$ select status::text from public.memberships where id = '22000000-0000-4000-8000-000000000089'::uuid $$,
+  $$ values ('active'::text) $$,
+  'scenario "Paying for a membership that has no dates" — the membership becomes active, not merely dated'
+);
+
+-- A live QR session for tenant 9's own branch. Read from app.enforce_check_in
+-- (not one of the four functions the brief names off-limits — this is a
+-- different, already-built capability, consulted here only to pick a
+-- fixture shape that actually exercises the gate under test): the
+-- live-membership check (`status in (active, frozen)` AND today within
+-- `[starts_on, ends_on]`) runs ONLY on the `qr_session_id IS NOT NULL`
+-- branch. An assisted (`source = 'front_desk'`, no `qr_session_id`) check-in
+-- skips that whole block today and would admit regardless of membership
+-- state — a lives_ok there would pass for the wrong reason, the exact trap
+-- 16_checkin.sql's own header warns against. The QR path is the one this
+-- scenario actually needs.
+insert into public.qr_sessions (id, tenant_id, branch_id, token_hash, issued_at, expires_at, revoked_at) values
+  ('22000000-0000-4000-8000-000000000091'::uuid, '22000000-0000-4000-8000-000000000009'::uuid,
+   '22000000-0000-4000-8000-000000000019'::uuid, 'pay22-t9-live',
+   now() - interval '1 minute', now() + interval '1 hour', null);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000009',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000000032')::text,
+  true);
+set local role authenticated;
+
+-- 90 — scenario "The member it was paid for": the same member (049),
+-- scanning a live QR session at their own gate the same day, is admitted —
+-- the live-membership gate this exercises reads exactly the status and
+-- dates assertions 69/87 already measured.
+select lives_ok($$
+  insert into public.attendance (tenant_id, branch_id, member_id, source, qr_session_id)
+  values ('22000000-0000-4000-8000-000000000009'::uuid,
+          '22000000-0000-4000-8000-000000000019'::uuid,
+          '22000000-0000-4000-8000-000000000049'::uuid, 'qr',
+          '22000000-0000-4000-8000-000000000091'::uuid)
+$$, 'scenario "The member it was paid for" — admitted the same day, since the membership that was just paid for is now active with today inside its dates');
 
 
 select * from finish();

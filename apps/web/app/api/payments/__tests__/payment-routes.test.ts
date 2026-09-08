@@ -33,6 +33,42 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH } from '@gymloop/shared';
  * vocabulary that could drift from it.
  *
  * ---------------------------------------------------------------------------
+ * SECOND CRITIC ROUND — the contract changed, and this file was updated to
+ * the NEW contract (`openspec/specs/staff-console/spec.md`, the two
+ * requirements on the form post's return target and on duplicate submission)
+ * before the route itself was. These tests are expected to fail against the
+ * still-old route until it is updated; see the final report for exactly
+ * which ones and why.
+ *
+ * 1. **Every outcome now returns to `/memberships/<memberId>`**, carrying the
+ *    same short `error` code — success included, via `backToMember()`
+ *    (`apps/web/app/api/memberships/shared.ts`, already used by
+ *    `/api/memberships`). The two envelope failures with no member to return
+ *    to (`not_signed_in`, `malformed_body`) are unchanged.
+ *    **Exception: `invalid` from a schema-parse failure still targets
+ *    `/payments`.** `staffFormParsed()`'s `{ invalid: true }` branch
+ *    (`apps/web/lib/api.ts`) carries no parsed data at all when zod refuses
+ *    the body — there is no typed, trustworthy `memberId` to build
+ *    `/memberships/<memberId>` from at that point, and reading the raw form
+ *    field back out to reach it would be inventing a member id the schema
+ *    just said it couldn't trust. `/payments` is the only screen this
+ *    branch can name. Once the schema has parsed — `bad_amount` (paise
+ *    conversion) and the method check both run after that — `memberId` is a
+ *    real, typed value, and those go to the member's page like every other
+ *    post-parse outcome.
+ * 2. **A `23505` on the idempotency index is now `possible_duplicate`, not
+ *    success.** The composed key (ambiguity 1 below) fixed Back-and-*edit*
+ *    but not Back-and-*repeat*: two genuinely separate payments that happen
+ *    to share member, paise amount and method collide on the same key, and
+ *    reporting that collision as success discards the second one with no
+ *    code at all. The other two unique indexes (receipt number, provider)
+ *    are unchanged at `already_recorded`.
+ * 3. **`GL038` and `GL039` are DROPPED, not re-pointed.** Both fire only
+ *    inside the trigger's `tg_op = 'UPDATE'` branch; this route only ever
+ *    inserts, so mapping them here asserted a path this handler cannot
+ *    reach. The two `it.each` rows for them are removed from "translating
+ *    the database's refusal" below.
+ * ---------------------------------------------------------------------------
  * AMBIGUITIES — see the final report for the full list. The two that shape
  * tests below:
  *
@@ -146,6 +182,9 @@ const errorOf = (response: Response): string | null =>
 
 const pathOf = (response: Response): string => new URL(response.headers.get('location') ?? '').pathname;
 
+/** Where every post-parse outcome (success and refusal alike) must return to. */
+const MEMBER_PATH = `/memberships/${MEMBER_ID}`;
+
 type Envelope = { ok: boolean; error?: { code: string; message: string } };
 const envelope = async (response: Response): Promise<Envelope> => (await response.json()) as Envelope;
 
@@ -201,14 +240,22 @@ describe('parsing paymentRequestSchema', () => {
       'an idempotencyKey past the documented maximum length',
       { ...VALID, idempotencyKey: 'x'.repeat(IDEMPOTENCY_KEY_MAX_LENGTH + 1) },
     ],
-  ])('redirects to error=invalid for %s, without touching the database', async (_label, fields) => {
-    const response = await recordPayment(post(fields));
+  ])(
+    'redirects to /payments?error=invalid for %s (no usable memberId, so it cannot go to the member\'s page), without touching the database',
+    async (_label, fields) => {
+      const response = await recordPayment(post(fields));
 
-    expect(errorOf(response)).toBe('invalid');
-    expect(pathOf(response)).toBe('/payments');
-    expect(response.status).toBe(303);
-    expect(state.from).toEqual([]);
-  });
+      expect(errorOf(response)).toBe('invalid');
+      // Deliberately /payments and not /memberships/<id>: staffFormParsed's
+      // `{ invalid: true }` carries no parsed data, so there is no typed
+      // memberId to build a member-page redirect from — inventing one from
+      // the raw, unvalidated form field would be the thing the brief
+      // forbids.
+      expect(pathOf(response)).toBe('/payments');
+      expect(response.status).toBe(303);
+      expect(state.from).toEqual([]);
+    },
+  );
 
   it('accepts an idempotencyKey exactly at the documented maximum length', async () => {
     state.results = [ok(null)];
@@ -229,12 +276,19 @@ describe('converting rupees to paise', () => {
     ['not a number at all', 'abc'],
     ['three decimal places (MNY-003)', '1500.505'],
     ['a thousands separator', '1,500'],
-  ])('redirects to error=bad_amount for %s, without an insert', async (_label, amountRupees) => {
-    const response = await recordPayment(post({ ...VALID, amountRupees }));
+  ])(
+    "redirects to the member's page with error=bad_amount for %s, without an insert",
+    async (_label, amountRupees) => {
+      const response = await recordPayment(post({ ...VALID, amountRupees }));
 
-    expect(errorOf(response)).toBe('bad_amount');
-    expect(state.from).toEqual([]);
-  });
+      expect(errorOf(response)).toBe('bad_amount');
+      // The schema already parsed by this point, so memberId is a real,
+      // typed value — this outcome goes back to the member, not to /payments.
+      expect(pathOf(response)).toBe(MEMBER_PATH);
+      expect(response.status).toBe(303);
+      expect(state.from).toEqual([]);
+    },
+  );
 
   it('converts a valid rupee string to integer paise on the inserted row', async () => {
     state.results = [ok(null)];
@@ -246,17 +300,21 @@ describe('converting rupees to paise', () => {
 });
 
 describe('validating method', () => {
-  it('refuses razorpay explicitly, even though it is a real enum label', async () => {
+  it('refuses razorpay explicitly, even though it is a real enum label — back to the member, not the ledger', async () => {
     const response = await recordPayment(post({ ...VALID, method: 'razorpay' }));
 
     expect(errorOf(response)).toBe('invalid');
+    // The schema already parsed (method is a non-empty string as far as zod
+    // is concerned); memberId is known, so this is a member-page redirect.
+    expect(pathOf(response)).toBe(MEMBER_PATH);
     expect(state.from).toEqual([]);
   });
 
-  it('refuses a method that is not a generated enum label at all', async () => {
+  it('refuses a method that is not a generated enum label at all — back to the member, not the ledger', async () => {
     const response = await recordPayment(post({ ...VALID, method: 'phonepe' }));
 
     expect(errorOf(response)).toBe('invalid');
+    expect(pathOf(response)).toBe(MEMBER_PATH);
     expect(state.from).toEqual([]);
   });
 
@@ -405,50 +463,50 @@ describe('composing the idempotency key — the fix for the Back-button defect',
   });
 });
 
-describe("translating the database's refusal", () => {
+describe("translating the database's refusal — always back to the member's page", () => {
   async function submit(result: Result) {
     state.results = [result];
     return recordPayment(post(VALID));
   }
 
   it('maps 42501 to not_permitted', async () => {
-    expect(errorOf(await submit(fails('42501')))).toBe('not_permitted');
-  });
+    const response = await submit(fails('42501'));
 
-  it('a 23505 against the idempotency index is a SUCCESS, not an error — the crux of the fix', async () => {
-    const response = await submit(uniqueViolation(IDEMPOTENCY_INDEX));
-
-    expect(response.status).toBe(303);
-    expect(errorOf(response)).toBeNull();
+    expect(errorOf(response)).toBe('not_permitted');
+    expect(pathOf(response)).toBe(MEMBER_PATH);
   });
 
   it('a 23505 against the receipt-number index is already_recorded, never success', async () => {
     const response = await submit(uniqueViolation(RECEIPT_INDEX));
 
     expect(errorOf(response)).toBe('already_recorded');
+    expect(pathOf(response)).toBe(MEMBER_PATH);
   });
 
   it('a 23505 against the provider index is already_recorded, never success', async () => {
     const response = await submit(uniqueViolation(PROVIDER_INDEX));
 
     expect(errorOf(response)).toBe('already_recorded');
+    expect(pathOf(response)).toBe(MEMBER_PATH);
   });
 
   it.each([
     ['GL034', 'payment_not_yours'],
     ['GL035', 'provider_claimed'],
     ['GL037', 'counter_refused'],
-    ['GL038', 'payment_is_a_record'],
-    ['GL039', 'status_cannot_go_there'],
     ['GL042', 'membership_not_theirs'],
   ])('maps trigger refusal %s to %s', async (code, expected) => {
-    expect(errorOf(await submit(fails(code)))).toBe(expected);
+    const response = await submit(fails(code));
+
+    expect(errorOf(response)).toBe(expected);
+    expect(pathOf(response)).toBe(MEMBER_PATH);
   });
 
   it('maps anything unrecognised to payment_failed, never to success', async () => {
     const response = await submit(fails('99999'));
 
     expect(errorOf(response)).toBe('payment_failed');
+    expect(pathOf(response)).toBe(MEMBER_PATH);
   });
 
   it.each(['constructor', 'toString', 'valueOf', 'hasOwnProperty'])(
@@ -463,18 +521,75 @@ describe("translating the database's refusal", () => {
       expect(errorOf(response)).not.toBeNull();
       expect(errorOf(response)).toBe('payment_failed');
       expect(response.status).toBe(303);
+      expect(pathOf(response)).toBe(MEMBER_PATH);
     },
   );
 });
 
+describe('a duplicate submission is a question, not a silent success', () => {
+  // Spec: "A duplicate submission is a question, not a silent success"
+  // (openspec/specs/staff-console/spec.md). Round one keyed the idempotency
+  // column on the nonce alone; round two composed it from the nonce plus
+  // member/paise/method, which fixed Back-and-edit and left Back-and-repeat
+  // (two genuinely separate payments that happen to share all three) exactly
+  // as broken: reporting that collision as success discards the second
+  // payment with no code shown at all. This block is round three: a 23505 on
+  // the idempotency index must now be reported, not swallowed.
+  async function submit(result: Result) {
+    state.results = [result];
+    return recordPayment(post(VALID));
+  }
+
+  it('a 23505 against the idempotency index is possible_duplicate, never a bare success', async () => {
+    const response = await submit(uniqueViolation(IDEMPOTENCY_INDEX));
+
+    expect(errorOf(response)).toBe('possible_duplicate');
+    expect(pathOf(response)).toBe(MEMBER_PATH);
+    expect(response.status).toBe(303);
+  });
+
+  it('the idempotency index and the other two unique indexes report different codes', async () => {
+    const duplicate = errorOf(await submit(uniqueViolation(IDEMPOTENCY_INDEX)));
+    const receiptClash = errorOf(await submit(uniqueViolation(RECEIPT_INDEX)));
+    const providerClash = errorOf(await submit(uniqueViolation(PROVIDER_INDEX)));
+
+    expect(duplicate).toBe('possible_duplicate');
+    expect(receiptClash).toBe('already_recorded');
+    expect(providerClash).toBe('already_recorded');
+    expect(duplicate).not.toBe(receiptClash);
+    expect(duplicate).not.toBe(providerClash);
+  });
+
+  it('a double click (identical resubmission) leaves the refusal visible rather than silently discarding the second attempt', async () => {
+    // First submission succeeds — the row now exists and its idempotency
+    // index holds the composed key. The second, identical submission is what
+    // the database's own unique index refuses (modelled here as the 23505
+    // that index raises); this route's job is only to report that refusal
+    // as `possible_duplicate` rather than mapping it to success — the "at
+    // most one row" guarantee itself belongs to the unique index and is
+    // proved in `supabase/tests/`, not by this mocked unit test.
+    const nonce = { idempotencyKey: 'double-click-nonce' };
+
+    state.results = [ok(null)];
+    const first = await recordPayment(post({ ...VALID, ...nonce }));
+    expect(errorOf(first)).toBeNull();
+    expect(pathOf(first)).toBe(MEMBER_PATH);
+
+    state.results = [uniqueViolation(IDEMPOTENCY_INDEX)];
+    const second = await recordPayment(post({ ...VALID, ...nonce }));
+    expect(errorOf(second)).toBe('possible_duplicate');
+    expect(pathOf(second)).toBe(MEMBER_PATH);
+  });
+});
+
 describe('success', () => {
-  it('redirects to /payments with no error, at 303, when the insert succeeds', async () => {
+  it("redirects to the member's page with no error, at 303, when the insert succeeds", async () => {
     state.results = [ok(null)];
 
     const response = await recordPayment(post(VALID));
 
     expect(response.status).toBe(303);
-    expect(pathOf(response)).toBe('/payments');
+    expect(pathOf(response)).toBe(MEMBER_PATH);
     expect(errorOf(response)).toBeNull();
   });
 });
