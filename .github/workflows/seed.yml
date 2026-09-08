@@ -32,3 +32,9 @@ jobs:
       # supabase/seed.sql is idempotent: re-running it converges on the same
       # demo gym rather than duplicating it, so a second dispatch is safe.
       - run: supabase db query --linked -f supabase/seed.sql
+      # supabase/seed-scenarios.sql adds retention-loop scenario members on
+      # top of the demo gym above (Phase 3, openspec/changes/
+      # phase-3-core-domain/specs/demo-scenarios/spec.md). Additive and
+      # idempotent for the same reason: it must run after seed.sql, since it
+      # depends on the demo gym's tenant, branch, staff and plans existing.
+      - run: supabase db query --linked -f supabase/seed-scenarios.sql

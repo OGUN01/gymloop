@@ -57,6 +57,43 @@ export const PLAN_TIER_PRICES_PAISE = {
 
 export const SUPABASE_REGION = 'ap-south-1';
 
+/**
+ * The gate code a member scans to check in (ATT-003) — how much randomness it
+ * carries, and how long it stays scannable.
+ *
+ * Eight random bytes rendered as sixteen uppercase hex characters: 64 bits, which
+ * is far beyond guessing, and short enough to read off a screen and type when
+ * `BarcodeDetector` is not available. Only its SHA-256 hash is ever stored
+ * (`qr_sessions.token_hash`), so the value below is the entropy of the thing that
+ * is never written down.
+ *
+ * The lifetime is what makes ATT-003's "a screenshot of a previously valid QR
+ * code does not remain scannable" true: fifteen minutes, after which the front
+ * desk issues another. It is a constant rather than per-gym configuration
+ * because `organization_settings` has no column for it — adding one is a schema
+ * decision for the phase that has a gym asking for a different number, not a
+ * column invented on the way past. **It is not the de-duplication window**, which
+ * *is* per gym (`organization_settings.checkin_dedupe_seconds`) and must never be
+ * given a constant here to fall back on.
+ */
+export const GATE_CODE_BYTES = 8;
+export const GATE_CODE_TTL_MS = 900_000;
+
+/**
+ * Calendar-day arithmetic (`packages/shared/src/streaks`).
+ *
+ * `MS_PER_DAY` converts a `YYYY-MM-DD` to a whole number of days since the
+ * epoch **anchored at UTC midnight**, and back. It is emphatically not "how
+ * long a day is" in a gym's timezone — a DST day is 23 or 25 hours, and any
+ * code that adds this to a local wall-clock instant is wrong. The gym-local
+ * day is decided by `Intl.DateTimeFormat` with the gym's `timeZone` first
+ * (MNY-004); after that a day is an integer and this is only the scale factor.
+ */
+export const MS_PER_DAY = 86_400_000;
+
+/** Days in a week — the modulus for `organization_settings.week_start_day`. */
+export const DAYS_PER_WEEK = 7;
+
 /*
  * The v1 role set is NOT here. It is the `app_role` Postgres enum, generated
  * into packages/db/types/database.ts — see docs/decisions.md ADR-031. Four
