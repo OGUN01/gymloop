@@ -1,0 +1,25 @@
+-- phase3_pause_approver_matches_matrix
+--
+-- THIS MIGRATION DID NOTHING. It was committed as a ZERO-BYTE FILE and then
+-- recorded as applied, so `supabase_migrations.schema_migrations` names a
+-- version that changed no schema. The cause was mechanical and worth naming:
+-- a shell command timed out between `supabase migration new` and the heredoc
+-- that was meant to fill the file, and nobody looked at the file afterwards.
+--
+-- The narrowing it was supposed to make -- ADR-065, restricting
+-- `organization_settings.pause_approver_role` to the three roles the matrix
+-- lets write a pause -- was therefore NOT applied, while ADR-065 read as
+-- though it had been. A blind critic found the gap by checking the live
+-- constraint against the document instead of trusting it.
+--
+-- It is superseded by `20260908090000_phase3_approver_boundary_and_missing_settings.sql`.
+--
+-- The file is kept, with this comment as its whole body, because the version is
+-- applied: deleting it would leave the history table naming a migration the
+-- repository does not contain, which is a worse lie than an empty file. Adding
+-- only a comment changes no schema, so the database and this file still agree.
+--
+-- The lesson is not "check for empty files". It is that a migration is only
+-- applied if the DATABASE says so -- and every ADR claiming a schema change
+-- should be verifiable with one query against the live catalogue, which is how
+-- this was caught.
