@@ -79,9 +79,13 @@ export function findNonRolledBackTests(files) {
 }
 
 function main() {
-  const tracked = execFileSync('git', ['ls-files', '--', 'supabase/tests/*.sql', 'supabase/tests/**/*.sql'], {
-    encoding: 'utf8',
-  })
+  const tracked = execFileSync(
+    'git',
+    ['ls-files', '--', 'supabase/tests/*.sql', 'supabase/tests/**/*.sql', 'supabase/tests-holdout/*.sql'],
+    {
+      encoding: 'utf8',
+    },
+  )
     .trim()
     .split('\n')
     .filter(Boolean);

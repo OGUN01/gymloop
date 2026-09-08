@@ -10,7 +10,10 @@ import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 // supabase/tests/** holds the pgTAP RLS tests — a test suite like any other.
-const TEST_PATH_RE = /(^tests\/|^supabase\/tests\/|\/__tests__\/|\.test\.(ts|tsx|js)$)/;
+// supabase/tests-holdout/** is the blind half, moved in from its own repo by
+// ADR-060; it is a test suite by every rule that matters here.
+const TEST_PATH_RE =
+  /(^tests\/|^supabase\/tests\/|^supabase\/tests-holdout\/|\/__tests__\/|\.test\.(ts|tsx|js)$)/;
 const IMPLEMENTATION_EXT_RE = /\.(ts|tsx|js|mjs|sql)$/;
 const SHORT_SHA_LENGTH = 12;
 

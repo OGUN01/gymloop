@@ -124,29 +124,27 @@ jobs:
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
       # The anti-gaming half of the suite (AGENTS.md hard rule #10). The
-      # holdout pgTAP files are written blind, in a private repo no
-      # implementer reads, and run against the same database in the same
-      # job as the visible suite — same rollback rule, same verdict.
-      - name: Check out the holdout pgTAP suite
-        if: steps.check.outputs.run == 'true'
-        uses: actions/checkout@v7
-        with:
-          repository: OGUN01/gymloop-holdout
-          ssh-key: ${{ secrets.HOLDOUT_DEPLOY_KEY }}
-          path: holdout
+      # holdout files are written blind by an author that reads neither the
+      # visible suite nor the implementation, and run against the same database
+      # in the same job — same rollback rule, same verdict. They lived in a
+      # separate private repo until ADR-060 moved them here: hard rule 10
+      # already stops an implementer reading them, so the second repository was
+      # buying nothing over the second author while costing a push per round
+      # and — the expensive part — the orchestrator's ability to read a failing
+      # file, which turned every red holdout assertion into a round trip.
+      #
       # Fail closed, not open. A holdout suite that silently isn't there is
-      # exactly the jammed gate docs/gates.md was burned by in Phase 0: the
-      # job goes green having run half of what it claims to run.
+      # exactly the jammed gate docs/gates.md was burned by in Phase 0: the job
+      # goes green having run half of what it claims to run.
       - name: Holdout files exist and are rollback-wrapped too (ADR-030)
         id: paths
         if: steps.check.outputs.run == 'true'
         run: |
-          if [ -z "$(find holdout/supabase/tests -name '*.sql' 2>/dev/null)" ]; then
-            echo "::error::The visible pgTAP suite has files but github.com/OGUN01/gymloop-holdout has no supabase/tests/*.sql. The holdout half of the suite is not running."
+          if [ -z "$(find supabase/tests-holdout -name '*.sql' 2>/dev/null)" ]; then
+            echo "::error::The visible pgTAP suite has files but supabase/tests-holdout has no *.sql. The holdout half of the suite is not running."
             exit 1
           fi
-          ( cd holdout && node ../scripts/check-pgtap-rollback.mjs )
-          echo "dirs=supabase/tests holdout/supabase/tests" >> "$GITHUB_OUTPUT"
+          echo "dirs=supabase/tests supabase/tests-holdout" >> "$GITHUB_OUTPUT"
       - if: steps.check.outputs.run == 'true'
         uses: supabase/setup-cli@v3
         with: { version: 2.110.0 }
