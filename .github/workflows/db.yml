@@ -120,8 +120,20 @@ jobs:
   # `workflow_dispatch` on seed.yml stays the only thing that COMMITS a seed
   # (ADR-034, OPEN-006). This never commits, and shares db.yml's concurrency
   # group so it cannot overlap a real seed or a migration.
+  # `needs: pgtap`, NOT `needs: migrate`, and that distinction cost a red CI run.
+  #
+  # Run in parallel with the suite, this job holds locks across nearly every
+  # table for the length of one transaction while `pg_prove` runs 45 files
+  # against the same Cloud project — and it deadlocked
+  # `h14_impersonation_and_revocation_holdout`, which then reported "planned 58
+  # but ran 28". A deadlock is not a defect in either party; it is two correct
+  # transactions wanting the same rows in the opposite order.
+  #
+  # `db.yml`'s `concurrency` group only serialises WORKFLOWS. Two jobs inside
+  # one workflow run concurrently by default, which is exactly the thing that
+  # group cannot protect against.
   seed-dry-run:
-    needs: migrate
+    needs: [migrate, pgtap]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
