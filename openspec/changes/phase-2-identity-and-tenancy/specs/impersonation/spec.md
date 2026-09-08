@@ -100,9 +100,17 @@ A super admin with a live session never holds a `super_admin` token — the hook
 ### Requirement: A session is written once and then only ended
 THE SYSTEM SHALL set an impersonation session's start time itself rather than accepting one, and SHALL reject any change to a session after creation other than setting its end time — so that a session cannot be anchored in the future to outlive its bound, and cannot be retargeted at a gym it never impersonated.
 
-#### Scenario: A session anchored in the future
-- **WHEN** an impersonation session is written whose start time is ten years from now and whose expiry is two hours after that
-- **THEN** the stored start time SHALL be the time of writing, and the session SHALL NOT be live ten years from now
+#### Scenario: A session anchored in the future is corrected, not trusted
+- **WHEN** an impersonation session is written whose start time is ten years from now and whose expiry is within the maximum session length of the present
+- **THEN** the stored start time SHALL be no later than the time of writing, and the session SHALL NOT be live ten years from now
+
+#### Scenario: A future anchor cannot buy a longer session
+- **WHEN** an impersonation session is written whose start time is ten years from now and whose expiry is the maximum session length after *that*
+- **THEN** the write SHALL be rejected — the bound is measured from the corrected anchor, so the span it names is a decade
+
+#### Scenario: A session that has already expired can still be written
+- **WHEN** an impersonation session is written whose start and expiry are both in the past
+- **THEN** the write SHALL succeed and the session SHALL NOT be live — a past anchor is history, and only a future one is a defect
 
 #### Scenario: Retargeting a session while ending it
 - **WHEN** a caller carrying the impersonation claims for session X ends session X and in the same statement changes its tenant to another gym
