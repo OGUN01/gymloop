@@ -4,13 +4,7 @@ import {
   type PauseDecision,
   type PauseRequest,
 } from '@gymloop/shared';
-import {
-  apiFail,
-  formFields,
-  staffSession,
-  PG_INSUFFICIENT_PRIVILEGE,
-  type StaffSession,
-} from '../../../../lib/api';
+import { apiFail, staffForm, PG_INSUFFICIENT_PRIVILEGE, type StaffSession } from '../../../../lib/api';
 import { addDays, backToMember } from '../shared';
 
 /**
@@ -33,29 +27,26 @@ import { addDays, backToMember } from '../shared';
  * exactly when the real one failed to load.
  */
 export async function POST(request: Request): Promise<Response> {
-  const caller = await staffSession();
+  const caller = await staffForm(request);
   if ('failure' in caller) return caller.failure;
-  const { supabase, tenantId, staffId } = caller.session;
-
-  const body = await formFields(request);
-  if ('failure' in body) return body.failure;
+  const { supabase, tenantId, staffId } = caller;
 
   // Only ever the redirect target — never an authorisation input. Every rule
   // below is decided from the pause row and the JWT, not from this field.
-  const memberId = body.fields.memberId ?? '';
+  const memberId = caller.fields.memberId ?? '';
   if (!/^[0-9a-f-]{36}$/i.test(memberId)) {
     return apiFail('bad_request', 'member_required', 'That form did not name a member.');
   }
 
   // A `pauseId` in the form is what separates the two halves of the flow, so it
   // chooses the schema before either one validates.
-  if (body.fields.pauseId) {
-    const decision = pauseDecisionSchema.safeParse(body.fields);
+  if (caller.fields.pauseId) {
+    const decision = pauseDecisionSchema.safeParse(caller.fields);
     if (!decision.success) return backToMember(request, memberId, 'invalid');
     return decide(request, { supabase, staffId }, decision.data);
   }
 
-  const asked = pauseRequestSchema.safeParse(body.fields);
+  const asked = pauseRequestSchema.safeParse(caller.fields);
   if (!asked.success) {
     // `endsOn` before `startsOn` is the one schema failure the screen can say
     // something specific about, so it keeps the code it always had rather than

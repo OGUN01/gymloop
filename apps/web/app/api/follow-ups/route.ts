@@ -1,7 +1,7 @@
 import { Constants } from '@gymloop/db';
 import type { Database } from '@gymloop/db';
 import { followUpRequestSchema } from '@gymloop/shared';
-import { formFields, staffSession, PG_INSUFFICIENT_PRIVILEGE } from '../../../lib/api';
+import { staffForm, PG_INSUFFICIENT_PRIVILEGE } from '../../../lib/api';
 
 /**
  * POST /api/follow-ups — record what happened when somebody rang a member.
@@ -31,14 +31,11 @@ const REFUSALS: Record<string, string> = {
 const SEE_OTHER = 303;
 
 export async function POST(request: Request): Promise<Response> {
-  const caller = await staffSession();
+  const caller = await staffForm(request);
   if ('failure' in caller) return caller.failure;
-  const { supabase, tenantId, staffId } = caller.session;
+  const { supabase, tenantId, staffId } = caller;
 
-  const body = await formFields(request);
-  if ('failure' in body) return body.failure;
-
-  const submitted = followUpRequestSchema.safeParse(body.fields);
+  const submitted = followUpRequestSchema.safeParse(caller.fields);
   if (!submitted.success) return backToList(request, 'invalid');
 
   const { caseId, channel, outcome, notes, nextAction, nextFollowUpAt, correctsFollowUpId } =

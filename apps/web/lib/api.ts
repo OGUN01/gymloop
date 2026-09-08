@@ -133,3 +133,37 @@ export async function formFields(
 
   return { form, fields };
 }
+
+/**
+ * A signed-in staff caller and their form submission, in one step.
+ *
+ * Three handlers opened with the same eleven lines — identify the caller, read
+ * the form, bail on either — and `jscpd` was right to call that a clone. The
+ * shape is not incidental: it is the order every form-post handler in this
+ * product must do things in, and a copy of it is a place for one handler to
+ * drift into reading the form before it knows who is asking.
+ *
+ * The two failures stay distinct because they answer differently: an
+ * unauthenticated caller gets the envelope from `staffSession()`, and a body
+ * that is not a form gets `formFields()`' `malformed_body`. Neither can be
+ * answered with a redirect, because neither has a screen to go back to.
+ */
+export async function staffForm(
+  request: Request,
+): Promise<
+  | { failure: Response }
+  | (StaffSession & { form: FormData; fields: Record<string, string> })
+> {
+  const caller = await staffSession();
+  if ('failure' in caller) return { failure: caller.failure };
+
+  const body = await formFields(request);
+  if ('failure' in body) return { failure: body.failure };
+
+  // Flattened rather than nested under `session`, so a handler opens with two
+  // lines instead of three. That is not tidiness: at three lines the preamble
+  // was long enough for `jscpd` to call it a clone across handlers, and the
+  // honest answer to a duplication report is to remove the duplication rather
+  // than to raise the threshold that found it.
+  return { ...caller.session, form: body.form, fields: body.fields };
+}
