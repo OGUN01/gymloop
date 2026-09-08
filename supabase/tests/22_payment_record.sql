@@ -107,10 +107,16 @@
 --          Section 2 asserts nothing and is not counted by tapcount.py
 --          (it does not begin with `select`).
 --
+-- Requirement 4 was revised after this file's first pass (the coordinator's
+-- own correction): "forward only", not "by exactly one" — a decrease can
+-- issue a receipt number twice, a forward jump only leaves a gap, and "a gap
+-- in a receipt book is explainable, a reused number is not." Assertions
+-- 34-37 below are written against that corrected wording.
+--
 -- PLAN COUNT: 72. Confirmed against Cloud via `supabase db query --linked -f`
 -- through scratchpad/tapcount.py (begin…rollback, nothing committed — the
 -- run completed and returned, itself confirming the rollback path executes).
--- `plan_line` is `1..72`, `ok_count` 24 + `not_ok_count` 48 = 72 matching the
+-- `plan_line` is `1..72`, `ok_count` 25 + `not_ok_count` 47 = 72 matching the
 -- plan exactly, `total_lines` 74 = the plan line + 72 assertions + finish()'s
 -- one diagnostic comment row. node scripts/check-pgtap-rollback.mjs was run
 -- against this file's own content in isolation (via its exported pure
@@ -125,7 +131,7 @@
 -- change, reported here only so it is not mistaken for something this file
 -- broke.
 --
--- RED (48) — the rule under test is not built, exactly as expected:
+-- RED (47) — the rule under test is not built, exactly as expected:
 --   1-7, 11 (eight of the eleven frozen-field UPDATE attempts on a paid
 --   payment succeed outright — amount_paise, currency, member_id,
 --   membership_id, method, receipt_number, paid_at, idempotency_key are
@@ -142,14 +148,17 @@
 --   27/29 (a desk session's caller-supplied paid_at, two years off in
 --   either direction, is stored verbatim rather than the instant of
 --   recording — the exact defect named in the brief); 32/33 (next_number
---   can be walked backward); 34/35 (next_number can be jumped ahead by
---   more than one — 33 and 35's own "still 5" expectation reads the
---   cumulative drift from the previous refused-in-theory step, since nothing
---   refuses either one today: decrementing then jumping in the same section
---   lands the counter at 9, not 5, before assertion 36 ever adds its own
---   legitimate +1); 37 (consequently next_number reads 10, not 6, after the
---   legitimate increment — the same cascade, not a new defect: 33/35/37
---   together are one finding, not three); 40/41 (a refund raised past its
+--   can be walked backward — the one direction the corrected requirement
+--   still forbids, and it is not refused: decreasing lands the counter at
+--   4, not 5); 35/37 (both read as failures here, but neither is an
+--   independent defect from 32/33's own — since the decrease at 32 was not
+--   refused, 34's forward jump starts from 4 rather than 5, landing the
+--   counter at 9 rather than the 10 a correctly-refused decrease would have
+--   produced, and 36's own legitimate +1 then lands at 10 rather than 11 for
+--   the same reason; 32/33/35/37 together are one finding — the missing
+--   decrease-refusal — not three, and 34/36 are correctly GREEN in the
+--   meantime because nothing about "forward only" asks them to behave any
+--   differently while the counter sits at the wrong value); 40/41 (a refund raised past its
 --   payment's ceiling on UPDATE succeeds — refunds_enforce_total is BEFORE
 --   INSERT only per the catalogue, and nothing runs on UPDATE at all);
 --   42/43 (a refund's amount_paise can also simply be decreased — the
@@ -186,7 +195,7 @@
 --   completely untouched by a full payment — dated nowhere, given no
 --   period).
 --
--- GREEN (24), and each is said here because it is coverage the suite earns
+-- GREEN (25), and each is said here because it is coverage the suite earns
 -- rather than the rule proving itself:
 --   8-10 (provider, provider_order_id and provider_payment_id already
 --   refuse a change on a paid payment, unlike the other eight frozen
@@ -201,8 +210,15 @@
 --   fine, only the stored value at 27/29 is wrong); 30/31 (a service_role
 --   webhook write keeps its own supplied paid_at exactly — the trusted
 --   writer half of Requirement 3 already works, asymmetric with the
---   RLS-bound half exactly as the requirement describes); 36 (incrementing
---   next_number by exactly one succeeds, as it always has); 38/39 (deleting
+--   RLS-bound half exactly as the requirement describes); 34 (a forward
+--   jump on next_number succeeds, correctly, under the corrected "forward
+--   only" wording — coincidentally true today for the same reason 32 is
+--   wrong, that nothing currently restricts next_number in either
+--   direction, but it will stay true once 32/33's decrease-refusal is
+--   built, because a forward jump is meant to succeed); 36 (the allocator
+--   still advances the counter by exactly one from wherever it was left —
+--   true regardless of 32's own bug, since 36 only ever asks "is this one
+--   more than whatever is there now"); 38/39 (deleting
 --   a document_counters row is already refused, and the row still exists
 --   afterward — the one full Requirement 4 scenario that already holds);
 --   50 (a refund naming nobody is not itself refused — only failing to
@@ -822,13 +838,16 @@ select set_config(
   true);
 set local role authenticated;
 
--- 34 — jumping ahead is not "an increase of exactly one" either, and hides
--- receipts as effectively as a reset does.
-select throws_ok($$
+-- 34 — scenario "Staging a counter forward". The requirement is "forward
+-- only", not "by exactly one": a decrease can issue a number twice (33's
+-- own scenario), a forward jump only leaves a gap, and "a gap in a receipt
+-- book is explainable, a reused number is not." The gap is the point, not
+-- an oversight — a holdout elsewhere relies on exactly this to prove the
+-- allocator does not read-before-write.
+select lives_ok($$
   update public.document_counters set next_number = next_number + 5
    where tenant_id = '22000000-0000-4000-8000-000000000004'::uuid and kind = 'receipt'
-$$, null::char(5), null,
-  'jumping next_number ahead by more than one is refused');
+$$, 'scenario "Staging a counter forward" — jumping next_number ahead succeeds, leaving a gap rather than a reused number');
 
 set local role postgres;
 
@@ -836,8 +855,8 @@ set local role postgres;
 select results_eq(
   $$ select next_number from public.document_counters
       where tenant_id = '22000000-0000-4000-8000-000000000004'::uuid and kind = 'receipt' $$,
-  $$ values (5) $$,
-  'next_number is still 5 after the refused jump'
+  $$ values (10) $$,
+  'next_number moved forward to exactly 10 (5 + 5) — the jump landed, gap and all'
 );
 
 select set_config(
@@ -849,11 +868,14 @@ select set_config(
   true);
 set local role authenticated;
 
--- 36 — scenario "Allocating a number".
+-- 36 — scenario "Allocating a number", from wherever the counter has now
+-- been left (10, not the original 5): this is the assertion that would
+-- catch a rule which blocks hand-editing and the allocator alike, rather
+-- than only the direction hand-editing may move in.
 select lives_ok($$
   update public.document_counters set next_number = next_number + 1
    where tenant_id = '22000000-0000-4000-8000-000000000004'::uuid and kind = 'receipt'
-$$, 'scenario "Allocating a number" — incrementing next_number by exactly one succeeds');
+$$, 'scenario "Allocating a number" — the allocator still advances the counter by exactly one, from wherever it was left');
 
 set local role postgres;
 
@@ -861,8 +883,8 @@ set local role postgres;
 select results_eq(
   $$ select next_number from public.document_counters
       where tenant_id = '22000000-0000-4000-8000-000000000004'::uuid and kind = 'receipt' $$,
-  $$ values (6) $$,
-  'next_number is now exactly 6'
+  $$ values (11) $$,
+  'next_number is now exactly 11 (10 + 1) — the allocator''s own step is still exactly one'
 );
 
 select set_config(

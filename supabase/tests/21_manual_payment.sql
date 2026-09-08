@@ -61,13 +61,15 @@
 -- (now() at time zone o.timezone)::date from tenant C's own organizations
 -- row into a temp table once, and every later date in that section is an
 -- offset from that captured value — never a literal date, never
--- current_date. Section 3's financial-year fixture uses explicit
--- timestamptz literals for the OLD financial year (2026-01-15, deep inside
--- January, nowhere near a month boundary) and the database's own now() for
--- the current one (2026-09-09 per today's date, equally far from the 1
--- April boundary) — so a UTC/IST discrepancy could not flip either payment
--- into the wrong financial year even if the implementation got MNY-004
--- wrong.
+-- current_date. Section 3's financial-year fixture records its OLD-year
+-- payment through a trusted (service_role) write carrying an explicit
+-- 2026-01-15 timestamptz literal — a payment-record contract change means a
+-- front-desk session can no longer supply paid_at at all, so the OLD year
+-- can no longer be reached by an RLS-bound fixture asking for it by date;
+-- see the section's own header for why — and its CURRENT-year payment
+-- through an ordinary desk write naming no paid_at, landing wherever the
+-- database's own now() falls (2026-09-09 per today's date, nowhere near the
+-- 1 April boundary either way).
 --
 -- The financial year string is not read from any implementation: it is
 -- derived by hand from the spec's own definition ("1 April - 31 March") and
@@ -148,7 +150,24 @@
 -- own internal SAVEPOINT and continuing — not a poisoned transaction; every
 -- assertion after each one still ran and queried real state, through to 44.
 --
--- RED (23) — the rule under test is not built, exactly as expected:
+-- RE-VERIFIED 2026-09-09, after restaging Section 3's financial-year fixture
+-- for the payment-record contract change (paid_at is no longer accepted
+-- from a session row security applies to — see that section's own header):
+-- a fresh run via tapcount.py against Cloud reports `plan_line` `1..44`,
+-- `ok_count` 44 + `not_ok_count` 0 = 44, `total_lines` 45 (the plan line
+-- plus all 44 assertions, no failure diagnostic row). Every assertion in
+-- this file now passes, including 21-25. The RED/GREEN breakdown
+-- immediately below is the snapshot from this file's original authoring,
+-- before the manual-payment migration landed on Cloud, and is retained as
+-- the historical record of what was RED then — it is not current fact for
+-- any assertion, and least of all for 21-25, whose mechanism this restage
+-- changed outright (a trusted service_role write for the OLD financial
+-- year, an ordinary desk write naming no paid_at for the new one, in place
+-- of two front-desk writes distinguished only by a caller-supplied date).
+--
+-- RED (23) — the rule under test is not built, exactly as expected, AS OF
+-- THIS FILE'S ORIGINAL AUTHORING (superseded — see the RE-VERIFIED note
+-- above):
 --   8, 9 (naming a colleague is not refused — Section 1); 10, 11 (a
 --   claimless session's write is not refused either — the same null-actor
 --   defect this project has shipped twice before, GL016/GL026's cousin,
@@ -180,7 +199,8 @@
 --   40000).
 --
 -- GREEN (21), and each is said here because it is coverage the suite earns
--- rather than the rule proving itself:
+-- rather than the rule proving itself — AS OF THIS FILE'S ORIGINAL
+-- AUTHORING, same caveat as above:
 --   1-5 (Phase 1's own CHECK constraints — amount_paise_chk,
 --   offline_has_staff_chk, paid_has_reference_chk, razorpay_has_order_chk,
 --   provider_reference_has_provider_chk — all still enforced, exactly as
@@ -655,28 +675,50 @@ select results_eq(
   'scenario "Two gyms" — gym B was allocated a receipt number and gym A''s own counter rows are exactly what they were before gym B recorded anything'
 );
 
--- A new financial year, tenant D, isolated: 21-24.
-select set_config(
-  'request.jwt.claims',
-  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
-                    'tenant_id', '21000000-0000-4000-8000-000000000004',
-                    'app_role', 'front_desk',
-                    'staff_id', '21000000-0000-4000-8000-000000000028')::text,
-  true);
-set local role authenticated;
+-- A new financial year, tenant D, isolated: 21-25. Two different write
+-- paths on purpose, not two front-desk fixtures differing only by date. The
+-- payment-record contract
+-- (openspec/changes/phase-5-money/specs/payment-record/spec.md, "The date a
+-- payment is filed under is the system's to decide") now stamps paid_at
+-- itself for any session row security applies to and refuses a
+-- caller-supplied value outright — a front-desk session can no longer file
+-- into FY 2025-26 by naming a January paid_at, because that is exactly the
+-- shape a blind critic used to file payments into 2031-32 and 2019-20 by
+-- asking, and paid_at was the argument. A trusted writer keeps its own
+-- value instead — the Razorpay webhook's paid_at is the provider's
+-- timestamp and is the more truthful one, per the spec — so the OLD
+-- financial year's payment is now recorded through that path: service_role,
+-- no RLS, an explicit 2026-01-15 literal, kept exactly as supplied. That
+-- both restages the property under test (a second, genuinely earlier
+-- financial year exists to restart from) and documents the asymmetry the
+-- spec states by name, the same way this file's Section 0 assertion 3
+-- documents why its own mechanism changed. The NEW financial year's payment
+-- is recorded through the desk exactly as every other manual-payment
+-- fixture in this file, naming no paid_at at all, and lands wherever the
+-- database's own now() falls.
 
--- 21 — deep in January 2026 (financial year 2025-26), nowhere near the
--- 1 April boundary. created_at and paid_at are both pinned to the same
--- literal so whichever column financial-year derivation actually reads, the
--- fixture is unambiguous either way.
+-- 21 — the trusted path. method is razorpay rather than cash specifically
+-- so payments_offline_has_staff_chk never applies and no staff attribution
+-- claim is needed for a session that (correctly, for a webhook) carries
+-- none; provider_order_id and provider_payment_id satisfy
+-- payments_razorpay_has_order_chk and
+-- payments_provider_reference_has_provider_chk the same way a real webhook
+-- write would, rather than by accident. Claims are reset to empty first so
+-- nothing bleeds over from the previous section's session — a real webhook
+-- call carries no request.jwt.claims at all.
+select set_config('request.jwt.claims', '{}', true);
+set local role service_role;
+
 select lives_ok($$
-  insert into public.payments (id, tenant_id, member_id, amount_paise, method, status, recorded_by_staff_id, created_at, paid_at)
+  insert into public.payments (id, tenant_id, member_id, amount_paise, method, status,
+                                provider, provider_order_id, provider_payment_id, paid_at)
   values ('21000000-0000-4000-8000-000000001009'::uuid,
           '21000000-0000-4000-8000-000000000004'::uuid,
           '21000000-0000-4000-8000-000000000049'::uuid,
-          150000, 'cash', 'paid', '21000000-0000-4000-8000-000000000028'::uuid,
-          '2026-01-15 10:00:00+05:30'::timestamptz, '2026-01-15 10:00:00+05:30'::timestamptz)
-$$, 'scenario "A new financial year" — the first payment of financial year 2025-26 is not refused');
+          150000, 'razorpay', 'paid',
+          'razorpay', 'order_d_fy2526', 'pay_d_fy2526',
+          '2026-01-15 10:00:00+05:30'::timestamptz)
+$$, 'scenario "A new financial year" — a trusted (service_role) write naming its own paid_at, deep in financial year 2025-26, is not refused');
 
 set local role postgres;
 
@@ -694,17 +736,17 @@ select set_config(
   true);
 set local role authenticated;
 
--- 22 — deep in September 2026 (today, financial year 2026-27), also
--- nowhere near the boundary. now() is read twice in the same statement, so
--- created_at and paid_at land on the identical instant.
+-- 22 — an ordinary desk payment, naming no paid_at at all, because a desk
+-- session may not supply one any more: it is stamped with the database's
+-- own now() and lands wherever that falls — deep in September 2026
+-- (financial year 2026-27), nowhere near the 1 April boundary.
 select lives_ok($$
-  insert into public.payments (id, tenant_id, member_id, amount_paise, method, status, recorded_by_staff_id, created_at, paid_at)
+  insert into public.payments (id, tenant_id, member_id, amount_paise, method, status, recorded_by_staff_id)
   values ('21000000-0000-4000-8000-00000000100a'::uuid,
           '21000000-0000-4000-8000-000000000004'::uuid,
           '21000000-0000-4000-8000-00000000004a'::uuid,
-          150000, 'cash', 'paid', '21000000-0000-4000-8000-000000000028'::uuid,
-          now(), now())
-$$, 'scenario "A new financial year" — the first payment of financial year 2026-27, in the same gym, is not refused');
+          150000, 'cash', 'paid', '21000000-0000-4000-8000-000000000028'::uuid)
+$$, 'scenario "A new financial year" — the first desk payment of financial year 2026-27, in the same gym, is not refused');
 
 set local role postgres;
 

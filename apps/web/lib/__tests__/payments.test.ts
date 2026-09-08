@@ -176,7 +176,8 @@ describe('loadPayments — keyset pagination on (created_at desc, id asc)', () =
     const orderCalls = callsOf('payments', 'order');
     expect(orderCalls[0]).toEqual(['created_at', { ascending: false }]);
     expect(orderCalls[1]?.[0]).toBe('id');
-    expect(orderCalls[1]?.[1] ?? { ascending: true }).toMatchObject({ ascending: true });
+    const secondOrderArg = (orderCalls[1]?.[1] ?? { ascending: true }) as { ascending: boolean };
+    expect(secondOrderArg).toEqual({ ascending: true });
   });
 
   it('does not carry a cursor to the next page when the list is exhausted', async () => {
