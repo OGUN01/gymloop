@@ -1,4 +1,5 @@
 export * from './api/check-in';
+export * from './api/follow-ups';
 export * from './api/memberships';
 export * from './config/constants';
 export * from './config/env';

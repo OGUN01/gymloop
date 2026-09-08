@@ -374,6 +374,16 @@ The repair is the trigger's timing. The function only ever raises; it never modi
 
 **The process failure is worth more than the defect.** Every earlier round replayed all 39 pgTAP files against the candidate migration before pushing; this round replayed only the four the change targeted, and CI found what the shortened sweep missed. The four broken assertions were in suites the change "obviously" did not touch. **The full sweep is not optional — a trigger is a global object, and "which files does this affect" is the question a regression suite exists to answer for you.**
 
+**ADR-073 - Never cap the output of a failure list.** The pre-push sweep replays all 43 pgTAP files and prints one line each. It reported five failures. I read it through `grep -v 'failures": 0' | grep -v '^tests:' | head -5` — and because a `git commit` had been chained into the same command, its two lines of output consumed two of those five slots. I saw three failures, fixed three, pushed, and CI found the two I had hidden from myself.
+
+**The sweep was right; reading it was wrong.** That is the more dangerous shape, because the instinct afterwards is to distrust the check.
+
+The rule, and it generalises past this repo: **a `head` on a list of successes is a convenience; a `head` on a list of failures is a filter that hides exactly what you are looking for.** Cap output when the risk is noise. Never cap it when the risk is a miss.
+
+Two habits follow. Print the count alongside the list, so a truncated read is visibly inconsistent with the total — the same property that caught `check-pgtap-rollback` skipping untracked files, where "40 files checked" against 41 on disk was the tell. And do not chain unrelated commands into a diagnostic, because their output shifts the window you are about to truncate.
+
+Related, from the same afternoon: this project's sweep splices an unapplied migration into each test's transaction. That is sound, but it means **the sweep can only be trusted as far as its own plumbing** — read its total, not its first few lines.
+
 ## Known enforcement gaps
 
 Stated plainly so nobody mistakes a documented rule for an enforced one. A blind critic found each of these by testing what the gates actually catch rather than what they claim to.

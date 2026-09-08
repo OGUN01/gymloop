@@ -109,6 +109,19 @@ export const MEMBER_PAGE_SIZE_DEFAULT = 50;
 /** The clamp for {@link MEMBER_PAGE_SIZE_DEFAULT} — see its note. */
 export const MEMBER_PAGE_SIZE_MAX = 200;
 
+/**
+ * How many no-show cases one page of the red list holds, and the most it will.
+ *
+ * Smaller than the member roster's page deliberately. The roster is something
+ * you scan for a name; the red list is a work queue somebody reads top to
+ * bottom before the 6am rush, and a page longer than the calls they can
+ * actually make is a page that hides the bottom of itself.
+ */
+export const RED_LIST_PAGE_SIZE_DEFAULT = 25;
+
+/** The clamp for {@link RED_LIST_PAGE_SIZE_DEFAULT} — a page size is a hint. */
+export const RED_LIST_PAGE_SIZE_MAX = 100;
+
 /*
  * The v1 role set is NOT here. It is the `app_role` Postgres enum, generated
  * into packages/db/types/database.ts — see docs/decisions.md ADR-031. Four
