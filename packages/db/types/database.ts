@@ -676,6 +676,13 @@ export type Database = {
             referencedColumns: ["tenant_id", "id"]
           },
           {
+            foreignKeyName: "follow_ups_case_id_fkey"
+            columns: ["tenant_id", "case_id"]
+            isOneToOne: false
+            referencedRelation: "red_list_cases"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
             foreignKeyName: "follow_ups_corrects_follow_up_id_fkey"
             columns: ["tenant_id", "corrects_follow_up_id"]
             isOneToOne: false
@@ -2350,7 +2357,55 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      red_list_cases: {
+        Row: {
+          absent_days_at_open: number | null
+          assigned_to_staff_id: string | null
+          contacted_at: string | null
+          days_absent: number | null
+          id: string | null
+          last_attended_on: string | null
+          last_follow_up_at: string | null
+          last_follow_up_by: string | null
+          last_follow_up_channel:
+            | Database["public"]["Enums"]["contact_channel"]
+            | null
+          last_follow_up_outcome:
+            | Database["public"]["Enums"]["follow_up_outcome"]
+            | null
+          member_id: string | null
+          member_name: string | null
+          member_phone: string | null
+          next_follow_up_at: string | null
+          opened_on: string | null
+          status: Database["public"]["Enums"]["no_show_case_status"] | null
+          tenant_id: string | null
+          threshold_days: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "no_show_cases_assigned_to_staff_id_fkey"
+            columns: ["tenant_id", "assigned_to_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "no_show_cases_member_id_fkey"
+            columns: ["tenant_id", "member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "no_show_cases_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       [_ in never]: never

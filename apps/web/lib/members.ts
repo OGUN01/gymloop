@@ -1,4 +1,11 @@
 import { MEMBER_PAGE_SIZE_DEFAULT, MEMBER_PAGE_SIZE_MAX } from '@gymloop/shared';
+import {
+  decodeCursor,
+  encodeCursor,
+  pageSizeFrom,
+  quoteFilterValue,
+  UUID_PATTERN,
+} from './keyset';
 import { createServerSupabase } from './supabase/server';
 
 /**
@@ -25,15 +32,30 @@ export async function loadMemberSearch(
 ) {
   const { q, cursor, limit } = await searchParams;
   const phone = q?.trim() ?? '';
-  const pageSize = pageSizeFrom(limit);
+  const pageSize = pageSizeFrom(limit, MEMBER_PAGE_SIZE_DEFAULT, MEMBER_PAGE_SIZE_MAX);
 
   const supabase = await createServerSupabase();
   let query = supabase.from('members').select('id, full_name, phone, status');
 
   if (phone) query = query.ilike('phone', `%${phone}%`);
 
-  const after = decodeCursor(cursor);
-  if (after) query = query.or(keysetAfter(after));
+  const after = decodeCursor(cursor, (value) =>
+    typeof value.fullName === 'string' &&
+    typeof value.id === 'string' &&
+    UUID_PATTERN.test(value.id)
+      ? { fullName: value.fullName, id: value.id }
+      : null,
+  );
+
+  if (after) {
+    // `id` is quoted as well as validated. Either closes the injection alone,
+    // and this is exactly the value that turns up somewhere new one day with
+    // one of them refactored away.
+    const name = quoteFilterValue(after.fullName);
+    query = query.or(
+      `full_name.gt.${name},and(full_name.eq.${name},id.gt.${quoteFilterValue(after.id)})`,
+    );
+  }
 
   // `full_name, id` and not `full_name` alone: the sort has to be *total* or the
   // cursor cannot name a place in it. Two members called Priya Sharma otherwise
@@ -59,103 +81,4 @@ export async function loadMemberSearch(
     nextCursor: last ? encodeCursor({ fullName: last.full_name, id: last.id }) : null,
     errorMessage: error ? error.message : null,
   };
-}
-
-/** Where the previous page stopped: the last row's sort key, in full. */
-type MemberCursor = { fullName: string; id: string };
-
-/**
- * The requested page size, clamped rather than refused.
- *
- * A page size is a hint from a caller and not an instruction, so an absurd one
- * becomes the maximum instead of an error page — and anything unreadable
- * becomes the default, because a mistyped query string should not be able to
- * make the roster unloadable.
- */
-function pageSizeFrom(limit: string | undefined): number {
-  const asked = Number(limit);
-  if (!Number.isInteger(asked) || asked < 1) return MEMBER_PAGE_SIZE_DEFAULT;
-  return Math.min(asked, MEMBER_PAGE_SIZE_MAX);
-}
-
-/**
- * The cursor is opaque so that nobody depends on its shape — and that is ALL
- * the encoding buys. **Base64 is not a signature.** A cursor arrives in a query
- * string and a caller writes whatever they like into one; an earlier version of
- * this file said encoding "stops a caller hand-crafting one", which was simply
- * false, and a blind critic hand-crafted one against the live API to prove it.
- *
- * `encodeURIComponent` before `btoa` because a member's name is not Latin-1 —
- * half this product's members have names `btoa` would throw on.
- */
-function encodeCursor(at: MemberCursor): string {
-  return btoa(encodeURIComponent(JSON.stringify(at)));
-}
-
-/**
- * `id` is checked to BE a uuid, not merely to be a string, and the difference
- * is the whole finding.
- *
- * Both parts of a cursor are interpolated into a PostgREST `or=(…)` filter,
- * where `,` `.` `(` `)` are grammar rather than characters — so an unescaped
- * value is not a value, it is a clause. `fullName` was quoted; `id` was not,
- * and `typeof id === 'string'` admitted anything. A crafted cursor therefore
- * appended its own `WHERE` fragment and returned rows the keyset had excluded.
- *
- * Stated honestly, because the difference matters for how alarmed to be: it
- * crossed no tenant boundary. Row security still filtered, the caller was
- * already signed-in staff of that gym, and the fragment reached no other table.
- * What it was is **an attacker-controlled filter fragment arriving from a query
- * string**, in a codebase whose whole argument is that the endpoint is not the
- * boundary — one reuse away, on a member-facing screen or a wider select, from
- * being an oracle. The shape is the defect; the blast radius was luck.
- *
- * The same check answers a second, quieter bug. An id of `"x"` decodes, passes
- * a `typeof` guard, and reaches Postgres as `22P02 invalid input syntax for
- * type uuid` — whose message the roster renders verbatim to the front desk.
- */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function decodeCursor(cursor: string | undefined): MemberCursor | null {
-  if (!cursor) return null;
-  try {
-    const parsed: unknown = JSON.parse(decodeURIComponent(atob(cursor)));
-    if (typeof parsed !== 'object' || parsed === null) return null;
-    const { fullName, id } = parsed as Partial<MemberCursor>;
-    return typeof fullName === 'string' && typeof id === 'string' && UUID.test(id)
-      ? { fullName, id }
-      : null;
-  } catch {
-    // A cursor that will not decode is a query string somebody edited or a link
-    // that outlived a deploy. The first page is the right answer to it; an
-    // error page is not — and neither is a Postgres message on the screen.
-    return null;
-  }
-}
-
-/**
- * Keyset, not offset: "the rows after this one", expressed against the same
- * total order the query sorts by. Offset pagination re-counts from the start on
- * every page and shifts under inserts, so a member added while a front desk is
- * paging pushes one off the boundary unseen.
- */
-function keysetAfter(at: MemberCursor): string {
-  const name = quote(at.fullName);
-  // `id` is quoted too, even though `decodeCursor` has already established it
-  // is a uuid and a uuid contains nothing PostgREST parses. Two independent
-  // reasons hold this line: the validation and the quoting each close the hole
-  // alone, and this is exactly the kind of value that arrives from somewhere
-  // new one day — a select list, a saved link, a Phase 7 mobile client — with
-  // the validation refactored away and the quoting still standing.
-  return `full_name.gt.${name},and(full_name.eq.${name},id.gt.${quote(at.id)})`;
-}
-
-/**
- * PostgREST reads `,` `.` `(` `)` as its own grammar, and a member called
- * "Rao, K." would otherwise be parsed as two filters. Double quotes make the
- * value opaque to that grammar; a backslash escapes a quote or a backslash
- * inside it.
- */
-function quote(value: string): string {
-  return `"${value.replace(/[\\"]/g, (char) => `\\${char}`)}"`;
 }

@@ -26,6 +26,21 @@
 
 const CRON_SECRET_HEADER = 'x-gymloop-cron-secret';
 
+/**
+ * Status codes as named constants, which is what AGENTS.md rule 4 asks for and
+ * what `apps/web/app/api/members/member-input.ts` already does with `SEE_OTHER`.
+ * They cannot come from `packages/shared/src/config/constants.ts`: this file is
+ * Deno, that package is consumed through pnpm's workspace resolution, and
+ * reaching across would be the platform leak ADR-022 exists to prevent.
+ *
+ * `no-magic-numbers` flags a literal used inline in an expression, which is
+ * exactly what these were.
+ */
+const UNAUTHORISED = 401;
+const MISCONFIGURED = 500;
+const UPSTREAM_FAILED = 502;
+const OK = 200;
+
 type ScanRow = { tenant_id: string; gym: string; opened: number };
 
 Deno.serve(async (request: Request): Promise<Response> => {
@@ -37,16 +52,16 @@ Deno.serve(async (request: Request): Promise<Response> => {
     // Refused rather than defaulted. A missing secret means the environment is
     // misconfigured, and running anyway would mean an unauthenticated endpoint
     // that opens cases — the failure mode is worse than not scanning tonight.
-    return json({ ok: false, error: 'CRON_SECRET is not configured' }, 500);
+    return json({ ok: false, error: 'CRON_SECRET is not configured' }, MISCONFIGURED);
   }
   if (request.headers.get(CRON_SECRET_HEADER) !== expected) {
-    return json({ ok: false, error: 'not authorised' }, 401);
+    return json({ ok: false, error: 'not authorised' }, UNAUTHORISED);
   }
 
   const url = Deno.env.get('SUPABASE_URL');
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!url || !serviceRole) {
-    return json({ ok: false, error: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing' }, 500);
+    return json({ ok: false, error: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing' }, MISCONFIGURED);
   }
 
   // PostgREST directly rather than `supabase-js`: one RPC with no client to
@@ -65,12 +80,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
   if (!response.ok) {
     const detail = await response.text();
-    return json({ ok: false, error: 'scan failed', status: response.status, detail }, 502);
+    return json({ ok: false, error: 'scan failed', status: response.status, detail }, UPSTREAM_FAILED);
   }
 
   const rows: unknown = await response.json();
   if (!Array.isArray(rows)) {
-    return json({ ok: false, error: 'scan returned an unexpected shape' }, 502);
+    return json({ ok: false, error: 'scan returned an unexpected shape' }, UPSTREAM_FAILED);
   }
 
   const scanned = rows as ScanRow[];
@@ -82,7 +97,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
   return json({ ok: true, gyms: scanned.length, opened, scanned });
 });
 
-function json(body: unknown, status = 200): Response {
+function json(body: unknown, status = OK): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },
