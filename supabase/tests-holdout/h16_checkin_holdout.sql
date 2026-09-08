@@ -28,7 +28,7 @@ begin;
 -- holds BYPASSRLS, is assumed explicitly rather than inherited.
 set local role postgres;
 
-select plan(41);
+select plan(43);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Two gyms whose de-duplication windows are DIFFERENT and NEITHER of
@@ -429,9 +429,30 @@ select lives_ok(
             'h16 member left their phone in the car')$$,
   'ATT-005/006: the front desk records an assisted check-in naming itself and a real reason');
 
+-- The same statement, naming a COLLEAGUE OF THE SAME GYM (trainer ...0023).
+-- Nothing about the tenant is wrong, so ADR-052's key has no objection and this
+-- isolates the rule itself: ATT-005 exists to make "who marked this member
+-- present" attributable, and an attribution the writer chooses is not one. The
+-- HTTP schema has no field for this column, which makes the endpoint honest and
+-- the table not — and the table is the boundary.
+select throws_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, checked_in_at, source,
+                                   assisted_by_staff_id, assist_reason)
+    values ('aa000016-0000-4000-8000-000000000001', 'aa000016-0000-4000-8000-000000000011',
+            'aa000016-0000-4000-8000-000000000037', timestamptz '2026-04-04 08:00:00+05:30',
+            'front_desk', 'aa000016-0000-4000-8000-000000000023',
+            'h16 attributing an assist to a colleague')$$,
+  null::char(5), null::text,
+  'ATT-005: an assisted check-in cannot be attributed to a colleague of the same gym — the acting staff member is whoever holds the session, and a value the caller supplies is not evidence of that');
+
 -- A check-in never crosses a tenant. Each of these labels the row with the
 -- CALLER'S OWN tenant, so row security admits it — what refuses it is the key
 -- re-checking the tenant of the thing being named (ADR-052).
+--
+-- The member and membership cases pin 23503, because the composite key is the
+-- only thing that can refuse them and naming the mechanism is what makes those
+-- assertions evidence for ADR-052. The assisted-staff case below does NOT pin a
+-- code, and the reason is in the comment on it.
 select throws_ok(
   $$insert into public.attendance (tenant_id, branch_id, member_id, checked_in_at, source)
     values ('aa000016-0000-4000-8000-000000000001', 'aa000016-0000-4000-8000-000000000011',
@@ -439,14 +460,64 @@ select throws_ok(
   '23503', null,
   'A check-in naming another gym''s member is refused even though the row carries the caller''s own tenant');
 
+-- This row breaks TWO rules at once, and the spec states an outcome for each
+-- rather than a mechanism. Staff ...0022 belongs to gym B, so ADR-052's
+-- composite key refuses it; and ...0022 is not the acting staff member either —
+-- this session is ...0021 — which the assisted-check-in requirement now refuses
+-- in its own right ("the acting staff member is whoever holds the session, and
+-- a value supplied by the caller is not evidence of that"). Whichever rule
+-- reaches it first is an implementation detail this file has no business
+-- pinning: naming 23503 here would turn a correct fix into a red test, because
+-- a guard that refuses a supplied colleague necessarily runs before the key
+-- ever sees the value. The claim the assertion makes — that this is refused —
+-- is unchanged and is the part that matters.
 select throws_ok(
   $$insert into public.attendance (tenant_id, branch_id, member_id, checked_in_at, source,
                                    assisted_by_staff_id, assist_reason)
     values ('aa000016-0000-4000-8000-000000000001', 'aa000016-0000-4000-8000-000000000011',
             'aa000016-0000-4000-8000-000000000033', timestamptz '2026-04-02 06:01:00+05:30',
             'front_desk', 'aa000016-0000-4000-8000-000000000022', 'h16 cross-tenant staff')$$,
-  '23503', null,
-  'An assisted check-in naming another gym''s staff member is refused');
+  null::char(5), null::text,
+  'An assisted check-in naming another gym''s staff member is refused — by the tenant key or by the rule that the acting staff member is not the caller''s to choose, and the write must not land either way');
+
+-- The cross-tenant half, with the acting staff member taken out of the
+-- question. This session's own claim names gym B's front desk while carrying
+-- gym A's tenant, so `assisted_by_staff_id` is the session's OWN staff id and
+-- no colleague is being named — the new assisted-check-in rule has nothing to
+-- object to, and only the tenant boundary is left to refuse the write.
+--
+-- Without this, the coverage the assertion above used to carry for ADR-052 on
+-- `assisted_by_staff_id` disappears the moment a colleague rule is added. Still
+-- unpinned: a rule requiring the acting staff row to exist in the acting gym
+-- would also refuse this, and would be a correct rule to have.
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', 'aa000016-0000-4000-8000-000000000001',
+                    'app_role', 'front_desk',
+                    'staff_id', 'aa000016-0000-4000-8000-000000000022')::text,
+  true
+);
+
+select throws_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, checked_in_at, source,
+                                   assisted_by_staff_id, assist_reason)
+    values ('aa000016-0000-4000-8000-000000000001', 'aa000016-0000-4000-8000-000000000011',
+            'aa000016-0000-4000-8000-000000000033', timestamptz '2026-04-02 06:04:00+05:30',
+            'front_desk', 'aa000016-0000-4000-8000-000000000022',
+            'h16 acting staff belongs to the other gym')$$,
+  null::char(5), null::text,
+  'An assisted check-in whose acting staff member belongs to another gym is refused although the caller names nobody but itself — a well-formed claim is not evidence that the staff row it names is this gym''s');
+
+-- Back to gym A's own front desk for the remaining assertions.
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', 'aa000016-0000-4000-8000-000000000001',
+                    'app_role', 'front_desk',
+                    'staff_id', 'aa000016-0000-4000-8000-000000000021')::text,
+  true
+);
 
 select throws_ok(
   $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source)

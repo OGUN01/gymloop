@@ -57,7 +57,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(35);
+select plan(41);
 
 
 -- ---------------------------------------------------------------------------
@@ -664,6 +664,228 @@ select is(
   false,
   'app.enforce_check_in() runs as the caller: a before-insert trigger that reads past RLS is reachable by every role that may attempt an insert, and it answered them out of tables the matrix gives them zero rows of'
 );
+
+-- ---------------------------------------------------------------------------
+-- An attendance row is written once and never edited (36-39)
+--
+-- Everything above this line is an INSERT, and that is the hole. Each guard the
+-- spec names -- the de-duplication window, the live-membership gate, the
+-- scanned session's validity, the acting staff member -- is enforced when a row
+-- arrives, so each is a property of INSERTING and not a property of
+-- `attendance`. `authenticated` holds UPDATE on the table and
+-- attendance_tenant_write is is_front_office() for ALL commands, so one UPDATE
+-- from an ordinary front-desk session walks past every one of them at once.
+-- The four below are the four the spec's scenarios name, and each of them
+-- undoes an assertion this same file has already proved on the insert path.
+--
+-- HOW THESE ARE WRITTEN, AND WHY IT IS NOT A THROWS_OK
+--
+-- The outcome the spec asks for is "the update SHALL be refused", and a refusal
+-- has two shapes that are both correct: an exception (a revoked grant raises
+-- 42501, a trigger raises its own code) and a silent zero-row update (a policy
+-- that no longer admits the command simply filters the row out, and Postgres
+-- raises nothing at all). A `throws_ok` would call the second one a failure and
+-- would pin this suite to whichever mechanism the implementer happened to pick
+-- -- and worse, a test that ONLY looks for an exception passes on a zero-row
+-- update that never happened, which is the same trap from the other side.
+--
+-- So the four attempts run inside one DO block, each in its own sub-block with
+-- an exception handler that swallows whatever comes back. A refused update
+-- leaves nothing; an update that is NOT refused persists, because a plpgsql
+-- sub-transaction only rolls back on the exception path. The assertions that
+-- follow then read the rows and say what the spec says: the visit is exactly
+-- what it was. Revoked grant, dropped policy, trigger -- all three go green
+-- here, and doing nothing goes red. No assertion below names a mechanism.
+-- ---------------------------------------------------------------------------
+
+-- Two more visits for A Spare, two hours apart -- outside gym A's 3600-second
+-- window, so both are accepted on the insert path today. They exist so that
+-- there is a pair of visits a single UPDATE could pull inside the window.
+-- Added here, after assertion 34, so that its count of seven is untouched.
+insert into public.attendance (tenant_id, branch_id, member_id, source, qr_session_id, checked_in_at) values
+  ('16000000-0000-4000-8000-000000000001'::uuid, '16000000-0000-4000-8000-000000000011'::uuid,
+   '16000000-0000-4000-8000-000000000037'::uuid, 'qr', '16000000-0000-4000-8000-000000000061'::uuid,
+   now() - interval '2 hours'),
+  ('16000000-0000-4000-8000-000000000001'::uuid, '16000000-0000-4000-8000-000000000011'::uuid,
+   '16000000-0000-4000-8000-000000000037'::uuid, 'qr', '16000000-0000-4000-8000-000000000061'::uuid,
+   now());
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '16000000-0000-4000-8000-000000000001',
+                    'app_role', 'front_desk',
+                    'staff_id', '16000000-0000-4000-8000-000000000021')::text,
+  true);
+set local role authenticated;
+
+do $do$
+begin
+  -- "Moving a visit inside the de-duplication window": drag A Spare's earlier
+  -- visit forward until it sits one minute from the later one, inside gym A's
+  -- 3600-second window. Assertion 17 proved a second row cannot ARRIVE there.
+  begin
+    update public.attendance
+       set checked_in_at = now() - interval '1 minute'
+     where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+       and member_id = '16000000-0000-4000-8000-000000000037'::uuid
+       and checked_in_at < now() - interval '1 hour';
+  exception when others then null;
+  end;
+
+  -- "Erasing the assisted pair": flip the front-desk row to qr and null both
+  -- assist columns. attendance_front_desk_has_assist_chk only bites when source
+  -- IS front_desk, and attendance_assisted_pair_chk only wants the two columns
+  -- to agree -- both are satisfied, so no constraint saves this one.
+  begin
+    update public.attendance
+       set source = 'qr', assisted_by_staff_id = null, assist_reason = null
+     where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+       and member_id = '16000000-0000-4000-8000-000000000036'::uuid;
+  exception when others then null;
+  end;
+
+  -- "Reassigning a visit", member_id: move A Active's visit onto A Lapsed,
+  -- whose only memberships are expired and cancelled. Assertion 12 proved that
+  -- member cannot get a visit by inserting one.
+  begin
+    update public.attendance
+       set member_id = '16000000-0000-4000-8000-000000000032'::uuid
+     where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+       and member_id = '16000000-0000-4000-8000-000000000031'::uuid;
+  exception when others then null;
+  end;
+
+  -- "Reassigning a visit", qr_session_id: name the expired session on a row
+  -- that was scanned with the live one. The composite foreign key of assertion
+  -- 4 passes -- both sessions belong to gym A -- so the tenant re-check is not
+  -- what refuses this. Assertion 9 proved the expired session cannot arrive on
+  -- the insert path.
+  begin
+    update public.attendance
+       set qr_session_id = '16000000-0000-4000-8000-000000000062'::uuid
+     where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+       and member_id = '16000000-0000-4000-8000-000000000033'::uuid;
+  exception when others then null;
+  end;
+end
+$do$;
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+-- 36
+select results_eq(
+  $$
+    select checked_in_at
+    from public.attendance
+    where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+      and member_id = '16000000-0000-4000-8000-000000000037'::uuid
+    order by checked_in_at
+  $$,
+  $$ values (now() - interval '2 hours'), (now()) $$,
+  'scenario "Moving a visit inside the de-duplication window" — both visits still read what was recorded, two hours apart. Gym A''s window is 3600 seconds, so a visit whose time can be rewritten is a de-duplication rule that only holds until somebody edits the row it was measured against'
+);
+
+-- 37 — the same query assertion 33 ran before the update, run again after it.
+select results_eq(
+  $$
+    select source::text collate "default", assisted_by_staff_id, assist_reason::text collate "default"
+    from public.attendance
+    where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+      and member_id = '16000000-0000-4000-8000-000000000036'::uuid
+  $$,
+  $$ values ('front_desk'::text, '16000000-0000-4000-8000-000000000021'::uuid, 'phone battery dead'::text) $$,
+  'scenario "Erasing the assisted pair" — the row still says who marked this member present and why. ATT-005 exists to make that attributable, and an attribution that can be nulled by the person it names is not one'
+);
+
+-- 38 — both directions of the reassignment in one count: the visit is still
+-- where it was made, and the member it was aimed at still has none.
+select results_eq(
+  $$
+    select member_id, count(*)::int
+    from public.attendance
+    where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+      and member_id in ('16000000-0000-4000-8000-000000000031'::uuid,
+                        '16000000-0000-4000-8000-000000000032'::uuid)
+    group by member_id
+    order by member_id
+  $$,
+  $$ values ('16000000-0000-4000-8000-000000000031'::uuid, 1) $$,
+  'scenario "Reassigning a visit" — the visit still belongs to the member who made it, and the lapsed member has none: assertion 12 refuses that member a visit on the way in, and an UPDATE must not be a second door into the same place'
+);
+
+-- 39
+select is(
+  (select qr_session_id from public.attendance
+    where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+      and member_id = '16000000-0000-4000-8000-000000000033'::uuid),
+  '16000000-0000-4000-8000-000000000061'::uuid,
+  'scenario "Reassigning a visit" — the row still names the live session that was actually scanned. Assertion 9 refuses the expired session on the way in; a visit that can be re-pointed at it afterwards makes the scan record evidence of nothing'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- ATT-005 — the acting staff member is the session, not a field (40-41)
+--
+-- Assertion 30 records an assisted check-in whose assisted_by_staff_id happens
+-- to match the session's own staff_id, which is what an honest client sends and
+-- therefore cannot tell a column that is DERIVED from the session apart from a
+-- column that is merely COPIED from the request. This pair supplies a colleague
+-- instead: same gym, same front-desk role, so nothing about the tenant or the
+-- role matrix is what should refuse it. The only thing wrong with the row is
+-- that the writer chose who to blame.
+--
+-- A Colleague has an active membership and no visits, so a refusal here cannot
+-- be the live-membership gate or the de-duplication window arriving first.
+-- ---------------------------------------------------------------------------
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('16000000-0000-4000-8000-000000000024'::uuid, '16000000-0000-4000-8000-000000000001'::uuid, '16000000-0000-4000-8000-000000000011'::uuid, 'front_desk', 'A Desk Two');
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('16000000-0000-4000-8000-00000000003a'::uuid, '16000000-0000-4000-8000-000000000001'::uuid, '16000000-0000-4000-8000-000000000011'::uuid, 'A Colleague', '+911600000040');
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('16000000-0000-4000-8000-00000000005b'::uuid, '16000000-0000-4000-8000-000000000001'::uuid, '16000000-0000-4000-8000-00000000003a'::uuid, '16000000-0000-4000-8000-000000000041'::uuid, 'active', current_date - 30, current_date + 30, 200000);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '16000000-0000-4000-8000-000000000001',
+                    'app_role', 'front_desk',
+                    'staff_id', '16000000-0000-4000-8000-000000000021')::text,
+  true);
+set local role authenticated;
+
+-- 40 — an INSERT, so unlike the updates above there is no silent-no-op shape to
+-- allow for: a row that a policy will not admit raises, and a row that nothing
+-- objects to lands. Which code it raises is the implementer's business.
+select throws_ok($$
+  insert into public.attendance
+    (tenant_id, branch_id, member_id, source, assisted_by_staff_id, assist_reason)
+  values ('16000000-0000-4000-8000-000000000001'::uuid,
+          '16000000-0000-4000-8000-000000000011'::uuid,
+          '16000000-0000-4000-8000-00000000003a'::uuid, 'front_desk',
+          '16000000-0000-4000-8000-000000000024'::uuid, 'colleague was on the desk')
+$$, null::char(5), null,
+  'scenario "Naming a colleague as the acting staff member" — a front-desk session holding staff 021 cannot file the visit under staff 024. The acting staff member is whoever holds the session; a value that arrived in the request is not evidence of who acted');
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+-- 41 — the "and nothing was recorded" half, which also rules out the near-miss
+-- fix: silently overwriting the supplied id with the session's own would leave a
+-- row here, and the spec asks for a refusal, not a correction. The write the
+-- front desk thought it was making is not the write it made.
+select is(
+  (select count(*)::int from public.attendance
+    where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+      and member_id = '16000000-0000-4000-8000-00000000003a'::uuid),
+  0,
+  'scenario "Naming a colleague as the acting staff member" — no attendance row exists for that member afterwards: the write is refused outright, not quietly rewritten into a different one'
+);
+
 
 select * from finish();
 

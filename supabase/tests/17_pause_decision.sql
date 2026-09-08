@@ -34,22 +34,24 @@
 --   Proven outright. The configured role is read per gym (2/4/17/20). Equality
 --   is equality and not seniority: a gym_owner is refused in a gym whose
 --   configured approver is gym_manager (5). The approver is the acting staff
---   member (7). The requester cannot grant their own freeze, at either role
---   (9, 18), and a colleague of the right role can (11). Rejection is
---   ungoverned, including by the very actor whose approval was refused one
---   assertion earlier in the same gym on the same kind of row (20 vs 21) —
---   that pair is what goes red when a later reader "tidies" the asymmetry into
---   symmetry.
+--   member (7). The requester cannot grant their own freeze — not plainly (18)
+--   and not by rewriting who asked in the same breath (9) — and a colleague of
+--   the right role can (11). Rejection is ungoverned, including by the very
+--   actor whose approval was refused one assertion earlier in the same gym on
+--   the same kind of row (20 vs 21) — that pair is what goes red when a later
+--   reader "tidies" the asymmetry into symmetry. The recorded requester is
+--   immutable (27/28), a pause cannot be born decided (35), and a session
+--   carrying no staff identity decides nothing (29-32) while a trusted
+--   non-authenticated context still writes freely (33/34).
 --
 --   Approximated, and said so. Assertions 24 and 26 wrap the second decision
---   in an exception-swallowing DO block, because the fifth requirement says
---   "nothing SHALL change" and does not say whether the second approver is
---   refused loudly or ignored quietly. Both readings satisfy the requirement,
---   so the assertion is on the state afterwards, not on the outcome of the
---   statement. Assertion 27 attacks the INSERT path — a pause that arrives
---   already approved — which the requirement's word "approval" covers but its
---   scenarios never name. If it is red, that is a genuine open question about
---   the requirement, not a transcription slip.
+--   in an exception-swallowing DO block, because the "a decided pause stays
+--   decided" requirement says "nothing SHALL change" and does not say whether
+--   the second approver is refused loudly or ignored quietly. Both readings
+--   satisfy the requirement, so the assertion is on the state afterwards, not
+--   on the outcome of the statement. Assertions 29-32 do NOT get that
+--   treatment: "Only a session with a staff identity may decide" says the
+--   write SHALL be refused, so those are throws_ok.
 --
 --   Not attempted. Nothing here concerns which roles may write pauses at all;
 --   the write gate is `is_front_office()` and belongs to the authorization
@@ -71,7 +73,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(28);
+select plan(37);
 
 
 -- ---------------------------------------------------------------------------
@@ -115,7 +117,7 @@ insert into public.memberships (id, tenant_id, member_id, plan_id, status, start
   ('17000000-0000-4000-8000-000000000051'::uuid, '17000000-0000-4000-8000-000000000001'::uuid, '17000000-0000-4000-8000-000000000031'::uuid, '17000000-0000-4000-8000-000000000041'::uuid, 'active', current_date - 10, current_date + 50, 200000),
   ('17000000-0000-4000-8000-000000000052'::uuid, '17000000-0000-4000-8000-000000000002'::uuid, '17000000-0000-4000-8000-000000000032'::uuid, '17000000-0000-4000-8000-000000000042'::uuid, 'active', current_date - 10, current_date + 50, 200000);
 
--- Thirteen pending pauses — approved_at and rejected_at both null — one per
+-- Seventeen pending pauses — approved_at and rejected_at both null — one per
 -- decision this file makes, so no assertion inherits state from another.
 -- The requester is chosen per row so that the reason a write is refused is
 -- never ambiguous: where the role is on trial the requester is somebody else,
@@ -134,7 +136,19 @@ insert into public.membership_pauses
   ('17000000-0000-4000-8000-00000000006a'::uuid, '17000000-0000-4000-8000-000000000002'::uuid, '17000000-0000-4000-8000-000000000052'::uuid, current_date + 1, current_date + 8,  'travel',            '17000000-0000-4000-8000-000000000027'::uuid),
   ('17000000-0000-4000-8000-00000000006b'::uuid, '17000000-0000-4000-8000-000000000002'::uuid, '17000000-0000-4000-8000-000000000052'::uuid, current_date + 1, current_date + 8,  'injury',            '17000000-0000-4000-8000-000000000025'::uuid),
   ('17000000-0000-4000-8000-00000000006c'::uuid, '17000000-0000-4000-8000-000000000002'::uuid, '17000000-0000-4000-8000-000000000052'::uuid, current_date + 1, current_date + 8,  'duplicate',         '17000000-0000-4000-8000-000000000025'::uuid),
-  ('17000000-0000-4000-8000-00000000006d'::uuid, '17000000-0000-4000-8000-000000000002'::uuid, '17000000-0000-4000-8000-000000000052'::uuid, current_date + 1, current_date + 8,  'own request',       '17000000-0000-4000-8000-000000000025'::uuid);
+  ('17000000-0000-4000-8000-00000000006d'::uuid, '17000000-0000-4000-8000-000000000002'::uuid, '17000000-0000-4000-8000-000000000052'::uuid, current_date + 1, current_date + 8,  'own request',       '17000000-0000-4000-8000-000000000025'::uuid),
+  -- Three more for the requirements the blind critic added. All three are
+  -- requested by the owner (24), so that in every one of them the acting
+  -- session is a stranger to the request and the requester rule is not what
+  -- refuses.
+  ('17000000-0000-4000-8000-00000000006e'::uuid, '17000000-0000-4000-8000-000000000001'::uuid, '17000000-0000-4000-8000-000000000051'::uuid, current_date + 1, current_date + 8,  'reassignment',      '17000000-0000-4000-8000-000000000024'::uuid),
+  ('17000000-0000-4000-8000-00000000006f'::uuid, '17000000-0000-4000-8000-000000000001'::uuid, '17000000-0000-4000-8000-000000000051'::uuid, current_date + 1, current_date + 8,  'impersonated',      '17000000-0000-4000-8000-000000000024'::uuid),
+  ('17000000-0000-4000-8000-000000000070'::uuid, '17000000-0000-4000-8000-000000000001'::uuid, '17000000-0000-4000-8000-000000000051'::uuid, current_date + 1, current_date + 8,  'trusted context',   '17000000-0000-4000-8000-000000000024'::uuid),
+  -- 71 is assertion 9's own row, requested by manager 22 exactly as 65 is.
+  -- It exists so that the write assertion 9 attempts — the one a broken
+  -- implementation lets through — cannot decide the row assertions 11 and 12
+  -- need pending.
+  ('17000000-0000-4000-8000-000000000071'::uuid, '17000000-0000-4000-8000-000000000001'::uuid, '17000000-0000-4000-8000-000000000051'::uuid, current_date + 1, current_date + 8,  'own request A',     '17000000-0000-4000-8000-000000000022'::uuid);
 
 
 -- ---------------------------------------------------------------------------
@@ -300,10 +314,18 @@ select is(
 -- ---------------------------------------------------------------------------
 -- The person who asked is not the person who grants (9-12)
 --
--- Pause 65 was requested by manager 22, who holds gym A's configured approver
--- role. Every other condition is satisfied, so separation of duties is the
--- only thing that can refuse it — and manager 23, identical in role and gym,
--- differing only in not having asked, must be able to grant the same row.
+-- Pauses 71 and 65 were both requested by manager 22, who holds gym A's
+-- configured approver role. Every other condition is satisfied, so separation
+-- of duties is the only thing that can refuse either — and manager 23,
+-- identical in role and gym, differing only in not having asked, must be able
+-- to grant one.
+--
+-- Two rows and not one, deliberately. Assertion 9 is a write that a broken
+-- implementation LETS THROUGH, so if it shared a row with assertion 11 then
+-- the hole at 9 would decide 11's row and take 11 and 12 down with it — three
+-- red assertions reporting one defect, two of them about a rule that is not
+-- broken. A test that goes red for somebody else's reason is a test that will
+-- be misread.
 -- ---------------------------------------------------------------------------
 
 select set_config(
@@ -315,24 +337,39 @@ select set_config(
   true);
 set local role authenticated;
 
--- 9
+-- 9 — CORRECTED. This assertion used to issue the naive self-approval: it set
+-- only the approval columns and left requested_by_staff_id alone. That form
+-- passes against a system with the hole wide open, because the statement a
+-- self-approving manager would actually write is this one — rewriting who
+-- asked and granting the freeze in the SAME UPDATE. membership_pauses grants
+-- update to authenticated and its write policy is is_front_office() for every
+-- command, so nothing stops the two columns moving together. A separation-of-
+-- duties rule the writer can satisfy by rewriting the other half of the
+-- comparison is decoration, and the naive assertion could not tell the two
+-- apart. This is therefore both scenario "Approving one's own request" and
+-- scenario "Reassigning the request in the approving statement" — the second
+-- is what makes the first a control at all.
 select throws_ok($$
   update public.membership_pauses
-     set approved_by_staff_id = '17000000-0000-4000-8000-000000000022'::uuid,
+     set requested_by_staff_id = '17000000-0000-4000-8000-000000000023'::uuid,
+         approved_by_staff_id = '17000000-0000-4000-8000-000000000022'::uuid,
          approved_at = now()
-   where id = '17000000-0000-4000-8000-000000000065'::uuid
+   where id = '17000000-0000-4000-8000-000000000071'::uuid
 $$, null::char(5), null,
-  'scenario "Approving one''s own request" — the manager who raised this pause holds exactly the role the gym configured, and is refused anyway: one person deciding a freeze alone is the shape every expense-approval control exists to prevent');
+  'scenarios "Approving one''s own request" and "Reassigning the request in the approving statement" — the manager who raised this pause holds exactly the role the gym configured, and cannot buy their way past the two-person rule by moving the request onto a colleague in the same statement. Recording an employee as having asked for a freeze they never asked for is the falsification, and the approval riding on it is the loss');
 
 set local role postgres;
 
--- 10
+-- 10 — the requester is half of the comparison assertion 9 relies on, so the
+-- state check has to include it: a refusal that still let requested_by move
+-- would leave the permanent record naming manager 23, who never asked.
 select is(
   (select count(*)::int from public.membership_pauses
-    where id = '17000000-0000-4000-8000-000000000065'::uuid
-      and approved_at is null and rejected_at is null),
+    where id = '17000000-0000-4000-8000-000000000071'::uuid
+      and approved_at is null and rejected_at is null
+      and requested_by_staff_id = '17000000-0000-4000-8000-000000000022'::uuid),
   1,
-  'the self-approval left the pause pending, available for somebody else to decide'
+  'the refused self-approval left the pause pending AND left manager 22 recorded as the person who asked — available for somebody else to decide, on the true facts'
 );
 
 select set_config(
@@ -639,30 +676,196 @@ select results_eq(
 
 
 -- ---------------------------------------------------------------------------
--- An approval that never passes through the pending state (27-28)
+-- The person who asked is recorded once and cannot be changed (27-28)
 --
--- The first requirement governs "an approval", and an insert that arrives with
--- approved_by_staff_id and approved_at already filled is an approval — one
--- that never existed as a pending row for anyone to review. The requirement's
--- scenarios never name the insert path, so this assertion is the reading of
--- the requirement's sentence rather than of its examples; if it is red, the
--- open question is which of the two the requirement meant.
+-- Scenario "Reassigning the request in the approving statement" is assertion
+-- 9, where it belongs: the rewrite only matters because it is what turns the
+-- two-person rule into a formality. This section is the other scenario, the
+-- rewrite standing on its own, with no decision anywhere near it.
 --
--- The row below is wrong twice over: front_desk is not gym A's configured
--- approver role, and the acting staff member is recorded as both the requester
--- and the approver.
+-- Manager 22 is a stranger to pause 6e — the owner raised it — holds gym A's
+-- configured approver role, and touches no approval column. Every rule in
+-- every requirement above is satisfied or irrelevant. The only thing that can
+-- refuse this statement is the requester being fixed from the moment the pause
+-- exists, which is exactly what makes it worth asserting separately: an
+-- implementation that guards requested_by only when the approval columns move
+-- in the same UPDATE passes assertion 9 and fails here, and it should, because
+-- the falsified record — an employee named as having asked for a freeze — is
+-- the harm whether or not a decision rides along with it.
 -- ---------------------------------------------------------------------------
 
 select set_config(
   'request.jwt.claims',
   json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
                     'tenant_id', '17000000-0000-4000-8000-000000000001',
-                    'app_role', 'front_desk',
-                    'staff_id', '17000000-0000-4000-8000-000000000021')::text,
+                    'app_role', 'gym_manager',
+                    'staff_id', '17000000-0000-4000-8000-000000000022')::text,
   true);
 set local role authenticated;
 
 -- 27
+select throws_ok($$
+  update public.membership_pauses
+     set requested_by_staff_id = '17000000-0000-4000-8000-000000000022'::uuid
+   where id = '17000000-0000-4000-8000-00000000006e'::uuid
+$$, null::char(5), null,
+  'scenario "Reassigning the request on its own" — requested_by_staff_id is fixed from the moment the pause exists. A manager may write this table and still may not move somebody else''s request onto themselves, or their own onto somebody else'
+);
+
+set local role postgres;
+
+-- 28
+select is(
+  (select requested_by_staff_id from public.membership_pauses
+    where id = '17000000-0000-4000-8000-00000000006e'::uuid),
+  '17000000-0000-4000-8000-000000000024'::uuid,
+  'the refused reassignment left the owner recorded as the person who asked'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Only a session with a staff identity may decide (29-34)
+--
+-- WHAT IS BEING CONSTRUCTED HERE, SAID PLAINLY: the claim set below is the
+-- SHAPE app.custom_access_token_hook mints for a live impersonation session —
+-- app_role 'gym_owner' and a tenant_id, deliberately no staff_id — set
+-- directly with set_config, exactly as every other session in this file is.
+-- This tests the guard against that claim shape. It does not test the hook,
+-- and it does not need a real impersonation row: what reaches the write is a
+-- claim set, and a claim set is what is asserted against. If the hook ever
+-- stops minting this shape that is the hook's suite's problem, not this one's.
+--
+-- Such a session passes is_front_office() — app_role is gym_owner — so it may
+-- write membership_pauses and the row is visible to it. What it cannot do is
+-- meet any rule in this file: not the configured role, not the two-person
+-- rule, not "a decided pause stays decided", because every one of them is a
+-- comparison against a staff_id that is not there. A guard that returns early
+-- when it cannot identify the caller reads that as trust.
+--
+-- Assertions 33/34 are the other half and are not optional: the early return
+-- is legitimate for postgres and service_role, which bypass row security by
+-- design and are what every fixture and the seed run as. An implementation
+-- that fixed 29-32 with a blanket refusal, or with a CHECK constraint, would
+-- break every fixture in the repo — 33/34 is what catches that before it is
+-- shipped, and 29 vs 33 is the discriminating pair: the same statement, the
+-- same absent staff identity, opposite outcomes, because one is subject to row
+-- security and the other is not.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '17000000-0000-4000-8000-000000000001',
+                    'app_role', 'gym_owner')::text,
+  true);
+set local role authenticated;
+
+-- 29 — the named approver is manager 22: a real staff member of gym A holding
+-- the configured approver role, and not the requester. Under every rule above
+-- this row is impeccable. The one thing wrong is that nobody with a staff
+-- identity is acting.
+select throws_ok($$
+  update public.membership_pauses
+     set approved_by_staff_id = '17000000-0000-4000-8000-000000000022'::uuid,
+         approved_at = now()
+   where id = '17000000-0000-4000-8000-00000000006f'::uuid
+$$, null::char(5), null,
+  'scenario "An impersonating platform admin approves a freeze" — a token carrying app_role gym_owner and a tenant_id but no staff_id passes the write gate and has no staff identity to check anything against. docs/security.md says impersonation has the gym''s reach and not more; granting a freeze no member of the gym could grant is more'
+);
+
+-- 30 — the same session at the worst path of all: rewriting a decision that
+-- has already been made. Pause 61 was approved by manager 22 at assertion 2.
+-- Every rule in this file keys off the pause being undecided, so this is the
+-- statement that skips them all.
+select throws_ok($$
+  update public.membership_pauses
+     set approved_by_staff_id = '17000000-0000-4000-8000-000000000023'::uuid,
+         approved_at = now()
+   where id = '17000000-0000-4000-8000-000000000061'::uuid
+$$, null::char(5), null,
+  'scenario "An impersonating platform admin rewrites a decision" — the staff-identity guard has to run before the already-decided check, not after it, or the one caller who meets no rule is the one caller who can overwrite who granted a freeze'
+);
+
+set local role postgres;
+
+-- 31
+select is(
+  (select count(*)::int from public.membership_pauses
+    where id = '17000000-0000-4000-8000-00000000006f'::uuid
+      and approved_at is null and rejected_at is null
+      and approved_by_staff_id is null),
+  1,
+  'the impersonated approval left the pause pending and nothing half-written'
+);
+
+-- 32
+select results_eq(
+  $$
+    select approved_by_staff_id from public.membership_pauses
+     where id = '17000000-0000-4000-8000-000000000061'::uuid
+  $$,
+  $$ values ('17000000-0000-4000-8000-000000000022'::uuid) $$,
+  'scenario "An impersonating platform admin rewrites a decision" — manager 22, who actually made the decision at assertion 2, is still the one recorded'
+);
+
+-- The trusted context. Role postgres, no jwt claims at all — the same shape
+-- every fixture insert in this file and every row of the seed runs as, and
+-- the same statement assertion 29 was refused for.
+select set_config('request.jwt.claims', '', true);
+
+-- 33
+select lives_ok($$
+  update public.membership_pauses
+     set approved_by_staff_id = '17000000-0000-4000-8000-000000000022'::uuid,
+         approved_at = now()
+   where id = '17000000-0000-4000-8000-000000000070'::uuid
+$$, 'scenario "The seed and the fixtures are unaffected" — a trusted context that is not an authenticated session writes a decision with no staff identity of its own and is not refused');
+
+-- 34
+select results_eq(
+  $$
+    select approved_by_staff_id, approved_at is not null
+      from public.membership_pauses
+     where id = '17000000-0000-4000-8000-000000000070'::uuid
+  $$,
+  $$ values ('17000000-0000-4000-8000-000000000022'::uuid, true) $$,
+  'the trusted context''s write landed — row security does not apply to it, and a rule imposed there would break every fixture without protecting anything a policy is not already protecting'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- A pause cannot be created already decided (35-36)
+--
+-- CORRECTED. Assertion 35 used to name the acting staff member as BOTH the
+-- requester and the approver, which meant the self-approval rule refused it
+-- and the insert rule was never on trial: the assertion's message claimed a
+-- rule its fixture could not distinguish from one already proven at assertion
+-- 9, and an assertion whose name claims more than its fixture proves is worse
+-- than no assertion, because it reads as coverage. The requester is now the
+-- owner (24) and the acting session is manager 22, holding gym A's configured
+-- approver role and recording itself. Role rule satisfied, approver-is-actor
+-- satisfied, two-person rule satisfied. The only thing left that can refuse
+-- this insert is the insert rule.
+--
+-- Assertion 36 is the carve-out the requirement states in the same breath, and
+-- it is load-bearing: the seed and the demo scenario data legitimately create
+-- an already-approved pause — there is one covering today, and Phase 4's
+-- no-show scan is built to find it — as postgres, which bypasses row security.
+-- An implementation that reached for a CHECK constraint would pass 35 and
+-- break the seed; 36 is where that shows up as red instead of as a broken
+-- environment.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '17000000-0000-4000-8000-000000000001',
+                    'app_role', 'gym_manager',
+                    'staff_id', '17000000-0000-4000-8000-000000000022')::text,
+  true);
+set local role authenticated;
+
+-- 35
 select throws_ok($$
   insert into public.membership_pauses
     (id, tenant_id, membership_id, starts_on, ends_on, reason,
@@ -671,25 +874,40 @@ select throws_ok($$
           '17000000-0000-4000-8000-000000000001'::uuid,
           '17000000-0000-4000-8000-000000000051'::uuid,
           current_date + 1, current_date + 8, 'born approved',
-          '17000000-0000-4000-8000-000000000021'::uuid,
-          '17000000-0000-4000-8000-000000000021'::uuid,
+          '17000000-0000-4000-8000-000000000024'::uuid,
+          '17000000-0000-4000-8000-000000000022'::uuid,
           now())
 $$, null::char(5), null,
-  'requirement "The gym decides which role approves a freeze" — a pause cannot be inserted already approved. Governing only the update leaves the whole rule reachable by writing the decision at creation time, which is the same bypass in a different statement'
+  'scenario "A pause born approved" — a session subject to row security cannot insert a pause carrying approved_at, naming a colleague as the requester and itself as the approver. On an insert both sides of every rule above are the caller''s own input in one statement, so the rules are vacuous by construction there and the state simply has no legitimate way to arise: a gym wanting an immediately-approved freeze writes two statements, and the second one is governed'
 );
 
 set local role postgres;
 select set_config('request.jwt.claims', '', true);
 
--- 28 — ADR-050: scoped to this file's own two tenants. Thirteen pauses were
--- inserted as fixtures and none were added since; the refused insert left
--- nothing behind, and no refused approval created a row of its own.
+-- 36
+select lives_ok($$
+  insert into public.membership_pauses
+    (id, tenant_id, membership_id, starts_on, ends_on, reason,
+     requested_by_staff_id, approved_by_staff_id, approved_at)
+  values ('17000000-0000-4000-8000-0000000000fe'::uuid,
+          '17000000-0000-4000-8000-000000000001'::uuid,
+          '17000000-0000-4000-8000-000000000051'::uuid,
+          current_date + 1, current_date + 8, 'seeded approved',
+          '17000000-0000-4000-8000-000000000024'::uuid,
+          '17000000-0000-4000-8000-000000000022'::uuid,
+          now())
+$$, 'requirement "A pause cannot be created already decided" — "a session subject to row security" and not "whoever is asking": the seed creates an already-approved pause as postgres, and a constraint that no context can bypass would take the demo data and Phase 4''s no-show scan down with it');
+
+-- 37 — ADR-050: scoped to this file's own two tenants. Seventeen pauses were
+-- inserted as fixtures and assertion 36 legitimately added an eighteenth; the
+-- refused insert at 35 left nothing behind, and no refused update created a
+-- row of its own.
 select is(
   (select count(*)::int from public.membership_pauses
     where tenant_id in ('17000000-0000-4000-8000-000000000001'::uuid,
                         '17000000-0000-4000-8000-000000000002'::uuid)),
-  13,
-  'the two fixture gyms hold exactly the thirteen pauses this file created: every refusal above refused, and none of them left a partial row'
+  18,
+  'the two fixture gyms hold exactly the eighteen pauses this file created: every refusal above refused, and none of them left a partial row'
 );
 
 select * from finish();

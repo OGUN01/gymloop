@@ -81,6 +81,23 @@ A refusal table keyed by SQLSTATE is looked up by a code that arrives from outsi
 - **WHEN** the database refuses with a code such as `constructor` or `toString`
 - **THEN** the response SHALL carry a failure status, never 200
 
+### Requirement: An attendance row is written once and never edited
+THE SYSTEM SHALL make a recorded visit unmodifiable by an ordinary session. A correction is a new row in `attendance_corrections`, which already grants `select, insert` and no `update`; the visit itself stands.
+
+**This is the rule the whole capability rests on and it was specified only for `INSERT`.** Every guard above — the de-duplication window, the live-membership gate, the scanned session's validity, the acting staff member — is enforced by a `before insert` trigger, so each one is a property of *inserting*, not a property of `attendance`. `authenticated` holds `update` on the table and the write policy is `is_front_office()` for ALL commands, which means one `UPDATE` reaches past all of them: two rows inside the window, a visit re-attributed to a member with no live membership, an expired gate session named on a row that was scanned with a valid one, or the assisted pair blanked so the record that one person marked another present is gone. **Widening the trigger's event list is not the fix here** — an `update` to `attendance` is not a check-in arriving, it is a check-in being rewritten, and there is no such operation in this product.
+
+#### Scenario: Moving a visit inside the de-duplication window
+- **WHEN** a front-office session updates a recorded visit's `checked_in_at` so that two visits fall inside the gym's window
+- **THEN** the update SHALL be refused
+
+#### Scenario: Erasing the assisted pair
+- **WHEN** a front-office session updates a `front_desk` row to `source = 'qr'` with both assist columns nulled
+- **THEN** the update SHALL be refused — ATT-005 exists so that marking somebody else present is attributable, and an attributable record that can be un-attributed is not one
+
+#### Scenario: Reassigning a visit
+- **WHEN** a front-office session updates a recorded visit's `member_id` or `qr_session_id`
+- **THEN** the update SHALL be refused
+
 ### Requirement: An assisted check-in names the staff member and the reason
 WHEN staff record a check-in on a member's behalf, THE SYSTEM SHALL require the acting staff member and a non-empty reason, and SHALL record the source as `front_desk` (ATT-005, ATT-006).
 
@@ -104,6 +121,10 @@ WHEN staff record a check-in on a member's behalf, THE SYSTEM SHALL require the 
 #### Scenario: A trainer attempting an assisted check-in
 - **WHEN** a caller whose role is `trainer` submits an assisted check-in
 - **THEN** it SHALL be rejected — the matrix gives `attendance` a write gate of front office and above
+
+#### Scenario: Naming a colleague as the acting staff member
+- **WHEN** a front-desk session records an assisted check-in supplying a *different* staff member in `assisted_by_staff_id`
+- **THEN** the write SHALL be refused. The acting staff member is whoever holds the session, and a value supplied by the caller is not evidence of that. Defaulting the column when it arrives null is not enough: a supplied value is kept, so the one column that says who marked another member present is currently whatever the writer typed. ATT-005 exists to make that attributable, and an attribution the writer chooses is not one. *(The HTTP schema has no field for it, which makes the endpoint honest and the table not — and the endpoint is not the boundary.)*
 
 ### Requirement: A check-in never crosses a tenant
 THE SYSTEM SHALL record attendance only for a member of the acting session's own gym, and SHALL NOT rely on the caller supplying the correct tenant.
