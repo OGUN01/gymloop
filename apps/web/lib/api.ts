@@ -221,12 +221,22 @@ type Parser<T> = {
 export async function staffFormParsed<T>(
   request: Request,
   schema: Parser<T>,
-): Promise<{ failure: Response } | { invalid: true } | (StaffSession & { data: T })> {
+): Promise<
+  | { failure: Response }
+  | { invalid: true; fields: Record<string, string> }
+  | (StaffSession & { data: T })
+> {
   const caller = await staffForm(request);
   if ('failure' in caller) return { failure: caller.failure };
 
   const submitted = schema.safeParse(caller.fields);
-  if (!submitted.success) return { invalid: true };
+  // The raw fields travel with the refusal. A handler that cannot parse a body
+  // may still be able to see WHERE the form came from — the refunds handler
+  // reads a syntactically valid `paymentId` out of a body whose other fields
+  // failed, and returns the manager to that receipt instead of dumping them on
+  // the ledger. A blind test author asserted that reading and was right: the
+  // information was there and was being thrown away.
+  if (!submitted.success) return { invalid: true, fields: caller.fields };
 
   return {
     supabase: caller.supabase,

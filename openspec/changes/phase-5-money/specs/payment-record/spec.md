@@ -62,6 +62,27 @@ notices: two documents, one number, and nothing recording that either changed.
 - **WHEN** `notes` is changed on a paid payment
 - **THEN** the change SHALL succeed
 
+### Requirement: A receipt number is the counter's alone, at every status
+THE SYSTEM SHALL ignore a caller-supplied `receipt_number` for every session row
+security applies to, filling it when the payment becomes paid and leaving it
+null before that.
+
+Overwriting it only on the write that makes a payment paid left a `created` row
+free to carry any number at all — and **one squatted number jams the gym's book
+permanently**. The next real payment collides on
+`payments_tenant_id_receipt_number_key`; the failing insert rolls the counter's
+increment back with it, so `next_number` never advances; and every later payment
+collides on the same number for ever. Measured from an ordinary front-desk
+session.
+
+`GL037` closed the counter door and this reached the same room through the
+payment row. Worse, the handler reports that collision as "already recorded" —
+cash taken, nothing written, and a screen saying it is on file.
+
+#### Scenario: A number typed onto an unpaid payment
+- **WHEN** a `created` payment is written carrying a `receipt_number`
+- **THEN** the number SHALL NOT be kept, and the gym's next paid payment SHALL be numbered normally
+
 ### Requirement: A payment's status moves only where it can actually go
 THE SYSTEM SHALL permit only these transitions and SHALL refuse every other:
 `created` → `pending`, `paid`, `failed`; `pending` → `paid`, `failed`;
@@ -199,11 +220,47 @@ door on precisely this sentence and left the instalment door open: ₹500 now an
 ₹500 next week is ordinary practice in an Indian gym, and it bought sixty days
 on a thirty-day plan.
 
-Counted cumulatively over the membership's own payments, so it needs no marker
-column and cannot drift: a payment grants
+Counted cumulatively over the membership's own payments: a payment grants
 `floor(total_after / price) − floor(total_before / price)` periods. A full
 payment grants one, two halves grant one on the second, a double payment grants
 two, and a part payment grants none while still being recorded and receipted.
+
+**The total counts money that ARRIVED — `paid`, `refunded` and `reversed` — not
+money still held.** A refund does not reverse the extension it bought, so the
+total must not fall when one is issued. Summing only `paid` rows looks right and
+double-grants: half now and half next week grants one period on the second, then
+refunding the first half drops the total back below the line so the next half
+crosses it again. Monotonic is what makes "crossed a multiple" mean anything.
+This paragraph is here because a critic found the rule stated only in a SQL
+comment, where the next blind test author would never read it.
+
+**The count is per PAYMENT, however many arrive in one statement.** Ten payments
+written by one `insert … select` are ten payments and grant what ten payments
+buy — not ten periods each. A rule that re-derives the total from the table
+cannot tell them apart: every row of a statement is already in the table by the
+time an `AFTER … FOR EACH ROW` trigger runs, so each row sees the final total,
+subtracts only its own amount, and concludes it was the one that crossed the
+line. Measured — ₹1,000 in ten rows bought **300 days** on a 30-day plan, from
+an ordinary front-desk session, through one `supabase-js` call.
+
+**The money must be the membership's own currency.** `amount_paise` summed
+across currencies and compared to `memberships.price_paise` grants a month for
+money in a currency the gym does not price in (MNY-002, AGENTS.md rule 8).
+
+**And the count must be serialised on the membership.** Two transactions each
+recording half the price, concurrently, each see only their own row and each
+grant nothing — and the deficit is permanent, because every later payment
+measures against the same total. Silent, and in the direction the member
+complains about. `app.enforce_refund_total()` takes `for update` on the payment
+for exactly this reason; the extension needs the same on the membership.
+
+#### Scenario: Many payments in one statement
+- **WHEN** several paid payments against one membership are written by a single statement
+- **THEN** the membership SHALL gain exactly the periods their total buys, and no more
+
+#### Scenario: A payment in another currency
+- **WHEN** a paid payment's currency differs from the membership's
+- **THEN** it SHALL grant no period
 
 The price is the membership's own `price_paise` — what was actually agreed,
 including any discount — and never the plan's list price.
@@ -242,9 +299,19 @@ honest reading is that such a row is malformed rather than open-ended — it is
 left alone here, and naming what should happen to it is a question for whoever
 introduces a flow that can create one.
 
+**And it SHALL be made `active` at the same time.** Granting the dates and
+leaving the row `pending` produces a membership that has been paid for and whose
+member is refused at the gate, because `app.enforce_check_in()` requires
+`active` or `frozen` (ADR-084). Two changes shipped in one round, contradicting
+each other in exactly the area that round was about.
+
 #### Scenario: Paying for a membership that has no dates
 - **WHEN** a paid payment names a membership whose dates are both null
-- **THEN** the membership SHALL run from the gym's today for the plan's duration
+- **THEN** the membership SHALL run from the gym's today for the plan's duration, and SHALL become `active`
+
+#### Scenario: The member it was paid for
+- **WHEN** that member presents at the gate the same day
+- **THEN** they SHALL be admitted — a membership that has been paid for admits its member
 
 ### Requirement: A refusal is the policy's to give, not a side effect of allocating
 WHEN a session that may not record payments in a gym attempts to, THE SYSTEM

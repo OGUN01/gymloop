@@ -115,19 +115,44 @@ export async function loadPayments(
  * `.eq('tenant_id', …)` here for the same reason there is none above.
  */
 export async function loadReceipt(paymentId: string) {
-  if (!UUID_PATTERN.test(paymentId)) return { payment: null, gym: null, errorMessage: null };
+  if (!UUID_PATTERN.test(paymentId)) {
+    return { payment: null, gym: null, refunds: [], refundablePaise: 0, errorMessage: null };
+  }
 
   const supabase = await createServerSupabase();
 
-  const [payment, gym] = await Promise.all([
+  const [payment, gym, refunds] = await Promise.all([
     supabase.from('payments').select(PAYMENT_COLUMNS).eq('id', paymentId).maybeSingle(),
     supabase.from('organizations').select('name, gym_code, timezone').limit(1).maybeSingle(),
+    // Every refund against this payment, oldest first — the receipt is where
+    // they belong, because it is the document the conversation is about. No
+    // `.eq('tenant_id', …)`: `refunds_tenant_select` filters, on the same terms
+    // as everything else here.
+    supabase
+      .from('refunds')
+      .select('id, amount_paise, currency, kind, reason, status, created_at, staff(full_name)')
+      .eq('payment_id', paymentId)
+      .order('created_at'),
   ]);
+
+  const recorded = refunds.data ?? [];
 
   return {
     payment: payment.data,
     gym: gym.data,
-    errorMessage: payment.error?.message ?? gym.error?.message ?? null,
+    refunds: recorded,
+    // What is left to refund, computed from paise and never from a float. A
+    // `failed` refund took nothing, so it does not count — the same exclusion
+    // `app.enforce_refund_total()` makes, and the screen must agree with the
+    // rule or it will offer a control the database refuses.
+    refundablePaise:
+      payment.data === null
+        ? 0
+        : payment.data.amount_paise -
+          recorded
+            .filter((row) => row.status !== 'failed')
+            .reduce((total, row) => total + row.amount_paise, 0),
+    errorMessage: payment.error?.message ?? gym.error?.message ?? refunds.error?.message ?? null,
   };
 }
 

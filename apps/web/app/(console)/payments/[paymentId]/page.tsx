@@ -1,4 +1,5 @@
 import { rupeesFromPaise } from '@gymloop/shared';
+import { Constants } from '@gymloop/db';
 import Link from 'next/link';
 import { Alert } from '../../alert';
 import { notFound } from 'next/navigation';
@@ -22,9 +23,28 @@ import { deskTime, loadReceipt } from '../../../../lib/payments';
  * "not this gym's payment" and "no such payment" are the same answer — which is
  * the honest one, because distinguishing them would confirm the payment exists.
  */
-export default async function ReceiptPage({ params }: { params: Promise<{ paymentId: string }> }) {
+/** What each redirect code from the refund handler means to a person. */
+const MESSAGES: Record<string, string> = {
+  bad_amount: 'That amount was not readable. Rupees and at most two paise digits.',
+  exceeds_payment:
+    'That would refund more than this payment took. Check what has already been sent back.',
+  refund_not_yours: 'A refund is recorded by the person who sends it.',
+  refund_is_a_record: 'A recorded refund cannot be edited. Record another one instead.',
+  not_permitted: 'Only an owner or a manager may send money back. A front desk may take it, not return it.',
+  invalid: 'That refund was not readable — check the amount and the reason.',
+  refund_failed: 'That refund could not be saved.',
+};
+
+export default async function ReceiptPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ paymentId: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
   const { paymentId } = await params;
-  const { payment, gym, errorMessage } = await loadReceipt(paymentId);
+  const { error } = await searchParams;
+  const { payment, gym, refunds, refundablePaise, errorMessage } = await loadReceipt(paymentId);
 
   if (errorMessage !== null) {
     return (
@@ -82,7 +102,104 @@ export default async function ReceiptPage({ params }: { params: Promise<{ paymen
             This payment is <strong>{payment.status}</strong>. It is not a record of money received.
           </p>
         )}
+
+        {/* A paid payment with no number is a document that looks wrong and used
+            to say nothing: this note was gated on the status, so it never
+            appeared for exactly the case that needs it — a payment recorded
+            before the gym's book started numbering. */}
+        {payment.status === 'paid' && payment.receipt_number === null ? (
+          <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            This payment was recorded before this gym&rsquo;s receipt book was numbered, so it has no
+            receipt number. The payment itself is unaffected.
+          </p>
+        ) : null}
       </article>
+
+      {error === undefined ? null : (
+        <Alert>{MESSAGES[error] ?? MESSAGES.refund_failed}</Alert>
+      )}
+
+      <section className="mt-8 print:hidden">
+        <h2 className="text-base font-semibold">Refunds</h2>
+
+        {refunds.length === 0 ? (
+          <p className="mt-1 text-sm text-neutral-600">Nothing has been sent back.</p>
+        ) : (
+          <ul className="mt-2 divide-y divide-neutral-200 text-sm">
+            {refunds.map((row) => (
+              <li key={row.id} className="flex justify-between gap-4 py-2">
+                <span>
+                  <span className="font-medium tabular-nums">
+                    {row.currency} {rupeesFromPaise(row.amount_paise)}
+                  </span>{' '}
+                  {row.kind} — {row.reason}
+                </span>
+                <span className="text-right text-neutral-600">
+                  {row.staff?.full_name ?? '—'}
+                  <br />
+                  {deskTime(row.created_at, gym.timezone)} · {row.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* No control where one can only be refused: a payment that is not paid
+            has taken nothing, and one refunded in full has nothing left. The
+            database refuses both (`GL036`); offering the form anyway would be a
+            button whose only outcome is an error. */}
+        {payment.status === 'paid' && refundablePaise > 0 ? (
+          <form method="post" action="/api/refunds" className="mt-4 flex flex-wrap items-end gap-3">
+            <input type="hidden" name="paymentId" value={payment.id} />
+            <label className="text-sm">
+              <span className="block text-neutral-600">Amount (₹)</span>
+              <input
+                type="text"
+                name="amountRupees"
+                required
+                inputMode="decimal"
+                pattern="\d{1,9}(\.\d{1,2})?"
+                defaultValue={rupeesFromPaise(refundablePaise)}
+                className="mt-1 w-32 rounded-md border border-neutral-300 px-3 py-2 text-base tabular-nums"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="block text-neutral-600">Kind</span>
+              <select
+                name="kind"
+                required
+                className="mt-1 rounded-md border border-neutral-300 px-3 py-2 text-base"
+              >
+                {Constants.public.Enums.refund_kind.map((kind) => (
+                  <option key={kind} value={kind}>
+                    {kind}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="block text-neutral-600">Reason</span>
+              <input
+                type="text"
+                name="reason"
+                required
+                className="mt-1 rounded-md border border-neutral-300 px-3 py-2 text-base"
+              />
+            </label>
+            <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-white">
+              Send money back
+            </button>
+          </form>
+        ) : null}
+
+        <p className="mt-2 text-xs text-neutral-500">
+          {payment.status !== 'paid'
+            ? 'This payment took nothing, so there is nothing to send back.'
+            : refundablePaise > 0
+              ? `${payment.currency} ${rupeesFromPaise(refundablePaise)} of this payment has not been refunded. Only an owner or a manager may send money back.`
+              : 'This payment has been refunded in full.'}
+        </p>
+      </section>
 
       <p className="mt-4 text-xs text-neutral-500 print:hidden">
         Print this page for the member. Receipt numbers are the gym&rsquo;s own, one series per

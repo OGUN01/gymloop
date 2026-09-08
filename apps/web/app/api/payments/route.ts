@@ -38,13 +38,21 @@ import {
  */
 const IDEMPOTENCY_INDEX = 'payments_tenant_id_idempotency_key_key';
 
-/** The refusals the payment triggers raise, by SQLSTATE. */
+/**
+ * The refusals the payment triggers raise, by SQLSTATE — the ones this route
+ * can actually provoke.
+ *
+ * `GL038` (a paid payment is frozen) and `GL039` (an illegal status transition)
+ * are deliberately ABSENT. Both are raised inside `if tg_op = 'UPDATE'` and this
+ * handler only ever inserts, so mapping them would be a claim the system does
+ * not have — this project's most repeated defect, and a critic was right to
+ * name it even as a low-severity finding. Whoever adds an update path adds them
+ * back, with a test that reaches them.
+ */
 const REFUSALS: Record<string, string> = {
   GL034: 'payment_not_yours',
   GL035: 'provider_claimed',
   GL037: 'counter_refused',
-  GL038: 'payment_is_a_record',
-  GL039: 'status_cannot_go_there',
   GL042: 'membership_not_theirs',
 };
 
@@ -56,8 +64,24 @@ export async function POST(request: Request): Promise<Response> {
 
   const { memberId, membershipId, amountRupees, method, notes, idempotencyKey } = data;
 
+  /**
+   * Back to the member, not to the ledger.
+   *
+   * Every outcome used to answer with `/payments`, which is not where the form
+   * was: a front desk that mistyped an amount got an accurate message on a page
+   * with no link back to the member, and had to click Members, find the person
+   * again and retype everything. `/api/memberships` had already built
+   * `backToMember()` for this exact reason.
+   *
+   * It also fed the duplicate defect below. **A front desk that cannot get back
+   * by clicking gets back by pressing Back**, and Back restores a page whose
+   * idempotency nonce has already been spent.
+   */
+  const backToMember = (error?: string) =>
+    seeOther(request, `/memberships/${memberId}`, error);
+
   const amountPaise = paiseFromRupees(amountRupees);
-  if (amountPaise === null || amountPaise <= 0) return seeOther(request, '/payments', 'bad_amount');
+  if (amountPaise === null || amountPaise <= 0) return backToMember('bad_amount');
 
   // The vocabulary is the generated Postgres enum and is checked against
   // `Constants`, never against a list written here (AGENTS.md rule 5). A forged
@@ -69,7 +93,7 @@ export async function POST(request: Request): Promise<Response> {
   // a control that `GL035` then refuses. The exclusion is a courtesy; the
   // refusal is the rule.
   const methods: readonly string[] = Constants.public.Enums.payment_method;
-  if (!methods.includes(method) || method === 'razorpay') return seeOther(request, '/payments', 'invalid');
+  if (!methods.includes(method) || method === 'razorpay') return backToMember('invalid');
 
   // **The key identifies the PAYMENT, not the page.** It arrives as a nonce
   // minted once per render of the member's page, and the fields that define
@@ -110,28 +134,38 @@ export async function POST(request: Request): Promise<Response> {
     idempotency_key: compositeKey,
   });
 
-  if (error === null) return seeOther(request, '/payments');
+  if (error === null) return backToMember();
 
-  if (error.code === PG_INSUFFICIENT_PRIVILEGE) return seeOther(request, '/payments', 'not_permitted');
+  if (error.code === PG_INSUFFICIENT_PRIVILEGE) return backToMember('not_permitted');
 
-  // A resubmitted form carrying the key it was rendered with is the SAME
-  // payment, so the second attempt is a no-op and not a failure. Reporting an
-  // error here would tell a front desk that a payment they can see in the list
-  // did not happen.
-  //
-  // **Only for THAT index.** This branch used to answer every `23505` with a
-  // success redirect, and `payments` has three unique indexes. A critic reset
-  // the gym's receipt counter by hand, the next payment collided on
-  // `payments_tenant_id_receipt_number_key`, and the front desk was sent back
-  // to a clean ledger having taken cash that was never recorded. The counter
-  // can no longer be reset — `GL037` — but a handler that reads one
-  // constraint's meaning into another's is wrong however the collision arrives,
-  // and the provider index will collide for its own reasons the moment Razorpay
-  // lands.
+  /**
+   * **A duplicate is a question, not a silent success.**
+   *
+   * This branch used to redirect with no error at all, on the reasoning that a
+   * resubmitted form carrying its own key is the same payment. A second critic
+   * round showed that is only true when the values differ: compose the key from
+   * the member, the amount and the method — as round two did to fix
+   * Back-and-EDIT — and a front desk taking ₹1,500 from one member twice,
+   * arrears and this month, presses Back, submits the identical form, and the
+   * second payment is discarded with nothing on screen. **Silent money loss,
+   * and worse than the defect it replaced, because it produces no code at all
+   * rather than a wrong one.**
+   *
+   * A nonce identifies a page RENDER, and one render can legitimately produce
+   * two different payments. No key computed from the form can tell "identical
+   * values" from "identical transaction", so the handler stops trying and says
+   * what it knows: a matching payment was just recorded. The front desk lands
+   * back on the member's page — freshly rendered, so with a fresh nonce — and
+   * can record it again in one click if it really was a second payment.
+   *
+   * The other two unique indexes on this table mean the opposite and keep their
+   * own code: a receipt-number or provider collision is not a duplicate
+   * submission, it is money that went unrecorded.
+   */
   if (error.code === PG_UNIQUE_VIOLATION) {
-    return error.message.includes(IDEMPOTENCY_INDEX)
-      ? seeOther(request, '/payments')
-      : seeOther(request, '/payments', 'already_recorded');
+    return backToMember(
+      error.message.includes(IDEMPOTENCY_INDEX) ? 'possible_duplicate' : 'already_recorded',
+    );
   }
 
   // `Object.hasOwn`, not a bare index: `REFUSALS['constructor']` is inherited
@@ -139,5 +173,5 @@ export async function POST(request: Request): Promise<Response> {
   // string `[object Object]` in the query. The check-in handler shipped that
   // bug and a blind suite found it.
   const refusal = Object.hasOwn(REFUSALS, error.code) ? REFUSALS[error.code] : undefined;
-  return seeOther(request, '/payments', refusal ?? 'payment_failed');
+  return backToMember(refusal ?? 'payment_failed');
 }

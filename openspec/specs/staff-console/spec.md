@@ -129,3 +129,120 @@ The same check answers the second half: an id of `"x"` decodes, passes a `typeof
 #### Scenario: A cursor that decodes to nonsense
 - **WHEN** a cursor decodes successfully but its id is not a uuid
 - **THEN** the first page SHALL be shown, and no database error message SHALL be rendered
+
+### Requirement: A form post returns the front desk to the screen it came from
+WHEN a console form post succeeds or is refused, THE SYSTEM SHALL return the
+caller to the screen that submitted it, carrying any short error code, and SHALL
+NOT land them somewhere that cannot act on the answer.
+
+The payments handler answered **every** outcome — success and refusal alike —
+with a redirect to the general ledger, which is not where the form was. A front
+desk that mistyped an amount got an accurate, actionable message on a page with
+no link back to the member: click Members, find the person again, retype
+everything. `/api/memberships` had already built `backToMember()` for exactly
+this reason, and `memberId` was in scope in every failing branch.
+
+**It also fed the defect below.** A front desk that cannot get back by clicking
+gets back by pressing Back, and Back restores a page whose idempotency nonce has
+already been spent.
+
+#### Scenario: An amount that will not parse
+- **WHEN** a payment is refused for an unreadable amount
+- **THEN** the front desk SHALL be returned to that member's page with the message, ready to retype it
+
+#### Scenario: A payment recorded
+- **WHEN** a payment succeeds
+- **THEN** the front desk SHALL be returned to that member's page, whose next render mints a fresh idempotency nonce
+
+### Requirement: A duplicate submission is a question, not a silent success
+WHEN a payment collides with an existing one on the idempotency key, THE SYSTEM
+SHALL say so and SHALL NOT report success without a message.
+
+**A nonce identifies a page render, and one render can legitimately produce two
+different payments.** Round one keyed on the nonce alone, so a Back-and-edit was
+silently dropped. Round two folded the member, the amount in paise and the
+method into the key — which fixed Back-and-edit and left Back-and-**repeat**
+exactly as broken: a front desk taking ₹1,500 from one member twice, arrears and
+this month, presses Back and submits the identical form, the key matches, and
+the second payment is discarded with no error shown at all.
+
+That is the same silent money loss the composition was written to stop, moved
+one step sideways, and it is worse than what it replaced because it produces no
+code at all rather than a wrong one. **The conflation is "identical values" with
+"identical transaction", and no key computed from the form can tell those
+apart** — so the system must stop trying to and ask.
+
+#### Scenario: The same form submitted twice by a double click
+- **WHEN** an identical submission arrives twice
+- **THEN** exactly one payment SHALL exist, and the front desk SHALL be told a matching payment was just recorded rather than shown a bare success
+
+#### Scenario: A second, genuinely separate payment of the same amount
+- **WHEN** a front desk records a second payment identical in member, amount and method to one just taken
+- **THEN** they SHALL be told a matching payment already exists and SHALL be able to record it anyway from a freshly rendered page
+
+### Requirement: A screen calls a membership live on the same terms the gate does
+THE SYSTEM SHALL determine whether a membership is live from its status **and its
+dates in the gym's own day**, in every screen that says so, and never from the
+status column alone.
+
+The member's page read `status in ('active','frozen')` and nothing else, so a
+membership two months lapsed was displayed as **active** at the same moment
+`app.enforce_check_in()` refused its member at the gate (ADR-084). A front desk
+reading that screen has every reason to believe the member is covered, and to
+dispute the refusal.
+
+This is the same defect as ADR-084's, one layer up: a status column nothing ever
+writes `expired` into, trusted to mean something it cannot.
+
+#### Scenario: A membership whose end date has passed
+- **WHEN** a member's page shows a membership whose `ends_on` is before the gym's today
+- **THEN** it SHALL be presented as lapsed, and the page SHALL NOT describe it as live
+
+### Requirement: A receipt without a number says why
+WHEN a payment carries no receipt number, THE SYSTEM SHALL explain it, whatever
+the payment's status.
+
+The receipt page explained a missing number only for a payment that was not
+`paid`, so a `paid` payment predating the numbering rule rendered "not issued"
+with no explanation — a document that looks wrong and says nothing.
+
+#### Scenario: A paid payment with no receipt number
+- **WHEN** a receipt is opened for a paid payment that was never numbered
+- **THEN** the page SHALL say so plainly rather than leaving the field bare
+
+### Requirement: A refund is recorded from the receipt it refunds
+THE SYSTEM SHALL let a gym owner or manager record a refund against a payment,
+from that payment's own receipt, and SHALL show every refund already recorded
+against it there.
+
+Phase 5 enforced the whole of PAY-010 in the database — a refund is a new row,
+never a mutation; it may not exceed what was paid, on insert or on update; its
+amount and payment freeze once recorded; and it names the staff member who sent
+the money. **None of it was reachable through the product**, which a critic
+noted plainly: a gym could not refund a payment at all. A rule with no path to
+it is a rule nobody can obey or break.
+
+The receipt is where it belongs. It is the document the conversation is about,
+it already names the payment, the member and the amount, and putting the control
+anywhere else would mean re-finding all three.
+
+**Narrower than taking money, deliberately.** `refunds_tenant_write` gates on
+`is_gym_admin()` — owner or manager — where `payments_tenant_write` gates on
+`is_front_office()`. A front desk may take money and may not send it back. The
+screen does not re-implement that; the policy refuses and the screen reports it.
+
+#### Scenario: A manager refunds part of a payment
+- **WHEN** a gym manager records a refund below the payment's amount
+- **THEN** it SHALL be recorded, the payment's own row SHALL be unchanged, and both SHALL be visible on the receipt
+
+#### Scenario: A refund that would exceed the payment
+- **WHEN** a refund is recorded that would take the total refunded past the amount paid
+- **THEN** it SHALL be refused and the front desk SHALL be told how much is left to refund
+
+#### Scenario: A front desk attempting a refund
+- **WHEN** a front-desk session records a refund
+- **THEN** the policy SHALL refuse it, and the screen SHALL say the role may not refund rather than reporting a failure it cannot explain
+
+#### Scenario: A fully refunded payment
+- **WHEN** a payment has been refunded in full
+- **THEN** the receipt SHALL say so and SHALL NOT offer a control that can only be refused

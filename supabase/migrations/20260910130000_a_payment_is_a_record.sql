@@ -77,6 +77,14 @@
 --    counted cumulatively over the membership's own paid rows, so it needs no
 --    marker column and cannot drift.
 --
+--    **"Cannot drift" was false and is superseded by `20260910150000`.** Every
+--    row of a statement is already in the table when an `AFTER … FOR EACH ROW`
+--    trigger runs, so ten payments in one statement each saw the final total,
+--    subtracted only their own amount, and each granted a period: 300 days for
+--    one month's money. The arithmetic was right and the GRANULARITY was wrong.
+--    Left standing rather than edited away, so the next reader sees what a
+--    confident wrong claim looked like in the file that made it.
+--
 -- 9. A REFUSAL IS THE POLICY'S TO GIVE. ADR-082 moved the claim rules to
 --    `after` so a member no longer met `GL034` — and then `app.stamp_payment()`,
 --    a `before` trigger, allocated a counter row for them and let
@@ -400,7 +408,8 @@ begin
   -- arrives.** Two half payments bought two months before this. Counted
   -- cumulatively over the membership's own paid rows — which includes this one,
   -- since an `after` trigger sees the row — so it needs no marker column and
-  -- cannot drift out of step with the money.
+  -- (superseded by `20260910150000`: per row this double-counts a multi-row
+  -- statement, which is why the rule now lives in a statement-level trigger).
   -- **Money that ARRIVED, which is not the same as money still held.** The sum
   -- counts `refunded` and `reversed` rows too, because a refund does not
   -- reverse the extension it bought (that is the spec's deliberate choice: a
@@ -416,9 +425,14 @@ begin
   -- A holdout bounded this case to {0,1} periods and found the round-one build
   -- granting 2. It grants 2 here as well, and for a stated reason rather than
   -- by accident: two payments arrived and two periods were bought; one was
-  -- later returned and the spec says the month it bought stays. That is the
-  -- ambiguity the holdout correctly refused to resolve on its own, resolved
-  -- here and written into the spec.
+  -- later returned and the spec says the month it bought stays.
+  --
+  -- **This comment used to end "resolved here and written into the spec". It
+  -- was not written into the spec** — a critic checked and found the rule that
+  -- decides how many months a member gets living only in this comment, where
+  -- the next blind test author would never read it. It is in
+  -- `payment-record/spec.md` now. A comment claiming a document says something
+  -- is exactly the shape ADR-070, ADR-071, ADR-074 and ADR-081 are all about.
   select coalesce(sum(pp.amount_paise), 0)
     into v_after
     from public.payments pp

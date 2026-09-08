@@ -38,9 +38,44 @@ const ERRORS: Record<string, string> = {
   already_decided: 'Somebody has already decided that pause.',
   freeze_budget: "That would take this member past the gym's freeze allowance for the year.",
   decision_failed: 'That decision could not be recorded.',
+  // The payment handler now returns here rather than to the ledger, so its
+  // codes need wording on this screen too.
+  bad_amount:
+    'That amount was not readable. Rupees and at most two paise digits — 1500 or 1500.50, never 1500.505.',
+  payment_not_yours: 'A payment is recorded by the person who took it.',
+  provider_claimed:
+    'An online payment is recorded by the provider. The desk takes cash, UPI, card or a bank transfer.',
+  counter_refused: 'This gym’s receipt numbering can only move forward. Nothing was recorded.',
+  membership_not_theirs: 'That membership belongs to a different member.',
+  possible_duplicate:
+    'A payment for this member, of this amount and method, was recorded moments ago — so this one was not. If it is a genuinely separate payment, record it again from this page.',
+  already_recorded:
+    'A payment with that receipt number already exists. Nothing was recorded — try again.',
+  payment_failed: 'That payment could not be saved.',
 };
 
 const LIVE_STATUSES = ['active', 'frozen'];
+
+/**
+ * Live means the status AND the dates, on the same terms the gate uses.
+ *
+ * This screen read `status in ('active','frozen')` and nothing else, so a
+ * membership two months lapsed was displayed as **active** at the very moment
+ * `app.enforce_check_in()` refused its member at the door (ADR-084). A critic
+ * verified both in one session. A front desk reading that page has every reason
+ * to believe the member is covered, and to argue with the refusal.
+ *
+ * It is ADR-084's own defect one layer up: a status column that nothing ever
+ * writes `expired` into, trusted to mean something it cannot. The database
+ * stopped trusting it; this screen had not.
+ */
+function isLive(row: { status: string; starts_on: string | null; ends_on: string | null }, today: string) {
+  return (
+    LIVE_STATUSES.includes(row.status) &&
+    (row.starts_on === null || row.starts_on <= today) &&
+    (row.ends_on === null || row.ends_on >= today)
+  );
+}
 
 /**
  * The methods a desk may take money by.
@@ -94,11 +129,21 @@ export default async function MemberMembershipsPage({
   if (!member.data) notFound();
 
   const rows = memberships.data ?? [];
-  const live = rows.find((row) => LIVE_STATUSES.includes(row.status));
-  // MNY-004: the default start date is today *in the gym's timezone*, not the
-  // server's. A gym in India opening a membership at 00:30 IST would otherwise
-  // be offered yesterday's date, because the server runs in UTC.
+  // MNY-004: the gym's own day, not the server's. A gym in India opening a
+  // membership at 00:30 IST would otherwise be offered yesterday's date,
+  // because the server runs in UTC.
+  //
+  // Declared BEFORE the two `find`s below, and that ordering is load-bearing:
+  // they call `isLive(row, today)` inside a closure that runs immediately, so
+  // with the declaration underneath them this page threw "Cannot access 'today'
+  // before initialization" at runtime — and `tsc` cannot see it, because it
+  // cannot know when a closure runs. Caught by reading the file, which is the
+  // only thing that would have.
   const today = todayIn(organization.data?.timezone ?? DEFAULT_TIMEZONE);
+  const live = rows.find((row) => isLive(row, today));
+  // A membership the STATUS calls live but the dates do not — the shape that
+  // was being shown as `active` while the gate refused the member.
+  const lapsed = rows.find((row) => LIVE_STATUSES.includes(row.status) && !isLive(row, today));
   // Minted here, on the server, once per render of this page: the form carries
   // it, so every submission of THIS form is the same payment however many
   // times it is sent, and a fresh page is a fresh payment.
@@ -123,7 +168,18 @@ export default async function MemberMembershipsPage({
       <section className="mt-8">
         <h2 className="text-base font-semibold">Membership</h2>
         {live === undefined ? (
-          <p className="mt-2 text-sm text-neutral-600">No live membership.</p>
+          lapsed === undefined ? (
+            <p className="mt-2 text-sm text-neutral-600">No live membership.</p>
+          ) : (
+            <p className="mt-2 text-sm">
+              <span className="font-medium">{lapsed.plans.name}</span> —{' '}
+              <strong>lapsed</strong>, ran {lapsed.starts_on} to {lapsed.ends_on},{' '}
+              {money(lapsed.price_paise, lapsed.currency)}.{' '}
+              <span className="text-neutral-600">
+                This member is refused at the gate until it is renewed.
+              </span>
+            </p>
+          )
         ) : (
           <p className="mt-2 text-sm">
             <span className="font-medium">{live.plans.name}</span> — {live.status}, {live.starts_on}{' '}
