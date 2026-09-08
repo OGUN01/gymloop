@@ -436,6 +436,8 @@ Two ways to make prose and reality agree: delete the claim or make it true. Made
 
 **On push rather than manual dispatch**, unlike the seed: a function whose deployment is something somebody remembers to do is a function that drifts from the repo, and "deployed" becomes a claim nobody can check — which is the defect this ADR exists to close. `deno check` runs in the deploy job as well as in CI, so a path-filtered push cannot outrun the typecheck.
 
+- **OPEN-008 (Phase 6 — the red list cannot schedule a follow-up).** `next_follow_up_at` exists on `no_show_cases`, in `followUpRequestSchema`, in `apps/web/app/api/follow-ups/route.ts`, and `app.enforce_follow_up()` derives `follow_up_due` from it correctly — **and no input on the red list supplies it.** So `follow_up_due` is unreachable through the product, `no_show_cases_tenant_id_next_follow_up_at_due_idx` is fed by nothing and read by nothing, there is no "due today" screen, and ADR-076's fix guards a state no user can create. Found by the round-three critic. Closing it needs a decision this deserves a spec for: `<input type="datetime-local">` submits `2026-09-12T09:00` with **no offset**, which `z.iso.datetime({ offset: true })` rejects into the `invalid` branch — so how a wall-clock time becomes an instant in the gym's timezone is the real question, and guessing at it at the end of a phase is how the `current_date` defect happened.
+
 ## Known enforcement gaps
 
 Stated plainly so nobody mistakes a documented rule for an enforced one. A blind critic found each of these by testing what the gates actually catch rather than what they claim to.
