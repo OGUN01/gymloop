@@ -15,7 +15,9 @@ WHEN a member presents a QR code, THE SYSTEM SHALL verify that the QR session ex
 
 `app.run_no_show_scan()` was corrected for exactly this and reads `ends_on` directly (ADR-075). Check-in was not, and the argument for deriving one fact from evidence was always an argument for deriving every fact of that kind.
 
-So a membership is live when its status is `active` or `frozen` **and** the gym's own today falls within `[starts_on, ends_on]` — `starts_on` null meaning it has always run, `ends_on` null meaning it does not end. **The gym's own day, never `current_date`**: every Supabase connection is UTC, and a member refused between 00:00 and 05:30 IST on the day their membership ends would be refused a day early (ADR-039, MNY-004).
+So a membership is live when its status is `active` or `frozen` **and** the gym's own today falls within `[starts_on, ends_on]`.
+
+**Today, and not the day the scan claims to be about.** `checked_in_at` is caller-supplied and unbounded — `attendance` grants `insert` to `authenticated` — so judging liveness at that timestamp would let anyone whose membership had lapsed send a date from when it had not, and this gate would be decorative. The QR expiry test in the same function does judge at `checked_in_at`, deliberately, for Phase 7's offline queue; matching it here would have cost the whole rule. The narrow price is a 23:50 scan that syncs at 00:10, refused visibly at a boundary somebody notices — and Phase 7's honest fix for that is `offline_recorded_at` and `replayed_at`, which this table already carries, not trusting a timestamp. **The gym's own day, never `current_date`**: every Supabase connection is UTC, and a member refused between 00:00 and 05:30 IST on the day their membership ends would be refused a day early (ADR-039, MNY-004).
 
 #### Scenario: A valid scan
 - **WHEN** a member with an active membership scans a live QR session for their gym
@@ -49,9 +51,11 @@ So a membership is live when its status is `active` or `frozen` **and** the gym'
 - **WHEN** a member whose membership `starts_on` next Monday scans today
 - **THEN** the check-in SHALL be rejected — a period sold for later has not begun
 
-#### Scenario: An open-ended membership
-- **WHEN** a member whose membership has no `ends_on` scans a live session
-- **THEN** the check-in SHALL be recorded — a membership with no end date has not ended
+#### Scenario: A membership with no end date
+- **WHEN** a live membership is examined for whether it may lack an `ends_on`
+- **THEN** the schema SHALL forbid it: `memberships_dated_unless_pending_chk` requires both dates on any status but `pending`, and `pending` is already refused by the status half of this rule
+
+**This scenario was written as "a membership with no `ends_on` is admitted" and both blind authors independently found it unreachable** — one dropped the behavioural assertion and pinned the constraint instead, the other did the same and reported the mirror case (`starts_on` null) as equally impossible. A scenario describing a state the schema forbids is not a weak test, it is a vacuous one: it would pass for ever without exercising a line. What is worth asserting is the constraint that makes it unreachable, so it cannot silently stop being true.
 
 ### Requirement: The QR token is never stored, only its hash
 THE SYSTEM SHALL store a QR session's token as a hash and SHALL NOT store the token itself, so that a reader of the database cannot mint a scan (ATT-003). A session SHALL carry an expiry, so a screenshot of a previously valid code stops working.
