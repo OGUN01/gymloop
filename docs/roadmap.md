@@ -44,6 +44,8 @@ The reason, in the owner's words: *"all of these are taking time — we want an 
 
 **The rigor stays in full for anything where a mistake is *silent*:** every RLS or policy change, the money path (Phase 5 entire), and any change to identity or the claim contract. A wrong RLS predicate leaks another gym's members and nothing goes red; a broken check-in screen fails in front of you. Those two deserve different processes, and Phases 1 and 2 earning their cost is not an argument that Phase 6 will.
 
+**Four cuts taken with it (ADR-060), executed at the start of Phase 3:** the holdout suite moves into this repo at `supabase/tests-holdout/` and keeps its second independent author but loses the second repository; the pgTAP suite gets shared fixtures and stops asserting the role matrix twice, targeting under four minutes against the current 688 seconds; `proposal.md`/`design.md`/`tasks.md` merge into one `plan.md` with the EARS spec still separate; and ADRs get shorter. **Product scope is unchanged** — leads, CSV import, the add-on catalogue, the messaging wallet and the super-admin console all stay in v1.
+
 **The one process change that costs nothing and saves the most:** Phase 2 spent roughly a third of its round-trips on contract churn — the design was edited four times *after* agents had been dispatched against it, so each edit meant re-work in three places at once. **Fix the contract, then fan out. Never the other way round.** If a blind agent's finding changes the contract mid-flight, that is a signal the contract was not ready, and the cost is paid by every agent already working.
 
 ## Phases (master prompt §12)

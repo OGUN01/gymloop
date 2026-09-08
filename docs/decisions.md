@@ -253,6 +253,18 @@ Rejected: **seeding a separate project** — OPEN-006 already proposes that for 
 
 Rejected: **dropping the holdout suite and the critics outright** to reach a demo fastest. The two findings that mattered most this phase - a requirement with no reachable implementation, and a test that passed against it vacuously - both came from roles this would have deleted, and both were in the identity layer every later phase authenticates against. Rejected: **keeping the current process unchanged**; it is not wrong, it is miscalibrated, and the owner is right that a week of invisible backend is a bad trade when the alternative costs assurance only where assurance is cheap to re-establish.
 
+**ADR-060 - Four process cuts, taken at the end of Phase 2.** Owner decision, 2026-09-08, when asked what else costs time without earning it. Full v1 product scope is explicitly **kept** - leads, CSV import, the add-on catalogue, the messaging wallet and the super-admin console all stay, because competitors ship them (ADR-016/017).
+
+**1. The holdout suite moves into this repo, at `supabase/tests-holdout/`. The second independent author stays; the second repository goes.** The separate repo exists to stop an implementer shaping code to tests it can see - but hard rule 10 already forbids the implementer reading `supabase/tests/**` at all, so the second *repo* adds almost nothing over a second *author*. What it costs is concrete: a separate push each round, ADR-043's parking rules, a CI checkout, and - the expensive part - the orchestrator cannot read a holdout file to diagnose a failure, so every red assertion becomes a round trip through its author. That happened five times in Phase 2. **Every finding the holdout side produced this phase came from a second person reading the contract independently, not from the tests being secret**: the missing `_platform_write` rule on grant-read-only tables, and the missing role term on the impersonator policy. Independence is the property worth paying for; secrecy was the part being paid for twice. ADR-043 is superseded. **Executed at the start of Phase 3, not now** - Phase 2 is one green run from done and rebuilding the test wiring underneath it would risk that for no gain.
+
+**2. The pgTAP suite gets shared fixtures and stops asserting the matrix twice.** 1,928 assertions now take **688 wallclock seconds**, and every round trip pays that before anything else. Most of it is 35 files each building two gyms from scratch, plus the role matrix being asserted once visibly and once in the holdout. Target: under four minutes.
+
+**3. One planning document per phase.** `proposal.md`, `design.md` and `tasks.md` merge into `plan.md`. The EARS spec stays a separate file, because it is what tests derive from and what a blind author reads. Phase 2's proposal and design overlapped by roughly half.
+
+**4. ADRs get shorter** - decision, why, what was rejected. Phase 2's run to 600 words where 300 carries the same content. This entry is already twice the length the rule asks for, which is the point.
+
+Rejected: **dropping the second author as well as the second repo.** The two findings that mattered most in Phase 2 - a requirement with no reachable implementation, and a test that passed against it vacuously - came from independent readers, and both sat in the identity layer every later phase authenticates against. Rejected: **cutting product scope** - the owner considered it and declined, and the market note in ADR-016/017 supports that.
+
 ## Known enforcement gaps
 
 Stated plainly so nobody mistakes a documented rule for an enforced one. A blind critic found each of these by testing what the gates actually catch rather than what they claim to.
