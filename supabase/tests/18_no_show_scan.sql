@@ -22,9 +22,14 @@
 -- own arithmetic would make a red assertion ambiguous about which one
 -- broke. Every fixture row is inserted as `postgres` too, for the same
 -- reason: no RLS write-gate exercise, no jwt claims, one thing on trial per
--- section — the scan's own logic.
+-- section — the scan's own logic. The one exception is five follow-up rows
+-- in gym 11's fixture, which must be inserted as `authenticated` with this
+-- gym's own claims because that is what the contacted/follow_up_due
+-- transition requires to fire at all — confirmed empirically against a
+-- throwaway fixture, not by reading the trigger. The role is restored to
+-- `postgres` before the scan itself runs.
 --
--- TEN TENANTS, EACH PROVING EXACTLY ONE THING
+-- ELEVEN TENANTS, EACH PROVING EXACTLY ONE THING
 --
 --   18…010000  the threshold boundary itself, N-1 and N+1, same fixture
 --   18…020000  never attended, measured from the membership's own start
@@ -42,6 +47,13 @@
 --               ends_on before the scan date — a control member, identical
 --               but for ends_on, proves the scan does not simply stop
 --               flagging everybody
+--   18…0b0000  a case outlives its usefulness when the membership ends: six
+--               members in three pairs (open/open, contacted/contacted,
+--               follow_up_due/follow_up_due), each pair differing only in
+--               ends_on — every lapsed member's live-status case must be
+--               closed (with the open one's follow-up surviving) and every
+--               live member's case, whatever its status, must be left
+--               exactly alone
 --
 -- WHY Etc/GMT-12 AND Etc/GMT+12 FOR THE TIMEZONE SECTION
 --
@@ -95,18 +107,42 @@
 -- structural constraint that forbids it was confirmed unchanged by the fix,
 -- empirically, without reading the fix's text.
 --
--- 37 assertions, plan(37), 37 TAP lines. Confirmed against Cloud via
--- `supabase db query --linked -f`, begin…rollback, nothing committed, with
--- `select num_failed() as failures;` on the line before `select * from
--- finish();` in scratch copies — both as the file stands today (2 of the 37
--- red: 35 and 37, gym 10's new scenario; assertions 1-34 unaffected, 0
--- failures) and with 20260909170000_the_critic_was_right_four_times.sql
--- spliced in immediately after `begin;` in a separate scratch copy (0 of 37
--- red — every assertion, including the pre-existing 34, green).
+-- Gym 11 originally asserted only the literal word "open" — the
+-- requirement's first draft said "an open case" — and flagged, rather than
+-- guessed, that no_show_cases_tenant_id_member_id_open_key treats three
+-- statuses (open, contacted, follow_up_due) as one live case. The
+-- requirement was then revised to say explicitly that "live" is all three,
+-- on the harm rather than the wording: the red list renders every state
+-- that is not returned or closed, so a contacted case sits at the top of it
+-- exactly as an open one does. This file now asserts the resolved reading:
+-- gym 11 builds one lapsed and one live member in EACH of the three live
+-- states, three controls rather than one, because a per-status
+-- implementation (three separate closing rules instead of one membership
+-- check) could pass a single open-status control while still destroying a
+-- live member's in-progress contacted or follow_up_due case.
+--
+-- 45 assertions, plan(45), 45 TAP lines. Verified with scratchpad/tapcount.py
+-- (ADR-069: `select num_failed()` placed before `finish()` is shadowed by
+-- finish()'s own diagnostic row on a failing run and can only ever observe
+-- passes, which is why tapcount.py rewrites every top-level plan/ok/is/
+-- results_eq/finish call to capture its emitted line into a temp table
+-- instead). Run against Cloud via `supabase db query --linked -f`,
+-- begin…rollback, nothing committed, no migration spliced — this project's
+-- Cloud schema already has every migration through 20260909170000 applied,
+-- which is why gyms 1-10 (assertions 1-37) are all green. 42 of 45 green, 3
+-- red: assertions 39, 42 and 43 — closing a lapsed member's open, contacted
+-- and follow_up_due case respectively, none of it implemented yet.
+-- Assertions 38, 40, 41, 44 and 45 are already green without the new
+-- capability and are the controls this section relies on, not evidence the
+-- new rule already holds: 38 because the partial unique index already
+-- blocks a second case for any of the six members regardless of closing, 40
+-- because nothing currently deletes a follow-up, and 41/44/45 because
+-- nothing currently touches a live member's case, in any of the three
+-- states, at all.
 --
 -- ADR-030: one transaction, BEGIN … ROLLBACK, nothing committed.
 -- ADR-046: the owner role is assumed explicitly, never inherited.
--- ADR-050: every count is scoped to this file's own ten fixture tenants —
+-- ADR-050: every count is scoped to this file's own eleven fixture tenants —
 --          this database permanently holds a seeded demo gym, and an
 --          assertion over a whole table is a time bomb.
 -- ADR-064: paused is derived from membership_pauses, never a status value —
@@ -121,7 +157,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(37);
+select plan(45);
 
 
 -- ---------------------------------------------------------------------------
@@ -863,6 +899,198 @@ select is(
       and member_id = '18000000-0000-4000-8000-0000000a0202'::uuid),
   0,
   'scenario "A membership whose end date has passed" — the member still reads active, but ends_on is 5 days before the scan date: no case is opened, though absence and everything else about the row is identical to the flagged control'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Fixtures: gym 11 — a case outlives its usefulness when the membership
+-- ends (38-45)
+--
+-- The requirement was revised, after this file first asserted only the
+-- literal word "open", to say explicitly that "live" means open, contacted
+-- or follow_up_due — the three states no_show_cases_tenant_id_member_id_open_key
+-- treats as one open case, and the three the red list renders. So this
+-- section now builds one lapsed member and one live member IN EACH of the
+-- three live states — six members, six cases, all pre-existing (inserted
+-- directly or reached by a genuine follow-up, never opened by a prior scan
+-- call) — so it is never about whether a case gets opened, only about what
+-- a scan does to one that already exists.
+--
+-- Each lapsed member is paired with a live member in the SAME starting
+-- status, differing only in ends_on — exactly as gym 10's Control/Lapsed
+-- pair separates the opening rule from everything else. Three controls, not
+-- one, because a per-status implementation (three separate closing rules
+-- instead of one membership check) could pass a single open-status control
+-- while still closing every contacted or follow_up_due case regardless of
+-- membership — a live member's in-progress case wrongly destroyed, which is
+-- exactly the silent, harmful failure this capability exists to avoid.
+--
+-- The contacted and follow_up_due cases are reached the same way
+-- 19_follow_ups.sql reaches them: a case starts 'open', and inserting a
+-- follow_up transitions it — no next_follow_up_at named moves it to
+-- 'contacted', naming one moves it to 'follow_up_due'. Setting the column
+-- directly, bypassing that transition, is not attempted.
+-- ---------------------------------------------------------------------------
+
+insert into public.organizations (id, name, gym_code) values
+  ('18000000-0000-4000-8000-0000000b0000'::uuid, 'No-Show Gym 11', 'NSHW11');
+
+insert into public.organization_settings (tenant_id, no_show_threshold_days) values
+  ('18000000-0000-4000-8000-0000000b0000'::uuid, 7);
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('18000000-0000-4000-8000-0000000b0101'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, 'Main', true);
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('18000000-0000-4000-8000-0000000b0201'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0101'::uuid, 'G11 Open Lapsed',        '+9170000110201'),
+  ('18000000-0000-4000-8000-0000000b0202'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0101'::uuid, 'G11 Open Live',          '+9170000110202'),
+  ('18000000-0000-4000-8000-0000000b0203'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0101'::uuid, 'G11 Contacted Lapsed',   '+9170000110203'),
+  ('18000000-0000-4000-8000-0000000b0204'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0101'::uuid, 'G11 Contacted Live',     '+9170000110204'),
+  ('18000000-0000-4000-8000-0000000b0205'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0101'::uuid, 'G11 FollowUpDue Lapsed', '+9170000110205'),
+  ('18000000-0000-4000-8000-0000000b0206'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0101'::uuid, 'G11 FollowUpDue Live',   '+9170000110206');
+
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('18000000-0000-4000-8000-0000000b0301'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, 'G11 Monthly', 30, 150000);
+
+-- Six memberships, all 'active', identical starts_on. Every "Lapsed"
+-- member's ends_on is 5 days before the scan date; every "Live" member's is
+-- 100 days after it. Nothing else distinguishes a Lapsed row from its Live
+-- counterpart.
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('18000000-0000-4000-8000-0000000b0401'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0201'::uuid, '18000000-0000-4000-8000-0000000b0301'::uuid, 'active', '2026-06-20'::date - 200, '2026-06-20'::date - 5,   150000),
+  ('18000000-0000-4000-8000-0000000b0402'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0202'::uuid, '18000000-0000-4000-8000-0000000b0301'::uuid, 'active', '2026-06-20'::date - 200, '2026-06-20'::date + 100, 150000),
+  ('18000000-0000-4000-8000-0000000b0403'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0203'::uuid, '18000000-0000-4000-8000-0000000b0301'::uuid, 'active', '2026-06-20'::date - 200, '2026-06-20'::date - 5,   150000),
+  ('18000000-0000-4000-8000-0000000b0404'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0204'::uuid, '18000000-0000-4000-8000-0000000b0301'::uuid, 'active', '2026-06-20'::date - 200, '2026-06-20'::date + 100, 150000),
+  ('18000000-0000-4000-8000-0000000b0405'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0205'::uuid, '18000000-0000-4000-8000-0000000b0301'::uuid, 'active', '2026-06-20'::date - 200, '2026-06-20'::date - 5,   150000),
+  ('18000000-0000-4000-8000-0000000b0406'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0206'::uuid, '18000000-0000-4000-8000-0000000b0301'::uuid, 'active', '2026-06-20'::date - 200, '2026-06-20'::date + 100, 150000);
+
+-- staff, solely to satisfy follow_ups_staff_id_fkey on the follow-ups below.
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('18000000-0000-4000-8000-0000000b0701'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0101'::uuid, 'gym_manager', 'G11 Staff');
+
+-- All six cases start 'open', inserted directly — proving what the scan
+-- does to a pre-existing case, not what it takes to open one. Four of the
+-- six are moved on to 'contacted' or 'follow_up_due' below, before the scan
+-- runs, via the same follow-up transition 19_follow_ups.sql exercises.
+insert into public.no_show_cases (id, tenant_id, member_id, status, opened_on, last_attended_on, absent_days_at_open, threshold_days) values
+  ('18000000-0000-4000-8000-0000000b0501'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0201'::uuid, 'open', '2026-06-01'::date, '2026-05-20'::date, 12, 7),
+  ('18000000-0000-4000-8000-0000000b0502'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0202'::uuid, 'open', '2026-06-01'::date, '2026-05-20'::date, 12, 7),
+  ('18000000-0000-4000-8000-0000000b0503'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0203'::uuid, 'open', '2026-06-01'::date, '2026-05-20'::date, 12, 7),
+  ('18000000-0000-4000-8000-0000000b0504'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0204'::uuid, 'open', '2026-06-01'::date, '2026-05-20'::date, 12, 7),
+  ('18000000-0000-4000-8000-0000000b0505'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0205'::uuid, 'open', '2026-06-01'::date, '2026-05-20'::date, 12, 7),
+  ('18000000-0000-4000-8000-0000000b0506'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0206'::uuid, 'open', '2026-06-01'::date, '2026-05-20'::date, 12, 7);
+
+-- F1: logged against Open Lapsed's case before the scan runs, to prove
+-- closing is not deleting.
+insert into public.follow_ups (id, tenant_id, case_id, staff_id, channel, outcome, notes) values
+  ('18000000-0000-4000-8000-0000000b0601'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0501'::uuid, '18000000-0000-4000-8000-0000000b0701'::uuid, 'call', 'no_response', 'tried before the membership lapsed');
+
+-- F2-F5 reach 'contacted'/'follow_up_due' via the same transition
+-- 19_follow_ups.sql exercises, which — confirmed empirically, by probing a
+-- throwaway fixture in a rolled-back transaction, not by reading its
+-- trigger — only fires under an authenticated session naming a tenant and
+-- staff member, not under postgres. So these five rows are inserted as
+-- 'authenticated' with this gym's own claims, the only departure in this
+-- file from "every fixture row is inserted as postgres" — required to
+-- reach the state under test, not itself part of what is under test — and
+-- the role is restored to postgres immediately after, before the scan runs.
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '18000000-0000-4000-8000-0000000b0000',
+                    'app_role', 'front_desk',
+                    'staff_id', '18000000-0000-4000-8000-0000000b0701')::text,
+  true);
+set local role authenticated;
+
+-- F2/F3: naming no next_follow_up_at moves a case to 'contacted'.
+insert into public.follow_ups (id, tenant_id, case_id, staff_id, channel, outcome) values
+  ('18000000-0000-4000-8000-0000000b0602'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0503'::uuid, '18000000-0000-4000-8000-0000000b0701'::uuid, 'call', 'no_response'),
+  ('18000000-0000-4000-8000-0000000b0603'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0504'::uuid, '18000000-0000-4000-8000-0000000b0701'::uuid, 'call', 'no_response');
+
+-- F4/F5: naming next_follow_up_at moves a case to 'follow_up_due'.
+insert into public.follow_ups (id, tenant_id, case_id, staff_id, channel, outcome, next_follow_up_at) values
+  ('18000000-0000-4000-8000-0000000b0604'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0505'::uuid, '18000000-0000-4000-8000-0000000b0701'::uuid, 'call', 'timing_issue', '2026-10-01 09:00:00+05:30'::timestamptz),
+  ('18000000-0000-4000-8000-0000000b0605'::uuid, '18000000-0000-4000-8000-0000000b0000'::uuid, '18000000-0000-4000-8000-0000000b0506'::uuid, '18000000-0000-4000-8000-0000000b0701'::uuid, 'call', 'timing_issue', '2026-10-01 09:00:00+05:30'::timestamptz);
+
+set local role postgres;
+
+-- 38 — every member already holds a live-status case, so the partial
+-- unique index (relied on, not reimplemented) blocks a second one for any
+-- of them; this run opens none, and the assertions that follow examine
+-- what it did to the six cases that already existed.
+select is(
+  app.run_no_show_scan('18000000-0000-4000-8000-0000000b0000'::uuid, '2026-06-20'::date),
+  0,
+  'requirement "A case outlives its usefulness when the membership ends" — all six members already have a live-status case, so this run opens no new one'
+);
+
+-- 39 — scenario "A membership that lapses under a live case", open state.
+select is(
+  (select status from public.no_show_cases
+    where tenant_id = '18000000-0000-4000-8000-0000000b0000'::uuid
+      and id = '18000000-0000-4000-8000-0000000b0501'::uuid),
+  'closed'::public.no_show_case_status,
+  'scenario "A membership that lapses under a live case" — Open Lapsed''s membership still reads active but its ends_on is before the scan date, so the scan closes the open case that outlived it'
+);
+
+-- 40 — the same scenario's second half: the follow-up survives.
+select is(
+  (select case_id from public.follow_ups
+    where id = '18000000-0000-4000-8000-0000000b0601'::uuid),
+  '18000000-0000-4000-8000-0000000b0501'::uuid,
+  'closing is not deleting — the follow-up logged before the scan still exists afterwards, still naming the case it belongs to, on the same reasoning as NSH-005'
+);
+
+-- 41 — scenario "A case whose member is still live": the open-status
+-- control. Without this, an implementation that closes every open case,
+-- lapsed or not, would pass assertions 38-40 for the wrong reason.
+select is(
+  (select status from public.no_show_cases
+    where tenant_id = '18000000-0000-4000-8000-0000000b0000'::uuid
+      and id = '18000000-0000-4000-8000-0000000b0502'::uuid),
+  'open'::public.no_show_case_status,
+  'scenario "A case whose member is still live" — Open Live''s membership has not lapsed, so its open case is left exactly as it was; this closes lapsed cases, not every case'
+);
+
+-- 42 — "live" reaches 'contacted': the requirement's own reasoning is that
+-- a case already rung about is the more embarrassing one to keep
+-- suggesting, not a reason to spare it.
+select is(
+  (select status from public.no_show_cases
+    where tenant_id = '18000000-0000-4000-8000-0000000b0000'::uuid
+      and id = '18000000-0000-4000-8000-0000000b0503'::uuid),
+  'closed'::public.no_show_case_status,
+  'scenario "A membership that lapses under a live case" — Contacted Lapsed''s case, already moved to contacted by a genuine follow-up, is closed exactly as an open one is: live means open, contacted or follow_up_due'
+);
+
+-- 43 — "live" reaches 'follow_up_due'.
+select is(
+  (select status from public.no_show_cases
+    where tenant_id = '18000000-0000-4000-8000-0000000b0000'::uuid
+      and id = '18000000-0000-4000-8000-0000000b0505'::uuid),
+  'closed'::public.no_show_case_status,
+  'scenario "A membership that lapses under a live case" — FollowUpDue Lapsed''s case, already scheduled for a next follow-up, is closed exactly as an open one is'
+);
+
+-- 44 — the contacted-status control: a live member's in-progress case must
+-- not be destroyed by a fix that closes every case in this status
+-- regardless of membership.
+select is(
+  (select status from public.no_show_cases
+    where tenant_id = '18000000-0000-4000-8000-0000000b0000'::uuid
+      and id = '18000000-0000-4000-8000-0000000b0504'::uuid),
+  'contacted'::public.no_show_case_status,
+  'scenario "A case whose member is still live" — Contacted Live''s membership has not lapsed, so its contacted case is left exactly as it was'
+);
+
+-- 45 — the follow_up_due-status control, same reasoning as 44.
+select is(
+  (select status from public.no_show_cases
+    where tenant_id = '18000000-0000-4000-8000-0000000b0000'::uuid
+      and id = '18000000-0000-4000-8000-0000000b0506'::uuid),
+  'follow_up_due'::public.no_show_case_status,
+  'scenario "A case whose member is still live" — FollowUpDue Live''s membership has not lapsed, so its follow_up_due case is left exactly as it was'
 );
 
 

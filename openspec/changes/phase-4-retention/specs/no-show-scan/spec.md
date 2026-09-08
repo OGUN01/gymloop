@@ -79,6 +79,25 @@ THE SYSTEM SHALL exclude from evaluation any member whose membership is not live
 - **WHEN** a member's membership still reads `active` but its `ends_on` is before the scan date
 - **THEN** no case SHALL be opened
 
+### Requirement: A case outlives its usefulness when the membership ends
+WHEN a scan runs and a **live** case belongs to a member whose membership has lapsed, THE SYSTEM SHALL close that case. Live means `open`, `contacted` or `follow_up_due` — the three states `no_show_cases_tenant_id_member_id_open_key` treats as one open case, and the three the red list shows.
+
+*The first draft of this requirement said "an open case", and a blind test author asked which of the three it meant rather than guessing.* It means all three, and the reason is the harm: the red list renders every state that is not `returned` or `closed`, so a `contacted` case for a lapsed member sits at the top exactly as an `open` one does — and a case somebody has already rung about is, if anything, the more embarrassing one to keep suggesting.
+
+**Not opening such a case is only half the rule.** A case opened legitimately while the membership was live outlives it the moment it expires — and because `days_absent` grows without bound, it rises to the top of the red list and stays there. Two are live in the demo gym today and a third arrives tomorrow with no manual writes involved, purely by a membership reaching its end date.
+
+Leaving them is worse than never having opened them: the front desk is told, every morning, to ring the person at the top of the list about coming back to a membership that no longer exists. And the same member is in scope or out of it depending only on *when* their membership expired relative to the case — which is not a distinction the product means to make.
+
+Closed rather than deleted, on the same reasoning as NSH-005: the case and its follow-ups are the record of work that was done, and a delete destroys the evidence that anybody tried.
+
+#### Scenario: A membership that lapses under an open case
+- **WHEN** a scan runs and an open case's member has no live membership
+- **THEN** that case SHALL be closed and its follow-ups SHALL survive
+
+#### Scenario: A case whose member is still live
+- **WHEN** a scan runs and an open case's member still holds a live membership
+- **THEN** that case SHALL be left open — this closes lapsed cases, not every case
+
 **Expiry is derived from the date, exactly as paused is derived from the pause** — and for the same reason, which the first version of this spec made for one and not the other. **Nothing in this product ever writes `memberships.status = 'expired'`**: grep the migrations, `apps/` and `packages/` and the label appears only in the enum's own definition. ADR-064 already said why — a status flip needs a scheduler this project does not have.
 
 So a lapsed membership sits at `active` indefinitely, and a scan trusting the column opens a churn case for somebody whose membership ended weeks ago. Because their absence keeps growing, that case rises to the **top** of the red list and stays there: the first person the front desk is told to ring every morning, about a membership that no longer exists. The demo data already contains one — a member whose `ends_on` was 2026-09-05 and whose status still reads `active`.
