@@ -75,6 +75,10 @@ WHEN staff record a check-in on a member's behalf, THE SYSTEM SHALL require the 
 - **WHEN** front desk submits an assisted check-in with an empty reason
 - **THEN** the check-in SHALL be rejected and no attendance row SHALL be recorded
 
+#### Scenario: Assisted check-in with a reason of whitespace
+- **WHEN** front desk submits an assisted check-in whose reason is only spaces
+- **THEN** the check-in SHALL be rejected — **Phase 1's constraint tests `assist_reason <> ''`, which accepts three spaces**, and a blank line is not a reason for having marked somebody else present. Verified against the live database before this scenario was written: the row inserts today.
+
 #### Scenario: A trainer attempting an assisted check-in
 - **WHEN** a caller whose role is `trainer` submits an assisted check-in
 - **THEN** it SHALL be rejected — the matrix gives `attendance` a write gate of front office and above

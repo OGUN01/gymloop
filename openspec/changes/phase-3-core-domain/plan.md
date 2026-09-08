@@ -23,7 +23,7 @@ These land **before any agent is dispatched**, because two of them make everythi
 
 | Layer | Phase 3 ships |
 |---|---|
-| Schema | Nothing new. Phase 1's tables carry all of this; if a migration is needed, that is a finding. |
+| Schema | **Two migrations, and both are findings that were argued rather than assumed.** (1) Exactly-once check-in cannot be a Route Handler read-then-write — both reads pass before either writes and the duplicate is silent — and the de-duplication window is per-gym config, so it can be neither an index predicate nor a check constraint. It needs a database-level guard. (2) `attendance_front_desk_has_assist_chk` tests `assist_reason <> ''` and therefore accepts `'   '`; ATT-006 says an assisted check-in without a reason is rejected, and whitespace is not a reason for marking somebody else present. Nothing else. |
 | Auth | Staff email sign-in end to end. **Member phone-OTP is blocked** — no SMS credential exists (ADR-058). |
 | Endpoints | Route Handlers for: assisted check-in, QR check-in, member create/edit, membership create. First `packages/api-client` (OPEN-002, deferred here from Phase 2). |
 | Screens | Sign-in · member list with search by phone · member detail · **check-in screen** · a front-desk assisted check-in with its mandatory reason (ATT-005/006). |
