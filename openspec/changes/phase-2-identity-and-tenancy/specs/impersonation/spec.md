@@ -98,7 +98,7 @@ A super admin with a live session never holds a `super_admin` token — the hook
 - **THEN** the write SHALL succeed
 
 ### Requirement: A session is written once and then only ended
-THE SYSTEM SHALL set an impersonation session's start time itself rather than accepting one, and SHALL reject any change to a session after creation other than setting its end time — so that a session cannot be anchored in the future to outlive its bound, and cannot be retargeted at a gym it never impersonated.
+THE SYSTEM SHALL store an impersonation session's start time as no later than the time of writing — accepting a past one and correcting a future one — and SHALL reject any change to a session after creation other than setting its end time, which itself SHALL be no later than the time it is set — so that a session cannot be anchored in the future to outlive its bound, and cannot be retargeted at a gym it never impersonated.
 
 #### Scenario: A session anchored in the future is corrected, not trusted
 - **WHEN** an impersonation session is written whose start time is ten years from now and whose expiry is within the maximum session length of the present
