@@ -820,11 +820,57 @@ select is_empty(
   'ADR-032 / design.md 1 and 7: no security definer function in public at all -- public is the schema config.toml exposes to the Data API and supabase gen types reads -- and every security definer function in app pins its search_path. Phase 2 adds two elevated functions on purpose; an elevated function with a resolvable search_path is a different thing entirely'
 );
 
+-- Phase 4 (20260909130000_red_list_view.sql) added public.red_list_cases,
+-- the first view in public, so the blanket "no view" reading of
+-- docs/data-model.md's rule now fails on a view the rule's own rationale
+-- does not condemn. What the rule actually protects against: an object that
+-- reads PAST row-level security, because an ordinary view runs with its
+-- OWNER's rights, and here the owner is postgres, which holds BYPASSRLS --
+-- such a view would consult no policy on its underlying tables at all and
+-- hand every tenant's rows to every caller, invisibly, since 04_contract_meta
+-- filters relkind in ('r','p') everywhere else and never looks at a view's
+-- options. security_invoker=true closes exactly that hole: the view then
+-- runs with the CALLER's rights, so the policies already governing
+-- no_show_cases, members and follow_ups apply to it precisely as they would
+-- to a direct select. So the rule tightens rather than disappears: a
+-- materialised view is still forbidden outright (relkind 'm' -- Postgres has
+-- no security_invoker option for one, so there is no exemption to grant),
+-- and an ordinary view is admitted ONLY when its reloptions carry
+-- security_invoker=true.
+--
+-- That public.red_list_cases actually carries the option is NOT re-asserted
+-- here -- it is asserted once, structurally, in
+-- supabase/tests/20_red_list.sql assertion 1, by reading the same
+-- pg_class.reloptions this query reads. Duplicating it here would be a
+-- second chance for the two to drift; this assertion only needs to know that
+-- the exemption is conditional, not who currently holds it.
+--
+-- LIMIT, stated so this is not read as more than it is: this is still a
+-- catalogue check. It sees whether the OPTION is set, never whether the
+-- view's own predicates actually restrict correctly to the caller's tenant
+-- -- that behavioural proof, with two tenants and a policy-consulted read
+-- (guarded against a lingering postgres role), lives in 20_red_list.sql
+-- assertions 2-3 and cannot be replaced by anything read from pg_class.
+--
+-- The trigger assertion in section 29-31 above (further down this file) has
+-- moved three times as the schema's real shape changed under it, and each
+-- time the fix was to name the new exception and state why the general rule
+-- could not cover it, never to loosen the assertion into a count that could
+-- not fail. This assertion needed exactly that same move when Phase 4 added
+-- its first view and did not get it until now -- the pattern is the point;
+-- the next table or view that wants an exemption from a rule in this file
+-- should get a named, reasoned carve-out here, not a widened predicate that
+-- stops checking anything.
 select is_empty(
   $$select c.relname::text collate "default"
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
-     where n.nspname = 'public' and c.relkind in ('v', 'm')$$,
-  'docs/data-model.md "What a cluster agent must not do": no view or materialised view in public, which would sit outside the RLS the tables carry'
+     where n.nspname = 'public'
+       and (
+         c.relkind = 'm'
+         or (c.relkind = 'v'
+             and not coalesce('security_invoker=true' = any (c.reloptions), false))
+       )$$,
+  'docs/data-model.md "What a cluster agent must not do": no materialised view in public ever, and no ordinary view without security_invoker=true. The rule protects against an object that reads past RLS because it runs with its owner''s rights -- the owner here is postgres, which holds BYPASSRLS -- and security_invoker=true closes that by making the view run with the CALLER''s rights instead, so the underlying tables'' policies apply unchanged. That public.red_list_cases (Phase 4, the first view in public) actually carries the option is asserted separately and structurally in supabase/tests/20_red_list.sql assertion 1, not duplicated here. LIMIT: a catalogue check sees the option, never whether the view''s own predicates are correct -- that behavioural proof is 20_red_list.sql assertions 2-3''s job, not this one''s'
 );
 
 select is_empty(

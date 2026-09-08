@@ -152,28 +152,52 @@ insert into public.members (id, tenant_id, branch_id, full_name, phone) values
   ('20000000-0000-4000-8000-00000000003a'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000011'::uuid, 'M NoFollowUp',   '+912000000041'),
   ('20000000-0000-4000-8000-00000000003b'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000011'::uuid, 'M Write',        '+912000000042');
 
+-- Gym-local "today" for tenants A and B, computed the exact way the view
+-- computes it: `(now() at time zone o.timezone)::date`, read from
+-- organizations.timezone rather than hardcoding the column default so a
+-- later change to that default cannot silently reintroduce this bug. Both
+-- gyms carry the default (Asia/Kolkata, ahead of UTC), so `current_date`
+-- (which evaluates in UTC, ADR-039) disagrees with it for part of every
+-- day — and did, in this exact fixture, until a blind critic caught
+-- assertion 4 reading 12 where it should read 11: `opened_on` had been
+-- stamped from `current_date` while the view (correctly, after the fix
+-- under test) reads "today" from the gym's own timezone, so
+-- `absent_days_at_open + (today - opened_on)` picked up an extra day
+-- whenever the gym's local date had already rolled over ahead of UTC's.
+-- One temp table per tenant (mirrors `tz_fixture` below, which does the
+-- same thing for gyms C and D), so every row below reads from it rather
+-- than repeating the expression.
+create temp table today_a as
+select (now() at time zone o.timezone)::date as d
+  from public.organizations o where o.id = '20000000-0000-4000-8000-000000000001'::uuid;
+
+create temp table today_b as
+select (now() at time zone o.timezone)::date as d
+  from public.organizations o where o.id = '20000000-0000-4000-8000-000000000002'::uuid;
+
 -- Generic cases (status filter and isolation scenarios) all share the same
 -- absence snapshot; nothing about them exercises the read-time computation.
 insert into public.no_show_cases
   (id, tenant_id, member_id, status, opened_on, last_attended_on, absent_days_at_open, threshold_days) values
-  ('20000000-0000-4000-8000-000000000101'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000031'::uuid, 'open',         current_date - 10, current_date - 10, 10, 7),
-  ('20000000-0000-4000-8000-000000000102'::uuid, '20000000-0000-4000-8000-000000000002'::uuid, '20000000-0000-4000-8000-000000000032'::uuid, 'open',         current_date - 10, current_date - 10, 10, 7),
-  ('20000000-0000-4000-8000-000000000111'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000034'::uuid, 'open',         current_date - 10, current_date - 10, 10, 7),
-  ('20000000-0000-4000-8000-000000000112'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000035'::uuid, 'contacted',    current_date - 10, current_date - 10, 10, 7),
-  ('20000000-0000-4000-8000-000000000113'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000036'::uuid, 'follow_up_due',current_date - 10, current_date - 10, 10, 7),
-  ('20000000-0000-4000-8000-000000000114'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000037'::uuid, 'returned',     current_date - 10, current_date - 10, 10, 7),
-  ('20000000-0000-4000-8000-000000000115'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000038'::uuid, 'closed',       current_date - 10, current_date - 10, 10, 7),
-  ('20000000-0000-4000-8000-000000000121'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000039'::uuid, 'contacted',    current_date - 10, current_date - 10, 10, 7),
-  ('20000000-0000-4000-8000-000000000122'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-00000000003a'::uuid, 'open',         current_date - 10, current_date - 10, 10, 7),
-  ('20000000-0000-4000-8000-000000000131'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-00000000003b'::uuid, 'open',         current_date - 10, current_date - 10, 10, 7);
+  ('20000000-0000-4000-8000-000000000101'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000031'::uuid, 'open',         (select d from today_a) - 10, (select d from today_a) - 10, 10, 7),
+  ('20000000-0000-4000-8000-000000000102'::uuid, '20000000-0000-4000-8000-000000000002'::uuid, '20000000-0000-4000-8000-000000000032'::uuid, 'open',         (select d from today_b) - 10, (select d from today_b) - 10, 10, 7),
+  ('20000000-0000-4000-8000-000000000111'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000034'::uuid, 'open',         (select d from today_a) - 10, (select d from today_a) - 10, 10, 7),
+  ('20000000-0000-4000-8000-000000000112'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000035'::uuid, 'contacted',    (select d from today_a) - 10, (select d from today_a) - 10, 10, 7),
+  ('20000000-0000-4000-8000-000000000113'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000036'::uuid, 'follow_up_due',(select d from today_a) - 10, (select d from today_a) - 10, 10, 7),
+  ('20000000-0000-4000-8000-000000000114'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000037'::uuid, 'returned',     (select d from today_a) - 10, (select d from today_a) - 10, 10, 7),
+  ('20000000-0000-4000-8000-000000000115'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000038'::uuid, 'closed',       (select d from today_a) - 10, (select d from today_a) - 10, 10, 7),
+  ('20000000-0000-4000-8000-000000000121'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000039'::uuid, 'contacted',    (select d from today_a) - 10, (select d from today_a) - 10, 10, 7),
+  ('20000000-0000-4000-8000-000000000122'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-00000000003a'::uuid, 'open',         (select d from today_a) - 10, (select d from today_a) - 10, 10, 7),
+  ('20000000-0000-4000-8000-000000000131'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-00000000003b'::uuid, 'open',         (select d from today_a) - 10, (select d from today_a) - 10, 10, 7);
 
 -- The one case built specifically to prove days_absent is recomputed, not
--- read from the frozen snapshot: opened 3 days ago when the member was 8
--- days absent (absent_days_at_open, frozen forever at 8); the member's real
--- last visit was 11 days before today, so today's days_absent must be 11.
+-- read from the frozen snapshot: opened 3 days ago (gym-local) when the
+-- member was 8 days absent (absent_days_at_open, frozen forever at 8); the
+-- member's real last visit was 11 days before today (gym-local), so today's
+-- days_absent must be 11.
 insert into public.no_show_cases
   (id, tenant_id, member_id, status, opened_on, last_attended_on, absent_days_at_open, threshold_days) values
-  ('20000000-0000-4000-8000-000000000103'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000033'::uuid, 'open', current_date - 3, current_date - 11, 8, 7);
+  ('20000000-0000-4000-8000-000000000103'::uuid, '20000000-0000-4000-8000-000000000001'::uuid, '20000000-0000-4000-8000-000000000033'::uuid, 'open', (select d from today_a) - 3, (select d from today_a) - 11, 8, 7);
 
 -- Two follow-ups on the same case, written as postgres (bypasses RLS,
 -- exactly as 19_follow_ups.sql's own fixtures) so their existence tests
@@ -496,13 +520,26 @@ select ok(
 -- because pg_cron is not installed on this project until the fix creates
 -- it: without the guard, this assertion would raise `schema "cron" does not
 -- exist` and abort the whole transaction on every run before the fix lands,
--- rather than simply reporting red (ADR-069's tap-stream trap, the DO-block
--- side of it — this is not a bare top-level select of a helper, it is one
--- `perform ok(...)` inside a guarded block, so exactly one TAP line is
--- still produced either way).
+-- rather than simply reporting red.
+--
+-- CORRECTION, found by a blind critic: the value is computed inside the DO
+-- block (it has to be — whether `cron.job` can even be referenced depends on
+-- a runtime check of pg_extension), but ADR-069 still requires the assertion
+-- itself to be a plain top-level `select ok(...)`, never a `perform ok(...)`
+-- inside the block. `perform` discards ok()'s returned text; ok() still
+-- advances pgTAP's internal counter, but nothing is written to stdout, and
+-- `prove` reads TAP lines from stdout, not the counter. This file's own
+-- comment used to claim "exactly one TAP line is still produced either
+-- way" — that was wrong, is deleted, and is exactly why CI read "you
+-- planned 19 tests but ran 18" while `num_failed()` read 0 locally: the
+-- counter agreed with plan(19), the emitted stream did not, and
+-- `num_failed()` only ever reads the counter. The fix keeps the DO block for
+-- the guarded computation, writes its result into a temp table (the same
+-- pattern the tz_fixture assertions above already use for a value computed
+-- ahead of the pgTAP call that reads it), and moves the actual `ok()` to a
+-- bare top-level `select`, so it always emits its TAP line.
 -- ---------------------------------------------------------------------------
 
--- 19
 do $do$
 declare
   v_scheduled boolean;
@@ -519,12 +556,15 @@ begin
     v_scheduled := false;
   end if;
 
-  perform ok(
-    v_scheduled,
-    'requirement — a cron.job row exists and is active, running public.run_no_show_scan_all(); this pins that SOME nightly mechanism exists, not which schedule or job name'
-  );
+  create temp table cron_fixture as select v_scheduled as scheduled;
 end
 $do$;
+
+-- 19
+select ok(
+  (select scheduled from cron_fixture),
+  'requirement — a cron.job row exists and is active, running public.run_no_show_scan_all(); this pins that SOME nightly mechanism exists, not which schedule or job name'
+);
 
 
 select * from finish();
