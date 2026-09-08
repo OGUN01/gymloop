@@ -406,6 +406,24 @@ Two properties make this the worst kind of defect this project has produced: it 
 
 `supabase/functions/no-show-scan` is kept as the operator's manual re-run path, because a re-run after an incident is a real need and not one an operator should need `psql` for. `pg_cron` is authoritative; the function is a door, not a schedule.
 
+**ADR-078 - A checker whose failure mode is silence is worse than no checker.** The pre-push sweep replays all 43 pgTAP files and prints one line each. It reported "42 files, all green" for a run in which one file had failed and another had been swallowed — and I pushed on it six times. **The DB workflow was red on `main` for six consecutive commits while commit messages claimed "43/43 green, every gate."**
+
+The mechanism, because it is subtle and general: `supabase db query` returns only the **last result set that has rows**. On a passing file `finish()` returns no rows, so a `num_failed()` placed before it is what comes back. On a **failing** file `finish()` emits its `# Looks like you failed N tests` diagnostic row, which shadows `num_failed()` entirely. So the script could observe passes and nothing else: a failing file produced no matching output, `printf` had already written its name with no result beside it, and the *next* file's name landed on the same line and donated its result.
+
+That one bug explains every anomaly of the evening — "42 results for 43 files", a file that appeared to vanish from the run, and six red CI runs believed green. The count is now stashed in a temp table before `finish()` and selected back after it, so it is the last rows on the wire either way.
+
+**Three rules follow, and the third is the one that would have caught it:**
+
+- Detection and diagnosis stay separate paths (ADR-073's second half, restated because it recurred).
+- Count what you got against what you expected; a missing line is a result.
+- **Test a checker in both directions.** Point it at something known to be broken and confirm it says so. Every check written in this project until now was verified only against a passing input, which proves it can say yes and nothing about whether it can say no.
+
+**ADR-079 - `Number.isInteger` is not "an integer Postgres will accept".** The red list's cursor guard accepted anything typed `number`, so `Infinity` reached PostgREST. The fix used `Number.isInteger` and its comment asserted that `1e21` is not an integer. **`Number.isInteger(1e21)` is `true`** — it is a mathematical integer whose *string form* is `"1e+21"`, and the string is what reaches the database, which rejects it as `22P02`. `2147483648` passes the same guard and gives `22003 integer out of range`. The page renders `errorMessage` verbatim, so both blank the red list and show a Postgres error to a front desk.
+
+The check that means something is the **column's own domain**: `days_absent` is a Postgres `integer`, so the cursor's number must be one — `isInt4`, bounds included. The general form: *a validity check on a value crossing into another system must be written against that system's type, not against the sending language's nearest equivalent.*
+
+Contributing cause, worth as much as the rule: **there was no test file for `apps/web/lib/red-list.ts` at all.** The roster had one and its cursor survived two critics; the red list had none and its cursor was wrong twice.
+
 ## Known enforcement gaps
 
 Stated plainly so nobody mistakes a documented rule for an enforced one. A blind critic found each of these by testing what the gates actually catch rather than what they claim to.

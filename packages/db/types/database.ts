@@ -2408,7 +2408,14 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      run_no_show_scan_all: {
+        Args: never
+        Returns: {
+          gym: string
+          opened: number
+          tenant_id: string
+        }[]
+      }
     }
     Enums: {
       addon_kind: "pt_package" | "diet_plan" | "product"

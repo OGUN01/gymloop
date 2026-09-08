@@ -47,7 +47,8 @@ Directories marked DOES NOT EXIST YET are part of the §10 target layout but are
 
 - **Mutations** go through Next.js Route Handlers in `apps/web`, zod-validated against schemas derived from the generated Supabase types, returning a typed error envelope. Both web and mobile consume them through `packages/api-client` once it exists (Phase 2).
 - **Reads** go direct through `supabase-js` with RLS enforcing tenant isolation — for speed and Supabase Realtime, not routed through a Route Handler.
-- **Supabase Edge Functions** are used for exactly two things: Razorpay webhooks and cron-triggered jobs (no-show scans, reminder dispatch). Both must sit next to the database and must not depend on Vercel being up. Nothing else runs as an Edge Function — application logic that could live in a Route Handler does, so it stays colocated with the web app.
+- **Supabase Edge Functions** are used for exactly two things: Razorpay webhooks, and an operator's manual entry point to a scheduled job. Both must sit next to the database and must not depend on Vercel being up. Nothing else runs as an Edge Function — application logic that could live in a Route Handler does, so it stays colocated with the web app.
+- **Scheduling itself is `pg_cron`, not a function on a timer** (ADR-077). A scheduled job reached over HTTP needs a public endpoint, a deployment step and a shared secret; ADR-074 is what one wrongly-written grant on that endpoint cost — every signed-in member could run the nightly job. `cron.schedule` is reachable by nothing outside the database, cannot be applied-but-not-running, and depends on less than the thing it replaced. `supabase/functions/no-show-scan` remains as the door an operator opens to re-run after an incident; `pg_cron` is the schedule.
 
 ## The truth chain for data (master prompt §10)
 

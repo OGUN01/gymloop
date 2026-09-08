@@ -2,6 +2,7 @@ import { RED_LIST_PAGE_SIZE_DEFAULT, RED_LIST_PAGE_SIZE_MAX } from '@gymloop/sha
 import {
   decodeCursor,
   encodeCursor,
+  isInt4,
   pageSizeFrom,
   quoteFilterValue,
   UUID_PATTERN,
@@ -42,18 +43,21 @@ export async function loadRedList(
       'id, member_id, member_name, member_phone, status, days_absent, last_attended_on, next_follow_up_at, last_follow_up_at, last_follow_up_channel, last_follow_up_outcome, last_follow_up_by',
     );
 
-  // `Number.isInteger`, not `typeof === 'number'`, and the difference is a
-  // whole defect. `JSON.parse` yields `Infinity` for `1e999` and `1e+21` for
-  // `1e21` — both are numbers, neither is an integer PostgREST accepts, and
-  // both reach Postgres as `22P02 invalid input syntax for type integer`,
-  // whose message this page renders verbatim. The roster escaped it only
-  // because both of its cursor fields are strings; this is the first numeric
-  // cursor, and **a type check is not a validity check**.
+  // `isInt4`, not `typeof === 'number'` and not `Number.isInteger` either —
+  // this guard has now been wrong twice, in the same three lines.
+  //
+  // First it accepted anything typed `number`, so `Infinity` reached Postgres.
+  // The fix used `Number.isInteger` and its comment claimed `1e21` was not an
+  // integer. **`Number.isInteger(1e21)` is `true`**: it is a mathematical
+  // integer whose string form is `"1e+21"`, which is what actually reaches
+  // PostgREST and what Postgres rejects as `22P02`. `2147483648` passes as well
+  // and gives `22003 integer out of range`.
+  //
+  // The check that means something is the column's own domain: `days_absent`
+  // is a Postgres `integer`, so the cursor's number must be one.
   const after = decodeCursor(cursor, (value) =>
-    Number.isInteger(value.daysAbsent) &&
-    typeof value.id === 'string' &&
-    UUID_PATTERN.test(value.id)
-      ? { daysAbsent: value.daysAbsent as number, id: value.id }
+    isInt4(value.daysAbsent) && typeof value.id === 'string' && UUID_PATTERN.test(value.id)
+      ? { daysAbsent: value.daysAbsent, id: value.id }
       : null,
   );
 

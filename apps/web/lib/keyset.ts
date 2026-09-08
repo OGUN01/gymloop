@@ -78,3 +78,24 @@ export function pageSizeFrom(limit: string | undefined, fallback: number, max: n
   if (!Number.isInteger(asked) || asked < 1) return fallback;
   return Math.min(asked, max);
 }
+
+/**
+ * The range Postgres `integer` (int4) actually holds.
+ *
+ * **`Number.isInteger` is not this check, and believing it was is a defect this
+ * project shipped.** `Number.isInteger(1e21)` is `true` — `1e21` IS a
+ * mathematical integer; only its *string form* is `"1e+21"`, which Postgres
+ * rejects as `22P02 invalid input syntax for type integer`. `2147483648` is an
+ * integer too, and gives `22003 integer out of range`. The guard that let both
+ * through carried a comment asserting neither was an integer.
+ *
+ * So a cursor's numeric part is checked against the column's real domain, not
+ * against JavaScript's idea of a whole number.
+ */
+export const INT4_MIN = -2147483648;
+export const INT4_MAX = 2147483647;
+
+/** A value a Postgres `integer` column can hold, and render without an exponent. */
+export function isInt4(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= INT4_MIN && value <= INT4_MAX;
+}
