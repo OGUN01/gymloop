@@ -122,7 +122,19 @@ values (
   '{-7,-3,-1,3}'::smallint[],  -- PAY-001 axis: negative before expiry, positive after
   5,
   array['Medical', 'Travel', 'Work relocation', 'Exam preparation']::text[],
-  'gym_manager',
+  -- `gym_owner`, not the column's `gym_manager` default, and the reason is
+  -- worth the four lines. This gym has no `gym_manager` staff row -- a
+  -- neighbourhood gym in Indore genuinely does not have one -- so configuring
+  -- that role left the demo with **nobody able to approve a freeze**. The
+  -- Approve button rendered for every front-office viewer and always answered
+  -- `not_approver`, and the pause decision is the rule four critic rounds were
+  -- spent hardening. A setting naming a role the gym does not employ is a
+  -- silent misconfiguration ADR-065 narrowed the constraint to catch, and this
+  -- is the same mistake one level up: legal by the constraint, useless in fact.
+  --
+  -- Front desk requests, the owner approves: two people, which is the whole
+  -- point of the rule, and now exercisable through the product.
+  'gym_owner',
   30,
   40
 )

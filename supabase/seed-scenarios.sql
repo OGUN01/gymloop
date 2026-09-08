@@ -283,14 +283,19 @@ on conflict (id) do update set
 --      114 — approved, covers exactly the 5-day attendance gap (day_offset
 --            16-20) on member 114's membership — STK-002's pause-bridged
 --            streak case.
---    Front-desk staff (Divya Menon) both requests and approves/rejects below.
---    That is correct, not a stand-in: `membership_pauses_tenant_write` is
---    `is_front_office()`, so front_desk (and above) is who can actually write
---    this table (ADR-065 narrows `organization_settings_pause_approver_role_
---    chk` to the three roles that can, after `trainer` turned out to be
---    accepted by the check but silently refused by RLS). This gym's own
---    setting is `gym_manager`, and no `gym_manager` staff row exists in the
---    demo roster — a known oddity of the seeded staff list, not a gap here.
+--    **Front desk requests; the owner approves.** Two people, which is the
+--    whole point of the rule — the approver may not be the requester, and the
+--    approver must hold the gym's configured `pause_approver_role`.
+--
+--    This comment used to say the gym's setting was `gym_manager` with no
+--    `gym_manager` staff row, calling that "a known oddity of the seeded staff
+--    list, not a gap here". It was a gap. Nobody could approve a freeze in the
+--    only gym that exists: the Approve button rendered for every front-office
+--    viewer and always answered `not_approver`, so the rule four critic rounds
+--    were spent hardening had never once been exercised through the product.
+--    A blind critic found it, and it is the fifth time this phase that a
+--    confident sentence stopped the next person looking. `seed.sql` now
+--    configures `gym_owner`, a role this gym actually employs.
 -- ---------------------------------------------------------------------------
 
 with today as (select (now() at time zone 'Asia/Kolkata')::date as d)
@@ -306,12 +311,16 @@ select
   t.d + x.ends_offset,
   x.reason,
   '00000003-0000-4000-8000-000000000004'::uuid,
+  -- The OWNER approves, not the front desk that asked. `enforce_pause_decision`
+  -- exempts `postgres`, so the seed could write anything here -- which is
+  -- exactly why it should write what the rules would have produced. Demo data
+  -- that a live session could not have created is a rule nobody sees fail.
   -- An approver ONLY where there is an approval. This row used to name one on
   -- the rejected pause too, which is the exact shape the third critic round
   -- found reachable through the product -- our own demo data was carrying the
   -- defect. `membership_pauses_approver_pairs_with_approval_chk` now refuses it.
   case when x.decision = 'approved'
-       then '00000003-0000-4000-8000-000000000004'::uuid
+       then '00000003-0000-4000-8000-00000000000f'::uuid
        else null end,
   case when x.decision = 'approved'
        then ((t.d + x.starts_offset - 1) + time '11:00') at time zone 'Asia/Kolkata'
