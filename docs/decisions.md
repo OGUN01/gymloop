@@ -310,6 +310,13 @@ The five:
 
 **Neither half of #5 is a defect alone.** Reading past RLS is what `security definer` is for; running before the policy is what `before` triggers do. The pair is the defect, and that is why it survived an implementer, two blind test authors and me until somebody looked at the two facts together.
 
+**The pattern has two directions, and the search that finds one does not find the other.** This refinement is the visible-suite author's, after the sixth instance turned up looking nothing like the fifth.
+
+- **Elevating past a boundary that was already sufficient.** `app.enforce_check_in()` as `security definer`: the policy was correct, and the function was handed rights it did not need, in a component that runs before the policy. **Found by grepping `security definer` against `before` triggers** — a mechanical search, and it is now in `docs/data-model.md` as a rule.
+- **Leaving a rule outside a boundary that never claimed it.** `pause_approver_role`: the policy was correct *and complete for what it claimed to govern* — `is_front_office()` really is who may write a pause — and the rule it did not claim lived in a Route Handler the policy could not see. **No grep finds this.** It is found only by reading each policy against the rules its table is supposed to carry, and asking what the policy does *not* say.
+
+Both are a privilege boundary and a rule disagreeing about who enforces what. The first over-reaches; the second under-claims. A review that only runs the mechanical search will keep finding the fifth kind and never the sixth.
+
 **The rule that follows:** a `security definer` function must justify its elevation against *what its callers already hold*, in a comment, at the point of definition. Where the callers already hold every read, invoker is not merely safer - it is the only version that cannot become an oracle. And the fix is deleting a word, never adding a permission check inside the elevated code: that check is a second copy of the policy, and the copy is what goes stale.
 
 ## Known enforcement gaps

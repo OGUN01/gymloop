@@ -57,7 +57,7 @@ begin;
 -- the owner role is assumed explicitly, never inherited from the connection.
 set local role postgres;
 
-select plan(28);
+select plan(29);
 
 -- ---------------------------------------------------------------------------
 -- 1. Row-Level Security is on everywhere
@@ -834,8 +834,19 @@ select is_empty(
       join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public' and not t.tgisinternal
        and t.tgname <> c.relname || '_touch_updated_at'
-       and c.relname not in ('staff', 'members', 'platform_users', 'impersonation_sessions', 'attendance')$$,
-  'docs/data-model.md "What a cluster agent must not do", narrowed by design.md 6 and 7 and by the check-in trigger: the shared updated_at trigger is still the only trigger on thirty-one of the thirty-six tables. Five exemptions, each for a reason the rule cannot cover. The identity tables (session revocation and the role-change audit row) and impersonation_sessions (the start and end audit rows). And attendance: its de-duplication window is per-gym configuration read from organization_settings, so it can be neither an index predicate nor a check constraint, and attendance grants insert to authenticated, so a rule living in a Route Handler is bypassed by a direct supabase-js write. A trigger is the only place that rule meets every writer. That argument is what makes it an exemption rather than the state machine this assertion exists to keep out -- an exemption is a trigger that could not have been a constraint, not a trigger someone preferred'
+       and c.relname not in ('staff', 'members', 'platform_users', 'impersonation_sessions', 'attendance', 'membership_pauses')$$,
+  'docs/data-model.md "What a cluster agent must not do", narrowed by design.md 6 and 7 and by the two ADR-066 triggers: the shared updated_at trigger is still the only trigger on thirty of the thirty-six tables. Six exemptions, each for a reason the rule cannot cover. The identity tables (session revocation and the role-change audit row) and impersonation_sessions (the start and end audit rows). attendance: its de-duplication window is per-gym configuration read from organization_settings, so it can be neither an index predicate nor a check constraint, and attendance grants insert to authenticated, so a rule living in a Route Handler is bypassed by a direct supabase-js write. membership_pauses: the same argument one table over, and found the same way -- pause_approver_role was compared only in a TypeScript Route Handler while membership_pauses_tenant_write is is_front_office() for all commands with no constraint and no trigger, so any front-desk session could approve a freeze through supabase-js, including one they had requested themselves. What the trigger states cannot be a constraint either: the approver must be the acting staff member, must not be the requester, and must hold the role the gym configured in another table. A trigger is the only place each rule meets every writer. That argument is what makes both exemptions rather than the state machines this assertion exists to keep out -- an exemption is a trigger that could not have been a constraint, not a trigger someone preferred'
+);
+
+select is(
+  (select array_agg(t.tgtype order by t.tgname)
+     from pg_trigger t
+     join pg_class c on c.oid = t.tgrelid
+     join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and not t.tgisinternal
+      and t.tgname = 'membership_pauses_enforce_decision'),
+  array[19::smallint],
+  'the pause-approval rule governs only the transition into approved, and this pins the half of that asymmetry a catalogue can see: tgtype 19 is BEFORE + ROW + UPDATE, and nothing else. Refusing a freeze needs no special role -- that is not the commercial decision granting one is -- and every other column is already governed by membership_pauses_tenant_write, so the deliberate thing to protect is that nobody later tidies this into symmetry by widening it to `before insert or update`. LIMIT, stated so this is not read as more than it is: the body could still grow a clause governing a rejection and this assertion would not notice. That half needs a behavioural test, and it needs one written from an EARS spec by an author who has not read app.enforce_pause_decision()'
 );
 
 select * from finish();
