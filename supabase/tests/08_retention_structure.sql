@@ -543,11 +543,16 @@ select throws_ok(
 
 -- ---------------------------------------------------------------------------
 -- 72-74  The shared updated_at trigger: present on no_show_cases (which has the
---        column), absent from follow_ups (which does not). A table with no
---        updated_at gets no trigger — docs/data-model.md, "Every table".
---        The trigger is proved by writing a stale value and watching it be
---        overwritten: inside one transaction now() is frozen, so comparing
---        updated_at against created_at would prove nothing.
+--        column). follow_ups has no updated_at column, so it needs no touch
+--        trigger regardless of what else it carries — Phase 4 gave the table
+--        a trigger of its own for the attribution, concurrency and status
+--        rules (NSH-006, NSH-007, GL030), but that is a different question
+--        from this one: a table with no updated_at still gets no *touch*
+--        trigger, and that is the one thing left to pin here —
+--        docs/data-model.md, "Every table". The no_show_cases trigger is
+--        proved by writing a stale value and watching it be overwritten:
+--        inside one transaction now() is frozen, so comparing updated_at
+--        against created_at would prove nothing.
 -- ---------------------------------------------------------------------------
 
 select has_trigger('public', 'no_show_cases', 'no_show_cases_touch_updated_at',
@@ -563,14 +568,8 @@ select ok(
     where id = 'a0000000-0000-4000-8000-000000000020'::uuid),
   'NSH-005: the trigger overwrites a stale updated_at supplied by the writer');
 
-select is(
-  (select count(*)
-     from pg_trigger t
-     join pg_class c on c.oid = t.tgrelid
-     join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'public' and c.relname = 'follow_ups' and not t.tgisinternal),
-  0::bigint,
-  'NSH-007: follow_ups carries no trigger at all — it has no updated_at to touch');
+select hasnt_trigger('public', 'follow_ups', 'follow_ups_touch_updated_at',
+  'NSH-007: follow_ups carries no touch_updated_at trigger — it has no updated_at column for one to touch');
 
 select * from finish();
 

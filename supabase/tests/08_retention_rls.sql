@@ -63,7 +63,8 @@ select set_config(
   'request.jwt.claims',
   json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
                     'tenant_id', 'a0000000-0000-4000-8000-000000000001',
-                    'app_role', 'gym_owner')::text,
+                    'app_role', 'gym_owner',
+                    'staff_id', 'a0000000-0000-4000-8000-000000000003')::text,
   true
 );
 set local role authenticated;
@@ -166,11 +167,16 @@ select lives_ok(
              'a0000000-0000-4000-8000-000000000010'::uuid, 10, 7)$q$,
   'NSH-003: gym A may open a case in its own tenant');
 
+-- Targets the case just opened above (…021), not the fixture's closed case
+-- (…020): GL031 now refuses a follow-up against a closed case (Phase 4), and
+-- that is a different rule from the one this positive control exists to
+-- prove. This block tests tenant scoping in isolation, the same way the rest
+-- of the file does one thing per assertion.
 select lives_ok(
   $q$insert into public.follow_ups (id, tenant_id, case_id, staff_id, channel, outcome)
      values ('a0000000-0000-4000-8000-000000000031'::uuid,
              'a0000000-0000-4000-8000-000000000001'::uuid,
-             'a0000000-0000-4000-8000-000000000020'::uuid,
+             'a0000000-0000-4000-8000-000000000021'::uuid,
              'a0000000-0000-4000-8000-000000000003'::uuid, 'in_person', 'timing_issue')$q$,
   'NSH-007: gym A may append to the contact log in its own tenant');
 
