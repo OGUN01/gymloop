@@ -361,6 +361,19 @@ Two things follow, and the second matters more than the first:
 
 **Fourth false comment of the phase**, and the one that matters most: the migration introducing the requester guard said "a null actor is refused too, which also closes an impersonating session forging a request." It did not — one round after ADR-070 named that exact failure mode. **A comment claiming a gap is closed must be verified like code, because its whole function is to stop the next person looking.**
 
+**ADR-072 - A rule that only refuses belongs after the policy; only a rule that must modify the row needs to run before it.** ADR-071's fix added the requester rule to `app.enforce_pause_decision()`, which was a `before insert` trigger — so it began answering for rows `membership_pauses_tenant_write` owned. Four assertions in three suites went red, each asserting that row security is what refuses a write it owns: a cross-tenant insert, an insert with no claims, and a trainer writing in their own gym.
+
+**This is ADR-066 reintroduced by a migration that cites ADR-066.** Every migration in the sequence kept `tenant_id` out of its comparisons for exactly this reason, and then a new rule was added to the same `before` trigger without asking the same question of it. Worth being plain about why that is easy to do: the discipline had been applied *per column*, and it is really a property of *when the trigger runs*.
+
+Two repairs were rejected and the reasons are the content:
+
+- **Gate the rule on the tenant matching.** Closes three of four. The trainer is refused by the policy on *role*, in their own gym, so the trigger still answers first.
+- **Gate it on `is_front_office() or is_platform()`.** Closes all four and is precisely what ADR-066 forbids — a second copy of the policy inside the function, and the copy is what goes stale. **It would have passed CI and been wrong**, which is the reason to write this down rather than just fix it.
+
+The repair is the trigger's timing. The function only ever raises; it never modifies `new`. Under `after insert or update` it fires once row security has admitted the row, so a caller the policy refuses gets `42501` from the policy and a caller it admits meets every rule unchanged — raising in an AFTER trigger aborts the statement just the same. `app.enforce_check_in()` correctly stays `before insert`: it stamps `tenant_id`, `branch_id` and `assisted_by_staff_id` onto the row, so it must run first, and its refusal messages were made safe a different way (ADR-066, `security invoker`).
+
+**The process failure is worth more than the defect.** Every earlier round replayed all 39 pgTAP files against the candidate migration before pushing; this round replayed only the four the change targeted, and CI found what the shortened sweep missed. The four broken assertions were in suites the change "obviously" did not touch. **The full sweep is not optional — a trigger is a global object, and "which files does this affect" is the question a regression suite exists to answer for you.**
+
 ## Known enforcement gaps
 
 Stated plainly so nobody mistakes a documented rule for an enforced one. A blind critic found each of these by testing what the gates actually catch rather than what they claim to.
