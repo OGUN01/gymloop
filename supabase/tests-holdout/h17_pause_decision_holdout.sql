@@ -66,7 +66,7 @@ begin;
 -- holds BYPASSRLS, is assumed explicitly rather than inherited.
 set local role postgres;
 
-select plan(47);
+select plan(58);
 
 -- ---------------------------------------------------------------------------
 -- pg_temp.attempt(): run a write, return 'ok' or the SQLSTATE, never abort.
@@ -940,18 +940,19 @@ do $do$ begin perform pg_temp.attempt($$
           '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
           'H17 born rejected', '170000ff-0000-4000-8000-00000000a022', now())$$); end $do$;
 
--- Half born. approved_by_staff_id is set at insert — a column no requirement
--- forbids on insert, because the spec's reasoning is that insert-time rules are
--- vacuous — and approved_at is stamped afterwards, on its own, by the same
--- person. The approver was never checked at insert and, at update, is not being
--- changed. This is the born-approved defect taken in two moves.
--- This insert is asserted rather than discarded, and the reason is worth
--- stating: the assertion below passes if EITHER move was refused, so a setup
--- write that quietly failed would make it green for a reason that has nothing
--- to do with what it claims. Naming the expected outcome here is what stops
--- that. It is also a claim in its own right — no requirement forbids recording
--- a proposed approver on an undecided pause, only arriving already decided.
-select is(pg_temp.attempt($$
+-- Half born. approved_by_staff_id named at insert, approved_at left null.
+--
+-- This assertion originally expected the insert to succeed, on the reasoning
+-- that the spec only forbade arriving already DECIDED, and said so honestly:
+-- "no requirement forbids recording a proposed approver on an undecided
+-- pause". That reasoning was correct for the spec as it stood when it was
+-- written. The requirement "An approver is recorded only where there is an
+-- approval" now exists — approved_by_staff_id and approved_at are one fact,
+-- written together or not at all, for every writer, which makes this insert
+-- exactly the shape it forbids: an approver named with no approval to go with
+-- it. The claim below is now the opposite one, in its own right, not a note
+-- about what the next statement does.
+select isnt(pg_temp.attempt($$
   insert into public.membership_pauses
     (id, tenant_id, membership_id, starts_on, ends_on, reason,
      requested_by_staff_id, approved_by_staff_id)
@@ -960,7 +961,7 @@ select is(pg_temp.attempt($$
           'H17 half born', '170000ff-0000-4000-8000-00000000a022',
           '170000ff-0000-4000-8000-00000000a022')$$),
   'ok',
-  'A pause may be created naming a proposed approver while still undecided — only arriving already DECIDED is refused, so the next assertion is about the update and not about this insert having failed');
+  'A pause cannot be created naming a proposed approver while still undecided — approved_by_staff_id and approved_at are one fact and must be written together or not at all, on the very first statement that creates the row exactly as on any later one');
 
 do $do$ begin perform pg_temp.attempt($$
   update public.membership_pauses
@@ -1457,6 +1458,296 @@ select is_empty(
        and p.approved_at is not null
        and s.role <> os.pause_approver_role$$,
   'Every granted freeze in either gym was granted by someone holding that gym''s own configured approver role — checked against the settings row rather than against any constant');
+
+-- ---------------------------------------------------------------------------
+-- 48-51. NEW: A SESSION WITH NO STAFF IDENTITY INSERTS A PAUSE.
+--
+-- Everything above that attacks a claim with no staff_id does so on UPDATE —
+-- approving, rejecting, rewriting an already-decided row. The spec's new
+-- scenario is INSERT specifically, and the general form the critic named is
+-- precise: `null is distinct from null` is false, so a guard written as "the
+-- requester must equal the acting staff member" is silent exactly when both
+-- sides are null — a session with no staff_id claim, naming no requester. The
+-- two impersonator inserts below reproduce that split: one naming nobody (the
+-- null/null shape itself), one naming an actual colleague (the spec's
+-- "whatever it names as the requester") — a fix that closes only the
+-- null/null case is caught by the second, and a fix that only checks
+-- "is a value present" is caught by neither unless it also asks whose value
+-- it is.
+-- ---------------------------------------------------------------------------
+
+-- An impersonating platform admin: app_role + tenant_id, no staff_id. Naming
+-- NOBODY as requester — the exact null/null shape the spec's prose names.
+select set_config('request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '170000ff-0000-4000-8000-00000000a001',
+                    'app_role', 'gym_owner',
+                    'impersonation_session_id', gen_random_uuid())::text, true);
+set local role authenticated;
+
+do $do$ begin perform pg_temp.attempt($$
+  insert into public.membership_pauses
+    (id, tenant_id, membership_id, starts_on, ends_on, reason)
+  values ('170000ff-0000-4000-8000-000000000210', '170000ff-0000-4000-8000-00000000a001',
+          '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
+          'H17 impersonator inserts naming nobody')$$); end $do$;
+
+-- Same session, this time naming an actual colleague. "There is nobody to
+-- record as having asked" must hold whatever the insert types into the
+-- column, not only when the column happens to be left blank.
+do $do$ begin perform pg_temp.attempt($$
+  insert into public.membership_pauses
+    (id, tenant_id, membership_id, starts_on, ends_on, reason, requested_by_staff_id)
+  values ('170000ff-0000-4000-8000-000000000211', '170000ff-0000-4000-8000-00000000a001',
+          '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
+          'H17 impersonator inserts naming a colleague',
+          '170000ff-0000-4000-8000-00000000a021')$$); end $do$;
+
+reset role;
+set local role postgres;
+
+select is_empty(
+  $$select 1 from public.membership_pauses
+     where id = '170000ff-0000-4000-8000-000000000210'$$,
+  'An impersonating session with no staff_id claim cannot insert a pause naming nobody as requester — the null/null shape the spec names, where a comparison-only guard is silent');
+
+select is_empty(
+  $$select 1 from public.membership_pauses
+     where id = '170000ff-0000-4000-8000-000000000211'$$,
+  'The same impersonating session cannot insert a pause naming a colleague either — there is nobody to record as having asked, whatever the insert types into the column');
+
+-- A plain super_admin: no tenant_id, no staff_id, reaching every tenant
+-- through membership_pauses_platform_write. Less identity than the
+-- impersonator above (no tenant_id at all), so it is the cheaper attack a fix
+-- aimed only at impersonation might still miss.
+select set_config('request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'app_role', 'super_admin')::text, true);
+set local role authenticated;
+
+do $do$ begin perform pg_temp.attempt($$
+  insert into public.membership_pauses
+    (id, tenant_id, membership_id, starts_on, ends_on, reason, requested_by_staff_id)
+  values ('170000ff-0000-4000-8000-000000000212', '170000ff-0000-4000-8000-00000000a001',
+          '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
+          'H17 super_admin inserts',
+          '170000ff-0000-4000-8000-00000000a021')$$); end $do$;
+
+reset role;
+set local role postgres;
+
+select is_empty(
+  $$select 1 from public.membership_pauses
+     where id = '170000ff-0000-4000-8000-000000000212'$$,
+  'A plain super_admin cannot insert a pause either — it reaches every tenant through the platform write policy and carries no staff identity at all');
+
+-- A staff_id naming a real staff row, but of the OTHER gym. Not literally "no
+-- staff identity" — it names one — but it is the third claim shape this task
+-- calls out, belonging to the same family: a staff_id that identifies nobody
+-- WITHIN the acting tenant. Composite FKs (ADR-052) or the rule itself refuse
+-- it; this file does not care which, only that gym B ends up with no such row.
+select set_config('request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '170000ff-0000-4000-8000-00000000b001',
+                    'app_role', 'gym_manager',
+                    'staff_id', '170000ff-0000-4000-8000-00000000a022')::text, true);
+set local role authenticated;
+
+do $do$ begin perform pg_temp.attempt($$
+  insert into public.membership_pauses
+    (id, tenant_id, membership_id, starts_on, ends_on, reason, requested_by_staff_id)
+  values ('170000ff-0000-4000-8000-000000000213', '170000ff-0000-4000-8000-00000000b001',
+          '170000ff-0000-4000-8000-00000000b051', date '2026-10-01', date '2026-10-08',
+          'H17 wrong-gym staff_id inserts',
+          '170000ff-0000-4000-8000-00000000a022')$$); end $do$;
+
+reset role;
+set local role postgres;
+
+select is_empty(
+  $$select 1 from public.membership_pauses
+     where id = '170000ff-0000-4000-8000-000000000213'$$,
+  'A staff_id naming a real staff member of a DIFFERENT gym cannot insert a pause in this gym — a claim that resolves to somebody is not the same as a claim that resolves to somebody HERE');
+
+-- ---------------------------------------------------------------------------
+-- 52-58. NEW: AN APPROVER IS RECORDED ONLY WHERE THERE IS AN APPROVAL.
+--
+-- Fresh pending rows, one per attack, so no earlier fixture's mutation (or
+-- lack of one) is what this section is actually measuring. Placed after the
+-- OUTCOMES block above so the one legitimate approval this section creates
+-- (204) cannot perturb that block's closed thirteen-row count.
+-- ---------------------------------------------------------------------------
+
+insert into public.membership_pauses
+  (id, tenant_id, membership_id, starts_on, ends_on, reason, requested_by_staff_id)
+select id, '170000ff-0000-4000-8000-00000000a001', '170000ff-0000-4000-8000-00000000a051',
+       date '2026-10-01', date '2026-10-08', 'H17 pending, approver-without-approval attacks',
+       '170000ff-0000-4000-8000-00000000a021'
+from (values
+  ('170000ff-0000-4000-8000-000000000201'::uuid), -- reject while naming an approver
+  ('170000ff-0000-4000-8000-000000000202'::uuid), -- approver named on a pending pause, alone
+  ('170000ff-0000-4000-8000-000000000203'::uuid), -- approved_at set alone, no approver named
+  ('170000ff-0000-4000-8000-000000000204'::uuid), -- positive control: legitimate approval
+  ('170000ff-0000-4000-8000-000000000205'::uuid)  -- positive control: legitimate rejection
+) as t(id);
+
+-- Rejecting while naming an approver — the spec's own scenario. Front desk
+-- may reject with no role check at all, so if this succeeds the false
+-- attribution rides in on the one write nothing else here governs.
+select set_config('request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '170000ff-0000-4000-8000-00000000a001',
+                    'app_role', 'front_desk',
+                    'staff_id', '170000ff-0000-4000-8000-00000000a024')::text, true);
+set local role authenticated;
+
+do $do$ begin perform pg_temp.attempt($$
+  update public.membership_pauses
+     set rejected_at = now(),
+         approved_by_staff_id = '170000ff-0000-4000-8000-00000000a022'
+   where id = '170000ff-0000-4000-8000-000000000201'$$); end $do$;
+
+-- Naming an approver on a pending pause, on its own — no approved_at at all.
+-- The spec's other scenario, and deliberately a plain UPDATE rather than an
+-- INSERT: the file's earlier "half born" probe (assertion around row 130) was
+-- written and asserted green under the spec AS IT STOOD BEFORE this
+-- requirement existed. Under the requirement above the column is nobody's
+-- business while approved_at is null, on an UPDATE exactly as much as an
+-- INSERT — see the note in this file's report about that earlier assertion.
+do $do$ begin perform pg_temp.attempt($$
+  update public.membership_pauses
+     set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a022'
+   where id = '170000ff-0000-4000-8000-000000000202'$$); end $do$;
+
+-- The other half of "written together or not at all": approved_at set with
+-- no approver named. The spec's scenario list shows only the
+-- approver-without-approval direction; this is the symmetric case implied by
+-- the requirement's own words ("written together or not at all", not merely
+-- "not without the other one named first"). Treat a red here as worth
+-- escalating rather than assumed a defect — it is an extrapolation from prose,
+-- not a literal scenario.
+--
+-- Its assertion is worth reading carefully: it is already green today,
+-- before the new invariant lands, because the pre-existing approver-equals-
+-- actor rule happens to refuse a NEW.approved_by_staff_id that stays null
+-- while the actor is not. Once the new CHECK-shaped invariant exists it will
+-- still be green — but for the new reason. The message says which claim is
+-- being made so a reader does not mistake "still green" for "untouched by
+-- the fix".
+do $do$ begin perform pg_temp.attempt($$
+  update public.membership_pauses
+     set approved_at = now()
+   where id = '170000ff-0000-4000-8000-000000000203'$$); end $do$;
+
+reset role;
+set local role postgres;
+
+select ok(
+  (select rejected_at is null and approved_by_staff_id is null
+     from public.membership_pauses
+    where id = '170000ff-0000-4000-8000-000000000201'),
+  'A rejection cannot name an approver in the same statement — the write is refused whole, so the row is still pending rather than half-decided');
+
+select ok(
+  (select approved_by_staff_id is null from public.membership_pauses
+    where id = '170000ff-0000-4000-8000-000000000202'),
+  'approved_by_staff_id cannot be named on a pending pause on its own — the column is nobody''s business while approved_at is null, on UPDATE exactly as it is on INSERT');
+
+select ok(
+  (select approved_at is null and approved_by_staff_id is null
+     from public.membership_pauses
+    where id = '170000ff-0000-4000-8000-000000000203'),
+  'approved_at cannot be set without naming an approver either — testing the table invariant "written together or not at all", which is already true today via the approver-equals-actor trigger rule and will remain true once the CHECK-shaped invariant lands, for a different reason');
+
+-- The invariant reaches even the contexts the TRIGGER deliberately exempts.
+-- postgres bypasses RLS and the trigger's own carve-out lets it insert an
+-- already-decided row (proven earlier in this file, assertions around rows
+-- 132/135) — but the spec is explicit that this is a CHECK CONSTRAINT, not a
+-- trigger branch, and holds "for every writer including the ones the trigger
+-- deliberately exempts". Both halves of the pair, each with the other left
+-- out, from the one context guaranteed to bypass every RLS-scoped rule.
+--
+-- This is why a CHECK constraint was the right shape and another trigger
+-- branch was not: a branch is a place a session can arrive without running
+-- it, and this capability has now found that shape three times — the
+-- requester guard silent on two nulls, the approver columns ungoverned below
+-- a `return` taken on a null approved_at, and here, a trusted context that
+-- was never meant to be exempt from THIS rule inheriting the trigger's
+-- exemption from a different one because both live in the same branch. A
+-- constraint on the row has no branch to arrive around.
+select set_config('request.jwt.claims', '', true);
+
+do $do$ begin perform pg_temp.attempt($$
+  insert into public.membership_pauses
+    (id, tenant_id, membership_id, starts_on, ends_on, reason,
+     requested_by_staff_id, approved_by_staff_id)
+  values ('170000ff-0000-4000-8000-000000000214', '170000ff-0000-4000-8000-00000000a001',
+          '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
+          'H17 postgres inserts approver alone, no approved_at',
+          '170000ff-0000-4000-8000-00000000a021', '170000ff-0000-4000-8000-00000000a022')$$); end $do$;
+
+do $do$ begin perform pg_temp.attempt($$
+  insert into public.membership_pauses
+    (id, tenant_id, membership_id, starts_on, ends_on, reason,
+     requested_by_staff_id, approved_at)
+  values ('170000ff-0000-4000-8000-000000000215', '170000ff-0000-4000-8000-00000000a001',
+          '170000ff-0000-4000-8000-00000000a051', date '2026-10-01', date '2026-10-08',
+          'H17 postgres inserts approved_at alone, no approver',
+          '170000ff-0000-4000-8000-00000000a021', now())$$); end $do$;
+
+select is_empty(
+  $$select 1 from public.membership_pauses
+     where id = '170000ff-0000-4000-8000-000000000214'$$,
+  'Even postgres, exempt from the trigger''s own decided-at-birth rule, cannot insert approved_by_staff_id without approved_at — a CHECK constraint on the row, not a branch a trusted role is exempt from');
+
+select is_empty(
+  $$select 1 from public.membership_pauses
+     where id = '170000ff-0000-4000-8000-000000000215'$$,
+  'Nor can postgres insert approved_at without an approver named — the invariant holds for the seed exactly as it holds for a front-desk session, because it is a fact about the row and not a rule about who is writing it');
+
+-- Whether the fix is too strong: a legitimate approval and a legitimate
+-- rejection must still both succeed, verified by reading the row back rather
+-- than by lives_ok alone.
+select set_config('request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '170000ff-0000-4000-8000-00000000a001',
+                    'app_role', 'gym_manager',
+                    'staff_id', '170000ff-0000-4000-8000-00000000a022')::text, true);
+set local role authenticated;
+
+do $do$ begin perform pg_temp.attempt($$
+  update public.membership_pauses
+     set approved_by_staff_id = '170000ff-0000-4000-8000-00000000a022',
+         approved_at = now()
+   where id = '170000ff-0000-4000-8000-000000000204'$$); end $do$;
+
+select set_config('request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '170000ff-0000-4000-8000-00000000a001',
+                    'app_role', 'front_desk',
+                    'staff_id', '170000ff-0000-4000-8000-00000000a024')::text, true);
+set local role authenticated;
+
+do $do$ begin perform pg_temp.attempt($$
+  update public.membership_pauses
+     set rejected_at = now()
+   where id = '170000ff-0000-4000-8000-000000000205'$$); end $do$;
+
+reset role;
+set local role postgres;
+
+select ok(
+  (select approved_at is not null
+     and approved_by_staff_id = '170000ff-0000-4000-8000-00000000a022'::uuid
+     from public.membership_pauses
+    where id = '170000ff-0000-4000-8000-000000000204'),
+  'A legitimate approval, by the configured role, not the requester, still succeeds — read back from the row rather than trusted on lives_ok alone, so a fix that refuses everything is caught here rather than passing by omission');
+
+select ok(
+  (select rejected_at is not null and approved_by_staff_id is null
+     from public.membership_pauses
+    where id = '170000ff-0000-4000-8000-000000000205'),
+  'A legitimate rejection still succeeds too — read back the same way, and still names no approver, because rejecting is not approving');
 
 select * from finish();
 
