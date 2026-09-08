@@ -79,14 +79,42 @@ function pageSizeFrom(limit: string | undefined): number {
 }
 
 /**
- * The cursor is opaque on purpose: it is a place in a result, not an API, and
- * encoding it stops a caller hand-crafting one and stops anybody depending on
- * its shape. `encodeURIComponent` before `btoa` because a member's name is not
- * Latin-1 — half this product's members have names `btoa` would throw on.
+ * The cursor is opaque so that nobody depends on its shape — and that is ALL
+ * the encoding buys. **Base64 is not a signature.** A cursor arrives in a query
+ * string and a caller writes whatever they like into one; an earlier version of
+ * this file said encoding "stops a caller hand-crafting one", which was simply
+ * false, and a blind critic hand-crafted one against the live API to prove it.
+ *
+ * `encodeURIComponent` before `btoa` because a member's name is not Latin-1 —
+ * half this product's members have names `btoa` would throw on.
  */
 function encodeCursor(at: MemberCursor): string {
   return btoa(encodeURIComponent(JSON.stringify(at)));
 }
+
+/**
+ * `id` is checked to BE a uuid, not merely to be a string, and the difference
+ * is the whole finding.
+ *
+ * Both parts of a cursor are interpolated into a PostgREST `or=(…)` filter,
+ * where `,` `.` `(` `)` are grammar rather than characters — so an unescaped
+ * value is not a value, it is a clause. `fullName` was quoted; `id` was not,
+ * and `typeof id === 'string'` admitted anything. A crafted cursor therefore
+ * appended its own `WHERE` fragment and returned rows the keyset had excluded.
+ *
+ * Stated honestly, because the difference matters for how alarmed to be: it
+ * crossed no tenant boundary. Row security still filtered, the caller was
+ * already signed-in staff of that gym, and the fragment reached no other table.
+ * What it was is **an attacker-controlled filter fragment arriving from a query
+ * string**, in a codebase whose whole argument is that the endpoint is not the
+ * boundary — one reuse away, on a member-facing screen or a wider select, from
+ * being an oracle. The shape is the defect; the blast radius was luck.
+ *
+ * The same check answers a second, quieter bug. An id of `"x"` decodes, passes
+ * a `typeof` guard, and reaches Postgres as `22P02 invalid input syntax for
+ * type uuid` — whose message the roster renders verbatim to the front desk.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function decodeCursor(cursor: string | undefined): MemberCursor | null {
   if (!cursor) return null;
@@ -94,11 +122,13 @@ function decodeCursor(cursor: string | undefined): MemberCursor | null {
     const parsed: unknown = JSON.parse(decodeURIComponent(atob(cursor)));
     if (typeof parsed !== 'object' || parsed === null) return null;
     const { fullName, id } = parsed as Partial<MemberCursor>;
-    return typeof fullName === 'string' && typeof id === 'string' ? { fullName, id } : null;
+    return typeof fullName === 'string' && typeof id === 'string' && UUID.test(id)
+      ? { fullName, id }
+      : null;
   } catch {
     // A cursor that will not decode is a query string somebody edited or a link
     // that outlived a deploy. The first page is the right answer to it; an
-    // error page is not.
+    // error page is not — and neither is a Postgres message on the screen.
     return null;
   }
 }
@@ -111,7 +141,13 @@ function decodeCursor(cursor: string | undefined): MemberCursor | null {
  */
 function keysetAfter(at: MemberCursor): string {
   const name = quote(at.fullName);
-  return `full_name.gt.${name},and(full_name.eq.${name},id.gt.${at.id})`;
+  // `id` is quoted too, even though `decodeCursor` has already established it
+  // is a uuid and a uuid contains nothing PostgREST parses. Two independent
+  // reasons hold this line: the validation and the quoting each close the hole
+  // alone, and this is exactly the kind of value that arrives from somewhere
+  // new one day — a select list, a saved link, a Phase 7 mobile client — with
+  // the validation refactored away and the quoting still standing.
+  return `full_name.gt.${name},and(full_name.eq.${name},id.gt.${quote(at.id)})`;
 }
 
 /**

@@ -59,9 +59,16 @@ export const membershipCreateSchema = z.object({
  * the one that can say something useful about it.
  *
  * There is no `requestedBy` field: the requester is stamped from the `staff_id`
- * claim, and the table now refuses to let it change afterwards, which is what
- * makes the two-person rule on approval a control rather than decoration
- * (ADR-068).
+ * claim by the handler, **and by `app.enforce_pause_decision()` at the insert
+ * itself**, which is what makes the two-person rule on approval a control
+ * rather than decoration.
+ *
+ * That sentence used to end "the table now refuses to let it change
+ * afterwards", and *afterwards* was doing more work than it could bear: the
+ * column was immutable on UPDATE and free at INSERT, so a manager inserted a
+ * pause naming a colleague and approved it in the next statement. The comment
+ * was the sentence a reader would have trusted instead of re-deriving the hole
+ * (ADR-068, ADR-070).
  */
 export const pauseRequestSchema = z
   .object({
