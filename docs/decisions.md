@@ -294,6 +294,20 @@ The obvious repair is a job that flips the status when a pause starts and flips 
 
 The matrix wins, because it is the security boundary and the setting is a preference. The check constraint narrows to the three roles that can actually write, which turns a silent misconfiguration into a rejected one at the moment somebody tries to save it. Rejected: widening `membership_pauses`' write gate to include trainers - a trainer approving a member's freeze is a commercial decision, and ADR-055's whole argument is that the matrix is not widened to fit a setting.
 
+**ADR-066 - The recurring defect of this project, named so it can be looked for.** Five instances across Phases 2 and 3, each found by a blind reader rather than by the author. The shape is **a privilege boundary crossed for convenience, in a component that runs before the boundary it was meant to respect.** That framing is the visible-suite author's, and it is better than the one this ADR started with ("a rule whose correctness is held by a different component"), because it says what to *look for* rather than what to regret: **every `security definer` function and every `before` trigger, checked as a pair.**
+
+The five:
+
+1. **`<t>_member_select` trusted the hook** to never mint a `member_id` claim alongside a staff role. Closed by naming the role in the policy.
+2. **`impersonation_sessions_impersonator_write` had no role term**, so a `front_desk` token carrying an impersonation claim could end the session. Closed the same way.
+3. **The exactly-once check-in guard was specified as a Route Handler or an RPC.** `attendance` grants `insert` to `authenticated`, so a direct `supabase-js` write bypasses both. Closed by attaching the guard to the table.
+4. **`impersonation_sessions_platform_write` gated the caller and not the `actor_user_id` column**, so an admin could create a session attributed to somebody else. Closed with `actor_user_id = auth.uid()`.
+5. **`app.enforce_check_in()` was `security definer`**, owned by a `BYPASSRLS` role, and being a `before insert` trigger it ran ahead of the policy. So *any* `authenticated` session could reach four tables past RLS: a member replaying a `qr_session_id` out of their own readable `attendance` row got `expires_at` and `revoked_at` back in an error message, from a table the matrix gives them zero rows of, and `GL014` printed `checkin_dedupe_seconds` from a table they may not read at all. Closed by **deleting `security definer`** - every role that may insert attendance already holds all four reads (`is_front_office()` ⊆ `is_staff()`), so the elevation bought nothing and cost the isolation.
+
+**Neither half of #5 is a defect alone.** Reading past RLS is what `security definer` is for; running before the policy is what `before` triggers do. The pair is the defect, and that is why it survived an implementer, two blind test authors and me until somebody looked at the two facts together.
+
+**The rule that follows:** a `security definer` function must justify its elevation against *what its callers already hold*, in a comment, at the point of definition. Where the callers already hold every read, invoker is not merely safer - it is the only version that cannot become an oracle. And the fix is deleting a word, never adding a permission check inside the elevated code: that check is a second copy of the policy, and the copy is what goes stale.
+
 ## Known enforcement gaps
 
 Stated plainly so nobody mistakes a documented rule for an enforced one. A blind critic found each of these by testing what the gates actually catch rather than what they claim to.

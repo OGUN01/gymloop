@@ -177,6 +177,16 @@ with `impersonation_sessions_platform_all` beside it, unchanged from the templat
 
 Under a missing claim `app.current_tenant_id()` is null, `tenant_id = null` is null rather than true, and `app.is_platform()` is false; both permissive policies fail, they OR to false, and the query returns zero rows. Zero rows, not an error — a policy that raised would let a caller tell "nothing here" apart from "wrong tenant", and the pgTAP null-claim case asserts the silent-empty behaviour. The same arithmetic keeps `audit_log`'s null-`tenant_id` rows invisible to every gym without needing a second policy: `null = <uuid>` is null.
 
+### `security definer` must justify itself against what the caller already holds (ADR-066)
+
+A function marked `security definer` here is owned by `postgres`, which carries `BYPASSRLS`, so **it reads every table past row-level security.** In a `before` trigger that is doubly true: the trigger runs ahead of the policy, so every `authenticated` session reaches it, including the roles the matrix denies the tables it reads.
+
+`app.enforce_check_in()` shipped that way and was an information oracle — a member replaying a `qr_session_id` from their own readable `attendance` row got `expires_at` and `revoked_at` back in an error message, from a table their read gate gives them zero rows of.
+
+**The rule:** elevation is justified against *what the function's callers already hold*, in a comment, at the definition. Where the callers already hold every read the function makes, `security invoker` is not merely safer — it is the only version that cannot become an oracle, because a probe by a caller who may not read finds nothing and gets the same answer as a probe for a row that does not exist. **The fix is never a permission check inside the elevated function**: that is a second copy of the policy, and the copy is what goes stale.
+
+The two elevated functions that remain are the access-token hook (its caller is `supabase_auth_admin`, which holds no table grants at all, so elevation is the only way it can work) and the audit-writing triggers (`audit_log` is read-only to `authenticated` by design, so no caller can hold that write).
+
 ### A third globally-scoped constraint (Phase 2)
 
 ADR-047 requires every unique and exclusion constraint in `public` to lead with the tenant column, and names two exemptions: `organizations.gym_code`, which identifies a gym across the platform, and `qr_sessions.token_hash`, which is a secret. Phase 2 adds a third: **`impersonation_sessions_actor_user_id_open_key`**, a partial unique index on `actor_user_id where ended_at is null`.
