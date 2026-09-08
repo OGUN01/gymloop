@@ -139,22 +139,39 @@ export async function POST(request: Request): Promise<Response> {
   // Reporting it as an error would make a correctly-retrying client look broken,
   // so the answer is the row that already exists.
   if (error.code === PG_UNIQUE_VIOLATION && clientEventId !== undefined) {
+    // `member_id` is part of the lookup and not an optimisation. The unique
+    // index is `(tenant_id, client_event_id)`, so a client that reuses one id
+    // across two members collides with the *other* member's row; matching on
+    // the id alone would answer with that row, and the desk would be told the
+    // person in front of them is already checked in, under their own name,
+    // having recorded nothing.
     const { data: already } = await supabase
       .from('attendance')
       .select(RECORDED_COLUMNS)
       .eq('client_event_id', clientEventId)
+      .eq('member_id', memberId)
       .maybeSingle();
 
     if (already) {
       return apiOk({ memberName: member.full_name, replay: true, ...already });
     }
+
+    return apiFail(
+      'conflict',
+      'client_event_id_reused',
+      'That check-in id has already been used for a different member.',
+    );
   }
 
   if (error.code === PG_INSUFFICIENT_PRIVILEGE) {
     return apiFail('forbidden', 'not_permitted', 'Your role may not record attendance.');
   }
 
-  const refusal = REFUSALS[error.code];
+  // `Object.hasOwn`, not a plain lookup: `REFUSALS['constructor']` is inherited
+  // from Object.prototype and truthy, so a bare index would take this branch
+  // with `status` undefined and answer HTTP 200 carrying `{ok:false}` — a
+  // failure a client reads as a success.
+  const refusal = Object.hasOwn(REFUSALS, error.code) ? REFUSALS[error.code] : undefined;
   if (refusal) {
     return apiFail(refusal.status, error.code, refusal.message);
   }
