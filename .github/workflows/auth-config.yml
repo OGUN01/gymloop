@@ -58,12 +58,20 @@ jobs:
       - name: Refuse to enable a hook whose function does not exist
         run: |
           set -euo pipefail
+          # The check asks for a sentinel word rather than a number, because the
+          # CLI's output format is not stable across environments: locally it
+          # emits JSON, on this runner it draws an ASCII table. The first version
+          # grepped for '"hook_exists": 1' and so reported the hook missing when
+          # it was plainly there. A guard whose failure message is false is worse
+          # than no guard. A word survives every renderer.
           supabase db query --linked \
-            "select count(*) as hook_exists from pg_proc p
-               join pg_namespace n on n.oid = p.pronamespace
-              where n.nspname = 'app'
-                and p.proname = 'custom_access_token_hook';" | tee /tmp/hook.json
-          grep -q '"hook_exists": 1' /tmp/hook.json || {
+            "select case when exists (
+                      select 1 from pg_proc p
+                        join pg_namespace n on n.oid = p.pronamespace
+                       where n.nspname = 'app'
+                         and p.proname = 'custom_access_token_hook')
+                    then 'HOOK_PRESENT' else 'HOOK_ABSENT' end as status;" | tee /tmp/hook.out
+          grep -q 'HOOK_PRESENT' /tmp/hook.out || {
             echo "::error::app.custom_access_token_hook does not exist on $PROJECT_REF."
             echo "::error::Enabling the hook now would fail token issuance for every user."
             echo "::error::Apply the migration first and wait for db.yml to be green."
