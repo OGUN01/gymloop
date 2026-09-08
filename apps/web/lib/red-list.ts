@@ -42,11 +42,18 @@ export async function loadRedList(
       'id, member_id, member_name, member_phone, status, days_absent, last_attended_on, next_follow_up_at, last_follow_up_at, last_follow_up_channel, last_follow_up_outcome, last_follow_up_by',
     );
 
+  // `Number.isInteger`, not `typeof === 'number'`, and the difference is a
+  // whole defect. `JSON.parse` yields `Infinity` for `1e999` and `1e+21` for
+  // `1e21` — both are numbers, neither is an integer PostgREST accepts, and
+  // both reach Postgres as `22P02 invalid input syntax for type integer`,
+  // whose message this page renders verbatim. The roster escaped it only
+  // because both of its cursor fields are strings; this is the first numeric
+  // cursor, and **a type check is not a validity check**.
   const after = decodeCursor(cursor, (value) =>
-    typeof value.daysAbsent === 'number' &&
+    Number.isInteger(value.daysAbsent) &&
     typeof value.id === 'string' &&
     UUID_PATTERN.test(value.id)
-      ? { daysAbsent: value.daysAbsent, id: value.id }
+      ? { daysAbsent: value.daysAbsent as number, id: value.id }
       : null,
   );
 

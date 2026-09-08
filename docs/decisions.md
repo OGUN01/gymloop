@@ -384,6 +384,28 @@ Two habits follow. Print the count alongside the list, so a truncated read is vi
 
 Related, from the same afternoon: this project's sweep splices an unapplied migration into each test's transaction. That is sound, but it means **the sweep can only be trusted as far as its own plumbing** — read its total, not its first few lines.
 
+**ADR-074 - `revoke ... from public` does not revoke what Supabase granted by name.** Phase 4 shipped `public.run_no_show_scan_all()` with `revoke all on function ... from public`, a comment saying the grant was revoked from `authenticated`, and a registry entry repeating it. The ACL disagreed with all three: `{postgres=X,anon=X,authenticated=X,service_role=X}`. Supabase's default privileges grant EXECUTE to `anon` and `authenticated` **explicitly**, and revoking PUBLIC leaves an explicit grant standing.
+
+Proved over the live API before it was believed: a front-desk session ran the nightly job and opened seven real cases; a **member** — not staff at all — got 200; a trainer got 200. Only `anon` was stopped, and only because it lacks `usage` on schema `app`, which is luck rather than design.
+
+**Phase 2 had already got this right and Phase 4 copied the intent instead of the statements.** `20260907184313` revokes `app.custom_access_token_hook` from `public`, `anon` and `authenticated` in three separate statements. The rule: **revoke by name, then verify with `has_function_privilege` — the ACL is the only thing that knows.** A comment claiming a grant was revoked is the fifth false comment this project has shipped (ADR-070, ADR-071), and this one was repeated in `docs/registry.md`, which is how a reader would have confirmed it and been wrong twice.
+
+**ADR-075 - The scan read expiry off a column nothing writes, three paragraphs after explaining why not to.** `app.run_no_show_scan()` opened with a careful argument for deriving *paused* from `membership_pauses` rather than from `memberships.status` (ADR-064) — and then filtered `status in ('active','frozen')` with no reference to `ends_on`. `grep -rn "'expired'"` across migrations, `apps/` and `packages/` returns only the enum's own definition: **nothing in this product ever writes that label**, because a status flip needs a scheduler ADR-064 says does not exist.
+
+So a lapsed membership reads `active` for ever, the scan opens a churn case for it, and — because absence keeps growing — that case climbs to the **top** of the red list: the first person the front desk is told to ring every morning, about a membership that ended weeks ago. The demo data already contained one.
+
+The generalisation, which is the part worth carrying into Phase 5: **an argument for deriving one fact from evidence is an argument for deriving every fact of that kind.** Having made the case for pauses, the same paragraph should have been asked of expiry, of cancellation, and of anything else a status column claims. A rule that is right about one column and silent about its neighbour reads as deliberate.
+
+**ADR-076 - A correction is not a decision.** `app.enforce_follow_up()` derived the case's status from every insert, including one carrying `corrects_follow_up_id`. So staff logging "will return — ring Friday" and then correcting a wrong outcome a minute later — through the append-only log's only mechanism for fixing anything — silently moved the case out of `follow_up_due`, nulled `next_follow_up_at`, and dropped it from the index built for "which follow-ups are due". Nobody rings on Friday.
+
+Two properties make this the worst kind of defect this project has produced: it is **caused by staff doing exactly the right thing**, and its symptom is a member who is never called, which nothing in the product surfaces. The spec had not asked the question; the answer it fell into was the harmful one. **When a spec is silent about what a corrective action does to derived state, that silence is a requirement waiting to be written, not a detail to be inferred.**
+
+**ADR-077 - The scan is scheduled by `pg_cron`, not by a deployed Edge Function.** OPEN-007 is closed. The critic found the loop correct, reachable and never started: no `cron.job`, no schedule in `config.toml`, no workflow deploying the function.
+
+`pg_cron` over the Edge Function for three reasons in order of weight. **It needs no public endpoint** — and ADR-074 is exactly what a public endpoint costs when one grant is written wrongly. It needs no deployment step and no secret, so there is no state in which the migration is applied and the job is not running. And it cannot depend on Vercel, which is `docs/architecture.md`'s own stated reason for wanting an Edge Function here — while depending on less.
+
+`supabase/functions/no-show-scan` is kept as the operator's manual re-run path, because a re-run after an incident is a real need and not one an operator should need `psql` for. `pg_cron` is authoritative; the function is a door, not a schedule.
+
 ## Known enforcement gaps
 
 Stated plainly so nobody mistakes a documented rule for an enforced one. A blind critic found each of these by testing what the gates actually catch rather than what they claim to.

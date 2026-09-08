@@ -54,9 +54,18 @@ export function MemberSearchPage({
     <main className="mx-auto max-w-3xl px-6 py-8">
       <div className="flex items-baseline justify-between">
         <h1 className="text-xl font-semibold">{title}</h1>
-        <Link href={linkHref} className="text-sm text-neutral-600 underline">
-          {linkLabel}
-        </Link>
+        <div className="flex gap-4">
+          {/* The red list had no way in: nothing linked to it, so the screen a
+              gym is supposed to open each morning was one the owner had to
+              type the URL for. ADR-059's rule for phases 3-6 is that each ends
+              with something the owner can click. */}
+          <Link href="/red-list" className="text-sm text-neutral-600 underline">
+            Red list
+          </Link>
+          <Link href={linkHref} className="text-sm text-neutral-600 underline">
+            {linkLabel}
+          </Link>
+        </div>
       </div>
 
       <form method="get" className="mt-4 flex gap-2">
