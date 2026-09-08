@@ -42,6 +42,10 @@ THE SYSTEM SHALL compare the days since a member's most recent attendance agains
 - **WHEN** a member's last visit is one day more than the threshold
 - **THEN** a case SHALL be opened
 
+#### Scenario: Absence exactly equal to the threshold
+- **WHEN** a member's last visit is exactly `no_show_threshold_days` ago
+- **THEN** no case SHALL be opened. NSH-003 says a case opens when an absence **crosses** the threshold, and a member who has been away exactly the number of days the gym allows has reached it, not crossed it. *(The blind holdout author flagged this as genuinely unstated and declined to assert either way, which was the right call — an implementer and a test author guessing separately is how a boundary ends up meaning two things.)*
+
 #### Scenario: A member who has never visited
 - **WHEN** a member with an active membership older than the threshold has no attendance at all
 - **THEN** a case SHALL be opened
