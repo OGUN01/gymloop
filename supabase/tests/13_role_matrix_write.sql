@@ -479,8 +479,8 @@ select throws_ok(
     values ('13000000-0000-4000-8000-000000000001',
             '13000000-0000-4000-8000-000000000011',
             '13000000-0000-4000-8000-000000000031', 'qr')$$,
-  '42501', null,
-  'spec "A trainer recording attendance": attendance reads is_staff() and writes is_front_office(), so a trainer sees the check-in log and cannot write to it'
+  null::char(5), null,
+  'spec "A trainer recording attendance": attendance reads is_staff() and writes is_front_office(), so a trainer sees the check-in log and cannot write to it. Refused however it is signalled -- app.enforce_check_in() is a `before insert` row trigger, and a before-row trigger fires ahead of ExecWithCheckOptions, so the business refusal can reach the caller before the policy does. What this assertion owns is that the write does not land, not which of the two refuses first'
 );
 
 select throws_ok(
@@ -610,8 +610,8 @@ select throws_ok(
     values ('13000000-0000-4000-8000-000000000001',
             '13000000-0000-4000-8000-000000000011',
             '13000000-0000-4000-8000-000000000031', 'qr')$$,
-  '42501', null,
-  'spec "A member inserting attendance for themselves": a member who could write attendance could mark itself present without attending, which is the whole retention signal'
+  null::char(5), null,
+  'spec "A member inserting attendance for themselves": a member who could write attendance could mark itself present without attending, which is the whole retention signal. Refused however it is signalled, for the reason given at the trainer assertion above: the check-in trigger fires before the policy does, and the property this owns is that no row lands'
 );
 
 set local role postgres;

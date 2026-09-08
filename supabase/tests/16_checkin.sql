@@ -57,7 +57,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(34);
+select plan(35);
 
 
 -- ---------------------------------------------------------------------------
@@ -621,6 +621,48 @@ select results_eq(
   $$,
   $$ values (7, 7) $$,
   'ATT-008 — all seven visits this file recorded are open, and every one of them counted: an unclosed visit never blocked a later check-in, a de-duplication decision, or a replay'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- The trigger reads as the caller, not past them (35)
+--
+-- Two facts that are each harmless and together are a cross-tenant oracle.
+--
+-- `security definer` was reached for because the function reads four tables --
+-- qr_sessions, memberships, organization_settings and members -- and reading
+-- four tables from inside a trigger looks like it needs elevation. It does not.
+-- Every role that may insert attendance is front office, and the matrix already
+-- grants front office all four reads: qr_sessions is is_front_office() exactly,
+-- and the other three are is_staff(), which is_front_office() is a subset of.
+-- Elevation bought nothing and cost the isolation.
+--
+-- What it cost is only reachable because of the second fact: this is a `before
+-- insert` trigger, so it runs ahead of the policy, and every `authenticated`
+-- session can therefore reach it -- including the roles the matrix gives zero
+-- rows of the tables it reads. A member may read their own attendance rows, and
+-- those rows carry qr_session_id; replaying that id back as a check-in returned
+-- expires_at and revoked_at in the message, out of a table whose read gate is
+-- is_front_office(). The window refusal returned checkin_dedupe_seconds the same
+-- way, from organization_settings, which the matrix names in the list of what a
+-- member may not see. Reading past RLS is not a defect on its own; running ahead
+-- of the policy is not a defect on its own; the pair is.
+--
+-- Under `security invoker` the lookups run as the caller under the policies that
+-- already exist, so a member's probe simply finds nothing and gets the same
+-- refusal a nonexistent session gets. That is why the fix is to delete a word
+-- and not to add a permission branch: a permission check inside the trigger
+-- would be a second copy of the policy, and the copy is what goes stale.
+-- ---------------------------------------------------------------------------
+
+-- 35
+select is(
+  (select p.prosecdef
+     from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'enforce_check_in'),
+  false,
+  'app.enforce_check_in() runs as the caller: a before-insert trigger that reads past RLS is reachable by every role that may attempt an insert, and it answered them out of tables the matrix gives them zero rows of'
 );
 
 select * from finish();

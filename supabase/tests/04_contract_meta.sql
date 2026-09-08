@@ -834,8 +834,8 @@ select is_empty(
       join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public' and not t.tgisinternal
        and t.tgname <> c.relname || '_touch_updated_at'
-       and c.relname not in ('staff', 'members', 'platform_users', 'impersonation_sessions')$$,
-  'docs/data-model.md "What a cluster agent must not do", narrowed by design.md 6 and 7: the shared updated_at trigger is still the only trigger on thirty-two of the thirty-six tables. The four exemptions are the identity tables (session revocation and the role-change audit row) and impersonation_sessions (the start and end audit rows) -- everything else stays free of state machines and audit writers, which is what stops an audit trigger appearing on payments because it seemed useful'
+       and c.relname not in ('staff', 'members', 'platform_users', 'impersonation_sessions', 'attendance')$$,
+  'docs/data-model.md "What a cluster agent must not do", narrowed by design.md 6 and 7 and by the check-in trigger: the shared updated_at trigger is still the only trigger on thirty-one of the thirty-six tables. Five exemptions, each for a reason the rule cannot cover. The identity tables (session revocation and the role-change audit row) and impersonation_sessions (the start and end audit rows). And attendance: its de-duplication window is per-gym configuration read from organization_settings, so it can be neither an index predicate nor a check constraint, and attendance grants insert to authenticated, so a rule living in a Route Handler is bypassed by a direct supabase-js write. A trigger is the only place that rule meets every writer. That argument is what makes it an exemption rather than the state machine this assertion exists to keep out -- an exemption is a trigger that could not have been a constraint, not a trigger someone preferred'
 );
 
 select * from finish();
