@@ -33,7 +33,7 @@ export default async function PaymentsPage({
   searchParams: Promise<{ cursor?: string; limit?: string; error?: string }>;
 }) {
   const params = await searchParams;
-  const { payments, pageSize, nextCursor, errorMessage } = await loadPayments(searchParams);
+  const { payments, pageSize, timezone, nextCursor, errorMessage } = await loadPayments(searchParams);
   const problem =
     params.error === undefined ? null : (MESSAGES[params.error] ?? MESSAGES.payment_failed);
 
@@ -96,7 +96,7 @@ export default async function PaymentsPage({
                 <td className="py-2">{row.method.replace('_', ' ')}</td>
                 <td className="py-2">{row.staff?.full_name ?? '—'}</td>
                 <td className="py-2 tabular-nums text-neutral-600">
-                  {deskTime(row.paid_at ?? row.created_at)}
+                  {deskTime(row.paid_at ?? row.created_at, timezone)}
                 </td>
               </tr>
             ))}

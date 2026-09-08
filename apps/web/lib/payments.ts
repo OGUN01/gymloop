@@ -1,4 +1,8 @@
-import { PAYMENT_PAGE_SIZE_DEFAULT, PAYMENT_PAGE_SIZE_MAX } from '@gymloop/shared';
+import {
+  DEFAULT_TIMEZONE,
+  PAYMENT_PAGE_SIZE_DEFAULT,
+  PAYMENT_PAGE_SIZE_MAX,
+} from '@gymloop/shared';
 import {
   decodeCursor,
   encodeCursor,
@@ -44,6 +48,13 @@ export async function loadPayments(
   const pageSize = pageSizeFrom(limit, PAYMENT_PAGE_SIZE_DEFAULT, PAYMENT_PAGE_SIZE_MAX);
 
   const supabase = await createServerSupabase();
+
+  // The gym's timezone, because every instant on this screen is rendered in the
+  // gym's day and not the server's (MNY-004). One row, read alongside the page
+  // rather than threaded down from the layout, so the ledger and the receipt
+  // cannot disagree about which day a payment happened on.
+  const gym = await supabase.from('organizations').select('timezone').maybeSingle();
+
   let query = supabase.from('payments').select(PAYMENT_COLUMNS);
 
   const after = decodeCursor(cursor, (value) =>
@@ -81,6 +92,7 @@ export async function loadPayments(
   return {
     payments,
     pageSize,
+    timezone: gym.data?.timezone ?? DEFAULT_TIMEZONE,
     nextCursor: last ? encodeCursor({ createdAt: last.created_at, id: last.id }) : null,
     errorMessage: error ? error.message : null,
   };
@@ -105,7 +117,7 @@ export async function loadReceipt(paymentId: string) {
 
   const [payment, gym] = await Promise.all([
     supabase.from('payments').select(PAYMENT_COLUMNS).eq('id', paymentId).maybeSingle(),
-    supabase.from('organizations').select('name, gym_code').maybeSingle(),
+    supabase.from('organizations').select('name, gym_code, timezone').maybeSingle(),
   ]);
 
   return {
@@ -116,19 +128,48 @@ export async function loadReceipt(paymentId: string) {
 }
 
 /**
- * How much of an ISO timestamp a person at a desk needs: `2026-09-10 14:32`.
+ * An instant as the GYM reads it: `2026-09-09 03:00`, in the gym's own
+ * timezone and never the server's.
  *
- * A string index rather than a quantity - `2026-09-10T14:32:07.123+00:00` has
- * its minute at offset 16 - which is why it is named here beside its only two
- * callers and not in `packages/shared/src/config/constants.ts` with the numbers
- * that mean something about gyms.
+ * **This was wrong when the receipt was first rendered in a browser**, and the
+ * browser is what found it: the page showed `2026-09-08 21:30` for a payment
+ * whose receipt number said `2026-27/000001` — the number derived in the gym's
+ * day, the date printed in UTC. Between 00:00 and 05:30 IST every receipt would
+ * have carried yesterday's date, and at the 1 April boundary a receipt would
+ * have been filed under one financial year while showing a date in the other.
+ * A receipt is a document a gym is audited against; the date on it is not
+ * decoration.
+ *
+ * ADR-039 and MNY-004 in the view layer, which is the fourth place this project
+ * has had to learn that every Supabase connection is UTC.
  *
  * Seconds are dropped deliberately. Nobody reconciling a drawer cares which
  * second, and a narrower column fits a receipt.
  */
-const MINUTE_PRECISION = 16;
+export function deskTime(iso: string, timezone: string): string {
+  const at = (zone: string) => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: zone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      // `h23` and not `hour12: false`, which renders midnight as `24` under
+      // some ICU versions — a receipt dated 24:07 is a receipt nobody trusts.
+      hourCycle: 'h23',
+    }).formatToParts(new Date(iso));
+    const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+    return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`;
+  };
 
-/** An ISO timestamp as a desk reads it: `2026-09-10 14:32`. */
-export function deskTime(iso: string): string {
-  return iso.slice(0, MINUTE_PRECISION).replace('T', ' ');
+  try {
+    return at(timezone);
+  } catch {
+    // `organizations.timezone` is free text, so a gym can hold a name `Intl`
+    // does not know. A screen that 500s is worse than one that shows the
+    // platform default — the same fallback `todayIn` takes on the membership
+    // page, for the same reason.
+    return at(DEFAULT_TIMEZONE);
+  }
 }

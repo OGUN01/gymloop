@@ -72,7 +72,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ paymen
             </span>
           </Row>
           <Row label="Method">{payment.method.replace('_', ' ')}</Row>
-          <Row label="Date">{deskTime(takenAt)}</Row>
+          <Row label="Date">{deskTime(takenAt, gym.timezone)}</Row>
           <Row label="Taken by">{payment.staff?.full_name ?? '—'}</Row>
           {payment.notes === null ? null : <Row label="Note">{payment.notes}</Row>}
         </dl>
