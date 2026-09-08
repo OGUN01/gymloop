@@ -166,7 +166,16 @@ export function findUnregisteredExports(files, registryContent) {
 }
 
 function listTrackedFiles() {
-  return execFileSync('git', ['ls-files'], { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+  // `--others --exclude-standard` as well as the index, so a file that exists
+  // but has not been committed yet is still checked. Plain `ls-files` sees only
+  // TRACKED files, which made this gate structurally unable to fail on the one
+  // case it matters most for: a brand-new module whose exports nobody has
+  // registered. It passed locally on `apps/web/app/(console)/alert.tsx` and
+  // failed in CI on the same commit, because CI checks out a tree where that
+  // file is tracked. ADR-078 in a different tool: a checker that cannot say no
+  // about the input it was written for manufactures confidence. Nothing changes
+  // in CI -- a clean checkout has no untracked files to add.
+  return execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
 }
 
 function main() {
