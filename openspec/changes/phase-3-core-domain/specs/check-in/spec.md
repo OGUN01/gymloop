@@ -83,6 +83,11 @@ WHEN staff record a check-in on a member's behalf, THE SYSTEM SHALL require the 
 - **WHEN** front desk submits an assisted check-in whose reason is only spaces
 - **THEN** the check-in SHALL be rejected — **Phase 1's constraint tests `assist_reason <> ''`, which accepts three spaces**, and a blank line is not a reason for having marked somebody else present. Verified against the live database before this scenario was written: the row inserts today.
 
+#### Scenario: A reason of a tab and a newline
+- **WHEN** front desk submits an assisted check-in whose reason is a tab and a newline
+- **THEN** the check-in SHALL be rejected. **`btrim()` with no second argument strips spaces only** — measured: `btrim(E'	
+') = ''` is false — so the obvious repair of the previous scenario still admits this row. The test is "no non-whitespace character", which a regex expresses totally and a trim does not. *(The blind holdout author found this by testing a tab where the visible suite tested spaces; the fix for the first hole had the second hole in it.)*
+
 #### Scenario: A trainer attempting an assisted check-in
 - **WHEN** a caller whose role is `trainer` submits an assisted check-in
 - **THEN** it SHALL be rejected — the matrix gives `attendance` a write gate of front office and above
