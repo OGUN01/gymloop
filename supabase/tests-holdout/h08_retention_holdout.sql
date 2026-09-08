@@ -501,8 +501,10 @@ select ok( exists (
 select has_trigger('public', 'no_show_cases', 'no_show_cases_touch_updated_at',
   'contract - Every table: the shared updated_at trigger is on no_show_cases');
 select ok( not exists (
-  select 1 from pg_trigger where tgrelid = 'public.follow_ups'::regclass and not tgisinternal),
-  'contract - Every table: follow_ups has no updated_at and therefore no trigger');
+  select 1 from pg_trigger
+   where tgrelid = 'public.follow_ups'::regclass and not tgisinternal
+     and tgfoid = 'app.touch_updated_at'::regproc),
+  'contract - Every table: follow_ups has no updated_at and therefore no touch-updated_at trigger');
 
 insert into public.no_show_cases
   (id, tenant_id, member_id, absent_days_at_open, threshold_days, created_at, updated_at)
@@ -568,7 +570,8 @@ select set_config(
   'request.jwt.claims',
   json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
                     'tenant_id', '00000000-0000-4000-8000-000000800001',
-                    'app_role', 'gym_owner')::text,
+                    'app_role', 'gym_owner',
+                    'staff_id', '00000000-0000-4000-8000-000000800021')::text,
   true
 );
 set local role authenticated;

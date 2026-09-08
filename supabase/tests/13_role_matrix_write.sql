@@ -428,7 +428,8 @@ select set_config(
   'request.jwt.claims',
   json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
                     'tenant_id', '13000000-0000-4000-8000-000000000001',
-                    'app_role', 'trainer')::text,
+                    'app_role', 'trainer',
+                    'staff_id', '13000000-0000-4000-8000-000000000024')::text,
   true
 );
 set local role authenticated;
