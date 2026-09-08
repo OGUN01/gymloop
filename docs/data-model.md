@@ -187,6 +187,17 @@ A function marked `security definer` here is owned by `postgres`, which carries 
 
 The two elevated functions that remain are the access-token hook (its caller is `supabase_auth_admin`, which holds no table grants at all, so elevation is the only way it can work) and the audit-writing triggers (`audit_log` is read-only to `authenticated` by design, so no caller can hold that write).
 
+### A policy says which rows; a trigger can say which columns (Phase 3, ADR-068)
+
+`attendance_tenant_write` is `for all` and `attendance` grants `update` to `authenticated`, and both are correct: a check-**out** is a legitimate later write to a visit that already happened. But every rule the check-in capability enforces — the de-duplication window, the live-membership gate, the scanned session's validity, the acting staff member — lives in a `before insert` trigger, so each is a property of *inserting*, not a property of the table. One `UPDATE` reached past all of them.
+
+The shape of the answer, which generalises: **a row-level policy decides which rows a session may touch, and it has no way to say which columns of them.** Where a table holds both a record of what happened and fields that legitimately accrue afterwards, the freeze goes in a `before update` trigger that compares OLD against NEW and reads nothing else — `app.enforce_attendance_written_once()`. Reading nothing is what keeps it out of ADR-066's way.
+
+Two things that trigger must *not* do, both learned the expensive way:
+
+- **It must not freeze `tenant_id`.** The `with check` already refuses moving a row to another gym, and a `before` trigger raising first answers ahead of the policy — ADR-066 exactly, in the fix for something else.
+- **It must not be replaced by revoking the grant or narrowing the policy to `for insert`.** Both close the hole by deleting the check-out path, and both were tried; `06_attendance_checkin` and `06_attendance_rls` are what said no.
+
 ### A third globally-scoped constraint (Phase 2)
 
 ADR-047 requires every unique and exclusion constraint in `public` to lead with the tenant column, and names two exemptions: `organizations.gym_code`, which identifies a gym across the platform, and `qr_sessions.token_hash`, which is a secret. Phase 2 adds a third: **`impersonation_sessions_actor_user_id_open_key`**, a partial unique index on `actor_user_id where ended_at is null`.
