@@ -111,17 +111,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
       - name: Decide whether the suite can run here
         id: check
         run: |
           if [ -z "$(find supabase/tests -name '*.sql' 2>/dev/null)" ]; then
             echo "No pgTAP tests yet (schema is Phase 1 — docs/gates.md gates 6-11). Nothing to run."
             echo "run=false" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ needs.migrate.outputs.migrations_changed }}" = "true" ]; then
+            exit 0
+          fi
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ needs.migrate.outputs.migrations_changed }}" = "true" ]; then
             echo "::notice::PR changes supabase/migrations; pgTAP runs on the post-merge run of main (ADR-030)."
             echo "run=false" >> "$GITHUB_OUTPUT"
-          else
+            exit 0
+          fi
+          # The suite costs ~700 wallclock seconds and, until now, ran on every
+          # push to main including documentation-only ones. Skip it when the
+          # push provably changed nothing that can affect the database or the
+          # suite — and DEFAULT TO RUNNING whenever that cannot be established,
+          # because the house rule here is fail closed: a green run that did
+          # not run the suite is the jammed gate docs/gates.md was burned by.
+          before="${{ github.event.before }}"
+          if [ "${{ github.event_name }}" != "push" ] || [ -z "$before" ]              || [ "$before" = "0000000000000000000000000000000000000000" ]              || ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+            echo "::notice::Cannot compute a diff for this event; running the suite."
             echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed="$(git diff --name-only "$before" "${{ github.sha }}")"
+          echo "Changed files:"; echo "$changed" | sed 's/^/  /'
+          if echo "$changed" | grep -qE '^(supabase/|packages/db/|scripts/check-pgtap-rollback|\.github/workflows/db\.yml)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::This push touches no migration, no pgTAP file, no generated types and not this workflow. Skipping the suite (~700s)."
+            echo "run=false" >> "$GITHUB_OUTPUT"
           fi
       # The anti-gaming half of the suite (AGENTS.md hard rule #10). The
       # holdout files are written blind by an author that reads neither the
