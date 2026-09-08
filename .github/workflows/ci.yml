@@ -101,3 +101,18 @@ jobs:
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm run check-escape-hatches
+
+  # Deno, not tsc: Edge Functions are a different runtime, so no tsconfig can
+  # include them and `pnpm -r typecheck` never saw them. That gap was recorded
+  # in docs/decisions.md ("Known enforcement gaps") with the instruction to
+  # close it "when ADR-012's first Razorpay webhook lands in Phase 5" — this is
+  # that moment, and it is closed BEFORE the payment code arrives rather than
+  # after, because an untypechecked directory is a worse place to put money
+  # handling than to discover you already did.
+  deno-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: denoland/setup-deno@v2
+        with: { deno-version: v2.x }
+      - run: deno check supabase/functions/**/*.ts
