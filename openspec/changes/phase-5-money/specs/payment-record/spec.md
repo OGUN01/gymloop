@@ -106,9 +106,17 @@ is the provider's timestamp and is the more truthful one.
 - **WHEN** a desk session records a payment carrying a `paid_at` two years away
 - **THEN** the payment SHALL be filed under the financial year of the instant it was actually recorded
 
-### Requirement: The receipt counter only ever counts up, by one
-THE SYSTEM SHALL refuse any change to `document_counters.next_number` other than
-an increase of exactly one, and SHALL refuse deletion of a counter row.
+### Requirement: The receipt counter only ever counts up
+THE SYSTEM SHALL refuse any change to `document_counters.next_number` that does
+not increase it, and SHALL refuse deletion of a counter row.
+
+**Forward, not "by exactly one".** The first draft of this requirement said by
+one and contradicted the receipts spec two documents over: *"a gap in a receipt
+book is explainable, a reused number is not."* Only a decrease can issue a
+number twice, and that is the attack. Requiring a step of one also made a
+legitimate test unstageable — a holdout pre-sets the counter to prove the
+allocator does not read before it writes — and a rule that forbids the test
+proving its neighbour is drawn in the wrong place.
 
 `document_counters_tenant_write` is `FOR ALL` on `is_front_office()` — the same
 predicate that lets a person record a payment lets them rewrite the counter.
@@ -128,6 +136,10 @@ elevation.
 #### Scenario: Allocating a number
 - **WHEN** the allocation increments the counter by one
 - **THEN** it SHALL succeed
+
+#### Scenario: Staging a counter forward
+- **WHEN** `next_number` is set to a higher value
+- **THEN** it SHALL succeed, leaving a gap — which a receipt book explains and a repeated number does not
 
 ### Requirement: A refund is bounded when it is written and whenever it changes
 THE SYSTEM SHALL apply the refund ceiling on insert AND on update, and SHALL
@@ -218,8 +230,17 @@ That state is reachable — `memberships_dated_unless_pending_chk` permits a
 but not yet paid for" shape. Money was taken, a receipt issued, and nothing
 happened.
 
-A membership with a `starts_on` and no `ends_on` is genuinely open-ended and is
-still not extended; it has not ended, so there is nothing to move.
+A membership with a `starts_on` and no `ends_on` is still not extended — it has
+not ended, so there is nothing to move.
+
+**That state is only reachable as `pending`**, which a holdout author established
+against `memberships_dated_unless_pending_chk` and reported rather than quietly
+staging as something else. So "genuinely open-ended and ongoing" is the wrong
+description of it: no `active` or `frozen` membership can hold a null `ends_on`
+at all. What the rule actually covers is a half-dated `pending` row, and the
+honest reading is that such a row is malformed rather than open-ended — it is
+left alone here, and naming what should happen to it is a question for whoever
+introduces a flow that can create one.
 
 #### Scenario: Paying for a membership that has no dates
 - **WHEN** a paid payment names a membership whose dates are both null

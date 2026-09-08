@@ -47,8 +47,16 @@ export function paiseFromRupees(rupees: string): number | null {
  * column will hold in this product.
  */
 export function rupeesFromPaise(paise: number): string {
-  const whole = (paise - (paise % PAISE_PER_RUPEE)) / PAISE_PER_RUPEE;
-  return `${whole}.${String(paise % PAISE_PER_RUPEE).padStart(PAISE_DIGITS, '0')}`;
+  // `%` keeps the DIVIDEND's sign in JavaScript, so `-50 % 100` is `-50` and
+  // `padStart` no-ops on a string already that long: the naive version returned
+  // `"0.-50"`. Unreachable today — `amount_paise > 0` on both money tables and
+  // the handler refuses anything else — but a money formatter that garbles
+  // rather than refuses has no defence of its own, and the next caller will not
+  // know that.
+  const sign = paise < 0 ? '-' : '';
+  const magnitude = Math.abs(paise);
+  const whole = (magnitude - (magnitude % PAISE_PER_RUPEE)) / PAISE_PER_RUPEE;
+  return `${sign}${whole}.${String(magnitude % PAISE_PER_RUPEE).padStart(PAISE_DIGITS, '0')}`;
 }
 
 /**

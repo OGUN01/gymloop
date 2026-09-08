@@ -24,6 +24,13 @@ const MESSAGES: Record<string, string> = {
     'An online payment is recorded by the provider. The desk takes cash, UPI, card or a bank transfer.',
   not_permitted: 'Your role may not record payments.',
   invalid: 'That payment was not readable — check the amount and the method.',
+  already_recorded:
+    'A payment with that receipt number already exists. Reload the member’s page and take it again — nothing was recorded.',
+  counter_refused: 'This gym’s receipt numbering can only move forward. Nothing was recorded.',
+  payment_is_a_record:
+    'A payment that has been taken cannot be edited. Record a refund or a new payment instead.',
+  status_cannot_go_there: 'A payment cannot go back to that state.',
+  membership_not_theirs: 'That membership belongs to a different member.',
   payment_failed: 'That payment could not be saved.',
 };
 
@@ -89,7 +96,14 @@ export default async function PaymentsPage({
                     {row.receipt_number ?? `${row.status} — no receipt`}
                   </Link>
                 </td>
-                <td className="py-2">{row.members.full_name}</td>
+                <td className="py-2">
+                  {/* A way back to the member. Its absence is why a critic
+                      reached for the browser's Back button, which restored a
+                      stale form and silently dropped a second payment. */}
+                  <Link href={`/memberships/${row.member_id}`} className="underline">
+                    {row.members.full_name}
+                  </Link>
+                </td>
                 <td className="py-2 text-right tabular-nums">
                   {row.currency} {rupeesFromPaise(row.amount_paise)}
                 </td>

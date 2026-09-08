@@ -53,7 +53,11 @@ export async function loadPayments(
   // gym's day and not the server's (MNY-004). One row, read alongside the page
   // rather than threaded down from the layout, so the ledger and the receipt
   // cannot disagree about which day a payment happened on.
-  const gym = await supabase.from('organizations').select('timezone').maybeSingle();
+  // `.limit(1)` before `.maybeSingle()`: `organizations_platform_select` returns
+  // EVERY gym to a `super_admin` or `platform_support` session, and
+  // `maybeSingle()` treats more than one row as an error — which would drop
+  // this page to `DEFAULT_TIMEZONE` silently and break the receipt outright.
+  const gym = await supabase.from('organizations').select('timezone').limit(1).maybeSingle();
 
   let query = supabase.from('payments').select(PAYMENT_COLUMNS);
 
@@ -117,7 +121,7 @@ export async function loadReceipt(paymentId: string) {
 
   const [payment, gym] = await Promise.all([
     supabase.from('payments').select(PAYMENT_COLUMNS).eq('id', paymentId).maybeSingle(),
-    supabase.from('organizations').select('name, gym_code, timezone').maybeSingle(),
+    supabase.from('organizations').select('name, gym_code, timezone').limit(1).maybeSingle(),
   ]);
 
   return {

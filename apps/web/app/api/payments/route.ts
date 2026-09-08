@@ -30,10 +30,22 @@ import {
  * to it rather than answering JSON.
  */
 
+/**
+ * The one unique index whose violation means "already recorded, and that is
+ * fine". Named rather than matched loosely: the other two on this table mean
+ * the opposite, and telling them apart is the difference between a no-op and
+ * unrecorded money.
+ */
+const IDEMPOTENCY_INDEX = 'payments_tenant_id_idempotency_key_key';
+
 /** The refusals the payment triggers raise, by SQLSTATE. */
 const REFUSALS: Record<string, string> = {
   GL034: 'payment_not_yours',
   GL035: 'provider_claimed',
+  GL037: 'counter_refused',
+  GL038: 'payment_is_a_record',
+  GL039: 'status_cannot_go_there',
+  GL042: 'membership_not_theirs',
 };
 
 export async function POST(request: Request): Promise<Response> {
@@ -59,6 +71,27 @@ export async function POST(request: Request): Promise<Response> {
   const methods: readonly string[] = Constants.public.Enums.payment_method;
   if (!methods.includes(method) || method === 'razorpay') return seeOther(request, '/payments', 'invalid');
 
+  // **The key identifies the PAYMENT, not the page.** It arrives as a nonce
+  // minted once per render of the member's page, and the fields that define
+  // what the payment IS are folded into it here, on the server, where a client
+  // cannot leave them out.
+  //
+  // A blind critic demonstrated why: it recorded ₹1.00, pressed Back — which
+  // restored the form from bfcache, hidden nonce and all — changed the amount
+  // to ₹2.00 and submitted. The second payment carried the first payment's key,
+  // the unique index refused it, this handler reported success, and the money
+  // went unrecorded with nothing on screen to notice. Silent data loss, and a
+  // front desk has no link back to the member from the ledger, which is exactly
+  // why the critic reached for Back in the first place.
+  //
+  // Composed rather than compared: a double submit of the same form still
+  // dedupes, and a Back-and-edit is now a different key because it is a
+  // different payment.
+  const compositeKey =
+    idempotencyKey === undefined
+      ? null
+      : `${idempotencyKey}:${memberId}:${amountPaise}:${method}`;
+
   const { error } = await supabase.from('payments').insert({
     tenant_id: tenantId,
     member_id: memberId,
@@ -74,7 +107,7 @@ export async function POST(request: Request): Promise<Response> {
     // convenience rather than the rule.
     recorded_by_staff_id: staffId,
     notes: notes ?? null,
-    idempotency_key: idempotencyKey ?? null,
+    idempotency_key: compositeKey,
   });
 
   if (error === null) return seeOther(request, '/payments');
@@ -85,7 +118,21 @@ export async function POST(request: Request): Promise<Response> {
   // payment, so the second attempt is a no-op and not a failure. Reporting an
   // error here would tell a front desk that a payment they can see in the list
   // did not happen.
-  if (error.code === PG_UNIQUE_VIOLATION) return seeOther(request, '/payments');
+  //
+  // **Only for THAT index.** This branch used to answer every `23505` with a
+  // success redirect, and `payments` has three unique indexes. A critic reset
+  // the gym's receipt counter by hand, the next payment collided on
+  // `payments_tenant_id_receipt_number_key`, and the front desk was sent back
+  // to a clean ledger having taken cash that was never recorded. The counter
+  // can no longer be reset — `GL037` — but a handler that reads one
+  // constraint's meaning into another's is wrong however the collision arrives,
+  // and the provider index will collide for its own reasons the moment Razorpay
+  // lands.
+  if (error.code === PG_UNIQUE_VIOLATION) {
+    return error.message.includes(IDEMPOTENCY_INDEX)
+      ? seeOther(request, '/payments')
+      : seeOther(request, '/payments', 'already_recorded');
+  }
 
   // `Object.hasOwn`, not a bare index: `REFUSALS['constructor']` is inherited
   // from Object.prototype and truthy, so a bare lookup would redirect with the

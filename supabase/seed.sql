@@ -747,6 +747,27 @@ today as (
            to_char((now() at time zone 'Asia/Kolkata')::date, 'YY')
     end as fy
 )
+-- **A payment is a record, so this seed does not rewrite one.**
+--
+-- These rows used to `on conflict (id) do update`, and once
+-- `app.enforce_payment()` froze a paid payment's money facts (ADR-085) a second
+-- seed run was refused with `GL038`: the membership dates are anchored to
+-- `today` and slide, so `paid_at` — derived from `starts_on` — slid with them,
+-- and the freeze correctly refused to move the date on an already-receipted
+-- payment.
+--
+-- **Carving the freeze out for trusted writers would have been the easy fix and
+-- the wrong one.** The one Cloud project this seed runs against is the one that
+-- will later hold a real gym's rows (OPEN-006), and a carve-out is precisely a
+-- door through which a seed, a migration or a webhook bug rewrites recorded
+-- money. `do nothing` needs no door: the first run creates these payments and
+-- every later run leaves them exactly as they were, which is what "a record of
+-- money that changed hands" means when it is taken seriously.
+--
+-- The cost, stated rather than discovered: a re-seeded demo gym keeps its
+-- original payment dates while its membership dates move on, so the two drift
+-- apart over successive runs. That is cosmetic in a demo, and the more honest
+-- of the two — the payment did happen when it happened.
 insert into public.payments (
   id, tenant_id, member_id, membership_id, mandate_id, coupon_id,
   amount_paise, currency, status, method, provider, provider_order_id,
@@ -781,28 +802,7 @@ select
 from roster r
 join public.memberships ms on ms.id = r.membership_id
 cross join today t
-on conflict (id) do update set
-  member_id            = excluded.member_id,
-  membership_id        = excluded.membership_id,
-  coupon_id            = excluded.coupon_id,
-  amount_paise         = excluded.amount_paise,
-  currency             = excluded.currency,
-  status               = excluded.status,
-  method               = excluded.method,
-  provider             = excluded.provider,
-  provider_order_id    = excluded.provider_order_id,
-  provider_payment_id  = excluded.provider_payment_id,
-  -- `coalesce`, not `excluded` alone. The seed leaves `receipt_number` null on
-  -- its razorpay rows and the product now allocates one for every payment that
-  -- becomes paid (ADR-083). A plain `excluded` would un-issue that number on
-  -- the next seed run — a receipt that existed yesterday and does not today,
-  -- which is the one thing a receipt book may never do. The seed does not
-  -- withdraw a number it did not issue.
-  receipt_number       = coalesce(excluded.receipt_number, public.payments.receipt_number),
-  recorded_by_staff_id = excluded.recorded_by_staff_id,
-  idempotency_key      = excluded.idempotency_key,
-  paid_at              = excluded.paid_at,
-  notes                = excluded.notes;
+on conflict (id) do nothing;
 
 
 -- ---------------------------------------------------------------------------
@@ -926,6 +926,27 @@ with today as (
            to_char((now() at time zone 'Asia/Kolkata')::date, 'YY')
     end as fy
 )
+-- **A payment is a record, so this seed does not rewrite one.**
+--
+-- These rows used to `on conflict (id) do update`, and once
+-- `app.enforce_payment()` froze a paid payment's money facts (ADR-085) a second
+-- seed run was refused with `GL038`: the membership dates are anchored to
+-- `today` and slide, so `paid_at` — derived from `starts_on` — slid with them,
+-- and the freeze correctly refused to move the date on an already-receipted
+-- payment.
+--
+-- **Carving the freeze out for trusted writers would have been the easy fix and
+-- the wrong one.** The one Cloud project this seed runs against is the one that
+-- will later hold a real gym's rows (OPEN-006), and a carve-out is precisely a
+-- door through which a seed, a migration or a webhook bug rewrites recorded
+-- money. `do nothing` needs no door: the first run creates these payments and
+-- every later run leaves them exactly as they were, which is what "a record of
+-- money that changed hands" means when it is taken seriously.
+--
+-- The cost, stated rather than discovered: a re-seeded demo gym keeps its
+-- original payment dates while its membership dates move on, so the two drift
+-- apart over successive runs. That is cosmetic in a demo, and the more honest
+-- of the two — the payment did happen when it happened.
 insert into public.payments (
   id, tenant_id, member_id, membership_id, mandate_id, coupon_id,
   amount_paise, currency, status, method, provider, provider_order_id,
@@ -961,27 +982,7 @@ from (values
   (103, 15, 240000::bigint, 'cash',     -12, 'Whey protein tub, cash at the desk.')
 ) as a(n, member_no, amount_paise, method, paid_day_offset, notes)
 cross join today t
-on conflict (id) do update set
-  member_id            = excluded.member_id,
-  membership_id        = excluded.membership_id,
-  amount_paise         = excluded.amount_paise,
-  currency             = excluded.currency,
-  status               = excluded.status,
-  method               = excluded.method,
-  provider             = excluded.provider,
-  provider_order_id    = excluded.provider_order_id,
-  provider_payment_id  = excluded.provider_payment_id,
-  -- `coalesce`, not `excluded` alone. The seed leaves `receipt_number` null on
-  -- its razorpay rows and the product now allocates one for every payment that
-  -- becomes paid (ADR-083). A plain `excluded` would un-issue that number on
-  -- the next seed run — a receipt that existed yesterday and does not today,
-  -- which is the one thing a receipt book may never do. The seed does not
-  -- withdraw a number it did not issue.
-  receipt_number       = coalesce(excluded.receipt_number, public.payments.receipt_number),
-  recorded_by_staff_id = excluded.recorded_by_staff_id,
-  idempotency_key      = excluded.idempotency_key,
-  paid_at              = excluded.paid_at,
-  notes                = excluded.notes;
+on conflict (id) do nothing;
 
 
 -- ---------------------------------------------------------------------------
