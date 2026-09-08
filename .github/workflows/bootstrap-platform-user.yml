@@ -69,7 +69,13 @@ jobs:
           select u.id, 'super_admin', $NAME_SQL, u.email
           from auth.users u
           where u.email = $EMAIL_SQL
-            and not exists (select 1 from public.platform_users);
+            and not exists (select 1 from public.platform_users)
+          -- `limit 1` because auth.users does not constrain email to be unique
+          -- across providers: two rows sharing an address would otherwise create
+          -- two super admins from one dispatch, which is exactly what the
+          -- emptiness check above exists to prevent.
+          order by u.created_at
+          limit 1;
 
           select
             (select count(*) from public.platform_users) as platform_users_now,

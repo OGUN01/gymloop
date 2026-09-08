@@ -65,6 +65,38 @@ THE SYSTEM SHALL reject a second live impersonation session for the same actor, 
 - **WHEN** an impersonation session is created for an actor whose previous session has been ended
 - **THEN** the write SHALL succeed
 
+### Requirement: An impersonating session can end itself
+A super admin with a live session never holds a `super_admin` token — the hook gives them `gym_owner` for the duration — so THE SYSTEM SHALL let the impersonating session end **its own** session, identified by the `impersonation_session_id` claim it carries, and SHALL restrict that write to one that sets the end time. No other session, and no other row, SHALL be reachable through it.
+
+*This requirement exists because the first version of this spec described ending a session without naming who does it, and the resulting schema had no reachable path: the only write policy required a `super_admin` claim that the actor cannot hold while impersonating, plus an actor match that no other admin satisfies. A blind critic found it, and found that the test covering it passed by hand-setting a claim the hook cannot mint.*
+
+#### Scenario: The impersonator ends its own session
+- **WHEN** a caller carrying the impersonation claims for session X sets the end time on session X
+- **THEN** the update SHALL succeed and the end audit row SHALL be written
+
+#### Scenario: The impersonator cannot end a different session
+- **WHEN** that same caller sets the end time on another actor's live session
+- **THEN** zero rows SHALL be affected
+
+#### Scenario: The impersonator cannot use the path for anything else
+- **WHEN** that same caller updates its own session without setting an end time — extending the expiry, say
+- **THEN** the update SHALL be rejected by the row-security policy
+
+#### Scenario: A gym-side session cannot end a session
+- **WHEN** a caller whose role claim is `gym_owner` and who carries no impersonation claim sets the end time on an impersonation session for their own gym
+- **THEN** zero rows SHALL be affected
+
+### Requirement: A session's lifetime is bounded, not merely finite
+`docs/security.md` promises a hard TTL and names "an impersonation session with no expiry" as a thing that must never happen. A future expiry is not a bound: THE SYSTEM SHALL reject a session whose expiry is further from its start than the maximum support session the platform allows.
+
+#### Scenario: A session longer than the maximum
+- **WHEN** an impersonation session is written whose expiry is ten years after its start
+- **THEN** the write SHALL be rejected
+
+#### Scenario: A session within the maximum
+- **WHEN** an impersonation session is written whose expiry is one hour after its start
+- **THEN** the write SHALL succeed
+
 ### Requirement: The database writes the audit rows, not the caller
 INT-003 requires an audit row when an impersonation session is created and when it is ended. THE SYSTEM SHALL write both from the database itself, so neither depends on a caller remembering — and because `audit_log` is not writable by a signed-in session in any case.
 

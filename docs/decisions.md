@@ -264,6 +264,8 @@ These are unresolved by intent, not by oversight. Do not invent an answer while 
 
 ---
 
+- **OPEN-015 (Phase 6 or 7, when a member-facing and trainer-facing UI exists).** The role matrix is **table-granular**, so a role that needs any column of a table gets every column. Two consequences a blind critic measured rather than assumed: a `trainer` reads `memberships.price_paise`, `addon_orders.total_paise`, `plans.price_paise` and `organization_settings.gstin`, because all four tables are `is_staff()` reads; and a `member` reads their gym's `organizations` row entire, including `tier`, `status` and `trial_ends_at` — the platform's commercial relationship with the gym, which is none of the member's business. Neither is a policy bug and neither leaks another tenant. Narrowing them needs column-level privileges or a view per audience, which is a design decision with its own maintenance cost and should be made when there is a screen that needs it, not before. **Do not "fix" this with a fifth gate** — the vocabulary is closed on purpose (ADR-055).
+
 ## Market context
 
 Researched 2026-09-05, before the stack was locked. Recorded here because several ADRs above depend on it and it otherwise exists only outside this repo — a future session re-deciding pricing or messaging without it would reach a different, worse answer.
