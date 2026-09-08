@@ -306,7 +306,13 @@ select
   t.d + x.ends_offset,
   x.reason,
   '00000003-0000-4000-8000-000000000004'::uuid,
-  '00000003-0000-4000-8000-000000000004'::uuid,
+  -- An approver ONLY where there is an approval. This row used to name one on
+  -- the rejected pause too, which is the exact shape the third critic round
+  -- found reachable through the product -- our own demo data was carrying the
+  -- defect. `membership_pauses_approver_pairs_with_approval_chk` now refuses it.
+  case when x.decision = 'approved'
+       then '00000003-0000-4000-8000-000000000004'::uuid
+       else null end,
   case when x.decision = 'approved'
        then ((t.d + x.starts_offset - 1) + time '11:00') at time zone 'Asia/Kolkata'
        else null end,
