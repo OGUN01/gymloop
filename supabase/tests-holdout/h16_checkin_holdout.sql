@@ -28,7 +28,7 @@ begin;
 -- holds BYPASSRLS, is assumed explicitly rather than inherited.
 set local role postgres;
 
-select plan(49);
+select plan(64);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Two gyms whose de-duplication windows are DIFFERENT and NEITHER of
@@ -929,6 +929,355 @@ select lives_ok(
        set checked_out_at = timestamptz '2026-04-05 11:00:00+05:30'
      where id = 'aa000016-0000-4000-8000-000000000072'$$,
   'A second check-out on the same visit, overwriting the first, is not refused by anything this spec states — checked_out_at is unconditionally open, not open-once');
+
+-- ===========================================================================
+-- ADDENDUM -- "live" now means dates too, not only status.
+--
+-- The spec was rewritten (2026-09-09): a membership is live only when its
+-- status is `active`/`frozen` AND the gym's own today falls within
+-- [starts_on, ends_on]. Nothing in this product ever writes `expired`, so the
+-- status-only rule admitted a membership that ended in March, forever.
+--
+-- Written blind and independently of the visible suite's extension of the
+-- same requirement -- this is a second, separately-reasoned reading, not a
+-- transcription. Namespace 'cafe1600-...', used nowhere else in this repo's
+-- test suites. Every boundary date below is read from the GYM'S OWN today,
+-- captured once into a temp table via `(now() at time zone o.timezone)::date`
+-- -- no literal date and no `current_date` appears anywhere in this addendum.
+--
+-- An open question this file does NOT settle: whether "the gym's own today"
+-- means the day the row is INSERTED (what every assertion below tests) or
+-- the day named by `checked_in_at` (relevant to an offline-recorded visit
+-- synced after the gym's midnight, which carries its own
+-- offline_recorded_at/replayed_at columns for exactly this reason). The
+-- spec's own wording ties liveness to "today", not to the visit's own
+-- timestamp, so insert-time is the more literal reading and is what every
+-- fixture below exercises -- but a replayed offline check-in for a visit that
+-- was live on the day it actually happened, synced the next day, is a case
+-- this file cannot distinguish from a plain insert and does not attempt to.
+-- Flagged for the human, not resolved here.
+-- ===========================================================================
+
+set local role postgres;
+
+-- A schema fact discovered empirically against the live database (queried
+-- directly, never via a migration file): `memberships_dated_unless_pending_chk`
+-- requires BOTH starts_on and ends_on whenever status <> 'pending'. That makes
+-- the spec's own "open-ended membership" scenario (an active membership with
+-- no ends_on) -- and its unstated mirror, an active membership with no
+-- starts_on -- states the schema refuses to store at all, not merely states
+-- the check-in gate happens to never see. Pinned here so a future migration
+-- that relaxes the constraint doesn't silently reopen either hole.
+select ok(
+  exists (
+    select 1 from pg_constraint c
+     where c.conrelid = 'public.memberships'::regclass
+       and c.contype = 'c'
+       and pg_get_constraintdef(c.oid) ~ 'pending'
+       and pg_get_constraintdef(c.oid) ~ 'starts_on'
+       and pg_get_constraintdef(c.oid) ~ 'ends_on'
+  ),
+  'A check constraint on memberships requires BOTH starts_on and ends_on for any non-pending status, so a live (active/frozen) membership with a null starts_on or a null ends_on cannot exist in this schema at all -- the spec''s open-ended-membership scenario, and its unstated null-starts_on mirror, describe a state that is unreachable at the row level, not merely one the check-in gate has never needed to refuse'
+);
+
+-- Two gyms at the extreme ends of the clock, 24 hours apart at every instant
+-- (same technique as h18/h21): the server (UTC) and these two gyms are on
+-- different calendar dates for most of any given day, and the two gyms are
+-- on different calendar dates from EACH OTHER for most of any given day too.
+insert into public.organizations (id, name, gym_code, timezone)
+values ('cafe1600-0000-4000-8000-000000000001', 'Holdout Live-Membership Gym P (GMT-12)', 'H16CFP', 'Etc/GMT-12'),
+       ('cafe1600-0000-4000-8000-000000000002', 'Holdout Live-Membership Gym M (GMT+12)', 'H16CFM', 'Etc/GMT+12');
+
+insert into public.organization_settings (tenant_id, checkin_dedupe_seconds)
+values ('cafe1600-0000-4000-8000-000000000001', 60),
+       ('cafe1600-0000-4000-8000-000000000002', 60);
+
+insert into public.branches (id, tenant_id, name)
+values ('cafe1600-0000-4000-8000-000000000011', 'cafe1600-0000-4000-8000-000000000001', 'H16C Main P'),
+       ('cafe1600-0000-4000-8000-000000000012', 'cafe1600-0000-4000-8000-000000000002', 'H16C Main M');
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name)
+values ('cafe1600-0000-4000-8000-000000000021', 'cafe1600-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000011', 'front_desk', 'H16C Desk P'),
+       ('cafe1600-0000-4000-8000-000000000022', 'cafe1600-0000-4000-8000-000000000002',
+        'cafe1600-0000-4000-8000-000000000012', 'front_desk', 'H16C Desk M');
+
+insert into public.plans (id, tenant_id, name, duration_days, price_paise)
+values ('cafe1600-0000-4000-8000-000000000025', 'cafe1600-0000-4000-8000-000000000001', 'H16C Plan P', 30, 100000),
+       ('cafe1600-0000-4000-8000-000000000026', 'cafe1600-0000-4000-8000-000000000002', 'H16C Plan M', 30, 100000);
+
+insert into public.qr_sessions (id, tenant_id, branch_id, token_hash, issued_at, expires_at, revoked_at)
+values ('cafe1600-0000-4000-8000-000000000051', 'cafe1600-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000011', 'h16c-token-hash-p-live',
+        now() - interval '1 minute', now() + interval '1 hour', null),
+       ('cafe1600-0000-4000-8000-000000000052', 'cafe1600-0000-4000-8000-000000000002',
+        'cafe1600-0000-4000-8000-000000000012', 'h16c-token-hash-m-live',
+        now() - interval '1 minute', now() + interval '1 hour', null);
+
+-- The gym's own today, for gym A (the original fixture gym, timezone default
+-- Asia/Kolkata) and both extreme-timezone gyms -- read once, used everywhere
+-- below instead of any literal date or current_date.
+create temp table h16c_today as
+select o.id as tenant_id, (now() at time zone o.timezone)::date as today
+  from public.organizations o
+ where o.id in ('aa000016-0000-4000-8000-000000000001',
+                'cafe1600-0000-4000-8000-000000000001',
+                'cafe1600-0000-4000-8000-000000000002');
+
+-- Members of gym A, one per interaction this addendum targets:
+--   ...101 -- frozen status, dates genuinely live (frozen is live, but only
+--            when the dates say so too)
+--   ...102 -- frozen status, dates lapsed long ago (ADR-075's exact case,
+--            restated for `frozen` instead of `active`)
+--   ...103 -- TWO memberships: one long-cancelled with lapsed dates, one
+--            active with live dates -- the lapsed row must not blind the gate
+--            to the live one
+--   ...104 -- active, starts_on is the gym's own today (the boundary the
+--            visible spec's "next Monday" scenario does not reach: today
+--            itself, not merely some day in the future)
+--   ...106 -- frozen status, live dates, AND a currently-approved pause
+--            covering today -- a table this rule has no business consulting
+insert into public.members (id, tenant_id, branch_id, full_name, phone)
+values ('cafe1600-0000-4000-8000-000000000101', 'aa000016-0000-4000-8000-000000000001',
+        'aa000016-0000-4000-8000-000000000011', 'H16C Frozen Live A', '+919600170101'),
+       ('cafe1600-0000-4000-8000-000000000102', 'aa000016-0000-4000-8000-000000000001',
+        'aa000016-0000-4000-8000-000000000011', 'H16C Frozen Lapsed A', '+919600170102'),
+       ('cafe1600-0000-4000-8000-000000000103', 'aa000016-0000-4000-8000-000000000001',
+        'aa000016-0000-4000-8000-000000000011', 'H16C Two Memberships A', '+919600170103'),
+       ('cafe1600-0000-4000-8000-000000000104', 'aa000016-0000-4000-8000-000000000001',
+        'aa000016-0000-4000-8000-000000000011', 'H16C Starts Today A', '+919600170104'),
+       ('cafe1600-0000-4000-8000-000000000106', 'aa000016-0000-4000-8000-000000000001',
+        'aa000016-0000-4000-8000-000000000011', 'H16C Pause Frozen A', '+919600170106');
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+values ('cafe1600-0000-4000-8000-000000000201', 'aa000016-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000101', 'aa000016-0000-4000-8000-000000000025',
+        'frozen', date '2020-01-01', date '2030-01-01', 100000),
+       ('cafe1600-0000-4000-8000-000000000202', 'aa000016-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000102', 'aa000016-0000-4000-8000-000000000025',
+        'frozen', date '2015-01-01', date '2016-12-31', 100000),
+       ('cafe1600-0000-4000-8000-000000000203', 'aa000016-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000103', 'aa000016-0000-4000-8000-000000000025',
+        'cancelled', date '2018-01-01', date '2018-12-31', 100000),
+       ('cafe1600-0000-4000-8000-000000000204', 'aa000016-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000103', 'aa000016-0000-4000-8000-000000000025',
+        'active', date '2020-01-01', date '2030-01-01', 100000),
+       ('cafe1600-0000-4000-8000-000000000205', 'aa000016-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000104', 'aa000016-0000-4000-8000-000000000025',
+        'active',
+        (select today from h16c_today where tenant_id = 'aa000016-0000-4000-8000-000000000001'),
+        date '2030-01-01', 100000),
+       ('cafe1600-0000-4000-8000-000000000207', 'aa000016-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000106', 'aa000016-0000-4000-8000-000000000025',
+        'frozen', date '2020-01-01', date '2030-01-01', 100000);
+
+-- An approved pause on ...207, covering today. Nothing in the rewritten
+-- requirement mentions membership_pauses at all -- it is checked here purely
+-- to prove the gate does not silently grow an extra, unstated condition from
+-- a neighbouring table.
+insert into public.membership_pauses (id, tenant_id, membership_id, starts_on, ends_on, reason, approved_by_staff_id, approved_at)
+values ('cafe1600-0000-4000-8000-000000000061', 'aa000016-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000207',
+        (select today - 5 from h16c_today where tenant_id = 'aa000016-0000-4000-8000-000000000001'),
+        (select today + 5 from h16c_today where tenant_id = 'aa000016-0000-4000-8000-000000000001'),
+        'h16 holdout addendum: approved pause covering today', 'aa000016-0000-4000-8000-000000000021', now());
+
+-- Gym P (Etc/GMT-12): ...111 sits on the boundary in ITS OWN day, ...112
+-- lapsed yesterday in ITS OWN day, ...113 starts tomorrow in ITS OWN day --
+-- the sharpest possible version of "not started yet", one day off instead of
+-- "next Monday".
+insert into public.members (id, tenant_id, branch_id, full_name, phone)
+values ('cafe1600-0000-4000-8000-000000000111', 'cafe1600-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000011', 'H16C TZP Boundary', '+919600170111'),
+       ('cafe1600-0000-4000-8000-000000000112', 'cafe1600-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000011', 'H16C TZP Lapsed', '+919600170112'),
+       ('cafe1600-0000-4000-8000-000000000113', 'cafe1600-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000011', 'H16C TZP Starts Tomorrow', '+919600170113');
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+values ('cafe1600-0000-4000-8000-000000000211', 'cafe1600-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000111', 'cafe1600-0000-4000-8000-000000000025',
+        'active', date '2020-01-01',
+        (select today from h16c_today where tenant_id = 'cafe1600-0000-4000-8000-000000000001'), 100000),
+       ('cafe1600-0000-4000-8000-000000000212', 'cafe1600-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000112', 'cafe1600-0000-4000-8000-000000000025',
+        'active', date '2020-01-01',
+        (select today - 1 from h16c_today where tenant_id = 'cafe1600-0000-4000-8000-000000000001'), 100000),
+       ('cafe1600-0000-4000-8000-000000000213', 'cafe1600-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000113', 'cafe1600-0000-4000-8000-000000000025',
+        'active',
+        (select today + 1 from h16c_today where tenant_id = 'cafe1600-0000-4000-8000-000000000001'),
+        date '2030-01-01', 100000);
+
+-- Gym M (Etc/GMT+12), 24 hours from gym P at every instant.
+insert into public.members (id, tenant_id, branch_id, full_name, phone)
+values ('cafe1600-0000-4000-8000-000000000121', 'cafe1600-0000-4000-8000-000000000002',
+        'cafe1600-0000-4000-8000-000000000012', 'H16C TZM Boundary', '+919600170121'),
+       ('cafe1600-0000-4000-8000-000000000122', 'cafe1600-0000-4000-8000-000000000002',
+        'cafe1600-0000-4000-8000-000000000012', 'H16C TZM Lapsed', '+919600170122');
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+values ('cafe1600-0000-4000-8000-000000000221', 'cafe1600-0000-4000-8000-000000000002',
+        'cafe1600-0000-4000-8000-000000000121', 'cafe1600-0000-4000-8000-000000000026',
+        'active', date '2020-01-01',
+        (select today from h16c_today where tenant_id = 'cafe1600-0000-4000-8000-000000000002'), 100000),
+       ('cafe1600-0000-4000-8000-000000000222', 'cafe1600-0000-4000-8000-000000000002',
+        'cafe1600-0000-4000-8000-000000000122', 'cafe1600-0000-4000-8000-000000000026',
+        'active', date '2020-01-01',
+        (select today - 1 from h16c_today where tenant_id = 'cafe1600-0000-4000-8000-000000000002'), 100000);
+
+-- Act as gym A's own front desk again for the addendum's gym-A assertions.
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', 'aa000016-0000-4000-8000-000000000001',
+                    'app_role', 'front_desk',
+                    'staff_id', 'aa000016-0000-4000-8000-000000000021')::text,
+  true
+);
+set local role authenticated;
+
+select lives_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('aa000016-0000-4000-8000-000000000001', 'aa000016-0000-4000-8000-000000000011',
+            'cafe1600-0000-4000-8000-000000000101', 'cafe1600-0000-4000-8000-000000000201',
+            timestamptz '2026-05-10 06:00:00+05:30', 'qr', 'aa000016-0000-4000-8000-000000000051')$$,
+  'A frozen membership whose dates are genuinely live is live -- frozen is not a status that alone excuses the dates from being checked');
+
+select throws_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('aa000016-0000-4000-8000-000000000001', 'aa000016-0000-4000-8000-000000000011',
+            'cafe1600-0000-4000-8000-000000000102', 'cafe1600-0000-4000-8000-000000000202',
+            timestamptz '2026-05-10 06:00:00+05:30', 'qr', 'aa000016-0000-4000-8000-000000000051')$$,
+  null::char(5), null::text,
+  'A frozen membership whose dates lapsed a decade ago is refused -- ADR-075''s fix restated for `frozen`, not just `active`, since the old bug was in the vocabulary check, which never distinguished the two');
+
+select lives_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, checked_in_at, source, qr_session_id)
+    values ('aa000016-0000-4000-8000-000000000001', 'aa000016-0000-4000-8000-000000000011',
+            'cafe1600-0000-4000-8000-000000000103', timestamptz '2026-05-10 06:10:00+05:30', 'qr',
+            'aa000016-0000-4000-8000-000000000051')$$,
+  'A member holding one long-cancelled, date-lapsed membership AND one active, date-live membership is admitted -- the lapsed row''s presence does not blind the gate to the live one. membership_id is left unsupplied deliberately: the gate is evaluated against the MEMBER''s entitlement, not against whichever specific membership row a caller happens to cite');
+
+select lives_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('aa000016-0000-4000-8000-000000000001', 'aa000016-0000-4000-8000-000000000011',
+            'cafe1600-0000-4000-8000-000000000104', 'cafe1600-0000-4000-8000-000000000205',
+            timestamptz '2026-05-10 06:20:00+05:30', 'qr', 'aa000016-0000-4000-8000-000000000051')$$,
+  'A membership whose starts_on IS the gym''s own today is live -- the open boundary the visible spec''s "starts next Monday" scenario never reaches: today itself, not merely some day still in the future. An implementation using `>` where the rule needs `>=` fails exactly this case and no other');
+
+select lives_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('aa000016-0000-4000-8000-000000000001', 'aa000016-0000-4000-8000-000000000011',
+            'cafe1600-0000-4000-8000-000000000106', 'cafe1600-0000-4000-8000-000000000207',
+            timestamptz '2026-05-10 06:40:00+05:30', 'qr', 'aa000016-0000-4000-8000-000000000051')$$,
+  'A frozen membership with live dates is not additionally refused for having a currently-approved pause covering today -- the rewritten requirement names only status and dates, and does not gain an unstated third condition by way of membership_pauses');
+
+-- The second statement (ADR-070): the gate is a `before insert` trigger and
+-- nothing about `memberships` is frozen by it. Editing the CITED membership's
+-- own dates is an ordinary operation with its own rules, not this gate's --
+-- but the recorded visit must not move with it, and a fresh insert against
+-- the now-lapsed membership must be refused on its own merits.
+set local role postgres;
+
+select lives_ok(
+  $$update public.memberships set ends_on = (select today - 1 from h16c_today
+     where tenant_id = 'aa000016-0000-4000-8000-000000000001')
+   where id = 'cafe1600-0000-4000-8000-000000000201'$$,
+  'Editing a membership''s own ends_on into the past is an ordinary write this gate has no say over -- it lives on `attendance`, not on `memberships`');
+
+select is(
+  (select row(checked_in_at, membership_id)::text from public.attendance
+    where tenant_id = 'aa000016-0000-4000-8000-000000000001'
+      and member_id = 'cafe1600-0000-4000-8000-000000000101'),
+  row(timestamptz '2026-05-10 06:00:00+05:30', 'cafe1600-0000-4000-8000-000000000201'::uuid)::text,
+  'The visit recorded while the membership was live is untouched by the later edit -- a membership lapsing after the fact does not retroactively rewrite or void the attendance row that cited it while it was live');
+
+select throws_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('aa000016-0000-4000-8000-000000000001', 'aa000016-0000-4000-8000-000000000011',
+            'cafe1600-0000-4000-8000-000000000101', 'cafe1600-0000-4000-8000-000000000201',
+            timestamptz '2026-05-10 09:00:00+05:30', 'qr', 'aa000016-0000-4000-8000-000000000051')$$,
+  null::char(5), null::text,
+  'A member CAN be moved onto a lapsed membership between two check-ins -- the same membership row that was live an hour ago is re-evaluated fresh on this new insert, found lapsed now, and this second visit is refused even though the first, from the same membership, still stands');
+
+-- The trusted-context question, decided from the spec: nothing in ATT-001
+-- carves out an exception for who is asking. This file's own top-of-file
+-- fixture inserts already run under `postgres`, and its own comment on row
+-- ...072 records that app.enforce_check_in() fired even there. Restated here
+-- for the DATE half of the rule specifically, with no request.jwt.claims set
+-- at all -- the shape of a trusted backend job, not a front-desk session.
+reset role;
+set local role postgres;
+
+select throws_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('aa000016-0000-4000-8000-000000000001', 'aa000016-0000-4000-8000-000000000011',
+            'cafe1600-0000-4000-8000-000000000102', 'cafe1600-0000-4000-8000-000000000202',
+            timestamptz '2026-05-10 10:00:00+05:30', 'qr', 'aa000016-0000-4000-8000-000000000051')$$,
+  null::char(5), null::text,
+  'The live-membership gate is not merely a front-office-session courtesy: a trusted-context insert with no JWT claims at all, run as the owner role, is refused for the same date-lapsed membership -- the guard is a property of inserting into attendance, not of the session that does it');
+
+-- The timezone itself. Gym P (Etc/GMT-12) and gym M (Etc/GMT+12) are 24 hours
+-- apart at every instant, and both differ from the server's own UTC date for
+-- most of any given day. Each is evaluated in ITS OWN day, read from
+-- organizations.timezone, never from current_date.
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', 'cafe1600-0000-4000-8000-000000000001',
+                    'app_role', 'front_desk',
+                    'staff_id', 'cafe1600-0000-4000-8000-000000000021')::text,
+  true
+);
+set local role authenticated;
+
+select lives_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('cafe1600-0000-4000-8000-000000000001', 'cafe1600-0000-4000-8000-000000000011',
+            'cafe1600-0000-4000-8000-000000000111', 'cafe1600-0000-4000-8000-000000000211',
+            now(), 'qr', 'cafe1600-0000-4000-8000-000000000051')$$,
+  'Gym P (Etc/GMT-12): a membership ending on gym P''s OWN today is live -- evaluated in a day that is not the server''s UTC date for most of the clock');
+
+select throws_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('cafe1600-0000-4000-8000-000000000001', 'cafe1600-0000-4000-8000-000000000011',
+            'cafe1600-0000-4000-8000-000000000112', 'cafe1600-0000-4000-8000-000000000212',
+            now(), 'qr', 'cafe1600-0000-4000-8000-000000000051')$$,
+  null::char(5), null::text,
+  'Gym P: a membership that ended yesterday IN GYM P''S OWN DAY is refused -- an implementation reading the server''s UTC date instead gets this wrong on whichever side of local midnight the server currently sits');
+
+select throws_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('cafe1600-0000-4000-8000-000000000001', 'cafe1600-0000-4000-8000-000000000011',
+            'cafe1600-0000-4000-8000-000000000113', 'cafe1600-0000-4000-8000-000000000213',
+            now(), 'qr', 'cafe1600-0000-4000-8000-000000000051')$$,
+  null::char(5), null::text,
+  'Gym P: a membership starting tomorrow IN GYM P''S OWN DAY is refused -- the sharpest version of "not started yet", one day off rather than a whole week');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', 'cafe1600-0000-4000-8000-000000000002',
+                    'app_role', 'front_desk',
+                    'staff_id', 'cafe1600-0000-4000-8000-000000000022')::text,
+  true
+);
+
+select lives_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('cafe1600-0000-4000-8000-000000000002', 'cafe1600-0000-4000-8000-000000000012',
+            'cafe1600-0000-4000-8000-000000000121', 'cafe1600-0000-4000-8000-000000000221',
+            now(), 'qr', 'cafe1600-0000-4000-8000-000000000052')$$,
+  'Gym M (Etc/GMT+12, 24 hours from gym P at every instant): a membership ending on gym M''s OWN today is live -- proving the day used is THIS gym''s, not gym P''s, not the server''s');
+
+select throws_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('cafe1600-0000-4000-8000-000000000002', 'cafe1600-0000-4000-8000-000000000012',
+            'cafe1600-0000-4000-8000-000000000122', 'cafe1600-0000-4000-8000-000000000222',
+            now(), 'qr', 'cafe1600-0000-4000-8000-000000000052')$$,
+  null::char(5), null::text,
+  'Gym M: a membership that ended yesterday in gym M''s own day is refused, on gym M''s own clock, independent of gym P''s');
 
 -- ---------------------------------------------------------------------------
 -- Closing check, as the owner: nothing this file attempted left a gym A member

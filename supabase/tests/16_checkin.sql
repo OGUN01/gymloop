@@ -25,8 +25,10 @@
 --   so no single hardcoded constant can satisfy both). A replayed client event
 --   id yields one row and one 23505, and the mechanism is a unique index,
 --   which Postgres makes concurrency-safe by construction (5, 26). Cross-tenant
---   check-ins are refused by composite foreign keys (4, 28, 29). The gym's own
---   definition of a live membership is exactly {active, frozen} (2).
+--   check-ins are refused by composite foreign keys (4, 28, 29). The STATUS
+--   half of a live membership is exactly {active, frozen}, taken from the
+--   live-membership unique index (2) — that index says nothing about dates,
+--   and as of this revision it is only half the gate (see 47-53 below).
 --
 --   Extended for this revision. "An attendance row is written once" now also
 --   covers renumbering a visit's id, forging offline provenance on a visit
@@ -34,6 +36,35 @@
 --   satisfied and cannot be what refuses it), rewriting created_at, and — the
 --   column the guard leaves open — a check-out that actually succeeds and
 --   reads back set (42-46).
+--
+--   Extended again, for this revision. "A live membership" now also means the
+--   gym's own today falls within [starts_on, ends_on], not status alone
+--   (ADR-075's correction, arriving at check-in): a membership still `active`
+--   whose ends_on has passed is refused, the exact boundary day ends_on names
+--   is accepted, and a not-yet-started membership is refused (48-51). One
+--   extra case not asked for by the spec proves the same boundary in a gym
+--   twelve hours off UTC, where a current_date bug cannot hide (52-53). Every
+--   date in this section is an offset captured from the gym's own
+--   `(now() at time zone o.timezone)::date`, never current_date and never a
+--   bare literal (ADR-039) — a literal date in a fixture for a "today" rule
+--   is the defect this project has shipped twice and would make this section
+--   prove nothing.
+--
+--   NOT exercised behaviourally, and said so rather than faked: the spec's
+--   scenario "An open-ended membership" (ends_on null, recorded). Assertion
+--   47 pins the reason from the catalogue — `memberships` carries
+--   `memberships_dated_unless_pending_chk`, forcing starts_on and ends_on to
+--   both be set for every status except `pending`, and `pending` is already
+--   excluded by the status half of the gate regardless of dates — so there is
+--   no status under which a check-in could ever reach a membership with a
+--   null ends_on. docs/data-model.md documents the identical rule as DQA-001,
+--   "only a pending row may lack an expiry." This is a contradiction between
+--   the spec and the schema, not a gap in this suite, and it is flagged
+--   rather than resolved either way: not staged as `pending` (a live-status
+--   refusal there would pass for the wrong reason — vacuously, the exact trap
+--   this whole revision exists to close), and not faked with a far-future
+--   `ends_on` (that exercises the ordinary comparison assertion 6 already
+--   covers, not a null check).
 --
 --   Approximated, and said so. pgTAP runs one transaction on one connection,
 --   and `dblink` is available on this project but NOT installed (verified
@@ -64,7 +95,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(46);
+select plan(53);
 
 
 -- ---------------------------------------------------------------------------
@@ -1056,6 +1087,184 @@ select results_eq(
   $$,
   $$ values (true, true) $$,
   'scenario "Recording a check-out" — the check-out actually landed on the row, at or after the check-in it closes: a check-out is a later fact about a visit that happened, not a rewrite of it, and it is the one column this rule leaves open'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- ATT-001, revised — a live membership is also the gym's OWN today falling
+-- within [starts_on, ends_on] (47-53)
+--
+-- The requirement changed just before this section was written. It used to
+-- say "active or frozen", full stop, and assertion 2 still proves that
+-- vocabulary is exactly what the live-membership unique index means. But
+-- nothing in this product ever writes `expired` (ADR-064: a status flip needs
+-- a scheduler that does not exist), so a membership that ended in March stays
+-- `active` forever and a status-only gate has never actually refused anyone
+-- for having lapsed. `app.run_no_show_scan()` was already corrected to read
+-- `ends_on` directly instead of trusting status (ADR-075); this is that same
+-- correction arriving a third time, now at check-in.
+--
+-- The cancelled-status case the spec still names ("A member whose only
+-- membership is cancelled") is already covered — assertion 12, member A
+-- Lapsed, whose only live-eligible-by-status memberships are `expired` and
+-- `cancelled` and whose cancelled row even carries a FUTURE ends_on on
+-- purpose, so a date-only implementation is not what refuses it either. That
+-- assertion does not change under this revision: the status half of the gate
+-- is unchanged, only the date half is new.
+--
+-- The implementation does not exist yet (AGENTS.md rule 10 — tests are
+-- written blind, before and without sight of it). Every assertion below is
+-- expected to fail red against a status-only gate, and that is the point: a
+-- green run here is the only evidence the correction actually shipped.
+-- ---------------------------------------------------------------------------
+
+create temp table today_a as
+select (now() at time zone o.timezone)::date as d
+  from public.organizations o where o.id = '16000000-0000-4000-8000-000000000001'::uuid;
+
+-- 47 — pinned from the catalogue, not read from a migration file: verified
+-- live against public.memberships via `supabase db query --linked`, and it is
+-- WHY the spec's "open-ended membership" scenario (a live membership whose
+-- ends_on is null, recorded) is not exercised below. Every status except
+-- `pending` is forced to carry both dates, and `pending` is already refused
+-- by the status half of the gate regardless of dates — so there is no status
+-- under which a check-in could ever reach a membership with a null ends_on.
+-- That is a contradiction between the spec and the schema (docs/data-model.md
+-- names the same rule DQA-001, "only a pending row may lack an expiry"), not
+-- a gap in this suite, and it is flagged here rather than quietly resolved
+-- either way: not staged as `pending` (a live-status refusal there would pass
+-- for the wrong reason — vacuously, the same trap this whole revision exists
+-- to close), and not fabricated with a far-future `ends_on` (that exercises
+-- the ordinary comparison already covered by assertion 6, not a null check).
+select is(
+  (select pg_get_constraintdef(oid)
+     from pg_constraint
+    where conrelid = 'public.memberships'::regclass
+      and conname = 'memberships_dated_unless_pending_chk'),
+  $$CHECK (((status = 'pending'::membership_status) OR ((starts_on IS NOT NULL) AND (ends_on IS NOT NULL))))$$,
+  'memberships_dated_unless_pending_chk (DQA-001) forces starts_on and ends_on to both be set for every status but pending — the reason the "open-ended membership" scenario cannot be staged for a live membership, recorded here so it cannot silently stop being true'
+);
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('16000000-0000-4000-8000-00000000003b'::uuid, '16000000-0000-4000-8000-000000000001'::uuid, '16000000-0000-4000-8000-000000000011'::uuid, 'A Ends Yesterday', '+911600000043'),
+  ('16000000-0000-4000-8000-00000000003c'::uuid, '16000000-0000-4000-8000-000000000001'::uuid, '16000000-0000-4000-8000-000000000011'::uuid, 'A Ends Today',     '+911600000044'),
+  ('16000000-0000-4000-8000-00000000003d'::uuid, '16000000-0000-4000-8000-000000000001'::uuid, '16000000-0000-4000-8000-000000000011'::uuid, 'A Starts Future',  '+911600000045');
+
+-- Every one of these three is `active` — status is not what is being tested.
+-- Dates are the only thing that distinguishes them, which is the exact shape
+-- ADR-064 says the system actually produces and the old status-only gate
+-- could never refuse.
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+select '16000000-0000-4000-8000-00000000005c'::uuid, '16000000-0000-4000-8000-000000000001'::uuid, '16000000-0000-4000-8000-00000000003b'::uuid, '16000000-0000-4000-8000-000000000041'::uuid, 'active'::public.membership_status, d - 40, d - 1,  200000 from today_a
+union all
+select '16000000-0000-4000-8000-00000000005d'::uuid, '16000000-0000-4000-8000-000000000001'::uuid, '16000000-0000-4000-8000-00000000003c'::uuid, '16000000-0000-4000-8000-000000000041'::uuid, 'active'::public.membership_status, d - 40, d,      200000 from today_a
+union all
+select '16000000-0000-4000-8000-00000000005e'::uuid, '16000000-0000-4000-8000-000000000001'::uuid, '16000000-0000-4000-8000-00000000003d'::uuid, '16000000-0000-4000-8000-000000000041'::uuid, 'active'::public.membership_status, d + 7,  d + 37,  200000 from today_a;
+
+-- 48
+select throws_ok($$
+  insert into public.attendance (tenant_id, branch_id, member_id, source, qr_session_id)
+  values ('16000000-0000-4000-8000-000000000001'::uuid,
+          '16000000-0000-4000-8000-000000000011'::uuid,
+          '16000000-0000-4000-8000-00000000003b'::uuid, 'qr',
+          '16000000-0000-4000-8000-000000000061'::uuid)
+$$, null::char(5), null,
+  'ATT-001, scenario "A member whose membership ended yesterday" — status still active, ends_on before the gym''s own today: refused. This is the case the product is sold on refusing and the one a status-only gate has never refused');
+
+-- 49
+select lives_ok($$
+  insert into public.attendance (tenant_id, branch_id, member_id, source, qr_session_id)
+  values ('16000000-0000-4000-8000-000000000001'::uuid,
+          '16000000-0000-4000-8000-000000000011'::uuid,
+          '16000000-0000-4000-8000-00000000003c'::uuid, 'qr',
+          '16000000-0000-4000-8000-000000000061'::uuid)
+$$, 'ATT-001, scenario "A member on the last day of their membership" — the boundary that matters most: a scan on the exact day ends_on names is recorded, not refused a day early by a naive `ends_on > today`');
+
+-- 50
+select throws_ok($$
+  insert into public.attendance (tenant_id, branch_id, member_id, source, qr_session_id)
+  values ('16000000-0000-4000-8000-000000000001'::uuid,
+          '16000000-0000-4000-8000-000000000011'::uuid,
+          '16000000-0000-4000-8000-00000000003d'::uuid, 'qr',
+          '16000000-0000-4000-8000-000000000061'::uuid)
+$$, null::char(5), null,
+  'ATT-001, scenario "A membership that has not started yet" — status active, starts_on next week: refused. Distinct from assertion 13''s `pending` member, whose refusal the status gate alone already explains; this one is refused only by the date half');
+
+-- 51 — the "and no attendance row SHALL be recorded" half of the two
+-- rejections above, plus confirmation the accepted scan actually landed, in
+-- one scoped count (ADR-050): only the member whose today fell inside
+-- [starts_on, ends_on] has a visit.
+select results_eq(
+  $$
+    select member_id, count(*)::int
+    from public.attendance
+    where tenant_id = '16000000-0000-4000-8000-000000000001'::uuid
+      and member_id in ('16000000-0000-4000-8000-00000000003b'::uuid,
+                        '16000000-0000-4000-8000-00000000003c'::uuid,
+                        '16000000-0000-4000-8000-00000000003d'::uuid)
+    group by member_id
+    order by member_id
+  $$,
+  $$ values ('16000000-0000-4000-8000-00000000003c'::uuid, 1) $$,
+  'ATT-001, revised — of the three active-status, date-only scenarios, exactly the boundary-day member recorded a visit; the lapsed and not-yet-started ones left nothing, and neither refusal is visible in the group-by at all'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- ATT-001, revised, extra — the same boundary, in a gym whose day and the
+-- server's genuinely differ (52-53)
+--
+-- Not asked for by the spec. Every fixture above lives in Asia/Kolkata, only
+-- 5.5 hours ahead of the UTC every Supabase connection runs in — a boundary
+-- rule proven only there is proven against a gap small enough to hide a
+-- current_date bug for most of the day. Etc/GMT-12 (UTC+12) is a full twelve
+-- hours ahead: for about half of every real day, this gym's own "today" and
+-- the server's UTC "today" name different dates. A rule about "today" that is
+-- only ever tested in one timezone is a rule tested against itself.
+-- ---------------------------------------------------------------------------
+
+insert into public.organizations (id, name, gym_code, timezone) values
+  ('16000000-0000-4000-8000-000000000003'::uuid, 'Check-in Gym C', 'CHK16C', 'Etc/GMT-12');
+
+insert into public.organization_settings (tenant_id, checkin_dedupe_seconds) values
+  ('16000000-0000-4000-8000-000000000003'::uuid, 60);
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('16000000-0000-4000-8000-000000000013'::uuid, '16000000-0000-4000-8000-000000000003'::uuid, 'C Main', true);
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('16000000-0000-4000-8000-00000000003f'::uuid, '16000000-0000-4000-8000-000000000003'::uuid, '16000000-0000-4000-8000-000000000013'::uuid, 'C Boundary', '+911600000047');
+
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('16000000-0000-4000-8000-000000000043'::uuid, '16000000-0000-4000-8000-000000000003'::uuid, 'C Monthly', 30, 200000);
+
+insert into public.qr_sessions (id, tenant_id, branch_id, token_hash, issued_at, expires_at, revoked_at) values
+  ('16000000-0000-4000-8000-000000000065'::uuid, '16000000-0000-4000-8000-000000000003'::uuid, '16000000-0000-4000-8000-000000000013'::uuid, 'chk16-c-live', now() - interval '1 minute', now() + interval '1 hour', null);
+
+create temp table today_c as
+select (now() at time zone o.timezone)::date as d
+  from public.organizations o where o.id = '16000000-0000-4000-8000-000000000003'::uuid;
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+select '16000000-0000-4000-8000-000000000060'::uuid, '16000000-0000-4000-8000-000000000003'::uuid, '16000000-0000-4000-8000-00000000003f'::uuid, '16000000-0000-4000-8000-000000000043'::uuid, 'active'::public.membership_status, d - 40, d, 200000
+  from today_c;
+
+-- 52
+select lives_ok($$
+  insert into public.attendance (tenant_id, branch_id, member_id, source, qr_session_id)
+  values ('16000000-0000-4000-8000-000000000003'::uuid,
+          '16000000-0000-4000-8000-000000000013'::uuid,
+          '16000000-0000-4000-8000-00000000003f'::uuid, 'qr',
+          '16000000-0000-4000-8000-000000000065'::uuid)
+$$, 'ATT-001, extra — a gym twelve hours off UTC, scanning on the exact day its own ends_on names, is recorded: the gate reads the gym''s date, not the server''s');
+
+-- 53
+select is(
+  (select count(*)::int from public.attendance
+    where tenant_id = '16000000-0000-4000-8000-000000000003'::uuid
+      and member_id = '16000000-0000-4000-8000-00000000003f'::uuid),
+  1,
+  'ATT-001, extra — the far-timezone boundary scan landed exactly once'
 );
 
 
