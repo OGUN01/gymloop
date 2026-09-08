@@ -56,6 +56,10 @@ IF a member is scanned again within the gym's configured de-duplication window, 
 ### Requirement: Two simultaneous scans produce exactly one attendance row
 WHILE two check-ins for the same member arrive concurrently, THE SYSTEM SHALL record exactly one attendance row. A de-duplication implemented as a read followed by a write is not sufficient: both reads can pass before either writes, and the resulting duplicate is silent.
 
+**The guard belongs to the table, not to a caller.** `attendance` grants `insert` to `authenticated` and its write policy admits any front-office session, so **any rule that lives only in a Route Handler or only in an RPC is bypassed by a direct `supabase-js` insert** — which is a supported path in this architecture, not an abuse of it. The guard must therefore be attached to the table itself, where every writer meets it. *(Found by the blind visible-suite author, and it is the same shape as Phase 2's recurring defect: a rule whose correctness is held by a different component than the one being protected.)*
+
+**The two "twice" cases are different and both are correct.** A repeated *scan* is a second attempt that happens to fall inside the window: it is refused, and the person is told they are already checked in. A repeated *submission carrying the same client event id* is the same attempt arriving twice — a network retry, or an offline replay — and it is absorbed silently, because reporting an error would make a client that retries look broken. The distinguishing question is not "is this a duplicate" but "is this a second attempt, or the same attempt again".
+
 #### Scenario: Concurrent scans of the same member
 - **WHEN** two check-ins for the same member are submitted at the same instant
 - **THEN** exactly one attendance row SHALL exist for that member in that window afterwards
