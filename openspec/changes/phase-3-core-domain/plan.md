@@ -45,10 +45,12 @@ These land **before any agent is dispatched**, because two of them make everythi
 
 - [x] The four process changes above.
 - [x] **Owner step — unblocked without it.** The intent was that nothing could proceed until a real person existed. That turned out to be false: the service-role key in `.env.local` can create an `auth.users` row through the Auth Admin API, so five demo sign-ins now exist, one per role, linked to real `staff`, `members` and `platform_users` rows (`docs/demo-accounts.md`). The owner's own account and the `bootstrap-platform-user.yml` dispatch are still owed, but they block nothing.
-- [ ] Seed a real gym through the product rather than through `seed.sql` — the first proof the write path works.
+- [~] **Seed a real gym through the product — DEFERRED, and not by drift.** The write path *is* proven: a member is created, a membership sold, a pause requested and decided, and a visit recorded, all through the product against Cloud. What cannot be done through the product is creating the **gym itself**, because nothing creates an `organizations` row plus its `organization_settings` row — that is gym onboarding, it is Phase 6, and it is the same gap OPEN-018 records. Writing a one-off "create a gym" screen now to tick this line would be a screen Phase 6 deletes. The proof this line was after has been taken from the member path instead.
 - [x] EARS spec for check-in, assisted check-in, and the dedupe window.
 - [x] Tests, then endpoints, then screens.
-- [ ] Run the real app: sign in, list members, scan a code, see attendance land. Screenshot it.
+- [x] **Run the real app: sign in, list members, scan a code, see attendance land.** Done against the Cloud database on 2026-09-08; `docs/evidence/phase3-check-in.png`. Both refusals showed up on the way and both were the system working: an expired gate code answered `GL011` ("Show a new one"), and a second click a second later answered `GL014` ("Already checked in a moment ago") — with the database confirming **one** attendance row and no second. Exactly-once held in a browser, from the trigger and not from the handler.
+
+  **And the browser found a defect 163 unit tests and 39 pgTAP files did not**: "Next page" on `?limit=5` returned fifty, because the link carried `q` and dropped `limit`. That is the argument for ADR-059's "every phase ships a screen", made by the phase itself.
 - [ ] Blind critic, gates, archive.
 
 ## Exit criteria
