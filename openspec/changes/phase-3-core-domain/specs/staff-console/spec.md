@@ -61,3 +61,52 @@ THE SYSTEM SHALL provide a sign-out that clears the session, after which console
 #### Scenario: Signing out
 - **WHEN** a signed-in staff member signs out and then requests a console route
 - **THEN** they SHALL be redirected to the sign-in page
+
+### Requirement: Every endpoint validates its request through a declared schema
+THE SYSTEM SHALL validate each Route Handler's request against a zod schema before it reaches the database (gate 12), and SHALL answer a request it cannot read with the typed failure envelope rather than with a 500.
+
+**The two failures are different and answer differently, and this is the part a brief written from the gate alone gets wrong.** These handlers are reached by a native `<form method="post">`, not by `fetch`:
+
+- **A body that is not a form at all** — nothing readable in it, no member id, no screen to go back to. This answers with the envelope, `ok: false`, a `bad_request` status. Two handlers used to call `await request.formData()` unguarded, so this case was a 500 for a request that was merely wrong.
+- **A form whose fields are wrong** — a missing plan, a reversed date range, a blank reason. This answers **303 back to the form**, never JSON. A form POST that returns `{"ok":false}` leaves the person at the front desk looking at raw JSON with no way back.
+
+**How that 303 carries the error differs between the two forms, and the difference is deliberate.** The membership and pause forms put a short stable code in the query string (`?error=dates_reversed`) — a code and not a sentence, because the screen owns the wording and a message in the URL would let anyone hand a member of staff a link displaying whatever they like. The member form does **not**: it redirects with a one-shot `HttpOnly` echo cookie instead, because a rejected member submission has to come back with every value that was typed, and a native `<form>` has no state of its own. Those values are a person's phone number, email and date of birth, and a query string is written into the server's access log, the browser's history, and the `Referer` of everything the page then loads. DPDP is exactly about that. So: the two-field forms use the URL, the form carrying personal data uses the cookie, and a test asserting one shape against the other endpoint is asserting the wrong thing.
+
+In the membership and pause schemas, ids are validated as uuids because that is what the columns are, and a calendar day is validated by round-tripping it rather than by regex alone, so `2026-02-31` and `2026-13-01` are both refused — the first parses as 3 March, and the second makes an Invalid Date whose `toISOString()` throws.
+
+**The member form validates less on purpose, and the line is worth stating so nobody "fixes" it.** It checks the two columns that are `not null` and the one field that is an enum — a name, a branch, and a status read from the generated `member_status` vocabulary, never a hand-written list. It does **not** re-check the phone format, because `members_phone_format_chk` is the rule and `refusalMessage()` turns that refusal into the best sentence on the screen; a copy here would be a second phone rule to keep in step, and it would be the copy that goes stale. The general form: **validate what makes the request readable, and leave what makes it correct to the constraint that cannot be bypassed.** Where a schema and a constraint say the same thing, the schema exists to give a better message, not to be the enforcement.
+
+#### Scenario: A body that is not a form
+- **WHEN** a request arrives whose body cannot be read as a form
+- **THEN** the response SHALL be a `bad_request` failure in the envelope, and SHALL NOT be a 500
+
+#### Scenario: A membership or pause field that is wrong
+- **WHEN** a submission names no plan, or reverses a date range, or gives a blank reason
+- **THEN** the response SHALL be a 303 back to the member's screen carrying a stable error code in the query string, and no row SHALL be written
+
+#### Scenario: A member field that is wrong
+- **WHEN** a member submission gives no name, or no branch, or a status outside the enum
+- **THEN** the response SHALL be a 303 back to the member form carrying the message and every submitted value in a one-shot `HttpOnly` cookie — never in the query string, because those values are personal data and a URL is written into logs, history and `Referer`
+
+#### Scenario: A form that names no member at all
+- **WHEN** a submission carries no usable member id
+- **THEN** the response SHALL be a `bad_request` failure in the envelope — there is no screen to redirect to without one
+
+#### Scenario: A date that is not a calendar day
+- **WHEN** a submission carries `2026-02-31` or `2026-13-01` as a date
+- **THEN** it SHALL be refused, and SHALL NOT be silently rolled forward into March or throw
+
+### Requirement: The member list is bounded
+THE SYSTEM SHALL return a bounded page of members with a documented default and maximum, and SHALL give the caller what it needs to ask for the next page (gate 26). A gym with four thousand members otherwise renders four thousand rows into a page a front desk reads three of.
+
+#### Scenario: The default page
+- **WHEN** the member list is read with no page size given
+- **THEN** at most the default number of members SHALL be returned
+
+#### Scenario: Asking for more than the maximum
+- **WHEN** a caller asks for a page larger than the maximum
+- **THEN** the maximum SHALL be returned — clamped, not refused, because a page size is a hint and not an instruction
+
+#### Scenario: Asking for the next page
+- **WHEN** more members exist than one page holds
+- **THEN** the result SHALL carry what is needed to request the next page, and SHALL NOT carry it when the list is exhausted

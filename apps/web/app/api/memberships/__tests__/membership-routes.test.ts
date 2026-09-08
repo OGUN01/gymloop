@@ -46,7 +46,14 @@ vi.mock('../../../../lib/supabase/server', () => ({
 const { POST: sellMembership } = await import('../route');
 const { POST: pause } = await import('../pauses/route');
 
-const SIGNED_IN = { staff_id: 'staff-1', tenant_id: 'tenant-1' };
+const TENANT_ID = '66666666-6666-4666-8666-666666666666';
+const STAFF_ID = '55555555-5555-4555-8555-555555555555';
+const MEMBER_ID = '11111111-1111-4111-8111-111111111111';
+const PLAN_ID = '22222222-2222-4222-8222-222222222222';
+const MEMBERSHIP_ID = '33333333-3333-4333-8333-333333333333';
+const PAUSE_ID = '44444444-4444-4444-8444-444444444444';
+
+const SIGNED_IN = { staff_id: STAFF_ID, tenant_id: TENANT_ID };
 const PLAN = { duration_days: 30, price_paise: 250000, currency: 'INR', is_active: true };
 
 const ok = (data: unknown): Result => ({ data, error: null });
@@ -74,7 +81,7 @@ beforeEach(() => {
 });
 
 describe('POST /api/memberships', () => {
-  const SALE = { memberId: 'member-1', planId: 'plan-1', startsOn: '2026-01-01' };
+  const SALE = { memberId: MEMBER_ID, planId: PLAN_ID, startsOn: '2026-01-01' };
 
   it('refuses an unsigned caller with the JSON envelope', async () => {
     state.claims = null;
@@ -83,14 +90,14 @@ describe('POST /api/memberships', () => {
   });
 
   it('answers 400 when the form names no member, because there is nowhere to redirect', async () => {
-    const response = await sellMembership(post({ planId: 'plan-1', startsOn: '2026-01-01' }));
+    const response = await sellMembership(post({ planId: PLAN_ID, startsOn: '2026-01-01' }));
     expect(response.status).toBe(400);
     expect(state.from).toEqual([]);
   });
 
   it.each([
-    ['no plan', { memberId: 'member-1', startsOn: '2026-01-01' }],
-    ['no start date', { memberId: 'member-1', planId: 'plan-1' }],
+    ['no plan', { memberId: MEMBER_ID, startsOn: '2026-01-01' }],
+    ['no start date', { memberId: MEMBER_ID, planId: PLAN_ID }],
     ['a start date that is not a day', { ...SALE, startsOn: '2026-02-31' }],
   ])('refuses %s before reading a plan', async (_label, fields) => {
     expect(errorOf(await sellMembership(post(fields)))).toBe('invalid');
@@ -111,9 +118,9 @@ describe('POST /api/memberships', () => {
     await sellMembership(post({ ...SALE, price_paise: '1', currency: 'USD', status: 'frozen' }));
 
     expect(argsOf('memberships', 'insert')).toEqual({
-      tenant_id: 'tenant-1',
-      member_id: 'member-1',
-      plan_id: 'plan-1',
+      tenant_id: TENANT_ID,
+      member_id: MEMBER_ID,
+      plan_id: PLAN_ID,
       status: 'active',
       starts_on: '2026-01-01',
       ends_on: '2026-01-31',
@@ -146,14 +153,14 @@ describe('POST /api/memberships', () => {
     state.results = [ok(PLAN), ok(null)];
     const response = await sellMembership(post(SALE));
     expect(response.status).toBe(303);
-    expect(response.headers.get('location')).toBe('https://gym.example/memberships/member-1');
+    expect(response.headers.get('location')).toBe(`https://gym.example/memberships/${MEMBER_ID}`);
   });
 });
 
 describe('POST /api/memberships/pauses — requesting a freeze', () => {
   const REQUEST = {
-    memberId: 'member-1',
-    membershipId: 'membership-1',
+    memberId: MEMBER_ID,
+    membershipId: MEMBERSHIP_ID,
     startsOn: '2026-03-01',
     endsOn: '2026-03-10',
     reason: 'knee injury',
@@ -176,10 +183,10 @@ describe('POST /api/memberships/pauses — requesting a freeze', () => {
 
     const inserted = argsOf('membership_pauses', 'insert') as Record<string, unknown>;
     expect(inserted).toMatchObject({
-      tenant_id: 'tenant-1',
-      membership_id: 'membership-1',
+      tenant_id: TENANT_ID,
+      membership_id: MEMBERSHIP_ID,
       reason: 'knee injury',
-      requested_by_staff_id: 'staff-1',
+      requested_by_staff_id: STAFF_ID,
     });
     expect(inserted).not.toHaveProperty('approved_at');
   });
@@ -194,14 +201,14 @@ describe('POST /api/memberships/pauses — requesting a freeze', () => {
 });
 
 describe('POST /api/memberships/pauses — deciding one', () => {
-  const DECIDE = { memberId: 'member-1', pauseId: 'pause-1', decision: 'approve' };
+  const DECIDE = { memberId: MEMBER_ID, pauseId: PAUSE_ID, decision: 'approve' };
   const SETTINGS = { pause_approver_role: 'owner', max_freeze_days_per_year: 30 };
   const PENDING = {
     starts_on: '2026-03-01',
     ends_on: '2026-03-10',
     approved_at: null,
     rejected_at: null,
-    memberships: { member_id: 'member-1' },
+    memberships: { member_id: MEMBER_ID },
   };
 
   it('refuses a decision that is neither approve nor reject', async () => {
@@ -240,26 +247,26 @@ describe('POST /api/memberships/pauses — deciding one', () => {
       ok(SETTINGS),
       ok({ role: 'owner' }),
       ok(PENDING),
-      ok([{ starts_on: '2026-01-01', ends_on: '2026-01-25', memberships: { member_id: 'member-1' } }]),
+      ok([{ starts_on: '2026-01-01', ends_on: '2026-01-25', memberships: { member_id: MEMBER_ID } }]),
     ];
 
     expect(errorOf(await pause(post(DECIDE)))).toBe('freeze_budget');
   });
 
   /** The decision UPDATE now asks for its rows back; this is one applied. */
-  const DECIDED = ok([{ id: 'pause-1' }]);
+  const DECIDED = ok([{ id: PAUSE_ID }]);
 
   it('admits a pause that lands exactly on the budget', async () => {
     state.results = [
       ok(SETTINGS),
       ok({ role: 'owner' }),
       ok(PENDING),
-      ok([{ starts_on: '2026-01-01', ends_on: '2026-01-20', memberships: { member_id: 'member-1' } }]),
+      ok([{ starts_on: '2026-01-01', ends_on: '2026-01-20', memberships: { member_id: MEMBER_ID } }]),
       DECIDED,
     ];
 
     expect(errorOf(await pause(post(DECIDE)))).toBeNull();
-    expect(argsOf('membership_pauses', 'update')).toMatchObject({ approved_by_staff_id: 'staff-1' });
+    expect(argsOf('membership_pauses', 'update')).toMatchObject({ approved_by_staff_id: STAFF_ID });
   });
 
   it('does not spend the freeze budget on a rejection', async () => {
