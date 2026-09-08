@@ -140,7 +140,12 @@ async function decide(
   // reasoning as leaving the one-live rule to its unique index: the guard
   // belongs in the statement, not in the gap before it.
   const stamp = new Date().toISOString();
-  const { error } = await supabase
+  // `.select('id')` is not decoration. The role matrix makes a refused UPDATE
+  // *silent* — zero rows, no error (ADR-055) — so without inspecting what came
+  // back, a trainer's rejected decision and the loser of a two-approver race
+  // both render as success. The members handler already guards this; this one
+  // did not, and a test written after the fact is what found it.
+  const { data: decided, error } = await supabase
     .from('membership_pauses')
     .update(
       decision === 'approve'
@@ -152,9 +157,17 @@ async function decide(
     )
     .eq('id', pauseId)
     .is('approved_at', null)
-    .is('rejected_at', null);
+    .is('rejected_at', null)
+    .select('id');
 
-  if (error === null) return backToMember(request, memberId);
+  if (error === null && decided !== null && decided.length > 0) {
+    return backToMember(request, memberId);
+  }
+  if (error === null) {
+    // Zero rows: either row security refused it, or another approver got there
+    // first between the read above and this write.
+    return backToMember(request, memberId, 'already_decided');
+  }
   return backToMember(
     request,
     memberId,

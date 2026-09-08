@@ -128,9 +128,12 @@ export const MEMBER_ECHO_COOKIE = 'gl_member_echo';
  * by accident.
  *
  * The cookie is `HttpOnly` — the form is rendered on the server, so script has
- * no reason to read it — `SameSite=Strict`, and expires in a minute. It is
- * cleared by the page that consumes it, so a refresh does not resurrect a
- * submission the user has moved on from.
+ * no reason to read it — `SameSite=Strict`, and **expires on its own** after a
+ * minute. Nothing clears it on read: a Server Component render gets a sealed
+ * cookie jar, so the page that consumes this cannot delete it without throwing,
+ * which would make the form unloadable for the whole minute. A refresh inside
+ * that window therefore re-fills the form, which is what somebody retyping a
+ * phone number wants anyway. See `(console)/members/echo.ts`.
  */
 export function redirectWithError(
   request: Request,
@@ -138,10 +141,13 @@ export function redirectWithError(
   form: FormData,
   message: string,
 ): Response {
-  const echo: Record<string, string> = { error: message };
+  const echo: Record<string, string> = {};
   for (const [key, value] of form.entries()) {
     if (typeof value === 'string') echo[key] = value;
   }
+  // Last, not first: a submitted field named `error` would otherwise overwrite
+  // the handler's own message and the form would explain nothing.
+  echo.error = message;
   const url = new URL(path, request.url);
   const cookie = [
     `${MEMBER_ECHO_COOKIE}=${encodeURIComponent(JSON.stringify(echo))}`,
