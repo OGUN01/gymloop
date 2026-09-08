@@ -1,7 +1,7 @@
 import { Constants } from '@gymloop/db';
 import type { Database } from '@gymloop/db';
 import { followUpRequestSchema } from '@gymloop/shared';
-import { staffForm, PG_INSUFFICIENT_PRIVILEGE } from '../../../lib/api';
+import { seeOther, staffFormParsed, PG_INSUFFICIENT_PRIVILEGE } from '../../../lib/api';
 
 /**
  * POST /api/follow-ups — record what happened when somebody rang a member.
@@ -27,19 +27,13 @@ const REFUSALS: Record<string, string> = {
   GL033: 'correction_other_case',
 };
 
-/** 303, so a refresh of the list does not re-post the follow-up. */
-const SEE_OTHER = 303;
-
 export async function POST(request: Request): Promise<Response> {
-  const caller = await staffForm(request);
+  const caller = await staffFormParsed(request, followUpRequestSchema);
   if ('failure' in caller) return caller.failure;
-  const { supabase, tenantId, staffId } = caller;
+  if ('invalid' in caller) return seeOther(request, '/red-list', 'invalid');
+  const { supabase, tenantId, staffId, data } = caller;
 
-  const submitted = followUpRequestSchema.safeParse(caller.fields);
-  if (!submitted.success) return backToList(request, 'invalid');
-
-  const { caseId, channel, outcome, notes, nextAction, nextFollowUpAt, correctsFollowUpId } =
-    submitted.data;
+  const { caseId, channel, outcome, notes, nextAction, nextFollowUpAt, correctsFollowUpId } = data;
 
   // The vocabularies are the generated Postgres enums and are checked against
   // `Constants`, never against a list written here (AGENTS.md rule 5). The zod
@@ -53,7 +47,7 @@ export async function POST(request: Request): Promise<Response> {
   const channels: readonly string[] = Constants.public.Enums.contact_channel;
   const outcomes: readonly string[] = Constants.public.Enums.follow_up_outcome;
   if (!channels.includes(channel) || !outcomes.includes(outcome)) {
-    return backToList(request, 'invalid');
+    return seeOther(request, '/red-list', 'invalid');
   }
 
   const { error } = await supabase.from('follow_ups').insert({
@@ -71,27 +65,14 @@ export async function POST(request: Request): Promise<Response> {
     corrects_follow_up_id: correctsFollowUpId ?? null,
   });
 
-  if (error === null) return backToList(request);
+  if (error === null) return seeOther(request, '/red-list');
 
-  if (error.code === PG_INSUFFICIENT_PRIVILEGE) return backToList(request, 'not_permitted');
+  if (error.code === PG_INSUFFICIENT_PRIVILEGE) return seeOther(request, '/red-list', 'not_permitted');
 
   // `Object.hasOwn`, not a bare index: `REFUSALS['constructor']` is inherited
   // from Object.prototype and truthy, so a bare lookup would redirect with the
   // string `[object Object]` in the query. The check-in handler shipped that
   // bug and a blind suite found it.
   const refusal = Object.hasOwn(REFUSALS, error.code) ? REFUSALS[error.code] : undefined;
-  return backToList(request, refusal ?? 'follow_up_failed');
-}
-
-/**
- * Back to the red list, as a fresh GET. A short stable code, never a sentence:
- * the screen owns the wording, and a message in the query string would let
- * anyone hand a member of staff a link that displays whatever they like.
- */
-function backToList(request: Request, error?: string): Response {
-  const path = error === undefined ? '/red-list' : `/red-list?error=${encodeURIComponent(error)}`;
-  return new Response(null, {
-    status: SEE_OTHER,
-    headers: { location: new URL(path, request.url).toString() },
-  });
+  return seeOther(request, '/red-list', refusal ?? 'follow_up_failed');
 }

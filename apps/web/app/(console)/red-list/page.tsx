@@ -1,6 +1,7 @@
 import { Constants } from '@gymloop/db';
 import { RED_LIST_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
 import Link from 'next/link';
+import { Alert } from '../alert';
 import { loadRedList } from '../../../lib/red-list';
 
 /**
@@ -55,16 +56,10 @@ export default async function RedListPage({
         Members who have stopped coming. Longest away first.
       </p>
 
-      {problem === null ? null : (
-        <p role="alert" className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-          {problem}
-        </p>
-      )}
+      {problem === null ? null : <Alert>{problem}</Alert>}
 
       {errorMessage === null ? null : (
-        <p role="alert" className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-          The red list could not be loaded. {errorMessage}
-        </p>
+        <Alert>The red list could not be loaded. {errorMessage}</Alert>
       )}
 
       {cases.length === 0 ? (

@@ -436,6 +436,35 @@ Two ways to make prose and reality agree: delete the claim or make it true. Made
 
 **On push rather than manual dispatch**, unlike the seed: a function whose deployment is something somebody remembers to do is a function that drifts from the repo, and "deployed" becomes a claim nobody can check — which is the defect this ADR exists to close. `deno check` runs in the deploy job as well as in CI, so a path-filtered push cannot outrun the typecheck.
 
+**ADR-082 - The trusted-context carve-out belongs to rules that adjudicate a CLAIM, not to rules that keep the books.** Every enforcement trigger in this project opens with `if not row_security_active(...) then return; end if;` (ADR-068), and Phase 5's first draft copied that opening onto all five of the manual-payment rules at once. A holdout suite took **ten assertions off it in one run**, and every failure traced to the same mistake.
+
+The distinction the carve-out is actually drawing:
+
+- **Attribution and the provider rule read the JWT.** A trusted context has no `staff_id` claim, and the Razorpay webhook — `service_role` — writes provider identifiers because that is its entire job. Refusing those writes would refuse the correct behaviour. The carve-out is right.
+- **A receipt number and a refund ceiling are not about who is asking.** Carved out, every online payment would have no receipt number, because the webhook that records it is exactly the caller the carve-out exempts — **a receipt book with a hole in it for every online payment is not a receipt book**. And a refund limit that the one path which will process refunds at scale does not obey is not a limit.
+
+The general form, which is worth more than the instance: **a carve-out for trusted callers is sound exactly when the rule's subject is something a trusted caller legitimately lacks.** Where the rule's subject is an invariant about the data — a sequence, a total, a date arithmetic — the trusted caller needs it *more*, not less, because no policy is standing behind it.
+
+Two consequences fell out of the same round, both already-named shapes recurring:
+
+- **The refusals moved from `before` to `after` (ADR-072, ADR-066).** They modify nothing, so nothing needed them early — and running early made them adjudicate rows row security was about to refuse: a member inserting a payment directly got this file's `GL034` rather than the policy's `42501`, so a refusal message leaked where a permission denial belonged. Committed in a file whose own comments quote ADR-066 at the point of the mistake. **Quoting a rule is not applying it.**
+- **A blind test author found the receipt-number format by writing an assertion that could not be satisfied and asking why.** "Both years' first receipt numbers are equal" contradicts `payments_tenant_id_receipt_number_key` (unique per gym, not per year), which the same author had read from the catalogue and written into its own header. The reconciliation is the answer: the financial year has to be *in* the rendered number, because the counter restarts every April and a bare ordinal collides with last year's on the first payment of each one. Neither suite would have found it alone — the visible one asserted the restart, the index refused it, and the contradiction was the finding.
+
+
+**ADR-083 - The payment grants the membership period, not the sale.** Phase 3's `POST /api/memberships` wrote `ends_on = starts_on + plan.duration_days`, and its comment said Phase 5's extension would be "a different act from this one". Phase 5 arrived and it is not: `app.extend_membership_on_payment()` moves `ends_on` forward by the plan's duration when a payment against that membership is paid. **A front desk selling a 30-day membership and then taking the money for it granted sixty days for one month's fee, in two clicks that both looked right.**
+
+Found by reading the seed rather than by a test: thirty seeded memberships each carry the payment that bought them, so the trigger would have pushed every one of them a month out and quietly emptied the retention fixtures of their meaning — the member whose membership lapsed on a named day, the case that outlives it.
+
+Resolved in favour of the payment, on two grounds:
+
+- **PAY-007 and PAY-008 already say so.** A membership created and never paid for is an intention to pay, and this product may not treat one as a payment. Granting the full period at creation did exactly that, whatever the comment beside it said.
+- **The two failures are not symmetrical, and that is what decided it.** A desk that creates a membership and forgets the payment leaves a member refused at the gate that evening — loud, and fixed in a minute. The reverse leaves a member training free for a month, and nobody finds out until a renewal that never comes. Every tie in this project is broken the same way: prefer the failure that announces itself.
+
+It also leaves one owner for one piece of arithmetic. `starts_on + duration_days` was computed in a Route Handler and in a trigger, and two places computing one thing is the shape ADR-052 and ADR-064 are both about.
+
+**The seed states history and does not take the carve-out.** It snapshots the membership dates before its payment rows go in and restores them after, rather than exempting the trigger for trusted callers — the trigger is right, and a seed is the one caller whose job is to say what already happened rather than to make something happen. Its `on conflict` also stopped writing `receipt_number = excluded.receipt_number`, because `excluded` is null on the razorpay rows the product now numbers, and a re-run would have withdrawn a receipt number that existed yesterday.
+Also settled here, and worth stating because the absence of code documents nothing: **a refund does not reverse a membership extension.** A member who paid, attended and was refunded has not un-attended; what happens to their membership is a decision a human makes.
+
 - **OPEN-008 (Phase 6 — the red list cannot schedule a follow-up).** `next_follow_up_at` exists on `no_show_cases`, in `followUpRequestSchema`, in `apps/web/app/api/follow-ups/route.ts`, and `app.enforce_follow_up()` derives `follow_up_due` from it correctly — **and no input on the red list supplies it.** So `follow_up_due` is unreachable through the product, `no_show_cases_tenant_id_next_follow_up_at_due_idx` is fed by nothing and read by nothing, there is no "due today" screen, and ADR-076's fix guards a state no user can create. Found by the round-three critic. Closing it needs a decision this deserves a spec for: `<input type="datetime-local">` submits `2026-09-12T09:00` with **no offset**, which `z.iso.datetime({ offset: true })` rejects into the `invalid` branch — so how a wall-clock time becomes an instant in the gym's timezone is the real question, and guessing at it at the end of a phase is how the `current_date` defect happened.
 
 ## Known enforcement gaps

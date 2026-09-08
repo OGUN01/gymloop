@@ -122,6 +122,39 @@ export const RED_LIST_PAGE_SIZE_DEFAULT = 25;
 /** The clamp for {@link RED_LIST_PAGE_SIZE_DEFAULT} — a page size is a hint. */
 export const RED_LIST_PAGE_SIZE_MAX = 100;
 
+/**
+ * The payments ledger's page.
+ *
+ * A day's takings, not a month's. The screen answers "what did we take today,
+ * and does the drawer agree" — a front desk reconciling cash at close reads
+ * down until the entries stop being today's, and a longer page is a longer
+ * scroll past yesterday to find that line.
+ */
+export const PAYMENT_PAGE_SIZE_DEFAULT = 25;
+
+/** The clamp for {@link PAYMENT_PAGE_SIZE_DEFAULT} — a page size is a hint. */
+export const PAYMENT_PAGE_SIZE_MAX = 100;
+
+/** Paise in a rupee. `* 100` on money is exactly the literal rule 4 exists for. */
+export const PAISE_PER_RUPEE = 100;
+
+/**
+ * How many digits of paise a rupee amount may carry — two, and a third is
+ * refused rather than rounded (MNY-003).
+ *
+ * Both halves of the conversion read it: `paiseFromRupees` pads a short
+ * fraction out to it, `rupeesFromPaise` pads a small remainder back to it. One
+ * constant, so the two can never disagree about what "50" after a point means.
+ */
+export const PAISE_DIGITS = 2;
+
+/**
+ * The longest idempotency key a client may send. Long enough for a uuid and a
+ * prefix; short enough that the partial unique index on
+ * `(tenant_id, idempotency_key)` stays a b-tree entry rather than a essay.
+ */
+export const IDEMPOTENCY_KEY_MAX_LENGTH = 200;
+
 /*
  * The v1 role set is NOT here. It is the `app_role` Postgres enum, generated
  * into packages/db/types/database.ts — see docs/decisions.md ADR-031. Four

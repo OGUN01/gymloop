@@ -1,6 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { DEFAULT_TIMEZONE } from '@gymloop/shared';
+import { DEFAULT_TIMEZONE, PAISE_PER_RUPEE, rupeesFromPaise } from '@gymloop/shared';
 import { createServerSupabase } from '../../../../lib/supabase/server';
 
 /**
@@ -17,21 +18,6 @@ import { createServerSupabase } from '../../../../lib/supabase/server';
  * Every write leaves through a native `<form method="post">` to a Route
  * Handler. No client component, no `fetch`, no JavaScript required.
  */
-
-/**
- * Paise to rupees.
- *
- * `100` is a magic number and AGENTS.md rule 4 says it belongs in
- * `packages/shared/src/config/constants.ts` as something like `PAISE_PER_RUPEE`,
- * next to `PLAN_TIER_PRICES_PAISE`. That file is outside this session's scope,
- * so it sits here and is reported as owed. It is written as an object-literal
- * property — the shape `no-magic-numbers` exempts — for the same reason
- * `lib/api.ts` writes its HTTP status map that way.
- *
- * The division is display only. Nothing stored or sent anywhere is ever
- * anything but the integer (MNY-001).
- */
-const PAISE = { perRupee: 100 } as const;
 
 /** What each redirect code from the two handlers means to a person. */
 const ERRORS: Record<string, string> = {
@@ -55,6 +41,20 @@ const ERRORS: Record<string, string> = {
 };
 
 const LIVE_STATUSES = ['active', 'frozen'];
+
+/**
+ * The methods a desk may take money by.
+ *
+ * `razorpay` is absent, and its absence is the rule appearing twice: the table
+ * refuses a razorpay-method row from a session row security applies to
+ * (`GL035`), because online state is the provider's to report (PAY-006). This
+ * list is the courtesy — not offering a control that would then be refused.
+ *
+ * Not read from `Constants.public.Enums.payment_method` minus one entry,
+ * because "every method except that one" is a rule about the desk, and a new
+ * online method added to the enum should not silently appear on this form.
+ */
+const DESK_METHODS = ['cash', 'upi', 'card', 'bank_transfer'] as const;
 
 const MEMBERSHIP_COLUMNS =
   'id, status, starts_on, ends_on, price_paise, currency, plans(name), membership_pauses(id, starts_on, ends_on, reason, approved_at, rejected_at)';
@@ -99,6 +99,10 @@ export default async function MemberMembershipsPage({
   // server's. A gym in India opening a membership at 00:30 IST would otherwise
   // be offered yesterday's date, because the server runs in UTC.
   const today = todayIn(organization.data?.timezone ?? DEFAULT_TIMEZONE);
+  // Minted here, on the server, once per render of this page: the form carries
+  // it, so every submission of THIS form is the same payment however many
+  // times it is sent, and a fresh page is a fresh payment.
+  const idempotencyKey = randomUUID();
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">
@@ -158,7 +162,74 @@ export default async function MemberMembershipsPage({
           </button>
         </form>
         <p className="mt-2 text-xs text-neutral-500">
-          The end date is the start date plus the plan&rsquo;s length. Price comes from the plan.
+          Price comes from the plan. <strong>The membership runs from the day it is paid for</strong>
+          &nbsp;— record the payment below and the plan&rsquo;s length is added then (ADR-083).
+        </p>
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-base font-semibold">Take a payment</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          Cash, UPI, card or a bank transfer, taken at the desk. The receipt number is the
+          gym&rsquo;s own, and a payment against a live membership extends it.
+        </p>
+
+        <form method="post" action="/api/payments" className="mt-4 flex flex-wrap items-end gap-3">
+          <input type="hidden" name="memberId" value={memberId} />
+          {/* An idempotency key minted with the form, so the browser's back
+              button and a double tap on a slow connection are one payment
+              rather than two. The unique index is what enforces it; this is
+              how the form gets to participate. */}
+          <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+          {live === undefined ? null : (
+            <input type="hidden" name="membershipId" value={live.id} />
+          )}
+          <label className="text-sm">
+            <span className="block text-neutral-600">Amount (₹)</span>
+            <input
+              type="text"
+              name="amountRupees"
+              required
+              inputMode="decimal"
+              /* `text` and not `number`: a number input on a phone offers a
+                 spinner and accepts `1e3`, and money typed at a counter is
+                 typed, not nudged. Two decimal places at most, refused rather
+                 than rounded. */
+              pattern="\d{1,9}(\.\d{1,2})?"
+              defaultValue={live === undefined ? undefined : rupeesFromPaise(live.price_paise)}
+              className="mt-1 w-32 rounded-md border border-neutral-300 px-3 py-2 text-base tabular-nums"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="block text-neutral-600">Method</span>
+            <select
+              name="method"
+              required
+              className="mt-1 rounded-md border border-neutral-300 px-3 py-2 text-base"
+            >
+              {DESK_METHODS.map((desk) => (
+                <option key={desk} value={desk}>
+                  {desk.replace('_', ' ')}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm">
+            <span className="block text-neutral-600">Note</span>
+            <input
+              type="text"
+              name="notes"
+              className="mt-1 rounded-md border border-neutral-300 px-3 py-2 text-base"
+            />
+          </label>
+          <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-white">
+            Record payment
+          </button>
+        </form>
+        <p className="mt-2 text-xs text-neutral-500">
+          {live === undefined
+            ? 'This member has no live membership, so this records money taken for something else and extends nothing.'
+            : `Extends ${live.plans.name} from whichever is later — today or ${live.ends_on}.`}
         </p>
       </section>
 
@@ -321,10 +392,23 @@ function PauseHistory({ memberId, memberships }: { memberId: string; memberships
   );
 }
 
-/** An integer paise amount as rupees, in the gym's own currency. */
+/**
+ * An integer paise amount as rupees, in the gym's own currency.
+ *
+ * The debt this function used to carry is paid: the `100` lived here as a local
+ * `PAISE.perRupee` with a comment saying it belonged in `packages/shared`. It
+ * now does, as `PAISE_PER_RUPEE`, and the conversion with it.
+ *
+ * The division is display only, once, at the edge — which is exactly what
+ * MNY-001 permits and where it says to do it. `Intl` needs a number and this
+ * runtime's `format()` types will not take the exact decimal string, so the
+ * grouped `₹1,50,000.00` a gym reads is worth the float that never leaves this
+ * line. Where exactness matters more than grouping — the receipt, which is the
+ * audited document — `rupeesFromPaise` is used instead and no float exists.
+ */
 function money(paise: number, currency: string): string {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency }).format(
-    paise / PAISE.perRupee,
+    paise / PAISE_PER_RUPEE,
   );
 }
 

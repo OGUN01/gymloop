@@ -729,6 +729,24 @@ today as (
            to_char((now() at time zone 'Asia/Kolkata')::date, 'YY')
     end as fy
 )
+--     **The seed states history, and the product now grants membership time
+--     from payments (ADR-083).** `app.extend_membership_on_payment()` fires on
+--     every one of the thirty rows below and moves `ends_on` forward by the
+--     plan's duration — correct for a payment being taken at a desk today, and
+--     wrong for a row asserting what a membership already ran. Left alone, every
+--     seeded membership would come out a month longer than the scenario means,
+--     and the retention fixtures — a member whose membership lapsed on a named
+--     day, the case that outlives it — would quietly stop being about anything.
+--
+--     So the dates are taken before and put back after. NOT a carve-out in the
+--     trigger: the trigger is right, and a seed is the one caller whose job is
+--     to say what already happened rather than to make something happen.
+drop table if exists seed_membership_period;
+create temp table seed_membership_period as
+  select id, ends_on
+    from public.memberships
+   where tenant_id = '00000001-0000-4000-8000-000000000001'::uuid;
+
 insert into public.payments (
   id, tenant_id, member_id, membership_id, mandate_id, coupon_id,
   amount_paise, currency, status, method, provider, provider_order_id,
@@ -774,11 +792,35 @@ on conflict (id) do update set
   provider             = excluded.provider,
   provider_order_id    = excluded.provider_order_id,
   provider_payment_id  = excluded.provider_payment_id,
-  receipt_number       = excluded.receipt_number,
+  -- `coalesce`, not `excluded` alone. The seed leaves `receipt_number` null on
+  -- its razorpay rows and the product now allocates one for every payment that
+  -- becomes paid (ADR-083). A plain `excluded` would un-issue that number on
+  -- the next seed run — a receipt that existed yesterday and does not today,
+  -- which is the one thing a receipt book may never do. The seed does not
+  -- withdraw a number it did not issue.
+  receipt_number       = coalesce(excluded.receipt_number, public.payments.receipt_number),
   recorded_by_staff_id = excluded.recorded_by_staff_id,
   idempotency_key      = excluded.idempotency_key,
   paid_at              = excluded.paid_at,
   notes                = excluded.notes;
+
+
+-- ---------------------------------------------------------------------------
+-- 16b. Put the membership dates back.
+--
+--     The thirty payments above each extended the membership they name. That is
+--     the product working; this restores what the scenario says those
+--     memberships ran, and the `is distinct from` means a re-run of the seed
+--     touches nothing once the dates already agree.
+-- ---------------------------------------------------------------------------
+
+update public.memberships m
+   set ends_on = p.ends_on
+  from seed_membership_period p
+ where m.id = p.id
+   and m.ends_on is distinct from p.ends_on;
+
+drop table seed_membership_period;
 
 
 -- ---------------------------------------------------------------------------
@@ -929,7 +971,13 @@ on conflict (id) do update set
   provider             = excluded.provider,
   provider_order_id    = excluded.provider_order_id,
   provider_payment_id  = excluded.provider_payment_id,
-  receipt_number       = excluded.receipt_number,
+  -- `coalesce`, not `excluded` alone. The seed leaves `receipt_number` null on
+  -- its razorpay rows and the product now allocates one for every payment that
+  -- becomes paid (ADR-083). A plain `excluded` would un-issue that number on
+  -- the next seed run — a receipt that existed yesterday and does not today,
+  -- which is the one thing a receipt book may never do. The seed does not
+  -- withdraw a number it did not issue.
+  receipt_number       = coalesce(excluded.receipt_number, public.payments.receipt_number),
   recorded_by_staff_id = excluded.recorded_by_staff_id,
   idempotency_key      = excluded.idempotency_key,
   paid_at              = excluded.paid_at,

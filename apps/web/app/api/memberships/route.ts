@@ -6,7 +6,7 @@ import {
   PG_INSUFFICIENT_PRIVILEGE,
   PG_UNIQUE_VIOLATION,
 } from '../../../lib/api';
-import { addDays, backToMember } from './shared';
+import { backToMember } from './shared';
 
 /**
  * POST /api/memberships — sell a member a plan.
@@ -63,7 +63,7 @@ export async function POST(request: Request): Promise<Response> {
   // the defect the pgTAP suite exists to find.
   const { data: plan } = await supabase
     .from('plans')
-    .select('duration_days, price_paise, currency, is_active')
+    .select('price_paise, currency, is_active')
     .eq('id', planId)
     .maybeSingle();
 
@@ -78,11 +78,27 @@ export async function POST(request: Request): Promise<Response> {
     // to stay fully functional on cash recorded at the front desk, and a
     // membership nobody can check in against is not that. It also puts the row
     // inside the partial unique index, so the one-live rule actually bites.
-    // Phase 5 links the payment; PAY-008 governs *extension* after a gateway
-    // payment, which is a different act from this one.
     status: 'active',
     starts_on: startsOn,
-    ends_on: addDays(startsOn, plan.duration_days),
+    // **The period is not granted here. The payment grants it** (ADR-083).
+    //
+    // This line used to be `addDays(startsOn, plan.duration_days)`, and the
+    // comment above it said Phase 5's extension was "a different act from this
+    // one". Phase 5 arrived and it is not: `app.extend_membership_on_payment()`
+    // moves `ends_on` forward by the plan's duration when a payment against the
+    // membership is paid, so a desk that sold a membership and then took the
+    // money for it granted sixty days for one month's fee — in two clicks that
+    // both looked right.
+    //
+    // Granting nothing until money arrives is also what PAY-007 and PAY-008
+    // ask for in the first place: a membership created and never paid for is an
+    // intention to pay, and this product may not treat one as a payment. The
+    // two failures are not symmetrical, which is what decided it. A desk that
+    // creates a membership and forgets the payment leaves a member who is
+    // refused at the gate that evening — loud, and fixed in a minute. The
+    // reverse leaves a member training free for a month, and nobody finds out
+    // until a renewal that never comes.
+    ends_on: startsOn,
     price_paise: plan.price_paise,
     currency: plan.currency,
     activated_at: new Date().toISOString(),

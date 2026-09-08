@@ -28,6 +28,8 @@ const STATUS = {
   conflict: 409,
   unprocessable: 422,
   server_error: 500,
+  /** Not a failure — the redirect `seeOther()` answers a form post with. */
+  see_other: 303,
 } as const;
 
 export type ApiFailStatus = keyof typeof STATUS;
@@ -166,4 +168,70 @@ export async function staffForm(
   // honest answer to a duplication report is to remove the duplication rather
   // than to raise the threshold that found it.
   return { ...caller.session, form: body.form, fields: body.fields };
+}
+
+/**
+ * Back to a console screen, as a fresh GET.
+ *
+ * **303 and not 302**: a refresh of the screen must not re-post the form, which
+ * is the difference between a member being charged once and twice.
+ *
+ * The `error` is a short stable code, never a sentence. The screen owns the
+ * wording — a message passed through the query string would let anyone hand a
+ * member of staff a link that displays whatever they like.
+ *
+ * Two handlers had spelled this out identically, down to the comment, and
+ * `jscpd` was right to call it a clone: the honest answer to a duplication
+ * report is to remove the duplication, not to raise the threshold that found
+ * it.
+ */
+export function seeOther(request: Request, path: string, error?: string): Response {
+  const target = error === undefined ? path : `${path}?error=${encodeURIComponent(error)}`;
+  return new Response(null, {
+    status: STATUS.see_other,
+    headers: { location: new URL(target, request.url).toString() },
+  });
+}
+
+/**
+ * Anything with zod's `safeParse` shape, described structurally so `lib/api.ts`
+ * need not depend on zod. The schemas themselves live in `packages/shared`,
+ * which is where the vocabulary belongs; this file only needs to know that a
+ * parse either produced data or did not.
+ */
+type Parser<T> = {
+  safeParse(value: unknown): { success: true; data: T } | { success: false };
+};
+
+/**
+ * A signed-in staff caller, their form, and the form parsed - the whole
+ * preamble of a console form handler in one line.
+ *
+ * `staffForm()` already removed the first duplication; `jscpd` then found the
+ * next four lines were the same too, because every one of these handlers must
+ * identify the caller, read the form and parse it, in that order and no other.
+ * An order that must not vary is exactly the thing to write once.
+ *
+ * Three outcomes, kept distinct because they answer differently: an
+ * unauthenticated caller or an unreadable body gets an envelope, neither of
+ * which has a screen to redirect to, and a body that parses to nothing gets
+ * `invalid` - which the CALLER turns into a redirect, because only the caller
+ * knows which screen the form came from.
+ */
+export async function staffFormParsed<T>(
+  request: Request,
+  schema: Parser<T>,
+): Promise<{ failure: Response } | { invalid: true } | (StaffSession & { data: T })> {
+  const caller = await staffForm(request);
+  if ('failure' in caller) return { failure: caller.failure };
+
+  const submitted = schema.safeParse(caller.fields);
+  if (!submitted.success) return { invalid: true };
+
+  return {
+    supabase: caller.supabase,
+    tenantId: caller.tenantId,
+    staffId: caller.staffId,
+    data: submitted.data,
+  };
 }

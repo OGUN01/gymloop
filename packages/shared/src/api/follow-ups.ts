@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { optionalField } from './forms';
 
 /**
  * Logging what happened when somebody rang a member.
@@ -19,23 +20,6 @@ import { z } from 'zod';
  * strings rather than a second copy of a vocabulary that lives in
  * `packages/db/types/database.ts` (AGENTS.md rule 5).
  */
-/**
- * **A blank optional input is absent, not empty**, and an HTML form cannot say
- * so any other way: a text field left untouched submits `''`, not nothing.
- *
- * Without this, a front desk logging a call and leaving the note blank — which
- * is most calls — had the whole follow-up refused as "not readable", because
- * `''` is present and fails `min(1)`. Found by pressing the button in a
- * browser; no unit test would have, because a test constructs the body it
- * means and a form constructs the body it has.
- */
-function optionalField<T extends z.ZodTypeAny>(inner: T) {
-  return z.preprocess(
-    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
-    inner.optional(),
-  );
-}
-
 export const followUpRequestSchema = z.object({
   caseId: z.uuid(),
   channel: z.string().trim().min(1),
