@@ -15,6 +15,13 @@ Every table in the `public` schema SHALL either carry a `tenant_id` column refer
 - **WHEN** the schema is inspected for tables in `public` with Row-Level Security disabled
 - **THEN** the result SHALL be empty
 
+### Requirement: A tenant claim alone is not sufficient
+**Amended by Phase 2.** Phase 1 gave every tenant-scoped table one gym-side policy, `tenant_id = app.current_tenant_id()`, so any signed-in session carrying a gym's tenant claim read every row in that gym. That is no longer true and no requirement below should be read as saying it is: a gym-side read or write now needs a matching tenant **and** a role the matrix admits. See `openspec/specs/authorization/` for what each role may reach, and `openspec/specs/identity/` for where the claims come from.
+
+#### Scenario: A tenant claim with no role
+- **WHEN** a caller with the `authenticated` role carries a valid tenant claim and no role claim, and selects from a tenant-scoped table holding rows for that tenant
+- **THEN** zero rows SHALL be returned
+
 ### Requirement: The tenant id comes from the JWT claim, never from a subquery
 THE SYSTEM SHALL read the acting tenant from the `tenant_id` claim of the request's JWT, through exactly one accessor function. No Row-Level Security policy SHALL contain a subquery against another table to establish the acting tenant.
 
