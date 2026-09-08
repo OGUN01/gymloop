@@ -81,7 +81,27 @@ export function findNonRolledBackTests(files) {
 function main() {
   const tracked = execFileSync(
     'git',
-    ['ls-files', '--', 'supabase/tests/*.sql', 'supabase/tests/**/*.sql', 'supabase/tests-holdout/*.sql'],
+    // `--cached --others --exclude-standard`: tracked files AND new ones git has
+    // not been told about yet. `ls-files` alone lists only tracked files, so a
+    // pgTAP file written five minutes ago and not yet `git add`-ed was silently
+    // skipped — precisely the file a pre-push check exists to look at. CI never
+    // saw the gap, because CI checks out a commit in which every file is
+    // tracked by definition; it was only ever wrong locally, in the window
+    // where being wrong costs a round trip.
+    //
+    // Found by counting: the run said 40 files when the directories held 41.
+    // **A check that reports how much it checked is a check you can catch
+    // lying**, which is the argument for that line of output.
+    [
+      'ls-files',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+      '--',
+      'supabase/tests/*.sql',
+      'supabase/tests/**/*.sql',
+      'supabase/tests-holdout/*.sql',
+    ],
     {
       encoding: 'utf8',
     },
