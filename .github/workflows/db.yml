@@ -103,6 +103,51 @@ jobs:
           fi
           echo "packages/db/types/database.ts matches the schema."
 
+  # The seed, run end to end inside BEGIN ... ROLLBACK, so it is proved to
+  # still work against the schema this push just applied -- without writing a
+  # single row.
+  #
+  # It exists because a change to `supabase/seed.sql` shipped with a syntax
+  # error that no gate could see: the statements were verified in isolation
+  # and not in place, and they had been spliced between a CTE and the INSERT
+  # it belonged to. `supabase db query` parses the whole file before running
+  # any of it, so one dry run catches every error of that class at once.
+  #
+  # It also catches the reverse and more dangerous direction: a MIGRATION that
+  # breaks the seed. That failure is silent until somebody tries to rebuild the
+  # demo gym, which is precisely when they most need it to work.
+  #
+  # `workflow_dispatch` on seed.yml stays the only thing that COMMITS a seed
+  # (ADR-034, OPEN-006). This never commits, and shares db.yml's concurrency
+  # group so it cannot overlap a real seed or a migration.
+  seed-dry-run:
+    needs: migrate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - if: github.event_name == 'pull_request' && needs.migrate.outputs.migrations_changed == 'true'
+        run: echo "::notice::PR changes supabase/migrations; the seed is dry-run on the post-merge run of main (ADR-030)."
+      - if: github.event_name == 'push' || needs.migrate.outputs.migrations_changed == 'false'
+        uses: supabase/setup-cli@v3
+        with: { version: 2.110.0 }
+      - if: github.event_name == 'push' || needs.migrate.outputs.migrations_changed == 'false'
+        run: supabase link --project-ref "$PROJECT_REF" --yes
+      - if: github.event_name == 'push' || needs.migrate.outputs.migrations_changed == 'false'
+        name: Run the seed in a transaction and roll it back
+        # Both files, in ONE transaction and in the order seed.yml runs them:
+        # seed-scenarios.sql depends on the demo gym seed.sql creates, so
+        # dry-running it alone would prove nothing about the pair.
+        run: |
+          { echo 'begin;'
+            cat supabase/seed.sql
+            echo
+            cat supabase/seed-scenarios.sql
+            echo
+            echo "select 'seed and scenarios ran clean against this schema, nothing committed' as verdict;"
+            echo 'rollback;'
+          } > /tmp/seed_dry.sql
+          supabase db query --linked -f /tmp/seed_dry.sql
+
   # Full pgTAP suite against the Cloud project, after the apply, never
   # concurrently with another merge (see `concurrency` above). Every file is
   # rollback-wrapped, enforced by `pgtap-rollback`. Same PR skip rule as drift.

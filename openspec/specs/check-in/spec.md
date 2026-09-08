@@ -9,7 +9,13 @@ Phase 1's schema already enforces some of this and those rules are not restated 
 ## Requirements
 
 ### Requirement: A check-in is recorded only against a valid QR session and a live membership
-WHEN a member presents a QR code, THE SYSTEM SHALL verify that the QR session exists, belongs to this gym, has not expired and has not been revoked, and that the member holds a membership in `active` or `frozen` status, **before** recording attendance (ATT-001).
+WHEN a member presents a QR code, THE SYSTEM SHALL verify that the QR session exists, belongs to this gym, has not expired and has not been revoked, and that the member holds a **live** membership, **before** recording attendance (ATT-001).
+
+**Live means the dates, not the status column, and that correction is ADR-075's lesson arriving in a third place.** This requirement used to say "a membership in `active` or `frozen` status" and the implementation matched it exactly — `app.enforce_check_in()` contained the string `ends_on` zero times. But **nothing in this product ever writes `expired`** (ADR-064: a status flip needs a scheduler that does not exist), so a membership that ended in March is still `active` for ever, and the gate that the whole renewal loop depends on has never refused anybody.
+
+`app.run_no_show_scan()` was corrected for exactly this and reads `ends_on` directly (ADR-075). Check-in was not, and the argument for deriving one fact from evidence was always an argument for deriving every fact of that kind.
+
+So a membership is live when its status is `active` or `frozen` **and** the gym's own today falls within `[starts_on, ends_on]` — `starts_on` null meaning it has always run, `ends_on` null meaning it does not end. **The gym's own day, never `current_date`**: every Supabase connection is UTC, and a member refused between 00:00 and 05:30 IST on the day their membership ends would be refused a day early (ADR-039, MNY-004).
 
 #### Scenario: A valid scan
 - **WHEN** a member with an active membership scans a live QR session for their gym
@@ -28,8 +34,24 @@ WHEN a member presents a QR code, THE SYSTEM SHALL verify that the QR session ex
 - **THEN** the check-in SHALL be rejected and no attendance row SHALL be recorded
 
 #### Scenario: A member whose membership has lapsed
-- **WHEN** a member whose only membership is `expired` or `cancelled` scans a live session
+- **WHEN** a member whose only membership is `cancelled` scans a live session
 - **THEN** the check-in SHALL be rejected and no attendance row SHALL be recorded
+
+#### Scenario: A member whose membership ended yesterday
+- **WHEN** a member whose only membership is still `active` but whose `ends_on` is before the gym's today scans a live session
+- **THEN** the check-in SHALL be rejected and no attendance row SHALL be recorded — this is the case the product is sold on refusing, and the one it has never refused
+
+#### Scenario: A member on the last day of their membership
+- **WHEN** a member scans on the day their `ends_on` names, in the gym's own timezone
+- **THEN** the check-in SHALL be recorded — a membership runs to the end of the day it ends on, and refusing at 00:30 IST because the server is in UTC is the defect ADR-039 names
+
+#### Scenario: A membership that has not started yet
+- **WHEN** a member whose membership `starts_on` next Monday scans today
+- **THEN** the check-in SHALL be rejected — a period sold for later has not begun
+
+#### Scenario: An open-ended membership
+- **WHEN** a member whose membership has no `ends_on` scans a live session
+- **THEN** the check-in SHALL be recorded — a membership with no end date has not ended
 
 ### Requirement: The QR token is never stored, only its hash
 THE SYSTEM SHALL store a QR session's token as a hash and SHALL NOT store the token itself, so that a reader of the database cannot mint a scan (ATT-003). A session SHALL carry an expiry, so a screenshot of a previously valid code stops working.

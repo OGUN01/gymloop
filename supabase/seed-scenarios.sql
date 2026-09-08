@@ -346,6 +346,41 @@ on conflict (id) do update set
 
 
 -- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- 3b. Clear this file's own attendance before rewriting it.
+--
+--     **Without this, a second seed run on a LATER DAY fails.** Every grid
+--     below is anchored to `today` and every id encodes `member_no * 1000 +
+--     day_offset`, so a run one day later slides the whole grid: the row that
+--     was offset 4 yesterday is offset 5 today and carries a different id at
+--     the same instant. `app.enforce_check_in()` excuses a row that duplicates
+--     ITSELF (`a.id <> new.id`, which is what keeps `seed.sql` re-runnable)
+--     and cannot excuse this one, so it raises `GL014` and the seed stops.
+--
+--     Proven rather than reasoned: for member 112 the next run's offset-5 row
+--     lands on the exact instant currently held by id `...112004`, offset-6 on
+--     `...112005`, offset-7 on `...112006` — a clean one-place slide, a
+--     different id every time.
+--
+--     It had never been hit because all four previous seed runs happened to be
+--     same-day pairs. `seed.yml` called this file "additive and idempotent";
+--     across a day boundary it was neither, and the comment asserting a
+--     capability the file did not have is this project's most repeated defect
+--     shape (ADR-070, ADR-071, ADR-074, ADR-081).
+--
+--     Deleting is right rather than clever: this file OWNS the attendance of
+--     its own sixteen members, regenerates all of it below, and a delete makes
+--     the result independent of what any previous run left behind — on any day,
+--     after any number of runs. Scoped by the scenario member namespace
+--     (`…0000000001xx`, members 101-116), which cannot touch `seed.sql`'s
+--     members 1-30.
+-- ---------------------------------------------------------------------------
+
+delete from public.attendance
+ where tenant_id = '00000001-0000-4000-8000-000000000001'::uuid
+   and member_id::text like '00000005-0000-4000-8000-0000000001%';
+
+
 -- 4. Attendance, part A — the small fixed-offset grids (member 101's single
 --    old visit, 109's and 110's few-visit history). All well over a day
 --    apart, clear of ATT-004's 120-second de-dup window.

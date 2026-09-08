@@ -496,6 +496,24 @@ on conflict (id) do update set
 --           past. All four tiers are used.
 -- ---------------------------------------------------------------------------
 
+--     **The seed states history, and the product now grants membership time
+--     from payments (ADR-083).** `app.extend_membership_on_payment()` fires on
+--     every one of the thirty rows below and moves `ends_on` forward by the
+--     plan's duration — correct for a payment being taken at a desk today, and
+--     wrong for a row asserting what a membership already ran. Left alone, every
+--     seeded membership would come out a month longer than the scenario means,
+--     and the retention fixtures — a member whose membership lapsed on a named
+--     day, the case that outlives it — would quietly stop being about anything.
+--
+--     So the dates are taken before and put back after. NOT a carve-out in the
+--     trigger: the trigger is right, and a seed is the one caller whose job is
+--     to say what already happened rather than to make something happen.
+drop table if exists seed_membership_period;
+create temp table seed_membership_period as
+  select id, ends_on
+    from public.memberships
+   where tenant_id = '00000001-0000-4000-8000-000000000001'::uuid;
+
 with roster as (
   select
     n as idx,
@@ -729,24 +747,6 @@ today as (
            to_char((now() at time zone 'Asia/Kolkata')::date, 'YY')
     end as fy
 )
---     **The seed states history, and the product now grants membership time
---     from payments (ADR-083).** `app.extend_membership_on_payment()` fires on
---     every one of the thirty rows below and moves `ends_on` forward by the
---     plan's duration — correct for a payment being taken at a desk today, and
---     wrong for a row asserting what a membership already ran. Left alone, every
---     seeded membership would come out a month longer than the scenario means,
---     and the retention fixtures — a member whose membership lapsed on a named
---     day, the case that outlives it — would quietly stop being about anything.
---
---     So the dates are taken before and put back after. NOT a carve-out in the
---     trigger: the trigger is right, and a seed is the one caller whose job is
---     to say what already happened rather than to make something happen.
-drop table if exists seed_membership_period;
-create temp table seed_membership_period as
-  select id, ends_on
-    from public.memberships
-   where tenant_id = '00000001-0000-4000-8000-000000000001'::uuid;
-
 insert into public.payments (
   id, tenant_id, member_id, membership_id, mandate_id, coupon_id,
   amount_paise, currency, status, method, provider, provider_order_id,
