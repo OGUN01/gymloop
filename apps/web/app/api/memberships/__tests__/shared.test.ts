@@ -5,9 +5,11 @@ import { addDays, backToMember, dateField, formField } from '../shared';
  * The pure half of the membership write path. Nothing here touches Supabase, so
  * it is tested directly rather than through a stub.
  *
- * `addDays` is the arithmetic behind `ends_on = starts_on + duration_days`, and
- * `dateField` is the only date validation on either membership handler — the
- * member handlers have none (see member-input.test.ts).
+ * `addDays` is generic date arithmetic; since ADR-083 it is no longer what
+ * computes `ends_on` for a plan sale (that's now just `ends_on = starts_on`),
+ * but it still backs the day-by-day freeze-length loop in
+ * pauses/route.ts. `dateField` is the only date validation on either
+ * membership handler — the member handlers have none (see member-input.test.ts).
  */
 
 const form = (fields: Record<string, string | File>): FormData => {
@@ -86,12 +88,14 @@ describe('addDays', () => {
     expect(addDays('2026-10-31', 1)).toBe('2026-11-01');
   });
 
-  it('pins the ends_on boundary a plan sale produces', () => {
-    // POST /api/memberships writes `ends_on = addDays(starts_on, duration_days)`.
-    // A 30-day plan starting on the 1st therefore ends on the 31st — which is
-    // 31 calendar days if `ends_on` is an inclusive last day of access, and 30
-    // if it is exclusive. Nothing in openspec/specs/membership-and-money says
-    // which, so this test pins the arithmetic, not the meaning.
+  it('pins rollover arithmetic at larger offsets than any single caller currently needs', () => {
+    // Not POST /api/memberships any more: since ADR-083, creating a
+    // membership writes ends_on = starts_on, and only a paid payment moves
+    // it forward (a database trigger). The one remaining caller,
+    // apps/web/app/api/memberships/pauses/route.ts, only ever steps
+    // addDays(day, 1) one day at a time while counting freeze days. This
+    // test pins the same rollover logic at larger, multi-day offsets so it
+    // stays covered even though nothing currently calls it that way.
     expect(addDays('2026-01-01', 30)).toBe('2026-01-31');
     expect(addDays('2026-01-01', 365)).toBe('2027-01-01');
   });

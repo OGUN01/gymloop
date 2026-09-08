@@ -311,11 +311,16 @@ set local role postgres;
 --       as the sample for the read-equals-write class, plus the control.
 -- ===========================================================================
 
+-- A real front-desk token always carries staff_id: app.custom_access_token_hook()
+-- stamps it for every staff user (docs/registry.md). Phase 5's GL034 reads it on
+-- every payments insert (the fourth appearance of the attribution rule after
+-- GL016/GL026/GL030), so the fixture now matches what a genuine session carries.
 select set_config(
   'request.jwt.claims',
   json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
                     'tenant_id', '13000000-0000-4000-8000-000000000001',
-                    'app_role', 'front_desk')::text,
+                    'app_role', 'front_desk',
+                    'staff_id', '13000000-0000-4000-8000-000000000023')::text,
   true
 );
 set local role authenticated;

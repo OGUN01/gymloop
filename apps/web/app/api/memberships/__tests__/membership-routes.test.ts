@@ -123,19 +123,24 @@ describe('POST /api/memberships', () => {
       plan_id: PLAN_ID,
       status: 'active',
       starts_on: '2026-01-01',
-      ends_on: '2026-01-31',
+      ends_on: '2026-01-01',
       price_paise: 250000,
       currency: 'INR',
       activated_at: expect.any(String),
     });
   });
 
-  it('lands ends_on at starts_on + duration_days across a month end', async () => {
+  it('lands ends_on at starts_on exactly, ignoring the plan duration_days (ADR-083)', async () => {
+    // Creating a membership no longer grants its period — only a paid
+    // payment moves ends_on forward (a database trigger, out of scope for
+    // this handler). duration_days is deliberately non-trivial here: under
+    // the pre-ADR-083 contract this would have landed on 2027-03-15, not on
+    // starts_on.
     state.results = [ok({ ...PLAN, duration_days: 90 }), ok(null)];
 
     await sellMembership(post({ ...SALE, startsOn: '2026-12-15' }));
 
-    expect(argsOf('memberships', 'insert')).toMatchObject({ ends_on: '2027-03-15' });
+    expect(argsOf('memberships', 'insert')).toMatchObject({ ends_on: '2026-12-15' });
   });
 
   it('tells the one-live-membership index from a role refusal from anything else', async () => {

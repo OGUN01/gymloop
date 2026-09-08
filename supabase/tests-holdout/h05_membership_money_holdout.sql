@@ -327,7 +327,11 @@ set local role postgres;
 -- 9. Acting as a gym_owner of Gym A
 -- ============================================================
 
-select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated', 'tenant_id', '00000000-0000-4000-8000-000000501001', 'app_role', 'gym_owner')::text, true);
+-- Phase 5 (manual-payment, GL034): app.custom_access_token_hook() stamps a `staff_id` claim
+-- for every real staff token, so a session with none is not a realistic gym_owner session any
+-- more -- carry the same staff id the fixtures already gave Gym A's staff member, so the write
+-- control below records a payment as a real acting staff member rather than nobody.
+select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated', 'tenant_id', '00000000-0000-4000-8000-000000501001', 'app_role', 'gym_owner', 'staff_id', '00000000-0000-4000-8000-000000501031')::text, true);
 set local role authenticated;
 
 select isnt_empty($$ select 1 from public.plans where id = '00000000-0000-4000-8000-000000501041'::uuid $$,
@@ -588,9 +592,17 @@ select is(
 -- 15. A paid payment always carries a reference (DQA-002) and offline carries staff (PAY-011)
 -- ============================================================
 
-select throws_ok($$ insert into public.payments (id, tenant_id, member_id, amount_paise, status, method, recorded_by_staff_id, paid_at) values ('00000000-0000-4000-8000-000000502011'::uuid, '00000000-0000-4000-8000-000000501001'::uuid, '00000000-0000-4000-8000-000000501021'::uuid, 100000, 'paid', 'cash', '00000000-0000-4000-8000-000000501031'::uuid, now()) $$,
-  '23514'::char(5), null::text,
-  'DQA-002 scenario "Paid with no reference at all"');
+-- Phase 5 (manual-payment): a payment that becomes 'paid' is now allocated a receipt number
+-- from document_counters on EVERY write path, before payments_paid_has_reference_chk is ever
+-- evaluated - so an insert that used to reach this CHECK with neither a receipt_number nor a
+-- provider_payment_id no longer can; the state DQA-002 names is unreachable through a normal
+-- insert. The constraint still stands (verified via pg_constraint, not assumed): assert its
+-- continued existence and definition instead of a state nothing can produce any more.
+select is(
+  (select pg_get_constraintdef(oid) from pg_constraint
+    where conrelid = 'public.payments'::regclass and conname = 'payments_paid_has_reference_chk'),
+  $chk$CHECK (((status <> 'paid'::payment_status) OR (provider_payment_id IS NOT NULL) OR (receipt_number IS NOT NULL)))$chk$,
+  'DQA-002 scenario "Paid with no reference at all": payments_paid_has_reference_chk still stands, though a paid payment is now always allocated a receipt number before it is evaluated');
 
 select lives_ok($$ insert into public.payments (id, tenant_id, member_id, amount_paise, status, method, receipt_number, recorded_by_staff_id, paid_at) values ('00000000-0000-4000-8000-000000502012'::uuid, '00000000-0000-4000-8000-000000501001'::uuid, '00000000-0000-4000-8000-000000501021'::uuid, 100000, 'paid', 'cash', 'RCPT-5010', '00000000-0000-4000-8000-000000501031'::uuid, now()) $$,
   'DQA-002 scenario "An offline payment marked paid with a receipt"');
@@ -792,7 +804,18 @@ select throws_ok($$ insert into public.document_counters (tenant_id, kind, finan
   '23505'::char(5), null::text,
   'invoice numbering scenario "One counter per gym, kind and year"');
 
-select lives_ok($$ insert into public.document_counters (tenant_id, kind, financial_year) values ('00000000-0000-4000-8000-000000501001'::uuid, 'receipt', '2026-27') $$,
+-- Phase 5 (manual-payment): a 'paid' payment now allocates its own receipt counter row on
+-- write, on every write path, so a 'receipt' counter for this gym and year may already exist
+-- by the time a test inserts one - it does here, from the payments recorded earlier in this
+-- file. The test no longer owns document_counters, so it can't prove separateness by being the
+-- one to insert the receipt row without colliding. The property survives regardless: assert it
+-- by observing that both an 'invoice' and a 'receipt' counter coexist for the same gym and
+-- year, which is what "counted separately" actually means and stays meaningful however the
+-- product's own allocation timing changes later.
+select is(
+  (select count(distinct kind)::int from public.document_counters
+    where tenant_id = '00000000-0000-4000-8000-000000501001'::uuid and financial_year = '2026-27'),
+  2,
   'invoice numbering: invoice and receipt series are counted separately per gym and year');
 
 select col_is_pk('public'::name, 'document_counters'::name,

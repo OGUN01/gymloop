@@ -102,24 +102,53 @@
 --          of a helper that could print a stray line prove would count as a
 --          test nobody wrote.
 --
--- PLAN COUNT: 43. Confirmed against Cloud via `supabase db query --linked -f`
+-- A NOTE ON WHAT "RESTART" CAN MEAN, RECONCILED AGAINST THE INDEX
+--
+-- The first draft of Section 3's financial-year scenario asserted that
+-- tenant D's FY 2025-26 first receipt number EQUALLED its FY 2026-27 first
+-- receipt number, on the theory that both are "position one" of their own
+-- sequence. That cannot ever pass: payments_tenant_id_receipt_number_key is
+-- UNIQUE on (tenant_id, receipt_number) WHERE receipt_number IS NOT NULL —
+-- per GYM, not per financial year (read from the catalogue, stated above in
+-- WHAT THE CATALOGUE SHOWED) — so no correct implementation can ever give
+-- two payments in the same gym the same receipt_number, financial-year
+-- boundary or not. A spec asking for "the same number" and an index
+-- forbidding two rows from ever sharing one cannot both be satisfied; that
+-- draft was simply wrong, not the implementation's problem to route around.
+-- What the spec actually asks for — "its number SHALL restart the sequence
+-- for that year, and the previous year's counter SHALL be untouched" — is a
+-- property of the COUNTER, not of the rendered digits: an Indian gym's
+-- receipt book restarts the ordinal each year but still tells two receipts
+-- apart by a year-qualified number (2025-26/0001, 2026-27/0001 — same
+-- ordinal, distinguishable text), which is exactly what the unique index
+-- requires and the spec's own financial-year key on document_counters
+-- already implies. Section 3 now asserts that shape directly: assertion 23
+-- asserts the compatible half (both numbers exist and differ, as the index
+-- demands) and assertion 24 asserts the actual restart, entirely through
+-- document_counters.next_number — comparing the state financial year
+-- 2026-27's counter reaches after its own first-ever allocation to the
+-- state financial year 2025-26's counter reached after ITS first-ever
+-- allocation, captured into dcd_2526_before before 2026-27 existed. Neither
+-- assertion reads or assumes an implementation; both are read from the
+-- catalogue constraint and the spec's own words.
+--
+-- PLAN COUNT: 44. Confirmed against Cloud via `supabase db query --linked -f`
 -- (begin…rollback, nothing committed — this run's own diagnostic query
 -- confirms the rollback path still executes). scratchpad/tapcount.py's
 -- trigger regex was missing `lives_ok\(` (present for throws_ok, is,
 -- is_empty, results_eq, ok, plan and finish, but not lives_ok) — a tool gap
--- that silently dropped every lives_ok line from the captured TAP stream
--- and undercounted this file at 31 lines instead of 45. Fixed in
--- scratchpad/tapcount.py (one token) before trusting its count. With the
--- fix: `plan_line` is `1..43`, `ok_count` 21 + `not_ok_count` 22 = 43
--- matching the plan exactly, and `total_lines` 45 = the plan line + all 43
--- assertions + finish()'s one diagnostic comment row (this run failed, so
--- finish() emitted its "Looks like you failed 22 tests" line, itself
+-- that silently dropped every lives_ok line from the captured TAP stream.
+-- Fixed in scratchpad/tapcount.py (one token) before trusting its count.
+-- With the fix: `plan_line` is `1..44`, `ok_count` 21 + `not_ok_count` 23 =
+-- 44 matching the plan exactly, and `total_lines` 46 = the plan line + all
+-- 44 assertions + finish()'s one diagnostic comment row (this run failed,
+-- so finish() emitted its "Looks like you failed 23 tests" line, itself
 -- captured harmlessly by the same trigger). Every one of pgTAP's "died:
 -- <SQLSTATE>" reports below is lives_ok catching a real exception via its
 -- own internal SAVEPOINT and continuing — not a poisoned transaction; every
--- assertion after each one still ran and queried real state, through to 43.
+-- assertion after each one still ran and queried real state, through to 44.
 --
--- RED (22) — the rule under test is not built, exactly as expected:
+-- RED (23) — the rule under test is not built, exactly as expected:
 --   8, 9 (naming a colleague is not refused — Section 1); 10, 11 (a
 --   claimless session's write is not refused either — the same null-actor
 --   defect this project has shipped twice before, GL016/GL026's cousin,
@@ -134,43 +163,62 @@
 --   uniqueness is unproven because 16/17 never landed); 19 (gym B's own
 --   first paid payment dies the same way); 20 (gym-independence unproven,
 --   same cause); 21, 22 (the financial-year fixture payments die the same
---   way, in tenant D); 23, 24 (the financial-year restart proof is
---   unreachable because 21/22 never landed); 26, 28, 30 (a membership's
---   ends_on does not move at all: each read back exactly its own
---   pre-payment value — today (2026-09-09) for the same-day case, today+3
---   (2026-09-12) for the early case, today-21 (2026-08-19) for the late
---   case — confirming no extension trigger exists yet, for the simple,
---   early and late scenarios respectively); 37, 38 (a second refund that would
---   push the total to 110000 against a 100000 payment is not refused, and
---   the total sits at 110000 rather than the correct 40000).
+--   way, in tenant D); 23 (both numbers not-null-and-differing is
+--   unproven, since 21/22 never landed and both receipt_number values are
+--   null — "is distinct from" over two nulls is false, so this reads as a
+--   clean failure rather than a coincidental pass); 24 (the restart proof
+--   via document_counters.next_number is unreachable for the same reason —
+--   no counter row exists yet for either financial year); 25 (the
+--   old-year-untouched / new-year-exists check, same cause); 27, 29, 31 (a
+--   membership's ends_on does not move at all: each read back exactly its
+--   own pre-payment value — today (2026-09-09) for the same-day case,
+--   today+3 (2026-09-12) for the early case, today-21 (2026-08-19) for the
+--   late case — confirming no extension trigger exists yet, for the
+--   simple, early and late scenarios respectively); 38, 39 (a second
+--   refund that would push the total to 110000 against a 100000 payment is
+--   not refused, and the total sits at 110000 rather than the correct
+--   40000).
 --
 -- GREEN (21), and each is said here because it is coverage the suite earns
 -- rather than the rule proving itself:
 --   1-5 (Phase 1's own CHECK constraints — amount_paise_chk,
 --   offline_has_staff_chk, paid_has_reference_chk, razorpay_has_order_chk,
 --   provider_reference_has_provider_chk — all still enforced, exactly as
---   the catalogue read before writing this file said they would be); 6, 7
+--   the catalogue read before writing this file said they would be; 3 is
+--   asserted by pg_get_constraintdef rather than by provoking a refusal —
+--   see the section header — and is GREEN on that basis alone, invariantly:
+--   it reads the same whether or not receipt allocation has been built yet,
+--   which a throws_ok provocation could not say); 6, 7
 --   (a front-desk session naming itself as recorded_by_staff_id is not
 --   refused, and reads back correctly — this is the legitimate write the
 --   colleague/claimless cases (8-11) are contrasted against, not itself
---   evidence of the new rule); 25, 27, 29 (the extension fixtures' own
+--   evidence of the new rule); 26, 28, 30 (the extension fixtures' own
 --   lives_ok calls succeed, because each supplies a synthetic receipt_number
 --   by hand and nothing else about a plain paid cash payment is refused
 --   today — Phase 1 capability, not the extension rule Section 4 actually
---   measures via 26/28/30); 31, 32 (a non-paid payment extends nothing —
+--   measures via 27/29/31); 32, 33 (a non-paid payment extends nothing —
 --   true today because nothing extends anything at all, and it will stay
 --   true once the rule exists, because the rule itself only fires on
---   status='paid'); 33, 34 (a payment naming no membership is recorded and
+--   status='paid'); 34, 35 (a payment naming no membership is recorded and
 --   nothing is extended for that member — same "true by absence today,
---   true by design once built" shape); 35, 36 (recording a refund, and the
+--   true by design once built" shape); 36, 37 (recording a refund, and the
 --   original payment's row surviving byte-for-byte, are both already true —
 --   refunds is a normal Phase 1 INSERT target and nothing in this schema has
 --   ever had a code path that would touch payments.amount_paise from a
---   refund insert); 39-43 (idempotency — payments_tenant_id_idempotency_
+--   refund insert); 40-44 (idempotency — payments_tenant_id_idempotency_
 --   key_key, a partial UNIQUE index on (tenant_id, idempotency_key) read
 --   from the catalogue before this file was written, already guarantees one
 --   row per key per gym and independence across gyms; a Phase 1 fact, not
 --   anything Phase 5 has to add).
+--
+-- No other assertion in this file collides with a Phase 1 constraint or
+-- index the way the original assertion 23 did — checked deliberately while
+-- reconciling that one: every other manually-supplied receipt_number
+-- (Section 4's C-RCT-0001..0004, Section 5's A-RCT-REFUND) is a distinct
+-- literal within its own tenant, every idempotency_key collision in Section
+-- 6 is asserted AS a refusal (matching the index rather than fighting it),
+-- and no other assertion asks two rows in one gym to carry equal values
+-- under a column a UNIQUE index (partial or otherwise) covers.
 
 begin;
 
@@ -178,7 +226,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(43);
+select plan(44);
 
 
 -- ---------------------------------------------------------------------------
@@ -261,6 +309,20 @@ insert into public.memberships (id, tenant_id, member_id, plan_id, status, start
 -- section), and every assertion here is expected GREEN. Run as postgres
 -- directly — these are CHECK constraints, not RLS, so no JWT claim is
 -- needed to exercise them. (1-5)
+--
+-- Assertion 3's mechanism differs from the other four, and says so at its
+-- own site: receipt allocation is settled to run on every write path a
+-- payment becomes paid on, not only a front-desk session's — the Razorpay
+-- webhook writes from a trusted context RLS does not reach, and a receipt
+-- number is an invariant about the book, not a judgement about who is
+-- asking, so it takes no session-shaped carve-out. That makes "paid, naming
+-- neither a provider payment id nor a receipt number" unreachable by
+-- construction: a reference exists by the time the CHECK is evaluated, on
+-- every path. The constraint did not stop existing or stop mattering — it
+-- stopped being provokable through an insert, the same way
+-- membership_pauses_approver_pairs_with_approval_chk is unprovokable once
+-- the trigger ahead of it has done its work. So assertion 3 re-asserts it
+-- by definition (pg_constraint, cannot go stale) rather than by refusal.
 -- ---------------------------------------------------------------------------
 
 -- 1 — payments_amount_paise_chk
@@ -283,15 +345,16 @@ select throws_ok($$
 $$, null::char(5), null,
   'Phase 1 recap (payments_offline_has_staff_chk) — a non-razorpay payment naming no staff member is refused');
 
--- 3 — payments_paid_has_reference_chk
-select throws_ok($$
-  insert into public.payments (id, tenant_id, member_id, amount_paise, method, status, recorded_by_staff_id)
-  values ('21000000-0000-4000-8000-000000001016'::uuid,
-          '21000000-0000-4000-8000-000000000001'::uuid,
-          '21000000-0000-4000-8000-000000000040'::uuid,
-          100000, 'cash', 'paid', '21000000-0000-4000-8000-000000000021'::uuid)
-$$, null::char(5), null,
-  'Phase 1 recap (payments_paid_has_reference_chk) — a paid payment naming neither a provider payment id nor a receipt number is refused');
+-- 3 — payments_paid_has_reference_chk. Not provoked by insert (see the
+-- section header): asserted by its catalogue definition instead, so this
+-- assertion cannot go stale the way a provocation that stopped being
+-- reachable would.
+select is(
+  (select pg_get_constraintdef(oid) from pg_constraint
+    where conrelid = 'public.payments'::regclass
+      and conname = 'payments_paid_has_reference_chk'),
+  $chk$CHECK (((status <> 'paid'::payment_status) OR (provider_payment_id IS NOT NULL) OR (receipt_number IS NOT NULL)))$chk$,
+  'Phase 1 recap (payments_paid_has_reference_chk) — the constraint still exists with its original definition, even though receipt allocation now makes the shape it once refused (paid, naming neither reference) unreachable through any write path');
 
 -- 4 — payments_razorpay_has_order_chk
 select throws_ok($$
@@ -479,7 +542,7 @@ select results_eq(
 
 
 -- ---------------------------------------------------------------------------
--- Section 3 — A receipt number is unique per gym and never reused (16-24).
+-- Section 3 — A receipt number is unique per gym and never reused (16-25).
 -- ---------------------------------------------------------------------------
 
 -- Same gym, two payments: 16-18.
@@ -645,9 +708,16 @@ $$, 'scenario "A new financial year" — the first payment of financial year 202
 
 set local role postgres;
 
--- 23 — the restart, proven without assuming what "the first number" is:
--- both payments are the FIRST of their own financial year, so if the
--- sequence genuinely restarts they carry the same starting number.
+-- 23 — NOT "the same number restarts", which payments_tenant_id_receipt_
+-- number_key (UNIQUE on (tenant_id, receipt_number), gym-wide — read from
+-- the catalogue, stated in this file's own header) forbids outright: two
+-- rows in ONE gym can never carry the same receipt_number, financial year
+-- or not, so a genuine restart can only be visible through something OTHER
+-- than the rendered number colliding. What the index does still allow, and
+-- what a restart requires either way, is that both numbers exist and
+-- differ — asserted here as the compatible half of "restart"; assertion 24
+-- below is the half that actually proves the counter restarted rather than
+-- merely that uniqueness held.
 select results_eq(
   $$
     select
@@ -655,14 +725,38 @@ select results_eq(
       (select receipt_number is not null from public.payments where id = '21000000-0000-4000-8000-00000000100a'::uuid),
       (
         (select receipt_number from public.payments where id = '21000000-0000-4000-8000-000000001009'::uuid)
-        = (select receipt_number from public.payments where id = '21000000-0000-4000-8000-00000000100a'::uuid)
+        is distinct from
+        (select receipt_number from public.payments where id = '21000000-0000-4000-8000-00000000100a'::uuid)
       )
   $$,
   $$ values (true, true, true) $$,
-  'scenario "A new financial year" — both payments were allocated a receipt number, and the new year''s first number matches the old year''s first number, because both are position one of their own sequence'
+  'scenario "A new financial year" — both payments were allocated a receipt number, and (as payments_tenant_id_receipt_number_key requires, being unique per gym rather than per financial year) the two numbers differ — so whatever a receipt_number renders as, it must carry something year-qualifying to stay unique across a financial-year boundary within one gym'
 );
 
--- 24 — the previous year's counter is untouched, and a distinct row for the
+-- 24 — the actual restart proof, entirely through document_counters and
+-- never through receipt_number: financial year 2026-27's counter, read
+-- right after ITS first-ever allocation (payment 100a), is in the exact
+-- state financial year 2025-26's counter reached right after ITS
+-- first-ever allocation (payment 1009, captured into dcd_2526_before before
+-- 2026-27's payment was even recorded). Two counters that each start fresh
+-- and each receive exactly one allocation must land in the same state if —
+-- and only if — the sequence genuinely restarts per financial year rather
+-- than one shared counter continuing across the boundary; this is the
+-- comparison the previous assertion's rendered-number check cannot make,
+-- because the index forbids the numbers themselves from ever coinciding.
+select results_eq(
+  $$
+    select
+      (select next_number from public.document_counters
+        where tenant_id = '21000000-0000-4000-8000-000000000004'::uuid
+          and kind = 'receipt' and financial_year = '2026-27')
+      = (select next_number from dcd_2526_before)
+  $$,
+  $$ values (true) $$,
+  'scenario "A new financial year" — financial year 2026-27''s counter, immediately after its own first payment, is in the identical state financial year 2025-26''s counter reached immediately after its own first payment: each year''s sequence starts over rather than continuing the previous year''s count'
+);
+
+-- 25 — the previous year's counter is untouched, and a distinct row for the
 -- new year exists — checked together.
 select results_eq(
   $$
@@ -687,7 +781,7 @@ select results_eq(
 -- ---------------------------------------------------------------------------
 -- Section 4 — A payment extends the membership on the same rules an online
 -- one would, measured from greatest(ends_on, today) in the gym's own
--- timezone (25-34). Tenant C, isolated. Every fixture supplies a synthetic
+-- timezone (26-35). Tenant C, isolated. Every fixture supplies a synthetic
 -- receipt_number by hand so payments_paid_has_reference_chk (already
 -- proven in Section 0) never enters into what these assertions measure.
 -- ---------------------------------------------------------------------------
@@ -701,7 +795,7 @@ select set_config(
   true);
 set local role authenticated;
 
--- 25 — membership 031: ends_on = today. Structurally unremarkable (receipt_
+-- 26 — membership 031: ends_on = today. Structurally unremarkable (receipt_
 -- number supplied), so this is expected GREEN already; the extension itself
 -- is what assertion 26 measures.
 select lives_ok($$
@@ -715,7 +809,7 @@ $$, 'scenario "A paid manual payment" — a cash payment against an active membe
 
 set local role postgres;
 
--- 26 — ends_on was today; a 30-day plan should move it to today + 30.
+-- 27 — ends_on was today; a 30-day plan should move it to today + 30.
 select results_eq(
   $$ select ends_on from public.memberships where id = '21000000-0000-4000-8000-000000000031'::uuid $$,
   $$ select (select d from today_c) + 30 $$,
@@ -731,7 +825,7 @@ select set_config(
   true);
 set local role authenticated;
 
--- 27 — membership 032: ends_on = today + 3 (renewing three days early).
+-- 28 — membership 032: ends_on = today + 3 (renewing three days early).
 select lives_ok($$
   insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id, receipt_number)
   values ('21000000-0000-4000-8000-00000000100c'::uuid,
@@ -743,7 +837,7 @@ $$, 'scenario "Renewing early" — a cash payment three days before expiry is no
 
 set local role postgres;
 
--- 28 — greatest(today+3, today) = today+3, plus 30 = today+33. Three days
+-- 29 — greatest(today+3, today) = today+3, plus 30 = today+33. Three days
 -- further out than a same-day renewal (assertion 26, today+30) would give.
 select results_eq(
   $$ select ends_on from public.memberships where id = '21000000-0000-4000-8000-000000000032'::uuid $$,
@@ -760,7 +854,7 @@ select set_config(
   true);
 set local role authenticated;
 
--- 29 — membership 034: ends_on = today - 21 (lapsed three weeks ago).
+-- 30 — membership 034: ends_on = today - 21 (lapsed three weeks ago).
 select lives_ok($$
   insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id, receipt_number)
   values ('21000000-0000-4000-8000-00000000100d'::uuid,
@@ -772,7 +866,7 @@ $$, 'scenario "Renewing late" — a cash payment three weeks after expiry is not
 
 set local role postgres;
 
--- 30 — greatest(today-21, today) = today, plus 30 = today+30. Not
+-- 31 — greatest(today-21, today) = today, plus 30 = today+30. Not
 -- today-21+30 (=today+9), which would hand the member three free weeks.
 select results_eq(
   $$ select ends_on from public.memberships where id = '21000000-0000-4000-8000-000000000034'::uuid $$,
@@ -789,7 +883,7 @@ select set_config(
   true);
 set local role authenticated;
 
--- 31 — membership 035, a payment left at its default (non-paid) status.
+-- 32 — membership 035, a payment left at its default (non-paid) status.
 select lives_ok($$
   insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, recorded_by_staff_id)
   values ('21000000-0000-4000-8000-00000000100e'::uuid,
@@ -801,7 +895,7 @@ $$, 'scenario "A payment that is not paid" — recording it against an active me
 
 set local role postgres;
 
--- 32 — an intention to pay is not a payment (PAY-008): nothing moves.
+-- 33 — an intention to pay is not a payment (PAY-008): nothing moves.
 select results_eq(
   $$ select ends_on from public.memberships where id = '21000000-0000-4000-8000-000000000035'::uuid $$,
   $$ select (select d from today_c) + 10 $$,
@@ -817,7 +911,7 @@ select set_config(
   true);
 set local role authenticated;
 
--- 33 — a payment naming no membership at all.
+-- 34 — a payment naming no membership at all.
 select lives_ok($$
   insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id, receipt_number)
   values ('21000000-0000-4000-8000-00000000100f'::uuid,
@@ -829,7 +923,7 @@ $$, 'scenario "A payment against no membership" — a gym may take money for som
 
 set local role postgres;
 
--- 34 — it was recorded, membership_id is genuinely null, and nothing that
+-- 35 — it was recorded, membership_id is genuinely null, and nothing that
 -- looks like a membership sprang into being for this member.
 select results_eq(
   $$
@@ -843,7 +937,7 @@ select results_eq(
 
 
 -- ---------------------------------------------------------------------------
--- Section 5 — A refund is a new row, never a mutation (35-38). Tenant A.
+-- Section 5 — A refund is a new row, never a mutation (36-39). Tenant A.
 -- The payment being refunded is a fixture, inserted as postgres so its
 -- existence tests nothing and cannot be credited to any rule under test.
 -- refunds_tenant_write gates on app.is_gym_admin() (gym_owner/gym_manager),
@@ -873,7 +967,7 @@ select set_config(
   true);
 set local role authenticated;
 
--- 35 — a partial refund. Recording a new row in refunds is already a Phase
+-- 36 — a partial refund. Recording a new row in refunds is already a Phase
 -- 1 capability (grants and policy exist; nothing new is needed for the
 -- write itself to succeed) — expected GREEN.
 select lives_ok($$
@@ -886,7 +980,7 @@ $$, 'scenario "Refunding a payment" — a partial refund against a paid payment 
 
 set local role postgres;
 
--- 36 — the refund landed, AND the payment row is byte-for-byte what it was
+-- 37 — the refund landed, AND the payment row is byte-for-byte what it was
 -- before — checked together, because "the refund exists" alone would not
 -- catch a rule that also (wrongly) touched the original.
 select results_eq(
@@ -918,7 +1012,7 @@ select set_config(
   true);
 set local role authenticated;
 
--- 37 — 40000 already refunded; this second refund of 70000 would bring the
+-- 38 — 40000 already refunded; this second refund of 70000 would bring the
 -- total to 110000 against a 100000 payment.
 select throws_ok($$
   insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
@@ -931,7 +1025,7 @@ $$, null::char(5), null,
 
 set local role postgres;
 
--- 38
+-- 39
 select results_eq(
   $$ select coalesce(sum(amount_paise), 0)::bigint from public.refunds
       where payment_id = '21000000-0000-4000-8000-000000001010'::uuid $$,
@@ -941,7 +1035,7 @@ select results_eq(
 
 
 -- ---------------------------------------------------------------------------
--- Section 6 — Recording the same payment twice records one payment (39-43).
+-- Section 6 — Recording the same payment twice records one payment (40-44).
 -- Already true structurally: payments_tenant_id_idempotency_key_key is a
 -- partial UNIQUE index on (tenant_id, idempotency_key) WHERE idempotency_key
 -- IS NOT NULL (read from the catalogue before writing this section) — so
@@ -958,7 +1052,7 @@ select set_config(
   true);
 set local role authenticated;
 
--- 39
+-- 40
 select lives_ok($$
   insert into public.payments (id, tenant_id, member_id, amount_paise, method, recorded_by_staff_id, idempotency_key)
   values ('21000000-0000-4000-8000-000000001011'::uuid,
@@ -976,7 +1070,7 @@ select set_config(
   true);
 set local role authenticated;
 
--- 40 — a different row, same tenant, same idempotency_key.
+-- 41 — a different row, same tenant, same idempotency_key.
 select throws_ok($$
   insert into public.payments (id, tenant_id, member_id, amount_paise, method, recorded_by_staff_id, idempotency_key)
   values ('21000000-0000-4000-8000-000000001012'::uuid,
@@ -988,7 +1082,7 @@ $$, '23505'::char(5), null,
 
 set local role postgres;
 
--- 41
+-- 42
 select results_eq(
   $$ select count(*)::int from public.payments
       where tenant_id = '21000000-0000-4000-8000-000000000001'::uuid and idempotency_key = 'idem-mp21-001' $$,
@@ -996,7 +1090,7 @@ select results_eq(
   'scenario "The same key twice" — exactly one row exists for that key in that gym'
 );
 
--- 42 — the same key, a different gym.
+-- 43 — the same key, a different gym.
 select set_config(
   'request.jwt.claims',
   json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
@@ -1016,7 +1110,7 @@ $$, 'scenario "The same key in two gyms" — the same idempotency_key, in a diff
 
 set local role postgres;
 
--- 43
+-- 44
 select results_eq(
   $$ select count(*)::int from public.payments where idempotency_key = 'idem-mp21-001' $$,
   $$ values (2) $$,
