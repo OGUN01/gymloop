@@ -5,7 +5,7 @@ import { MemberSearchPage } from './member-search-page';
 export default async function MembersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; cursor?: string; limit?: string }>;
 }) {
   const search = await loadMemberSearch(searchParams);
 
@@ -16,6 +16,7 @@ export default async function MembersPage({
       linkLabel="Check-in gate"
       phone={search.phone}
       errorMessage={search.errorMessage}
+      nextCursor={search.nextCursor}
     >
       {search.members.length > 0 ? (
         <table className="mt-6 w-full border-collapse text-left text-sm">

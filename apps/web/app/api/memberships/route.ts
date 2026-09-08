@@ -1,5 +1,12 @@
-import { apiFail, staffSession, PG_INSUFFICIENT_PRIVILEGE, PG_UNIQUE_VIOLATION } from '../../../lib/api';
-import { addDays, backToMember, dateField, formField } from './shared';
+import { membershipCreateSchema } from '@gymloop/shared';
+import {
+  apiFail,
+  formFields,
+  staffSession,
+  PG_INSUFFICIENT_PRIVILEGE,
+  PG_UNIQUE_VIOLATION,
+} from '../../../lib/api';
+import { addDays, backToMember } from './shared';
 
 /**
  * POST /api/memberships — sell a member a plan.
@@ -31,19 +38,24 @@ export async function POST(request: Request): Promise<Response> {
   if ('failure' in caller) return caller.failure;
   const { supabase, tenantId } = caller.session;
 
-  const form = await request.formData();
-  const memberId = formField(form, 'memberId');
-  const planId = formField(form, 'planId');
-  const startsOn = dateField(form, 'startsOn');
+  const body = await formFields(request);
+  if ('failure' in body) return body.failure;
+
+  const submitted = membershipCreateSchema.safeParse(body.fields);
 
   // Without a member id there is no screen to redirect back to, so this one
-  // failure has to answer in the envelope rather than as a redirect.
-  if (!memberId) {
-    return apiFail('bad_request', 'member_required', 'That form did not name a member.');
-  }
-  if (!planId || startsOn === null) {
+  // failure has to answer in the envelope rather than as a redirect. It is read
+  // straight from the raw field rather than from the parsed result, because the
+  // parse has already failed by the time we need it.
+  const memberId = body.fields.memberId ?? '';
+  if (!submitted.success) {
+    if (!/^[0-9a-f-]{36}$/i.test(memberId)) {
+      return apiFail('bad_request', 'member_required', 'That form did not name a member.');
+    }
     return backToMember(request, memberId, 'invalid');
   }
+
+  const { planId, startsOn } = submitted.data;
 
   // No `.eq('tenant_id', …)`: `plans_tenant_select` does the filtering, so a
   // plan id from another gym simply is not there. An application-side tenant

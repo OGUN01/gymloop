@@ -101,3 +101,35 @@ export async function staffSession(): Promise<{ session: StaffSession } | { fail
 
   return { session: { supabase, tenantId: claims.tenant_id, staffId: claims.staff_id } };
 }
+
+/**
+ * A form submission, as plain fields ready for a zod schema — or the envelope
+ * refusing a body that is not a form at all.
+ *
+ * The two membership handlers used to call `await request.formData()`
+ * unguarded, so a malformed body left the runtime to throw and the caller got a
+ * 500 for a request that was simply wrong. That is the one failure a form
+ * handler cannot answer with a redirect, because there is nothing readable in
+ * it to redirect *with* — no member id, no screen to go back to.
+ *
+ * Files are dropped rather than stringified. None of these forms has a file
+ * input, and a `File` coerced to text is a field whose value is `[object File]`,
+ * which a schema would then have to have an opinion about.
+ */
+export async function formFields(
+  request: Request,
+): Promise<{ failure: Response } | { form: FormData; fields: Record<string, string> }> {
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return { failure: apiFail('bad_request', 'malformed_body', 'That form could not be read.') };
+  }
+
+  const fields: Record<string, string> = {};
+  for (const [key, value] of form.entries()) {
+    if (typeof value === 'string') fields[key] = value;
+  }
+
+  return { form, fields };
+}

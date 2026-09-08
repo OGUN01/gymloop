@@ -1,5 +1,17 @@
-import { apiFail, staffSession, PG_INSUFFICIENT_PRIVILEGE, type StaffSession } from '../../../../lib/api';
-import { addDays, backToMember, dateField, formField } from '../shared';
+import {
+  pauseDecisionSchema,
+  pauseRequestSchema,
+  type PauseDecision,
+  type PauseRequest,
+} from '@gymloop/shared';
+import {
+  apiFail,
+  formFields,
+  staffSession,
+  PG_INSUFFICIENT_PRIVILEGE,
+  type StaffSession,
+} from '../../../../lib/api';
+import { addDays, backToMember } from '../shared';
 
 /**
  * POST /api/memberships/pauses — request a freeze, or decide one.
@@ -25,42 +37,47 @@ export async function POST(request: Request): Promise<Response> {
   if ('failure' in caller) return caller.failure;
   const { supabase, tenantId, staffId } = caller.session;
 
-  const form = await request.formData();
-  const memberId = formField(form, 'memberId');
-  const pauseId = formField(form, 'pauseId');
+  const body = await formFields(request);
+  if ('failure' in body) return body.failure;
 
   // Only ever the redirect target — never an authorisation input. Every rule
   // below is decided from the pause row and the JWT, not from this field.
-  if (!memberId) {
+  const memberId = body.fields.memberId ?? '';
+  if (!/^[0-9a-f-]{36}$/i.test(memberId)) {
     return apiFail('bad_request', 'member_required', 'That form did not name a member.');
   }
 
-  return pauseId
-    ? decide(request, { supabase, staffId }, memberId, pauseId, formField(form, 'decision'))
-    : requestPause(request, { supabase, tenantId, staffId }, memberId, form);
+  // A `pauseId` in the form is what separates the two halves of the flow, so it
+  // chooses the schema before either one validates.
+  if (body.fields.pauseId) {
+    const decision = pauseDecisionSchema.safeParse(body.fields);
+    if (!decision.success) return backToMember(request, memberId, 'invalid');
+    return decide(request, { supabase, staffId }, decision.data);
+  }
+
+  const asked = pauseRequestSchema.safeParse(body.fields);
+  if (!asked.success) {
+    // `endsOn` before `startsOn` is the one schema failure the screen can say
+    // something specific about, so it keeps the code it always had rather than
+    // being flattened into `invalid` along with a forged uuid.
+    const reversed = asked.error.issues.some((issue) => issue.path[0] === 'endsOn');
+    const blankReason = asked.error.issues.some((issue) => issue.path[0] === 'reason');
+    return backToMember(
+      request,
+      memberId,
+      reversed ? 'dates_reversed' : blankReason ? 'reason_required' : 'invalid',
+    );
+  }
+
+  return requestPause(request, { supabase, tenantId, staffId }, asked.data);
 }
 
 /** A staff member asks for a freeze. It is not a freeze until somebody decides. */
 async function requestPause(
   request: Request,
   caller: Pick<StaffSession, 'supabase' | 'tenantId' | 'staffId'>,
-  memberId: string,
-  form: FormData,
+  { memberId, membershipId, startsOn, endsOn, reason }: PauseRequest,
 ): Promise<Response> {
-  const membershipId = formField(form, 'membershipId');
-  const startsOn = dateField(form, 'startsOn');
-  const endsOn = dateField(form, 'endsOn');
-  const reason = formField(form, 'reason');
-
-  if (!membershipId || startsOn === null || endsOn === null) {
-    return backToMember(request, memberId, 'invalid');
-  }
-  // The table's own check is `reason <> ''`, which a single space satisfies
-  // (docs/decisions.md OPEN-011). `formField` trimmed it, so this is the
-  // stronger test the column cannot currently make.
-  if (!reason) return backToMember(request, memberId, 'reason_required');
-  if (endsOn < startsOn) return backToMember(request, memberId, 'dates_reversed');
-
   const { error } = await caller.supabase.from('membership_pauses').insert({
     tenant_id: caller.tenantId,
     membership_id: membershipId,
@@ -82,15 +99,9 @@ async function requestPause(
 async function decide(
   request: Request,
   caller: Pick<StaffSession, 'supabase' | 'staffId'>,
-  memberId: string,
-  pauseId: string,
-  decision: string,
+  { memberId, pauseId, decision }: PauseDecision,
 ): Promise<Response> {
   const { supabase, staffId } = caller;
-
-  if (decision !== 'approve' && decision !== 'reject') {
-    return backToMember(request, memberId, 'invalid');
-  }
 
   const { data: settings } = await supabase
     .from('organization_settings')

@@ -20,6 +20,7 @@ export function MemberSearchPage({
   linkLabel,
   phone,
   errorMessage,
+  nextCursor,
   children,
 }: {
   title: string;
@@ -27,8 +28,21 @@ export function MemberSearchPage({
   linkLabel: string;
   phone: string;
   errorMessage: string | null;
+  nextCursor: string | null;
   children: ReactNode;
 }) {
+  // The search term travels with the cursor. Without it, page two of a search
+  // for "9876" is page two of the whole roster, which is the kind of wrong that
+  // looks like the search silently clearing itself.
+  const nextHref =
+    nextCursor === null
+      ? null
+      : // A bare query string resolves against the page the link is rendered on,
+        // so this works from all three screens without any of them naming
+        // itself — and keeps working if one is ever moved.
+        `?${new URLSearchParams(
+          phone ? { q: phone, cursor: nextCursor } : { cursor: nextCursor },
+        ).toString()}`;
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">
       <div className="flex items-baseline justify-between">
@@ -59,6 +73,16 @@ export function MemberSearchPage({
       )}
 
       {children}
+
+      {nextHref === null ? null : (
+        <Link
+          href={nextHref}
+          rel="next"
+          className="mt-6 inline-block rounded-md border border-neutral-300 px-4 py-2 text-sm"
+        >
+          Next page
+        </Link>
+      )}
     </main>
   );
 }

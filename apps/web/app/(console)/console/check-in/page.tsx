@@ -14,7 +14,7 @@ import { CheckInGate } from './check-in-gate';
 export default async function CheckInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; cursor?: string; limit?: string }>;
 }) {
   const search = await loadMemberSearch(searchParams);
 
@@ -25,6 +25,7 @@ export default async function CheckInPage({
       linkLabel="Members"
       phone={search.phone}
       errorMessage={search.errorMessage}
+      nextCursor={search.nextCursor}
     >
       <CheckInGate members={search.members} />
     </MemberSearchPage>

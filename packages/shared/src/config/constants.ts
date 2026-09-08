@@ -94,6 +94,21 @@ export const MS_PER_DAY = 86_400_000;
 /** Days in a week — the modulus for `organization_settings.week_start_day`. */
 export const DAYS_PER_WEEK = 7;
 
+/**
+ * How many members one page of the roster holds when the caller asks for no
+ * particular size, and the most it will hold when they ask for more.
+ *
+ * Both are here rather than in `apps/web` because the mobile client pages the
+ * same list in Phase 7 and a second answer would be a second answer. The
+ * maximum is a clamp and not a rejection: a page size is a hint from a caller,
+ * and refusing an over-large one turns a screen that would have worked into an
+ * error for no gain to anybody.
+ */
+export const MEMBER_PAGE_SIZE_DEFAULT = 50;
+
+/** The clamp for {@link MEMBER_PAGE_SIZE_DEFAULT} — see its note. */
+export const MEMBER_PAGE_SIZE_MAX = 200;
+
 /*
  * The v1 role set is NOT here. It is the `app_role` Postgres enum, generated
  * into packages/db/types/database.ts — see docs/decisions.md ADR-031. Four
