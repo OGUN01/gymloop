@@ -260,9 +260,13 @@ WHEN a session that this rule is in force for changes a membership's
 
 **Two sessions it is not in force for, both disclosed rather than discovered:** a
 session whose tenant claim does not match never reaches the row (the policy's
-`USING` filters it — `UPDATE 0`, no exception, nothing moved), and **the seed
-disables this rule's trigger around its own statements**, inside which a
-membership genuinely can be re-pointed. Measured, both. Neither is a hole — one
+`USING` filters it — `UPDATE 0`, no exception, nothing moved), and **a session with owner rights on the table can switch this rule off
+altogether** — the seed does exactly that with `alter table … disable trigger`
+around its own statements, and `set session_replication_role = 'replica'` is the
+same privilege by another route; inside either, a membership genuinely can be
+re-pointed. Both are closed to every application role: `authenticated`,
+`service_role` and `anon` all get `42501` on the second, and none can disable a
+trigger. Measured, both. Neither is a hole — one
 changes nothing and the other is the fixture builder — but three drafts said
 "any session" and a fourth said "a session that can see it", and the seed can
 see it.
