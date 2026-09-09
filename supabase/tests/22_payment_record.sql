@@ -427,7 +427,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(445);
+select plan(493);
 
 
 -- ---------------------------------------------------------------------------
@@ -7720,6 +7720,872 @@ select lives_ok($$
           '22000000-0000-4000-8000-000000200052'::uuid, 'qr',
           '22000000-0000-4000-8000-000000200095'::uuid)
 $$, 'GL046/repair: and the member is admitted — the repair produced a membership that WORKS, not merely one whose columns read correctly');
+
+
+
+-- ===========================================================================
+-- SECTION 23 (ROUND THIRTEEN) — "Money does not extend a membership that has
+-- been retired."
+--
+-- WHY THIS SECTION EXISTS. `app.grant_periods()` reads a membership's price,
+-- currency, dates, count and length and never its STATUS. Section 22 above
+-- proves the repair the phase prescribes for a mis-sold membership — refund,
+-- cancel, sell again — actually works. This section walks the same sequence
+-- one step further, to the step the console cannot reach but
+-- `POST /api/payments` can: the payment names the RETIRED membership instead
+-- of the new one. `GL042` checks only that the member matches, and on the
+-- repair path the member matches both. Measured by a critic on exactly that:
+--
+--     ends_on 14347-04-10 / periods 150000  ->  ends_on 26667-11-08 /
+--     periods 300000, status = cancelled
+--
+-- The money is recorded and receipted, the cancelled row's dates move, and
+-- the member is still refused at the gate, because the gate reads status and
+-- the granting rule does not. **The repair path is exactly the moment a member
+-- holds two memberships one of which is retired**, so this is reachable
+-- precisely when the product tells someone to do it.
+--
+-- THE PAYMENT IS RECORDED. That half is not a concession, it is the
+-- requirement: the money changed hands and a refusal after the fact leaves
+-- cash in a drawer with nothing to show for it. So this section asserts the
+-- payment is a FULL first-class payment — receipt allocated off the gym's own
+-- counter, `paid_at` stamped, attribution still enforced, refundable, and
+-- counted by the refund ceiling — as hard as it asserts the membership does
+-- not move. **A rule that quietly refuses the payment instead of quietly not
+-- extending is a different rule and a worse one**, and it would pass every
+-- refusal assertion here if the permitted side were not nailed down beside it.
+--
+-- AND THE PERMITTED SIDE IS ASSERTED AS HARD AS THE REFUSED SIDE. A rule that
+-- simply stops extending everything passes every "does not move" assertion in
+-- this file, and this project has shipped that shape three times. So every
+-- live status gets its own membership and its own arithmetic: `active` (460),
+-- `frozen` (469) and `pending` (471) each take a full payment and each must
+-- end thirty days out. 484 is the sharpest of them — one statement writing two
+-- payments, one naming a cancelled membership and one naming a live one, where
+-- the cancelled row must not move and the live row must. A rule enforced per
+-- STATEMENT rather than per ROW cannot pass 483 and 484 together.
+--
+-- 458 is the other direction of the same worry: the live membership the member
+-- also holds must not move EITHER. Money named the retired row; a fix that
+-- helpfully redirects it to the live one has invented a rule nobody wrote, and
+-- would be indistinguishable from the correct one without this assertion.
+--
+-- WHAT IS ALREADY GREEN AND MUST STAY GREEN: 446-456, 458-466, 468-473 and
+-- 476-480 — the repair sequence itself, the live statuses extending, the
+-- payment being recorded, receipted, attributed and refundable, and the fact
+-- that a membership cancelled AFTER money arrived keeps what the money already
+-- bought (479: nothing here reverses history, the same fact Section 22's 439
+-- records for refunds).
+--
+-- SHAPES. Every write shape ADR-087 names, on the payment side this time
+-- rather than the membership side: a multi-row statement (482), `MERGE` (485),
+-- a data-modifying CTE (487), `INSERT … ON CONFLICT DO UPDATE` (489), and a
+-- plain `created → paid` UPDATE (491). 493 then asserts all five of those
+-- payments are `paid` and receipted — so a rule that answers the shapes by
+-- refusing them is red here rather than green everywhere.
+--
+-- NO SQLSTATE IS PINNED. This requirement names none, and the only refusals in
+-- this section belong to rules that already exist (attribution, the refund
+-- ceiling), whose codes the spec does not restate here.
+--
+-- Every date is the gym's own `today_t20`, never `current_date` (ADR-039).
+-- Two check-in fixtures get their own QR sessions so a gate assertion cannot
+-- pass or fail for another section's reason.
+-- ---------------------------------------------------------------------------
+
+set local role postgres;
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000200053'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200011'::uuid, 'M23 Repair', '+912200200053'),
+  ('22000000-0000-4000-8000-000000200054'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200011'::uuid, 'M23 Expired', '+912200200054'),
+  ('22000000-0000-4000-8000-000000200055'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200011'::uuid, 'M23 Frozen', '+912200200055'),
+  ('22000000-0000-4000-8000-000000200056'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200011'::uuid, 'M23 Pending', '+912200200056'),
+  ('22000000-0000-4000-8000-000000200057'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200011'::uuid, 'M23 Shapes', '+912200200057'),
+  ('22000000-0000-4000-8000-000000200058'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200011'::uuid, 'M23 Sibling', '+912200200058'),
+  ('22000000-0000-4000-8000-000000200059'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200011'::uuid, 'M23 AfterMoney', '+912200200059'),
+  ('22000000-0000-4000-8000-00000020005a'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200011'::uuid, 'M23 GateOnly', '+912200200060');
+
+-- The retired and live memberships this section scores against. 2000a0 and
+-- 2000a1 are NOT staged here — the repair sequence below creates them itself,
+-- from the desk, because the point of 23a is that this state is reached through
+-- ordinary work and not only through a fixture.
+--
+-- Member 200057 holds FOUR cancelled memberships at once, which the live
+-- partial unique index (active/frozen only) permits — one per write shape, so
+-- each shape's "did not move" is its own row and no shape can pass on another
+-- shape's arithmetic.
+--
+-- 2000a2 is `expired` and dated in the PAST (today-60 .. today-30): a granted
+-- period would move it to `greatest(ends_on, today) + 30 = today + 30`, so the
+-- defect and the correct answer are thirty days apart and cannot be confused.
+-- 2000ac is `cancelled` and dated into the FUTURE (today+300), so the gate
+-- assertion at 475 cannot pass by the dates being stale.
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency, cancelled_at, cancel_reason) values
+  ('22000000-0000-4000-8000-0000002000a2'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200054'::uuid, '22000000-0000-4000-8000-000000200060'::uuid,
+   'expired', (select d from today_t20) - 60, (select d from today_t20) - 30, 150000, 'INR', null, null),
+  ('22000000-0000-4000-8000-0000002000a3'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200055'::uuid, '22000000-0000-4000-8000-000000200060'::uuid,
+   'frozen', (select d from today_t20), (select d from today_t20), 150000, 'INR', null, null),
+  ('22000000-0000-4000-8000-0000002000a4'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200056'::uuid, '22000000-0000-4000-8000-000000200060'::uuid,
+   'pending', (select d from today_t20), (select d from today_t20), 150000, 'INR', null, null),
+  ('22000000-0000-4000-8000-0000002000a5'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200057'::uuid, '22000000-0000-4000-8000-000000200060'::uuid,
+   'cancelled', (select d from today_t20), (select d from today_t20), 150000, 'INR', now(), 'retired before this section began'),
+  ('22000000-0000-4000-8000-0000002000a6'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200058'::uuid, '22000000-0000-4000-8000-000000200060'::uuid,
+   'active', (select d from today_t20), (select d from today_t20), 150000, 'INR', null, null),
+  ('22000000-0000-4000-8000-0000002000a7'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200057'::uuid, '22000000-0000-4000-8000-000000200060'::uuid,
+   'cancelled', (select d from today_t20), (select d from today_t20), 150000, 'INR', now(), 'retired before this section began'),
+  ('22000000-0000-4000-8000-0000002000a8'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200057'::uuid, '22000000-0000-4000-8000-000000200060'::uuid,
+   'cancelled', (select d from today_t20), (select d from today_t20), 150000, 'INR', now(), 'retired before this section began'),
+  ('22000000-0000-4000-8000-0000002000a9'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200057'::uuid, '22000000-0000-4000-8000-000000200060'::uuid,
+   'cancelled', (select d from today_t20), (select d from today_t20), 150000, 'INR', now(), 'retired before this section began'),
+  ('22000000-0000-4000-8000-0000002000aa'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200057'::uuid, '22000000-0000-4000-8000-000000200060'::uuid,
+   'cancelled', (select d from today_t20), (select d from today_t20), 150000, 'INR', now(), 'retired before this section began'),
+  ('22000000-0000-4000-8000-0000002000ab'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200059'::uuid, '22000000-0000-4000-8000-000000200060'::uuid,
+   'active', (select d from today_t20), (select d from today_t20), 150000, 'INR', null, null),
+  ('22000000-0000-4000-8000-0000002000ac'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-00000020005a'::uuid, '22000000-0000-4000-8000-000000200060'::uuid,
+   'cancelled', (select d from today_t20) - 1, (select d from today_t20) + 300, 150000, 'INR', now(), 'cancelled with time left on the clock');
+
+-- Two `created` payments staged as postgres, each already carrying its own
+-- receipt_number so the later flip to `paid` needs no allocation to satisfy
+-- payments_paid_has_reference_chk — the same isolation Section 11's own
+-- UPDATE fixture uses, so 489/491 measure the extension rule and nothing else.
+insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id, receipt_number) values
+  ('22000000-0000-4000-8000-00000020101a'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200057'::uuid, '22000000-0000-4000-8000-0000002000a9'::uuid,
+   150000, 'INR', 'created', 'cash', '22000000-0000-4000-8000-000000200021'::uuid, 'T23-RCT-UPSERT'),
+  ('22000000-0000-4000-8000-00000020101b'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200057'::uuid, '22000000-0000-4000-8000-0000002000aa'::uuid,
+   150000, 'INR', 'created', 'cash', '22000000-0000-4000-8000-000000200021'::uuid, 'T23-RCT-CREATED');
+
+insert into public.qr_sessions (id, tenant_id, branch_id, token_hash, issued_at, expires_at, revoked_at) values
+  ('22000000-0000-4000-8000-000000200096'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200011'::uuid, 'pay22-t23-repair-gate',
+   now() - interval '1 minute', now() + interval '1 hour', null),
+  ('22000000-0000-4000-8000-000000200097'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+   '22000000-0000-4000-8000-000000200011'::uuid, 'pay22-t23-retired-gate',
+   now() - interval '1 minute', now() + interval '1 hour', null);
+
+
+-- ---------------------------------------------------------------------------
+-- 23a — THE REPAIR SEQUENCE, WALKED ONE STEP TOO FAR (446-461)
+--
+-- Sell wrong, pay, refund, cancel, re-sell — then pay against the retired one,
+-- and against the live one, and assert which of them moves.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 446
+select lives_ok($$
+  insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+  values ('22000000-0000-4000-8000-0000002000a0'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200053'::uuid, '22000000-0000-4000-8000-000000200060'::uuid,
+          'active', (select d from today_t20), (select d from today_t20), 150000, 'INR')
+$$, 'retired/repair: the desk sells the member a membership — the sale that will turn out to be wrong');
+
+-- 447
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000201010'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200053'::uuid, '22000000-0000-4000-8000-0000002000a0'::uuid,
+          150000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000200021'::uuid)
+$$, 'retired/repair: and the member pays for it');
+
+set local role postgres;
+
+-- 448
+select results_eq(
+  $$ select status, periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000a0'::uuid $$,
+  $$ select 'active'::public.membership_status, 1, (select d from today_t20) + 30 $$,
+  'retired/repair: one period, thirty days — an ordinary sale, so that every difference measured after the cancel below is caused by the cancel and by nothing else'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'gym_manager',
+                    'staff_id', '22000000-0000-4000-8000-000000200022')::text,
+  true);
+set local role authenticated;
+
+-- 449
+select lives_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, currency, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000203002'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000201010'::uuid, 'refund', 150000, 'INR',
+          'mis-sold; refunding and re-selling',
+          '22000000-0000-4000-8000-000000200022'::uuid)
+$$, 'retired/repair: step one — the manager gives the money back');
+
+-- 450
+select lives_ok($$
+  update public.payments set status = 'refunded'
+   where id = '22000000-0000-4000-8000-000000201010'::uuid
+$$, 'retired/repair: and the payment moves paid → refunded');
+
+-- 451
+select lives_ok($$
+  update public.memberships
+     set status = 'cancelled', cancelled_at = now(), cancel_reason = 'mis-sold; refunded and re-sold'
+   where id = '22000000-0000-4000-8000-0000002000a0'::uuid
+$$, 'retired/repair: step two — the membership is retired');
+
+set local role postgres;
+
+-- 452
+select results_eq(
+  $$ select status, periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000a0'::uuid $$,
+  $$ select 'cancelled'::public.membership_status, 1, (select d from today_t20) + 30 $$,
+  'retired/repair: cancelled, and still carrying the period the money bought — the refund reversed the money and not what the money bought (Section 22''s 439, restated here because everything below is measured against these two numbers)'
+);
+
+-- The gym's receipt counter, captured immediately before the payment at 454 so
+-- that 456 can assert that payment took EXACTLY one number. Summed across the
+-- tenant's receipt counters rather than read from one financial-year row, so
+-- that a run straddling 1 April cannot make the arithmetic wrong.
+create temp table dc23_before as
+  select coalesce(sum(next_number), 0)::int as n
+    from public.document_counters
+   where tenant_id = '22000000-0000-4000-8000-000000200001'::uuid and kind = 'receipt';
+
+grant select on dc23_before to public;
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 453
+select lives_ok($$
+  insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+  values ('22000000-0000-4000-8000-0000002000a1'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200053'::uuid, '22000000-0000-4000-8000-000000200060'::uuid,
+          'active', (select d from today_t20), (select d from today_t20), 150000, 'INR')
+$$, 'retired/repair: step three — the desk sells the replacement. THE MEMBER NOW HOLDS TWO MEMBERSHIPS, ONE OF THEM RETIRED, which is the state this whole requirement is about and the state the prescribed repair always produces');
+
+-- 454 — the step the console cannot take and POST /api/payments can: the
+-- payment names the RETIRED membership. GL042 checks only that the member
+-- matches, and on this path the member matches both.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000201011'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200053'::uuid, '22000000-0000-4000-8000-0000002000a0'::uuid,
+          150000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000200021'::uuid)
+$$, 'scenario "Paying against a cancelled membership" — the payment is RECORDED, not refused. The money changed hands; refusing after the fact would leave cash in a drawer with nothing to show for it');
+
+set local role postgres;
+
+-- 455
+select results_eq(
+  $$ select status, receipt_number is not null, paid_at is not null, recorded_by_staff_id
+       from public.payments where id = '22000000-0000-4000-8000-000000201011'::uuid $$,
+  $$ select 'paid'::public.payment_status, true, true, '22000000-0000-4000-8000-000000200021'::uuid $$,
+  'scenario "Paying against a cancelled membership" — and it is a FULL payment: paid, receipted, stamped, attributed. A rule that answers this requirement by quietly refusing the payment is a different rule and a worse one, and this is where that shows'
+);
+
+-- 456
+select is(
+  (select coalesce(sum(next_number), 0)::int from public.document_counters
+    where tenant_id = '22000000-0000-4000-8000-000000200001'::uuid and kind = 'receipt'),
+  (select n from dc23_before) + 1,
+  'scenario "Paying against a cancelled membership" — the receipt came off the gym''s own counter and moved it by exactly one. A payment against a retired membership is counted in the receipt book like any other, because it is money the gym actually took'
+);
+
+-- 457 — THE ASSERTION THIS ROUND EXISTS FOR.
+select results_eq(
+  $$ select status, periods_granted, starts_on, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000a0'::uuid $$,
+  $$ select 'cancelled'::public.membership_status, 1, (select d from today_t20), (select d from today_t20) + 30 $$,
+  'scenario "Paying against a cancelled membership" — the retired membership''s dates and count DID NOT MOVE. Measured today: they move, to periods 2 and today+60, on the row the gate already refuses'
+);
+
+-- 458 — the other direction of the same worry. Nothing said "put the money on
+-- the live one instead"; a fix that helpfully redirects it has invented a rule
+-- nobody wrote and would be indistinguishable from the correct one without
+-- this assertion.
+select results_eq(
+  $$ select status, periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000a1'::uuid $$,
+  $$ select 'active'::public.membership_status, 0, (select d from today_t20) $$,
+  'retired/repair: and the LIVE membership did not move either — the money named the retired row, so the answer is "do not extend", not "extend something else"'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 459
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000201012'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200053'::uuid, '22000000-0000-4000-8000-0000002000a1'::uuid,
+          150000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000200021'::uuid)
+$$, 'scenario "Paying against the live one instead" — the same member, the same desk, the same amount, the live membership named');
+
+set local role postgres;
+
+-- 460
+select results_eq(
+  $$ select status, periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000a1'::uuid $$,
+  $$ select 'active'::public.membership_status, 1, (select d from today_t20) + 30 $$,
+  'scenario "Paying against the live one instead" — it extends NORMALLY. This is the assertion a rule that simply stopped extending everything would fail, and stopping everything passes every refusal in this section'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 461
+select lives_ok($$
+  insert into public.attendance (tenant_id, branch_id, member_id, source, qr_session_id)
+  values ('22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200011'::uuid,
+          '22000000-0000-4000-8000-000000200053'::uuid, 'qr',
+          '22000000-0000-4000-8000-000000200096'::uuid)
+$$, 'retired/repair: and the member walks in — the repair still produces a membership that WORKS, with a stray payment against the retired row sitting in the books beside it');
+
+
+-- ---------------------------------------------------------------------------
+-- 23b — THE PAYMENT IS A FIRST-CLASS PAYMENT IN EVERY OTHER RESPECT (462-465)
+--
+-- 455 and 456 already have the receipt, the stamp and the counter. What is
+-- left is the two rules that make a payment answerable afterwards: it names
+-- the human who took the money, and it can be given back, bounded by the same
+-- ceiling as any other. If a rule "handles" a retired membership by putting
+-- the payment in some lesser state, one of these breaks.
+-- ---------------------------------------------------------------------------
+
+-- 462
+select throws_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-00000020101f'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200053'::uuid, '22000000-0000-4000-8000-0000002000a0'::uuid,
+          150000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000200022'::uuid)
+$$, null::char(5), null,
+  'retired/first-class: a desk payment against the RETIRED membership naming a colleague as the recorder is still refused — recording the payment does not mean recording it unattributed');
+
+set local role postgres;
+
+-- 463
+select results_eq(
+  $$ select count(*)::int from public.payments
+      where id = '22000000-0000-4000-8000-00000020101f'::uuid $$,
+  $$ values (0) $$,
+  'retired/first-class: refused AND no row landed'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'gym_manager',
+                    'staff_id', '22000000-0000-4000-8000-000000200022')::text,
+  true);
+set local role authenticated;
+
+-- 464
+select lives_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, currency, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000203003'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000201011'::uuid, 'refund', 150000, 'INR',
+          'paid against the retired membership by mistake',
+          '22000000-0000-4000-8000-000000200022'::uuid)
+$$, 'retired/first-class: the payment against the retired membership is REFUNDABLE in full — which is the only honest remedy for money that bought nothing, and it exists only because the payment was recorded in the first place');
+
+-- 465
+select throws_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, currency, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000203004'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000201011'::uuid, 'refund', 1, 'INR',
+          'one paisa past the ceiling',
+          '22000000-0000-4000-8000-000000200022'::uuid)
+$$, null::char(5), null,
+  'retired/first-class: and one paisa more is refused by the ceiling — so the payment counts toward its own refund ceiling exactly like any other, rather than being some lesser record the ceiling does not see');
+
+
+-- ---------------------------------------------------------------------------
+-- 23c — BOTH RETIRED STATUSES, AND EVERY LIVE ONE (466-471)
+--
+-- `expired` is named by the requirement beside `cancelled` and is the harder
+-- of the two to reach in production (ADR-064: nothing in this product ever
+-- writes it), which is exactly why nobody would notice it being left out.
+-- `frozen` and `pending` are the two live statuses the console's own renewal
+-- path does not exercise and are therefore the two most likely to be swept up
+-- by a fix aimed at `active` alone.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 466
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000201013'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200054'::uuid, '22000000-0000-4000-8000-0000002000a2'::uuid,
+          150000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000200021'::uuid)
+$$, 'retired/expired: a payment naming an EXPIRED membership is recorded, exactly as the cancelled one was');
+
+set local role postgres;
+
+-- 467
+select results_eq(
+  $$ select status, periods_granted, starts_on, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000a2'::uuid $$,
+  $$ select 'expired'::public.membership_status, 0, (select d from today_t20) - 60, (select d from today_t20) - 30 $$,
+  'scenario "Paying against a cancelled membership", the requirement''s other half — `expired` is retired too, and the dates stay thirty days in the PAST rather than jumping to today+30'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 468
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000201014'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200055'::uuid, '22000000-0000-4000-8000-0000002000a3'::uuid,
+          150000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000200021'::uuid)
+$$, 'retired/frozen: a payment naming a FROZEN membership is recorded');
+
+set local role postgres;
+
+-- 469
+select results_eq(
+  $$ select status, periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000a3'::uuid $$,
+  $$ select 'frozen'::public.membership_status, 1, (select d from today_t20) + 30 $$,
+  'retired/frozen: and it EXTENDS. `frozen` is live — it is half of the gym''s own definition of live at the gate (memberships_tenant_id_member_id_live_key) — so a rule that reads "not active" instead of "retired" fails here'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 470
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000201015'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200056'::uuid, '22000000-0000-4000-8000-0000002000a4'::uuid,
+          150000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000200021'::uuid)
+$$, 'retired/pending: a payment naming a PENDING membership is recorded');
+
+set local role postgres;
+
+-- 471 — status is deliberately NOT asserted here. Whether paying for a DATED
+-- pending membership also activates it is a question the requirement above
+-- ("A payment against a membership with no dates…") answers only for the
+-- UNDATED case, and guessing at it would be scoring a rule nobody wrote.
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000a4'::uuid $$,
+  $$ select 1, (select d from today_t20) + 30 $$,
+  'retired/pending: and it EXTENDS. `pending` is "sold but not started", not "retired" — the requirement names cancelled and expired and nothing else, and a fix that reads "only active and frozen may be extended" strands every membership sold before it was paid for'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 23d — DOES THE GATE AGREE? (472-475)
+--
+-- The requirement's own account of the harm ends "…and the member stays
+-- refused at the gate because the gate reads status." 2000ac is the shape that
+-- makes that a real question rather than a rhetorical one: cancelled, but with
+-- three hundred days still on its dates, so a gate that had drifted to reading
+-- dates alone would admit its member. Money then lands on it, which under the
+-- measured defect is precisely the thing that puts long dates on a retired row.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 472
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-00000020101e'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-00000020005a'::uuid, '22000000-0000-4000-8000-0000002000ac'::uuid,
+          150000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000200021'::uuid)
+$$, 'retired/gate: money arrives against a cancelled membership that still has three hundred days on its dates');
+
+set local role postgres;
+
+-- 473
+select results_eq(
+  $$ select status, receipt_number is not null, paid_at is not null
+       from public.payments where id = '22000000-0000-4000-8000-00000020101e'::uuid $$,
+  $$ select 'paid'::public.payment_status, true, true $$,
+  'retired/gate: recorded and receipted here too'
+);
+
+-- 474
+select results_eq(
+  $$ select status, periods_granted, starts_on, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000ac'::uuid $$,
+  $$ select 'cancelled'::public.membership_status, 0, (select d from today_t20) - 1, (select d from today_t20) + 300 $$,
+  'retired/gate: and the retired row did not grow — a membership with time left on the clock that somebody cancelled anyway is still retired, and the leftover dates are not an invitation'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 475
+select throws_ok($$
+  insert into public.attendance (tenant_id, branch_id, member_id, source, qr_session_id)
+  values ('22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200011'::uuid,
+          '22000000-0000-4000-8000-00000020005a'::uuid, 'qr',
+          '22000000-0000-4000-8000-000000200097'::uuid)
+$$, null::char(5), null,
+  'retired/gate: the gate REFUSES him, dates and money notwithstanding — which is the sentence the requirement''s own harm statement rests on. If this ever goes green, "cancelled" has stopped meaning anything and the money rule above is the smaller half of the problem');
+
+
+-- ---------------------------------------------------------------------------
+-- 23e — MONEY ALREADY GRANTED STAYS GRANTED, AND STATUS CHANGES BETWEEN TWO
+-- PAYMENTS (476-481)
+--
+-- Nothing here reverses history. A membership cancelled AFTER money arrived
+-- keeps the period that money bought — the same fact Section 22's 439 records
+-- for refunds, asserted here for cancellation because a fix aimed at "retired
+-- memberships must not carry granted periods" would be a different and much
+-- larger rule, and this is where it would show.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 476
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-00000020101c'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200059'::uuid, '22000000-0000-4000-8000-0000002000ab'::uuid,
+          150000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000200021'::uuid)
+$$, 'retired/history: the first payment arrives while the membership is live');
+
+set local role postgres;
+
+-- 477
+select results_eq(
+  $$ select status, periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000ab'::uuid $$,
+  $$ select 'active'::public.membership_status, 1, (select d from today_t20) + 30 $$,
+  'retired/history: and buys a period, as it should'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'gym_manager',
+                    'staff_id', '22000000-0000-4000-8000-000000200022')::text,
+  true);
+set local role authenticated;
+
+-- 478
+select lives_ok($$
+  update public.memberships
+     set status = 'cancelled', cancelled_at = now(), cancel_reason = 'member moved cities'
+   where id = '22000000-0000-4000-8000-0000002000ab'::uuid
+$$, 'retired/history: then the membership is cancelled');
+
+set local role postgres;
+
+-- 479
+select results_eq(
+  $$ select status, periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000ab'::uuid $$,
+  $$ select 'cancelled'::public.membership_status, 1, (select d from today_t20) + 30 $$,
+  'retired/history: the period the money already bought STAYS BOUGHT. Nothing in this requirement reverses history — it stops a retired membership growing, it does not unwind what it grew before it was retired'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 480
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-00000020101d'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200059'::uuid, '22000000-0000-4000-8000-0000002000ab'::uuid,
+          150000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000200021'::uuid)
+$$, 'retired/history: and a second payment arrives on the same membership, now retired — recorded');
+
+set local role postgres;
+
+-- 481
+select results_eq(
+  $$ select status, periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000ab'::uuid $$,
+  $$ select 'cancelled'::public.membership_status, 1, (select d from today_t20) + 30 $$,
+  'retired/history: STILL one period and still thirty days — the status between the two payments is what decides, so the same membership, the same member and the same amount buy a month the first time and nothing the second'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 23f — THE WRITE SHAPES (482-493)
+--
+-- ADR-087's costumes, on the payment side. A guard written into the ordinary
+-- single-row INSERT path and nowhere else is the failure mode this project has
+-- shipped repeatedly; every shape below reaches the same trigger by a different
+-- statement, and 482 puts a cancelled and a live membership in ONE statement so
+-- that a rule enforced per statement rather than per row cannot pass.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 482
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000201016'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200057'::uuid, '22000000-0000-4000-8000-0000002000a5'::uuid,
+          150000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000200021'::uuid),
+         ('22000000-0000-4000-8000-000000201017'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200058'::uuid, '22000000-0000-4000-8000-0000002000a6'::uuid,
+          150000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000200021'::uuid)
+$$, 'retired/shapes: two payments in ONE statement — one naming a cancelled membership, one naming a live one');
+
+set local role postgres;
+
+-- 483
+select results_eq(
+  $$ select status, periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000a5'::uuid $$,
+  $$ select 'cancelled'::public.membership_status, 0, (select d from today_t20) $$,
+  'retired/shapes: the cancelled row in that statement did not move'
+);
+
+-- 484
+select results_eq(
+  $$ select status, periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000a6'::uuid $$,
+  $$ select 'active'::public.membership_status, 1, (select d from today_t20) + 30 $$,
+  'retired/shapes: and the LIVE row in the SAME statement did — 483 and 484 together are the pair a rule enforced per statement rather than per row cannot pass, and either one alone would let it through'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 485
+select lives_ok($$
+  merge into public.payments p
+  using (select '22000000-0000-4000-8000-000000201018'::uuid as id) s
+     on p.id = s.id
+   when not matched then
+     insert (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id)
+     values (s.id, '22000000-0000-4000-8000-000000200001'::uuid,
+             '22000000-0000-4000-8000-000000200057'::uuid, '22000000-0000-4000-8000-0000002000a7'::uuid,
+             150000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000200021'::uuid)
+$$, 'retired/shapes: the payment written as MERGE — ADR-087 records MERGE walking round a rule on this file''s own tables once already');
+
+set local role postgres;
+
+-- 486
+select results_eq(
+  $$ select status, periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000a7'::uuid $$,
+  $$ select 'cancelled'::public.membership_status, 0, (select d from today_t20) $$,
+  'retired/shapes: MERGE does not move the retired membership either'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 487
+select lives_ok($$
+  with recorded as (
+    insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id)
+    values ('22000000-0000-4000-8000-000000201019'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+            '22000000-0000-4000-8000-000000200057'::uuid, '22000000-0000-4000-8000-0000002000a8'::uuid,
+            150000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000200021'::uuid)
+    returning id
+  )
+  select count(*) from recorded
+$$, 'retired/shapes: the payment written as a data-modifying CTE');
+
+set local role postgres;
+
+-- 488
+select results_eq(
+  $$ select status, periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000a8'::uuid $$,
+  $$ select 'cancelled'::public.membership_status, 0, (select d from today_t20) $$,
+  'retired/shapes: the CTE does not move it'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 489 — the upsert reaches `paid` through the DO UPDATE arm, which is the arm
+-- a rule written only into the INSERT path never sees.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id, receipt_number)
+  values ('22000000-0000-4000-8000-00000020101a'::uuid, '22000000-0000-4000-8000-000000200001'::uuid,
+          '22000000-0000-4000-8000-000000200057'::uuid, '22000000-0000-4000-8000-0000002000a9'::uuid,
+          150000, 'INR', 'created', 'cash', '22000000-0000-4000-8000-000000200021'::uuid, 'T23-RCT-UPSERT')
+  on conflict (id) do update set status = 'paid'
+$$, 'retired/shapes: the payment written as INSERT … ON CONFLICT DO UPDATE, reaching `paid` through the update arm');
+
+set local role postgres;
+
+-- 490
+select results_eq(
+  $$ select status, periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000a9'::uuid $$,
+  $$ select 'cancelled'::public.membership_status, 0, (select d from today_t20) $$,
+  'retired/shapes: the upsert does not move it'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000200001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000200021')::text,
+  true);
+set local role authenticated;
+
+-- 491 — the ordinary online shape: an order is created, the money confirms
+-- later, and the row is walked created → paid by an UPDATE. `payments` carries
+-- a separate extend trigger for UPDATE, so this is a second code path and not
+-- a rewording of 482.
+select lives_ok($$
+  update public.payments set status = 'paid'
+   where id = '22000000-0000-4000-8000-00000020101b'::uuid
+$$, 'retired/shapes: a created → paid UPDATE on a payment naming a retired membership');
+
+set local role postgres;
+
+-- 492
+select results_eq(
+  $$ select status, periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-0000002000aa'::uuid $$,
+  $$ select 'cancelled'::public.membership_status, 0, (select d from today_t20) $$,
+  'retired/shapes: and the created → paid UPDATE does not move it either'
+);
+
+-- 493 — the guard on the whole subsection. Every one of the five shape
+-- payments must have arrived as a real payment: a fix that answers MERGE, the
+-- CTE, the upsert and the UPDATE by refusing them would turn 483-492 green
+-- while quietly making four ordinary write shapes unusable and losing the
+-- money they carried.
+select results_eq(
+  $$ select count(*)::int,
+            count(*) filter (where status = 'paid')::int,
+            count(*) filter (where receipt_number is not null)::int,
+            count(*) filter (where paid_at is not null)::int
+       from public.payments
+      where id in ('22000000-0000-4000-8000-000000201016'::uuid,
+                   '22000000-0000-4000-8000-000000201018'::uuid,
+                   '22000000-0000-4000-8000-000000201019'::uuid,
+                   '22000000-0000-4000-8000-00000020101a'::uuid,
+                   '22000000-0000-4000-8000-00000020101b'::uuid) $$,
+  $$ select 5, 5, 5, 5 $$,
+  'retired/shapes: all five shape payments are on the books, paid, receipted and stamped. The requirement records the money in every shape and extends nothing in any of them'
+);
 
 
 select * from finish();
