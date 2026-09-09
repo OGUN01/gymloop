@@ -45,7 +45,6 @@ const ERRORS: Record<string, string> = {
   payment_not_yours: 'A payment is recorded by the person who took it.',
   provider_claimed:
     'An online payment is recorded by the provider. The desk takes cash, UPI, card or a bank transfer.',
-  counter_refused: 'This gym’s receipt numbering can only move forward. Nothing was recorded.',
   membership_not_theirs: 'That membership belongs to a different member.',
   possible_duplicate:
     'A payment for this member, of this amount and method, was recorded moments ago — so this one was not. If it is a genuinely separate payment, record it again from this page.',

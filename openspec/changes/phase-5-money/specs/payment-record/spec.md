@@ -308,7 +308,22 @@ not ended, so there is nothing to move.
 
 **That state is only reachable as `pending`**, which a holdout author established
 against `memberships_dated_unless_pending_chk` and reported rather than quietly
-staging as something else. So "genuinely open-ended and ongoing" is the wrong
+staging as something else.
+
+**A HALF-dated `pending` row is not left alone, and this paragraph used to claim
+it was.** A critic measured it: a row with `starts_on` null and `ends_on` set is
+extended and its periods recorded, because the extension's guard is
+`ends_on is not null` — but it is NOT activated, because activating a row with a
+null `starts_on` violates the same CHECK. So money is taken, a receipt issued,
+the period recorded, and the member stays refused at the gate with no product
+path to fix it. Round three made that abort loudly with an unmapped `23514`;
+round five's guard traded the loud failure for a silent one, which is the wrong
+direction by this project's own tie-breaker.
+
+It is reachable only by direct write — the console never creates a half-dated
+row — so it is carried as an open decision rather than solved by guessing what a
+malformed membership should mean. What is NOT acceptable is the spec saying one
+thing while the code does another, which is what this correction fixes. So "genuinely open-ended and ongoing" is the wrong
 description of it: no `active` or `frozen` membership can hold a null `ends_on`
 at all. What the rule actually covers is a half-dated `pending` row, and the
 honest reading is that such a row is malformed rather than open-ended — it is
