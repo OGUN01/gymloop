@@ -341,7 +341,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(173);
+select plan(242);
 
 
 -- ---------------------------------------------------------------------------
@@ -597,13 +597,26 @@ insert into public.payments (id, tenant_id, member_id, membership_id, amount_pai
    100000, 'failed', 'cash', null, '22000000-0000-4000-8000-000000000022'::uuid),
   ('22000000-0000-4000-8000-000000001004'::uuid, '22000000-0000-4000-8000-000000000002'::uuid,
    '22000000-0000-4000-8000-000000000042'::uuid, null,
-   100000, 'refunded', 'cash', null, '22000000-0000-4000-8000-000000000022'::uuid),
+   100000, 'paid', 'cash', 'T2-RCT-0002', '22000000-0000-4000-8000-000000000022'::uuid),
   ('22000000-0000-4000-8000-000000001005'::uuid, '22000000-0000-4000-8000-000000000002'::uuid,
    '22000000-0000-4000-8000-000000000042'::uuid, null,
    100000, 'created', 'cash', null, '22000000-0000-4000-8000-000000000022'::uuid),
   ('22000000-0000-4000-8000-000000001006'::uuid, '22000000-0000-4000-8000-000000000002'::uuid,
    '22000000-0000-4000-8000-000000000042'::uuid, null,
    100000, 'pending', 'cash', null, '22000000-0000-4000-8000-000000000022'::uuid);
+
+-- 1004 is the "reviving a refunded payment" fixture and it USED to be
+-- inserted straight at 'refunded'. Round eight's GL039 ("A payment does not
+-- arrive already refunded") forbids exactly that, for every writer and with
+-- no carve-out, so this fixture was aborting the whole file at line 1 of
+-- Section 2 and hiding every assertion after it. It is now staged the way
+-- the requirement says money reaches that status — recorded paid, then
+-- refunded — keeping its id, amount, member, membership and staff exactly as
+-- they were, so assertions 21/22 still mean what they meant. Do not
+-- "simplify" it back into the VALUES list above: a bare 'refunded' literal
+-- there is the shape a grep for '::public.payment_status' does not find.
+update public.payments set status = 'refunded'
+ where id = '22000000-0000-4000-8000-000000001004'::uuid;
 
 -- Baseline: membership 082's ends_on right after payment 1002 landed as
 -- 'paid' at insert time (one legitimate extension, if extension fires on
@@ -3323,6 +3336,889 @@ select results_eq(
   $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160089'::uuid $$,
   $$ values (1, (select d from today_t16) + 30) $$,
   'GL044/created: allowed, and nothing moved — the count still reads 1 and ends_on is where the payment left it'
+);
+
+
+-- ===========================================================================
+-- SECTION 17 (GL043 re-gated onto money, and GL039) — the terms money is
+-- scored against are frozen by MONEY ARRIVING, the duration a period is
+-- measured in is one of those terms and is recorded on the membership, and
+-- a payment does not arrive already refunded. Tenant 17. Assertions
+-- 174-242.
+--
+-- Round eight. Round seven (Section 16) made `periods_granted` unforgeable
+-- so that `old.periods_granted > 0` could be trusted as the gate, and never
+-- asked whether the gate says the right thing. It does not, and the exploit
+-- round seven was written to close survived it (ADR-090).
+--
+-- A membership that has taken REAL MONEY but not yet crossed one whole
+-- multiple of its price sits at `periods_granted = 0` and every one of its
+-- terms is open. That is not a contrived state — it is a part payment,
+-- ordinary practice in an Indian gym, which this file already proves is
+-- recorded and receipted. Measured on a real row of the live demo gym,
+-- Rs 10,800 arrived against a Rs 12,000 Annual: cut the price to Rs 1,000
+-- (allowed, nothing had been *granted*), then pay one paisa, and `ends_on`
+-- moved TEN YEARS.
+--
+-- WHY THE ARRANGEMENT MISSED IT, WHICH IS THE PART THAT CONCERNS THIS FILE.
+-- ADR-089s requirement said "before any money has arrived" in its prose and
+-- "a membership that has been granted nothing" in its scenario three lines
+-- below. The implementation was built to the scenario, and BOTH blind
+-- suites asserted the weaker sentence and went green — Section 15 and
+-- Section 16 of this file are the visible half of that. A blind arrangement
+-- cannot catch a scenario that encodes the implementation own assumption.
+-- So this section was written by reading the requirement PROSE against its
+-- scenario list first, and where the two could disagree the prose is what
+-- is asserted. The one place they still can, and the report says so, is
+-- money in a currency the membership is not priced in: the prose says "any
+-- money has arrived", the granting rule scores only same-currency money,
+-- and 239-242 assert the prose.
+--
+-- Written from openspec/changes/phase-5-money/specs/payment-record/spec.md
+-- ("The terms money is scored against are frozen by money arriving",
+-- GL043; "A payment does not arrive already refunded", GL039) and ADR-090,
+-- by a session that has read neither supabase/tests-holdout/ nor the
+-- implementation. Only the catalogue was read, black box, through
+-- `supabase db query --linked`, wrapped begin...rollback, nothing
+-- committed.
+--
+-- MEASURED ON LIVE CLOUD BEFORE WRITING A LINE, all in throwaway
+-- begin...rollback transactions, all from an ordinary front-desk session:
+--
+--   * `memberships` HAS NO `duration_days` COLUMN. A period length is read
+--     live from `plans` on every payment.
+--   * on a part-paid membership (Rs 500 against a Rs 1,000 price,
+--     `periods_granted = 0`, receipt 2026-27/000001 issued): cutting the
+--     price ALLOWED, changing the currency ALLOWED, repointing the plan
+--     ALLOWED.
+--   * a payment INSERTED straight at `refunded` ALLOWED, and at `reversed`
+--     ALLOWED, both taking no receipt number and granting nothing at the
+--     time.
+--   * the two together, with the term edit and the first payment in ONE
+--     data-modifying CTE: Rs 3,000 `refunded` + 1 paisa `reversed` + Rs 500
+--     `paid`, price cut to one paisa in the same statement — 350001 periods
+--     granted and `ends_on` at 30774-10-18. Twenty-eight thousand years of
+--     gym, one statement, no error.
+--   * a gym manager setting `plans.duration_days = 3650` ALLOWED (and it
+--     must stay allowed), after which an ordinary Rs 1,000 renewal on a
+--     membership sold at 30 days moved `ends_on` 3650 days.
+--   * a membership whose only payment was later refunded IN FULL sits at
+--     `periods_granted = 0` and its price cut is ALLOWED.
+--
+-- WHAT IS ATTACKED. The part-paid window for each of the four terms
+-- (174-187); the same window through UPDATE ... FROM, MERGE, a
+-- data-modifying CTE and a two-row statement where only one row is frozen
+-- (188-195); money that arrived and was then fully refunded, which the
+-- total still counts, so the freeze must not thaw (196-200); a plan
+-- lengthened by its gym admin, which must stay legal and must not re-length
+-- a membership already sold (201-210); the statuses that are NOT money
+-- arriving (211-221); the first payment and a term edit in the SAME
+-- statement (226-227); a payment inserted directly at `refunded` and at
+-- `reversed`, and the one-paisa payment that would have cashed the credit
+-- in (228-238); and money in a currency the membership is not priced in
+-- (239-242).
+--
+-- THE PERMITTED SIDE IS ASSERTED AS HARD AS THE REFUSED SIDE, because a fix
+-- that is too broad passes every refusal test and this project has shipped
+-- exactly that three times. A membership with no money at all stays fully
+-- editable in all four terms AND the money that follows is scored against
+-- the corrected ones (222-225); a plan edit is allowed and applies to
+-- memberships created afterwards (202-203, 207-210); a part payment is
+-- still recorded and receipted (175); ordinary renewals still grant
+-- (184-187, 199-200, 205-206); a `created`, `pending` or `failed` payment
+-- still records and still leaves the terms free (211-221, 237).
+--
+-- ONE OLDER FIXTURE WAS REPAIRED, AND IT IS THE ONLY EDIT THIS ROUND MADE
+-- OUTSIDE THIS SECTION. Section 2's payment 1004 — the "reviving a refunded
+-- payment" fixture — was INSERTED straight at `refunded`, which is precisely
+-- what GL039 forbids, so once the rule lands the file aborts on that insert
+-- and every assertion after it disappears. It is now recorded `paid` and
+-- then updated to `refunded`, keeping its id, amount, member, membership and
+-- staff, so 21/22 still mean what they meant. A test that stages its subject
+-- by doing the thing the requirement forbids is the same shape as Section
+-- 14b's fixture in round seven, which declared a period instead of earning
+-- one.
+--
+-- SQLSTATES ARE ASSERTED, NOT LEFT OPEN, on the same reasoning Section 16
+-- gives: `GL043` for a term, `GL039` for a payment that arrives already
+-- refunded (ADR-090 names that code for it). Every refusal asserts the code
+-- AND that the value did not move.
+-- ===========================================================================
+
+set local role postgres;
+
+insert into public.organizations (id, name, gym_code) values
+  ('22000000-0000-4000-8000-000000170001'::uuid, 'PayRec Gym 17', 'PYR22H');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('22000000-0000-4000-8000-000000170011'::uuid, '22000000-0000-4000-8000-000000170001'::uuid, 'G17 Main', true);
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('22000000-0000-4000-8000-000000170021'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170011'::uuid, 'front_desk', 'T17 Desk'),
+  ('22000000-0000-4000-8000-000000170022'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170011'::uuid, 'gym_manager', 'T17 Manager');
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000170040'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170011'::uuid, 'M17 PartPaid', '+912200170040'),
+  ('22000000-0000-4000-8000-000000170041'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170011'::uuid, 'M17 Shapes', '+912200170041'),
+  ('22000000-0000-4000-8000-000000170042'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170011'::uuid, 'M17 Refunded', '+912200170042'),
+  ('22000000-0000-4000-8000-000000170043'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170011'::uuid, 'M17 SoldAt30', '+912200170043'),
+  ('22000000-0000-4000-8000-000000170044'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170011'::uuid, 'M17 NotYetPaid', '+912200170044'),
+  ('22000000-0000-4000-8000-000000170045'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170011'::uuid, 'M17 NoMoney', '+912200170045'),
+  ('22000000-0000-4000-8000-000000170046'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170011'::uuid, 'M17 Sibling', '+912200170046'),
+  ('22000000-0000-4000-8000-000000170047'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170011'::uuid, 'M17 SameStatement', '+912200170047'),
+  ('22000000-0000-4000-8000-000000170048'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170011'::uuid, 'M17 ArrivesRefunded', '+912200170048'),
+  ('22000000-0000-4000-8000-000000170049'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170011'::uuid, 'M17 SoldAfterEdit', '+912200170049'),
+  ('22000000-0000-4000-8000-000000170050'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170011'::uuid, 'M17 ForeignMoney', '+912200170050'),
+  ('22000000-0000-4000-8000-000000170051'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170011'::uuid, 'M17 NeverArrived', '+912200170051');
+
+-- Four plans. 170060 is the general 30-day one; 170061 (365d) and 170062
+-- (7d) are repoint targets in both directions; 170063 is 17d own 30-day
+-- plan, used by nothing else, so that lengthening it to 3650 in the middle
+-- of this section cannot perturb any other membership assertion.
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('22000000-0000-4000-8000-000000170060'::uuid, '22000000-0000-4000-8000-000000170001'::uuid, 'G17 Plan (30d)', 30, 100000),
+  ('22000000-0000-4000-8000-000000170061'::uuid, '22000000-0000-4000-8000-000000170001'::uuid, 'G17 Plan (365d)', 365, 100000),
+  ('22000000-0000-4000-8000-000000170062'::uuid, '22000000-0000-4000-8000-000000170001'::uuid, 'G17 Plan (7d)', 7, 100000),
+  ('22000000-0000-4000-8000-000000170063'::uuid, '22000000-0000-4000-8000-000000170001'::uuid, 'G17 Plan (30d, editable)', 30, 100000);
+
+create temp table today_t17 as
+  select (now() at time zone o.timezone)::date as d
+    from public.organizations o where o.id = '22000000-0000-4000-8000-000000170001'::uuid;
+
+grant select on today_t17 to public;
+
+-- Every membership starts at `ends_on = today` so that one period is
+-- `today + <its own duration>` with nothing else in the arithmetic, and
+-- every one is created having been granted nothing. The ones that need
+-- money EARN it below from ordinary front-desk payments.
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('22000000-0000-4000-8000-000000170080'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170040'::uuid, '22000000-0000-4000-8000-000000170060'::uuid,
+   'active', (select d from today_t17), (select d from today_t17), 100000),
+  ('22000000-0000-4000-8000-000000170081'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170041'::uuid, '22000000-0000-4000-8000-000000170060'::uuid,
+   'active', (select d from today_t17), (select d from today_t17), 100000),
+  ('22000000-0000-4000-8000-000000170082'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170042'::uuid, '22000000-0000-4000-8000-000000170060'::uuid,
+   'active', (select d from today_t17), (select d from today_t17), 100000),
+  ('22000000-0000-4000-8000-000000170083'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170043'::uuid, '22000000-0000-4000-8000-000000170063'::uuid,
+   'active', (select d from today_t17), (select d from today_t17), 100000),
+  ('22000000-0000-4000-8000-000000170084'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170044'::uuid, '22000000-0000-4000-8000-000000170060'::uuid,
+   'active', (select d from today_t17), (select d from today_t17), 100000),
+  ('22000000-0000-4000-8000-000000170085'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170045'::uuid, '22000000-0000-4000-8000-000000170060'::uuid,
+   'active', (select d from today_t17), (select d from today_t17), 100000),
+  ('22000000-0000-4000-8000-000000170086'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170046'::uuid, '22000000-0000-4000-8000-000000170060'::uuid,
+   'active', (select d from today_t17), (select d from today_t17), 100000),
+  ('22000000-0000-4000-8000-000000170087'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170047'::uuid, '22000000-0000-4000-8000-000000170060'::uuid,
+   'active', (select d from today_t17), (select d from today_t17), 100000),
+  ('22000000-0000-4000-8000-000000170088'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170048'::uuid, '22000000-0000-4000-8000-000000170060'::uuid,
+   'active', (select d from today_t17), (select d from today_t17), 100000),
+  ('22000000-0000-4000-8000-000000170090'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170050'::uuid, '22000000-0000-4000-8000-000000170060'::uuid,
+   'active', (select d from today_t17), (select d from today_t17), 100000),
+  ('22000000-0000-4000-8000-000000170091'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170051'::uuid, '22000000-0000-4000-8000-000000170060'::uuid,
+   'active', (select d from today_t17), (select d from today_t17), 100000);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000170001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000170021')::text,
+  true);
+set local role authenticated;
+
+-- The fixture money, all of it ordinary front-desk work, none of it scored:
+-- three part payments of half the price (170080, 170081, 170082) and one
+-- full payment (170083). No receipt_number is supplied anywhere in this
+-- section — the counter issues them, which is what Requirement 2 says.
+insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id) values
+  ('22000000-0000-4000-8000-000000171001'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170040'::uuid, '22000000-0000-4000-8000-000000170080'::uuid,
+   50000, 'paid', 'cash', '22000000-0000-4000-8000-000000170021'::uuid),
+  ('22000000-0000-4000-8000-000000171002'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170041'::uuid, '22000000-0000-4000-8000-000000170081'::uuid,
+   50000, 'paid', 'cash', '22000000-0000-4000-8000-000000170021'::uuid),
+  ('22000000-0000-4000-8000-000000171003'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170042'::uuid, '22000000-0000-4000-8000-000000170082'::uuid,
+   50000, 'paid', 'cash', '22000000-0000-4000-8000-000000170021'::uuid),
+  ('22000000-0000-4000-8000-000000171004'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+   '22000000-0000-4000-8000-000000170043'::uuid, '22000000-0000-4000-8000-000000170083'::uuid,
+   100000, 'paid', 'cash', '22000000-0000-4000-8000-000000170021'::uuid);
+
+
+-- ---------------------------------------------------------------------------
+-- 17a (GL043) — the part-paid window, all four terms. Membership 170080:
+-- Rs 500 arrived against a Rs 1,000 price, so `periods_granted` is 0 and
+-- round seven freeze does not apply to a single one of its terms. This is
+-- ADR-090 headline, and the demo-gym row it was measured on.
+-- ---------------------------------------------------------------------------
+
+-- 174
+select results_eq(
+  $$ select periods_granted, ends_on, price_paise, currency from public.memberships where id = '22000000-0000-4000-8000-000000170080'::uuid $$,
+  $$ values (0, (select d from today_t17), 100000::bigint, 'INR'::text) $$,
+  'GL043/part-paid: half the price arrived and bought nothing — the membership sits at periods_granted = 0 with ends_on unmoved, which is exactly the window round seven gate leaves wide open'
+);
+
+-- 175 — and it was RECEIPTED. The console says so on the page: a part
+-- payment is recorded and receipted and buys none until the balance is
+-- paid. If this were not true the state above would be a broken payment
+-- rather than an ordinary one, and the whole section would prove nothing.
+select results_eq(
+  $$ select receipt_number is not null from public.payments where id = '22000000-0000-4000-8000-000000171001'::uuid $$,
+  $$ values (true) $$,
+  'GL043/part-paid: the part payment took a receipt number like any other payment — this is ordinary practice, not a malformed row'
+);
+
+-- 176 — the fourth term has to exist before it can be frozen. A period
+-- LENGTH was the one term still read live from `plans` when money arrives.
+select has_column('public', 'memberships', 'duration_days',
+  'GL043/part-paid: memberships records the duration a period is measured in, rather than reading it from plans when money arrives');
+
+-- 177 — and it is what the membership was SOLD at: the plan 30 days.
+-- Read through to_jsonb so that this assertion reports a clean failure
+-- rather than aborting the transaction while the column does not exist.
+select results_eq(
+  $$ select to_jsonb(m)->>'duration_days' from public.memberships m where m.id = '22000000-0000-4000-8000-000000170080'::uuid $$,
+  $$ values ('30'::text) $$,
+  'GL043/part-paid: the membership records the 30 days of the plan it was sold on'
+);
+
+-- 178 — the measured exploit first move. Allowed on live Cloud today.
+select throws_ok($$
+  update public.memberships set price_paise = 100000 - 99000
+   where id = '22000000-0000-4000-8000-000000170080'::uuid
+$$, 'GL043'::char(5), null,
+  'GL043/part-paid: cutting the price of a membership that has taken real money but crossed no multiple of it is refused — money arriving is what freezes a term, not a period being granted');
+
+-- 179
+select throws_ok($$
+  update public.memberships set price_paise = 200000
+   where id = '22000000-0000-4000-8000-000000170080'::uuid
+$$, 'GL043'::char(5), null,
+  'GL043/part-paid: raising it is refused too — the terms are frozen in both directions, as Section 15 already holds the granted case to');
+
+-- 180
+select throws_ok($$
+  update public.memberships set currency = 'USD'
+   where id = '22000000-0000-4000-8000-000000170080'::uuid
+$$, 'GL043'::char(5), null,
+  'GL043/part-paid: re-denominating the membership is refused — the currency is half of what a price MEANS, and the money already on record was taken in the old one');
+
+-- 181
+select throws_ok($$
+  update public.memberships set plan_id = '22000000-0000-4000-8000-000000170061'::uuid
+   where id = '22000000-0000-4000-8000-000000170080'::uuid
+$$, 'GL043'::char(5), null,
+  'GL043/part-paid: repointing it at a 365-day plan is refused — a member who agreed to a month and paid half of it can otherwise be given a year, with two ordinary receipts in the ledger');
+
+-- 182 — the fourth term, on the membership rather than on the plan.
+select throws_ok($$
+  update public.memberships set duration_days = 3650
+   where id = '22000000-0000-4000-8000-000000170080'::uuid
+$$, 'GL043'::char(5), null,
+  'GL043/part-paid: lengthening the membership own recorded duration is refused — it is a term like the other three, and every paisa on record was taken against it');
+
+-- 183 — the state proof for all five attempts, in one comparison.
+select results_eq(
+  $$ select price_paise, currency, plan_id, to_jsonb(m)->>'duration_days'
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000170080'::uuid $$,
+  $$ values (100000::bigint, 'INR'::text, '22000000-0000-4000-8000-000000170060'::uuid, '30'::text) $$,
+  'GL043/part-paid: refused AND unmoved — all four terms are exactly what the membership was sold at'
+);
+
+-- 184 — the second half of the measured exploit: one paisa.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000171005'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+          '22000000-0000-4000-8000-000000170040'::uuid, '22000000-0000-4000-8000-000000170080'::uuid,
+          1, 'paid', 'cash', '22000000-0000-4000-8000-000000170021'::uuid)
+$$, 'GL043/part-paid: the one-paisa payment is recorded like any other — a refused term edit does not refuse the money that follows it');
+
+-- 185 — legitimately green before and after: at the ORIGINAL price one
+-- paisa was never going to buy anything. It is here because it is the
+-- outcome ADR-090 measured as ten years, and an outcome assertion is what
+-- survives a fix that closes the door by a different mechanism.
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000170080'::uuid $$,
+  $$ values (0, (select d from today_t17)) $$,
+  'GL043/part-paid: one paisa bought nothing and ends_on did not move a day — Rs 500.01 is not one whole multiple of Rs 1,000'
+);
+
+-- 186/187 — the scenario own words: a further payment SHALL buy only what
+-- the ORIGINAL price says it buys. 50000 + 1 + 49999 is exactly the price.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000171006'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+          '22000000-0000-4000-8000-000000170040'::uuid, '22000000-0000-4000-8000-000000170080'::uuid,
+          49999, 'paid', 'cash', '22000000-0000-4000-8000-000000170021'::uuid)
+$$, 'GL043/part-paid: the balance of the original price is recorded');
+
+-- 187
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000170080'::uuid $$,
+  $$ values (1, (select d from today_t17) + 30) $$,
+  'GL043/part-paid: the balance bought exactly ONE period of the original 30 days at the original price — not ten, and not ten years'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 17b (GL043) — the same part-paid window through the statement shapes a
+-- rule written as a single-row guard does not see. Every previous defect in
+-- this phase survived the single-row case and died on one of these.
+-- Membership 170081 (part-paid), 170086 (no money at all) as its innocent
+-- sibling.
+-- ---------------------------------------------------------------------------
+
+-- 188
+select results_eq(
+  $$ select periods_granted, price_paise from public.memberships where id = '22000000-0000-4000-8000-000000170081'::uuid $$,
+  $$ values (0, 100000::bigint) $$,
+  'GL043/shapes: this membership is part-paid too — half the price arrived, nothing granted'
+);
+
+-- 189
+select throws_ok($$
+  update public.memberships m set price_paise = p.price_paise - 99000
+    from public.plans p
+   where p.id = m.plan_id
+     and m.id = '22000000-0000-4000-8000-000000170081'::uuid
+$$, 'GL043'::char(5), null,
+  'GL043/shapes: the price cut written as UPDATE ... FROM is refused — the new value arriving from a joined row rather than a literal changes nothing about what the rule has to see');
+
+-- 190
+select throws_ok($$
+  merge into public.memberships m
+  using (select '22000000-0000-4000-8000-000000170081'::uuid as id) s
+     on m.id = s.id
+   when matched then update set price_paise = 1000
+$$, 'GL043'::char(5), null,
+  'GL043/shapes: the price cut written as MERGE is refused');
+
+-- 191
+select throws_ok($$
+  with moved as (
+    update public.memberships set price_paise = 1000
+     where id = '22000000-0000-4000-8000-000000170081'::uuid
+    returning id
+  ) select count(*) from moved
+$$, 'GL043'::char(5), null,
+  'GL043/shapes: the price cut hidden in a data-modifying CTE is refused — ADR-087 records this costume walking round a rule on this very table neighbour already');
+
+-- 192 — and the new term through the same door, because a term added in
+-- round eight gets round eight attacks, not round seven.
+select throws_ok($$
+  update public.memberships m set duration_days = p.duration_days * 100
+    from public.plans p
+   where p.id = m.plan_id
+     and m.id = '22000000-0000-4000-8000-000000170081'::uuid
+$$, 'GL043'::char(5), null,
+  'GL043/shapes: the recorded duration lengthened by UPDATE ... FROM is refused');
+
+-- 193
+select results_eq(
+  $$ select price_paise, to_jsonb(m)->>'duration_days' from public.memberships m where m.id = '22000000-0000-4000-8000-000000170081'::uuid $$,
+  $$ values (100000::bigint, '30'::text) $$,
+  'GL043/shapes: refused AND unmoved through all four shapes'
+);
+
+-- 194 — one statement, two memberships, only ONE of them part-paid. The
+-- other has taken no money at all and would be free to change on its own.
+select throws_ok($$
+  update public.memberships set price_paise = 1000
+   where id in ('22000000-0000-4000-8000-000000170081'::uuid,
+                '22000000-0000-4000-8000-000000170086'::uuid)
+$$, 'GL043'::char(5), null,
+  'GL043/shapes: one statement cutting the price of two memberships, only one of which has taken money, is refused — the frozen row is in the set and that is enough');
+
+-- 195
+select results_eq(
+  $$ select id, price_paise from public.memberships
+      where id in ('22000000-0000-4000-8000-000000170081'::uuid, '22000000-0000-4000-8000-000000170086'::uuid)
+      order by id $$,
+  $$ values ('22000000-0000-4000-8000-000000170081'::uuid, 100000::bigint),
+            ('22000000-0000-4000-8000-000000170086'::uuid, 100000::bigint) $$,
+  'GL043/shapes: NEITHER row moved — a refusal that aborted half a statement would be worse than the change it prevented'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 17c (GL043) — money that arrived and was then refunded IN FULL. Nobody
+-- has tried this. The total a period is scored against counts money that
+-- ARRIVED — paid, refunded and reversed — precisely so that it never falls,
+-- so a membership whose only payment was refunded must stay FROZEN. If it
+-- thawed, the re-pricing door would be for sale at the price of a refund.
+-- Membership 170082.
+-- ---------------------------------------------------------------------------
+
+-- 196 — the refund itself, as an ordinary status move.
+select lives_ok($$
+  update public.payments set status = 'refunded'
+   where id = '22000000-0000-4000-8000-000000171003'::uuid
+$$, 'GL043/refunded: refunding the only payment on the membership is an ordinary paid -> refunded move');
+
+-- 197
+select throws_ok($$
+  update public.memberships set price_paise = 1000
+   where id = '22000000-0000-4000-8000-000000170082'::uuid
+$$, 'GL043'::char(5), null,
+  'GL043/refunded: the terms of a membership whose only money has been refunded in full are STILL frozen — the total counts refunded money, so it is still being scored against the price');
+
+-- 198
+select results_eq(
+  $$ select price_paise, periods_granted from public.memberships where id = '22000000-0000-4000-8000-000000170082'::uuid $$,
+  $$ values (100000::bigint, 0) $$,
+  'GL043/refunded: refused AND unmoved'
+);
+
+-- 199
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000171007'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+          '22000000-0000-4000-8000-000000170042'::uuid, '22000000-0000-4000-8000-000000170082'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000170021'::uuid)
+$$, 'GL043/refunded: a further full payment is recorded');
+
+-- 200 — and it is scored against a total that still counts the refunded
+-- Rs 500: 150000 at a price of 100000 is one period, not two.
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000170082'::uuid $$,
+  $$ values (1, (select d from today_t17) + 30) $$,
+  'GL043/refunded: one period, of the original 30 days at the original price — the refunded money still counts toward the total and the terms it is counted against never moved'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 17d (GL043) — the duration a period is measured in is the MEMBERSHIP,
+-- not the plan. `plans_tenant_write` is FOR ALL on is_gym_admin(), so one
+-- manager statement setting duration_days = 3650 moved ends_on 3650 days on
+-- every membership sold on that plan at once. The plan edit is legitimate
+-- and must stay legal; what must change is that it applies to the NEXT
+-- membership and to nothing already sold. Membership 170083 (sold at 30
+-- days, one period earned) and 170089 (created afterwards). Plan 170063 is
+-- used by these two and nothing else.
+-- ---------------------------------------------------------------------------
+
+-- 201
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000170083'::uuid $$,
+  $$ values (1, (select d from today_t17) + 30) $$,
+  'GL043/duration: sold on a 30-day plan and paid in full — one period, ends_on 30 days out'
+);
+
+set local role postgres;
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000170001',
+                    'app_role', 'gym_manager',
+                    'staff_id', '22000000-0000-4000-8000-000000170022')::text,
+  true);
+set local role authenticated;
+
+-- 202 — the legitimate act, which the fix must not punish. Freezing the
+-- plans row instead of recording the term would stop a gym re-lengthening
+-- a plan for future sales, which it must be able to do.
+select lives_ok($$
+  update public.plans set duration_days = 3650
+   where id = '22000000-0000-4000-8000-000000170063'::uuid
+$$, 'GL043/duration: a gym admin lengthening one of their own plans is allowed — editing a plan is ordinary work and the fix must not take it away');
+
+-- 203
+select results_eq(
+  $$ select duration_days from public.plans where id = '22000000-0000-4000-8000-000000170063'::uuid $$,
+  $$ values (3650) $$,
+  'GL043/duration: the plan edit LANDED — allowed and applied, not allowed and silently dropped'
+);
+
+set local role postgres;
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000170001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000170021')::text,
+  true);
+set local role authenticated;
+
+-- 204
+select results_eq(
+  $$ select to_jsonb(m)->>'duration_days' from public.memberships m where m.id = '22000000-0000-4000-8000-000000170083'::uuid $$,
+  $$ values ('30'::text) $$,
+  'GL043/duration: the membership already sold still records the 30 days it was sold at — a plan edit is not a term edit on somebody else contract');
+
+-- 205
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000171008'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+          '22000000-0000-4000-8000-000000170043'::uuid, '22000000-0000-4000-8000-000000170083'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000170021'::uuid)
+$$, 'GL043/duration: an ordinary renewal after the plan was lengthened is recorded');
+
+-- 206 — the scenario own words: memberships already sold SHALL keep the
+-- length they were sold at. Measured today: this renewal moves ends_on 3650
+-- days instead of 30.
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000170083'::uuid $$,
+  $$ values (2, (select d from today_t17) + 60) $$,
+  'GL043/duration: the renewal bought 30 days, the length this membership was SOLD at — not the 3650 the plan now says');
+
+-- 207 — and the other half of the same scenario: only memberships created
+-- afterwards use the new one. A fix that froze the plan row, or that made
+-- the duration unwritable, would fail here rather than above.
+select lives_ok($$
+  insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+  values ('22000000-0000-4000-8000-000000170089'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+          '22000000-0000-4000-8000-000000170049'::uuid, '22000000-0000-4000-8000-000000170063'::uuid,
+          'active', (select d from today_t17), (select d from today_t17), 100000)
+$$, 'GL043/duration: a membership sold AFTER the plan edit is created normally');
+
+-- 208
+select results_eq(
+  $$ select to_jsonb(m)->>'duration_days' from public.memberships m where m.id = '22000000-0000-4000-8000-000000170089'::uuid $$,
+  $$ values ('3650'::text) $$,
+  'GL043/duration: it records the NEW length — which is what editing a plan should mean');
+
+-- 209
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000171009'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+          '22000000-0000-4000-8000-000000170049'::uuid, '22000000-0000-4000-8000-000000170089'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000170021'::uuid)
+$$, 'GL043/duration: it is paid for in full');
+
+-- 210 — legitimately green before and after: the new membership gets the
+-- new length either way. It is here because it is the half of the scenario
+-- a too-broad fix breaks.
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000170089'::uuid $$,
+  $$ values (1, (select d from today_t17) + 3650) $$,
+  'GL043/duration: and it runs for the new 3650 days — the plan edit reached the membership sold after it and none sold before it'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 17e (GL043) — what is NOT money arriving. `created`, `pending` and
+-- `failed` are money still held or money that never came; the total counts
+-- `paid`, `refunded` and `reversed`. So the terms must still be FREE, and
+-- must freeze the moment the same payment row becomes paid — the rule is
+-- keyed on what the money IS now, not on what it was written as. Membership
+-- 170084 (created -> paid) and 170091 (pending -> failed).
+-- ---------------------------------------------------------------------------
+
+-- 211
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000171010'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+          '22000000-0000-4000-8000-000000170044'::uuid, '22000000-0000-4000-8000-000000170084'::uuid,
+          50000, 'created', 'cash', '22000000-0000-4000-8000-000000170021'::uuid)
+$$, 'GL043/not-yet-money: a payment is opened at created against the membership');
+
+-- 212
+select lives_ok($$
+  update public.memberships set price_paise = 80000
+   where id = '22000000-0000-4000-8000-000000170084'::uuid
+$$, 'GL043/not-yet-money: correcting the price while the only payment is still created is allowed — money still held is not money that has arrived');
+
+-- 213
+select results_eq(
+  $$ select price_paise, periods_granted from public.memberships where id = '22000000-0000-4000-8000-000000170084'::uuid $$,
+  $$ values (80000::bigint, 0) $$,
+  'GL043/not-yet-money: the correction LANDED'
+);
+
+-- 214 — the same row becomes money.
+select lives_ok($$
+  update public.payments set status = 'paid'
+   where id = '22000000-0000-4000-8000-000000171010'::uuid
+$$, 'GL043/not-yet-money: the payment is then taken, created -> paid');
+
+-- 215
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000170084'::uuid $$,
+  $$ values (0, (select d from today_t17)) $$,
+  'GL043/not-yet-money: Rs 500 against a Rs 800 price grants nothing — the part-paid window again, reached by an UPDATE rather than an INSERT'
+);
+
+-- 216 — and now the door is shut, on the same row that left it open.
+select throws_ok($$
+  update public.memberships set price_paise = 1000
+   where id = '22000000-0000-4000-8000-000000170084'::uuid
+$$, 'GL043'::char(5), null,
+  'GL043/not-yet-money: once that same payment has become paid the price is frozen — the freeze is keyed on what the money is NOW, not on the status it was written at');
+
+-- 217
+select results_eq(
+  $$ select price_paise from public.memberships where id = '22000000-0000-4000-8000-000000170084'::uuid $$,
+  $$ values (80000::bigint) $$,
+  'GL043/not-yet-money: refused AND unmoved at the corrected price'
+);
+
+-- 218/219/220 — money that never arrives at all.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000171011'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+          '22000000-0000-4000-8000-000000170051'::uuid, '22000000-0000-4000-8000-000000170091'::uuid,
+          50000, 'pending', 'cash', '22000000-0000-4000-8000-000000170021'::uuid)
+$$, 'GL043/never-arrived: a pending payment is opened');
+
+-- 219
+select lives_ok($$
+  update public.payments set status = 'failed'
+   where id = '22000000-0000-4000-8000-000000171011'::uuid
+$$, 'GL043/never-arrived: and it fails');
+
+-- 220
+select lives_ok($$
+  update public.memberships
+     set price_paise = 50000, currency = 'USD', plan_id = '22000000-0000-4000-8000-000000170062'::uuid
+   where id = '22000000-0000-4000-8000-000000170091'::uuid
+$$, 'GL043/never-arrived: a membership whose only payment failed is still fully editable — nothing has been scored against its terms, so nothing is being rewritten');
+
+-- 221
+select results_eq(
+  $$ select price_paise, currency, plan_id from public.memberships where id = '22000000-0000-4000-8000-000000170091'::uuid $$,
+  $$ values (50000::bigint, 'USD'::text, '22000000-0000-4000-8000-000000170062'::uuid) $$,
+  'GL043/never-arrived: and the edit LANDED — allowed and applied'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 17f (GL043, the permitted side) — a membership against which no money has
+-- arrived at all stays editable in ALL FOUR terms, and the money that
+-- follows is scored against the corrected ones. A fix that is too broad
+-- passes every refusal above and fails here. Membership 170085.
+-- ---------------------------------------------------------------------------
+
+-- 222
+select lives_ok($$
+  update public.memberships
+     set price_paise = 75000,
+         currency = 'USD',
+         plan_id = '22000000-0000-4000-8000-000000170061'::uuid,
+         duration_days = 90
+   where id = '22000000-0000-4000-8000-000000170085'::uuid
+$$, 'GL043/permitted: correcting all four terms at once before any money has arrived is allowed — nothing has been scored yet');
+
+-- 223
+select results_eq(
+  $$ select price_paise, currency, plan_id, to_jsonb(m)->>'duration_days'
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000170085'::uuid $$,
+  $$ values (75000::bigint, 'USD'::text, '22000000-0000-4000-8000-000000170061'::uuid, '90'::text) $$,
+  'GL043/permitted: all four corrections LANDED'
+);
+
+-- 224
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000171012'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+          '22000000-0000-4000-8000-000000170045'::uuid, '22000000-0000-4000-8000-000000170085'::uuid,
+          75000, 'USD', 'paid', 'cash', '22000000-0000-4000-8000-000000170021'::uuid)
+$$, 'GL043/permitted: a payment of the corrected price, in the corrected currency, is recorded');
+
+-- 225 — and scored against the corrected terms: one period of the
+-- membership OWN recorded 90 days, not the 365 of the plan it now points
+-- at. This is the assertion that says where a period length is read from.
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000170085'::uuid $$,
+  $$ values (1, (select d from today_t17) + 90) $$,
+  'GL043/permitted: one period of the 90 days the MEMBERSHIP records — not the 365 its plan says, which is the whole point of recording the term'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 17g (GL043) — the first payment and a term edit in the SAME statement.
+-- Measured on live Cloud in the shape that combines this with 17h: Rs 3,000
+-- refunded plus one paisa reversed plus Rs 500 paid, with the price cut to
+-- one paisa in the same data-modifying CTE, granted 350001 periods and left
+-- ends_on at the year 30774. Membership 170087, which has taken nothing
+-- until this statement.
+-- ---------------------------------------------------------------------------
+
+-- 226
+select throws_ok($$
+  with taken as (
+    insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+    values ('22000000-0000-4000-8000-000000171013'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+            '22000000-0000-4000-8000-000000170047'::uuid, '22000000-0000-4000-8000-000000170087'::uuid,
+            50000, 'paid', 'cash', '22000000-0000-4000-8000-000000170021'::uuid)
+    returning id
+  ), cut as (
+    update public.memberships set price_paise = 1
+     where id = '22000000-0000-4000-8000-000000170087'::uuid
+    returning id
+  ) select count(*) from taken
+$$, 'GL043'::char(5), null,
+  'GL043/same-statement: taking the first payment and cutting the price in ONE statement is refused — by the end of that statement money has arrived and a term has moved, which is exactly what the requirement forbids');
+
+-- 227
+select results_eq(
+  $$ select m.price_paise, m.periods_granted,
+            (select count(*)::int from public.payments p where p.id = '22000000-0000-4000-8000-000000171013'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000170087'::uuid $$,
+  $$ values (100000::bigint, 0, 0) $$,
+  'GL043/same-statement: refused whole — the price did not move, nothing was granted, and the payment that shared the statement does not exist either'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 17h (GL039) — a payment does not arrive already refunded. Both statuses
+-- count toward the total a period is scored against, neither extends
+-- anything at the time and neither takes a receipt number, so a payment
+-- written straight to `refunded` puts grant credit on the books that no
+-- receipt names and nothing has granted, waiting for any later payment to
+-- cash it in. Measured: both inserts ALLOWED today, both taking a null
+-- receipt number. Membership 170088.
+-- ---------------------------------------------------------------------------
+
+-- 228
+select throws_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000171014'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+          '22000000-0000-4000-8000-000000170048'::uuid, '22000000-0000-4000-8000-000000170088'::uuid,
+          300000, 'refunded', 'cash', '22000000-0000-4000-8000-000000170021'::uuid)
+$$, 'GL039'::char(5), null,
+  'GL039: a payment recorded straight at refunded is refused — a payment is recorded and THEN refunded, it does not arrive that way');
+
+-- 229
+select throws_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000171015'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+          '22000000-0000-4000-8000-000000170048'::uuid, '22000000-0000-4000-8000-000000170088'::uuid,
+          200000, 'reversed', 'cash', '22000000-0000-4000-8000-000000170021'::uuid)
+$$, 'GL039'::char(5), null,
+  'GL039: and straight at reversed, which presupposes an earlier status just as plainly');
+
+-- 230
+select results_eq(
+  $$ select count(*)::int from public.payments
+      where id in ('22000000-0000-4000-8000-000000171014'::uuid, '22000000-0000-4000-8000-000000171015'::uuid) $$,
+  $$ values (0) $$,
+  'GL039: refused AND nothing written — neither row exists, so neither is sitting in the total waiting to be cashed in'
+);
+
+-- 231/232 — the harm, stated as an outcome. ADR-090 measured a Rs 3,000
+-- refunded payment inserted directly and then one paisa granting three
+-- periods.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000171016'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+          '22000000-0000-4000-8000-000000170048'::uuid, '22000000-0000-4000-8000-000000170088'::uuid,
+          1, 'paid', 'cash', '22000000-0000-4000-8000-000000170021'::uuid)
+$$, 'GL039: the one paisa that would have cashed that credit in is recorded like any other payment');
+
+-- 232
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000170088'::uuid $$,
+  $$ values (0, (select d from today_t17)) $$,
+  'GL039: and it bought NOTHING — there was no phantom Rs 5,000 on the books for it to cross a multiple against');
+
+-- 233/234 — the permitted path the requirement names: recorded, and then
+-- refunded.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000171017'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+          '22000000-0000-4000-8000-000000170048'::uuid, '22000000-0000-4000-8000-000000170088'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000170021'::uuid)
+$$, 'GL039/permitted: an ordinary full payment is recorded');
+
+-- 234
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000170088'::uuid $$,
+  $$ values (1, (select d from today_t17) + 30) $$,
+  'GL039/permitted: it granted its period — GL039 refuses a status, not a payment');
+
+-- 235
+select lives_ok($$
+  update public.payments set status = 'refunded'
+   where id = '22000000-0000-4000-8000-000000171017'::uuid
+$$, 'GL039/permitted: refunding it afterwards is allowed — this is the route a refunded payment is supposed to reach that status by');
+
+-- 236
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000170088'::uuid $$,
+  $$ values (1, (select d from today_t17) + 30) $$,
+  'GL039/permitted: and the refund did not pull the extension back — the total counts money that arrived, which is what makes crossing a multiple mean anything'
+);
+
+-- 237/238 — GL039 must refuse two statuses, not a shape. A failed payment
+-- is still recordable, and still counts for nothing.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000171018'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+          '22000000-0000-4000-8000-000000170048'::uuid, '22000000-0000-4000-8000-000000170088'::uuid,
+          500000, 'failed', 'cash', '22000000-0000-4000-8000-000000170021'::uuid)
+$$, 'GL039/permitted: a payment recorded at failed is still allowed — the rule names two statuses, not every status a caller may supply');
+
+-- 238
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000170088'::uuid $$,
+  $$ values (1, (select d from today_t17) + 30) $$,
+  'GL039/permitted: and Rs 5,000 of failed money bought nothing, because failed money never arrived'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 17i (GL043) — money in a currency the membership is not priced in. It
+-- buys nothing, because the total sums the membership own currency — but
+-- HAS money arrived? The requirement prose says "WHERE any money has
+-- arrived against a membership", and this is a paid payment naming the
+-- membership; its scenario list never mentions the case. The prose is what
+-- is asserted here, and the report says so, because re-denominating the
+-- membership is exactly what would make that foreign money start scoring —
+-- which is the harm the currency being a frozen term exists to prevent.
+-- Membership 170090.
+-- ---------------------------------------------------------------------------
+
+-- 239
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000171019'::uuid, '22000000-0000-4000-8000-000000170001'::uuid,
+          '22000000-0000-4000-8000-000000170050'::uuid, '22000000-0000-4000-8000-000000170090'::uuid,
+          100000, 'USD', 'paid', 'cash', '22000000-0000-4000-8000-000000170021'::uuid)
+$$, 'GL043/foreign: a paid payment in a currency the membership is not priced in is recorded');
+
+-- 240
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000170090'::uuid $$,
+  $$ values (0, (select d from today_t17)) $$,
+  'GL043/foreign: it granted no period — the total sums the membership own currency (MNY-002)'
+);
+
+-- 241
+select throws_ok($$
+  update public.memberships set currency = 'USD'
+   where id = '22000000-0000-4000-8000-000000170090'::uuid
+$$, 'GL043'::char(5), null,
+  'GL043/foreign: re-denominating the membership into the currency that money came in is refused — money HAS arrived against it, and this edit is the single act that would make Rs 0 of scored money become a full period');
+
+-- 242
+select results_eq(
+  $$ select currency, periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000170090'::uuid $$,
+  $$ values ('INR'::text, 0, (select d from today_t17)) $$,
+  'GL043/foreign: refused AND unmoved — still priced in INR, still granted nothing'
 );
 
 

@@ -165,11 +165,33 @@
 -- (3) discount_paise is deliberately not a frozen term — nothing in the
 -- money path reads it — so nothing here asserts that it is.
 
+-- SIXTH-SESSION EXTENSION — section 17, plan 222 -> 317, written blind by a
+-- THIRD author against the round-EIGHT requirement: GL043 restated as "the
+-- terms money is scored against are frozen by MONEY ARRIVING" (not by a
+-- period being granted) with the duration of a period added as a fourth
+-- term recorded on the membership, plus the new GL039. Round seven's gate
+-- was keyed on `periods_granted > 0`; a critic showed that gate says the
+-- wrong thing, and the exploit it was written to close survived it through
+-- an ordinary PART PAYMENT. Sections 15d and 16 assert the old gate's
+-- shape and stay as written — everything they assert is still true, since a
+-- membership that has been GRANTED a period has necessarily TAKEN money —
+-- and section 17 asserts the wider rule the prose actually states.
+--
+-- Section 17 does NOT use `throws_ok(..., null::char(5), null, ...)` for its
+-- refusals, and that is deliberate: the new term lives in a column that did
+-- not exist when this section was written, and a null expected code passes
+-- on `42703 undefined_column`. Its own `pg_temp.h22r8_refused` treats a
+-- missing column, table, function or syntax as NOT a refusal, so its
+-- battery cannot go green against an unimplemented contract — the exact
+-- failure mode that made this round necessary. See section 17's own header
+-- for the seams it goes at, the two readings its author sided on, and the
+-- one open question it stages rather than guesses.
+
 begin;
 
 set local role postgres;
 
-select plan(222);
+select plan(317);
 
 -- ---------------------------------------------------------------------------
 -- 0. Fixtures.
@@ -2302,6 +2324,845 @@ select is(
 select lives_ok(
   $$update public.memberships set status = 'frozen' where id = '220000ff-0022-4000-8000-60000000005a'$$,
   'currency-split: and that legitimately-disagreeing row is still editable — the rejected consistency trigger would have refused every future update to it, including the ones that fix it');
+
+-- ---------------------------------------------------------------------------
+-- 17. SIXTH-SESSION EXTENSION, written blind by yet another author against
+--     the round-EIGHT form of GL043 ("the terms money is scored against are
+--     frozen by MONEY ARRIVING"), the new GL039 ("a payment does not arrive
+--     already refunded"), and ADR-090 — including the design ADR-090
+--     rejects, because that is where the interesting failure modes live.
+--     GL044 is unchanged this round and is not re-proved; section 16 has it.
+--
+--     WHY THIS SECTION EXISTS. Round seven froze a membership's terms once
+--     `periods_granted > 0` and made that column unforgeable so the gate
+--     could be trusted. A critic then showed the GATE ITSELF says the wrong
+--     thing: a membership that has taken real money but not yet crossed one
+--     whole multiple of its price sits at `periods_granted = 0` with every
+--     term open — an ordinary PART PAYMENT — and the exploit the round was
+--     written to close survived it (₹10,800 against a ₹12,000 Annual: cut
+--     the price, pay one paisa, `ends_on` moves ten years).
+--
+--     And the reason it survived lands directly on this file. The
+--     requirement's PROSE said "before any money has arrived"; its SCENARIO
+--     three lines below said "granted nothing"; the implementation was
+--     built to the scenario, and BOTH blind suites — this one included —
+--     asserted the weaker sentence and went green. The arrangement cannot
+--     catch a scenario that encodes the implementation's own assumption. So
+--     this section was written by reading the requirement for internal
+--     contradiction FIRST, and every assertion below follows the
+--     requirement's prose, not its scenario list.
+--
+--     WHAT THIS AUTHOR READ: the round-eight
+--     openspec/changes/phase-5-money/specs/payment-record/spec.md,
+--     docs/decisions.md ADR-090 (with ADR-088/089 for background), the live
+--     Cloud catalogue, and this file. NOT read, then or since:
+--     supabase/tests/22_payment_record.sql (a different author was writing
+--     the visible battery for the same requirement in parallel); any
+--     migration dated 20260910230001 or later; prosrc or
+--     pg_get_functiondef for anything implementing GL043, GL044 or GL039.
+--
+--     THE SEAMS, and why each is a seam rather than a re-run of the
+--     headline ADR-090 already records:
+--
+--       (a) THE BOUNDARY OF "MONEY HAS ARRIVED" — 17d, the largest
+--           subsection, because that phrase is what the whole requirement
+--           now turns on and the requirement never defines it. A payment at
+--           `created`; at `failed`; one INSERTED at `created` and later
+--           MOVED to `paid`; money PAID AND THEN FULLY REFUNDED (the grant
+--           total counts `refunded`, so the membership must stay frozen — a
+--           thaw here is a free re-price); money in a currency the
+--           membership is not priced in; money against a DIFFERENT
+--           membership of the same member; and a payment whose
+--           `membership_id` is moved while it is still a working document
+--           and only then paid. Each answers one question: does the freeze
+--           track the MONEY, or something merely correlated with it — a
+--           payment row, a member, a granted period, a status?
+--
+--       (b) THE RECORDED DURATION AGAINST THE PLAN'S — 17b and 17c. The new
+--           term is the only one that is FILLED rather than supplied, which
+--           grows two doors nothing else in this file covers: a membership
+--           that pre-dates the column (asserted structurally — a null there
+--           is a silent fall-back to whatever the plan says today, which is
+--           the very defect the column removes, reintroduced for every row
+--           the product already has), and a caller who supplies the term at
+--           CREATE time. ADR-089's whole lesson was "closing three doors
+--           and leaving the fourth"; the fourth door on this term is the
+--           INSERT. Then the behaviour ADR-090 actually promises: a plan
+--           legitimately re-lengthened, after which an EXISTING membership
+--           renews at the length it was SOLD at and a NEW one is sold at
+--           the new length — two memberships, one plan, two lengths, which
+--           is the whole reason for recording it rather than freezing the
+--           `plans` row (ADR-090's rejected design).
+--
+--       (c) MULTI-ROW AND MULTI-STATEMENT — 17e. Every defect in this phase
+--           survived the single-row case and died on one of these: one
+--           statement editing several memberships where only SOME have
+--           money, `UPDATE ... FROM`, `MERGE`, a data-modifying CTE that
+--           takes the FIRST payment and cuts the price in the SAME
+--           statement, and two statements in one transaction where the
+--           first is entirely legitimate.
+--
+--       (d) THE PERMITTED SIDE, everywhere — a moneyless membership stays
+--           editable in all four terms, a plan stays re-lengthenable by a
+--           gym admin, a renewal against a part-paid membership still
+--           works, and `created`/`pending`/`paid`/`failed` payments still
+--           insert. A FIX THAT IS TOO BROAD PASSES EVERY REFUSAL TEST, and
+--           this project has shipped one three times.
+--
+--       (e) GL039 — 17f. `refunded` and `reversed` refused on INSERT, the
+--           four legitimate statuses unaffected, and the HARM behind it
+--           gone: after the refused inserts, one paisa must still buy
+--           nothing.
+--
+--     EVERY REFUSAL BELOW ASSERTS BOTH THE REFUSAL AND THAT THE VALUE IS
+--     UNCHANGED, and the refusal is checked through `pg_temp.h22r8_refused`
+--     rather than the house `throws_ok(..., null::char(5), null, ...)`. The
+--     reason is specific to this round: the new term lives in a column that
+--     does not exist yet, and `throws_ok` with a null expected code passes
+--     on ANY error — including `42703 undefined_column`. A refusal battery
+--     written the house way would have gone GREEN against an unimplemented
+--     contract, which is exactly the failure mode this round exists to
+--     correct. `h22r8_refused` treats "there is no such column, table,
+--     function or syntax" as NOT a refusal.
+--
+--     TWO THINGS THIS AUTHOR SIDED ON THAT THE REQUIREMENT DOES NOT SAY,
+--     both reported to the coordinator rather than buried here:
+--       * "Money has arrived" is read as the grant total's own definition,
+--         stated one requirement over: `paid`, `refunded` and `reversed`
+--         count; `created`, `pending` and `failed` do not. Reading it as "a
+--         payment row exists" would make "correcting a mistake before any
+--         money arrives stays free" almost unreachable, since ADR-083 has
+--         the console create the membership and its `created` payment
+--         together, and a declined card would lock a mistyped price for
+--         ever.
+--       * Money in a currency the membership is NOT priced in still FREEZES
+--         it, even though it grants nothing. The prose is "any money has
+--         arrived against a membership", not "any money in its currency",
+--         and the alternative is a live exploit in the other direction:
+--         take foreign money, then re-point `currency` at it and watch
+--         every unit of it score.
+--     One thing this author DECLINED to side on, staged bounded and
+--     reported by `diag` in the house style: whether a legitimate PRE-MONEY
+--     `plan_id` correction re-records the duration (17c).
+-- ---------------------------------------------------------------------------
+
+set local role postgres;
+
+-- A refusal probe that can tell a rule from a missing column. `execute`
+-- inside a plpgsql exception block rolls back to an implicit savepoint, so a
+-- refused statement leaves the transaction usable, exactly as throws_ok does.
+create function pg_temp.h22r8_try(sql text) returns text
+language plpgsql as $fn$
+begin
+  execute sql;
+  return 'OK';
+exception when others then
+  return sqlstate;
+end
+$fn$;
+
+create function pg_temp.h22r8_refused(sql text) returns boolean
+language sql as $fn$
+  select pg_temp.h22r8_try(sql) not in ('OK', '42703', '42P01', '42883', '42601')
+$fn$;
+
+-- Reading a column that may not exist yet must FAIL an assertion, not abort
+-- the file: a bare `select duration_days ...` at top level would take the
+-- whole suite down with a parse error instead of leaving one clean `not ok`.
+create function pg_temp.h22r8_val(sql text) returns text
+language plpgsql as $fn$
+declare r text;
+begin
+  execute sql into r;
+  return r;
+exception when others then
+  return 'ERR:' || sqlstate;
+end
+$fn$;
+
+grant execute on function pg_temp.h22r8_try(text) to public;
+grant execute on function pg_temp.h22r8_refused(text) to public;
+grant execute on function pg_temp.h22r8_val(text) to public;
+
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('220000ff-0022-4000-8000-4000000000c1'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, 'H22 R8 Plan L (30d, to be re-lengthened)', 30, 100000);
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('220000ff-0022-4000-8000-5000000000c0'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 Dur Ordinary',     '+919220000300'),
+  ('220000ff-0022-4000-8000-5000000000c1'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 Dur InsertDoor',  '+919220000301'),
+  ('220000ff-0022-4000-8000-5000000000c2'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 Sold Before',     '+919220000302'),
+  ('220000ff-0022-4000-8000-5000000000c3'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 Sold After',      '+919220000303'),
+  ('220000ff-0022-4000-8000-5000000000c4'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 PreMoney Plan',   '+919220000304'),
+  ('220000ff-0022-4000-8000-5000000000d0'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 Created Only',    '+919220000310'),
+  ('220000ff-0022-4000-8000-5000000000d1'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 Failed Only',     '+919220000311'),
+  ('220000ff-0022-4000-8000-5000000000d2'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 Created To Paid', '+919220000312'),
+  ('220000ff-0022-4000-8000-5000000000d3'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 Part Paid',       '+919220000313'),
+  ('220000ff-0022-4000-8000-5000000000d4'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 Fully Refunded',  '+919220000314'),
+  ('220000ff-0022-4000-8000-5000000000d5'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 Foreign Money',   '+919220000315'),
+  ('220000ff-0022-4000-8000-5000000000d6'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 Two Memberships', '+919220000316'),
+  ('220000ff-0022-4000-8000-5000000000d7'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 Moved From',      '+919220000317'),
+  ('220000ff-0022-4000-8000-5000000000d8'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 Moved To',        '+919220000318'),
+  ('220000ff-0022-4000-8000-5000000000e0'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 MultiRow Money',  '+919220000320'),
+  ('220000ff-0022-4000-8000-5000000000e1'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 MultiRow Clean',  '+919220000321'),
+  ('220000ff-0022-4000-8000-5000000000e2'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 CTE Same Stmt',   '+919220000322'),
+  ('220000ff-0022-4000-8000-5000000000f0'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 GL039 Harm',      '+919220000330'),
+  ('220000ff-0022-4000-8000-5000000000f1'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 GL039 Allowed',   '+919220000331'),
+  ('220000ff-0022-4000-8000-5000000000f2'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 GL039 Trusted',   '+919220000332'),
+  ('220000ff-0022-4000-8000-5000000000f3'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R8 No Money At All', '+919220000333');
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency) values
+  ('220000ff-0022-4000-8000-6000000000c2'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000c2'::uuid, '220000ff-0022-4000-8000-4000000000c1'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000c4'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000c4'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000d0'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000d0'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000d1'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000d1'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000d2'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000d2'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000d3'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000d3'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000d4'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000d4'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000d5'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000d5'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000d6'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000d6'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000d7'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000d6'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'expired', (select today from gym_today where org_key = 'A') - 60, (select today from gym_today where org_key = 'A') - 30, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000d8'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000d7'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000d9'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000d8'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000e0'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000e0'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000e1'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000e1'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000e2'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000e2'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000f0'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000f0'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      300000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000f1'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000f1'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000f2'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000f2'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      300000, 'INR'),
+  ('220000ff-0022-4000-8000-6000000000f3'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-5000000000f3'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',  (select today from gym_today where org_key = 'A'),      (select today from gym_today where org_key = 'A'),      100000, 'INR');
+
+-- ---------------------------------------------------------------------------
+-- 17a. The duration a period is measured in is a RECORDED term. Structural,
+-- as `postgres`, because the two ways this goes wrong are both invisible
+-- from a tenant session: the column not existing at all, and the column
+-- existing but holding NULL for every membership that pre-dates it.
+-- ---------------------------------------------------------------------------
+
+select is(
+  (select count(*)::int from information_schema.columns
+    where table_schema = 'public' and table_name = 'memberships' and column_name = 'duration_days'),
+  1,
+  'GL043/duration: public.memberships RECORDS the duration a period is measured in, rather than reading it from plans when money arrives');
+
+select is(
+  pg_temp.h22r8_val($q$select count(*)::text from public.memberships where duration_days is null$q$),
+  '0',
+  'GL043/duration: and NO membership anywhere is missing it — including every membership created before the column existed, which is the population a backfill either covers or silently leaves reading the plan');
+
+-- ---------------------------------------------------------------------------
+-- 17b. It is filled at creation, and the caller does not get to choose it.
+-- ADR-089's lesson was "closing three doors and leaving the fourth", and the
+-- fourth door on a filled term is the INSERT: a front-desk session creating
+-- a membership at price 100000 carrying duration_days = 3650, then paying
+-- the full price once, is the same ten-year exploit with no UPDATE anywhere
+-- in it. Asserted either-way (refused outright, or the value ignored and
+-- filled from the plan) and then by the harm — both are acceptable and
+-- neither may leave 3650 on the row.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+set local role authenticated;
+
+select lives_ok(
+  $$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+    values ('220000ff-0022-4000-8000-6000000000c0', '220000ff-0022-4000-8000-100000000001',
+            '220000ff-0022-4000-8000-5000000000c0', '220000ff-0022-4000-8000-400000000001',
+            'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A'), 100000)$$,
+  'GL043/duration: an ordinary front-desk membership create, naming no duration, still succeeds');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-6000000000c0'$q$),
+  '30',
+  'GL043/duration: and it recorded 30 — the duration of the plan it was actually sold on, taken at creation like the price and the currency beside it');
+
+-- The create-with-a-duration attempt itself, in a DO block so that whichever
+-- way it goes it puts nothing on the TAP stream and cannot abort the file.
+do $do$
+begin
+  begin
+    insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, duration_days)
+      values ('220000ff-0022-4000-8000-6000000000c1', '220000ff-0022-4000-8000-100000000001',
+              '220000ff-0022-4000-8000-5000000000c1', '220000ff-0022-4000-8000-400000000001',
+              'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A'), 100000, 3650);
+  exception when others then null;
+  end;
+end
+$do$;
+
+select lives_ok(
+  $$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+    values ('220000ff-0022-4000-8000-6000000000c1', '220000ff-0022-4000-8000-100000000001',
+            '220000ff-0022-4000-8000-5000000000c1', '220000ff-0022-4000-8000-400000000001',
+            'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A'), 100000)
+    on conflict do nothing$$,
+  'GL043/insert-door: the same membership is then created the ordinary way if that attempt was refused, so the row exists either way and the next assertions measure the TERM rather than the refusal');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-6000000000c1'$q$),
+  '30',
+  'GL043/insert-door: a caller-supplied duration_days = 3650 did not survive the create — refused outright, or ignored and filled from the plan; either is acceptable and 3650 is not');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001c0', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000c1', '220000ff-0022-4000-8000-6000000000c1', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'GL043/insert-door: and one full payment against it is recorded');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-6000000000c1'::uuid),
+  (select today from gym_today where org_key = 'A') + 30,
+  'GL043/insert-door: the harm is gone, not merely the write — that payment bought 30 days, not the 3650 the create asked for');
+
+-- ---------------------------------------------------------------------------
+-- 17c. What recording it is FOR: a plan legitimately re-lengthened. This is
+-- the behaviour ADR-090 promises and the reason it REJECTED freezing the
+-- `plans` row — a gym must be able to re-length a plan for future sales. So,
+-- on one plan: a membership sold BEFORE the change renews at the length it
+-- was sold at, and a membership sold AFTER it is sold at the new one. Two
+-- memberships, one plan, two lengths, which is the whole design.
+--
+-- The measured defect this replaces: one manager statement setting
+-- duration_days = 3650 plus one ordinary renewal moved ends_on 3650 days,
+-- silently, for EVERY membership on that plan.
+-- ---------------------------------------------------------------------------
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001c1', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000c2', '220000ff-0022-4000-8000-6000000000c2', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'GL043/re-length: the membership sold on the 30-day plan takes its first full payment');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-6000000000c2'::uuid),
+  (select today from gym_today where org_key = 'A') + 30,
+  'GL043/re-length: baseline — that period is 30 days, the length it was sold at');
+
+set local role postgres;
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'gym_manager',
+                     'staff_id', '220000ff-0022-4000-8000-300000000002')::text,
+  true
+);
+set local role authenticated;
+
+select lives_ok(
+  $$update public.plans set duration_days = 3650 where id = '220000ff-0022-4000-8000-4000000000c1'$$,
+  'GL043/re-length: a gym admin re-lengthening a plan STILL WORKS — ADR-090 rejected freezing the plans row precisely so this stays possible, and a fix that closed this door would pass every refusal in this file');
+
+select is(
+  (select duration_days from public.plans where id = '220000ff-0022-4000-8000-4000000000c1'::uuid),
+  3650,
+  'GL043/re-length: and the plan edit actually landed');
+
+set local role postgres;
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+set local role authenticated;
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001c2', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000c2', '220000ff-0022-4000-8000-6000000000c2', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'GL043/re-length: an ordinary renewal against the already-sold membership is recorded');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-6000000000c2'::uuid),
+  (select today from gym_today where org_key = 'A') + 60,
+  'GL043/re-length: and it bought 30 MORE days, the length that membership was SOLD at — this reads today+3680 if a period is still measured by whatever the plan says now, which is the defect measured at 3650 days for one manager statement');
+
+select is(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-6000000000c2'::uuid),
+  2,
+  'GL043/re-length: two full prices, two periods — the count follows the money exactly as before');
+
+select lives_ok(
+  $$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+    values ('220000ff-0022-4000-8000-6000000000c3', '220000ff-0022-4000-8000-100000000001',
+            '220000ff-0022-4000-8000-5000000000c3', '220000ff-0022-4000-8000-4000000000c1',
+            'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A'), 100000)$$,
+  'GL043/re-length: a NEW membership is now sold on the same, re-lengthened plan');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001c3', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000c3', '220000ff-0022-4000-8000-6000000000c3', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'GL043/re-length: and takes its first full payment');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-6000000000c3'::uuid),
+  (select today from gym_today where org_key = 'A') + 3650,
+  'GL043/re-length: it gets the NEW length — editing a plan changes what the NEXT membership is sold at and nothing about one already sold, which is what editing a plan should mean. One plan, two memberships, two lengths');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set duration_days = 3650 where id = '220000ff-0022-4000-8000-6000000000c2'$q$),
+  'GL043/duration-frozen: the recorded duration is itself one of the frozen terms — a term that can be hand-edited on a membership that has taken money is the plans-row defect moved one table over, not fixed');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-6000000000c2'$q$),
+  '30',
+  'GL043/duration-frozen: and it is unchanged at 30 — refused AND unmoved');
+
+-- A legitimate PRE-MONEY plan correction. Whether the recorded duration is
+-- re-derived when the plan is corrected is a question the requirement does
+-- not answer, and this author declines to guess: "correcting a wrong plan
+-- before any money has arrived stays free" reads as though the correction
+-- should land whole, while "recorded at creation" reads as though the term
+-- should not move afterwards. Bounded assertion, observed value reported.
+
+select lives_ok(
+  $$update public.memberships set plan_id = '220000ff-0022-4000-8000-4000000000c1' where id = '220000ff-0022-4000-8000-6000000000c4'$$,
+  'GL043/pre-money: correcting the plan of a membership against which no money has arrived is still allowed');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001c4', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000c4', '220000ff-0022-4000-8000-6000000000c4', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'GL043/pre-money: and the first payment against the corrected membership is recorded');
+
+select ok(
+  (select ends_on - starts_on from public.memberships where id = '220000ff-0022-4000-8000-6000000000c4'::uuid) in (30, 3650),
+  'GL043/pre-money: OPEN QUESTION, staged not sided — a pre-money plan correction either re-records the duration (3650, the corrected plan) or keeps what was recorded at creation (30). Both are defensible readings of a requirement that says the correction stays free AND that the term is recorded at creation; a third answer is not');
+
+select diag(
+  'h22 R8 / GL043 pre-money plan correction: membership 6000000000c4 was created on a 30-day plan, corrected to the 3650-day plan before any money arrived, then paid in full. Observed length of the period it bought: '
+  || coalesce((select (ends_on - starts_on)::text from public.memberships where id = '220000ff-0022-4000-8000-6000000000c4'::uuid), 'null')
+  || ' days. Reported rather than asserted because the requirement does not say whether a legitimate pre-money plan change re-records the duration.');
+
+-- ---------------------------------------------------------------------------
+-- 17d. THE BOUNDARY OF "MONEY HAS ARRIVED". The requirement now turns on
+-- that phrase and never defines it; the only definition in the document is
+-- one requirement over, where the grant total is "money that ARRIVED —
+-- paid, refunded and reversed — not money still held". Every case below asks
+-- the same question from a different side: does the freeze track the money,
+-- or something merely correlated with it?
+-- ---------------------------------------------------------------------------
+
+-- (i) A payment that has not arrived: `created`. Under ADR-083 the console
+-- creates the membership and its `created` payment together, so if this row
+-- froze the terms, "correcting a mistyped price before any money arrives"
+-- would be unreachable in the very product this requirement is written for.
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001d0', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000d0', '220000ff-0022-4000-8000-6000000000d0', 50000, 'cash', 'created', '220000ff-0022-4000-8000-300000000001')$$,
+  'arrived/created: a payment is raised against the membership and not yet taken');
+
+select lives_ok(
+  $$update public.memberships set price_paise = 90000 where id = '220000ff-0022-4000-8000-6000000000d0'$$,
+  'arrived/created: the price is still correctable — a raised, unpaid payment is not money that has arrived, and freezing on the existence of a payment ROW would lock every membership the console creates');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-6000000000d0'::uuid),
+  90000::bigint,
+  'arrived/created: and the correction landed');
+
+-- (ii) A payment that arrived and then did not: `failed`. A declined card
+-- must not lock a mistyped price for ever.
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001d1', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000d1', '220000ff-0022-4000-8000-6000000000d1', 50000, 'cash', 'failed', '220000ff-0022-4000-8000-300000000001')$$,
+  'arrived/failed: a failed attempt is recorded against the membership');
+
+select lives_ok(
+  $$update public.memberships set price_paise = 90000 where id = '220000ff-0022-4000-8000-6000000000d1'$$,
+  'arrived/failed: the price is still correctable — the grant total excludes failed rows, so the terms have never been scored against anything');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-6000000000d1'::uuid),
+  90000::bigint,
+  'arrived/failed: and the correction landed');
+
+-- (iii) The same row, MOVED between statuses. The money arrives on an
+-- UPDATE, not an INSERT — a rule hung on the insert path alone sees nothing,
+-- and ADR-070 says every defect in this spec has had that shape: enforced
+-- where the row is born and not where it changes.
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001d2', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000d2', '220000ff-0022-4000-8000-6000000000d2', 50000, 'cash', 'created', '220000ff-0022-4000-8000-300000000001')$$,
+  'arrived/moved: a part payment is raised at created');
+
+select lives_ok(
+  $$update public.payments set status = 'paid' where id = '220000ff-0022-4000-8000-7000000001d2'$$,
+  'arrived/moved: and is then taken — the money arrives on an UPDATE, which is the only way a Razorpay payment ever arrives');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set price_paise = 50000 where id = '220000ff-0022-4000-8000-6000000000d2'$q$),
+  'arrived/moved: the terms are now frozen — half the price has arrived, nothing has been granted, periods_granted is still 0, and that is exactly the window ADR-090 measured ten years of membership through');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-6000000000d2'::uuid),
+  100000::bigint,
+  'arrived/moved: and the price is unchanged at 100000 — refused AND unmoved');
+
+-- (iv) The plain part payment, all four terms at once, then the consequence:
+-- ADR-090's headline measured on its own fixture rather than re-quoted.
+-- Three refusals, three unchanged, then one further half payment that must
+-- buy exactly ONE period of the ORIGINAL length at the ORIGINAL price. If
+-- any of the three edits landed, this reads two periods, or 365 days, or —
+-- if the currency moved — nothing at all.
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001d3', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000d3', '220000ff-0022-4000-8000-6000000000d3', 50000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'arrived/part: half the price arrives, is receipted, and buys nothing — ordinary practice in an Indian gym, and the console says so on the page');
+
+select is(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-6000000000d3'::uuid),
+  0,
+  'arrived/part: baseline — real money in, nothing granted. This is the state round seven left every term open in');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set price_paise = 50000 where id = '220000ff-0022-4000-8000-6000000000d3'$q$),
+  'arrived/part: cutting the price is refused — the money was ALREADY being scored against it, whether or not it had crossed a multiple');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-6000000000d3'::uuid),
+  100000::bigint,
+  'arrived/part: the price is unchanged at 100000');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set currency = 'USD' where id = '220000ff-0022-4000-8000-6000000000d3'$q$),
+  'arrived/part: changing the currency is refused — re-denominating a membership that has taken rupees re-scores every rupee already on record');
+
+select is(
+  (select currency from public.memberships where id = '220000ff-0022-4000-8000-6000000000d3'::uuid),
+  'INR',
+  'arrived/part: the currency is unchanged at INR');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set plan_id = '220000ff-0022-4000-8000-400000000005' where id = '220000ff-0022-4000-8000-6000000000d3'$q$),
+  'arrived/part: repointing it at a 365-day plan is refused');
+
+select is(
+  (select plan_id from public.memberships where id = '220000ff-0022-4000-8000-6000000000d3'::uuid),
+  '220000ff-0022-4000-8000-400000000001'::uuid,
+  'arrived/part: the plan is unchanged');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001d4', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000d3', '220000ff-0022-4000-8000-6000000000d3', 50000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'arrived/part: the balance is paid — a renewal against a frozen membership must still work, and a fix that broke this would pass every refusal above');
+
+select is(
+  (select row(periods_granted, ends_on) from public.memberships where id = '220000ff-0022-4000-8000-6000000000d3'::uuid),
+  (select row(1, (select today from gym_today where org_key = 'A') + 30)),
+  'arrived/part: and the two halves bought exactly one 30-day period at the ORIGINAL price — the single assertion that reads wrong if any of the three refusals above merely raised while leaving the row edited');
+
+-- (v) MONEY PAID AND THEN FULLY REFUNDED. The grant total counts refunded
+-- money — "monotonic is what makes crossing a multiple mean anything" — so a
+-- membership whose only money has been handed back is still scored against
+-- its terms and must stay frozen. A thaw here is a free re-price reachable
+-- by paying and immediately refunding, and it looks like generosity in the
+-- ledger.
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001d5', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000d4', '220000ff-0022-4000-8000-6000000000d4', 50000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'arrived/refunded: half the price arrives');
+
+select lives_ok(
+  $$update public.payments set status = 'refunded' where id = '220000ff-0022-4000-8000-7000000001d5'$$,
+  'arrived/refunded: and is then handed back in full');
+
+select is(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-6000000000d4'::uuid),
+  0,
+  'arrived/refunded: nothing was ever granted, so the round-seven gate reads 0 here just as it does on an untouched membership');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set price_paise = 50000 where id = '220000ff-0022-4000-8000-6000000000d4'$q$),
+  'arrived/refunded: the terms are STILL frozen — the total counts refunded money, so this membership is still scored against its price, and a rule that thaws on refund sells a re-price for the cost of a same-day refund');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-6000000000d4'::uuid),
+  100000::bigint,
+  'arrived/refunded: unchanged at 100000');
+
+-- (vi) MONEY IN A CURRENCY THE MEMBERSHIP IS NOT PRICED IN. It grants
+-- nothing, so a freeze implemented by reusing the granting rule's own
+-- currency-FILTERED total sees no money at all. But the requirement's word
+-- is "any money has arrived AGAINST A MEMBERSHIP", not "any money in its
+-- currency" — and the alternative is a live exploit in the other direction:
+-- take foreign money against an INR membership, then re-point `currency` at
+-- it, and every unit of it scores. SIDED by this author and reported.
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001d6', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000d5', '220000ff-0022-4000-8000-6000000000d5', 100000, 'USD', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'arrived/currency: money in a currency the membership is not priced in is recorded and receipted');
+
+select is(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-6000000000d5'::uuid),
+  0,
+  'arrived/currency: baseline — it grants nothing, which is MNY-002 and is correct');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set currency = 'USD' where id = '220000ff-0022-4000-8000-6000000000d5'$q$),
+  'arrived/currency: re-denominating the membership at the currency that money came in is refused — otherwise "take foreign money, then re-price the membership into it" is a two-statement route to everything GL043 exists to stop, and a freeze keyed on the granting rule''s own currency-FILTERED total cannot see it coming');
+
+select is(
+  (select currency from public.memberships where id = '220000ff-0022-4000-8000-6000000000d5'::uuid),
+  'INR',
+  'arrived/currency: the currency is unchanged at INR');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set price_paise = 50000 where id = '220000ff-0022-4000-8000-6000000000d5'$q$),
+  'arrived/currency: and the price is frozen by that money too — money that has arrived against the membership is money that has arrived, however it is denominated');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-6000000000d5'::uuid),
+  100000::bigint,
+  'arrived/currency: unchanged at 100000');
+
+-- (vii) A payment against a DIFFERENT membership of the same member. A
+-- freeze keyed on the member rather than the membership passes every refusal
+-- above and locks a row nobody has paid a paisa against.
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001d7', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000d6', '220000ff-0022-4000-8000-6000000000d6', 50000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'arrived/sibling: money arrives against ONE of this member''s two memberships');
+
+select lives_ok(
+  $$update public.memberships set price_paise = 90000 where id = '220000ff-0022-4000-8000-6000000000d7'$$,
+  'arrived/sibling: the member''s OTHER membership, which has taken nothing, is still fully editable — the freeze is per membership, and one keyed on the member locks rows no money was ever scored against');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-6000000000d7'::uuid),
+  90000::bigint,
+  'arrived/sibling: and that correction landed');
+
+-- (viii) A payment INSERTED against one membership and MOVED to another
+-- while it is still a working document, then paid. The money arrives at the
+-- membership the row names WHEN IT IS PAID, not the one it named when it was
+-- written — so the first must stay open and the second must freeze. A rule
+-- that remembers "a payment once named this membership", or that reads
+-- `old.membership_id`, gets both halves of this backwards.
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001d8', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000d7', '220000ff-0022-4000-8000-6000000000d8', 50000, 'cash', 'created', '220000ff-0022-4000-8000-300000000001')$$,
+  'arrived/moved-row: a payment is raised at created against the first membership');
+
+select lives_ok(
+  $$update public.payments set membership_id = '220000ff-0022-4000-8000-6000000000d9', member_id = '220000ff-0022-4000-8000-5000000000d8' where id = '220000ff-0022-4000-8000-7000000001d8'$$,
+  'arrived/moved-row: and re-pointed at a second membership while still unpaid — legitimate, because a payment only becomes a record once it has been paid');
+
+select lives_ok(
+  $$update public.payments set status = 'paid' where id = '220000ff-0022-4000-8000-7000000001d8'$$,
+  'arrived/moved-row: then the money arrives');
+
+select lives_ok(
+  $$update public.memberships set price_paise = 90000 where id = '220000ff-0022-4000-8000-6000000000d8'$$,
+  'arrived/moved-row: the membership the payment was WRITTEN against stays fully editable — no money ever arrived there');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-6000000000d8'::uuid),
+  90000::bigint,
+  'arrived/moved-row: and that correction landed');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set price_paise = 50000 where id = '220000ff-0022-4000-8000-6000000000d9'$q$),
+  'arrived/moved-row: while the membership the payment was PAID against is frozen — the freeze follows the money, not the history of the row that carried it');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-6000000000d9'::uuid),
+  100000::bigint,
+  'arrived/moved-row: unchanged at 100000');
+
+-- ---------------------------------------------------------------------------
+-- 17e. MULTI-ROW AND MULTI-STATEMENT. Every defect in this phase survived
+-- the single-row case and died on one of these. Section 16f did this for
+-- GL044's column; GL043's terms have never been tested in any of these
+-- shapes, and a rule written as a row trigger reading `old`/`new` behaves
+-- differently in each.
+-- ---------------------------------------------------------------------------
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001e0', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000e0', '220000ff-0022-4000-8000-6000000000e0', 50000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'multi/setup: one of the two multi-row fixtures has taken money; the other has taken nothing');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set price_paise = 50000 where id in ('220000ff-0022-4000-8000-6000000000e0', '220000ff-0022-4000-8000-6000000000e1')$q$),
+  'multi/rows: one statement cutting the price of several memberships, only SOME of which have money, is refused');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-6000000000e0'::uuid),
+  100000::bigint,
+  'multi/rows: the membership with money is unchanged');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-6000000000e1'::uuid),
+  100000::bigint,
+  'multi/rows: and so is the one without — the whole statement was refused, not half-applied, so the desk is never left unable to tell which of its edits landed');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships m set price_paise = 60000 from public.plans p where p.id = m.plan_id and m.id = '220000ff-0022-4000-8000-6000000000e0'$q$),
+  'multi/update-from: the same cut written as UPDATE ... FROM is refused');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-6000000000e0'::uuid),
+  100000::bigint,
+  'multi/update-from: unchanged at 100000');
+
+select ok(
+  pg_temp.h22r8_refused($q$merge into public.memberships m using (select '220000ff-0022-4000-8000-6000000000e0'::uuid as id) s on m.id = s.id when matched then update set price_paise = 60000$q$),
+  'multi/merge: and written as MERGE — measured working from an ordinary front-desk session on 2026-09-09 against GL044''s column, which is why it is asked of GL043''s terms too');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-6000000000e0'::uuid),
+  100000::bigint,
+  'multi/merge: unchanged at 100000');
+
+select ok(
+  pg_temp.h22r8_refused($q$with p as (insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id) values ('220000ff-0022-4000-8000-7000000001e1', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000e2', '220000ff-0022-4000-8000-6000000000e2', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001') returning membership_id) update public.memberships set price_paise = 50000 where id in (select membership_id from p)$q$),
+  'multi/cte: a data-modifying CTE that takes the FIRST payment and cuts the price in the SAME statement is refused — the money and the edit are simultaneous, which is the one ordering a rule reading the payments table cannot assume away');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-6000000000e2'::uuid),
+  100000::bigint,
+  'multi/cte: the price is unchanged at 100000');
+
+select ok(
+  not exists (select 1 from public.payments where id = '220000ff-0022-4000-8000-7000000001e1'::uuid),
+  'multi/cte: and the payment inside that CTE was not written either — the whole statement was refused, so the gym has not silently banked money against a price it was refused permission to set');
+
+select lives_ok(
+  $$update public.memberships set status = 'frozen' where id = '220000ff-0022-4000-8000-6000000000e0'$$,
+  'multi/two-statements: a first, entirely legitimate statement in the transaction — freezing a membership is not a change of terms');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set price_paise = 50000 where id = '220000ff-0022-4000-8000-6000000000e0'$q$),
+  'multi/two-statements: the second statement, in the same transaction, is still refused — a rule that arms or disarms per transaction rather than per statement passes everything else in this file and fails here');
+
+select ok(
+  (select status = 'frozen'::membership_status and price_paise = 100000
+     from public.memberships where id = '220000ff-0022-4000-8000-6000000000e0'::uuid),
+  'multi/two-statements: the legitimate first statement stands and the refused second one did not land — a refusal that rolled the whole transaction back would be a different, and also wrong, answer');
+
+select lives_ok(
+  $$update public.memberships set status = 'active' where id = '220000ff-0022-4000-8000-6000000000e0'$$,
+  'multi/two-statements: and the fixture is restored, which is itself the unfreeze case');
+
+-- ---------------------------------------------------------------------------
+-- 17f. GL039 — a payment does not arrive already refunded. Both statuses
+-- count toward the grant total, neither extends anything at the time, and
+-- neither takes a receipt number (payments_paid_has_reference_chk names only
+-- `paid`), so a payment written straight to `refunded` is grant credit on
+-- the books that no receipt names, waiting for any later payment to cash it
+-- in. Asserted as two refusals, two absences, the HARM behind them, the four
+-- statuses that must still insert, and the trusted writer.
+-- ---------------------------------------------------------------------------
+
+select ok(
+  pg_temp.h22r8_refused($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id) values ('220000ff-0022-4000-8000-7000000001f0', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000f0', '220000ff-0022-4000-8000-6000000000f0', 300000, 'cash', 'refunded', '220000ff-0022-4000-8000-300000000001')$q$),
+  'GL039: a payment inserted straight at `refunded` is refused — a payment is recorded and THEN refunded; it does not arrive that way');
+
+select ok(
+  not exists (select 1 from public.payments where id = '220000ff-0022-4000-8000-7000000001f0'::uuid),
+  'GL039: and nothing landed — refused AND unwritten');
+
+select ok(
+  pg_temp.h22r8_refused($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id) values ('220000ff-0022-4000-8000-7000000001f1', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000f0', '220000ff-0022-4000-8000-6000000000f0', 300000, 'cash', 'reversed', '220000ff-0022-4000-8000-300000000001')$q$),
+  'GL039: and one inserted straight at `reversed` is refused too — the same presupposition, and the status a replayed provider event arrives as');
+
+select ok(
+  not exists (select 1 from public.payments where id = '220000ff-0022-4000-8000-7000000001f1'::uuid),
+  'GL039: and nothing landed');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001f2', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000f0', '220000ff-0022-4000-8000-6000000000f0', 1, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'GL039/harm: one paisa is then taken against the same 3,000-rupee membership');
+
+select is(
+  (select row(periods_granted, ends_on) from public.memberships where id = '220000ff-0022-4000-8000-6000000000f0'::uuid),
+  (select row(0, (select today from gym_today where org_key = 'A'))),
+  'GL039/harm: and it buys nothing — the harm behind the refusal is gone, not merely the write. Measured before the rule: a 3,000-rupee `refunded` insert plus one paisa granted the periods that money would have bought, with no receipt naming any of it');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001f3', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000f1', '220000ff-0022-4000-8000-6000000000f1', 1, 'cash', 'created', '220000ff-0022-4000-8000-300000000001')$$,
+  'GL039/permitted: `created` is unaffected');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001f4', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000f1', '220000ff-0022-4000-8000-6000000000f1', 1, 'cash', 'pending', '220000ff-0022-4000-8000-300000000001')$$,
+  'GL039/permitted: `pending` is unaffected');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001f5', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000f1', '220000ff-0022-4000-8000-6000000000f1', 1, 'cash', 'failed', '220000ff-0022-4000-8000-300000000001')$$,
+  'GL039/permitted: `failed` is unaffected');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000001f6', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000f1', '220000ff-0022-4000-8000-6000000000f1', 1, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'GL039/permitted: `paid` is unaffected — a rule matching on "a status that is not created" would close GL039 and every ordinary payment with it');
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+set local role service_role;
+
+select ok(
+  pg_temp.h22r8_refused($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id) values ('220000ff-0022-4000-8000-7000000001f7', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000f2', '220000ff-0022-4000-8000-6000000000f2', 300000, 'cash', 'refunded', '220000ff-0022-4000-8000-300000000001')$q$),
+  'GL039/service_role: the trusted writer is refused too. SIDED BY THIS AUTHOR AND REPORTED — GL039 names no writer, but the harm is writer-independent (grant credit no receipt names), the transitions requirement three above it says in terms that it applies to every writer, and the webhook is the caller most likely to replay an old refund event for a payment it never recorded');
+
+select ok(
+  not exists (select 1 from public.payments where id = '220000ff-0022-4000-8000-7000000001f7'::uuid),
+  'GL039/service_role: and nothing landed');
+
+set local role postgres;
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+set local role authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 17g. The permitted side of GL043, on a membership against which no money
+-- has arrived at all: all four terms stay correctable, in one ordinary
+-- column-listing update of the kind a console form writes. A fix that is too
+-- broad passes every refusal in this file, and this project has shipped one
+-- three times.
+-- ---------------------------------------------------------------------------
+
+select lives_ok(
+  $$update public.memberships set price_paise = 80000, currency = 'USD', plan_id = '220000ff-0022-4000-8000-400000000005' where id = '220000ff-0022-4000-8000-6000000000f3'$$,
+  'permitted/pre-money: price, currency and plan corrected together on a membership that has taken nothing — the whole point of "correcting a mistyped price or a wrong plan before any money has arrived stays free"');
+
+select ok(
+  (select price_paise = 80000 and currency = 'USD' and plan_id = '220000ff-0022-4000-8000-400000000005'::uuid
+     from public.memberships where id = '220000ff-0022-4000-8000-6000000000f3'::uuid),
+  'permitted/pre-money: and every one of the three landed');
+
+select lives_ok(
+  $$update public.memberships set status = 'frozen' where id = '220000ff-0022-4000-8000-6000000000d3'$$,
+  'permitted/frozen-membership: a part-paid, term-frozen membership can still be frozen — status is not a term the money was scored against, and 17d(iv) already proved a renewal against it still works');
+
+select is(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-6000000000d3'::uuid),
+  1,
+  'permitted/frozen-membership: and nothing about that disturbed the count');
+
 
 set local role postgres;
 select set_config('request.jwt.claims', '', true);
