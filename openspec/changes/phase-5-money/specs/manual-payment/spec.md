@@ -75,17 +75,16 @@ A receipt is what a gym is audited against. Two payments sharing a number, or a 
 - **THEN** its receipt number SHALL remain on the original row and SHALL NOT be issued again
 
 ### Requirement: A payment extends the membership on the same rules an online one would
-WHEN a payment is recorded as paid against a membership, THE SYSTEM SHALL extend that membership exactly as a verified online payment would
+WHEN a payment is recorded as paid against a membership, THE SYSTEM SHALL extend that membership exactly as a verified online payment would (PAY-008, PAY-011).
 
 > **Narrowed by `payment-record/spec.md`, "Money does not extend a membership
 > that has been retired".** This sentence is unconditional and a `cancelled` or
 > `expired` membership is the exception: the payment is still recorded,
 > receipted, attributed, refundable and bounded by `GL036`, and the membership
-> does not move. Written here because a critic pointed out that this file said
-> "SHALL extend" 476 lines away from the exception, and the next blind author
-> reads whichever they open first — which is the same defect, in the same
-> phase, that the supersession note a few lines below was invented to fix.
- (PAY-008, PAY-011).
+> does not move.
+> The exception lives in another file, which is exactly why it is repeated here —
+> a blind author reading only this one would stage a cancelled membership and get
+> a red assertion against correct code.
 
 The renewal pipeline must not be able to tell the two apart. If it can, a gym on the manual path gets a second-class product — which is the thing the owner's decision rules out.
 

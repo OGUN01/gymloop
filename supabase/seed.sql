@@ -879,7 +879,6 @@ update public.memberships m
 
 alter table public.memberships enable trigger memberships_terms_frozen;
 
-
 drop table seed_membership_period;
 
 
@@ -1399,3 +1398,40 @@ on conflict (id) do update set
   related_type  = excluded.related_type,
   related_id    = excluded.related_id,
   payload       = excluded.payload;
+
+
+-- ---------------------------------------------------------------------------
+-- The receipt book knows what the seed issued.
+-- ---------------------------------------------------------------------------
+--
+-- **The seed issues receipt numbers, so the counter has to know.** It writes
+-- them through `app.stamp_payment()`'s trusted-writer path, which keeps a
+-- supplied number and — correctly, for a webhook — does not advance
+-- `document_counters`. The moment the seeded numbers moved into the allocator's
+-- own `FY/NNNNNN` grammar, that left a freshly seeded gym holding
+-- `2026-27/000001` with no counter row at all, so the first payment taken at the
+-- desk allocated `000001`, collided on
+-- `payments_tenant_id_receipt_number_key`, and **the failing insert rolled the
+-- counter's own increment back with it** — so the next attempt collided on the
+-- same number, for ever. Cash taken, nothing written, and a retry that can never
+-- succeed. That is the exact harm `payment-record/spec.md` names under "A
+-- receipt number is the counter's alone", reached by the one writer the
+-- requirement's own subject line puts outside itself.
+--
+-- The instrument is the one that requirement already sanctions — "Staging a
+-- counter forward … SHALL succeed, leaving a gap". `greatest` keeps it
+-- forward-only, so `app.enforce_counter_monotonic()` (`GL037`) is satisfied
+-- rather than worked around, and a re-run moves nothing.
+insert into public.document_counters (tenant_id, kind, financial_year, next_number)
+select p.tenant_id,
+       'receipt',
+       split_part(p.receipt_number, '/', 1),
+       max(split_part(p.receipt_number, '/', 2)::int) + 1
+  from public.payments p
+ where p.tenant_id = '00000001-0000-4000-8000-000000000001'::uuid
+   and p.receipt_number is not null
+   and p.receipt_number ~ '^[0-9]{4}-[0-9]{2}/[0-9]+$'
+ group by p.tenant_id, split_part(p.receipt_number, '/', 1)
+on conflict (tenant_id, kind, financial_year) do update
+  set next_number = greatest(public.document_counters.next_number, excluded.next_number),
+      updated_at  = now();

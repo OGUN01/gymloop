@@ -219,10 +219,10 @@ has now reached, and no period for money that has not reached one.
 > that has been retired".** This sentence is unconditional and a `cancelled` or
 > `expired` membership is the exception: the payment is still recorded,
 > receipted, attributed, refundable and bounded by `GL036`, and the membership
-> does not move. Written here because a critic pointed out that this file said
-> "SHALL extend" 476 lines away from the exception, and the next blind author
-> reads whichever they open first — which is the same defect, in the same
-> phase, that the supersession note a few lines below was invented to fix.
+> does not move.
+> The exception is 476 lines below this sentence in this same file, which is far
+> enough that a reader can hold one and not the other — the distance is the
+> defect, not the disagreement.
 
 
 **Two half payments bought two months.** ADR-083 closed the create-then-pay

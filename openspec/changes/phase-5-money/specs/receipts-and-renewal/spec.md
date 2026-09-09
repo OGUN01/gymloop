@@ -34,10 +34,10 @@ WHEN a payment against a membership is `paid`, THE SYSTEM SHALL extend that memb
 > that has been retired".** This sentence is unconditional and a `cancelled` or
 > `expired` membership is the exception: the payment is still recorded,
 > receipted, attributed, refundable and bounded by `GL036`, and the membership
-> does not move. Written here because a critic pointed out that this file said
-> "SHALL extend" 476 lines away from the exception, and the next blind author
-> reads whichever they open first — which is the same defect, in the same
-> phase, that the supersession note a few lines below was invented to fix.
+> does not move.
+> Note this is the second narrowing of the same sentence: the note a few lines
+> below records the first, when the cumulative rule superseded "extend by the
+> plan's duration" full stop.
 
 
 > **Superseded in detail by `payment-record/spec.md`, "A period is granted when it has been paid for".** As first written this requirement said a paid payment extends by the plan's duration full stop, and a critic pointed out that it now contradicts the cumulative rule for every part payment — two documents in one change, and the next blind test author reads whichever they open first. The cumulative rule is the one to build against; this requirement's scenarios below remain true for a payment of the full price, which is the ordinary case.
