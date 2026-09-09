@@ -323,7 +323,7 @@ begin;
 
 set local role postgres;
 
-select plan(686);
+select plan(701);
 
 -- ---------------------------------------------------------------------------
 -- 0. Fixtures.
@@ -7072,6 +7072,218 @@ select diag(
 
 set local role postgres;
 select set_config('request.jwt.claims', '', true);
+
+
+-- ---------------------------------------------------------------------------
+-- 23. ROUND SIXTEEN, GL037 — THE EQUAL WRITE. Gym A.
+--
+-- Section 5 of this file tests the counter with a decrease, a +1, a +25 and a
+-- delete. The visible suite tests a decrease, a +5, a +1 and a delete.
+-- NEITHER EVER WROTE `next_number` TO THE VALUE IT ALREADY HELD. The
+-- requirement — "SHALL refuse any change to document_counters.next_number
+-- that does not increase it" — covers standing still as squarely as it covers
+-- going backwards, and `app.enforce_counter_monotonic()` refuses on `<=`, not
+-- on `<`. Both suites had a hole exactly where that assertion should be.
+--
+-- The hole was found the expensive way, by a critic reading a real defect
+-- rather than by either suite: a seed block written as `greatest(current,
+-- new)` fires its DO UPDATE arm unconditionally, so the second time it ran —
+-- once the counter had caught up — it wrote the value back unchanged, GL037
+-- refused it, and the seed died. That would have turned CI red the first time
+-- anyone took a payment at the desk. One assertion would have caught it.
+--
+-- WRITTEN BY THE SAME AUTHOR AS THE VISIBLE SUITE'S SECTION 24, which is a
+-- deliberate, recorded deviation from the two-author arrangement (AGENTS.md
+-- hard rule 10 / ADR-059) and the SECOND time this phase — the round-twelve
+-- sections were the first. It is stated here rather than left to be inferred.
+-- The reason it was traded: there is no design to converge on. The rule is
+-- already implemented and already has full batteries in both suites; what is
+-- missing is one assertion SHAPE, named precisely by the defect that exposed
+-- it, and a second author reading the same sentence would write the same four
+-- statements. Independence buys convergence on an open question, and there is
+-- no open question here. Being explicit about that is the point of the note.
+--
+-- THE DISTINCTION THE SECTION EXISTS TO DRAW, and the whole lesson of the
+-- defect: two upsert shapes differ by one clause and by everything else.
+--
+--   do update set next_number = greatest(document_counters.next_number,
+--                                        excluded.next_number)
+--     -- the UPDATE ALWAYS fires. Caught up, greatest() writes the row's own
+--     -- value back, and GL037 REFUSES it. "Never go backwards" expressed as
+--     -- a value is not the same as expressed as a condition.
+--
+--   do update set next_number = excluded.next_number
+--     where excluded.next_number > document_counters.next_number
+--     -- the UPDATE DOES NOT FIRE at all when the guard is false. No row
+--     -- touched, no trigger, no exception, counter unmoved.
+--
+-- "Refused" and "did not fire" are the two outcomes of offering a counter a
+-- value it already has, and they are indistinguishable by reading the counter
+-- afterwards — which is why the zero-rows assertion below exists and why the
+-- counter reads alone would not have caught the defect either.
+--
+-- The one-less and one-more boundaries are NOT restated: section 5 above
+-- already asserts a decrease refused and a +1 and +25 permitted on this same
+-- rule and this same gym. What is added is the missing middle, in each shape
+-- it actually arrives in, plus the guarded form firing when it SHOULD, so
+-- none of the "no update" assertions could be satisfied by a statement that
+-- is simply inert (ADR-078).
+--
+-- The counter used is a fresh `invoice` row rather than gym A's receipt row,
+-- which by this point in the file is wherever ~700 assertions of real payment
+-- traffic have left it. A second row on the same tenant and financial year is
+-- also what the multi-row statement at the end needs, and `invoice` is a kind
+-- neither suite uses anywhere else.
+-- ---------------------------------------------------------------------------
+
+insert into public.document_counters (tenant_id, kind, financial_year, next_number)
+values ('220000ff-0022-4000-8000-100000000001', 'invoice',
+        (select fy from gym_today where org_key = 'A'), 7);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+set local role authenticated;
+
+select throws_ok(
+  $$update public.document_counters set next_number = next_number
+      where tenant_id = '220000ff-0022-4000-8000-100000000001' and kind = 'invoice'$$,
+  'GL037'::char(5), null,
+  'r16/equal: the plainest equal write — next_number set to the value it already holds — is refused with GL037. Neither an increase nor a decrease, and "only ever counts up" excludes standing still');
+
+select is(
+  (select next_number from public.document_counters where tenant_id = '220000ff-0022-4000-8000-100000000001' and kind = 'invoice' and financial_year = (select fy from gym_today where org_key = 'A')),
+  7,
+  'r16/equal: and the counter is exactly where it was — a refusal that still moved the value would be worse than no refusal at all');
+
+select throws_ok(
+  $$insert into public.document_counters (tenant_id, kind, financial_year, next_number)
+    values ('220000ff-0022-4000-8000-100000000001', 'invoice', (select fy from gym_today where org_key = 'A'), 7)
+    on conflict (tenant_id, kind, financial_year) do update
+      set next_number = greatest(document_counters.next_number, excluded.next_number)$$,
+  'GL037'::char(5), null,
+  'r16/equal: THE SHAPE THE DEFECT ARRIVED IN. insert … on conflict … do update set next_number = greatest(current, excluded), with the row already AT the excluded value, is refused with GL037 — greatest() returns the current value, the DO UPDATE arm fires anyway, and the write is equal');
+
+select is(
+  (select next_number from public.document_counters where tenant_id = '220000ff-0022-4000-8000-100000000001' and kind = 'invoice' and financial_year = (select fy from gym_today where org_key = 'A')),
+  7,
+  'r16/equal: and the counter is still 7 after the refused greatest() upsert');
+
+select throws_ok(
+  $$insert into public.document_counters (tenant_id, kind, financial_year, next_number)
+    values ('220000ff-0022-4000-8000-100000000001', 'invoice', (select fy from gym_today where org_key = 'A'), 3)
+    on conflict (tenant_id, kind, financial_year) do update
+      set next_number = greatest(document_counters.next_number, excluded.next_number)$$,
+  'GL037'::char(5), null,
+  'r16/equal: the same greatest() upsert offered a value the row is already PAST is refused with GL037 too — the steady state of a re-run seed. The refusal is for an EQUAL write, not for a decrease caught by accident: greatest() never offers the lower number');
+
+select is(
+  (select next_number from public.document_counters where tenant_id = '220000ff-0022-4000-8000-100000000001' and kind = 'invoice' and financial_year = (select fy from gym_today where org_key = 'A')),
+  7,
+  'r16/equal: and the counter is still 7 after that one as well');
+
+select lives_ok(
+  $$insert into public.document_counters (tenant_id, kind, financial_year, next_number)
+    values ('220000ff-0022-4000-8000-100000000001', 'invoice', (select fy from gym_today where org_key = 'A'), 7)
+    on conflict (tenant_id, kind, financial_year) do update
+      set next_number = excluded.next_number
+      where excluded.next_number > document_counters.next_number$$,
+  'r16/guard: THE PERMITTED NEIGHBOUR. One clause different — the DO UPDATE carries its own WHERE — and offering the row the value it already holds is not refused, because no UPDATE is attempted and there is nothing for GL037 to judge');
+
+with u as (
+  insert into public.document_counters (tenant_id, kind, financial_year, next_number)
+  values ('220000ff-0022-4000-8000-100000000001', 'invoice', (select fy from gym_today where org_key = 'A'), 7)
+  on conflict (tenant_id, kind, financial_year) do update
+    set next_number = excluded.next_number
+    where excluded.next_number > document_counters.next_number
+  returning 1
+)
+select is(
+  (select count(*)::int from u), 0,
+  'r16/guard: and it touched NO ROW AT ALL — a data-modifying CTE returns one row per row actually written, and it returned none. This is the assertion that separates "did not fire" from "was refused"; the counter reads cannot, because both leave it at 7. Running the statement a second time here is itself the proof that it is a no-op');
+
+set local role postgres;
+
+select is(
+  (select next_number from public.document_counters where tenant_id = '220000ff-0022-4000-8000-100000000001' and kind = 'invoice' and financial_year = (select fy from gym_today where org_key = 'A')),
+  7,
+  'r16/guard: the counter is unmoved after both no-op upserts, read outside the session that ran them');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+set local role authenticated;
+
+select lives_ok(
+  $$insert into public.document_counters (tenant_id, kind, financial_year, next_number)
+    values ('220000ff-0022-4000-8000-100000000001', 'invoice', (select fy from gym_today where org_key = 'A'), 3)
+    on conflict (tenant_id, kind, financial_year) do update
+      set next_number = excluded.next_number
+      where excluded.next_number > document_counters.next_number$$,
+  'r16/guard: the guarded upsert offered a value BELOW the row''s is also not refused — a decrease that never fires is not a decrease, so a seed that has fallen behind the live counter is silent rather than fatal');
+
+select is(
+  (select next_number from public.document_counters where tenant_id = '220000ff-0022-4000-8000-100000000001' and kind = 'invoice' and financial_year = (select fy from gym_today where org_key = 'A')),
+  7,
+  'r16/guard: and the counter did not move BACKWARDS either — the guard protects the value as well as the statement, which a bare do-update would not');
+
+select lives_ok(
+  $$insert into public.document_counters (tenant_id, kind, financial_year, next_number)
+    values ('220000ff-0022-4000-8000-100000000001', 'invoice', (select fy from gym_today where org_key = 'A'), 9)
+    on conflict (tenant_id, kind, financial_year) do update
+      set next_number = excluded.next_number
+      where excluded.next_number > document_counters.next_number$$,
+  'r16/guard: THE OTHER DIRECTION (ADR-078). Offered a HIGHER value the same statement fires and is permitted — everything above would be green for a guarded upsert that never wrote anything under any circumstances, which is a broken seed that reports success');
+
+set local role postgres;
+
+select is(
+  (select next_number from public.document_counters where tenant_id = '220000ff-0022-4000-8000-100000000001' and kind = 'invoice' and financial_year = (select fy from gym_today where org_key = 'A')),
+  9,
+  'r16/guard: and it landed on exactly 9 — the guarded form really does advance the counter, so the four no-op assertions are about a working statement rather than an inert one');
+
+create temp table h22r16_before as
+  select kind, next_number from public.document_counters
+   where tenant_id = '220000ff-0022-4000-8000-100000000001'
+     and financial_year = (select fy from gym_today where org_key = 'A');
+grant select on h22r16_before to public;
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+set local role authenticated;
+
+select throws_ok(
+  $$update public.document_counters
+       set next_number = case when kind = 'receipt' then next_number + 1 else next_number end
+     where tenant_id = '220000ff-0022-4000-8000-100000000001'
+       and financial_year = (select fy from gym_today where org_key = 'A')$$,
+  'GL037'::char(5), null,
+  'r16/multirow: ONE statement, TWO rows — the receipt counter genuinely advances and the invoice counter is written its own value back — is refused with GL037. The trigger is FOR EACH ROW, and a rule that judged the statement''s net effect, or excused a standing row because a sibling moved forward, would let this through');
+
+set local role postgres;
+
+select is(
+  (select string_agg(kind || '=' || next_number, ',' order by kind) from public.document_counters
+     where tenant_id = '220000ff-0022-4000-8000-100000000001'
+       and financial_year = (select fy from gym_today where org_key = 'A')),
+  (select string_agg(kind || '=' || next_number, ',' order by kind) from h22r16_before),
+  'r16/multirow: and BOTH rows are exactly where they were before the statement. The receipt row''s increase was legal on its own and still went back with the refusal — a refused row aborts the statement rather than being skipped, which is the difference between a receipt book and a suggestion');
 
 select * from finish();
 

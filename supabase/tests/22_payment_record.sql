@@ -427,7 +427,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(493);
+select plan(508);
 
 
 -- ---------------------------------------------------------------------------
@@ -8585,6 +8585,313 @@ select results_eq(
                    '22000000-0000-4000-8000-00000020101b'::uuid) $$,
   $$ select 5, 5, 5, 5 $$,
   'retired/shapes: all five shape payments are on the books, paid, receipted and stamped. The requirement records the money in every shape and extends nothing in any of them'
+);
+
+
+
+-- ===========================================================================
+-- SECTION 24 (ROUND SIXTEEN, GL037) — "The receipt counter only ever counts
+-- up": THE EQUAL WRITE. Tenant 4, reusing Section 4's fixtures.
+-- Assertions 494-508.
+--
+-- WHY THIS SECTION EXISTS. Section 4 above tests a decrease, +5, +1 and a
+-- delete. The holdout tests a decrease, +1, +25 and a delete. NEITHER SUITE
+-- EVER WROTE `next_number` TO THE VALUE IT ALREADY HELD. The requirement is
+-- "SHALL refuse any change to document_counters.next_number that does not
+-- increase it", and "does not increase" includes leaving it exactly where it
+-- was — so the equal write is a refusal, and both suites had a hole where the
+-- assertion for it should be.
+--
+-- The hole was found the expensive way. A seed block written as
+-- `greatest(current, new)` produced an exactly-equal UPDATE the second time it
+-- ran, once the counter had caught up; GL037 refused it and the seed died. An
+-- assertion for the equal case would have caught that before it shipped, and
+-- closing it is the whole of this round.
+--
+-- A DELIBERATE, RECORDED DEVIATION FROM THE TWO-AUTHOR ARRANGEMENT (hard rule
+-- 10 / ADR-059), and the SECOND time this phase — sections 21 and 22 of this
+-- file were the first. This section and its holdout counterpart (h22 section
+-- 23) were written by the SAME author. The independence was traded knowingly,
+-- not forgotten: there is no design here to converge on. The rule already
+-- exists and is already implemented, the gap is one assertion SHAPE on a rule
+-- both suites already carry full batteries for, and a second author reading
+-- the same one-sentence requirement would write the same four statements.
+-- Stated here so the next reader sees the trade rather than assuming the
+-- arrangement held.
+--
+-- THE DISTINCTION THIS SECTION EXISTS TO DRAW. Two upsert shapes differ by one
+-- clause and by everything else:
+--
+--   on conflict … do update
+--     set next_number = greatest(document_counters.next_number, excluded.next_number)
+--       -- ALWAYS fires the UPDATE. Once the row has caught up, greatest()
+--       -- writes the value back unchanged, and GL037 REFUSES it.
+--
+--   on conflict … do update
+--     set next_number = excluded.next_number
+--     where excluded.next_number > document_counters.next_number
+--       -- when the guard is false, does not fire the UPDATE AT ALL: no row
+--       -- touched, no trigger, no exception, counter unmoved.
+--
+-- "Refused" and "did not fire" are the two outcomes, and the seed's defect was
+-- reaching for the first shape while meaning the second. Both are asserted.
+--
+-- THE BOUNDARY IS NOT RE-ASSERTED HERE IN FULL, deliberately. One-less (a
+-- decrease) is assertions 32/33 above and one-more is 34-37, on this same rule
+-- and this same tenant; duplicating them buys nothing. This section adds the
+-- missing middle — equal — in every shape it actually arrives in, and asserts
+-- that the guarded form DOES fire when it should (505/506), so the "no update"
+-- assertions are honest in both directions rather than being satisfied by a
+-- statement that never does anything (ADR-078).
+-- ===========================================================================
+
+grant select on fy_t4 to public;
+
+-- A counter of its own at a known value, rather than section 4's receipt row
+-- at wherever the hand-edits left it: this section needs a SECOND row on the
+-- same tenant and financial year for the multi-row statement at 507, and the
+-- 'invoice' kind is used by neither suite anywhere else.
+insert into public.document_counters (tenant_id, kind, financial_year, next_number)
+values ('22000000-0000-4000-8000-000000000004'::uuid, 'invoice', (select fy from fy_t4), 7);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000004',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000000024')::text,
+  true);
+set local role authenticated;
+
+-- 494 — the equal write in its plainest form. Neither an increase nor a
+-- decrease: the value the row already holds, written back over itself.
+select throws_ok($$
+  update public.document_counters set next_number = next_number
+   where tenant_id = '22000000-0000-4000-8000-000000000004'::uuid and kind = 'invoice'
+$$, 'GL037'::char(5), null,
+  'the equal write — next_number set to the value it already holds — is refused with GL037. "Only ever counts up" excludes standing still, and the rule''s own predicate is <=, not <');
+
+set local role postgres;
+
+-- 495
+select results_eq(
+  $$ select next_number from public.document_counters
+      where tenant_id = '22000000-0000-4000-8000-000000000004'::uuid and kind = 'invoice' $$,
+  $$ values (7) $$,
+  'next_number is still 7 after the refused equal write — refusing and then moving it anyway would be worse than not refusing'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000004',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000000024')::text,
+  true);
+set local role authenticated;
+
+-- 496 — the shape it actually arrives in. `greatest(current, new)` reads as
+-- "never go backwards" and is exactly the seed block that died: the moment the
+-- row has caught up to the value being offered, greatest() returns the value
+-- already there and the DO UPDATE arm fires an equal write.
+select throws_ok($$
+  insert into public.document_counters (tenant_id, kind, financial_year, next_number)
+  values ('22000000-0000-4000-8000-000000000004'::uuid, 'invoice', (select fy from fy_t4), 7)
+  on conflict (tenant_id, kind, financial_year) do update
+    set next_number = greatest(document_counters.next_number, excluded.next_number)
+$$, 'GL037'::char(5), null,
+  'insert … on conflict … do update set next_number = greatest(current, excluded), with the row already AT the excluded value, is refused with GL037. This is the seed''s own statement, and the second run is where it dies');
+
+set local role postgres;
+
+-- 497
+select results_eq(
+  $$ select next_number from public.document_counters
+      where tenant_id = '22000000-0000-4000-8000-000000000004'::uuid and kind = 'invoice' $$,
+  $$ values (7) $$,
+  'next_number is still 7 after the refused greatest() upsert'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000004',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000000024')::text,
+  true);
+set local role authenticated;
+
+-- 498 — the same shape with the row already BEYOND the offered value, which is
+-- the ordinary steady state of a re-run seed. greatest() collapses to the
+-- current value again, so this too is an equal write and not a decrease: the
+-- refusal must be GL037, not a decrease being caught by accident.
+select throws_ok($$
+  insert into public.document_counters (tenant_id, kind, financial_year, next_number)
+  values ('22000000-0000-4000-8000-000000000004'::uuid, 'invoice', (select fy from fy_t4), 3)
+  on conflict (tenant_id, kind, financial_year) do update
+    set next_number = greatest(document_counters.next_number, excluded.next_number)
+$$, 'GL037'::char(5), null,
+  'the same greatest() upsert with the row already PAST the excluded value is also refused with GL037 — greatest() collapses to the current value, so the statement that was meant to be a no-op is an equal write');
+
+set local role postgres;
+
+-- 499
+select results_eq(
+  $$ select next_number from public.document_counters
+      where tenant_id = '22000000-0000-4000-8000-000000000004'::uuid and kind = 'invoice' $$,
+  $$ values (7) $$,
+  'next_number is still 7 after that refusal too'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000004',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000000024')::text,
+  true);
+set local role authenticated;
+
+-- 500 — THE PERMITTED NEIGHBOUR, and the point of the whole section. One
+-- clause different: the DO UPDATE carries a WHERE, so when the offered value
+-- is not greater the update never fires and there is nothing for GL037 to
+-- refuse. This is the shape the seed now uses.
+select lives_ok($$
+  insert into public.document_counters (tenant_id, kind, financial_year, next_number)
+  values ('22000000-0000-4000-8000-000000000004'::uuid, 'invoice', (select fy from fy_t4), 7)
+  on conflict (tenant_id, kind, financial_year) do update
+    set next_number = excluded.next_number
+    where excluded.next_number > document_counters.next_number
+$$, 'the GUARDED upsert, offered the value the row already holds, is NOT refused — the guard is false, so no UPDATE is attempted and the trigger never runs');
+
+-- 501 — and it is not merely "no exception": no row was touched. A data-
+-- modifying CTE returns a row per row ACTUALLY written, so zero here is the
+-- difference between "did not fire" and "fired and was somehow forgiven". The
+-- statement is the same one 500 just ran; it is a no-op, so running it twice
+-- is the same as running it once, which is itself the property the seed needed.
+with u as (
+  insert into public.document_counters (tenant_id, kind, financial_year, next_number)
+  values ('22000000-0000-4000-8000-000000000004'::uuid, 'invoice', (select fy from fy_t4), 7)
+  on conflict (tenant_id, kind, financial_year) do update
+    set next_number = excluded.next_number
+    where excluded.next_number > document_counters.next_number
+  returning 1
+)
+select is(
+  (select count(*)::int from u), 0,
+  'and it updated NO ROW AT ALL — zero rows returned. "Did not fire" and "was refused" are the two outcomes of an equal write, and the seed''s defect was writing the one while meaning the other');
+
+set local role postgres;
+
+-- 502
+select results_eq(
+  $$ select next_number from public.document_counters
+      where tenant_id = '22000000-0000-4000-8000-000000000004'::uuid and kind = 'invoice' $$,
+  $$ values (7) $$,
+  'next_number is still 7 after both no-op upserts — unmoved, exactly as it is after a refusal, which is why the counter alone cannot tell the two apart and 501 exists'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000004',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000000024')::text,
+  true);
+set local role authenticated;
+
+-- 503 — one below: the guarded form offered a LOWER value is also a no-op
+-- rather than a refusal, so a re-run seed that has fallen behind the live
+-- counter is silent rather than fatal.
+select lives_ok($$
+  insert into public.document_counters (tenant_id, kind, financial_year, next_number)
+  values ('22000000-0000-4000-8000-000000000004'::uuid, 'invoice', (select fy from fy_t4), 3)
+  on conflict (tenant_id, kind, financial_year) do update
+    set next_number = excluded.next_number
+    where excluded.next_number > document_counters.next_number
+$$, 'the guarded upsert offered a value BELOW the row''s is likewise not refused — the guard is false, and a decrease that never fires is not a decrease');
+
+set local role postgres;
+
+-- 504
+select results_eq(
+  $$ select next_number from public.document_counters
+      where tenant_id = '22000000-0000-4000-8000-000000000004'::uuid and kind = 'invoice' $$,
+  $$ values (7) $$,
+  'and the counter did not move backwards either — the guard protects the value as well as the statement'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000004',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000000024')::text,
+  true);
+set local role authenticated;
+
+-- 505 — the other direction (ADR-078). Everything above would also be green if
+-- the guarded upsert simply never did anything under any circumstances, which
+-- would be a broken seed that reports success. One above: the guard is true,
+-- the update fires, and GL037 permits it because it is a real increase.
+select lives_ok($$
+  insert into public.document_counters (tenant_id, kind, financial_year, next_number)
+  values ('22000000-0000-4000-8000-000000000004'::uuid, 'invoice', (select fy from fy_t4), 9)
+  on conflict (tenant_id, kind, financial_year) do update
+    set next_number = excluded.next_number
+    where excluded.next_number > document_counters.next_number
+$$, 'the same guarded upsert offered a HIGHER value fires and is permitted — the guard is not a way of never writing');
+
+set local role postgres;
+
+-- 506
+select results_eq(
+  $$ select next_number from public.document_counters
+      where tenant_id = '22000000-0000-4000-8000-000000000004'::uuid and kind = 'invoice' $$,
+  $$ values (9) $$,
+  'next_number moved to exactly 9 — the guarded upsert really does advance the counter when the value is greater, so 500-504 are assertions about a statement that works, not about one that is inert'
+);
+
+-- The two counter rows this tenant owns, captured immediately before the
+-- multi-row statement so 508 asserts "unchanged" against what was actually
+-- there rather than against a value carried down from section 4.
+create temp table dc_r16_before as
+  select kind, next_number from public.document_counters
+   where tenant_id = '22000000-0000-4000-8000-000000000004'::uuid
+     and financial_year = (select fy from fy_t4);
+grant select on dc_r16_before to public;
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000000004',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000000024')::text,
+  true);
+set local role authenticated;
+
+-- 507 — one statement, two rows: the receipt row genuinely increases and the
+-- invoice row is written its own value back. The trigger is FOR EACH ROW, so a
+-- rule that only looked at the statement's net effect, or that let a row pass
+-- because a sibling row moved forward, would let this through.
+select throws_ok($$
+  update public.document_counters
+     set next_number = case when kind = 'receipt' then next_number + 1 else next_number end
+   where tenant_id = '22000000-0000-4000-8000-000000000004'::uuid
+     and financial_year = (select fy from fy_t4)
+$$, 'GL037'::char(5), null,
+  'a multi-row UPDATE in which one row increases and another is written its own value is refused with GL037 — the equal row is judged on its own, not excused by the sibling that moved forward');
+
+set local role postgres;
+
+-- 508
+select results_eq(
+  $$ select kind, next_number from public.document_counters
+      where tenant_id = '22000000-0000-4000-8000-000000000004'::uuid
+        and financial_year = (select fy from fy_t4)
+      order by kind $$,
+  $$ select kind, next_number from dc_r16_before order by kind $$,
+  'and BOTH rows are exactly where they were — the increase that would have been legal on its own went back with the refusal, because a refused row aborts the statement rather than being skipped'
 );
 
 
