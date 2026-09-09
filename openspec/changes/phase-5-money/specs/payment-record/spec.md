@@ -215,6 +215,16 @@ WHEN a payment against a membership is `paid`, THE SYSTEM SHALL grant one period
 for each whole multiple of that membership's own price that the money against it
 has now reached, and no period for money that has not reached one.
 
+> **Narrowed by `payment-record/spec.md`, "Money does not extend a membership
+> that has been retired".** This sentence is unconditional and a `cancelled` or
+> `expired` membership is the exception: the payment is still recorded,
+> receipted, attributed, refundable and bounded by `GL036`, and the membership
+> does not move. Written here because a critic pointed out that this file said
+> "SHALL extend" 476 lines away from the exception, and the next blind author
+> reads whichever they open first — which is the same defect, in the same
+> phase, that the supersession note a few lines below was invented to fix.
+
+
 **Two half payments bought two months.** ADR-083 closed the create-then-pay
 door on precisely this sentence and left the instalment door open: ₹500 now and
 ₹500 next week is ordinary practice in an Indian gym, and it bought sixty days

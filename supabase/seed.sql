@@ -822,8 +822,17 @@ select
        then 'order_SEEDMSHIP' || lpad(r.idx::text, 4, '0') else null end,
   case when r.method = 'razorpay'
        then 'pay_SEEDMSHIP' || lpad(r.idx::text, 4, '0') else null end,
-  case when r.method = 'razorpay'
-       then null else 'RCPT/' || t.fy || '/' || lpad(r.idx::text, 4, '0') end,
+  -- **Every payment gets a receipt number, online ones included.** ADR-082:
+  -- "a receipt book with a hole in it for every online payment is not a receipt
+  -- book". This wrote `null` for razorpay rows on the reasoning that an online
+  -- row carries `provider_payment_id` instead — the exact split that ADR
+  -- rejected, sitting in the one gym every screen renders.
+  --
+  -- Format is the rule's own (`FY/NNNNNN`) rather than the `RCPT/FY/NNNN` this
+  -- used to write, so the demo book holds one grammar; and the year comes from
+  -- the payment's OWN day, not today's, which is the reason ADR-082 gives for
+  -- putting a year in the number at all.
+  (((case when extract(month from ms.starts_on) >= 4 then extract(year from ms.starts_on) else extract(year from ms.starts_on) - 1 end)::int::text || '-' || lpad(((((case when extract(month from ms.starts_on) >= 4 then extract(year from ms.starts_on) else extract(year from ms.starts_on) - 1 end)::int) + 1) % 100)::text, 2, '0')) || '/' || lpad(r.idx::text, 6, '0')),
   case when r.method = 'razorpay'
        then null else '00000003-0000-4000-8000-000000000004'::uuid end,
   'seed:membership:' || lpad(r.idx::text, 4, '0'),
@@ -1020,8 +1029,9 @@ select
        then 'order_SEEDADDON' || lpad(a.n::text, 4, '0') else null end,
   case when a.method = 'razorpay'
        then 'pay_SEEDADDON' || lpad(a.n::text, 4, '0') else null end,
-  case when a.method = 'razorpay'
-       then null else 'RCPT/' || t.fy || '/' || lpad(a.n::text, 4, '0') end,
+  -- Same for add-on payments. Numbers start at 1000 so they cannot collide with
+  -- the membership payments above, which are numbered by roster index.
+  (((case when extract(month from (t.d + a.paid_day_offset)) >= 4 then extract(year from (t.d + a.paid_day_offset)) else extract(year from (t.d + a.paid_day_offset)) - 1 end)::int::text || '-' || lpad(((((case when extract(month from (t.d + a.paid_day_offset)) >= 4 then extract(year from (t.d + a.paid_day_offset)) else extract(year from (t.d + a.paid_day_offset)) - 1 end)::int) + 1) % 100)::text, 2, '0')) || '/' || lpad((1000 + a.n)::text, 6, '0')),
   case when a.method = 'razorpay'
        then null else '00000003-0000-4000-8000-000000000004'::uuid end,
   'seed:addon:' || lpad(a.n::text, 4, '0'),

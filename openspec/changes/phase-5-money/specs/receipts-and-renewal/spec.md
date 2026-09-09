@@ -30,6 +30,16 @@ THE SYSTEM SHALL allocate receipt numbers from `document_counters` keyed on `(te
 ### Requirement: A payment extends the membership it names, once
 WHEN a payment against a membership is `paid`, THE SYSTEM SHALL extend that membership by the plan's duration **for each whole multiple of the membership's own price that the money against it has reached**, and SHALL do so exactly once however many times the payment is recorded, retried or replayed.
 
+> **Narrowed by `payment-record/spec.md`, "Money does not extend a membership
+> that has been retired".** This sentence is unconditional and a `cancelled` or
+> `expired` membership is the exception: the payment is still recorded,
+> receipted, attributed, refundable and bounded by `GL036`, and the membership
+> does not move. Written here because a critic pointed out that this file said
+> "SHALL extend" 476 lines away from the exception, and the next blind author
+> reads whichever they open first — which is the same defect, in the same
+> phase, that the supersession note a few lines below was invented to fix.
+
+
 > **Superseded in detail by `payment-record/spec.md`, "A period is granted when it has been paid for".** As first written this requirement said a paid payment extends by the plan's duration full stop, and a critic pointed out that it now contradicts the cumulative rule for every part payment — two documents in one change, and the next blind test author reads whichever they open first. The cumulative rule is the one to build against; this requirement's scenarios below remain true for a payment of the full price, which is the ordinary case.
 
 **The extension belongs to the table, not to the handler**, for the reason every Phase 3 and 4 rule does: `memberships` grants `update` to `authenticated`, so a rule living in a Route Handler has a supported way round it. And it must be idempotent in the same sense the check-in guard is — a duplicate that extends a membership twice gives a member a free month and is discovered, if ever, by an owner reconciling revenue against expiry dates.
