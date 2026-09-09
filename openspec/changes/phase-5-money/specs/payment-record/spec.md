@@ -293,11 +293,26 @@ including any discount — and never the plan's list price.
 - **WHEN** the membership's price is zero
 - **THEN** the payment SHALL be recorded and SHALL grant no period, rather than raising
 
-### Requirement: The terms a period was scored against do not change after it is granted
-WHERE a membership has been granted at least one period, THE SYSTEM SHALL refuse
-any change to the terms its money is scored against — its price, its currency,
-and the plan whose duration a period is measured in — and SHALL leave the
-membership as it stood.
+### Requirement: The terms money is scored against are frozen by money arriving
+WHERE any money has arrived against a membership, THE SYSTEM SHALL refuse any
+change to the terms that money is scored against — its price, its currency, the
+plan it was sold on, and the duration a period is measured in — and SHALL leave
+the membership as it stood.
+
+**Frozen by the first payment, not by the first period.** A membership that has
+taken real money but not yet crossed one whole multiple of its price has been
+granted nothing, and an earlier draft of this requirement left it wide open —
+its own scenario said "granted nothing" three lines under prose saying "before
+any money has arrived", and the second sentence is the correct one. A part
+payment is ordinary practice and the console says so on the page: a full price
+buys a period, part of it is recorded and receipted and buys none until the
+balance is paid.
+
+Measured on a real row of the demo gym, ₹10,800 arrived against a ₹12,000
+Annual: cut the price to ₹1,000 — allowed, because nothing had been *granted* —
+then pay **one paisa**, and `ends_on` moves **ten years**. The money was always
+being scored; the total counts every paisa that has arrived whether or not it has
+crossed a multiple.
 
 A period is granted for each whole multiple of the membership's own price that
 its money has reached, and it lasts the duration of the membership's own plan.
@@ -311,22 +326,58 @@ to ₹500 and then paying **one paisa** released a second month, and it compound
 a 365-day plan and paying one further ₹1,000 moved `ends_on` **395 days**.
 
 The terms a membership was sold on are recorded facts, like a payment's amount
-and for the same reason: they are what the member agreed to, and every period
-already granted was granted against them. **Correcting a mistyped price or a
-wrong plan before any money has arrived stays free** — nothing has been scored
-yet. Afterwards the honest instrument is a refund and a new membership, which
-this phase has.
+and for the same reason: they are what the member agreed to, and every paisa on
+record was taken against them. **Correcting a mistyped price or a wrong plan
+before any money has arrived stays free** — nothing has been scored yet.
+Afterwards the honest instrument is a refund and a new membership, which this
+phase has.
+
+**The duration a period is measured in is one of those terms, and it SHALL be
+recorded on the membership** rather than read from the plan when money arrives.
+A membership already records the price and the currency it was sold at; the
+duration was the one term still read live from `plans`, and one manager statement
+setting `duration_days = 3650` followed by an ordinary renewal moved `ends_on`
+**3650 days** — silently, and to every membership on that plan. Recording it
+means editing a plan changes what the *next* membership is sold at and nothing
+about one already sold, which is what editing a plan should mean. Freezing the
+plan row instead would punish the legitimate act to prevent the illegitimate
+one.
+
+**At creation the plan decides the length; afterwards it is a term like the
+others.** A membership records the duration its plan carried at the moment of
+sale, and a length named by the caller at creation is ignored in favour of the
+plan's — a blind author measured what accepting one costs: create a membership
+naming `duration_days = 3650`, pay the ordinary price, get ten years. Correcting
+it afterwards is the same act as correcting the price: free until money arrives,
+refused once it has. Changing the plan before any money has arrived carries the
+new plan's length with it, unless the correction names a length of its own.
+
+#### Scenario: Creating a membership that names its own length
+- **WHEN** a membership is created naming a `duration_days` of its own
+- **THEN** the length recorded SHALL be the plan's, not the one named
+
+#### Scenario: Correcting the length before any money arrives
+- **WHEN** a front-desk session changes `duration_days` on a membership against which no money has arrived
+- **THEN** it SHALL be allowed and SHALL land, and a payment SHALL be scored against the corrected length
 
 #### Scenario: Cutting the price after a period was bought
 - **WHEN** a front-desk session lowers the price of a membership that has been granted a period
 - **THEN** it SHALL be refused, and the price SHALL be unchanged
 
+#### Scenario: Cutting the price of a part-paid membership
+- **WHEN** a front-desk session lowers the price of a membership that has taken money but been granted nothing
+- **THEN** it SHALL be refused, and a further payment SHALL buy only what the ORIGINAL price says it buys
+
 #### Scenario: Repointing a paid membership at a longer plan
-- **WHEN** a front-desk session changes the plan of a membership that has been granted a period
-- **THEN** it SHALL be refused, and a further payment of the full price SHALL grant one period of the ORIGINAL plan's length
+- **WHEN** a front-desk session changes the plan of a membership that has taken any money
+- **THEN** it SHALL be refused, and a further payment of the full price SHALL grant one period of the ORIGINAL length
+
+#### Scenario: Lengthening the plan a membership was sold on
+- **WHEN** a gym admin changes `duration_days` on a plan
+- **THEN** memberships already sold on it SHALL keep the length they were sold at, and only memberships created afterwards SHALL use the new one
 
 #### Scenario: Correcting a mistake before any money arrives
-- **WHEN** a front-desk session changes the price or the plan of a membership that has been granted nothing
+- **WHEN** a front-desk session changes the price or the plan of a membership against which no money has arrived
 - **THEN** it SHALL be allowed
 
 #### Scenario: Renewing
@@ -403,6 +454,21 @@ implementation:**
 #### Scenario: Writing the same count back
 - **WHEN** a write leaves `periods_granted` at the value it already held
 - **THEN** it SHALL be allowed
+
+### Requirement: A payment does not arrive already refunded
+WHEN a payment is recorded, THE SYSTEM SHALL refuse it if it names a status that
+presupposes an earlier one — `refunded` or `reversed`.
+
+Both statuses count toward the total a period is scored against, neither extends
+anything at the time, and neither takes a receipt number: a payment written
+straight to `refunded` puts money on the books that no receipt names and that
+nothing has granted, waiting for any later payment to cash it in. Measured — a
+₹3,000 `refunded` payment inserted directly, then **one paisa**, granted three
+periods. A payment is recorded and then refunded; it does not arrive that way.
+
+#### Scenario: Recording a payment that is already refunded
+- **WHEN** a session inserts a payment whose status is `refunded` or `reversed`
+- **THEN** it SHALL be refused
 
 ### Requirement: A payment against a membership with no dates grants it a period
 WHEN a `paid` payment names a membership that has neither `starts_on` nor

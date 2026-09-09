@@ -451,6 +451,46 @@ Two consequences fell out of the same round, both already-named shapes recurring
 - **A blind test author found the receipt-number format by writing an assertion that could not be satisfied and asking why.** "Both years' first receipt numbers are equal" contradicts `payments_tenant_id_receipt_number_key` (unique per gym, not per year), which the same author had read from the catalogue and written into its own header. The reconciliation is the answer: the financial year has to be *in* the rendered number, because the counter restarts every April and a bare ordinal collides with last year's on the first payment of each one. Neither suite would have found it alone — the visible one asserted the restart, the index refused it, and the contradiction was the finding.
 
 
+**ADR-091 - Hard rule 1 and hard rule 10 pull against each other, and rule 1 was quietly winning.** Raised by the round-eight visible test author, unprompted, about its own round — the most useful thing anyone said this phase.
+
+Rule 1 obliges every session to read `docs/registry.md` before writing anything. Rule 10 obliges a test author to write from the requirement without seeing the implementation. **In round eight the implementer updated the registry in the same working tree while both blind authors were still writing**, so the registry told them the new trigger names, the new column name, `app.stamp_membership()`, which SQLSTATEs were raised, and two of the design decisions — "any currency, not just the membership's own", "refunded money still counts" — before either had designed an assertion. The author did not open the migration. It did not have to.
+
+**Blindness was not lost to carelessness about the migration file; it was lost to a rule that requires reading a document the implementer had just written.** That is worth more than the round it was found in, because nothing in the loop would have surfaced it: the suites were green, the arrangement looked intact, and only the author's own report showed it was not.
+
+So: **the registry entry for new code is written after the blind authors have handed back**, in the implementation commit where it already belongs (rule 10 already sequences tests before implementation; this only says the registry travels with the implementation, not ahead of it). Authors read the registry at `HEAD`, never the working tree — and an author that finds a working-tree registry describing unbuilt code should say so, as this one did.
+
+It does not weaken rule 1. Nothing goes unregistered; it is registered in the commit that builds it, which is also the commit a critic reads.
+
+**And it explains a pattern that had been read as competence.** Both round-eight suites asserted `GL043` on `duration_days` — a column that did not exist in any requirement text under that name, only in the registry row the implementer had written that hour. The convergence was not two independent authors reaching the same conclusion; it was two authors reading the same leak.
+
+**ADR-090 - A term is frozen by money arriving, not by a period being granted — and the length of a period is a term.** Round seven made `periods_granted` unforgeable so that `old.periods_granted > 0` could be trusted as the gate. It never asked whether the gate says the right thing. **It does not**, and the exploit ADR-089 was written to close survived the round that closed it.
+
+**A membership that has taken real money but not yet crossed one whole multiple of its price sits at `periods_granted = 0`, and every one of its terms is open.** That is not a contrived state — it is a part payment, ordinary practice in an Indian gym, and the console renders it as product copy: *"A full ₹X buys one period; part of it is recorded and receipted and buys none until the balance is paid."*
+
+Measured by a critic against **a real row in the live demo gym** — Sneha Joshi's Annual, ADR-088's own worked example, ₹10,800 arrived against a ₹12,000 price:
+
+    update memberships set price_paise = 100000 where id = …;   -- ALLOWED, the gate reads 0
+    insert into payments … values (1, 'cash', 'paid', …);       -- one paisa
+
+    before | ends_on=2026-09-12 price=1200000 periods_granted=0
+    after  | ends_on=2036-09-09              periods_granted=10   -- +3650 days
+
+**Ten years of an Annual membership for one paisa**, no error, no audit trail. On a clean ₹1,000/30-day membership the same three statements buy 150 days for ₹500.01. The plan and the currency are equally open in that window: a member who agreed to ₹1,000 for a month and paid it in two halves can be given **a year**, with two ordinary ₹500 receipts in the ledger.
+
+**The gate is wrong because "granted" is not when scoring starts. `v_total` counts every paisa that has arrived, whether or not it has crossed a multiple** — so the money is already scored against the terms from the first payment, and the moment to freeze them is the moment the first payment lands.
+
+**And the spec said so.** ADR-089's requirement reads *"Correcting a mistyped price or a wrong plan **before any money has arrived** stays free — nothing has been scored yet"*, while its scenario three lines below says *"a membership that has been granted nothing"*. **The prose stated the requirement and the scenario was written to the implementation**, so the gate looked correct against its own test and both blind suites asserted the weaker sentence. A spec contradicting itself inside one requirement is worse than a spec contradicting another file, because nothing in the loop compares a requirement to itself.
+
+**The second half: a period's LENGTH was still read live from `plans`.** `plan_id` was frozen; `plans.duration_days` was not, and `plans_tenant_write` is `FOR ALL` on `is_gym_admin()`. One manager statement setting `duration_days = 3650`, then one ordinary ₹1,000 renewal, moved `ends_on` **3650 days** — and it does that silently to *every* membership on that plan whenever a gym legitimately edits it.
+
+The fix is not to freeze the `plans` row, which would stop a gym repricing or re-lengthening a plan for future sales, something it must be able to do. **The membership already records the price and the currency it was sold at; the duration is the one term still read from somewhere else, and that asymmetry is the defect.** So `memberships.duration_days` is recorded at creation like the other two, filled from the plan by a `before insert` trigger (ADR-072: filling belongs early), and frozen with them. Editing a plan then changes what the *next* membership is sold at and nothing about one already sold — which is what a plan edit should mean.
+
+**Rejected: freezing `plans.duration_days` while any membership references the plan.** It punishes the legitimate act to prevent the illegitimate one, and leaves the same defect for `plans.price_paise` the day anything scores against it.
+
+**Also closed, found in the same round:** a payment could be INSERTED directly at `refunded` or `reversed`. Both count toward the grant total, neither extends anything and neither takes a receipt number, so ₹3,000 of grant credit could sit on the books with no receipt until a one-paisa payment cashed it in. A payment does not arrive already refunded — it is recorded, and then refunded (`GL039`).
+
+**The method finding, which is the expensive one.** Round seven's gate was measured against five exploit shapes and passed all five, because every shape started from a membership that had been *granted* something. **The blind arrangement cannot catch a scenario that encodes the implementation's own assumption** — both authors wrote to that scenario, and the suites went green. What caught it was a critic reading the requirement's prose against its scenario. Requirements are now to be read for internal contradiction before they are fanned out, which is a cheaper check than another round.
+
 **ADR-089 - The terms the money was scored against are frozen, and the count it was scored into is not hand-writable.** Round six froze a membership's `price_paise` and `currency` once `periods_granted > 0` (`GL043`). A round-six critic took the same exploit through four other doors, one ordinary statement each, and every one of them worked.
 
 `app.grant_periods()` computes `floor(total / price)` periods of `plans.duration_days` each. **Three inputs decide what money buys — the price, the currency, and the plan whose duration measures a period — and round six froze two of them.**
