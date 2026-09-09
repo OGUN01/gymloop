@@ -282,8 +282,16 @@ membership retired, which takes it out of the partial index. This paragraph said
 is the target-decides reading the scenarios below now refute.
 
 #### Scenario: Moving a membership to another member
-- **WHEN** any session changes a membership's `member_id`
+- **WHEN** a session that can see the membership changes its `member_id`
 - **THEN** it SHALL be refused and the membership SHALL be unchanged
+
+**"That can see it" replaces "any", because two kinds of session are not
+refused** and both are recorded above: a session whose tenant claim does not
+match never reaches the row at all — the policy's `USING` filters it, giving
+`UPDATE 0` and no exception — and the seed disables this rule's trigger around
+its own statements. Neither can move a membership, so neither is a hole; but the
+scenario said "any" while an assertion in the visible suite proves a wrong-tenant
+session raises nothing, and a spec-first author derives from the scenario.
 
 **And it SHALL be this rule that answers, not another one the same statement
 also violates.** A statement that re-points a membership AND writes a length is
@@ -356,9 +364,11 @@ case". The second excluded one condition, and a critic found four more families.
 The third excluded a list of four mechanisms — written in the same breath as
 "enumerating exceptions produces a list that is always one item short", and it
 was two short. The fourth excluded "anything enforced earlier in the statement",
-and a critic found that a **foreign key pointing AT this table** — there are
-eight such constraint triggers, for `attendance`, `membership_pauses`,
-`payments` and `memberships.renewal_of_membership_id` — is an `after` row
+and a critic found that a **foreign key pointing AT this table** — four foreign keys point at it —
+`attendance`, `membership_pauses`, `payments` and
+`memberships.renewal_of_membership_id` — carried by eight constraint triggers, of
+which **four are `after delete` and cannot fire here**; the four `after update`
+ones are what compete with `GL042` — is an `after` row
 trigger on `memberships`, so it is neither "earlier in the statement" nor "the
 table's own shape". Measured: a statement changing `member_id` and `id` together
 answers `23503` from `attendance_membership_id_fkey`; the control without the
@@ -394,16 +404,42 @@ requirement says "any session" and the seed is a session it does not bind.
 
 #### Scenario: Re-pointing a membership that the statement leaves live
 - **WHEN** one statement points a membership at a member who already holds a live one, **and leaves it `active` or `frozen`**
+- **AND** the resulting row satisfies the table's CHECK constraints
 - **THEN** it SHALL be refused by the live-membership index with `23505`, and the membership SHALL be unchanged
 
 #### Scenario: Re-pointing a membership that the statement leaves retired
 - **WHEN** one statement points a membership at a member who already holds a live one, **and leaves it `pending`, `expired` or `cancelled`**
+- **AND** the resulting row satisfies the table's CHECK constraints
 - **THEN** the live-membership index SHALL NOT apply, and it SHALL be refused with the `member_id` rule
+
+**That guard is not boilerplate, and leaving it off is how this pair was wrong on
+the round it was written.** A CHECK runs before index insertion and before every
+`after` trigger, so it beats both halves of the partition. The shape that does
+it is a **null-dated `pending` membership**: `memberships_dated_unless_pending_chk`
+permits null dates only while `pending`, so writing any other status onto such a
+row answers `23514` whatever else the statement does. Measured across all four
+non-`pending` targets, with the target member holding a live membership and
+holding nothing alike — `23514` every time, where these scenarios promised
+`23505` and `GL042`.
+
+**`seed-scenarios.sql` creates exactly one such row**, names the constraint in
+its own comment, and it is live in the demo gym. ADR-103's own account of why
+draft two failed lists "a status write onto a null-dated `pending` row" as one of
+the four families that killed it — and the sentences written to fix draft three
+let it back in, because the older scenario beside them carries the guard and
+these two were written without it.
+
+#### Scenario: Re-pointing a null-dated pending membership and writing a status
+- **WHEN** one statement points a `pending` membership with null dates at any member and writes any status other than `pending`
+- **THEN** it SHALL be refused by `memberships_dated_unless_pending_chk` with `23514`, and the membership SHALL be unchanged
 
 **Which row's status decides has now been written down wrong three times, and
 this is the fourth.** `memberships_tenant_id_member_id_live_key` is partial on
-`('active','frozen')`, and a partial index is evaluated against **the tuple being
-stored** — not the row as it was, and not the target member's other rows. The
+`('active','frozen')`. Two separate things decide the answer and the first three
+drafts each collapsed them into one: **the tuple being stored** decides whether
+this row falls inside the index's predicate at all — not the row as it was — and
+**the target member's other rows** decide whether there is then anything to
+collide with. A statement is refused `23505` only when both hold. The
 first draft said the target member's state decided. The second said the source
 membership's state decided. Both are false, and a critic measured the pair that
 separates all three readings:
