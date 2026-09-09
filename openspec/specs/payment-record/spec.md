@@ -255,7 +255,17 @@ absence of a button, and `POST /api/refunds` takes a `paymentId`.
 - **THEN** it SHALL be bounded by `GL036` as it is today
 
 ### Requirement: A membership belongs to the member it was sold to
-WHEN a session changes a membership's `member_id`, THE SYSTEM SHALL refuse it.
+WHEN a session that this rule is in force for changes a membership's
+`member_id` to a different member, THE SYSTEM SHALL refuse it.
+
+**Two sessions it is not in force for, both disclosed rather than discovered:** a
+session whose tenant claim does not match never reaches the row (the policy's
+`USING` filters it — `UPDATE 0`, no exception, nothing moved), and **the seed
+disables this rule's trigger around its own statements**, inside which a
+membership genuinely can be re-pointed. Measured, both. Neither is a hole — one
+changes nothing and the other is the fixture builder — but three drafts said
+"any session" and a fourth said "a session that can see it", and the seed can
+see it.
 
 "A payment extends only the membership of the member who paid" (`GL042`) is
 evaluated on the **payment** row, and `memberships.member_id` was frozen by
@@ -272,14 +282,18 @@ A membership is sold to somebody. Correcting who it was sold to is not an edit;
 it is a refund, a cancellation and a new sale, which is the answer this phase
 gives for every other recorded fact.
 
-**A trap for whoever tests this**: `memberships_tenant_id_member_id_live_key`
-refuses the move with `23505` when the target member already holds a live
-membership **and the statement leaves this one live**, so a careless check
-reports a false GREEN on an index rather than on this rule. The move has to be
-attempted against a member holding nothing — or with a statement that leaves this
-membership retired, which takes it out of the partial index. This paragraph said
-"when the target member already holds a live membership" for three rounds, which
-is the target-decides reading the scenarios below now refute.
+**A trap for whoever tests this**: several mechanisms answer before this rule
+does, so a careless check reports a false GREEN on an accident rather than on
+`GL042`. The move must be attempted against a **different** member who holds
+nothing, with a statement that writes no status and leaves a row the table's own
+constraints accept. Three shortcuts look equivalent and are not:
+`memberships_tenant_id_member_id_live_key` gives `23505` when the stored tuple is
+`active` or `frozen` **and** the target holds another such row; a null-dated
+`pending` membership gives `23514` if a status is written without dates — the
+shape `seed-scenarios.sql` leaves live in the demo gym; and re-pointing at the
+member who already owns it is permitted outright, because `GL042` fires on
+`is distinct from`. Which mechanism answers is **observed, not contracted**
+(ADR-105).
 
 #### Scenario: Moving a membership to another member
 - **WHEN** a session that can see the membership changes its `member_id`
@@ -351,120 +365,82 @@ trigger, which keeps the property that made it separate.
 - **WHEN** one statement changes a membership's `member_id` and its `duration_days`
 - **THEN** it SHALL be refused with the `member_id` rule, not the length rule
 
-**`GL042` answers ahead of the other rules in the same trigger — `GL043`,
-`GL044`, `GL045` and `GL046` — and ahead of `GL047`. That is the whole of the
-claim.** Anything else that can refuse the same statement may answer first, and
-this contract does not decide which: CHECK constraints, `not null`, unique
-indexes, the row-security policy, foreign keys in either direction, and any
-`before` trigger.
+**`GL042` answers ahead of the other rules in its own trigger — `GL043`,
+`GL044`, `GL045`, `GL046` — and ahead of `GL047`. That is the whole of the
+normative claim, and everything below this paragraph is an observation rather
+than a contract.**
 
-**This sentence is the fourth attempt, and the first three failed the same way:
-they tried to enumerate what `GL042` does NOT beat.** The first said "in every
-case". The second excluded one condition, and a critic found four more families.
-The third excluded a list of four mechanisms — written in the same breath as
-"enumerating exceptions produces a list that is always one item short", and it
-was two short. The fourth excluded "anything enforced earlier in the statement",
-and a critic found that a **foreign key pointing AT this table** — four foreign keys point at it —
-`attendance`, `membership_pauses`, `payments` and
-`memberships.renewal_of_membership_id` — carried by eight constraint triggers, of
-which **four are `after delete` and cannot fire here**; the four `after update`
-ones are what compete with `GL042` — is an `after` row
-trigger on `memberships`, so it is neither "earlier in the statement" nor "the
-table's own shape". Measured: a statement changing `member_id` and `id` together
-answers `23503` from `attendance_membership_id_fkey`; the control without the
-`id` write answers `GL042`.
+**Why the scope shrank, recorded because it took five critic rounds to earn.**
+Earlier drafts of this requirement tried to state, normatively, which of *every*
+mechanism Postgres can refuse a statement with would answer first. Five attempts
+were written and all five were measured false:
 
-**The outside of this rule is open-ended and the inside is not.** Five error
-codes in one function, plus one in the trigger beside it, is a closed set that
-can be checked. "Everything else" cannot be, and three rounds were spent proving
-it. So the contract names what it covers.
+| attempt | killed by |
+|---|---|
+| "`GL042` in every case" | the live-membership index, `23505` |
+| "…unless the target holds a live membership" | four more families in the scenario's own column list |
+| "…CHECK, index, foreign key, policy are not rules" | `not null` (`23502`) and `before` triggers |
+| "…nothing enforced earlier in the statement" | a foreign key pointing AT this table is an `after` trigger ON it |
+| "…and the resulting row satisfies the table's CHECK constraints" | `not null` again (`23502`), and `42501`, and a `22003` out-of-range |
 
-**Nothing here permits the harm** — every one of those mechanisms refuses the
-statement, which is what ADR-092's grep asks. What it prevents is a handler coded
-against `GL042` receiving a `23514`, `23502`, `23503`, `23505` or `42501` it does
-not map.
+**The surface is not enumerable and was never a product requirement.**
+`public.memberships` carries **22 triggers**, of which **10 fire on UPDATE**
+beyond the two written by this project; there are six CHECK constraints, six
+`not null` columns among those a caller can write, a row-security policy that
+*filters* rather than refuses, and every type-range error the column set admits.
+No sentence can close that set, and it grows whenever anyone adds a column, a
+constraint, or a table that references this one.
 
-**And a sixth outcome that is not an error at all.** The row-security policy's
-`USING` clause is a row *filter*, not a refusal: a session whose tenant claim does
-not match gets `UPDATE 0` and no exception. Measured. Nothing moves, so there is
-no harm — but a caller coded against this requirement reads a zero row count as
-success, and it is named here because the requirement says "any session" and this
-is the one kind of session that is silently not refused.
+**And nothing depends on it.** What a caller needs is: *the move did not happen.*
+Every measured route — `GL042`, `GL043`, `GL047`, `23502`, `23503`, `23505`,
+`23514`, `42501`, `22003`, and the policy's silent `UPDATE 0` — either refuses
+the statement or changes nothing. ADR-092's grep passes on all of them: no route
+reaches the harm. The one narrow thing that *did* matter was a real defect —
+`GL043` answering where `GL042` should, so a desk correcting a mis-sale was told
+"change the plan instead" — and that is exactly what the sentence above still
+covers, because those five codes live in one function this project controls.
 
-**`GL042` is also off for the seed.** Both `supabase/seed.sql` and
-`seed-scenarios.sql` `disable trigger memberships_terms_frozen` around their own
-statements, and this rule lives in that trigger. The window is deliberate and was
-argued for dates (ADR-093); it takes this rule with it. Stated because the
-requirement says "any session" and the seed is a session it does not bind.
+> ### Observed refusal behaviour — NOT a contract
+>
+> Recorded so nobody re-derives it, and explicitly **not** something to code
+> against. It is measurement of one Postgres version's behaviour on one schema.
+>
+> * A statement is refused `23505` by `memberships_tenant_id_member_id_live_key`
+>   only when **both** hold: the tuple being *stored* falls inside the index's
+>   partial predicate (`status in ('active','frozen')`), **and** the target
+>   member already holds another row inside it. Neither alone is enough.
+> * A `pending` membership with null dates answers `23514` from
+>   `memberships_dated_unless_pending_chk` when a statement writes a non-`pending`
+>   status **and does not supply both dates**. Supplying them satisfies the
+>   CHECK, and the statement then falls through to the rules above.
+> * `not null` (`23502`), foreign keys in either direction (`23503`), the
+>   row-security policy's `with check` (`42501`) and type-range errors (`22003`)
+>   can each answer ahead of `GL042`.
+> * A session whose tenant claim does not match never reaches the row: the
+>   policy's `USING` clause filters it, giving `UPDATE 0` and **no exception**.
+> * The seed disables this rule's trigger around its own statements, so a
+>   membership **can** be re-pointed inside that window. Measured. It is not a
+>   hole because nothing but the seed runs there, but "cannot" would be false and
+>   an earlier draft said it.
+>
+> The suite asserts a sample of these — sections 34, 35 and 36 of
+> `supabase/tests/22_payment_record.sql` — precisely so that **nobody may rely on
+> them**, which is what ADR-100 prescribes for an undecided pair. They are
+> regression pins, not promises.
 
 #### Scenario: Re-pointing a membership and typing anything else in the same statement
 - **WHEN** one statement changes a membership's `member_id` and also its `periods_granted`, its dates, its price, or its status
-- **AND** the statement is otherwise well-formed — it violates nothing enforced before the first `after` trigger runs
+- **AND** nothing outside this trigger refuses the statement first
 - **THEN** it SHALL be refused with the `member_id` rule
 
-#### Scenario: Re-pointing a membership that the statement leaves live
-- **WHEN** one statement points a membership at a member who already holds a live one, **and leaves it `active` or `frozen`**
-- **AND** the resulting row satisfies the table's CHECK constraints
-- **THEN** it SHALL be refused by the live-membership index with `23505`, and the membership SHALL be unchanged
+#### Scenario: Re-pointing a membership at a different member who already has one
+- **WHEN** one statement points a membership at a **different** member who already holds a live one
+- **THEN** it SHALL be refused, and the membership SHALL be unchanged
 
-#### Scenario: Re-pointing a membership that the statement leaves retired
-- **WHEN** one statement points a membership at a member who already holds a live one, **and leaves it `pending`, `expired` or `cancelled`**
-- **AND** the resulting row satisfies the table's CHECK constraints
-- **THEN** the live-membership index SHALL NOT apply, and it SHALL be refused with the `member_id` rule
-
-**That guard is not boilerplate, and leaving it off is how this pair was wrong on
-the round it was written.** A CHECK runs before index insertion and before every
-`after` trigger, so it beats both halves of the partition. The shape that does
-it is a **null-dated `pending` membership**: `memberships_dated_unless_pending_chk`
-permits null dates only while `pending`, so writing any other status onto such a
-row answers `23514` whatever else the statement does. Measured across all four
-non-`pending` targets, with the target member holding a live membership and
-holding nothing alike — `23514` every time, where these scenarios promised
-`23505` and `GL042`.
-
-**`seed-scenarios.sql` creates exactly one such row**, names the constraint in
-its own comment, and it is live in the demo gym. ADR-103's own account of why
-draft two failed lists "a status write onto a null-dated `pending` row" as one of
-the four families that killed it — and the sentences written to fix draft three
-let it back in, because the older scenario beside them carries the guard and
-these two were written without it.
-
-#### Scenario: Re-pointing a null-dated pending membership and writing a status
-- **WHEN** one statement points a `pending` membership with null dates at any member and writes any status other than `pending`
-- **THEN** it SHALL be refused by `memberships_dated_unless_pending_chk` with `23514`, and the membership SHALL be unchanged
-
-**Which row's status decides has now been written down wrong three times, and
-this is the fourth.** `memberships_tenant_id_member_id_live_key` is partial on
-`('active','frozen')`. Two separate things decide the answer and the first three
-drafts each collapsed them into one: **the tuple being stored** decides whether
-this row falls inside the index's predicate at all — not the row as it was — and
-**the target member's other rows** decide whether there is then anything to
-collide with. A statement is refused `23505` only when both hold. The
-first draft said the target member's state decided. The second said the source
-membership's state decided. Both are false, and a critic measured the pair that
-separates all three readings:
-
-| statement | answer |
-|---|---|
-| `cancelled` row → live-holder, **`status = 'active'`** in the same statement | **`23505`** |
-| `active` row → live-holder, **`status = 'cancelled'`** in the same statement | **`GL042`** |
-
-A statement that writes no status keeps the row's current status, which is why
-every earlier assertion was green under all three readings — **none of them wrote
-`status`**, so none could tell the readings apart. The two rows above are the
-only pair that can, and they are asserted now.
-
-#### Scenario: Selling a member a second membership
-- **WHEN** a member's membership is cancelled and a new one is sold to the same member
-- **THEN** both SHALL be allowed — this rule refuses re-pointing, not selling
-
-#### Scenario: Selling somebody else a membership
-- **WHEN** a membership is created for a different member
-- **THEN** it SHALL be allowed — the rule governs a change, not a creation
-
-The heading of the first of these said "the same member" while its own WHEN said
-"another member", which are two different acts; a blind author asserted both
-rather than choose, which was right.
+**"Different" is not padding.** `GL042` fires on `is distinct from`, so a
+statement setting `member_id` to the value it already holds is permitted — and a
+membership's own owner trivially "already holds a live one", namely this
+membership. An earlier draft's WHEN was satisfiable by a statement that succeeds.
 
 ### Requirement: Money leaving the gym names the person who sent it
 THE SYSTEM SHALL require `refunds.initiated_by_staff_id` to be the acting staff

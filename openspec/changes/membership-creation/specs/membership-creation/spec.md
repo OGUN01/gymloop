@@ -95,6 +95,42 @@ existing members with their real dates. No such path exists today. Whoever
 builds one owns the question of how a membership acquires a span it was not
 sold, and this requirement is what they will have to argue with.
 
+**Which rule answers, decided here rather than after a critic finds it.** Four
+rounds of the sibling requirement were spent on exactly this question, and the
+lesson those rounds paid for applies before a line of this is built:
+
+* **`GL048` is the code.** A creation can violate this rule and `GL044`
+  (a membership is created having been granted nothing) in the same statement,
+  and it can violate this rule while the caller also lacks `app.is_gym_admin()`
+  (`GL046`).
+* **`GL048` answers ahead of `GL046`**, on the precedent already recorded for
+  `GL043`: an absolute beats a permission, and answering the permission would
+  imply a gym admin could do it, which they cannot.
+* **`GL048` against `GL044` is deliberately NOT decided**, because no scenario
+  needs it — and per ADR-100's rule, an undecided pair gets an assertion pinning
+  that nobody may rely on it, rather than silence.
+* **And nothing here answers ahead of the table's own shape.** A creation whose
+  `ends_on` precedes its `starts_on` is refused by
+  `memberships_ends_on_after_starts_on_chk` with `23514`, and one that is
+  `active` with null dates by `memberships_dated_unless_pending_chk`, both
+  before any `after` trigger runs. The scenarios below assume a statement that
+  reaches the rule. **The sibling requirement lost two rounds to leaving that
+  guard off**, so it is written here first.
+
+**Where the rule lives, and what that means for the seed.** It belongs in
+`app.enforce_membership_terms_frozen()`'s INSERT branch beside `GL044`, which
+both seed files **disable** around their own statements — measured, not assumed:
+`seed.sql` has one `insert into public.memberships` at line 690 and its disable
+windows are 658-726 and 861-880; `seed-scenarios.sql` has one at line 251 inside
+a window at 218-293. Every membership either seed creates is created with this
+trigger off — so this rule is off for
+the seed, exactly as `GL044` and `GL042` already are. That is survivable here and
+must be said out loud, because ADR-098 cost a round to the opposite assumption:
+the seed's rows satisfy the rule anyway (all 45 dated rows span exactly one
+period, measured), and the requirement below — the first grant sets the span
+rather than adding to it — lives inside `app.grant_periods()`, which is a
+function no `disable trigger` can reach.
+
 #### Scenario: Creating a membership that already runs longer than it was sold
 - **WHEN** any session creates a membership whose span exceeds the plan's duration
 - **THEN** it SHALL be refused and no membership SHALL exist
@@ -106,6 +142,14 @@ sold, and this requirement is what they will have to argue with.
 #### Scenario: Creating a membership with one date and not the other
 - **WHEN** a session creates a membership with `starts_on` set and `ends_on` null, or the reverse
 - **THEN** it SHALL be refused
+
+#### Scenario: Creating an over-long membership as a front desk
+- **WHEN** a front-desk session creates a membership spanning more than the plan's duration, at a price the plan does not carry
+- **THEN** it SHALL be refused with the span rule, not the permission rule
+
+#### Scenario: Creating an over-long membership with a period count typed on
+- **WHEN** one statement creates a membership spanning more than the plan's duration AND names a non-zero `periods_granted`
+- **THEN** it SHALL be refused, and this requirement SHALL NOT decide which of the two rules answers
 
 #### Scenario: Creating a membership the way the console does
 - **WHEN** a session creates a membership with `starts_on` and `ends_on` both today
