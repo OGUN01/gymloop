@@ -124,10 +124,19 @@ insert into public.membership_pauses (id, tenant_id, membership_id, starts_on, e
   ('12000000-0000-4000-8000-000000000071'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000061'::uuid, date '2026-10-01', date '2026-10-10', 'travel'),
   ('12000000-0000-4000-8000-000000000072'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000062'::uuid, date '2026-10-01', date '2026-10-10', 'injury');
 
-insert into public.payments (id, tenant_id, member_id, amount_paise, method, recorded_by_staff_id) values
-  ('12000000-0000-4000-8000-000000000081'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000031'::uuid, 200000, 'cash', '12000000-0000-4000-8000-000000000023'::uuid),
-  ('12000000-0000-4000-8000-000000000082'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000032'::uuid, 200000, 'cash', '12000000-0000-4000-8000-000000000023'::uuid),
-  ('12000000-0000-4000-8000-00000000002e'::uuid, '12000000-0000-4000-8000-000000000002'::uuid, '12000000-0000-4000-8000-000000000033'::uuid, 200000, 'cash', '12000000-0000-4000-8000-000000000025'::uuid);
+-- Gym A's two payments are recorded `paid`, because gym A's two refunds are
+-- taken against them and `GL036` refuses a refund against a payment that has
+-- taken no money. Nothing in this file reads a payment's status -- every
+-- assertion is a row COUNT per table -- so this is the fixture saying what it
+-- always meant: the money came in, and some of it went back. The receipt
+-- numbers are supplied rather than allocated so `app.stamp_payment()` takes
+-- its trusted-writer-keeps-its-own-number path and leaves `document_counters`
+-- alone: those two rows are themselves counted below, and an allocation here
+-- would insert a third ahead of them and then collide with them.
+insert into public.payments (id, tenant_id, member_id, amount_paise, method, status, receipt_number, recorded_by_staff_id) values
+  ('12000000-0000-4000-8000-000000000081'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000031'::uuid, 200000, 'cash', 'paid',    '12/2026-27/R0001', '12000000-0000-4000-8000-000000000023'::uuid),
+  ('12000000-0000-4000-8000-000000000082'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000032'::uuid, 200000, 'cash', 'paid',    '12/2026-27/R0002', '12000000-0000-4000-8000-000000000023'::uuid),
+  ('12000000-0000-4000-8000-00000000002e'::uuid, '12000000-0000-4000-8000-000000000002'::uuid, '12000000-0000-4000-8000-000000000033'::uuid, 200000, 'cash', 'created', null,               '12000000-0000-4000-8000-000000000025'::uuid);
 
 insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason) values
   ('12000000-0000-4000-8000-000000000091'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000081'::uuid, 'refund', 50000, 'goodwill'),

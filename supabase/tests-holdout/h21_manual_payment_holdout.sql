@@ -650,9 +650,17 @@ select set_config(
 );
 set local role authenticated;
 
+-- Recorded `paid`, not `created`: both refunds below are taken against this
+-- row, and `GL036` refuses a refund against a payment that has taken no money.
+-- Front desk taking cash and recording it paid is what this session does
+-- anyway, and both assertions below turn on the ROLE, which a status does not
+-- touch -- the refunds policy answers before the trigger runs, so the front
+-- desk is still refused with 42501. The receipt number is allocated by
+-- `app.stamp_payment()` as for any front-desk payment; gym A's receipt counter
+-- is not asserted again after section 6, so that allocation is invisible here.
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, amount_paise, method, status, recorded_by_staff_id)
-    values ('210000ff-0021-4000-8000-700000000301', '210000ff-0021-4000-8000-100000000001', '210000ff-0021-4000-8000-50000000000f', 1000, 'cash', 'created', '210000ff-0021-4000-8000-300000000001')$$,
+    values ('210000ff-0021-4000-8000-700000000301', '210000ff-0021-4000-8000-100000000001', '210000ff-0021-4000-8000-50000000000f', 1000, 'cash', 'paid', '210000ff-0021-4000-8000-300000000001')$$,
   'front desk recording a payment in its own gym succeeds — already true under the Phase 2 role matrix');
 
 select throws_ok(

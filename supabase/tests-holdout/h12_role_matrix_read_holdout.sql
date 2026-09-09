@@ -392,14 +392,21 @@ insert into public.razorpay_mandates
   ('66660000-0012-4000-8000-0000000000a1', 'aaaa0000-0012-4000-8000-000000000001',
      '33330000-0012-4000-8000-0000000000a1', 'sub_holdout_a1', 500000);
 
+-- ...a2 is recorded `paid` because the refund below is taken against it, and
+-- `GL036` refuses a refund against a payment that has taken no money. This
+-- file counts rows per table and never reads a payment's status, so the money
+-- having arrived changes nothing it asserts. Its receipt number is supplied
+-- rather than allocated so `app.stamp_payment()` takes its trusted-writer path
+-- and does not add a second `document_counters` row -- that table's count is
+-- asserted as 1.
 insert into public.payments
-  (id, tenant_id, member_id, amount_paise, method, recorded_by_staff_id) values
+  (id, tenant_id, member_id, amount_paise, method, status, receipt_number, recorded_by_staff_id) values
   ('66660000-0012-4000-8000-0000000000a2', 'aaaa0000-0012-4000-8000-000000000001',
-     '33330000-0012-4000-8000-0000000000a1', 100000, 'cash', '22220000-0012-4000-8000-0000000000a3'),
+     '33330000-0012-4000-8000-0000000000a1', 100000, 'cash', 'paid', 'RCP/HOLD/1', '22220000-0012-4000-8000-0000000000a3'),
   ('66660000-0012-4000-8000-0000000000a3', 'aaaa0000-0012-4000-8000-000000000001',
-     '33330000-0012-4000-8000-0000000000a2', 100000, 'cash', '22220000-0012-4000-8000-0000000000a3'),
+     '33330000-0012-4000-8000-0000000000a2', 100000, 'cash', 'created', null, '22220000-0012-4000-8000-0000000000a3'),
   ('66660000-0012-4000-8000-0000000000b2', 'bbbb0000-0012-4000-8000-000000000002',
-     '33330000-0012-4000-8000-0000000000b1', 100000, 'cash', '22220000-0012-4000-8000-0000000000b1');
+     '33330000-0012-4000-8000-0000000000b1', 100000, 'cash', 'created', null, '22220000-0012-4000-8000-0000000000b1');
 
 insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason) values
   ('66660000-0012-4000-8000-0000000000a4', 'aaaa0000-0012-4000-8000-000000000001',

@@ -126,10 +126,17 @@ insert into public.membership_pauses (id, tenant_id, membership_id, starts_on, e
   ('13000000-0000-4000-8000-000000000071'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000061'::uuid, date '2026-10-01', date '2026-10-10', 'travel'),
   ('13000000-0000-4000-8000-000000000072'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000062'::uuid, date '2026-10-01', date '2026-10-10', 'injury');
 
-insert into public.payments (id, tenant_id, member_id, amount_paise, method, recorded_by_staff_id) values
-  ('13000000-0000-4000-8000-000000000081'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000031'::uuid, 200000, 'cash', '13000000-0000-4000-8000-000000000023'::uuid),
-  ('13000000-0000-4000-8000-000000000082'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000032'::uuid, 200000, 'cash', '13000000-0000-4000-8000-000000000023'::uuid),
-  ('13000000-0000-4000-8000-00000000002e'::uuid, '13000000-0000-4000-8000-000000000002'::uuid, '13000000-0000-4000-8000-000000000033'::uuid, 200000, 'cash', '13000000-0000-4000-8000-000000000025'::uuid);
+-- Recorded `paid`, because the two refunds below are taken against them and
+-- `GL036` refuses a refund against a payment that has taken no money. This
+-- file asserts WHO may write which table and never a payment's status, so the
+-- front-desk refusal further down still turns on the role: the refunds policy
+-- answers before the trigger ever runs. Receipt numbers are supplied rather
+-- than allocated so `app.stamp_payment()` keeps them and leaves the
+-- `document_counters` rows below untouched.
+insert into public.payments (id, tenant_id, member_id, amount_paise, method, status, receipt_number, recorded_by_staff_id) values
+  ('13000000-0000-4000-8000-000000000081'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000031'::uuid, 200000, 'cash', 'paid',    '13/2026-27/R0001', '13000000-0000-4000-8000-000000000023'::uuid),
+  ('13000000-0000-4000-8000-000000000082'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000032'::uuid, 200000, 'cash', 'paid',    '13/2026-27/R0002', '13000000-0000-4000-8000-000000000023'::uuid),
+  ('13000000-0000-4000-8000-00000000002e'::uuid, '13000000-0000-4000-8000-000000000002'::uuid, '13000000-0000-4000-8000-000000000033'::uuid, 200000, 'cash', 'created', null,               '13000000-0000-4000-8000-000000000025'::uuid);
 
 insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason) values
   ('13000000-0000-4000-8000-000000000091'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000081'::uuid, 'refund', 50000, 'goodwill'),

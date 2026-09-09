@@ -319,11 +319,52 @@
 -- `cancelled -> active` is a permitted front-desk UPDATE) which it stages and
 -- reports rather than siding. See section 22's own header.
 
+-- ELEVENTH-SESSION EXTENSION - section 24, plan 701 -> 809, round SEVENTEEN,
+-- written blind by an EIGHTH author against the three newest requirements: "A
+-- refund that completed did not fail", "Money only comes back out of money
+-- that came in", and "A membership belongs to the member it was sold to". Two
+-- authors again this round, one per suite - round sixteen's single author
+-- wrote two near-identical sections and a critic said so. Section 24 leaves
+-- the three headlines to the visible suite and takes the seams: the refund
+-- status enum across all sixteen ordered pairs on sixteen separate rows;
+-- `completed` reached by UPDATE rather than by insert; what GL040/GL041 and
+-- this round together still leave writable on `refunds` and whether any of it
+-- reaches the ceiling; the `created` rule from the permitted side and its
+-- closure with GL039; the membership move from the desk, a manager and a
+-- claimless `postgres`, against a member holding nothing AND against the one
+-- holding a live membership that the requirement warns is a false green; the
+-- three rules composed into single statements; and the permitted side as hard
+-- as the refused. Its refusals are asserted through `pg_temp.h22r17_gl`,
+-- which is true only for a `GL0…` code, because 23505 from
+-- `memberships_tenant_id_member_id_live_key` and 42501 from
+-- `refunds_tenant_write` would each satisfy a null-coded `throws_ok`. THE ONE
+-- EXCEPTION is the live-target membership move, which the unique index
+-- refuses first and always will (ADR-072 keeps these rules in AFTER
+-- triggers); it is asserted through `h22r8_refused` instead, and section
+-- 24e's header records the ordering so nobody moves the rule to BEFORE to
+-- satisfy it. Same call round ten made for GL045 against a Phase 1 CHECK.
+--
+-- ITS FINDING, staged rather than asserted (24c): the requirement freezes
+-- `completed` and, in its own second scenario, explicitly permits every other
+-- move - including `processing -> failed`. A refund at `processing` is money
+-- already with the provider. Run with `processing` in place of `completed`,
+-- the requirement's own measured exploit completes end to end under the rule:
+-- ceiling refuses the second refund, first is demoted to `failed`, second is
+-- ACCEPTED, re-completing the first is refused by GL036. Same harm, same
+-- one-way door, one enum value over. SETTLED BY THE COORDINATOR AS PERMITTED,
+-- and 24c's assertions stay green as written: money at `processing` is in
+-- flight and can genuinely fail, so refusing the transition would strand it
+-- while the ceiling ate money that never left. The invariant survives for a
+-- different reason than the freeze — GL036 applies on UPDATE, so an
+-- un-counted refund can never be re-completed and at most one of the two ever
+-- reaches `completed`, which is exactly what 24c/step 5 measures.
+-- See section 24's own header.
+
 begin;
 
 set local role postgres;
 
-select plan(701);
+select plan(809);
 
 -- ---------------------------------------------------------------------------
 -- 0. Fixtures.
@@ -7285,6 +7326,1046 @@ select is(
   (select string_agg(kind || '=' || next_number, ',' order by kind) from h22r16_before),
   'r16/multirow: and BOTH rows are exactly where they were before the statement. The receipt row''s increase was legal on its own and still went back with the refusal — a refused row aborts the statement rather than being skipped, which is the difference between a receipt book and a suggestion');
 
+
+-- ---------------------------------------------------------------------------
+-- 24. ROUND SEVENTEEN, written blind by an EIGHTH author against the three
+-- newest requirements in openspec/changes/phase-5-money/specs/payment-record/
+-- spec.md: "A refund that completed did not fail", "Money only comes back out
+-- of money that came in", and "A membership belongs to the member it was sold
+-- to".
+--
+-- Not read, then or since: supabase/tests/22_payment_record.sql, written in
+-- parallel this round by a DIFFERENT author (round sixteen had one author
+-- write both files and a critic correctly found the two sections near
+-- identical); prosrc or pg_get_functiondef for anything implementing these
+-- three rules; and, per ADR-091, docs/registry.md for anything about this
+-- round's code. Read: the three requirements, the live Cloud catalogue, and
+-- this file.
+--
+-- REFUSALS ARE ASSERTED THROUGH `pg_temp.h22r17_gl`, NOT `throws_ok(..., null)`.
+-- The rules this section attacks have no error codes yet, and a null expected
+-- code accepts ANY sqlstate — including the two that would report a false
+-- GREEN here:
+--   * 23505 on `memberships_tenant_id_member_id_live_key`, which the
+--     requirement itself warns about: a membership move to a member who
+--     already holds a live one is refused TODAY, by a unique index, for a
+--     reason that has nothing to do with the rule. The requirement's own
+--     "trap for whoever tests this".
+--   * 42501 from `refunds_tenant_write`, which is `is_gym_admin()` — a
+--     refund attempted from the front desk is refused whatever the money
+--     rules say, so every refund statement below runs under a MANAGER claim.
+-- `h22r17_gl` is true only for a `GL0…` application refusal, so it cannot be
+-- satisfied by a unique index, an RLS denial, a missing column or a syntax
+-- error. Permitted cases are asserted as `is(state, 'OK')` rather than
+-- `lives_ok` so that a failure prints the sqlstate that caused it.
+--
+-- THE SEAMS THIS SECTION CHOSE. It does not re-prove the three headlines.
+--
+--   * THE REFUND STATUS ENUM, EXHAUSTIVELY. The enum is enumerated from
+--     pg_enum (and that enumeration is itself asserted, so a fifth value
+--     added later fails here rather than silently leaving the matrix
+--     incomplete), and all sixteen ordered pairs are attempted on sixteen
+--     separate refund rows — one row per pair, inserted directly at its
+--     source status, so nothing depends on the order the pairs are run in
+--     and no reset can be confounded with the rule. Twelve transitions and
+--     four self-writes. The requirement refuses exactly three of the
+--     sixteen.
+--   * `completed` REACHED BY UPDATE, not only by insert. Pair 9 is
+--     `failed -> completed`; 24b then attempts to demote THAT row. A guard
+--     keyed on the value the row was born with passes every pair in 24a and
+--     fails here.
+--   * WHAT IS LEFT UNFROZEN ON `refunds`, AND WHETHER IT REACHES THE
+--     CEILING. GL040/GL041 freeze `payment_id`, `amount_paise` and
+--     `initiated_by_staff_id`; this round freezes `status`. That leaves
+--     `currency` and `kind` writable, and `enforce_refund_total` sums
+--     `amount_paise` across BOTH kinds without reading either column
+--     (measured). 24b asserts the property that actually matters — the
+--     ceiling still holds after both edits — and reports the two open doors
+--     by `diag` rather than asserting a side the requirement does not take.
+--   * THE THREE RULES IN ONE STATEMENT. A demotion and the second refund it
+--     makes room for, in one data-modifying CTE; a membership move and a
+--     refund in one; and, after both are refused, an ordinary refund
+--     proving the path is not simply shut (ADR-078).
+--   * THE `created` RULE FROM THE OTHER SIDE. A payment born `paid`, one
+--     that reaches `paid` by UPDATE, one that moves on to `refunded` and one
+--     to `reversed` — all four must still take refunds. And the composition
+--     with GL039: `paid -> failed` is already refused, so once the `created`
+--     door is shut no refund can ever come to rest against a failed payment
+--     by any route. That closure is asserted, not assumed.
+--   * THE MEMBERSHIP MOVE FROM EVERY WRITER. Front desk (the measured
+--     defect), gym manager, and `postgres` with no claim at all — the last
+--     of which fails a rule written into RLS instead of onto the table.
+--     Plus the INSERT side, which is a different act and stays permitted,
+--     and the requirement's own remedy (cancel, re-sell) run end to end.
+--   * THE PERMITTED SIDE AS HARD AS THE REFUSED (24g): a sale, a period
+--     granted, an ordinary refund inside the ceiling advanced to
+--     `completed`, a renewal, a freeze, an unfreeze, a cancellation and a
+--     re-sale. Every one is green today and must stay green.
+--
+-- THE FINDING, WHICH THIS SECTION STAGES RATHER THAN ASSERTS (24c).
+-- "A refund that completed did not fail" names its harm precisely: money
+-- that left the gym must not become "an attempt that never happened", and
+-- the tell is that the door is one-way — un-count freely, never re-count.
+-- The rule closes that door for `completed` and, in the same requirement,
+-- explicitly opens it for `processing`: "a refund that is not `completed`
+-- moves between its other statuses — THEN it SHALL be allowed". A refund
+-- sitting at `processing` is money already handed to the provider. 24c runs
+-- the requirement's own measured sequence with `processing` in place of
+-- `completed` and every step is permitted by the requirement as written:
+-- the ceiling refuses the second refund, the first is demoted to `failed`,
+-- the second is then ACCEPTED, and re-completing the first is refused by
+-- GL036. Two full refunds of a single payment exist as rows, the books show
+-- one, and the door is one-way exactly as before. Because the requirement
+-- permits it, nothing here asserts a refusal; the sequence is asserted at
+-- what the requirement says and the outcome is reported by `diag`.
+-- ---------------------------------------------------------------------------
+
+create function pg_temp.h22r17_state(sql text) returns text
+language plpgsql as $fn$
+begin
+  execute sql;
+  return 'OK';
+exception when others then
+  return sqlstate;
+end
+$fn$;
+
+-- True ONLY for a GL0xx application refusal. 23505 (the live-membership
+-- unique index), 42501 (RLS), 42703/42P01/42883/42601 (an unimplemented
+-- contract) are all FALSE here on purpose — each of them is a way this
+-- battery could go green without the rule existing.
+create function pg_temp.h22r17_gl(sql text) returns boolean
+language sql as $fn$
+  select pg_temp.h22r17_state(sql) like 'GL0%'
+$fn$;
+
+grant execute on function pg_temp.h22r17_state(text) to public;
+grant execute on function pg_temp.h22r17_gl(text) to public;
+
+create temp table h22r17_obs (k text primary key, v text);
+grant all on h22r17_obs to public;
+
+-- Fixtures. Gym A throughout. Members f01-f11, memberships f01-f03, f07 (f04,
+-- f05 and f08 are created by the assertions themselves), payments f01-f19.
+set local role postgres;
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('220000ff-0022-4000-8000-500000000f01'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R17 Matrix Payer',       '+919220000701'),
+  ('220000ff-0022-4000-8000-500000000f02'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R17 One-Way Door',       '+919220000702'),
+  ('220000ff-0022-4000-8000-500000000f03'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R17 Money Never Arrived','+919220000703'),
+  ('220000ff-0022-4000-8000-500000000f04'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R17 Born Paid',          '+919220000704'),
+  ('220000ff-0022-4000-8000-500000000f05'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R17 Paid By Update',     '+919220000705'),
+  ('220000ff-0022-4000-8000-500000000f06'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R17 Move Owner',         '+919220000706'),
+  ('220000ff-0022-4000-8000-500000000f07'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R17 Move Target Empty',  '+919220000707'),
+  ('220000ff-0022-4000-8000-500000000f08'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R17 Move Target Live',   '+919220000708'),
+  ('220000ff-0022-4000-8000-500000000f09'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R17 Pending Owner',      '+919220000709'),
+  ('220000ff-0022-4000-8000-500000000f10'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R17 Multirow Target',    '+919220000710'),
+  ('220000ff-0022-4000-8000-500000000f11'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R17 Permitted Side',     '+919220000711');
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('220000ff-0022-4000-8000-600000000f01'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f06'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000),
+  ('220000ff-0022-4000-8000-600000000f02'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f08'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000),
+  ('220000ff-0022-4000-8000-600000000f07'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f11'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000);
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('220000ff-0022-4000-8000-600000000f03'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f09'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'pending', null, null, 100000);
+
+-- Payments are recorded by the desk that took them (GL034), under a real
+-- front-desk claim, because that is the only path a manual payment has.
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+set local role authenticated;
+
+insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id) values
+  ('220000ff-0022-4000-8000-700000000f01'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f01'::uuid, null, 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'::uuid),
+  ('220000ff-0022-4000-8000-700000000f02'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f01'::uuid, null, 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'::uuid),
+  ('220000ff-0022-4000-8000-700000000f03'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f01'::uuid, null, 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'::uuid),
+  ('220000ff-0022-4000-8000-700000000f04'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f01'::uuid, null, 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'::uuid),
+  ('220000ff-0022-4000-8000-700000000f05'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f01'::uuid, null, 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'::uuid),
+  ('220000ff-0022-4000-8000-700000000f06'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f01'::uuid, null, 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'::uuid),
+  ('220000ff-0022-4000-8000-700000000f07'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f02'::uuid, null, 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'::uuid),
+  ('220000ff-0022-4000-8000-700000000f11'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f04'::uuid, null, 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'::uuid),
+  ('220000ff-0022-4000-8000-700000000f13'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f04'::uuid, null, 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'::uuid),
+  ('220000ff-0022-4000-8000-700000000f16'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f02'::uuid, null, 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'::uuid),
+  ('220000ff-0022-4000-8000-700000000f17'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f02'::uuid, null, 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'::uuid);
+
+insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id) values
+  ('220000ff-0022-4000-8000-700000000f08'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f03'::uuid, null, 100000, 'cash', 'created', '220000ff-0022-4000-8000-300000000001'::uuid),
+  ('220000ff-0022-4000-8000-700000000f09'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f03'::uuid, null, 100000, 'cash', 'created', '220000ff-0022-4000-8000-300000000001'::uuid),
+  ('220000ff-0022-4000-8000-700000000f10'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f03'::uuid, null, 100000, 'cash', 'created', '220000ff-0022-4000-8000-300000000001'::uuid),
+  ('220000ff-0022-4000-8000-700000000f12'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f05'::uuid, null, 100000, 'cash', 'created', '220000ff-0022-4000-8000-300000000001'::uuid),
+  ('220000ff-0022-4000-8000-700000000f14'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f05'::uuid, null, 100000, 'cash', 'created', '220000ff-0022-4000-8000-300000000001'::uuid),
+  -- A SECOND created payment, kept untouched, so the reversal probe in 24d
+  -- meets an EMPTY ceiling. Aimed at the first created payment it would be
+  -- answered by GL036 today (the refund above it having filled that payment's
+  -- ceiling) and would report a pass while the rule it tests does not exist.
+  ('220000ff-0022-4000-8000-700000000f20'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f03'::uuid, null, 100000, 'cash', 'created', '220000ff-0022-4000-8000-300000000001'::uuid);
+
+update public.payments set status = 'pending' where id in ('220000ff-0022-4000-8000-700000000f09'::uuid, '220000ff-0022-4000-8000-700000000f12'::uuid, '220000ff-0022-4000-8000-700000000f14'::uuid);
+update public.payments set status = 'failed', failed_reason = 'h22 r17: never arrived' where id = '220000ff-0022-4000-8000-700000000f10'::uuid;
+update public.payments set status = 'paid', paid_at = now() where id = '220000ff-0022-4000-8000-700000000f12'::uuid;
+
+-- The membership that carries a granted period, and the money that granted it.
+insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id) values
+  ('220000ff-0022-4000-8000-700000000f15'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000f06'::uuid, '220000ff-0022-4000-8000-600000000f01'::uuid, 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'::uuid);
+
+-- The refund matrix, one row per ordered pair, each inserted directly at its
+-- SOURCE status so no pair depends on the order the others ran in. 1000 paise
+-- against payments of 100000, so the ceiling is never a candidate explanation
+-- for anything 24a refuses. Refunds are gym-admin work (`refunds_tenant_write`
+-- is `is_gym_admin()`), so this and every later refund runs as a manager.
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'gym_manager',
+                     'staff_id', '220000ff-0022-4000-8000-300000000002')::text,
+  true
+);
+
+insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id) values
+  ('220000ff-0022-4000-8000-800000000f01'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f01'::uuid, 'refund', 1000, 'requested',  'h22 r17 pair 01 requested->processing',  '220000ff-0022-4000-8000-300000000002'::uuid),
+  ('220000ff-0022-4000-8000-800000000f02'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f01'::uuid, 'refund', 1000, 'requested',  'h22 r17 pair 02 requested->completed',   '220000ff-0022-4000-8000-300000000002'::uuid),
+  ('220000ff-0022-4000-8000-800000000f03'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f01'::uuid, 'refund', 1000, 'requested',  'h22 r17 pair 03 requested->failed',      '220000ff-0022-4000-8000-300000000002'::uuid),
+  ('220000ff-0022-4000-8000-800000000f04'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f01'::uuid, 'refund', 1000, 'processing', 'h22 r17 pair 04 processing->requested',  '220000ff-0022-4000-8000-300000000002'::uuid),
+  ('220000ff-0022-4000-8000-800000000f05'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f02'::uuid, 'refund', 1000, 'processing', 'h22 r17 pair 05 processing->completed',  '220000ff-0022-4000-8000-300000000002'::uuid),
+  ('220000ff-0022-4000-8000-800000000f06'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f02'::uuid, 'refund', 1000, 'processing', 'h22 r17 pair 06 processing->failed',     '220000ff-0022-4000-8000-300000000002'::uuid),
+  ('220000ff-0022-4000-8000-800000000f07'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f02'::uuid, 'refund', 1000, 'failed',     'h22 r17 pair 07 failed->requested',      '220000ff-0022-4000-8000-300000000002'::uuid),
+  ('220000ff-0022-4000-8000-800000000f08'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f02'::uuid, 'refund', 1000, 'failed',     'h22 r17 pair 08 failed->processing',     '220000ff-0022-4000-8000-300000000002'::uuid),
+  ('220000ff-0022-4000-8000-800000000f09'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f03'::uuid, 'refund', 1000, 'failed',     'h22 r17 pair 09 failed->completed',      '220000ff-0022-4000-8000-300000000002'::uuid),
+  ('220000ff-0022-4000-8000-800000000f10'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f03'::uuid, 'refund', 1000, 'completed',  'h22 r17 pair 10 completed->requested',   '220000ff-0022-4000-8000-300000000002'::uuid),
+  ('220000ff-0022-4000-8000-800000000f11'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f03'::uuid, 'refund', 1000, 'completed',  'h22 r17 pair 11 completed->processing',  '220000ff-0022-4000-8000-300000000002'::uuid),
+  ('220000ff-0022-4000-8000-800000000f12'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f03'::uuid, 'refund', 1000, 'completed',  'h22 r17 pair 12 completed->failed',      '220000ff-0022-4000-8000-300000000002'::uuid),
+  ('220000ff-0022-4000-8000-800000000f13'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f04'::uuid, 'refund', 1000, 'requested',  'h22 r17 pair 13 requested->requested',   '220000ff-0022-4000-8000-300000000002'::uuid),
+  ('220000ff-0022-4000-8000-800000000f14'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f04'::uuid, 'refund', 1000, 'processing', 'h22 r17 pair 14 processing->processing', '220000ff-0022-4000-8000-300000000002'::uuid),
+  ('220000ff-0022-4000-8000-800000000f15'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f04'::uuid, 'refund', 1000, 'failed',     'h22 r17 pair 15 failed->failed',         '220000ff-0022-4000-8000-300000000002'::uuid),
+  ('220000ff-0022-4000-8000-800000000f16'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f04'::uuid, 'refund', 1000, 'completed',  'h22 r17 pair 16 completed->completed',   '220000ff-0022-4000-8000-300000000002'::uuid);
+
+-- ---------------------------------------------------------------------------
+-- 24a. THE REFUND STATUS ENUM, EXHAUSTIVELY. Four values, sixteen ordered
+-- pairs, sixteen rows — one per pair, born at its source status. The
+-- requirement refuses three of them ("any change out of `completed`") and
+-- allows the other thirteen; the four self-writes are the pairs it answers
+-- only by implication, since writing `completed` back is not a change OUT of
+-- it, and a rule that reads OLD.status without comparing NEW refuses the
+-- ordinary column-listing save that carries it (the shape 16h had to assert
+-- one table over, for exactly this reason).
+--
+-- The enum itself is asserted first. If a fifth refund status is ever added,
+-- this matrix is silently incomplete, and that assertion is the only thing
+-- that would say so.
+-- ---------------------------------------------------------------------------
+
+select is(
+  (select string_agg(e.enumlabel, ',' order by e.enumsortorder)
+     from pg_type t join pg_enum e on e.enumtypid = t.oid
+    where t.typname = 'refund_status'),
+  'requested,processing,completed,failed',
+  'r17/enum: refund_status is exactly these four values in this order — the matrix below is 4 x 4 and complete only while that is true. A fifth value added later fails HERE rather than leaving an untested pair');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'processing' where id = '220000ff-0022-4000-8000-800000000f01'$$),
+  'OK',
+  'r17/pair 01 requested -> processing: permitted. A refund handed to the provider is the ordinary first move and nothing in this requirement touches it');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f01'::uuid),
+  'processing',
+  'r17/pair 01: and the row actually moved — a rule broad enough to refuse this would be caught here rather than by a passing lives_ok on an inert statement');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'completed' where id = '220000ff-0022-4000-8000-800000000f02'$$),
+  'OK',
+  'r17/pair 02 requested -> completed: permitted. The freeze is on the way OUT of completed, never on the way in — a refund has to be able to complete at all');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f02'::uuid),
+  'completed',
+  'r17/pair 02: and the row is completed');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'failed' where id = '220000ff-0022-4000-8000-800000000f03'$$),
+  'OK',
+  'r17/pair 03 requested -> failed: permitted. A refund the provider declined before it ever started took nothing and is not the fact this rule protects');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f03'::uuid),
+  'failed',
+  'r17/pair 03: and the row is failed');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'requested' where id = '220000ff-0022-4000-8000-800000000f04'$$),
+  'OK',
+  'r17/pair 04 processing -> requested: permitted. BACKWARDS, and permitted — "a refund that is not completed moves between its other statuses" is a set, not an ordering, and an implementer who reaches for a transition table like GL039''s will refuse this');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f04'::uuid),
+  'requested',
+  'r17/pair 04: and the row really went backwards');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'completed' where id = '220000ff-0022-4000-8000-800000000f05'$$),
+  'OK',
+  'r17/pair 05 processing -> completed: permitted, and the ordinary happy path of every refund that ever leaves this gym');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f05'::uuid),
+  'completed',
+  'r17/pair 05: and the row is completed');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'failed' where id = '220000ff-0022-4000-8000-800000000f06'$$),
+  'OK',
+  'r17/pair 06 processing -> failed: permitted BY THIS REQUIREMENT, and it is the pair 24c is about — see that section. Asserted here as what the requirement says, not as what is safe');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f06'::uuid),
+  'failed',
+  'r17/pair 06: and a refund the provider was already processing is now on the books as an attempt that never happened');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'requested' where id = '220000ff-0022-4000-8000-800000000f07'$$),
+  'OK',
+  'r17/pair 07 failed -> requested: permitted. A refund is retried by re-requesting it, and this is the pair that makes `failed` a way station rather than a terminal state');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f07'::uuid),
+  'requested',
+  'r17/pair 07: and the row is requested again');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'processing' where id = '220000ff-0022-4000-8000-800000000f08'$$),
+  'OK',
+  'r17/pair 08 failed -> processing: permitted');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f08'::uuid),
+  'processing',
+  'r17/pair 08: and the row is processing');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'completed' where id = '220000ff-0022-4000-8000-800000000f09'$$),
+  'OK',
+  'r17/pair 09 failed -> completed: permitted — a retry that succeeds, and the ONLY route by which a row reaches `completed` after being born something else. The ceiling has room (1000 of a 100000 payment), so nothing but the status rule can answer this. 24b then tries to demote THIS row: a freeze keyed on the status the row was INSERTED with passes every other pair here and fails there');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f09'::uuid),
+  'completed',
+  'r17/pair 09: and the row reached completed by UPDATE rather than by insert');
+
+select ok(
+  pg_temp.h22r17_gl($$update public.refunds set status = 'requested' where id = '220000ff-0022-4000-8000-800000000f10'$$),
+  'r17/pair 10 completed -> requested: REFUSED with a GL0xx code. Money that left the gym does not become a request again, and un-completing by any target is the same one-way door as demoting to failed');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f10'::uuid),
+  'completed',
+  'r17/pair 10: refused AND unchanged — a refusal that still moved the value would be worse than none');
+
+select ok(
+  pg_temp.h22r17_gl($$update public.refunds set status = 'processing' where id = '220000ff-0022-4000-8000-800000000f11'$$),
+  'r17/pair 11 completed -> processing: REFUSED with a GL0xx code. The measured defect used `failed` because that is the value the ceiling reads; a fix that names only `failed` leaves the fact just as editable, and this pair is what tells the two apart');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f11'::uuid),
+  'completed',
+  'r17/pair 11: refused AND unchanged');
+
+select ok(
+  pg_temp.h22r17_gl($$update public.refunds set status = 'failed' where id = '220000ff-0022-4000-8000-800000000f12'$$),
+  'r17/pair 12 completed -> failed: REFUSED with a GL0xx code. The measured defect itself, asserted here only so the matrix is whole');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f12'::uuid),
+  'completed',
+  'r17/pair 12: refused AND unchanged');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'requested' where id = '220000ff-0022-4000-8000-800000000f13'$$),
+  'OK',
+  'r17/pair 13 requested -> requested: permitted. Writing a status back unchanged is not a change, and every ordinary column-listing save from a console form carries the status column whether or not it differs');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f13'::uuid),
+  'requested',
+  'r17/pair 13: and the row is untouched');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'processing' where id = '220000ff-0022-4000-8000-800000000f14'$$),
+  'OK',
+  'r17/pair 14 processing -> processing: permitted');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f14'::uuid),
+  'processing',
+  'r17/pair 14: and the row is untouched');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'failed' where id = '220000ff-0022-4000-8000-800000000f15'$$),
+  'OK',
+  'r17/pair 15 failed -> failed: permitted');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f15'::uuid),
+  'failed',
+  'r17/pair 15: and the row is untouched');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'completed' where id = '220000ff-0022-4000-8000-800000000f16'$$),
+  'OK',
+  'r17/pair 16 completed -> completed: THE PAIR THE REQUIREMENT DOES NOT ANSWER IN WORDS. It refuses "any change OUT of completed", and writing completed back is not a change out of it — so this file sides on permitted, consistent with 16h one table over. The shortest rule that passes pairs 10, 11 and 12 (`OLD.status = completed and TG_OP = UPDATE`) refuses this one, and it is the rule an implementer reaches for first');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f16'::uuid),
+  'completed',
+  'r17/pair 16: and the row is still completed');
+
+-- ---------------------------------------------------------------------------
+-- 24b. `completed` REACHED BY UPDATE, AND WHAT THE FREEZE LEAVES BEHIND.
+--
+-- Pair 09 above put a row into `completed` by UPDATE rather than by INSERT.
+-- Everything in 24a would still pass for a guard that compares NEW.status
+-- against the value the row was BORN with; this one does not.
+--
+-- Then the column audit. `GL040`/`GL041` freeze `payment_id`, `amount_paise`
+-- and `initiated_by_staff_id`; this round freezes `status`. Of what is left,
+-- two columns are read by nothing and written by anyone — `currency` and
+-- `kind` — and `app.enforce_refund_total` sums `amount_paise` across both
+-- kinds without consulting either (measured: a `reversal` and a `refund`
+-- share one ceiling). Neither is a way to take more money out, which is why
+-- nothing here asserts a refusal for them; what IS asserted is the property
+-- that matters, that the ceiling still holds after both edits. The edits'
+-- own outcomes are reported by `diag`, because the requirement takes no side.
+-- ---------------------------------------------------------------------------
+
+select ok(
+  pg_temp.h22r17_gl($$update public.refunds set status = 'failed' where id = '220000ff-0022-4000-8000-800000000f09'$$),
+  'r17/b: a refund that reached `completed` BY UPDATE cannot be demoted either. "A refund that completed did not fail" is about the fact, not about how the row got there, and a guard reading only the inserted value would let this one through');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f09'::uuid),
+  'completed',
+  'r17/b: refused AND unchanged');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds
+      set reason = 'h22 r17: provider confirmed, reference filed afterwards',
+          provider_refund_id = 'h22r17_rfnd_0001',
+          processed_at = now()
+    where id = '220000ff-0022-4000-8000-800000000f16'$$),
+  'OK',
+  'r17/b: WHAT STAYS WRITABLE. On a completed refund the reason, the provider''s own reference and the time it was processed are all still editable — the same distinction the payment freeze draws, freeze what the row MEANT and leave what has become of it. A freeze written as "no UPDATE at all once completed" passes every refusal above and breaks the reconciliation this column exists for');
+
+select is(
+  (select reason || '|' || provider_refund_id || '|' || (processed_at is not null)::text
+     from public.refunds where id = '220000ff-0022-4000-8000-800000000f16'::uuid),
+  'h22 r17: provider confirmed, reference filed afterwards|h22r17_rfnd_0001|true',
+  'r17/b: and all three landed — the permitted statement was not merely inert (ADR-078)');
+
+-- The two unfrozen columns, and whether either reaches the ceiling.
+insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id) values
+  ('220000ff-0022-4000-8000-800000000f17'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f05'::uuid, 'refund', 100000, 'completed', 'h22 r17 full refund, the ceiling on payment f05 is now closed', '220000ff-0022-4000-8000-300000000002'::uuid);
+
+insert into h22r17_obs (k, v) values
+  ('currency_edit', pg_temp.h22r17_state($$update public.refunds set currency = 'USD' where id = '220000ff-0022-4000-8000-800000000f17'$$));
+
+select ok(
+  pg_temp.h22r17_gl($$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+      values ('220000ff-0022-4000-8000-800000000f18', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f05', 'refund', 100000, 'completed', 'h22 r17 a second full refund after the first was re-labelled', '220000ff-0022-4000-8000-300000000002')$$),
+  'r17/b/currency: WHATEVER HAPPENS TO THE CURRENCY, THE CEILING STILL HOLDS. A completed refund of the whole payment is re-labelled into another currency and a second full refund is still refused — the sum is in paise and counts the row regardless of what it now claims to be denominated in. This is the assertion that matters; the edit''s own outcome is reported below and not scored');
+
+select is(
+  (select coalesce(sum(amount_paise), 0)::text from public.refunds
+    where payment_id = '220000ff-0022-4000-8000-700000000f05'::uuid and status <> 'failed'),
+  '100000',
+  'r17/b/currency: and exactly one full refund stands against that payment');
+
+insert into h22r17_obs (k, v) values
+  ('kind_edit', pg_temp.h22r17_state($$update public.refunds set kind = 'reversal' where id = '220000ff-0022-4000-8000-800000000f17'$$));
+
+select ok(
+  pg_temp.h22r17_gl($$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+      values ('220000ff-0022-4000-8000-800000000f19', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f05', 'refund', 100000, 'completed', 'h22 r17 a third full refund after the first was re-kinded', '220000ff-0022-4000-8000-300000000002')$$),
+  'r17/b/kind: and the same for `kind` — a completed refund re-labelled a reversal is still counted, so re-kinding is not a way to reopen a closed ceiling either');
+
+insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id) values
+  ('220000ff-0022-4000-8000-800000000f20'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f06'::uuid, 'reversal', 60000, 'completed', 'h22 r17 a reversal, not a refund', '220000ff-0022-4000-8000-300000000002'::uuid);
+
+select throws_ok(
+  $$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+    values ('220000ff-0022-4000-8000-800000000f21', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f06', 'refund', 60000, 'completed', 'h22 r17 a refund on top of a reversal', '220000ff-0022-4000-8000-300000000002')$$,
+  'GL036'::char(5), null,
+  'r17/b/kind: THE TWO KINDS SHARE ONE CEILING, asserted rather than assumed. A 60000 reversal plus a 60000 refund is 120000 against a 100000 payment and GL036 refuses it. Green today; a round that segments the ceiling by kind to make the freeze simpler would open a second full withdrawal per payment and would be visible here');
+
+select is(
+  (select coalesce(sum(amount_paise), 0)::text from public.refunds
+    where payment_id = '220000ff-0022-4000-8000-700000000f06'::uuid and status <> 'failed'),
+  '60000',
+  'r17/b/kind: and only the reversal stands against that payment');
+
+select diag(format(
+  'r17/b OBSERVED, unscored: editing a COMPLETED refund''s currency returned %s, and its kind returned %s. GL040/GL041 froze payment_id, amount_paise and initiated_by_staff_id; this round froze status. If both of the above are OK, a refund''s denomination and its very kind remain editable for the life of the row while the ceiling that bounds it is denominated in nothing at all. Neither lets more money out — the two assertions above prove that — so this is reported, not asserted.',
+  (select v from h22r17_obs where k = 'currency_edit'),
+  (select v from h22r17_obs where k = 'kind_edit')));
+
+-- ---------------------------------------------------------------------------
+-- 24c. THE HARM, BY ANOTHER ROUTE. The requirement's own measured sequence,
+-- with `processing` where it had `completed`. Every step below is permitted
+-- by the requirement as written — pair 06 above is the demotion, and the
+-- requirement's second scenario says in as many words that a refund which is
+-- not completed "moves between its other statuses … THEN it SHALL be
+-- allowed".
+--
+-- A refund at `processing` is money already handed to the provider. Demote it
+-- to `failed`, the ceiling forgets it, the second full refund is accepted,
+-- and re-completing the first is then refused by GL036 — un-count freely,
+-- never re-count, which is the requirement's own tell for the one-way door.
+--
+-- NOTHING HERE ASSERTS A REFUSAL, because the requirement grants one. The
+-- steps are asserted at what the requirement says and the outcome is
+-- reported. If a round-eighteen contract extends the freeze to `processing`,
+-- three of these seven assertions invert and the diag below says which.
+-- ---------------------------------------------------------------------------
+
+select is(
+  pg_temp.h22r17_state($$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+      values ('220000ff-0022-4000-8000-800000000f22', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f07', 'refund', 100000, 'processing', 'h22 r17 full refund, handed to the provider', '220000ff-0022-4000-8000-300000000002')$$),
+  'OK',
+  'r17/c/step 1: a full 100000 refund of a 100000 payment is recorded at `processing` — the provider has it, the money is in flight, and the ceiling counts it because it is not failed');
+
+select throws_ok(
+  $$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+    values ('220000ff-0022-4000-8000-800000000f23', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f07', 'refund', 100000, 'completed', 'h22 r17 a second full refund, first attempt', '220000ff-0022-4000-8000-300000000002')$$,
+  'GL036'::char(5), null,
+  'r17/c/step 2: a second full refund is refused by GL036, exactly as the requirement''s own measurement records');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'failed' where id = '220000ff-0022-4000-8000-800000000f22'$$),
+  'OK',
+  'r17/c/step 3: THE DEMOTION, PERMITTED. The in-flight refund is written down to `failed`. The requirement freezes `completed` and says of everything else that it "SHALL be allowed" — so this is the contract, asserted as the contract');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f22'::uuid),
+  'failed',
+  'r17/c/step 3: and money the provider is processing now reads as an attempt that never happened');
+
+select is(
+  pg_temp.h22r17_state($$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+      values ('220000ff-0022-4000-8000-800000000f23', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f07', 'refund', 100000, 'completed', 'h22 r17 a second full refund, second attempt', '220000ff-0022-4000-8000-300000000002')$$),
+  'OK',
+  'r17/c/step 4: and the second full refund is now ACCEPTED. Two full refunds of one payment exist as rows. This is the sentence the requirement wrote about `completed`, reached through `processing`');
+
+select throws_ok(
+  $$update public.refunds set status = 'completed' where id = '220000ff-0022-4000-8000-800000000f22'$$,
+  'GL036'::char(5), null,
+  'r17/c/step 5: and the demoted one cannot be re-completed when the provider confirms it — GL036 refuses, because by now the sum is full. The door is one-way in exactly the shape the requirement names: un-count freely, never re-count');
+
+select is(
+  (select coalesce(sum(amount_paise), 0)::text || '/' ||
+          count(*)::text
+     from public.refunds where payment_id = '220000ff-0022-4000-8000-700000000f07'::uuid
+       and status <> 'failed'),
+  '100000/1',
+  'r17/c/step 6: the books show one refund of 100000 against a payment of 100000, and are internally consistent. The second row is invisible to every sum in the system, which is why nothing surfaces');
+
+select diag(
+  'r17/c OBSERVED, unscored: the whole sequence the requirement "A refund that completed did not fail" was written to close runs to completion with `processing` in place of `completed`, and every step of it is PERMITTED by that requirement''s own second scenario. A refund at `processing` is money already with the provider. The requirement names its harm as money that left the gym becoming an attempt that never happened, and its tell as a one-way door out of the ledger; both are reproduced above under the rule, not around it. This is reported and not asserted, because siding against it would be asserting a contract nobody has approved.');
+
+-- ---------------------------------------------------------------------------
+-- 24d. MONEY ONLY COMES BACK OUT OF MONEY THAT CAME IN — FROM BOTH SIDES.
+--
+-- The refused side is all three statuses the requirement names, not just the
+-- `created` one the critic measured, and both refund KINDS, because
+-- `enforce_refund_total` reads neither and a fix keyed on `kind = 'refund'`
+-- would leave a reversal against a payment that never arrived.
+--
+-- The permitted side is every route into "has taken money": a payment born
+-- `paid` (the ordinary manual case), one that reaches `paid` by UPDATE, and
+-- the two statuses beyond it, `refunded` and `reversed`, which a rule written
+-- as `status = 'paid'` would refuse — closing the SECOND refund of a
+-- part-refunded payment, which is an ordinary thing to do.
+--
+-- And the closure. Once the `created` door is shut, can a refund ever come to
+-- rest against a payment that is not one of the three? Only if a payment
+-- carrying a refund could walk to `failed` afterwards — and GL039 already
+-- refuses that. The two rules together, not either alone, are what makes the
+-- state unreachable, so the composition is asserted here rather than assumed.
+-- ---------------------------------------------------------------------------
+
+select ok(
+  pg_temp.h22r17_gl($$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
+      values ('220000ff-0022-4000-8000-800000000f24', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f08', 'refund', 100000, 'h22 r17 refunding a payment that never arrived', '220000ff-0022-4000-8000-300000000002')$$),
+  'r17/d: a refund naming a `created` payment is REFUSED with a GL0xx code — the measured defect. `amount_paise` is not null on a created row and the ceiling read it happily; the status is what says whether any of it ever arrived');
+
+select is(
+  (select count(*)::int from public.refunds where payment_id = '220000ff-0022-4000-8000-700000000f08'::uuid),
+  0,
+  'r17/d: and NO refund exists against it — the requirement says "no refund SHALL exist", which is stronger than "the statement raised"');
+
+select ok(
+  pg_temp.h22r17_gl($$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
+      values ('220000ff-0022-4000-8000-800000000f25', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f09', 'refund', 100000, 'h22 r17 refunding a pending payment', '220000ff-0022-4000-8000-300000000002')$$),
+  'r17/d: a refund naming a `pending` payment is REFUSED. Pending is the status a provider payment sits at while the gym is waiting to hear; nothing has arrived');
+
+select is(
+  (select count(*)::int from public.refunds where payment_id = '220000ff-0022-4000-8000-700000000f09'::uuid),
+  0,
+  'r17/d: and no refund exists against the pending one');
+
+select ok(
+  pg_temp.h22r17_gl($$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
+      values ('220000ff-0022-4000-8000-800000000f26', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f10', 'refund', 100000, 'h22 r17 refunding a failed payment', '220000ff-0022-4000-8000-300000000002')$$),
+  'r17/d: a refund naming a `failed` payment is REFUSED. The third of the three the requirement names, and the one an implementer is most likely to leave out because a failed payment feels like it needs unwinding');
+
+select is(
+  (select count(*)::int from public.refunds where payment_id = '220000ff-0022-4000-8000-700000000f10'::uuid),
+  0,
+  'r17/d: and no refund exists against the failed one');
+
+select ok(
+  pg_temp.h22r17_gl($$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
+      values ('220000ff-0022-4000-8000-800000000f27', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f20', 'reversal', 50000, 'h22 r17 reversing a payment that never arrived', '220000ff-0022-4000-8000-300000000002')$$),
+  'r17/d: a REVERSAL naming a `created` payment is refused too. The requirement says "a refund names a payment" and the table holds both kinds under one ceiling (24b); a fix that reads `kind` leaves the whole reversal path open. It names a SECOND created payment, with an empty ceiling, on purpose: aimed at the first one this assertion is answered by GL036 today and passes while the rule under test does not exist — verifying a refusal that was already going to happen is not verifying');
+
+select is(
+  (select count(*)::int from public.refunds
+    where payment_id in ('220000ff-0022-4000-8000-700000000f08'::uuid, '220000ff-0022-4000-8000-700000000f20'::uuid)),
+  0,
+  'r17/d: and nothing at all stands against either created payment, after three attempts of two different kinds');
+
+select is(
+  pg_temp.h22r17_state($$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
+      values ('220000ff-0022-4000-8000-800000000f28', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f11', 'refund', 5000, 'h22 r17 an ordinary partial refund of cash taken at the desk', '220000ff-0022-4000-8000-300000000002')$$),
+  'OK',
+  'r17/d: THE ORDINARY CASE. A payment INSERTED at `paid` — which is how every manual cash payment in this product arrives — takes a refund');
+
+select is(
+  (select count(*)::int from public.refunds where payment_id = '220000ff-0022-4000-8000-700000000f11'::uuid),
+  1,
+  'r17/d: and the refund is really there');
+
+select is(
+  pg_temp.h22r17_state($$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
+      values ('220000ff-0022-4000-8000-800000000f29', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f12', 'refund', 5000, 'h22 r17 a refund of money that arrived by update', '220000ff-0022-4000-8000-300000000002')$$),
+  'OK',
+  'r17/d: a payment that reached `paid` by UPDATE — created, pending, paid, which is the provider path — takes a refund on the same terms. The rule reads the status now, not the status the row was born with');
+
+select is(
+  (select count(*)::int from public.refunds where payment_id = '220000ff-0022-4000-8000-700000000f12'::uuid),
+  1,
+  'r17/d: and that one is there too');
+
+select is(
+  pg_temp.h22r17_state($$update public.payments set status = 'refunded' where id = '220000ff-0022-4000-8000-700000000f11'$$),
+  'OK',
+  'r17/d: the first payment then moves paid -> refunded, one of the two edges out of paid');
+
+select is(
+  pg_temp.h22r17_state($$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
+      values ('220000ff-0022-4000-8000-800000000f30', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f11', 'refund', 5000, 'h22 r17 the second instalment of a part refund', '220000ff-0022-4000-8000-300000000002')$$),
+  'OK',
+  'r17/d: and a SECOND refund against that `refunded` payment is still permitted. The requirement names three statuses on purpose; a fix written as `status = paid` would refuse the second half of every part refund, which is loud but wrong');
+
+select is(
+  pg_temp.h22r17_state($$update public.payments set status = 'reversed' where id = '220000ff-0022-4000-8000-700000000f12'$$),
+  'OK',
+  'r17/d: the other payment moves paid -> reversed, the second edge out of paid');
+
+select is(
+  pg_temp.h22r17_state($$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
+      values ('220000ff-0022-4000-8000-800000000f31', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f12', 'reversal', 5000, 'h22 r17 a reversal against a reversed payment', '220000ff-0022-4000-8000-300000000002')$$),
+  'OK',
+  'r17/d: and a refund against a `reversed` payment is permitted — the third status the requirement names, asserted so a fix cannot quietly ship only two of the three');
+
+insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id) values
+  ('220000ff-0022-4000-8000-800000000f32'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f13'::uuid, 'refund', 5000, 'h22 r17 a legal refund whose payment is then pushed backwards', '220000ff-0022-4000-8000-300000000002'::uuid);
+
+select throws_ok(
+  $$update public.payments set status = 'failed', failed_reason = 'h22 r17: unwinding a payment that already carries a refund' where id = '220000ff-0022-4000-8000-700000000f13'$$,
+  'GL039'::char(5), null,
+  'r17/d/closure: THE OTHER HALF OF THE DOOR. A refund written legally against a `paid` payment cannot be turned into a refund against a failed one, because GL039 refuses paid -> failed. With this round shutting the `created` door, the two rules TOGETHER make "a refund attached to a payment that took nothing" unreachable by any route — which neither rule states and neither achieves alone');
+
+select is(
+  (select status::text from public.payments where id = '220000ff-0022-4000-8000-700000000f13'::uuid),
+  'paid',
+  'r17/d/closure: refused AND the payment is unchanged');
+
+insert into h22r17_obs (k, v) values
+  ('cte_pay_then_refund', pg_temp.h22r17_state($$with p as (
+       update public.payments set status = 'paid', paid_at = now()
+        where id = '220000ff-0022-4000-8000-700000000f14' returning id
+     )
+     insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
+     select '220000ff-0022-4000-8000-800000000f33', '220000ff-0022-4000-8000-100000000001', p.id, 'refund', 1000,
+            'h22 r17 a refund written in the same statement that pays the payment', '220000ff-0022-4000-8000-300000000002'
+       from p$$));
+
+select ok(
+  (select v = 'OK' or v like 'GL0%' from h22r17_obs where k = 'cte_pay_then_refund'),
+  'r17/d/same-statement: a payment made `paid` and refunded in ONE statement, as a data-modifying CTE, is answered either way and never by an internal error, a null violation or a lock timeout. The requirement does not say WHEN "has actually taken money" is evaluated, and the two readings — the snapshot the refund''s own sub-statement sees, versus the state at the end of the statement — differ only here');
+
+select ok(
+  (select (o.v = 'OK') = (exists (select 1 from public.refunds where id = '220000ff-0022-4000-8000-800000000f33'::uuid))
+     from h22r17_obs o where o.k = 'cte_pay_then_refund'),
+  'r17/d/same-statement: and the outcome and the row agree — the refund exists if and only if the statement said so. This is the assertion a partially-applied statement would fail, and the reason the pair is worth having even though the requirement takes no side on which answer is right');
+
+select diag(format(
+  'r17/d/same-statement OBSERVED, unscored: `with p as (update payments set paid) insert into refunds select from p` returned %s. If OK, the ceiling and the arrival check both see the payment as paid at the moment the AFTER trigger runs, so a caller can pay and refund atomically. If a GL0xx, the refund is judged against the status the payment held when the statement began, and POST /api/refunds must never be composed with a payment update. The requirement settles neither; a round that changes this answer changes an API contract silently.',
+  (select v from h22r17_obs where k = 'cte_pay_then_refund')));
+
+-- ---------------------------------------------------------------------------
+-- 24e. A MEMBERSHIP BELONGS TO THE MEMBER IT WAS SOLD TO.
+--
+-- THE TRAP THE REQUIREMENT ITSELF NAMES is why both targets are used, and WHY
+-- THE TWO ARE ASSERTED DIFFERENTLY. Read this before "fixing" the ordering.
+--
+--   * Target holding NOTHING (the shape the defect was measured on): nothing
+--     but this round's rule can refuse it, so it is asserted through
+--     `h22r17_gl` and must carry a `GL0…` code. This is the pair that proves
+--     the round did anything.
+--   * Target ALREADY HOLDING A LIVE MEMBERSHIP (the shape a careless test
+--     would use): refused by `memberships_tenant_id_member_id_live_key` with
+--     23505, and it will KEEP being refused by the index. A unique index is
+--     enforced at row-write time; ADR-072 puts these refusals in AFTER
+--     triggers exactly so they cannot adjudicate a row the storage layer or a
+--     policy was about to refuse anyway (ADR-066). The rule can only answer
+--     first by becoming a BEFORE trigger, which is the thing ADR-072 forbids.
+--     So this one is asserted through `h22r8_refused` — refused by ANYTHING
+--     except a missing column, table, function or syntax error — plus the
+--     unchanged read. It cannot go green against an unimplemented contract,
+--     and it does not pin a code the rule was never going to give.
+--
+-- THE PRECEDENT IS GL045's: two round-ten assertions pinned that code on
+-- writes that inverted the date range and a Phase 1 CHECK answered first with
+-- 23514; that author widened the fixture so the rule was the only thing left
+-- that could refuse, and recorded the ordering here rather than pinning the
+-- constraint's code. Same shape, same answer. A future reader who "fixes"
+-- this by moving the rule to a BEFORE trigger has broken ADR-072 to satisfy
+-- one assertion that was never about the rule.
+--
+-- EVERY WRITER, because the rule says "any session". The desk is where the
+-- defect was measured and is the least-privileged writer that reaches the
+-- table; the manager is the one who would actually try to "correct" a
+-- mis-sale; and `postgres` with no claim at all is the probe that fails a
+-- rule written into RLS or into `is_gym_admin()` instead of onto the table,
+-- which is how GL046 was built one requirement earlier.
+--
+-- AND THE INSERT SIDE, which the requirement distinguishes in its own second
+-- scenario: selling a membership TO another member is not re-pointing one,
+-- and a fix that refuses `member_id` on INSERT as well as UPDATE breaks every
+-- sale in the product.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+
+select ok(
+  pg_temp.h22r17_gl($$update public.memberships set member_id = '220000ff-0022-4000-8000-500000000f07' where id = '220000ff-0022-4000-8000-600000000f01'$$),
+  'r17/e: THE MEASURED DEFECT. A FRONT-DESK session moves a membership that carries a granted period onto a member who holds NOTHING, in one statement, and it is refused with a GL0xx code. The empty target is deliberate: the requirement warns that a target already holding a live membership is refused by a unique index instead, and 23505 is not accepted here');
+
+select is(
+  (select member_id::text from public.memberships where id = '220000ff-0022-4000-8000-600000000f01'::uuid),
+  '220000ff-0022-4000-8000-500000000f06',
+  'r17/e: refused AND the membership still belongs to the member it was sold to');
+
+select ok(
+  pg_temp.h22r8_refused($$update public.memberships set member_id = '220000ff-0022-4000-8000-500000000f08' where id = '220000ff-0022-4000-8000-600000000f01'$$),
+  'r17/e/trap: the same move onto a member who ALREADY HOLDS A LIVE MEMBERSHIP is refused too — BY WHATEVER ANSWERS FIRST, which is `memberships_tenant_id_member_id_live_key` with 23505, not this round''s rule. That ordering is correct and deliberate: ADR-072 puts these refusals in AFTER triggers so they cannot adjudicate a row the storage layer or a policy was already going to refuse, and a unique index is enforced at row-write time. Asserted through `h22r8_refused` (any refusal except a missing column, table, function or syntax error) rather than `h22r17_gl`, so it cannot be satisfied by an unimplemented contract but also does not pin a code the rule was never going to give. The assertion that proves THIS ROUND did something is the one above it, on a target holding nothing, where nothing else can answer');
+
+select is(
+  (select member_id::text from public.memberships where id = '220000ff-0022-4000-8000-600000000f01'::uuid),
+  '220000ff-0022-4000-8000-500000000f06',
+  'r17/e/trap: refused AND unchanged. This half is the point of the pair — a careless author writes only the refusal, reads a pass off the index, and never learns the rule is missing');
+
+select ok(
+  pg_temp.h22r17_gl($$update public.memberships set member_id = '220000ff-0022-4000-8000-500000000f07' where id = '220000ff-0022-4000-8000-600000000f03'$$),
+  'r17/e: and a PENDING membership that has never taken a paisa, never granted a period and has no dates is refused too. The requirement is unconditional — "WHEN a session changes a membership''s member_id" — with no money gate of the kind GL043 has, and a fix that borrows GL043''s gate would leave the whole pre-money window open');
+
+select is(
+  (select member_id::text from public.memberships where id = '220000ff-0022-4000-8000-600000000f03'::uuid),
+  '220000ff-0022-4000-8000-500000000f09',
+  'r17/e: refused AND unchanged, on the un-paid row as much as the paid one');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'gym_manager',
+                     'staff_id', '220000ff-0022-4000-8000-300000000002')::text,
+  true
+);
+
+select ok(
+  pg_temp.h22r17_gl($$update public.memberships set member_id = '220000ff-0022-4000-8000-500000000f07' where id = '220000ff-0022-4000-8000-600000000f01'$$),
+  'r17/e: a GYM MANAGER is refused the same move. This one matters because the manager is who would actually attempt it — "the member was entered wrong, move it" — and because GL046 one requirement earlier made exactly this column family a question of WHO. It is not: it is a question of WHETHER');
+
+select is(
+  (select member_id::text from public.memberships where id = '220000ff-0022-4000-8000-600000000f01'::uuid),
+  '220000ff-0022-4000-8000-500000000f06',
+  'r17/e: refused AND unchanged for the manager too');
+
+set local role postgres;
+
+select ok(
+  pg_temp.h22r17_gl($$update public.memberships set member_id = '220000ff-0022-4000-8000-500000000f07' where id = '220000ff-0022-4000-8000-600000000f01'$$),
+  'r17/e: and `postgres`, with no JWT claim at all, is refused as well. A rule expressed as an RLS policy or through `is_gym_admin()` passes every assertion above and fails this one; the requirement says the membership belongs to the member, not that some roles may re-point it');
+
+select is(
+  (select member_id::text from public.memberships where id = '220000ff-0022-4000-8000-600000000f01'::uuid),
+  '220000ff-0022-4000-8000-500000000f06',
+  'r17/e: refused AND unchanged from the claimless session');
+
+set local role authenticated;
+
+select is(
+  pg_temp.h22r17_state($$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+      values ('220000ff-0022-4000-8000-600000000f04', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000f07', '220000ff-0022-4000-8000-400000000001', 'pending', null, null, 100000)$$),
+  'OK',
+  'r17/e/insert: CREATING a membership FOR another member is a different act and stays permitted. Every sale in this product writes a member_id it did not previously hold, and the shortest rule that passes all six refusals above — "member_id may not be written" — refuses this and takes the whole product with it');
+
+select is(
+  (select member_id::text from public.memberships where id = '220000ff-0022-4000-8000-600000000f04'::uuid),
+  '220000ff-0022-4000-8000-500000000f07',
+  'r17/e/insert: and the new membership really belongs to the member it names');
+
+select is(
+  pg_temp.h22r17_state($$update public.memberships set status = 'cancelled', cancelled_at = now(), cancel_reason = 'h22 r17: sold to the wrong member' where id = '220000ff-0022-4000-8000-600000000f01'$$),
+  'OK',
+  'r17/e/remedy: step one of the answer the requirement gives instead of an edit — the membership is cancelled. A status is not who it was sold to, so it stays writable');
+
+select is(
+  pg_temp.h22r17_state($$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+      values ('220000ff-0022-4000-8000-600000000f05', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000f07', '220000ff-0022-4000-8000-400000000001', 'active', (select today from gym_today where org_key='A'), (select today from gym_today where org_key='A') + 30, 100000)$$),
+  'OK',
+  'r17/e/remedy: step two — a NEW membership is sold to the right member. The requirement''s own answer ("a refund, a cancellation and a new sale") runs end to end, which is what makes the refusals above a rule rather than a dead end');
+
+select is(
+  (select (select member_id::text from public.memberships where id = '220000ff-0022-4000-8000-600000000f05'::uuid)
+       || '|' ||
+          (select member_id::text from public.memberships where id = '220000ff-0022-4000-8000-600000000f01'::uuid)),
+  '220000ff-0022-4000-8000-500000000f07|220000ff-0022-4000-8000-500000000f06',
+  'r17/e/remedy: and afterwards the new row belongs to the new member while the cancelled one still names the original — two records of two facts, which is the whole point of refusing the edit');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+
+select is(
+  pg_temp.h22r17_state($$update public.memberships set member_id = member_id, status = 'frozen' where id = '220000ff-0022-4000-8000-600000000f02'$$),
+  'OK',
+  'r17/e/write-back: an ordinary column-listing save that CARRIES member_id at its existing value, alongside a real change, is permitted. Every console form posts the whole row; a rule that fires on the column being present in the SET list rather than on the value differing refuses the ordinary freeze at the desk');
+
+select is(
+  (select status::text from public.memberships where id = '220000ff-0022-4000-8000-600000000f02'::uuid),
+  'frozen',
+  'r17/e/write-back: and the real change in that statement landed — the permitted case was not inert (ADR-078)');
+
+select ok(
+  pg_temp.h22r17_gl($$update public.memberships set member_id = '220000ff-0022-4000-8000-500000000f10'
+       where id in ('220000ff-0022-4000-8000-600000000f02', '220000ff-0022-4000-8000-600000000f03')$$),
+  'r17/e/multirow: ONE statement moving TWO memberships onto one empty member is refused. Neither row trips the live-membership index — the target holds nothing and only one of the two is live — so 23505 cannot answer this, and a rule judging a statement''s net effect rather than each row would let it through');
+
+select is(
+  (select (select member_id::text from public.memberships where id = '220000ff-0022-4000-8000-600000000f02'::uuid)
+       || '|' ||
+          (select member_id::text from public.memberships where id = '220000ff-0022-4000-8000-600000000f03'::uuid)),
+  '220000ff-0022-4000-8000-500000000f08|220000ff-0022-4000-8000-500000000f09',
+  'r17/e/multirow: and BOTH rows are exactly where they were — one refused row takes the whole statement with it rather than being skipped');
+
+-- ---------------------------------------------------------------------------
+-- 24f. THE THREE RULES IN ONE STATEMENT. Every defect this phase has shipped
+-- survived a single-statement test and died on a composed one, so each pair
+-- of rules is offered a data-modifying CTE that needs both of them to hold.
+-- The last two assertions are the ADR-078 control: after both compositions
+-- are refused, an ordinary refund on the same payment still succeeds, so
+-- none of the refusals above could be satisfied by a path that is simply
+-- shut.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'gym_manager',
+                     'staff_id', '220000ff-0022-4000-8000-300000000002')::text,
+  true
+);
+
+insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id) values
+  ('220000ff-0022-4000-8000-800000000f34'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-700000000f16'::uuid, 'refund', 100000, 'completed', 'h22 r17 a completed full refund, to be demoted in the same statement as its replacement', '220000ff-0022-4000-8000-300000000002'::uuid);
+
+select ok(
+  pg_temp.h22r17_gl($$with d as (
+       update public.refunds set status = 'failed'
+        where id = '220000ff-0022-4000-8000-800000000f34' returning id
+     )
+     insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+     select '220000ff-0022-4000-8000-800000000f35', '220000ff-0022-4000-8000-100000000001',
+            '220000ff-0022-4000-8000-700000000f16', 'refund', 100000, 'completed',
+            'h22 r17 the second full refund, in the same statement as the demotion that makes room for it',
+            '220000ff-0022-4000-8000-300000000002'
+       from d$$),
+  'r17/f: THE DEMOTION AND THE REFUND IT MAKES ROOM FOR, IN ONE STATEMENT. The exploit compressed until there is no moment between the two writes for a rule to observe. Refused with a GL0xx code');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f34'::uuid),
+  'completed',
+  'r17/f: and the completed refund is still completed');
+
+select is(
+  (select count(*)::int from public.refunds where id = '220000ff-0022-4000-8000-800000000f35'::uuid),
+  0,
+  'r17/f: and the second refund does not exist. Both halves, because a statement that refused the demotion but kept the insert would be worse than either');
+
+select ok(
+  pg_temp.h22r17_gl($$with r as (
+       insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
+       values ('220000ff-0022-4000-8000-800000000f36', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f17', 'refund', 1000, 'h22 r17 a refund alongside a membership move', '220000ff-0022-4000-8000-300000000002')
+       returning id
+     )
+     update public.memberships set member_id = '220000ff-0022-4000-8000-500000000f10'
+      where id = '220000ff-0022-4000-8000-600000000f01' and exists (select 1 from r)$$),
+  'r17/f: A MEMBERSHIP MOVE CARRIED BY A LEGAL REFUND, one statement. The refund alone would be permitted (1000 against a 100000 paid payment, well inside the ceiling), so the only thing that can refuse this is the membership rule — and it must refuse the whole statement, not the half it owns');
+
+select is(
+  (select member_id::text from public.memberships where id = '220000ff-0022-4000-8000-600000000f01'::uuid),
+  '220000ff-0022-4000-8000-500000000f06',
+  'r17/f: and the membership is unchanged');
+
+select is(
+  (select count(*)::int from public.refunds where id = '220000ff-0022-4000-8000-800000000f36'::uuid),
+  0,
+  'r17/f: and the legal refund inside that statement did NOT land either — a refusal on one row of a composed statement rolls the whole statement back, which is what makes the composition safe rather than partial');
+
+select is(
+  pg_temp.h22r17_state($$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
+      values ('220000ff-0022-4000-8000-800000000f37', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f17', 'refund', 1000, 'h22 r17 the same refund, on its own', '220000ff-0022-4000-8000-300000000002')$$),
+  'OK',
+  'r17/f/control: THE SAME REFUND, ALONE, SUCCEEDS. Without this the two refusals above would be satisfied by a build that simply cannot write a refund against this payment at all, and both would report a pass for the wrong reason (ADR-078)');
+
+select is(
+  (select count(*)::int from public.refunds where id = '220000ff-0022-4000-8000-800000000f37'::uuid),
+  1,
+  'r17/f/control: and it is really there');
+
+-- ---------------------------------------------------------------------------
+-- 24g. THE PERMITTED SIDE, AS HARD AS THE REFUSED. Three freezes landed in
+-- one round on two tables in the middle of the money path. A fix broad enough
+-- to pass every refusal above and nothing else has shipped in this project
+-- three times, and it is silent in exactly the way this phase is about: the
+-- desk gets an error it does not understand, and the gym stops taking money.
+-- One member, one membership, and the whole ordinary life of both.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+
+select is(
+  pg_temp.h22r17_state($$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+      values ('220000ff-0022-4000-8000-700000000f18', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000f11', '220000ff-0022-4000-8000-600000000f07', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$),
+  'OK',
+  'r17/g: an ordinary sale — the desk takes Rs.1,000 in cash against a live membership and records it');
+
+select is(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-600000000f07'::uuid),
+  1,
+  'r17/g: and the granting rule ran — one whole multiple of the price arrived, one period granted. The membership rule freezes who it was sold to, and must not freeze the rule''s own write to the same row');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'gym_manager',
+                     'staff_id', '220000ff-0022-4000-8000-300000000002')::text,
+  true
+);
+
+select is(
+  pg_temp.h22r17_state($$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
+      values ('220000ff-0022-4000-8000-800000000f38', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000f18', 'refund', 40000, 'h22 r17 a goodwill part refund', '220000ff-0022-4000-8000-300000000002')$$),
+  'OK',
+  'r17/g: an ordinary part refund inside the ceiling, recorded at the default `requested`');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'completed', processed_at = now() where id = '220000ff-0022-4000-8000-800000000f38'$$),
+  'OK',
+  'r17/g: and it completes. Every refund in this product has to pass through this statement exactly once, and it is the statement immediately adjacent to the one the freeze refuses');
+
+select is(
+  (select status::text from public.refunds where id = '220000ff-0022-4000-8000-800000000f38'::uuid),
+  'completed',
+  'r17/g: and it is really completed');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+
+select is(
+  pg_temp.h22r17_state($$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+      values ('220000ff-0022-4000-8000-700000000f19', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000f11', '220000ff-0022-4000-8000-600000000f07', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$),
+  'OK',
+  'r17/g: the member renews — a second payment against the same membership, which is the whole business this product is in');
+
+select is(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-600000000f07'::uuid),
+  2,
+  'r17/g: and the second period is granted, refund and all. Money that came back out does not un-buy the month (section 22 established that); this asserts the renewal path still reaches the row after three freezes landed on it');
+
+select is(
+  pg_temp.h22r17_state($$update public.memberships set status = 'frozen' where id = '220000ff-0022-4000-8000-600000000f07'$$),
+  'OK',
+  'r17/g: the membership can still be frozen');
+
+select is(
+  pg_temp.h22r17_state($$update public.memberships set status = 'active' where id = '220000ff-0022-4000-8000-600000000f07'$$),
+  'OK',
+  'r17/g: and unfrozen — the pause path, which writes the same row the member_id freeze now guards');
+
+select is(
+  pg_temp.h22r17_state($$update public.memberships set status = 'cancelled', cancelled_at = now(), cancel_reason = 'h22 r17: member left town' where id = '220000ff-0022-4000-8000-600000000f07'$$),
+  'OK',
+  'r17/g: and cancelled');
+
+select is(
+  pg_temp.h22r17_state($$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+      values ('220000ff-0022-4000-8000-600000000f08', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000f11', '220000ff-0022-4000-8000-400000000001', 'active', (select today from gym_today where org_key='A'), (select today from gym_today where org_key='A') + 30, 100000)$$),
+  'OK',
+  'r17/g: and the SAME member is sold a new one afterwards. "This rule refuses re-pointing, not selling" has to be true for the original member too, not only for the one a mis-sale was moved to');
+
+select is(
+  (select member_id::text from public.memberships where id = '220000ff-0022-4000-8000-600000000f08'::uuid),
+  '220000ff-0022-4000-8000-500000000f11',
+  'r17/g: and the new membership belongs to them');
+
+set local role postgres;
 select * from finish();
 
 rollback;

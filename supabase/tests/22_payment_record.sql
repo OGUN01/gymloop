@@ -420,6 +420,109 @@
 -- in it — one statement fewer than the exploit GL046 was written to close,
 -- and the third round running in which the fourth door was the INSERT. It is
 -- closed here rather than carried as an open item.
+--
+-- SEVENTEENTH-ROUND EXTENSION — Sections 25, 26 and 27 (assertions 509-595),
+-- the spec's three new requirements, one section each and one tenant each
+-- (21, 22, 23). Each section's own header carries its attack list, the calls
+-- this author had to make, and the reproduction that preceded it. Nothing
+-- above 508 is touched: assertions 1-508 are unchanged and all 508 are green.
+--
+-- WRITTEN THE SAME WAY THE REST OF THIS FILE WAS. No migration dated
+-- 20260911100000 or later was opened, no `pg_get_functiondef` or
+-- `pg_proc.prosrc` of any `app.*` function under test was read (the one
+-- exception is `app.is_front_office`, whose body was read to know WHICH ROLES
+-- reach `memberships_tenant_write` — it is an accessor, not a rule, and it is
+-- not under test here), `docs/registry.md` was not consulted for this round's
+-- code (ADR-091) and `supabase/tests-holdout/` was not opened. Table shape,
+-- triggers, policies, constraints, indexes and every enum's labels come from
+-- the catalogue, read through `supabase db query --linked` inside
+-- `begin … rollback`.
+--
+-- THREE CATALOGUE FACTS THAT SHAPED THESE SECTIONS, stated because guessing at
+-- any of them would have produced a section that passes for the wrong reason:
+--   * `refund_status` is (`requested`, `processing`, `completed`, `failed`).
+--     There is no `pending`. Section 25 enumerates the four that exist.
+--   * a payment cannot be INSERTed at `refunded` or `reversed` — `GL039`
+--     refuses it for postgres as much as for a session, since that rule takes
+--     no trusted-context carve-out. Section 26's two "money came back" fixtures
+--     are therefore written `paid` and moved, which is how they arise in
+--     production too.
+--   * `memberships_tenant_id_member_id_live_key` is partial — `where status in
+--     ('active','frozen')` — which is what makes Section 27's cancelled-row
+--     move (592) a refusal the index cannot possibly be answering.
+--
+-- PLAN COUNT: 599 (508 + 87, plus Section 28's 4 for the coordinator's
+-- mid-round decision on the in-flight statuses). Confirmed against Cloud
+-- through the same wrapper the earlier rounds used: every pgTAP call rewritten
+-- to `insert into tap_out(line) …` so the whole run lands in one result set —
+-- `supabase db query` returns only the LAST result set that has rows, so a raw
+-- run of this file reports `finish()` and nothing else, and a suite counted
+-- that way is a false GREEN waiting to happen. `plan_line` is `1..599`,
+-- `ok_count` 557 + `not_ok_count` 42 = 599 matching the plan exactly, and
+-- `total_lines` 601 = the plan line + 599 assertions + finish()'s one
+-- diagnostic row. Nothing committed; the run returned, which is itself the
+-- rollback path executing.
+--
+-- RED (42), and every one of them is one of this round's three requirements:
+--   * 512-519, 530-531, 538-539 — a refund's status is frozen by nothing, so a
+--     `completed` refund can be demoted to any of the other three, by either
+--     gym-admin role, and the ceiling then re-opens (514 is the exploit's last
+--     step and the assertion this section exists for);
+--   * 541-548, 552, 555-556, 562 — a refund against a payment that never took
+--     money is accepted, in all three of the statuses the requirement names
+--     and whether the refund's own status is `completed` or `failed`;
+--   * 578-593, 595 — `memberships.member_id` is writable by a front desk, a
+--     gym owner and a trusted context, in a plain UPDATE, an `UPDATE … FROM`,
+--     a data-modifying CTE, a `MERGE`, and a two-row statement, on a live
+--     membership carrying a granted period and on a cancelled one.
+--   * 557-ish note: 557 and 558 are the only pair whose RED is a CONSEQUENCE
+--     rather than a direct measurement — 555's missing refusal leaves a refund
+--     behind, so 558's "exactly one refund" counts two. 557 itself is green.
+--
+-- LEGITIMATELY GREEN BEFORE AND AFTER, which is half of what this round is
+-- for, because a fix broad enough to pass every refusal above would break
+-- these and nothing else in the file: 509-511 and 520-529, 532-537, 540 (a
+-- full refund is accepted at the ceiling; a completed refund's own status
+-- written back, and its `provider_refund_id`, stay writable; all four moves
+-- among the non-completed statuses and the ordinary path INTO `completed`
+-- work; no payment in tenant 21 ever exceeds its ceiling); 549-551, 553-554,
+-- 559-561 (refunds against paid, refunded and reversed payments are accepted
+-- and still bounded by `GL036`); 563-577 and 594 (selling, renewing, freezing,
+-- unfreezing, cancelling and re-selling all still work, the same-value write
+-- is allowed, and the live unique key's trap is disarmed and shown to be); and
+-- 596-599, the whole of Section 28 (a full refund at `processing` blocks a
+-- second, the provider rejecting it is permitted, the ceiling therefore
+-- RELEASES, and nothing has left). Those four are the sharpest too-broad
+-- detector in the file: an implementer who freezes every refund status change
+-- in order to pass 512, 516 and 518 breaks 597 and 598 and nothing else.
+--
+-- THE INVARIANT IS NARROWER THAN "THE CEILING IS NEVER RELEASED", and this
+-- file asserts the narrow one deliberately. The freeze is keyed on `completed`
+-- while the `GL036` sum excludes only `failed`, so `requested → failed` and
+-- `processing → failed` un-count a refund and release the ceiling — and the
+-- requirement's second scenario permits both in as many words. Both suites'
+-- authors found that independently and it went to the coordinator, whose
+-- decision is that it stays permitted and the requirement will say why:
+--
+--   money that LEFT does not become an attempt. Money in flight may.
+--
+-- A refund at `requested` or `processing` is money the gym has handed to the
+-- provider and the provider has not moved. It can genuinely fail — that is
+-- what the status is for — and refusing the transition would strand the refund
+-- with nobody able to resolve it while the ceiling permanently consumed money
+-- that never left. A refund at `completed` is different in kind: the money is
+-- gone, and calling it an attempt afterwards falsifies the ledger. **The
+-- ceiling is deliberately weaker at the in-flight statuses**, which is a
+-- property to state and assert, not a hole to close.
+--
+-- So the ceiling consequence is asserted on BOTH sides of that line rather
+-- than only on the refusal: 514 — after a refused `completed → failed`, the
+-- second full refund is still refused; 532-537 and 596-599 — after a permitted
+-- `requested → failed` and a permitted `processing → failed`, the second full
+-- refund IS accepted, and no money has left in either case. 535 and 537 pin
+-- what still bounds the money itself: `GL036` on UPDATE means only one of the
+-- two refunds can ever reach `completed`, so only one payment's worth can
+-- actually go out however the in-flight statuses are walked.
 
 begin;
 
@@ -427,7 +530,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(508);
+select plan(599);
 
 
 -- ---------------------------------------------------------------------------
@@ -8892,6 +8995,1678 @@ select results_eq(
       order by kind $$,
   $$ select kind, next_number from dc_r16_before order by kind $$,
   'and BOTH rows are exactly where they were — the increase that would have been legal on its own went back with the refusal, because a refused row aborts the statement rather than being skipped'
+);
+
+
+
+
+-- ===========================================================================
+-- SECTION 25 (ROUND SEVENTEEN) — "A refund that completed did not fail".
+-- Tenant 21. Assertions 509-540.
+--
+-- THE MEASURED DEFECT. `GL036` bounds the refunds against a payment by summing
+-- the ones that are not `failed`, and nothing freezes a refund's status. Full
+-- refund accepted, second full refund refused by `GL036`, first refund demoted
+-- to `failed`, second full refund then accepted. Money that left the gym became
+-- an attempt that never happened. Reproduced from this session against Cloud,
+-- in a rolled-back transaction, before a line of this section was written.
+--
+-- THE ENUM, READ FROM THE CATALOGUE AND NOT GUESSED. `refund_status` is
+-- (`requested`, `processing`, `completed`, `failed`) — four labels, and there
+-- is no `pending` among them. The brief for this round named `pending` as a
+-- shape to attack; it does not exist, so the shapes below are the four that do.
+--
+-- WHAT IS ASSERTED BEYOND THE REFUSAL. The requirement's harm is not the write,
+-- it is the CEILING moving afterwards, so every refusal here is followed by
+-- both the unchanged value AND the ceiling consequence: after a refused
+-- demotion, the second full refund must still be refused (514). A suite that
+-- only asserted 512 would pass against an implementation that refused the
+-- UPDATE and then let the sum drift some other way.
+--
+-- AND THE PERMITTED SIDE IS ASSERTED AS HARD AS THE REFUSED SIDE, because a
+-- fix that is too broad passes every refusal test and this project has shipped
+-- that three times. Three shapes are permitted and must stay permitted:
+--   * a `completed` refund written its own status back (520) — "refuse any
+--     change OUT OF completed" is `is distinct from`, the idiom this codebase
+--     settled for `periods_granted` and for the membership dates in their own
+--     requirements ("a rule that refuses a write that cannot do harm buys
+--     nothing and breaks ordinary column-listing updates");
+--   * a `completed` refund's OTHER columns (522) — the requirement freezes the
+--     status, not the row; `payment_id` and `amount_paise` are already frozen
+--     by `GL041` and nothing else on a refund is;
+--   * the four moves among the non-completed statuses, and the ordinary
+--     forward path INTO `completed` (524-528), which is how a refund is
+--     supposed to reach the state this requirement then freezes.
+--
+-- NO SQLSTATE IS PINNED ON THE NEW RULE. The spec's three round-seventeen
+-- requirements name no code; the codes it does name (`GL036` … `GL046`) all
+-- belong to rules that already exist. Where this section refuses by the
+-- EXISTING ceiling it asserts `GL036`, because the requirement names that rule
+-- by name; where it refuses by the new rule it asserts `null::char(5)`, the
+-- convention this file has used since assertion 1. Asserting a code nobody has
+-- chosen would be this file guessing at an implementation it is not allowed to
+-- read.
+--
+-- WHERE THE LINE ACTUALLY FALLS, and it is not "the ceiling is never
+-- released". The freeze is keyed on `completed`; the `GL036` sum is keyed on
+-- "not `failed`". Those are different sets, so an in-flight refund moved to
+-- `failed` un-counts itself and releases the ceiling, exactly as the measured
+-- defect did — and the requirement's second scenario permits it. Both suites'
+-- authors reached that independently (one on `requested`, one on `processing`)
+-- and the coordinator decided it mid-round: **it stays permitted, and the
+-- requirement will say why.**
+--
+--   money that LEFT does not become an attempt. Money in flight may.
+--
+-- A refund at `requested` or `processing` is money handed to the provider and
+-- not yet moved by it. It can genuinely fail; that is what the status is for,
+-- and refusing the transition would strand the refund unresolvable while the
+-- ceiling permanently consumed money that never left. `completed` is different
+-- in kind — the money is gone, and calling it an attempt is falsifying the
+-- ledger.
+--
+-- So this section asserts the CEILING CONSEQUENCE on both sides of that line,
+-- not the transitions alone: refused at `completed` and the ceiling holds
+-- (512/514); permitted at `requested` and the ceiling releases (532-537);
+-- permitted at `processing` and the ceiling releases (596-599, on this same
+-- tenant, added after the numbering above was fixed). 535 and 537 pin what
+-- still bounds the money: `GL036` on UPDATE means only one of the two refunds
+-- can ever reach `completed`, so only one payment's worth can go out however
+-- the in-flight statuses are walked.
+-- ===========================================================================
+
+insert into public.organizations (id, name, gym_code) values
+  ('22000000-0000-4000-8000-000000210001'::uuid, 'PayRec Gym 21', 'PYR22N');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('22000000-0000-4000-8000-000000210011'::uuid, '22000000-0000-4000-8000-000000210001'::uuid, 'G21 Main', true);
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('22000000-0000-4000-8000-000000210021'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210011'::uuid, 'gym_owner', 'T21 Owner'),
+  ('22000000-0000-4000-8000-000000210022'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210011'::uuid, 'gym_manager', 'T21 Manager');
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000210041'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210011'::uuid, 'M21', '+912221000041');
+
+-- Seven paid payments, one concern each, so no assertion's ceiling arithmetic
+-- depends on another's (ADR-050 applied inside a section). None names a
+-- membership, so nothing here is entangled with the granting rule.
+insert into public.payments (id, tenant_id, member_id, amount_paise, status, method, receipt_number, recorded_by_staff_id) values
+  ('22000000-0000-4000-8000-000000210101'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210041'::uuid, 500000, 'paid', 'cash', 'T21-RCT-01', '22000000-0000-4000-8000-000000210021'::uuid),
+  ('22000000-0000-4000-8000-000000210102'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210041'::uuid, 500000, 'paid', 'cash', 'T21-RCT-02', '22000000-0000-4000-8000-000000210021'::uuid),
+  ('22000000-0000-4000-8000-000000210103'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210041'::uuid, 500000, 'paid', 'cash', 'T21-RCT-03', '22000000-0000-4000-8000-000000210021'::uuid),
+  ('22000000-0000-4000-8000-000000210104'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210041'::uuid, 500000, 'paid', 'cash', 'T21-RCT-04', '22000000-0000-4000-8000-000000210021'::uuid),
+  ('22000000-0000-4000-8000-000000210105'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210041'::uuid, 300000, 'paid', 'cash', 'T21-RCT-05', '22000000-0000-4000-8000-000000210021'::uuid),
+  ('22000000-0000-4000-8000-000000210106'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210041'::uuid, 200000, 'paid', 'cash', 'T21-RCT-06', '22000000-0000-4000-8000-000000210021'::uuid),
+  ('22000000-0000-4000-8000-000000210107'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210041'::uuid, 500000, 'paid', 'cash', 'T21-RCT-07', '22000000-0000-4000-8000-000000210021'::uuid);
+
+-- Postgres fixtures: the refunds this section STARTS from. 210201 is not among
+-- them — it is written by assertion 509 as the gym owner, because "a full
+-- refund is accepted" is the first step of the measured sequence and asserting
+-- it is cheaper than assuming it.
+insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id) values
+  ('22000000-0000-4000-8000-000000210202'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210102'::uuid, 'refund', 500000, 'completed', 'full refund, completed', '22000000-0000-4000-8000-000000210021'::uuid),
+  ('22000000-0000-4000-8000-000000210203'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210103'::uuid, 'refund', 500000, 'completed', 'full refund, completed', '22000000-0000-4000-8000-000000210021'::uuid),
+  ('22000000-0000-4000-8000-000000210204'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210104'::uuid, 'refund', 500000, 'completed', 'full refund, completed', '22000000-0000-4000-8000-000000210021'::uuid),
+  ('22000000-0000-4000-8000-000000210205'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210105'::uuid, 'refund', 100000, 'requested', 'part refund, requested', '22000000-0000-4000-8000-000000210021'::uuid),
+  ('22000000-0000-4000-8000-000000210206'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210105'::uuid, 'refund', 100000, 'processing', 'part refund, processing', '22000000-0000-4000-8000-000000210021'::uuid),
+  ('22000000-0000-4000-8000-000000210207'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210105'::uuid, 'refund', 100000, 'failed', 'part refund, failed', '22000000-0000-4000-8000-000000210021'::uuid),
+  ('22000000-0000-4000-8000-000000210208'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210106'::uuid, 'refund', 200000, 'requested', 'full refund, requested', '22000000-0000-4000-8000-000000210021'::uuid),
+  ('22000000-0000-4000-8000-000000210209'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210107'::uuid, 'refund', 500000, 'completed', 'full refund, completed', '22000000-0000-4000-8000-000000210022'::uuid);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000210001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000210021')::text,
+  true);
+set local role authenticated;
+
+-- 509 — step one of the measured sequence, and the permitted side of the whole
+-- section: a full refund against a fully paid payment, landing exactly ON the
+-- ceiling rather than under it.
+select lives_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000210201'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+          '22000000-0000-4000-8000-000000210101'::uuid, 'refund', 500000, 'completed',
+          'full refund of payment 01', '22000000-0000-4000-8000-000000210021'::uuid)
+$$, 'a completed refund for the whole of a paid payment is accepted — exactly at the ceiling, not under it');
+
+-- 510 — step two: the second full refund is refused by GL036, which the
+-- requirement names. This is the ceiling working before anything is tampered
+-- with, and it is what step four has to still be true of.
+select throws_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000210210'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+          '22000000-0000-4000-8000-000000210101'::uuid, 'refund', 500000, 'completed',
+          'second full refund of payment 01', '22000000-0000-4000-8000-000000210021'::uuid)
+$$, 'GL036'::char(5), null,
+  'a second full refund against the same payment is refused by GL036 — the ceiling is reached');
+
+set local role postgres;
+
+-- 511
+select results_eq(
+  $$
+    select
+      (select count(*)::int from public.refunds where payment_id = '22000000-0000-4000-8000-000000210101'::uuid),
+      (select coalesce(sum(amount_paise), 0)::bigint from public.refunds
+        where payment_id = '22000000-0000-4000-8000-000000210101'::uuid and status <> 'failed')
+  $$,
+  $$ values (1, 500000::bigint) $$,
+  'one refund on the books against payment 01, and the non-failed total is its whole amount'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000210001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000210021')::text,
+  true);
+set local role authenticated;
+
+-- 512 — step three, and the requirement's own scenario "Demoting a completed
+-- refund": the money that left the gym is told it never left.
+select throws_ok($$
+  update public.refunds set status = 'failed'
+   where id = '22000000-0000-4000-8000-000000210201'::uuid
+$$, null::char(5), null,
+  'scenario "Demoting a completed refund" — a completed refund moved to failed is refused. Money that left the gym does not become an attempt that never happened');
+
+set local role postgres;
+
+-- 513
+select results_eq(
+  $$
+    select
+      (select status::text from public.refunds where id = '22000000-0000-4000-8000-000000210201'::uuid),
+      (select coalesce(sum(amount_paise), 0)::bigint from public.refunds
+        where payment_id = '22000000-0000-4000-8000-000000210101'::uuid and status <> 'failed')
+  $$,
+  $$ values ('completed'::text, 500000::bigint) $$,
+  'the refund is still completed AND the ceiling still sees its money — the value and the sum it feeds, because refusing the write while the sum moved anyway would be the same defect'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000210001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000210021')::text,
+  true);
+set local role authenticated;
+
+-- 514 — THE CEILING CONSEQUENCE, and the assertion this whole section exists
+-- for. Step four of the measured sequence: with the demotion refused, the
+-- second full refund must be refused for the same reason it was at 510. The
+-- requirement's harm is not the UPDATE, it is this INSERT succeeding.
+select throws_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000210210'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+          '22000000-0000-4000-8000-000000210101'::uuid, 'refund', 500000, 'completed',
+          'second full refund, after the refused demotion', '22000000-0000-4000-8000-000000210021'::uuid)
+$$, 'GL036'::char(5), null,
+  'and the second full refund is STILL refused with GL036 after the refused demotion — the measured exploit end to end, closed at the step that matters');
+
+set local role postgres;
+
+-- 515
+select results_eq(
+  $$ select count(*)::int, coalesce(sum(amount_paise), 0)::bigint, min(status::text)
+       from public.refunds where payment_id = '22000000-0000-4000-8000-000000210101'::uuid $$,
+  $$ values (1, 500000::bigint, 'completed'::text) $$,
+  'payment 01 carries exactly one refund, for its whole amount, completed — 500000 paise came in and 500000 went back out, once'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000210001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000210021')::text,
+  true);
+set local role authenticated;
+
+-- 516 — the second shape out of completed. Its own refund and its own payment,
+-- so a demotion that lands at 512 cannot make this one pass or fail for the
+-- wrong reason.
+select throws_ok($$
+  update public.refunds set status = 'requested'
+   where id = '22000000-0000-4000-8000-000000210202'::uuid
+$$, null::char(5), null,
+  'completed to requested is refused too — "any change out of completed", not only the demotion to failed that was measured');
+
+set local role postgres;
+
+-- 517
+select results_eq(
+  $$ select status::text from public.refunds where id = '22000000-0000-4000-8000-000000210202'::uuid $$,
+  $$ values ('completed'::text) $$,
+  'that refund is still completed');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000210001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000210021')::text,
+  true);
+set local role authenticated;
+
+-- 518 — the third and last shape out of completed. With 512 and 516 this
+-- enumerates every other label `refund_status` carries.
+select throws_ok($$
+  update public.refunds set status = 'processing'
+   where id = '22000000-0000-4000-8000-000000210203'::uuid
+$$, null::char(5), null,
+  'completed to processing is refused — the third of the three labels a completed refund could be moved to, so the enum is covered exhaustively rather than by the one shape a critic happened to run');
+
+set local role postgres;
+
+-- 519
+select results_eq(
+  $$ select status::text from public.refunds where id = '22000000-0000-4000-8000-000000210203'::uuid $$,
+  $$ values ('completed'::text) $$,
+  'that refund is still completed');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000210001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000210021')::text,
+  true);
+set local role authenticated;
+
+-- 520 — THE SAME-VALUE WRITE, and the first of the three too-broad detectors.
+-- "Refuse any change OUT OF completed": a row written its own status back has
+-- not moved and cannot do the harm. This codebase settled the identical
+-- question twice already, for `periods_granted` and for the membership dates —
+-- "a rule that refuses a write that cannot do harm buys nothing and breaks
+-- ordinary column-listing updates" — and the idiom is `is distinct from`.
+select lives_ok($$
+  update public.refunds set status = 'completed'
+   where id = '22000000-0000-4000-8000-000000210204'::uuid
+$$, 'a completed refund written its own status back is ALLOWED — nothing changed, so nothing was refused');
+
+set local role postgres;
+
+-- 521
+select results_eq(
+  $$ select status::text from public.refunds where id = '22000000-0000-4000-8000-000000210204'::uuid $$,
+  $$ values ('completed'::text) $$,
+  'and it is still completed afterwards');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000210001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000210021')::text,
+  true);
+set local role authenticated;
+
+-- 522 — the second too-broad detector. The requirement freezes the STATUS of a
+-- completed refund, not the row: `payment_id` and `amount_paise` are already
+-- frozen by GL041 and no other column of a refund is. A provider reference
+-- arriving after the refund completed is ordinary reconciliation work, and an
+-- implementation that made the whole row immutable would refuse it.
+select lives_ok($$
+  update public.refunds set provider_refund_id = 'rfnd_T21_0004'
+   where id = '22000000-0000-4000-8000-000000210204'::uuid
+$$, 'a completed refund''s provider_refund_id is still writable — the status is what is frozen, not the row');
+
+set local role postgres;
+
+-- 523
+select results_eq(
+  $$ select provider_refund_id, status::text from public.refunds
+      where id = '22000000-0000-4000-8000-000000210204'::uuid $$,
+  $$ values ('rfnd_T21_0004'::text, 'completed'::text) $$,
+  'the reference landed and the status is untouched — the write went through rather than being silently dropped'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000210001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000210021')::text,
+  true);
+set local role authenticated;
+
+-- 524-526 — the requirement's own scenario "A refund that genuinely failed":
+-- the moves AMONG the non-completed statuses, all three of them, on payment 05.
+-- 524 forward, 525 to failed, 526 back OUT of failed — the last one re-counts a
+-- refund into the GL036 sum, which is the mirror of the move this requirement
+-- was written about, and it is allowed because it stays under the ceiling.
+select lives_ok($$
+  update public.refunds set status = 'processing'
+   where id = '22000000-0000-4000-8000-000000210205'::uuid
+$$, 'scenario "A refund that genuinely failed" — requested to processing is allowed');
+
+-- 525
+select lives_ok($$
+  update public.refunds set status = 'failed'
+   where id = '22000000-0000-4000-8000-000000210206'::uuid
+$$, 'processing to failed is allowed — a refund the provider rejected took nothing, and recording that is the whole point of the status');
+
+-- 526
+select lives_ok($$
+  update public.refunds set status = 'requested'
+   where id = '22000000-0000-4000-8000-000000210207'::uuid
+$$, 'failed back to requested is allowed — the retry, which puts the money back INTO the GL036 sum and is permitted because the sum stays under the ceiling');
+
+set local role postgres;
+
+-- 527
+select results_eq(
+  $$
+    select
+      (select status::text from public.refunds where id = '22000000-0000-4000-8000-000000210205'::uuid),
+      (select status::text from public.refunds where id = '22000000-0000-4000-8000-000000210206'::uuid),
+      (select status::text from public.refunds where id = '22000000-0000-4000-8000-000000210207'::uuid),
+      (select coalesce(sum(amount_paise), 0)::bigint from public.refunds
+        where payment_id = '22000000-0000-4000-8000-000000210105'::uuid and status <> 'failed')
+  $$,
+  $$ values ('processing'::text, 'failed'::text, 'requested'::text, 200000::bigint) $$,
+  'all three moves LANDED — they are permissions, not silent no-ops (ADR-078) — and the non-failed total against payment 05 is 200000, the two rows that are not failed'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000210001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000210021')::text,
+  true);
+set local role authenticated;
+
+-- 528 — the ordinary forward path INTO completed, which is how a refund is
+-- supposed to reach the state this requirement freezes. If this were refused
+-- no refund could ever complete and the freeze would be protecting nothing.
+select lives_ok($$
+  update public.refunds set status = 'completed'
+   where id = '22000000-0000-4000-8000-000000210205'::uuid
+$$, 'processing to completed is allowed — the money actually leaving is the ordinary path, and it is bounded by GL036 on update as everything else is');
+
+set local role postgres;
+
+-- 529
+select results_eq(
+  $$
+    select
+      (select status::text from public.refunds where id = '22000000-0000-4000-8000-000000210205'::uuid),
+      (select coalesce(sum(amount_paise), 0)::bigint from public.refunds
+        where payment_id = '22000000-0000-4000-8000-000000210105'::uuid and status <> 'failed')
+  $$,
+  $$ values ('completed'::text, 200000::bigint) $$,
+  'it completed, and the non-failed total is unchanged at 200000 — completing a refund that was already counted moves no money twice'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000210001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000210021')::text,
+  true);
+set local role authenticated;
+
+-- 530 — and the refund that reached `completed` legitimately, one statement
+-- ago, in this same transaction, is frozen exactly like one that arrived there
+-- as a fixture. A rule keyed on how the row got there rather than on where it
+-- is would pass 512 and fail here.
+select throws_ok($$
+  update public.refunds set status = 'failed'
+   where id = '22000000-0000-4000-8000-000000210205'::uuid
+$$, null::char(5), null,
+  'a refund that reached completed by the ordinary path is frozen the same way — the rule is about the state, not about how the row arrived at it');
+
+set local role postgres;
+
+-- 531
+select results_eq(
+  $$ select status::text from public.refunds where id = '22000000-0000-4000-8000-000000210205'::uuid $$,
+  $$ values ('completed'::text) $$,
+  'still completed');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000210001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000210021')::text,
+  true);
+set local role authenticated;
+
+-- 532-537 — THE CEILING RELEASING, WHICH IS DECIDED-PERMITTED, walked end to
+-- end on payment 06. A `requested` refund is IN the GL036 sum, so demoting it
+-- releases the ceiling exactly as the measured defect did. The coordinator's
+-- mid-round decision is that this stays permitted: money in flight may become
+-- an attempt, money that LEFT may not. Run against Cloud before it was written
+-- down, so these six assert a measured behaviour rather than a prediction.
+--
+-- What they pin is where the money is bounded, and by WHICH rule: GL036
+-- applied on UPDATE, which lives in a different requirement. Only one of the
+-- two refunds can ever reach `completed`, so only one payment's worth can
+-- actually leave — and 537 asserts exactly that, in paise. 596-599 run the
+-- same walk from `processing`, which is the shape the holdout measured.
+select throws_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000210211'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+          '22000000-0000-4000-8000-000000210106'::uuid, 'refund', 200000, 'requested',
+          'second full refund of payment 06', '22000000-0000-4000-8000-000000210021'::uuid)
+$$, 'GL036'::char(5), null,
+  'a second full refund against payment 06 is refused while the first is merely requested — a requested refund is in the sum, because the sum excludes only failed rows');
+
+-- 533
+select lives_ok($$
+  update public.refunds set status = 'failed'
+   where id = '22000000-0000-4000-8000-000000210208'::uuid
+$$, 'and demoting that REQUESTED refund to failed is ALLOWED, deliberately — money handed to the provider and not yet moved by it can genuinely fail, and refusing this would strand the refund while the ceiling consumed money that never left');
+
+-- 534
+select lives_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000210211'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+          '22000000-0000-4000-8000-000000210106'::uuid, 'refund', 200000, 'requested',
+          'second full refund of payment 06, after the un-counting', '22000000-0000-4000-8000-000000210021'::uuid)
+$$, 'so the second full refund IS now accepted — the ceiling released, which is the decided behaviour and not a defect. Two full refunds sit against one payment and neither has taken anything');
+
+-- 535
+select throws_ok($$
+  update public.refunds set status = 'completed'
+   where id = '22000000-0000-4000-8000-000000210208'::uuid
+$$, 'GL036'::char(5), null,
+  'THE BOUND THAT ACTUALLY HOLDS: the un-counted refund can never be completed again, because GL036 applies on UPDATE and the ceiling is full. The door is open; the money cannot get through it twice');
+
+-- 536
+select lives_ok($$
+  update public.refunds set status = 'completed'
+   where id = '22000000-0000-4000-8000-000000210211'::uuid
+$$, 'and exactly one of the two — the one already counted — can complete');
+
+set local role postgres;
+
+-- 537
+select results_eq(
+  $$
+    select
+      (select count(*)::int from public.refunds
+        where payment_id = '22000000-0000-4000-8000-000000210106'::uuid and status = 'completed'),
+      (select coalesce(sum(amount_paise), 0)::bigint from public.refunds
+        where payment_id = '22000000-0000-4000-8000-000000210106'::uuid and status = 'completed'),
+      (select status::text from public.refunds where id = '22000000-0000-4000-8000-000000210208'::uuid)
+  $$,
+  $$ values (1, 200000::bigint, 'failed'::text) $$,
+  'one completed refund of 200000 against a 200000 payment, and the un-counted one is stranded at failed — 200000 came in and 200000 went out, whatever was done to the statuses in between'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000210001',
+                    'app_role', 'gym_manager',
+                    'staff_id', '22000000-0000-4000-8000-000000210022')::text,
+  true);
+set local role authenticated;
+
+-- 538 — the other gym-admin role. `refunds_tenant_write` is app.is_gym_admin(),
+-- so a gym manager and a gym owner are the only sessions that reach this table
+-- at all, and the rule is an invariant rather than a claim rule — it must not
+-- read which of the two is asking. The refund here was initiated by the manager
+-- and is being demoted by the manager, so nothing about attribution is in play.
+select throws_ok($$
+  update public.refunds set status = 'requested'
+   where id = '22000000-0000-4000-8000-000000210209'::uuid
+$$, null::char(5), null,
+  'a gym MANAGER demoting a completed refund is refused as well — this is an invariant about the money, not a judgement about the claim, and it takes no role carve-out');
+
+set local role postgres;
+
+-- 539
+select results_eq(
+  $$ select status::text from public.refunds where id = '22000000-0000-4000-8000-000000210209'::uuid $$,
+  $$ values ('completed'::text) $$,
+  'the manager''s refund is still completed');
+
+-- 540 — the closing money invariant for this whole tenant, stated as the thing
+-- the requirement is FOR rather than as one more refusal: however the statuses
+-- were walked above, no payment in this gym has had more money leave it than
+-- came in. Green today and green after the fix; it is the floor the section
+-- asserts nothing may fall below.
+select results_eq(
+  $$
+    select count(*)::int from public.payments p
+     where p.tenant_id = '22000000-0000-4000-8000-000000210001'::uuid
+       and (select coalesce(sum(r.amount_paise), 0) from public.refunds r
+             where r.payment_id = p.id and r.status <> 'failed') > p.amount_paise
+  $$,
+  $$ values (0) $$,
+  'and not one payment in tenant 21 carries a non-failed refund total above its own amount — the invariant the freeze exists to protect, asserted over the whole gym rather than row by row'
+);
+
+
+-- ===========================================================================
+-- SECTION 26 (ROUND SEVENTEEN) — "Money only comes back out of money that came
+-- in". Tenant 22. Assertions 541-562.
+--
+-- THE MEASURED DEFECT. `app.enforce_refund_total()` reads a payment's
+-- `amount_paise` and never its status, and `amount_paise` is not null on a
+-- `created` row. A 500000-paise completed refund against a payment that never
+-- arrived was accepted — reproduced from this session against Cloud before this
+-- section was written. The membership page already tells the desk this is
+-- impossible; it was not.
+--
+-- ENUMERATED FROM THE CATALOGUE. `payment_status` is (`created`, `pending`,
+-- `paid`, `failed`, `refunded`, `reversed`). All six appear below: three
+-- refused (541, 543, 545) and three permitted (549, 550, 551), so the rule's
+-- line is drawn by assertions on both sides of it rather than by three
+-- refusals that a blanket refusal would also satisfy.
+--
+-- A FIXTURE FACT WORTH RECORDING, because it shaped this section: a payment
+-- CANNOT be inserted directly at `refunded` or `reversed` — `GL039` refuses it
+-- ("a payment is recorded and then refunded — it does not arrive already
+-- refunded"), for postgres as much as for a session, since that rule takes no
+-- trusted-context carve-out. Those two fixtures are therefore written `paid`
+-- and moved, which is the only way they exist in production either.
+--
+-- THE SIBLING THIS RULE MUST NOT SWALLOW. "A refund is bounded when it is
+-- written and whenever it changes" carves `failed` refunds out of the ceiling —
+-- "a failed refund took nothing, and the rule that excludes failed rows from
+-- the sum must exclude them from the comparison too". That carve-out is about
+-- the CEILING. It is not an exemption from this rule: a refund recorded as
+-- itself `failed` against a payment that never arrived is still a refund naming
+-- money that never came in, and 547 asserts it is refused. An implementation
+-- that reuses the ceiling's `failed` short-circuit for this check would let it
+-- through, which is exactly the shape of mistake this phase keeps making.
+-- ===========================================================================
+
+insert into public.organizations (id, name, gym_code) values
+  ('22000000-0000-4000-8000-000000220001'::uuid, 'PayRec Gym 22', 'PYR22O');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('22000000-0000-4000-8000-000000220011'::uuid, '22000000-0000-4000-8000-000000220001'::uuid, 'G22 Main', true);
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('22000000-0000-4000-8000-000000220021'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+   '22000000-0000-4000-8000-000000220011'::uuid, 'gym_owner', 'T22 Owner');
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000220041'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+   '22000000-0000-4000-8000-000000220011'::uuid, 'M22', '+912222000041');
+
+-- 220101 created, 220102 pending, 220103 failed, 220104 paid, 220105 and
+-- 220106 paid (moved below), 220107 created (the failed-refund case), 220108
+-- pending (the becomes-paid-later case). No receipt number on the rows that
+-- have not taken money: a receipt is issued when a payment becomes paid, and a
+-- number on an unpaid row is a separate requirement's business.
+insert into public.payments (id, tenant_id, member_id, amount_paise, status, method, receipt_number, recorded_by_staff_id) values
+  ('22000000-0000-4000-8000-000000220101'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+   '22000000-0000-4000-8000-000000220041'::uuid, 500000, 'created', 'cash', null, '22000000-0000-4000-8000-000000220021'::uuid),
+  ('22000000-0000-4000-8000-000000220102'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+   '22000000-0000-4000-8000-000000220041'::uuid, 500000, 'pending', 'cash', null, '22000000-0000-4000-8000-000000220021'::uuid),
+  ('22000000-0000-4000-8000-000000220103'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+   '22000000-0000-4000-8000-000000220041'::uuid, 500000, 'failed', 'cash', null, '22000000-0000-4000-8000-000000220021'::uuid),
+  ('22000000-0000-4000-8000-000000220104'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+   '22000000-0000-4000-8000-000000220041'::uuid, 500000, 'paid', 'cash', 'T22-RCT-04', '22000000-0000-4000-8000-000000220021'::uuid),
+  ('22000000-0000-4000-8000-000000220105'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+   '22000000-0000-4000-8000-000000220041'::uuid, 500000, 'paid', 'cash', 'T22-RCT-05', '22000000-0000-4000-8000-000000220021'::uuid),
+  ('22000000-0000-4000-8000-000000220106'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+   '22000000-0000-4000-8000-000000220041'::uuid, 500000, 'paid', 'cash', 'T22-RCT-06', '22000000-0000-4000-8000-000000220021'::uuid),
+  ('22000000-0000-4000-8000-000000220107'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+   '22000000-0000-4000-8000-000000220041'::uuid, 500000, 'created', 'cash', null, '22000000-0000-4000-8000-000000220021'::uuid),
+  ('22000000-0000-4000-8000-000000220108'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+   '22000000-0000-4000-8000-000000220041'::uuid, 500000, 'pending', 'cash', null, '22000000-0000-4000-8000-000000220021'::uuid);
+
+-- The two "money came in and then came back" fixtures, made the only way the
+-- transition rule permits.
+update public.payments set status = 'refunded' where id = '22000000-0000-4000-8000-000000220105'::uuid;
+update public.payments set status = 'reversed' where id = '22000000-0000-4000-8000-000000220106'::uuid;
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000220001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000220021')::text,
+  true);
+set local role authenticated;
+
+-- 541 — the requirement's own scenario, first status: a `created` payment. This
+-- is the exact shape a critic reproduced.
+select throws_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000220201'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+          '22000000-0000-4000-8000-000000220101'::uuid, 'refund', 500000, 'completed',
+          'refund of a payment that never arrived', '22000000-0000-4000-8000-000000220021'::uuid)
+$$, null::char(5), null,
+  'scenario "Refunding a payment that never arrived" — a refund against a CREATED payment is refused. amount_paise is not null on a created row, and that alone is what the ceiling was reading');
+
+set local role postgres;
+
+-- 542
+select results_eq(
+  $$ select count(*)::int from public.refunds where payment_id = '22000000-0000-4000-8000-000000220101'::uuid $$,
+  $$ values (0) $$,
+  'and no refund exists against it — "no refund SHALL exist", not merely "an error was raised"');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000220001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000220021')::text,
+  true);
+set local role authenticated;
+
+-- 543
+select throws_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000220202'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+          '22000000-0000-4000-8000-000000220102'::uuid, 'refund', 500000, 'completed',
+          'refund of a pending payment', '22000000-0000-4000-8000-000000220021'::uuid)
+$$, null::char(5), null,
+  'a refund against a PENDING payment is refused — the money is on its way, which is not the same as having arrived');
+
+set local role postgres;
+
+-- 544
+select results_eq(
+  $$ select count(*)::int from public.refunds where payment_id = '22000000-0000-4000-8000-000000220102'::uuid $$,
+  $$ values (0) $$,
+  'no refund exists against the pending payment');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000220001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000220021')::text,
+  true);
+set local role authenticated;
+
+-- 545
+select throws_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000220203'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+          '22000000-0000-4000-8000-000000220103'::uuid, 'refund', 500000, 'completed',
+          'refund of a failed payment', '22000000-0000-4000-8000-000000220021'::uuid)
+$$, null::char(5), null,
+  'a refund against a FAILED payment is refused — the third and last status the requirement names, so the refused side is enumerated rather than sampled');
+
+set local role postgres;
+
+-- 546
+select results_eq(
+  $$ select count(*)::int from public.refunds where payment_id = '22000000-0000-4000-8000-000000220103'::uuid $$,
+  $$ values (0) $$,
+  'no refund exists against the failed payment');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000220001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000220021')::text,
+  true);
+set local role authenticated;
+
+-- 547 — the sibling rule's carve-out must not become a hole in this one. A
+-- refund whose OWN status is `failed` is excluded from the GL036 sum and from
+-- the GL036 comparison, on the reasoning that it took nothing. That reasoning
+-- says nothing about whether the payment it names ever arrived, and an
+-- implementation that reaches for the same short-circuit here would accept
+-- this row.
+select throws_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000220204'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+          '22000000-0000-4000-8000-000000220107'::uuid, 'refund', 500000, 'failed',
+          'a failed refund of a payment that never arrived', '22000000-0000-4000-8000-000000220021'::uuid)
+$$, null::char(5), null,
+  'a refund recorded as itself FAILED against a created payment is refused too — the ceiling''s failed carve-out is about how much may go out, not about whether anything came in');
+
+set local role postgres;
+
+-- 548
+select results_eq(
+  $$ select count(*)::int from public.refunds where payment_id = '22000000-0000-4000-8000-000000220107'::uuid $$,
+  $$ values (0) $$,
+  'and nothing was recorded against it');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000220001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000220021')::text,
+  true);
+set local role authenticated;
+
+-- 549-551 — the permitted side, all three statuses the requirement names.
+-- Without these a blanket refusal of every refund would satisfy 541-548.
+select lives_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000220205'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+          '22000000-0000-4000-8000-000000220104'::uuid, 'refund', 100000, 'completed',
+          'part refund of money that arrived', '22000000-0000-4000-8000-000000220021'::uuid)
+$$, 'scenario "Refunding money that did arrive" — a refund against a PAID payment is permitted');
+
+-- 550
+select lives_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000220206'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+          '22000000-0000-4000-8000-000000220105'::uuid, 'refund', 100000, 'completed',
+          'further refund of a refunded payment', '22000000-0000-4000-8000-000000220021'::uuid)
+$$, 'a refund against a REFUNDED payment is permitted — the money arrived, and how much of it may still go back is GL036''s question, not this rule''s');
+
+-- 551
+select lives_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000220207'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+          '22000000-0000-4000-8000-000000220106'::uuid, 'reversal', 100000, 'completed',
+          'reversal against a reversed payment', '22000000-0000-4000-8000-000000220021'::uuid)
+$$, 'and a reversal against a REVERSED payment is permitted — the third status on the permitted side');
+
+set local role postgres;
+
+-- 552 — both directions in one row (ADR-078): the three permitted refunds
+-- landed AND the four refused ones left nothing behind. A fix that refuses
+-- everything fails the first half; a fix that refuses nothing fails the second.
+select results_eq(
+  $$
+    select
+      (select count(*)::int from public.refunds where payment_id = '22000000-0000-4000-8000-000000220104'::uuid),
+      (select count(*)::int from public.refunds where payment_id = '22000000-0000-4000-8000-000000220105'::uuid),
+      (select count(*)::int from public.refunds where payment_id = '22000000-0000-4000-8000-000000220106'::uuid),
+      (select count(*)::int from public.refunds r join public.payments p on p.id = r.payment_id
+        where p.tenant_id = '22000000-0000-4000-8000-000000220001'::uuid
+          and p.status not in ('paid', 'refunded', 'reversed'))
+  $$,
+  $$ values (1, 1, 1, 0) $$,
+  'one refund against each of the three payments that took money, and zero against every payment in this gym that did not — the requirement''s sentence as a single query'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000220001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000220021')::text,
+  true);
+set local role authenticated;
+
+-- 553 — "it SHALL be bounded by GL036 as it is today". The permitted side is
+-- permitted, not unbounded: 100000 is already out against a 500000 payment, so
+-- a further 500000 is refused.
+select throws_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000220208'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+          '22000000-0000-4000-8000-000000220104'::uuid, 'refund', 500000, 'completed',
+          'over the ceiling', '22000000-0000-4000-8000-000000220021'::uuid)
+$$, 'GL036'::char(5), null,
+  'and the ceiling still applies on the permitted side — this rule adds a condition to GL036, it does not replace it');
+
+set local role postgres;
+
+-- 554
+select results_eq(
+  $$ select count(*)::int, coalesce(sum(amount_paise), 0)::bigint from public.refunds
+      where payment_id = '22000000-0000-4000-8000-000000220104'::uuid $$,
+  $$ values (1, 100000::bigint) $$,
+  'still one refund of 100000 against it');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000220001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000220021')::text,
+  true);
+set local role authenticated;
+
+-- 555 — the sequence the requirement does not spell out and an implementation
+-- could easily get wrong in either direction: a refund ATTEMPTED before the
+-- money arrived. Refused now.
+select throws_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000220209'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+          '22000000-0000-4000-8000-000000220108'::uuid, 'refund', 100000, 'completed',
+          'refund attempted before the money arrived', '22000000-0000-4000-8000-000000220021'::uuid)
+$$, null::char(5), null,
+  'a refund attempted while its payment is still pending is refused');
+
+set local role postgres;
+
+-- 556
+select results_eq(
+  $$ select count(*)::int from public.refunds where payment_id = '22000000-0000-4000-8000-000000220108'::uuid $$,
+  $$ values (0) $$,
+  'nothing recorded');
+
+-- The money then arrives, along the transition GL039 permits. The receipt
+-- number goes on in the same statement because a paid payment must carry one
+-- and this row has never been paid, so nothing about it is frozen yet.
+update public.payments set status = 'paid', receipt_number = 'T22-RCT-08'
+ where id = '22000000-0000-4000-8000-000000220108'::uuid;
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000220001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000220021')::text,
+  true);
+set local role authenticated;
+
+-- 557 — and the same refund, written after the money arrived, is accepted. The
+-- rule reads the payment's status at the moment the refund is written; it is
+-- not a permanent mark against a payment that was once unpaid. It carries its
+-- own id rather than 555's, deliberately: reusing that one would collide on
+-- the primary key for as long as 555's refusal is missing, and an assertion
+-- that goes red on a duplicate key is an assertion failing for a reason that
+-- has nothing to do with what it claims.
+select lives_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000220212'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+          '22000000-0000-4000-8000-000000220108'::uuid, 'refund', 100000, 'completed',
+          'refund after the money arrived', '22000000-0000-4000-8000-000000220021'::uuid)
+$$, 'the identical refund is accepted once the payment is paid — the rule reads the status now, and does not hold a payment''s history against it');
+
+set local role postgres;
+
+-- 558
+select results_eq(
+  $$
+    select
+      (select count(*)::int from public.refunds where payment_id = '22000000-0000-4000-8000-000000220108'::uuid),
+      (select status::text from public.payments where id = '22000000-0000-4000-8000-000000220108'::uuid)
+  $$,
+  $$ values (1, 'paid'::text) $$,
+  'exactly one refund against it — the one written after the money arrived, and not also the one attempted before'
+);
+
+-- The other direction of the same question: a payment that was paid, was
+-- refunded once, and is then marked `refunded`.
+update public.payments set status = 'refunded' where id = '22000000-0000-4000-8000-000000220104'::uuid;
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000220001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000220021')::text,
+  true);
+set local role authenticated;
+
+-- 559
+select lives_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000220210'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+          '22000000-0000-4000-8000-000000220104'::uuid, 'refund', 100000, 'completed',
+          'second part refund after the payment was marked refunded', '22000000-0000-4000-8000-000000220021'::uuid)
+$$, 'a payment that was paid and has since moved to refunded still accepts a further refund within its ceiling — money that came in does not stop having come in');
+
+set local role postgres;
+
+-- 560
+select results_eq(
+  $$ select count(*)::int, coalesce(sum(amount_paise), 0)::bigint from public.refunds
+      where payment_id = '22000000-0000-4000-8000-000000220104'::uuid $$,
+  $$ values (2, 200000::bigint) $$,
+  'two refunds totalling 200000 against a 500000 payment');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000220001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000220021')::text,
+  true);
+set local role authenticated;
+
+-- 561
+select throws_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000220211'::uuid, '22000000-0000-4000-8000-000000220001'::uuid,
+          '22000000-0000-4000-8000-000000220104'::uuid, 'refund', 400000, 'completed',
+          'over the ceiling on a refunded payment', '22000000-0000-4000-8000-000000220021'::uuid)
+$$, 'GL036'::char(5), null,
+  'and the ceiling followed the payment through the status change — 200000 is already out, so 400000 more is refused');
+
+set local role postgres;
+
+-- 562 — the closing invariant for this tenant, and the requirement's own
+-- sentence: every refund on the books names a payment that actually took money.
+select results_eq(
+  $$
+    select
+      (select count(*)::int from public.refunds r
+        where r.tenant_id = '22000000-0000-4000-8000-000000220001'::uuid),
+      (select count(*)::int from public.refunds r join public.payments p on p.id = r.payment_id
+        where r.tenant_id = '22000000-0000-4000-8000-000000220001'::uuid
+          and p.status not in ('paid', 'refunded', 'reversed'))
+  $$,
+  $$ values (5, 0) $$,
+  'five refunds exist in tenant 22 and every one of them names a payment that took money — the count keeps a blanket refusal from passing, the zero keeps the defect from passing'
+);
+
+
+-- ===========================================================================
+-- SECTION 27 (ROUND SEVENTEEN) — "A membership belongs to the member it was
+-- sold to". Tenant 23. Assertions 563-595.
+--
+-- THE MEASURED DEFECT. `memberships.member_id` is frozen by nothing — not the
+-- terms rule, whose column list is closed and excludes it, and not the stamp.
+-- From a FRONT-DESK session, in one statement, a membership carrying a granted
+-- period moved to a different member while the paid payment still named the
+-- original one and carried their receipt number. Reproduced from this session
+-- against Cloud, in every statement shape below, before any of them was written
+-- down.
+--
+-- THE TRAP THE REQUIREMENT NAMES, AND HOW THIS SECTION AVOIDS IT.
+-- `memberships_tenant_id_member_id_live_key` is `unique (tenant_id, member_id)
+-- where status in ('active','frozen')`, so a move onto a member who already
+-- holds a live membership is refused by the INDEX and a careless assertion
+-- reports a false GREEN. Three separate defences:
+--   * every target below (T1…T9) holds NOTHING, and 577 asserts that as its own
+--     assertion, positioned BEFORE the refusals so a reader can see the trap was
+--     disarmed rather than take it on trust;
+--   * each attempt uses a DIFFERENT target, so an attempt that lands (as they
+--     all do today) cannot turn the next one into a same-value write that is
+--     refused by nothing and passes for a third wrong reason;
+--   * 592 moves a CANCELLED membership, which the partial index does not cover
+--     on either side, so nothing but this requirement can refuse it.
+-- 594 then runs the trap deliberately, as the control: the move onto a member
+-- who does hold a live membership, asserted as refused without pinning which
+-- rule refuses it. It is green today for the wrong reason and green afterwards
+-- for the right one, and its message says so.
+--
+-- PART A IS THE PERMITTED SIDE AND IT COMES FIRST. This project has three times
+-- shipped a fix broad enough to pass every refusal test, so selling, renewing,
+-- freezing, cancelling and re-selling are asserted on their own memberships
+-- BEFORE anything is attacked — green today, and required to still be green
+-- after. Creation is deliberately among them: the requirement governs a session
+-- that CHANGES a member_id, and creating a membership for somebody is not
+-- re-pointing one. It is also, plainly, the front desk's job.
+--
+-- THE SAME-VALUE WRITE (566) is allowed on the requirement's own word —
+-- "changes", not "writes" — which is the precedence the sibling requirement for
+-- the dates settled explicitly after a blind author caught the same wording
+-- drift ("Change, not write").
+-- ===========================================================================
+
+insert into public.organizations (id, name, gym_code) values
+  ('22000000-0000-4000-8000-000000230001'::uuid, 'PayRec Gym 23', 'PYR22P');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('22000000-0000-4000-8000-000000230011'::uuid, '22000000-0000-4000-8000-000000230001'::uuid, 'G23 Main', true);
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('22000000-0000-4000-8000-000000230021'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'front_desk', 'T23 Desk'),
+  ('22000000-0000-4000-8000-000000230022'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'gym_owner', 'T23 Owner');
+
+-- A holds the membership under attack and a cancelled one; C is the trap
+-- control and holds a live membership; S is renewed, frozen, cancelled and
+-- re-sold in Part A; E and F are sold to in Part A; T1..T9 hold nothing at all
+-- and are the targets of the nine refused moves.
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000230041'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'M23 A', '+912223000041'),
+  ('22000000-0000-4000-8000-000000230043'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'M23 C (holds a live one)', '+912223000043'),
+  ('22000000-0000-4000-8000-000000230044'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'M23 S', '+912223000044'),
+  ('22000000-0000-4000-8000-000000230045'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'M23 E', '+912223000045'),
+  ('22000000-0000-4000-8000-000000230046'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'M23 F', '+912223000046'),
+  ('22000000-0000-4000-8000-000000230051'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'M23 T1', '+912223000051'),
+  ('22000000-0000-4000-8000-000000230052'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'M23 T2', '+912223000052'),
+  ('22000000-0000-4000-8000-000000230053'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'M23 T3', '+912223000053'),
+  ('22000000-0000-4000-8000-000000230054'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'M23 T4', '+912223000054'),
+  ('22000000-0000-4000-8000-000000230055'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'M23 T5', '+912223000055'),
+  ('22000000-0000-4000-8000-000000230056'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'M23 T6', '+912223000056'),
+  ('22000000-0000-4000-8000-000000230057'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'M23 T7', '+912223000057'),
+  ('22000000-0000-4000-8000-000000230058'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'M23 T8', '+912223000058'),
+  ('22000000-0000-4000-8000-000000230059'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230011'::uuid, 'M23 T9', '+912223000059');
+
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('22000000-0000-4000-8000-000000230061'::uuid, '22000000-0000-4000-8000-000000230001'::uuid, 'G23 Plan (30d)', 30, 100000);
+
+create temp table today_t23 as
+  select (now() at time zone o.timezone)::date as d
+    from public.organizations o where o.id = '22000000-0000-4000-8000-000000230001'::uuid;
+grant select on today_t23 to public;
+
+-- Every membership starts at `ends_on = today`, so one granted period is
+-- `today + 30` and nothing else is in the arithmetic (ADR-039: the date comes
+-- from the gym's own clock, never a literal and never current_date).
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('22000000-0000-4000-8000-000000230081'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230041'::uuid, '22000000-0000-4000-8000-000000230061'::uuid,
+   'active', (select d from today_t23), (select d from today_t23), 100000),
+  ('22000000-0000-4000-8000-000000230082'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230041'::uuid, '22000000-0000-4000-8000-000000230061'::uuid,
+   'cancelled', (select d from today_t23), (select d from today_t23), 100000),
+  ('22000000-0000-4000-8000-000000230083'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230043'::uuid, '22000000-0000-4000-8000-000000230061'::uuid,
+   'active', (select d from today_t23), (select d from today_t23), 100000),
+  ('22000000-0000-4000-8000-000000230084'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230044'::uuid, '22000000-0000-4000-8000-000000230061'::uuid,
+   'active', (select d from today_t23), (select d from today_t23), 100000);
+
+-- The granted period is BOUGHT rather than typed: `periods_granted` may not be
+-- written by hand at all (GL044), and the harm this requirement names is a
+-- membership "carrying a granted period" moving away from the person who bought
+-- it. So the fixture pays for it.
+insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, receipt_number, recorded_by_staff_id) values
+  ('22000000-0000-4000-8000-000000230101'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+   '22000000-0000-4000-8000-000000230041'::uuid, '22000000-0000-4000-8000-000000230081'::uuid,
+   100000, 'paid', 'cash', 'T23-RCT-01', '22000000-0000-4000-8000-000000230021'::uuid);
+
+-- Captured after the money landed and before anything is attacked, so
+-- "unchanged" below means "as the money left it" rather than "as the INSERT
+-- wrote it".
+create temp table ms_r17_before as
+  select id, member_id, status, periods_granted, starts_on, ends_on
+    from public.memberships
+   where id in ('22000000-0000-4000-8000-000000230081'::uuid,
+                '22000000-0000-4000-8000-000000230082'::uuid);
+grant select on ms_r17_before to public;
+
+-- 563 — the fixture exercised the granting rule rather than merely inserting a
+-- row: one period bought, dates moved. Without this, every "unchanged" below
+-- could be comparing an unmoved membership against itself.
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-000000230081'::uuid $$,
+  $$ select 1, (select d from today_t23) + 30 $$,
+  'the membership under attack genuinely carries a granted period that money bought — one period, ends_on moved 30 days. This is the row the measured defect moved to another member'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000230001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000230021')::text,
+  true);
+set local role authenticated;
+
+-- PART A — the permitted side, first, on its own rows.
+
+-- 564 — creating a membership FOR another member is not re-pointing one. The
+-- requirement governs a session that CHANGES member_id; a fix that froze the
+-- column at INSERT as well would stop the gym selling anything.
+select lives_ok($$
+  insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+  values ('22000000-0000-4000-8000-000000230085'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+          '22000000-0000-4000-8000-000000230045'::uuid, '22000000-0000-4000-8000-000000230061'::uuid,
+          'active', (select d from today_t23), (select d from today_t23), 100000)
+$$, 'a front desk creating a membership for a member is allowed — this rule refuses re-pointing, and selling is not re-pointing');
+
+set local role postgres;
+
+-- 565
+select results_eq(
+  $$ select member_id, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000230085'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000230045'::uuid, 0) $$,
+  'and it landed naming that member, granted nothing');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000230001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000230021')::text,
+  true);
+set local role authenticated;
+
+-- 566 — the same-value write. The requirement says "changes", and its sibling
+-- for the membership dates settled this precedence in as many words after a
+-- blind author caught the drift: change, not write.
+select lives_ok($$
+  update public.memberships set member_id = member_id
+   where id = '22000000-0000-4000-8000-000000230084'::uuid
+$$, 'a membership written its own member_id back is allowed — nothing changed, and a rule that refuses a write that cannot do harm breaks ordinary column-listing updates');
+
+set local role postgres;
+
+-- 567
+select results_eq(
+  $$ select member_id from public.memberships where id = '22000000-0000-4000-8000-000000230084'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000230044'::uuid) $$,
+  'and it still names the same member');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000230001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000230021')::text,
+  true);
+set local role authenticated;
+
+-- 568 — an ordinary renewal. The granting rule writes to `memberships` itself,
+-- and a freeze written without `is distinct from` on the right column could
+-- refuse the rule's own write.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id, receipt_number)
+  values ('22000000-0000-4000-8000-000000230102'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+          '22000000-0000-4000-8000-000000230044'::uuid, '22000000-0000-4000-8000-000000230084'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000230021'::uuid, 'T23-RCT-02')
+$$, 'an ordinary front-desk renewal still works');
+
+set local role postgres;
+
+-- 569
+select results_eq(
+  $$ select periods_granted, ends_on, member_id from public.memberships
+      where id = '22000000-0000-4000-8000-000000230084'::uuid $$,
+  $$ select 1, (select d from today_t23) + 30, '22000000-0000-4000-8000-000000230044'::uuid $$,
+  'and it granted its period and moved the dates, still naming the member who paid — the rule''s own write to the membership is not a re-pointing'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000230001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000230021')::text,
+  true);
+set local role authenticated;
+
+-- 570-571 — freeze and unfreeze, the other ordinary UPDATE a front desk makes
+-- against this table.
+select lives_ok($$
+  update public.memberships set status = 'frozen'
+   where id = '22000000-0000-4000-8000-000000230084'::uuid
+$$, 'freezing a membership still works');
+
+-- 571
+select lives_ok($$
+  update public.memberships set status = 'active'
+   where id = '22000000-0000-4000-8000-000000230084'::uuid
+$$, 'and unfreezing it still works');
+
+set local role postgres;
+
+-- 572
+select results_eq(
+  $$ select status::text, member_id, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000230084'::uuid $$,
+  $$ values ('active'::text, '22000000-0000-4000-8000-000000230044'::uuid, 1) $$,
+  'and the freeze cycle moved the status and nothing else');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000230001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000230021')::text,
+  true);
+set local role authenticated;
+
+-- 573-575 — the requirement's own second scenario, whose heading says "Selling
+-- the same member a second membership" and whose body says "a new one is sold
+-- to ANOTHER member". Those are two different acts, so both are asserted rather
+-- than one of them chosen. See the report: the heading and the WHEN disagree.
+select lives_ok($$
+  update public.memberships set status = 'cancelled', cancelled_at = now()
+   where id = '22000000-0000-4000-8000-000000230084'::uuid
+$$, 'scenario "Selling the same member a second membership", step one — cancelling is allowed');
+
+-- 574
+select lives_ok($$
+  insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+  values ('22000000-0000-4000-8000-000000230086'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+          '22000000-0000-4000-8000-000000230044'::uuid, '22000000-0000-4000-8000-000000230061'::uuid,
+          'active', (select d from today_t23), (select d from today_t23), 100000)
+$$, 'step two, the heading''s reading — the SAME member is sold a second membership once the first is cancelled');
+
+-- 575
+select lives_ok($$
+  insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+  values ('22000000-0000-4000-8000-000000230087'::uuid, '22000000-0000-4000-8000-000000230001'::uuid,
+          '22000000-0000-4000-8000-000000230046'::uuid, '22000000-0000-4000-8000-000000230061'::uuid,
+          'active', (select d from today_t23), (select d from today_t23), 100000)
+$$, 'step two, the body''s reading — a new membership is sold to ANOTHER member. The remedy this phase prescribes is refund, cancel, sell again, and all three of its steps have to work');
+
+set local role postgres;
+
+-- 576
+select results_eq(
+  $$
+    select
+      (select count(*)::int from public.memberships
+        where member_id = '22000000-0000-4000-8000-000000230044'::uuid and status = 'active'),
+      (select count(*)::int from public.memberships
+        where member_id = '22000000-0000-4000-8000-000000230044'::uuid and status = 'cancelled'),
+      (select count(*)::int from public.memberships
+        where member_id = '22000000-0000-4000-8000-000000230046'::uuid)
+  $$,
+  $$ values (1, 1, 1) $$,
+  'one active and one cancelled for the member who was re-sold, and one for the member sold to — the whole remedy path works, which is what makes refusing the re-point affordable'
+);
+
+-- PART B — the trap, disarmed and shown to be disarmed, BEFORE any refusal is
+-- asserted. If any of T1..T9 held a live membership, every throws_ok below
+-- would pass on memberships_tenant_id_member_id_live_key and this suite would
+-- report GREEN against an unfixed database. That is precisely how the
+-- requirement says a careless author gets this wrong.
+
+-- 577
+select results_eq(
+  $$ select count(*)::int from public.memberships
+      where member_id in ('22000000-0000-4000-8000-000000230051'::uuid,
+                          '22000000-0000-4000-8000-000000230052'::uuid,
+                          '22000000-0000-4000-8000-000000230053'::uuid,
+                          '22000000-0000-4000-8000-000000230054'::uuid,
+                          '22000000-0000-4000-8000-000000230055'::uuid,
+                          '22000000-0000-4000-8000-000000230056'::uuid,
+                          '22000000-0000-4000-8000-000000230057'::uuid,
+                          '22000000-0000-4000-8000-000000230058'::uuid,
+                          '22000000-0000-4000-8000-000000230059'::uuid) $$,
+  $$ values (0) $$,
+  'THE TRAP, DISARMED: every target of every refused move below holds zero memberships of any status, so memberships_tenant_id_member_id_live_key cannot be what refuses any of them. Asserted rather than assumed, because a false GREEN here is the failure the requirement predicts by name'
+);
+
+-- PART C — the refusals. Each uses a different target, so a move that lands
+-- cannot turn the next attempt into a same-value write that passes for a third
+-- wrong reason.
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000230001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000230021')::text,
+  true);
+set local role authenticated;
+
+-- 578 — the measured defect exactly: a FRONT DESK, one statement, a membership
+-- carrying a granted period moved to a member holding nothing.
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000230051'::uuid
+   where id = '22000000-0000-4000-8000-000000230081'::uuid
+$$, null::char(5), null,
+  'scenario "Moving a membership to another member" — a front-desk session re-pointing a membership that carries a granted period is refused. The least-privileged writer who can reach the table at all, which is how it was measured');
+
+set local role postgres;
+
+-- 579
+select results_eq(
+  $$ select member_id, status::text, periods_granted, starts_on, ends_on
+       from public.memberships where id = '22000000-0000-4000-8000-000000230081'::uuid $$,
+  $$ select member_id, status::text, periods_granted, starts_on, ends_on
+       from ms_r17_before where id = '22000000-0000-4000-8000-000000230081'::uuid $$,
+  'and the membership is exactly as the money left it — the owner, the count and both dates, not just the refusal'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000230001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000230022')::text,
+  true);
+set local role authenticated;
+
+-- 580 — a gym admin. The requirement says "any session", and this is an
+-- invariant about the data rather than a judgement about a claim, so being the
+-- owner buys nothing.
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000230052'::uuid
+   where id = '22000000-0000-4000-8000-000000230081'::uuid
+$$, null::char(5), null,
+  'a GYM OWNER is refused too — "any session". Correcting who a membership was sold to is a refund, a cancellation and a new sale, which is the answer this phase gives for every other recorded fact');
+
+set local role postgres;
+
+-- 581
+select results_eq(
+  $$ select member_id, periods_granted, starts_on, ends_on
+       from public.memberships where id = '22000000-0000-4000-8000-000000230081'::uuid $$,
+  $$ select member_id, periods_granted, starts_on, ends_on
+       from ms_r17_before where id = '22000000-0000-4000-8000-000000230081'::uuid $$,
+  'unchanged after the owner''s attempt');
+
+set local role service_role;
+
+-- 582 — a trusted context, with row security switched off entirely. Of the
+-- rules on this table only the claim rule (GL046, "which staff role are you")
+-- carries a trusted-context carve-out, on ADR-082's general form: a carve-out is
+-- sound exactly when the rule's subject is something a trusted caller
+-- legitimately lacks. This rule's subject is which member a membership was sold
+-- to, which a webhook has as much of as anybody. So no carve-out.
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000230053'::uuid
+   where id = '22000000-0000-4000-8000-000000230081'::uuid
+$$, null::char(5), null,
+  'and a service_role session — no row security at all — is refused as well. This is an invariant about the data, not a question about the caller''s role, so it takes no trusted-context carve-out');
+
+set local role postgres;
+
+-- 583
+select results_eq(
+  $$ select member_id, periods_granted, starts_on, ends_on
+       from public.memberships where id = '22000000-0000-4000-8000-000000230081'::uuid $$,
+  $$ select member_id, periods_granted, starts_on, ends_on
+       from ms_r17_before where id = '22000000-0000-4000-8000-000000230081'::uuid $$,
+  'unchanged after the trusted writer''s attempt');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000230001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000230021')::text,
+  true);
+set local role authenticated;
+
+-- 584 — UPDATE … FROM. The value arrives from a join rather than a literal, so
+-- a rule that only inspected the statement's target list would miss it.
+select throws_ok($$
+  update public.memberships m set member_id = x.mid
+    from (values ('22000000-0000-4000-8000-000000230054'::uuid)) as x(mid)
+   where m.id = '22000000-0000-4000-8000-000000230081'::uuid
+$$, null::char(5), null,
+  'UPDATE … FROM is refused — the new value coming from a join rather than a literal changes nothing about what the row becomes');
+
+set local role postgres;
+
+-- 585
+select results_eq(
+  $$ select member_id, periods_granted, starts_on, ends_on
+       from public.memberships where id = '22000000-0000-4000-8000-000000230081'::uuid $$,
+  $$ select member_id, periods_granted, starts_on, ends_on
+       from ms_r17_before where id = '22000000-0000-4000-8000-000000230081'::uuid $$,
+  'unchanged after the UPDATE … FROM');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000230001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000230021')::text,
+  true);
+set local role authenticated;
+
+-- 586 — a data-modifying CTE, which is what an ORM or a hand-written
+-- "do it all in one round trip" statement actually emits.
+select throws_ok($$
+  with moved as (
+    update public.memberships set member_id = '22000000-0000-4000-8000-000000230055'::uuid
+     where id = '22000000-0000-4000-8000-000000230081'::uuid
+    returning 1
+  )
+  select count(*) from moved
+$$, null::char(5), null,
+  'a data-modifying CTE is refused — the write is still a write when it is wrapped in a WITH');
+
+set local role postgres;
+
+-- 587
+select results_eq(
+  $$ select member_id, periods_granted, starts_on, ends_on
+       from public.memberships where id = '22000000-0000-4000-8000-000000230081'::uuid $$,
+  $$ select member_id, periods_granted, starts_on, ends_on
+       from ms_r17_before where id = '22000000-0000-4000-8000-000000230081'::uuid $$,
+  'unchanged after the CTE');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000230001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000230021')::text,
+  true);
+set local role authenticated;
+
+-- 588 — MERGE, which reaches the table by a different statement node again.
+select throws_ok($$
+  merge into public.memberships m
+   using (select '22000000-0000-4000-8000-000000230081'::uuid as target) s
+      on m.id = s.target
+    when matched then update set member_id = '22000000-0000-4000-8000-000000230056'::uuid
+$$, null::char(5), null,
+  'MERGE … WHEN MATCHED THEN UPDATE is refused — a row trigger sees the row whatever statement node produced it, and asserting that is cheaper than assuming it');
+
+set local role postgres;
+
+-- 589
+select results_eq(
+  $$ select member_id, periods_granted, starts_on, ends_on
+       from public.memberships where id = '22000000-0000-4000-8000-000000230081'::uuid $$,
+  $$ select member_id, periods_granted, starts_on, ends_on
+       from ms_r17_before where id = '22000000-0000-4000-8000-000000230081'::uuid $$,
+  'unchanged after the MERGE');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000230001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000230021')::text,
+  true);
+set local role authenticated;
+
+-- 590 — two rows, one statement, two different targets. A rule evaluated per
+-- statement rather than per row, or one that stopped at the first row it liked,
+-- would let the second through.
+select throws_ok($$
+  update public.memberships
+     set member_id = case when id = '22000000-0000-4000-8000-000000230081'::uuid
+                          then '22000000-0000-4000-8000-000000230057'::uuid
+                          else '22000000-0000-4000-8000-000000230058'::uuid end
+   where id in ('22000000-0000-4000-8000-000000230081'::uuid,
+                '22000000-0000-4000-8000-000000230082'::uuid)
+$$, null::char(5), null,
+  'one statement moving TWO memberships to two different members is refused — the rule is per row, and a refused row aborts the statement rather than being skipped');
+
+set local role postgres;
+
+-- 591
+select results_eq(
+  $$ select id, member_id, periods_granted, starts_on, ends_on
+       from public.memberships
+      where id in ('22000000-0000-4000-8000-000000230081'::uuid,
+                   '22000000-0000-4000-8000-000000230082'::uuid)
+      order by id $$,
+  $$ select id, member_id, periods_granted, starts_on, ends_on
+       from ms_r17_before order by id $$,
+  'and BOTH rows are where they were — including the one whose move would have been the second in the statement'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000230001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000230021')::text,
+  true);
+set local role authenticated;
+
+-- 592 — THE SHARPEST ANTI-FALSE-GREEN SHAPE IN THIS SECTION. The membership is
+-- `cancelled`, and memberships_tenant_id_member_id_live_key indexes only
+-- `active` and `frozen` rows. Neither the row being moved nor the member it is
+-- moved to is in that index at all, so there is nothing for it to collide with:
+-- if this refuses, only this requirement can be refusing it.
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000230059'::uuid
+   where id = '22000000-0000-4000-8000-000000230082'::uuid
+$$, null::char(5), null,
+  'a CANCELLED membership is refused too, and the live unique key does not index cancelled rows on either side — so this refusal cannot be the index answering. A retired membership was still sold to somebody');
+
+set local role postgres;
+
+-- 593
+select results_eq(
+  $$ select member_id, status::text from public.memberships
+      where id = '22000000-0000-4000-8000-000000230082'::uuid $$,
+  $$ select member_id, status::text from ms_r17_before
+      where id = '22000000-0000-4000-8000-000000230082'::uuid $$,
+  'the cancelled membership still names the member it was sold to');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000230001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000230021')::text,
+  true);
+set local role authenticated;
+
+-- 594 — THE TRAP ITSELF, run deliberately as the control. The target already
+-- holds a live membership, so today this is refused by the unique index and
+-- afterwards by the requirement. It is asserted as "refused" with no SQLSTATE,
+-- and it is the one assertion in this section that is green against the
+-- unfixed database — which is exactly why 577 and 592 exist beside it.
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000230043'::uuid
+   where id = '22000000-0000-4000-8000-000000230081'::uuid
+$$, null::char(5), null,
+  'the trap, run on purpose: moving onto a member who ALREADY holds a live membership is refused — but by the unique index today, which is why no assertion above relies on this shape');
+
+set local role postgres;
+
+-- 595
+select results_eq(
+  $$
+    select
+      (select member_id from public.memberships where id = '22000000-0000-4000-8000-000000230081'::uuid),
+      (select count(*)::int from public.memberships where member_id = '22000000-0000-4000-8000-000000230043'::uuid),
+      (select member_id from public.payments where id = '22000000-0000-4000-8000-000000230101'::uuid)
+  $$,
+  $$ values ('22000000-0000-4000-8000-000000230041'::uuid, 1, '22000000-0000-4000-8000-000000230041'::uuid) $$,
+  'and the closing fact the whole requirement is about: the membership, and the paid payment that bought its period and carries its receipt, still name the SAME person — which is the sentence GL042 protects from the payment side and nothing protected from this one'
+);
+
+
+-- ===========================================================================
+-- SECTION 28 (ROUND SEVENTEEN, coordinator decision) — "money that LEFT does
+-- not become an attempt; money in flight may", on `processing`. Tenant 21,
+-- one new payment. Assertions 596-599.
+--
+-- WHY IT IS HERE AND NOT INSIDE SECTION 25. The decision arrived after 509-595
+-- were numbered and after both suites had been written against them; appending
+-- costs four assertion numbers and renumbering would have churned eighty-seven
+-- comments and the cross-references inside their messages. Section 24 already
+-- sets the precedent of a later round revisiting an earlier section's tenant.
+--
+-- WHAT IT ADDS THAT 532-537 DOES NOT. 532-537 walks the release from
+-- `requested`; the holdout measured it from `processing`, which is the status
+-- that actually means "handed to the provider, not yet moved by it" and is
+-- therefore the sharper case for the decision. Section 25 already asserts
+-- `processing → failed` as a permitted TRANSITION (525) — but on a part refund,
+-- where no ceiling is released and so nothing about the consequence is proven.
+-- The coordinator's instruction is the consequence in both cases, not the
+-- transition alone, and this is the half that was missing.
+--
+-- The rule being asserted is the narrow one:
+--   * a refund at `processing` is IN the GL036 sum, so a full one blocks a
+--     second (596);
+--   * moving it to `failed` is PERMITTED (597) — it can genuinely fail, and
+--     refusing would strand it while the ceiling consumed money that never
+--     left;
+--   * so the ceiling RELEASES and the second full refund is accepted (598),
+--     which is the decided behaviour;
+--   * and nothing has left, which is the whole of what the invariant protects
+--     (599). Compare 512/514, where the same walk from `completed` is refused
+--     and the ceiling holds — because there the money is gone.
+-- ===========================================================================
+
+insert into public.payments (id, tenant_id, member_id, amount_paise, status, method, receipt_number, recorded_by_staff_id) values
+  ('22000000-0000-4000-8000-000000210108'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210041'::uuid, 200000, 'paid', 'cash', 'T21-RCT-08', '22000000-0000-4000-8000-000000210021'::uuid);
+
+insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id) values
+  ('22000000-0000-4000-8000-000000210220'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+   '22000000-0000-4000-8000-000000210108'::uuid, 'refund', 200000, 'processing', 'full refund, with the provider', '22000000-0000-4000-8000-000000210021'::uuid);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000210001',
+                    'app_role', 'gym_owner',
+                    'staff_id', '22000000-0000-4000-8000-000000210021')::text,
+  true);
+set local role authenticated;
+
+-- 596
+select throws_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000210221'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+          '22000000-0000-4000-8000-000000210108'::uuid, 'refund', 200000, 'processing',
+          'second full refund of payment 08', '22000000-0000-4000-8000-000000210021'::uuid)
+$$, 'GL036'::char(5), null,
+  'a full refund sitting at PROCESSING blocks a second one with GL036 — money with the provider is counted, because it is on its way out');
+
+-- 597
+select lives_ok($$
+  update public.refunds set status = 'failed'
+   where id = '22000000-0000-4000-8000-000000210220'::uuid
+$$, 'and the provider rejecting it — processing to failed — is PERMITTED. This is the transition''s whole purpose, and refusing it would leave a refund nobody can resolve while the ceiling consumed money that never left the gym');
+
+-- 598
+select lives_ok($$
+  insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id)
+  values ('22000000-0000-4000-8000-000000210221'::uuid, '22000000-0000-4000-8000-000000210001'::uuid,
+          '22000000-0000-4000-8000-000000210108'::uuid, 'refund', 200000, 'processing',
+          'retry after the provider rejected the first', '22000000-0000-4000-8000-000000210021'::uuid)
+$$, 'THE CEILING CONSEQUENCE, and it is a release rather than a hold: the retry is accepted. Compare 514, where the same walk from COMPLETED leaves the second refund refused — the difference is whether the money actually left');
+
+set local role postgres;
+
+-- 599
+select results_eq(
+  $$
+    select
+      (select count(*)::int from public.refunds
+        where payment_id = '22000000-0000-4000-8000-000000210108'::uuid and status = 'completed'),
+      (select count(*)::int from public.refunds
+        where payment_id = '22000000-0000-4000-8000-000000210108'::uuid),
+      (select count(*)::int from public.payments p
+        where p.tenant_id = '22000000-0000-4000-8000-000000210001'::uuid
+          and (select coalesce(sum(r.amount_paise), 0) from public.refunds r
+                where r.payment_id = p.id and r.status <> 'failed') > p.amount_paise)
+  $$,
+  $$ values (0, 2, 0) $$,
+  'and NOTHING HAS LEFT: two refund attempts against payment 08, neither completed, and still no payment in this gym carrying a non-failed total above its own amount. The ceiling moved; the ledger did not. That is the whole of the invariant'
 );
 
 
