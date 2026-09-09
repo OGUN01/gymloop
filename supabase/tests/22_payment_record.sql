@@ -271,6 +271,69 @@
 -- as this file's own earlier passes were RED against a migration not yet
 -- merged (see the "RED (8)" note further up) — that is the plan working,
 -- not a regression.
+--
+-- SEVENTH-ROUND EXTENSION — Section 16 (assertions 120-165), written by a
+-- separate visible-suite author while a second author writes the holdout
+-- battery for the same two requirements (GL043 widened to `plan_id`, and
+-- GL044, the count itself). Neither read the other, and neither read an
+-- implementation, because there is none: ADR-089 records what a blind critic
+-- measured through the four doors round six left open. Section 16's own
+-- header states the attack list and the two calls where the requirement left
+-- a choice.
+--
+-- PLAN COUNT: 173 (119 + 54). Verified two ways against live Cloud, in one
+-- run, begin…rollback, nothing committed: a scratchpad wrapper that inserts
+-- every emitted TAP line into a temp table (so a single result set comes
+-- back — `supabase db query` returns only the LAST result set with rows, and
+-- that has produced false GREENs on this project before) counted 175 emitting
+-- statements = plan + 173 assertions + finish(), and the run itself returned
+-- exactly 175 lines with `1..173` first and no plan-mismatch diagnostic from
+-- finish().
+--
+-- One assertion of Section 14b's is not new but its FIXTURE is: 14b used to
+-- INSERT its membership at `periods_granted = 1`, which GL044 now refuses
+-- ("a membership is created having been granted nothing"). It creates the
+-- membership fresh and earns the period from a real payment instead.
+-- Assertions 99/100 are untouched and green before and after — a fixture
+-- repair, not a change to what is asserted. It was the only fixture in the
+-- file inserting a non-zero count; every other membership here is created
+-- at 0 or leaves the column to its default.
+--
+-- RED (27), all of them in Section 16 and every one of them dependent on a
+-- rule that does not exist yet: 121/122/123/125 (plan_id is not frozen —
+-- repointing at a longer and at a shorter plan both land, and the renewal
+-- that follows is scored against whatever plan was left behind);
+-- 130-135 (the same repoint through UPDATE … FROM, MERGE, a data-modifying
+-- CTE, and a two-row statement carrying one frozen and one free membership —
+-- all four land, and in the two-row case the innocent row moves too);
+-- 137/138/140/141/142/143 (the count can be reset to 0, incremented from its
+-- own value, and smuggled alongside a discount edit — and after the reset one
+-- paisa buys a month); 145/146/148 (the count staged to 500, and the ordinary
+-- ₹1,000 renewal that follows is then silently eaten — money receipted,
+-- ends_on unmoved, nothing raised); 150-153 and 156/157 (the same three
+-- statement shapes against the count, plus the hand-write by postgres
+-- itself); and 166/167 (the fourth door — a membership CREATED carrying five
+-- granted periods is written and stays written, ADR-089's third exploit with
+-- no UPDATE anywhere in it).
+--
+-- GREEN (27) in Section 16, and they are not filler: 120/129/136/144/149 are
+-- the fixture proofs (every membership that holds a period EARNED it from a
+-- real payment); 124/127/128/126/154/155 and 158-165 are the permitted side —
+-- an ordinary renewal, an ordinary edit that lands rather than being silently
+-- dropped, a frozen column written its own value, a statement that changes
+-- nothing, a price-and-plan correction before any money arrived and the
+-- payment that is then scored against the CORRECTED terms, the tenant
+-- boundary that still holds where the freeze stands aside, and the granting
+-- rule's own multi-column write onto a dateless membership. 168-173 are the
+-- same discipline on the insert door: a membership created the console's way
+-- is granted its period and moves `ends_on` (the harm the refusal exists to
+-- prevent, asserted as a consequence), an explicit `periods_granted = 0` in
+-- an insert's column list stays ordinary — a rule refusing the column's
+-- PRESENCE rather than a non-zero VALUE would take this whole suite down —
+-- and the literal same-value write is allowed. They pass today and must
+-- still pass afterwards: a fix that is too broad fails these and nothing
+-- else in this file, and this project has shipped exactly that shape three
+-- times this phase. Assertions 1-119 are unchanged and all green.
 
 begin;
 
@@ -278,7 +341,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(119);
+select plan(173);
 
 
 -- ---------------------------------------------------------------------------
@@ -2167,18 +2230,29 @@ select results_eq(
 -- 14b. A membership whose column already reads non-zero — the state ADR-088
 -- names as the one no other fixture in this suite creates, and the one a
 -- real backfilled row (or a membership with payment history) always is.
--- Started with the matching money already on record; the NEXT payment
--- must read that state, not re-derive it from zero.
+-- The NEXT payment must read that state, not re-derive it from zero.
+--
+-- ROUND SEVEN: this fixture used to be INSERTed at `periods_granted = 1`
+-- with the matching money added afterwards as decoration. GL044 now says a
+-- membership is created having been granted nothing — a holdout author
+-- measured a front-desk session creating one at `periods_granted = 5` and
+-- then taking ₹1,000 for it, ADR-089's third exploit with no UPDATE in it —
+-- so the count may not be typed at creation any more than it may be typed
+-- afterwards. The membership is therefore created fresh (`ends_on = today`,
+-- count 0) and EARNS its first period from the payment below, which is
+-- what the old fixture only claimed had happened. Assertions 99/100 are
+-- unchanged and green before and after: this is a fixture repair, not a
+-- change to what is asserted.
 -- ---------------------------------------------------------------------------
 
 insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, periods_granted) values
   ('22000000-0000-4000-8000-000000140081'::uuid, '22000000-0000-4000-8000-000000140001'::uuid,
    '22000000-0000-4000-8000-000000140041'::uuid, '22000000-0000-4000-8000-000000140060'::uuid,
-   'active', (select d from today_t14), (select d from today_t14) + 30, 100000, 1);
+   'active', (select d from today_t14), (select d from today_t14), 100000, 0);
 
--- The matching money, already on record as postgres (the history this
--- membership's periods_granted=1 claims to summarize) — not itself scored,
--- it is the fixture the scenario needs, not the payment under test.
+-- The first payment, recorded as postgres — the history that puts this
+-- membership at periods_granted = 1 and ends_on = today + 30. Not itself
+-- scored: it is the fixture the scenario needs, not the payment under test.
 set local role postgres;
 
 insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id, receipt_number)
@@ -2495,6 +2569,760 @@ select results_eq(
   $$ select price_paise from public.memberships where id = '22000000-0000-4000-8000-000000140086'::uuid $$,
   $$ values (75000::bigint) $$,
   'GL043: the correction landed — the freeze only starts once a period has actually been earned'
+);
+
+
+-- ===========================================================================
+-- SECTION 16 (GL043 widened, and GL044) — the terms a period was scored
+-- against, and the count it was scored into. Tenant 16. Assertions 120-165.
+--
+-- Round seven. ADR-089 records what a blind critic measured against round
+-- six's freeze: it froze `price_paise` and `currency` and left the other two
+-- doors open. `plan_id` is the third term — a period lasts the duration of
+-- the membership's own plan, so repointing a 30-day membership at a 365-day
+-- one and paying ₹1,000 moved `ends_on` 395 days, strictly easier than the
+-- price cut the round was written to close. And the freeze is GATED on
+-- `periods_granted`, which the very session it constrains can rewrite:
+-- `set periods_granted = 0` then one paisa bought a month, and
+-- `set periods_granted = 500` made an ordinary ₹1,000 payment buy nothing at
+-- all, silently, which is ADR-088's own named harm reached by hand.
+--
+-- Written from openspec/changes/phase-5-money/specs/payment-record/spec.md's
+-- two requirements "The terms a period was scored against do not change
+-- after it is granted" (GL043) and "How many periods have been granted is
+-- written by the rule and by nobody else" (GL044), plus ADR-089, by a
+-- session that has read neither an implementation of them (none exists) nor
+-- supabase/tests-holdout/, which a second author is writing against the same
+-- two requirements at the same time. The catalogue was read (pg_trigger,
+-- pg_constraint, pg_policies, information_schema — via `supabase db query
+-- --linked`, wrapped begin…rollback, nothing committed) and no function
+-- body was.
+--
+-- THE SQLSTATES ARE ASSERTED, NOT LEFT OPEN. Everywhere else in this file a
+-- refusal is `null::char(5)` because the spec named no code. Here the codes
+-- are the requirement ids themselves — this project raises `GL0xx` as the
+-- SQLSTATE (GL010, GL016, GL030, GL034, GL036, GL037 …), and the live
+-- price freeze already answers a price cut with exactly `GL043`, observed
+-- black-box in a throwaway begin…rollback. So `plan_id` joining the same
+-- requirement answers `GL043`, and the count rule answers `GL044`. Every
+-- refusal below asserts the code AND that the value did not move: this
+-- codebase has shipped a refusal that half-wrote, and "refused" alone would
+-- not have caught it.
+--
+-- WHAT IS ATTACKED, AND WHY IT GOES BEYOND ADR-089's FOUR SHAPES. The four
+-- measured shapes are here (price cut then one paisa is Section 15's
+-- already; the count reset then one paisa is 137-140; the count raised to
+-- 500 eating a real payment is 145-148; the plan repointed at a longer plan
+-- is 121-125). Past them, every statement shape a rule written as a naive
+-- single-row `update` guard can be walked around: `UPDATE … FROM`, `MERGE`,
+-- and a data-modifying CTE, against BOTH frozen things (130-132, 150-152).
+-- All six of those are ALLOWED on live Cloud today, measured. Then the
+-- shapes that catch a fix which is too BROAD rather than too narrow — the
+-- direction this project has shipped wrong three times: setting a frozen
+-- column to the value it already holds (126, 154), a statement that changes
+-- nothing at all (155), an ordinary edit to a column that is not a term
+-- (127/128), a legitimate write that happens to carry the frozen column
+-- alongside an innocent one (142/143 — the innocent column must not move
+-- either), and, above all, the rule's OWN writes: an ordinary renewal
+-- (124/125, 147/148), and the multi-column write that dates, activates and
+-- counts a membership that had no dates at all (164/165). A rule that
+-- refuses everything passes every refusal test in this file.
+--
+-- Two further shapes nobody had tried. 134/135: one statement updating two
+-- memberships where only ONE is frozen — the whole statement must be
+-- refused and NEITHER row may move, which is what a rule that checks the
+-- rows it happens to look at first would fail. 156/157: the hand-write done
+-- by `postgres` itself, the most privileged writer there is — "written by
+-- the rule and by nobody else" says nobody, and the live price freeze
+-- already refuses `postgres`, so a count rule that only refuses
+-- `authenticated` would be a narrower rule than the one it sits beside.
+--
+-- 162/163 answer a question the brief asked rather than assumed: does
+-- anything stop `plan_id` being repointed at a plan in ANOTHER TENANT? It
+-- does, and not by anything in this requirement — ADR-052's composite key
+-- `memberships_plan_id_fkey FOREIGN KEY (tenant_id, plan_id) REFERENCES
+-- plans(tenant_id, id)` refuses it with `23503`. It is asserted on a
+-- membership that has been granted NOTHING, i.e. on the path GL043 must
+-- leave open, so it proves the tenant boundary still holds exactly where
+-- the freeze stands aside. Labelled a control: it is green today.
+--
+-- THE INSERT DOOR, RAISED AS A QUESTION AND THEN DECIDED. As first written
+-- this section asserted GL044 against UPDATE only and said so here: both its
+-- scenarios were update-shaped, ADR-089's measurements were all `update
+-- memberships`, and Section 14b of this very file seeded a membership at
+-- `periods_granted = 1` by INSERT, so asserting the insert case would have
+-- put this section in conflict with its own suite over a question the
+-- requirement did not answer. It answers it now — a holdout author measured
+-- the door: create a membership carrying `periods_granted = 5`, take
+-- ₹1,000, and `ends_on` does not move while the receipt is issued, which is
+-- 16d's exploit with no UPDATE in it. The requirement grew "A membership is
+-- created having been granted nothing", 16g (166-173) asserts it, and
+-- Section 14b's fixture has been repaired to EARN its period rather than
+-- declare one — the conflict resolved in the direction the measurement
+-- pointed. This section's own fixtures never depended on the answer: every
+-- membership below that holds a period earned it from a real payment.
+--
+-- Also not re-proved here: that a refund does not pull the count back down
+-- (Requirement 8's "the total counts money that ARRIVED"). That is
+-- assertion 104's job, one section up, and a refund touches no column
+-- either of these two requirements freezes.
+--
+-- MEASURED ON LIVE CLOUD BEFORE WRITING A LINE, in a throwaway
+-- begin…rollback: plan repoint ALLOWED; `set periods_granted = 0` ALLOWED;
+-- `= 500` ALLOWED, and the ₹1,000 payment that followed left `ends_on`
+-- exactly where it was with the money receipted; `UPDATE … FROM`, `MERGE`
+-- and the data-modifying CTE all ALLOWED on both columns; the two-row
+-- statement ALLOWED; and `set price_paise = <its current value>` ALLOWED,
+-- which is the round-six freeze already using `is distinct from` correctly
+-- and the behaviour 126/154 hold the new rules to.
+-- ===========================================================================
+
+set local role postgres;
+
+insert into public.organizations (id, name, gym_code) values
+  ('22000000-0000-4000-8000-000000160001'::uuid, 'PayRec Gym 16', 'PYR22F'),
+  ('22000000-0000-4000-8000-000000160002'::uuid, 'PayRec Gym 16B', 'PYR22G');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('22000000-0000-4000-8000-000000160011'::uuid, '22000000-0000-4000-8000-000000160001'::uuid, 'G16 Main', true);
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('22000000-0000-4000-8000-000000160021'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160011'::uuid, 'front_desk', 'T16 Desk');
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000160040'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160011'::uuid, 'M16 PlanFreeze', '+912200160040'),
+  ('22000000-0000-4000-8000-000000160041'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160011'::uuid, 'M16 PlanShapes', '+912200160041'),
+  ('22000000-0000-4000-8000-000000160042'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160011'::uuid, 'M16 CountReset', '+912200160042'),
+  ('22000000-0000-4000-8000-000000160043'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160011'::uuid, 'M16 CountRaise', '+912200160043'),
+  ('22000000-0000-4000-8000-000000160044'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160011'::uuid, 'M16 Correction', '+912200160044'),
+  ('22000000-0000-4000-8000-000000160045'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160011'::uuid, 'M16 Sibling', '+912200160045'),
+  ('22000000-0000-4000-8000-000000160046'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160011'::uuid, 'M16 Dateless', '+912200160046'),
+  ('22000000-0000-4000-8000-000000160047'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160011'::uuid, 'M16 CountShapes', '+912200160047'),
+  ('22000000-0000-4000-8000-000000160048'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160011'::uuid, 'M16 CreatedNormally', '+912200160048'),
+  ('22000000-0000-4000-8000-000000160049'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160011'::uuid, 'M16 CreatedAtZero', '+912200160049'),
+  ('22000000-0000-4000-8000-000000160050'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160011'::uuid, 'M16 CreatedWithCount', '+912200160050');
+
+-- Three plans of three different lengths in tenant 16, and one in tenant 16B
+-- that tenant 16 may not point at (162). All priced identically, so nothing
+-- below can pass by the PRICE differing — only the DURATION does.
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('22000000-0000-4000-8000-000000160060'::uuid, '22000000-0000-4000-8000-000000160001'::uuid, 'G16 Plan (30d)', 30, 100000),
+  ('22000000-0000-4000-8000-000000160061'::uuid, '22000000-0000-4000-8000-000000160001'::uuid, 'G16 Plan (365d)', 365, 100000),
+  ('22000000-0000-4000-8000-000000160062'::uuid, '22000000-0000-4000-8000-000000160001'::uuid, 'G16 Plan (7d)', 7, 100000),
+  ('22000000-0000-4000-8000-000000160063'::uuid, '22000000-0000-4000-8000-000000160002'::uuid, 'G16B Plan (365d)', 365, 100000);
+
+create temp table today_t16 as
+  select (now() at time zone o.timezone)::date as d
+    from public.organizations o where o.id = '22000000-0000-4000-8000-000000160001'::uuid;
+
+-- Read from both roles (fixtures as postgres, scored writes as the front
+-- desk), so it needs the same explicit grant today_t14 takes.
+grant select on today_t16 to public;
+
+-- Six memberships, all on the 30-day plan, all priced 100000, all starting
+-- at `ends_on = today` so that "one period" is `today + 30` with nothing
+-- else in the arithmetic (Section 14a's own correction, kept). None is
+-- seeded with a non-zero periods_granted: the four that need a period EARN
+-- it below, from a real payment, so this section is independent of whether
+-- an INSERT may carry the column at all.
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, periods_granted) values
+  ('22000000-0000-4000-8000-000000160080'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160040'::uuid, '22000000-0000-4000-8000-000000160060'::uuid,
+   'active', (select d from today_t16), (select d from today_t16), 100000, 0),
+  ('22000000-0000-4000-8000-000000160081'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160041'::uuid, '22000000-0000-4000-8000-000000160060'::uuid,
+   'active', (select d from today_t16), (select d from today_t16), 100000, 0),
+  ('22000000-0000-4000-8000-000000160082'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160042'::uuid, '22000000-0000-4000-8000-000000160060'::uuid,
+   'active', (select d from today_t16), (select d from today_t16), 100000, 0),
+  ('22000000-0000-4000-8000-000000160083'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160043'::uuid, '22000000-0000-4000-8000-000000160060'::uuid,
+   'active', (select d from today_t16), (select d from today_t16), 100000, 0),
+  ('22000000-0000-4000-8000-000000160084'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160044'::uuid, '22000000-0000-4000-8000-000000160060'::uuid,
+   'active', (select d from today_t16), (select d from today_t16), 100000, 0),
+  ('22000000-0000-4000-8000-000000160085'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160045'::uuid, '22000000-0000-4000-8000-000000160060'::uuid,
+   'active', (select d from today_t16), (select d from today_t16), 100000, 0),
+  ('22000000-0000-4000-8000-000000160087'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160047'::uuid, '22000000-0000-4000-8000-000000160060'::uuid,
+   'active', (select d from today_t16), (select d from today_t16), 100000, 0);
+
+-- The dateless one (164/165). `memberships_dated_unless_pending_chk` permits
+-- null dates on `pending` and on nothing else, so this is the honest shape.
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, price_paise, periods_granted) values
+  ('22000000-0000-4000-8000-000000160086'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160046'::uuid, '22000000-0000-4000-8000-000000160060'::uuid,
+   'pending', 100000, 0);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000160001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000160021')::text,
+  true);
+set local role authenticated;
+
+-- The four memberships that must arrive at "one period granted" EARN it, an
+-- ordinary front-desk payment each. Unscored — these are the fixture, not
+-- the claim; each one's resulting state is asserted where its own
+-- subsection begins.
+insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id, receipt_number) values
+  ('22000000-0000-4000-8000-000000161001'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160040'::uuid, '22000000-0000-4000-8000-000000160080'::uuid,
+   100000, 'paid', 'cash', '22000000-0000-4000-8000-000000160021'::uuid, 'T16-RCT-0001'),
+  ('22000000-0000-4000-8000-000000161002'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160041'::uuid, '22000000-0000-4000-8000-000000160081'::uuid,
+   100000, 'paid', 'cash', '22000000-0000-4000-8000-000000160021'::uuid, 'T16-RCT-0002'),
+  ('22000000-0000-4000-8000-000000161003'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160042'::uuid, '22000000-0000-4000-8000-000000160082'::uuid,
+   100000, 'paid', 'cash', '22000000-0000-4000-8000-000000160021'::uuid, 'T16-RCT-0003'),
+  ('22000000-0000-4000-8000-000000161004'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160043'::uuid, '22000000-0000-4000-8000-000000160083'::uuid,
+   100000, 'paid', 'cash', '22000000-0000-4000-8000-000000160021'::uuid, 'T16-RCT-0004'),
+  ('22000000-0000-4000-8000-000000161005'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+   '22000000-0000-4000-8000-000000160047'::uuid, '22000000-0000-4000-8000-000000160087'::uuid,
+   100000, 'paid', 'cash', '22000000-0000-4000-8000-000000160021'::uuid, 'T16-RCT-0005');
+
+
+-- ---------------------------------------------------------------------------
+-- 16a (GL043) — the PLAN is a term. ADR-089's headline: `plan_id` decides
+-- how long a period is, and round six froze the price and the currency and
+-- left it writable. Membership 160080, one period genuinely earned.
+-- ---------------------------------------------------------------------------
+
+-- 120
+select results_eq(
+  $$ select periods_granted, ends_on, plan_id from public.memberships where id = '22000000-0000-4000-8000-000000160080'::uuid $$,
+  $$ values (1, (select d from today_t16) + 30, '22000000-0000-4000-8000-000000160060'::uuid) $$,
+  'GL043/plan: the fixture earned its period rather than being handed one — one ordinary 100000 payment, one period, ends_on 30 days out, still on the 30-day plan'
+);
+
+-- 121
+select throws_ok($$
+  update public.memberships set plan_id = '22000000-0000-4000-8000-000000160061'::uuid
+   where id = '22000000-0000-4000-8000-000000160080'::uuid
+$$, 'GL043'::char(5), null,
+  'GL043/plan: repointing a membership that has been granted a period at a LONGER (365-day) plan is refused — ADR-089 measured days_added=395 through this door, strictly easier than the price cut round six closed');
+
+-- 122
+select results_eq(
+  $$ select plan_id, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160080'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000160060'::uuid, (select d from today_t16) + 30) $$,
+  'GL043/plan: refused AND unmoved — the plan is still the 30-day one and ends_on has not shifted'
+);
+
+-- 123
+select throws_ok($$
+  update public.memberships set plan_id = '22000000-0000-4000-8000-000000160062'::uuid
+   where id = '22000000-0000-4000-8000-000000160080'::uuid
+$$, 'GL043'::char(5), null,
+  'GL043/plan: repointing at a SHORTER (7-day) plan is refused too — the terms are frozen in both directions, exactly as price_paise already is, not merely in the direction that pays');
+
+-- 124
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id, receipt_number)
+  values ('22000000-0000-4000-8000-000000161006'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+          '22000000-0000-4000-8000-000000160040'::uuid, '22000000-0000-4000-8000-000000160080'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000160021'::uuid, 'T16-RCT-0006')
+$$, 'GL043/plan: an ordinary renewal, right after two refused repointings, is still accepted — the freeze refuses edits to the terms, not payments');
+
+-- 125 — the scenario's own words: "a further payment of the full price SHALL
+-- grant one period of the ORIGINAL plan's length". 30, not 365 and not 7.
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160080'::uuid $$,
+  $$ values (2, (select d from today_t16) + 60) $$,
+  'GL043/plan: the renewal bought one period of the ORIGINAL 30-day plan — ends_on at today+60, not today+395 and not today+37'
+);
+
+-- 126 — the permitted side of the freeze: writing the column its own current
+-- value is not a change of terms. `is distinct from`, which the live price
+-- freeze already gets right and this one must too.
+select lives_ok($$
+  update public.memberships set plan_id = '22000000-0000-4000-8000-000000160060'::uuid
+   where id = '22000000-0000-4000-8000-000000160080'::uuid
+$$, 'GL043/plan: setting plan_id to the value it already holds is allowed — nothing changed, so no term changed');
+
+-- 127 — an ordinary membership edit on a frozen membership. discount_paise
+-- and status are not terms a period is scored against; a rule that froze the
+-- whole ROW rather than the three terms would fail here, and this project
+-- has shipped exactly that over-broad shape three times.
+select lives_ok($$
+  update public.memberships set discount_paise = 500, status = 'frozen'
+   where id = '22000000-0000-4000-8000-000000160080'::uuid
+$$, 'GL043/plan: an ordinary edit to a membership that has been granted periods — a discount correction and a status change — is not a change of terms and is allowed');
+
+-- 128
+select results_eq(
+  $$ select discount_paise, status, plan_id, price_paise from public.memberships where id = '22000000-0000-4000-8000-000000160080'::uuid $$,
+  $$ values (500::bigint, 'frozen'::public.membership_status, '22000000-0000-4000-8000-000000160060'::uuid, 100000::bigint) $$,
+  'GL043/plan: that edit actually LANDED — allowed and applied, not allowed and silently dropped, while the three terms stayed exactly as they were'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 16b (GL043) — the same freeze reached through statement shapes a rule
+-- written as a single-row guard does not see. All three are ALLOWED on live
+-- Cloud today. Membership 160081 (frozen), 160085 (nothing granted) as its
+-- innocent sibling.
+-- ---------------------------------------------------------------------------
+
+-- 129
+select results_eq(
+  $$ select periods_granted, ends_on, plan_id from public.memberships where id = '22000000-0000-4000-8000-000000160081'::uuid $$,
+  $$ values (1, (select d from today_t16) + 30, '22000000-0000-4000-8000-000000160060'::uuid) $$,
+  'GL043/shapes: this membership earned its period too, on the 30-day plan'
+);
+
+-- 130
+select throws_ok($$
+  update public.memberships m set plan_id = p.id
+    from public.plans p
+   where p.id = '22000000-0000-4000-8000-000000160061'::uuid
+     and m.id = '22000000-0000-4000-8000-000000160081'::uuid
+$$, 'GL043'::char(5), null,
+  'GL043/shapes: the repoint written as UPDATE … FROM is refused — the new value arriving from a joined row rather than a literal changes nothing about what the rule has to see');
+
+-- 131
+select throws_ok($$
+  merge into public.memberships m
+  using (select '22000000-0000-4000-8000-000000160081'::uuid as id) s
+     on m.id = s.id
+   when matched then update set plan_id = '22000000-0000-4000-8000-000000160061'::uuid
+$$, 'GL043'::char(5), null,
+  'GL043/shapes: the repoint written as MERGE is refused — ADR-087 records MERGE walking round a rule on this very table''s neighbour once already');
+
+-- 132
+select throws_ok($$
+  with moved as (
+    update public.memberships set plan_id = '22000000-0000-4000-8000-000000160061'::uuid
+     where id = '22000000-0000-4000-8000-000000160081'::uuid
+    returning id
+  ) select count(*) from moved
+$$, 'GL043'::char(5), null,
+  'GL043/shapes: the repoint hidden in a data-modifying CTE is refused — the third of ADR-087''s three costumes, tried here against the freeze instead of against the arithmetic');
+
+-- 133
+select results_eq(
+  $$ select plan_id, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000160060'::uuid, (select d from today_t16) + 30) $$,
+  'GL043/shapes: refused AND unmoved through all three shapes — still the 30-day plan, ends_on still 30 days out'
+);
+
+-- 134 — one statement, two memberships, only one of them frozen. A rule that
+-- answers for the rows it happens to reach, or that checks a statement's
+-- rows as a set and stops at the first that looks fine, lets this through.
+select throws_ok($$
+  update public.memberships set plan_id = '22000000-0000-4000-8000-000000160061'::uuid
+   where id in ('22000000-0000-4000-8000-000000160081'::uuid,
+                '22000000-0000-4000-8000-000000160085'::uuid)
+$$, 'GL043'::char(5), null,
+  'GL043/shapes: one statement repointing two memberships, only ONE of which has been granted a period, is refused — the frozen row is in the set and that is enough');
+
+-- 135 — and the innocent row must not move either: a refusal that aborts
+-- half a statement would be worse than the change it prevented.
+select results_eq(
+  $$ select id, plan_id from public.memberships
+      where id in ('22000000-0000-4000-8000-000000160081'::uuid, '22000000-0000-4000-8000-000000160085'::uuid)
+      order by id $$,
+  $$ values ('22000000-0000-4000-8000-000000160081'::uuid, '22000000-0000-4000-8000-000000160060'::uuid),
+            ('22000000-0000-4000-8000-000000160085'::uuid, '22000000-0000-4000-8000-000000160060'::uuid) $$,
+  'GL043/shapes: NEITHER row moved — the statement was refused whole, including the membership that had been granted nothing and would otherwise have been free to change'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 16c (GL044) — the count is the rule's. Reset it to 0 and the freeze above
+-- is gated on a value the attacker just chose: ADR-089 measured 30 days of
+-- gym for one paisa this way, and 75 days for ₹1,000.01 with a price cut
+-- behind it. Membership 160082.
+-- ---------------------------------------------------------------------------
+
+-- 136
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160082'::uuid $$,
+  $$ values (1, (select d from today_t16) + 30) $$,
+  'GL044/reset: one period earned by one ordinary payment, before anything is attempted'
+);
+
+-- 137
+select throws_ok($$
+  update public.memberships set periods_granted = 0
+   where id = '22000000-0000-4000-8000-000000160082'::uuid
+$$, 'GL044'::char(5), null,
+  'GL044/reset: a front-desk session setting periods_granted back to 0 is refused — the value is one the rule itself can produce, so what is wrong is not the number but that a hand wrote it');
+
+-- 138
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160082'::uuid $$,
+  $$ values (1, (select d from today_t16) + 30) $$,
+  'GL044/reset: refused AND unmoved — the count still reads 1'
+);
+
+-- 139 — the money is still taken. A payment is not refused because somebody
+-- earlier tried to rewrite the count; it simply buys what one paisa buys.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id, receipt_number)
+  values ('22000000-0000-4000-8000-000000161007'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+          '22000000-0000-4000-8000-000000160042'::uuid, '22000000-0000-4000-8000-000000160082'::uuid,
+          1, 'paid', 'cash', '22000000-0000-4000-8000-000000160021'::uuid, 'T16-RCT-0007')
+$$, 'GL044/reset: the one-paisa payment that follows is recorded and receipted like any other');
+
+-- 140 — the exploit's whole point, stated as an outcome rather than as a
+-- mechanism: one paisa buys nothing, because the count it would have been
+-- measured against could not be rewritten.
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160082'::uuid $$,
+  $$ values (1, (select d from today_t16) + 30) $$,
+  'GL044/reset: one paisa granted NOTHING — 100001 paise is still one whole multiple of 100000, and ends_on did not move a day'
+);
+
+-- 141 — the same write in expression form rather than as a literal.
+select throws_ok($$
+  update public.memberships set periods_granted = periods_granted + 1
+   where id = '22000000-0000-4000-8000-000000160082'::uuid
+$$, 'GL044'::char(5), null,
+  'GL044/reset: writing the column from its own value (periods_granted + 1) is refused too — the rule is about who writes it, not about which literal appears in the statement');
+
+-- 142 — the count smuggled alongside a write that is legitimate on its own.
+select throws_ok($$
+  update public.memberships set discount_paise = 999, periods_granted = 0
+   where id = '22000000-0000-4000-8000-000000160082'::uuid
+$$, 'GL044'::char(5), null,
+  'GL044/reset: a legitimate discount edit carrying a reset of the count in the same statement is refused — an ordinary write is not a channel for this column');
+
+-- 143
+select results_eq(
+  $$ select periods_granted, discount_paise, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160082'::uuid $$,
+  $$ values (1, 0::bigint, (select d from today_t16) + 30) $$,
+  'GL044/reset: refused AND nothing moved — not the count, and not the innocent discount that shared the statement with it'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 16d (GL044) — raised, not lowered. ADR-089: `set periods_granted = 500`
+-- then an ordinary ₹1,000 payment — money receipted, ends_on unmoved, zero
+-- days granted, no error anywhere. That is ADR-088's own named harm reached
+-- by hand instead of by rounding, and it is the one direction a CHECK on the
+-- column's sign cannot see. Membership 160083.
+-- ---------------------------------------------------------------------------
+
+-- 144
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160083'::uuid $$,
+  $$ values (1, (select d from today_t16) + 30) $$,
+  'GL044/raise: one period earned, before anything is attempted'
+);
+
+-- 145
+select throws_ok($$
+  update public.memberships set periods_granted = 500
+   where id = '22000000-0000-4000-8000-000000160083'::uuid
+$$, 'GL044'::char(5), null,
+  'GL044/raise: staging the count far above what the money bought is refused — `periods_granted >= 0` permits 500, which is exactly why bounding the sign closes nothing');
+
+-- 146
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160083'::uuid $$,
+  $$ values (1, (select d from today_t16) + 30) $$,
+  'GL044/raise: refused AND unmoved at 1'
+);
+
+-- 147
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id, receipt_number)
+  values ('22000000-0000-4000-8000-000000161008'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+          '22000000-0000-4000-8000-000000160043'::uuid, '22000000-0000-4000-8000-000000160083'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000160021'::uuid, 'T16-RCT-0008')
+$$, 'GL044/raise: an ordinary full renewal follows');
+
+-- 148 — the assertion the whole requirement exists for. Measured on live
+-- Cloud today: the count stays at 500, ends_on does not move, the money is
+-- receipted, and nothing raises. She pays ₹1,000 for zero days, silently.
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160083'::uuid $$,
+  $$ values (2, (select d from today_t16) + 60) $$,
+  'GL044/raise: the renewal bought a month — the count is 2 and ends_on moved 30 days, rather than the payment being silently eaten by a number somebody typed'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 16e (GL044) — the same column through the same three statement shapes,
+-- through the writes that must stay allowed, and through the most
+-- privileged writer there is. Membership 160087.
+-- ---------------------------------------------------------------------------
+
+-- 149
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160087'::uuid $$,
+  $$ values (1, (select d from today_t16) + 30) $$,
+  'GL044/shapes: one period earned, before anything is attempted'
+);
+
+-- 150
+select throws_ok($$
+  update public.memberships m set periods_granted = 0
+    from public.plans p
+   where p.id = m.plan_id
+     and m.id = '22000000-0000-4000-8000-000000160087'::uuid
+$$, 'GL044'::char(5), null,
+  'GL044/shapes: the reset written as UPDATE … FROM is refused');
+
+-- 151
+select throws_ok($$
+  merge into public.memberships m
+  using (select '22000000-0000-4000-8000-000000160087'::uuid as id) s
+     on m.id = s.id
+   when matched then update set periods_granted = 0
+$$, 'GL044'::char(5), null,
+  'GL044/shapes: the reset written as MERGE is refused');
+
+-- 152
+select throws_ok($$
+  with moved as (
+    update public.memberships set periods_granted = 0
+     where id = '22000000-0000-4000-8000-000000160087'::uuid
+    returning id
+  ) select count(*) from moved
+$$, 'GL044'::char(5), null,
+  'GL044/shapes: the reset hidden in a data-modifying CTE is refused');
+
+-- 153
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160087'::uuid $$,
+  $$ values (1, (select d from today_t16) + 30) $$,
+  'GL044/shapes: refused AND unmoved through all three shapes'
+);
+
+-- 154 — permitted: the column written with the value it already holds.
+select lives_ok($$
+  update public.memberships set periods_granted = periods_granted
+   where id = '22000000-0000-4000-8000-000000160087'::uuid
+$$, 'GL044/shapes: setting periods_granted to the value it already holds is allowed — `is distinct from`, the same discrimination the live price freeze already makes');
+
+-- 155 — permitted: a statement that changes nothing at all.
+select lives_ok($$
+  update public.memberships set ends_on = ends_on
+   where id = '22000000-0000-4000-8000-000000160087'::uuid
+$$, 'GL044/shapes: an update that changes nothing at all is allowed — a rule that refused it would break every idempotent write in the product');
+
+set local role postgres;
+
+-- 156 — "written by the rule and by nobody else" says nobody. The live price
+-- freeze already refuses `postgres`, so a count rule that only answered
+-- `authenticated` would be narrower than the rule it sits beside — and the
+-- table's own owner is the writer a session GUC or a role test cannot stop.
+select throws_ok($$
+  update public.memberships set periods_granted = 9
+   where id = '22000000-0000-4000-8000-000000160087'::uuid
+$$, 'GL044'::char(5), null,
+  'GL044/shapes: a top-level hand-write by postgres itself is refused — the rule is about the write not coming from the granting rule, not about which role is asking');
+
+-- 157
+select results_eq(
+  $$ select periods_granted from public.memberships where id = '22000000-0000-4000-8000-000000160087'::uuid $$,
+  $$ values (1) $$,
+  'GL044/shapes: refused AND unmoved even for postgres'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000160001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000160021')::text,
+  true);
+set local role authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- 16f — the permitted side, asserted as hard as the refused side. Every
+-- assertion here fails against a fix that is too broad, which is the shape
+-- this project has shipped three times. Memberships 160084 (nothing
+-- granted), 160085 (the innocent sibling), 160086 (no dates at all).
+-- ---------------------------------------------------------------------------
+
+-- 158 — "Correcting a mistake before any money arrives": the price AND the
+-- plan, in one statement, on a membership that has been granted nothing.
+select lives_ok($$
+  update public.memberships
+     set price_paise = 75000,
+         plan_id = '22000000-0000-4000-8000-000000160061'::uuid
+   where id = '22000000-0000-4000-8000-000000160084'::uuid
+$$, 'GL043/permitted: correcting both the price and the plan of a membership that has been granted nothing is allowed — nothing has been scored yet, so no recorded fact is being rewritten');
+
+-- 159
+select results_eq(
+  $$ select price_paise, plan_id, periods_granted from public.memberships where id = '22000000-0000-4000-8000-000000160084'::uuid $$,
+  $$ values (75000::bigint, '22000000-0000-4000-8000-000000160061'::uuid, 0) $$,
+  'GL043/permitted: the correction LANDED — allowed and applied, and the count is still 0'
+);
+
+-- 160
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id, receipt_number)
+  values ('22000000-0000-4000-8000-000000161009'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+          '22000000-0000-4000-8000-000000160044'::uuid, '22000000-0000-4000-8000-000000160084'::uuid,
+          75000, 'paid', 'cash', '22000000-0000-4000-8000-000000160021'::uuid, 'T16-RCT-0009')
+$$, 'GL043/permitted: a payment of the CORRECTED price against the corrected membership is recorded');
+
+-- 161 — and it is scored against the corrected terms: one period, of the new
+-- plan's 365 days, at the new price. The freeze must start at the first
+-- grant, not at the membership's creation.
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160084'::uuid $$,
+  $$ values (1, (select d from today_t16) + 365) $$,
+  'GL043/permitted: the corrected terms are what the money is scored against — one period of the NEW 365-day plan, bought at the NEW 75000 price'
+);
+
+-- 162 — CONTROL, already green: this is not GL043's doing. ADR-052's
+-- composite key `memberships_plan_id_fkey (tenant_id, plan_id) references
+-- plans(tenant_id, id)` refuses a plan belonging to another gym, and it is
+-- asserted on a membership GL043 must leave alone, so it proves the tenant
+-- boundary still stands exactly where the freeze stands aside. No SQLSTATE
+-- is pinned: the requirement names none, and which mechanism answers is not
+-- this assertion's business.
+select throws_ok($$
+  update public.memberships set plan_id = '22000000-0000-4000-8000-000000160063'::uuid
+   where id = '22000000-0000-4000-8000-000000160085'::uuid
+$$, null::char(5), null,
+  'tenant boundary: repointing a membership at a plan belonging to ANOTHER gym is refused even where GL043 does not apply — the membership has been granted nothing, so only the composite tenant foreign key stands between the two gyms');
+
+-- 163
+select is(
+  (select exists (select 1 from public.plans p
+                   where p.id = m.plan_id and p.tenant_id = m.tenant_id)
+     from public.memberships m
+    where m.id = '22000000-0000-4000-8000-000000160085'::uuid),
+  true,
+  'tenant boundary: refused AND unmoved — this membership''s plan still belongs to its own gym'
+);
+
+-- 164/165 — the rule's own multi-column write, which is the hardest thing
+-- for either freeze to leave alone: a paid payment against a membership with
+-- no dates at all sets starts_on, ends_on, status AND periods_granted in one
+-- go. A count rule that refused every write to the column, or a terms rule
+-- that fired on the row it is maintaining, would break exactly here — and
+-- the member would be paid up and refused at the gate.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id, receipt_number)
+  values ('22000000-0000-4000-8000-000000161010'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+          '22000000-0000-4000-8000-000000160046'::uuid, '22000000-0000-4000-8000-000000160086'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000160021'::uuid, 'T16-RCT-0010')
+$$, 'GL044/permitted: a full payment against a dateless pending membership is recorded');
+
+-- 165
+select results_eq(
+  $$ select periods_granted, starts_on, ends_on, status from public.memberships where id = '22000000-0000-4000-8000-000000160086'::uuid $$,
+  $$ values (1, (select d from today_t16), (select d from today_t16) + 30, 'active'::public.membership_status) $$,
+  'GL044/permitted: the rule wrote the dates, the status AND the count in one go, and neither freeze caught its own writer — the membership runs from today for the plan''s 30 days and is active'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 16g (GL044, the fourth door) — a membership is created having been granted
+-- nothing, and a write that leaves the count where it was is allowed.
+--
+-- 16c-16e above attack the count on an existing row, which is how the
+-- requirement was first written. A holdout author went in the other way and
+-- it worked: CREATE the membership carrying `periods_granted = 5`, then take
+-- ₹1,000 for it — money receipted, `ends_on` unmoved, no UPDATE anywhere.
+-- That is 16d's exploit reached through the door 16d does not watch, and
+-- closing three of four is the mistake this whole round exists to correct.
+-- Section 14b's own fixture used to walk through it, and has been repaired
+-- to earn its period rather than declare one.
+--
+-- The two assertions that make this worth writing are the permitted ones.
+-- 171: `periods_granted = 0` named explicitly in an insert's column list is
+-- ordinary and must stay allowed — every membership fixture in this file
+-- writes it that way, so a rule that refuses the column's PRESENCE rather
+-- than a non-zero VALUE takes the whole suite down with it. 170: a
+-- membership created the normal way still grants and still moves `ends_on`,
+-- which is the harm the refusal exists to prevent, asserted as a consequence
+-- rather than as a refusal alone.
+-- ---------------------------------------------------------------------------
+
+-- 166 — on a member of its own, so that 168's ordinary creation does not
+-- depend on this one having been refused: `memberships_tenant_id_member_id_
+-- live_key` allows a member only one live membership, and while the rule is
+-- unbuilt this row survives.
+-- 166
+select throws_ok($$
+  insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, periods_granted)
+  values ('22000000-0000-4000-8000-000000160088'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+          '22000000-0000-4000-8000-000000160050'::uuid, '22000000-0000-4000-8000-000000160060'::uuid,
+          'active', (select d from today_t16), (select d from today_t16), 100000, 5)
+$$, 'GL044'::char(5), null,
+  'GL044/created: a front-desk session creating a membership that already claims five granted periods is refused — the count is the granting rule''s at creation exactly as it is afterwards');
+
+-- 167 — refused AND not written. A membership that exists holding a count
+-- nobody earned is the whole harm; "it raised" is not enough on its own.
+select results_eq(
+  $$ select count(*)::int from public.memberships where id = '22000000-0000-4000-8000-000000160088'::uuid $$,
+  $$ values (0) $$,
+  'GL044/created: no such membership exists — the refusal left nothing behind'
+);
+
+-- 168 — the permitted side: created the way the console creates one, with the
+-- column not mentioned at all and left to its default.
+select lives_ok($$
+  insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+  values ('22000000-0000-4000-8000-000000160089'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+          '22000000-0000-4000-8000-000000160048'::uuid, '22000000-0000-4000-8000-000000160060'::uuid,
+          'active', (select d from today_t16), (select d from today_t16), 100000)
+$$, 'GL044/created: creating a membership without naming periods_granted at all — the console''s own shape — is allowed');
+
+-- 169
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id, receipt_number)
+  values ('22000000-0000-4000-8000-000000161011'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+          '22000000-0000-4000-8000-000000160048'::uuid, '22000000-0000-4000-8000-000000160089'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000160021'::uuid, 'T16-RCT-0011')
+$$, 'GL044/created: a full payment against that membership is recorded');
+
+-- 170 — the harm behind the refusal, gone: the money bought a month.
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160089'::uuid $$,
+  $$ values (1, (select d from today_t16) + 30) $$,
+  'GL044/created: a membership created the normal way is granted its period and ends_on moves — which is exactly what a membership created carrying a count of its own would have silently swallowed'
+);
+
+-- 171 — and an explicit zero in the column list stays ordinary.
+select lives_ok($$
+  insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, periods_granted)
+  values ('22000000-0000-4000-8000-000000160090'::uuid, '22000000-0000-4000-8000-000000160001'::uuid,
+          '22000000-0000-4000-8000-000000160049'::uuid, '22000000-0000-4000-8000-000000160060'::uuid,
+          'active', (select d from today_t16), (select d from today_t16), 100000, 0)
+$$, 'GL044/created: naming periods_granted explicitly as 0 is allowed — a membership created having been granted nothing is what the rule requires, not a rule against mentioning the column');
+
+-- 172/173 — "Writing the same count back". 154 above does this with the
+-- column referring to itself; this is the literal form, which is what an
+-- ORM or any column-listing update sends, and the shape the requirement
+-- names as the reason a same-value write must not be refused. Membership
+-- 160089 reads 1 after 170.
+select lives_ok($$
+  update public.memberships set periods_granted = 1
+   where id = '22000000-0000-4000-8000-000000160089'::uuid
+$$, 'GL044/created: writing the literal value the count already holds is allowed — every exploit needs the value MOVED, and refusing a write that cannot do harm breaks ordinary column-listing updates');
+
+-- 173
+select results_eq(
+  $$ select periods_granted, ends_on from public.memberships where id = '22000000-0000-4000-8000-000000160089'::uuid $$,
+  $$ values (1, (select d from today_t16) + 30) $$,
+  'GL044/created: allowed, and nothing moved — the count still reads 1 and ends_on is where the payment left it'
 );
 
 
