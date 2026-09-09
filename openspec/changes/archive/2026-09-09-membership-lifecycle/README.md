@@ -12,8 +12,12 @@ statement: `update public.memberships set status = 'active' where id = <cancelle
 `docs/data-model.md` had listed the legal transitions since Phase 1 and called
 `expired` and `cancelled` terminal. **The gap was never a missing contract — it
 was that nothing enforced the one that existed**, and a routing-table document
-asserted a rule the database did not keep. `GL047` and the
-`memberships_status_transitions` trigger enforce it now (ADR-098).
+asserted a rule the database did not keep. `GL047` enforces it now (ADR-098), on its own trigger — named
+`memberships_status_transitions` at the time and **renamed to
+`memberships_transitions_after_terms` by ADR-101**, because the old name sorted
+before `memberships_terms_frozen` and Postgres fires same-timing row triggers in
+name order, so `GL047` was answering ahead of five rules that should have
+preceded it.
 
 ## The shape of what went wrong, which is the part worth keeping
 

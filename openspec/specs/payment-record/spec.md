@@ -324,8 +324,8 @@ would take `GL044`-before-`GL045` as contract. They are a set, not a sequence.
 a permission, and answering the permission would imply a gym admin could do it.
 
 **`GL047` is in that set, and putting it there took a trigger rename rather than
-a clause move.** `GL047` lives in `memberships_status_transitions`, its own
-trigger — deliberately, because both seed files disable the terms trigger and
+a clause move.** `GL047` lives in its own trigger — `memberships_transitions_after_terms`
+since ADR-101, `memberships_status_transitions` before it — deliberately, because both seed files disable the terms trigger and
 folding it in would have left it silently off for the whole seed (ADR-098).
 Postgres fires same-timing row triggers **in trigger-name order**, and
 `memberships_status_transitions` sorts before `memberships_terms_frozen`, so
@@ -339,27 +339,79 @@ trigger, which keeps the property that made it separate.
 - **WHEN** one statement changes a membership's `member_id` and its `duration_days`
 - **THEN** it SHALL be refused with the `member_id` rule, not the length rule
 
+**`GL042` answers ahead of every other rule enforced by an `after` trigger on
+this table. It does not answer ahead of anything enforced earlier in the
+statement.** That earlier set is defined by *when* it runs, not by a list:
+column and table constraints, `not null`, unique indexes, foreign keys, the
+row-security policy's `with check`, and any `before` trigger all run during the
+UPDATE itself, before the first `after` trigger is reached. No trigger naming
+and no clause ordering can reach any of them. A statement that violates one of
+them and `GL042` together comes back with that mechanism's SQLSTATE and never
+with `GL042`.
+
+**One of those is not like the others, and a blind author said so rather than
+letting the assertion carry the inference.** A foreign key is *not* enforced
+during the UPDATE: Postgres implements it as an `after` row constraint trigger,
+so it competes with `memberships_terms_frozen` on exactly the trigger-name
+ordering this requirement has already been bitten by once — and it wins only
+because the generated name `RI_ConstraintTrigger_c_…` sorts before
+`memberships_…` under byte ordering. Measured today: `23503`. **That is an
+observation about Postgres, not a decision this contract made**, and it is
+recorded here so nobody reads it as one. Everything else in the excluded set —
+column and table constraints, `not null`, unique indexes, the policy's
+`with check` — really does run before the first `after` trigger.
+
+**The order *among* the excluded mechanisms is not decided either.** A statement
+can violate two of them at once, and which answers is not stated anywhere. Both
+are recorded in OPEN-034 with the rest of that family.
+
+**This is deliberately a rule about timing rather than an enumeration**, and it
+is the third attempt. The first said `GL042` answers "in every case". The second
+added one condition — that the target member holds no live membership — and a
+critic found four more families inside the scenario's own column list. The third
+was a list of four mechanisms, written in the same breath as the sentence
+"enumerating exceptions to a rule about shape produces a list that is always one
+item short", and it was: `not null` (`23502`) and `before` triggers were both
+missing from it. A list of mechanisms is still a list. **What is checkable is the
+phase of the statement each thing runs in**, and that is what this says.
+
+This one sentence replaces two attempts to enumerate the exceptions, and both
+attempts were measured false. The first said `GL042` answers "in every case".
+The second added a single condition — that the target member holds no live
+membership — and a critic then found four more families in the scenario's own
+column list: a status write onto a null-dated `pending` row (`23514`,
+`memberships_dated_unless_pending_chk`, and the seed creates exactly such a row),
+`ends_on` before `starts_on` (`23514`), a negative price or discount (`23514`), a
+plan or member that does not exist (`23503`), and another tenant's `tenant_id`
+(`42501`). Each of those refuses before `GL042` is reached, and none of
+them is reachable by renaming or reordering a trigger.
+
+Nothing here permits the harm — every one of those routes refuses the statement,
+which is what ADR-092's grep asks. What it prevents is a handler coded against
+`GL042` receiving a `23514` it does not map.
+
 #### Scenario: Re-pointing a membership and typing anything else in the same statement
 - **WHEN** one statement changes a membership's `member_id` and also its `periods_granted`, its dates, its price, or its status
-- **AND** the member it is being pointed at holds no live membership
+- **AND** the statement is otherwise well-formed — it violates nothing enforced before the first `after` trigger runs
 - **THEN** it SHALL be refused with the `member_id` rule
 
-**That second condition is not decoration, and it describes the *likely* case
-rather than an edge one.** You re-point a membership because two members were
-mixed up, and the other member normally has a membership of their own — in which
-case `memberships_tenant_id_member_id_live_key` refuses the statement with
-`23505` during the UPDATE itself, before any AFTER trigger runs. No rule
-ordering can change that, because an index is not a rule.
-
-An earlier draft of this scenario said "in every case", and both suites were
-green on it only because both authors had deliberately arranged targets holding
-nothing — the fixture note the requirement itself gives them. The assertions
-were honest and the sentence above them was not. It is recorded here so that
-nobody writes a handler that expects `GL042` and gets `23505`.
-
-#### Scenario: Re-pointing onto a member who already has a membership
-- **WHEN** one statement points a membership at a member who already holds a live one
+#### Scenario: Re-pointing a live membership onto a member who already has one
+- **WHEN** one statement points an `active` or `frozen` membership at a member who already holds a live one
 - **THEN** it SHALL be refused by the live-membership index with `23505`, and the membership SHALL be unchanged
+
+**"Live" is doing real work in that sentence and an earlier draft omitted it.**
+`memberships_tenant_id_member_id_live_key` is **partial on `('active','frozen')`**,
+so it bites only when the membership *being moved* is itself live. A critic
+measured a real `cancelled` membership in the demo gym pointed at a member who
+does hold a live one: **`GL042`**, not `23505`. The two scenarios above were
+briefly written as though the target member's state alone decided which answered,
+and that partition is wrong for every non-live source — which is exactly the
+cancelled membership the surrounding scenarios were rewritten around. The
+visible suite's own fixture comment had this right before the spec did.
+
+#### Scenario: Re-pointing a membership that is not live
+- **WHEN** one statement points a `cancelled`, `expired` or `pending` membership at any member
+- **THEN** the live-membership index SHALL NOT apply, and it SHALL be refused with the `member_id` rule
 
 #### Scenario: Selling a member a second membership
 - **WHEN** a member's membership is cancelled and a new one is sold to the same member
