@@ -1,4 +1,11 @@
-"""Pass/fail for one pgTAP file, in a way that can actually report a failure.
+"""Rewrite one pgTAP file so its result can actually be read back.
+
+This script decides nothing. It splices migrations in after `begin;` and stashes
+pgTAP's failure count and test counter so `sweep.py` can read them; the pass/fail
+comparison lives there. The first line used to read "Pass/fail for one pgTAP
+file", which was true when this WAS the whole harness and became false when the
+runner was split out — the same commit that split it wrote the contradiction
+into the other file's docstring.
 
 THE BUG THIS EXISTS TO NOT HAVE, because it cost six red CI runs I believed
 were green:

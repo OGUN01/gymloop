@@ -404,9 +404,17 @@ were written and all five were measured false:
 
 **The surface is not enumerable and was never a product requirement.**
 `public.memberships` carries **22 triggers**, of which **13 fire on UPDATE** — nine of them internal,
-against the four this project wrote; there are **seven** CHECK constraints, six
-`not null` columns among those a caller can write, a row-security policy that
-*filters* rather than refuses, and every type-range error the column set admits.
+against the four this project wrote; there are **seven** CHECK constraints; `authenticated`
+holds INSERT and UPDATE on **all 19** columns, of which **12 are `not null`**; a
+row-security policy that *filters* rather than refuses; and every type-range
+error the column set admits.
+
+**That clause had three numbers and two of them were corrected after being
+measured false. The third was left, and did not survive measurement either** —
+it said "six `not null` columns among those a caller can write", and no grounded
+reading yields six: 19 columns are writable, 12 are `not null`, 4 of those carry
+no default. Correcting the numbers a critic names, and not the one beside them,
+is how this clause has been wrong in three consecutive rounds.
 No sentence can close that set, and it grows whenever anyone adds a column, a
 constraint, or a table that references this one.
 
