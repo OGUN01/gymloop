@@ -43,9 +43,13 @@ const IDEMPOTENCY_INDEX = 'payments_tenant_id_idempotency_key_key';
  * can actually provoke.
  *
  * `GL038` (a paid payment is frozen) and `GL039` (an illegal status transition)
- * are deliberately ABSENT. Both are raised inside `if tg_op = 'UPDATE'` and this
- * handler only ever inserts, so mapping them would be a claim the system does
- * not have — this project's most repeated defect, and a critic was right to
+ * are deliberately ABSENT. `GL038` is raised only inside `if tg_op = 'UPDATE'`
+ * and this handler only ever inserts. `GL039` stopped being update-only in
+ * ADR-090 — `app.enforce_payment_arrival_status()` raises it on INSERT for a
+ * payment recorded straight at `refunded` or `reversed` — and this comment went
+ * on asserting otherwise until a critic read it against the trigger. What keeps
+ * it absent now is narrower: the handler hardcodes `status: 'paid'`. Mapping
+ * either would be a claim the system does not have — this project's most repeated defect, and a critic was right to
  * name it even as a low-severity finding. Whoever adds an update path adds them
  * back, with a test that reaches them.
  */

@@ -295,9 +295,13 @@ including any discount — and never the plan's list price.
 
 ### Requirement: The terms money is scored against are frozen by money arriving
 WHERE any money has arrived against a membership, THE SYSTEM SHALL refuse any
-change to the terms that money is scored against — its price, its currency, the
-plan it was sold on, and the duration a period is measured in — and SHALL leave
-the membership as it stood.
+change to the terms that money is scored against — its price, its currency, and
+the plan it was sold on — and SHALL leave the membership as it stood.
+
+The duration a period is measured in is frozen harder than these and by a
+different rule: it is derived from the plan and never typed, so it cannot be
+changed at all except by changing the plan, which this requirement refuses once
+money has arrived.
 
 **Frozen by the first payment, not by the first period.** A membership that has
 taken real money but not yet crossed one whole multiple of its price has been
@@ -343,22 +347,88 @@ about one already sold, which is what editing a plan should mean. Freezing the
 plan row instead would punish the legitimate act to prevent the illegitimate
 one.
 
-**At creation the plan decides the length; afterwards it is a term like the
-others.** A membership records the duration its plan carried at the moment of
-sale, and a length named by the caller at creation is ignored in favour of the
-plan's — a blind author measured what accepting one costs: create a membership
-naming `duration_days = 3650`, pay the ordinary price, get ten years. Correcting
-it afterwards is the same act as correcting the price: free until money arrives,
-refused once it has. Changing the plan before any money has arrived carries the
-new plan's length with it, unless the correction names a length of its own.
+**A period's length is derived, never negotiated.** A membership records the
+duration its plan carried at the moment of sale, and it is not a number anyone
+types — at creation or afterwards, with money on record or without. The previous
+draft of this requirement named the harm ("create a membership naming
+`duration_days = 3650`, pay the ordinary price, get ten years") and then
+permitted the identical outcome in two statements instead of one; measured, an
+ordinary ₹1,500 on a 30-day plan bought **3,650 days**, and the record it leaves
+is fully self-consistent — one receipt, one period granted, `ends_on` exactly one
+recorded period — so no audit can see it afterwards.
+
+**`price_paise` is a negotiated number a desk legitimately mistypes;
+`duration_days` is not.** A wrong length is a wrong plan, and the instrument for
+that is changing the plan, which carries the length with it. So this term
+belongs with `periods_granted` rather than with the price: it may change only as
+part of a plan change, and only to what that plan says.
+
+**And a plan change carries the price too.** Correcting a mis-sold Monthly to an
+Annual re-derived the length and left the Monthly price behind, so one ₹12,000
+Annual fee bought `floor(1200000 / 150000)` = eight periods of 365 days —
+**2,920 days**. Price and length come from the same plan or from neither, unless
+the correction names a price of its own, which keeps a negotiated price possible.
+
+**Why creating ignores a named length while editing refuses one**, which both
+blind authors read as an inconsistency and were right to: `memberships.duration_days`
+carries a database default, so inside a `before insert` trigger a caller who
+wrote `1` and a caller who wrote nothing are **the same row**. Refusing "a length
+the caller named" is not implementable at creation, because there is no such
+thing to detect. On update there is — `old` exists — so there it is refused, and
+refusing is the better answer wherever it can be given. Silently discarding a
+write stays the thing this codebase asserts against; at creation it is discarding
+a value nobody can prove was written.
+
+**A length riding a permitted plan change lands as the plan's**, not as typed and
+not refused. The statement is the sanctioned way to change a length, and the
+length it produces is the plan's by definition; the caller's number is not
+refused because the statement is legitimate, it is simply not where the number
+comes from.
+
+**Naming a price equal to the one already recorded is indistinguishable from
+naming none**, and the plan's price wins. A row trigger sees values, not which
+columns a statement listed, and `is distinct from` is this codebase's idiom for
+exactly that. The consequence is worth stating because it is a real edge: a desk
+that retypes the agreed number to protect it across a plan correction will get
+the new plan's list price instead. **To keep a negotiated price across a plan
+change, name a different number, or set the price in a second statement** — which
+is permitted for as long as no money has arrived.
+
+**The plan's currency travels with its price.** `plans` carries a currency,
+the currency is half of what a price MEANS (MNY-002), and the granting rule sums
+money in the membership's own currency — so taking a plan's price without its
+currency would score the new number against the old denomination, which is wrong
+by an exchange rate and looks entirely ordinary.
+
+#### Scenario: Correcting a mis-sold plan with a length of its own named
+- **WHEN** a plan correction also names a `duration_days`
+- **THEN** the length recorded SHALL be the new plan's, and the statement SHALL be allowed
+
+#### Scenario: A plan priced in another currency
+- **WHEN** a plan correction takes the new plan's price
+- **THEN** it SHALL take that plan's currency with it, or neither
 
 #### Scenario: Creating a membership that names its own length
 - **WHEN** a membership is created naming a `duration_days` of its own
 - **THEN** the length recorded SHALL be the plan's, not the one named
 
-#### Scenario: Correcting the length before any money arrives
-- **WHEN** a front-desk session changes `duration_days` on a membership against which no money has arrived
-- **THEN** it SHALL be allowed and SHALL land, and a payment SHALL be scored against the corrected length
+#### Scenario: Typing a length onto a membership
+- **WHEN** any session changes `duration_days` other than by changing the plan
+- **THEN** it SHALL be refused with `GL043` and the length SHALL be unchanged, whether or not money has arrived
+
+The code is `GL043` and not `GL044`, which the first draft of this requirement
+left open and both authors had to ask about. The length is a term of the
+membership and a reader chasing it will look where the other terms are; that
+beats the conceptual tidiness of grouping it with the count it more closely
+resembles.
+
+#### Scenario: Correcting a mis-sold plan
+- **WHEN** a front-desk session changes the plan of a membership against which no money has arrived
+- **THEN** the length AND the price SHALL both become the new plan's, and a payment SHALL buy exactly one period of it
+
+#### Scenario: Correcting a mis-sold plan at a negotiated price
+- **WHEN** that correction names a price of its own in the same statement
+- **THEN** that price SHALL stand, and the length SHALL still be the new plan's
 
 #### Scenario: Cutting the price after a period was bought
 - **WHEN** a front-desk session lowers the price of a membership that has been granted a period

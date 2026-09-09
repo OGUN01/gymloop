@@ -97,7 +97,7 @@ function isLive(row: { status: string; starts_on: string | null; ends_on: string
 const DESK_METHODS = ['cash', 'upi', 'card', 'bank_transfer'] as const;
 
 const MEMBERSHIP_COLUMNS =
-  'id, status, starts_on, ends_on, price_paise, currency, plans(name), membership_pauses(id, starts_on, ends_on, reason, approved_at, rejected_at)';
+  'id, status, starts_on, ends_on, price_paise, currency, duration_days, plans(name), membership_pauses(id, starts_on, ends_on, reason, approved_at, rejected_at)';
 
 export default async function MemberMembershipsPage({
   params,
@@ -325,8 +325,9 @@ export default async function MemberMembershipsPage({
               {live === undefined
                 ? `Renews ${renewable.plans.name} from today — it lapsed on ${renewable.ends_on}.`
                 : `Extends ${renewable.plans.name} from whichever is later — today or ${renewable.ends_on}.`}{' '}
-              A full {money(renewable.price_paise, renewable.currency)} buys one period; part of it is
-              recorded and receipted and buys none until the balance is paid.
+              A full {money(renewable.price_paise, renewable.currency)} buys one period of{' '}
+              {renewable.duration_days} days; part of it is recorded and receipted and buys none
+              until the balance is paid.
             </>
           )}
         </p>
