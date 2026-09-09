@@ -24,10 +24,29 @@ import { deskTime, loadReceipt } from '../../../../lib/payments';
  * the honest one, because distinguishing them would confirm the payment exists.
  */
 /** What each redirect code from the refund handler means to a person. */
+/**
+ * The statuses that mean money actually arrived, matching `app.grant_periods()`
+ * and `GL036`'s money-arrived clause exactly.
+ *
+ * **This page gated on `paid` alone and the database does not.** A critic
+ * measured 60,000 paise accepted against a `refunded` payment with headroom
+ * left, while this screen showed no form and the line "This payment took
+ * nothing, so there is nothing to send back" — false for that row. Latent only
+ * because nothing writes `refunded` today; it becomes real the moment the
+ * Razorpay webhook lands, which is the one part of this phase that is not
+ * built.
+ */
+const ARRIVED = new Set(['paid', 'refunded', 'reversed']);
+
 const MESSAGES: Record<string, string> = {
   bad_amount: 'That amount was not readable. Rupees and at most two paise digits.',
+  // `GL036` now answers two questions — how much may go back, and whether any
+  // money came in at all (round seventeen) — and the route maps both to this
+  // one code because they are the same rule about the same ceiling. A critic
+  // pointed out the old sentence explained only the first, and the second is
+  // reachable by a plain POST even though the form is gated.
   exceeds_payment:
-    'That would refund more than this payment took. Check what has already been sent back.',
+    'That refund is not possible against this payment — either it is more than the payment took, or the payment has not taken any money.',
   refund_not_yours: 'A refund is recorded by the person who sends it.',
   refund_is_a_record: 'A recorded refund cannot be edited. Record another one instead.',
   not_permitted: 'Only an owner or a manager may send money back. A front desk may take it, not return it.',
@@ -97,7 +116,7 @@ export default async function ReceiptPage({
           {payment.notes === null ? null : <Row label="Note">{payment.notes}</Row>}
         </dl>
 
-        {payment.status === 'paid' ? null : (
+        {ARRIVED.has(payment.status) ? null : (
           <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
             This payment is <strong>{payment.status}</strong>. It is not a record of money received.
           </p>
@@ -148,7 +167,7 @@ export default async function ReceiptPage({
             has taken nothing, and one refunded in full has nothing left. The
             database refuses both (`GL036`); offering the form anyway would be a
             button whose only outcome is an error. */}
-        {payment.status === 'paid' && refundablePaise > 0 ? (
+        {ARRIVED.has(payment.status) && refundablePaise > 0 ? (
           <form method="post" action="/api/refunds" className="mt-4 flex flex-wrap items-end gap-3">
             <input type="hidden" name="paymentId" value={payment.id} />
             <label className="text-sm">
