@@ -293,6 +293,117 @@ including any discount — and never the plan's list price.
 - **WHEN** the membership's price is zero
 - **THEN** the payment SHALL be recorded and SHALL grant no period, rather than raising
 
+### Requirement: The terms a period was scored against do not change after it is granted
+WHERE a membership has been granted at least one period, THE SYSTEM SHALL refuse
+any change to the terms its money is scored against — its price, its currency,
+and the plan whose duration a period is measured in — and SHALL leave the
+membership as it stood.
+
+A period is granted for each whole multiple of the membership's own price that
+its money has reached, and it lasts the duration of the membership's own plan.
+**Every one of those three inputs is re-read on the next payment and applied to
+all the money already on record**, so changing one retroactively re-prices or
+re-lengthens periods that were already bought and paid for.
+
+Measured, each in a single ordinary front-desk statement: cutting a ₹1,000 price
+to ₹500 and then paying **one paisa** released a second month, and it compounds —
+`floor(200000/50000)` is four periods, not two. Repointing a 30-day membership at
+a 365-day plan and paying one further ₹1,000 moved `ends_on` **395 days**.
+
+The terms a membership was sold on are recorded facts, like a payment's amount
+and for the same reason: they are what the member agreed to, and every period
+already granted was granted against them. **Correcting a mistyped price or a
+wrong plan before any money has arrived stays free** — nothing has been scored
+yet. Afterwards the honest instrument is a refund and a new membership, which
+this phase has.
+
+#### Scenario: Cutting the price after a period was bought
+- **WHEN** a front-desk session lowers the price of a membership that has been granted a period
+- **THEN** it SHALL be refused, and the price SHALL be unchanged
+
+#### Scenario: Repointing a paid membership at a longer plan
+- **WHEN** a front-desk session changes the plan of a membership that has been granted a period
+- **THEN** it SHALL be refused, and a further payment of the full price SHALL grant one period of the ORIGINAL plan's length
+
+#### Scenario: Correcting a mistake before any money arrives
+- **WHEN** a front-desk session changes the price or the plan of a membership that has been granted nothing
+- **THEN** it SHALL be allowed
+
+#### Scenario: Renewing
+- **WHEN** an ordinary payment extends a membership that has been granted a period
+- **THEN** it SHALL succeed — the rule's own write to the membership is not a change of terms
+
+### Requirement: How many periods have been granted is written by the rule and by nobody else
+THE SYSTEM SHALL maintain `memberships.periods_granted` only as part of granting
+a period, and SHALL refuse every other write to it, whatever its value.
+
+**A freeze is worth exactly as much as the immutability of the thing it is keyed
+on.** The requirement above is keyed on "has been granted at least one period";
+while that count could be typed by the same session the rule constrains, the rule
+guarded nothing. Measured, all from an ordinary front-desk session:
+
+  * setting the count to `0` and then paying **one paisa** granted a full month;
+  * setting it to `0`, then cutting the price, then paying one paisa granted two
+    and a half months for ₹1,000.01;
+  * setting it to `500` made an ordinary ₹1,000 payment grant **nothing** — the
+    money taken and receipted, `ends_on` unmoved, no error anywhere. This is the
+    silent harm ADR-088 was written about, reached by hand instead of by
+    rounding.
+
+Bounding the column's sign does not close any of it: every one of those uses a
+value the rule itself can produce. What is wrong is not the number, it is that a
+hand wrote it.
+
+#### Scenario: Resetting the count
+- **WHEN** a front-desk session sets `periods_granted` on a membership to any other value
+- **THEN** it SHALL be refused, and the count SHALL be unchanged
+
+#### Scenario: Staging the count forward
+- **WHEN** a front-desk session raises `periods_granted` above what the money bought
+- **THEN** it SHALL be refused — a payment that grants nothing while taking the money is worse than one that is refused outright
+
+**A membership is created having been granted nothing.** The rule above is
+written as though the only way to get a count is to type one onto an existing
+row; a holdout author measured the other way in and it works — a front-desk
+session **creates** a membership carrying `periods_granted = 5`, then takes
+₹1,000 for it, and `ends_on` does not move while the receipt is issued. That is
+the third exploit above with no UPDATE anywhere in it.
+
+So the count SHALL be zero when a membership is created. Nothing in the product
+creates one otherwise: the console's create path does not write the column, the
+seed does not, and the granting rule only ever updates. **Closing three doors and
+leaving the fourth is the mistake this whole requirement exists to correct** —
+the round before it froze two terms of three.
+
+**Two questions the first draft left open, decided here rather than left to the
+implementation:**
+
+  * **Writing the same value back is allowed.** `periods_granted = 1` on a row
+    already reading `1` changes nothing, and every exploit needs the value
+    moved. A rule that refuses a write that cannot do harm buys nothing and
+    breaks ordinary column-listing updates.
+  * **`discount_paise` is deliberately NOT a frozen term.** A holdout author
+    asked why it is missing from the list, which was the right question: it
+    exists, the seed uses it, and ADR-088's worked example is a discounted
+    membership. The reason is that nothing in the money path reads it — a
+    period is scored against `price_paise` alone. Freezing it would be a claim
+    the system does not make. **Whoever teaches the granting rule to score
+    against `price_paise - discount_paise` adds `discount_paise` to this
+    requirement in the same change**, because at that moment it becomes a term
+    and grows exactly the door the other three had.
+
+#### Scenario: The rule granting a period
+- **WHEN** a payment grants a period
+- **THEN** the count SHALL be updated to what the money now owes
+
+#### Scenario: A membership created with periods already granted
+- **WHEN** a front-desk session creates a membership whose `periods_granted` is not zero
+- **THEN** it SHALL be refused
+
+#### Scenario: Writing the same count back
+- **WHEN** a write leaves `periods_granted` at the value it already held
+- **THEN** it SHALL be allowed
+
 ### Requirement: A payment against a membership with no dates grants it a period
 WHEN a `paid` payment names a membership that has neither `starts_on` nor
 `ends_on`, THE SYSTEM SHALL set both from the gym's today rather than silently
