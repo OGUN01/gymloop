@@ -1204,6 +1204,7 @@ export type Database = {
           ends_on: string | null
           id: string
           member_id: string
+          periods_granted: number
           plan_id: string
           price_paise: number
           renewal_of_membership_id: string | null
@@ -1223,6 +1224,7 @@ export type Database = {
           ends_on?: string | null
           id?: string
           member_id: string
+          periods_granted?: number
           plan_id: string
           price_paise: number
           renewal_of_membership_id?: string | null
@@ -1242,6 +1244,7 @@ export type Database = {
           ends_on?: string | null
           id?: string
           member_id?: string
+          periods_granted?: number
           plan_id?: string
           price_paise?: number
           renewal_of_membership_id?: string | null
