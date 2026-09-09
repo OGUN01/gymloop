@@ -281,6 +281,61 @@ member holding nothing.
 - **WHEN** any session changes a membership's `member_id`
 - **THEN** it SHALL be refused and the membership SHALL be unchanged
 
+**And it SHALL be this rule that answers, not another one the same statement
+also violates.** A statement that re-points a membership AND writes a length is
+two violations at once, and which refusal comes back is what the caller acts on:
+`GL043` says "change the plan instead", which is advice about a plan, while the
+true answer is that this membership belongs to somebody else and the repair is a
+refund, a cancellation and a new sale. **Which rule answers is part of the
+behaviour, not an implementation detail** — this file already says so for the
+multi-row case, where a mixed statement is refused by whichever rule its first
+row reaches. For a single row it is decidable, so it is decided here.
+
+This is written down because it silently stopped being true: a later migration
+re-emitted the enforcing function to add something unrelated and moved this
+check after the length check. Both refusals still existed and every assertion in
+both suites still passed, because no assertion named a statement that violates
+two rules at once (ADR-099).
+
+**"Not another one" means every other one, and a holdout author read it that way
+and was right to.** The sentence above was written with the length rule in view,
+so the first version of this requirement illustrated it with the length rule and
+left the general claim unqualified. An author working from this text alone
+asserted the general form — re-pointing *and* typing a period count, re-pointing
+*and* re-dating — and measured both answering with the other rule. The
+implementation checked ownership third, after the two depth-gated invariants.
+
+**So the order is decided here, for all four absolutes, rather than left to
+whichever clause a migration happened to type first:**
+
+1. `GL042` — *whose* membership this is.
+2. `GL044` — how many periods it has been granted.
+3. `GL045` — what dates it runs between.
+4. `GL043` — how long a period is, and the terms money has frozen.
+
+`GL042` is first because it is the only one of the four about **whose**
+membership this is; the other three are about what may be typed onto a
+membership already agreed to be yours. A caller re-pointing a membership acts on
+the message, and "take the money and the dates follow" is advice for somebody
+extending their own member's membership, not for somebody moving one to a
+different person. The repair differs too: `GL044` and `GL045` are answered by
+taking a payment, `GL042` only by a refund, a cancellation and a new sale.
+
+`GL046`, the one permission in the family, stays last for the reason already
+recorded: an absolute beats a permission, and answering the permission would
+imply a gym admin could do it.
+
+**The order among 2, 3 and 4 is not asserted and is not claimed.** No scenario
+requires it, and writing it down would be deciding something nothing has asked.
+
+#### Scenario: Re-pointing a membership and re-lengthening it in one statement
+- **WHEN** one statement changes a membership's `member_id` and its `duration_days`
+- **THEN** it SHALL be refused with the `member_id` rule, not the length rule
+
+#### Scenario: Re-pointing a membership and typing anything else in the same statement
+- **WHEN** one statement changes a membership's `member_id` and also its `periods_granted`, its dates, or its price
+- **THEN** it SHALL be refused with the `member_id` rule in every case
+
 #### Scenario: Selling a member a second membership
 - **WHEN** a member's membership is cancelled and a new one is sold to the same member
 - **THEN** both SHALL be allowed — this rule refuses re-pointing, not selling
