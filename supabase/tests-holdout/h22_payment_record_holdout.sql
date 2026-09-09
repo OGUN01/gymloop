@@ -360,11 +360,45 @@
 -- reaches `completed`, which is exactly what 24c/step 5 measures.
 -- See section 24's own header.
 
+-- TWELFTH-SESSION EXTENSION - section 25, plan 809 -> 919, round EIGHTEEN,
+-- written blind by a NINTH author against a requirement that belongs to a
+-- different change entirely: openspec/changes/membership-lifecycle/, which
+-- closes OPEN-030 by giving `memberships.status` the state machine `payments`
+-- has had since round three. Two requirements: which status may follow which
+-- (terminal `expired` and `cancelled`, self-writes allowed), and what becomes
+-- of money paid against a retired membership once revival is impossible.
+--
+-- THREE ASSERTIONS IN 22h CHANGED, and they are the only ones in this file
+-- that did. 22h existed to stage exactly this question - it measured
+-- `cancelled -> active` as a permitted front-desk UPDATE and reported that
+-- round thirteen's refusal was therefore deferred rather than durable - so the
+-- new requirement's whole purpose is to falsify the premise 22h asserted. The
+-- revival is now asserted refused, the shape after it is asserted unchanged,
+-- and the bounded "T+10 or T+100" outcome is sided at T+10. Same fixture, same
+-- ids, same six assertions, same money; only the answer moved, and 22h's own
+-- header records that it moved because the contract did. NOTHING ELSE IN THE
+-- FILE TRANSITIONS A MEMBERSHIP ILLEGALLY: every other `status` write here was
+-- checked against its fixture's own starting status and each is `active ->
+-- frozen`, `frozen -> active`, `active -> cancelled`, `frozen -> cancelled`,
+-- `active -> expired`, `pending -> active` or `pending -> cancelled`.
+--
+-- Section 25 leaves both headlines to the visible suite and takes the seams:
+-- the six-link chain that keeps money paid while retired from stranding; the
+-- granting rule's own `pending -> active` write and the two statement shapes
+-- that imitate it; the malformed `pending` rows of OPEN-023 and OPEN-026 and
+-- whether this rule is what seals them (it is not); MERGE, `UPDATE ... FROM`
+-- per-row, upsert, CTE and two-statement composition; the seed's own upsert
+-- shape run with `memberships_terms_frozen` disabled exactly as CI runs it;
+-- and the gate. See section 25's own header for what it reports rather than
+-- resolves - creation into a terminal status is unanswered by the requirement,
+-- and `active -> expired` is a legal one-way door a front desk can walk a live
+-- member through in one statement.
+
 begin;
 
 set local role postgres;
 
-select plan(809);
+select plan(919);
 
 -- ---------------------------------------------------------------------------
 -- 0. Fixtures.
@@ -7055,18 +7089,24 @@ select lives_ok(
   'r13/gate: while a member on a LIVE membership walks straight through the same gate on the same QR session. The refusal above is the status, not the fixture');
 
 -- ---------------------------------------------------------------------------
--- 22h. THE ROUTE THE REQUIREMENT DOES NOT CLOSE, staged and reported rather
--- than sided — the house treatment section 6 gives the refunded-mid-sum
--- question the spec also leaves open.
+-- 22h. THE ROUTE THE REQUIREMENT DOES NOT CLOSE — SIDED IN ROUND EIGHTEEN,
+-- having been staged and reported here for five rounds.
 --
--- The requirement refuses the GRANT. It does not detach the MONEY. The
--- granting rule is cumulative over a membership's payments, and
--- `cancelled -> active` is an ordinary permitted UPDATE (this file's section
--- 21b turns on status staying writable after money has arrived). So a
--- refusal here is deferred rather than durable: Rs.3,000 banked against a
--- retired membership is still sitting against it, and the moment anyone
--- revives the row, the next payment — one paisa is enough — is scored
--- against a total that includes all of it.
+-- As written, this subsection measured that round thirteen refused the GRANT
+-- without detaching the MONEY: the granting rule is cumulative over a
+-- membership's payments and `cancelled -> active` was an ordinary permitted
+-- UPDATE, so the refusal was deferred rather than durable — revive the row and
+-- the next payment, one paisa, cashed in every period the refused money had
+-- bought. It bounded the outcome to two answers and reported which happened.
+--
+-- The membership-lifecycle requirement (OPEN-030) answers it by removing the
+-- revival, so the three assertions that turned on `cancelled -> active` being
+-- permitted are re-sided here rather than deleted: the same fixture, the same
+-- ids, the same Rs.3,000 and the same one paisa, with the revival now refused
+-- and the deferral therefore durable. THIS IS A FIXTURE REPAIR AND A RE-SIDING,
+-- NOT A NEW BATTERY — the count is unchanged at six and section 25 is where
+-- round eighteen is actually tested. What the money's stranding then obliges
+-- is 25a's chain: it is refundable in full, and that is the only remedy.
 -- ---------------------------------------------------------------------------
 
 select lives_ok(
@@ -7079,37 +7119,28 @@ select is(
   'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
   'r13/revival: and grants nothing now. MEASURED BEFORE THE FIX: three periods and ninety days, on a cancelled row, from one statement');
 
-select lives_ok(
-  $$update public.memberships set status = 'active', cancelled_at = null, cancel_reason = null where id = '220000ff-0022-4000-8000-600000000d24'$$,
-  'r13/revival: THE ROW IS THEN UN-CANCELLED. Measured: `cancelled -> active` is permitted today, from the FRONT DESK, in one statement, with nothing raised — status is not a term of what the member owes, which is the property the phase''s whole repair path depends on');
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set status = 'active', cancelled_at = null, cancel_reason = null where id = '220000ff-0022-4000-8000-600000000d24'$q$),
+  'r13/revival: THE ROW CANNOT BE UN-CANCELLED. (Asserted through the code-agnostic probe rather than section 24''s GL-only one, which does not exist yet this far up the file; section 25 asserts the code.) Re-sided in round eighteen: this line asserted for five rounds that `cancelled -> active` was permitted from the front desk with nothing raised, which is precisely what a critic measured and OPEN-030 recorded. The membership-lifecycle requirement makes retirement terminal, so the deferral this subsection reported is now durable');
 
 select is(
   pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000000d24'),
-  'active/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
-  'r13/revival: the revival itself moves no date and grants no period — nothing on `memberships` extends anything, which is correct and is the reason the next line matters');
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r13/revival: and the refusal left it exactly as it was — still cancelled, still on its own dates, still granted nothing');
 
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
     values ('220000ff-0022-4000-8000-700000000d26', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000d24', '220000ff-0022-4000-8000-600000000d24', 1, 'INR', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
   'r13/revival: and ONE PAISA arrives against the revived row');
 
-select ok(
-  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000d24'::uuid)
-    in ((select today from gym_today where org_key='A') + 10,
-        (select today from gym_today where org_key='A') + 100),
-  'r13/revival: bounded to the only two answers. Either the banked Rs.3,000 was DETACHED when it was refused (one paisa buys nothing, ends_on stays at T+10) or it was merely DEFERRED (one paisa cashes in all three periods at once, ends_on jumps to T+100). Anything else means the cumulative rule has been changed in a way nothing here specified. THE SPEC DOES NOT SAY WHICH IS CORRECT — this bounds it and the diag below reports which happened');
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000000d24'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r13/revival: and the paisa buys nothing either. This assertion used to bound the outcome to T+10 (the money DETACHED) or T+100 (merely DEFERRED — one paisa cashing in three months) and let the diag report which. Round eighteen decides it: the revival never comes, so the banked Rs.3,000 stays refused permanently rather than waiting for a door that no longer opens');
 
 select diag(
-  format('r13/revival OBSERVED: membership d24 is %s after Rs.3,000 banked while cancelled, a revival to active, and one paisa. Baseline was %s (T+10); T+100 would mean the refused money cashed in on revival. This build %s. The requirement stops a retired membership growing and says nothing about money already banked against one; `cancelled -> active` is a permitted UPDATE, so the refusal is deferred rather than durable unless someone decides otherwise. Report, do not resolve.',
-    pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000000d24'),
-    ((select today from gym_today where org_key='A') + 10)::text,
-    case when (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000d24'::uuid)
-              = (select today from gym_today where org_key='A') + 10
-         then 'DETACHED the money'
-         when (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000d24'::uuid)
-              = (select today from gym_today where org_key='A') + 100
-         then 'merely DEFERRED it — one paisa bought three months'
-         else 'did neither' end));
+  format('r13/revival OBSERVED after round eighteen: membership d24 is %s, having taken Rs.3,000 while cancelled, been refused a revival, and then taken one paisa more. The route this subsection reported for five rounds is closed at the cause. What it hands on is the consequence rather than the exploit: Rs.3,000 of the member''s money is now permanently unable to buy anything on this row, which is exactly the stranding the membership-lifecycle spec''s second requirement answers with "refundable in full". Section 25a runs that answer end to end; if any link of it breaks, this money is simply gone.',
+    pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000000d24')));
 
 set local role postgres;
 select set_config('request.jwt.claims', '', true);
@@ -8365,6 +8396,906 @@ select is(
   '220000ff-0022-4000-8000-500000000f11',
   'r17/g: and the new membership belongs to them');
 
+
+-- ---------------------------------------------------------------------------
+-- 25. TWELFTH-SESSION EXTENSION, round EIGHTEEN, written blind by a NINTH
+-- author against a requirement that is not in this file's own spec at all:
+-- openspec/changes/membership-lifecycle/specs/membership-lifecycle/spec.md,
+-- which closes OPEN-030 — `memberships.status` gets the state machine
+-- `payments` has had since Phase 5 round three.
+--
+-- Not read, then or since: supabase/tests/*.sql (the visible battery for this
+-- change is being written in parallel by a different author); any migration
+-- later than round seventeen's; prosrc or pg_get_functiondef for
+-- app.grant_periods, app.extend_membership_on_payment, or anything
+-- implementing the new rule; and, per ADR-091, docs/registry.md for anything
+-- about this round's code. Read: the two requirements, this change's plan.md,
+-- docs/decisions.md OPEN-023/026/030 and ADR-082/084/089/096, the live Cloud
+-- catalogue, supabase/seed.sql, supabase/seed-scenarios.sql and
+-- .github/workflows/db.yml.
+--
+-- THE ROUND HAD NO GL NUMBER WHEN THIS WAS WRITTEN. Every refusal that should
+-- come from the new rule is therefore asserted through `pg_temp.h22r17_gl`,
+-- which is true only for a `GL0…` sqlstate: 42703/42P01/42883/42601 (an
+-- unimplemented contract), 23514 (a Phase 1 CHECK) and 42501 (RLS) are all
+-- FALSE on purpose, each being a way this battery could go green without the
+-- rule existing. A build that refuses these writes with a bare 23514 fails
+-- here and should — GL039 is the sibling this rule is modelled on and it
+-- raises a mapped code the desk can be shown.
+--
+-- Section 25 leaves both headlines to the visible suite. Its seams:
+--
+--   * THE CHAIN ADR-096 KEPT, RE-RUN END TO END (25a). ADR-096 left money
+--     paid while retired on record *because a revival might yet count it*.
+--     Requirement one makes that revival impossible, so every link of the
+--     chain that keeps the money from stranding is asserted individually:
+--     recorded, receipted from the gym's own financial-year counter,
+--     attributed to the staff member who took it (GL034), refundable in full
+--     and bounded by GL036 at the paisa above it, the retired row unmoved by
+--     the payment AND unmoved by the refund, the paid payment un-repointable
+--     onto the live membership (so refund-and-retake is provably the ONLY
+--     remedy, which is what the requirement claims), and the same amount
+--     taken against the live membership extending it normally. If any one of
+--     those links is broken the second requirement is false.
+--
+--   * WHERE THE GRANTING RULE WRITES STATUS ITSELF (25b). `app.grant_periods()`
+--     activates a `pending` membership on its first payment — the rule's own
+--     legal transition, which any guard has to exempt. The exemption is the
+--     hole: a data-modifying CTE that inserts a payment and writes
+--     `cancelled -> active` in the SAME statement is a hand imitating that
+--     path exactly, and it is asked twice — once with the payment naming the
+--     retired row, once with it naming an entirely legitimate live one and
+--     serving only as a carrier. Plus the source the rule's activation branch
+--     is actually written for: a membership that was `pending`, was cancelled,
+--     and is then paid.
+--
+--   * THE MALFORMED ROWS (25c), OPEN-023 and OPEN-026 by name. Three shapes:
+--     a half-dated `pending` row, a dateless `pending` row of a member who is
+--     already covered, and one whose money arrived in another currency. The
+--     question asked is not "is this refused" but "does a transition rule make
+--     any of them PERMANENTLY unrepairable, and is that right" — answered per
+--     row, with the one repairable shape asserted on the permitted side so an
+--     over-broad fix cannot take it away.
+--
+--   * MULTI-ROW AND MULTI-STATEMENT (25d): MERGE, `UPDATE … FROM` with a
+--     different target status per row, a data-modifying CTE that pays and
+--     transitions in one statement (refused AND permitted), a statement mixing
+--     a legal transition with an illegal one, `INSERT … ON CONFLICT DO UPDATE`
+--     as an attack, and a transition split across two statements of one
+--     transaction — the shape a rule evaluated against the transaction's
+--     starting snapshot waves through.
+--
+--   * ROLES AND TRUSTED CONTEXTS, AND THE SEED (25e). `seed-scenarios.sql`
+--     builds its lapsed and cancelled fixtures by writing `expired` and
+--     `cancelled` directly, and `seed-dry-run` runs both seed files inside one
+--     transaction against a project where they are ALREADY COMMITTED — so
+--     every one of those writes arrives as the `on conflict (id) do update set
+--     status = excluded.status` half of an upsert, with the value unchanged.
+--     That statement shape is asserted here verbatim rather than paraphrased,
+--     on a `cancelled` row and on an `expired` one, and the creation path is
+--     asserted too for the fresh-project run. The answer this section reports:
+--     the rule needs NO role carve-out and the seed needs NO change, because
+--     the seed only ever CREATES a terminal status or writes it back to
+--     itself, and both are already permitted. Sided accordingly — claimless
+--     `postgres`, `service_role` and a gym owner are each refused a revival,
+--     on ADR-082's distinction as 20c draws it: a carve-out is sound where the
+--     rule's subject is an identity a trusted caller lacks, and this rule's
+--     subject is the data. And the last pair asks the question that makes the
+--     whole carve-out argument moot if it goes wrong: with
+--     `memberships_terms_frozen` DISABLED exactly as both seed files disable
+--     it, the revival must STILL be refused — a rule folded into that trigger
+--     would be silently off for the entire seed.
+--
+--   * THE GATE (25f), asserted as a refused check-in rather than as a column,
+--     and then the one-way door: an `active` membership with ten days left,
+--     written to `expired` from an ordinary front-desk session in one
+--     statement — legal by this requirement's own second scenario — whose
+--     member is refused at the gate from that moment and can never be brought
+--     back. The repair that does exist (sell the same member a new membership)
+--     is asserted, because it is what bounds the harm.
+--
+-- WHAT THIS SECTION REPORTS RATHER THAN RESOLVES, both by `diag`:
+--
+--   1. CREATION IS NOT A TRANSITION AND THE REQUIREMENT NEVER SAYS SO. Every
+--      sentence is about a status that CHANGES. A row created directly at
+--      `cancelled`, `expired` or `frozen` is unanswered — and has to stay
+--      permitted, because the seed's fresh-project path is exactly that and so
+--      is this file's own fixture block. 25e asserts the permitted side and
+--      reports the gap; OPEN-029 already says creation is unpoliced for dates.
+--
+--   2. THE MALFORMED `pending` ROWS ARE UNREPAIRABLE, AND THIS RULE IS NOT
+--      WHAT MAKES THEM SO. `memberships_dated_unless_pending_chk` refuses both
+--      of a half-dated row's legal exits and GL045 refuses the date write that
+--      would fix it first, so the row was already sealed before round
+--      eighteen. 25c measures each refusal and names which rule gave it.
+-- ---------------------------------------------------------------------------
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+-- Members r18-01 .. r18-60. More than are used; the unused ones cost nothing
+-- and the numbering stays legible against the membership ids, which share it.
+insert into public.members (id, tenant_id, branch_id, full_name, phone)
+select
+  ('220000ff-0022-4000-8000-5000000018' || lpad(n::text, 2, '0'))::uuid,
+  '220000ff-0022-4000-8000-100000000001'::uuid,
+  '220000ff-0022-4000-8000-200000000001'::uuid,
+  'H22 R18 Member ' || lpad(n::text, 2, '0'),
+  '+91922018' || lpad(n::text, 4, '0')
+from generate_series(1, 60) as n;
+
+insert into public.qr_sessions (id, tenant_id, branch_id, token_hash, expires_at, created_by_staff_id) values
+  ('220000ff-0022-4000-8000-900000001801'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid,
+   '220000ff-0022-4000-8000-200000000001'::uuid, 'h22-r18-gate-token-hash',
+   now() + interval '1 day', '220000ff-0022-4000-8000-300000000001'::uuid);
+
+-- Memberships. Ids share the member numbering except where one member
+-- deliberately holds two rows: 1801 holds 1801 (retired) and 1802 (live), and
+-- 1822 holds 1822 (live) and 1823 (the OPEN-023 row nothing can activate).
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency) values
+  ('220000ff-0022-4000-8000-600000001801'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001801'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'cancelled', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001802'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001801'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',    (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001803'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001802'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'expired',   (select today from gym_today where org_key='A') - 40, (select today from gym_today where org_key='A') - 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001810'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001810'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'pending',   null, null, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001811'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001811'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'cancelled', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001812'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001812'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'pending',   (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001813'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001813'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'pending',   null, null, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001814'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001814'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',    (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001820'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001820'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'pending',   (select today from gym_today where org_key='A'), null, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001821'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001821'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'pending',   null, (select today from gym_today where org_key='A') + 30, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001822'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001822'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',    (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001823'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001822'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'pending',   null, null, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001824'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001824'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'pending',   (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'USD'),
+  ('220000ff-0022-4000-8000-600000001830'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001830'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',    (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001831'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001831'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'cancelled', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001832'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001832'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',    (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001834'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001834'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',    (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001835'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001835'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'cancelled', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001836'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001836'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'expired',   (select today from gym_today where org_key='A') - 40, (select today from gym_today where org_key='A') - 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001837'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001837'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',    (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001839'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001839'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',    (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001840'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001840'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'cancelled', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001841'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001841'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'expired',   (select today from gym_today where org_key='A') - 40, (select today from gym_today where org_key='A') - 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001842'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001842'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'cancelled', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001843'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001843'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'cancelled', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001844'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001844'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'cancelled', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001848'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001848'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'cancelled', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001849'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001849'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'cancelled', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001850'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001850'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'cancelled', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001851'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001851'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',    (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001852'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001852'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',    (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  -- 1854 exists only to carry the gate's control admission. `app.enforce_check_in()`
+  -- refuses a second scan by the same member inside the gym's 120-second window
+  -- (GL014), so the "admitted while active" control and the "admitted while
+  -- frozen" assertion cannot be the same member without measuring GL014 instead
+  -- of ADR-084's status gate.
+  ('220000ff-0022-4000-8000-600000001854'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001854'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active',    (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+set local role authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 25a. THE CHAIN ADR-096 KEPT, RE-RUN END TO END. ADR-096's words: money paid
+-- while retired stays on record "because the membership might be revived and
+-- the total would then count it — detaching that money would mean they bought
+-- nothing and cannot get it back, which is a worse answer than the one this
+-- rule was written to prevent." Requirement one deletes the premise. What is
+-- left holding the money up is a chain of six links, and this file has broken
+-- one link of a six-link chain twice. Each is asserted on its own.
+-- ---------------------------------------------------------------------------
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000001801', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001801', '220000ff-0022-4000-8000-600000001801', 100000, 'INR', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'r18/chain: LINK 1 — the cash is RECORDED against the cancelled membership. Refusing it is the harm ADR-096 named: the money is already in the drawer when the row is written, and a refusal leaves the gym holding it with nothing to show');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001801'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/chain: LINK 2 — and it does not extend the retired row by a day or a period (round thirteen''s rule, re-asserted here because everything below depends on the money being STUCK rather than spent)');
+
+select is(
+  left(coalesce((select receipt_number from public.payments where id = '220000ff-0022-4000-8000-700000001801'::uuid), '(null)'), 7),
+  (select fy from gym_today where org_key = 'A'),
+  'r18/chain: LINK 3 — it is receipted, and from the gym''s own financial-year counter rather than a placeholder. The receipt is what the member holds when they come back to ask for the money; a build that suppresses it along with the extension takes away the only proof the cash arrived');
+
+select is(
+  (select recorded_by_staff_id::text from public.payments where id = '220000ff-0022-4000-8000-700000001801'::uuid),
+  '220000ff-0022-4000-8000-300000000001',
+  'r18/chain: LINK 4 — GL034 attribution survives. Money that nobody is recorded as having taken is money nobody can be asked about');
+
+select is(
+  (select status::text from public.payments where id = '220000ff-0022-4000-8000-700000001801'::uuid),
+  'paid',
+  'r18/chain: and the payment really is `paid`, not quietly demoted to `created` by a guard that decided a payment which grants nothing is not a payment');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.payments set membership_id = '220000ff-0022-4000-8000-600000001802' where id = '220000ff-0022-4000-8000-700000001801'$q$),
+  'r18/chain: LINK 5 — the obvious shortcut is CLOSED. Re-pointing the paid payment onto the member''s live membership would move the money without moving any cash, and the payment identity freeze refuses it. This is what makes the requirement''s remedy — refund, then take it again — the ONLY remedy rather than the recommended one');
+
+select is(
+  (select membership_id::text from public.payments where id = '220000ff-0022-4000-8000-700000001801'::uuid),
+  '220000ff-0022-4000-8000-600000001801',
+  'r18/chain: and the payment still names the retired membership after that refusal');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'gym_manager',
+                     'staff_id', '220000ff-0022-4000-8000-300000000002')::text,
+  true
+);
+
+select lives_ok(
+  $$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
+    values ('220000ff-0022-4000-8000-800000001801', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000001801', 'refund', 100000, 'h22 r18: paid against a retired membership, refunded in full', '220000ff-0022-4000-8000-300000000002')$$,
+  'r18/chain: LINK 6 — the whole amount comes back out. This is the sentence requirement two turns on, and it is the one a fix that freezes everything about a retired membership breaks first, because the refund is written on `refunds` and read against `payments` and neither is the row anybody was trying to protect');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set status = 'completed', processed_at = now() where id = '220000ff-0022-4000-8000-800000001801'$$),
+  'OK',
+  'r18/chain: and it COMPLETES. A refund stuck at `requested` is money still in the gym''s hands; the member is only made whole at this statement');
+
+select ok(
+  pg_temp.h22r17_gl($q$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id) values ('220000ff-0022-4000-8000-800000001802', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000001801', 'refund', 1, 'h22 r18: one paisa over the ceiling', '220000ff-0022-4000-8000-300000000002')$q$),
+  'r18/chain: and GL036 still bounds it at exactly what was taken — one paisa more is refused. "Refundable in full" is a ceiling, not a licence, and being attached to a retired membership neither raises nor lowers it');
+
+select is(
+  (select coalesce(sum(amount_paise), 0)::text from public.refunds where payment_id = '220000ff-0022-4000-8000-700000001801'::uuid),
+  '100000',
+  'r18/chain: exactly Rs.1,000 refunded against exactly Rs.1,000 taken');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001801'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/chain: and the retired membership is STILL unmoved after the refund. Nothing about money leaving may touch the row either — a rule that recomputes dates or periods from live payments would fire here, on the statement furthest from anywhere anyone would look');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000001802', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001801', '220000ff-0022-4000-8000-600000001802', 100000, 'INR', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'r18/chain: THE REMEDY COMPLETED — the same Rs.1,000 is taken again against the member''s LIVE membership. The requirement''s third scenario, and the whole point of the second');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001802'),
+  'active/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 40)::text || '/1',
+  'r18/chain: and it extends that membership normally — one period, thirty days. The member has ended up exactly where they would have been had the desk named the right membership first time, which is what makes the answer "refundable" rather than "stranded"');
+
+-- The same chain on `expired`, shortened to the two links that could
+-- plausibly differ: `expired` is a distinct enum value, and a fix keyed on
+-- `cancelled_at is not null` (the column the cancel path also writes) passes
+-- everything above and nothing here.
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000001803', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001802', '220000ff-0022-4000-8000-600000001803', 100000, 'INR', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'r18/chain/expired: money named against a LAPSED membership is recorded too');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001803'),
+  'expired/' || ((select today from gym_today where org_key='A') - 40)::text || '..' || ((select today from gym_today where org_key='A') - 10)::text || '/0',
+  'r18/chain/expired: and does not move it');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'gym_manager',
+                     'staff_id', '220000ff-0022-4000-8000-300000000002')::text,
+  true
+);
+
+select lives_ok(
+  $$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
+    values ('220000ff-0022-4000-8000-800000001803', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000001803', 'refund', 100000, 'h22 r18: lapsed membership, money back', '220000ff-0022-4000-8000-300000000002')$$,
+  'r18/chain/expired: and it too is refundable in full — the second requirement says `cancelled` OR `expired`, and this is the half nothing in the product ever writes and the seed writes twice');
+
+select ok(
+  pg_temp.h22r17_gl($q$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id) values ('220000ff-0022-4000-8000-800000001804', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000001803', 'refund', 1, 'h22 r18: over the ceiling on the lapsed one', '220000ff-0022-4000-8000-300000000002')$q$),
+  'r18/chain/expired: bounded by GL036 at the same paisa');
+
+-- ---------------------------------------------------------------------------
+-- 25b. WHERE THE GRANTING RULE WRITES STATUS ITSELF. The spec's fourth
+-- scenario — "the granting rule activates a `pending` membership" — is the
+-- one transition the rule performs rather than polices, so every plausible
+-- implementation has an exemption in it, and the exemption is the only new
+-- attack surface this requirement creates. Three questions: does the rule's
+-- own write still land; can a hand-written statement stand where the rule
+-- stands; and can a payment be made to drive an ILLEGAL transition through
+-- the rule rather than around it.
+-- ---------------------------------------------------------------------------
+
+-- Back to the desk: 25a ended on a manager's claim for its refunds, and a
+-- payment is recorded by the staff member who took it (GL034).
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000001810', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001810', '220000ff-0022-4000-8000-600000001810', 100000, 'INR', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'r18/rule: the rule''s own transition — a dateless `pending` membership takes its first payment');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001810'),
+  'active/' || (select today from gym_today where org_key='A')::text || '..' || ((select today from gym_today where org_key='A') + 30)::text || '/1',
+  'r18/rule: and is ACTIVATED by it. `pending -> active` written by the granting rule, which the requirement permits by name. A guard that cannot tell its own trigger''s write from a session''s fails here and leaves every new member refused at the gate they just paid to walk through');
+
+select ok(
+  pg_temp.h22r17_gl($q$with p as (insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id) values ('220000ff-0022-4000-8000-700000001811', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001811', '220000ff-0022-4000-8000-600000001811', 100000, 'INR', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001') returning membership_id) update public.memberships set status = 'active', cancelled_at = null, cancel_reason = null where id in (select membership_id from p)$q$),
+  'r18/rule/imitation: A HAND IMITATING THE RULE. One statement: take the money, then write `cancelled -> active` on the row it was taken against. This is the granting rule''s own shape — a payment and an activation, together — and if the exemption is keyed on "a payment is being processed" rather than on WHO is writing, this is the statement that walks through it');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001811'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/rule/imitation: and the membership is untouched — still cancelled, still on its own dates, still granted nothing');
+
+select ok(
+  not exists (select 1 from public.payments where id = '220000ff-0022-4000-8000-700000001811'::uuid),
+  'r18/rule/imitation: and the payment inside that CTE did not land either. Worth knowing rather than assuming: 25a records a bare payment against a retired membership BECAUSE the cash is real, and here the identical payment is rolled back because it was carried in on an illegal edit. The desk that composes the two loses the receipt; the desk that writes them separately keeps it');
+
+select ok(
+  pg_temp.h22r17_gl($q$with p as (insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id) values ('220000ff-0022-4000-8000-700000001812', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001814', '220000ff-0022-4000-8000-600000001814', 100000, 'INR', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001') returning tenant_id) update public.memberships set status = 'active', cancelled_at = null, cancel_reason = null where id = '220000ff-0022-4000-8000-600000001811' and exists (select 1 from p)$q$),
+  'r18/rule/carrier: the same shape with an ENTIRELY LEGITIMATE payment as the carrier — a different member, a live membership, a real renewal — and the revival hidden behind it on a row the payment never names. A guard that asks "is a payment in flight" rather than "did the rule write this" cannot tell these two statements apart');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001811'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/rule/carrier: unchanged');
+
+select ok(
+  not exists (select 1 from public.payments where id = '220000ff-0022-4000-8000-700000001812'::uuid),
+  'r18/rule/carrier: and the legitimate renewal was rolled back with it — a statement is refused whole, so nobody is left having banked half of one');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001814'),
+  'active/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/rule/carrier: and the live membership the carrier named was not extended either');
+
+select lives_ok(
+  $$update public.memberships set status = 'cancelled', cancelled_at = now(), cancel_reason = 'h22 r18: sold, never paid, walked away' where id = '220000ff-0022-4000-8000-600000001812'$$,
+  'r18/rule/from-pending: a membership sold and never paid for is cancelled. `pending -> cancelled` is legal and is the ONLY exit a never-paid sale has');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000001813', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001812', '220000ff-0022-4000-8000-600000001812', 100000, 'INR', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'r18/rule/from-pending: they then change their mind and pay — money against a membership that reached `cancelled` FROM `pending`, which is the exact source the rule''s activation branch was written for');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001812'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/rule/from-pending: and the rule does NOT activate it. This is the illegal transition driven through the granting rule rather than by hand: a build whose activation branch reads "has never been granted a period" or "activated_at is null" instead of "is pending" writes `cancelled -> active` here, from a trigger, with no session to blame');
+
+select lives_ok(
+  $$with p as (insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id) values ('220000ff-0022-4000-8000-700000001814', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001813', '220000ff-0022-4000-8000-600000001813', 100000, 'INR', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001') returning tenant_id) select count(*) from p$$,
+  'r18/rule/control: THE SAME CTE SHAPE, LEGAL — a payment inside a data-modifying CTE against a dateless `pending` membership. Without this the two refusals above would be satisfied by a build that simply cannot write a payment inside a CTE at all, and both would pass for the wrong reason (ADR-078)');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001813'),
+  'active/' || (select today from gym_today where org_key='A')::text || '..' || ((select today from gym_today where org_key='A') + 30)::text || '/1',
+  'r18/rule/control: and the rule activated it from inside the CTE, exactly as it does from a plain INSERT');
+
+-- ---------------------------------------------------------------------------
+-- 25c. THE MALFORMED ROWS. OPEN-026 records a `pending` membership with one
+-- null date — reachable only by direct write, and `memberships_dated_unless_
+-- pending_chk` permits it only while the row stays `pending`. OPEN-023 records
+-- a dateless `pending` row belonging to a member who is already covered, which
+-- the granting rule cannot activate because the live index permits one. And
+-- ADR-089's list of the rule's five early returns includes a currency
+-- mismatch, which leaves a fourth shape: paid, dated, and still `pending`.
+--
+-- The question is not whether these are refused. It is whether a transition
+-- rule makes any of them PERMANENTLY unrepairable, and whether that is right.
+-- Each refusal below is measured for which rule gave it, because "this rule
+-- sealed the row" and "this rule found the row already sealed" are different
+-- findings and only one of them is this round's problem.
+-- ---------------------------------------------------------------------------
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set status = 'active' where id = '220000ff-0022-4000-8000-600000001820'$q$),
+  'r18/malformed/026a: a `pending` row with a starts_on and NO ends_on cannot be activated. `pending -> active` is a legal transition and this is refused anyway — by the Phase 1 CHECK, which permits a null date only while the status is `pending`. Asserted through the code-agnostic probe on purpose: the finding is that the row is sealed, not which rule sealed it');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001820'),
+  'pending/' || (select today from gym_today where org_key='A')::text || '..-/0',
+  'r18/malformed/026a: and it is unchanged — still pending, still half-dated');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set status = 'cancelled', cancelled_at = now(), cancel_reason = 'h22 r18: give up on it' where id = '220000ff-0022-4000-8000-600000001820'$q$),
+  'r18/malformed/026a: nor can it be CANCELLED — the same CHECK. Both of the two exits the new transition table gives a `pending` row are closed on this shape, so the row cannot leave `pending` by any legal move');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001820'),
+  'pending/' || (select today from gym_today where org_key='A')::text || '..-/0',
+  'r18/malformed/026a: unchanged again');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set status = 'cancelled', ends_on = (select today from gym_today where org_key='A') + 30, cancelled_at = now() where id = '220000ff-0022-4000-8000-600000001820'$q$),
+  'r18/malformed/026a: AND THE ONE STATEMENT THAT WOULD REPAIR IT IS REFUSED TOO — supplying the missing date and the exit in one go, which is the only shape that could satisfy the CHECK, runs into GL045: the dates belong to the granting rule and to nobody else. Two rules, neither of them this round''s, and between them the row cannot be repaired by any single statement');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001820'),
+  'pending/' || (select today from gym_today where org_key='A')::text || '..-/0',
+  'r18/malformed/026a: unchanged a third time — the row is sealed, and it was sealed before round eighteen');
+
+select diag(
+  format('r18/malformed OBSERVED sqlstates on the half-dated `pending` row 1820: activate=%s, cancel=%s, cancel-with-date=%s. Round eighteen is not what seals this row — the first two are the Phase 1 CHECK and the third is GL045. Reported, not resolved: OPEN-026 already owns it, and whoever writes the membership-request flow it names should know that after this round a half-dated row has no legal status move left at all.',
+    pg_temp.h22r8_try($q$update public.memberships set status = 'active' where id = '220000ff-0022-4000-8000-600000001820'$q$),
+    pg_temp.h22r8_try($q$update public.memberships set status = 'cancelled', cancelled_at = now() where id = '220000ff-0022-4000-8000-600000001820'$q$),
+    pg_temp.h22r8_try($q$update public.memberships set status = 'cancelled', ends_on = (select today from gym_today where org_key='A') + 30 where id = '220000ff-0022-4000-8000-600000001820'$q$)));
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set status = 'active' where id = '220000ff-0022-4000-8000-600000001821'$q$),
+  'r18/malformed/026b: the MIRROR shape — an ends_on and no starts_on, which is the one ADR-088''s backfill gave a periods_granted it never received. Same refusal');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001821'),
+  'pending/-..' || ((select today from gym_today where org_key='A') + 30)::text || '/0',
+  'r18/malformed/026b: unchanged');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set status = 'cancelled', cancelled_at = now() where id = '220000ff-0022-4000-8000-600000001821'$q$),
+  'r18/malformed/026b: and cannot be cancelled either');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001821'),
+  'pending/-..' || ((select today from gym_today where org_key='A') + 30)::text || '/0',
+  'r18/malformed/026b: unchanged');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000001820', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001822', '220000ff-0022-4000-8000-600000001823', 100000, 'INR', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'r18/malformed/023: OPEN-023''s row — a dateless `pending` membership whose member is ALREADY covered by a live one — takes its money');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001823'),
+  'pending/' || (select today from gym_today where org_key='A')::text || '..' || ((select today from gym_today where org_key='A') + 30)::text || '/1',
+  'r18/malformed/023: MEASURED, not assumed, and sharper than OPEN-023 describes: the rule DATES the row and GRANTS it a period, and declines only the ACTIVATION — the half the live index would refuse. So the member has bought thirty days on a row their own gate reads as `pending` and turns them away from. OPEN-023 calls this "the second keeps its dates and stays pending, which is right today because the member is covered"; the money is what makes it not merely a bookkeeping shape');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set status = 'active' where id = '220000ff-0022-4000-8000-600000001823'$q$),
+  'r18/malformed/023: and it cannot be activated by hand while the member''s other membership is live — refused by `memberships_tenant_id_member_id_live_key`, not by this round''s rule. Asserted through the code-agnostic probe for exactly that reason: `pending -> active` is a legal transition and something else is saying no');
+
+select lives_ok(
+  $$update public.memberships set status = 'cancelled', cancelled_at = now(), cancel_reason = 'h22 r18: the covering membership ends' where id = '220000ff-0022-4000-8000-600000001822'$$,
+  'r18/malformed/023: THE COVERING MEMBERSHIP IS THEN RETIRED, freeing the live index — the exact moment OPEN-023 says the pending row should come into force');
+
+select lives_ok(
+  $$update public.memberships set status = 'active' where id = '220000ff-0022-4000-8000-600000001823'$$,
+  'r18/malformed/023: AND NOW IT CAN BE ACTIVATED BY HAND. This is the permitted-side assertion OPEN-023 hangs on: `pending -> active` is legal, the row has the dates the granting rule gave it, and the index is free. Nothing AUTOMATIC activates it — that is what OPEN-023 is about and this round does not fix it — but the manual repair exists and must not be taken away by a transition rule that treats a long-stale `pending` row as retired');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001823'),
+  'active/' || (select today from gym_today where org_key='A')::text || '..' || ((select today from gym_today where org_key='A') + 30)::text || '/1',
+  'r18/malformed/023: and the member is let in on the thirty days they paid for');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000001821', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001824', '220000ff-0022-4000-8000-600000001824', 100000, 'INR', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'r18/malformed/currency: the fourth shape — rupees arriving against a membership priced in dollars. The rule returns early on a currency mismatch (ADR-089 lists it as one of its five)');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001824'),
+  'pending/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/malformed/currency: so the money is banked and the membership is not activated — dated, paid, and still `pending`');
+
+select lives_ok(
+  $$update public.memberships set status = 'active' where id = '220000ff-0022-4000-8000-600000001824'$$,
+  'r18/malformed/currency: AND THIS ONE IS STILL REPAIRABLE BY HAND. `pending -> active` is legal, the row has both dates so the CHECK is satisfied, and nothing about the mismatched money may stand in the way. This is the permitted-side assertion an over-broad fix breaks — a rule written as "refuse a status move on a row whose periods and money disagree" passes every refusal in this section and seals the one shape that was not sealed');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001824'),
+  'active/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/malformed/currency: and it landed — the member is admitted at the gate again while the gym works out which currency it meant');
+
+-- ---------------------------------------------------------------------------
+-- 25d. MULTI-ROW AND MULTI-STATEMENT. Every defect this phase has shipped
+-- survived the single-row UPDATE and died on one of these, and a state machine
+-- is the worst case of the pattern: the legal move and the illegal one are the
+-- same column, so a rule that evaluates the STATEMENT rather than each row has
+-- a legitimate cancellation to wave the revival through beside it.
+-- ---------------------------------------------------------------------------
+
+select ok(
+  pg_temp.h22r17_gl($q$merge into public.memberships m using (select '220000ff-0022-4000-8000-600000001831'::uuid as id) s on m.id = s.id when matched then update set status = 'active'$q$),
+  'r18/multi/merge: MERGE. Round nine measured this shape landing against an implementation that refused the plain UPDATE, which is why it is asked rather than assumed');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001831'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/multi/merge: unchanged');
+
+select ok(
+  pg_temp.h22r17_gl($q$update public.memberships m set status = v.s, cancelled_at = case when v.s = 'cancelled' then now() else m.cancelled_at end from (values ('220000ff-0022-4000-8000-600000001830'::uuid, 'cancelled'::public.membership_status), ('220000ff-0022-4000-8000-600000001831'::uuid, 'active'::public.membership_status)) as v(id, s) where m.id = v.id$q$),
+  'r18/multi/per-row: ONE STATEMENT, A DIFFERENT TARGET STATUS PER ROW — the first an entirely ordinary cancellation, the second the revival. A rule that reads the statement rather than each row sees a legitimate retirement and lets both through');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001830'),
+  'active/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/multi/per-row: and the LEGITIMATE row did not land either — a statement is refused whole, so the desk is never left unable to tell which half of its edit took');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001831'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/multi/per-row: the revived row is unchanged');
+
+select ok(
+  pg_temp.h22r17_gl($q$update public.memberships set status = 'cancelled', cancelled_at = now(), cancel_reason = 'h22 r18: end of year clear-out' where id in ('220000ff-0022-4000-8000-600000001836', '220000ff-0022-4000-8000-600000001837')$q$),
+  'r18/multi/same-target: ONE TARGET, TWO SOURCES — `active -> cancelled` is legal and `expired -> cancelled` is not, in a single statement with the same SET clause. This is the shape a bulk end-of-year tidy-up actually has, and the discriminator is the source, which a rule keyed on the target alone does not have');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001837'),
+  'active/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/multi/same-target: the legal row is unchanged, because the statement was refused whole');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001836'),
+  'expired/' || ((select today from gym_today where org_key='A') - 40)::text || '..' || ((select today from gym_today where org_key='A') - 10)::text || '/0',
+  'r18/multi/same-target: and the retired row is unchanged');
+
+select ok(
+  pg_temp.h22r17_gl($q$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency) values ('220000ff-0022-4000-8000-600000001835', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001835', '220000ff-0022-4000-8000-400000000001', 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR') on conflict (id) do update set status = excluded.status$q$),
+  'r18/multi/upsert: `INSERT … ON CONFLICT (id) DO UPDATE SET status = excluded.status` — an UPDATE wearing an INSERT''s clothes, and the exact statement shape both seed files use. A rule attached to the UPDATE path by name rather than to the write itself is the plausible way to miss it');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001835'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/multi/upsert: unchanged');
+
+select lives_ok(
+  $$update public.memberships set status = 'frozen' where id = '220000ff-0022-4000-8000-600000001832'$$,
+  'r18/multi/chain: statement one of a chain — the member pauses');
+
+select lives_ok(
+  $$update public.memberships set status = 'cancelled', cancelled_at = now(), cancel_reason = 'h22 r18: paused, then left' where id = '220000ff-0022-4000-8000-600000001832'$$,
+  'r18/multi/chain: statement two — they do not come back and the gym retires it. `frozen -> cancelled` is legal');
+
+select ok(
+  pg_temp.h22r17_gl($q$update public.memberships set status = 'active', cancelled_at = null, cancel_reason = null where id = '220000ff-0022-4000-8000-600000001832'$q$),
+  'r18/multi/chain: statement three is REFUSED. Three statements, one transaction: a rule that compares against the status the row held when the transaction opened sees `active` here and waves it through. The comparison has to be against the row as it now stands');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001832'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/multi/chain: and it is still cancelled');
+
+select lives_ok(
+  $$update public.memberships set status = 'cancelled', cancelled_at = now(), cancel_reason = 'h22 r18: two-statement probe' where id = '220000ff-0022-4000-8000-600000001834'$$,
+  'r18/multi/two-statement: the same seam at its shortest — one legal retirement');
+
+select ok(
+  pg_temp.h22r17_gl($q$update public.memberships set status = 'frozen' where id = '220000ff-0022-4000-8000-600000001834'$q$),
+  'r18/multi/two-statement: and `cancelled -> frozen` immediately after is refused. `frozen` is the OTHER member of the live partial unique index, so a rule that guards only the revival to `active` leaves a second door into the same live set — and a frozen membership is admitted at the gate exactly as an active one is');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001834'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/multi/two-statement: unchanged');
+
+select lives_ok(
+  $$with p as (insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id) values ('220000ff-0022-4000-8000-700000001830', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001839', '220000ff-0022-4000-8000-600000001839', 100000, 'INR', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001') returning membership_id) update public.memberships set status = 'cancelled', cancelled_at = now(), cancel_reason = 'h22 r18: paid the arrears and left in the same breath' where id in (select membership_id from p)$$,
+  'r18/multi/cte-legal: THE PERMITTED HALF OF THE SAME SHAPE — a data-modifying CTE that takes a payment and cancels the membership in one statement, both legal. The refusals in 25b are about which transition, not about the shape, and without this one they could be satisfied by a build that refuses every CTE that touches both tables');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001839'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/multi/cte-legal: and BOTH halves landed — but the money BOUGHT NOTHING. MEASURED, and staged rather than sided: the extension runs from an AFTER STATEMENT trigger, so by the time it looks at the membership the same statement has already cancelled it, and round thirteen''s rule correctly refuses to extend a retired row. Rs.1,000 banked, receipt issued, zero days granted, one statement, no error. Reported below');
+
+select ok(
+  exists (select 1 from public.payments where id = '220000ff-0022-4000-8000-700000001830'::uuid and receipt_number is not null),
+  'r18/multi/cte-legal: and the payment is really there with its receipt — which is what makes the line above a finding rather than a rollback');
+
+select diag(
+  'r18/multi/cte-legal REPORTED, not resolved: a single statement that takes a payment and cancels the membership in the same breath banks the money, issues the receipt and grants no period, because the statement-level extension trigger sees the row as already retired. Both halves are legal and neither rule is wrong; the ORDER is what nobody specified. It is the same money-strands-silently shape the membership-lifecycle spec''s second requirement answers for a payment named against an already-retired membership, arriving by a route that requirement does not describe — the membership was live when the desk started typing. Reachable only by a hand-written CTE today, which is why it is staged here rather than sided.');
+
+-- ---------------------------------------------------------------------------
+-- 25e. ROLES, TRUSTED CONTEXTS, AND THE SEED. `supabase/seed-scenarios.sql`
+-- builds Sunita Bhosale's lapsed membership and Imran Sheikh's cancelled one
+-- by writing `expired` and `cancelled` straight onto the row, and
+-- `.github/workflows/db.yml`'s `seed-dry-run` runs seed.sql and
+-- seed-scenarios.sql inside ONE transaction against the Cloud project where
+-- `seed.yml` has already committed both — so on every CI run those writes
+-- arrive as the `on conflict (id) do update set status = excluded.status` half
+-- of an upsert, with the value unchanged. This project has turned that job red
+-- on a rule written days earlier twice.
+--
+-- The answer, measured rather than hoped: the seed needs NO change and the
+-- rule needs NO role carve-out. The seed only ever CREATES a terminal status
+-- or writes one back to itself, and this requirement permits both — the
+-- self-write by name, the creation by silence. Both halves are asserted below
+-- in the seed's own statement shape rather than a paraphrase of it.
+--
+-- The carve-out is then refused on ADR-082's distinction, drawn here the way
+-- 20c draws it: a trusted-caller carve-out is sound where the rule's subject
+-- is an IDENTITY a trusted caller legitimately lacks (GL046 — which staff role
+-- you are), and unsound where the subject is the DATA (GL036's ceiling, GL045's
+-- dates). Which status may follow which is a fact about the row. So claimless
+-- `postgres`, `service_role`, a gym owner and a gym manager are each refused a
+-- revival, and the seed keeps working anyway, which is the whole argument.
+--
+-- The pair that matters most is the one with the trigger disabled. Both seed
+-- files wrap their membership upserts in `alter table public.memberships
+-- disable trigger memberships_terms_frozen`. A rule folded into THAT trigger
+-- would be silently off for the entire seed, and would pass every other
+-- assertion in this section.
+-- ---------------------------------------------------------------------------
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+select is(
+  pg_temp.h22r17_state($$alter table public.memberships disable trigger memberships_terms_frozen$$),
+  'OK',
+  'r18/seed: the seed''s own preamble — both seed files disable `memberships_terms_frozen` around their membership upserts, so everything below runs in exactly the arrangement CI runs it in, not an approximation of it');
+
+select is(
+  pg_temp.h22r17_state($$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+      values ('220000ff-0022-4000-8000-600000001840', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001840', '220000ff-0022-4000-8000-400000000001', 'cancelled', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR')
+      on conflict (id) do update set
+        status      = excluded.status,
+        starts_on   = excluded.starts_on,
+        ends_on     = excluded.ends_on,
+        price_paise = excluded.price_paise,
+        currency    = excluded.currency$$),
+  'OK',
+  'r18/seed: THE SEED''S RE-RUN PATH ON A CANCELLED ROW. `cancelled -> cancelled` reaches the trigger as an ordinary UPDATE with OLD.status = NEW.status, and the requirement settles it by name — "a status written back to itself is allowed, it changes nothing". A rule that refuses every write whose NEW.status is terminal turns `seed-dry-run` red on the next push and the failure reads like a seed bug');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001840'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/seed: and the row converged rather than moved, which is the property the whole seed is built around');
+
+select is(
+  pg_temp.h22r17_state($$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+      values ('220000ff-0022-4000-8000-600000001841', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001841', '220000ff-0022-4000-8000-400000000001', 'expired', (select today from gym_today where org_key='A') - 40, (select today from gym_today where org_key='A') - 10, 100000, 'INR')
+      on conflict (id) do update set
+        status      = excluded.status,
+        starts_on   = excluded.starts_on,
+        ends_on     = excluded.ends_on,
+        price_paise = excluded.price_paise,
+        currency    = excluded.currency$$),
+  'OK',
+  'r18/seed: the same on the LAPSED row — the fixture the whole retention loop is demonstrated on. `expired -> expired`');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001841'),
+  'expired/' || ((select today from gym_today where org_key='A') - 40)::text || '..' || ((select today from gym_today where org_key='A') - 10)::text || '/0',
+  'r18/seed: converged');
+
+select is(
+  pg_temp.h22r17_state($$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+      values ('220000ff-0022-4000-8000-600000001845', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001845', '220000ff-0022-4000-8000-400000000001', 'cancelled', (select today from gym_today where org_key='A') - 20, (select today from gym_today where org_key='A') - 5, 100000, 'INR')$$),
+  'OK',
+  'r18/seed/create: THE FRESH-PROJECT PATH. On a database that has never been seeded the same statement is a plain INSERT, and a membership is CREATED already cancelled. The requirement is about a status that CHANGES and says nothing about one that is born — so this has to stay permitted, and if it is not, `seed-dry-run` goes red the first time somebody restores the project from scratch rather than on the next push, which is worse');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001845'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 20)::text || '..' || ((select today from gym_today where org_key='A') - 5)::text || '/0',
+  'r18/seed/create: and it is really there, cancelled from birth');
+
+select is(
+  pg_temp.h22r17_state($$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+      values ('220000ff-0022-4000-8000-600000001846', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001846', '220000ff-0022-4000-8000-400000000001', 'expired', (select today from gym_today where org_key='A') - 70, (select today from gym_today where org_key='A') - 40, 100000, 'INR')$$),
+  'OK',
+  'r18/seed/create: born `expired` — literally seed-scenarios.sql''s row 102, offsets and all');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001846'),
+  'expired/' || ((select today from gym_today where org_key='A') - 70)::text || '..' || ((select today from gym_today where org_key='A') - 40)::text || '/0',
+  'r18/seed/create: there');
+
+select is(
+  pg_temp.h22r17_state($$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+      values ('220000ff-0022-4000-8000-600000001847', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001847', '220000ff-0022-4000-8000-400000000001', 'frozen', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 20, 100000, 'INR')$$),
+  'OK',
+  'r18/seed/create: and born `frozen` — seed-scenarios.sql''s row 101, Deepak Rane, whose paused membership the pause-decision battery is built on. Three statuses no transition reaches from nothing, all three created directly, all three permitted');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001847'),
+  'frozen/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 20)::text || '/0',
+  'r18/seed/create: there');
+
+select ok(
+  pg_temp.h22r17_gl($q$update public.memberships set status = 'active', cancelled_at = null, cancel_reason = null where id = '220000ff-0022-4000-8000-600000001849'$q$),
+  'r18/seed/disabled-trigger: AND THE REVIVAL IS STILL REFUSED WITH `memberships_terms_frozen` DISABLED. This is the assertion that decides whether the seed can accidentally switch the rule off. Folding a fourth guard into the trigger both seed files already turn off would leave `memberships.status` unpoliced for the whole of `seed.yml` and the whole of `seed-dry-run`, and every other assertion in this section would still pass');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001849'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/seed/disabled-trigger: unchanged');
+
+select is(
+  pg_temp.h22r17_state($$alter table public.memberships enable trigger memberships_terms_frozen$$),
+  'OK',
+  'r18/seed: and the trigger is put back, exactly as both seed files put it back');
+
+select ok(
+  pg_temp.h22r17_gl($q$update public.memberships set status = 'active', cancelled_at = null, cancel_reason = null where id = '220000ff-0022-4000-8000-600000001842'$q$),
+  'r18/role/no-claim: a session with NO JWT claim at all — `postgres`, the CLI, the seed itself — is refused the revival. SIDED, on ADR-082 as 20c reads it: carve out where the subject is an identity the caller lacks, do not where the subject is the data. Which status may follow which is a fact about the row, and the seed is proved above not to need the exemption');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001842'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/role/no-claim: unchanged');
+
+select set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+set local role service_role;
+
+select ok(
+  pg_temp.h22r17_gl($q$update public.memberships set status = 'active', cancelled_at = null, cancel_reason = null where id = '220000ff-0022-4000-8000-600000001843'$q$),
+  'r18/role/service_role: the Razorpay webhook''s role is refused it too. 19g already draws this line for GL045 — a hand-written date from service_role IS refused — and a revival is the same kind of fact');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001843'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/role/service_role: unchanged');
+
+set local role postgres;
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'gym_owner',
+                     'staff_id', '220000ff-0022-4000-8000-300000000002')::text,
+  true
+);
+set local role authenticated;
+
+select ok(
+  pg_temp.h22r17_gl($q$update public.memberships set status = 'active', cancelled_at = null, cancel_reason = null where id = '220000ff-0022-4000-8000-600000001844'$q$),
+  'r18/role/owner: and the GYM OWNER is refused. The requirement says "any session" and means it — this is not a permission that a senior enough person may exercise, it is a move the data does not have. Every other rule in this phase that turned out to be about seniority (GL046) says so in its own words; this one does not');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001844'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/role/owner: unchanged');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'gym_manager',
+                     'staff_id', '220000ff-0022-4000-8000-300000000002')::text,
+  true
+);
+
+select ok(
+  pg_temp.h22r17_gl($q$update public.memberships set status = 'active', cancelled_at = null, cancel_reason = null where id = '220000ff-0022-4000-8000-600000001848'$q$),
+  'r18/role/manager: and a manager. The critic''s measurement was taken from a front desk, and a fix aimed at the desk that leaves the roles above it able to revive has closed nothing — the console''s own repair flows run as a manager');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001848'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/role/manager: unchanged');
+
+select diag(
+  'r18/seed REPORTED, not resolved: creation is not a transition and the requirement never says so. Every sentence in it governs a status that CHANGES, and the three assertions above create memberships directly at `cancelled`, `expired` and `frozen` with nothing raised — which is what the seed''s fresh-project path does and what this file''s own fixture block does thirty times. It has to stay permitted, so nothing here argues otherwise; but "terminal" currently means "no transition reaches it and none leaves it", not "the database will not hold one that was never alive". OPEN-029 already records that creation is unpoliced for dates. Same door, one column over.');
+
+-- ---------------------------------------------------------------------------
+-- 25f. THE GATE (ADR-084), AND THE ONE-WAY DOOR THIS REQUIREMENT BUILDS.
+-- `app.enforce_check_in()` admits `active` and `frozen` and nothing else, so
+-- every transition in the table is felt by a member at a door. Asserted as a
+-- refused check-in rather than as a status column, because the column is what
+-- three rounds of this phase have already proved can read one thing while the
+-- member experiences another.
+--
+-- The second half of this subsection is the finding. The requirement's Purpose
+-- names "a live membership written to `expired`" as one of its two silent
+-- failures; its first requirement then retracts that in prose ("retiring a
+-- membership early is not the defect") and its second scenario permits exactly
+-- it. Both readings can be right — but only the retraction survives the
+-- change, because making retirement terminal converts that write from a
+-- reversible mistake into an irreversible one. Measured at the door.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+
+select throws_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-200000000001', '220000ff-0022-4000-8000-500000001850', '220000ff-0022-4000-8000-600000001850', now(), 'qr', '220000ff-0022-4000-8000-900000001801')$$,
+  null::char(5), null,
+  'r18/gate: a cancelled membership with ten days left on its dates does not admit its member');
+
+select ok(
+  pg_temp.h22r17_gl($q$update public.memberships set status = 'active', cancelled_at = null, cancel_reason = null where id = '220000ff-0022-4000-8000-600000001850'$q$),
+  'r18/gate: and the one statement that would let them in is refused. This is the critic''s measurement, taken at the place the member stands rather than at the column');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001850'),
+  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/gate: status unchanged');
+
+select throws_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-200000000001', '220000ff-0022-4000-8000-500000001850', '220000ff-0022-4000-8000-600000001850', now(), 'qr', '220000ff-0022-4000-8000-900000001801')$$,
+  null::char(5), null,
+  'r18/gate: and they are still refused afterwards — the consequence, not the column. A build that refuses the UPDATE and admits them anyway has not closed anything, and a build that raises a code nobody maps has closed it in a way the desk cannot explain');
+
+select lives_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-200000000001', '220000ff-0022-4000-8000-500000001854', '220000ff-0022-4000-8000-600000001854', now(), 'qr', '220000ff-0022-4000-8000-900000001801')$$,
+  'r18/gate/control: a member on a live membership walks through the SAME QR session — the refusal above is the status, not the fixture');
+
+select lives_ok(
+  $$update public.memberships set status = 'frozen' where id = '220000ff-0022-4000-8000-600000001851'$$,
+  'r18/gate/pause: they then go on a pause. `active -> frozen`');
+
+select lives_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-200000000001', '220000ff-0022-4000-8000-500000001851', '220000ff-0022-4000-8000-600000001851', now(), 'qr', '220000ff-0022-4000-8000-900000001801')$$,
+  'r18/gate/pause: and are STILL admitted, because the gate reads `frozen` as live. A fix that treats everything-but-active as retired closes this door on a paying member mid-pause, and the pause-decision battery one file over is built entirely on this status');
+
+select lives_ok(
+  $$update public.memberships set status = 'active' where id = '220000ff-0022-4000-8000-600000001851'$$,
+  'r18/gate/pause: and back. `frozen -> active` in both directions, which is the one round trip the transition table has');
+
+select lives_ok(
+  $$update public.memberships set status = 'expired' where id = '220000ff-0022-4000-8000-600000001852'$$,
+  'r18/door: THE ONE-WAY DOOR OPENS. An ordinary FRONT-DESK session writes `expired` onto a membership live for another ten days, in one statement, with nothing raised. Legal — the requirement''s second scenario permits it by name and its prose insists that retiring early is not the defect');
+
+select throws_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-200000000001', '220000ff-0022-4000-8000-500000001852', '220000ff-0022-4000-8000-600000001852', now(), 'qr', '220000ff-0022-4000-8000-900000001801')$$,
+  null::char(5), null,
+  'r18/door: and the member is refused at the door from that moment, with ten days of paid-for time still on the row');
+
+select ok(
+  pg_temp.h22r17_gl($q$update public.memberships set status = 'active' where id = '220000ff-0022-4000-8000-600000001852'$q$),
+  'r18/door: and it cannot be undone. Before this round the desk''s mistake was one statement away from repair; after it, the same mistake is permanent. The requirement''s own Purpose names this write as a silent failure and its requirement retracts the naming — both are defensible, but only one of them survives making retirement terminal, and it is worth saying which');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001852'),
+  'expired/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/door: status unchanged, and the dates still say the member has ten days');
+
+select ok(
+  pg_temp.h22r17_gl($q$update public.memberships set status = 'frozen' where id = '220000ff-0022-4000-8000-600000001852'$q$),
+  'r18/door: nor by the side entrance — `expired -> frozen` puts the row back inside the live index and the gate just as `active` would, and a rule that guards only the obvious target leaves this one open');
+
+select is(
+  pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001852'),
+  'expired/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r18/door: unchanged');
+
+select lives_ok(
+  $$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+    values ('220000ff-0022-4000-8000-600000001853', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000001852', '220000ff-0022-4000-8000-400000000001', 'active', (select today from gym_today where org_key='A'), (select today from gym_today where org_key='A') + 30, 100000, 'INR')$$,
+  'r18/door/repair: THE REPAIR THAT DOES EXIST — the same member is sold a NEW membership, which the live index now permits precisely because the old row was retired. This is what bounds the harm, and it must keep working or "terminal" becomes "the member is finished"');
+
+select lives_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-200000000001', '220000ff-0022-4000-8000-500000001852', '220000ff-0022-4000-8000-600000001853', now(), 'qr', '220000ff-0022-4000-8000-900000001801')$$,
+  'r18/door/repair: and they walk through the gate again on it. So the residue of the one-way door is a lost ROW — its dates, its periods and any money attached to it — and not a lost member');
+
+select diag(
+  'r18/door REPORTED: `active -> expired` from a front desk, in one statement, on a membership live for another ten days, is legal by this requirement and irreversible after it. The Purpose paragraph names that exact write as one of the two silent failures the change exists to stop; the requirement body retracts the naming and the second scenario permits it. The retraction is the reading this section tests, because the alternative — refusing early retirement — would refuse the cancellation half of the repair path this codebase prescribes for every mis-sold membership. What changes is the cost of the mistake: the money and dates on the retired row are now unreachable (25a''s answer is refund and re-take, which needs a payment to have been recorded, and an early `expired` write strands the DATES rather than money). Worth an explicit decision rather than an inherited one, and it is not a decision this file can make.');
 set local role postgres;
 select * from finish();
 

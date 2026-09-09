@@ -1026,9 +1026,10 @@ select o.id as tenant_id, (now() at time zone o.timezone)::date as today
 
 -- Members of gym A, one per interaction this addendum targets:
 --   ...101 -- frozen status, dates genuinely live (frozen is live, but only
---            when the dates say so too). Also holds a SECOND, long-lapsed
---            membership (...206) used far below to move them off the live
---            one without editing a date -- see the note there.
+--            when the dates say so too). Gains a SECOND, long-lapsed
+--            membership (...206) in the closing section, where it is CREATED
+--            rather than declared here -- see the note there for why it
+--            cannot be created until this one has been cancelled.
 --   ...102 -- frozen status, dates lapsed long ago (ADR-075's exact case,
 --            restated for `frozen` instead of `active`)
 --   ...103 -- TWO memberships: one long-cancelled with lapsed dates, one
@@ -1071,18 +1072,14 @@ values ('cafe1600-0000-4000-8000-000000000201', 'aa000016-0000-4000-8000-0000000
         date '2030-01-01', 100000),
        ('cafe1600-0000-4000-8000-000000000207', 'aa000016-0000-4000-8000-000000000001',
         'cafe1600-0000-4000-8000-000000000106', 'aa000016-0000-4000-8000-000000000025',
-        'frozen', date '2020-01-01', date '2030-01-01', 100000),
-       -- ...101's second membership, ended YESTERDAY in gym A's own day and
-       -- CREATED that way rather than edited into it: creation is the one door
-       -- the date rule leaves open (recorded as OPEN-029, deliberately), and
-       -- `expired` is not a live status, so it does not collide with ...201's
-       -- `frozen` under the partial unique key the assertions above pin. It
-       -- sits inert until the closing section, which moves the member onto it.
-       ('cafe1600-0000-4000-8000-000000000206', 'aa000016-0000-4000-8000-000000000001',
-        'cafe1600-0000-4000-8000-000000000101', 'aa000016-0000-4000-8000-000000000025',
-        'expired', date '2020-01-01',
-        (select today - 1 from h16c_today where tenant_id = 'aa000016-0000-4000-8000-000000000001'),
-        100000);
+        'frozen', date '2020-01-01', date '2030-01-01', 100000);
+
+-- ...101's second membership (...206) is NOT declared here. It has to be
+-- `active` -- a live status -- with dates already behind today, and while
+-- ...201 is still `frozen` the partial unique key over the live statuses
+-- (pinned by the assertions far above) refuses a second live membership for
+-- the same member. So it is created in the closing section, after ...201 has
+-- been cancelled, as an assertion in its own right.
 
 -- An approved pause on ...207, covering today. Nothing in the rewritten
 -- requirement mentions membership_pauses at all -- it is checked here purely
@@ -1230,10 +1227,43 @@ select is(
   row(timestamptz '2026-05-10 06:00:00+05:30', 'cafe1600-0000-4000-8000-000000000201'::uuid)::text,
   'The visit recorded while the membership was live is untouched by the later change -- a membership ceasing to be live after the fact does not retroactively rewrite or void the attendance row that cited it while it was');
 
+-- ...101's second membership, CREATED here in the state it is needed in.
+--
+-- READ THIS BEFORE TURNING IT BACK INTO AN UPDATE. Until 2026-09-13 this line
+-- reached the same state by reviving a retirement: ...206 was declared
+-- `expired` up in the fixture block and this statement was
+-- `update memberships set status = 'active' where id = ...206`. That route is
+-- refused from every session as of `GL047`: `expired` and `cancelled` are
+-- terminal and nothing comes back out of them, which is the whole point of
+-- the rule -- a critic had walked a retired membership back to life from an
+-- ordinary front-desk session in exactly that one statement. Putting the
+-- update back turns this line red on a `memberships` rule, the same way the
+-- `ends_on` edit two assertions up did, and proves nothing about this gate.
+--
+-- Creation is the door that stays open, deliberately (OPEN-029): no rule
+-- judges the status a membership is BORN in, and `supabase/seed.sql` builds
+-- its own lapsed fixtures this way. The alternatives were weighed and lost.
+-- `app.grant_periods()` only ever moves `ends_on` FORWARD, so the granting
+-- rule cannot manufacture a past end date at all. A direct `ends_on` edit is
+-- `GL045`, which the assertion two lines up already pins. And a SECOND MEMBER
+-- would reach the same status/date combination while throwing away the
+-- property the NEXT assertion actually rests on -- that this is the SAME
+-- member whose earlier visit still stands, judged fresh on the entitlement as
+-- it stands now. The member is load-bearing; the route was not.
+--
+-- It also has to come after ...201's cancellation rather than before it:
+-- `active` is a live status, and a second live membership for one member is
+-- refused by the partial unique key the assertions far above pin.
 select lives_ok(
-  $$update public.memberships set status = 'active'
-   where id = 'cafe1600-0000-4000-8000-000000000206'$$,
-  'And the member is moved ONTO their long-lapsed membership by that same ordinary route -- its status is a live one again while its dates ended yesterday in the gym''s own day. This reconstructs exactly the state the old `ends_on` edit produced (one live-STATUS membership whose dates are behind today) without a date being written anywhere');
+  $$insert into public.memberships (id, tenant_id, member_id, plan_id, status,
+                                    starts_on, ends_on, price_paise)
+    values ('cafe1600-0000-4000-8000-000000000206', 'aa000016-0000-4000-8000-000000000001',
+            'cafe1600-0000-4000-8000-000000000101', 'aa000016-0000-4000-8000-000000000025',
+            'active', date '2020-01-01',
+            (select today - 1 from h16c_today
+              where tenant_id = 'aa000016-0000-4000-8000-000000000001'),
+            100000)$$,
+  'And the member is moved ONTO a long-lapsed membership -- one created with a LIVE status and dates that ended yesterday in the gym''s own day, since nothing judges the status a membership is born in (OPEN-029) even though GL047 now forbids reaching that status from a retirement. This reconstructs exactly the state the old `ends_on` edit produced, and the revival that replaced it produced (one live-STATUS membership whose dates are behind today), by the only route the rules still permit -- and if creation is ever governed too, this line goes red first and says so');
 
 select throws_ok(
   $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
