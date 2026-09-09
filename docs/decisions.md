@@ -473,6 +473,23 @@ Written as an explicit edge list rather than a deny-list, for the reason its pay
 
 **And it forced a decision ADR-096 had deferred without knowing it.** ADR-096 kept money paid against a retired membership on record *because a revival might yet count it*. Retirement is now terminal, so that revival never comes and the money would strand — the harm ADR-096 named. The answer is not to refuse the payment: a manual payment is cash already in the drawer before any row is written. It is that the payment stays a complete, refundable record, and the remedy is a refund plus a payment against a live membership. Both requirements sit in one change so neither can drift from the other.
 
+**ADR-109 - The browser verification for the three membership migrations, and what it left behind.** Three migrations changed money-path triggers on `memberships` — a function body restored, `GL042` reordered, a trigger renamed — and none of them had been exercised through the product. Done at the desk in a real browser session against the demo gym, on membership `00000006-…-0001` (Aarav Deshpande, 30-day plan at ₹1,500):
+
+| | before | after |
+|---|---|---|
+| `paid` payments | 1 | 2 |
+| `periods_granted` | 1 | 2 |
+| `ends_on` | 2026-09-09 | 2026-10-10 |
+| receipt | — | `2026-27/000006` |
+| attributed to | — | the signed-in staff, from the JWT claim rather than the form |
+| `member_id` | unchanged | unchanged |
+
+**Exactly one period for one period's money**, dated from `greatest(ends_on, today)` because the membership had lapsed the day before — which is the arithmetic ADR-093 specified and the first time it has been seen through the product since the migrations landed.
+
+**What the session left, swept and recorded rather than claimed clean.** ADR-095 is a "cleaned up and verified" that had swept three of six tables and missed an approved pause which then removed a member from churn detection. So all seven tables a desk session can write were counted for rows created in the window: **`payments` 1, everything else 0** — `refunds`, `memberships`, `attendance`, `qr_sessions`, `membership_pauses`, `members` all zero.
+
+**The one row stays, deliberately.** It is a renewal — legitimate, in-product demo state, and arguably better demo data than a ledger whose newest payment is months old. Reverting it would mean deleting a `paid` payment and rolling back `periods_granted` and `ends_on`, all three of which the freezes refuse below `pg_trigger_depth() >= 2`; doing it would require disabling money-path triggers as the table owner, **which is a larger and riskier act than the row itself.** It is recorded here so the next person to read the demo data knows why Aarav has two payments and runs to October.
+
 **ADR-108 - GO, on the ninth round, and the closing argument is a route nobody had attacked.** Every round from the second onward attacked UPDATE forms. `GL042` lives in the UPDATE branch of `app.enforce_membership_terms_frozen()`; its INSERT branch checks only `periods_granted = 0`. So the obvious unexamined route is **DELETE then re-INSERT at the same `id` with a different `member_id`** — which lands the named harm exactly: the payment still names membership X and member A, and membership X now belongs to B. `service_role`, which every round has counted as an in-force session, holds `DELETE` and `TRUNCATE` on `memberships` where `authenticated` holds only INSERT, SELECT and UPDATE.
 
 **It is closed, and by the foreign keys rather than by any rule.** `payments_membership_id_fkey` is `NO ACTION` and not deferrable, so no membership a receipt names can be deleted at all:
