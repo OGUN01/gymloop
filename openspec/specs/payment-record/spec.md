@@ -260,13 +260,23 @@ WHEN a session that this rule is in force for changes a membership's
 
 **Two sessions it is not in force for, both disclosed rather than discovered:** a
 session whose tenant claim does not match never reaches the row (the policy's
-`USING` filters it — `UPDATE 0`, no exception, nothing moved), and **a session with owner rights on the table can switch this rule off
-altogether** — the seed does exactly that with `alter table … disable trigger`
-around its own statements, and `set session_replication_role = 'replica'` is the
-same privilege by another route; inside either, a membership genuinely can be
-re-pointed. Both are closed to every application role: `authenticated`,
-`service_role` and `anon` all get `42501` on the second, and none can disable a
-trigger. Measured, both. Neither is a hole — one
+`USING` filters it — `UPDATE 0`, no exception, nothing moved), and **two privileges above the application can switch this rule off
+altogether**, and they are separate privileges rather than one by two routes.
+`alter table … disable trigger` needs **ownership of the table**, which is what
+the seed uses around its own statements. `set session_replication_role =
+'replica'` disables user triggers wholesale and needs **superuser class** —
+`pg_settings.context` is `superuser` and no role has been granted `SET` on it.
+Measured on a role created solely to own `public.memberships`: it could disable
+the trigger and was refused the GUC with `42501`. Inside either, a membership
+genuinely can be re-pointed.
+
+Both are closed to every application role — `authenticated`, `service_role` and
+`anon` are each refused `42501` on the GUC and `42501 must be owner of table
+memberships` on the trigger — so neither leaks here. An earlier draft called them
+"the same privilege by another route" and attached "Measured, both" to an
+equivalence that had not been measured; a reader auditing *who can turn this rule
+off* would have taken `relowner` for the predicate, which is wrong in both
+directions. Measured, both. Neither is a hole — one
 changes nothing and the other is the fixture builder — but three drafts said
 "any session" and a fourth said "a session that can see it", and the seed can
 see it.
@@ -306,10 +316,18 @@ member who already owns it is permitted outright, because `GL042` fires on
 **"That can see it" replaces "any", because two kinds of session are not
 refused** and both are recorded above: a session whose tenant claim does not
 match never reaches the row at all — the policy's `USING` filters it, giving
-`UPDATE 0` and no exception — and the seed disables this rule's trigger around
-its own statements. Neither can move a membership, so neither is a hole; but the
+`UPDATE 0` and no exception — and a session holding either privilege above the
+application, of which the seed's `disable trigger` window is the instance this
+codebase actually uses. The first cannot move a membership; **the second can**,
+measured, which is why the disclosure above is written as a class and why an
+earlier draft's "neither can" was false. Neither is a hole — one changes nothing
+and the other is the fixture builder running as the table's owner — but the
 scenario said "any" while an assertion in the visible suite proves a wrong-tenant
 session raises nothing, and a spec-first author derives from the scenario.
+
+**This note also said "the seed" after the paragraph it restates had been widened
+to the class** — a restatement narrower than its source, which is the failure
+mode ADR-106 named, one paragraph from where ADR-106 is cited.
 
 **And it SHALL be this rule that answers, not another one the same statement
 also violates.** A statement that re-points a membership AND writes a length is
