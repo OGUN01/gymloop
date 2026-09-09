@@ -305,36 +305,61 @@ asserted the general form — re-pointing *and* typing a period count, re-pointi
 *and* re-dating — and measured both answering with the other rule. The
 implementation checked ownership third, after the two depth-gated invariants.
 
-**So the order is decided here, for all four absolutes, rather than left to
-whichever clause a migration happened to type first:**
+**So exactly one thing is decided here: `GL042` answers ahead of every other
+rule that can refuse the same statement** — `GL043`, `GL044`, `GL045`, `GL046`
+and `GL047` alike. It is the only rule among them about **whose** membership
+this is; every other one is about what may be done to a membership already
+agreed to be yours. A caller acts on the message, and "take the money and the
+dates follow", "change the plan instead" and "a membership does not go from
+cancelled to active" are all advice for somebody working on their own member's
+membership. The repair differs too: the others are answered by taking a payment
+or by asking a manager, `GL042` only by a refund, a cancellation and a new sale.
 
-1. `GL042` — *whose* membership this is.
-2. `GL044` — how many periods it has been granted.
-3. `GL045` — what dates it runs between.
-4. `GL043` — how long a period is, and the terms money has frozen.
+**The order among the rest is deliberately not decided.** An earlier draft of
+this paragraph numbered all four absolutes 1 to 4 and then said four lines later
+that the order among 2, 3 and 4 was not claimed — a critic pointed out that a
+numbered list *is* a claim, and that an implementer reading this file alone
+would take `GL044`-before-`GL045` as contract. They are a set, not a sequence.
+`GL046` stays last of the set for the reason already recorded: an absolute beats
+a permission, and answering the permission would imply a gym admin could do it.
 
-`GL042` is first because it is the only one of the four about **whose**
-membership this is; the other three are about what may be typed onto a
-membership already agreed to be yours. A caller re-pointing a membership acts on
-the message, and "take the money and the dates follow" is advice for somebody
-extending their own member's membership, not for somebody moving one to a
-different person. The repair differs too: `GL044` and `GL045` are answered by
-taking a payment, `GL042` only by a refund, a cancellation and a new sale.
-
-`GL046`, the one permission in the family, stays last for the reason already
-recorded: an absolute beats a permission, and answering the permission would
-imply a gym admin could do it.
-
-**The order among 2, 3 and 4 is not asserted and is not claimed.** No scenario
-requires it, and writing it down would be deciding something nothing has asked.
+**`GL047` is in that set, and putting it there took a trigger rename rather than
+a clause move.** `GL047` lives in `memberships_status_transitions`, its own
+trigger — deliberately, because both seed files disable the terms trigger and
+folding it in would have left it silently off for the whole seed (ADR-098).
+Postgres fires same-timing row triggers **in trigger-name order**, and
+`memberships_status_transitions` sorts before `memberships_terms_frozen`, so
+`GL047` answered ahead of all five rules in that function. Measured: re-pointing
+a `cancelled` membership and reviving it in one statement answered `GL047` where
+this requirement says `GL042`. No reordering of clauses inside the function
+could ever have reached it. The trigger is renamed to sort after the terms
+trigger, which keeps the property that made it separate.
 
 #### Scenario: Re-pointing a membership and re-lengthening it in one statement
 - **WHEN** one statement changes a membership's `member_id` and its `duration_days`
 - **THEN** it SHALL be refused with the `member_id` rule, not the length rule
 
 #### Scenario: Re-pointing a membership and typing anything else in the same statement
-- **WHEN** one statement changes a membership's `member_id` and also its `periods_granted`, its dates, or its price
-- **THEN** it SHALL be refused with the `member_id` rule in every case
+- **WHEN** one statement changes a membership's `member_id` and also its `periods_granted`, its dates, its price, or its status
+- **AND** the member it is being pointed at holds no live membership
+- **THEN** it SHALL be refused with the `member_id` rule
+
+**That second condition is not decoration, and it describes the *likely* case
+rather than an edge one.** You re-point a membership because two members were
+mixed up, and the other member normally has a membership of their own — in which
+case `memberships_tenant_id_member_id_live_key` refuses the statement with
+`23505` during the UPDATE itself, before any AFTER trigger runs. No rule
+ordering can change that, because an index is not a rule.
+
+An earlier draft of this scenario said "in every case", and both suites were
+green on it only because both authors had deliberately arranged targets holding
+nothing — the fixture note the requirement itself gives them. The assertions
+were honest and the sentence above them was not. It is recorded here so that
+nobody writes a handler that expects `GL042` and gets `23505`.
+
+#### Scenario: Re-pointing onto a member who already has a membership
+- **WHEN** one statement points a membership at a member who already holds a live one
+- **THEN** it SHALL be refused by the live-membership index with `23505`, and the membership SHALL be unchanged
 
 #### Scenario: Selling a member a second membership
 - **WHEN** a member's membership is cancelled and a new one is sold to the same member
