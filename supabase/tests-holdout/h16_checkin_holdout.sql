@@ -28,7 +28,7 @@ begin;
 -- holds BYPASSRLS, is assumed explicitly rather than inherited.
 set local role postgres;
 
-select plan(64);
+select plan(66);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Two gyms whose de-duplication windows are DIFFERENT and NEITHER of
@@ -1026,7 +1026,9 @@ select o.id as tenant_id, (now() at time zone o.timezone)::date as today
 
 -- Members of gym A, one per interaction this addendum targets:
 --   ...101 -- frozen status, dates genuinely live (frozen is live, but only
---            when the dates say so too)
+--            when the dates say so too). Also holds a SECOND, long-lapsed
+--            membership (...206) used far below to move them off the live
+--            one without editing a date -- see the note there.
 --   ...102 -- frozen status, dates lapsed long ago (ADR-075's exact case,
 --            restated for `frozen` instead of `active`)
 --   ...103 -- TWO memberships: one long-cancelled with lapsed dates, one
@@ -1069,7 +1071,18 @@ values ('cafe1600-0000-4000-8000-000000000201', 'aa000016-0000-4000-8000-0000000
         date '2030-01-01', 100000),
        ('cafe1600-0000-4000-8000-000000000207', 'aa000016-0000-4000-8000-000000000001',
         'cafe1600-0000-4000-8000-000000000106', 'aa000016-0000-4000-8000-000000000025',
-        'frozen', date '2020-01-01', date '2030-01-01', 100000);
+        'frozen', date '2020-01-01', date '2030-01-01', 100000),
+       -- ...101's second membership, ended YESTERDAY in gym A's own day and
+       -- CREATED that way rather than edited into it: creation is the one door
+       -- the date rule leaves open (recorded as OPEN-029, deliberately), and
+       -- `expired` is not a live status, so it does not collide with ...201's
+       -- `frozen` under the partial unique key the assertions above pin. It
+       -- sits inert until the closing section, which moves the member onto it.
+       ('cafe1600-0000-4000-8000-000000000206', 'aa000016-0000-4000-8000-000000000001',
+        'cafe1600-0000-4000-8000-000000000101', 'aa000016-0000-4000-8000-000000000025',
+        'expired', date '2020-01-01',
+        (select today - 1 from h16c_today where tenant_id = 'aa000016-0000-4000-8000-000000000001'),
+        100000);
 
 -- An approved pause on ...207, covering today. Nothing in the rewritten
 -- requirement mentions membership_pauses at all -- it is checked here purely
@@ -1174,32 +1187,61 @@ select lives_ok(
   'A frozen membership with live dates is not additionally refused for having a currently-approved pause covering today -- the rewritten requirement names only status and dates, and does not gain an unstated third condition by way of membership_pauses');
 
 -- The second statement (ADR-070): the gate is a `before insert` trigger and
--- nothing about `memberships` is frozen by it. Editing the CITED membership's
--- own dates is an ordinary operation with its own rules, not this gate's --
--- but the recorded visit must not move with it, and a fresh insert against
--- the now-lapsed membership must be refused on its own merits.
+-- nothing about `memberships` is frozen by it. What may be done to the CITED
+-- membership is `memberships`' own business under `memberships`' own rules,
+-- not this gate's -- but the recorded visit must not move with it, and a fresh
+-- insert made after the member's entitlement has changed must be judged on the
+-- entitlement as it stands then, not on the one the previous insert saw.
+--
+-- READ THIS BEFORE COLLAPSING THE FOUR STATEMENTS BELOW BACK INTO ONE.
+-- Until Phase 5 this section lapsed the membership the obvious way --
+-- `update memberships set ends_on = today - 1` -- and that statement is now
+-- refused from every session (`GL045`, ADR-093: a membership's dates are what
+-- its payments bought, and they move only inside the rule that grants a
+-- period). So the fixture reaches the same STATE through writes the money
+-- rules still permit: `status` is frozen by nothing, and the member is moved
+-- off their live membership and onto an already-lapsed one -- which is what
+-- the old date edit amounted to from this gate's point of view anyway, since
+-- the gate reads the MEMBER's entitlement and not the row a caller cites.
+-- Putting the date edit back turns this section red on a `memberships` rule
+-- and proves nothing whatever about the check-in gate.
 set local role postgres;
 
-select lives_ok(
+-- The one line the deleted date edit earns on its way out. It is not an
+-- assertion about what `memberships` allows -- it is about WHOSE rule refuses:
+-- the code raised here is the money rule's, and the surviving form of "this
+-- gate has no say over `memberships`" is that the refusal is not its.
+select throws_ok(
   $$update public.memberships set ends_on = (select today - 1 from h16c_today
      where tenant_id = 'aa000016-0000-4000-8000-000000000001')
    where id = 'cafe1600-0000-4000-8000-000000000201'$$,
-  'Editing a membership''s own ends_on into the past is an ordinary write this gate has no say over -- it lives on `attendance`, not on `memberships`');
+  'GL045', null::text,
+  'Editing a membership''s own ends_on into the past is refused -- but by a rule living on `memberships` that names itself GL045, not by this gate, whose own refusals carry a different code entirely. The check-in gate still has no say over `memberships`; something else acquired one, and that is the only reason this line is a throws_ok and not the lives_ok it used to be');
+
+select lives_ok(
+  $$update public.memberships set status = 'cancelled'
+   where id = 'cafe1600-0000-4000-8000-000000000201'$$,
+  'Cancelling the very membership an earlier visit cited is an ordinary write this gate has no say over -- its rules live on `attendance`, not on `memberships`, and it neither refuses the write nor reaches back into the visit that cited the row');
 
 select is(
   (select row(checked_in_at, membership_id)::text from public.attendance
     where tenant_id = 'aa000016-0000-4000-8000-000000000001'
       and member_id = 'cafe1600-0000-4000-8000-000000000101'),
   row(timestamptz '2026-05-10 06:00:00+05:30', 'cafe1600-0000-4000-8000-000000000201'::uuid)::text,
-  'The visit recorded while the membership was live is untouched by the later edit -- a membership lapsing after the fact does not retroactively rewrite or void the attendance row that cited it while it was live');
+  'The visit recorded while the membership was live is untouched by the later change -- a membership ceasing to be live after the fact does not retroactively rewrite or void the attendance row that cited it while it was');
+
+select lives_ok(
+  $$update public.memberships set status = 'active'
+   where id = 'cafe1600-0000-4000-8000-000000000206'$$,
+  'And the member is moved ONTO their long-lapsed membership by that same ordinary route -- its status is a live one again while its dates ended yesterday in the gym''s own day. This reconstructs exactly the state the old `ends_on` edit produced (one live-STATUS membership whose dates are behind today) without a date being written anywhere');
 
 select throws_ok(
   $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
     values ('aa000016-0000-4000-8000-000000000001', 'aa000016-0000-4000-8000-000000000011',
-            'cafe1600-0000-4000-8000-000000000101', 'cafe1600-0000-4000-8000-000000000201',
+            'cafe1600-0000-4000-8000-000000000101', 'cafe1600-0000-4000-8000-000000000206',
             timestamptz '2026-05-10 09:00:00+05:30', 'qr', 'aa000016-0000-4000-8000-000000000051')$$,
   null::char(5), null::text,
-  'A member CAN be moved onto a lapsed membership between two check-ins -- the same membership row that was live an hour ago is re-evaluated fresh on this new insert, found lapsed now, and this second visit is refused even though the first, from the same membership, still stands');
+  'A member CAN be moved onto a lapsed membership between two check-ins -- liveness is re-evaluated fresh on this new insert, against the entitlement as it stands NOW, and this second visit is refused even though the first, hours earlier by the same member, still stands. Nothing was carried over from the first insert, and the refusal is the DATE half specifically: the membership cited here holds a live status');
 
 -- The trusted-context question, decided from the spec: nothing in ATT-001
 -- carves out an exception for who is asking. This file's own top-of-file

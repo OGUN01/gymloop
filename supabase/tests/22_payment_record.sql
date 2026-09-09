@@ -372,7 +372,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(290);
+select plan(349);
 
 
 -- ---------------------------------------------------------------------------
@@ -4958,6 +4958,840 @@ select results_eq(
   $$ values ('cancelled'::public.membership_status, 150000::bigint,
              '22000000-0000-4000-8000-000000180060'::uuid, '30'::text) $$,
   'permitted: cancelled, and the terms it was sold on are still the terms it was sold on — a membership''s history does not change because it ended'
+);
+
+
+-- ===========================================================================
+-- SECTION 19 (ROUND TEN, ADR-093 / GL045) — "The dates a membership runs for
+-- are written by the rule that grants them."
+--
+-- WHY THIS SECTION EXISTS. Sections 16, 17 and 18 govern what a period costs
+-- (`GL043`), how long it is (`GL043`, derived from the plan) and how many
+-- have been granted (`GL044`). Every one of them constrains an INPUT to an
+-- arithmetic whose OUTPUT anyone can simply type. Measured from an ordinary
+-- front-desk session on live Cloud, with no privilege beyond recording a
+-- payment, before this section:
+--
+--     update public.memberships set ends_on   = starts_on + 3650 …  -- ALLOWED
+--     update public.memberships set starts_on = starts_on - 3650 …  -- ALLOWED
+--     merge into public.memberships … update set ends_on = ends_on+1 -- ALLOWED
+--
+-- Ten years, one statement, no refusal, no receipt, nothing raised.
+--
+-- THE FALSE PREMISE THAT KEPT IT ALIVE FOR TWO ROUNDS, RE-MEASURED HERE
+-- RATHER THAN INHERITED. The docs ranked this door below the length one on
+-- the claim that a hand-written `ends_on` leaves a detectable trace, since
+-- `ends_on - starts_on` would disagree with `duration_days * periods_granted`.
+-- ADR-092 has already retracted it — the invariant fails for 17 of 46 dated
+-- memberships on the demo gym before any fraud — and this author did not
+-- take the retraction on trust either: nothing below asserts, implies or
+-- relies on that invariant anywhere. Every refusal here is asserted as a
+-- refusal AND as the dates being unchanged, never as "an audit would notice".
+--
+-- WHAT IS ATTACKED. Every write shape the previous three rounds each had to
+-- learn separately — plain UPDATE, MERGE, a data-modifying CTE, UPDATE … FROM
+-- computing from the plan, a multi-row statement, UPDATE … FROM giving two
+-- rows two DIFFERENT values, and a multi-row statement where only SOME rows
+-- move while the others are written their own value (19a). Both columns and
+-- both directions, including `starts_on` pulled backwards on a membership
+-- that has not started yet — the check-in gate reads these dates (ADR-084),
+-- so a typed `starts_on` is a free day at the turnstile and not only a free
+-- month on the ledger (19b). The whole harm end to end against the ordinary
+-- renewal it has to leave alone (19c). The granting rule's own multi-column
+-- write, from null dates (19d). The open-ended membership a payment moves
+-- nothing on (19e). A part-paid row, where the refusal must be this rule's
+-- and not the terms freeze's (19f). A plan correction, which reaches the
+-- dates only through the granting rule (19g). And every piece of ordinary
+-- gym work on a paid-up membership that must survive: freeze, unfreeze, a
+-- discount, a note, a refund, a cancellation (19h), and the whole membership
+-- pause path (19i).
+--
+-- THE PAUSE PATH, MEASURED RATHER THAN ASSUMED. The brief asked whether
+-- approving or rejecting a freeze is a legitimate writer of the membership's
+-- own dates that the requirement fails to mention. Measured on live Cloud
+-- (fixtures wrapped begin…rollback, nothing committed): a front-desk request,
+-- an approval by the gym's configured `pause_approver_role`, and a rejection
+-- are all ALLOWED, and the membership's own `starts_on`/`ends_on` are byte
+-- for byte what they were before all three. `membership_pauses` carries its
+-- own `starts_on`/`ends_on`, no trigger on it touches `memberships`, and the
+-- route (`apps/web/app/api/memberships/pauses/route.ts`) writes only
+-- `approved_by_staff_id`, `approved_at` and `rejected_at`. So it is NOT a
+-- date writer, this requirement needs no exemption for it, and 19i asserts
+-- that as a permitted-side guard rather than reporting an ambiguity.
+--
+-- THE ONE PLACE THIS AUTHOR HAD TO CHOOSE, STATED RATHER THAN HIDDEN.
+-- The requirement's prose says the dates "SHALL move … only as part of
+-- granting a period, and SHALL refuse every other WRITE to them", and its
+-- scenario says "any session WRITES `ends_on` or `starts_on`". Read
+-- literally, `set ends_on = ends_on` is a write and must be refused. Three
+-- things say otherwise and this section follows them: ADR-093's own
+-- mechanism sentence says they may "CHANGE only at `pg_trigger_depth() >= 2`";
+-- the sibling requirement one heading above settled the identical question
+-- for `periods_granted` the other way in as many words ("Writing the same
+-- value back is allowed … a rule that refuses a write that cannot do harm
+-- buys nothing and breaks ordinary column-listing updates"); and section 18
+-- already holds that convention for `duration_days` at 269/270. A rule that
+-- refused the no-op would also refuse the product's own create path, which
+-- writes `ends_on: startsOn` in its INSERT column list. 304/305/306 assert
+-- the no-op ALLOWED. This is a reported divergence from the literal text of
+-- the scenario, not a silent one — see the report.
+--
+-- THE COST THIS RULE CREATES, ALSO REPORTED. Section 9's assertion 71 proves
+-- that paying for an open-ended membership (a `starts_on`, `ends_on` null)
+-- moves nothing, and `memberships_dated_unless_pending_chk` (assertion 72)
+-- permits null dates only while pending. After GL045 such a row can never
+-- acquire an `ends_on` by any route at all: no payment gives it one and no
+-- session may type one. Today a desk repairs it in one statement. 320-323
+-- assert the new behaviour, because "refunding and selling again" is the
+-- answer this requirement gives for every other recorded fact — but the row
+-- is unrepairable in place, and that is a consequence the requirement does
+-- not mention.
+--
+-- THE SQLSTATE IS `GL045`, answered by the contract. Every refusal below
+-- asserts `GL045` AND that both dates are unchanged — never the code alone,
+-- which passes with a rule that refuses and rolls the wrong thing back, and
+-- never the dates alone, which passes with a rule that silently discards the
+-- write (the failure this codebase asserts against, and the shape a round
+-- eight draft was caught in).
+--
+-- TENANT 19, its own gym, its own eleven memberships, no assertion depending
+-- on another tenant's rows (ADR-050). Every date is read from the gym's own
+-- `(now() at time zone o.timezone)::date` via `today_t19`, never
+-- `current_date` and never a literal (ADR-039).
+-- ===========================================================================
+
+set local role postgres;
+
+insert into public.organizations (id, name, gym_code) values
+  ('22000000-0000-4000-8000-000000190001'::uuid, 'PayRec Gym 19', 'PYR22K');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('22000000-0000-4000-8000-000000190011'::uuid, '22000000-0000-4000-8000-000000190001'::uuid, 'G19 Main', true);
+
+-- The manager exists only so that 19i can approve a freeze as the gym's own
+-- configured `pause_approver_role`, which defaults to `gym_manager`. The
+-- settings row is inserted for the same reason and for no other.
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('22000000-0000-4000-8000-000000190021'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190011'::uuid, 'front_desk', 'T19 Desk'),
+  ('22000000-0000-4000-8000-000000190022'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190011'::uuid, 'gym_manager', 'T19 Manager');
+
+insert into public.organization_settings (tenant_id) values
+  ('22000000-0000-4000-8000-000000190001'::uuid);
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000190040'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190011'::uuid, 'M19 Shapes', '+912200190040'),
+  ('22000000-0000-4000-8000-000000190041'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190011'::uuid, 'M19 Sibling', '+912200190041'),
+  ('22000000-0000-4000-8000-000000190042'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190011'::uuid, 'M19 NotStarted', '+912200190042'),
+  ('22000000-0000-4000-8000-000000190043'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190011'::uuid, 'M19 EndToEnd', '+912200190043'),
+  ('22000000-0000-4000-8000-000000190044'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190011'::uuid, 'M19 Dateless', '+912200190044'),
+  ('22000000-0000-4000-8000-000000190045'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190011'::uuid, 'M19 OpenEnded', '+912200190045'),
+  ('22000000-0000-4000-8000-000000190046'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190011'::uuid, 'M19 PartPaid', '+912200190046'),
+  ('22000000-0000-4000-8000-000000190047'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190011'::uuid, 'M19 PlanFix', '+912200190047'),
+  ('22000000-0000-4000-8000-000000190048'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190011'::uuid, 'M19 Ordinary', '+912200190048'),
+  ('22000000-0000-4000-8000-000000190049'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190011'::uuid, 'M19 Paused', '+912200190049'),
+  ('22000000-0000-4000-8000-00000019004a'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190011'::uuid, 'M19 Created', '+912200190050');
+
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('22000000-0000-4000-8000-000000190060'::uuid, '22000000-0000-4000-8000-000000190001'::uuid, 'G19 Monthly (30d)', 30, 150000),
+  ('22000000-0000-4000-8000-000000190061'::uuid, '22000000-0000-4000-8000-000000190001'::uuid, 'G19 Annual (365d)', 365, 1200000);
+
+create temp table today_t19 as
+  select (now() at time zone o.timezone)::date as d
+    from public.organizations o where o.id = '22000000-0000-4000-8000-000000190001'::uuid;
+
+grant select on today_t19 to public;
+
+-- Six memberships sit at `starts_on = ends_on = today` so that one granted
+-- period is `today + 30` with nothing else in the arithmetic and any typed
+-- date is visible as a pure offset from the gym's own today. Five are
+-- deliberately shaped otherwise: 190082 has not started yet (19b), 190084 has
+-- no dates at all (19d), 190085 is open-ended (19e), and 190080/190081 run
+-- from `today - 30` to `today + 30` for the reason 19a's header gives.
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('22000000-0000-4000-8000-000000190080'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190040'::uuid, '22000000-0000-4000-8000-000000190060'::uuid,
+   'active', (select d from today_t19) - 30, (select d from today_t19) + 30, 150000),
+  ('22000000-0000-4000-8000-000000190081'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190041'::uuid, '22000000-0000-4000-8000-000000190060'::uuid,
+   'active', (select d from today_t19) - 30, (select d from today_t19) + 30, 150000),
+  ('22000000-0000-4000-8000-000000190082'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190042'::uuid, '22000000-0000-4000-8000-000000190060'::uuid,
+   'active', (select d from today_t19) + 30, (select d from today_t19) + 60, 150000),
+  ('22000000-0000-4000-8000-000000190083'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190043'::uuid, '22000000-0000-4000-8000-000000190060'::uuid,
+   'active', (select d from today_t19), (select d from today_t19), 150000),
+  ('22000000-0000-4000-8000-000000190084'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190044'::uuid, '22000000-0000-4000-8000-000000190060'::uuid,
+   'pending', null, null, 150000),
+  ('22000000-0000-4000-8000-000000190085'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190045'::uuid, '22000000-0000-4000-8000-000000190060'::uuid,
+   'pending', (select d from today_t19) - 10, null, 150000),
+  ('22000000-0000-4000-8000-000000190086'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190046'::uuid, '22000000-0000-4000-8000-000000190060'::uuid,
+   'active', (select d from today_t19), (select d from today_t19), 150000),
+  ('22000000-0000-4000-8000-000000190088'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190047'::uuid, '22000000-0000-4000-8000-000000190060'::uuid,
+   'active', (select d from today_t19), (select d from today_t19), 150000),
+  ('22000000-0000-4000-8000-000000190089'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190048'::uuid, '22000000-0000-4000-8000-000000190060'::uuid,
+   'active', (select d from today_t19), (select d from today_t19), 150000),
+  ('22000000-0000-4000-8000-00000019008a'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190049'::uuid, '22000000-0000-4000-8000-000000190060'::uuid,
+   'active', (select d from today_t19), (select d from today_t19), 150000);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000190001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000190021')::text,
+  true);
+set local role authenticated;
+
+-- The only three memberships in this section carrying money before their own
+-- subsection begins, all of it earned by ordinary front-desk work: 190086 is
+-- part-paid (half of Rs 1,500), 190089 and 19008a are paid in full. Each
+-- one's resulting state is asserted where its subsection starts rather than
+-- claimed here.
+insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id) values
+  ('22000000-0000-4000-8000-000000191001'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190046'::uuid, '22000000-0000-4000-8000-000000190086'::uuid,
+   75000, 'paid', 'cash', '22000000-0000-4000-8000-000000190021'::uuid),
+  ('22000000-0000-4000-8000-000000191002'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190048'::uuid, '22000000-0000-4000-8000-000000190089'::uuid,
+   150000, 'paid', 'cash', '22000000-0000-4000-8000-000000190021'::uuid),
+  ('22000000-0000-4000-8000-000000191003'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+   '22000000-0000-4000-8000-000000190049'::uuid, '22000000-0000-4000-8000-00000019008a'::uuid,
+   150000, 'paid', 'cash', '22000000-0000-4000-8000-000000190021'::uuid);
+
+
+-- ---------------------------------------------------------------------------
+-- 19a (GL045) — every statement shape that writes a date, on a membership no
+-- money has ever touched, so that GL043 and GL044 cannot be what refuses any
+-- of it: a refusal here is this rule and nothing else. Memberships 190080 and
+-- its innocent sibling 190081. Every one of these shapes is ALLOWED on live
+-- Cloud today and lands the date it names.
+--
+-- The last three assertions are the permitted side, kept in the same
+-- subsection deliberately: a rule that refuses a write which cannot move the
+-- value breaks every column-listing update the product sends, and this phase
+-- has shipped the too-broad shape three times.
+--
+-- WHY THESE TWO MEMBERSHIPS RUN FROM `today - 30` TO `today + 30` WHEN EVERY
+-- OTHER ONE IN THE SECTION SITS AT `today`/`today`. The four column-by-
+-- direction cases below need room on both sides. `memberships_ends_on_after_
+-- starts_on_chk` (`ends_on >= starts_on`, Phase 1) refuses any write that
+-- inverts the range with `23514` BEFORE an AFTER trigger runs, so on a
+-- zero-width membership `ends_on - 30` and `starts_on + 30` are answered by
+-- the constraint and never reach this rule at all — measured, and the reason
+-- 293 and 295 first asserted the wrong code. That ordering is ADR-066 working
+-- in the benign direction (the refusal comes from the rule that has the
+-- answer), and it is not what this section is about: a thirty-day window on
+-- either side keeps all four cases inside the valid range so `GL045` is what
+-- answers every one of them, which is the claim the requirement makes.
+-- ---------------------------------------------------------------------------
+
+-- 291
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted,
+            (select count(*)::int from public.payments p where p.membership_id = m.id)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000190080'::uuid $$,
+  $$ select (select d from today_t19) - 30, (select d from today_t19) + 30, 0, 0 $$,
+  'GL045/shapes: a thirty-day window either side of the gym''s , nothing granted, and NOT ONE PAYMENT against it — so nothing below can be refused by the terms freeze'
+);
+
+-- 292 — ADR-093's own statement, verbatim.
+select throws_ok($$
+  update public.memberships set ends_on = starts_on + 3650
+   where id = '22000000-0000-4000-8000-000000190080'::uuid
+$$, 'GL045'::char(5), null,
+  'GL045/shapes: the plain UPDATE pushing ends_on ten years out is refused — measured ALLOWED on live Cloud today, one statement, no receipt, nothing raised');
+
+-- 293 — the other direction, which is not fraud against the gym but against
+-- the member: an end date pulled backwards ends a paid-up membership early.
+select throws_ok($$
+  update public.memberships set ends_on = ends_on - 30
+   where id = '22000000-0000-4000-8000-000000190080'::uuid
+$$, 'GL045'::char(5), null,
+  'GL045/shapes: ends_on pulled BACKWARDS, to a value still inside the valid range, is refused too — the rule is about who writes the dates, not about which direction profits the gym');
+
+-- 294 — ADR-093's second statement. The check-in gate reads these dates
+-- (ADR-084), so a typed starts_on is a free day at the turnstile as well as
+-- a free month on the ledger.
+select throws_ok($$
+  update public.memberships set starts_on = starts_on - 3650
+   where id = '22000000-0000-4000-8000-000000190080'::uuid
+$$, 'GL045'::char(5), null,
+  'GL045/shapes: starts_on dragged ten years backwards is refused — a rule that watched only ends_on would leave half the door open');
+
+-- 295
+select throws_ok($$
+  update public.memberships set starts_on = starts_on + 30
+   where id = '22000000-0000-4000-8000-000000190080'::uuid
+$$, 'GL045'::char(5), null,
+  'GL045/shapes: starts_on pushed forwards, also staying inside the range, is refused as well — all four of column x direction answered by THIS rule, not the two that happen to be profitable');
+
+-- 296
+select throws_ok($$
+  update public.memberships set starts_on = starts_on - 3650, ends_on = ends_on + 3650
+   where id = '22000000-0000-4000-8000-000000190080'::uuid
+$$, 'GL045'::char(5), null,
+  'GL045/shapes: both columns moved in one statement is refused whole — twenty years, one UPDATE');
+
+-- 297
+select throws_ok($$
+  merge into public.memberships m
+  using (select '22000000-0000-4000-8000-000000190080'::uuid as id) s
+     on m.id = s.id
+   when matched then update set ends_on = m.ends_on + 3650
+$$, 'GL045'::char(5), null,
+  'GL045/shapes: the same write as MERGE is refused — measured ALLOWED on live Cloud today, which is the costume ADR-087 named and every rule since has had to be shown');
+
+-- 298
+select throws_ok($$
+  with moved as (
+    update public.memberships set ends_on = ends_on + 3650
+     where id = '22000000-0000-4000-8000-000000190080'::uuid
+    returning id
+  ) select count(*) from moved
+$$, 'GL045'::char(5), null,
+  'GL045/shapes: hidden inside a data-modifying CTE it is refused');
+
+-- 299 — a value computed from the plan's own duration, so a rule that
+-- inspects literals rather than the row it is given lets this straight past.
+select throws_ok($$
+  update public.memberships m set ends_on = m.starts_on + p.duration_days * 100
+    from public.plans p
+   where p.id = m.plan_id
+     and m.id = '22000000-0000-4000-8000-000000190080'::uuid
+$$, 'GL045'::char(5), null,
+  'GL045/shapes: UPDATE ... FROM computing the date from the plan''s own duration is refused — a hundred periods is still not a granted period');
+
+-- 300
+select throws_ok($$
+  update public.memberships set ends_on = ends_on + 3650
+   where id in ('22000000-0000-4000-8000-000000190080'::uuid,
+                '22000000-0000-4000-8000-000000190081'::uuid)
+$$, 'GL045'::char(5), null,
+  'GL045/shapes: one statement extending two memberships is refused');
+
+-- 301 — two rows, two DIFFERENT offsets, in one statement. A rule that reads
+-- one representative new value per statement rather than per row sees a
+-- single plausible number here and lets the other row past.
+select throws_ok($$
+  update public.memberships m set ends_on = m.ends_on + v.n
+    from (values ('22000000-0000-4000-8000-000000190080'::uuid, 3650),
+                 ('22000000-0000-4000-8000-000000190081'::uuid, 7)) as v(id, n)
+   where m.id = v.id
+$$, 'GL045'::char(5), null,
+  'GL045/shapes: UPDATE ... FROM giving the two rows two DIFFERENT offsets is refused — neither of them was granted anything');
+
+-- 302 — the mixed statement: one row moves, the other is written the value it
+-- already holds. A per-statement rule that samples a row, or that refuses only
+-- when EVERY row moved, gets this wrong in one direction or the other.
+select throws_ok($$
+  update public.memberships m
+     set ends_on = case when m.id = '22000000-0000-4000-8000-000000190080'::uuid
+                        then m.ends_on + 3650 else m.ends_on end
+   where m.id in ('22000000-0000-4000-8000-000000190080'::uuid,
+                  '22000000-0000-4000-8000-000000190081'::uuid)
+$$, 'GL045'::char(5), null,
+  'GL045/shapes: a two-row statement in which only ONE row''s date moves is refused — the row that moved is the whole statement');
+
+-- 303
+select results_eq(
+  $$ select id, starts_on, ends_on from public.memberships
+      where id in ('22000000-0000-4000-8000-000000190080'::uuid,
+                   '22000000-0000-4000-8000-000000190081'::uuid)
+      order by id $$,
+  $$ values ('22000000-0000-4000-8000-000000190080'::uuid, (select d from today_t19) - 30, (select d from today_t19) + 30),
+            ('22000000-0000-4000-8000-000000190081'::uuid, (select d from today_t19) - 30, (select d from today_t19) + 30) $$,
+  'GL045/shapes: refused AND unmoved through all eleven shapes — both memberships still run the window they were sold, and the sibling was never in either statement''s way'
+);
+
+-- 304 — permitted: each column written from its own value.
+select lives_ok($$
+  update public.memberships set ends_on = ends_on, starts_on = starts_on
+   where id = '22000000-0000-4000-8000-000000190080'::uuid
+$$, 'GL045/shapes: writing both dates their own current values is allowed — nothing moved, so no period was claimed');
+
+-- 305 — permitted: the same values arriving as expressions, alongside an
+-- ordinary discount edit. This is the shape every column-listing update sends,
+-- and the product's own create path writes `ends_on: startsOn` the same way.
+select lives_ok($$
+  update public.memberships
+     set starts_on = (select d from today_t19) - 30,
+         ends_on = (select d from today_t19) + 30,
+         discount_paise = 250
+   where id = '22000000-0000-4000-8000-000000190080'::uuid
+$$, 'GL045/shapes: the dates the row already holds, carried alongside an ordinary discount edit, are allowed — every exploit above needs a date MOVED');
+
+-- 306
+select results_eq(
+  $$ select starts_on, ends_on, discount_paise, periods_granted
+       from public.memberships where id = '22000000-0000-4000-8000-000000190080'::uuid $$,
+  $$ select (select d from today_t19) - 30, (select d from today_t19) + 30, 250::bigint, 0 $$,
+  'GL045/shapes: allowed AND applied — the discount landed, both dates are where they were, and nothing was granted'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 19b (GL045) — a membership sold to start next month, whose starts_on is
+-- dragged back to today. Nothing about the money changes and no period is
+-- claimed; the member simply walks in thirty days early, because ADR-084's
+-- check-in gate reads exactly these two dates. This is the half of the door
+-- that a rule watching only `ends_on` would leave standing.
+-- Membership 190082, no money.
+-- ---------------------------------------------------------------------------
+
+-- 307
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000190082'::uuid $$,
+  $$ select (select d from today_t19) + 30, (select d from today_t19) + 60, 0 $$,
+  'GL045/not-started: sold to run next month — not live today, and nothing granted'
+);
+
+-- 308
+select throws_ok($$
+  update public.memberships set starts_on = (select d from today_t19)
+   where id = '22000000-0000-4000-8000-000000190082'::uuid
+$$, 'GL045'::char(5), null,
+  'GL045/not-started: pulling starts_on forward to today, which makes the membership live at the gate a month early, is refused');
+
+-- 309
+select results_eq(
+  $$ select starts_on, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-000000190082'::uuid $$,
+  $$ select (select d from today_t19) + 30, (select d from today_t19) + 60 $$,
+  'GL045/not-started: refused AND unmoved — the membership still starts when it was sold to start'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 19c (GL045) — the harm end to end, and immediately beside it the only
+-- writer this requirement permits, asserted hard. A rule that refuses the
+-- typed date and also breaks the renewal has not fixed anything: the gym
+-- stops being able to sell. Membership 190083, no money until 311.
+-- ---------------------------------------------------------------------------
+
+-- 310
+select throws_ok($$
+  update public.memberships set ends_on = starts_on + 3650
+   where id = '22000000-0000-4000-8000-000000190083'::uuid
+$$, 'GL045'::char(5), null,
+  'GL045/end-to-end: the ten-year statement is refused');
+
+-- 311
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000191010'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+          '22000000-0000-4000-8000-000000190043'::uuid, '22000000-0000-4000-8000-000000190083'::uuid,
+          150000, 'paid', 'cash', '22000000-0000-4000-8000-000000190021'::uuid)
+$$, 'GL045/end-to-end: the ordinary Rs 1,500 that follows is recorded like any other — a refused date edit does not refuse the money after it');
+
+-- 312 — the permitted write, asserted in all three columns at once: the rule
+-- moves ends_on by exactly what the money bought, leaves starts_on alone
+-- (measured: a dated membership's starts_on does not move when it is
+-- renewed) and counts the period.
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000190083'::uuid $$,
+  $$ select (select d from today_t19), (select d from today_t19) + 30, 1 $$,
+  'GL045/end-to-end: Rs 1,500 bought THIRTY days — not the ten years one front-desk statement buys today — and starts_on was not touched by the rule that moved ends_on'
+);
+
+-- 313
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000191011'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+          '22000000-0000-4000-8000-000000190043'::uuid, '22000000-0000-4000-8000-000000190083'::uuid,
+          150000, 'paid', 'cash', '22000000-0000-4000-8000-000000190021'::uuid)
+$$, 'GL045/end-to-end: an ordinary renewal a month later is recorded');
+
+-- 314 — the whole permitted side of this requirement in one row: a renewal is
+-- the rule's own UPDATE to `memberships`, and a rule that fired on its own
+-- writer would stop every gym in the product renewing anybody.
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000190083'::uuid $$,
+  $$ select (select d from today_t19), (select d from today_t19) + 60, 2 $$,
+  'GL045/end-to-end: the renewal moved ends_on another thirty days and the count to two — the granting rule is the one writer this requirement exists to leave alone'
+);
+
+-- 315
+select throws_ok($$
+  update public.memberships set ends_on = ends_on + 3650
+   where id = '22000000-0000-4000-8000-000000190083'::uuid
+$$, 'GL045'::char(5), null,
+  'GL045/end-to-end: and after two real payments the dates are still not the desk''s to write — a granted period does not license the next one');
+
+-- 316
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000190083'::uuid $$,
+  $$ select (select d from today_t19), (select d from today_t19) + 60, 2 $$,
+  'GL045/end-to-end: refused AND unmoved — sixty days of gym for two months'' money, which is the whole arithmetic this section protects'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 19d (GL045) — the granting rule's own multi-column write, which is the
+-- hardest thing for this rule to leave alone: a paid payment against a
+-- membership with no dates at all sets starts_on, ends_on, status AND
+-- periods_granted in one go, and both dates move from null. A date rule that
+-- fired on its own writer breaks exactly here, and the member is paid up and
+-- refused at the turnstile. Membership 190084, pending, no dates.
+-- ---------------------------------------------------------------------------
+
+-- 317
+select results_eq(
+  $$ select starts_on, ends_on, status, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000190084'::uuid $$,
+  $$ select null::date, null::date, 'pending'::public.membership_status, 0 $$,
+  'GL045/from-null: a pending membership with no dates at all, which the dated-unless-pending constraint permits and nothing else does'
+);
+
+-- 318
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000191012'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+          '22000000-0000-4000-8000-000000190044'::uuid, '22000000-0000-4000-8000-000000190084'::uuid,
+          150000, 'paid', 'cash', '22000000-0000-4000-8000-000000190021'::uuid)
+$$, 'GL045/from-null: a full payment against a dateless pending membership is recorded');
+
+-- 319
+select results_eq(
+  $$ select starts_on, ends_on, status, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000190084'::uuid $$,
+  $$ select (select d from today_t19), (select d from today_t19) + 30, 'active'::public.membership_status, 1 $$,
+  'GL045/from-null: the rule wrote BOTH dates, the status and the count in one go and this requirement did not catch its own writer — the membership runs from today for the plan''s thirty days'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 19e (GL045) — the open-ended membership: a starts_on, no ends_on. Assertion
+-- 71 already proves a payment moves nothing on it ("it has not ended, so
+-- there is nothing to move"), and assertion 72 proves null dates are legal
+-- only while pending. Put together with this requirement, such a row can
+-- never acquire an ends_on by ANY route: no payment gives it one and no
+-- session may type one. Today one statement repairs it. The requirement's
+-- own answer — refund and sell again — still applies, but the cost is real
+-- and is reported rather than discovered. Membership 190085.
+-- ---------------------------------------------------------------------------
+
+-- 320
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000191013'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+          '22000000-0000-4000-8000-000000190045'::uuid, '22000000-0000-4000-8000-000000190085'::uuid,
+          150000, 'paid', 'cash', '22000000-0000-4000-8000-000000190021'::uuid)
+$$, 'GL045/open-ended: paying for an open-ended membership is recorded, not refused');
+
+-- 321
+select results_eq(
+  $$ select starts_on, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-000000190085'::uuid $$,
+  $$ select (select d from today_t19) - 10, null::date $$,
+  'GL045/open-ended: the payment moved neither date — starts_on unchanged, ends_on still null, exactly as assertion 71 has always held'
+);
+
+-- 322
+select throws_ok($$
+  update public.memberships set ends_on = (select d from today_t19) + 20
+   where id = '22000000-0000-4000-8000-000000190085'::uuid
+$$, 'GL045'::char(5), null,
+  'GL045/open-ended: typing the missing end date onto it is refused as well — null is a value the rule has not written, not a licence for the desk');
+
+-- 323
+select results_eq(
+  $$ select starts_on, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-000000190085'::uuid $$,
+  $$ select (select d from today_t19) - 10, null::date $$,
+  'GL045/open-ended: refused AND unmoved — and this row is now unrepairable in place, which is a cost of the rule and not a defect in it'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 19f (GL045) — money on the row changes nothing about who writes the dates,
+-- and the refusal must be THIS rule's rather than the terms freeze's. A
+-- part-paid membership sits in the window ADR-090 found: money has arrived,
+-- `periods_granted` is still 0, and GL043 already refuses its price and its
+-- plan. The dates are not terms, so an implementation that reached for the
+-- nearest existing trigger would answer GL043 here and be wrong.
+-- Membership 190086, Rs 750 of Rs 1,500.
+-- ---------------------------------------------------------------------------
+
+-- 324
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted,
+            (select coalesce(sum(p.amount_paise), 0)::bigint from public.payments p where p.membership_id = m.id)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000190086'::uuid $$,
+  $$ select (select d from today_t19), (select d from today_t19), 0, 75000::bigint $$,
+  'GL045/part-paid: half the price arrived and bought nothing — the part-paid window, with both dates still where the membership was created'
+);
+
+-- 325
+select throws_ok($$
+  update public.memberships set ends_on = ends_on + 3650
+   where id = '22000000-0000-4000-8000-000000190086'::uuid
+$$, 'GL045'::char(5), null,
+  'GL045/part-paid: the typed date is refused with GL045, the dates'' own code — not GL043, which answers for a price, a currency and a plan and says nothing about when a membership runs');
+
+-- 326
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000190086'::uuid $$,
+  $$ select (select d from today_t19), (select d from today_t19), 0 $$,
+  'GL045/part-paid: refused AND unmoved'
+);
+
+-- 327
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000191014'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+          '22000000-0000-4000-8000-000000190046'::uuid, '22000000-0000-4000-8000-000000190086'::uuid,
+          75000, 'paid', 'cash', '22000000-0000-4000-8000-000000190021'::uuid)
+$$, 'GL045/part-paid: the balance of the price is recorded');
+
+-- 328
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000190086'::uuid $$,
+  $$ select (select d from today_t19), (select d from today_t19) + 30, 1 $$,
+  'GL045/part-paid: the balance crossed the price and bought exactly one period of thirty days — a part payment is ordinary gym practice and this rule must not make it unfinishable'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 19g (GL045) — a plan correction before any money has arrived. ADR-093 says
+-- the dates are reached by a plan correction "only through the granting
+-- rule", which is a claim with two halves and both are asserted: the
+-- correction itself must move NEITHER date, and the payment that follows must
+-- then move ends_on by the corrected length. An implementation that helpfully
+-- re-derived ends_on from the new plan at correction time would pass the
+-- second half and fail the first, and it would be a date this requirement
+-- says nobody but the granting rule writes. Membership 190088, no money.
+-- ---------------------------------------------------------------------------
+
+-- 329
+select lives_ok($$
+  update public.memberships set plan_id = '22000000-0000-4000-8000-000000190061'::uuid
+   where id = '22000000-0000-4000-8000-000000190088'::uuid
+$$, 'GL045/plan-fix: correcting a mis-sold Monthly to the Annual plan is allowed — no money has arrived, so the terms are not frozen');
+
+-- 330
+select results_eq(
+  $$ select price_paise, to_jsonb(m)->>'duration_days', starts_on, ends_on
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000190088'::uuid $$,
+  $$ select 1200000::bigint, '365'::text, (select d from today_t19), (select d from today_t19) $$,
+  'GL045/plan-fix: the price and the length came from the new plan and NEITHER DATE MOVED — a correction re-derives terms, it does not grant a period'
+);
+
+-- 331
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000191015'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+          '22000000-0000-4000-8000-000000190047'::uuid, '22000000-0000-4000-8000-000000190088'::uuid,
+          1200000, 'paid', 'cash', '22000000-0000-4000-8000-000000190021'::uuid)
+$$, 'GL045/plan-fix: one ordinary Annual fee is recorded against the corrected membership');
+
+-- 332
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000190088'::uuid $$,
+  $$ select (select d from today_t19), (select d from today_t19) + 365, 1 $$,
+  'GL045/plan-fix: the payment is the only thing that moved a date, and it moved it by the corrected plan''s 365 days — the correction reaches the dates through the granting rule and by no other route'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 19h (GL045) — every other piece of ordinary work a gym does to a paid-up
+-- membership, none of which needs to move a date. Freezing, unfreezing, a
+-- discount correction, a note, a refund and a cancellation are all ordinary,
+-- and a rule that froze the ROW rather than the two columns fails somewhere
+-- in here and nowhere else in this file. The refund is the one worth stating:
+-- money that arrived and was then returned still counts toward the total, and
+-- assertion 236 already holds that the refund does not pull the extension
+-- back — so a refund does not need to move a date either, and nothing here
+-- gives it permission to. Membership 190089, one period from one real payment.
+-- ---------------------------------------------------------------------------
+
+-- 333
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000190089'::uuid $$,
+  $$ select (select d from today_t19), (select d from today_t19) + 30, 1 $$,
+  'GL045/ordinary: one period earned by one ordinary full payment, thirty days of it'
+);
+
+-- 334
+select lives_ok($$
+  update public.memberships set status = 'frozen'
+   where id = '22000000-0000-4000-8000-000000190089'::uuid
+$$, 'GL045/ordinary: freezing a paid-up membership is allowed');
+
+-- 335
+select lives_ok($$
+  update public.memberships set status = 'active'
+   where id = '22000000-0000-4000-8000-000000190089'::uuid
+$$, 'GL045/ordinary: unfreezing it again is allowed');
+
+-- 336
+select lives_ok($$
+  update public.memberships set discount_paise = 5000, cancel_reason = 'desk note'
+   where id = '22000000-0000-4000-8000-000000190089'::uuid
+$$, 'GL045/ordinary: a discount correction and a note are neither of them dates and are allowed');
+
+-- 337
+select lives_ok($$
+  update public.payments set status = 'refunded'
+   where id = '22000000-0000-4000-8000-000000191002'::uuid
+$$, 'GL045/ordinary: refunding the payment that bought the period is an ordinary paid -> refunded move');
+
+-- 338
+select results_eq(
+  $$ select m.discount_paise, m.cancel_reason, m.status, m.starts_on, m.ends_on, m.periods_granted
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000190089'::uuid $$,
+  $$ select 5000::bigint, 'desk note'::text, 'active'::public.membership_status,
+            (select d from today_t19), (select d from today_t19) + 30, 1 $$,
+  'GL045/ordinary: all of it LANDED and neither date moved — a freeze, an unfreeze, a discount, a note and a refund between them have no business writing when a membership runs'
+);
+
+-- 339
+select lives_ok($$
+  update public.memberships set status = 'cancelled', cancelled_at = now(), cancel_reason = 'member left'
+   where id = '22000000-0000-4000-8000-000000190089'::uuid
+$$, 'GL045/ordinary: cancelling it is allowed');
+
+-- 340
+select results_eq(
+  $$ select status, starts_on, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-000000190089'::uuid $$,
+  $$ select 'cancelled'::public.membership_status, (select d from today_t19), (select d from today_t19) + 30 $$,
+  'GL045/ordinary: cancelled, and the dates are still the dates the money bought — a cancellation records that a membership ended, it does not rewrite when it ran'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 19i (GL045) — the membership pause path, which the requirement does not
+-- mention and which this author measured rather than assumed. A freeze is
+-- requested by the desk into `membership_pauses` and decided by the gym's own
+-- configured approver; both halves are ordinary work and neither writes the
+-- membership's own dates. Asserted here so that an implementation cannot
+-- quietly grow a pause-driven date writer, and so that a too-broad rule
+-- cannot break the freeze flow. Membership 19008a, one period.
+-- ---------------------------------------------------------------------------
+
+-- 341
+select lives_ok($$
+  insert into public.membership_pauses (id, tenant_id, membership_id, starts_on, ends_on, reason, requested_by_staff_id)
+  values ('22000000-0000-4000-8000-000000192001'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+          '22000000-0000-4000-8000-00000019008a'::uuid,
+          (select d from today_t19) + 1, (select d from today_t19) + 5,
+          'travel', '22000000-0000-4000-8000-000000190021'::uuid)
+$$, 'GL045/pauses: the front desk asks for a freeze — its dates live on membership_pauses, which has a starts_on and an ends_on of its own');
+
+-- 342
+select lives_ok($$
+  insert into public.membership_pauses (id, tenant_id, membership_id, starts_on, ends_on, reason, requested_by_staff_id)
+  values ('22000000-0000-4000-8000-000000192002'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+          '22000000-0000-4000-8000-00000019008a'::uuid,
+          (select d from today_t19) + 10, (select d from today_t19) + 12,
+          'travel again', '22000000-0000-4000-8000-000000190021'::uuid)
+$$, 'GL045/pauses: a second request, so that both a decision to approve and a decision to reject can be measured');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000190001',
+                    'app_role', 'gym_manager',
+                    'staff_id', '22000000-0000-4000-8000-000000190022')::text,
+  true);
+set local role authenticated;
+
+-- 343
+select lives_ok($$
+  update public.membership_pauses
+     set approved_by_staff_id = '22000000-0000-4000-8000-000000190022'::uuid, approved_at = now()
+   where id = '22000000-0000-4000-8000-000000192001'::uuid
+$$, 'GL045/pauses: the gym''s configured approver approves the first');
+
+-- 344
+select lives_ok($$
+  update public.membership_pauses set rejected_at = now()
+   where id = '22000000-0000-4000-8000-000000192002'::uuid
+$$, 'GL045/pauses: and rejects the second');
+
+-- 345
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-00000019008a'::uuid $$,
+  $$ select (select d from today_t19), (select d from today_t19) + 30, 1 $$,
+  'GL045/pauses: neither the approval nor the rejection touched the membership''s own dates — measured, so the pause path is not a writer this requirement has to make room for'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000190001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000190021')::text,
+  true);
+set local role authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- 19j (GL045) — creation, which the requirement leaves untouched, and the
+-- edit immediately after it, which it does not. The dates named at INSERT
+-- must land exactly as named — this is the product's own create path, which
+-- writes both — and the same session may not then move them by one day.
+-- Membership 19008b, created inside the assertion so that creation itself is
+-- what is being asserted rather than a fixture.
+-- ---------------------------------------------------------------------------
+
+-- 346
+select lives_ok($$
+  insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise)
+  values ('22000000-0000-4000-8000-00000019008b'::uuid, '22000000-0000-4000-8000-000000190001'::uuid,
+          '22000000-0000-4000-8000-00000019004a'::uuid, '22000000-0000-4000-8000-000000190060'::uuid,
+          'active', (select d from today_t19) - 5, (select d from today_t19) + 25, 150000)
+$$, 'GL045/creation: a membership created naming both of its dates is allowed — creation sets them, and this requirement starts afterwards');
+
+-- 347
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-00000019008b'::uuid $$,
+  $$ select (select d from today_t19) - 5, (select d from today_t19) + 25, 0 $$,
+  'GL045/creation: and they LANDED exactly as named — allowed, not allowed and silently replaced'
+);
+
+-- 348
+select throws_ok($$
+  update public.memberships set ends_on = ends_on + 3650
+   where id = '22000000-0000-4000-8000-00000019008b'::uuid
+$$, 'GL045'::char(5), null,
+  'GL045/creation: the same session moving them one statement later is refused — the door creation leaves open is closed the moment the row exists');
+
+-- 349
+select results_eq(
+  $$ select starts_on, ends_on from public.memberships
+      where id = '22000000-0000-4000-8000-00000019008b'::uuid $$,
+  $$ select (select d from today_t19) - 5, (select d from today_t19) + 25 $$,
+  'GL045/creation: refused AND unmoved — the dates the membership was created with are the dates it still runs for'
 );
 
 
