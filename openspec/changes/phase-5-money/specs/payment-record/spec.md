@@ -278,8 +278,17 @@ for exactly this reason; the extension needs the same on the membership.
 - **WHEN** a paid payment's currency differs from the membership's
 - **THEN** it SHALL grant no period
 
-The price is the membership's own `price_paise` — what was actually agreed,
-including any discount — and never the plan's list price.
+The price is the membership's own `price_paise`, and never the plan's list
+price. **This used to add "including any discount", and that was false against
+the only rows where a discount exists**: `seed.sql` writes a GROSS `price_paise`
+plus a separate `discount_paise`, so the demo gym's one discounted membership is
+priced ₹12,000 with ₹1,200 off, has paid ₹10,800 — her agreed price — and is
+scored against ₹12,000, granting nothing while the console tells the desk she
+still owes ₹1,200. Nothing in the money path reads `discount_paise`, which this
+same file states 220 lines below, where it contradicted this sentence for two
+rounds. Whether the agreed price is the gross or the net is a product question
+this phase does not answer: **OPEN-028**, and the sentence no longer claims an
+answer it does not have.
 
 #### Scenario: Two half payments
 - **WHEN** two payments each of half the membership's price are recorded
@@ -524,6 +533,93 @@ implementation:**
 #### Scenario: Writing the same count back
 - **WHEN** a write leaves `periods_granted` at the value it already held
 - **THEN** it SHALL be allowed
+
+### Requirement: The dates a membership runs for are written by the rule that grants them
+THE SYSTEM SHALL move `starts_on` and `ends_on` only as part of granting a
+period, and SHALL refuse every other change to them.
+
+**Change, not write** — a statement that leaves a date at the value it already
+held is allowed, exactly as the requirement above settles it for
+`periods_granted` ("a rule that refuses a write that cannot do harm buys nothing
+and breaks ordinary column-listing updates"). The first draft of this sentence
+said "write", contradicting its sibling one heading up; a blind author caught it
+and read the sibling, which is the right precedence.
+
+Two requirements above govern what a period costs and how long it is. **Both
+compute a date that anyone could simply type.** Measured from an ordinary
+front-desk session, with no privilege beyond recording a payment:
+`update memberships set ends_on = starts_on + 3650` — allowed, ten years, no
+receipt, nothing raised. A membership's dates are what the money bought, on the
+same argument that makes `periods_granted` the rule's to write rather than the
+desk's.
+
+Creation sets them; after that they move when a payment moves them. Correcting a
+mistake means refunding, **cancelling the membership**, and selling again.
+
+**The cancelling is not decoration**, and the first draft of this sentence left
+it out. A holdout author measured the remedy the requirement recommends and it
+does not work on its own: refunding a payment that granted a period moves no
+date and no count, so the wrong dates stay on the row and stay live at the gate.
+A refund reverses the money, not what the money bought — which is the same fact
+that makes refunded money still count toward the total, one requirement above.
+
+#### Scenario: Typing an end date
+- **WHEN** any session writes `ends_on` or `starts_on` other than by granting a period
+- **THEN** it SHALL be refused and the dates SHALL be unchanged
+
+#### Scenario: A payment moving them
+- **WHEN** a payment grants a period
+- **THEN** the dates SHALL move by what it bought
+
+#### Scenario: Writing a date back unchanged
+- **WHEN** a statement sets a date to the value it already holds
+- **THEN** it SHALL be allowed
+
+#### Scenario: Creating a membership
+- **WHEN** a membership is created with dates
+- **THEN** it SHALL be allowed
+
+**Creation is deliberately left open, and it is a hole.** A blind author
+measured it: one INSERT of an `active` membership dated `today … today + 3650`,
+no payment anywhere, is allowed — ten years with no UPDATE for this rule to
+refuse, `periods_granted` legitimately `0`, `duration_days` legitimately the
+plan's. It is the fourth door of the same shape the count rule closed at
+creation.
+
+It is **OPEN-029**, not closed here, because the rule that would close it — a
+membership is created with no span it has not been paid for — is contradicted by
+`supabase/seed.sql`, which creates every demo membership carrying a full
+period's span, and by fixtures across both suites. Changing that is a contract
+change, and contract changes made in the same breath as a fix are what produced
+two of the last three rounds. It also differs from the refused UPDATE in leaving
+a whole membership row as evidence, and creating memberships is an act the front
+office is entitled to perform.
+
+**A cost this requirement accepts, stated rather than discovered — and it is
+four shapes, not one.** None can any longer be repaired in place, because no
+payment gives them dates and no session may type one:
+
+  * a `pending` membership holding `starts_on` with a null `ends_on`;
+  * **its mirror**, `ends_on` set with a null `starts_on` — the worst of the
+    four, because that row *is* extended and *is* granted its period, so the gym
+    has taken the money and issued the receipt while the member stays `pending`
+    and refused at the gate;
+  * a **zero-price** or complimentary membership, which the granting rule can
+    never extend at any amount because there is no price to divide by;
+  * a **currency-mismatched** membership, for the same reason.
+
+All four are OPEN-026's family and belong with it. Nothing in the product
+creates any of them, and the honest repair is a product flow rather than a desk
+typing into the money path — which is exactly what this requirement exists to
+stop. Both blind authors asserted the refusal knowingly and said so in their
+assertion text; the cost is chosen, not overlooked.
+
+**And a fifth shape that is not this rule's**: a gym whose `timezone` is a
+string PostgreSQL does not recognise. `organizations.timezone` is `not null
+default 'Asia/Kolkata'`, so "a gym with no timezone" is unreachable, but a
+mistyped one aborts a payment with a raw, unmapped `22023` naming a column the
+desk cannot see. That is a defect in error mapping and belongs to whoever owns
+the organisation settings screen.
 
 ### Requirement: A payment does not arrive already refunded
 WHEN a payment is recorded, THE SYSTEM SHALL refuse it if it names a status that
