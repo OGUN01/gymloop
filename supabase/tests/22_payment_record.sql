@@ -545,7 +545,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(741);
+select plan(757);
 
 
 -- ---------------------------------------------------------------------------
@@ -13335,6 +13335,506 @@ select results_eq(
        from public.memberships m where m.id = '22000000-0000-4000-8000-000000270082'::uuid $$,
   $$ values ('22000000-0000-4000-8000-000000270041'::uuid, 'cancelled'::text, 1) $$,
   'and the cancelled membership is unchanged — still A''s, still cancelled, and X still holds exactly the one membership he came with'
+);
+
+
+-- ===========================================================================
+-- SECTION 35 (ROUND TWENTY-ONE) — WHICH ROW'S STATUS DECIDES WHETHER THE LIVE
+-- INDEX APPLIES, a foreign key pointing AT memberships, and the one outcome
+-- that is not an error at all. Tenant 28. Assertions 742-757.
+--
+-- WHY THIS SECTION EXISTS. Three rounds of this requirement's prose were green
+-- under three mutually contradictory readings of one rule, and the reason is
+-- arithmetic rather than taste: EVERY assertion written across those rounds
+-- re-pointed a membership WITHOUT WRITING `status`. A statement that writes no
+-- status keeps the row's current status, so "the target member's state decides",
+-- "the source membership's state decides" and "the tuple being stored decides"
+-- all predict the same answer for every one of them. None of them could tell
+-- the readings apart, which is why all three readings survived three rounds.
+--
+-- `memberships_tenant_id_member_id_live_key` is PARTIAL on ('active','frozen'),
+-- and a partial index is evaluated against THE TUPLE BEING STORED — not the row
+-- as it was, and not the target member's other rows. So the only statements that
+-- can separate the readings are the ones where the tuple being stored has a
+-- DIFFERENT status from the row it replaces, and they are the two at 745 and 749.
+--
+--   | statement                                                  | answer |
+--   |------------------------------------------------------------|--------|
+--   | 745  cancelled row -> live-holder, `status = 'active'`      | 23505  |
+--   | 749  active row    -> live-holder, `status = 'cancelled'`   | GL042  |
+--
+-- Read them against the three readings:
+--   * "the TARGET decides" — X holds a live membership in both, so it predicts
+--     23505 for both. 749 refutes it.
+--   * "the SOURCE ROW AS IT WAS decides" — Q is cancelled and L is active, so it
+--     predicts GL042 at 745 and 23505 at 749. Both refute it — it predicts the
+--     exact inverse of the truth.
+--   * "the TUPLE BEING STORED decides" — 745 stores an `active` tuple pointed at
+--     a member who already has one (23505); 749 stores a `cancelled` tuple, which
+--     the partial index does not cover at all (GL042). Only this one survives.
+-- No implementation, spec draft or handler can satisfy two of those three.
+--
+-- WHY THE CONTROLS AT 743 AND 747 ARE NOT DECORATION. They are word for word
+-- the two statements above with the `status = …` clause deleted and nothing
+-- else changed — same source rows, same target member X, same session. Their
+-- answers are the EXACT INVERSE of the pair's: 743 (cancelled row, no status
+-- write) is GL042 where 745 is 23505, and 747 (active row, no status write) is
+-- 23505 where 749 is GL042. That inversion is the whole finding. Without the
+-- controls, 745 and 749 would be two ordinary assertions consistent with the
+-- source-decides reading that Section 34's own 734/740 pair established; WITH
+-- them, the same two source rows give opposite answers depending only on the
+-- status the statement writes, which no reading about a ROW — either row — can
+-- account for. The controls are also what proves the pair is about the status
+-- write and nothing else: four statements, one clause of difference between
+-- each pair, two answers each way.
+--
+-- 749 MAKES A STATUS TRANSITION AND IT IS DELIBERATELY A LEGAL ONE.
+-- `active -> cancelled` is permitted (Section 29's transcription of the
+-- membership state machine: `active -> frozen|cancelled|expired`), so GL047 has
+-- nothing to say about it and cannot be what answers. Had it been an illegal
+-- transition, GL042 would still be the required answer — GL042 beats GL047 by
+-- this requirement — but the assertion would no longer be able to distinguish
+-- "GL042 answered" from "GL047 was never reached", and this section's whole
+-- point is distinguishing things. 745's transition (`cancelled -> active`) IS
+-- illegal, and that is fine and unavoidable: the index refuses it as the tuple
+-- is stored, which is before any AFTER trigger exists to run, so GL047 never
+-- gets the chance either way. There is no legal transition INTO the live set
+-- from a status outside it that would let 745 be staged any other way.
+--
+-- GROUP 3 — A FOREIGN KEY POINTING AT `memberships` (753). The contract decides
+-- that GL042 answers ahead of the other rules in its own trigger and ahead of
+-- GL047, and it decides NOTHING ELSE — in particular it makes no claim about a
+-- foreign key pointing AT this table. `attendance`, `membership_pauses`,
+-- `payments` and `memberships.renewal_of_membership_id` all reference
+-- `memberships(tenant_id, id)`, so changing the REFERENCED key can be refused by
+-- any of them. F is given one child `payments` row (created, unpaid — no money
+-- arrives, so the terms freeze is not engaged and only the rules this section is
+-- about are in play), and 753 changes `member_id` AND `id` in one statement:
+-- 23503 from `payments_membership_id_fkey`, not GL042. The referential check is
+-- an internal constraint trigger, and those sort ahead of every trigger this
+-- project names, so no rename and no clause move could ever put GL042 in front
+-- of it. 751 is the control — the identical statement with the `id` write
+-- deleted, so the child still points at a row that exists and GL042 is the only
+-- thing left. Without it, 753 would pass just as happily against an
+-- implementation where GL042 had stopped existing.
+--
+-- GROUP 4 — THE SILENT SUCCESS (755-757). The row-security policy's USING clause
+-- is a row FILTER, not a refusal. A session whose tenant claim names another gym
+-- gets `UPDATE 0` and NO EXCEPTION, and a caller coded against this requirement
+-- reads a zero row count as success. `lives_ok` ALONE WOULD BE A FALSE GREEN
+-- HERE — it passes identically if the update raised nothing because it matched
+-- nothing and if it raised nothing because it LANDED. So 756 re-runs the same
+-- statement inside a data-modifying CTE and asserts the affected row count is
+-- exactly 0, and 757 asserts the membership itself is untouched. The three
+-- together say what the contract says: nothing raised, nothing matched, nothing
+-- moved. 28b is a real gym with a real branch and a real front-desk staff row,
+-- so the session at 755 is an ordinary well-formed front-desk session of ANOTHER
+-- gym rather than a malformed claim that might be refused for some other reason.
+--
+-- FIXTURES. A holds L (active) and Q (cancelled) — one live each, so the partial
+-- index is satisfied at fixture time. Q is CREATED cancelled rather than
+-- transitioned into it, since GL047 refuses that transition and staging it by
+-- hand would be staging through a rule. X holds one active membership of his
+-- own: that is what makes the index able to bite at all, and it is the same
+-- target in all four of 743/745/747/749 so nothing but the statement differs
+-- between them. B holds F, the group-3 source, kept off A and X so that F being
+-- active does not collide with L or XL. T1, T2 and T3 hold NOTHING, one target
+-- per attempt, so no control can be answered by the live index while reporting a
+-- false green and no attempt that unexpectedly LANDS can turn the next one into
+-- a same-value write refused by nothing.
+--
+-- ADR-039: every date is the gym's own today, never current_date. ADR-030:
+-- nothing is committed; the file's single BEGIN … ROLLBACK covers it.
+-- ===========================================================================
+
+set local role postgres;
+
+insert into public.organizations (id, name, gym_code) values
+  ('22000000-0000-4000-8000-000000280001'::uuid, 'PayRec Gym 28', 'PYR22V'),
+  -- 28b: nothing of this section's subject matter is ever inserted into it. It
+  -- exists so that 755 can be sent from a coherent front-desk session belonging
+  -- to a REAL other gym, rather than from a claim naming a tenant that does not
+  -- exist — which could be filtered away for a reason that is not the policy.
+  ('22000000-0000-4000-8000-000000280002'::uuid, 'PayRec Gym 28b', 'PYR22W');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('22000000-0000-4000-8000-000000280011'::uuid, '22000000-0000-4000-8000-000000280001'::uuid, 'G28 Main', true),
+  ('22000000-0000-4000-8000-000000280012'::uuid, '22000000-0000-4000-8000-000000280002'::uuid, 'G28b Main', true);
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('22000000-0000-4000-8000-000000280021'::uuid, '22000000-0000-4000-8000-000000280001'::uuid,
+   '22000000-0000-4000-8000-000000280011'::uuid, 'front_desk', 'T28 Desk'),
+  ('22000000-0000-4000-8000-000000280022'::uuid, '22000000-0000-4000-8000-000000280002'::uuid,
+   '22000000-0000-4000-8000-000000280012'::uuid, 'front_desk', 'T28b Desk');
+
+-- A holds L (active) and Q (cancelled). X holds one live membership of his own
+-- and is the target of all four statements in the discriminating battery. B
+-- holds F, which carries the child payment. T1/T2/T3 hold nothing.
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000280041'::uuid, '22000000-0000-4000-8000-000000280001'::uuid,
+   '22000000-0000-4000-8000-000000280011'::uuid, 'M28 A', '+912228000041'),
+  ('22000000-0000-4000-8000-000000280043'::uuid, '22000000-0000-4000-8000-000000280001'::uuid,
+   '22000000-0000-4000-8000-000000280011'::uuid, 'M28 X', '+912228000043'),
+  ('22000000-0000-4000-8000-000000280045'::uuid, '22000000-0000-4000-8000-000000280001'::uuid,
+   '22000000-0000-4000-8000-000000280011'::uuid, 'M28 B', '+912228000045'),
+  ('22000000-0000-4000-8000-000000280051'::uuid, '22000000-0000-4000-8000-000000280001'::uuid,
+   '22000000-0000-4000-8000-000000280011'::uuid, 'M28 T1', '+912228000051'),
+  ('22000000-0000-4000-8000-000000280052'::uuid, '22000000-0000-4000-8000-000000280001'::uuid,
+   '22000000-0000-4000-8000-000000280011'::uuid, 'M28 T2', '+912228000052'),
+  ('22000000-0000-4000-8000-000000280053'::uuid, '22000000-0000-4000-8000-000000280001'::uuid,
+   '22000000-0000-4000-8000-000000280011'::uuid, 'M28 T3', '+912228000053');
+
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('22000000-0000-4000-8000-000000280061'::uuid, '22000000-0000-4000-8000-000000280001'::uuid, 'G28 Plan (30d)', 30, 100000);
+
+create temp table today_t28 as
+  select (now() at time zone o.timezone)::date as d
+    from public.organizations o where o.id = '22000000-0000-4000-8000-000000280001'::uuid;
+grant select on today_t28 to public;
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, cancelled_at) values
+  -- L: active, A's. The source row of 747 (control) and 749 (discriminator),
+  -- and the row group 4 attempts to re-point from another gym's session.
+  ('22000000-0000-4000-8000-000000280081'::uuid, '22000000-0000-4000-8000-000000280001'::uuid,
+   '22000000-0000-4000-8000-000000280041'::uuid, '22000000-0000-4000-8000-000000280061'::uuid,
+   'active', (select d from today_t28), (select d from today_t28), 100000, null),
+  -- Q: cancelled, A's, CREATED in that state — GL047 refuses cancelling into it
+  -- by hand, and staging a fixture through a rule is staging nothing. The source
+  -- row of 743 (control) and 745 (discriminator).
+  ('22000000-0000-4000-8000-000000280082'::uuid, '22000000-0000-4000-8000-000000280001'::uuid,
+   '22000000-0000-4000-8000-000000280041'::uuid, '22000000-0000-4000-8000-000000280061'::uuid,
+   'cancelled', (select d from today_t28), (select d from today_t28), 100000, now()),
+  -- XL: X's own live membership. Without it the partial index has no entry to
+  -- collide with and none of the four statements below means anything.
+  ('22000000-0000-4000-8000-000000280083'::uuid, '22000000-0000-4000-8000-000000280001'::uuid,
+   '22000000-0000-4000-8000-000000280043'::uuid, '22000000-0000-4000-8000-000000280061'::uuid,
+   'active', (select d from today_t28), (select d from today_t28), 100000, null),
+  -- F: B's, active. The group-3 source, and the only membership here with a
+  -- child row referencing it.
+  ('22000000-0000-4000-8000-000000280084'::uuid, '22000000-0000-4000-8000-000000280001'::uuid,
+   '22000000-0000-4000-8000-000000280045'::uuid, '22000000-0000-4000-8000-000000280061'::uuid,
+   'active', (select d from today_t28), (select d from today_t28), 100000, null);
+
+-- The child row of group 3. `created`, so no money has ARRIVED against F (only
+-- paid, refunded and reversed count) and the terms freeze is not engaged —
+-- leaving exactly GL042 and the referential integrity of F's own key in play.
+insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id) values
+  ('22000000-0000-4000-8000-000000280091'::uuid, '22000000-0000-4000-8000-000000280001'::uuid,
+   '22000000-0000-4000-8000-000000280045'::uuid, '22000000-0000-4000-8000-000000280084'::uuid,
+   50000, 'created', 'cash', '22000000-0000-4000-8000-000000280021'::uuid);
+
+-- 742 — the whole fixture pinned before anything is attempted, because every
+-- claim below depends on one of these being true: L is A's and ACTIVE (so the
+-- tuple 749 stores differs from it in exactly the status), Q is A's and
+-- CANCELLED (same, in the other direction), X holds exactly ONE live membership
+-- (so the index certainly CAN answer), F is B's and active and carries exactly
+-- one child payment (so 753's `id` write certainly CAN break a foreign key),
+-- T1/T2/T3 hold NOTHING (so no control can be answered by the index while
+-- reporting green), the id 753 moves F to does not already exist, and 28b does.
+-- Verifying a no-op is not verifying: this file has been bitten once already by
+-- a fixture id that did not match the row it meant.
+select results_eq(
+  $$ select (select m.member_id from public.memberships m where m.id = '22000000-0000-4000-8000-000000280081'::uuid),
+            (select m.status::text from public.memberships m where m.id = '22000000-0000-4000-8000-000000280081'::uuid),
+            (select m.member_id from public.memberships m where m.id = '22000000-0000-4000-8000-000000280082'::uuid),
+            (select m.status::text from public.memberships m where m.id = '22000000-0000-4000-8000-000000280082'::uuid),
+            (select m.member_id from public.memberships m where m.id = '22000000-0000-4000-8000-000000280084'::uuid),
+            (select m.status::text from public.memberships m where m.id = '22000000-0000-4000-8000-000000280084'::uuid),
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000280043'::uuid
+                and x.status in ('active', 'frozen')),
+            (select count(*)::int from public.payments p
+              where p.membership_id = '22000000-0000-4000-8000-000000280084'::uuid),
+            (select count(*)::int from public.memberships x
+              where x.member_id in ('22000000-0000-4000-8000-000000280051'::uuid,
+                                    '22000000-0000-4000-8000-000000280052'::uuid,
+                                    '22000000-0000-4000-8000-000000280053'::uuid)),
+            (select count(*)::int from public.memberships x
+              where x.id = '22000000-0000-4000-8000-0000002800f1'::uuid),
+            (select count(*)::int from public.organizations o
+              where o.id = '22000000-0000-4000-8000-000000280002'::uuid) $$,
+  $$ values ('22000000-0000-4000-8000-000000280041'::uuid, 'active'::text,
+             '22000000-0000-4000-8000-000000280041'::uuid, 'cancelled'::text,
+             '22000000-0000-4000-8000-000000280045'::uuid, 'active'::text,
+             1, 1, 0, 0, 1) $$,
+  'discriminating fixture: L is A''s and ACTIVE, Q is A''s and CANCELLED, F is B''s and active with exactly one child payment, X holds exactly ONE live membership, T1-T3 hold NOTHING, the id 753 moves F to does not exist, and gym 28b does'
+);
+
+-- ---------------------------------------------------------------------------
+-- THE DISCRIMINATING PAIR (745, 749) AND ITS CONTROLS (743, 747).
+--
+-- Four statements. All four re-point a membership at X, who holds a live one.
+-- 743 and 745 both move Q, the CANCELLED row, and differ ONLY in whether the
+-- statement also writes `status = 'active'`. 747 and 749 both move L, the ACTIVE
+-- row, and differ ONLY in whether the statement also writes `status =
+-- 'cancelled'`. The four answers are GL042, 23505, 23505, GL042 — the status
+-- write inverts the answer in BOTH directions, which is a fact about the tuple
+-- being stored and cannot be a fact about either row.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000280001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000280021')::text,
+  true);
+set local role authenticated;
+
+-- 743 — CONTROL for 745. Q, the cancelled row, pointed at X, who holds a live
+-- membership. No status is written, so the tuple stored is still `cancelled`,
+-- which the partial index does not cover: the index has nothing to say and GL042
+-- answers. This is the assertion every earlier round wrote, and on its own it is
+-- consistent with all three readings.
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000280043'::uuid
+   where id = '22000000-0000-4000-8000-000000280082'::uuid
+$$, 'GL042'::char(5), null,
+  'control for the pair: a CANCELLED membership pointed at a live-holder with NO status written stays outside the partial index, so the member_id rule answers — GL042');
+
+set local role postgres;
+
+-- 744
+select results_eq(
+  $$ select m.member_id, m.status::text,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000280043'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000280082'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000280041'::uuid, 'cancelled'::text, 1) $$,
+  'and the membership is unchanged after it — still A''s, still cancelled, and X still holds exactly the one membership he came with');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000280001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000280021')::text,
+  true);
+set local role authenticated;
+
+-- 745 — HALF ONE OF THE DISCRIMINATING PAIR. Word for word 743 with
+-- `status = 'active'` added and nothing else changed. The row being moved is
+-- still cancelled and the target still holds a live membership, so "the source
+-- decides" predicts GL042 and "the target decides" predicts 23505 — but what is
+-- actually stored is an ACTIVE tuple pointed at a member who already has one,
+-- and the partial index is evaluated against THAT. 23505.
+--
+-- `cancelled -> active` is an illegal transition and GL047 is not what answers:
+-- the index refuses the tuple as it is stored, which is before any AFTER trigger
+-- runs. It cannot be staged as a legal transition, because no status outside the
+-- live set moves legally into it.
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000280043'::uuid,
+         status = 'active'
+   where id = '22000000-0000-4000-8000-000000280082'::uuid
+$$, '23505'::char(5), null,
+  'THE PAIR, half one: a CANCELLED membership pointed at a live-holder WHILE the same statement writes status = active is 23505 — the partial index is evaluated against the tuple being STORED, so the row''s own cancelled state does not take it out of the index when the statement puts it back in');
+
+set local role postgres;
+
+-- 746
+select results_eq(
+  $$ select m.member_id, m.status::text,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000280043'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000280082'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000280041'::uuid, 'cancelled'::text, 1) $$,
+  'and neither half of it landed — the membership is still A''s and still cancelled, and X still holds exactly one');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000280001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000280021')::text,
+  true);
+set local role authenticated;
+
+-- 747 — CONTROL for 749. L, the active row, pointed at the same X. No status is
+-- written, so the tuple stored is still `active` and collides in the partial
+-- index: 23505. The other assertion every earlier round wrote, and also
+-- consistent with all three readings on its own.
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000280043'::uuid
+   where id = '22000000-0000-4000-8000-000000280081'::uuid
+$$, '23505'::char(5), null,
+  'control for the pair: an ACTIVE membership pointed at a live-holder with NO status written stays inside the partial index, so the index answers — 23505');
+
+set local role postgres;
+
+-- 748
+select results_eq(
+  $$ select m.member_id, m.status::text,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000280043'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000280081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000280041'::uuid, 'active'::text, 1) $$,
+  'and the membership is unchanged after it — still A''s, still active, and X still holds exactly the one membership he came with');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000280001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000280021')::text,
+  true);
+set local role authenticated;
+
+-- 749 — HALF TWO OF THE DISCRIMINATING PAIR, AND THE ASSERTION THAT KILLS THE
+-- OTHER TWO READINGS OUTRIGHT. Word for word 747 with `status = 'cancelled'`
+-- added and nothing else changed. The row being moved is live and the target
+-- holds a live one, so "the source decides" AND "the target decides" both
+-- predict 23505 — and the tuple actually stored is `cancelled`, which the
+-- partial index does not cover, so the index has no entry to collide with and
+-- GL042 answers.
+--
+-- `active -> cancelled` IS A LEGAL TRANSITION, deliberately. GL047 therefore has
+-- nothing to say here, so a GREEN cannot be explained by GL047 having been
+-- reached and the assertion measures exactly what it claims to.
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000280043'::uuid,
+         status = 'cancelled'
+   where id = '22000000-0000-4000-8000-000000280081'::uuid
+$$, 'GL042'::char(5), null,
+  'THE PAIR, half two: an ACTIVE membership pointed at a live-holder WHILE the same statement writes status = cancelled (a LEGAL transition, so GL047 is not what answers) is GL042, not 23505 — the tuple being stored is retired and the partial index does not cover it, which no reading about the source row or the target member can produce');
+
+set local role postgres;
+
+-- 750
+select results_eq(
+  $$ select m.member_id, m.status::text,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000280043'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000280081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000280041'::uuid, 'active'::text, 1) $$,
+  'and neither half of it landed — the membership is still A''s and still ACTIVE, so the status write was refused with the re-point rather than applied beside it');
+
+-- ---------------------------------------------------------------------------
+-- GROUP 3 — A FOREIGN KEY POINTING AT `memberships`. The contract decides that
+-- GL042 answers ahead of GL043-GL047 and decides nothing else; a child row
+-- referencing this membership's key is outside that claim entirely.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000280001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000280021')::text,
+  true);
+set local role authenticated;
+
+-- 751 — CONTROL for 753. The identical statement with the `id` write deleted, so
+-- F keeps the key its child payment references and no foreign key has anything
+-- to say. T1 holds nothing, so the live index has nothing to say either. GL042
+-- is the only thing left. Without this, 753 would pass identically against an
+-- implementation in which GL042 had stopped refusing anything at all, or in
+-- which the re-point half had been silently accepted.
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000280051'::uuid
+   where id = '22000000-0000-4000-8000-000000280084'::uuid
+$$, 'GL042'::char(5), null,
+  'control for the foreign-key case: re-pointing a membership WITHOUT touching its own id leaves its child payment pointing at a key that still exists, so the member_id rule answers — GL042');
+
+set local role postgres;
+
+-- 752
+select results_eq(
+  $$ select m.member_id, m.id,
+            (select count(*)::int from public.payments p
+              where p.membership_id = '22000000-0000-4000-8000-000000280084'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000280084'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000280045'::uuid, '22000000-0000-4000-8000-000000280084'::uuid, 1) $$,
+  'and the membership is unchanged after it — still B''s, still its own id, and its child payment still points at it');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000280001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000280021')::text,
+  true);
+set local role authenticated;
+
+-- 753 — THE FOREIGN KEY POINTING AT THIS TABLE. The same statement, now also
+-- moving F's own `id`. Its child payment references `memberships(tenant_id, id)`
+-- (composite since ADR-052), so the new key leaves that reference dangling and
+-- `payments_membership_id_fkey` refuses the statement with 23503. The
+-- referential check is an internal constraint trigger and those sort ahead of
+-- every trigger this project names, so GL042 cannot be put in front of it by any
+-- rename or clause move — which is exactly why the contract does not claim it.
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000280052'::uuid,
+         id = '22000000-0000-4000-8000-0000002800f1'::uuid
+   where id = '22000000-0000-4000-8000-000000280084'::uuid
+$$, '23503'::char(5), null,
+  'GL042 does not answer ahead of a foreign key pointing AT memberships: re-pointing a membership while also moving its own id comes back 23503 from payments_membership_id_fkey, not GL042 — the contract''s ordering claim covers the rules in its own trigger and GL047, and nothing else');
+
+set local role postgres;
+
+-- 754
+select results_eq(
+  $$ select m.member_id, m.id,
+            (select count(*)::int from public.payments p
+              where p.membership_id = '22000000-0000-4000-8000-000000280084'::uuid),
+            (select count(*)::int from public.memberships x
+              where x.id = '22000000-0000-4000-8000-0000002800f1'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000280084'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000280045'::uuid, '22000000-0000-4000-8000-000000280084'::uuid, 1, 0) $$,
+  'and neither half of it landed — the membership is still B''s under its original id, its child payment still points at it, and the id it was moved to does not exist');
+
+-- ---------------------------------------------------------------------------
+-- GROUP 4 — THE SILENT SUCCESS. The policy's USING clause is a row filter, not a
+-- refusal: another gym's session gets UPDATE 0 and no exception. This is the one
+-- kind of session the requirement's "any session" does not actually bind, and a
+-- caller reads a zero row count as success.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000280002',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000280022')::text,
+  true);
+set local role authenticated;
+
+-- 755 — an ordinary, well-formed front-desk session of gym 28b re-points gym
+-- 28's membership L at gym 28's member T3. Nothing is raised. Not GL042, not
+-- 42501, not anything: the row is filtered away by memberships_tenant_write's
+-- USING before there is a row to refuse.
+select lives_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000280053'::uuid
+   where id = '22000000-0000-4000-8000-000000280081'::uuid
+$$, 'a session whose tenant claim names another gym raises NOTHING when it re-points a membership — the row-security policy''s USING clause is a filter, not a refusal');
+
+-- 756 — AND THIS IS WHY 755 ALONE WOULD BE A FALSE GREEN. `lives_ok` passes
+-- identically whether the update matched nothing or LANDED, and "it landed" is
+-- the harm the requirement exists to prevent. The same statement is re-run
+-- inside a data-modifying CTE and its affected row count asserted to be exactly
+-- zero, which is the fact that separates "silently filtered" from "silently
+-- succeeded".
+with u as (
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000280053'::uuid
+   where id = '22000000-0000-4000-8000-000000280081'::uuid
+  returning 1
+), c as (select count(*)::int as n from u)
+select is(c.n, 0,
+  'and it affected ZERO rows — the outcome is UPDATE 0, not a refusal and not a change, so a caller coded against this requirement reads success where nothing happened') from c;
+
+set local role postgres;
+
+-- 757
+select results_eq(
+  $$ select m.member_id, m.status::text,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000280053'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000280081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000280041'::uuid, 'active'::text, 0) $$,
+  'and the membership is unchanged after both of them — still A''s, still active, and T3 still holds nothing'
 );
 
 
