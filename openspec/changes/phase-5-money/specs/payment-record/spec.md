@@ -432,12 +432,32 @@ beats the conceptual tidiness of grouping it with the count it more closely
 resembles.
 
 #### Scenario: Correcting a mis-sold plan
-- **WHEN** a front-desk session changes the plan of a membership against which no money has arrived
+- **WHEN** a **gym admin** changes the plan of a membership against which no money has arrived
 - **THEN** the length AND the price SHALL both become the new plan's, and a payment SHALL buy exactly one period of it
 
 #### Scenario: Correcting a mis-sold plan at a negotiated price
 - **WHEN** that correction names a price of its own in the same statement
 - **THEN** that price SHALL stand, and the length SHALL still be the new plan's
+
+#### Scenario: A front desk correcting a mis-sold plan
+- **WHEN** a front-desk session changes the plan of a membership, with or without money against it
+- **THEN** it SHALL be refused — who may re-price is settled below and does not change with the plan
+
+**These two scenarios said "a front-desk session" for five rounds.** Round
+eleven corrected the third one below them and left these, citing the harm they
+carry — which is the same defect the correction was written to fix, one
+paragraph further down the same file. The visible suite's author then quietly
+sent the assertion as a manager, so both suites stayed green while the contract
+they derive from said the opposite of the shipped rule; the next spec-first
+author would have written the front-desk assertion the spec asked for and the
+next implementer would have "fixed" the trigger back into the 300-day hole.
+
+**A cost this creates, recorded rather than left to be found.** Correcting a
+mis-sold plan is now gym-admin work, and `POST /api/memberships` has no update
+path — so a desk that sells the wrong plan cannot fix it at all, and OPEN-024
+already blocks selling a replacement while the first is live. Whoever adds a
+membership-edit screen owns that; until then the remedy is the one below:
+refund, cancel, sell again.
 
 #### Scenario: Cutting the price after a period was bought
 - **WHEN** a front-desk session lowers the price of a membership that has been granted a period
@@ -591,11 +611,16 @@ back. Without the cancellation the gym is left with a live, wrongly-dated
 membership admitting its member at the gate. The cancellation is the repair; the
 refund is the money.
 
-**And the desk cannot start it.** `refunds_tenant_write` is gym-admin, so a
-mis-priced sale is made by an admin and unmade by one; only the last step, the
-honest re-sale at the plan's price, belongs to the front desk. That is
-consistent — the same reasoning puts re-pricing there — but it means "sell a new
-one" is the only part of the remedy a desk can perform alone.
+**The desk cannot start it, but it can finish it — and can also do the middle
+step alone, which is not obviously right.** `refunds_tenant_write` is gym-admin,
+so the refund is an admin's. **Cancellation is not gated at all**: a critic
+measured a front desk retiring a live, fully-paid membership by itself. So the
+remedy's three steps sit at three different levels — refund (admin), cancel
+(anyone front-office), re-sell (anyone front-office) — and an earlier draft of
+this paragraph claimed the desk could only do the last. Whether cancelling a
+paid membership should be admin work is a real question this phase does not
+answer; it is not the money path, and nothing about it is silent, so it is left
+where it is rather than gated in the same breath as a fix.
 
 **A residual this rule does not remove**: a manager comping deliberately and a
 manager mistyping are the same statement. `GL046` moves who can make that
@@ -660,6 +685,56 @@ session and no reason recorded, is what `docs/security.md` exists to prevent.
 #### Scenario: A gym admin after money has arrived
 - **WHEN** a gym admin changes a term of a membership that has taken money
 - **THEN** it SHALL still be refused — being a gym admin does not unfreeze what money has bought
+
+### Requirement: Money does not extend a membership that has been retired
+WHEN a payment names a membership that is `cancelled` or `expired`, THE SYSTEM
+SHALL record the payment and SHALL NOT extend that membership.
+
+`app.grant_periods()` reads a membership's price, currency, dates, count and
+length — **and never its status.** Measured by a critic on the very sequence
+this phase prescribes as the repair for a mis-sold membership: refund, cancel,
+sell a new one, and then name the *retired* one on the payment. The money is
+recorded and receipted, the cancelled row's dates move, and the member stays
+refused at the gate because the gate reads status. `ends_on` went to the year
+26667.
+
+It is not reachable from the console — the membership page offers only a live
+or lapsed membership to renew — but `POST /api/payments` accepts any
+`membershipId`, and `GL042` only checks that the member matches. **The repair
+path is exactly the moment a member has two memberships and one of them is
+retired**, so this is reachable precisely when the product tells someone to do
+it.
+
+Recording the payment rather than refusing it is deliberate: the money did
+change hands, the receipt is the gym's record of that, and refusing after the
+fact would leave cash in a drawer with nothing to show for it. What must not
+happen is a retired membership silently growing.
+
+#### Scenario: Paying against a cancelled membership
+- **WHEN** a payment names a membership whose status is `cancelled`
+- **THEN** the payment SHALL be recorded and receipted, and the membership's dates and count SHALL NOT move
+
+#### Scenario: Paying against the live one instead
+- **WHEN** the same payment names the member's live membership
+- **THEN** it SHALL extend that membership normally
+
+**What is suspended is the granting, not the money — and both blind authors
+found that this sentence was missing.** Money paid against a retired membership
+stays on record against it. If that membership is ever made live again, the
+total is what it always was and the next payment grants what all of it bought.
+One author measured the shape and called it the named harm arriving late; the
+other bounded it and reported the two possible answers rather than picking one.
+Neither scored it, because the requirement did not say.
+
+It says now, and the reason is arithmetic rather than taste: a member who paid
+₹3,000 against a membership that was cancelled has paid ₹3,000. Detaching that
+money would mean they bought nothing and cannot get it back, which is a worse
+answer than the one this rule was written to prevent. **The gym is never out of
+pocket** — ₹3,000 buys three periods at ₹1,000 whenever it is counted.
+
+#### Scenario: Money paid while retired, after the membership is revived
+- **WHEN** a membership that took money while retired is made live again
+- **THEN** the next payment SHALL grant every period the whole total has bought
 
 ### Requirement: The dates a membership runs for are written by the rule that grants them
 THE SYSTEM SHALL move `starts_on` and `ends_on` only as part of granting a
