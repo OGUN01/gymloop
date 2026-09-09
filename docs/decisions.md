@@ -451,6 +451,20 @@ Two consequences fell out of the same round, both already-named shapes recurring
 - **A blind test author found the receipt-number format by writing an assertion that could not be satisfied and asking why.** "Both years' first receipt numbers are equal" contradicts `payments_tenant_id_receipt_number_key` (unique per gym, not per year), which the same author had read from the catalogue and written into its own header. The reconciliation is the answer: the financial year has to be *in* the rendered number, because the counter restarts every April and a bare ordinal collides with last year's on the first payment of each one. Neither suite would have found it alone — the visible one asserted the restart, the index refused it, and the contradiction was the finding.
 
 
+**ADR-088 - `sum()` returns numeric, and assigning numeric to an integer column ROUNDS.** ADR-087's backfill and the rule it was written to agree with disagreed by one, for every membership whose money had reached at least half a period but not a whole one.
+
+`sum()` over `bigint` returns `numeric`. `app.grant_periods()` declares both operands `bigint`, so it truncates: `1080000 / 1200000 = 0`. The backfill's expression stayed numeric, produced `0.9`, and PostgreSQL **rounded** it on assignment to an `integer` column. Stored: `1`.
+
+Measured against the demo gym: **one membership in 47** — Sneha Joshi's Annual, priced ₹12,000, with ₹10,800 arrived, which is a coupon discount and not an exotic input. `memberships` has a `discount_paise` column and the seed uses it; every part payment lands in the same window. **The rounding did not mis-set an arbitrary row, it mis-set exactly the rows where the money and the price genuinely differ.**
+
+The second consequence is worse than the first. She holds a period nobody paid for — and her next payment grants **nothing**: the total becomes ₹22,800, `owed` is `1`, `periods_granted` is already `1`, so the function returns. **She pays ₹12,000 for zero days**, silently, and the only record that anything is wrong is a column nobody looks at.
+
+**This is what a recorded count is FOR.** ADR-087 argued that recording beats deriving because a record can be checked against the rule. Running that check found a defect in the very migration that introduced the column — one round after a critic listed "does the backfill agree exactly with its own rule?" as the first thing to attack. The answer was no, by one, on the one row in the demo gym carrying a discount.
+
+Verified in both directions, which is the only kind of verification this project accepts (ADR-078): 1 disagreement across 47 memberships on live Cloud before the correction, 0 after it.
+
+**And the check itself was wrong the first time.** My first comparison query divided in `numeric` and reported a disagreement that was its own arithmetic rather than the data's — a checker that cannot distinguish the thing it is checking from itself. It had to be rewritten to truncate exactly as the rule does before it could say anything at all.
+
 **ADR-087 - How much has already been granted is a fact, not a subtraction.** Round three's own fix double-counted an upsert. I found it by running the shape rather than reading the code, and a round-four critic reproduced it independently in three forms: `INSERT … ON CONFLICT DO UPDATE`, `MERGE`, and a data-modifying CTE. ₹1,000 bought **60 days** on a 30-day plan, through `supabase-js .upsert()`, from an ordinary front-desk session.
 
 Such a command fires BOTH statement triggers — the insert trigger's transition table holds the rows inserted, the update trigger's holds the rows that conflicted. Each then computed `before = total − its own added`, and the other invocation's rows were already in `total`, because by the time either fires the whole statement has landed. Both concluded they had crossed the multiple.
