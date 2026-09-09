@@ -179,6 +179,120 @@ quotes ADR-070 three functions above, for a different rule.
 - **WHEN** a refund whose own status is `failed` is recorded against a payment already refunded in full
 - **THEN** it SHALL be permitted — a failed refund took nothing, and the rule that excludes failed rows from the sum must exclude them from the comparison too
 
+### Requirement: A refund that completed did not fail
+WHEN a refund's status changes, THE SYSTEM SHALL refuse any change out of
+`completed`.
+
+**The ceiling is keyed on a value the constrained party rewrites.** `GL036`
+bounds the refunds against a payment by summing the ones that are not `failed`,
+and nothing froze a refund's status — so a gym admin could demote a completed
+refund to `failed`, which takes it out of the sum, and the books then show money
+that left the gym as an attempt that never happened. Measured: full refund
+accepted, second full refund refused by `GL036`, first refund demoted to
+`failed`, second full refund then **accepted**.
+
+The asymmetry is the tell: re-completing the demoted refund is refused, because
+by then the sum is full. **You could un-count freely and never re-count** — a
+one-way door out of the ledger.
+
+This is ADR-089's own general form, one table over: a freeze is worth exactly
+as much as the immutability of the thing it is keyed on. A payment that is
+`paid` cannot walk backwards (`GL039`); a refund that completed is the same kind
+of fact, and money that left the gym does not become an attempt.
+
+#### Scenario: Demoting a completed refund
+- **WHEN** a session changes a `completed` refund's status to anything else
+- **THEN** it SHALL be refused and the refund SHALL be unchanged
+
+#### Scenario: A refund that genuinely failed
+- **WHEN** a refund that is not `completed` moves between its other statuses
+- **THEN** it SHALL be allowed, and the ceiling it was consuming SHALL be released
+
+**Why the door at `requested` and `processing` stays open, since both blind
+authors found it and neither would guess.** The same un-counting works from
+those statuses — the ceiling sums everything that is not `failed` — and the
+first draft of this requirement permitted it without saying why. It is
+deliberate: **a refund at `processing` is money the gym has handed to the
+provider and the provider has not yet moved.** It can genuinely fail; that is
+what the status is for, and refusing the transition would strand it while the
+ceiling permanently consumed money that never left.
+
+So the invariant is narrower than "the ceiling is never released": **money that
+LEFT does not become an attempt. Money in flight may.**
+
+And the ceiling is not what holds the line there — a different rule is, which
+the visible author measured: `GL036` applies on UPDATE as well as INSERT, so an
+un-counted refund can never be completed again once the second one has taken the
+room. **At most one of the two ever reaches `completed`**, whichever order they
+are written in.
+
+The refusal code is `GL041` — a refund is a record, which is the family this
+belongs to, rather than a new number. The two requirements below reuse `GL036`
+and `GL042` for the same reason: each is the code whose own requirement already
+names the harm being closed.
+
+### Requirement: Money only comes back out of money that came in
+WHEN a refund names a payment, THE SYSTEM SHALL refuse it unless that payment
+has actually taken money — `paid`, `refunded` or `reversed`.
+
+`app.enforce_refund_total()` reads a payment's `amount_paise` and never its
+status, and `amount_paise` is not null on a `created` row. So a full refund
+against a payment that never arrived was **accepted**: money recorded as leaving
+the gym against money that never came in.
+
+**The screen already claims this is impossible.**
+`apps/web/app/(console)/payments/[paymentId]/page.tsx` says "a payment that is
+not paid has taken nothing … The database refuses both (`GL036`)". The second
+half is true and the first half was not; the only thing enforcing it was the
+absence of a button, and `POST /api/refunds` takes a `paymentId`.
+
+#### Scenario: Refunding a payment that never arrived
+- **WHEN** a refund names a payment whose status is `created`, `pending` or `failed`
+- **THEN** it SHALL be refused and no refund SHALL exist
+
+#### Scenario: Refunding money that did arrive
+- **WHEN** a refund names a `paid`, `refunded` or `reversed` payment
+- **THEN** it SHALL be bounded by `GL036` as it is today
+
+### Requirement: A membership belongs to the member it was sold to
+WHEN a session changes a membership's `member_id`, THE SYSTEM SHALL refuse it.
+
+"A payment extends only the membership of the member who paid" (`GL042`) is
+evaluated on the **payment** row, and `memberships.member_id` was frozen by
+nothing — not the terms rule, whose column list is closed and excludes it, and
+not the stamp. Measured, from a **front-desk** session, in one statement: a
+membership carrying a granted period moved to a different member, while the
+paid payment still named the original one and carried their receipt number.
+
+That is verbatim the harm `GL042`'s own requirement names — **"the receipt names
+one person and the month lands on another"** — reached by another route, by the
+least-privileged writer who can reach the table at all.
+
+A membership is sold to somebody. Correcting who it was sold to is not an edit;
+it is a refund, a cancellation and a new sale, which is the answer this phase
+gives for every other recorded fact.
+
+**A trap for whoever tests this**: `memberships_tenant_id_member_id_live_key`
+refuses the move when the target member already holds a live membership, so a
+careless check reports a false GREEN. The move has to be attempted against a
+member holding nothing.
+
+#### Scenario: Moving a membership to another member
+- **WHEN** any session changes a membership's `member_id`
+- **THEN** it SHALL be refused and the membership SHALL be unchanged
+
+#### Scenario: Selling a member a second membership
+- **WHEN** a member's membership is cancelled and a new one is sold to the same member
+- **THEN** both SHALL be allowed — this rule refuses re-pointing, not selling
+
+#### Scenario: Selling somebody else a membership
+- **WHEN** a membership is created for a different member
+- **THEN** it SHALL be allowed — the rule governs a change, not a creation
+
+The heading of the first of these said "the same member" while its own WHEN said
+"another member", which are two different acts; a blind author asserted both
+rather than choose, which was right.
+
 ### Requirement: Money leaving the gym names the person who sent it
 THE SYSTEM SHALL require `refunds.initiated_by_staff_id` to be the acting staff
 member, and SHALL refuse a refund that names anybody else. **A refund naming nobody is STAMPED, not refused** — the scenario below has said so since it was written, this sentence said the opposite for the whole phase, and the implementation follows the scenario (measured: a refund inserted with no actor comes back attributed to the caller's `staff_id`). A normative sentence that disagrees with its own scenario is the defect that produced two rounds of this phase, and it is the sentence a spec-first author derives from.
