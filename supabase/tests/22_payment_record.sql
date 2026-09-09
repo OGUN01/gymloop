@@ -545,7 +545,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(722);
+select plan(741);
 
 
 -- ---------------------------------------------------------------------------
@@ -12870,6 +12870,471 @@ select results_eq(
        from public.memberships m where m.id = '22000000-0000-4000-8000-000000260082'::uuid $$,
   $$ values ('22000000-0000-4000-8000-000000260042'::uuid, 'active'::text, 1) $$,
   'and the membership is unchanged — still B''s and still active, and X still holds exactly the one membership he came with'
+);
+
+
+
+-- ===========================================================================
+-- SECTION 34 (ROUND TWENTY) — "GL042 answers ahead of every other RULE. It
+-- does not answer ahead of the table's own SHAPE." Tenant 27.
+-- Assertions 723-741.
+--
+-- THE CLASS SENTENCE, WHICH IS WHAT THIS SECTION PINS. CHECK constraints,
+-- unique indexes, foreign keys and the row-security policy are not rules in
+-- the sense the ordering requirement means. They are enforced during the
+-- UPDATE itself — the policy's WITH CHECK and the CHECK constraints before the
+-- new row is even stored, the unique index as it is stored, the foreign key by
+-- an internal constraint trigger that sorts ahead of every trigger this project
+-- names — so no trigger naming and no clause ordering inside any function can
+-- put GL042 in front of them. A statement that violates one of them AND GL042
+-- comes back with 23514, 23505, 23503 or 42501, and never with GL042.
+--
+-- ONE ASSERTION PER MECHANISM, NOT PER CONSTRAINT. Two earlier attempts at
+-- this sentence enumerated the exceptions and both were measured false: the
+-- first claimed GL042 answers "in every case", the second added a single
+-- condition and a critic then found four more families in the scenario's own
+-- column list. Enumerating exceptions to a rule about shape produces a list
+-- that is always one item short. So this section asserts the four MECHANISMS —
+-- memberships_ends_on_after_starts_on_chk for CHECK, memberships_plan_id_fkey
+-- for the foreign key, memberships_tenant_id_member_id_live_key for the unique
+-- index, memberships_tenant_write for the policy — and not the seven CHECK
+-- constraints the table happens to carry today. A CHECK added tomorrow belongs
+-- to the class already proven; a CHECK enumerated tomorrow leaves the list one
+-- item short again.
+--
+-- WHY EVERY ONE OF THEM HAS A CONTROL. An assertion that a statement throws
+-- 23514 proves nothing on its own: it passes identically if GL042 has stopped
+-- existing, if the re-point half was silently accepted, or if the fixture never
+-- violated GL042 in the first place. So each mechanism is asserted TWICE — the
+-- same statement WITH the shape violation (the named SQLSTATE) and WITHOUT it
+-- (GL042) — and only the pair distinguishes "the constraint answered first"
+-- from "nothing was refused by GL042 at all". Each control is the violating
+-- statement with the offending value replaced by the value the row already
+-- holds, so the two differ in exactly the shape violation and in nothing else.
+--
+-- 740 IS THE BOUNDARY, AND IT IS THE ONE A PREVIOUS ROUND GOT WRONG.
+-- memberships_tenant_id_member_id_live_key is PARTIAL on ('active','frozen'),
+-- so it bites on the state of the membership BEING MOVED, not on the state of
+-- the member it is moved onto. 734 and 740 point the same statement at the same
+-- member X — who holds a live membership of his own — and differ only in
+-- whether the SOURCE row is live: the active one is 23505, the cancelled one is
+-- GL042. An implementation, a spec draft or a handler that reads "the target
+-- already has one" as the deciding fact passes 734 and fails 740, which is
+-- exactly the partition a critic measured to be wrong.
+--
+-- FIXTURES. L (active, A) is the row every shape case is attempted against; Q
+-- (cancelled, A) is created cancelled rather than transitioned into it, since
+-- GL047 refuses that transition and staging it by hand would be staging through
+-- a rule. X holds one active membership of his own — that is what makes the
+-- partial index bite at 734 and what makes 740 mean anything. T1-T7 hold
+-- NOTHING, one target per attempt, so no control can be answered by the live
+-- unique key while reporting a false green, and no attempt that unexpectedly
+-- LANDS can turn the next one into a same-value write refused by nothing. A
+-- second organization (27b) exists solely to be a tenant_id this session may
+-- not write; nothing else is ever inserted into it.
+--
+-- No money is taken against any of these on purpose: the terms freeze engages
+-- only once money has arrived, so an unpaid fixture leaves exactly the rules
+-- and the shape this section is about in play. ADR-039: every date is the gym's
+-- own today. ADR-030: nothing is committed; the file's single BEGIN … ROLLBACK
+-- covers it.
+-- ===========================================================================
+
+set local role postgres;
+
+insert into public.organizations (id, name, gym_code) values
+  ('22000000-0000-4000-8000-000000270001'::uuid, 'PayRec Gym 27', 'PYR22T'),
+  -- 27b: never written to, never read from. It exists only so that 738 has a
+  -- real tenant_id to attempt, rather than a uuid that would fail the tenant
+  -- foreign key for a reason that is not the policy.
+  ('22000000-0000-4000-8000-000000270002'::uuid, 'PayRec Gym 27b', 'PYR22U');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('22000000-0000-4000-8000-000000270011'::uuid, '22000000-0000-4000-8000-000000270001'::uuid, 'G27 Main', true);
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('22000000-0000-4000-8000-000000270021'::uuid, '22000000-0000-4000-8000-000000270001'::uuid,
+   '22000000-0000-4000-8000-000000270011'::uuid, 'front_desk', 'T27 Desk');
+
+-- A holds both memberships under attack (L active, Q cancelled). X holds a live
+-- membership of his own and is the target of 734 and 740. T1-T7 hold nothing,
+-- one target per attempt.
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000270041'::uuid, '22000000-0000-4000-8000-000000270001'::uuid,
+   '22000000-0000-4000-8000-000000270011'::uuid, 'M27 A', '+912227000041'),
+  ('22000000-0000-4000-8000-000000270043'::uuid, '22000000-0000-4000-8000-000000270001'::uuid,
+   '22000000-0000-4000-8000-000000270011'::uuid, 'M27 X', '+912227000043'),
+  ('22000000-0000-4000-8000-000000270051'::uuid, '22000000-0000-4000-8000-000000270001'::uuid,
+   '22000000-0000-4000-8000-000000270011'::uuid, 'M27 T1', '+912227000051'),
+  ('22000000-0000-4000-8000-000000270052'::uuid, '22000000-0000-4000-8000-000000270001'::uuid,
+   '22000000-0000-4000-8000-000000270011'::uuid, 'M27 T2', '+912227000052'),
+  ('22000000-0000-4000-8000-000000270053'::uuid, '22000000-0000-4000-8000-000000270001'::uuid,
+   '22000000-0000-4000-8000-000000270011'::uuid, 'M27 T3', '+912227000053'),
+  ('22000000-0000-4000-8000-000000270054'::uuid, '22000000-0000-4000-8000-000000270001'::uuid,
+   '22000000-0000-4000-8000-000000270011'::uuid, 'M27 T4', '+912227000054'),
+  ('22000000-0000-4000-8000-000000270055'::uuid, '22000000-0000-4000-8000-000000270001'::uuid,
+   '22000000-0000-4000-8000-000000270011'::uuid, 'M27 T5', '+912227000055'),
+  ('22000000-0000-4000-8000-000000270056'::uuid, '22000000-0000-4000-8000-000000270001'::uuid,
+   '22000000-0000-4000-8000-000000270011'::uuid, 'M27 T6', '+912227000056'),
+  ('22000000-0000-4000-8000-000000270057'::uuid, '22000000-0000-4000-8000-000000270001'::uuid,
+   '22000000-0000-4000-8000-000000270011'::uuid, 'M27 T7', '+912227000057');
+
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('22000000-0000-4000-8000-000000270061'::uuid, '22000000-0000-4000-8000-000000270001'::uuid, 'G27 Plan (30d)', 30, 100000);
+
+create temp table today_t27 as
+  select (now() at time zone o.timezone)::date as d
+    from public.organizations o where o.id = '22000000-0000-4000-8000-000000270001'::uuid;
+grant select on today_t27 to public;
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, cancelled_at) values
+  -- L: active, A's. Every shape case below is attempted against this row.
+  ('22000000-0000-4000-8000-000000270081'::uuid, '22000000-0000-4000-8000-000000270001'::uuid,
+   '22000000-0000-4000-8000-000000270041'::uuid, '22000000-0000-4000-8000-000000270061'::uuid,
+   'active', (select d from today_t27), (select d from today_t27), 100000, null),
+  -- Q: cancelled, A's, created in that state. The source row of 740.
+  ('22000000-0000-4000-8000-000000270082'::uuid, '22000000-0000-4000-8000-000000270001'::uuid,
+   '22000000-0000-4000-8000-000000270041'::uuid, '22000000-0000-4000-8000-000000270061'::uuid,
+   'cancelled', (select d from today_t27), (select d from today_t27), 100000, now()),
+  -- X's own live membership: what makes the partial unique index bite at 734,
+  -- and what makes 740 a boundary rather than a repeat of the controls.
+  ('22000000-0000-4000-8000-000000270083'::uuid, '22000000-0000-4000-8000-000000270001'::uuid,
+   '22000000-0000-4000-8000-000000270043'::uuid, '22000000-0000-4000-8000-000000270061'::uuid,
+   'active', (select d from today_t27), (select d from today_t27), 100000, null);
+
+-- 723 — the whole fixture asserted before anything is attempted, because every
+-- claim below depends on one of these being true: L is active and A's and dated
+-- so that starts_on - 1 really does violate the dates CHECK; Q is cancelled and
+-- A's, so the partial index does NOT cover it; X holds exactly one LIVE
+-- membership, so at 734 the index certainly CAN answer and at 740 the only
+-- thing that differs is the source row's own state; T1-T7 hold NOTHING, so no
+-- control can be answered by the index while reporting green; the plan named at
+-- 730 does not exist; and the tenant named at 738 does.
+select results_eq(
+  $$ select (select m.member_id from public.memberships m where m.id = '22000000-0000-4000-8000-000000270081'::uuid),
+            (select m.status::text from public.memberships m where m.id = '22000000-0000-4000-8000-000000270081'::uuid),
+            (select m.starts_on = m.ends_on from public.memberships m where m.id = '22000000-0000-4000-8000-000000270081'::uuid),
+            (select m.status::text from public.memberships m where m.id = '22000000-0000-4000-8000-000000270082'::uuid),
+            (select count(*)::int from public.memberships x
+              where x.member_id in ('22000000-0000-4000-8000-000000270051'::uuid,
+                                    '22000000-0000-4000-8000-000000270052'::uuid,
+                                    '22000000-0000-4000-8000-000000270053'::uuid,
+                                    '22000000-0000-4000-8000-000000270054'::uuid,
+                                    '22000000-0000-4000-8000-000000270055'::uuid,
+                                    '22000000-0000-4000-8000-000000270056'::uuid,
+                                    '22000000-0000-4000-8000-000000270057'::uuid)),
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000270043'::uuid
+                and x.status in ('active', 'frozen')),
+            (select count(*)::int from public.plans p
+              where p.id = '22000000-0000-4000-8000-0000002700f0'::uuid),
+            (select count(*)::int from public.organizations o
+              where o.id = '22000000-0000-4000-8000-000000270002'::uuid) $$,
+  $$ values ('22000000-0000-4000-8000-000000270041'::uuid, 'active'::text, true,
+             'cancelled'::text, 0, 1, 0, 1) $$,
+  'shape fixture: L is A''s and active and single-dated, Q is cancelled, all seven controls'' targets hold NOTHING, X holds exactly one LIVE membership, the plan named at 730 does not exist, and the tenant named at 738 does'
+);
+
+-- ---------------------------------------------------------------------------
+-- MECHANISM 1 of 4 — CHECK. memberships_ends_on_after_starts_on_chk.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000270001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000270021')::text,
+  true);
+set local role authenticated;
+
+-- 724 — CONTROL for the CHECK case. The identical statement with `starts_on` in
+-- place of `starts_on - 1`: that is the value the row already holds, so it
+-- satisfies every CHECK on the table and leaves GL042 as the only thing
+-- violated. Without this, 726 would pass just as happily against an
+-- implementation in which GL042 had stopped refusing anything at all.
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000270051'::uuid,
+         ends_on = starts_on
+   where id = '22000000-0000-4000-8000-000000270081'::uuid
+$$, 'GL042'::char(5), null,
+  'shape control, CHECK: re-pointing while writing a date the row already holds violates no CHECK, so the member_id rule answers — GL042');
+
+set local role postgres;
+
+-- 725
+select results_eq(
+  $$ select m.member_id, m.status::text, m.starts_on = m.ends_on from public.memberships m
+      where m.id = '22000000-0000-4000-8000-000000270081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000270041'::uuid, 'active'::text, true) $$,
+  'and the membership is unchanged after it — still A''s, still active, still dated as it was');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000270001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000270021')::text,
+  true);
+set local role authenticated;
+
+-- 726 — THE CHECK MECHANISM. The same statement, now ending the membership the
+-- day before it starts. memberships_ends_on_after_starts_on_chk is evaluated on
+-- the new row before it is stored, which is before any AFTER trigger exists to
+-- run, so 23514 is the answer and no ordering of rules can reach in front of it.
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000270052'::uuid,
+         ends_on = starts_on - 1
+   where id = '22000000-0000-4000-8000-000000270081'::uuid
+$$, '23514'::char(5), null,
+  'GL042 does not answer ahead of a CHECK constraint: re-pointing while dating the membership to end before it starts comes back 23514 from memberships_ends_on_after_starts_on_chk, not GL042 — the CHECK runs during the UPDATE itself');
+
+set local role postgres;
+
+-- 727
+select results_eq(
+  $$ select m.member_id, m.status::text, m.starts_on = m.ends_on from public.memberships m
+      where m.id = '22000000-0000-4000-8000-000000270081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000270041'::uuid, 'active'::text, true) $$,
+  'and neither half of it landed — the owner and both dates are where they were');
+
+-- ---------------------------------------------------------------------------
+-- MECHANISM 2 of 4 — FOREIGN KEY. memberships_plan_id_fkey, which is composite
+-- (tenant_id, plan_id) since ADR-052.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000270001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000270021')::text,
+  true);
+set local role authenticated;
+
+-- 728 — CONTROL for the foreign-key case. The identical statement naming the
+-- plan the membership already carries: the referenced row exists, so the
+-- foreign key has nothing to say and GL042 is the only thing left. Naming the
+-- same plan is also not a plan CHANGE, so GL043 and GL046 are not what answers
+-- either — and if they were, GL042 would still have to beat them both.
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000270053'::uuid,
+         plan_id = '22000000-0000-4000-8000-000000270061'::uuid
+   where id = '22000000-0000-4000-8000-000000270081'::uuid
+$$, 'GL042'::char(5), null,
+  'shape control, foreign key: re-pointing while naming the plan the row already carries breaks no foreign key, so the member_id rule answers — GL042');
+
+set local role postgres;
+
+-- 729
+select results_eq(
+  $$ select m.member_id, m.plan_id from public.memberships m
+      where m.id = '22000000-0000-4000-8000-000000270081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000270041'::uuid, '22000000-0000-4000-8000-000000270061'::uuid) $$,
+  'and the membership is unchanged after it — still A''s, still on its own plan');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000270001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000270021')::text,
+  true);
+set local role authenticated;
+
+-- 730 — THE FOREIGN-KEY MECHANISM. The same statement naming a plan that does
+-- not exist. The referential check is an internal constraint trigger, and those
+-- sort ahead of every trigger this project names, so 23503 answers and no
+-- rename of memberships_terms_frozen could ever put GL042 in front of it.
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000270054'::uuid,
+         plan_id = '22000000-0000-4000-8000-0000002700f0'::uuid
+   where id = '22000000-0000-4000-8000-000000270081'::uuid
+$$, '23503'::char(5), null,
+  'GL042 does not answer ahead of a foreign key: re-pointing while naming a plan that does not exist comes back 23503 from memberships_plan_id_fkey, not GL042');
+
+set local role postgres;
+
+-- 731
+select results_eq(
+  $$ select m.member_id, m.plan_id from public.memberships m
+      where m.id = '22000000-0000-4000-8000-000000270081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000270041'::uuid, '22000000-0000-4000-8000-000000270061'::uuid) $$,
+  'and neither half of it landed — the owner and the plan are where they were');
+
+-- ---------------------------------------------------------------------------
+-- MECHANISM 3 of 4 — UNIQUE INDEX.
+-- memberships_tenant_id_member_id_live_key, partial on ('active','frozen').
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000270001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000270021')::text,
+  true);
+set local role authenticated;
+
+-- 732 — CONTROL for the unique-index case. The same live membership, the same
+-- single-column statement, pointed at a member who holds NOTHING: the partial
+-- index has no conflicting entry, so GL042 answers. This is what makes 734 a
+-- statement about the index rather than about re-pointing being refused at all.
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000270055'::uuid
+   where id = '22000000-0000-4000-8000-000000270081'::uuid
+$$, 'GL042'::char(5), null,
+  'shape control, unique index: pointing the same live membership at a member who holds nothing collides with no index entry, so the member_id rule answers — GL042');
+
+set local role postgres;
+
+-- 733
+select results_eq(
+  $$ select m.member_id, m.status::text from public.memberships m
+      where m.id = '22000000-0000-4000-8000-000000270081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000270041'::uuid, 'active'::text) $$,
+  'and the membership is unchanged after it');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000270001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000270021')::text,
+  true);
+set local role authenticated;
+
+-- 734 — THE UNIQUE-INDEX MECHANISM, and the scenario "Re-pointing a live
+-- membership onto a member who already has one". L is active and so is X's own
+-- membership, so both sit in the partial index; the collision is detected as
+-- the new row is stored, before any AFTER trigger runs. 23505, not GL042 — and
+-- this is the LIKELY case rather than an edge one, since you re-point because
+-- two members were mixed up and the other member usually has a membership of
+-- their own.
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000270043'::uuid
+   where id = '22000000-0000-4000-8000-000000270081'::uuid
+$$, '23505'::char(5), null,
+  'GL042 does not answer ahead of a unique index: pointing a LIVE membership at a member who already holds a live one comes back 23505 from memberships_tenant_id_member_id_live_key, not GL042');
+
+set local role postgres;
+
+-- 735
+select results_eq(
+  $$ select m.member_id, m.status::text,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000270043'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000270081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000270041'::uuid, 'active'::text, 1) $$,
+  'and the membership is unchanged — still A''s and still active, and X still holds exactly the one membership he came with');
+
+-- ---------------------------------------------------------------------------
+-- MECHANISM 4 of 4 — ROW SECURITY. memberships_tenant_write's WITH CHECK.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000270001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000270021')::text,
+  true);
+set local role authenticated;
+
+-- 736 — CONTROL for the policy case. The identical statement writing this
+-- session's OWN tenant_id — the value the row already holds — so the policy's
+-- WITH CHECK passes and GL042 is the only thing left to refuse it.
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000270056'::uuid,
+         tenant_id = '22000000-0000-4000-8000-000000270001'::uuid
+   where id = '22000000-0000-4000-8000-000000270081'::uuid
+$$, 'GL042'::char(5), null,
+  'shape control, policy: re-pointing while writing this session''s own tenant_id satisfies memberships_tenant_write, so the member_id rule answers — GL042');
+
+set local role postgres;
+
+-- 737
+select results_eq(
+  $$ select m.member_id, m.tenant_id from public.memberships m
+      where m.id = '22000000-0000-4000-8000-000000270081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000270041'::uuid, '22000000-0000-4000-8000-000000270001'::uuid) $$,
+  'and the membership is unchanged after it — still A''s, still this gym''s');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000270001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000270021')::text,
+  true);
+set local role authenticated;
+
+-- 738 — THE POLICY MECHANISM. The same statement writing 27b's tenant_id. The
+-- WITH CHECK on memberships_tenant_write is evaluated on the new row during the
+-- UPDATE, so 42501 answers — ahead of the composite member foreign key that the
+-- same write also breaks, and long ahead of any AFTER trigger.
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000270057'::uuid,
+         tenant_id = '22000000-0000-4000-8000-000000270002'::uuid
+   where id = '22000000-0000-4000-8000-000000270081'::uuid
+$$, '42501'::char(5), null,
+  'GL042 does not answer ahead of the row-security policy: re-pointing while writing another tenant''s tenant_id comes back 42501 from memberships_tenant_write, not GL042');
+
+set local role postgres;
+
+-- 739
+select results_eq(
+  $$ select m.member_id, m.tenant_id from public.memberships m
+      where m.id = '22000000-0000-4000-8000-000000270081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000270041'::uuid, '22000000-0000-4000-8000-000000270001'::uuid) $$,
+  'and neither half of it landed — the membership is still A''s and still this gym''s');
+
+-- ---------------------------------------------------------------------------
+-- THE BOUNDARY — the SOURCE membership's state decides, not the target's.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000270001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000270021')::text,
+  true);
+set local role authenticated;
+
+-- 740 — scenario "Re-pointing a membership that is not live". Word for word the
+-- same statement as 734 except for which membership it names: Q is cancelled,
+-- and memberships_tenant_id_member_id_live_key is partial on ('active','frozen'),
+-- so Q is not in the index and the target's own live membership cannot collide
+-- with a row that is not there. The index does not apply, and GL042 answers.
+--
+-- THIS IS THE ASSERTION THAT SEPARATES THE TWO READINGS. "The target already
+-- holds a live membership" predicts 23505 here and is wrong; "the membership
+-- being moved is itself live" predicts GL042 and is right. 734 and 740 point at
+-- the same member X, so nothing but the source row's own status differs between
+-- them, and no implementation can satisfy both readings.
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000270043'::uuid
+   where id = '22000000-0000-4000-8000-000000270082'::uuid
+$$, 'GL042'::char(5), null,
+  'a CANCELLED membership pointed at a member who already holds a live one is GL042, not 23505 — the live index is partial on (active, frozen) and does not cover the row being moved, so the SOURCE membership''s state decides which answers, not the target''s');
+
+set local role postgres;
+
+-- 741
+select results_eq(
+  $$ select m.member_id, m.status::text,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000270043'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000270082'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000270041'::uuid, 'cancelled'::text, 1) $$,
+  'and the cancelled membership is unchanged — still A''s, still cancelled, and X still holds exactly the one membership he came with'
 );
 
 
