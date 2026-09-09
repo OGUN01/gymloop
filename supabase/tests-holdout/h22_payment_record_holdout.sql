@@ -398,7 +398,7 @@ begin;
 
 set local role postgres;
 
-select plan(919);
+select plan(937);
 
 -- ---------------------------------------------------------------------------
 -- 0. Fixtures.
@@ -9296,6 +9296,247 @@ select lives_ok(
 
 select diag(
   'r18/door REPORTED: `active -> expired` from a front desk, in one statement, on a membership live for another ten days, is legal by this requirement and irreversible after it. The Purpose paragraph names that exact write as one of the two silent failures the change exists to stop; the requirement body retracts the naming and the second scenario permits it. The retraction is the reading this section tests, because the alternative — refusing early retirement — would refuse the cancellation half of the repair path this codebase prescribes for every mis-sold membership. What changes is the cost of the mistake: the money and dates on the retired row are now unreachable (25a''s answer is refund and re-take, which needs a payment to have been recorded, and an early `expired` write strands the DATES rather than money). Worth an explicit decision rather than an inherited one, and it is not a decision this file can make.');
+-- ---------------------------------------------------------------------------
+-- 26. ROUND NINETEEN, WHICH RULE ANSWERS. Written blind by a TENTH author
+-- from the contract alone.
+--
+-- THE DEFECT CLASS: a migration re-emitted one enforcing function and moved
+-- one refusal check after another. Both rules still refused, so every
+-- assertion in both suites stayed green — because no assertion named a
+-- single statement that violates TWO rules at once. Which rule answers is
+-- part of the behaviour: the caller acts on the message, and the wrong
+-- rule's message sends them to the wrong repair.
+--
+-- Not read by this author: any migration; supabase/tests/22_payment_record.sql;
+-- docs/decisions.md; docs/registry.md; any function body. Read: the four
+-- specs (payment-record, manual-payment, receipts-and-renewal,
+-- membership-and-money) and docs/domain-rules.md.
+--
+-- The `member_id` / `duration_days` pair the payment-record spec settles by
+-- name (GL042 before GL043) is deliberately ABSENT — it is covered by
+-- another author. Everything below is a DIFFERENT two-rule statement.
+--
+-- Every assertion here is a triangle, never a lone pair: each rule is first
+-- proven to answer ALONE with its own code, and only then is the statement
+-- that violates both asserted. A pair assertion without its two controls is
+-- worthless — it goes green just as readily when one of the two rules never
+-- fires at all.
+--
+-- WHAT THE SPEC ACTUALLY DECIDES, and the only two sentences relied on:
+--
+--   1. GL042 beats everything. "**And it SHALL be this rule that answers,
+--      not another one the same statement also violates.**" The sentence is
+--      normative and unqualified; the length case that follows it is an
+--      illustration, not its scope. So GL042 is asserted against GL044,
+--      GL045 and GL046.
+--
+--   2. An absolute beats a permission. "A membership that has already taken
+--      money is refused by the freeze above, not by this rule — an absolute
+--      beats a permission, and answering the permission would imply a gym
+--      admin could do it, which they cannot." GL046 is the only permission
+--      in this family (it asks WHO you are); GL043, GL044 and GL045 each
+--      bind every session including a gym admin. So each of the three is
+--      asserted ahead of GL046, and the tell the spec itself gives is the
+--      repair advice: GL046 says "fetch a manager", which is advice that
+--      WORKS for an unfrozen row and is a lie for a frozen one.
+--
+-- What this section refuses to guess is reported by `diag` at the end:
+-- five pairs the contract leaves genuinely undecided. Those are findings
+-- about the contract, and inventing an order for them would be the same
+-- mistake as the one this section exists to catch, made on purpose.
+-- ---------------------------------------------------------------------------
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+create function pg_temp.h22r19_shape(mid text) returns text
+language plpgsql as $fn$
+declare r text;
+begin
+  execute format(
+    'select member_id::text || %L || price_paise::text || %L || coalesce(ends_on::text, ''-'') || %L || periods_granted::text from public.memberships where id = %L',
+    '/', '/', '/', mid) into r;
+  return coalesce(r, 'NO ROW');
+exception when others then
+  return 'ERR:' || sqlstate;
+end
+$fn$;
+
+grant execute on function pg_temp.h22r19_shape(text) to public;
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('220000ff-0022-4000-8000-500000001901'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R19 Free Terms',   '+919220190001'),
+  -- The spare. It holds NOTHING, which is the whole point: the spec warns
+  -- that `memberships_tenant_id_member_id_live_key` answers a re-point onto
+  -- a member who already holds a live membership, and a careless fixture
+  -- there reports a false GREEN for every GL042 assertion below.
+  ('220000ff-0022-4000-8000-500000001902'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R19 Spare Holder', '+919220190002'),
+  ('220000ff-0022-4000-8000-500000001903'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R19 Money Arrived','+919220190003');
+
+-- MF: no money has ever arrived against it, so GL043 is NOT armed on it and
+-- every statement below it can violate exactly the two rules it names.
+-- MM: money has arrived and nothing has been granted, which is the state the
+-- spec insists arms the freeze ("frozen by the first payment, not by the
+-- first period"). Both are `active` and fully dated, so
+-- `memberships_dated_unless_pending_chk` can never be the thing that answers.
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency) values
+  ('220000ff-0022-4000-8000-600000001901'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001901'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR'),
+  ('220000ff-0022-4000-8000-600000001903'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001903'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key='A') - 10, (select today from gym_today where org_key='A') + 10, 100000, 'INR');
+
+-- Half the price: money arrives, nothing is granted, and the dates and the
+-- count both stay exactly where the fixture put them. A full-price payment
+-- would arm the freeze just as well but would move `ends_on` and
+-- `periods_granted`, and then an assertion that the row is "unchanged" would
+-- be asserting the granting rule instead of the refusal.
+insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id) values
+  ('220000ff-0022-4000-8000-700000001901'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000001903'::uuid, '220000ff-0022-4000-8000-600000001903'::uuid, 50000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'::uuid);
+
+select is(
+  pg_temp.h22r19_shape('220000ff-0022-4000-8000-600000001903'),
+  '220000ff-0022-4000-8000-500000001903/100000/' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r19/fixture: MM has taken half its price — money has ARRIVED, so the terms freeze is armed, and nothing has been GRANTED, so the dates and the count are still the fixture''s. Both halves matter: an implementation that armed the freeze on the first granted period instead of the first paisa makes every GL043 assertion below moot, and this row is what tells the difference');
+
+-- ---------------------------------------------------------------------------
+-- 26a. The controls. Each rule, alone, answering with its own code.
+-- ---------------------------------------------------------------------------
+
+-- GL043 alone: a GYM ADMIN, so the permission rule cannot possibly be what
+-- answers. "A gym admin after money has arrived — it SHALL still be refused —
+-- being a gym admin does not unfreeze what money has bought."
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'gym_manager',
+                     'staff_id', '220000ff-0022-4000-8000-300000000002')::text,
+  true
+);
+set local role authenticated;
+
+select throws_ok(
+  $$update public.memberships set price_paise = 50000 where id = '220000ff-0022-4000-8000-600000001903'$$,
+  'GL043'::char(5), null,
+  'r19/control GL043: a GYM MANAGER re-prices a membership that has taken money. Only the freeze can answer — the permission rule is satisfied by this session — so this pins GL043 to the freeze and nothing else. If this comes back GL046 the two codes are swapped and every pair below is measuring the wrong thing');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+set local role authenticated;
+
+select throws_ok(
+  $$update public.memberships set price_paise = 50000 where id = '220000ff-0022-4000-8000-600000001901'$$,
+  'GL046'::char(5), null,
+  'r19/control GL046: the same re-price from a FRONT DESK, on a membership no money has ever reached. The freeze is not armed, so only the permission rule can answer — and its repair advice, "fetch a gym admin", is TRUE here. That is what makes it false in 26b/iv, where the same advice is given for a row no admin can touch either');
+
+select throws_ok(
+  $$update public.memberships set periods_granted = 3 where id = '220000ff-0022-4000-8000-600000001901'$$,
+  'GL044'::char(5), null,
+  'r19/control GL044: the count is the rule''s to write and nobody else''s. Asserted on a value the granting rule could itself have produced, per the spec — "what is wrong is not the number, it is that a hand wrote it" — so no bound on the column can be what answers');
+
+select throws_ok(
+  $$update public.memberships set ends_on = ends_on + 3650 where id = '220000ff-0022-4000-8000-600000001901'$$,
+  'GL045'::char(5), null,
+  'r19/control GL045: the dates are the granting rule''s to move. Ten years, one statement, an ordinary desk — the exact write the requirement was written against');
+
+select throws_ok(
+  $$update public.memberships set member_id = '220000ff-0022-4000-8000-500000001902' where id = '220000ff-0022-4000-8000-600000001901'$$,
+  'GL042'::char(5), null,
+  'r19/control GL042: the membership is re-pointed at a member who holds NOTHING live, so the live-membership index has nothing to say and only the rule can answer');
+
+-- ---------------------------------------------------------------------------
+-- 26b. The pairs. One statement, two rules, and the code the contract names.
+-- ---------------------------------------------------------------------------
+
+-- (i) GL042 before GL044.
+select throws_ok(
+  $$update public.memberships set member_id = '220000ff-0022-4000-8000-500000001902', periods_granted = 3 where id = '220000ff-0022-4000-8000-600000001901'$$,
+  'GL042'::char(5), null,
+  'r19/pair GL042+GL044: one statement re-points the membership AND types a count onto it. "It SHALL be this rule that answers, not another one the same statement also violates" — unqualified, so it holds against the count rule exactly as it holds against the length rule. The repairs are not interchangeable: GL044 says "let a payment write it", which is advice about a membership that still belongs to the person on the receipt, and this one does not');
+
+select is(
+  pg_temp.h22r19_shape('220000ff-0022-4000-8000-600000001901'),
+  '220000ff-0022-4000-8000-500000001901/100000/' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r19/pair GL042+GL044: and NEITHER half landed — a refusal that let the count through would be the same defect wearing the right SQLSTATE');
+
+-- (ii) GL042 before GL045.
+select throws_ok(
+  $$update public.memberships set member_id = '220000ff-0022-4000-8000-500000001902', ends_on = ends_on + 3650 where id = '220000ff-0022-4000-8000-600000001901'$$,
+  'GL042'::char(5), null,
+  'r19/pair GL042+GL045: re-pointed AND re-dated in one statement. Same sentence, and the harm is the compound one GL042''s own requirement names — the receipt names one person, and now ten years land on another');
+
+select is(
+  pg_temp.h22r19_shape('220000ff-0022-4000-8000-600000001901'),
+  '220000ff-0022-4000-8000-500000001901/100000/' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r19/pair GL042+GL045: unchanged, dates included');
+
+-- (iii) GL042 before GL046.
+select throws_ok(
+  $$update public.memberships set member_id = '220000ff-0022-4000-8000-500000001902', price_paise = 50000 where id = '220000ff-0022-4000-8000-600000001901'$$,
+  'GL042'::char(5), null,
+  'r19/pair GL042+GL046: re-pointed AND re-priced, from a front desk, on a row no money has reached. TWO reasons the spec gives, pointing the same way: GL042''s "not another one the same statement also violates", and "an absolute beats a permission". GL046''s message would send this desk to fetch a manager for a statement no manager may make either');
+
+select is(
+  pg_temp.h22r19_shape('220000ff-0022-4000-8000-600000001901'),
+  '220000ff-0022-4000-8000-500000001901/100000/' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r19/pair GL042+GL046: unchanged, price included');
+
+-- (iv) GL043 before GL046. The pair the spec settles in so many words.
+select throws_ok(
+  $$update public.memberships set price_paise = 50000 where id = '220000ff-0022-4000-8000-600000001903'$$,
+  'GL043'::char(5), null,
+  'r19/pair GL043+GL046: ONE column, TWO rules — a front desk re-pricing a membership that has already taken money violates the freeze and the permission at once. "A membership that has already taken money is refused by the freeze above, not by this rule — an absolute beats a permission, and answering the permission would imply a gym admin could do it, which they cannot." Measured against 26a: the SAME statement text answers GL046 on MF and must answer GL043 here, and an implementation that checks the role first cannot tell the two apart');
+
+select is(
+  pg_temp.h22r19_shape('220000ff-0022-4000-8000-600000001903'),
+  '220000ff-0022-4000-8000-500000001903/100000/' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r19/pair GL043+GL046: and the membership stands as it stood, which both requirements demand in their own words');
+
+-- (v) GL044 before GL046.
+select throws_ok(
+  $$update public.memberships set periods_granted = 3, price_paise = 50000 where id = '220000ff-0022-4000-8000-600000001901'$$,
+  'GL044'::char(5), null,
+  'r19/pair GL044+GL046: a count typed alongside a price, from a front desk, on an unfrozen row. The absolute answers: GL044 binds every session, and answering the permission would tell this desk that a gym admin could type a count, which no session may do. The two exploits are also different sizes — a fetched manager can legitimately re-price, and can never legitimately set the count');
+
+select is(
+  pg_temp.h22r19_shape('220000ff-0022-4000-8000-600000001901'),
+  '220000ff-0022-4000-8000-500000001901/100000/' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r19/pair GL044+GL046: unchanged');
+
+-- (vi) GL045 before GL046.
+select throws_ok(
+  $$update public.memberships set ends_on = ends_on + 3650, price_paise = 50000 where id = '220000ff-0022-4000-8000-600000001901'$$,
+  'GL045'::char(5), null,
+  'r19/pair GL045+GL046: ten years typed alongside a price. Same argument, and this is the pair where the wrong answer costs the most: GL046 tells the desk to fetch a manager, the manager re-prices the unfrozen row perfectly legally, and the date write that was the actual harm is never mentioned to anybody');
+
+select is(
+  pg_temp.h22r19_shape('220000ff-0022-4000-8000-600000001901'),
+  '220000ff-0022-4000-8000-500000001901/100000/' || ((select today from gym_today where org_key='A') + 10)::text || '/0',
+  'r19/pair GL045+GL046: unchanged, and MF ends this section exactly as the fixture wrote it — nine refused statements, no drift');
+
+-- ---------------------------------------------------------------------------
+-- 26c. UNDECIDED. Reported, not guessed.
+-- ---------------------------------------------------------------------------
+
+select diag(
+  'r19 UNDECIDED 1/5 — GL038 vs GL039, and this is the payment-side twin of the pair the spec settles for memberships. One statement on a paid payment that sets `status` backwards AND edits `amount_paise` violates the freeze ("a payment that has been paid is a record") and the transition table at once. The two messages send the caller to opposite places: GL038 says the row is a record and the instrument is a refund, GL039 says that edge does not exist and implies the amount edit would have been fine at some other status. The spec orders neither. It is the same shape as the membership pair it DID decide, one table over, and it is worth deciding for the same reason.');
+
+select diag(
+  'r19 UNDECIDED 2/5 — GL034 vs GL035. A cash payment that both names a colleague as `recorded_by_staff_id` and carries a `provider_payment_id` violates the attribution rule and the no-provider-claim rule together. manual-payment/spec.md gives each its own requirement and no precedence. The repairs are unrelated: one is "you cannot record this on somebody else''s behalf", the other is "this row claims a verification nobody performed". Undecided — and the spec''s own thesis, that with no provider to verify against attribution IS the integrity, is an argument that GL034 should win, but it is an argument and not a sentence.');
+
+select diag(
+  'r19 UNDECIDED 3/5 — GL036 (money-arrived) vs GL040. A refund against a `created` payment, naming a colleague, is refused both because the payment never took money and because the refund names the wrong person. Neither requirement mentions the other. Materially different repairs: "refund a payment that actually arrived" against "you may only send money as yourself".');
+
+select diag(
+  'r19 UNDECIDED 4/5 — the refund amount-freeze has NO code in the contract at all, which makes one pair unassertable rather than merely undecided. "SHALL refuse any change to a refund''s `payment_id` or `amount_paise` once recorded" sits inside the GL036 requirement, while the paragraph that assigns codes sits inside the GL041 requirement and claims "a refund is a record" as GL041''s family. So a statement that demotes a `completed` refund AND raises its amount violates the completed-terminal rule and the amount freeze together, and the second one cannot be pinned to a SQLSTATE from the spec at all. Naming the code is a contract fix, not a test fix.');
+
+select diag(
+  'r19 UNDECIDED 5/5 — the order AMONG the absolutes is unwritten: GL043 vs GL044, GL043 vs GL045, GL044 vs GL045. The contract decides GL042 against everything ("not another one the same statement also violates") and every absolute against the one permission ("an absolute beats a permission"), and stops there. A statement setting `price_paise` and `ends_on` on a frozen membership, or `periods_granted` and `ends_on` on any membership, has no answer in the spec, and this section asserts none of them. Related: the payment-side GL042 ("a payment extends only the membership of the member who paid") shares a SQLSTATE with the membership-side rule but NOT its precedence sentence, which is written under the membership requirement and about it — so a payment naming another member''s membership and also naming a colleague is undecided too, despite that code appearing in decided pairs above.');
+
 set local role postgres;
 select * from finish();
 
