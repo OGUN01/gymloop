@@ -28,7 +28,9 @@ THE SYSTEM SHALL allocate receipt numbers from `document_counters` keyed on `(te
 - **THEN** its number SHALL NOT be reissued to a later payment — a gap in a receipt book is explainable, a reused number is not
 
 ### Requirement: A payment extends the membership it names, once
-WHEN a payment against a membership is `paid`, THE SYSTEM SHALL extend that membership by the plan's duration, and SHALL do so exactly once however many times the payment is recorded, retried or replayed.
+WHEN a payment against a membership is `paid`, THE SYSTEM SHALL extend that membership by the plan's duration **for each whole multiple of the membership's own price that the money against it has reached**, and SHALL do so exactly once however many times the payment is recorded, retried or replayed.
+
+> **Superseded in detail by `payment-record/spec.md`, "A period is granted when it has been paid for".** As first written this requirement said a paid payment extends by the plan's duration full stop, and a critic pointed out that it now contradicts the cumulative rule for every part payment — two documents in one change, and the next blind test author reads whichever they open first. The cumulative rule is the one to build against; this requirement's scenarios below remain true for a payment of the full price, which is the ordinary case.
 
 **The extension belongs to the table, not to the handler**, for the reason every Phase 3 and 4 rule does: `memberships` grants `update` to `authenticated`, so a rule living in a Route Handler has a supported way round it. And it must be idempotent in the same sense the check-in guard is — a duplicate that extends a membership twice gives a member a free month and is discovered, if ever, by an owner reconciling revenue against expiry dates.
 

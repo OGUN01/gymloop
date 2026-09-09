@@ -52,7 +52,6 @@ const IDEMPOTENCY_INDEX = 'payments_tenant_id_idempotency_key_key';
 const REFUSALS: Record<string, string> = {
   GL034: 'payment_not_yours',
   GL035: 'provider_claimed',
-  GL037: 'counter_refused',
   GL042: 'membership_not_theirs',
 };
 

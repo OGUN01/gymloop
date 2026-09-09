@@ -220,8 +220,24 @@ door on precisely this sentence and left the instalment door open: ₹500 now an
 ₹500 next week is ordinary practice in an Indian gym, and it bought sixty days
 on a thirty-day plan.
 
-Counted cumulatively over the membership's own payments: a payment grants
-`floor(total_after / price) − floor(total_before / price)` periods. A full
+Counted against what the membership has ALREADY been granted, which is
+recorded on it — `memberships.periods_granted` — and never derived by
+subtraction: a payment grants `floor(total / price) − periods_granted` periods,
+and records the new total.
+
+**Deriving "already granted" by subtracting this payment's own amount from the
+running total is wrong, and was wrong three times.** Subtraction needs a
+"before" that no `AFTER` trigger has: by the time one runs, every row of its
+statement, every sibling trigger invocation, and every earlier statement of the
+transaction has already landed in the table being summed. Round one subtracted
+per payment and ten separate statements bought ten periods. Round two subtracted
+per row and ten rows in one statement bought ten periods. Round three subtracted
+per statement and an `INSERT … ON CONFLICT DO UPDATE`, which fires BOTH
+statement triggers, bought two. **One mistake, three shapes, each time believed
+fixed.**
+
+A recorded count is idempotent, order independent, and indifferent to how many
+triggers fire for one statement or how many statements make up a transaction. A full
 payment grants one, two halves grant one on the second, a double payment grants
 two, and a part payment grants none while still being recorded and receipted.
 

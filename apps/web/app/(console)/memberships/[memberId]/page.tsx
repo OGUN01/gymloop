@@ -49,8 +49,14 @@ const ERRORS: Record<string, string> = {
   membership_not_theirs: 'That membership belongs to a different member.',
   possible_duplicate:
     'A payment for this member, of this amount and method, was recorded moments ago — so this one was not. If it is a genuinely separate payment, record it again from this page.',
+  // Deliberately NOT "that receipt number already exists". This branch catches
+  // every unique violation that is not the idempotency index, and the insert's
+  // trigger cascade reaches `document_counters` and `memberships` too — a
+  // critic pointed out that a collision on the one-live-membership index was
+  // being reported to the desk as a receipt-number clash. Say what is certain
+  // and no more.
   already_recorded:
-    'A payment with that receipt number already exists. Nothing was recorded — try again.',
+    'Something this payment would create already exists, so nothing was recorded. Reload this page and try again.',
   payment_failed: 'That payment could not be saved.',
 };
 
@@ -144,6 +150,29 @@ export default async function MemberMembershipsPage({
   // A membership the STATUS calls live but the dates do not — the shape that
   // was being shown as `active` while the gate refused the member.
   const lapsed = rows.find((row) => LIVE_STATUSES.includes(row.status) && !isLive(row, today));
+  /**
+   * **What a payment renews.** A lapsed membership is the whole point of taking
+   * one — this product is sold on collecting the renewal — and it was the one
+   * membership the form refused to name.
+   *
+   * The payment form posted `membershipId` only when a membership was LIVE, so
+   * the day after a member's membership ended the desk could no longer renew
+   * it: the payment landed with `membership_id: null`, extended nothing, and
+   * the screen said "records money taken for something else". Selling a
+   * replacement was refused too, because the lapsed row is still `active` to
+   * `memberships_tenant_id_member_id_live_key` (nothing writes `expired`), and
+   * meanwhile the gate correctly refused the member. **Every member became
+   * permanently unservable on the day after they lapsed**, beside a sentence
+   * reading "refused at the gate until it is renewed" and no way to renew.
+   *
+   * Found by a fourth blind critic. ADR-083 defends its whole design on the
+   * failure being "loud, and fixed in a minute" — the fix did not exist.
+   *
+   * `app.grant_periods()` already handles it: it extends from
+   * `greatest(ends_on, today)`, so renewing a membership that lapsed three
+   * weeks ago starts from today rather than handing back the lapsed weeks.
+   */
+  const renewable = live ?? lapsed;
   // Minted here, on the server, once per render of this page: the form carries
   // it, so every submission of THIS form is the same payment however many
   // times it is sent, and a fresh page is a fresh payment.
@@ -176,7 +205,8 @@ export default async function MemberMembershipsPage({
               <strong>lapsed</strong>, ran {lapsed.starts_on} to {lapsed.ends_on},{' '}
               {money(lapsed.price_paise, lapsed.currency)}.{' '}
               <span className="text-neutral-600">
-                This member is refused at the gate until it is renewed.
+                This member is refused at the gate until it is renewed — take the payment below and
+                it runs again from today.
               </span>
             </p>
           )
@@ -237,8 +267,8 @@ export default async function MemberMembershipsPage({
               rather than two. The unique index is what enforces it; this is
               how the form gets to participate. */}
           <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
-          {live === undefined ? null : (
-            <input type="hidden" name="membershipId" value={live.id} />
+          {renewable === undefined ? null : (
+            <input type="hidden" name="membershipId" value={renewable.id} />
           )}
           <label className="text-sm">
             <span className="block text-neutral-600">Amount (₹)</span>
@@ -252,7 +282,7 @@ export default async function MemberMembershipsPage({
                  typed, not nudged. Two decimal places at most, refused rather
                  than rounded. */
               pattern="\d{1,9}(\.\d{1,2})?"
-              defaultValue={live === undefined ? undefined : rupeesFromPaise(live.price_paise)}
+              defaultValue={renewable === undefined ? undefined : rupeesFromPaise(renewable.price_paise)}
               className="mt-1 w-32 rounded-md border border-neutral-300 px-3 py-2 text-base tabular-nums"
             />
           </label>
@@ -283,9 +313,23 @@ export default async function MemberMembershipsPage({
           </button>
         </form>
         <p className="mt-2 text-xs text-neutral-500">
-          {live === undefined
-            ? 'This member has no live membership, so this records money taken for something else and extends nothing.'
-            : `Extends ${live.plans.name} from whichever is later — today or ${live.ends_on}.`}
+          {/* Honest about what the database will actually do. The old wording
+              promised an extension unconditionally, and a part payment, a
+              zero-price membership or a payment in another currency all grant
+              nothing — a receipt number, a success redirect, and no extension.
+              A period is granted per whole multiple of the membership's own
+              price that the money against it has reached (ADR-087). */}
+          {renewable === undefined ? (
+            'This member has no membership to renew, so this records money taken for something else and extends nothing.'
+          ) : (
+            <>
+              {live === undefined
+                ? `Renews ${renewable.plans.name} from today — it lapsed on ${renewable.ends_on}.`
+                : `Extends ${renewable.plans.name} from whichever is later — today or ${renewable.ends_on}.`}{' '}
+              A full {money(renewable.price_paise, renewable.currency)} buys one period; part of it is
+              recorded and receipted and buys none until the balance is paid.
+            </>
+          )}
         </p>
       </section>
 

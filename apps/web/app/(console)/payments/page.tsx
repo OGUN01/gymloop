@@ -25,7 +25,7 @@ const MESSAGES: Record<string, string> = {
   not_permitted: 'Your role may not record payments.',
   invalid: 'That payment was not readable — check the amount and the method.',
   already_recorded:
-    'A payment with that receipt number already exists. Reload the member’s page and take it again — nothing was recorded.',
+    'Something this payment would create already exists, so nothing was recorded. Reload the member’s page and take it again.',
   counter_refused: 'This gym’s receipt numbering can only move forward. Nothing was recorded.',
   payment_is_a_record:
     'A payment that has been taken cannot be edited. Record a refund or a new payment instead.',
