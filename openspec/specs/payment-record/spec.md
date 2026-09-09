@@ -273,9 +273,13 @@ it is a refund, a cancellation and a new sale, which is the answer this phase
 gives for every other recorded fact.
 
 **A trap for whoever tests this**: `memberships_tenant_id_member_id_live_key`
-refuses the move when the target member already holds a live membership, so a
-careless check reports a false GREEN. The move has to be attempted against a
-member holding nothing.
+refuses the move with `23505` when the target member already holds a live
+membership **and the statement leaves this one live**, so a careless check
+reports a false GREEN on an index rather than on this rule. The move has to be
+attempted against a member holding nothing — or with a statement that leaves this
+membership retired, which takes it out of the partial index. This paragraph said
+"when the target member already holds a live membership" for three rounds, which
+is the target-decides reading the scenarios below now refute.
 
 #### Scenario: Moving a membership to another member
 - **WHEN** any session changes a membership's `member_id`
@@ -339,79 +343,80 @@ trigger, which keeps the property that made it separate.
 - **WHEN** one statement changes a membership's `member_id` and its `duration_days`
 - **THEN** it SHALL be refused with the `member_id` rule, not the length rule
 
-**`GL042` answers ahead of every other rule enforced by an `after` trigger on
-this table. It does not answer ahead of anything enforced earlier in the
-statement.** That earlier set is defined by *when* it runs, not by a list:
-column and table constraints, `not null`, unique indexes, foreign keys, the
-row-security policy's `with check`, and any `before` trigger all run during the
-UPDATE itself, before the first `after` trigger is reached. No trigger naming
-and no clause ordering can reach any of them. A statement that violates one of
-them and `GL042` together comes back with that mechanism's SQLSTATE and never
-with `GL042`.
+**`GL042` answers ahead of the other rules in the same trigger — `GL043`,
+`GL044`, `GL045` and `GL046` — and ahead of `GL047`. That is the whole of the
+claim.** Anything else that can refuse the same statement may answer first, and
+this contract does not decide which: CHECK constraints, `not null`, unique
+indexes, the row-security policy, foreign keys in either direction, and any
+`before` trigger.
 
-**One of those is not like the others, and a blind author said so rather than
-letting the assertion carry the inference.** A foreign key is *not* enforced
-during the UPDATE: Postgres implements it as an `after` row constraint trigger,
-so it competes with `memberships_terms_frozen` on exactly the trigger-name
-ordering this requirement has already been bitten by once — and it wins only
-because the generated name `RI_ConstraintTrigger_c_…` sorts before
-`memberships_…` under byte ordering. Measured today: `23503`. **That is an
-observation about Postgres, not a decision this contract made**, and it is
-recorded here so nobody reads it as one. Everything else in the excluded set —
-column and table constraints, `not null`, unique indexes, the policy's
-`with check` — really does run before the first `after` trigger.
+**This sentence is the fourth attempt, and the first three failed the same way:
+they tried to enumerate what `GL042` does NOT beat.** The first said "in every
+case". The second excluded one condition, and a critic found four more families.
+The third excluded a list of four mechanisms — written in the same breath as
+"enumerating exceptions produces a list that is always one item short", and it
+was two short. The fourth excluded "anything enforced earlier in the statement",
+and a critic found that a **foreign key pointing AT this table** — there are
+eight such constraint triggers, for `attendance`, `membership_pauses`,
+`payments` and `memberships.renewal_of_membership_id` — is an `after` row
+trigger on `memberships`, so it is neither "earlier in the statement" nor "the
+table's own shape". Measured: a statement changing `member_id` and `id` together
+answers `23503` from `attendance_membership_id_fkey`; the control without the
+`id` write answers `GL042`.
 
-**The order *among* the excluded mechanisms is not decided either.** A statement
-can violate two of them at once, and which answers is not stated anywhere. Both
-are recorded in OPEN-034 with the rest of that family.
+**The outside of this rule is open-ended and the inside is not.** Five error
+codes in one function, plus one in the trigger beside it, is a closed set that
+can be checked. "Everything else" cannot be, and three rounds were spent proving
+it. So the contract names what it covers.
 
-**This is deliberately a rule about timing rather than an enumeration**, and it
-is the third attempt. The first said `GL042` answers "in every case". The second
-added one condition — that the target member holds no live membership — and a
-critic found four more families inside the scenario's own column list. The third
-was a list of four mechanisms, written in the same breath as the sentence
-"enumerating exceptions to a rule about shape produces a list that is always one
-item short", and it was: `not null` (`23502`) and `before` triggers were both
-missing from it. A list of mechanisms is still a list. **What is checkable is the
-phase of the statement each thing runs in**, and that is what this says.
+**Nothing here permits the harm** — every one of those mechanisms refuses the
+statement, which is what ADR-092's grep asks. What it prevents is a handler coded
+against `GL042` receiving a `23514`, `23502`, `23503`, `23505` or `42501` it does
+not map.
 
-This one sentence replaces two attempts to enumerate the exceptions, and both
-attempts were measured false. The first said `GL042` answers "in every case".
-The second added a single condition — that the target member holds no live
-membership — and a critic then found four more families in the scenario's own
-column list: a status write onto a null-dated `pending` row (`23514`,
-`memberships_dated_unless_pending_chk`, and the seed creates exactly such a row),
-`ends_on` before `starts_on` (`23514`), a negative price or discount (`23514`), a
-plan or member that does not exist (`23503`), and another tenant's `tenant_id`
-(`42501`). Each of those refuses before `GL042` is reached, and none of
-them is reachable by renaming or reordering a trigger.
+**And a sixth outcome that is not an error at all.** The row-security policy's
+`USING` clause is a row *filter*, not a refusal: a session whose tenant claim does
+not match gets `UPDATE 0` and no exception. Measured. Nothing moves, so there is
+no harm — but a caller coded against this requirement reads a zero row count as
+success, and it is named here because the requirement says "any session" and this
+is the one kind of session that is silently not refused.
 
-Nothing here permits the harm — every one of those routes refuses the statement,
-which is what ADR-092's grep asks. What it prevents is a handler coded against
-`GL042` receiving a `23514` it does not map.
+**`GL042` is also off for the seed.** Both `supabase/seed.sql` and
+`seed-scenarios.sql` `disable trigger memberships_terms_frozen` around their own
+statements, and this rule lives in that trigger. The window is deliberate and was
+argued for dates (ADR-093); it takes this rule with it. Stated because the
+requirement says "any session" and the seed is a session it does not bind.
 
 #### Scenario: Re-pointing a membership and typing anything else in the same statement
 - **WHEN** one statement changes a membership's `member_id` and also its `periods_granted`, its dates, its price, or its status
 - **AND** the statement is otherwise well-formed — it violates nothing enforced before the first `after` trigger runs
 - **THEN** it SHALL be refused with the `member_id` rule
 
-#### Scenario: Re-pointing a live membership onto a member who already has one
-- **WHEN** one statement points an `active` or `frozen` membership at a member who already holds a live one
+#### Scenario: Re-pointing a membership that the statement leaves live
+- **WHEN** one statement points a membership at a member who already holds a live one, **and leaves it `active` or `frozen`**
 - **THEN** it SHALL be refused by the live-membership index with `23505`, and the membership SHALL be unchanged
 
-**"Live" is doing real work in that sentence and an earlier draft omitted it.**
-`memberships_tenant_id_member_id_live_key` is **partial on `('active','frozen')`**,
-so it bites only when the membership *being moved* is itself live. A critic
-measured a real `cancelled` membership in the demo gym pointed at a member who
-does hold a live one: **`GL042`**, not `23505`. The two scenarios above were
-briefly written as though the target member's state alone decided which answered,
-and that partition is wrong for every non-live source — which is exactly the
-cancelled membership the surrounding scenarios were rewritten around. The
-visible suite's own fixture comment had this right before the spec did.
-
-#### Scenario: Re-pointing a membership that is not live
-- **WHEN** one statement points a `cancelled`, `expired` or `pending` membership at any member
+#### Scenario: Re-pointing a membership that the statement leaves retired
+- **WHEN** one statement points a membership at a member who already holds a live one, **and leaves it `pending`, `expired` or `cancelled`**
 - **THEN** the live-membership index SHALL NOT apply, and it SHALL be refused with the `member_id` rule
+
+**Which row's status decides has now been written down wrong three times, and
+this is the fourth.** `memberships_tenant_id_member_id_live_key` is partial on
+`('active','frozen')`, and a partial index is evaluated against **the tuple being
+stored** — not the row as it was, and not the target member's other rows. The
+first draft said the target member's state decided. The second said the source
+membership's state decided. Both are false, and a critic measured the pair that
+separates all three readings:
+
+| statement | answer |
+|---|---|
+| `cancelled` row → live-holder, **`status = 'active'`** in the same statement | **`23505`** |
+| `active` row → live-holder, **`status = 'cancelled'`** in the same statement | **`GL042`** |
+
+A statement that writes no status keeps the row's current status, which is why
+every earlier assertion was green under all three readings — **none of them wrote
+`status`**, so none could tell the readings apart. The two rows above are the
+only pair that can, and they are asserted now.
 
 #### Scenario: Selling a member a second membership
 - **WHEN** a member's membership is cancelled and a new one is sold to the same member

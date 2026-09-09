@@ -139,16 +139,30 @@ the creation rule is keyed on what a writer may type, and the grant rule is
 keyed on what has actually been paid for. If a later change reopens one, the
 other still refuses to turn it into days.
 
-### What this costs, stated rather than discovered
+### What this costs, stated rather than discovered — and the draft it replaced
 
-`supabase/seed.sql` and `seed-scenarios.sql` create **15 dated memberships that
-carry no payment**. Under the creation rule those rows become illegal as
-written. They cannot take a trusted-caller carve-out: by ADR-082's general form
-a carve-out is sound exactly when the rule's subject is something a trusted
-caller legitimately lacks, and the subject here is *what the money bought*,
-which a seed lacks no more than a desk does. So the seed changes — the demo
-rows are created dateless and paid, which is what the other 30 already do and is
-a more honest fixture besides.
+**The first two drafts of this plan said "creation may not write a span at
+all".** That is the purer rule and it is unshippable. `supabase/seed.sql` and
+`seed-scenarios.sql` create **15 dated memberships that carry no payment** — the
+lapsed, expired, cancelled and frozen fixtures the entire retention loop is
+demonstrated on. A lapsed member with a zero-length membership is not a lapsed
+member. So "no span" costs either a seed rewrite that changes what the demo shows,
+or a trusted-caller carve-out — and the carve-out is unsound by ADR-082's general
+form, since the subject is *what the money bought* and a seed lacks that no more
+than a desk does.
 
-Every dated membership in the database today — all 45 — has a span of exactly
-one period, which is the measurement that says this rule is satisfiable at all.
+**"At most the one period it is sold" needs neither.** Measured: every dated
+membership in the database — all 45 — has a span of exactly one period, so the
+rule is satisfied by every row that exists, by the console's zero span, and by
+the seed. It turns the exploit from ten years into one month, which is the length
+the gym sells anyway.
+
+**What it does NOT close, said plainly:** a desk can still create one unpaid
+period. Bounded by the plan's duration, held to one at a time by the
+one-live-membership index, visible on the row as a membership with no payments,
+and **erased the moment any money arrives**, because the second requirement makes
+the first grant set the span rather than add to it. That last part is why the two
+requirements are not belt and braces any more — with one free period legal at
+creation, the grant rule is the only thing standing between it and a paid
+membership worth double. It moved from a second line of defence to the load-bearing
+one, and that is a reason to write its assertions first.

@@ -473,6 +473,41 @@ Written as an explicit edge list rather than a deny-list, for the reason its pay
 
 **And it forced a decision ADR-096 had deferred without knowing it.** ADR-096 kept money paid against a retired membership on record *because a revival might yet count it*. Retirement is now terminal, so that revival never comes and the money would strand — the harm ADR-096 named. The answer is not to refuse the payment: a manual payment is cash already in the drawer before any row is written. It is that the payment stays a complete, refundable record, and the remedy is a refund plus a payment against a live membership. Both requirements sit in one change so neither can drift from the other.
 
+**ADR-104 - `num_failed()` cannot see a plan mismatch, so the sweep could not either.** `scratchpad/sweep.py` has reported one number since ADR-073: `num_failed()`, captured after `finish()` so a failing file cannot shadow it. That is the right fix for the bug it was written for and it is blind to a different one — **a file that runs fewer assertions than it planned has zero failures.**
+
+Caught by accident, and only because two harnesses disagreed. `tapcount.py` reported `plan 1..757 ran 756 ok 756 notok 0` on the visible suite; `sweep.py` reported `failures: 0`. Neither was wrong. One assertion is written
+
+    with u as (update … returning 1), c as (select count(*)::int as n from u)
+    select is(c.n, 0, '…') from c;
+
+and `tapcount.py` anchors on lines beginning `select <fn>(`, so it never wrapped that one — its TAP row was emitted and not counted. Measured directly against pgTAP's own counter, `pg_catalog.currval('__tresults___numb_seq')`: **757 emitted, 0 failed**. The suite was fine; both harnesses were partly blind, in opposite directions.
+
+**`sweep.py` now captures `ran` beside `failures`, and the sweep's GREEN requires `failures = 0 AND ran = the number in `plan(N)`.** A file that quietly stops emitting assertions — an early `return`, a `DO` block that swallows, an assertion form the file's own author did not expect — is now a `FAIL` line rather than a silent pass. This is ADR-073's lesson applied to the checker that ADR-073 produced: **a checker whose failure mode is silence is worse than no checker**, and this one had a second silence in it for twenty rounds.
+
+Worth noting what did NOT catch it: every CI job, both critics, and the sweep itself. It surfaced because a second tool with a different blind spot happened to be run on the same file, which is not a strategy. The plan-count check is.
+
+**ADR-103 - Three critic rounds, and the same sentence was wrong three different ways. The lesson is to enumerate the inside of a rule, never the outside.** The requirement "a membership belongs to the member it was sold to" needed one sentence saying which rule answers when a statement violates several. It took four:
+
+  1. *"`GL042` answers in every case."* — false: the live-membership index answers `23505` first.
+  2. *"…in every case, where the target member holds no live membership."* — false: four more families inside the scenario's own column list, including a status write onto a null-dated `pending` row, which `seed-scenarios.sql` creates.
+  3. *"…ahead of every rule; CHECK constraints, unique indexes, foreign keys and the row-security policy are not rules."* — false: `not null` (`23502`) and `before` triggers were missing, and this list was written in the same breath as the sentence *"enumerating exceptions to a rule about shape produces a list that is always one item short"*.
+  4. *"…ahead of every rule enforced by an `after` trigger on this table, and ahead of nothing enforced earlier in the statement."* — false: **a foreign key pointing AT `memberships` is an `after` row trigger on `memberships`.** Eight of them exist (`attendance`, `membership_pauses`, `payments`, `memberships.renewal_of_membership_id`). Measured: changing `member_id` and `id` together answers `23503` from `attendance_membership_id_fkey`; the control answers `GL042`. That route is neither "earlier in the statement" nor "the table's own shape", so it defeated both formulations at once.
+
+**Every attempt tried to enumerate what the rule does NOT beat, and that set is open-ended.** The fix is to enumerate the inside: `GL042` answers ahead of the four other rules in its own function and ahead of `GL047`, and the contract decides nothing else. Five codes in one function plus one beside it is a closed set a reader can check. "Everything else" is not, and three rounds were spent proving it.
+
+**The general form, which is ADR-092's grep turned around:** *a normative sentence should quantify over a set the writer controls.* The inside of a function is controlled; the set of ways Postgres can refuse a statement is not, and it grows when anybody adds a constraint or a child table.
+
+**And a second, sharper instance of the same disease in the same requirement.** Which row's status decides whether the partial live-membership index applies was written down wrong three times: draft one said *the target member's* state, draft two said *the source membership's* state. Both false. **A partial index is evaluated against the tuple being STORED.** A critic measured the only pair that separates the three readings:
+
+    cancelled row --> live-holder, status = 'active'   in one statement  -->  23505
+    active    row --> live-holder, status = 'cancelled' in one statement  -->  GL042
+
+**Every assertion written across three rounds was green under all three readings, because none of them wrote `status`.** That is the part worth keeping: an assertion set can be honest, controlled, and complete against the contract, and still be unable to distinguish the contract from two wrong versions of it. The discriminating case is the one where the two things being conflated are made to disagree — here, a statement that changes the row's status as well as its owner. **When a rule is keyed on a row's state, assert it with a statement that CHANGES that state**, or the assertion is measuring the fixture rather than the rule.
+
+**Also corrected: ADR-101's own mechanical rule was one word short.** "Enumerate every other same-timing trigger and sort by name" omits **level** — Postgres orders by name only within a timing *and* level, and every after-row trigger fires before every after-statement trigger whatever it is called. That omission put the `payments` row of the fire-order table in the wrong order: `payments_identity_frozen` (the `GL038` money freeze) fires **before** the two extension triggers, not after them, because those two are `for each statement`. The rule and the table both now carry level.
+
+**Three rounds, ten defects, and not one of them was in a migration.** The two migrations this work shipped were mechanically correct on first measurement and stayed correct under every subsequent attack. Every defect was in a sentence — a scenario, a class statement, a registry cell, a table of measurements — and three of them were in text written in the same commit as the thing it described. That is now four times this phase, and it is the strongest argument yet for the blind arrangement: **the implementation was never the risk; the description of it was.**
+
 **ADR-102 - The local sweep and CI's pgTAP job contend for the same Cloud project, and the failure looks like a broken test.** There is one database (ADR-030: no Docker, no branching), and both the 47-file local sweep and the `DB / pgtap` job run every test file against it. Run them at the same time and fixtures collide on locks. Observed:
 
     ERROR: 57014: canceling statement due to statement timeout
@@ -492,7 +527,7 @@ Not a defect in anything under test, and recorded because the failure mode is mi
 
 **The fix is the name, not the placement.** `GL047` sits in its own trigger deliberately: both seed files disable `memberships_terms_frozen` around their own statements, a window argued for dates and never for transitions, so folding the rule in would leave it silently off for the whole seed — which is exactly what ADR-098 cost a round to learn. Renaming keeps that property and fixes the order: `memberships_transitions_after_terms` sorts after (`'tr' > 'te'`) and says why it is called that. Dropped and recreated rather than renamed, so the migration does not depend on what the trigger is currently called. Nothing else refers to the old name.
 
-**The part worth keeping is that I wrote the grep and did not run it on my own change.** ADR-100's closing sentence is *"for every pair of rules that can fire on the same row, either the contract decides which answers or an assertion pins that nobody may rely on it"* — and OPEN-034, written in the same commit, enumerated five undecided pairs across the payment and refund families while omitting `GL042`/`GL047`, **the only pair this session had itself introduced, one commit earlier**. A general rule written about other people's code is not applied to your own by being written down. The mechanical form: **when a change adds a trigger, enumerate every other same-timing trigger on that table and sort them by name** — that is a query, not a judgement.
+**The part worth keeping is that I wrote the grep and did not run it on my own change.** ADR-100's closing sentence is *"for every pair of rules that can fire on the same row, either the contract decides which answers or an assertion pins that nobody may rely on it"* — and OPEN-034, written in the same commit, enumerated five undecided pairs across the payment and refund families while omitting `GL042`/`GL047`, **the only pair this session had itself introduced, one commit earlier**. A general rule written about other people's code is not applied to your own by being written down. The mechanical form: **when a change adds a trigger, enumerate every other trigger on that table of the same timing AND the same level, and sort them by name** — that is a query, not a judgement. **The `level` half was missing from the first version of this rule and cost the `payments` row of the table below**, which recorded `payments_identity_frozen` firing after the two extension triggers when it fires before them: name order applies only within a timing and level, and every after-row trigger precedes every after-statement one whatever it is called.
 
 **A second critic round rejected the fix, and both new defects were in the sentences written to fix the first one.**
 
@@ -839,18 +874,20 @@ These are unresolved by intent, not by oversight. Do not invent an answer while 
 
   **Two more members of this family, both raised by a blind author rather than found by a critic**, which is the cheaper order. First: **a foreign key is not enforced during the UPDATE** — Postgres implements it as an `after` row constraint trigger, so it competes with `memberships_terms_frozen` on exactly the trigger-name ordering ADR-101 was bitten by, and wins only because the generated `RI_ConstraintTrigger_c_…` sorts before `memberships_…` under byte ordering. Measured `23503` today; under a collation-aware sort it would be `GL042`. The contract records it as an observation about Postgres rather than a decision. Second: **the order among the excluded mechanisms is itself undecided** — a statement violating the row-security policy and a composite foreign key at once answers `42501` today, and nothing says it must.
 
-  **The fire order is now measured rather than guessed**, by running ADR-101's own query — every table in `public` carrying more than one trigger of the same timing, sorted by name, which is the order Postgres fires them in:
+  **The fire order, measured with `for each row` / `for each statement` in the query — which the first version of this table omitted, and got `payments` wrong because of it.** Postgres orders triggers by name only *within* a timing AND level; every after-row trigger fires before every after-statement trigger regardless of name.
 
-  | table | timing | fire order |
-  |---|---|---|
-  | `attendance` | before | `attendance_enforce_check_in` → `attendance_written_once` |
-  | `document_counters` | before | `document_counters_monotonic` → `document_counters_touch_updated_at` |
-  | `impersonation_sessions` | after | `impersonation_sessions_audit_end` → `impersonation_sessions_audit_start` |
-  | `memberships` | after | `memberships_terms_frozen` → `memberships_transitions_after_terms` (**after ADR-101**; it was `memberships_status_transitions` → `memberships_terms_frozen`, which is the defect ADR-101 fixed) |
-  | `payments` | after | `payments_arrival_status` → `payments_enforce` → `payments_extend_membership_insert` → `payments_extend_membership_update` → `payments_identity_frozen` |
-  | `refunds` / `payments` / `memberships` | before | the `_stamp` trigger before the `_touch_updated_at` one, everywhere |
+  | table | timing | level | fire order |
+  |---|---|---|---|
+  | `attendance` | before | row | `attendance_enforce_check_in` → `attendance_written_once` |
+  | `document_counters` | before | row | `document_counters_monotonic` → `document_counters_touch_updated_at` |
+  | `impersonation_sessions` | after | row | `impersonation_sessions_audit_end` → `impersonation_sessions_audit_start` |
+  | `memberships` | after | row | `memberships_terms_frozen` → `memberships_transitions_after_terms` (**after ADR-101**; it was `memberships_status_transitions` → `memberships_terms_frozen`, the defect ADR-101 fixed) |
+  | `memberships` | before | row | `memberships_stamp` → `memberships_touch_updated_at` |
+  | `payments` | after | row | `payments_arrival_status` → `payments_enforce` → `payments_identity_frozen` |
+  | `payments` | after | **statement** | `payments_extend_membership_insert` → `payments_extend_membership_update` |
+  | `payments` / `refunds` | before | row | the `_stamp` trigger before the `_touch_updated_at` one |
 
-  **`payments` is the one to look at**, and it is worse than the membership case this round fixed: **five** competing AFTER triggers, with `payments_arrival_status` first and `payments_identity_frozen` — the payment-side `GL042` — **last**. So every pair OPEN-034 lists on the payment side is decided today by five trigger names nobody chose for their alphabetical order, and the identity rule loses to all of them. That is the same defect ADR-101 fixed on `memberships`, one table over, five ways instead of one. Whoever takes this should decide the contract first and then set the names, rather than reading the current order back as though it were a decision.
+  **`payments` is still the one to look at, and the corrected table changes what it says.** Three competing after-ROW triggers, with `payments_identity_frozen` — the `GL038` money freeze — last of the three and therefore losing to `payments_arrival_status` and `payments_enforce`. The two `extend` triggers are `for each statement` and fire after all three, not around them; they are also INSERT-only and UPDATE-only, so they never both fire. Every pair OPEN-034 lists on the payment side is decided today by names nobody chose for their alphabetical order. Whoever takes this should decide the contract first and then set the names, rather than reading the current order back as though it were a decision.
 
 
 - **OPEN-031 (a refund can be double-submitted).** `POST /api/payments` carries a composite idempotency key and an essay about why; `POST /api/refunds` carries neither, `refunds` has no `idempotency_key` column, and the form has no nonce — so a double submit records two partial refunds. `GL036` still bounds the total to what was actually taken, so the gym cannot refund more than it received, and both rows show on the receipt page, so it is visible rather than silent. But the payments route's own reasoning applies word for word to the refunds route, and no requirement covers it: `manual-payment/spec.md` scopes idempotency to payments. Found by a critic in round fifteen and not fixed there, because adding a column and a contract in the same breath as a fix is what produced two rounds of this phase.

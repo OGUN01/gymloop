@@ -14,9 +14,9 @@ membership the money bought.
 
 ## Requirements
 
-### Requirement: A membership is created with no span
-WHEN a membership is created, THE SYSTEM SHALL refuse it unless `ends_on` equals
-`starts_on`, or both are null.
+### Requirement: A membership is created with at most the one period it is sold
+WHEN a membership is created, THE SYSTEM SHALL refuse it unless `ends_on` is at
+most `starts_on` plus the plan's duration, or both dates are null.
 
 `starts_on` and `ends_on` are what the money bought (ADR-093). Round ten froze
 them against every writer below `pg_trigger_depth() >= 2` so a desk could not
@@ -32,8 +32,40 @@ exactly as firmly as whoever did it. The creation hole and the date freeze
 compose into a permanent bad row, and neither round that built them was looking
 at the other.
 
-**Zero span, not null dates — and that is the console's own shape, not a
-concession to it.** `POST /api/memberships` writes `status = 'active'`,
+**Why "at most one period" and not "no span at all", which is where this
+requirement started and what it said for its first two drafts.** No span is the
+purer rule — `starts_on` and `ends_on` are what the money bought, so a membership
+nobody has paid for should run for nothing. It is also unshippable without
+changing the demo data, and the reason is worth writing down rather than
+rediscovering.
+
+Measured: every dated membership in the database — **all 45** — has a span of
+exactly one period, and **15 of them carry no payment at all**. Those 15 are the
+seed's lapsed, expired, cancelled and frozen fixtures; they are what the whole
+retention loop is demonstrated on, and a lapsed member with a zero-length
+membership is not a lapsed member. So "no span" forces either a seed rewrite
+that changes what the demo shows, or a trusted-caller carve-out — and a carve-out
+is unsound here by ADR-082's general form, because the subject is *what the money
+bought* and a seed lacks that no more than a desk does.
+
+**One period is the rule that needs neither.** Measured against the live
+database before it was written, rather than argued: of 46 memberships, **45 span
+exactly one period, one has both dates null, none is half-dated, and none would
+be refused**. It is satisfied by every row that exists, by the console, and by
+the seed. It turns the measured exploit from ten
+years into one month — the length the gym sells anyway. And the residual is
+bounded and visible: a desk can create at most one unpaid period at a time,
+capped by the plan's own duration, held down by the one-live-membership index,
+and showing on the row as a membership with no payments against it. Against a
+`3650`-day span typed in one statement, that is the difference between a hole and
+a rounding.
+
+**And the requirement below erases even that the moment money arrives**, because
+the first grant sets the span rather than adding to it. An unpaid period never
+becomes a paid-for one.
+
+**Zero span is what the console already writes, and that is not a concession to
+it.** `POST /api/memberships` writes `status = 'active'`,
 `starts_on = today`, `ends_on = today`, and both halves are argued in the file:
 `active` because PAY-011 requires a gym with no gateway to stay fully functional
 on cash and "a membership nobody can check in against is not that"; and
@@ -51,14 +83,29 @@ hand-written statement also has to obey it.
 them while `pending`, and the granting rule has a whole branch that dates such a
 row from the plan. This requirement neither adds that shape nor removes it.
 
+**A half-dated creation — one date set and the other null — is refused**, and
+that is a deliberate consequence rather than an accident of the wording. It is
+half of OPEN-026, whose whole subject is that nothing in the product can create
+such a row and nothing can repair one. This requirement means nothing can create
+one at all. The other half of OPEN-026 — the rows that already exist — is
+untouched and stays open.
+
 **Out of scope, named rather than left to be discovered:** importing a gym's
 existing members with their real dates. No such path exists today. Whoever
 builds one owns the question of how a membership acquires a span it was not
 sold, and this requirement is what they will have to argue with.
 
-#### Scenario: Creating a membership that already runs somewhere
-- **WHEN** any session creates a membership whose `ends_on` is later than its `starts_on`
+#### Scenario: Creating a membership that already runs longer than it was sold
+- **WHEN** any session creates a membership whose span exceeds the plan's duration
 - **THEN** it SHALL be refused and no membership SHALL exist
+
+#### Scenario: Creating a membership for the period being sold
+- **WHEN** a session creates a membership spanning exactly the plan's duration
+- **THEN** it SHALL be allowed — this is the shape every seeded fixture already has
+
+#### Scenario: Creating a membership with one date and not the other
+- **WHEN** a session creates a membership with `starts_on` set and `ends_on` null, or the reverse
+- **THEN** it SHALL be refused
 
 #### Scenario: Creating a membership the way the console does
 - **WHEN** a session creates a membership with `starts_on` and `ends_on` both today

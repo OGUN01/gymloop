@@ -139,7 +139,7 @@ jobs:
   # `needs: pgtap`, NOT `needs: migrate`, and that distinction cost a red CI run.
   #
   # Run in parallel with the suite, this job holds locks across nearly every
-  # table for the length of one transaction while `pg_prove` runs 45 files
+  # table for the length of one transaction while `pg_prove` runs 47 files
   # against the same Cloud project — and it deadlocked
   # `h14_impersonation_and_revocation_holdout`, which then reported "planned 58
   # but ran 28". A deadlock is not a defect in either party; it is two correct
