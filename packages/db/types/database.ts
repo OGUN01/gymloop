@@ -1201,6 +1201,7 @@ export type Database = {
           created_at: string
           currency: string
           discount_paise: number
+          duration_days: number
           ends_on: string | null
           id: string
           member_id: string
@@ -1221,6 +1222,7 @@ export type Database = {
           created_at?: string
           currency?: string
           discount_paise?: number
+          duration_days?: number
           ends_on?: string | null
           id?: string
           member_id: string
@@ -1241,6 +1243,7 @@ export type Database = {
           created_at?: string
           currency?: string
           discount_paise?: number
+          duration_days?: number
           ends_on?: string | null
           id?: string
           member_id?: string
