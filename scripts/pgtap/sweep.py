@@ -14,8 +14,8 @@ alone returns zero for a file that runs FEWER assertions than it declared, which
 is how a suite quietly stops testing things — an early return, a DO block that
 swallows, an assertion form the file's own harness does not recognise.
 
-The plan/ran comparison lives HERE rather than in sweep.py because sweep.py only
-rewrites one file; it has no opinion about pass or fail. A fourth critic pointed
+The plan/ran comparison lives HERE rather than in `splice.py`, which only
+rewrites one file and has no opinion about pass or fail. A fourth critic pointed
 out that ADR-104 credited the tool with a check the runner performs, which is
 the same gap in kind as the one that ADR is about — so the check is written
 down where it actually happens.
@@ -24,7 +24,7 @@ Replaces sweep.sh, which spliced `num_failed()` BEFORE `finish()` and could
 therefore only ever observe passes (ADR-073). It sat on disk looking superseded
 for twenty rounds; a critic found it there.
 
-usage: python sweepall.py <outdir> [migration.sql ...]
+usage: python scripts/pgtap/sweep.py <outdir> [migration.sql ...]   (run from the repo root)
 """
 import glob, io, json, os, re, subprocess, sys
 

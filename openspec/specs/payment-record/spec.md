@@ -365,10 +365,29 @@ trigger, which keeps the property that made it separate.
 - **WHEN** one statement changes a membership's `member_id` and its `duration_days`
 - **THEN** it SHALL be refused with the `member_id` rule, not the length rule
 
-**`GL042` answers ahead of the other rules in its own trigger — `GL043`,
-`GL044`, `GL045`, `GL046` — and ahead of `GL047`. That is the whole of the
-normative claim, and everything below this paragraph is an observation rather
-than a contract.**
+**For a row that violates both, `GL042` answers ahead of the other rules in its
+own trigger — `GL043`, `GL044`, `GL045`, `GL046` — and ahead of `GL047`. That is
+the whole of the normative claim, and everything below this paragraph is an
+observation rather than a contract.**
+
+**"For a row" is the load-bearing phrase and leaving it off cost a round.**
+Postgres does not order the row triggers of a *statement*, so a statement
+touching several rows is refused by whichever rule its first row reaches — and
+a two-row statement in which one row violates `GL042` and another violates
+`GL044` can answer `GL044`. Measured, from an ordinary front-desk session, with
+no CASE expression and nothing exotic:
+
+    update public.memberships set member_id = <C>, status = 'pending'
+     where id in (<a>, <b>);            -->  GL047
+       -- <a> alone                     -->  GL042
+       -- <b> alone                     -->  GL047
+
+**The answer even flips with the query plan** — the same SET list under
+`where tenant_id = …` takes a sequential scan and answers `GL042`. This file had
+the fact fifty lines upstream as an aside, and `docs/registry.md` has carried it
+since round eleven; the paragraph that then called itself "the whole of the
+normative claim" was written without it. Restating a claim more prominently is
+an opportunity to drop one of its qualifiers.
 
 **Why the scope shrank, recorded because it took five critic rounds to earn.**
 Earlier drafts of this requirement tried to state, normatively, which of *every*
@@ -384,8 +403,8 @@ were written and all five were measured false:
 | "…and the resulting row satisfies the table's CHECK constraints" | `not null` again (`23502`), and `42501`, and a `22003` out-of-range |
 
 **The surface is not enumerable and was never a product requirement.**
-`public.memberships` carries **22 triggers**, of which **10 fire on UPDATE**
-beyond the two written by this project; there are six CHECK constraints, six
+`public.memberships` carries **22 triggers**, of which **13 fire on UPDATE** — nine of them internal,
+against the four this project wrote; there are **seven** CHECK constraints, six
 `not null` columns among those a caller can write, a row-security policy that
 *filters* rather than refuses, and every type-range error the column set admits.
 No sentence can close that set, and it grows whenever anyone adds a column, a
@@ -428,10 +447,14 @@ covers, because those five codes live in one function this project controls.
 > them**, which is what ADR-100 prescribes for an undecided pair. They are
 > regression pins, not promises.
 
-#### Scenario: Re-pointing a membership and typing anything else in the same statement
-- **WHEN** one statement changes a membership's `member_id` and also its `periods_granted`, its dates, its price, or its status
+#### Scenario: Re-pointing a membership and typing anything else onto the same row
+- **WHEN** one statement changes **one membership's** `member_id` and also that same row's `periods_granted`, dates, price, or status
 - **AND** nothing outside this trigger refuses the statement first
 - **THEN** it SHALL be refused with the `member_id` rule
+
+#### Scenario: One statement touching several memberships
+- **WHEN** one statement violates `GL042` on one row and another of this trigger's rules on a different row
+- **THEN** it SHALL be refused, and this requirement SHALL NOT decide which rule answers — Postgres does not order a statement's row triggers, and the answer varies with the query plan
 
 #### Scenario: Re-pointing a membership at a different member who already has one
 - **WHEN** one statement points a membership at a **different** member who already holds a live one
@@ -441,6 +464,23 @@ covers, because those five codes live in one function this project controls.
 statement setting `member_id` to the value it already holds is permitted — and a
 membership's own owner trivially "already holds a live one", namely this
 membership. An earlier draft's WHEN was satisfiable by a statement that succeeds.
+
+#### Scenario: Selling a member a second membership
+- **WHEN** a member's membership is cancelled and a new one is sold to the same member
+- **THEN** both SHALL be allowed — this rule refuses re-pointing, not selling
+
+#### Scenario: Selling somebody else a membership
+- **WHEN** a membership is created for a different member
+- **THEN** it SHALL be allowed — the rule governs a change, not a creation
+
+The heading of the first of these said "the same member" while its own WHEN said
+"another member", which are two different acts; a blind author asserted both
+rather than choose, which was right. **Both scenarios were deleted by accident**
+in the commit that rescoped this requirement — a span replacement swallowed them
+— in a change whose own thesis was "nothing was deleted or weakened". A critic
+found them missing. The property never lapsed, because the holdout suite asserts
+it and quotes the deleted sentence verbatim, but the claim in ADR-105 was wrong
+until this restored them.
 
 ### Requirement: Money leaving the gym names the person who sent it
 THE SYSTEM SHALL require `refunds.initiated_by_staff_id` to be the acting staff

@@ -21,7 +21,7 @@ before `finish()` (which drops the table `num_failed()` reads) and select it
 back AFTER `finish()`, so the count is the last rows on the wire no matter
 which way the file went.
 
-usage: sweep.py <test.sql> <out.sql> [migration.sql ...]
+usage: python scripts/pgtap/splice.py <test.sql> <out.sql> [migration.sql ...]
 """
 import io
 import sys
@@ -29,7 +29,13 @@ import sys
 test = io.open(sys.argv[1], encoding='utf-8').read()
 migrations = ''.join(io.open(p, encoding='utf-8').read() + '\n' for p in sys.argv[3:])
 
+# A file whose `begin;` is the very first line has no leading newline, so the
+# marker would not match and `index` would raise a bare ValueError. Every file
+# in the suite carries a header comment, so this has never bitten -- which is
+# exactly why it is worth a line now rather than a debugging session later.
 marker = '\nbegin;\n'
+if marker not in test:
+    raise SystemExit(f'{sys.argv[1]}: no line-anchored `begin;` to splice after')
 i = test.index(marker) + len(marker)
 spliced = test[:i] + '\n' + migrations + '\n' + test[i:]
 
