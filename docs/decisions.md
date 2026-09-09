@@ -451,6 +451,31 @@ Two consequences fell out of the same round, both already-named shapes recurring
 - **A blind test author found the receipt-number format by writing an assertion that could not be satisfied and asking why.** "Both years' first receipt numbers are equal" contradicts `payments_tenant_id_receipt_number_key` (unique per gym, not per year), which the same author had read from the catalogue and written into its own header. The reconciliation is the answer: the financial year has to be *in* the rendered number, because the counter restarts every April and a bare ordinal collides with last year's on the first payment of each one. Neither suite would have found it alone — the visible one asserted the restart, the index refused it, and the contradiction was the finding.
 
 
+**ADR-094 - Changing what a member owes is gym-admin work, like a refund.** `ends_on = duration_days x floor(money / price_paise)`. Round nine made `duration_days` underivable by hand because it is a multiplier on that product. **`price_paise` is the other factor, and it stayed freely typed.** Measured by a round-ten critic, two ordinary `front_desk` statements, no privilege beyond selling and taking money:
+
+    update public.memberships set price_paise = 15000 where id = …;  -- permitted: no money yet
+    insert into public.payments (… 150000, 'INR', 'paid', 'cash' …);  -- the ordinary Rs.1,500
+
+    ends_on = 2027-07-06   periods_granted = 10   money = 150000
+
+**300 days for one Rs.1,500 receipt**, and both audit invariants hold — `periods_granted = floor(money/price)` and `ends_on - starts_on = duration_days x periods_granted` — so it leaves exactly the "nothing to find" record that got `duration_days` closed. At `price_paise = 1` it is `periods_granted = 150000` and an `ends_on` in the year 14347.
+
+**My argument in ADR-092 for treating the two factors differently was about intent, not effect**: *"`price_paise` is a negotiated number a desk legitimately mistypes; `duration_days` is not."* Both are multipliers on the same product. Intent does not bound a multiplier.
+
+**And round ten made it permanent.** Before it, a gym could put `ends_on` back by hand; now `GL043` freezes the price once money has arrived and `GL045` freezes the dates, so the row cannot be repaired in place at all. A defect that was recoverable became unrecoverable **in the round that was supposed to be closing this family of holes**.
+
+**Rejected: derive `price_paise` from the plan, as `duration_days` now is.** It is the tempting symmetry and it is wrong. A gym legitimately sells below list — that is what `discount_paise` exists for — and the money path deliberately does not read that column (OPEN-028), so making the price underivable would leave no way at all to sell a membership at a negotiated number.
+
+**Rejected: refuse a price below the plan's.** Same objection, and it invents a bound nobody chose: any threshold is arbitrary, and a gym that discounts by 30% is ordinary while one that discounts by 90% is a decision, not an error.
+
+**Rejected: bound the discount instead.** Moving the exploit from `price_paise` to `discount_paise` changes its name and nothing else — `discount = price - 1` is the same 150,000 periods.
+
+**The control is WHO, not what**, and this codebase already made that call for the neighbouring case. `refunds_tenant_write` is `is_gym_admin()`, not `is_front_office()`: *"front_desk may record money but not refund it."* Deciding what a member owes is the same kind of act as deciding to give money back, and it belongs to the same people. The front desk sells at the plan's price and takes payment; **re-pricing is the manager's**. `GL046`.
+
+That is proportionate rather than absolute, and it is worth being explicit about what it does not do: a `gym_owner` or `gym_manager` can still comp a membership to a paisa. **They should be able to** — comping is a real thing gyms do — and it leaves the price sitting on the row as evidence, which is the same bound ADR-093 accepted for OPEN-027. What it removes is the front desk doing it silently, which was the measured threat model for every `GL043` finding in this phase.
+
+**Method note, because this is the third time.** ADR-092's grep — *when a requirement names a harm, no scenario under it may permit that harm's outcome by another route* — was written after round nine and would have caught this: the requirement names the ten-years harm, and its own scenario "Correcting a mistake before any money arrives … SHALL be allowed" permits the identical outcome through the other factor. **The rule was written down and not run.** Running it is now part of fixing the contract, not a thing to remember.
+
 **ADR-093 - The dates a membership runs for are written by the rule that grants them.** Two rounds governed `duration_days` — the quantity that exists only to compute `ends_on` — while `ends_on` itself stayed writable by hand. Measured, from an ordinary front-desk session, no privilege beyond recording a payment:
 
     update public.memberships set ends_on = starts_on + 3650 where id = …;   -- ALLOWED

@@ -456,8 +456,17 @@ resembles.
 - **THEN** memberships already sold on it SHALL keep the length they were sold at, and only memberships created afterwards SHALL use the new one
 
 #### Scenario: Correcting a mistake before any money arrives
-- **WHEN** a front-desk session changes the price or the plan of a membership against which no money has arrived
+- **WHEN** a **gym admin** changes the price or the plan of a membership against which no money has arrived
 - **THEN** it SHALL be allowed
+
+**This scenario said "a front-desk session" for four rounds, and that is the
+sentence a critic walked through to buy 300 days for one month's fee.** The
+requirement names the ten-years harm in its own prose and then permitted the
+identical outcome through the other factor of the same product — ADR-092's
+grep, written after round nine and not run until round eleven. Who may re-price
+is settled by "Deciding what a member owes is gym-admin work" below; this
+scenario is about *when*, and it now says who as well so the two cannot drift
+apart again.
 
 #### Scenario: Renewing
 - **WHEN** an ordinary payment extends a membership that has been granted a period
@@ -533,6 +542,87 @@ implementation:**
 #### Scenario: Writing the same count back
 - **WHEN** a write leaves `periods_granted` at the value it already held
 - **THEN** it SHALL be allowed
+
+### Requirement: Deciding what a member owes is gym-admin work
+WHEN a session changes a membership's `price_paise`, `currency`, `plan_id` or
+`discount_paise`, THE SYSTEM SHALL refuse it unless that session is a gym admin,
+and SHALL leave the membership as it stood.
+
+`ends_on` is `duration_days x floor(money / price_paise)`. The requirement above
+made the length underivable by hand because it multiplies that product. **The
+price is the other factor and it was freely typed.** Measured: a front desk sets
+a Rs.1,500 membership's price to Rs.150 and takes the ordinary Rs.1,500 — **300
+days, ten periods**, both audit invariants intact, and after round ten the row
+cannot be repaired in place at all.
+
+**The control is who, not what.** Deriving the price from the plan would leave no
+way to sell at a negotiated number, which gyms do; bounding it invents a
+threshold nobody chose; bounding the discount instead moves the same exploit to
+a different column. This product already answers this question one table over —
+`refunds_tenant_write` is gym-admin, not front-office, because "front_desk may
+record money but not refund it". **Deciding what a member owes is the same kind
+of act as deciding to give money back.** The front desk sells at the plan's
+price and takes payment.
+
+A gym admin can still comp a membership to a paisa, and should be able to. That
+leaves the price on the row as evidence; what this removes is the front desk
+doing it silently.
+
+**Which rule answers, when both could.** A membership that has already taken
+money is refused by the freeze above, not by this rule — an absolute beats a
+permission, and answering the permission would imply a gym admin could do it,
+which they cannot. **But a single statement touching several memberships, some
+frozen and some not, from a session that is not a gym admin, is refused with
+whichever of the two the first row reaches**, because PostgreSQL does not order
+a statement's row triggers. The refusal and the unchanged values are guaranteed;
+the SQLSTATE is not. An assertion mixing frozen and unfrozen rows under a
+non-admin claim must therefore assert the refusal and the values, never the
+code.
+
+#### Scenario: A front desk re-pricing a membership
+- **WHEN** a front-desk session changes a membership's price, currency, plan or discount
+- **THEN** it SHALL be refused and the membership SHALL be unchanged
+
+**Selling at a price the plan does not carry is the same decision as changing
+one, so creation carries the same rule.** The first draft of this requirement
+governed only a session that *changes* those columns, and both blind authors
+independently measured the door that leaves: a front desk **creates** the
+membership at a tenth of list and takes the ordinary fee — the same 300 days,
+in one statement fewer than the exploit this requirement was written to close.
+That is the third round running in which creation was the unpoliced door.
+
+`plan_id` at creation is unrestricted: choosing which plan to sell is the front
+desk's job, and the price comes with it.
+
+**Trusted contexts are exempt**, and this is the first rule here that should be.
+ADR-082's general form: a carve-out is sound exactly when the rule's subject is
+something a trusted caller legitimately lacks — and this rule's subject is which
+staff role you are, which a webhook, a migration and the seed have none of. The
+other rules in this area are invariants about the data and take no carve-out.
+A **platform** session is not a trusted context in that sense: an impersonating
+token carries `app_role = gym_owner` and is allowed as one, while a bare
+`super_admin` re-pricing a gym's membership out of band, with no impersonation
+session and no reason recorded, is what `docs/security.md` exists to prevent.
+
+#### Scenario: A front desk selling and taking money
+- **WHEN** a front-desk session creates a membership at its plan's price and records a payment against it
+- **THEN** both SHALL be allowed
+
+#### Scenario: A front desk selling below the plan's price
+- **WHEN** a front-desk session creates a membership whose price or currency differs from its plan's, or which carries a discount
+- **THEN** it SHALL be refused and no membership SHALL exist
+
+#### Scenario: A gym admin selling below the plan's price
+- **WHEN** a gym admin does the same
+- **THEN** it SHALL be allowed and SHALL land at the price named
+
+#### Scenario: A gym admin correcting a price before any money arrives
+- **WHEN** a gym owner or manager changes the price of a membership against which no money has arrived
+- **THEN** it SHALL be allowed, and a payment SHALL be scored against the corrected price
+
+#### Scenario: A gym admin after money has arrived
+- **WHEN** a gym admin changes a term of a membership that has taken money
+- **THEN** it SHALL still be refused — being a gym admin does not unfreeze what money has bought
 
 ### Requirement: The dates a membership runs for are written by the rule that grants them
 THE SYSTEM SHALL move `starts_on` and `ends_on` only as part of granting a
