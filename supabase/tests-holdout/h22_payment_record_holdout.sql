@@ -187,11 +187,32 @@
 -- for the seams it goes at, the two readings its author sided on, and the
 -- one open question it stages rather than guesses.
 
+-- SEVENTH-SESSION EXTENSION — section 18, plan 317 -> 383, written blind by
+-- a FOURTH author against the round-NINE requirement (ADR-092): a period's
+-- length is DERIVED, never negotiated — it may change only as part of a plan
+-- change and only to what that plan says, at any time, money or no money —
+-- and a plan change carries the PRICE with it unless the correction names a
+-- price of its own. The refusal for a typed length is GL043, answered by the
+-- coordinator to both authors rather than guessed.
+--
+-- TWO OF SECTION 17'S OWN ASSERTIONS CHANGED, because the contract they were
+-- written against contradicted itself. Round eight named the harm ("create a
+-- membership naming duration_days = 3650, pay the ordinary price, get ten
+-- years") and three lines later permitted the identical outcome in two
+-- statements. (1) 17c's duration-frozen refusal STANDS and its reason is
+-- rewritten: it was justified by money having arrived, and the length is not
+-- frozen by money — it is derived, and typing one is refused whether or not
+-- a paisa has ever been taken. (2) 17c's pre-money plan-correction OPEN
+-- QUESTION is now sided at the corrected plan's length, plus one new
+-- assertion that the length re-derived — which is the +1 in 317 -> 383, the
+-- other 65 being section 18. Nothing else in sections 0-17 moved; no fixture
+-- in this file ever hand-wrote a duration_days, so nothing rested on one.
+
 begin;
 
 set local role postgres;
 
-select plan(317);
+select plan(383);
 
 -- ---------------------------------------------------------------------------
 -- 0. Fixtures.
@@ -2707,37 +2728,39 @@ select is(
 
 select ok(
   pg_temp.h22r8_refused($q$update public.memberships set duration_days = 3650 where id = '220000ff-0022-4000-8000-6000000000c2'$q$),
-  'GL043/duration-frozen: the recorded duration is itself one of the frozen terms — a term that can be hand-edited on a membership that has taken money is the plans-row defect moved one table over, not fixed');
+  'GL043/duration-frozen: typing a length onto this membership is refused. ROUND NINE CORRECTED THE REASON, not the refusal: this assertion was written as though the length were frozen BY MONEY, like the price beside it, and the pre-money half that implies is a measured 3,650-day exploit (ADR-092). The length is derived and never typed, so this is refused because it is typed — not because money has arrived. Section 18a asserts the same statement against a membership that has never been paid a paisa');
 
 select is(
   pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-6000000000c2'$q$),
   '30',
   'GL043/duration-frozen: and it is unchanged at 30 — refused AND unmoved');
 
--- A legitimate PRE-MONEY plan correction. Whether the recorded duration is
--- re-derived when the plan is corrected is a question the requirement does
--- not answer, and this author declines to guess: "correcting a wrong plan
--- before any money has arrived stays free" reads as though the correction
--- should land whole, while "recorded at creation" reads as though the term
--- should not move afterwards. Bounded assertion, observed value reported.
+-- A legitimate PRE-MONEY plan correction. Round eight left this open and
+-- this author declined to guess; ADR-092 answers it, and the answer is the
+-- reason the door exists at all: changing the plan RE-DERIVES the length,
+-- which is the only instrument a desk has for a wrong term. So the bounded
+-- assertion below is now sided at the corrected plan's length. The price
+-- re-derives with it, which this fixture cannot show — both plans here are
+-- priced 100000 — so section 18c proves that half on plans that differ.
 
 select lives_ok(
   $$update public.memberships set plan_id = '220000ff-0022-4000-8000-4000000000c1' where id = '220000ff-0022-4000-8000-6000000000c4'$$,
   'GL043/pre-money: correcting the plan of a membership against which no money has arrived is still allowed');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-6000000000c4'$q$),
+  '3650',
+  'GL043/pre-money: and the correction RE-DERIVED the recorded length from the corrected plan — a wrong length is a wrong plan, and re-pointing the plan is the only instrument that may move the term');
 
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
     values ('220000ff-0022-4000-8000-7000000001c4', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-5000000000c4', '220000ff-0022-4000-8000-6000000000c4', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
   'GL043/pre-money: and the first payment against the corrected membership is recorded');
 
-select ok(
-  (select ends_on - starts_on from public.memberships where id = '220000ff-0022-4000-8000-6000000000c4'::uuid) in (30, 3650),
-  'GL043/pre-money: OPEN QUESTION, staged not sided — a pre-money plan correction either re-records the duration (3650, the corrected plan) or keeps what was recorded at creation (30). Both are defensible readings of a requirement that says the correction stays free AND that the term is recorded at creation; a third answer is not');
-
-select diag(
-  'h22 R8 / GL043 pre-money plan correction: membership 6000000000c4 was created on a 30-day plan, corrected to the 3650-day plan before any money arrived, then paid in full. Observed length of the period it bought: '
-  || coalesce((select (ends_on - starts_on)::text from public.memberships where id = '220000ff-0022-4000-8000-6000000000c4'::uuid), 'null')
-  || ' days. Reported rather than asserted because the requirement does not say whether a legitimate pre-money plan change re-records the duration.');
+select is(
+  (select ends_on - starts_on from public.memberships where id = '220000ff-0022-4000-8000-6000000000c4'::uuid),
+  3650,
+  'GL043/pre-money: and the money bought a period of the CORRECTED plan''s length — the round-eight open question, sided by ADR-092. The correction lands whole, which is what makes refusing the typed length affordable: the desk keeps an instrument for a genuinely wrong term');
 
 -- ---------------------------------------------------------------------------
 -- 17d. THE BOUNDARY OF "MONEY HAS ARRIVED". The requirement now turns on
@@ -3162,6 +3185,640 @@ select is(
   (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-6000000000d3'::uuid),
   1,
   'permitted/frozen-membership: and nothing about that disturbed the count');
+
+
+-- ---------------------------------------------------------------------------
+-- 18. SEVENTH-SESSION EXTENSION, round NINE, written blind by a fourth
+--     author against the CORRECTED requirement (ADR-092): a period's length
+--     is DERIVED, never negotiated — it may change only as part of a plan
+--     change and only to what that plan says, at any time, money or no
+--     money — and a plan change carries the PRICE with it unless the
+--     correction names a price of its own. The refusal is GL043, answered
+--     by the coordinator to both authors rather than guessed: the length
+--     is a term of the membership and belongs where the other terms are.
+--
+--     WHY THIS SECTION EXISTS, AND WHY ONE OF SECTION 17'S OWN ASSERTIONS
+--     WAS WRONG. Round eight's requirement named the harm ("create a
+--     membership naming duration_days = 3650, pay the ordinary price, get
+--     ten years") and three lines later mandated the same outcome by
+--     another route: "correcting the length before any money arrives SHALL
+--     be allowed and SHALL land". Section 17 wrote to the contract it was
+--     given and froze the length BY MONEY, like the price beside it. The
+--     pre-money half that implies is what a critic then measured: sell a
+--     30-day membership at 1,500 rupees, `update memberships set
+--     duration_days = 3650`, take the ordinary 1,500 — 3,650 days, from one
+--     `.update({duration_days})` in any front-desk browser session, and
+--     UNDETECTABLE afterwards, because the row it leaves is fully
+--     self-consistent: one receipt, one period granted, ends_on exactly one
+--     recorded period. So 17c's duration-frozen assertion keeps its refusal
+--     (still true, and still GL043) and loses its money-shaped reason, and
+--     18a asserts the half it never reached.
+--
+--     WHAT THIS SECTION DOES NOT DO. It does not re-prove the two headline
+--     shapes; ADR-092 records both. It goes at the SEAMS the corrected rule
+--     grows, all of which are new this round because "changing the plan" is
+--     now the only door the length has:
+--
+--       (a) THE BOUNDARY BETWEEN "CHANGED THE PLAN" AND "TYPED A LENGTH" —
+--           18b. A plan change to a plan of the SAME length (a rule keyed
+--           on "the length moved" sees nothing to authorise); a plan change
+--           and then a plan change BACK inside one transaction (the only
+--           bounded form of laundering left, and it must land on the plan's
+--           real terms in both directions); setting plan_id to its OWN
+--           value while writing a length (a same-value write is not a
+--           change, so the length write has no plan change to ride on);
+--           writing a length in one statement and the plan in the NEXT,
+--           inside one transaction (a rule that arms per transaction rather
+--           than per statement lets the refused length through on the later
+--           legitimate one); a plan change that also names the CORRECT new
+--           length, which must land; and a same-value plan write on a
+--           membership that HAS taken money, which must neither be refused
+--           nor re-derive its price.
+--
+--       (b) A PLAN CHANGE THAT NAMES THE WRONG LENGTH — 18b's last case, and
+--           the ONE QUESTION THE CORRECTED REQUIREMENT STILL DOES NOT
+--           ANSWER. "Only to what that plan says" refuses it; "the length
+--           recorded SHALL be the plan's, not the one named" — the wording
+--           of the CREATE scenario — ignores it and fills the plan's. This
+--           author declines to guess: bounded assertion that holds under
+--           either reading, observed value by `diag`, and the coordinator
+--           told plainly. What both readings forbid, and what is measured
+--           live today, is the named 3650 surviving.
+--
+--       (c) WHERE THE PRICE RE-DERIVATION COULD GO WRONG — 18c. It is a new
+--           WRITE that no rule made before, and it lands on a column a gym
+--           legitimately sets by hand. A membership sold at a negotiated
+--           price; one carrying a discount_paise; a correction naming a
+--           price of its own; a correction naming a price EQUAL to the old
+--           one (indistinguishable from naming none under `is distinct
+--           from`, so a desk that deliberately retypes the agreed price may
+--           get the new plan's list price instead — reported, not guessed);
+--           and a plan denominated in another currency, where taking the
+--           price without the currency writes a dollar number into a rupee
+--           membership.
+--
+--       (d) MULTI-ROW AND MULTI-STATEMENT — 18d. Every defect in this phase
+--           survived the single-row case and died on one of these, and the
+--           length has never been tested in any of them: MERGE and
+--           `UPDATE ... FROM` are both named in ADR-092 as measured routes,
+--           plus a data-modifying CTE that takes the first payment and
+--           types the length in the SAME statement, and one statement
+--           carrying a DIFFERENT value per row where one row is a
+--           legitimate plan change and the other is a typed length.
+--
+--       (e) THE PERMITTED SIDE — 18e. A fix that is too broad passes every
+--           refusal above, and this project has shipped one three times.
+--           The rule must not touch discount_paise (deliberately not a
+--           term), freeze, unfreeze, cancel, or a renewal; and after a
+--           legitimate Monthly-to-Annual correction one Annual fee must buy
+--           exactly ONE year, not the eight periods of 365 days — 2,920
+--           days — ADR-092 measured when the length re-derived and the
+--           price did not.
+--
+--       (f) DETECTABILITY — 18f. `ends_on - starts_on = duration_days *
+--           periods_granted` is the invariant an audit would use, and the
+--           exploit was invisible precisely because it PRESERVED it. It is
+--           asserted here for what it is actually worth: it must still hold
+--           across every fixture this section touches, so an auditor
+--           running it gets no false positives from legitimate corrections.
+--           Holding it proves nothing about the exploit, and the assertion
+--           says so in its own text. The refusal is what closes that door.
+--
+--     Every refusal below asserts the code AND that the value is unchanged,
+--     through `pg_temp.h22r8_refused` rather than `throws_ok(..., null, ...)`
+--     for the reason section 17 gives.
+--
+--     MEASURED LIVE BEFORE THIS SECTION WAS WRITTEN, against the round-eight
+--     implementation on Cloud, all from an ordinary front-desk session: a
+--     pre-money `set duration_days = 3650` lands; the same through MERGE
+--     lands; a plan change carries the length but NOT the price; a
+--     same-length plan change leaves the old price standing; and a plan
+--     change naming 3650 keeps the 3650 rather than the plan's 365 — the
+--     caller's number beating the derivation outright.
+-- ---------------------------------------------------------------------------
+
+set local role postgres;
+
+insert into public.plans (id, tenant_id, name, duration_days, price_paise, currency) values
+  ('220000ff-0022-4000-8000-400000000901'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, 'H22 R9 Plan Same Length (30d, 2000)', 30, 200000, 'INR'),
+  ('220000ff-0022-4000-8000-400000000902'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, 'H22 R9 Plan Foreign (30d, USD)',      30, 200000, 'USD');
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('220000ff-0022-4000-8000-500000000911'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 Bare Length',    '+919220000911'),
+  ('220000ff-0022-4000-8000-500000000912'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 Self Plan',      '+919220000912'),
+  ('220000ff-0022-4000-8000-500000000913'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 Two Statements', '+919220000913'),
+  ('220000ff-0022-4000-8000-500000000914'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 Same Length',    '+919220000914'),
+  ('220000ff-0022-4000-8000-500000000915'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 Right Length',   '+919220000915'),
+  ('220000ff-0022-4000-8000-500000000916'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 Wrong Length',   '+919220000916'),
+  ('220000ff-0022-4000-8000-500000000917'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 Self Plan Paid', '+919220000917'),
+  ('220000ff-0022-4000-8000-500000000918'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 Negotiated',     '+919220000918'),
+  ('220000ff-0022-4000-8000-500000000919'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 Named Price',    '+919220000919'),
+  ('220000ff-0022-4000-8000-50000000091a'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 Named Same',     '+919220000920'),
+  ('220000ff-0022-4000-8000-50000000091b'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 Discounted',     '+919220000921'),
+  ('220000ff-0022-4000-8000-50000000091c'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 Foreign Plan',   '+919220000922'),
+  ('220000ff-0022-4000-8000-50000000091d'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 MultiRow One',   '+919220000923'),
+  ('220000ff-0022-4000-8000-50000000091e'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 MultiRow Two',   '+919220000924'),
+  ('220000ff-0022-4000-8000-50000000091f'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 Update From',    '+919220000925'),
+  ('220000ff-0022-4000-8000-500000000920'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 Merge',          '+919220000926'),
+  ('220000ff-0022-4000-8000-500000000921'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 CTE',            '+919220000927'),
+  ('220000ff-0022-4000-8000-500000000922'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 PerRow Legit',   '+919220000928'),
+  ('220000ff-0022-4000-8000-500000000923'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 PerRow Typed',   '+919220000929'),
+  ('220000ff-0022-4000-8000-500000000924'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 Permitted',      '+919220000930'),
+  ('220000ff-0022-4000-8000-500000000925'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 R9 MisSold',        '+919220000931');
+
+-- Every fixture below is sold on H22 Plan A — 30 days, 100000 paise, INR —
+-- except where the price or the discount column says otherwise, and none has
+-- taken money until the assertion that gives it some.
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, discount_paise, currency)
+select
+  ('220000ff-0022-4000-8000-6000000009' || f.suffix)::uuid,
+  '220000ff-0022-4000-8000-100000000001'::uuid,
+  ('220000ff-0022-4000-8000-5000000009' || f.suffix)::uuid,
+  '220000ff-0022-4000-8000-400000000001'::uuid,
+  'active',
+  (select today from gym_today where org_key = 'A'),
+  (select today from gym_today where org_key = 'A'),
+  f.price, f.discount, 'INR'
+from (values
+  ('11', 100000::bigint,     0::bigint),
+  ('12', 100000::bigint,     0::bigint),
+  ('13', 100000::bigint,     0::bigint),
+  ('14', 100000::bigint,     0::bigint),
+  ('15', 100000::bigint,     0::bigint),
+  ('16', 100000::bigint,     0::bigint),
+  ('17',  80000::bigint,     0::bigint),
+  ('18',  80000::bigint,     0::bigint),
+  ('19', 100000::bigint,     0::bigint),
+  ('1a', 100000::bigint,     0::bigint),
+  ('1b', 100000::bigint, 20000::bigint),
+  ('1c', 100000::bigint,     0::bigint),
+  ('1d', 100000::bigint,     0::bigint),
+  ('1e', 100000::bigint,     0::bigint),
+  ('1f', 100000::bigint,     0::bigint),
+  ('20', 100000::bigint,     0::bigint),
+  ('21', 100000::bigint,     0::bigint),
+  ('22', 100000::bigint,     0::bigint),
+  ('23', 100000::bigint,     0::bigint),
+  ('24', 100000::bigint,     0::bigint),
+  ('25', 100000::bigint,     0::bigint)
+) as f(suffix, price, discount);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+set local role authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 18a. A TYPED LENGTH IS REFUSED WHATEVER THE MONEY. Section 17 proved the
+-- money-shaped half on a membership that had been paid twice; this is the
+-- half round eight's contract explicitly permitted and a critic then
+-- measured at 3,650 days for one ordinary payment. Nothing has ever been
+-- paid against this membership, which is exactly why it is the dangerous
+-- case: the row it produces is indistinguishable from an honest membership
+-- sold on a plan that was later re-lengthened.
+-- ---------------------------------------------------------------------------
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set duration_days = 3650 where id = '220000ff-0022-4000-8000-600000000911'$q$),
+  'GL043/length-derived: typing a length onto a membership against which NO money has arrived is refused — the length is derived from the plan and never negotiated, so the pre-money window that stays open for the price does not open for it');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-600000000911'$q$),
+  '30',
+  'GL043/length-derived: and it is unchanged at 30 — refused AND unmoved. Measured live before this section: the write lands, and the ordinary payment after it buys ten years off one receipt no audit can tell from an honest one');
+
+select lives_ok(
+  $$update public.memberships set duration_days = 30 where id = '220000ff-0022-4000-8000-600000000911'$$,
+  'GL043/length-derived: writing the SAME length back is allowed — a same-value write moves nothing, every exploit needs the value moved, and the console form that lists its columns writes this on every save. The decision ADR-089 already made for periods_granted, applied to the term beside it');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-600000000911'$q$),
+  '30',
+  'GL043/length-derived: and it is still 30');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set duration_days = 1 where id = '220000ff-0022-4000-8000-600000000911'$q$),
+  'GL043/length-derived: SHORTENING it is refused too — memberships_duration_days_chk permits 1, so a rule that only guards against lengthening leaves a desk able to cut a member''s term by hand, and "derived" is a rule about who writes the number, not which way it moves');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-600000000911'$q$),
+  '30',
+  'GL043/length-derived: unchanged at 30');
+
+-- ---------------------------------------------------------------------------
+-- 18b. THE BOUNDARY BETWEEN "CHANGED THE PLAN" AND "TYPED A LENGTH". The
+-- corrected rule has exactly one door, so every question worth asking is
+-- about where that door starts and stops. A rule keyed on "the length
+-- moved", one keyed on "the statement mentions plan_id", and one armed per
+-- transaction rather than per statement each pass 18a and fail a different
+-- case below.
+-- ---------------------------------------------------------------------------
+
+-- (i) plan_id set to its OWN value, alongside a length. A same-value write
+-- is not a change (18a proved that for the length itself), so there is no
+-- plan change here for the length to ride on. A rule that arms on "plan_id
+-- appears in the SET list" reads this as authorised and hands back the whole
+-- exploit through a statement any client can write.
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set plan_id = '220000ff-0022-4000-8000-400000000001', duration_days = 3650 where id = '220000ff-0022-4000-8000-600000000912'$q$),
+  'GL043/self-plan: setting plan_id to its OWN value while writing a length is refused — the plan did not change, so nothing authorised the length, and a rule armed by plan_id merely APPEARING in the SET list gives the whole exploit back in one statement');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-600000000912'$q$),
+  '30',
+  'GL043/self-plan: the length is unchanged at 30');
+
+select is(
+  (select plan_id from public.memberships where id = '220000ff-0022-4000-8000-600000000912'::uuid),
+  '220000ff-0022-4000-8000-400000000001'::uuid,
+  'GL043/self-plan: and the plan is where it was');
+
+-- (ii) The length in one statement, the plan in the NEXT, inside one
+-- transaction. The first must be refused on its own merits and must not be
+-- carried forward: a rule that arms or disarms per TRANSACTION lets the
+-- refused number land on the later, entirely legitimate statement.
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set duration_days = 365 where id = '220000ff-0022-4000-8000-600000000913'$q$),
+  'GL043/two-statements: the length typed alone is refused, even though the number happens to be the length of a plan this gym sells — a value that would be legitimate as a DERIVATION is not legitimate as a WRITE');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-600000000913'$q$),
+  '30',
+  'GL043/two-statements: unchanged at 30');
+
+select lives_ok(
+  $$update public.memberships set plan_id = '220000ff-0022-4000-8000-400000000005' where id = '220000ff-0022-4000-8000-600000000913'$$,
+  'GL043/two-statements: the plan is then corrected in the very next statement of the same transaction, which is the legitimate instrument and must still work');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-600000000913'$q$),
+  '365',
+  'GL043/two-statements: and the length is the NEW plan''s 365 — derived by the correction, not the 365 that was refused a statement earlier. A rule that arms per transaction cannot tell those two apart');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-600000000913'::uuid),
+  1200000::bigint,
+  'GL043/two-statements: and the price came with it — price and length come from the same plan or from neither. Measured live before this section: the length re-derived and the price did not, which is one Annual fee buying eight periods of 365 days');
+
+-- (iii) A plan change to a plan of the SAME length. Nothing about the
+-- duration moves, so a rule keyed on "the length changed" never fires and
+-- the PRICE re-derivation — the only observable here — is where it shows.
+
+select lives_ok(
+  $$update public.memberships set plan_id = '220000ff-0022-4000-8000-400000000901' where id = '220000ff-0022-4000-8000-600000000914'$$,
+  'GL043/same-length: correcting a moneyless membership onto a DIFFERENT plan of the SAME length is allowed — an ordinary mis-sold-plan correction between two monthly plans, which is most of what a desk actually gets wrong');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-600000000914'$q$),
+  '30',
+  'GL043/same-length: the length is still 30 — the new plan says 30, and "derived" means it equals what the plan says, not that it moved');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-600000000914'::uuid),
+  200000::bigint,
+  'GL043/same-length: and the PRICE became the new plan''s 200000 — the only observable in a same-length correction, and the one a rule that fires on "the duration changed" never reaches');
+
+-- (iv) And the plan change BACK, in the same transaction. This is the only
+-- laundering route the corrected rule leaves, and it is bounded to exactly
+-- what the plans table says: a round trip must land on the original plan's
+-- real terms, never on a number the caller chose along the way.
+
+select lives_ok(
+  $$update public.memberships set plan_id = '220000ff-0022-4000-8000-400000000001' where id = '220000ff-0022-4000-8000-600000000914'$$,
+  'GL043/plan-round-trip: changing the plan BACK to the original in the same transaction is allowed — no money has arrived, so both legs are ordinary corrections');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-600000000914'$q$),
+  '30',
+  'GL043/plan-round-trip: the length is the original plan''s 30');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-600000000914'::uuid),
+  100000::bigint,
+  'GL043/plan-round-trip: and the price went back to 100000 with it — a round trip lands on the plans table both ways. Derivation is what makes this door safe to leave open: whatever route a caller takes, the terms are a plan''s terms and never a caller''s');
+
+-- (v) A plan change that also names the CORRECT new length. It is a change
+-- of plan, and the number is what that plan says, so both halves of the
+-- rule are satisfied and it must land. A rule written as "refuse any
+-- statement that writes duration_days" refuses the console form that echoes
+-- back what it just computed.
+
+select lives_ok(
+  $$update public.memberships set plan_id = '220000ff-0022-4000-8000-400000000005', duration_days = 365 where id = '220000ff-0022-4000-8000-600000000915'$$,
+  'GL043/right-length: a plan change that also names the CORRECT new length lands — it changes the plan, and 365 is what that plan says, which is exactly the permission the rule grants');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-600000000915'$q$),
+  '365',
+  'GL043/right-length: the length is 365');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-600000000915'::uuid),
+  1200000::bigint,
+  'GL043/right-length: and the price is the new plan''s, since the correction named no price of its own');
+
+-- (vi) A plan change that names the WRONG length. THE REQUIREMENT DOES NOT
+-- ANSWER THIS. "Only to what that plan says" refuses it; "the length
+-- recorded SHALL be the plan's, not the one named" — the wording the CREATE
+-- scenario uses for the same act — ignores it and fills the plan's. Both
+-- readings are defensible; a third answer, in which 3650 survives, is what
+-- is measured live today and is what both readings exist to forbid. Staged
+-- in a DO block so that whichever way it goes it puts nothing on the TAP
+-- stream, then one bounded assertion and a diag.
+
+do $do$
+begin
+  begin
+    update public.memberships
+       set plan_id = '220000ff-0022-4000-8000-400000000005', duration_days = 3650
+     where id = '220000ff-0022-4000-8000-600000000916';
+  exception when others then null;
+  end;
+end
+$do$;
+
+select ok(
+  pg_temp.h22r8_val($q$select duration_days::text || '/' || plan_id::text from public.memberships where id = '220000ff-0022-4000-8000-600000000916'$q$)
+    in ('30/220000ff-0022-4000-8000-400000000001', '365/220000ff-0022-4000-8000-400000000005'),
+  'GL043/wrong-length: OPEN QUESTION, staged not sided — a plan change naming a length that is NOT the new plan''s either fails whole (30, original plan) or lands with the plan''s own length substituted (365, new plan). The requirement supports both and settles neither; what neither permits, and what is measured live, is the caller''s 3650 standing');
+
+select diag(
+  'h22 R9 / GL043 plan change naming a wrong length: membership 600000000916 was on a 30-day plan and one statement set plan_id to the 365-day plan and duration_days to 3650. Observed (duration/plan): '
+  || coalesce(pg_temp.h22r8_val($q$select duration_days::text || '/' || plan_id::text from public.memberships where id = '220000ff-0022-4000-8000-600000000916'$q$), 'null')
+  || '. Reported rather than asserted because the requirement refuses it in its prose ("only to what that plan says") and ignores it in its CREATE scenario ("the length recorded SHALL be the plan''s, not the one named"), and those are different answers for the same act.');
+
+-- (vii) A same-value plan write on a membership that HAS taken money. GL043
+-- freezes the plan once money arrives, but a same-value write changes
+-- nothing and must still be allowed — and, more to the point, it must not
+-- re-derive the price. This membership was sold at a negotiated 80000 on a
+-- plan whose list price is 100000; a re-derivation fired by plan_id merely
+-- appearing in the SET list is a free re-price of a membership that has
+-- already taken money, reachable by writing a column back onto itself.
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000009017', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000917', '220000ff-0022-4000-8000-600000000917', 40000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'GL043/self-plan-paid: half of a negotiated 80000 price arrives, so the terms of this membership are now frozen and nothing has been granted');
+
+select lives_ok(
+  $$update public.memberships set plan_id = '220000ff-0022-4000-8000-400000000001' where id = '220000ff-0022-4000-8000-600000000917'$$,
+  'GL043/self-plan-paid: writing plan_id back onto its own value is still allowed after money has arrived — a same-value write is not a change of terms, and refusing it breaks every ordinary column-listing update the console sends');
+
+select ok(
+  (select price_paise = 80000 and duration_days = 30
+     from public.memberships where id = '220000ff-0022-4000-8000-600000000917'::uuid),
+  'GL043/self-plan-paid: and it re-derived NOTHING — the negotiated 80000 stands. A re-derivation armed by plan_id appearing in the SET list would re-price a membership that has already taken money, up to the list price, from a statement that changes no plan');
+
+-- ---------------------------------------------------------------------------
+-- 18c. WHERE THE PRICE RE-DERIVATION COULD GO WRONG. Carrying the price with
+-- the plan is a WRITE no rule made before this round, and it lands on the
+-- one term of the three that a gym legitimately sets by hand. Everything
+-- below asks the same question from a different side: does re-deriving the
+-- price ever clobber something a gym meant?
+-- ---------------------------------------------------------------------------
+
+-- (i) It does, and by design: a negotiated price does not survive a plan
+-- correction unless the correction names it again. Asserted rather than
+-- assumed, because it is the cost of the rule and a reader should be able to
+-- see the project chose it.
+
+select lives_ok(
+  $$update public.memberships set plan_id = '220000ff-0022-4000-8000-400000000005' where id = '220000ff-0022-4000-8000-600000000918'$$,
+  'GL043/negotiated: a moneyless membership sold at a negotiated 80000 is corrected onto the Annual plan');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-600000000918'::uuid),
+  1200000::bigint,
+  'GL043/negotiated: the price became the new plan''s 1200000 and the negotiated 80000 is GONE — the deliberate cost of "price and length come from the same plan or from neither". A desk that had agreed a discount must name it again in the correcting statement, and the next assertion proves it can');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-600000000918'$q$),
+  '365',
+  'GL043/negotiated: and the length came with it');
+
+-- (ii) The escape hatch the requirement provides, exercised.
+
+select lives_ok(
+  $$update public.memberships set plan_id = '220000ff-0022-4000-8000-400000000005', price_paise = 80000 where id = '220000ff-0022-4000-8000-600000000919'$$,
+  'GL043/named-price: a plan correction that names a price of its own is allowed');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-600000000919'::uuid),
+  80000::bigint,
+  'GL043/named-price: and THAT price stands — the negotiated price is the half of this pair a desk legitimately types, so naming it beats the derivation');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-600000000919'$q$),
+  '365',
+  'GL043/named-price: while the length is still the new plan''s 365 — naming a price buys an exception for the price and not for the term beside it');
+
+-- (iii) A correction that names a price EQUAL to the old one. Under the
+-- `is distinct from` idiom this project uses for same-value writes, this
+-- statement is indistinguishable from one that names no price at all — so a
+-- desk that deliberately retypes the agreed price to keep it may get the new
+-- plan's list price instead. The requirement says "unless the correction
+-- names a price of its own" and does not say whether naming the SAME number
+-- counts as naming one. Bounded, and reported.
+
+select lives_ok(
+  $$update public.memberships set plan_id = '220000ff-0022-4000-8000-400000000005', price_paise = 100000 where id = '220000ff-0022-4000-8000-60000000091a'$$,
+  'GL043/named-same: a plan correction naming a price equal to the price already on the row is allowed either way — it is a legitimate statement under both readings');
+
+select ok(
+  (select price_paise in (100000, 1200000) from public.memberships where id = '220000ff-0022-4000-8000-60000000091a'::uuid),
+  'GL043/named-same: OPEN QUESTION, staged not sided — the price is either the 100000 the statement named (a name is a name) or the new plan''s 1200000 (a same-value write is not distinguishable from no write). Any third value is wrong under both readings');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-60000000091a'$q$),
+  '365',
+  'GL043/named-same: and the length is the new plan''s 365 whichever way the price went — the length has no naming exception at all');
+
+select diag(
+  'h22 R9 / GL043 plan change naming a price equal to the old one: membership 60000000091a was priced 100000 and one statement set plan_id to the 1200000 Annual plan and price_paise to 100000. Observed price: '
+  || coalesce((select price_paise::text from public.memberships where id = '220000ff-0022-4000-8000-60000000091a'::uuid), 'null')
+  || '. Reported rather than asserted: if it reads 1200000, a desk that retyped the agreed price to protect it silently lost it, which is worth deciding on purpose rather than by whichever comparison the implementation happened to use.');
+
+-- (iv) discount_paise across a plan correction. It is deliberately NOT a
+-- term (nothing in the money path reads it), and no plan carries one, so
+-- there is nothing for it to be re-derived FROM. It must survive untouched;
+-- a re-derivation that rewrites the whole money block of the row would take
+-- it with the price, and nothing would say so.
+
+select lives_ok(
+  $$update public.memberships set plan_id = '220000ff-0022-4000-8000-400000000005' where id = '220000ff-0022-4000-8000-60000000091b'$$,
+  'GL043/discount: a moneyless membership carrying a discount_paise of 20000 is corrected onto the Annual plan');
+
+select is(
+  (select discount_paise from public.memberships where id = '220000ff-0022-4000-8000-60000000091b'::uuid),
+  20000::bigint,
+  'GL043/discount: the discount is untouched — plans carry no discount, so there is nothing to derive it from, and a rule that rewrites the row''s money block wholesale would silently drop a coupon the gym granted');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-60000000091b'::uuid),
+  1200000::bigint,
+  'GL043/discount: while the price beside it did re-derive');
+
+-- (v) A plan denominated in another currency. The requirement says price and
+-- length come from the same plan; it says nothing about the currency, and
+-- plans have one. Taking the price without it writes a dollar list price
+-- into a rupee membership — a number that is wrong by an exchange rate and
+-- looks completely ordinary. Bounded: the plan's terms taken together, or
+-- nothing taken at all; never a USD number labelled INR.
+
+select lives_ok(
+  $$update public.memberships set plan_id = '220000ff-0022-4000-8000-400000000902' where id = '220000ff-0022-4000-8000-60000000091c'$$,
+  'GL043/foreign-plan: a moneyless INR membership is corrected onto a plan priced in USD');
+
+select ok(
+  (select (currency, price_paise) in (('USD', 200000::bigint), ('INR', 100000::bigint))
+     from public.memberships where id = '220000ff-0022-4000-8000-60000000091c'::uuid),
+  'GL043/foreign-plan: the plan''s terms were taken TOGETHER (USD 200000) or not taken at all (INR 100000) — never the third combination, INR 200000, which is a dollar list price wearing a rupee label and is what "the price comes from the plan" produces if the currency is left behind');
+
+-- ---------------------------------------------------------------------------
+-- 18d. MULTI-ROW AND MULTI-STATEMENT, for the length. ADR-092 names MERGE
+-- and `UPDATE ... FROM` as measured routes to the very exploit this round
+-- closes, and every defect in this phase has survived the single-row case
+-- and died on one of these. A rule written as a row trigger reading old/new
+-- behaves differently in each.
+-- ---------------------------------------------------------------------------
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set duration_days = 3650 where id in ('220000ff-0022-4000-8000-60000000091d', '220000ff-0022-4000-8000-60000000091e')$q$),
+  'GL043/multi-rows: one statement typing a length onto several memberships is refused');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-60000000091d'$q$),
+  '30',
+  'GL043/multi-rows: the first is unchanged at 30');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-60000000091e'$q$),
+  '30',
+  'GL043/multi-rows: and so is the second — the whole statement was refused, not half-applied');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships m set duration_days = p.duration_days * 12 from public.plans p where p.id = m.plan_id and m.id = '220000ff-0022-4000-8000-60000000091f'$q$),
+  'GL043/update-from: the same write as `UPDATE ... FROM`, taking its number from the plans table itself, is refused — reading a length out of a plan row is not the same act as being on that plan, and this is the shape ADR-092 measured');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-60000000091f'$q$),
+  '30',
+  'GL043/update-from: unchanged at 30');
+
+select ok(
+  pg_temp.h22r8_refused($q$merge into public.memberships m using (select '220000ff-0022-4000-8000-600000000920'::uuid as id) s on m.id = s.id when matched then update set duration_days = 3650$q$),
+  'GL043/merge: and written as MERGE — measured landing from an ordinary front-desk session against the round-eight implementation, which is why it is asked rather than assumed');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-600000000920'$q$),
+  '30',
+  'GL043/merge: unchanged at 30');
+
+select ok(
+  pg_temp.h22r8_refused($q$with p as (insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id) values ('220000ff-0022-4000-8000-700000009021', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000921', '220000ff-0022-4000-8000-600000000921', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001') returning membership_id) update public.memberships set duration_days = 3650 where id in (select membership_id from p)$q$),
+  'GL043/cte: a data-modifying CTE that takes the FIRST payment and types the length in the SAME statement is refused — the money and the edit are simultaneous, which is the one ordering a rule that looks at the payments table cannot assume away');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-600000000921'$q$),
+  '30',
+  'GL043/cte: the length is unchanged at 30');
+
+select ok(
+  not exists (select 1 from public.payments where id = '220000ff-0022-4000-8000-700000009021'::uuid),
+  'GL043/cte: and the payment inside that CTE was not written either — the gym has not banked money against a term it was refused permission to set');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships m set plan_id = v.p, duration_days = v.d from (values ('220000ff-0022-4000-8000-600000000922'::uuid, '220000ff-0022-4000-8000-400000000005'::uuid, 365), ('220000ff-0022-4000-8000-600000000923'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 3650)) as v(id, p, d) where m.id = v.id$q$),
+  'GL043/per-row: one statement carrying a DIFFERENT value per row — the first row an entirely legitimate plan change naming the right length, the second keeping its own plan and typing 3650 — is refused whole. A rule that evaluates the statement rather than each row sees one legitimate plan change and waves both through');
+
+select ok(
+  (select plan_id = '220000ff-0022-4000-8000-400000000005'::uuid
+     from public.memberships where id = '220000ff-0022-4000-8000-600000000922'::uuid) is not true
+  and pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-600000000922'$q$) = '30',
+  'GL043/per-row: the legitimate row did NOT land either — a statement is refused whole, so the desk is never left unable to tell which of its edits took');
+
+select is(
+  pg_temp.h22r8_val($q$select duration_days::text from public.memberships where id = '220000ff-0022-4000-8000-600000000923'$q$),
+  '30',
+  'GL043/per-row: and the typed row is unchanged at 30');
+
+-- ---------------------------------------------------------------------------
+-- 18e. THE PERMITTED SIDE. A fix that is too broad passes every refusal
+-- above, and this project has shipped one three times. The last pair is the
+-- one that matters most: the whole point of a plan correction is that
+-- ordinary money afterwards buys an ordinary period.
+-- ---------------------------------------------------------------------------
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000009024', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000924', '220000ff-0022-4000-8000-600000000924', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'GL043/permitted: a full payment is taken, so this membership is frozen in all its terms for everything that follows');
+
+select lives_ok(
+  $$update public.memberships set discount_paise = 15000 where id = '220000ff-0022-4000-8000-600000000924'$$,
+  'GL043/permitted: discount_paise is still writable after money has arrived — it is deliberately not a term, because nothing in the money path reads it, and a length rule that swept the row''s money columns together would take it');
+
+select is(
+  (select discount_paise from public.memberships where id = '220000ff-0022-4000-8000-600000000924'::uuid),
+  15000::bigint,
+  'GL043/permitted: and that write landed');
+
+select lives_ok(
+  $$update public.memberships set status = 'frozen' where id = '220000ff-0022-4000-8000-600000000924'$$,
+  'GL043/permitted: freezing a paid membership still works');
+
+select lives_ok(
+  $$update public.memberships set status = 'active' where id = '220000ff-0022-4000-8000-600000000924'$$,
+  'GL043/permitted: and unfreezing it does too');
+
+select lives_ok(
+  $$update public.memberships set status = 'cancelled', cancelled_at = now(), cancel_reason = 'member moved city' where id = '220000ff-0022-4000-8000-600000000924'$$,
+  'GL043/permitted: and cancelling it, with its timestamp and its reason, in one ordinary multi-column update — none of that is a term the money was scored against');
+
+select lives_ok(
+  $$update public.memberships set plan_id = '220000ff-0022-4000-8000-400000000005' where id = '220000ff-0022-4000-8000-600000000925'$$,
+  'GL043/mis-sold: a Monthly sold by mistake is corrected onto the Annual plan before any money arrives — the ordinary desk correction the whole rule exists to keep possible');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000009025', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000925', '220000ff-0022-4000-8000-600000000925', 1200000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'GL043/mis-sold: and one Annual fee is taken against it');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000925'::uuid),
+  (select today from gym_today where org_key = 'A') + 365,
+  'GL043/mis-sold: it bought exactly ONE year. This reads today+2920 if the correction carried the length and left the Monthly price behind — floor(1200000/100000) = eight periods of 365 days for one year''s money, which is what was measured');
+
+select is(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-600000000925'::uuid),
+  1,
+  'GL043/mis-sold: one period, not eight — the count is the same defect read from the other end');
+
+-- ---------------------------------------------------------------------------
+-- 18f. DETECTABILITY. `ends_on - starts_on = duration_days * periods_granted`
+-- is the invariant an audit would run, and it is worth being exact about
+-- what it is for: the exploit this round closes PRESERVED it, so holding it
+-- proves nothing about whether a length was hand-written. What it does prove
+-- is the other direction — that the legitimate corrections above leave an
+-- auditable estate, so an auditor running this query gets no false
+-- positives and keeps trusting it. Scoped to this section's own fixtures,
+-- per ADR-050.
+-- ---------------------------------------------------------------------------
+
+select is(
+  (select count(*)::int from public.memberships
+    where id::text like '220000ff-0022-4000-8000-6000000009%'
+      and starts_on is not null and ends_on is not null
+      and (ends_on - starts_on) is distinct from (duration_days * periods_granted)),
+  0,
+  'GL043/audit: every round-nine fixture — corrected plans, round trips, refused writes, renewals and cancellations alike — still satisfies ends_on - starts_on = duration_days * periods_granted. This does NOT detect the exploit: a hand-written length satisfies it too, which is exactly why it had to be refused at the write. It detects that legitimate corrections do not break the query an auditor relies on');
 
 
 set local role postgres;
