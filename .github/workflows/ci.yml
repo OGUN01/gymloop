@@ -5,10 +5,22 @@ on:
     branches: [main]
   pull_request:
 
-# Every gate is its own parallel job — a bad commit must show every gate it
-# breaks at once, not stop at the first failure (docs/gates.md).
+# **One job, not ten, and the reason is billing rather than taste.** This repo
+# is private, and GitHub bills Actions per JOB rounded up to the whole minute.
+# Ten gates that each finish in forty seconds cost ten minutes, and nine of
+# those minutes were spent installing the same dependencies ten times.
+# Sequentially in one job they cost about two.
+#
+# The property the ten jobs existed for is kept: **a bad commit must show every
+# gate it breaks at once, not stop at the first failure** (docs/gates.md).
+# `if: ${{ !cancelled() }}` runs every step whatever the ones before it did,
+# and the job still fails if any of them failed — so the log lists all the
+# broken gates exactly as ten red job badges used to.
+#
+# `deno-check` stays separate: it is a different runtime with no pnpm install
+# to share, so folding it in would buy nothing.
 jobs:
-  typecheck:
+  gates:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -16,91 +28,49 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run typecheck
 
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with: { node-version: 24, cache: pnpm }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run lint
+      - name: typecheck
+        if: ${{ !cancelled() }}
+        run: pnpm run typecheck
 
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with: { node-version: 24, cache: pnpm }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run build
+      - name: lint
+        if: ${{ !cancelled() }}
+        run: pnpm run lint
 
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with: { node-version: 24, cache: pnpm }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run test
-      - run: pnpm run test:scripts
+      - name: build
+        if: ${{ !cancelled() }}
+        run: pnpm run build
 
-  knip:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with: { node-version: 24, cache: pnpm }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run knip
+      - name: test
+        if: ${{ !cancelled() }}
+        run: pnpm run test
 
-  jscpd:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with: { node-version: 24, cache: pnpm }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run jscpd
+      - name: test:scripts
+        if: ${{ !cancelled() }}
+        run: pnpm run test:scripts
 
-  depcruise:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with: { node-version: 24, cache: pnpm }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run depcruise
+      - name: knip
+        if: ${{ !cancelled() }}
+        run: pnpm run knip
 
-  registry-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with: { node-version: 24, cache: pnpm }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run registry-lint
+      - name: jscpd
+        if: ${{ !cancelled() }}
+        run: pnpm run jscpd
 
-  # AGENTS.md hard rule #4's second half. Was honour-system until a
-  # fresh-context critic noted it was stated as constitutional while nothing
-  # enforced it — a rule that can be silently bypassed is a preference.
-  escape-hatches:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with: { node-version: 24, cache: pnpm }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run check-escape-hatches
+      - name: depcruise
+        if: ${{ !cancelled() }}
+        run: pnpm run depcruise
+
+      - name: registry-lint
+        if: ${{ !cancelled() }}
+        run: pnpm run registry-lint
+
+      # AGENTS.md hard rule #4's second half. Was honour-system until a
+      # fresh-context critic noted it was stated as constitutional while nothing
+      # enforced it — a rule that can be silently bypassed is a preference.
+      - name: escape-hatches
+        if: ${{ !cancelled() }}
+        run: pnpm run check-escape-hatches
 
   # Deno, not tsc: Edge Functions are a different runtime, so no tsconfig can
   # include them and `pnpm -r typecheck` never saw them. That gap was recorded

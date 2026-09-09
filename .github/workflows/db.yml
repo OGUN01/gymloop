@@ -1,9 +1,25 @@
 name: DB
 
+# **Path-filtered, for billing.** The `pgtap` job runs 47 files against Cloud
+# and takes about twenty minutes; a push that touches only docs or the web app
+# cannot change what it measures, and paying twenty minutes to prove that is
+# waste. Everything that CAN change the answer is listed here — the migrations
+# and suites themselves, the generated types `schema-drift` diffs, the rollback
+# checker, and this file.
 on:
   push:
     branches: [main]
+    paths:
+      - 'supabase/**'
+      - 'packages/db/types/**'
+      - 'scripts/check-pgtap-rollback.mjs'
+      - '.github/workflows/db.yml'
   pull_request:
+    paths:
+      - 'supabase/**'
+      - 'packages/db/types/**'
+      - 'scripts/check-pgtap-rollback.mjs'
+      - '.github/workflows/db.yml'
 
 # Database strategy (docs/decisions.md ADR-030): one Supabase Cloud project,
 # no Docker, no branching. Migrations are applied by CI only, on merge to
