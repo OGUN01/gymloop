@@ -202,6 +202,22 @@ on conflict (id) do update set
   rest_days               = excluded.rest_days,
   motivation_push_enabled = excluded.motivation_push_enabled;
 
+-- `memberships_terms_frozen` is disabled for exactly this statement and re-enabled
+-- immediately after it. `GL045` (ADR-093) makes a membership's dates the granting
+-- rule's to write, and the seed cannot reach them that way: it constructs months of
+-- history in one pass, and a payment can only ever move `ends_on` forward from
+-- today. **This is the deliberate, visible act that rule's own migration
+-- prescribes** — "a deliberate act and says so, by disabling this trigger for the
+-- length of that one statement. It does not get to happen by accident." Saying it
+-- in four lines beats a carve-out inside the rule that every future reader has to
+-- reason about.
+--
+-- The `alter` goes at the STATEMENT boundary, not next to the `insert`: this one is
+-- preceded by a `with … as (…)` and splitting a CTE from its INSERT is a syntax
+-- error that reaches CI looking like a seed bug.
+alter table public.memberships disable trigger memberships_terms_frozen;
+
+
 
 -- ---------------------------------------------------------------------------
 -- 2. Sixteen memberships — one live (or pending/expired/cancelled) row per
@@ -273,6 +289,9 @@ on conflict (id) do update set
   activated_at              = excluded.activated_at,
   cancelled_at              = excluded.cancelled_at,
   cancel_reason             = excluded.cancel_reason;
+
+alter table public.memberships enable trigger memberships_terms_frozen;
+
 
 
 -- ---------------------------------------------------------------------------

@@ -647,6 +647,22 @@ on conflict (id) do update set
   last_seen_at = excluded.last_seen_at,
   is_active    = excluded.is_active;
 
+-- `memberships_terms_frozen` is disabled for exactly this statement and re-enabled
+-- immediately after it. `GL045` (ADR-093) makes a membership's dates the granting
+-- rule's to write, and the seed cannot reach them that way: it constructs months of
+-- history in one pass, and a payment can only ever move `ends_on` forward from
+-- today. **This is the deliberate, visible act that rule's own migration
+-- prescribes** — "a deliberate act and says so, by disabling this trigger for the
+-- length of that one statement. It does not get to happen by accident." Saying it
+-- in four lines beats a carve-out inside the rule that every future reader has to
+-- reason about.
+--
+-- The `alter` goes at the STATEMENT boundary, not next to the `insert`: this one is
+-- preceded by a `with … as (…)` and splitting a CTE from its INSERT is a syntax
+-- error that reaches CI looking like a seed bug.
+alter table public.memberships disable trigger memberships_terms_frozen;
+
+
 
 -- ---------------------------------------------------------------------------
 -- 15. One live membership per member — thirty rows, all `active`, so each one
@@ -711,6 +727,9 @@ on conflict (id) do update set
   coupon_id                = excluded.coupon_id,
   renewal_of_membership_id = excluded.renewal_of_membership_id,
   activated_at             = excluded.activated_at;
+
+alter table public.memberships enable trigger memberships_terms_frozen;
+
 
 
 -- ---------------------------------------------------------------------------
@@ -804,6 +823,22 @@ join public.memberships ms on ms.id = r.membership_id
 cross join today t
 on conflict (id) do nothing;
 
+-- `memberships_terms_frozen` is disabled for exactly this statement and re-enabled
+-- immediately after it. `GL045` (ADR-093) makes a membership's dates the granting
+-- rule's to write, and the seed cannot reach them that way: it constructs months of
+-- history in one pass, and a payment can only ever move `ends_on` forward from
+-- today. **This is the deliberate, visible act that rule's own migration
+-- prescribes** — "a deliberate act and says so, by disabling this trigger for the
+-- length of that one statement. It does not get to happen by accident." Saying it
+-- in four lines beats a carve-out inside the rule that every future reader has to
+-- reason about.
+--
+-- The `alter` goes at the STATEMENT boundary, not next to the `insert`: this one is
+-- preceded by a `with … as (…)` and splitting a CTE from its INSERT is a syntax
+-- error that reaches CI looking like a seed bug.
+alter table public.memberships disable trigger memberships_terms_frozen;
+
+
 
 -- ---------------------------------------------------------------------------
 -- 16b. Put the membership dates back.
@@ -819,6 +854,9 @@ update public.memberships m
   from seed_membership_period p
  where m.id = p.id
    and m.ends_on is distinct from p.ends_on;
+
+alter table public.memberships enable trigger memberships_terms_frozen;
+
 
 drop table seed_membership_period;
 
