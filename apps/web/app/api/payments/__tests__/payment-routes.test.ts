@@ -63,11 +63,18 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH } from '@gymloop/shared';
  *    reporting that collision as success discards the second one with no
  *    code at all. The other two unique indexes (receipt number, provider)
  *    are unchanged at `already_recorded`.
- * 3. **`GL038` and `GL039` are DROPPED, not re-pointed.** Both fire only
- *    inside the trigger's `tg_op = 'UPDATE'` branch; this route only ever
- *    inserts, so mapping them here asserted a path this handler cannot
- *    reach. The two `it.each` rows for them are removed from "translating
- *    the database's refusal" below.
+ * 3. **`GL038`, `GL039` and now `GL037` are DROPPED, not re-pointed** — all
+ *    three rows removed from "translating the database's refusal" below.
+ *    `GL038`/`GL039` fire only inside the trigger's `tg_op = 'UPDATE'`
+ *    branch; this route only ever inserts, so mapping them asserted a path
+ *    this handler cannot reach at all. `GL037` is different: the counter
+ *    rule fires on UPDATE/DELETE of `document_counters`, and an insert here
+ *    *can* reach it, through the allocator's own
+ *    `on conflict … do update set next_number = next_number + 1` — but that
+ *    update always advances by exactly one, so it always passes. Reachable
+ *    in principle, never with a value that fails — a fourth critic caught
+ *    this route asserting it ten lines below the comment that names mapping
+ *    an unreachable code this project's most repeated defect.
  * ---------------------------------------------------------------------------
  * AMBIGUITIES — see the final report for the full list. The two that shape
  * tests below:
@@ -493,7 +500,6 @@ describe("translating the database's refusal — always back to the member's pag
   it.each([
     ['GL034', 'payment_not_yours'],
     ['GL035', 'provider_claimed'],
-    ['GL037', 'counter_refused'],
     ['GL042', 'membership_not_theirs'],
   ])('maps trigger refusal %s to %s', async (code, expected) => {
     const response = await submit(fails(code));
