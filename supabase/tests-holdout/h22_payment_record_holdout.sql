@@ -246,6 +246,16 @@
 -- granting rule does not own, which is what ADR-089 rejected a consistency
 -- trigger to preserve.
 
+-- TENTH-SESSION EXTENSION - section 21, plan 582 -> 612, round TWELVE, the same
+-- GL046: `coupon_id` joins the column list (21a, 14 assertions) and the
+-- requirement's own repair path - refund, cancel, sell again - is run end to
+-- end for the first time (21b, 16). WRITTEN BY THE SAME AUTHOR AS THE VISIBLE
+-- SUITE'S ROUND-TWELVE SECTIONS: a deliberate, recorded deviation from hard
+-- rule 10 / ADR-059, argued in section 21's own header. The independence was
+-- traded knowingly - there is no interpretation left for a second author to
+-- make on one more column of a rule both suites already cover - and nothing
+-- else about the arrangement changed.
+--
 -- NINTH-SESSION EXTENSION - section 20, plan 488 -> 574 -> 582, written blind by a
 -- SIXTH author against the round-ELEVEN requirement "Deciding what a member
 -- owes is gym-admin work" (GL046, ADR-094): a session that changes a
@@ -298,7 +308,7 @@ begin;
 
 set local role postgres;
 
-select plan(582);
+select plan(612);
 
 -- ---------------------------------------------------------------------------
 -- 0. Fixtures.
@@ -6033,6 +6043,341 @@ select lives_ok(
     values ('220000ff-0022-4000-8000-800000000b02', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000b29', 'refund', 10000, 'h22 R11 manager refund', '220000ff-0022-4000-8000-300000000002')$$,
   'permitted/precedent: and the manager''s refund is accepted — the other half of the same policy, and the shape GL046 copies onto the membership');
 
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+
+-- ---------------------------------------------------------------------------
+-- 21. TENTH-SESSION EXTENSION, round TWELVE. Two small things on the same
+--     requirement: `coupon_id` joins GL046's column list (21a), and "A comp
+--     that was a typo" — the repair path the requirement PRESCRIBES and
+--     nobody had ever run — is asserted end to end as a working sequence
+--     (21b).
+--
+-- WRITTEN BY THE SAME AUTHOR AS THE VISIBLE SUITE'S ROUND-TWELVE SECTIONS.
+-- That is a deliberate, recorded deviation from the two-author arrangement
+-- (AGENTS.md hard rule 10 / ADR-059), and it is stated here rather than in a
+-- commit message so that the next reader of this file knows the independence
+-- was traded knowingly. The reason: what two blind authors buy is independent
+-- INTERPRETATION of a requirement, and this round has none left to make.
+-- `coupon_id` is one more column on a rule both suites already carry full
+-- batteries for — the shape of the assertion is settled by the four columns
+-- already there — and 21b is a sequence of writes every one of which is
+-- already specified and already asserted separately in these two files. What
+-- it adds is running them in order, which two authors would do identically.
+-- Everything else about the arrangement is unchanged: the sections were
+-- written from the requirement, committed red, and no implementation of
+-- GL046 was read (no prosrc, no pg_get_functiondef, no migration later than
+-- round ten's), and per ADR-091 docs/registry.md was not read for anything
+-- about this round's code.
+--
+-- 21a — WHY THE COLUMN IS IN THE LIST, measured live before this section was
+-- written, from an ordinary front-desk session:
+--
+--     update memberships set coupon_id      = <a live coupon> …;  -- OK
+--     update memberships set discount_paise = 15000 …;            -- GL046
+--
+-- leaving a row that says a coupon was applied and that the discount is zero.
+-- The two columns describe one decision — the coupon is the NAME of the
+-- reason, the discount is its SIZE — so a rule that owns one and not the
+-- other does not merely leave a door open, it manufactures rows whose two
+-- halves contradict each other with nothing raised. That contradiction is
+-- what this section asserts against directly: the pair statement, and then
+-- the state of both columns afterwards.
+--
+-- 21b — WHY THE REPAIR PATH NEEDS ASSERTING AT ALL. GL046 changes who may set
+-- a price; it cannot stop one being mistyped, and a gym admin fat-fingering
+-- Rs.100 for Rs.1,000 is the shape that remains. The moment money lands the
+-- price is frozen (GL043) and the dates are frozen (GL045), so the row cannot
+-- be corrected in place — the requirement says exactly this, names
+-- unrepairability as the harm the previous round made worse, and prescribes
+-- "refund the payment, cancel the membership, and sell a new one". A remedy
+-- named in prose and never executed is a claim, not a path. Every step is
+-- asserted here, in order, on one member, including the two refusals that
+-- make the sequence necessary — so a later round that quietly unfreezes
+-- either shows up as an assertion going green in the wrong direction rather
+-- than as a file that still passes.
+--
+-- THE ONE NON-OBVIOUS THING 21b PROVES: **the refund is not the repair.**
+-- Money that arrived counts toward the total whether or not it was given
+-- back (the granting rule's own definition, one requirement over), so a full
+-- refund moves neither the count nor the dates and the wrongly-dated
+-- membership stays live at the gate. That is why the requirement says CANCEL
+-- as well, and it is asserted rather than assumed.
+-- ---------------------------------------------------------------------------
+
+set local role postgres;
+
+insert into public.coupons (id, tenant_id, code, percent_bp, currency, is_active) values
+  ('220000ff-0022-4000-8000-c00000000c01'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid,
+   'H22R12TEN', 1000, 'INR', true);
+
+insert into public.qr_sessions (id, tenant_id, branch_id, token_hash, expires_at, created_by_staff_id) values
+  ('220000ff-0022-4000-8000-900000000c01'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid,
+   '220000ff-0022-4000-8000-200000000001'::uuid, 'h22-r12-gate-token-hash',
+   now() + interval '1 day', '220000ff-0022-4000-8000-300000000001'::uuid);
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone)
+select
+  ('220000ff-0022-4000-8000-500000000b' || f.sfx)::uuid,
+  '220000ff-0022-4000-8000-100000000001'::uuid,
+  '220000ff-0022-4000-8000-200000000001'::uuid,
+  'H22 R12 Member ' || f.sfx,
+  '+919220012' || f.sfx || '0'
+from (values ('40'),('41'),('42'),('43'),('44')) as f(sfx);
+
+-- b40 is the update battery's row: gym A's 30-day plan at its list price,
+-- no money, no coupon, no discount.
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency) values
+  ('220000ff-0022-4000-8000-600000000b40'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid,
+   '220000ff-0022-4000-8000-500000000b40'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid,
+   'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A'),
+   100000, 'INR');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+set local role authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 21a. `coupon_id`, mirroring what this file already asserts for
+-- `discount_paise`: refused for the desk with the value unchanged, allowed
+-- for a gym admin and LANDED, on UPDATE and at creation, with the same-value
+-- save and the trusted carve-out beside them.
+-- ---------------------------------------------------------------------------
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set coupon_id = '220000ff-0022-4000-8000-c00000000c01' where id = '220000ff-0022-4000-8000-600000000b40'$q$),
+  'GL046/coupon: a front-desk session attaching a coupon to a moneyless membership is refused. A coupon is the NAME of the reason a member owes less and discount_paise is its SIZE; ADR-094 put the discount in the list because bounding the price and leaving the discount free moves the exploit, and leaving the coupon free moves the RECORD of it');
+
+select is(
+  pg_temp.h22r8_val($q$select coalesce(coupon_id::text, 'null') from public.memberships where id = '220000ff-0022-4000-8000-600000000b40'$q$),
+  'null',
+  'GL046/coupon: and no coupon is attached — refused AND unmoved');
+
+select ok(
+  pg_temp.h22r8_refused($q$update public.memberships set coupon_id = '220000ff-0022-4000-8000-c00000000c01', discount_paise = 10000 where id = '220000ff-0022-4000-8000-600000000b40'$q$),
+  'GL046/coupon: the coupon and the discount it implies, written together in the one statement a console actually sends, are refused together');
+
+select is(
+  pg_temp.h22r8_val($q$select coalesce(coupon_id::text, 'null') || ' / ' || discount_paise::text from public.memberships where id = '220000ff-0022-4000-8000-600000000b40'$q$),
+  'null / 0',
+  'GL046/coupon: and NEITHER half landed. THIS IS THE ASSERTION THAT FAILS ON THE DEFECT AS FOUND — measured live, the coupon went on and the discount was refused, leaving a row reading "coupon applied, discount zero": the gym''s own book contradicting the gym''s own money, with nothing raised anywhere');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'gym_manager',
+                     'staff_id', '220000ff-0022-4000-8000-300000000002')::text,
+  true
+);
+
+select lives_ok(
+  $$update public.memberships set coupon_id = '220000ff-0022-4000-8000-c00000000c01', discount_paise = 10000 where id = '220000ff-0022-4000-8000-600000000b40'$$,
+  'GL046/coupon: a gym_manager granting the same coupon with the discount it implies is ALLOWED — running a promotion is ordinary gym work, and the control ADR-094 chose is who, not what. A fix that simply froze the column for everybody passes every refusal above and fails here');
+
+select ok(
+  (select coupon_id = '220000ff-0022-4000-8000-c00000000c01'::uuid and discount_paise = 10000
+     from public.memberships where id = '220000ff-0022-4000-8000-600000000b40'::uuid),
+  'GL046/coupon: and BOTH landed — allowed and applied, not allowed and silently dropped');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+
+select lives_ok(
+  $$update public.memberships
+       set price_paise = price_paise, currency = currency, plan_id = plan_id,
+           discount_paise = discount_paise, coupon_id = coupon_id,
+           cancel_reason = 'coupon confirmed with the member'
+     where id = '220000ff-0022-4000-8000-600000000b40'$$,
+  'GL046/coupon/same-value: the ordinary column-listing save with the FIFTH column in it. `coupon_id` is nullable, which is why it is worth its own assertion: a rule written with `<>` instead of `is distinct from` gets a nullable column wrong in one direction or the other, and this row now holds a non-null one');
+
+select ok(
+  (select coupon_id = '220000ff-0022-4000-8000-c00000000c01'::uuid and discount_paise = 10000
+      and cancel_reason = 'coupon confirmed with the member'
+     from public.memberships where id = '220000ff-0022-4000-8000-600000000b40'::uuid),
+  'GL046/coupon/same-value: and the real edit landed while the coupon stayed exactly where the manager put it');
+
+select ok(
+  pg_temp.h22r8_refused($q$insert into public.memberships (id, tenant_id, member_id, plan_id, status, price_paise, currency, coupon_id) values ('220000ff-0022-4000-8000-600000000b41', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000b41', '220000ff-0022-4000-8000-400000000001', 'pending', 100000, 'INR', '220000ff-0022-4000-8000-c00000000c01')$q$),
+  'GL046/coupon/create: the front desk CREATING a membership with a coupon on it is refused. Everything else in this row is the desk''s to write — the plan''s own price, the plan''s own currency, no discount — so the coupon is the only offending column in it. Creation is the door this requirement has already had to close once, and a fix that stops at UPDATE reopens it on the new column');
+
+select is(
+  pg_temp.h22r8_val($q$select count(*)::text from public.memberships where id = '220000ff-0022-4000-8000-600000000b41'$q$),
+  '0',
+  'GL046/coupon/create: and no row landed');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'gym_owner',
+                     'staff_id', '220000ff-0022-4000-8000-300000000004')::text,
+  true
+);
+
+select lives_ok(
+  $$insert into public.memberships (id, tenant_id, member_id, plan_id, status, price_paise, currency, coupon_id, discount_paise)
+    values ('220000ff-0022-4000-8000-600000000b42', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000b42', '220000ff-0022-4000-8000-400000000001', 'pending', 100000, 'INR', '220000ff-0022-4000-8000-c00000000c01', 10000)$$,
+  'GL046/coupon/create: a gym_owner selling the same membership on the same coupon is allowed — the other admin role, because is_gym_admin() is two roles and an implementation that hard-codes the manager locks the owner out of their own gym''s promotions');
+
+select ok(
+  (select coupon_id = '220000ff-0022-4000-8000-c00000000c01'::uuid and discount_paise = 10000
+     from public.memberships where id = '220000ff-0022-4000-8000-600000000b42'::uuid),
+  'GL046/coupon/create: and it landed with the coupon and the discount AGREEING with each other, which is the state this column joins the list to protect');
+
+set local role postgres;
+select set_config('request.jwt.claims', '{}', true);
+
+select lives_ok(
+  $$insert into public.memberships (id, tenant_id, member_id, plan_id, status, price_paise, currency, coupon_id, discount_paise)
+    values ('220000ff-0022-4000-8000-600000000b43', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000b43', '220000ff-0022-4000-8000-400000000001', 'pending', 100000, 'INR', '220000ff-0022-4000-8000-c00000000c01', 10000)$$,
+  'GL046/coupon/trusted: a CLAIMLESS write attaching a coupon is allowed. This is not a courtesy — seed.sql''s membership block writes `coupon_id` in its `on conflict do update` list, as the CLI''s own claimless postgres session, on the demo gym''s one discounted membership. A rule without ADR-082''s carve-out on this column turns every seed re-run red, which has already happened once this phase');
+
+select ok(
+  (select coupon_id = '220000ff-0022-4000-8000-c00000000c01'::uuid and discount_paise = 10000
+     from public.memberships where id = '220000ff-0022-4000-8000-600000000b43'::uuid),
+  'GL046/coupon/trusted: and it landed — the carve-out asserted in both directions on the fifth column, exactly as 20c asserts it on the other four');
+
+
+-- ---------------------------------------------------------------------------
+-- 21b. "A COMP THAT WAS A TYPO" — the requirement's own remedy, run.
+-- Member b44 is sold a Rs.1,000 plan at Rs.100 by a manager who meant to type
+-- the list price, pays the ordinary fee, and ends up with ten periods and 300
+-- days. Nothing about that row can be edited afterwards. The sequence below
+-- is the whole of what the requirement offers instead, and it is asserted
+-- step by step because a remedy nobody has executed is a claim.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'gym_manager',
+                     'staff_id', '220000ff-0022-4000-8000-300000000002')::text,
+  true
+);
+set local role authenticated;
+
+select lives_ok(
+  $$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+    values ('220000ff-0022-4000-8000-600000000b44', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000b44', '220000ff-0022-4000-8000-400000000001', 'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A'), 10000, 'INR')$$,
+  'repair: a gym_manager sells at a tenth of the list price. ALLOWED, and it must be — ADR-094 keeps the comp deliberately ("a gym admin can still comp a membership to a paisa, and should be able to"), and at the instant it is typed a comp and a typo are the same statement. GL046 moved WHO can make this mistake; it did not remove the mistake, which is why the requirement now has to say what happens next');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000000c01', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000b44', '220000ff-0022-4000-8000-600000000b44', 100000, 'INR', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'repair: and the desk takes the ordinary Rs.1,000 for it — the sale looks entirely normal from the till');
+
+select is(
+  (select periods_granted::text || '/' || (ends_on - starts_on)::text from public.memberships where id = '220000ff-0022-4000-8000-600000000b44'::uuid),
+  '10/300',
+  'repair: ten periods, 300 days, for one month''s fee — and both audit invariants hold on that record (periods = floor(money/price), span = duration x periods), which is why nothing downstream can find it');
+
+select throws_ok(
+  $$update public.memberships set price_paise = 100000 where id = '220000ff-0022-4000-8000-600000000b44'$$,
+  'GL043'::char(5), null,
+  'repair: the price cannot be corrected in place — money has arrived, and GL043 is an absolute that being a gym admin does not lift. Sent as a MANAGER on purpose: a desk session would be answered by either rule and the code would depend on nothing this file may rely on');
+
+select throws_ok(
+  $$update public.memberships set ends_on = (select today from gym_today where org_key = 'A') + 30 where id = '220000ff-0022-4000-8000-600000000b44'$$,
+  'GL045'::char(5), null,
+  'repair: and the dates cannot be typed back — they are the granting rule''s alone. These two refusals are the premise of everything below: they are asserted here so that a round which quietly unfreezes either one is visible as an assertion pointing the wrong way rather than as a file that still passes');
+
+select ok(
+  (select price_paise = 10000 and ends_on = (select today from gym_today where org_key = 'A') + 300
+     from public.memberships where id = '220000ff-0022-4000-8000-600000000b44'::uuid),
+  'repair: refused AND unmoved in both — the row is exactly as wrong as it was');
+
+select throws_ok(
+  $$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, currency, reason, initiated_by_staff_id)
+    values ('220000ff-0022-4000-8000-800000000c01', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000c01', 'refund', 100000, 'INR', 'desk attempt at the repair', '220000ff-0022-4000-8000-300000000001')$$,
+  '42501'::char(5), null,
+  'repair: the desk that sold it cannot START the repair — `refunds_tenant_write` is is_gym_admin(), the precedent GL046 was built on. So a mis-priced sale is made by an admin and unmade by an admin, and the desk''s part of it is the honest re-sale at the end');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'gym_manager',
+                     'staff_id', '220000ff-0022-4000-8000-300000000002')::text,
+  true
+);
+
+select lives_ok(
+  $$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, currency, reason, initiated_by_staff_id)
+    values ('220000ff-0022-4000-8000-800000000c02', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-700000000c01', 'refund', 100000, 'INR', 'mis-priced sale, refunded in full', '220000ff-0022-4000-8000-300000000002')$$,
+  'repair/step one: the manager refunds the payment IN FULL, attributed to themselves — the ceiling permits exactly the amount taken and no more');
+
+select lives_ok(
+  $$update public.payments set status = 'refunded' where id = '220000ff-0022-4000-8000-700000000c01'$$,
+  'repair/step one: and the payment itself moves paid -> refunded, which is one of the two edges out of paid the transition rule allows');
+
+select is(
+  (select periods_granted::text || '/' || (ends_on - starts_on)::text || '/' || status::text from public.memberships where id = '220000ff-0022-4000-8000-600000000b44'::uuid),
+  '10/300/active',
+  'repair: AND THE MEMBERSHIP HAS NOT MOVED. Still ten periods, still 300 days, still live at the gate — refunded money counts toward the total exactly as paid money does, so a refund reverses the money and not what the money bought. This is why the requirement says cancel as well, and it is the sentence a holdout author had to measure once already for GL045');
+
+select lives_ok(
+  $$update public.memberships set status = 'cancelled', cancelled_at = now(), cancel_reason = 'sold at the wrong price; refunded and re-sold' where id = '220000ff-0022-4000-8000-600000000b44'$$,
+  'repair/step two: the membership is cancelled. A status is not a term of what the member owes, so it stays writable after money has arrived — which is the one property that makes this whole remedy available at all');
+
+select ok(
+  (select status = 'cancelled' and price_paise = 10000 and periods_granted = 10
+      and ends_on = (select today from gym_today where org_key = 'A') + 300
+     from public.memberships where id = '220000ff-0022-4000-8000-600000000b44'::uuid),
+  'repair/step two: cancelled, with the wrong price and the wrong dates STILL ON THE ROW. The remedy retires the mis-sale, it does not erase it: the sale, the money and the refund all stay on the books, which is the difference between an audit trail and an edit');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000000001',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000000001')::text,
+  true
+);
+
+select lives_ok(
+  $$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+    values ('220000ff-0022-4000-8000-600000000b45', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000b44', '220000ff-0022-4000-8000-400000000001', 'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A'), 100000, 'INR')$$,
+  'repair/step three: THE DESK sells the same member a new membership at the plan''s own price. Two things had to be true for this line to run and neither is decoration — the cancelled row is outside `memberships_member_id_live_key`, so the member may hold a live membership again, and selling at list is front-desk work, so the gym is not left needing a manager for the last step');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000000c02', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000b44', '220000ff-0022-4000-8000-600000000b45', 100000, 'INR', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'repair/step three: and the member pays the Rs.1,000 they actually owe, against a membership that says so');
+
+select is(
+  (select periods_granted::text || '/' || (ends_on - starts_on)::text || '/' || price_paise::text from public.memberships where id = '220000ff-0022-4000-8000-600000000b45'::uuid),
+  '1/30/100000',
+  'repair: ONE period, thirty days, at the list price. The 300 days did not follow the member across, the refunded money did not score against the new row, and the member is where an honest sale would have put them — this is the assertion that says the requirement''s remedy is a real path rather than a sentence, and it is the whole reason this section exists');
+
+select lives_ok(
+  $$insert into public.attendance (tenant_id, branch_id, member_id, membership_id, checked_in_at, source, qr_session_id)
+    values ('220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-200000000001', '220000ff-0022-4000-8000-500000000b44', '220000ff-0022-4000-8000-600000000b45', now(), 'qr', '220000ff-0022-4000-8000-900000000c01')$$,
+  'repair: and the member the gym mis-sold, refunded, cancelled and re-sold walks through the gate. The repair produced a membership that WORKS, not one whose columns merely read correctly — and the gate is the only place that distinction is visible to the member');
 
 set local role postgres;
 select set_config('request.jwt.claims', '', true);
