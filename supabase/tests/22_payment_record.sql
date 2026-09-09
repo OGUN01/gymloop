@@ -545,7 +545,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(757);
+select plan(782);
 
 
 -- ---------------------------------------------------------------------------
@@ -13837,6 +13837,471 @@ select results_eq(
   'and the membership is unchanged after both of them — still A''s, still active, and T3 still holds nothing'
 );
 
+
+-- ===========================================================================
+-- SECTION 36 (ROUND TWENTY-TWO) — A CHECK CONSTRAINT BEATS BOTH HALVES OF THE
+-- PARTITION, and the two things that decide 23505 are two things. Tenant 29.
+-- Assertions 758-782.
+--
+-- WHY THIS SECTION EXISTS. The two scenarios that partition a re-point by the
+-- status the statement leaves behind — 23505 when it leaves the membership
+-- `active` or `frozen`, GL042 when it leaves it `pending`, `expired` or
+-- `cancelled` — both carry the guard "AND the resulting row satisfies the
+-- table's CHECK constraints", and that guard is load-bearing. A CHECK is
+-- evaluated against the tuple being stored BEFORE index insertion and BEFORE
+-- every AFTER trigger, so where one bites it beats the index AND the rule, and
+-- neither scenario's promised answer arrives.
+--
+-- One shape does it: a `pending` membership with BOTH dates null.
+-- `memberships_dated_unless_pending_chk` is
+-- `status = 'pending' OR (starts_on IS NOT NULL AND ends_on IS NOT NULL)`
+-- (read from pg_constraint, and already pinned at assertion 72), so writing ANY
+-- other status onto such a row leaves a tuple the CHECK refuses whatever else
+-- the statement does. It is not a contrived shape: it is exactly what a
+-- membership looks like between being sold and being paid for (ADR-083), it is
+-- what `seed-scenarios.sql` leaves live in the demo gym, and assertion 644 in
+-- this file already measures the same CHECK answering a plain hand-cancellation
+-- of one.
+--
+-- GROUPS 1 AND 2 — THE FOUR NON-PENDING STATUSES, TWICE OVER (759-774). One
+-- source row P (A's, pending, both dates null) is re-pointed at a member and the
+-- same statement writes a status. Eight statements: four statuses x two targets.
+--   * 759-766 point P at X, who HOLDS A LIVE MEMBERSHIP. Without the CHECK,
+--     `active` and `frozen` here are the first scenario exactly and would be
+--     23505.
+--   * 767-774 point P at T1, who HOLDS NOTHING. Without the CHECK, the live
+--     index has no entry to collide with at any status and all four would be
+--     GL042.
+-- The two targets predict DIFFERENT answers under those scenarios and the SAME
+-- answer under this one, which is the only reason to write it twice: asserting
+-- one target alone cannot tell a reader whether the CHECK answered or whether
+-- the index (or the rule) happened to give the same code. Asserting both, and
+-- getting 23514 eight times, can only be the CHECK.
+--
+-- GROUP 3 — THE CONTROLS (775-778), and they are not decoration. They are word
+-- for word 759 with the status write changed to `pending` (775) and deleted
+-- entirely (777), same source row, same target X, same session. Both come back
+-- GL042. That is what proves two things at once: P is otherwise re-pointable —
+-- the statement reaches GL042 rather than dying of something about P — and the
+-- 23514 above is caused by the STATUS WRITE and by nothing else in the
+-- statement. They are sent at X, the live-holder, deliberately: X is the target
+-- where a second mechanism could plausibly have answered, so GL042 there also
+-- re-proves that a `pending` tuple falls outside the partial index. Against T1
+-- the same control could only ever be GL042 and would prove less.
+--
+-- GROUP 4 — THE TWO-PART CLAIM (779-782). The requirement says two separate
+-- things decide a 23505: the TUPLE BEING STORED decides whether the row falls
+-- inside the partial index's predicate at all, and the TARGET MEMBER'S OTHER
+-- ROWS decide whether there is then anything to collide with. Section 35's
+-- discriminating pair pinned the first half — same row, same target, the status
+-- write inverting the answer. This pair pins the SECOND half, which nothing yet
+-- isolates: D is a fully dated ACTIVE membership, no status is written in either
+-- statement, so the tuple stored is `active` and inside the predicate both
+-- times. The ONLY difference between 779 and 781 is which member the statement
+-- names — X, who holds a live one (23505), or T2, who holds nothing (GL042).
+-- Section 35's 747 and 751 are the same two answers but from DIFFERENT source
+-- rows, with a child payment on one of them, so neither of them isolates the
+-- target as the single variable. These two do.
+--
+-- FIXTURES. P is CREATED null-dated and pending rather than emptied into that
+-- state, because GL045 refuses typing a date and there is no other way in. XL
+-- gives X the live membership without which the index cannot bite. T1 and T2
+-- hold NOTHING and are separate members, one per group, so that a statement
+-- which unexpectedly LANDS cannot leave the next group's target holding
+-- something and turn its assertion green for the wrong reason. D is B's rather
+-- than A's only so the prose can name its owner without ambiguity. Every
+-- refusal is followed by a results_eq re-reading the row, because throws_ok
+-- proves an exception was raised and not that nothing moved.
+--
+-- ADR-039: every date is the gym's own today, never current_date. ADR-030:
+-- nothing is committed; the file's single BEGIN … ROLLBACK covers it.
+-- ===========================================================================
+
+set local role postgres;
+
+insert into public.organizations (id, name, gym_code) values
+  ('22000000-0000-4000-8000-000000290001'::uuid, 'PayRec Gym 29', 'PYR22Z');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('22000000-0000-4000-8000-000000290011'::uuid, '22000000-0000-4000-8000-000000290001'::uuid, 'G29 Main', true);
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('22000000-0000-4000-8000-000000290021'::uuid, '22000000-0000-4000-8000-000000290001'::uuid,
+   '22000000-0000-4000-8000-000000290011'::uuid, 'front_desk', 'T29 Desk');
+
+-- A holds P, the null-dated pending source of groups 1-3. B holds D, the fully
+-- dated active source of group 4. X holds one live membership and is the
+-- live-holding target of groups 1, 3 and 4. T1 and T2 hold nothing.
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000290041'::uuid, '22000000-0000-4000-8000-000000290001'::uuid,
+   '22000000-0000-4000-8000-000000290011'::uuid, 'M29 A', '+912229000041'),
+  ('22000000-0000-4000-8000-000000290043'::uuid, '22000000-0000-4000-8000-000000290001'::uuid,
+   '22000000-0000-4000-8000-000000290011'::uuid, 'M29 X', '+912229000043'),
+  ('22000000-0000-4000-8000-000000290045'::uuid, '22000000-0000-4000-8000-000000290001'::uuid,
+   '22000000-0000-4000-8000-000000290011'::uuid, 'M29 B', '+912229000045'),
+  ('22000000-0000-4000-8000-000000290051'::uuid, '22000000-0000-4000-8000-000000290001'::uuid,
+   '22000000-0000-4000-8000-000000290011'::uuid, 'M29 T1', '+912229000051'),
+  ('22000000-0000-4000-8000-000000290052'::uuid, '22000000-0000-4000-8000-000000290001'::uuid,
+   '22000000-0000-4000-8000-000000290011'::uuid, 'M29 T2', '+912229000052');
+
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('22000000-0000-4000-8000-000000290061'::uuid, '22000000-0000-4000-8000-000000290001'::uuid, 'G29 Plan (30d)', 30, 100000);
+
+create temp table today_t29 as
+  select (now() at time zone o.timezone)::date as d
+    from public.organizations o where o.id = '22000000-0000-4000-8000-000000290001'::uuid;
+grant select on today_t29 to public;
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  -- P: A's, pending, BOTH dates null — the only shape
+  -- memberships_dated_unless_pending_chk permits with a null date, and the shape
+  -- a membership has between being sold and being paid for. Source of 759-778.
+  ('22000000-0000-4000-8000-000000290081'::uuid, '22000000-0000-4000-8000-000000290001'::uuid,
+   '22000000-0000-4000-8000-000000290041'::uuid, '22000000-0000-4000-8000-000000290061'::uuid,
+   'pending', null, null, 100000),
+  -- XL: X's own live membership. Without it the partial index has no entry to
+  -- collide with and neither 779 nor the two scenarios this section guards mean
+  -- anything.
+  ('22000000-0000-4000-8000-000000290083'::uuid, '22000000-0000-4000-8000-000000290001'::uuid,
+   '22000000-0000-4000-8000-000000290043'::uuid, '22000000-0000-4000-8000-000000290061'::uuid,
+   'active', (select d from today_t29), (select d from today_t29), 100000),
+  -- D: B's, active, FULLY DATED — so no CHECK on this table has anything to say
+  -- about either statement in group 4 and the target is the only variable left.
+  ('22000000-0000-4000-8000-000000290084'::uuid, '22000000-0000-4000-8000-000000290001'::uuid,
+   '22000000-0000-4000-8000-000000290045'::uuid, '22000000-0000-4000-8000-000000290061'::uuid,
+   'active', (select d from today_t29), (select d from today_t29), 100000);
+
+-- 758 — the fixture pinned before anything is attempted. Every claim below
+-- depends on one of these: P is A's, pending, and BOTH its dates are null (so
+-- the CHECK certainly CAN bite), D is B's, active, and BOTH its dates are set
+-- (so the CHECK certainly CANNOT), X holds exactly ONE live membership (so the
+-- index certainly CAN answer), and T1 and T2 hold NOTHING (so it certainly
+-- cannot answer for them). Verifying a no-op is not verifying.
+select results_eq(
+  $$ select (select m.member_id from public.memberships m where m.id = '22000000-0000-4000-8000-000000290081'::uuid),
+            (select m.status::text from public.memberships m where m.id = '22000000-0000-4000-8000-000000290081'::uuid),
+            (select (m.starts_on is null and m.ends_on is null) from public.memberships m where m.id = '22000000-0000-4000-8000-000000290081'::uuid),
+            (select m.member_id from public.memberships m where m.id = '22000000-0000-4000-8000-000000290084'::uuid),
+            (select m.status::text from public.memberships m where m.id = '22000000-0000-4000-8000-000000290084'::uuid),
+            (select (m.starts_on is not null and m.ends_on is not null) from public.memberships m where m.id = '22000000-0000-4000-8000-000000290084'::uuid),
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000290043'::uuid
+                and x.status in ('active', 'frozen')),
+            (select count(*)::int from public.memberships x
+              where x.member_id in ('22000000-0000-4000-8000-000000290051'::uuid,
+                                    '22000000-0000-4000-8000-000000290052'::uuid)) $$,
+  $$ values ('22000000-0000-4000-8000-000000290041'::uuid, 'pending'::text, true,
+             '22000000-0000-4000-8000-000000290045'::uuid, 'active'::text, true,
+             1, 0) $$,
+  'guarded fixture: P is A''s and pending with BOTH dates null, D is B''s and active with BOTH dates set, X holds exactly ONE live membership, and T1 and T2 hold NOTHING'
+);
+
+-- ---------------------------------------------------------------------------
+-- GROUP 1 (759-766) — THE FOUR NON-PENDING STATUSES, POINTED AT A MEMBER WHO
+-- HOLDS A LIVE MEMBERSHIP. Under the first scenario, `active` and `frozen` here
+-- would be 23505 and the other two would be GL042. They are all four 23514: the
+-- CHECK is evaluated on the tuple being stored, which is before index insertion
+-- and before every AFTER trigger, so nothing downstream of it is ever reached.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000290001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000290021')::text,
+  true);
+-- The claim is set once for the whole section: `set_config(..., true)` is
+-- transaction-local and `set local role` touches only `role`, so every
+-- `set local role authenticated` below re-enters this same front-desk session.
+set local role authenticated;
+
+-- 759
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000290043'::uuid,
+         status = 'active'
+   where id = '22000000-0000-4000-8000-000000290081'::uuid
+$$, '23514'::char(5), null,
+  'a null-dated PENDING membership re-pointed at a LIVE-HOLDER while the same statement writes status = active is 23514 from memberships_dated_unless_pending_chk — NOT the 23505 the live index would give, because a CHECK is evaluated on the tuple being stored and beats index insertion and every AFTER trigger');
+
+set local role postgres;
+
+-- 760
+select results_eq(
+  $$ select m.member_id, m.status::text, m.starts_on, m.ends_on,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000290043'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000290081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000290041'::uuid, 'pending'::text, null::date, null::date, 1) $$,
+  'and the membership is unchanged after it — still A''s, still pending, still null-dated, and X still holds exactly the one membership he came with');
+
+set local role authenticated;
+
+-- 761
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000290043'::uuid,
+         status = 'frozen'
+   where id = '22000000-0000-4000-8000-000000290081'::uuid
+$$, '23514'::char(5), null,
+  'the same statement writing status = frozen — the other half of the live set, and the other status the first scenario promises 23505 for — is also 23514');
+
+set local role postgres;
+
+-- 762
+select results_eq(
+  $$ select m.member_id, m.status::text, m.starts_on, m.ends_on,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000290043'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000290081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000290041'::uuid, 'pending'::text, null::date, null::date, 1) $$,
+  'and the membership is unchanged after it — still A''s, still pending, still null-dated, and X still holds exactly one');
+
+set local role authenticated;
+
+-- 763
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000290043'::uuid,
+         status = 'cancelled'
+   where id = '22000000-0000-4000-8000-000000290081'::uuid
+$$, '23514'::char(5), null,
+  'the same statement writing status = cancelled — which the second scenario promises GL042 for, since a cancelled tuple is outside the partial index — is 23514 as well: the CHECK does not care which side of the partition the status falls on, only that it is not pending');
+
+set local role postgres;
+
+-- 764
+select results_eq(
+  $$ select m.member_id, m.status::text, m.starts_on, m.ends_on,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000290043'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000290081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000290041'::uuid, 'pending'::text, null::date, null::date, 1) $$,
+  'and the membership is unchanged after it — still A''s, still pending, still null-dated, and X still holds exactly one');
+
+set local role authenticated;
+
+-- 765
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000290043'::uuid,
+         status = 'expired'
+   where id = '22000000-0000-4000-8000-000000290081'::uuid
+$$, '23514'::char(5), null,
+  'and the fourth non-pending status, expired, completes the set — all four are 23514 against a live-holding target, so neither scenario''s answer is ever reached for this shape');
+
+set local role postgres;
+
+-- 766
+select results_eq(
+  $$ select m.member_id, m.status::text, m.starts_on, m.ends_on,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000290043'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000290081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000290041'::uuid, 'pending'::text, null::date, null::date, 1) $$,
+  'and the membership is unchanged after it — still A''s, still pending, still null-dated, and X still holds exactly one');
+
+-- ---------------------------------------------------------------------------
+-- GROUP 2 (767-774) — THE IDENTICAL FOUR, POINTED AT A MEMBER WHO HOLDS
+-- NOTHING. T1 has no membership at all, so the live index cannot answer at ANY
+-- status and every one of these would be GL042 if the CHECK were not there.
+-- Group 1 and group 2 predict different answers under the two scenarios and the
+-- same answer under the CHECK; that is the whole reason both are written. One
+-- group alone leaves a reader unable to say which mechanism replied.
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+
+-- 767
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000290051'::uuid,
+         status = 'active'
+   where id = '22000000-0000-4000-8000-000000290081'::uuid
+$$, '23514'::char(5), null,
+  'the same null-dated PENDING membership re-pointed at a member who HOLDS NOTHING while writing status = active is 23514 too — the live index has no entry to collide with here, so this one cannot be the index answering under another name');
+
+set local role postgres;
+
+-- 768
+select results_eq(
+  $$ select m.member_id, m.status::text, m.starts_on, m.ends_on,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000290051'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000290081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000290041'::uuid, 'pending'::text, null::date, null::date, 0) $$,
+  'and the membership is unchanged after it — still A''s, still pending, still null-dated, and T1 still holds nothing');
+
+set local role authenticated;
+
+-- 769
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000290051'::uuid,
+         status = 'frozen'
+   where id = '22000000-0000-4000-8000-000000290081'::uuid
+$$, '23514'::char(5), null,
+  'status = frozen at a target holding nothing — 23514, where the second half of the first scenario would have given 23505 only if there were something to collide with, and there is not');
+
+set local role postgres;
+
+-- 770
+select results_eq(
+  $$ select m.member_id, m.status::text, m.starts_on, m.ends_on,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000290051'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000290081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000290041'::uuid, 'pending'::text, null::date, null::date, 0) $$,
+  'and the membership is unchanged after it — still A''s, still pending, still null-dated, and T1 still holds nothing');
+
+set local role authenticated;
+
+-- 771
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000290051'::uuid,
+         status = 'cancelled'
+   where id = '22000000-0000-4000-8000-000000290081'::uuid
+$$, '23514'::char(5), null,
+  'status = cancelled at a target holding nothing — 23514, where the member_id rule would have answered had the row been datable');
+
+set local role postgres;
+
+-- 772
+select results_eq(
+  $$ select m.member_id, m.status::text, m.starts_on, m.ends_on,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000290051'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000290081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000290041'::uuid, 'pending'::text, null::date, null::date, 0) $$,
+  'and the membership is unchanged after it — still A''s, still pending, still null-dated, and T1 still holds nothing');
+
+set local role authenticated;
+
+-- 773
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000290051'::uuid,
+         status = 'expired'
+   where id = '22000000-0000-4000-8000-000000290081'::uuid
+$$, '23514'::char(5), null,
+  'status = expired at a target holding nothing — 23514, completing the second four: the answer is the same across both targets and all four statuses, which is a fact about the tuple''s own shape and cannot be a fact about the target''s other rows');
+
+set local role postgres;
+
+-- 774
+select results_eq(
+  $$ select m.member_id, m.status::text, m.starts_on, m.ends_on,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000290051'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000290081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000290041'::uuid, 'pending'::text, null::date, null::date, 0) $$,
+  'and the membership is unchanged after it — still A''s, still pending, still null-dated, and T1 still holds nothing');
+
+-- ---------------------------------------------------------------------------
+-- GROUP 3 (775-778) — THE CONTROLS. Word for word 759 with the status write
+-- changed to `pending` and then deleted outright: same source row P, same target
+-- X, same session, nothing else touched. Both are GL042, which says P is
+-- otherwise re-pointable and reaches the member_id rule, and says the 23514
+-- above is caused by the status write and by nothing else about these
+-- statements. Sent at X rather than T1 on purpose: X is the target where a
+-- second mechanism could have answered, so GL042 here also re-proves that a
+-- `pending` tuple falls outside the partial index.
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+
+-- 775
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000290043'::uuid,
+         status = 'pending'
+   where id = '22000000-0000-4000-8000-000000290081'::uuid
+$$, 'GL042'::char(5), null,
+  'CONTROL: 759 with status = pending instead of active — the tuple stored still satisfies memberships_dated_unless_pending_chk and still falls outside the partial index, so the member_id rule answers with GL042 even though the target holds a live membership');
+
+set local role postgres;
+
+-- 776
+select results_eq(
+  $$ select m.member_id, m.status::text, m.starts_on, m.ends_on,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000290043'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000290081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000290041'::uuid, 'pending'::text, null::date, null::date, 1) $$,
+  'and the membership is unchanged after it — still A''s, still pending, still null-dated, and X still holds exactly one');
+
+set local role authenticated;
+
+-- 777
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000290043'::uuid
+   where id = '22000000-0000-4000-8000-000000290081'::uuid
+$$, 'GL042'::char(5), null,
+  'CONTROL: 759 with the status write deleted entirely — a statement that writes no status keeps the row''s pending status, the CHECK is satisfied, the index does not cover the tuple, and GL042 answers. The 23514 group is therefore about the status write and about nothing else');
+
+set local role postgres;
+
+-- 778
+select results_eq(
+  $$ select m.member_id, m.status::text, m.starts_on, m.ends_on,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000290043'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000290081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000290041'::uuid, 'pending'::text, null::date, null::date, 1) $$,
+  'and the membership is unchanged after it — still A''s, still pending, still null-dated, and X still holds exactly one');
+
+-- ---------------------------------------------------------------------------
+-- GROUP 4 (779-782) — THE SECOND HALF OF THE TWO-PART CLAIM. Both statements
+-- move D, a FULLY DATED ACTIVE membership, and neither writes a status — so the
+-- tuple being stored is `active` in both, inside the partial index's predicate
+-- in both, and no CHECK on this table has anything to say about either. The only
+-- difference is which member is named. X holds a live membership and there is
+-- something to collide with (23505); T2 holds nothing and there is not, so the
+-- rule answers (GL042). Same source row, same absent status write, one variable.
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+
+-- 779
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000290043'::uuid
+   where id = '22000000-0000-4000-8000-000000290084'::uuid
+$$, '23505'::char(5), null,
+  'THE TARGET HALF, one: a fully dated ACTIVE membership re-pointed at a member who ALREADY HOLDS a live one, with no status written, is 23505 — the tuple stored is inside the partial index and the target supplies the row it collides with');
+
+set local role postgres;
+
+-- 780
+select results_eq(
+  $$ select m.member_id, m.status::text,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000290043'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000290084'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000290045'::uuid, 'active'::text, 1) $$,
+  'and the membership is unchanged after it — still B''s, still active, and X still holds exactly the one membership he came with');
+
+set local role authenticated;
+
+-- 781
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000290052'::uuid
+   where id = '22000000-0000-4000-8000-000000290084'::uuid
+$$, 'GL042'::char(5), null,
+  'THE TARGET HALF, two: the SAME row, the SAME absent status write, pointed at a member who HOLDS NOTHING is GL042 — the tuple is still inside the index''s predicate, so being inside it is not sufficient: the target''s other rows decide whether there is anything to collide with, and only when both hold is the answer 23505');
+
+set local role postgres;
+
+-- 782
+select results_eq(
+  $$ select m.member_id, m.status::text,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000290052'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000290084'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000290045'::uuid, 'active'::text, 0) $$,
+  'and the membership is unchanged after it — still B''s, still active, and T2 still holds nothing'
+);
 
 select * from finish();
 rollback;
