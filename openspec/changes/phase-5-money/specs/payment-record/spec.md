@@ -544,9 +544,9 @@ implementation:**
 - **THEN** it SHALL be allowed
 
 ### Requirement: Deciding what a member owes is gym-admin work
-WHEN a session changes a membership's `price_paise`, `currency`, `plan_id` or
-`discount_paise`, THE SYSTEM SHALL refuse it unless that session is a gym admin,
-and SHALL leave the membership as it stood.
+WHEN a session changes a membership's `price_paise`, `currency`, `plan_id`,
+`discount_paise` or `coupon_id`, THE SYSTEM SHALL refuse it unless that session
+is a gym admin, and SHALL leave the membership as it stood.
 
 `ends_on` is `duration_days x floor(money / price_paise)`. The requirement above
 made the length underivable by hand because it multiplies that product. **The
@@ -568,6 +568,43 @@ A gym admin can still comp a membership to a paisa, and should be able to. That
 leaves the price on the row as evidence; what this removes is the front desk
 doing it silently.
 
+**`coupon_id` is in the list too**, because it is the column that names *why* a
+member owes less. A critic found a front desk could attach a 10%-off coupon
+while being refused the discount it implies, leaving rows reading "coupon
+applied, discount zero" — either both belong to the gym admin or neither does,
+and they describe the same decision.
+
+**When the comp was a typo.** A membership sold at one paisa and then paid
+against is frozen by the requirements above: the price cannot be corrected
+(money has arrived) and the dates cannot be typed back. **Nobody can put that
+row back, not even the owner** — and this requirement's own prose names
+unrepairability as what made the previous round worse, so it has to say what to
+do instead. The answer is the one this phase gives for every other recorded
+fact: **refund the payment, cancel the membership, and sell a new one.** What is
+not available is editing the row into a different sale, and that is deliberate.
+
+**A refund on its own is not the repair**, which an author found by running the
+sequence rather than reading it: after a full refund the membership still reads
+its ten periods, still ends three hundred days out and is still `active`,
+because refunded money still counts toward the total and nothing it bought comes
+back. Without the cancellation the gym is left with a live, wrongly-dated
+membership admitting its member at the gate. The cancellation is the repair; the
+refund is the money.
+
+**And the desk cannot start it.** `refunds_tenant_write` is gym-admin, so a
+mis-priced sale is made by an admin and unmade by one; only the last step, the
+honest re-sale at the plan's price, belongs to the front desk. That is
+consistent — the same reasoning puts re-pricing there — but it means "sell a new
+one" is the only part of the remedy a desk can perform alone.
+
+**A residual this rule does not remove**: a manager comping deliberately and a
+manager mistyping are the same statement. `GL046` moves who can make that
+mistake; it does not stop the mistake being made.
+
+#### Scenario: A comp that was a typo
+- **WHEN** a membership sold at the wrong price has taken money
+- **THEN** correcting the price SHALL be refused, and the membership SHALL be repairable only by refunding, cancelling and selling again
+
 **Which rule answers, when both could.** A membership that has already taken
 money is refused by the freeze above, not by this rule — an absolute beats a
 permission, and answering the permission would imply a gym admin could do it,
@@ -580,7 +617,7 @@ non-admin claim must therefore assert the refusal and the values, never the
 code.
 
 #### Scenario: A front desk re-pricing a membership
-- **WHEN** a front-desk session changes a membership's price, currency, plan or discount
+- **WHEN** a front-desk session changes a membership's price, currency, plan, discount or coupon
 - **THEN** it SHALL be refused and the membership SHALL be unchanged
 
 **Selling at a price the plan does not carry is the same decision as changing

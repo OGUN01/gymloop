@@ -508,11 +508,6 @@ on conflict (id) do update set
 --     So the dates are taken before and put back after. NOT a carve-out in the
 --     trigger: the trigger is right, and a seed is the one caller whose job is
 --     to say what already happened rather than to make something happen.
-drop table if exists seed_membership_period;
-create temp table seed_membership_period as
-  select id, ends_on
-    from public.memberships
-   where tenant_id = '00000001-0000-4000-8000-000000000001'::uuid;
 
 with roster as (
   select
@@ -729,6 +724,24 @@ on conflict (id) do update set
   activated_at             = excluded.activated_at;
 
 alter table public.memberships enable trigger memberships_terms_frozen;
+
+-- **The snapshot is taken AFTER the upsert above, and that ordering is the whole
+-- point.** It sat before it for eleven rounds and nobody saw it, because
+-- `seed-dry-run` only checks that the seed RUNS. Taken early it captures the
+-- PREVIOUS run's `ends_on` and puts that back, so `starts_on` re-anchors to
+-- today and `ends_on` does not: every span came out short by the number of days
+-- since the last seed, accumulating, and a re-run reproduced the same wrong
+-- answer, so "idempotent" held and hid it. On a genuinely fresh database the
+-- table would be empty here and the restore would do nothing at all, leaving
+-- every membership a full plan-duration too long — precisely what the block
+-- above says it exists to prevent.
+drop table if exists seed_membership_period;
+create temp table seed_membership_period as
+  select id, ends_on
+    from public.memberships
+   where tenant_id = '00000001-0000-4000-8000-000000000001'::uuid;
+
+
 
 
 
