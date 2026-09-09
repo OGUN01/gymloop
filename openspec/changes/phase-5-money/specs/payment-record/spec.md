@@ -181,7 +181,7 @@ quotes ADR-070 three functions above, for a different rule.
 
 ### Requirement: Money leaving the gym names the person who sent it
 THE SYSTEM SHALL require `refunds.initiated_by_staff_id` to be the acting staff
-member, and SHALL refuse a refund that names anybody else or nobody.
+member, and SHALL refuse a refund that names anybody else. **A refund naming nobody is STAMPED, not refused** — the scenario below has said so since it was written, this sentence said the opposite for the whole phase, and the implementation follows the scenario (measured: a refund inserted with no actor comes back attributed to the caller's `staff_id`). A normative sentence that disagrees with its own scenario is the defect that produced two rounds of this phase, and it is the sentence a spec-first author derives from.
 
 The manual payment path's whole thesis is that **a manual payment has no
 provider to verify against, so attribution IS the integrity**, and that rule now
@@ -215,8 +215,8 @@ WHEN a payment against a membership is `paid`, THE SYSTEM SHALL grant one period
 for each whole multiple of that membership's own price that the money against it
 has now reached, and no period for money that has not reached one.
 
-> **Narrowed by `payment-record/spec.md`, "Money does not extend a membership
-> that has been retired".** This sentence is unconditional and a `cancelled` or
+> **Narrowed by "Money does not extend a membership that has been retired",
+> 476 lines below in this same file.** This sentence is unconditional and a `cancelled` or
 > `expired` membership is the exception: the payment is still recorded,
 > receipted, attributed, refundable and bounded by `GL036`, and the membership
 > does not move.

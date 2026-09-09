@@ -1419,9 +1419,22 @@ on conflict (id) do update set
 -- requirement's own subject line puts outside itself.
 --
 -- The instrument is the one that requirement already sanctions — "Staging a
--- counter forward … SHALL succeed, leaving a gap". `greatest` keeps it
--- forward-only, so `app.enforce_counter_monotonic()` (`GL037`) is satisfied
--- rather than worked around, and a re-run moves nothing.
+-- counter forward … SHALL succeed, leaving a gap".
+--
+-- **The `where` clause is the whole rule and `greatest` was the wrong tool.**
+-- `greatest` does not keep a write forward-only; it guarantees an EQUAL write
+-- once the counter has caught up, and `app.enforce_counter_monotonic()` refuses
+-- `new.next_number <= old.next_number` — so the second seed run raised `GL037`,
+-- and so would the first push after anyone took a payment at the desk. The
+-- `where` makes the conflicting row simply not update, which is what "a re-run
+-- moves nothing" has to mean.
+--
+-- **And the measurement that passed it was a no-op.** "Seed clean, run twice"
+-- held only because every receipt number already on the live project still uses
+-- the abandoned `RCPT/` grammar, so this block selected zero rows and did
+-- nothing at all — the identical blind spot this comment block diagnoses two
+-- paragraphs above, in the code written to fix it. A seed check has to run
+-- against a gym where the seed's own rows do not already exist.
 insert into public.document_counters (tenant_id, kind, financial_year, next_number)
 select p.tenant_id,
        'receipt',
@@ -1433,5 +1446,6 @@ select p.tenant_id,
    and p.receipt_number ~ '^[0-9]{4}-[0-9]{2}/[0-9]+$'
  group by p.tenant_id, split_part(p.receipt_number, '/', 1)
 on conflict (tenant_id, kind, financial_year) do update
-  set next_number = greatest(public.document_counters.next_number, excluded.next_number),
-      updated_at  = now();
+  set next_number = excluded.next_number,
+      updated_at  = now()
+  where excluded.next_number > public.document_counters.next_number;

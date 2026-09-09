@@ -9,7 +9,7 @@ THE SYSTEM SHALL allocate receipt numbers from `document_counters` keyed on `(te
 
 **Not a read-then-write.** Two staff taking money at the same moment both read the same `next_number` and both write it, and the result is two receipts bearing one number — which is precisely the state that makes a book unauditable. The allocation is an atomic increment returning the value it consumed, in the same sense `app.enforce_check_in()` takes its lock before it reads: **the row that hands out the number is the row that records it was handed out.**
 
-`financial_year` is India's — 1 April to 31 March — because that is what the gym files against, and it is derived from the payment's own date rather than passed in, so a caller cannot file a March payment into the next year by asking.
+`financial_year` is India's — 1 April to 31 March — because that is what the gym files against, and it is derived from the payment's own date rather than from today's, **for a session row security applies to**. A trusted writer's `paid_at` is taken as given, and a critic filed payments into `2031-32` and `2019-20` by supplying one — so "a caller cannot file a March payment into the next year by asking" was true of the desk and false of the webhook, and this sentence claimed it of both.
 
 #### Scenario: Two payments at the same instant
 - **WHEN** two staff record a payment in the same gym concurrently
@@ -17,7 +17,7 @@ THE SYSTEM SHALL allocate receipt numbers from `document_counters` keyed on `(te
 
 #### Scenario: A new financial year
 - **WHEN** the first payment of a new financial year is recorded
-- **THEN** its number SHALL restart the sequence for that year, and the previous year's counter SHALL be untouched
+- **THEN** its number SHALL restart the sequence for that year, **and the rendered number SHALL carry the financial year** — `2026-27/000001`, not a bare ordinal. Those are not separable: the number is unique per gym for all time (`payments_tenant_id_receipt_number_key`) and the sequence restarts every April, so a bare ordinal collides with last year's on the first payment of the new one — and per "A receipt number is the counter's alone" that collision is the permanent jam, not a retry. A blind author found this by writing an assertion that could not be satisfied and asking why; it was fixed in the code and never written back here, and the previous year's counter SHALL be untouched
 
 #### Scenario: Two gyms
 - **WHEN** two gyms record payments
@@ -28,7 +28,7 @@ THE SYSTEM SHALL allocate receipt numbers from `document_counters` keyed on `(te
 - **THEN** its number SHALL NOT be reissued to a later payment — a gap in a receipt book is explainable, a reused number is not
 
 ### Requirement: A payment extends the membership it names, once
-WHEN a payment against a membership is `paid`, THE SYSTEM SHALL extend that membership by the plan's duration **for each whole multiple of the membership's own price that the money against it has reached**, and SHALL do so exactly once however many times the payment is recorded, retried or replayed.
+WHEN a payment against a membership is `paid`, THE SYSTEM SHALL extend that membership by the length the membership was sold at (`memberships.duration_days`, ADR-090 — the plan's duration at the moment of sale, which stops diverging from the plan the day anyone re-lengthens it) **for each whole multiple of the membership's own price that the money against it has reached**, and SHALL do so exactly once however many times the payment is recorded, retried or replayed.
 
 > **Narrowed by `payment-record/spec.md`, "Money does not extend a membership
 > that has been retired".** This sentence is unconditional and a `cancelled` or

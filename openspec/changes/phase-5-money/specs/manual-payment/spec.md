@@ -90,7 +90,7 @@ The renewal pipeline must not be able to tell the two apart. If it can, a gym on
 
 #### Scenario: A paid manual payment
 - **WHEN** a cash payment is recorded against an active membership
-- **THEN** that membership's end date SHALL move by the plan's duration
+- **THEN** that membership's end date SHALL move by the length the membership was sold at (`memberships.duration_days`, ADR-090 — the plan's duration at the moment of sale, which stops diverging from the plan the day anyone re-lengthens it)
 
 #### Scenario: A payment against no membership
 - **WHEN** a payment is recorded with no membership
