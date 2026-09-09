@@ -87,12 +87,55 @@
 -- directly. ADR-050: every count is scoped to this file's own fixtures,
 -- all under uuid prefix '220000ff-0022-...'. ADR-030: one transaction,
 -- ending in ROLLBACK.
+--
+-- THIRD-SESSION EXTENSION — memberships.periods_granted itself (section 15,
+-- plan raised 133 -> 157, later 157 -> 161 in a fourth session — see below),
+-- added by a single author for BOTH this file and
+-- its visible sibling on the coordinator's explicit instruction: the gap is
+-- identical in each (`grep -rln periods_granted supabase/tests supabase/
+-- tests-holdout` returned nothing before this pass — section 6 above proves
+-- the extension only through `ends_on`, and every fixture that sets the
+-- column at all leaves it at its default 0), so the usual two-author
+-- blindness buys nothing here. The two batteries are kept genuinely
+-- different in what they attack rather than one transcribing the other —
+-- see section 15's own header for exactly how.
+--
+-- ADR-088 is the reason this column is worth reading directly rather than
+-- only through `ends_on`: the one-time backfill computed it in `numeric`
+-- and Postgres ROUNDED the assignment into the `integer` column, so 0.9 of
+-- a period was stored as 1 — and a membership already reading `granted = 1`
+-- when only `owed = 1` had actually arrived then let its NEXT full payment
+-- through granting nothing at all, ₹12,000 for zero days, on the one row in
+-- the demo gym (a discounted Annual) where the money and the price
+-- genuinely differed. Section 15 goes looking for that shape directly, and
+-- past it: what a value the rule could never produce does to the next
+-- payment, and what a `price_paise` edit does to money already banked
+-- against the old price — neither of which the visible spec settles, so
+-- both are staged and reported (`diag`), not resolved, in the house style
+-- section 6's own refund-mid case already established.
+--
+-- FOURTH-SESSION UPDATE. Both live defects section 15 found are now fixed,
+-- in a migration dated 20260910000000 or later, named by the coordinator
+-- and spliced in mechanically (never opened, per the hard rule) via
+-- `python <scratchpad>/sweep.py h22_payment_record_holdout.sql out.sql
+-- supabase/migrations/20260910210000_*.sql`. (1) `check (periods_granted
+-- >= 0)` exists now — section 15e's first two assertions pass unchanged,
+-- its third is inverted from proving -1 landed to proving it did not. (2)
+-- GL043 — a membership's price_paise and currency are frozen once
+-- periods_granted > 0, both directions — closes the price-cut defect
+-- section 15d found and reported unscored. 15d is rewritten: its two
+-- price-change fixtures keep their ids and baselines, but "not refused,
+-- report what happened" becomes "refused, price/currency unchanged, and
+-- an ordinary further payment at the still-frozen price still grants
+-- normally" — plus a currency-only case and a periods_granted = 0 case the
+-- freeze must not catch. See section 15's own header for the same account
+-- in more detail.
 
 begin;
 
 set local role postgres;
 
-select plan(133);
+select plan(161);
 
 -- ---------------------------------------------------------------------------
 -- 0. Fixtures.
@@ -1311,6 +1354,322 @@ select is(
 -- one paused mid-trigger with pg_sleep or an advisory lock while the
 -- other commits) and belongs in an integration or pgbench harness outside
 -- pgTAP's one-transaction model, not in this file.
+
+-- ---------------------------------------------------------------------------
+-- 15. memberships.periods_granted itself — the column section 6 and 14
+--     above only ever prove through its effect on ends_on. Genuinely
+--     different from the visible suite's own battery: that file walks one
+--     membership one payment at a time through the truncating boundaries;
+--     this one (a) proves the same truncation INSIDE a single multi-row
+--     statement, catching a rounding defect and a per-row-counting defect
+--     with one fixture shape; (b) starts a membership's history from TWO
+--     pre-existing payment rows rather than one; (c) sets the column to a
+--     value the rule could never produce on its own and lands a payment
+--     against it; (d) edits price_paise AFTER a period was already granted
+--     under the old price, both directions; and (e) provokes the missing
+--     CHECK as `postgres` rather than a tenant session, showing the gap is
+--     structural rather than an RLS hole. (c) is not settled by the spec
+--     this file was given — bounded to the outcomes a sane implementation
+--     could produce and reported via `diag`, exactly as section 6's own
+--     refund-mid case already does, rather than asserted as though the
+--     spec had decided.
+--
+--     FOURTH-SESSION REWRITE OF (d) AND (e). (d)'s own `diag` finding —
+--     cutting price_paise after a grant let one trivial payment unlock a
+--     second period paid for at the old price — is now a named rule
+--     (GL043: price_paise and currency frozen once periods_granted > 0,
+--     both directions) in a migration this session was told about and may
+--     not open. (d) is rewritten from "not refused, report what happened"
+--     to "refused, and ordinary operation around the refusal is
+--     unharmed" — its own two fixtures and baselines kept, only the
+--     outcome after the baseline changes — plus a currency-only case and a
+--     periods_granted = 0 case the freeze must NOT catch. (e)'s CHECK is
+--     likewise now real; its third assertion is inverted from proving -1
+--     landed to proving it did not.
+-- ---------------------------------------------------------------------------
+
+set local role postgres;
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('220000ff-0022-4000-8000-500000000030'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 PG MultiRow',      '+919220000230'),
+  ('220000ff-0022-4000-8000-500000000031'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 PG AlreadyGranted','+919220000231'),
+  ('220000ff-0022-4000-8000-500000000032'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 PG Impossible',    '+919220000232'),
+  ('220000ff-0022-4000-8000-500000000033'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 PG PriceDown',     '+919220000233'),
+  ('220000ff-0022-4000-8000-500000000034'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 PG PriceUp',       '+919220000234'),
+  ('220000ff-0022-4000-8000-500000000035'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 PG Negative',      '+919220000235'),
+  ('220000ff-0022-4000-8000-500000000036'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-200000000001'::uuid, 'H22 PG ZeroGrant',     '+919220000236');
+
+-- ---------------------------------------------------------------------------
+-- 15a. Truncation, INSIDE one multi-row statement: three rows of 33333
+-- (99999 total — the shipped-wrong ratio's own neighbourhood, one paisa
+-- short of a whole multiple) written by a single INSERT, then a lone
+-- top-up row completing the multiple. A per-row re-derivation (ADR-086's
+-- own defect shape) would see the FINAL total on every row of the first
+-- statement and could grant something from a statement that, as a whole,
+-- crossed nothing.
+-- ---------------------------------------------------------------------------
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, periods_granted) values
+  ('220000ff-0022-4000-8000-600000000040'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid,
+   '220000ff-0022-4000-8000-500000000030'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid,
+   'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A'), 100000, 0);
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id) values
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000030', '220000ff-0022-4000-8000-600000000040', 33333, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'),
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000030', '220000ff-0022-4000-8000-600000000040', 33333, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'),
+    (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000030', '220000ff-0022-4000-8000-600000000040', 33333, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'periods_granted/multi-row: three rows of 33333 (99999 total, one paisa short of the 100000 price), in one statement, are recorded');
+
+select is(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-600000000040'::uuid),
+  0,
+  'periods_granted/multi-row: 99999 in one statement grants ZERO — a per-row re-derivation seeing a shared near-total could easily round or overcount this');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000000160', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000030', '220000ff-0022-4000-8000-600000000040', 1, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'periods_granted/multi-row: the single paisa completing the multiple (total 100000) is recorded');
+
+select is(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-600000000040'::uuid),
+  1,
+  'periods_granted/multi-row: exactly one period now, from the combined multi-row and single-row total');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000040'::uuid),
+  (select today from gym_today where org_key = 'A') + 30,
+  'periods_granted/multi-row: and ends_on agrees with the column exactly');
+
+-- ---------------------------------------------------------------------------
+-- 15b. A membership whose column already reads non-zero, backed by TWO
+-- pre-existing payment rows rather than one (h22's own multi-payment
+-- history shape) — the state ADR-088 names as the one no fixture in
+-- either suite otherwise creates.
+-- ---------------------------------------------------------------------------
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, periods_granted) values
+  ('220000ff-0022-4000-8000-600000000041'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid,
+   '220000ff-0022-4000-8000-500000000031'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid,
+   'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A') + 30, 100000, 1);
+
+-- The history this membership's periods_granted=1 claims to summarize —
+-- two rows, not one, not itself scored.
+insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id) values
+  (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000031', '220000ff-0022-4000-8000-600000000041', 40000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001'),
+  (gen_random_uuid(), '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000031', '220000ff-0022-4000-8000-600000000041', 60000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001');
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000000161', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000031', '220000ff-0022-4000-8000-600000000041', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'periods_granted/already-non-zero: a second full payment, against a membership whose column already reads 1 from two prior part payments, is recorded');
+
+select is(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-600000000041'::uuid),
+  2,
+  'periods_granted/already-non-zero: the column reads one MORE (2), not re-derived from the table''s own two-row history as if it were zero');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000041'::uuid),
+  (select today from gym_today where org_key = 'A') + 60,
+  'periods_granted/already-non-zero: ends_on moves by exactly one further period');
+
+-- ---------------------------------------------------------------------------
+-- 15c. THE SPEC DOES NOT SAY what happens when periods_granted already
+-- holds a value the rule could never itself produce (here: ahead of what
+-- the money on record owes) and a payment then lands. Staged and bounded,
+-- not resolved: this must never GRANT A NEGATIVE NUMBER of periods (moving
+-- ends_on backward) and must never DECREASE the recorded column — the only
+-- two things a sane implementation could do are grant nothing more (owed
+-- already below what is recorded) or, if it re-derives instead of
+-- comparing, do something this file has no way to predict. Reported via
+-- diag either way.
+-- ---------------------------------------------------------------------------
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, periods_granted) values
+  ('220000ff-0022-4000-8000-600000000042'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid,
+   '220000ff-0022-4000-8000-500000000032'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid,
+   'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A') + 30, 100000, 5);
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000000162', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000032', '220000ff-0022-4000-8000-600000000042', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'periods_granted/impossible-state: a full payment (owed=1) against a membership whose column already impossibly reads 5 is recorded, not refused');
+
+select ok(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-600000000042'::uuid) >= 5
+    and (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000042'::uuid) >= (select today from gym_today where org_key = 'A') + 30,
+  'periods_granted/impossible-state: whatever happened, the column never fell below its impossible starting value and ends_on never moved backward — a negative grant would be the dangerous failure here, not merely a wrong number');
+
+select diag(
+  format('periods_granted/impossible-state OBSERVED: column is now %s (started at 5, owed by the money on record is only 1), ends_on is %s (started at %s). The spec never anticipates the column disagreeing with the money before a payment arrives; report, do not resolve.',
+    (select periods_granted::text from public.memberships where id = '220000ff-0022-4000-8000-600000000042'::uuid),
+    (select ends_on::text from public.memberships where id = '220000ff-0022-4000-8000-600000000042'::uuid),
+    ((select today from gym_today where org_key = 'A') + 30)::text
+  ));
+
+-- ---------------------------------------------------------------------------
+-- 15d. FOURTH-SESSION REWRITE. This subsection first staged and reported,
+-- unscored, the exact defect GL043 now closes: cutting price_paise after a
+-- period was already granted let one trivial subsequent payment unlock a
+-- second period bought entirely at the OLD, higher price (measured: 1
+-- paisa, after a 100000->50000 cut, moved periods_granted 1->2). That is
+-- now a migration this session was told about but may not open (dated
+-- 20260910000000 or later) — `check`/trigger logic aside, its NAMED effect
+-- is: a membership's price_paise and currency are frozen once
+-- periods_granted > 0, in BOTH directions, not only the exploitable cut.
+-- The two fixtures below keep their old ids and baselines; only what
+-- happens AFTER the baseline changes, from "not refused" (the defect) to
+-- "refused, and nothing about the ordinary case broke."
+-- ---------------------------------------------------------------------------
+
+-- Direction 1: cutting the price after one period was bought at the old,
+-- higher price is now refused.
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, periods_granted) values
+  ('220000ff-0022-4000-8000-600000000043'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid,
+   '220000ff-0022-4000-8000-500000000033'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid,
+   'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A') + 30, 100000, 0);
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000000163', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000033', '220000ff-0022-4000-8000-600000000043', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'periods_granted/price-cut: a full payment at the original 100000 price is recorded');
+
+select is(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-600000000043'::uuid),
+  1,
+  'periods_granted/price-cut: baseline — one period granted at the original price');
+
+select is(
+  (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000043'::uuid),
+  (select today from gym_today where org_key = 'A') + 60,
+  'periods_granted/price-cut: baseline — ends_on moved by that one period');
+
+select throws_ok(
+  $$update public.memberships set price_paise = 50000 where id = '220000ff-0022-4000-8000-600000000043'$$,
+  null::char(5), null,
+  'GL043/price-cut: halving the price after the period was already granted at the old one is now refused — this is the exact defect the first version of this section reported unscored');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-600000000043'::uuid),
+  100000::bigint,
+  'GL043/price-cut: price_paise is unchanged at 100000 — refused AND unmoved');
+
+-- A genuine further payment, at the still-frozen 100000 price, must still
+-- work — the freeze is on price_paise/currency, not on the extension.
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000000164', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000033', '220000ff-0022-4000-8000-600000000043', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'GL043/price-cut: right after the refused price edit, an ordinary further payment at the unchanged price still succeeds');
+
+select is(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-600000000043'::uuid),
+  2,
+  'GL043/price-cut: and it grants normally (2 periods now) — the refused price edit did not touch app.grant_periods()''s own writes');
+
+-- Direction 2: raising the price is refused just as symmetrically — the
+-- first version of this section called this direction "safe", which was
+-- true of the arithmetic (owed fell below granted, nothing negative) and
+-- not of the principle GL043 states: frozen once earned, either way.
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, periods_granted) values
+  ('220000ff-0022-4000-8000-600000000044'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid,
+   '220000ff-0022-4000-8000-500000000034'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid,
+   'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A') + 30, 100000, 0);
+
+select lives_ok(
+  $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000000165', '220000ff-0022-4000-8000-100000000001', '220000ff-0022-4000-8000-500000000034', '220000ff-0022-4000-8000-600000000044', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000001')$$,
+  'periods_granted/price-raise: a full payment at the original 100000 price is recorded');
+
+select is(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-600000000044'::uuid),
+  1,
+  'periods_granted/price-raise: baseline — one period granted at the original price');
+
+select throws_ok(
+  $$update public.memberships set price_paise = 200000 where id = '220000ff-0022-4000-8000-600000000044'$$,
+  null::char(5), null,
+  'GL043/price-raise: doubling the price after the period was already granted is refused too — same rule, the direction the first version of this section called "safe"');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-600000000044'::uuid),
+  100000::bigint,
+  'GL043/price-raise: price_paise is unchanged at 100000');
+
+-- ---------------------------------------------------------------------------
+-- 15d-currency. The same freeze names currency alongside price_paise — a
+-- distinct write, checked on its own rather than only alongside a price
+-- change, in case an implementation freezes the row on price_paise touched
+-- and lets a currency-only edit through the gap.
+-- ---------------------------------------------------------------------------
+
+select throws_ok(
+  $$update public.memberships set currency = 'USD' where id = '220000ff-0022-4000-8000-600000000044'$$,
+  null::char(5), null,
+  'GL043/currency: changing ONLY currency (price_paise untouched) on a membership with periods_granted > 0 is refused');
+
+select is(
+  (select currency from public.memberships where id = '220000ff-0022-4000-8000-600000000044'::uuid),
+  'INR',
+  'GL043/currency: currency is unchanged at INR');
+
+-- ---------------------------------------------------------------------------
+-- 15d-zero. The freeze must not fire before anything has actually been
+-- earned: correcting a mistyped price on a membership with
+-- periods_granted = 0 is an ordinary edit and stays free.
+-- ---------------------------------------------------------------------------
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, periods_granted) values
+  ('220000ff-0022-4000-8000-600000000046'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid,
+   '220000ff-0022-4000-8000-500000000036'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid,
+   'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A') + 30, 100000, 0);
+
+select lives_ok(
+  $$update public.memberships set price_paise = 80000 where id = '220000ff-0022-4000-8000-600000000046'$$,
+  'GL043/zero-grant: correcting price_paise on a membership with periods_granted = 0 (nothing earned yet) still succeeds');
+
+select is(
+  (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-600000000046'::uuid),
+  80000::bigint,
+  'GL043/zero-grant: the correction landed');
+
+-- ---------------------------------------------------------------------------
+-- 15e. periods_granted may not be negative — checked structurally, as
+-- `postgres`, rather than through a tenant session (section 5's own
+-- receipt-counter DELETE check took the same structural angle). If this is
+-- refused only by an RLS policy rather than a real constraint, provoking it
+-- as the table owner is what tells the two apart.
+--
+-- FOURTH-SESSION UPDATE: `check (periods_granted >= 0)` is now added, in a
+-- migration not opened here (dated 20260910000000 or later, named and
+-- spliced by the coordinator, not read). The first two assertions are
+-- unchanged and now pass; the third is INVERTED from proving the negative
+-- value landed to proving it did not — refused AND unmoved, the same
+-- discrimination the visible suite's own Section 14e note names.
+-- ---------------------------------------------------------------------------
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, periods_granted) values
+  ('220000ff-0022-4000-8000-600000000045'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid,
+   '220000ff-0022-4000-8000-500000000035'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid,
+   'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A') + 30, 100000, 0);
+
+select is(
+  (select count(*)::int from pg_constraint
+    where conrelid = 'public.memberships'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) ilike '%periods_granted%'),
+  1,
+  'periods_granted/negative: public.memberships carries a CHECK constraint on periods_granted >= 0');
+
+select throws_ok(
+  $$update public.memberships set periods_granted = -1 where id = '220000ff-0022-4000-8000-600000000045'$$,
+  null::char(5), null,
+  'periods_granted/negative: setting the column negative, as the table owner rather than through any tenant session, is refused');
+
+select is(
+  (select periods_granted from public.memberships where id = '220000ff-0022-4000-8000-600000000045'::uuid),
+  0,
+  'periods_granted/negative: the column is unchanged at 0 — refused AND unmoved, not merely refused');
 
 -- ---------------------------------------------------------------------------
 -- 12. Elevation must still justify itself (ADR-066): the same closed
