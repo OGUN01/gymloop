@@ -2,7 +2,8 @@
 
 Five sign-ins against the seeded demo gym (**Iron Box Fitness — Vijay Nagar**, `IRNBX1`, tenant `00000001-…-000000000001`), one per role, so any behaviour can be simulated end to end rather than argued about. Created 2026-09-08 while building Phase 3's first screens.
 
-**Password for all five: `IronBox!Demo2026`.**
+**Password for all five: `DEMO_ACCOUNT_PASSWORD` in `.env.local`** (gitignored; the name alone is in
+`.env.example`). It is not written down here because this repository is public.
 
 | Email | Role | What it is for |
 |---|---|---|
@@ -28,7 +29,9 @@ The console gates on `staff_id`, so the member and the super admin both land on 
 
 ## Housekeeping
 
-**The password is in a conversation transcript, so treat it as disclosed.** That is acceptable while the application is not live and is the same standing as `SUPABASE_DB_PASSWORD` (ADR-051): rotate it before launch, along with everything in `docs/security.md`'s "Credential rotation" section.
+**Rotated 2026-09-09, when this repository was made public.** The previous value was written into this file in plain text and is therefore in the git history at `53dd5ec` — permanently, and public along with everything else. Rotating is what makes that harmless: the leaked string no longer authenticates anything, verified in both directions (the new password works for all five accounts, the old one for none). A history rewrite was considered and rejected as the more dangerous operation of the two.
+
+The lesson is cheaper to write down than to repeat: **a password in a committed file is a password you have published**, whether or not the repository is public at the time, because visibility is a setting somebody will change later for an unrelated reason. `SUPABASE_DB_PASSWORD` was never in the repository and needed no rotation for this; it still wants rotating before launch, along with everything in `docs/security.md`'s "Credential rotation" section.
 
 Two of these sit on seeded rows rather than rows of their own — `divya@` and `rohit@` set `staff.user_id` on seed staff, and `aarav.member@` sets `members.user_id`. Unlinking is one `update … set user_id = null`. `owner@` and `admin@` created their own rows and can be deleted outright.
 
