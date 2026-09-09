@@ -545,7 +545,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(709);
+select plan(722);
 
 
 -- ---------------------------------------------------------------------------
@@ -12538,6 +12538,338 @@ select results_eq(
        from public.memberships m where m.id = '22000000-0000-4000-8000-000000250081'::uuid $$,
   $$ values ('22000000-0000-4000-8000-000000250041'::uuid, '30'::text, 0) $$,
   'unchanged after that one as well — the membership still belongs to the member it was sold to, still measured in the days its plan says'
+);
+
+
+-- ===========================================================================
+-- SECTION 33 (ROUND NINETEEN, ADR-099 widened) — "GL042 answers ahead of every
+-- other rule that can refuse the same statement", proven against GL047; and
+-- "Re-pointing onto a member who already has a membership". Tenant 26.
+-- Assertions 710-722.
+--
+-- WHAT IS NEW HERE AND WHY IT IS NEW. Section 32 already pins GL042 ahead of
+-- GL043, and the holdout suite covers GL042 against GL044, GL045 and GL046.
+-- GL047 — the membership-status transition rule — is the one member of that
+-- set covered NOWHERE, and it is the one that cannot be fixed by moving a
+-- clause: GL047 lives in its own trigger (`memberships_status_transitions`,
+-- separate on purpose, because both seed files disable the terms trigger and
+-- folding it in would leave it silently off for the whole seed), and Postgres
+-- fires same-timing row triggers in TRIGGER-NAME order. So no ordering of
+-- checks inside the terms function can ever reach it; the answer to "which
+-- rule answers" is decided by how the two trigger names sort. That is exactly
+-- the kind of ordering that changes under a rename nobody thinks of as a
+-- behaviour change, which is why it gets an assertion rather than a comment.
+--
+-- WHY GL042 AND NOT GL047. A caller acts on the message. "A membership does
+-- not go from cancelled to active" is advice for somebody working on their own
+-- member's membership — it says ask a manager, or sell a new one to this
+-- member. The true answer is that the membership belongs to somebody else and
+-- the only repair is a refund, a cancellation and a new sale. GL042 is the
+-- only rule among the five about WHOSE membership this is; every other one is
+-- about what may be done to a membership already agreed to be yours.
+--
+-- THE CONTROLS ARE THE POINT (711, 713). Two codes that have quietly collapsed
+-- onto one would pass 715, 717 and 719 without the ordering being true at all.
+-- So each violation is pinned ALONE first: the illegal transition by itself
+-- answers GL047, the re-point by itself answers GL042, and only then is the
+-- doubly-violating statement asked which of the two it gives. 717 repeats 715
+-- with the SET list written the other way round — a check ordered by the
+-- caller's column list would pass one and fail the other, and which rule
+-- answers is not the caller's to choose.
+--
+-- 719 IS THE OTHER HALF OF THE SAME PROOF. `active → frozen` is a LEGAL
+-- transition, so GL047 has nothing to say about it; if that statement is still
+-- refused with GL042 then it is genuinely the re-point answering, and not
+-- merely "any statement that writes a status loses". Without 719, an
+-- implementation that refused every combined statement for the wrong reason
+-- would read green.
+--
+-- THE INDEX IS NOT A RULE (721). `memberships_tenant_id_member_id_live_key` is
+-- partial on ('active','frozen') and is checked during the UPDATE itself,
+-- before any AFTER trigger runs — so pointing a LIVE membership at a member who
+-- already holds a live one is `23505` and no rule ordering can change that.
+-- Section 32 and every other assertion of this requirement deliberately arrange
+-- targets holding NOTHING to keep the index out of the way; this one
+-- deliberately walks into it, because a handler written to expect GL042 will
+-- get 23505 in the likely case — two members mixed up is exactly the case where
+-- the other member has a membership of their own. Both memberships in 721 are
+-- `active`: if either were cancelled the index would not be in play and GL042
+-- would answer instead, which is the false green this assertion exists to rule
+-- out (710 asserts both statuses before it is attempted).
+--
+-- FIXTURES. C (cancelled, member A) is created cancelled rather than
+-- transitioned into it — GL047 itself refuses the transition, so staging it by
+-- hand would be staging through the rule under test. V (active, member B) is
+-- the live membership used for the legal-transition case and for the index
+-- case. T1-T4 hold NOTHING, one target per refused move, so no assertion below
+-- can be answered by the live unique key while reporting green. X holds one
+-- `active` membership and is the target of 721 alone.
+--
+-- No money is taken against any of these on purpose: the terms freeze engages
+-- only once money has arrived, so an unpaid fixture leaves exactly the rules
+-- this section is about in play. ADR-039: every date is the gym's own today.
+-- ADR-030: nothing is committed; the file's single BEGIN … ROLLBACK covers it.
+-- ===========================================================================
+
+set local role postgres;
+
+insert into public.organizations (id, name, gym_code) values
+  ('22000000-0000-4000-8000-000000260001'::uuid, 'PayRec Gym 26', 'PYR22S');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('22000000-0000-4000-8000-000000260011'::uuid, '22000000-0000-4000-8000-000000260001'::uuid, 'G26 Main', true);
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('22000000-0000-4000-8000-000000260021'::uuid, '22000000-0000-4000-8000-000000260001'::uuid,
+   '22000000-0000-4000-8000-000000260011'::uuid, 'front_desk', 'T26 Desk');
+
+-- A holds the cancelled membership; B holds the live one. X already holds a
+-- live membership of his own and is the target of the 23505 case alone. T1-T4
+-- hold nothing and are the targets of the four refused moves, one each.
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000260041'::uuid, '22000000-0000-4000-8000-000000260001'::uuid,
+   '22000000-0000-4000-8000-000000260011'::uuid, 'M26 A', '+912226000041'),
+  ('22000000-0000-4000-8000-000000260042'::uuid, '22000000-0000-4000-8000-000000260001'::uuid,
+   '22000000-0000-4000-8000-000000260011'::uuid, 'M26 B', '+912226000042'),
+  ('22000000-0000-4000-8000-000000260043'::uuid, '22000000-0000-4000-8000-000000260001'::uuid,
+   '22000000-0000-4000-8000-000000260011'::uuid, 'M26 X', '+912226000043'),
+  ('22000000-0000-4000-8000-000000260051'::uuid, '22000000-0000-4000-8000-000000260001'::uuid,
+   '22000000-0000-4000-8000-000000260011'::uuid, 'M26 T1', '+912226000051'),
+  ('22000000-0000-4000-8000-000000260052'::uuid, '22000000-0000-4000-8000-000000260001'::uuid,
+   '22000000-0000-4000-8000-000000260011'::uuid, 'M26 T2', '+912226000052'),
+  ('22000000-0000-4000-8000-000000260053'::uuid, '22000000-0000-4000-8000-000000260001'::uuid,
+   '22000000-0000-4000-8000-000000260011'::uuid, 'M26 T3', '+912226000053'),
+  ('22000000-0000-4000-8000-000000260054'::uuid, '22000000-0000-4000-8000-000000260001'::uuid,
+   '22000000-0000-4000-8000-000000260011'::uuid, 'M26 T4', '+912226000054');
+
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('22000000-0000-4000-8000-000000260061'::uuid, '22000000-0000-4000-8000-000000260001'::uuid, 'G26 Plan (30d)', 30, 100000);
+
+create temp table today_t26 as
+  select (now() at time zone o.timezone)::date as d
+    from public.organizations o where o.id = '22000000-0000-4000-8000-000000260001'::uuid;
+grant select on today_t26 to public;
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, cancelled_at) values
+  -- C: cancelled, created in that state rather than transitioned into it.
+  ('22000000-0000-4000-8000-000000260081'::uuid, '22000000-0000-4000-8000-000000260001'::uuid,
+   '22000000-0000-4000-8000-000000260041'::uuid, '22000000-0000-4000-8000-000000260061'::uuid,
+   'cancelled', (select d from today_t26), (select d from today_t26), 100000, now()),
+  -- V: live, for the legal-transition case and for the index case.
+  ('22000000-0000-4000-8000-000000260082'::uuid, '22000000-0000-4000-8000-000000260001'::uuid,
+   '22000000-0000-4000-8000-000000260042'::uuid, '22000000-0000-4000-8000-000000260061'::uuid,
+   'active', (select d from today_t26), (select d from today_t26), 100000, null),
+  -- X's own live membership: what makes the partial unique index bite at 721.
+  ('22000000-0000-4000-8000-000000260083'::uuid, '22000000-0000-4000-8000-000000260001'::uuid,
+   '22000000-0000-4000-8000-000000260043'::uuid, '22000000-0000-4000-8000-000000260061'::uuid,
+   'active', (select d from today_t26), (select d from today_t26), 100000, null);
+
+-- 710 — the fixture asserted before anything is attempted, both ways round: the
+-- four targets of the ordering assertions hold NOTHING (so the live unique key
+-- cannot answer them and report a false green), and X holds exactly one LIVE
+-- membership (so at 721 the index certainly CAN answer — a cancelled or expired
+-- row there would put GL042 back in the frame and 721 would be measuring the
+-- wrong thing).
+select results_eq(
+  $$ select (select m.member_id from public.memberships m where m.id = '22000000-0000-4000-8000-000000260081'::uuid),
+            (select m.status::text from public.memberships m where m.id = '22000000-0000-4000-8000-000000260081'::uuid),
+            (select m.member_id from public.memberships m where m.id = '22000000-0000-4000-8000-000000260082'::uuid),
+            (select m.status::text from public.memberships m where m.id = '22000000-0000-4000-8000-000000260082'::uuid),
+            (select count(*)::int from public.memberships x
+              where x.member_id in ('22000000-0000-4000-8000-000000260051'::uuid,
+                                    '22000000-0000-4000-8000-000000260052'::uuid,
+                                    '22000000-0000-4000-8000-000000260053'::uuid,
+                                    '22000000-0000-4000-8000-000000260054'::uuid)),
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000260043'::uuid
+                and x.status in ('active', 'frozen')) $$,
+  $$ values ('22000000-0000-4000-8000-000000260041'::uuid, 'cancelled'::text,
+             '22000000-0000-4000-8000-000000260042'::uuid, 'active'::text, 0, 1) $$,
+  'ordering fixture: the cancelled membership names A and the live one names B, all four targets of the ordering assertions hold NOTHING, and X holds exactly one LIVE membership — so nothing at 711-719 can be answered by the live unique key, and 721 certainly can be'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000260001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000260021')::text,
+  true);
+set local role authenticated;
+
+-- 711 — CONTROL ONE: the illegal transition ALONE answers with GL047. Without
+-- this, 715 could pass because GL042 and GL047 had quietly become one code and
+-- the ordering it claims to prove would be vacuous.
+select throws_ok($$
+  update public.memberships set status = 'active'
+   where id = '22000000-0000-4000-8000-000000260081'::uuid
+$$, 'GL047'::char(5), null,
+  'ordering, control one: reviving a cancelled membership alone answers with GL047 — the transition rule, in its own trigger');
+
+set local role postgres;
+
+-- 712
+select results_eq(
+  $$ select m.member_id, m.status::text from public.memberships m
+      where m.id = '22000000-0000-4000-8000-000000260081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000260041'::uuid, 'cancelled'::text) $$,
+  'and the membership is unchanged after it — still cancelled, still A''s');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000260001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000260021')::text,
+  true);
+set local role authenticated;
+
+-- 713 — CONTROL TWO: the re-point ALONE answers with GL042, on this same
+-- fixture. The two codes are shown to be distinguishable BEFORE the combined
+-- statement is asked which of them it gives.
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000260051'::uuid
+   where id = '22000000-0000-4000-8000-000000260081'::uuid
+$$, 'GL042'::char(5), null,
+  'ordering, control two: re-pointing alone answers with GL042 — so the two rules genuinely carry different codes and asking which one a doubly-violating statement gives is a real question');
+
+set local role postgres;
+
+-- 714
+select results_eq(
+  $$ select m.member_id, m.status::text from public.memberships m
+      where m.id = '22000000-0000-4000-8000-000000260081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000260041'::uuid, 'cancelled'::text) $$,
+  'and unchanged after that too');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000260001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000260021')::text,
+  true);
+set local role authenticated;
+
+-- 715 — THE SCENARIO. One statement re-points the cancelled membership at a
+-- member holding nothing AND revives it, violating GL042 and GL047 at once, and
+-- the answer must be GL042. GL047 tells the caller a membership does not come
+-- back from cancelled, which is advice about their own member's membership;
+-- this membership is somebody else's, and the repair is a refund, a
+-- cancellation and a new sale. `memberships_status_transitions` sorts before
+-- `memberships_terms_frozen`, and same-timing row triggers fire in name order,
+-- so this is decided by the trigger NAMES and by nothing inside either function.
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000260052'::uuid,
+         status = 'active'
+   where id = '22000000-0000-4000-8000-000000260081'::uuid
+$$, 'GL042'::char(5), null,
+  'GL042 answers ahead of GL047: one statement that re-points a cancelled membership and revives it is refused with the member_id rule, not the transition rule');
+
+set local role postgres;
+
+-- 716
+select results_eq(
+  $$ select m.member_id, m.status::text, m.periods_granted, m.starts_on, m.ends_on
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000260081'::uuid $$,
+  $$ select '22000000-0000-4000-8000-000000260041'::uuid, 'cancelled'::text, 0,
+            (select d from today_t26), (select d from today_t26) $$,
+  'and neither half of the statement landed — the owner, the status, the count and both dates are where they were'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000260001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000260021')::text,
+  true);
+set local role authenticated;
+
+-- 717 — the same statement with the SET list written the other way round. Which
+-- rule answers belongs to the rules, not to the order the caller happened to
+-- type the columns in.
+select throws_ok($$
+  update public.memberships
+     set status = 'active',
+         member_id = '22000000-0000-4000-8000-000000260053'::uuid
+   where id = '22000000-0000-4000-8000-000000260081'::uuid
+$$, 'GL042'::char(5), null,
+  'and with the SET list in the other order it is still GL042 — the answer does not depend on the caller''s column order');
+
+set local role postgres;
+
+-- 718
+select results_eq(
+  $$ select m.member_id, m.status::text, m.periods_granted from public.memberships m
+      where m.id = '22000000-0000-4000-8000-000000260081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000260041'::uuid, 'cancelled'::text, 0) $$,
+  'unchanged after that one as well');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000260001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000260021')::text,
+  true);
+set local role authenticated;
+
+-- 719 — A LEGAL TRANSITION PLUS A RE-POINT. `active → frozen` is permitted, so
+-- GL047 has nothing to say here and the only rule left is GL042. If this were
+-- refused by something else — or if 715 passed only because every statement
+-- carrying a status write loses — this assertion is where that shows.
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000260054'::uuid,
+         status = 'frozen'
+   where id = '22000000-0000-4000-8000-000000260082'::uuid
+$$, 'GL042'::char(5), null,
+  'a LEGAL status transition plus a re-point is still GL042 — it is the re-point answering, not "any statement that writes a status is refused"');
+
+set local role postgres;
+
+-- 720
+select results_eq(
+  $$ select m.member_id, m.status::text from public.memberships m
+      where m.id = '22000000-0000-4000-8000-000000260082'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000260042'::uuid, 'active'::text) $$,
+  'and the live membership is unchanged — still B''s, still active, so the permitted half did not land either');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000260001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000260021')::text,
+  true);
+set local role authenticated;
+
+-- 721 — scenario "Re-pointing onto a member who already has a membership". Both
+-- rows are `active`, so both are in `memberships_tenant_id_member_id_live_key`,
+-- which is checked during the UPDATE itself — before any AFTER trigger runs. An
+-- index is not a rule and no rule ordering can get in front of it, so the code
+-- is 23505 and NOT GL042. This is the likely case rather than an edge one: you
+-- re-point because two members were mixed up, and the other member normally has
+-- a membership of their own. Recorded so nobody writes a handler expecting
+-- GL042 here.
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000260043'::uuid
+   where id = '22000000-0000-4000-8000-000000260082'::uuid
+$$, '23505'::char(5), null,
+  'pointing a live membership at a member who already holds one is refused by the live-membership index with 23505 — the index runs during the UPDATE, ahead of every rule, and no ordering changes that');
+
+set local role postgres;
+
+-- 722
+select results_eq(
+  $$ select m.member_id, m.status::text,
+            (select count(*)::int from public.memberships x
+              where x.member_id = '22000000-0000-4000-8000-000000260043'::uuid)
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000260082'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000260042'::uuid, 'active'::text, 1) $$,
+  'and the membership is unchanged — still B''s and still active, and X still holds exactly the one membership he came with'
 );
 
 
