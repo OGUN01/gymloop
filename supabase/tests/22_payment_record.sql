@@ -451,8 +451,12 @@
 --     ('active','frozen')` — which is what makes Section 27's cancelled-row
 --     move (592) a refusal the index cannot possibly be answering.
 --
--- PLAN COUNT: 700 — 599 through round seventeen, plus round eighteen's 101
--- (Sections 29-31, OPEN-030, the membership status machine). The paragraph
+-- PLAN COUNT: 709 — 700 through round eighteen, plus Section 32's 9 (ADR-099,
+-- WHICH of two rules answers a statement that violates both). Not run against
+-- Cloud: it is committed red on purpose, ahead of the implementation.
+--
+-- PLAN COUNT (round eighteen): 700 — 599 through round seventeen, plus round
+-- eighteen's 101 (Sections 29-31, OPEN-030, the status machine). The paragraph
 -- below is round seventeen's own note on how 599 was confirmed and is left
 -- standing because round eighteen confirmed 700 exactly the same way, with
 -- the same wrapper and the same result: `EMITTED 700 / FAILED 31` against
@@ -541,7 +545,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(700);
+select plan(709);
 
 
 -- ---------------------------------------------------------------------------
@@ -12320,6 +12324,222 @@ select results_eq(
             1, (select d from today_t24) + 30 $$,
   'and the end state is the honest one: the retirement still on the books, a live membership beside it with thirty days bought, and a member inside the gym. Retirement being permanent costs a row, not a customer'
 );
+
+
+
+-- ===========================================================================
+-- SECTION 32 (ROUND EIGHTEEN, ADR-099) — "Re-pointing a membership and
+-- re-lengthening it in one statement". Tenant 25. Assertions 701-709.
+--
+-- WHICH RULE ANSWERS IS THE BEHAVIOUR, NOT AN IMPLEMENTATION DETAIL. A single
+-- statement that moves a membership to another member AND writes a length
+-- violates two rules at once, and the caller acts on the one that comes back.
+-- `GL043` says "the length is derived — change the plan instead", which is
+-- advice about a plan and sends the desk off to edit terms; the true answer is
+-- `GL042` — this membership belongs to somebody else, and the repair is a
+-- refund, a cancellation and a new sale. A caller told the wrong thing does the
+-- wrong thing, so the ORDER of the two checks is contract.
+--
+-- WHY IT NEEDS ITS OWN ASSERTION. It silently stopped being true once: a later
+-- migration re-emitted the enforcing function to add something unrelated and
+-- moved the member_id check after the length check. Both refusals still
+-- existed, both suites stayed green, and nothing noticed — because no assertion
+-- anywhere named a statement that violates two rules at once.
+--
+-- SO THIS SECTION PROVES ORDERING RATHER THAN PRESENCE. 702 and 704 pin each
+-- violation ALONE against its own code, so the pair below cannot pass by both
+-- codes having quietly become the same one; 706 pins the combined statement to
+-- `GL042`; 708 repeats it with the SET list written the other way round, since
+-- a check ordered by the statement's column list would pass 706 and still be
+-- wrong.
+--
+-- THE TRAP THE REQUIREMENT NAMES. `memberships_tenant_id_member_id_live_key`
+-- refuses a move onto a member who already holds a live membership, and a
+-- `23505` from that index would answer instead of the rule — a careless check
+-- reports a false GREEN. Every target here (T1, T2, T3) holds NOTHING, 701
+-- asserts that as its own assertion before any refusal is attempted, and each
+-- attempt uses a different target so a move that lands cannot turn the next
+-- into a same-value write refused by nothing.
+--
+-- NO MONEY IS TAKEN AGAINST THIS MEMBERSHIP ON PURPOSE. The terms freeze on
+-- price, currency and plan engages only once money has arrived, and the length
+-- rule bites whether or not it has — so an unpaid membership leaves exactly the
+-- two rules this section is about in play, and no third one able to answer
+-- first for a reason that is not the question.
+-- ===========================================================================
+
+set local role postgres;
+
+insert into public.organizations (id, name, gym_code) values
+  ('22000000-0000-4000-8000-000000250001'::uuid, 'PayRec Gym 25', 'PYR22R');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('22000000-0000-4000-8000-000000250011'::uuid, '22000000-0000-4000-8000-000000250001'::uuid, 'G25 Main', true);
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('22000000-0000-4000-8000-000000250021'::uuid, '22000000-0000-4000-8000-000000250001'::uuid,
+   '22000000-0000-4000-8000-000000250011'::uuid, 'front_desk', 'T25 Desk');
+
+-- A holds the membership under attack. T1, T2 and T3 hold nothing at all and
+-- are the targets of the three refused moves, one each.
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000250041'::uuid, '22000000-0000-4000-8000-000000250001'::uuid,
+   '22000000-0000-4000-8000-000000250011'::uuid, 'M25 A', '+912225000041'),
+  ('22000000-0000-4000-8000-000000250051'::uuid, '22000000-0000-4000-8000-000000250001'::uuid,
+   '22000000-0000-4000-8000-000000250011'::uuid, 'M25 T1', '+912225000051'),
+  ('22000000-0000-4000-8000-000000250052'::uuid, '22000000-0000-4000-8000-000000250001'::uuid,
+   '22000000-0000-4000-8000-000000250011'::uuid, 'M25 T2', '+912225000052'),
+  ('22000000-0000-4000-8000-000000250053'::uuid, '22000000-0000-4000-8000-000000250001'::uuid,
+   '22000000-0000-4000-8000-000000250011'::uuid, 'M25 T3', '+912225000053');
+
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('22000000-0000-4000-8000-000000250061'::uuid, '22000000-0000-4000-8000-000000250001'::uuid, 'G25 Plan (30d)', 30, 100000);
+
+create temp table today_t25 as
+  select (now() at time zone o.timezone)::date as d
+    from public.organizations o where o.id = '22000000-0000-4000-8000-000000250001'::uuid;
+grant select on today_t25 to public;
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('22000000-0000-4000-8000-000000250081'::uuid, '22000000-0000-4000-8000-000000250001'::uuid,
+   '22000000-0000-4000-8000-000000250041'::uuid, '22000000-0000-4000-8000-000000250061'::uuid,
+   'active', (select d from today_t25), (select d from today_t25), 100000);
+
+-- 701 — THE TRAP, DISARMED, before anything is attempted: the membership names
+-- A and records the 30 days its plan says, and the three targets hold zero
+-- memberships of any status — so nothing below can be refused by
+-- memberships_tenant_id_member_id_live_key while this section reports GREEN.
+-- Asserted rather than assumed, because that false green is the failure the
+-- requirement predicts by name.
+select results_eq(
+  $$ select m.member_id, to_jsonb(m)->>'duration_days',
+            (select count(*)::int from public.memberships x
+              where x.member_id in ('22000000-0000-4000-8000-000000250051'::uuid,
+                                    '22000000-0000-4000-8000-000000250052'::uuid,
+                                    '22000000-0000-4000-8000-000000250053'::uuid))
+       from public.memberships m
+      where m.id = '22000000-0000-4000-8000-000000250081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000250041'::uuid, '30'::text, 0) $$,
+  'ordering fixture: the membership names the member it was sold to and records its plan''s 30 days, and every target of every move below holds NOTHING — so the live unique key cannot be what answers any of them'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000250001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000250021')::text,
+  true);
+set local role authenticated;
+
+-- 702 — the member_id violation ALONE answers with GL042. Without this, 706
+-- below could pass because both rules had quietly become the same code.
+select throws_ok($$
+  update public.memberships set member_id = '22000000-0000-4000-8000-000000250051'::uuid
+   where id = '22000000-0000-4000-8000-000000250081'::uuid
+$$, 'GL042'::char(5), null,
+  'ordering, control one: re-pointing alone answers with GL042 — the code whose own requirement names this harm');
+
+set local role postgres;
+
+-- 703
+select results_eq(
+  $$ select m.member_id, to_jsonb(m)->>'duration_days' from public.memberships m
+      where m.id = '22000000-0000-4000-8000-000000250081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000250041'::uuid, '30'::text) $$,
+  'and the membership is unchanged after it');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000250001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000250021')::text,
+  true);
+set local role authenticated;
+
+-- 704 — the length violation ALONE answers with GL043. The other half of the
+-- pair: the two codes are shown to be distinguishable BEFORE the combined
+-- statement is asked which of them it gives.
+select throws_ok($$
+  update public.memberships set duration_days = 3650
+   where id = '22000000-0000-4000-8000-000000250081'::uuid
+$$, 'GL043'::char(5), null,
+  'ordering, control two: writing a length alone answers with GL043 — so the two rules genuinely carry different codes, and asking which one a doubly-violating statement gives is a real question');
+
+set local role postgres;
+
+-- 705
+select results_eq(
+  $$ select m.member_id, to_jsonb(m)->>'duration_days' from public.memberships m
+      where m.id = '22000000-0000-4000-8000-000000250081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000250041'::uuid, '30'::text) $$,
+  'and the membership is unchanged after that too');
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000250001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000250021')::text,
+  true);
+set local role authenticated;
+
+-- 706 — THE SCENARIO. One statement, both violations, and the answer must be
+-- GL042. GL043 would tell the desk to change the plan instead, which is advice
+-- about a plan; the true answer is that this membership belongs to somebody
+-- else and the repair is a refund, a cancellation and a new sale. The caller
+-- acts on the message, so which rule answers is the behaviour.
+select throws_ok($$
+  update public.memberships
+     set member_id = '22000000-0000-4000-8000-000000250052'::uuid,
+         duration_days = 3650
+   where id = '22000000-0000-4000-8000-000000250081'::uuid
+$$, 'GL042'::char(5), null,
+  'scenario "Re-pointing a membership and re-lengthening it in one statement" — refused with the member_id rule, NOT the length rule. GL043 sends the caller to change the plan; the membership belongs to somebody else, and that is what has to come back');
+
+set local role postgres;
+
+-- 707
+select results_eq(
+  $$ select m.member_id, to_jsonb(m)->>'duration_days', m.periods_granted, m.starts_on, m.ends_on
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000250081'::uuid $$,
+  $$ select '22000000-0000-4000-8000-000000250041'::uuid, '30'::text, 0,
+            (select d from today_t25), (select d from today_t25) $$,
+  'and neither half of the statement landed — the owner, the length, the count and both dates are where they were'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000250001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000250021')::text,
+  true);
+set local role authenticated;
+
+-- 708 — the same statement with the SET list written the other way round. A
+-- check ordered by the statement's column list rather than by the rules would
+-- pass 706 and answer GL043 here, which is exactly the drift ADR-099 records:
+-- the order belongs to the rules, not to how the caller happened to type it.
+select throws_ok($$
+  update public.memberships
+     set duration_days = 3650,
+         member_id = '22000000-0000-4000-8000-000000250053'::uuid
+   where id = '22000000-0000-4000-8000-000000250081'::uuid
+$$, 'GL042'::char(5), null,
+  'and with the SET list in the other order it is still GL042 — which rule answers is decided by the rules, not by the order the caller listed the columns');
+
+set local role postgres;
+
+-- 709
+select results_eq(
+  $$ select m.member_id, to_jsonb(m)->>'duration_days', m.periods_granted
+       from public.memberships m where m.id = '22000000-0000-4000-8000-000000250081'::uuid $$,
+  $$ values ('22000000-0000-4000-8000-000000250041'::uuid, '30'::text, 0) $$,
+  'unchanged after that one as well — the membership still belongs to the member it was sold to, still measured in the days its plan says'
+);
+
 
 select * from finish();
 rollback;
