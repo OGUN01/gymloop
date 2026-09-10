@@ -169,7 +169,7 @@ export default async function ReceiptPage({
             has taken nothing, and one refunded in full has nothing left. The
             database refuses both (`GL036`); offering the form anyway would be a
             button whose only outcome is an error. */}
-        {ARRIVED.has(payment.status) && refundablePaise > 0 ? (
+        {ARRIVED.has(payment.status) && refundablePaise !== '0' ? (
           <MutationForm method="post" action="/api/refunds" className="mt-4 flex flex-wrap items-end gap-3">
             <input type="hidden" name="paymentId" value={payment.id} />
             <input type="hidden" name="idempotencyKey" value={crypto.randomUUID()} />
@@ -217,7 +217,7 @@ export default async function ReceiptPage({
         <p className="mt-2 text-xs text-neutral-500">
           {!ARRIVED.has(payment.status)
             ? 'This payment took nothing, so there is nothing to send back.'
-            : refundablePaise > 0
+            : refundablePaise !== '0'
               ? `${payment.currency} ${rupeesFromPaise(refundablePaise)} of this payment has not been refunded. Only an owner or a manager may send money back.`
               : 'This payment has been refunded in full.'}
         </p>
