@@ -53,7 +53,7 @@ const PLAN_ID = '22222222-2222-4222-8222-222222222222';
 const MEMBERSHIP_ID = '33333333-3333-4333-8333-333333333333';
 const PAUSE_ID = '44444444-4444-4444-8444-444444444444';
 
-const SIGNED_IN = { staff_id: STAFF_ID, tenant_id: TENANT_ID };
+const SIGNED_IN = { sub: 'a6300000-0000-4000-8000-000000000003', app_role: 'gym_owner', staff_id: STAFF_ID, tenant_id: TENANT_ID };
 const PLAN = { duration_days: 30, price_paise: 250000, currency: 'INR', is_active: true };
 
 const ok = (data: unknown): Result => ({ data, error: null });

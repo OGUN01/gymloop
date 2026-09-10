@@ -81,7 +81,7 @@ const { MEMBER_ECHO_COOKIE, redirectTo, redirectWithError, refusalMessage } = aw
 const { POST: createMember } = await import('../route');
 const { POST: updateMember } = await import('../[memberId]/route');
 
-const SIGNED_IN = { staff_id: 'staff-1', tenant_id: 'tenant-1' };
+const SIGNED_IN = { sub: 'a6300000-0000-4000-8000-000000000003', app_role: 'gym_owner', staff_id: 'a6300000-0000-4000-8000-000000000001', tenant_id: 'a6300000-0000-4000-8000-000000000002' };
 
 const VALID = {
   full_name: 'Asha Rao',
@@ -173,7 +173,7 @@ describe('POST /api/members', () => {
     expect(response.status).toBe(303);
     expect(response.headers.get('location')).toBe('https://gym.example/members/member-9');
     expect(supabaseState.from).toEqual(['members']);
-    expect(supabaseState.calls.insert?.[0]?.[0]).toMatchObject({ tenant_id: 'tenant-1' });
+    expect(supabaseState.calls.insert?.[0]?.[0]).toMatchObject({ tenant_id: 'a6300000-0000-4000-8000-000000000002' });
     expect(supabaseState.calls.insert?.[0]?.[0]).not.toHaveProperty('joined_on');
   });
 
@@ -275,7 +275,7 @@ describe('reading the submission', () => {
   });
 
   it('refuses a caller whose token carries no staff_id', async () => {
-    supabaseState.claims = { tenant_id: 'tenant-1' };
+    supabaseState.claims = { tenant_id: 'a6300000-0000-4000-8000-000000000002' };
     expect((await createMember(post(VALID))).status).toBe(401);
   });
 

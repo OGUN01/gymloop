@@ -96,7 +96,7 @@ const { hashGateCode } = await import('../../../../lib/gate-code');
 const { POST: checkIn } = await import('../route');
 const { POST: issueGateCode } = await import('../../gate-code/route');
 
-const SIGNED_IN = { staff_id: 'staff-1', tenant_id: 'tenant-1' };
+const SIGNED_IN = { sub: 'a6300000-0000-4000-8000-000000000003', app_role: 'gym_owner', staff_id: 'a6300000-0000-4000-8000-000000000001', tenant_id: 'a6300000-0000-4000-8000-000000000002' };
 
 const MEMBER_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_MEMBER_ID = '22222222-2222-4222-8222-222222222222';
@@ -334,7 +334,7 @@ describe('the row the handler proposes', () => {
     await checkIn(post({ memberId: MEMBER_ID, reason: '  Phone left at home  ' }));
 
     expect(inserted('attendance')).toEqual({
-      tenant_id: 'tenant-1',
+      tenant_id: 'a6300000-0000-4000-8000-000000000002',
       branch_id: 'branch-of-member',
       member_id: MEMBER_ID,
       source: 'front_desk',
@@ -350,7 +350,7 @@ describe('the row the handler proposes', () => {
     await checkIn(post({ memberId: MEMBER_ID, token: 'ABCD1234ABCD1234', clientEventId: EVENT_ID }));
 
     expect(inserted('attendance')).toEqual({
-      tenant_id: 'tenant-1',
+      tenant_id: 'a6300000-0000-4000-8000-000000000002',
       // The gate's branch wins over the member's own.
       branch_id: 'branch-of-gate',
       member_id: MEMBER_ID,
@@ -377,7 +377,7 @@ describe('the row the handler proposes', () => {
     );
 
     // zod strips what it does not declare; the tenant comes from the claim.
-    expect(inserted('attendance')).toMatchObject({ tenant_id: 'tenant-1', source: 'front_desk' });
+    expect(inserted('attendance')).toMatchObject({ tenant_id: 'a6300000-0000-4000-8000-000000000002', source: 'front_desk' });
     expect(inserted('attendance')).not.toHaveProperty('assisted_by_staff_id');
   });
 
@@ -455,7 +455,7 @@ describe('reading the submission', () => {
   });
 
   it('refuses a token that carries a tenant but no staff_id', async () => {
-    state.claims = { tenant_id: 'tenant-1' };
+    state.claims = { tenant_id: 'a6300000-0000-4000-8000-000000000002' };
     expect((await checkIn(post({ memberId: MEMBER_ID, reason: 'Desk' }))).status).toBe(401);
   });
 
@@ -538,9 +538,9 @@ describe('POST /api/gate-code', () => {
 
     expect(body.ok).toBe(true);
     expect(inserted('qr_sessions')).toMatchObject({
-      tenant_id: 'tenant-1',
+      tenant_id: 'a6300000-0000-4000-8000-000000000002',
       branch_id: 'branch-1',
-      created_by_staff_id: 'staff-1',
+      created_by_staff_id: 'a6300000-0000-4000-8000-000000000001',
       token_hash: hashGateCode(code),
     });
     // The code itself appears in no column, under no name.

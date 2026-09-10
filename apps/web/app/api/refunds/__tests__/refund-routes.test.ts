@@ -41,7 +41,7 @@ const OTHER_STAFF_ID = '77777777-7777-4777-8777-777777777777';
 const PAYMENT_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_PAYMENT_ID = '22222222-2222-4222-8222-222222222222';
 
-const SIGNED_IN = { staff_id: STAFF_ID, tenant_id: TENANT_ID };
+const SIGNED_IN = { sub: 'a6300000-0000-4000-8000-000000000003', app_role: 'gym_owner', staff_id: STAFF_ID, tenant_id: TENANT_ID };
 
 /** The generated `refund_kind` enum's labels — checked here, never retyped as a list of our own. */
 const REFUND_KINDS = Constants.public.Enums.refund_kind;

@@ -149,7 +149,7 @@ const MEMBER_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_MEMBER_ID = '99999999-9999-4999-8999-999999999999';
 const MEMBERSHIP_ID = '22222222-2222-4222-8222-222222222222';
 
-const SIGNED_IN = { staff_id: STAFF_ID, tenant_id: TENANT_ID };
+const SIGNED_IN = { sub: 'a6300000-0000-4000-8000-000000000003', app_role: 'gym_owner', staff_id: STAFF_ID, tenant_id: TENANT_ID };
 
 /** Every generated label except `razorpay`, which the contract explicitly bans from this handler. */
 const OFFLINE_METHODS = Constants.public.Enums.payment_method.filter((m) => m !== 'razorpay');

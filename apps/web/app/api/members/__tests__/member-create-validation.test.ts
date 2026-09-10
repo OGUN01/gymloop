@@ -88,7 +88,7 @@ vi.mock('../../../../lib/supabase/server', () => ({
 
 const { POST: createMember } = await import('../route');
 
-const SIGNED_IN = { staff_id: 'staff-1', tenant_id: 'tenant-1' };
+const SIGNED_IN = { sub: 'a6300000-0000-4000-8000-000000000003', app_role: 'gym_owner', staff_id: 'a6300000-0000-4000-8000-000000000001', tenant_id: 'a6300000-0000-4000-8000-000000000002' };
 const BRANCH_ID = '77777777-7777-4777-8777-777777777777';
 
 const VALID = { full_name: 'Asha Rao', phone: '+919876543210', branch_id: BRANCH_ID };
