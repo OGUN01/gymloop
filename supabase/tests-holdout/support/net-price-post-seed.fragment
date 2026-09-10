@@ -1,0 +1,19 @@
+-- Independent acceptance assertions only; coordinator supplies BEGIN/ROLLBACK
+-- and executes seed plus scenario seed before this snippet, then repeats.
+-- No implementation, seed source or visible suite was read by this author.
+select plan(3);
+select is((select count(*)::integer from public.memberships
+  where id = '00000006-0000-4000-8000-000000000004'), 1,
+  'H23 seed: discounted historical membership exists exactly once');
+select is((select (ends_on - starts_on)::text || '/' || duration_days::text || '/' || periods_granted::text || '/' || status::text
+  from public.memberships where id = '00000006-0000-4000-8000-000000000004'),
+  '365/365/1/active',
+  'H23 seed: historical annual retains an entire sold year and exactly one paid period');
+select is((select price_paise::text || '/' || discount_paise::text || '/' || currency || '/' ||
+    (select coalesce(sum(p.amount_paise), 0)::text from public.payments p
+      where p.tenant_id = m.tenant_id and p.member_id = m.member_id and p.membership_id = m.id
+        and p.currency = m.currency and p.status in ('paid', 'refunded', 'reversed'))
+  from public.memberships m where m.id = '00000006-0000-4000-8000-000000000004'),
+  '1200000/120000/INR/1080000',
+  'H23 seed: repeated seed retains the sold price and one net fee of received money');
+select * from finish();
