@@ -4,7 +4,7 @@ import {
   completeManualAddonRefundRequestSchema,
   completeManualAddonRefundResultSchema,
 } from '@gymloop/shared';
-import { apiFail, apiOk, staffSession } from '../../../../../lib/api';
+import { apiFail, apiOk, jsonBody, staffSession } from '../../../../../lib/api';
 import { UUID_PATTERN } from '../../../../../lib/keyset';
 
 const REFUND_ROLES = ['gym_owner', 'gym_manager'] as const;
@@ -16,18 +16,14 @@ type ExactRefundRpcArgs = Omit<RefundRpcArgs, 'p_expected_amount_paise'> & {
 
 /** POST /api/refunds/[refundId]/complete-addon — record the desk handover for an add-on return. */
 export async function POST(request: Request, { params }: Context): Promise<Response> {
-  const caller = await staffSession(REFUND_ROLES);
+  const caller = await staffSession(REFUND_ROLES, { completeWrongAudience: 'forbidden' });
   if ('failure' in caller) return caller.failure;
   const { refundId } = await params;
   if (!UUID_PATTERN.test(refundId)) return apiFail('bad_request', 'invalid_request', 'That return was not readable.');
 
-  let payload: unknown;
-  try {
-    payload = await request.json();
-  } catch {
-    return apiFail('bad_request', 'malformed_body', 'The request body was not JSON.');
-  }
-  const parsed = completeManualAddonRefundRequestSchema.safeParse(payload);
+  const body = await jsonBody(request);
+  if ('failure' in body) return body.failure;
+  const parsed = completeManualAddonRefundRequestSchema.safeParse(body.payload);
   if (!parsed.success) return apiFail('bad_request', 'invalid_request', 'That return command was not readable.');
 
   const args = {

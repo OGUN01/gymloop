@@ -70,6 +70,21 @@ export function apiFail(status: ApiFailStatus, code: string, message: string): R
   });
 }
 
+/**
+ * Read a JSON command body into the route-handler failure envelope.
+ *
+ * Call this only after authenticating the caller. That order prevents an
+ * unauthenticated request from using body parsing as an observable side
+ * channel, while keeping malformed JSON a stable 400 for authenticated users.
+ */
+export async function jsonBody(request: Request): Promise<{ payload: unknown } | { failure: Response }> {
+  try {
+    return { payload: await request.json() };
+  } catch {
+    return { failure: apiFail('bad_request', 'malformed_body', 'The request body was not JSON.') };
+  }
+}
+
 export type StaffSession = {
   supabase: Awaited<ReturnType<typeof createServerSupabase>>;
   userId: string;
@@ -78,14 +93,19 @@ export type StaffSession = {
   role: StaffRole;
 };
 
+type StaffSessionOptions = { completeWrongAudience?: 'forbidden' };
+
 /** Complete real-staff identity, optionally restricted to explicit allowed roles. */
-export async function staffSession(allowedRoles?: readonly StaffRole[]): Promise<{ session: StaffSession } | { failure: Response }> {
+export async function staffSession(
+  allowedRoles?: readonly StaffRole[],
+  options?: StaffSessionOptions,
+): Promise<{ session: StaffSession } | { failure: Response }> {
   const { supabase, identity } = await readIdentity();
   if (identity.kind !== 'staff') {
     return {
-      failure: identity.kind === 'unlinked'
-        ? apiFail('unauthorized', 'not_signed_in', 'Sign in as staff of a gym first.')
-        : apiFail('forbidden', 'not_permitted', 'This account cannot perform staff actions.'),
+      failure: identity.kind !== 'unlinked' && options?.completeWrongAudience === 'forbidden'
+        ? apiFail('forbidden', 'not_permitted', 'This account cannot perform staff actions.')
+        : apiFail('unauthorized', 'not_signed_in', 'Sign in as staff of a gym first.'),
     };
   }
 

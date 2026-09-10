@@ -6,7 +6,8 @@ import {
   schedulePtSessionRequestSchema,
   schedulePtSessionResultSchema,
 } from '@gymloop/shared';
-import { apiFail, apiOk, staffSession } from '../../../../../lib/api';
+import { apiFail, apiOk, jsonBody, staffSession } from '../../../../../lib/api';
+import type { StaffSession } from '../../../../../lib/api';
 import { UUID_PATTERN } from '../../../../../lib/keyset';
 
 type Context = { params: Promise<{ orderId: string }> };
@@ -38,41 +39,42 @@ function sessionFailure(code: string, details: string | null, message: string): 
   );
 }
 
-async function jsonBody(request: Request): Promise<{ payload: unknown } | { failure: Response }> {
-  try {
-    return { payload: await request.json() };
-  } catch {
-    return { failure: apiFail('bad_request', 'malformed_body', 'The request body was not JSON.') };
-  }
+async function trainerCommand(
+  request: Request,
+  params: Context['params'],
+): Promise<{ caller: StaffSession; orderId: string; payload: unknown } | { failure: Response }> {
+  const caller = await staffSession(['trainer'], { completeWrongAudience: 'forbidden' });
+  if ('failure' in caller) return caller;
+  const { orderId } = await params;
+  const body = await jsonBody(request);
+  if ('failure' in body) return body;
+  return { caller: caller.session, orderId, payload: body.payload };
 }
 
 /** POST /api/add-on-orders/[orderId]/sessions — schedule an immutable PT slot. */
 export async function POST(request: Request, { params }: Context): Promise<Response> {
-  const caller = await staffSession(['trainer']);
-  if ('failure' in caller) return caller.failure;
-  const { orderId } = await params;
-  const body = await jsonBody(request);
-  if ('failure' in body) return body.failure;
-  const parsed = schedulePtSessionRequestSchema.safeParse(body.payload);
-  if (!parsed.success || !UUID_PATTERN.test(orderId)) {
+  const command = await trainerCommand(request, params);
+  if ('failure' in command) return command.failure;
+  const parsed = schedulePtSessionRequestSchema.safeParse(command.payload);
+  if (!parsed.success || !UUID_PATTERN.test(command.orderId)) {
     return apiFail('bad_request', 'invalid_request', 'That PT command was not readable.');
   }
 
   const args = {
-    p_order_id: orderId,
+    p_order_id: command.orderId,
     p_session_id: parsed.data.sessionId,
     p_starts_at: parsed.data.startsAt,
     p_ends_at: parsed.data.endsAt,
     p_notes: parsed.data.notes,
   } satisfies ExactScheduleRpcArgs;
-  const { data, error } = await caller.session.supabase.rpc(
+  const { data, error } = await command.caller.supabase.rpc(
     'schedule_pt_session',
     args as unknown as ScheduleRpcArgs,
   );
   if (error) return sessionFailure(error.code, error.details, error.message);
   const result = schedulePtSessionResultSchema.safeParse(data);
   const row = result.success ? result.data[0] : undefined;
-  if (!row || row.order_id !== orderId || row.session_id !== parsed.data.sessionId) {
+  if (!row || row.order_id !== command.orderId || row.session_id !== parsed.data.sessionId) {
     return apiFail('server_error', 'operation_failed', 'That PT session could not be confirmed.');
   }
   return apiOk({ sessionId: row.session_id, orderId: row.order_id, replayed: row.replayed });
@@ -80,13 +82,10 @@ export async function POST(request: Request, { params }: Context): Promise<Respo
 
 /** PATCH /api/add-on-orders/[orderId]/sessions — record one terminal PT outcome. */
 export async function PATCH(request: Request, { params }: Context): Promise<Response> {
-  const caller = await staffSession(['trainer']);
-  if ('failure' in caller) return caller.failure;
-  const { orderId } = await params;
-  const body = await jsonBody(request);
-  if ('failure' in body) return body.failure;
-  const parsed = finishPtSessionRequestSchema.safeParse(body.payload);
-  if (!parsed.success || !UUID_PATTERN.test(orderId)) {
+  const command = await trainerCommand(request, params);
+  if ('failure' in command) return command.failure;
+  const parsed = finishPtSessionRequestSchema.safeParse(command.payload);
+  if (!parsed.success || !UUID_PATTERN.test(command.orderId)) {
     return apiFail('bad_request', 'invalid_request', 'That PT command was not readable.');
   }
 
@@ -95,12 +94,12 @@ export async function PATCH(request: Request, { params }: Context): Promise<Resp
     return apiFail('bad_request', 'invalid_request', 'Choose a terminal PT session status.');
   }
 
-  const { data: session, error: sessionError } = await caller.session.supabase
+  const { data: session, error: sessionError } = await command.caller.supabase
     .from('pt_sessions')
     .select('addon_order_id')
-    .eq('tenant_id', caller.session.tenantId)
+    .eq('tenant_id', command.caller.tenantId)
     .eq('id', parsed.data.sessionId)
-    .eq('addon_order_id', orderId)
+    .eq('addon_order_id', command.orderId)
     .maybeSingle();
   if (sessionError) {
     return apiFail(
@@ -111,7 +110,7 @@ export async function PATCH(request: Request, { params }: Context): Promise<Resp
   }
   if (!session) return apiFail('not_found', 'not_found', 'That PT session is unavailable.');
 
-  const { data, error } = await caller.session.supabase.rpc('finish_pt_session', {
+  const { data, error } = await command.caller.supabase.rpc('finish_pt_session', {
     p_session_id: parsed.data.sessionId,
     p_status: parsed.data.status as Database['public']['Enums']['pt_session_status'],
   });
@@ -120,7 +119,7 @@ export async function PATCH(request: Request, { params }: Context): Promise<Resp
   const row = result.success ? result.data[0] : undefined;
   const orderStatuses: readonly string[] = Constants.public.Enums.addon_order_status;
   if (
-    !row || row.order_id !== orderId || row.session_id !== parsed.data.sessionId ||
+    !row || row.order_id !== command.orderId || row.session_id !== parsed.data.sessionId ||
     !statuses.includes(row.session_status) || !orderStatuses.includes(row.order_status)
   ) {
     return apiFail('server_error', 'operation_failed', 'That PT session could not be confirmed.');

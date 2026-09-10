@@ -1,6 +1,6 @@
 import { Constants } from '@gymloop/db';
 import { completeAddonOrderRequestSchema, completeAddonOrderResultSchema } from '@gymloop/shared';
-import { apiFail, apiOk, staffSession } from '../../../../../lib/api';
+import { apiFail, apiOk, jsonBody, staffSession } from '../../../../../lib/api';
 import { UUID_PATTERN } from '../../../../../lib/keyset';
 
 const FRONT_OFFICE_ROLES = ['gym_owner', 'gym_manager', 'front_desk'] as const;
@@ -8,18 +8,14 @@ type Context = { params: Promise<{ orderId: string }> };
 
 /** POST /api/add-on-orders/[orderId]/complete — complete a deliverable diet or product order. */
 export async function POST(request: Request, { params }: Context): Promise<Response> {
-  const caller = await staffSession(FRONT_OFFICE_ROLES);
+  const caller = await staffSession(FRONT_OFFICE_ROLES, { completeWrongAudience: 'forbidden' });
   if ('failure' in caller) return caller.failure;
   const { orderId } = await params;
   if (!UUID_PATTERN.test(orderId)) return apiFail('bad_request', 'invalid_request', 'That order was not readable.');
 
-  let payload: unknown;
-  try {
-    payload = await request.json();
-  } catch {
-    return apiFail('bad_request', 'malformed_body', 'The request body was not JSON.');
-  }
-  if (!completeAddonOrderRequestSchema.safeParse(payload).success) {
+  const body = await jsonBody(request);
+  if ('failure' in body) return body.failure;
+  if (!completeAddonOrderRequestSchema.safeParse(body.payload).success) {
     return apiFail('bad_request', 'invalid_request', 'That completion command was not readable.');
   }
 

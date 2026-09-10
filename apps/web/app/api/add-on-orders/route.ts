@@ -1,7 +1,7 @@
 import { Constants } from '@gymloop/db';
 import type { Database } from '@gymloop/db';
 import { addonSaleRequestSchema, addonSaleResultSchema } from '@gymloop/shared';
-import { apiFail, apiOk, staffSession } from '../../../lib/api';
+import { apiFail, apiOk, jsonBody, staffSession } from '../../../lib/api';
 
 const FRONT_OFFICE_ROLES = ['gym_owner', 'gym_manager', 'front_desk'] as const;
 type SaleRpcArgs = Database['public']['Functions']['record_addon_sale']['Args'];
@@ -48,15 +48,12 @@ function saleFailure(code: string, details: string | null, message: string): Res
 
 /** POST /api/add-on-orders — accept one desk sale through the claim-derived atomic RPC. */
 export async function POST(request: Request): Promise<Response> {
-  const caller = await staffSession(FRONT_OFFICE_ROLES);
+  const caller = await staffSession(FRONT_OFFICE_ROLES, { completeWrongAudience: 'forbidden' });
   if ('failure' in caller) return caller.failure;
 
-  let payload: unknown;
-  try {
-    payload = await request.json();
-  } catch {
-    return apiFail('bad_request', 'malformed_body', 'The request body was not JSON.');
-  }
+  const body = await jsonBody(request);
+  if ('failure' in body) return body.failure;
+  const { payload } = body;
 
   if (
     typeof payload === 'object' && payload !== null &&
