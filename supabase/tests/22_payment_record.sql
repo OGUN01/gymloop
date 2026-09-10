@@ -6886,19 +6886,22 @@ select results_eq(
 select set_config('request.jwt.claims', '{}', true);
 set local role service_role;
 
--- 373
+-- 373 — membership-net-price now requires discount <= price. Assertion 366
+-- left a 5000-paise discount on this unpaid row, so the former price of 1
+-- violated that CHECK. Keep this trusted-writer permission control valid by
+-- setting the price one paisa above its preserved discount instead.
 select lives_ok($$
-  update public.memberships set price_paise = 1
+  update public.memberships set price_paise = 5001
    where id = '22000000-0000-4000-8000-000000200082'::uuid
-$$, 'GL046/trusted: a service_role write is ALLOWED — it carries no app_role because it is not a staff session at all, and a rule whose subject is which staff role you are cannot be asked of it');
+$$, 'GL046/trusted: a valid unpaid re-pricing by service_role is ALLOWED — the price remains above its preserved discount, and this writer needs no staff role');
 
 set local role postgres;
 
 -- 374
 select results_eq(
-  $$ select price_paise from public.memberships where id = '22000000-0000-4000-8000-000000200082'::uuid $$,
-  $$ values (1::bigint) $$,
-  'GL046/trusted: and it LANDED — the exemption is real, not an unraised error. seed.sql writes prices and a discount with no claim, and a rule refusing that puts seed-dry-run red in CI'
+  $$ select price_paise, discount_paise from public.memberships where id = '22000000-0000-4000-8000-000000200082'::uuid $$,
+  $$ values (5001::bigint, 5000::bigint) $$,
+  'GL046/trusted: the valid re-pricing LANDED and the discount was preserved — trusted writes remain allowed while the agreed net amount remains nonnegative'
 );
 
 
