@@ -74,7 +74,7 @@ function useAddonCommand() {
       });
       const payload = await response.json() as { ok?: boolean; data?: Record<string, unknown>; error?: { code?: string } };
       if (response.ok && payload.ok === true && payload.data && typeof payload.data === 'object') {
-        const orderId = payload.data.order_id;
+        const orderId = payload.data.orderId;
         window.location.assign(destination ?? (typeof orderId === 'string' && UUID_PATTERN.test(orderId)
           ? `/add-ons/orders/${orderId}` : `${window.location.pathname}?saved=1`));
         return;
@@ -283,11 +283,11 @@ function CatalogueEditor({ offer, trainers }: { offer: AddonOffer | undefined; t
       <Field label={`Price (${offer?.currency ?? 'INR'}${!offer || offer.currency === 'INR' ? ' rupees' : ''})`}><input {...input} name="price" inputMode="decimal" defaultValue={offer ? rupeesFromPaise(offer.price_paise) : ''} required pattern="[0-9]+(\.[0-9]{1,2})?" /></Field>
       <Field label="Validity (days)"><input {...input} name="validity" type="number" min="1" step="1" defaultValue={offer?.validity_days ?? ''} required={active} /></Field>
       <Field label="Cancellation terms"><textarea {...input} name="terms" defaultValue={offer?.cancellation_terms ?? ''} required={active} /></Field>
-      {kind === 'product' ? <Field label="Stock available (explicit adjustment)"><input {...input} name="stock" type="number" min="0" step="1" defaultValue={offer?.stock_quantity ?? ''} required /></Field> : null}
+      {kind === 'product' ? <Field label="Stock available (explicit adjustment)"><input {...input} name="stock" type="number" min="0" step="1" defaultValue={offer?.stock_quantity ?? ''} required={active} /></Field> : null}
       {kind === 'pt_package' ? <>
         <Field label="Assigned trainer"><select {...input} name="trainer" required={active} defaultValue={offer?.trainer_staff_id ?? ''}><option value="">Choose a trainer</option>{trainers.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}</select></Field>
         <Field label="Gym-stated trainer qualification"><input {...input} name="qualification" required={active} defaultValue={offer?.trainer_qualification ?? ''} /></Field>
-        <Field label="Purchased session count"><input {...input} name="sessions" type="number" min="1" step="1" required defaultValue={offer?.session_count ?? ''} /></Field>
+        <Field label="Purchased session count"><input {...input} name="sessions" type="number" min="1" step="1" required={active} defaultValue={offer?.session_count ?? ''} /></Field>
       </> : null}
       <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} className="size-5" />Active and available to members</label>
     </fieldset>
@@ -303,7 +303,7 @@ export function AddonConfirmForm({ path, body, method = 'POST', label, descripti
   const preview = usePreviewReadOnly();
   const command = useAddonCommand();
   if (preview) return null;
-  return <form method="post" onSubmit={(event) => { event.preventDefault(); void command.run({ path, body, method }); }} className="mt-3 rounded-lg border border-neutral-200 p-3">
+  return <form method="post" onSubmit={async (event) => { event.preventDefault(); await command.run({ path, body, method }); }} className="mt-3 rounded-lg border border-neutral-200 p-3">
     <p className="text-sm">{description}</p>{command.status}
     <button type="submit" disabled={command.pending} className="min-h-11 w-full rounded-lg border border-neutral-500 px-4 py-2 font-medium disabled:opacity-50">{command.uncertain ? 'Retry the same confirmation' : command.pending ? 'Saving…' : label}</button>
   </form>;

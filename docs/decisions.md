@@ -521,6 +521,19 @@ missing facts share one result, and no pending attempt, reason, actor, provider
 reference or request key is exposed. This is settled before add-on test authors
 are dispatched under ADR-111.
 
+**ADR-117 — Keep add-on effects claim-complete and receipts exact at scale.**
+Every elevated add-on trigger treats the native `authenticated` role, an
+authenticated JWT role, or a non-null JWT subject as an authenticated context;
+that context must present one complete active staff identity before any
+privileged read or effect. Trusted postgres/service paths retain only their
+specified provider or database behavior. Manual refund amounts cross the HTTP
+and RPC boundary as canonical decimal text and remain bigint throughout the
+money path. Receipts fetch all refunds in bounded, stable `(created_at, id)`
+pages, reconcile completed and reserved totals exactly, label completed rows by
+`processed_at`, and expose return controls only to owners and managers. These
+choices close the final security, precision, pagination and role-control
+findings from the add-on gauntlet without widening the Phase 2 table policies.
+
 **ADR-112 — Preserve migration order when existing versions are ahead of the clock.**
 The refund unit's CLI-generated version `20260910074537` sorts before the
 already-applied `20260915100000` migration. Under the owner's ADR-111 delegation,

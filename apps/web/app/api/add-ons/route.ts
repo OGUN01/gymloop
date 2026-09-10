@@ -89,7 +89,7 @@ function catalogueWriteFailure(code: string, details: string | null): Response {
   if (
     code === 'GL055' && details !== null && [
       'catalogue_incomplete', 'offer_unavailable', 'quote_changed',
-      'unsupported_currency', 'invalid_quantity', 'invalid_validity',
+      'unsupported_currency', 'invalid_quantity', 'invalid_validity', 'trainer_unavailable',
     ].includes(details)
   ) {
     return apiFail('conflict', details, 'That offer conflicts with the current catalogue facts.');

@@ -6,6 +6,7 @@ import { Alert } from '../../alert';
 import { notFound } from 'next/navigation';
 import { loadReceipt } from '../../../../lib/payments';
 import { deskTime } from '../../../../lib/time';
+import { requireAudience } from '../../../../lib/identity-session';
 
 /**
  * A receipt — the piece of paper a member takes away, and the line an auditor
@@ -66,6 +67,9 @@ export default async function ReceiptPage({
 }) {
   const { paymentId } = await params;
   const { error } = await searchParams;
+  const { identity } = await requireAudience('console');
+  const canRefund = identity.kind === 'staff' &&
+    (identity.role === 'gym_owner' || identity.role === 'gym_manager');
   const {
     payment, gym, refunds, addonOrderId, completedReturnedPaise,
     pendingRefundPaise, refundablePaise, errorMessage,
@@ -156,8 +160,10 @@ export default async function ReceiptPage({
           <p className="mt-1 text-sm text-neutral-600">Nothing has been sent back.</p>
         ) : (
           <ul className="mt-2 divide-y divide-neutral-200 text-sm">
-            {refunds.map((row) => (
-              <li key={row.id} className="flex justify-between gap-4 py-2">
+            {refunds.map((row) => {
+              const completed = row.status === 'completed';
+              const recordedAt = completed ? row.processed_at : row.created_at;
+              return <li key={row.id} className="flex justify-between gap-4 py-2">
                 <span>
                   <span className="font-medium tabular-nums">
                     {row.currency} {rupeesFromPaise(row.amount_paise)}
@@ -167,10 +173,10 @@ export default async function ReceiptPage({
                 <span className="text-right text-neutral-600">
                   {row.staff?.full_name ?? '—'}
                   <br />
-                  {deskTime(row.created_at, gym.timezone)} · {row.status}
+                  {completed ? 'Completed at' : 'Requested at'} {recordedAt ? deskTime(recordedAt, gym.timezone) : 'not recorded'} · {row.status}
                 </span>
-              </li>
-            ))}
+              </li>;
+            })}
           </ul>
         )}
 
@@ -178,7 +184,7 @@ export default async function ReceiptPage({
             has taken nothing, and one refunded in full has nothing left. The
             database refuses both (`GL036`); offering the form anyway would be a
             button whose only outcome is an error. */}
-        {ARRIVED.has(payment.status) && refundablePaise !== '0' ? (
+        {canRefund && ARRIVED.has(payment.status) && refundablePaise !== '0' ? (
           <MutationForm method="post" action="/api/refunds" className="mt-4 flex flex-wrap items-end gap-3">
             <input type="hidden" name="paymentId" value={payment.id} />
             <input type="hidden" name="idempotencyKey" value={crypto.randomUUID()} />
@@ -189,7 +195,7 @@ export default async function ReceiptPage({
                 name="amountRupees"
                 required
                 inputMode="decimal"
-                pattern="\d{1,9}(\.\d{1,2})?"
+                pattern="[0-9]+(\.[0-9]{1,2})?"
                 defaultValue={rupeesFromPaise(refundablePaise)}
                 className="mt-1 w-32 rounded-md border border-neutral-300 px-3 py-2 text-base tabular-nums"
               />

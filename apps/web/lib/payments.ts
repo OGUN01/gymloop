@@ -159,11 +159,28 @@ export async function loadReceipt(paymentId: string) {
     // they belong, because it is the document the conversation is about. No
     // `.eq('tenant_id', …)`: `refunds_tenant_select` filters, on the same terms
     // as everything else here.
-    supabase
-      .from('refunds')
-      .select('id, amount_paise::text, currency, kind, reason, status, created_at, staff(full_name)')
-      .eq('payment_id', paymentId)
-      .order('created_at'),
+    (async () => {
+      const recorded: Array<{
+        id: string; amount_paise: string | number; currency: string; kind: string;
+        reason: string; status: string; created_at: string; processed_at: string | null;
+        staff: { full_name: string } | null;
+      }> = [];
+      let offset = 0;
+      for (;;) {
+        const page = await supabase
+          .from('refunds')
+          .select('id, amount_paise::text, currency, kind, reason, status, created_at, processed_at, staff(full_name)')
+          .eq('payment_id', paymentId)
+          .order('created_at')
+          .order('id')
+          .range(offset, offset + PAYMENT_PAGE_SIZE_MAX - 1);
+        if (page.error) return { data: null, error: page.error };
+        const rows = page.data ?? [];
+        recorded.push(...rows);
+        if (rows.length < PAYMENT_PAGE_SIZE_MAX) return { data: recorded, error: null };
+        offset += rows.length;
+      }
+    })(),
     // A receipt created by an add-on sale returns to the order where delivery
     // and manual-return confirmation happen. RLS keeps an unrelated order
     // indistinguishable from no order.

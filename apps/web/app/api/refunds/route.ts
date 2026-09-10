@@ -1,6 +1,6 @@
 import { Constants } from '@gymloop/db';
 import type { Database } from '@gymloop/db';
-import { DEFAULT_CURRENCY, paiseFromRupees, refundRequestSchema } from '@gymloop/shared';
+import { DEFAULT_CURRENCY, paiseTextFromRupees, refundRequestSchema } from '@gymloop/shared';
 import {
   seeOther,
   staffFormParsed,
@@ -66,8 +66,8 @@ export async function POST(request: Request): Promise<Response> {
   /** Back to the receipt this refund is against — the document the conversation is about. */
   const backToReceipt = (error?: string) => seeOther(request, `/payments/${paymentId}`, error);
 
-  const amountPaise = paiseFromRupees(amountRupees);
-  if (amountPaise === null || amountPaise <= 0) return backToReceipt('bad_amount');
+  const amountPaiseText = paiseTextFromRupees(amountRupees);
+  if (amountPaiseText === null || BigInt(amountPaiseText) <= BigInt(0)) return backToReceipt('bad_amount');
 
   // The vocabulary is the generated Postgres enum, checked against `Constants`
   // and never against a list written here (AGENTS.md rule 5). A forged
@@ -80,7 +80,7 @@ export async function POST(request: Request): Promise<Response> {
   // nonce itself is the key; changing money facts must not create a new key.
   const { data: recorded, error } = await supabase.rpc('record_refund', {
     p_payment_id: paymentId,
-    p_amount_paise: amountPaise,
+    p_amount_paise: amountPaiseText as unknown as number,
     p_currency: DEFAULT_CURRENCY,
     p_kind: kind as Database['public']['Enums']['refund_kind'],
     p_reason: reason,

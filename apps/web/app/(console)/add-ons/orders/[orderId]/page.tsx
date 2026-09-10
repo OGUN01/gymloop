@@ -8,6 +8,7 @@ import { ADDON_ORDER_COLUMNS, ADDON_SESSION_COLUMNS, AddonLoadError, AddonOrderF
 import { AddonConfirmForm, AddonScheduleForm, AddonSessionActions } from '../../forms';
 
 type Refund = Omit<Database['public']['Tables']['refunds']['Row'], 'amount_paise'> & { amount_paise: string };
+type Payment = NonNullable<AddonOrder['payments']>;
 
 export default async function AddonOrderPage({ params, searchParams }: {
   params: Promise<{ orderId: string }>; searchParams: Promise<{ sessionAfter?: string; saved?: string }>;
@@ -28,12 +29,12 @@ export default async function AddonOrderPage({ params, searchParams }: {
   const today = localTime === 'Gym timezone unavailable' ? null : localTime.split(' ')[0] ?? null;
   const expired = Boolean(order.expires_on && today && today > order.expires_on);
   const frontOffice = identity.kind === 'staff' && identity.role !== 'trainer';
-  const financeVisible = frontOffice;
+  const financeVisible = frontOffice || identity.kind === 'impersonation';
   const admin = identity.kind === 'staff' && (identity.role === 'gym_owner' || identity.role === 'gym_manager');
   const trainer = identity.kind === 'staff' && identity.role === 'trainer' && identity.staffId === order.trainer_staff_id;
   let sessionsQuery = supabase.from('pt_sessions').select(ADDON_SESSION_COLUMNS).eq('addon_order_id', orderId).order('id');
   if (query.sessionAfter && UUID_PATTERN.test(query.sessionAfter)) sessionsQuery = sessionsQuery.gt('id', query.sessionAfter);
-  const [sessionResult, scheduledResult, refundResult] = await Promise.all([
+  const [sessionResult, scheduledResult, refundResult, paymentResult] = await Promise.all([
     sessionsQuery.limit(PAYMENT_PAGE_SIZE_DEFAULT + 1),
     supabase.from('pt_sessions').select('id', { count: 'exact', head: true }).eq('addon_order_id', orderId).eq('status', 'scheduled'),
     financeVisible && order.payment_id ? (async () => {
@@ -51,14 +52,19 @@ export default async function AddonOrderPage({ params, searchParams }: {
         after = page.at(-1)?.id ?? null;
       }
     })() : Promise.resolve({ data: [], error: null }),
+    financeVisible && order.payment_id
+      ? supabase.from('payments').select('receipt_number,status,method,amount_paise::text,currency').eq('id', order.payment_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ]);
+  const payment = (paymentResult.data as unknown as Payment | null) ?? order.payments;
+  const visibleOrder = payment === order.payments ? order : { ...order, payments: payment };
   const sessions = (sessionResult.data ?? []) as unknown as AddonSession[];
   const shownSessions = sessions.slice(0, PAYMENT_PAGE_SIZE_DEFAULT);
   const refunds = (refundResult.data ?? []) as unknown as Refund[];
   const applicable = refunds.filter((row) => row.currency === order.currency);
   const returned = applicable.filter((row) => row.status === 'completed').reduce((sum, row) => sum + BigInt(row.amount_paise), BigInt(0));
   const pending = applicable.filter((row) => row.status === 'requested' || row.status === 'processing').reduce((sum, row) => sum + BigInt(row.amount_paise), BigInt(0));
-  const amount = BigInt(order.payments?.amount_paise ?? order.total_paise ?? '0');
+  const amount = BigInt(payment?.amount_paise ?? order.total_paise ?? '0');
   const available = amount - returned - pending;
   const fullyReturned = amount > 0 && returned === amount;
   const scheduled = scheduledResult.error ? null : scheduledResult.count;
@@ -71,17 +77,18 @@ export default async function AddonOrderPage({ params, searchParams }: {
     <header className="flex flex-wrap items-baseline justify-between gap-3"><h1 className="text-2xl font-semibold">Add-on order</h1><Link href="/add-ons#orders" className="inline-flex min-h-11 items-center underline">All add-on orders</Link></header>
     {query.saved === '1' ? <p role="status" className="my-4 rounded-lg bg-green-50 p-3 text-green-900">Confirmation recorded. Current order details are shown below.</p> : null}
     <article className="mt-5 rounded-xl border border-neutral-200 p-4 sm:p-6">
-      <AddonOrderFacts order={order} timezone={timezone} showPayment={financeVisible} />
+      <AddonOrderFacts order={visibleOrder} timezone={timezone} showPayment={financeVisible} />
       <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         <div><dt className="text-neutral-600">Member</dt><dd>{order.members?.full_name ?? 'Not recorded'}{order.members?.phone ? ` · ${order.members.phone}` : ''}</dd></div>
         <div><dt className="text-neutral-600">Sold by</dt><dd>{order.seller?.full_name ?? 'Not recorded'}</dd></div>
         {order.trainer_staff_id ? <div><dt className="text-neutral-600">Assigned trainer</dt><dd>{order.trainer?.full_name ?? 'Not recorded'}</dd></div> : null}
       </dl>
-      {financeVisible && order.payment_id ? <Link href={`/payments/${order.payment_id}`} className="mt-3 inline-flex min-h-11 items-center underline">Open receipt {order.payments?.receipt_number ?? '(number not recorded)'}</Link> : null}
+      {financeVisible && order.payment_id ? <Link href={`/payments/${order.payment_id}`} className="mt-3 inline-flex min-h-11 items-center underline">Open receipt {payment?.receipt_number ?? '(number not recorded)'}</Link> : null}
+      {financeVisible && order.payment_id && paymentResult.error ? <AddonLoadError label="payment details" href={detailHref} /> : null}
       {expired ? <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Expired · delivery is unavailable after expiry. An expired order cannot be delivered; its recorded fulfilment history stays visible.</p> : null}
       {fullyReturned ? <p className="mt-3 rounded-lg bg-neutral-100 p-3 font-medium">Fully returned · no further service can be delivered.</p> : null}
       {order.sale_snapshot?.kind === 'product' ? <p className="mt-3 text-sm">Products are handed over and completed at sale. A refund does not restock an item.</p> : null}
-      {frontOffice && deliverable && order.sale_snapshot?.kind === 'diet_plan' ? <AddonConfirmForm path={`/api/add-on-orders/${orderId}/complete`} method="POST" label="Mark diet plan delivered" description="Confirm that this member has received the purchased diet plan. This completion is final." /> : null}
+      {frontOffice && deliverable && order.sale_snapshot?.kind === 'diet_plan' ? <AddonConfirmForm path={`/api/add-on-orders/${orderId}/complete`} method="POST" body={{}} label="Mark diet plan delivered" description="Confirm that this member has received the purchased diet plan. This completion is final." /> : null}
       {today === null ? <p role="alert" className="mt-3 text-sm text-red-800">Gym timezone unavailable. You cannot deliver this order until its expiry can be verified.</p> : null}
     </article>
     {order.sale_snapshot?.kind === 'pt_package' || order.sessions_total != null ? <section className="mt-8" aria-labelledby="usage-heading">
@@ -120,7 +127,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
           <p className="font-medium">{refund.currency} {rupeesFromPaise(refund.amount_paise)} · {refund.kind} · {refund.status === 'completed' ? 'Returned · completed' : refund.status === 'requested' || refund.status === 'processing' ? 'Refund request pending' : 'Failed request · no returned money'}</p>
           <p className="mt-2 break-words">Reason: {refund.reason}</p>
           {refund.status === 'completed' ? <p className="mt-2">Recorded completion: {refund.processed_at ? gymTimeLabel(refund.processed_at, timezone) : 'Not recorded'}</p> : null}
-          {admin && (refund.status === 'requested' || refund.status === 'processing') && order.payments?.method && order.payments.method !== 'razorpay' && !refund.provider_refund_id ?
+          {admin && (refund.status === 'requested' || refund.status === 'processing') && payment?.method && payment.method !== 'razorpay' && !refund.provider_refund_id ?
             <AddonConfirmForm path={`/api/refunds/${refund.id}/complete-addon`} method="POST" body={{ expectedAmountPaise: refund.amount_paise, expectedCurrency: refund.currency, expectedReason: refund.reason }}
               label="Confirm money returned" description={`Confirm ${refund.currency} ${rupeesFromPaise(refund.amount_paise)} was actually returned for “${refund.reason}”. This records staff confirmation and does not initiate a transfer.`} /> : null}
         </li>)}</ul>}
