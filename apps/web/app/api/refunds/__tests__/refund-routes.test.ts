@@ -40,6 +40,8 @@ const STAFF_ID = '55555555-5555-4555-8555-555555555555';
 const OTHER_STAFF_ID = '77777777-7777-4777-8777-777777777777';
 const PAYMENT_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_PAYMENT_ID = '22222222-2222-4222-8222-222222222222';
+const EXACT_BIGINT_PAISE = '9007199254740993';
+const EXACT_BIGINT_RUPEES = '90071992547409.93';
 
 const SIGNED_IN = { sub: 'a6300000-0000-4000-8000-000000000003', app_role: 'gym_owner', staff_id: STAFF_ID, tenant_id: TENANT_ID };
 
@@ -228,6 +230,15 @@ describe('converting rupees to paise', () => {
     await recordRefund(post({ ...VALID, amountRupees: '150.50' }));
 
     expect(lastRequest()).toMatchObject({ p_amount_paise: 15050 });
+  });
+
+  it('ADD-009/ADD-011: converts a legal amount beyond safe Number precision without losing one paise', async () => {
+    state.results = [ok()];
+
+    const response = await recordRefund(post({ ...VALID, amountRupees: EXACT_BIGINT_RUPEES }));
+
+    expect(errorOf(response)).toBeNull();
+    expect(lastRequest()).toMatchObject({ p_amount_paise: EXACT_BIGINT_PAISE });
   });
 });
 
