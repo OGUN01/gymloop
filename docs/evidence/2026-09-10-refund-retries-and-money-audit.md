@@ -51,6 +51,12 @@ rule: push the verified migration and caller, then generate types from the
 applied schema and push that generated file. The first head is not claimed
 fully green; final typecheck, build, drift and CI remain required.
 
+CI applied migration commit `363d917` in database workflow `34453701833`.
+The CLI then generated the new nullable refund key and exact RPC signature
+from Cloud; local typecheck and the production build both pass with those
+generated types. The build's incidental `next-env.d.ts` path rewrite was
+restored. Final CI and live acceptance checks remain pending.
+
 A fresh-context Astra critic returned GO for static review: preserved original
 enforcement clauses, correct named order, exact invoker replay, no swallowed
 unrelated failures, narrow audit privilege and complete summaries, real staff

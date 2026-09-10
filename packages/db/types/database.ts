@@ -2184,6 +2184,7 @@ export type Database = {
           created_at: string
           currency: string
           id: string
+          idempotency_key: string | null
           initiated_by_staff_id: string | null
           kind: Database["public"]["Enums"]["refund_kind"]
           payment_id: string
@@ -2199,6 +2200,7 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          idempotency_key?: string | null
           initiated_by_staff_id?: string | null
           kind: Database["public"]["Enums"]["refund_kind"]
           payment_id: string
@@ -2214,6 +2216,7 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          idempotency_key?: string | null
           initiated_by_staff_id?: string | null
           kind?: Database["public"]["Enums"]["refund_kind"]
           payment_id?: string
@@ -2414,6 +2417,20 @@ export type Database = {
       }
     }
     Functions: {
+      record_refund: {
+        Args: {
+          p_amount_paise: number
+          p_currency: string
+          p_idempotency_key: string
+          p_kind: Database["public"]["Enums"]["refund_kind"]
+          p_payment_id: string
+          p_reason: string
+        }
+        Returns: {
+          refund_id: string
+          replayed: boolean
+        }[]
+      }
       run_no_show_scan_all: {
         Args: never
         Returns: {
