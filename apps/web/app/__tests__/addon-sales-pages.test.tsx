@@ -7,6 +7,7 @@ import { PreviewProvider } from '../preview-context';
 const state = vi.hoisted(() => ({
   rows: {} as Record<string, Array<Record<string, unknown>>>,
   error: null as { message: string } | null,
+  tableErrors: {} as Record<string, { message: string }>,
   identity: { kind: 'staff', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', tenantId: '11111111-1111-4111-8111-111111111111', staffId: '22222222-2222-4222-8222-222222222222', role: 'gym_owner' } as Record<string, unknown>,
   selections: [] as Array<{ table: string; columns: string }>,
 }));
@@ -21,9 +22,9 @@ vi.mock('../../lib/identity-session', () => ({
         const query = {
           select: (columns: string) => { state.selections.push({ table, columns }); return query; },
           eq: (key: string, value: unknown) => { rows = rows.filter((row) => row[key] === value); return query; },
-          order: () => query, limit: () => query, maybeSingle: async () => ({ data: rows[0] ?? null, error: state.error }),
+          order: () => query, limit: () => query, maybeSingle: async () => ({ data: rows[0] ?? null, error: state.tableErrors[table] ?? state.error }),
           then: (resolve: (value: { data: typeof rows | null; error: typeof state.error }) => unknown) =>
-            Promise.resolve({ data: state.error ? null : rows, error: state.error }).then(resolve),
+            Promise.resolve({ data: (state.tableErrors[table] ?? state.error) ? null : rows, error: state.tableErrors[table] ?? state.error }).then(resolve),
         };
         return query;
       },
@@ -38,9 +39,9 @@ vi.mock('../../lib/supabase/server', () => ({
       const query = {
         select: (columns: string) => { state.selections.push({ table, columns }); return query; },
         eq: (key: string, value: unknown) => { rows = rows.filter((row) => row[key] === value); return query; },
-        order: () => query, limit: () => query, maybeSingle: async () => ({ data: rows[0] ?? null, error: state.error }),
+        order: () => query, limit: () => query, maybeSingle: async () => ({ data: rows[0] ?? null, error: state.tableErrors[table] ?? state.error }),
         then: (resolve: (value: { data: typeof rows | null; error: typeof state.error }) => unknown) =>
-          Promise.resolve({ data: state.error ? null : rows, error: state.error }).then(resolve),
+          Promise.resolve({ data: (state.tableErrors[table] ?? state.error) ? null : rows, error: state.tableErrors[table] ?? state.error }).then(resolve),
       };
       return query;
     },
@@ -57,6 +58,7 @@ const html = (node: ReactNode) => renderToStaticMarkup(node);
 beforeEach(() => {
   state.rows = {};
   state.error = null;
+  state.tableErrors = {};
   state.selections = [];
   state.identity = { kind: 'staff', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', tenantId: '11111111-1111-4111-8111-111111111111', staffId: '22222222-2222-4222-8222-222222222222', role: 'gym_owner' };
 });
@@ -124,6 +126,23 @@ describe('staff add-on workspace', () => {
 });
 
 describe('order detail and receipt truthfulness', () => {
+  it('keeps permitted payment and return reads visible in preview while hiding mutations', async () => {
+    state.identity = { kind: 'impersonation', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', tenantId: '11111111-1111-4111-8111-111111111111', impersonationSessionId: '99999999-9999-4999-8999-999999999999' };
+    state.rows.addon_orders = [{ id: ORDER_ID, member_id: MEMBER_ID, status: 'active', quantity: 1,
+      total_paise: '10000', unit_price_paise: '10000', currency: 'INR', payment_id: PRODUCT_ID,
+      payments: { id: PRODUCT_ID, receipt_number: 'PREVIEW/0001', status: 'paid', amount_paise: '10000', currency: 'INR' },
+      sale_snapshot: { kind: 'diet_plan', name: 'Previewed diet', description: 'Sold disclosure', cancellationTerms: 'Terms', validityDays: 30 } }];
+    state.rows.payments = [{ id: PRODUCT_ID, receipt_number: 'PREVIEW/0001', status: 'paid', amount_paise: '10000', currency: 'INR' }];
+    state.rows.refunds = [{ id: MEMBER_ID, payment_id: PRODUCT_ID, status: 'completed', kind: 'refund', amount_paise: '2500', currency: 'INR', processed_at: '2026-09-10T09:00:00Z' }];
+    const { default: Page } = await import('../(console)/add-ons/orders/[orderId]/page');
+    const markup = html(<PreviewProvider readOnly>{await Page({ params: Promise.resolve({ orderId: ORDER_ID }), searchParams: Promise.resolve({}) })}</PreviewProvider>);
+    expect(markup).toContain('PREVIEW/0001');
+    expect(markup).toContain(`href="/payments/${PRODUCT_ID}"`);
+    expect(markup).toContain('25.00');
+    expect(state.selections.some(({ table }) => table === 'refunds')).toBe(true);
+    expect(markup).not.toMatch(/<form[^>]*method="post|mark diet plan delivered|confirm money returned/i);
+  });
+
   it('does not turn trainer-hidden payments and refunds into zero returned money or an unusable receipt link', async () => {
     state.identity = { ...state.identity, role: 'trainer' };
     state.rows.addon_orders = [{
@@ -185,6 +204,22 @@ describe('order detail and receipt truthfulness', () => {
 });
 
 describe('member add-on page and preview', () => {
+  it('shows a reservation section error and recovery when member PT usage counts cannot load', async () => {
+    state.identity = { kind: 'member', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', tenantId: '11111111-1111-4111-8111-111111111111', memberId: MEMBER_ID };
+    state.rows.addon_orders = [{ id: ORDER_ID, tenant_id: '11111111-1111-4111-8111-111111111111', member_id: MEMBER_ID,
+      status: 'active', quantity: 1, sessions_used: 1, sessions_total: 5, total_paise: '10000', unit_price_paise: '10000', currency: 'INR',
+      sale_snapshot: { kind: 'pt_package', name: 'Member coaching history', description: 'Sold disclosure', cancellationTerms: 'Terms', validityDays: 30 } }];
+    state.tableErrors.pt_sessions = { message: 'Internal reservation count query failed' };
+    const { default: Page } = await import('../member/add-ons/page');
+    const markup = html(await Page(pageProps));
+    const text = markup.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+    expect(markup).toContain('Member coaching history');
+    expect(text).toMatch(/(?:reservation|session|usage|booking).*(?:could not|unable|unavailable|failed)|(?:could not|unable|unavailable|failed).*(?:reservation|session|usage|booking)/i);
+    expect(text).toMatch(/retry|try again|reload/i);
+    expect(markup).not.toContain('Internal reservation count query failed');
+    expect(text).not.toMatch(/available to book\s*4|scheduled\s*0/i);
+  });
+
   it('uses a safe trainer label for a sold PT order whose staff join is hidden', async () => {
     const trainerId = '77777777-7777-4777-8777-777777777777';
     state.identity = { kind: 'member', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', tenantId: '11111111-1111-4111-8111-111111111111', memberId: MEMBER_ID };

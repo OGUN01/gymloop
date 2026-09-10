@@ -4,7 +4,7 @@ begin;
 set local role postgres;
 set local search_path=extensions,public;
 select set_config('request.jwt.claims','',true);
-select plan(57);
+select plan(72);
 
 insert into public.organizations(id,name,gym_code,status,timezone,currency) values
  ('57000000-0000-4000-8000-000000000001','Acceptance evidence tests','ADD57A','active','Asia/Kolkata','INR');
@@ -121,7 +121,10 @@ begin
  elsif v_source='addon_orders' then
   v_claims:=v_claims||'{"sub":"57000000-0000-4000-8000-000000000904","app_role":"front_desk","staff_id":"57000000-0000-4000-8000-000000000023"}';
  end if;
- if p_case='missing_actor' then v_claims:=v_claims-'staff_id';
+ if p_case='missing_subject' then v_claims:=v_claims-'sub';
+ elsif p_case='trusted_postgres' then v_claims:='{}';
+ elsif p_case='trusted_service' then v_claims:='{"role":"service_role"}';
+ elsif p_case='missing_actor' then v_claims:=v_claims-'staff_id';
  elsif p_case='unknown_actor' then v_claims:=v_claims||'{"staff_id":"57000000-0000-4000-8000-000000000999"}';
  elsif p_case='foreign_tenant' then v_claims:=v_claims||'{"tenant_id":"57000000-0000-4000-8000-000000000099"}';
  elsif p_case='member_role' then v_claims:=v_claims-'staff_id'||'{"sub":"57000000-0000-4000-8000-000000000903","app_role":"member","member_id":"57000000-0000-4000-8000-000000000031"}';
@@ -133,7 +136,9 @@ begin
   when v_source='pt_sessions' then format('update %s set status=''completed'' where id=$1',v_target)
   else format('update %s set status=''completed'',processed_at=transaction_timestamp() where id=$1',v_target) end;
  perform set_config('request.jwt.claims',v_claims::text,true);
- set local role authenticated;
+ if p_case='trusted_postgres' then set local role postgres;
+ elsif p_case='trusted_service' then set local role service_role;
+ else set local role authenticated; end if;
  begin execute v_command using v_id;
  exception when others then get stacked diagnostics v_state=returned_sqlstate,v_detail=pg_exception_detail; end;
  set local role postgres;
@@ -148,9 +153,9 @@ end $fn$;
 create temp table capability_results(helper text,scenario text,result jsonb);
 insert into capability_results select helper,scenario,pg_temp.capability_probe(helper,scenario)
 from unnest(array['apply_addon_order_effects','apply_addon_refund_effect','apply_pt_session_effect','lock_addon_order_for_pt_session','lock_addon_product_for_order']) helper
-cross join unnest(array['control','wrong_table','wrong_operation','missing_actor','unknown_actor','foreign_tenant','member_role','preview','malformed_tenant','wrong_subject']) scenario;
-select ok(not result ? 'harnessError' and case when scenario='control' then result->>'error' is null when scenario in ('wrong_table','wrong_operation') then result->>'error' is not null and (result->>'unchanged')::boolean else result->>'error'='42501' and (result->>'unchanged')::boolean end,
- 'A-005/A-008/A-012 capability '||helper||': '||scenario||case when scenario='control' then ' permits its authorized source actor action' else ' refuses before changing source, stock, usage, return or audit evidence' end)
+cross join unnest(array['control','trusted_postgres','trusted_service','missing_subject','wrong_table','wrong_operation','missing_actor','unknown_actor','foreign_tenant','member_role','preview','malformed_tenant','wrong_subject']) scenario;
+select ok(not result ? 'harnessError' and case when scenario in ('control','trusted_postgres','trusted_service') then result->>'error' is null when scenario in ('wrong_table','wrong_operation') then result->>'error' is not null and (result->>'unchanged')::boolean else result->>'error'='42501' and (result->>'unchanged')::boolean end,
+ 'A-005/A-008/A-012 capability '||helper||': '||scenario||case when scenario in ('control','trusted_postgres','trusted_service') then ' permits its source action' else ' refuses before changing source, stock, usage, return or audit evidence' end)
 from capability_results order by helper,scenario;
 select * from finish();
 rollback;

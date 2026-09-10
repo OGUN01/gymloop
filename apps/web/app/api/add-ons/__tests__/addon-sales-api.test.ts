@@ -124,9 +124,10 @@ describe('catalogue command parsing', () => {
 
   it.each([
     ['POST', 'GL055', 'catalogue_incomplete'], ['PATCH', 'GL055', 'catalogue_incomplete'],
+    ['POST', 'GL055', 'trainer_unavailable'], ['PATCH', 'GL055', 'trainer_unavailable'],
     ['POST', '40001', 'retryable'], ['PATCH', '40001', 'retryable'],
     ['POST', '40P01', 'retryable'], ['PATCH', '40P01', 'retryable'],
-  ] as const)('%s maps catalogue %s to recoverable HTTP 409', async (method, code, expected) => {
+  ] as const)('%s maps catalogue %s/%s to recoverable HTTP 409', async (method, code, expected) => {
     state.results = [{ data: null, error: { code, message: 'Database refusal', ...(code === 'GL055' ? { details: expected } : {}) } }];
     const route = await addonRoute();
     const response = await route[method](json('/api/add-ons', method === 'PATCH' ? { ...offer, productId: PRODUCT_ID } : offer, method));
