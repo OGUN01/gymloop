@@ -1,7 +1,6 @@
 # Phase 6 growth surfaces — contract draft
 
-**Status:** DRAFT for product-owner approval. This document proposes behavior;
-it does not claim that its tests, implementation, migrations or verification exist.
+**Status:** ACCEPTED under the owner's delegated decision authority (ADR-111), 2026-09-10. Implementation and verification remain outstanding.
 
 **Phase boundary:** finish and archive the Phase 5 cleanup before opening the Phase 6 OpenSpec change. The product owner has resolved OPEN-028: a membership's agreed amount is `price_paise - discount_paise`; ₹12,000 less ₹1,200 is fully paid by ₹10,800. Phase 5 owns making that rule true, freezing every term it reads, and proving it. Phase 6 only consumes the result in reminders and metrics.
 
@@ -21,7 +20,7 @@ The Phase 6 OpenSpec change must inherit these facts rather than restate or weak
 - OPEN-010 is unresolved implementation debt that Phase 6 must close before sending: consent time is server-stamped, and reminder de-duplication keys have one deterministic grammar.
 - OPEN-018 belongs here: gym onboarding creates the organization and its settings together, rather than relying on a trigger or allowing a gym with no settings.
 
-## Proposed decisions that need explicit approval
+## Adopted product decisions (ADR-111)
 
 The EARS requirements below assume the recommended answer in this table. Change the affected requirements before test authors are dispatched if any answer is rejected.
 

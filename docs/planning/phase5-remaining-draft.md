@@ -1,6 +1,6 @@
 # Phase 5 remaining contracts
 
-Status: proposed continuation after the first-grant change. The net-price
+Status: ACCEPTED under the owner's delegated decision authority (ADR-111), 2026-09-10. Implementation and verification remain outstanding. The net-price
 decision below was explicitly approved by the owner on 2026-09-10; the refund
 retry and refusal-order requirements make OPEN-031 and OPEN-034 concrete.
 
