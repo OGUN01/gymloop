@@ -86,8 +86,13 @@ function catalogueWriteFailure(code: string, details: string | null): Response {
   if (code === '42501') {
     return apiFail('forbidden', 'not_permitted', 'Your role may not change this catalogue.');
   }
-  if (code === 'GL055' && details === 'catalogue_incomplete') {
-    return apiFail('conflict', 'catalogue_incomplete', 'Complete the required offer details before saving.');
+  if (
+    code === 'GL055' && details !== null && [
+      'catalogue_incomplete', 'offer_unavailable', 'quote_changed',
+      'unsupported_currency', 'invalid_quantity', 'invalid_validity',
+    ].includes(details)
+  ) {
+    return apiFail('conflict', details, 'That offer conflicts with the current catalogue facts.');
   }
   if (code === '40001' || code === '40P01') {
     return apiFail('conflict', 'retryable', 'That offer changed while it was being saved. Please retry.');
