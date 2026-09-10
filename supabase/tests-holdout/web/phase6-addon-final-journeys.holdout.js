@@ -80,7 +80,7 @@ describe('independent final add-on recovery journeys', () => {
       notFound: () => { throw new Error('Unexpected not found'); },
       useRouter: () => router, usePathname: () => '/add-ons', useSearchParams: () => new URLSearchParams(),
     }));
-    vi.doMock('next/link', () => ({ default: (props) => React.createElement('a', props) }));
+    vi.doMock(requireWeb.resolve('next/link'), () => ({ default: (props) => React.createElement('a', props) }));
     const hooks = {
       useState: (initial) => {
         const state = activeHooks; const index = hookIndex++;
@@ -112,7 +112,7 @@ describe('independent final add-on recovery journeys', () => {
   });
 
   afterEach(() => {
-    for (const path of ['../../../apps/web/lib/supabase/server.ts', 'next/navigation', 'next/link', 'react']) vi.doUnmock(path);
+    for (const path of ['../../../apps/web/lib/supabase/server.ts', 'next/navigation', requireWeb.resolve('next/link'), 'react']) vi.doUnmock(path);
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
