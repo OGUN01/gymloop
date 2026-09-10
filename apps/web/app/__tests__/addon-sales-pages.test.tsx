@@ -211,7 +211,7 @@ describe('member add-on page and preview', () => {
       sale_snapshot: { kind: 'pt_package', name: 'Member coaching history', description: 'Sold disclosure', cancellationTerms: 'Terms', validityDays: 30 } }];
     state.tableErrors.pt_sessions = { message: 'Internal reservation count query failed' };
     const { default: Page } = await import('../member/add-ons/page');
-    const markup = html(await Page(pageProps));
+    const markup = html(await Page({ searchParams: Promise.resolve({ order: ORDER_ID }) }));
     const text = markup.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
     expect(markup).toContain('Member coaching history');
     expect(text).toMatch(/(?:reservation|session|usage|booking).*(?:could not|unable|unavailable|failed)|(?:could not|unable|unavailable|failed).*(?:reservation|session|usage|booking)/i);
