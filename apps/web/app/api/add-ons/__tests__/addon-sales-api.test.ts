@@ -246,6 +246,32 @@ describe('recording an add-on sale', () => {
 });
 
 describe('PT, delivery, and manual-return commands', () => {
+  it('keeps a named GL052 schedule retry conflict recoverable as HTTP 409', async () => {
+    state.claims = TRAINER;
+    state.results = [{ data: null, error: { code: 'GL052', message: 'request conflict', details: 'idempotency_conflict' } }];
+    const { POST } = await sessionRoute();
+    const response = await POST(json(`/api/add-on-orders/${ORDER_ID}/sessions`, {
+      sessionId: SESSION_ID, startsAt: '2026-09-10T10:00:00+05:30', endsAt: '2026-09-10T11:00:00+05:30', notes: null,
+    }), { params: Promise.resolve({ orderId: ORDER_ID }) });
+    expect(response.status).toBe(409);
+    expect(await body(response)).toMatchObject({ ok: false, error: { code: 'idempotency_conflict' } });
+  });
+
+  it.each([
+    ['GL048', 'idempotency_conflict'],
+    ['GL041', 'refund_is_a_record'],
+    ['GL040', 'refund_not_yours'],
+    ['GL036', 'exceeds_payment'],
+  ])('manual return preserves the known %s refusal as HTTP 409', async (code, details) => {
+    state.results = [{ data: null, error: { code, message: 'Named money refusal', details } }];
+    const { POST } = await returnRoute();
+    const response = await POST(json(`/api/refunds/${REFUND_ID}/complete-addon`, {
+      expectedAmountPaise: '10000', expectedCurrency: 'INR', expectedReason: 'Cash returned at the desk',
+    }), { params: Promise.resolve({ refundId: REFUND_ID }) });
+    expect(response.status).toBe(409);
+    expect(await body(response)).toMatchObject({ ok: false, error: { code: details } });
+  });
+
   it('schedules with an explicit generated session id and has a replay-safe, immutable slot payload', async () => {
     state.claims = TRAINER;
     state.results = [{ data: [{ session_id: SESSION_ID, order_id: ORDER_ID, replayed: false }], error: null }];

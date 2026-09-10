@@ -124,6 +124,25 @@ describe('staff add-on workspace', () => {
 });
 
 describe('order detail and receipt truthfulness', () => {
+  it('does not turn trainer-hidden payments and refunds into zero returned money or an unusable receipt link', async () => {
+    state.identity = { ...state.identity, role: 'trainer' };
+    state.rows.addon_orders = [{
+      id: ORDER_ID, member_id: MEMBER_ID, status: 'active', quantity: 1,
+      total_paise: '10000', unit_price_paise: '10000', currency: 'INR', payment_id: PRODUCT_ID,
+      payments: null, sessions_used: 0, sessions_total: 2,
+      sale_snapshot: { kind: 'pt_package', name: 'Accepted coaching', description: 'Frozen disclosure', cancellationTerms: 'Terms', validityDays: 30, trainerQualification: 'Gym qualification' },
+    }];
+    state.rows.refunds = [];
+    const { default: Page } = await import('../(console)/add-ons/orders/[orderId]/page');
+    const markup = html(await Page({ params: Promise.resolve({ orderId: ORDER_ID }), searchParams: Promise.resolve({}) }));
+    const text = markup.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+    expect(markup).toContain('Accepted coaching');
+    expect(markup).not.toContain(`href="/payments/${PRODUCT_ID}"`);
+    expect(text).not.toMatch(/returned\s*(?:₹|INR\s*)?0\.00/i);
+    expect(text).not.toMatch(/available for (?:another )?refund request\s*(?:₹|INR\s*)?100\.00/i);
+    expect(text).toMatch(/payment.*(?:unavailable|restricted|not visible|not permitted|not recorded)|(?:owner|manager).*payment/i);
+  });
+
   it('shows frozen terms, receipt linkage, exact decimal-string money, inclusive dates, and a completed-return label', async () => {
     state.rows.addon_orders = [{
       id: ORDER_ID, member_id: MEMBER_ID, status: 'active', quantity: 1,
@@ -166,6 +185,21 @@ describe('order detail and receipt truthfulness', () => {
 });
 
 describe('member add-on page and preview', () => {
+  it('labels a missing member-visible trainer name without substituting the internal staff UUID', async () => {
+    const trainerId = '77777777-7777-4777-8777-777777777777';
+    state.identity = { kind: 'member', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', tenantId: '11111111-1111-4111-8111-111111111111', memberId: MEMBER_ID };
+    state.rows.addon_products = [{
+      id: PRODUCT_ID, tenant_id: '11111111-1111-4111-8111-111111111111', name: 'Member PT offer', kind: 'pt_package',
+      description: 'Coaching', price_paise: '10000', currency: 'INR', validity_days: 30, cancellation_terms: 'Terms',
+      session_count: 2, trainer_staff_id: trainerId, trainer_qualification: 'Gym-stated qualification', staff: null, trainer: null, is_active: true,
+    }];
+    const { default: Page } = await import('../member/add-ons/page');
+    const markup = html(await Page(pageProps));
+    expect(markup).toContain('Member PT offer');
+    expect(markup).toContain('Gym-stated qualification');
+    expect(markup).not.toContain(trainerId);
+  });
+
   it('shows current offerings and own frozen history, but no staff sale, receipt, fulfilment, or refund-confirmation controls', async () => {
     state.identity = { kind: 'member', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', tenantId: '11111111-1111-4111-8111-111111111111', memberId: MEMBER_ID };
     state.rows.addon_products = [{ id: PRODUCT_ID, tenant_id: '11111111-1111-4111-8111-111111111111', name: 'Visible plan', kind: 'diet_plan', price_paise: '10000', currency: 'INR', description: 'Plan details', validity_days: 30, cancellation_terms: 'Terms', is_active: true }];
