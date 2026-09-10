@@ -222,7 +222,7 @@ describe('member add-on page and preview', () => {
       listAfter: 'order-list-cursor',
     }) }));
     const secondOrderHref = [...markup.matchAll(/href="([^"]+)"/g)]
-      .map(([, href]) => href.replaceAll('&amp;', '&'))
+      .map(([, href]) => href!.replaceAll('&amp;', '&'))
       .find((href) => new URL(href, 'https://gymloop.test').searchParams.get('order') === PRODUCT_ID);
 
     expect(secondOrderHref).toBeDefined();
