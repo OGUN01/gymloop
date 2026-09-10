@@ -1,3 +1,4 @@
+import { MutationForm } from '../../../preview-context';
 import { rupeesFromPaise } from '@gymloop/shared';
 import { Constants } from '@gymloop/db';
 import Link from 'next/link';
@@ -169,7 +170,7 @@ export default async function ReceiptPage({
             database refuses both (`GL036`); offering the form anyway would be a
             button whose only outcome is an error. */}
         {ARRIVED.has(payment.status) && refundablePaise > 0 ? (
-          <form method="post" action="/api/refunds" className="mt-4 flex flex-wrap items-end gap-3">
+          <MutationForm method="post" action="/api/refunds" className="mt-4 flex flex-wrap items-end gap-3">
             <input type="hidden" name="paymentId" value={payment.id} />
             <input type="hidden" name="idempotencyKey" value={crypto.randomUUID()} />
             <label className="text-sm">
@@ -210,7 +211,7 @@ export default async function ReceiptPage({
             <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-white">
               Record refund
             </button>
-          </form>
+          </MutationForm>
         ) : null}
 
         <p className="mt-2 text-xs text-neutral-500">

@@ -1,3 +1,4 @@
+import { MutationForm } from '../../preview-context';
 import Link from 'next/link';
 import { Constants } from '@gymloop/db';
 import { createServerSupabase } from '../../../lib/supabase/server';
@@ -5,7 +6,7 @@ import { createServerSupabase } from '../../../lib/supabase/server';
 /**
  * The one member form — used to add a member and to change one.
  *
- * A real `<form method="post">` posting to a Route Handler, with no client
+ * A real `<MutationForm method="post">` posting to a Route Handler, with no client
  * component anywhere in it, so it submits before any JavaScript has loaded.
  *
  * Two things it deliberately does not do.
@@ -94,7 +95,7 @@ export async function MemberForm({
         </p>
       )}
 
-      <form method="post" action={action} className="mt-6 space-y-4">
+      <MutationForm method="post" action={action} className="mt-6 space-y-4">
         <Field label="Full name">
           <input
             name="full_name"
@@ -164,7 +165,7 @@ export async function MemberForm({
         <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-white">
           Save
         </button>
-      </form>
+      </MutationForm>
     </main>
   );
 }

@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createServerSupabase } from './supabase/server';
+import { readIdentity } from './identity-session';
+import { identityHome } from './identity';
 
 /**
  * Establishes a staff session from an email and password submitted by a
@@ -34,7 +36,8 @@ export async function signIn(formData: FormData): Promise<void> {
   // already rendered for the signed-out visitor are reused and the console
   // renders against the old, sessionless cache entry.
   revalidatePath('/', 'layout');
-  redirect('/console');
+  const session = await readIdentity(supabase);
+  redirect(session.signedIn ? identityHome(session.identity) : '/sign-in?failed=1');
 }
 
 /** Clears the session, after which every console route redirects to sign-in. */

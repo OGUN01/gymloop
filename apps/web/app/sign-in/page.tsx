@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { PRODUCT_NAME } from '@gymloop/shared';
 import { signIn } from '../../lib/auth-actions';
-import { createServerSupabase } from '../../lib/supabase/server';
+import { readIdentity } from '../../lib/identity-session';
+import { identityHome } from '../../lib/identity';
 
 const FIELD_CLASS =
   'w-full rounded-md border border-neutral-300 px-3 py-2 text-base outline-none focus:border-neutral-900';
@@ -11,12 +12,8 @@ export default async function SignInPage({
 }: {
   searchParams: Promise<{ failed?: string }>;
 }) {
-  const supabase = await createServerSupabase();
-  const { data } = await supabase.auth.getClaims();
-
-  if (data?.claims) {
-    redirect('/console');
-  }
+  const session = await readIdentity();
+  if (session.signedIn) redirect(identityHome(session.identity));
 
   const { failed } = await searchParams;
 
@@ -24,7 +21,7 @@ export default async function SignInPage({
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-6">
       <div>
         <h1 className="text-2xl font-semibold">{PRODUCT_NAME}</h1>
-        <p className="mt-1 text-sm text-neutral-600">Staff sign-in.</p>
+        <p className="mt-1 text-sm text-neutral-600">Sign in to your account.</p>
       </div>
 
       {failed ? (
@@ -71,7 +68,7 @@ export default async function SignInPage({
       </form>
 
       <p className="text-sm text-neutral-600">
-        There is no self sign-up. Your gym creates staff accounts; ask whoever runs it.
+        Use the account linked to your gym or platform access. Ask your gym if you need help signing in.
       </p>
     </main>
   );

@@ -1,3 +1,4 @@
+import { MutationForm } from '../../preview-context';
 import { Constants } from '@gymloop/db';
 import { RED_LIST_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
 import Link from 'next/link';
@@ -100,7 +101,7 @@ export default async function RedListPage({
                   : `${row.last_follow_up_by ?? 'Someone'} tried ${row.last_follow_up_channel} — ${row.last_follow_up_outcome}`}
               </p>
 
-              <form method="post" action="/api/follow-ups" className="mt-3 flex flex-wrap items-end gap-2">
+              <MutationForm method="post" action="/api/follow-ups" className="mt-3 flex flex-wrap items-end gap-2">
                 {/* A view's columns are nullable in the generated types even when the
                     underlying ones are not, so the id is coalesced rather than asserted. */}
                 <input type="hidden" name="caseId" value={row.id ?? ''} />
@@ -145,7 +146,7 @@ export default async function RedListPage({
                 <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-white">
                   Log call
                 </button>
-              </form>
+              </MutationForm>
             </li>
           ))}
         </ul>

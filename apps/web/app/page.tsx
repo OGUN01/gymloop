@@ -1,9 +1,8 @@
-import { PRODUCT_NAME } from '@gymloop/shared';
+import { redirect } from 'next/navigation';
+import { identityHome } from '../lib/identity';
+import { readIdentity } from '../lib/identity-session';
 
-export default function Page() {
-  return (
-    <main className="flex min-h-screen items-center justify-center">
-      <h1 className="text-2xl font-semibold">{PRODUCT_NAME}</h1>
-    </main>
-  );
+export default async function Page() {
+  const session = await readIdentity();
+  redirect(session.signedIn ? identityHome(session.identity) : '/sign-in');
 }

@@ -202,3 +202,13 @@ export function deskTime(iso: string, timezone: string): string {
     return at(DEFAULT_TIMEZONE);
   }
 }
+
+/** Label gym-local instants without attributing a fallback time to an invalid zone. */
+export function gymTimeLabel(iso: string, timezone: string): string {
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date(iso));
+    return `${deskTime(iso, timezone)} · ${timezone}`;
+  } catch {
+    return 'Gym timezone unavailable';
+  }
+}

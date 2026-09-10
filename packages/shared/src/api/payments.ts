@@ -40,23 +40,21 @@ export function paiseFromRupees(rupees: string): number | null {
 /**
  * `150050` → `"1500.50"`, for a human to read on a receipt.
  *
- * **The division by 100 happens here and nowhere else** (MNY-001): integer
- * paise all the way from the column to the edge, and one conversion on the way
- * to a person. Integer arithmetic, so no intermediate is ever a float —
- * `(paise - paise % 100) / 100` is exact for every value a `bigint` money
- * column will hold in this product.
+ * Stored bigint amounts arrive as canonical decimal strings so JSON cannot
+ * round them first. BigInt arithmetic preserves every digit; existing callers
+ * may still supply safe integer numbers. No rounding is performed (MNY-001).
  */
-export function rupeesFromPaise(paise: number): string {
-  // `%` keeps the DIVIDEND's sign in JavaScript, so `-50 % 100` is `-50` and
-  // `padStart` no-ops on a string already that long: the naive version returned
-  // `"0.-50"`. Unreachable today — `amount_paise > 0` on both money tables and
-  // the handler refuses anything else — but a money formatter that garbles
-  // rather than refuses has no defence of its own, and the next caller will not
-  // know that.
-  const sign = paise < 0 ? '-' : '';
-  const magnitude = Math.abs(paise);
-  const whole = (magnitude - (magnitude % PAISE_PER_RUPEE)) / PAISE_PER_RUPEE;
-  return `${sign}${whole}.${String(magnitude % PAISE_PER_RUPEE).padStart(PAISE_DIGITS, '0')}`;
+export function rupeesFromPaise(paise: number | string): string {
+  if (typeof paise === 'number') {
+    if (!Number.isSafeInteger(paise)) throw new RangeError('Paise must be a safe integer.');
+  } else if (typeof paise !== 'string' || !/^(?:0|-?[1-9][0-9]*)$/.test(paise)) {
+    throw new TypeError('Paise must be a canonical integer string.');
+  }
+  const exact = BigInt(paise);
+  const sign = exact < 0 ? '-' : '';
+  const magnitude = exact < 0 ? -exact : exact;
+  const perRupee = BigInt(PAISE_PER_RUPEE);
+  return `${sign}${magnitude / perRupee}.${String(magnitude % perRupee).padStart(PAISE_DIGITS, '0')}`;
 }
 
 /**

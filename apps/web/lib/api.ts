@@ -1,4 +1,6 @@
 import { createServerSupabase } from './supabase/server';
+import { readIdentity } from './identity-session';
+import type { StaffRole, PlatformRole } from './identity';
 
 /**
  * The typed error envelope every Route Handler answers with
@@ -70,38 +72,55 @@ export function apiFail(status: ApiFailStatus, code: string, message: string): R
 
 export type StaffSession = {
   supabase: Awaited<ReturnType<typeof createServerSupabase>>;
+  userId: string;
   tenantId: string;
   staffId: string;
+  role: StaffRole;
 };
 
-/**
- * The caller of a console Route Handler, or the response that refuses them.
- *
- * Claims are read with `getClaims()`, which verifies the token's signature —
- * `getSession()` would hand back whatever cookie the browser sent. The gate is
- * the presence of `staff_id` and `tenant_id`, the same test
- * `app/(console)/layout.tsx` applies, because the access-token hook stamps
- * `staff_id` only for a user who resolved to an active `staff` row.
- *
- * It deliberately checks **membership of a gym, not a role**. Which roles may
- * write which table is the role matrix's answer and nowhere else's
- * (`openspec/specs/authorization/spec.md`): a trainer reaching this handler is
- * refused by `attendance_tenant_write`, arrives back as SQLSTATE 42501, and is
- * reported as 403. Re-listing the front-office roles here would be a second copy
- * of the matrix that can disagree with the first.
- */
-export async function staffSession(): Promise<{ session: StaffSession } | { failure: Response }> {
-  const supabase = await createServerSupabase();
-  const { data } = await supabase.auth.getClaims();
-  const claims = data?.claims;
-
-  if (!claims || typeof claims.staff_id !== 'string' || typeof claims.tenant_id !== 'string') {
+/** Complete real-staff identity, optionally restricted to explicit allowed roles. */
+export async function staffSession(allowedRoles?: readonly StaffRole[]): Promise<{ session: StaffSession } | { failure: Response }> {
+  const { supabase, identity } = await readIdentity();
+  if (identity.kind !== 'staff') {
     return {
       failure: apiFail('unauthorized', 'not_signed_in', 'Sign in as staff of a gym first.'),
     };
   }
 
-  return { session: { supabase, tenantId: claims.tenant_id, staffId: claims.staff_id } };
+  if (allowedRoles && !allowedRoles.includes(identity.role)) {
+    return { failure: apiFail('forbidden', 'not_permitted', 'Your staff role cannot perform this action.') };
+  }
+  const { userId, tenantId, staffId, role } = identity;
+  return { session: { supabase, userId, tenantId, staffId, role } };
+}
+
+export type MemberSession = {
+  supabase: StaffSession['supabase']; userId: string; tenantId: string; memberId: string;
+};
+export type PlatformSession = {
+  supabase: StaffSession['supabase']; userId: string; role: PlatformRole;
+};
+
+/** A member can access only the identity carried by the verified member claim. */
+export async function memberSession(): Promise<{ session: MemberSession } | { failure: Response }> {
+  const { supabase, identity } = await readIdentity();
+  if (identity.kind !== 'member') {
+    return { failure: apiFail('unauthorized', 'not_signed_in', 'Sign in as a member first.') };
+  }
+  const { userId, tenantId, memberId } = identity;
+  return { session: { supabase, userId, tenantId, memberId } };
+}
+
+/** Support can read; admin-only callers explicitly opt into the write guard. */
+export async function platformSession(options?: { requireAdmin?: boolean }): Promise<{ session: PlatformSession } | { failure: Response }> {
+  const { supabase, identity } = await readIdentity();
+  if (identity.kind !== 'platform') {
+    return { failure: apiFail('unauthorized', 'not_signed_in', 'Sign in to the platform first.') };
+  }
+  if (options?.requireAdmin && identity.role !== 'super_admin') {
+    return { failure: apiFail('forbidden', 'not_permitted', 'Platform administrator access is required.') };
+  }
+  return { session: { supabase, userId: identity.userId, role: identity.role } };
 }
 
 /**
@@ -152,11 +171,12 @@ export async function formFields(
  */
 export async function staffForm(
   request: Request,
+  allowedRoles?: readonly StaffRole[],
 ): Promise<
   | { failure: Response }
   | (StaffSession & { form: FormData; fields: Record<string, string> })
 > {
-  const caller = await staffSession();
+  const caller = await staffSession(allowedRoles);
   if ('failure' in caller) return { failure: caller.failure };
 
   const body = await formFields(request);
@@ -221,12 +241,13 @@ type Parser<T> = {
 export async function staffFormParsed<T>(
   request: Request,
   schema: Parser<T>,
+  allowedRoles?: readonly StaffRole[],
 ): Promise<
   | { failure: Response }
   | { invalid: true; fields: Record<string, string> }
   | (StaffSession & { data: T })
 > {
-  const caller = await staffForm(request);
+  const caller = await staffForm(request, allowedRoles);
   if ('failure' in caller) return { failure: caller.failure };
 
   const submitted = schema.safeParse(caller.fields);
@@ -242,6 +263,8 @@ export async function staffFormParsed<T>(
     supabase: caller.supabase,
     tenantId: caller.tenantId,
     staffId: caller.staffId,
+    userId: caller.userId,
+    role: caller.role,
     data: submitted.data,
   };
 }

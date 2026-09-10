@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { signOut } from '../../lib/auth-actions';
-import { createServerSupabase } from '../../lib/supabase/server';
+import { readIdentity } from '../../lib/identity-session';
+import { identityHome } from '../../lib/identity';
 
 /**
  * The signed-in-but-linked-to-nothing state. It is a supported outcome of
@@ -12,24 +13,21 @@ import { createServerSupabase } from '../../lib/supabase/server';
  * the layout that sends people here would send them here again, forever.
  */
 export default async function NotLinkedPage() {
-  const supabase = await createServerSupabase();
-  const { data } = await supabase.auth.getClaims();
-  const claims = data?.claims;
-
-  if (!claims) {
+  const session = await readIdentity();
+  if (!session.signedIn) {
     redirect('/sign-in');
   }
 
-  if (typeof claims.staff_id === 'string') {
-    redirect('/console');
+  if (session.identity.kind !== 'unlinked') {
+    redirect(identityHome(session.identity));
   }
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 px-6">
       <h1 className="text-xl font-semibold">This account is not linked to a gym</h1>
       <p className="text-sm text-neutral-600">
-        You are signed in, but no gym has linked this email to a staff account yet, so there is
-        nothing here to show. Ask whoever runs your gym to add you, then sign in again.
+        You are signed in, but this account has no complete active gym or platform identity.
+        Ask your gym or platform administrator to check your access, then sign in again.
       </p>
       <form action={signOut}>
         <button type="submit" className="text-sm text-neutral-600 underline">

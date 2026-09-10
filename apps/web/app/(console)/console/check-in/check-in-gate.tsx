@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePreviewReadOnly } from '../../../preview-context';
 
 /**
  * The gate itself: hold a gate code, pick a member, confirm in type you can read
@@ -61,6 +62,7 @@ const FIELD_CLASS =
   'w-full rounded-md border border-neutral-300 px-3 py-2 text-base outline-none focus:border-neutral-900';
 
 export function CheckInGate({ members }: { members: Member[] }) {
+  const readOnly = usePreviewReadOnly();
   const [gateCode, setGateCode] = useState('');
   const [issuedCode, setIssuedCode] = useState('');
   const [canScan, setCanScan] = useState(false);
@@ -210,7 +212,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
   }, [members, outcome, submit]);
 
   return (
-    <section className="mt-6">
+    <fieldset disabled={readOnly} className="mt-6 min-w-0">
       {outcome ? (
         <button
           type="button"
@@ -343,6 +345,6 @@ export function CheckInGate({ members }: { members: Member[] }) {
       {members.length === 0 ? (
         <p className="mt-6 text-sm text-neutral-600">No member of this gym matched.</p>
       ) : null}
-    </section>
+    </fieldset>
   );
 }

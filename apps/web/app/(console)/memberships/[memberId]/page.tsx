@@ -1,3 +1,4 @@
+import { MutationForm } from '../../../preview-context';
 import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -15,7 +16,7 @@ import { createServerSupabase } from '../../../../lib/supabase/server';
  * application-side tenant predicate would return the right rows even with the
  * policy broken, which is the defect the pgTAP suite exists to catch.
  *
- * Every write leaves through a native `<form method="post">` to a Route
+ * Every write leaves through a native `<MutationForm method="post">` to a Route
  * Handler. No client component, no `fetch`, no JavaScript required.
  */
 
@@ -219,7 +220,7 @@ export default async function MemberMembershipsPage({
           </p>
         )}
 
-        <form method="post" action="/api/memberships" className="mt-4 flex flex-wrap items-end gap-3">
+        <MutationForm method="post" action="/api/memberships" className="mt-4 flex flex-wrap items-end gap-3">
           <input type="hidden" name="memberId" value={memberId} />
           <label className="text-sm">
             <span className="block text-neutral-600">Plan</span>
@@ -248,7 +249,7 @@ export default async function MemberMembershipsPage({
           <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-white">
             Create membership
           </button>
-        </form>
+        </MutationForm>
         <p className="mt-2 text-xs text-neutral-500">
           Price comes from the plan. <strong>The first fully paid period sets the membership dates.</strong>
           {' '}Record the payment below to start the membership.
@@ -262,7 +263,7 @@ export default async function MemberMembershipsPage({
           gym&rsquo;s own, and complete paid periods determine the membership dates.
         </p>
 
-        <form method="post" action="/api/payments" className="mt-4 flex flex-wrap items-end gap-3">
+        <MutationForm method="post" action="/api/payments" className="mt-4 flex flex-wrap items-end gap-3">
           <input type="hidden" name="memberId" value={memberId} />
           {/* An idempotency key minted with the form, so the browser's back
               button and a double tap on a slow connection are one payment
@@ -313,7 +314,7 @@ export default async function MemberMembershipsPage({
           <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-white">
             Record payment
           </button>
-        </form>
+        </MutationForm>
         <p className="mt-2 text-xs text-neutral-500">
           {/* Honest about what the database will actually do. The old wording
               promised an extension unconditionally, and a part payment, a
@@ -350,7 +351,7 @@ export default async function MemberMembershipsPage({
             A pause attaches to a live membership. This member has none.
           </p>
         ) : (
-          <form
+          <MutationForm
             method="post"
             action="/api/memberships/pauses"
             className="mt-4 flex flex-wrap items-end gap-3"
@@ -399,7 +400,7 @@ export default async function MemberMembershipsPage({
             <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-white">
               Request pause
             </button>
-          </form>
+          </MutationForm>
         )}
 
         <PauseHistory memberId={memberId} memberships={rows} />
@@ -467,7 +468,7 @@ function PauseHistory({ memberId, memberships }: { memberId: string; memberships
               ) : pause.rejected_at !== null ? (
                 'Rejected'
               ) : (
-                <form method="post" action="/api/memberships/pauses" className="flex gap-2">
+                <MutationForm method="post" action="/api/memberships/pauses" className="flex gap-2">
                   <input type="hidden" name="memberId" value={memberId} />
                   <input type="hidden" name="pauseId" value={pause.id} />
                   <button
@@ -486,7 +487,7 @@ function PauseHistory({ memberId, memberships }: { memberId: string; memberships
                   >
                     Reject
                   </button>
-                </form>
+                </MutationForm>
               )}
             </td>
           </tr>

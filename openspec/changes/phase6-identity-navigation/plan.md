@@ -24,10 +24,10 @@ hand-edited generated types. All local database tests roll back and run only
 while the shared database workflow is idle.
 
 - [x] Reviewed contract and fetchable reference fixed before dispatch.
-- [ ] Independent visible/holdout tests committed red.
-- [ ] Identity, API, hook, preview boundary and working role homes implemented.
-- [ ] Targeted and full regression gates pass.
-- [ ] Fresh independent critic GO.
+- [x] Independent visible/holdout tests committed red.
+- [x] Identity, API, hook, preview boundary and working role homes implemented.
+- [x] Targeted and full regression gates pass.
+- [x] Fresh independent critic GO.
 - [ ] CI migration, generated type verification and all workflows pass.
 - [ ] Real role navigation and end-preview browser proof, exact cleanup.
 - [ ] Current specifications, registry and evidence synchronized; archive.
