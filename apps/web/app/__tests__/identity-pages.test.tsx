@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { renderToReadableStream, renderToStaticMarkup } from 'react-dom/server';
 import type { ReactNode } from 'react';
 
 const state = vi.hoisted(() => ({
@@ -144,8 +144,10 @@ describe('NAV-003 preview console controls', () => {
     state.rows.branches = [{ id: staffId, tenant_id: tenantId, name: 'Main', is_default: true }];
     const { default: NewMember } = await import('../(console)/members/new/page');
     const { default: Layout } = await import('../(console)/layout');
-    const content = await NewMember(pageProps);
-    const html = renderToStaticMarkup(await Layout({ children: <>{content}<form method="get" action="/console"><input name="phone" /><button type="submit">Visible search control</button></form></> }));
+    const content = await NewMember();
+    const stream = await renderToReadableStream(await Layout({ children: <>{content}<form method="get" action="/console"><input name="phone" /><button type="submit">Visible search control</button></form></> }));
+    await stream.allReady;
+    const html = await new Response(stream).text();
     expect(html).toContain('Preview target gym');
     expect(html).toMatch(/expir|ends|until/i);
     expect(html).toMatch(/2026|15|16/);
