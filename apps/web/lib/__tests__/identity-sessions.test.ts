@@ -12,6 +12,12 @@ const staffId = 'a6100000-0000-4000-8000-000000000003';
 const memberId = 'a6100000-0000-4000-8000-000000000004';
 const previewId = 'a6100000-0000-4000-8000-000000000005';
 const staff = { sub: userId, tenant_id: tenantId, staff_id: staffId, app_role: 'trainer' };
+const completeNonStaffIdentities = [
+  { sub: userId, app_role: 'member', tenant_id: tenantId, member_id: memberId },
+  { sub: userId, app_role: 'super_admin' },
+  { sub: userId, app_role: 'platform_support' },
+  { sub: userId, app_role: 'gym_owner', tenant_id: tenantId, impersonation_session_id: previewId },
+];
 const request = () => new Request('https://gym.example/api/example', { method: 'POST', body: new URLSearchParams({ value: 'kept' }) });
 const schema = { safeParse: () => ({ success: true as const, data: { value: 'parsed' } }) };
 
@@ -53,14 +59,19 @@ describe('verified identity wrappers', () => {
     }
     expect(state.writes).not.toHaveBeenCalled();
   });
-  it.each([
-    { sub: userId, app_role: 'member', tenant_id: tenantId, member_id: memberId },
-    { sub: userId, app_role: 'super_admin' },
-    { sub: userId, app_role: 'platform_support' },
-    { sub: userId, app_role: 'gym_owner', tenant_id: tenantId, impersonation_session_id: previewId },
-  ])('forbids complete nonstaff identity %j', async (claims) => {
+  it.each(completeNonStaffIdentities)('defaults complete nonstaff identity %j to not signed in', async (claims) => {
     state.claims = claims;
     const result = await api.staffSession();
+    expect(result).toHaveProperty('failure');
+    if ('failure' in result) {
+      expect(result.failure.status).toBe(401);
+      expect(await result.failure.json()).toMatchObject({ ok: false, error: { code: 'not_signed_in' } });
+    }
+    expect(state.writes).not.toHaveBeenCalled();
+  });
+  it.each(completeNonStaffIdentities)('forbids complete nonstaff identity %j in wrong-audience mode', async (claims) => {
+    state.claims = claims;
+    const result = await api.staffSession(undefined, { completeWrongAudience: 'forbidden' });
     expect(result).toHaveProperty('failure');
     if ('failure' in result) {
       expect(result.failure.status).toBe(403);
