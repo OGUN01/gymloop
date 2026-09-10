@@ -1,4 +1,4 @@
-# Phase 6 growth surfaces — contract draft
+# Phase 6 growth surfaces — accepted contract
 
 **Status:** ACCEPTED under the owner's delegated decision authority (ADR-111), 2026-09-10. Implementation and verification remain outstanding.
 
@@ -22,9 +22,9 @@ The Phase 6 OpenSpec change must inherit these facts rather than restate or weak
 
 ## Adopted product decisions (ADR-111)
 
-The EARS requirements below assume the recommended answer in this table. Change the affected requirements before test authors are dispatched if any answer is rejected.
+The owner delegated the remaining decisions under ADR-111. The answers below are adopted; implementation details must be fixed before test authors are dispatched.
 
-| ID | Decision | Recommended v1 answer | Why approval is needed |
+| ID | Decision | Adopted v1 answer | Decision rationale |
 |---|---|---|---|
 | P6-D01 | Who completes an add-on sale? | Member browses and selects; front office completes payment. No unattended member checkout until Razorpay credentials exist. | The member role cannot write orders or payments, and the current product has no verified online-payment path. |
 | P6-D02 | What does PT “availability before payment” mean? | A PT sale must name an active trainer and an initial session slot; the overlap constraint must accept that slot before payment is recorded. The pending order and slot are one short transaction, so no unpaid hold survives a failure. | `ADD-003` requires a check, but the current contract does not define availability. |
@@ -36,7 +36,7 @@ The EARS requirements below assume the recommended answer in this table. Change 
 | P6-D08 | Wallet unit and funding | One credit is an internal billable send unit. Super admin may add or remove credits with a mandatory reason; only an actually accepted paid-provider send debits one credit. In-app and click-to-WhatsApp cost zero credits in v1. | The ledger exists, but credit price, funding and debit events are not specified. |
 | P6-D09 | Owner account provisioning | Onboarding may create an unlinked owner staff row, but activation is blocked until an already-registered auth user is explicitly linked. The UI says “account access pending”; it never claims an invitation was sent. | There is no signup/invite workflow or outbound email credential to deliver an owner invitation. |
 | P6-D10 | Suspension semantics | `suspended` and `closed` gyms cannot use gym-side sessions after the existing fifteen-minute token window; changing to either status revokes refresh sessions. Reactivation is allowed only from `suspended`. | Today organization status is a label, not an identity gate. Making it an operational control changes the claim contract and requires the full blind process. |
-| P6-D11 | Preset payloads | Approve the concrete table under ONB-003. A preset is copied once during onboarding; later settings edits do not rewrite it, and changing the label does not reapply defaults. | The three enum labels exist, but their behavior is unspecified. |
+| P6-D11 | Preset payloads | Use the concrete table under ONB-003. A preset is copied once during onboarding; later settings edits do not rewrite it, and changing the label does not reapply defaults. | The three enum labels exist, but their behavior is unspecified. |
 | P6-D12 | SaaS tier limits | Use the existing `basic`, `growth`, `pro` labels and listed monthly prices for manual assignment only in v1. Do not enforce member caps or bill gyms until active-member thresholds and billing are approved. | ADR-017 gives indicative prices but no tier thresholds; `organizations.tier` is currently unconstrained text. |
 | P6-D13 | Renewal-cycle identity and partial prepayment | Identify a reminder cycle by membership plus the `ends_on` date being renewed. Amount due for the next period is the agreed net price less only the residual eligible money not already represented by `periods_granted`; a zero-net period is due ₹0 and gets no collection reminder. | Membership-level lifetime receipts include money for periods already granted. Subtracting them from one price would suppress every later renewal, while a key with no cycle anchor could never be reused. |
 
@@ -135,7 +135,7 @@ The EARS requirements below assume the recommended answer in this table. Change 
 - **OPS-004** WHEN the fleet reports a count or exception THE SYSTEM SHALL link to the exact gyms/rows that produce it. “Provider ready” SHALL be false until a real provider configuration is verified; a database row or placeholder secret alone SHALL not count.
 - **ONB-001** WHEN super admin creates a gym THE SYSTEM SHALL create the organization, exactly one `organization_settings` row, one default branch, one messaging wallet, and one owner staff row in one transaction. Failure of any child write SHALL create none, closing OPEN-018.
 - **ONB-002** THE SYSTEM SHALL generate a unique six-character gym code, set the fourteen-day trial from the gym-local onboarding date, and keep activation manual. Activation SHALL be refused until settings, default branch, owner identity link, timezone and currency are present.
-- **ONB-003** WHEN a preset is selected THE SYSTEM SHALL copy these proposed defaults once:
+- **ONB-003** WHEN a preset is selected THE SYSTEM SHALL copy these adopted defaults once:
 
   | Preset | No-show threshold | Streak rule | Weekly goal | Max freeze/year | Pause approver |
   |---|---:|---|---:|---:|---|
@@ -148,9 +148,9 @@ The EARS requirements below assume the recommended answer in this table. Change 
 
 **Acceptance:** an onboarded gym always has settings/default branch/wallet; a deliberately failed child write leaves no partial gym; support cannot mutate; super admin status changes and impersonation are audited; unconfigured providers and unlinked owners remain visibly pending; every fleet count drills into its rows.
 
-## Build order after approval
+## Build order
 
-1. Close and archive Phase 5, including the approved net-price rule. Freeze this Phase 6 contract and record the approved P6 decisions.
+1. Close and archive Phase 5, including the approved net-price rule. Fix each cluster's implementation contract against the adopted P6 decisions before its test authors start.
 2. Land the serial contract seam: OPEN-010, common status-transition/error/idempotency conventions, and any schema snapshot fields approved by P6-D03. Because it touches consent integrity, money and notification de-duplication, use the full blind arrangement.
 3. Build independent vertical clusters B (leads), C (imports), and the provider-independent part of D (consent/in-app/WhatsApp truthfulness). Each owns its route, screen and API schemas end to end.
 4. Build A with the full money-path arrangement. Then build E against the now-fixed underlying rows.
