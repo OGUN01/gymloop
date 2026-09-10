@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   selections: [] as Array<{ table: string; columns: string }>,
 }));
 vi.mock('next/navigation', () => ({ redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); } }));
+vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
 vi.mock('../../lib/supabase/server', () => ({ createServerSupabase: async () => ({
   auth: { getClaims: async () => ({ data: state.claims && { claims: state.claims }, error: null }) },
   from: (table: string) => {
@@ -132,5 +133,38 @@ describe('NAV-005 read homes are useful and truthful', () => {
     expect(failure).toMatch(/unable|could not|couldn.t|try again|failed|unavailable/i);
     expect(failure).not.toBe(empty);
     expect(failure).not.toContain('sensitive backend detail');
+  });
+});
+
+describe('NAV-003 preview console controls', () => {
+  it('shows gym, expiry and own-end action while disabling the real member form and retaining GET search', async () => {
+    state.claims = { sub: userId, app_role: 'gym_owner', tenant_id: tenantId, impersonation_session_id: previewId };
+    state.rows.organizations = [{ id: tenantId, name: 'Preview target gym', timezone: 'Asia/Kolkata' }];
+    state.rows.impersonation_sessions = [{ id: previewId, tenant_id: tenantId, actor_user_id: userId, expires_at: '2026-09-15T18:30:00Z', ended_at: null }];
+    state.rows.branches = [{ id: staffId, tenant_id: tenantId, name: 'Main', is_default: true }];
+    const { default: NewMember } = await import('../(console)/members/new/page');
+    const { default: Layout } = await import('../(console)/layout');
+    const content = await NewMember(pageProps);
+    const html = renderToStaticMarkup(await Layout({ children: <>{content}<form method="get" action="/console"><input name="phone" /><button type="submit">Visible search control</button></form></> }));
+    expect(html).toContain('Preview target gym');
+    expect(html).toMatch(/expir|ends|until/i);
+    expect(html).toMatch(/2026|15|16/);
+    expect(html).toMatch(/End preview/i);
+    expect(html).toContain('/api/impersonation/end');
+    const memberForm = html.match(/<form\b[^>]*action="\/api\/members"[^>]*>[\s\S]*?<\/form>/)?.[0];
+    if (memberForm) {
+      const buttons = memberForm.match(/<(?:button|input)\b[^>]*type="submit"[^>]*>/g) ?? [];
+      for (const button of buttons) expect(button).toMatch(/\bdisabled(?:="")?/);
+      expect(memberForm).not.toMatch(/<button(?![^>]*\btype=)(?![^>]*\bdisabled)[^>]*>/);
+    }
+    const getForm = html.match(/<form\b[^>]*method="get"[^>]*>[\s\S]*?Visible search control[\s\S]*?<\/form>/)?.[0];
+    expect(getForm).toBeDefined();
+    expect(getForm).not.toMatch(/\bdisabled/);
+    const fieldsets: boolean[] = [];
+    for (const tag of html.slice(0, html.indexOf('Visible search control')).match(/<\/?fieldset\b[^>]*>/g) ?? []) {
+      if (tag.startsWith('</')) fieldsets.pop();
+      else fieldsets.push(/\bdisabled/.test(tag));
+    }
+    expect(fieldsets).not.toContain(true);
   });
 });
