@@ -3,7 +3,7 @@
 begin;
 set local role postgres;
 set local search_path=public,extensions;
-select plan(41);
+select plan(47);
 create function pg_temp.cap_id(n integer) returns uuid language sql immutable as $fn$
  select ('ca240000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid
 $fn$;
@@ -70,6 +70,7 @@ begin
  if p_bad='preview' then claims:=claims||jsonb_build_object('impersonation_session_id',gen_random_uuid()); end if;
  if p_bad='subject' then claims:=claims||jsonb_build_object('sub',gen_random_uuid()); end if;
  if p_bad='missing_subject' then claims:=claims-'sub'; end if;
+ if p_bad='native_subjectless' then claims:=claims-'sub'-'role'; end if;
  begin
   perform set_config('request.jwt.claims',case when p_service then '{"role":"service_role"}' when p_trusted then '' else claims::text end,true);
   if p_service then set local role service_role;
@@ -105,6 +106,7 @@ select is(pg_temp.cap_probe('order'),'APPLIED','Private order effect permits its
 select is(pg_temp.cap_probe('order',null,true),'APPLIED','Private order effect permits trusted null-auth processing');
 select is(pg_temp.cap_probe('order',null,true,true),'APPLIED','Private order effect permits subjectless trusted service processing');
 select is(pg_temp.cap_probe('order','missing_subject'),'42501','Private order effect refuses authenticated claims without a subject');
+select is(pg_temp.cap_probe('order','native_subjectless'),'42501','Private order effect refuses native authenticated role without JWT role or subject');
 select is(pg_temp.cap_probe('order','tenant'),'42501','Private order effect independently rejects a foreign tenant claim');
 select is(pg_temp.cap_probe('order','actor'),'42501','Private order effect independently rejects an invented staff actor');
 select is(pg_temp.cap_probe('order','role'),'42501','Private order effect independently rejects member authority');
@@ -116,6 +118,7 @@ select is(pg_temp.cap_probe('refund'),'APPLIED','Private refund effect permits i
 select is(pg_temp.cap_probe('refund',null,true),'APPLIED','Private refund effect permits trusted null-auth processing');
 select is(pg_temp.cap_probe('refund',null,true,true),'APPLIED','Private refund effect permits subjectless trusted service processing');
 select is(pg_temp.cap_probe('refund','missing_subject'),'42501','Private refund effect refuses authenticated claims without a subject');
+select is(pg_temp.cap_probe('refund','native_subjectless'),'42501','Private refund effect refuses native authenticated role without JWT role or subject');
 select is(pg_temp.cap_probe('refund','tenant'),'42501','Private refund effect independently rejects a foreign tenant claim');
 select is(pg_temp.cap_probe('refund','actor'),'42501','Private refund effect independently rejects an invented staff actor');
 select is(pg_temp.cap_probe('refund','role'),'42501','Private refund effect independently rejects member authority');
@@ -127,6 +130,7 @@ select is(pg_temp.cap_probe('pt'),'APPLIED','Private PT effect permits its real 
 select is(pg_temp.cap_probe('pt',null,true),'APPLIED','Private PT effect permits trusted null-auth processing');
 select is(pg_temp.cap_probe('pt',null,true,true),'APPLIED','Private PT effect permits subjectless trusted service processing');
 select is(pg_temp.cap_probe('pt','missing_subject'),'42501','Private PT effect refuses authenticated claims without a subject');
+select is(pg_temp.cap_probe('pt','native_subjectless'),'42501','Private PT effect refuses native authenticated role without JWT role or subject');
 select is(pg_temp.cap_probe('pt','tenant'),'42501','Private PT effect independently rejects a foreign tenant claim');
 select is(pg_temp.cap_probe('pt','actor'),'42501','Private PT effect independently rejects an invented staff actor');
 select is(pg_temp.cap_probe('pt','role'),'42501','Private PT effect independently rejects member authority');
@@ -139,13 +143,23 @@ select is(pg_temp.cap_probe('product_lock'),'LOCKED','Private product lock permi
 select is(pg_temp.cap_probe('product_lock',null,true),'LOCKED','Private product lock permits subjectless trusted postgres processing');
 select is(pg_temp.cap_probe('product_lock',null,true,true),'LOCKED','Private product lock permits subjectless trusted service processing');
 select is(pg_temp.cap_probe('product_lock','missing_subject'),'42501','Private product lock refuses authenticated claims without a subject');
+select is(pg_temp.cap_probe('product_lock','native_subjectless'),'42501','Private product lock refuses native authenticated role without JWT role or subject');
 drop trigger cap_product_lock on public.addon_orders;
 create trigger cap_pt_lock before update on public.pt_sessions for each row execute function app.lock_addon_order_for_pt_session();
 select is(pg_temp.cap_probe('pt_lock'),'LOCKED','Private session lock permits its real assigned trainer');
 select is(pg_temp.cap_probe('pt_lock',null,true),'LOCKED','Private session lock permits subjectless trusted postgres processing');
 select is(pg_temp.cap_probe('pt_lock',null,true,true),'LOCKED','Private session lock permits subjectless trusted service processing');
 select is(pg_temp.cap_probe('pt_lock','missing_subject'),'42501','Private session lock refuses authenticated claims without a subject');
+select is(pg_temp.cap_probe('pt_lock','native_subjectless'),'42501','Private session lock refuses native authenticated role without JWT role or subject');
 drop trigger cap_pt_lock on public.pt_sessions;
+
+select ok(
+ (select stock_quantity=10 from public.addon_products where id=pg_temp.cap_id(40))
+ and (select status='pending' and sold_at is null from public.addon_orders where id=pg_temp.cap_id(50))
+ and (select status='active' and sessions_used=0 from public.addon_orders where id=pg_temp.cap_id(51))
+ and (select status='requested' and processed_at is null from public.refunds where id=pg_temp.cap_id(61))
+ and (select status='scheduled' from public.pt_sessions where id=pg_temp.cap_id(70)),
+ 'Private capability refusals preserve stock, acceptance, refund and session evidence');
 
 -- The same privileged functions cannot be borrowed by another table, even by a
 -- structurally identical caller, or run on an unsupported source operation.
