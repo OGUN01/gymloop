@@ -63,8 +63,8 @@ select pg_temp.h24_id(5,n),pg_temp.h24_id(1,case when n=3 then 2 else 1 end),
   '+91924000000'||n from generate_series(1,3) n;
 insert into public.plans(id,tenant_id,name,duration_days,price_paise)
 values(pg_temp.h24_id(4,1),pg_temp.h24_id(1,1),'H24 Plan',31,999999);
-insert into public.memberships(id,tenant_id,member_id,plan_id,status)
-select pg_temp.h24_id(6,n),pg_temp.h24_id(1,1),pg_temp.h24_id(5,n),pg_temp.h24_id(4,1),'pending'
+insert into public.memberships(id,tenant_id,member_id,plan_id,status,price_paise)
+select pg_temp.h24_id(6,n),pg_temp.h24_id(1,1),pg_temp.h24_id(5,n),pg_temp.h24_id(4,1),'pending',999999
 from generate_series(1,2) n;
 select set_config('request.jwt.claims','',true);
 insert into public.payments(id,tenant_id,member_id,amount_paise,currency,method,status,
