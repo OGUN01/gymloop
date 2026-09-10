@@ -1,6 +1,6 @@
 import type { Database } from '@gymloop/db';
 import { rupeesFromPaise } from '@gymloop/shared';
-import { gymTimeLabel } from '../../../lib/payments';
+import { gymTimeLabel } from '../../../lib/time';
 
 type Tables = Database['public']['Tables'];
 type Person = { full_name: string; phone?: string };

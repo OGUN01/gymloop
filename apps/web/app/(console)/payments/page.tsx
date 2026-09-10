@@ -1,7 +1,8 @@
 import { PAYMENT_PAGE_SIZE_DEFAULT, rupeesFromPaise } from '@gymloop/shared';
 import Link from 'next/link';
 import { Alert } from '../alert';
-import { deskTime, loadPayments } from '../../../lib/payments';
+import { loadPayments } from '../../../lib/payments';
+import { deskTime } from '../../../lib/time';
 
 /**
  * The day's takings — what a front desk reconciles the cash drawer against at

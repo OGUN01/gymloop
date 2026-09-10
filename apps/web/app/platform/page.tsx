@@ -1,5 +1,5 @@
 import { requireAudience } from '../../lib/identity-session';
-import { gymTimeLabel } from '../../lib/payments';
+import { gymTimeLabel } from '../../lib/time';
 
 export default async function PlatformPage() {
   const { supabase, identity } = await requireAudience('platform');

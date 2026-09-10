@@ -1,8 +1,4 @@
-import {
-  DEFAULT_TIMEZONE,
-  PAYMENT_PAGE_SIZE_DEFAULT,
-  PAYMENT_PAGE_SIZE_MAX,
-} from '@gymloop/shared';
+import { DEFAULT_TIMEZONE, PAYMENT_PAGE_SIZE_DEFAULT, PAYMENT_PAGE_SIZE_MAX } from '@gymloop/shared';
 import {
   decodeCursor,
   encodeCursor,
@@ -11,6 +7,8 @@ import {
   UUID_PATTERN,
 } from './keyset';
 import { createServerSupabase } from './supabase/server';
+
+export { deskTime } from './time';
 
 /**
  * The columns both payment screens read, as ONE string literal.
@@ -203,61 +201,4 @@ export async function loadReceipt(paymentId: string) {
     refundablePaise: (paymentAmount - completedReturned - pendingReserved).toString(),
     errorMessage: payment.error?.message ?? gym.error?.message ?? refunds.error?.message ?? null,
   };
-}
-
-/**
- * An instant as the GYM reads it: `2026-09-09 03:00`, in the gym's own
- * timezone and never the server's.
- *
- * **This was wrong when the receipt was first rendered in a browser**, and the
- * browser is what found it: the page showed `2026-09-08 21:30` for a payment
- * whose receipt number said `2026-27/000001` — the number derived in the gym's
- * day, the date printed in UTC. Between 00:00 and 05:30 IST every receipt would
- * have carried yesterday's date, and at the 1 April boundary a receipt would
- * have been filed under one financial year while showing a date in the other.
- * A receipt is a document a gym is audited against; the date on it is not
- * decoration.
- *
- * ADR-039 and MNY-004 in the view layer, which is the fourth place this project
- * has had to learn that every Supabase connection is UTC.
- *
- * Seconds are dropped deliberately. Nobody reconciling a drawer cares which
- * second, and a narrower column fits a receipt.
- */
-export function deskTime(iso: string, timezone: string): string {
-  const at = (zone: string) => {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: zone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      // `h23` and not `hour12: false`, which renders midnight as `24` under
-      // some ICU versions — a receipt dated 24:07 is a receipt nobody trusts.
-      hourCycle: 'h23',
-    }).formatToParts(new Date(iso));
-    const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
-    return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`;
-  };
-
-  try {
-    return at(timezone);
-  } catch {
-    // `organizations.timezone` is free text, so a gym can hold a name `Intl`
-    // does not know. A screen that 500s is worse than one that shows the
-    // platform default — the same fallback `todayIn` takes on the membership
-    // page, for the same reason.
-    return at(DEFAULT_TIMEZONE);
-  }
-}
-
-/** Label gym-local instants without attributing a fallback time to an invalid zone. */
-export function gymTimeLabel(iso: string, timezone: string): string {
-  try {
-    new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date(iso));
-    return `${deskTime(iso, timezone)} · ${timezone}`;
-  } catch {
-    return 'Gym timezone unavailable';
-  }
 }

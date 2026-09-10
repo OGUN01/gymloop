@@ -4,7 +4,8 @@ import { Constants } from '@gymloop/db';
 import Link from 'next/link';
 import { Alert } from '../../alert';
 import { notFound } from 'next/navigation';
-import { deskTime, loadReceipt } from '../../../../lib/payments';
+import { loadReceipt } from '../../../../lib/payments';
+import { deskTime } from '../../../../lib/time';
 
 /**
  * A receipt — the piece of paper a member takes away, and the line an auditor

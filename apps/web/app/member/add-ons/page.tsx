@@ -3,7 +3,7 @@ import { MEMBER_PAGE_SIZE_DEFAULT, rupeesFromPaise } from '@gymloop/shared';
 import Link from 'next/link';
 import { requireAudience } from '../../../lib/identity-session';
 import { UUID_PATTERN } from '../../../lib/keyset';
-import { gymTimeLabel } from '../../../lib/payments';
+import { gymTimeLabel } from '../../../lib/time';
 import { ADDON_OFFER_COLUMNS, ADDON_ORDER_COLUMNS, ADDON_SESSION_COLUMNS, AddonLoadError, AddonOfferDetails, AddonOrderFacts,
   offerUnavailable, type AddonOffer, type AddonOrder, type AddonSession } from '../../(console)/add-ons/display';
 

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { requireAudience } from '../../lib/identity-session';
 import { identityHome } from '../../lib/identity';
-import { gymTimeLabel } from '../../lib/payments';
+import { gymTimeLabel } from '../../lib/time';
 import { AccountFrame } from '../account-frame';
 import { PreviewProvider } from '../preview-context';
 
