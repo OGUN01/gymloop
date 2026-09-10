@@ -2,114 +2,35 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Constants } from '@gymloop/db';
 
 /**
- * `POST /api/refunds` — written from the contract only:
- * `openspec/specs/staff-console/spec.md`'s last requirement, "A refund is
- * recorded from the receipt it refunds", plus the task brief's explicit
- * schema/SQLSTATE/redirect rules. `apps/web/app/api/refunds/route.ts` exists
- * in the working tree (the author is writing it in parallel) but was
- * deliberately NOT opened while writing this file — not for its handler body,
- * not to check an import, not even to confirm a helper name.
- *
- * Same stub shape as `payments/__tests__/payment-routes.test.ts` and
- * `memberships/__tests__/membership-routes.test.ts`: only
- * `createServerSupabase` is replaced, and each `from()` takes the next queued
- * `{ data, error }` — the whole of what PostgREST hands the handler back.
- * Queued in call order, so a test that queues the wrong number of results
- * fails loudly rather than silently reusing one.
- *
- * `refund_kind`'s labels are read from `@gymloop/db`'s generated `Constants`
- * — the same source AGENTS.md hard rule 5 requires the handler itself to use
- * — rather than retyped here as a second copy of the vocabulary.
- *
- * ---------------------------------------------------------------------------
- * WHAT MATTERS MOST HERE (per the brief), and how each is covered:
- *
- * 1. `initiated_by_staff_id` comes from the claim, never the form, even when
- *    the form supplies one. This is the fifth appearance of this project's
- *    attribution rule (after `attendance.assisted_by_staff_id`,
- *    `membership_pauses.requested_by_staff_id`, `follow_ups.staff_id`, and
- *    `payments.recorded_by_staff_id`) and the FIRST on money going OUT. See
- *    "inserting the refund" below — the form is given a decoy
- *    `initiatedByStaffId`/`staffId`/`tenantId`/`tenant_id` and the insert is
- *    asserted to ignore all of them.
- * 2. The redirect target is the RECEIPT (`/payments/<paymentId>`), never a
- *    ledger and never the member's own page. See "translating the database's
- *    refusal" and "success" below — every path assertion is against
- *    `RECEIPT_PATH`, deliberately never against a `/memberships/...` shape.
- * 3. `42501` maps to a message about the ROLE (`not_permitted`), framed here
- *    as the everyday case: `refunds_tenant_write` gates on `is_gym_admin()`,
- *    narrower than payments' `is_front_office()`, so an ordinary front-desk
- *    session — not an attacker, not a misconfiguration — reaches this
- *    handler routinely and is refused by the policy every time it tries. See
- *    the first case in "translating the database's refusal".
- *
- * ---------------------------------------------------------------------------
- * AMBIGUITIES — see the final report for the full list. The one that shapes
- * the largest block of tests below:
- *
- * The brief says every outcome redirects to `/payments/<paymentId>` "on
- * success and on refusal alike," and that only the two envelope failures
- * (`not_signed_in`, `malformed_body`) are the exception. It also says the
- * caller is identified "via the same `staffFormParsed` helper the payments
- * route uses." Read literally, those two statements conflict:
- * `staffFormParsed()` (`apps/web/lib/api.ts`) returns a bare `{ invalid: true
- * }` when `schema.safeParse()` fails — no `fields`, no partial data, nothing
- * a handler could read a `paymentId` back out of — which is exactly why the
- * payments route (whose `invalid` branch has the identical shape) redirects
- * that one case to the memberless `/payments`, not to a member's page. There
- * is no equivalent memberless fallback screen for refunds, so if the route
- * really does redirect every schema-parse failure to `/payments/<paymentId>`,
- * it must be recovering a raw `paymentId` some way `staffFormParsed` does not
- * expose in its `invalid` branch (a cloned request read before the schema
- * parse consumes the body is one way; there may be others).
- *
- * This file resolves that split as follows:
- *  - For a schema-parse failure where every OTHER field is invalid but a
- *    syntactically valid `paymentId` was submitted, this file asserts the
- *    strongest reading of the brief: redirect to that payment's receipt with
- *    `error=invalid`.
- *  - For the sharper edge — `paymentId` itself missing or not a uuid, so
- *    there is no candidate id to build a receipt path from at all — this file
- *    asserts only the parts that are unambiguous under EITHER reading
- *    (303, `error=invalid`, no database write) and does not assert a
- *    redirect path. See "parsing refundRequestSchema — the sharp edge" below.
- * A failure of the first group against a real implementation should be read
- * as a genuine defect; a failure of the second group's path assertion (there
- * is none) cannot happen, by construction.
- * ---------------------------------------------------------------------------
+ * REF-001..005, authored from the frozen refund contract without reading any
+ * implementation. Direct insert expectations are deliberately superseded:
+ * record_refund owns identity and insert-or-replay. All prior parsing, amount,
+ * envelope and redirect expectations remain; the required nonce is added.
  */
 
 type Result = { data: unknown; error: { code: string; message: string } | null };
-
-const CHAIN_METHODS = ['insert', 'select', 'eq', 'maybeSingle', 'single'];
 
 const state: {
   claims: Record<string, unknown> | null;
   results: Result[];
   from: string[];
-  calls: Array<{ table: string; method: string; args: unknown[] }>;
+  calls: Array<{ name: string; args: Record<string, unknown> }>;
 } = { claims: null, results: [], from: [], calls: [] };
 
 vi.mock('../../../../lib/supabase/server', () => ({
-  createServerSupabase: () =>
-    Promise.resolve({
-      auth: { getClaims: () => Promise.resolve({ data: state.claims && { claims: state.claims } }) },
-      from: (table: string) => {
-        state.from.push(table);
-        const result = state.results.shift() ?? { data: null, error: null };
-        const chain: Record<string, unknown> = {
-          then: (ok: (v: unknown) => unknown, err: (e: unknown) => unknown) =>
-            Promise.resolve(result).then(ok, err),
-        };
-        for (const method of CHAIN_METHODS) {
-          chain[method] = (...args: unknown[]) => {
-            state.calls.push({ table, method, args });
-            return chain;
-          };
-        }
-        return chain;
-      },
-    }),
+  createServerSupabase: () => Promise.resolve({
+    auth: { getClaims: () => Promise.resolve({ data: state.claims && { claims: state.claims } }) },
+    from: (table: string) => {
+      state.from.push(table);
+      throw new Error('Refunds must use record_refund');
+    },
+    rpc: (name: string, args: Record<string, unknown>) => {
+      state.calls.push({ name, args });
+      const result = state.results.shift();
+      if (!result) throw new Error('Unexpected RPC call');
+      return Promise.resolve(result);
+    },
+  }),
 }));
 
 const { POST: recordRefund } = await import('../route');
@@ -127,12 +48,13 @@ const REFUND_KINDS = Constants.public.Enums.refund_kind;
 
 const VALID = {
   paymentId: PAYMENT_ID,
+  idempotencyKey: 'abcdefab-1234-4234-8234-abcdefabcdef',
   amountRupees: '200.00',
   kind: 'refund',
   reason: 'Member cancelled the membership',
 };
 
-const ok = (data: unknown): Result => ({ data, error: null });
+const ok = (replayed = false): Result => ({ data: [{ refund_id: OTHER_PAYMENT_ID, replayed }], error: null });
 const fails = (code: string, message = code): Result => ({ data: null, error: { code, message } });
 
 function post(fields: Record<string, string>): Request {
@@ -163,10 +85,7 @@ const RECEIPT_PATH = `/payments/${PAYMENT_ID}`;
 type Envelope = { ok: boolean; error?: { code: string; message: string } };
 const envelope = async (response: Response): Promise<Envelope> => (await response.json()) as Envelope;
 
-const inserts = (): Record<string, unknown>[] =>
-  state.calls.filter((c) => c.table === 'refunds' && c.method === 'insert').map((c) => c.args[0] as Record<string, unknown>);
-
-const lastInsert = (): Record<string, unknown> | undefined => inserts().at(-1);
+const lastRequest = (): Record<string, unknown> | undefined => state.calls.at(-1)?.args;
 
 beforeEach(() => {
   state.claims = SIGNED_IN;
@@ -184,6 +103,7 @@ describe('identifying the caller and reading the form', () => {
     expect(response.status).toBe(401);
     expect((await envelope(response)).error?.code).toBe('not_signed_in');
     expect(state.from).toEqual([]);
+    expect(state.calls).toEqual([]);
   });
 
   it('refuses a token that carries a tenant but no staff_id', async () => {
@@ -191,6 +111,7 @@ describe('identifying the caller and reading the form', () => {
 
     expect((await recordRefund(post(VALID))).status).toBe(401);
     expect(state.from).toEqual([]);
+    expect(state.calls).toEqual([]);
   });
 
   it('answers malformed_body for a body that cannot be read as a form', async () => {
@@ -199,6 +120,7 @@ describe('identifying the caller and reading the form', () => {
     expect(response.status).toBe(400);
     expect((await envelope(response)).error?.code).toBe('malformed_body');
     expect(state.from).toEqual([]);
+    expect(state.calls).toEqual([]);
   });
 });
 
@@ -210,6 +132,11 @@ describe('parsing refundRequestSchema', () => {
     ['an empty amountRupees', { ...VALID, amountRupees: '' }],
     ['no kind', { ...VALID, kind: undefined }],
     ['an empty kind', { ...VALID, kind: '' }],
+    ['no key', { ...VALID, idempotencyKey: undefined }],
+    ['empty key', { ...VALID, idempotencyKey: '' }],
+    ['blank key', { ...VALID, idempotencyKey: '   ' }],
+    ['malformed key', { ...VALID, idempotencyKey: 'not-a-uuid' }],
+    ['non-UUID key', { ...VALID, idempotencyKey: '12345' }],
   ])(
     'redirects to the receipt with error=invalid for %s, without touching the database — ' +
       'a syntactically valid paymentId was submitted, so a receipt to return to exists ' +
@@ -225,15 +152,12 @@ describe('parsing refundRequestSchema', () => {
       expect(pathOf(response)).toBe(RECEIPT_PATH);
       expect(response.status).toBe(303);
       expect(state.from).toEqual([]);
+    expect(state.calls).toEqual([]);
     },
   );
 
   describe('the sharp edge: paymentId itself is missing or unusable', () => {
-    // See the file-header ambiguity note. Under staffFormParsed's documented
-    // `{ invalid: true }` shape there is no typed OR raw paymentId to recover
-    // here, so — unlike the block above — this file does not assert a
-    // redirect path for these two cases, only what is true under any
-    // resolution of that ambiguity: a 303 with error=invalid, no db write.
+    // An invalid paymentId cannot identify a receipt; assert invalid and no call.
     it.each([
       ['no paymentId at all', { ...VALID, paymentId: undefined }],
       ['a paymentId that is not a uuid', { ...VALID, paymentId: 'not-a-uuid' }],
@@ -247,6 +171,7 @@ describe('parsing refundRequestSchema', () => {
       expect(errorOf(response)).toBe('invalid');
       expect(response.status).toBe(303);
       expect(state.from).toEqual([]);
+    expect(state.calls).toEqual([]);
     });
   });
 });
@@ -263,15 +188,16 @@ describe('validating kind against the generated refund_kind enum', () => {
     expect(errorOf(response)).toBe('invalid');
     expect(pathOf(response)).toBe(RECEIPT_PATH);
     expect(state.from).toEqual([]);
+    expect(state.calls).toEqual([]);
   });
 
   it.each(REFUND_KINDS.map((kind) => [kind]))('accepts the generated enum label %s', async (kind) => {
-    state.results = [ok(null)];
+    state.results = [ok()];
 
     const response = await recordRefund(post({ ...VALID, kind }));
 
     expect(errorOf(response)).toBeNull();
-    expect(lastInsert()).toMatchObject({ kind });
+    expect(lastRequest()).toMatchObject({ p_kind: kind });
   });
 });
 
@@ -292,22 +218,23 @@ describe('converting rupees to paise', () => {
       expect(pathOf(response)).toBe(RECEIPT_PATH);
       expect(response.status).toBe(303);
       expect(state.from).toEqual([]);
+    expect(state.calls).toEqual([]);
     },
   );
 
-  it('converts a valid rupee string to integer paise on the inserted row', async () => {
-    state.results = [ok(null)];
+  it('converts a valid rupee string to integer paise in the RPC request', async () => {
+    state.results = [ok()];
 
     await recordRefund(post({ ...VALID, amountRupees: '150.50' }));
 
-    expect(lastInsert()).toMatchObject({ amount_paise: 15050 });
+    expect(lastRequest()).toMatchObject({ p_amount_paise: 15050 });
   });
 });
 
-describe('inserting the refund', () => {
-  it('stamps tenant_id and initiated_by_staff_id from the claim, NEVER from the form — ' +
+describe('calling the refund RPC', () => {
+  it('leaves tenant and staff identity to the RPC, NEVER to the form — ' +
     'the fifth appearance of this rule and the first on money going OUT', async () => {
-    state.results = [ok(null)];
+    state.results = [ok()];
 
     await recordRefund(
       post({
@@ -320,36 +247,31 @@ describe('inserting the refund', () => {
       }),
     );
 
-    expect(lastInsert()).toMatchObject({
-      tenant_id: TENANT_ID,
-      initiated_by_staff_id: STAFF_ID,
-    });
-    // The form's attempted values must not survive anywhere in the insert.
-    expect(Object.values(lastInsert() ?? {})).not.toContain('someone-elses-gym');
-    expect(Object.values(lastInsert() ?? {})).not.toContain(OTHER_STAFF_ID);
+    expect(lastRequest()).not.toHaveProperty('tenant_id');
+    expect(lastRequest()).not.toHaveProperty('initiated_by_staff_id');
+    expect(state.from).toEqual([]);
+    // Caller-selected identities are absent from the RPC arguments.
+    expect(Object.values(lastRequest() ?? {})).not.toContain('someone-elses-gym');
+    expect(Object.values(lastRequest() ?? {})).not.toContain(OTHER_STAFF_ID);
   });
 
-  it('inserts payment_id, amount_paise, kind and reason from the parsed data', async () => {
-    state.results = [ok(null)];
+  it('passes exactly the six parsed request facts to record_refund', async () => {
+    state.results = [ok()];
 
     await recordRefund(post(VALID));
 
-    expect(lastInsert()).toMatchObject({
-      tenant_id: TENANT_ID,
-      initiated_by_staff_id: STAFF_ID,
-      payment_id: PAYMENT_ID,
-      amount_paise: 20000,
-      kind: 'refund',
-      reason: 'Member cancelled the membership',
-    });
+    expect(state.calls).toEqual([{ name: 'record_refund', args: {
+      p_payment_id: PAYMENT_ID, p_amount_paise: 20000, p_currency: 'INR',
+      p_kind: 'refund', p_reason: VALID.reason, p_idempotency_key: VALID.idempotencyKey,
+    } }]);
   });
 
   it('names the payment actually submitted, not a different one', async () => {
-    state.results = [ok(null)];
+    state.results = [ok()];
 
     await recordRefund(post({ ...VALID, paymentId: OTHER_PAYMENT_ID }));
 
-    expect(lastInsert()).toMatchObject({ payment_id: OTHER_PAYMENT_ID });
+    expect(lastRequest()).toMatchObject({ p_payment_id: OTHER_PAYMENT_ID });
   });
 });
 
@@ -376,6 +298,11 @@ describe("translating the database's refusal — always back to the receipt", ()
     ['GL036', 'exceeds_payment'],
     ['GL040', 'refund_not_yours'],
     ['GL041', 'refund_is_a_record'],
+    ['GL048', 'idempotency_conflict'],
+    ['23505', 'refund_failed'],
+    ['23503', 'refund_failed'],
+    ['23514', 'refund_failed'],
+    ['P0001', 'refund_failed'],
   ])('maps trigger refusal %s to %s', async (code, expected) => {
     const response = await submit(fails(code));
 
@@ -410,13 +337,77 @@ describe("translating the database's refusal — always back to the receipt", ()
 });
 
 describe('success', () => {
-  it('redirects to the receipt with no error, at 303, when the insert succeeds', async () => {
-    state.results = [ok(null)];
+  it('redirects to the receipt with no error, at 303, when the RPC succeeds', async () => {
+    state.results = [ok()];
 
     const response = await recordRefund(post(VALID));
 
     expect(response.status).toBe(303);
     expect(pathOf(response)).toBe(RECEIPT_PATH);
     expect(errorOf(response)).toBeNull();
+  });
+});
+
+
+describe('refund request identity and replay', () => {
+  it.each([
+    { data: null }, { data: [] }, { data: [{}] },
+    { data: [{ refund_id: OTHER_PAYMENT_ID }] }, { data: [{ replayed: true }] },
+  ])(
+    'refuses an RPC response without its promised refund result: $data',
+    async ({ data }) => {
+      state.results = [{ data, error: null }];
+      const response = await recordRefund(post(VALID));
+      expect(response.status).toBe(303);
+      expect(pathOf(response)).toBe(RECEIPT_PATH);
+      expect(errorOf(response)).toBe('refund_failed');
+      expect(state.calls).toHaveLength(1);
+      expect(state.from).toEqual([]);
+    },
+  );
+
+  it('stops an impersonating preview without a real staff claim before the RPC', async () => {
+    state.claims = { tenant_id: TENANT_ID, app_role: 'gym_owner', impersonation_session_id: OTHER_PAYMENT_ID };
+    const response = await recordRefund(post(VALID));
+    expect(response.status).toBe(401);
+    expect((await envelope(response)).error?.code).toBe('not_signed_in');
+    expect(state.calls).toEqual([]);
+  });
+
+  it('uses the submitted key even if its facts change, so the database can report a conflict', async () => {
+    state.results = [ok(), fails('GL048')];
+    await recordRefund(post(VALID));
+    const response = await recordRefund(post({ ...VALID, amountRupees: '201.00', reason: 'Changed' }));
+    expect(state.calls.map(({ args }) => args.p_idempotency_key)).toEqual([VALID.idempotencyKey, VALID.idempotencyKey]);
+    expect(errorOf(response)).toBe('idempotency_conflict');
+    expect(state.from).toEqual([]);
+  });
+
+  it('redirects an equivalent replay successfully without a fallback query', async () => {
+    state.results = [ok(true)];
+    const response = await recordRefund(post(VALID));
+    expect(response.status).toBe(303);
+    expect(pathOf(response)).toBe(RECEIPT_PATH);
+    expect(errorOf(response)).toBeNull();
+    expect(state.calls).toHaveLength(1);
+    expect(state.from).toEqual([]);
+  });
+
+  it('passes a fresh form key for an intentional second refund with otherwise identical facts', async () => {
+    state.results = [ok(), ok()];
+    await recordRefund(post(VALID));
+    await recordRefund(post({ ...VALID, idempotencyKey: OTHER_PAYMENT_ID }));
+    expect(state.calls.map(({ args }) => args.p_idempotency_key)).toEqual([VALID.idempotencyKey, OTHER_PAYMENT_ID]);
+  });
+
+  it('sends INR and parser-trimmed reason, ignoring client currency and processing fields', async () => {
+    state.results = [ok()];
+    await recordRefund(post({ ...VALID, reason: '  Returned  CAFÉ e\u0301  ', currency: 'USD',
+      status: 'completed', id: OTHER_PAYMENT_ID, providerRefundId: 'forged', notes: 'do not append',
+    }));
+    expect(state.calls).toEqual([{ name: 'record_refund', args: {
+      p_payment_id: PAYMENT_ID, p_amount_paise: 20000, p_currency: 'INR',
+      p_kind: 'refund', p_reason: 'Returned  CAFÉ e\u0301', p_idempotency_key: VALID.idempotencyKey,
+    } }]);
   });
 });

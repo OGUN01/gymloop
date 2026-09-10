@@ -35,12 +35,31 @@ import { refundRequestSchema } from '../refunds';
 
 const VALID = {
   paymentId: '11111111-1111-4111-8111-111111111111',
+  idempotencyKey: '99999999-9999-4999-8999-999999999999',
   amountRupees: '200.00',
   kind: 'refund',
   reason: 'Member cancelled the membership',
 };
 
 describe('refundRequestSchema', () => {
+  // REF-003 deliberately adds a required nonce to the earlier form contract.
+  // Authored from the frozen refund contract without reading implementation.
+  it.each([undefined, '', '   ', 'not-a-uuid', '12345'])(
+    'refuses an absent or invalid refund nonce: %s',
+    (idempotencyKey) => {
+      expect(refundRequestSchema.safeParse({ ...VALID, idempotencyKey }).success).toBe(false);
+    },
+  );
+
+  it('preserves the submitted UUID and normalizes only outer reason whitespace', () => {
+    const idempotencyKey = 'ABCDEFAB-1234-4234-8234-ABCDEFABCDEF';
+    const reason = '  Returned  CAFÉ e\u0301  ';
+    const result = refundRequestSchema.safeParse({ ...VALID, idempotencyKey, reason });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.idempotencyKey.toLowerCase()).toBe(idempotencyKey.toLowerCase());
+    expect(result.data.reason).toBe('Returned  CAFÉ e\u0301');
+  });
   it('accepts a fully valid submission', () => {
     const result = refundRequestSchema.safeParse(VALID);
     expect(result.success).toBe(true);
@@ -52,13 +71,13 @@ describe('refundRequestSchema', () => {
   });
 
   it('a missing paymentId is refused', () => {
-    const { amountRupees, kind, reason } = VALID;
-    expect(refundRequestSchema.safeParse({ amountRupees, kind, reason }).success).toBe(false);
+    const { amountRupees, kind, reason, idempotencyKey } = VALID;
+    expect(refundRequestSchema.safeParse({ amountRupees, kind, reason, idempotencyKey }).success).toBe(false);
   });
 
   it('a missing reason is refused', () => {
-    const { paymentId, amountRupees, kind } = VALID;
-    expect(refundRequestSchema.safeParse({ paymentId, amountRupees, kind }).success).toBe(false);
+    const { paymentId, amountRupees, kind, idempotencyKey } = VALID;
+    expect(refundRequestSchema.safeParse({ paymentId, amountRupees, kind, idempotencyKey }).success).toBe(false);
   });
 
   it('a whitespace-only reason is refused, not trimmed and accepted', () => {
@@ -77,8 +96,8 @@ describe('refundRequestSchema', () => {
   });
 
   it('a missing amountRupees is refused', () => {
-    const { paymentId, kind, reason } = VALID;
-    expect(refundRequestSchema.safeParse({ paymentId, kind, reason }).success).toBe(false);
+    const { paymentId, kind, reason, idempotencyKey } = VALID;
+    expect(refundRequestSchema.safeParse({ paymentId, kind, reason, idempotencyKey }).success).toBe(false);
   });
 
   it('an empty amountRupees is refused', () => {
@@ -86,8 +105,8 @@ describe('refundRequestSchema', () => {
   });
 
   it('a missing kind is refused', () => {
-    const { paymentId, amountRupees, reason } = VALID;
-    expect(refundRequestSchema.safeParse({ paymentId, amountRupees, reason }).success).toBe(false);
+    const { paymentId, amountRupees, reason, idempotencyKey } = VALID;
+    expect(refundRequestSchema.safeParse({ paymentId, amountRupees, reason, idempotencyKey }).success).toBe(false);
   });
 
   it('an empty kind is refused', () => {
