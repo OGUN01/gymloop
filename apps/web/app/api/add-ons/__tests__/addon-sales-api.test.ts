@@ -5,13 +5,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * its handlers exist. The database suite owns row invariants; this suite owns
  * strict JSON parsing, the RPC wire contract, and honest HTTP outcomes.
  */
-type Result = { data: unknown; error: { code: string; message: string } | null };
+type Result = { data: unknown; error: { code: string; message: string; details?: string } | null };
 
 const state = vi.hoisted(() => ({
   claims: null as Record<string, unknown> | null,
   rpc: [] as Array<{ name: string; args: Record<string, unknown> }>,
   results: [] as Result[],
   writes: [] as Array<{ table: string; method: string; value: unknown }>,
+  operations: [] as Array<
+    | { kind: 'rpc'; name: string; args: Record<string, unknown> }
+    | { kind: 'query'; table: string; method: string; args: unknown[] }
+  >,
 }));
 
 vi.mock('../../../../lib/supabase/server', () => ({
@@ -19,6 +23,7 @@ vi.mock('../../../../lib/supabase/server', () => ({
     auth: { getClaims: async () => ({ data: state.claims && { claims: state.claims }, error: null }) },
     rpc: async (name: string, args: Record<string, unknown>) => {
       state.rpc.push({ name, args });
+      state.operations.push({ kind: 'rpc', name, args });
       return state.results.shift() ?? { data: null, error: { code: 'XX000', message: 'Unexpected RPC' } };
     },
     from: (table: string) => {
@@ -29,8 +34,10 @@ vi.mock('../../../../lib/supabase/server', () => ({
         maybeSingle: async () => result,
       };
       for (const method of ['insert', 'update', 'select', 'eq']) {
-        chain[method] = (value: unknown) => {
+        chain[method] = (...args: unknown[]) => {
+          const [value] = args;
           state.writes.push({ table, method, value });
+          state.operations.push({ kind: 'query', table, method, args });
           return chain;
         };
       }
@@ -96,6 +103,7 @@ beforeEach(() => {
   state.rpc = [];
   state.results = [];
   state.writes = [];
+  state.operations = [];
 });
 
 describe('catalogue command parsing', () => {
@@ -172,7 +180,6 @@ describe('recording an add-on sale', () => {
 
   it.each([
     ['an amount override', { ...sale, pricePaise: '1' }],
-    ['a coupon', { ...sale, couponId: PRODUCT_ID }],
     ['a seller override', { ...sale, soldByStaffId: STAFF_ID }],
     ['a tenant override', { ...sale, tenantId: TENANT_ID }],
     ['a missing quote', { ...sale, quoteVersion: undefined }],
@@ -189,16 +196,43 @@ describe('recording an add-on sale', () => {
     expect(state.rpc).toEqual([]);
   });
 
+  it('refuses coupon-shaped sale input as unsupported_coupon before invoking the RPC', async () => {
+    const { POST } = await saleRoute();
+    const response = await POST(json('/api/add-on-orders', { ...sale, couponId: PRODUCT_ID }));
+
+    expect(response.status).toBe(400);
+    expect((await body(response)).error?.code).toBe('unsupported_coupon');
+    expect(state.rpc).toEqual([]);
+  });
+
   it.each([
-    ['GL052', 'idempotency_conflict'], ['GL055', 'quote_changed'], ['GL057', 'insufficient_stock'],
-    ['23P01', 'slot_unavailable'], ['40001', 'retryable'], ['P0002', 'not_found'], ['42501', 'not_permitted'],
-  ])('maps %s to the stable %s error instead of success', async (code, expected) => {
-    state.results = [{ data: null, error: { code, message: code } }];
+    ['GL052', 'idempotency_conflict', 'GL052', undefined],
+    ['GL055', 'quote_changed', 'GL055', undefined],
+    ['GL057', 'insufficient_stock', 'GL057', undefined],
+    ['23P01', 'slot_unavailable', 'conflicting key value violates exclusion constraint "pt_sessions_trainer_overlap_excl"', 'Constraint pt_sessions_trainer_overlap_excl rejected an overlapping trainer slot'],
+    ['40001', 'retryable', '40001', undefined],
+    ['P0002', 'not_found', 'P0002', undefined],
+    ['42501', 'not_permitted', '42501', undefined],
+  ])('maps %s to the stable %s error instead of success', async (code, expected, message, details) => {
+    state.results = [{ data: null, error: { code, message, details } }];
     const { POST } = await saleRoute();
     const response = await POST(json('/api/add-on-orders', sale));
 
     expect(response.status).toBe(code === 'P0002' ? 404 : code === '42501' ? 403 : 409);
     expect((await body(response))).toMatchObject({ ok: false, error: { code: expected } });
+  });
+
+  it('fails closed for an unrelated exclusion violation', async () => {
+    state.results = [{ data: null, error: {
+      code: '23P01',
+      message: 'conflicting key value violates exclusion constraint "some_other_excl"',
+      details: 'An unrelated exclusion constraint rejected this write',
+    } }];
+    const { POST } = await saleRoute();
+    const response = await POST(json('/api/add-on-orders', sale));
+
+    expect(response.status).toBe(500);
+    expect((await body(response))).toMatchObject({ ok: false, error: { code: 'operation_failed' } });
   });
 
   it('treats a malformed RPC success result as a failure, never as an accepted sale', async () => {
@@ -241,12 +275,47 @@ describe('PT, delivery, and manual-return commands', () => {
 
   it('finishes only through the session terminal command and validates the exact result row', async () => {
     state.claims = TRAINER;
-    state.results = [{ data: [{ session_id: SESSION_ID, order_id: ORDER_ID, session_status: 'completed', order_status: 'active', replayed: false }], error: null }];
+    state.results = [
+      { data: { id: SESSION_ID, tenant_id: TENANT_ID, addon_order_id: ORDER_ID }, error: null },
+      { data: [{ session_id: SESSION_ID, order_id: ORDER_ID, session_status: 'completed', order_status: 'active', replayed: false }], error: null },
+    ];
     const { PATCH } = await sessionRoute();
     const response = await PATCH(json(`/api/add-on-orders/${ORDER_ID}/sessions`, { sessionId: SESSION_ID, status: 'completed' }, 'PATCH'), { params: Promise.resolve({ orderId: ORDER_ID }) });
 
     expect(response.status).toBe(200);
     expect(state.rpc[0]).toEqual({ name: 'finish_pt_session', args: { p_session_id: SESSION_ID, p_status: 'completed' } });
+    const rpcIndex = state.operations.findIndex((operation) => operation.kind === 'rpc' && operation.name === 'finish_pt_session');
+    for (const args of [['tenant_id', TENANT_ID], ['id', SESSION_ID], ['addon_order_id', ORDER_ID]]) {
+      const filterIndex = state.operations.findIndex((operation) =>
+        operation.kind === 'query'
+        && operation.table === 'pt_sessions'
+        && operation.method === 'eq'
+        && operation.args[0] === args[0]
+        && operation.args[1] === args[1]);
+      expect(filterIndex).toBeGreaterThanOrEqual(0);
+      expect(filterIndex).toBeLessThan(rpcIndex);
+    }
+  });
+
+  it.each([
+    ['a missing session', ORDER_ID],
+    ['a session outside the URL order', PRODUCT_ID],
+  ])('refuses %s before invoking finish_pt_session', async (_name, orderId) => {
+    state.claims = TRAINER;
+    state.results = [{ data: null, error: null }];
+    const { PATCH } = await sessionRoute();
+    const response = await PATCH(json(`/api/add-on-orders/${orderId}/sessions`, {
+      sessionId: SESSION_ID, status: 'completed',
+    }, 'PATCH'), { params: Promise.resolve({ orderId }) });
+
+    expect(response.status).toBe(404);
+    expect((await body(response))).toMatchObject({ ok: false, error: { code: 'not_found' } });
+    expect(state.rpc).toEqual([]);
+    expect(state.operations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'query', table: 'pt_sessions', method: 'eq', args: ['tenant_id', TENANT_ID] }),
+      expect.objectContaining({ kind: 'query', table: 'pt_sessions', method: 'eq', args: ['id', SESSION_ID] }),
+      expect.objectContaining({ kind: 'query', table: 'pt_sessions', method: 'eq', args: ['addon_order_id', orderId] }),
+    ]));
   });
 
   it('completes a diet/product order with no body and refuses a forged command body', async () => {
