@@ -4,6 +4,15 @@
 
 ## Model and effort policy
 
+**Owner override, 2026-09-10:** use GPT-6 Astra for orchestration, money/security
+work, independent money test authors and critics, and Phase 7 UI/UX. Use
+GPT-5.6 Sol for moderately complex bounded work and GPT-5.6 Terra for simple
+inventory, transcription and routine tasks. Run independent work in parallel,
+with contracts fixed first and changes landed serially on `main`. This replaces
+the Claude model assignments below; those paragraphs are retained as history.
+The current authorized sequence is the remaining Phase 5 work, then Phase 6.
+Phase 7 design research and redesign wait until Phase 6 is complete.
+
 **Build phases run on Claude Opus 5 at `xhigh`; the design phase runs on Claude Fable 5.1 at `max`.** Product-owner decision, 2026-09-06, made while Phase 1 was running: the first Fable run was cut off by the account usage limit after thirty minutes, and the owner chose Opus 5 for the build phases so runs complete, keeping Fable for Phase 7 where the blind visual comparison is the whole point. This supersedes the master prompt header's Fable-everywhere rule by the owner's own call, not by a session's. Effort stays `xhigh` on every build phase — the model changed, the bar did not. **Do not lower effort or substitute a smaller model than Opus 5, and do not propose it.**
 
 | Phase | Model | Effort | Why this effort |
