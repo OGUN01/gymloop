@@ -2010,9 +2010,9 @@ select is(
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app' and p.prosecdef
-      and p.proname not in ('audit_impersonation_session', 'custom_access_token_hook', 'revoke_sessions_on_identity_change')),
+      and p.proname not in ('audit_impersonation_session', 'custom_access_token_hook', 'revoke_sessions_on_identity_change', 'audit_money_change')),
   0,
-  'ADR-066: every security definer function in schema app is still one of the three already-justified ones — this contract''s fix added no new elevated function');
+  'ADR-066/AUD-001: the closed elevation allowlist adds only audit_money_change, explicitly required by the frozen refund audit contract');
 
 -- ---------------------------------------------------------------------------
 -- 16. FIFTH-SESSION EXTENSION, written blind by a separate author against

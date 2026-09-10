@@ -742,9 +742,9 @@ select set_config('request.jwt.claims', '', true);
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app' and p.prosecdef
-      and p.proname not in ('audit_impersonation_session', 'custom_access_token_hook', 'revoke_sessions_on_identity_change')),
+      and p.proname not in ('audit_impersonation_session', 'custom_access_token_hook', 'revoke_sessions_on_identity_change', 'audit_money_change')),
   0,
-  'ADR-066: every security definer function in schema app is one of the three already-justified ones (the access-token hook, whose caller holds no table grants at all, and the two audit-writing triggers) — Phase 5 has added no new elevated function outside that allowlist');
+  'ADR-066/AUD-001: elevation remains limited to the identity hook and three private audit writers; the frozen refund audit contract explicitly adds audit_money_change');
 
 -- ---------------------------------------------------------------------------
 -- 11. PAY-011: gym A has no Razorpay account connected at all, and every
