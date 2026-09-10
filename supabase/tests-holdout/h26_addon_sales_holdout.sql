@@ -382,6 +382,9 @@ select set_config('request.jwt.claims','',true);
 -- Model rows already present before this feature, including ended scheduled
 -- appointments. Only this rollback fixture suppresses new-write triggers;
 -- relational checks remain enabled and all tested actions use normal triggers.
+-- Resolve queued acceptance checks before changing fixture-only trigger state.
+set constraints all immediate;
+set constraints all deferred;
 alter table public.addon_orders disable trigger user;
 alter table public.pt_sessions disable trigger user;
 insert into public.addon_orders(id,tenant_id,member_id,addon_product_id,status,quantity,

@@ -450,7 +450,7 @@ begin;
 
 set local role postgres;
 
-select plan(1001);
+select plan(1002);
 
 -- ---------------------------------------------------------------------------
 -- 0. Fixtures.
@@ -2010,9 +2010,10 @@ select is(
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app' and p.prosecdef
-      and p.proname not in ('audit_impersonation_session', 'custom_access_token_hook', 'revoke_sessions_on_identity_change', 'audit_money_change')),
+      and p.proname not in ('audit_impersonation_session', 'custom_access_token_hook', 'revoke_sessions_on_identity_change', 'audit_money_change',
+        'lock_addon_product_for_order', 'apply_addon_order_effects', 'lock_addon_order_for_pt_session', 'apply_pt_session_effect', 'apply_addon_refund_effect', 'addon_order_fully_returned')),
   0,
-  'ADR-066/AUD-001: the closed elevation allowlist adds only audit_money_change, explicitly required by the frozen refund audit contract');
+  'ADR-066/AUD-001/A-012: elevation remains within the closed identity, audit and approved private add-on capability allowlist');
 
 -- ---------------------------------------------------------------------------
 -- 16. FIFTH-SESSION EXTENSION, written blind by a separate author against
@@ -7857,17 +7858,22 @@ select is(
 select is(
   pg_temp.h22r17_state($$update public.refunds
       set reason = 'h22 r17: provider confirmed, reference filed afterwards',
-          provider_refund_id = 'h22r17_rfnd_0001',
-          processed_at = now()
+          provider_refund_id = 'h22r17_rfnd_0001'
     where id = '220000ff-0022-4000-8000-800000000f16'$$),
   'OK',
-  'r17/b: WHAT STAYS WRITABLE. On a completed refund the reason, the provider''s own reference and the time it was processed are all still editable — the same distinction the payment freeze draws, freeze what the row MEANT and leave what has become of it. A freeze written as "no UPDATE at all once completed" passes every refusal above and breaks the reconciliation this column exists for');
+  'r17/b: completed refunds still permit reason and provider-reference reconciliation; A-011 now freezes the recorded processing instant');
 
 select is(
-  (select reason || '|' || provider_refund_id || '|' || (processed_at is not null)::text
+  (select reason || '|' || provider_refund_id
      from public.refunds where id = '220000ff-0022-4000-8000-800000000f16'::uuid),
-  'h22 r17: provider confirmed, reference filed afterwards|h22r17_rfnd_0001|true',
-  'r17/b: and all three landed — the permitted statement was not merely inert (ADR-078)');
+  'h22 r17: provider confirmed, reference filed afterwards|h22r17_rfnd_0001',
+  'r17/b: both permitted reconciliation fields landed (ADR-078)');
+
+select is(
+  pg_temp.h22r17_state($$update public.refunds set processed_at=coalesce(processed_at,now())+interval '1 day'
+    where id='220000ff-0022-4000-8000-800000000f16'$$),
+  'GL041',
+  'A-011: completed refund processing time is immutable, including undated legacy history');
 
 -- The two unfrozen columns, and whether either reaches the ceiling.
 insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, status, reason, initiated_by_staff_id) values

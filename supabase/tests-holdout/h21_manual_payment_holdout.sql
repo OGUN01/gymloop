@@ -742,9 +742,10 @@ select set_config('request.jwt.claims', '', true);
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app' and p.prosecdef
-      and p.proname not in ('audit_impersonation_session', 'custom_access_token_hook', 'revoke_sessions_on_identity_change', 'audit_money_change')),
+      and p.proname not in ('audit_impersonation_session', 'custom_access_token_hook', 'revoke_sessions_on_identity_change', 'audit_money_change',
+        'lock_addon_product_for_order', 'apply_addon_order_effects', 'lock_addon_order_for_pt_session', 'apply_pt_session_effect', 'apply_addon_refund_effect', 'addon_order_fully_returned')),
   0,
-  'ADR-066/AUD-001: elevation remains limited to the identity hook and three private audit writers; the frozen refund audit contract explicitly adds audit_money_change');
+  'ADR-066/AUD-001/A-012: elevation remains within the closed identity, audit and approved private add-on capability allowlist');
 
 -- ---------------------------------------------------------------------------
 -- 11. PAY-011: gym A has no Razorpay account connected at all, and every

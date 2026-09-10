@@ -51,6 +51,11 @@ insert into public.staff (id, tenant_id, role, full_name) values
   ('22220000-0013-4000-8000-0000000000a3', 'aaaa0000-0013-4000-8000-000000000001', 'front_desk',  'Front A'),
   ('22220000-0013-4000-8000-0000000000a4', 'aaaa0000-0013-4000-8000-000000000001', 'trainer',     'Trainer A');
 
+-- Phase 6 commands require a real subject-to-staff identity, not only a role label.
+insert into auth.users(id) values ('00000000-0013-4000-8000-000000000002'),('00000000-0013-4000-8000-000000000004');
+update public.staff set user_id='00000000-0013-4000-8000-000000000002' where id='22220000-0013-4000-8000-0000000000a3';
+update public.staff set user_id='00000000-0013-4000-8000-000000000004' where id='22220000-0013-4000-8000-0000000000a4';
+
 insert into public.members (id, tenant_id, branch_id, full_name, phone) values
   ('33330000-0013-4000-8000-0000000000a1', 'aaaa0000-0013-4000-8000-000000000001',
      'aaaa0000-0013-4000-8000-0000000000b1', 'Member A One', '+911300000001'),
@@ -74,14 +79,19 @@ insert into public.razorpay_accounts
   ('aaaa0000-0013-4000-8000-000000000001', 'rzp_test_holdout',
      '77770000-0013-4000-8000-0000000000f1', '77770000-0013-4000-8000-0000000000f2', false);
 
-insert into public.addon_products (id, tenant_id, kind, name, price_paise) values
+insert into public.addon_products (id, tenant_id, kind, name, price_paise, description, validity_days, cancellation_terms) values
   ('99990000-0013-4000-8000-0000000000a1', 'aaaa0000-0013-4000-8000-000000000001',
-     'diet_plan', 'Diet Plan A', 50000);
+     'diet_plan', 'Diet Plan A', 50000, 'Individual diet guidance', 30, 'Desk cancellation');
 
 insert into public.addon_orders
   (id, tenant_id, member_id, addon_product_id, unit_price_paise, total_paise) values
   ('99990000-0013-4000-8000-0000000000a2', 'aaaa0000-0013-4000-8000-000000000001',
      '33330000-0013-4000-8000-0000000000a1', '99990000-0013-4000-8000-0000000000a1', 50000, 50000);
+
+insert into public.addon_products(id,tenant_id,kind,name,price_paise,description,validity_days,cancellation_terms,session_count,trainer_staff_id,trainer_qualification)
+values ('99990000-0013-4000-8000-0000000000a8','aaaa0000-0013-4000-8000-000000000001','pt_package','PT Plan A',0,'Two PT sessions',30,'Desk cancellation',2,'22220000-0013-4000-8000-0000000000a4','Gym-qualified trainer');
+insert into public.addon_orders(id,tenant_id,member_id,addon_product_id,unit_price_paise,total_paise,status,trainer_staff_id,sessions_total,starts_on,expires_on)
+values ('99990000-0013-4000-8000-0000000000a9','aaaa0000-0013-4000-8000-000000000001','33330000-0013-4000-8000-0000000000a1','99990000-0013-4000-8000-0000000000a8',0,0,'active','22220000-0013-4000-8000-0000000000a4',2,(transaction_timestamp() at time zone 'Asia/Kolkata')::date,(transaction_timestamp() at time zone 'Asia/Kolkata')::date+30);
 
 insert into public.no_show_cases
   (id, tenant_id, member_id, absent_days_at_open, threshold_days) values
@@ -335,11 +345,10 @@ select ok(
   'front desk cannot add an add-on product');
 
 select ok(
-  pg_temp.allowed($q$insert into public.addon_orders
-                       (tenant_id, member_id, addon_product_id, unit_price_paise, total_paise)
-                     values ('aaaa0000-0013-4000-8000-000000000001',
-                             '33330000-0013-4000-8000-0000000000a2',
-                             '99990000-0013-4000-8000-0000000000a1', 50000, 50000)$q$),
+  pg_temp.allowed($q$select * from public.record_addon_sale(
+    '33330000-0013-4000-8000-0000000000a2','99990000-0013-4000-8000-0000000000a1',1,
+    (select quote_version from public.addon_products where id='99990000-0013-4000-8000-0000000000a1'),
+    null,null,null,'cash',null,'99990000-0013-4000-8000-0000000000b0')$q$),
   'front desk sells an add-on');
 
 select ok(
@@ -352,7 +361,7 @@ select ok(
 -- ---------------------------------------------------------------------------
 
 select set_config('request.jwt.claims', json_build_object(
-  'sub', '00000000-0013-4000-8000-000000000001', 'role', 'authenticated',
+  'sub', '00000000-0013-4000-8000-000000000004', 'role', 'authenticated',
   'tenant_id', 'aaaa0000-0013-4000-8000-000000000001',
   'app_role', 'trainer', 'staff_id', '22220000-0013-4000-8000-0000000000a4')::text, true);
 
@@ -375,10 +384,10 @@ select ok(
   pg_temp.allowed($q$insert into public.pt_sessions
                        (tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at)
                      values ('aaaa0000-0013-4000-8000-000000000001',
-                             '99990000-0013-4000-8000-0000000000a2',
+                             '99990000-0013-4000-8000-0000000000a9',
                              '22220000-0013-4000-8000-0000000000a4',
                              '33330000-0013-4000-8000-0000000000a1',
-                             '2026-03-01T10:00:00Z', '2026-03-01T11:00:00Z')$q$),
+                             transaction_timestamp()+interval '1 day', transaction_timestamp()+interval '1 day 1 hour')$q$),
   'a trainer books a PT session');
 
 select ok(

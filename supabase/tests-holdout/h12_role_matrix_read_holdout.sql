@@ -457,25 +457,28 @@ insert into public.follow_ups (id, tenant_id, case_id, staff_id, channel, outcom
      '88880000-0012-4000-8000-0000000000a1', '22220000-0012-4000-8000-0000000000a4',
      'call', 'no_response');
 
-insert into public.addon_products (id, tenant_id, kind, name, price_paise) values
+insert into public.addon_products (id, tenant_id, kind, name, price_paise, description, validity_days, cancellation_terms, session_count, trainer_staff_id, trainer_qualification) values
   ('99990000-0012-4000-8000-0000000000a1', 'aaaa0000-0012-4000-8000-000000000001',
-     'diet_plan', 'Diet Plan A', 50000);
+     'pt_package', 'PT Plan A', 0, 'Two PT sessions', 30, 'Desk cancellation', 2,
+     '22220000-0012-4000-8000-0000000000a4', 'Gym-qualified trainer');
 
 insert into public.addon_orders
-  (id, tenant_id, member_id, addon_product_id, unit_price_paise, total_paise) values
+  (id, tenant_id, member_id, addon_product_id, unit_price_paise, total_paise, status, trainer_staff_id, sessions_total, starts_on, expires_on) values
   ('99990000-0012-4000-8000-0000000000a2', 'aaaa0000-0012-4000-8000-000000000001',
-     '33330000-0012-4000-8000-0000000000a1', '99990000-0012-4000-8000-0000000000a1', 50000, 50000),
+     '33330000-0012-4000-8000-0000000000a1', '99990000-0012-4000-8000-0000000000a1', 0, 0, 'active',
+     '22220000-0012-4000-8000-0000000000a4', 2, (transaction_timestamp() at time zone 'Asia/Kolkata')::date, (transaction_timestamp() at time zone 'Asia/Kolkata')::date+30),
   ('99990000-0012-4000-8000-0000000000a3', 'aaaa0000-0012-4000-8000-000000000001',
-     '33330000-0012-4000-8000-0000000000a2', '99990000-0012-4000-8000-0000000000a1', 50000, 50000);
+     '33330000-0012-4000-8000-0000000000a2', '99990000-0012-4000-8000-0000000000a1', 0, 0, 'active',
+     '22220000-0012-4000-8000-0000000000a4', 2, (transaction_timestamp() at time zone 'Asia/Kolkata')::date, (transaction_timestamp() at time zone 'Asia/Kolkata')::date+30);
 
 insert into public.pt_sessions
   (id, tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at) values
   ('99990000-0012-4000-8000-0000000000a4', 'aaaa0000-0012-4000-8000-000000000001',
      '99990000-0012-4000-8000-0000000000a2', '22220000-0012-4000-8000-0000000000a4',
-     '33330000-0012-4000-8000-0000000000a1', '2026-02-01T06:00:00Z', '2026-02-01T07:00:00Z'),
+     '33330000-0012-4000-8000-0000000000a1', transaction_timestamp()+interval '1 day', transaction_timestamp()+interval '1 day 1 hour'),
   ('99990000-0012-4000-8000-0000000000a5', 'aaaa0000-0012-4000-8000-000000000001',
      '99990000-0012-4000-8000-0000000000a3', '22220000-0012-4000-8000-0000000000a4',
-     '33330000-0012-4000-8000-0000000000a2', '2026-02-01T08:00:00Z', '2026-02-01T09:00:00Z');
+     '33330000-0012-4000-8000-0000000000a2', transaction_timestamp()+interval '1 day 2 hours', transaction_timestamp()+interval '1 day 3 hours');
 
 insert into public.consents (id, tenant_id, member_id, purpose, granted, version, source) values
   ('99990000-0012-4000-8000-0000000000a6', 'aaaa0000-0012-4000-8000-000000000001',

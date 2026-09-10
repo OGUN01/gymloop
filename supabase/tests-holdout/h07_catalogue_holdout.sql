@@ -199,24 +199,27 @@ insert into public.members (id, tenant_id, branch_id, full_name, phone) values
   ('00000000-0000-4000-8000-000000700031', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-00000070001a', 'Holdout Member A', '+919000700031'),
   ('00000000-0000-4000-8000-00000070003b', '00000000-0000-4000-8000-00000070000b', '00000000-0000-4000-8000-00000070001b', 'Holdout Member B', '+919000700039');
 
-insert into public.payments (id, tenant_id, member_id, amount_paise, method, recorded_by_staff_id) values
-  ('00000000-0000-4000-8000-000000700041', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700031', 1000000, 'cash', '00000000-0000-4000-8000-000000700021');
+insert into public.payments (id, tenant_id, member_id, amount_paise, method, recorded_by_staff_id, status, paid_at) values
+  ('00000000-0000-4000-8000-000000700041', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700031', 1000000, 'cash', '00000000-0000-4000-8000-000000700021', 'paid', transaction_timestamp()),
+  ('00000000-0000-4000-8000-000000700042', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700031', 100000, 'cash', '00000000-0000-4000-8000-000000700021', 'paid', transaction_timestamp());
 
-insert into public.addon_products (id, tenant_id, kind, name, price_paise, session_count, trainer_staff_id) values
-  ('00000000-0000-4000-8000-000000700051', '00000000-0000-4000-8000-00000070000a', 'pt_package', 'Holdout PT Ten Pack', 1000000, 10, '00000000-0000-4000-8000-000000700021');
+insert into public.addon_products (id, tenant_id, kind, name, price_paise, session_count, trainer_staff_id, description, validity_days, cancellation_terms, trainer_qualification) values
+  ('00000000-0000-4000-8000-000000700051', '00000000-0000-4000-8000-00000070000a', 'pt_package', 'Holdout PT Ten Pack', 1000000, 10, '00000000-0000-4000-8000-000000700021', 'Disclosed holdout offer', 365, 'Desk cancellation', 'Gym-qualified trainer');
 
-insert into public.addon_products (id, tenant_id, kind, name, price_paise, stock_quantity) values
-  ('00000000-0000-4000-8000-000000700052', '00000000-0000-4000-8000-00000070000a', 'product', 'Holdout Whey One Kg', 250000, 5),
-  ('00000000-0000-4000-8000-00000070005b', '00000000-0000-4000-8000-00000070000b', 'product', 'Holdout Gym B Creatine', 150000, 3);
+insert into public.addon_products (id, tenant_id, kind, name, price_paise, stock_quantity, description, validity_days, cancellation_terms, trainer_qualification) values
+  ('00000000-0000-4000-8000-000000700052', '00000000-0000-4000-8000-00000070000a', 'product', 'Holdout Whey One Kg', 250000, 5, 'Disclosed holdout offer', 365, 'Desk cancellation', null),
+  ('00000000-0000-4000-8000-00000070005b', '00000000-0000-4000-8000-00000070000b', 'product', 'Holdout Gym B Creatine', 150000, 3, 'Disclosed holdout offer', 365, 'Desk cancellation', null);
 
-insert into public.addon_orders (id, tenant_id, member_id, addon_product_id, payment_id, status, quantity, unit_price_paise, total_paise, sessions_total, sessions_used, trainer_staff_id) values
-  ('00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700031', '00000000-0000-4000-8000-000000700051', '00000000-0000-4000-8000-000000700041', 'paid', 1, 1000000, 1000000, 10, 0, '00000000-0000-4000-8000-000000700021');
+insert into public.addon_orders (id, tenant_id, member_id, addon_product_id, payment_id, status, quantity, unit_price_paise, total_paise, sessions_total, sessions_used, trainer_staff_id, starts_on, expires_on) values
+  ('00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700031', '00000000-0000-4000-8000-000000700051', '00000000-0000-4000-8000-000000700041', 'active', 1, 1000000, 1000000, 10, 0, '00000000-0000-4000-8000-000000700021', (transaction_timestamp() at time zone 'Asia/Kolkata')::date, (transaction_timestamp() at time zone 'Asia/Kolkata')::date+365);
 
 insert into public.addon_orders (id, tenant_id, member_id, addon_product_id, unit_price_paise, total_paise, sessions_total, sessions_used) values
   ('00000000-0000-4000-8000-000000700062', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700031', '00000000-0000-4000-8000-000000700051', 1000000, 1000000, 5, 4);
 
-insert into public.addon_orders (id, tenant_id, member_id, addon_product_id, unit_price_paise, total_paise) values
-  ('00000000-0000-4000-8000-00000070006b', '00000000-0000-4000-8000-00000070000b', '00000000-0000-4000-8000-00000070003b', '00000000-0000-4000-8000-00000070005b', 150000, 150000);
+insert into public.addon_products(id,tenant_id,kind,name,price_paise,session_count,trainer_staff_id,trainer_qualification,description,validity_days,cancellation_terms) values
+  ('00000000-0000-4000-8000-00000070005c','00000000-0000-4000-8000-00000070000b','pt_package','Gym B PT',0,10,'00000000-0000-4000-8000-00000070002b','Gym-qualified trainer','Disclosed PT offer',365,'Desk cancellation');
+insert into public.addon_orders (id, tenant_id, member_id, addon_product_id, unit_price_paise, total_paise,status,trainer_staff_id,sessions_total,starts_on,expires_on) values
+  ('00000000-0000-4000-8000-00000070006b', '00000000-0000-4000-8000-00000070000b', '00000000-0000-4000-8000-00000070003b', '00000000-0000-4000-8000-00000070005c', 0, 0,'active','00000000-0000-4000-8000-00000070002b',10,(transaction_timestamp() at time zone 'Asia/Kolkata')::date,(transaction_timestamp() at time zone 'Asia/Kolkata')::date+365);
 
 insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at) values
   ('00000000-0000-4000-8000-000000700071', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', '2026-10-01 10:00:00+05:30', '2026-10-01 11:00:00+05:30'),
@@ -227,43 +230,43 @@ insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id,
 -- ---------------------------------------------------------------------------
 
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise)
-     values ('00000000-0000-4000-8000-00000070000a', 'pt_package', 'Holdout PT No Session Count', 500000) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, description, validity_days, cancellation_terms, trainer_qualification)
+     values ('00000000-0000-4000-8000-00000070000a', 'pt_package', 'Holdout PT No Session Count', 500000, 'Disclosed holdout offer', 365, 'Desk cancellation', 'Gym-qualified trainer') $$,
   '23514'::char(5), null,
   'ADD-002 scenario: A PT package with no session count'
 );
 select lives_ok(
-  $$ insert into public.addon_products (id, tenant_id, kind, name, price_paise, session_count, trainer_staff_id)
-     values ('00000000-0000-4000-8000-0000007000e1', '00000000-0000-4000-8000-00000070000a', 'pt_package', 'Holdout PT Five Pack', 500000, 5, '00000000-0000-4000-8000-000000700021') $$,
+  $$ insert into public.addon_products (id, tenant_id, kind, name, price_paise, session_count, trainer_staff_id, description, validity_days, cancellation_terms, trainer_qualification)
+     values ('00000000-0000-4000-8000-0000007000e1', '00000000-0000-4000-8000-00000070000a', 'pt_package', 'Holdout PT Five Pack', 500000, 5, '00000000-0000-4000-8000-000000700021', 'Disclosed holdout offer', 365, 'Desk cancellation', 'Gym-qualified trainer') $$,
   'ADD-002: a PT package carrying its session count is accepted'
 );
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise)
-     values ('00000000-0000-4000-8000-00000070000a', 'product', 'Holdout Product No Stock', 90000) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, description, validity_days, cancellation_terms, trainer_qualification)
+     values ('00000000-0000-4000-8000-00000070000a', 'product', 'Holdout Product No Stock', 90000, 'Disclosed holdout offer', 365, 'Desk cancellation', null) $$,
   '23514'::char(5), null,
   'ADD-002 scenario: A product with no stock level'
 );
 select lives_ok(
-  $$ insert into public.addon_products (id, tenant_id, kind, name, price_paise)
-     values ('00000000-0000-4000-8000-000000700053', '00000000-0000-4000-8000-00000070000a', 'diet_plan', 'Holdout Diet Plan Thirty Days', 100000) $$,
+  $$ insert into public.addon_products (id, tenant_id, kind, name, price_paise, description, validity_days, cancellation_terms, trainer_qualification)
+     values ('00000000-0000-4000-8000-000000700053', '00000000-0000-4000-8000-00000070000a', 'diet_plan', 'Holdout Diet Plan Thirty Days', 100000, 'Disclosed holdout offer', 365, 'Desk cancellation', null) $$,
   'ADD-002 scenario: A diet plan needs neither'
 );
 select is((select p.currency from public.addon_products p where p.id = '00000000-0000-4000-8000-000000700053'), 'INR', 'MNY-002: addon_products.currency defaults to INR');
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, session_count, trainer_staff_id)
-     values ('00000000-0000-4000-8000-00000070000a', 'pt_package', 'Holdout PT Zero Sessions', 500000, 0, '00000000-0000-4000-8000-000000700021') $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, session_count, trainer_staff_id, description, validity_days, cancellation_terms, trainer_qualification)
+     values ('00000000-0000-4000-8000-00000070000a', 'pt_package', 'Holdout PT Zero Sessions', 500000, 0, '00000000-0000-4000-8000-000000700021', 'Disclosed holdout offer', 365, 'Desk cancellation', 'Gym-qualified trainer') $$,
   '23514'::char(5), null,
   'ADD-002: a PT package selling zero sessions is rejected'
 );
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity)
-     values ('00000000-0000-4000-8000-00000070000a', 'product', 'Holdout Whey One Kg', 250000, 2) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity, description, validity_days, cancellation_terms, trainer_qualification)
+     values ('00000000-0000-4000-8000-00000070000a', 'product', 'Holdout Whey One Kg', 250000, 2, 'Disclosed holdout offer', 365, 'Desk cancellation', null) $$,
   '23505'::char(5), null,
   'ADD-002 scenario: A duplicate add-on name at one gym'
 );
 select lives_ok(
-  $$ insert into public.addon_products (id, tenant_id, kind, name, price_paise, stock_quantity)
-     values ('00000000-0000-4000-8000-0000007000e3', '00000000-0000-4000-8000-00000070000b', 'product', 'Holdout Whey One Kg', 250000, 2) $$,
+  $$ insert into public.addon_products (id, tenant_id, kind, name, price_paise, stock_quantity, description, validity_days, cancellation_terms, trainer_qualification)
+     values ('00000000-0000-4000-8000-0000007000e3', '00000000-0000-4000-8000-00000070000b', 'product', 'Holdout Whey One Kg', 250000, 2, 'Disclosed holdout offer', 365, 'Desk cancellation', null) $$,
   'ADD-002: the add-on name is unique per organisation, not across the platform'
 );
 
@@ -272,8 +275,8 @@ select lives_ok(
 -- ---------------------------------------------------------------------------
 
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity)
-     values ('00000000-0000-4000-8000-00000070000a', 'product', 'Holdout Negative Stock Product', 90000, -1) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity, description, validity_days, cancellation_terms, trainer_qualification)
+     values ('00000000-0000-4000-8000-00000070000a', 'product', 'Holdout Negative Stock Product', 90000, -1, 'Disclosed holdout offer', 365, 'Desk cancellation', null) $$,
   '23514'::char(5), null,
   'DQA-004: a product written with negative stock is rejected'
 );
@@ -287,20 +290,20 @@ select lives_ok(
   'DQA-004: exhausted stock, zero, is still a legal stock level'
 );
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity)
-     values ('00000000-0000-4000-8000-00000070000a', 'product', 'Holdout Negative Price Product', -1, 4) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity, description, validity_days, cancellation_terms, trainer_qualification)
+     values ('00000000-0000-4000-8000-00000070000a', 'product', 'Holdout Negative Price Product', -1, 4, 'Disclosed holdout offer', 365, 'Desk cancellation', null) $$,
   '23514'::char(5), null,
   'MNY-001: a negative add-on price is rejected'
 );
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, currency, stock_quantity)
-     values ('00000000-0000-4000-8000-00000070000a', 'product', 'Holdout Bad Currency Product', 90000, 'inr', 4) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, currency, stock_quantity, description, validity_days, cancellation_terms, trainer_qualification)
+     values ('00000000-0000-4000-8000-00000070000a', 'product', 'Holdout Bad Currency Product', 90000, 'inr', 4, 'Disclosed holdout offer', 365, 'Desk cancellation', null) $$,
   '23514'::char(5), null,
   'MNY-002: addon_products.currency must match the three-letter uppercase pattern'
 );
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity)
-     values ('00000000-0000-4000-8000-00000070000a', 'supplement_box', 'Holdout Bad Kind Product', 90000, 4) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity, description, validity_days, cancellation_terms, trainer_qualification)
+     values ('00000000-0000-4000-8000-00000070000a', 'supplement_box', 'Holdout Bad Kind Product', 90000, 4, 'Disclosed holdout offer', 365, 'Desk cancellation', null) $$,
   '22P02'::char(5), null,
   'docs/data-model.md Enums: addon_kind is a closed vocabulary'
 );
@@ -354,7 +357,7 @@ select lives_ok(
 );
 select lives_ok(
   $$ insert into public.addon_orders (tenant_id, member_id, addon_product_id, payment_id, status, unit_price_paise, total_paise)
-     values ('00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700031', '00000000-0000-4000-8000-000000700053', '00000000-0000-4000-8000-000000700041', 'paid', 100000, 100000) $$,
+     values ('00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700031', '00000000-0000-4000-8000-000000700053', '00000000-0000-4000-8000-000000700042', 'paid', 100000, 100000) $$,
   'catalogue spec: a paid order that carries its payment is accepted'
 );
 select lives_ok(
@@ -416,9 +419,11 @@ select lives_ok(
      values ('00000000-0000-4000-8000-000000700073', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', '2026-10-01 11:00:00+05:30', '2026-10-01 12:00:00+05:30') $$,
   'DQA-005 scenario: Two adjacent sessions for one trainer'
 );
+insert into public.addon_orders(id,tenant_id,member_id,addon_product_id,status,quantity,unit_price_paise,total_paise,trainer_staff_id,sessions_total,starts_on,expires_on)
+values ('00000000-0000-4000-8000-000000700063','00000000-0000-4000-8000-00000070000a','00000000-0000-4000-8000-000000700031','00000000-0000-4000-8000-000000700051','active',1,0,0,'00000000-0000-4000-8000-000000700022',10,(transaction_timestamp() at time zone 'Asia/Kolkata')::date,(transaction_timestamp() at time zone 'Asia/Kolkata')::date+365);
 select lives_ok(
   $$ insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at)
-     values ('00000000-0000-4000-8000-000000700074', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700022', '00000000-0000-4000-8000-000000700031', '2026-10-01 10:30:00+05:30', '2026-10-01 11:30:00+05:30') $$,
+     values ('00000000-0000-4000-8000-000000700074', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700063', '00000000-0000-4000-8000-000000700022', '00000000-0000-4000-8000-000000700031', '2026-10-01 10:30:00+05:30', '2026-10-01 11:30:00+05:30') $$,
   'DQA-005 scenario: Overlapping sessions for different trainers'
 );
 select throws_ok(
@@ -569,8 +574,8 @@ select is_empty(
 );
 
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity)
-     values ('00000000-0000-4000-8000-00000070000b', 'product', 'Holdout Cross Tenant Product', 90000, 1) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity, description, validity_days, cancellation_terms, trainer_qualification)
+     values ('00000000-0000-4000-8000-00000070000b', 'product', 'Holdout Cross Tenant Product', 90000, 1, 'Disclosed holdout offer', 365, 'Desk cancellation', null) $$,
   '42501'::char(5), null,
   'gate 7: Gym A cannot insert an addon_products row labelled with the Gym B tenant id'
 );
@@ -605,7 +610,7 @@ select throws_ok(
 set local role postgres;
 
 select is((select p.is_active from public.addon_products p where p.id = '00000000-0000-4000-8000-00000070005b'), true, 'gate 7: the Gym B addon_products row is unchanged after Gym A tried to update it by primary key');
-select is((select o.status::text from public.addon_orders o where o.id = '00000000-0000-4000-8000-00000070006b'), 'pending', 'gate 7: the Gym B addon_orders row is unchanged after Gym A tried to update it by primary key');
+select is((select o.status::text from public.addon_orders o where o.id = '00000000-0000-4000-8000-00000070006b'), 'active', 'gate 7: the Gym B addon_orders row is unchanged after Gym A tried to update it by primary key');
 
 -- ---------------------------------------------------------------------------
 -- I. gate 7 - the reverse direction, and a non-platform role of Gym A
@@ -665,8 +670,8 @@ select is((select count(*)::integer from public.addon_products p where p.id in (
 select is((select count(*)::integer from public.addon_orders o where o.id in ('00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-00000070006b')), 2, 'docs/security.md Impersonation and platform access: super_admin crosses tenants on addon_orders by policy');
 select is((select count(*)::integer from public.pt_sessions s where s.id in ('00000000-0000-4000-8000-000000700071', '00000000-0000-4000-8000-00000070007b')), 2, 'docs/security.md Impersonation and platform access: super_admin crosses tenants on pt_sessions by policy');
 select lives_ok(
-  $$ insert into public.addon_products (id, tenant_id, kind, name, price_paise)
-     values ('00000000-0000-4000-8000-0000007000e4', '00000000-0000-4000-8000-00000070000b', 'diet_plan', 'Holdout Platform Written Plan', 90000) $$,
+  $$ insert into public.addon_products (id, tenant_id, kind, name, price_paise, description, validity_days, cancellation_terms, trainer_qualification)
+     values ('00000000-0000-4000-8000-0000007000e4', '00000000-0000-4000-8000-00000070000b', 'diet_plan', 'Holdout Platform Written Plan', 90000, 'Disclosed holdout offer', 365, 'Desk cancellation', null) $$,
   'docs/data-model.md Row-Level Security: the platform policy with check lets super_admin write outside its own claim tenant'
 );
 
