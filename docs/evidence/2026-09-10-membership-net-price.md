@@ -39,5 +39,21 @@ escape-hatch, rollback, web/shared tests, 47 script tests and production build
 passed. Registry initially rejected a helper row with a signature instead of
 the exact exported name; the row was corrected and the gate passed.
 
-CI application and browser verification are pending. No migration was applied
-manually; the migration will be applied by the main-branch database workflow.
+The main-branch database workflow `34450245473` applied the migration, passed
+schema drift, and completed its 49 files / 4385 assertions database suite with
+the seed successful. The main CI workflow `34450245469`, test-immutability
+workflow `34450245595`, and holdout-placeholder workflow `34450245693` also
+succeeded. No migration was applied manually.
+
+## Browser verification
+
+The signed-in owner opened Sneha Joshi's annual membership after CI applied the
+migration. The screen showed INR 10800.00 per period, payment default 10800.00,
+and the same 10800.00 in the full-year explanation. The annual plan option
+correctly retained its INR 12000.00 catalogue price. The historical dates still
+read 2025-09-12 through 2026-09-12. This was a read-only check; no payment or
+other demo mutation was made.
+
+A read-only CLI query confirmed price 1200000, discount 120000, eligible total
+1080000 paise, periods_granted 1, active status and the unchanged historical
+dates after the CI apply.

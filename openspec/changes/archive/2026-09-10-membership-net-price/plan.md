@@ -22,6 +22,6 @@ Phase 6 metrics/reminders consume the same definition.
 - [x] Visible and holdout tests independently written and committed red.
 - [x] Implement without changing tests; verify both suites and seed replay.
 - [x] Fresh critic GO and required local gates.
-- [ ] Push on main; CI applies migration, all CI gates pass.
-- [ ] Browser verifies discounted period price; reconcile historical row and verify seed consistency.
-- [ ] Sync current specs, registry and evidence; archive.
+- [x] Push on main; CI applies migration, all CI gates pass.
+- [x] Browser verifies discounted period price; reconcile historical row and verify seed consistency.
+- [x] Sync current specs, registry and evidence; archive.
