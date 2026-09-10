@@ -6722,8 +6722,9 @@ select results_eq(
   'GL046/columns: refused AND unmoved in all four — a rule that answers for some of the list and not the rest is the hole this requirement exists to close'
 );
 
--- 360 — all four in one statement. A rule that inspects one column and
--- returns lets the other three through with it.
+-- 360 — all four in one statement. membership-net-price adds a database
+-- CHECK: discount 999 is above price 1, so 23514 answers before the project
+-- trigger's GL046. CHECK precedence is explicitly outside that rule order.
 select throws_ok($$
   update public.memberships
      set price_paise = 1,
@@ -6731,8 +6732,8 @@ select throws_ok($$
          plan_id = '22000000-0000-4000-8000-000000200061'::uuid,
          discount_paise = 999
    where id = '22000000-0000-4000-8000-000000200081'::uuid
-$$, 'GL046'::char(5), null,
-  'GL046/columns: all four changed in one statement is refused whole');
+$$, '23514'::char(5), null,
+  'net-price bounds: the mixed pricing edit is refused whole because discount exceeds price');
 
 -- 361 — one permitted column beside one restricted one. The worst outcome
 -- available here is a partial application: the note landing while the price
