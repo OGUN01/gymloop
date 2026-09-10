@@ -37,17 +37,13 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('next/link', () => ({ default: (props: Record<string, unknown>) => ({ type: 'a', props }) }));
 vi.mock('../preview-context', () => ({ usePreviewReadOnly: () => false }));
-vi.mock('../../lib/identity-session', () => ({
-  requireAudience: async () => ({
+vi.mock('../../lib/identity-session', () => {
+  const session = async () => ({
     identity: { kind: 'staff', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', tenantId: '11111111-1111-4111-8111-111111111111', staffId: '22222222-2222-4222-8222-222222222222', role: 'gym_owner' },
-    supabase: { from: (table: string) => {
-      const query = { select: () => query, eq: () => query, order: () => query, limit: () => query, or: () => query, ilike: () => query, is: () => query, range: () => query,
-        maybeSingle: async () => ({ data: state.rows[table]?.[0] ?? null, error: null }),
-        then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: state.rows[table] ?? [], error: null }).then(resolve) };
-      return query;
-    } },
-  }),
-}));
+    supabase: await (await import('../../lib/supabase/server')).createServerSupabase(),
+  });
+  return { requireAudience: session, readIdentity: session };
+});
 vi.mock('../../lib/supabase/server', () => ({
   createServerSupabase: async () => ({
     auth: { getClaims: async () => ({ data: { claims: { sub: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', app_role: 'gym_owner', tenant_id: '11111111-1111-4111-8111-111111111111', staff_id: '22222222-2222-4222-8222-222222222222' } }, error: null }) },
