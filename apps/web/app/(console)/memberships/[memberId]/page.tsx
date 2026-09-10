@@ -247,8 +247,8 @@ export default async function MemberMembershipsPage({
           </button>
         </form>
         <p className="mt-2 text-xs text-neutral-500">
-          Price comes from the plan. <strong>The membership runs from the day it is paid for</strong>
-          &nbsp;— record the payment below and the plan&rsquo;s length is added then (ADR-083).
+          Price comes from the plan. <strong>The first fully paid period sets the membership dates.</strong>
+          {' '}Record the payment below to start the membership.
         </p>
       </section>
 
@@ -256,7 +256,7 @@ export default async function MemberMembershipsPage({
         <h2 className="text-base font-semibold">Take a payment</h2>
         <p className="mt-1 text-sm text-neutral-600">
           Cash, UPI, card or a bank transfer, taken at the desk. The receipt number is the
-          gym&rsquo;s own, and a payment against a live membership extends it.
+          gym&rsquo;s own, and complete paid periods determine the membership dates.
         </p>
 
         <form method="post" action="/api/payments" className="mt-4 flex flex-wrap items-end gap-3">
@@ -322,9 +322,8 @@ export default async function MemberMembershipsPage({
             'This member has no membership to renew, so this records money taken for something else and extends nothing.'
           ) : (
             <>
-              {live === undefined
-                ? `Renews ${renewable.plans.name} from today — it lapsed on ${renewable.ends_on}.`
-                : `Extends ${renewable.plans.name} from whichever is later — today or ${renewable.ends_on}.`}{' '}
+              The first fully paid period starts from today or a future agreed start date.
+              Later paid periods extend the membership from its expiry or today, whichever is later.{' '}
               A full {money(renewable.price_paise, renewable.currency)} buys one period of{' '}
               {renewable.duration_days} days; part of it is recorded and receipted and buys none
               until the balance is paid.

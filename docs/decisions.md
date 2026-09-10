@@ -479,6 +479,12 @@ For a fully dated membership with no granted periods, the first grant starts at 
 
 A fresh review on 2026-09-10 found that the pending migration filled a missing start date on the ends-only shape while its activation test still read the old null start. A second payment would then activate it, silently changing the deferred behavior. The contract was narrowed explicitly before independent tests were updated. Rejected: repairing half-dated rows incidentally as part of first-grant arithmetic; that requires deciding their meaning separately.
 
+Completed on 2026-09-10: fresh critic GO, local and CI 47 files / 4243 assertions
+passing, seed dry run green, and a browser payment producing exactly one 30-day
+period and receipt `2026-27/000007`. The temporary payment was removed and the
+original demo membership restored in the same session; the receipt number stays
+spent. Evidence: `docs/evidence/2026-09-10-first-paid-period.md`.
+
 **ADR-109 - The browser verification for the three membership migrations, and what it left behind.** Three migrations changed money-path triggers on `memberships` — a function body restored, `GL042` reordered, a trigger renamed — and none of them had been exercised through the product. Done at the desk in a real browser session against the demo gym, on membership `00000006-…-0001` (Aarav Deshpande, 30-day plan at ₹1,500):
 
 | | before | after |

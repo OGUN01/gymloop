@@ -88,8 +88,13 @@ WHEN a payment is recorded as paid against a membership, THE SYSTEM SHALL extend
 
 The renewal pipeline must not be able to tell the two apart. If it can, a gym on the manual path gets a second-class product — which is the thing the owner's decision rules out.
 
+The first complete paid grant follows `membership-creation/spec.md`: it sets
+the paid span of a fully dated or fully dateless membership. Only subsequent
+grants extend an already bought period. Partial payments and the recorded
+half-dated boundaries in that spec keep their existing behavior.
+
 #### Scenario: A paid manual payment
-- **WHEN** a cash payment is recorded against an active membership
+- **WHEN** a cash payment completes another paid period against an active membership that has already been granted a period
 - **THEN** that membership's end date SHALL move by the length the membership was sold at (`memberships.duration_days`, ADR-090 — the plan's duration at the moment of sale, which stops diverging from the plan the day anyone re-lengthens it)
 
 #### Scenario: A payment against no membership

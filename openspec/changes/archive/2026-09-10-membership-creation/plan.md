@@ -42,11 +42,17 @@ No schema/type signature or trigger definition changes are required.
 - [x] Both suites pass with migration replayed inside BEGIN/ROLLBACK: visible 809, holdout 1001.
 - [x] Fresh-context critic approves the executable change after the half-dated regression was corrected.
 - [x] Full pgTAP sweep: 47 files, 4243 assertions, zero failures or plan shortfalls. Seed/scenarios pass twice in one rollback transaction.
-- [ ] Local gates and post-push CI pass; CI applies the migration.
-- [ ] Browser exercise verifies the payment/receipt/membership loop.
-- [ ] Sync the surviving requirement into current specs and archive this change.
+- [x] Local gates and post-push CI pass; CI applies the migration.
+- [x] Browser exercise verifies the payment/receipt/membership loop; the demo snapshot is restored in the same session.
+- [x] Sync the surviving requirement into current specs and archive this change.
 
 Local lint, typecheck, duplication/dependency checks, unit tests and production
 build passed on 2026-09-10 before the migration was landed. Database evidence
 must include assertion counts as well as failure counts; a run that aborts
 before its declared plan is not a pass.
+
+Final evidence: `docs/evidence/2026-09-10-first-paid-period.md`. CI passed all
+47 files / 4243 assertions and the seed dry run. The browser issued receipt
+`2026-27/000007` for exactly one 30-day period, then the temporary payment was
+removed and the original membership snapshot restored. The receipt number
+remains spent by design.
