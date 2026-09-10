@@ -1,4 +1,5 @@
 export * from './api/check-in';
+export * from './api/addons';
 export * from './api/follow-ups';
 export * from './api/forms';
 export * from './api/memberships';
