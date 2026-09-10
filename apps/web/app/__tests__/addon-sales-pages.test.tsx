@@ -185,6 +185,22 @@ describe('order detail and receipt truthfulness', () => {
 });
 
 describe('member add-on page and preview', () => {
+  it('uses a safe trainer label for a sold PT order whose staff join is hidden', async () => {
+    const trainerId = '77777777-7777-4777-8777-777777777777';
+    state.identity = { kind: 'member', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', tenantId: '11111111-1111-4111-8111-111111111111', memberId: MEMBER_ID };
+    state.rows.addon_orders = [{
+      id: ORDER_ID, tenant_id: '11111111-1111-4111-8111-111111111111', member_id: MEMBER_ID,
+      status: 'active', quantity: 1, total_paise: '10000', unit_price_paise: '10000', currency: 'INR',
+      trainer_staff_id: trainerId, staff: null, trainer: null, sessions_total: 2, sessions_used: 0,
+      sale_snapshot: { kind: 'pt_package', name: 'Sold member coaching', description: 'Accepted coaching', cancellationTerms: 'Terms', validityDays: 30, trainerQualification: 'Gym qualification' },
+    }];
+    const { default: Page } = await import('../member/add-ons/page');
+    const markup = html(await Page(pageProps));
+    expect(markup).toContain('Sold member coaching');
+    expect(markup).not.toContain(trainerId);
+    expect(markup).toMatch(/trainer|not recorded|unavailable/i);
+  });
+
   it('labels a missing member-visible trainer name without substituting the internal staff UUID', async () => {
     const trainerId = '77777777-7777-4777-8777-777777777777';
     state.identity = { kind: 'member', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', tenantId: '11111111-1111-4111-8111-111111111111', memberId: MEMBER_ID };

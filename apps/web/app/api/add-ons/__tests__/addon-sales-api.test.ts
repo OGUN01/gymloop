@@ -107,6 +107,33 @@ beforeEach(() => {
 });
 
 describe('catalogue command parsing', () => {
+  it.each(['POST', 'PATCH'] as const)('%s returns exact decimal-text pricePaise above 2^53', async (method) => {
+    state.results = [{
+      get data() {
+        const textProjection = state.operations.some((operation) => operation.kind === 'query'
+          && operation.method === 'select' && String(operation.args[0]).includes('price_paise::text'));
+        return { id: PRODUCT_ID, price_paise: textProjection ? offer.pricePaise : 9007199254740992 };
+      },
+      error: null,
+    }];
+    const route = await addonRoute();
+    const response = await route[method](json('/api/add-ons', method === 'PATCH' ? { ...offer, productId: PRODUCT_ID } : offer, method));
+    expect(response.status).toBe(200);
+    expect(await body(response)).toMatchObject({ ok: true, data: { pricePaise: offer.pricePaise } });
+  });
+
+  it.each([
+    ['POST', 'GL055', 'catalogue_incomplete'], ['PATCH', 'GL055', 'catalogue_incomplete'],
+    ['POST', '40001', 'retryable'], ['PATCH', '40001', 'retryable'],
+    ['POST', '40P01', 'retryable'], ['PATCH', '40P01', 'retryable'],
+  ] as const)('%s maps catalogue %s to recoverable HTTP 409', async (method, code, expected) => {
+    state.results = [{ data: null, error: { code, message: 'Database refusal', ...(code === 'GL055' ? { details: expected } : {}) } }];
+    const route = await addonRoute();
+    const response = await route[method](json('/api/add-ons', method === 'PATCH' ? { ...offer, productId: PRODUCT_ID } : offer, method));
+    expect(response.status).toBe(409);
+    expect(await body(response)).toMatchObject({ ok: false, error: { code: expected } });
+  });
+
   it('accepts decimal-string paise without coercing it through a JavaScript number', async () => {
     state.results = [{ data: { id: PRODUCT_ID, price_paise: offer.pricePaise }, error: null }];
     const { POST } = await addonRoute();
