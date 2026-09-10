@@ -1,4 +1,5 @@
 import { Constants } from '@gymloop/db';
+import type { Database } from '@gymloop/db';
 import {
   completeManualAddonRefundRequestSchema,
   completeManualAddonRefundResultSchema,
@@ -8,6 +9,10 @@ import { UUID_PATTERN } from '../../../../../lib/keyset';
 
 const REFUND_ROLES = ['gym_owner', 'gym_manager'] as const;
 type Context = { params: Promise<{ refundId: string }> };
+type RefundRpcArgs = Database['public']['Functions']['complete_manual_addon_refund']['Args'];
+type ExactRefundRpcArgs = Omit<RefundRpcArgs, 'p_expected_amount_paise'> & {
+  p_expected_amount_paise: string;
+};
 
 /** POST /api/refunds/[refundId]/complete-addon — record the desk handover for an add-on return. */
 export async function POST(request: Request, { params }: Context): Promise<Response> {
@@ -25,12 +30,16 @@ export async function POST(request: Request, { params }: Context): Promise<Respo
   const parsed = completeManualAddonRefundRequestSchema.safeParse(payload);
   if (!parsed.success) return apiFail('bad_request', 'invalid_request', 'That return command was not readable.');
 
-  const { data, error } = await caller.session.supabase.rpc('complete_manual_addon_refund', {
+  const args = {
     p_refund_id: refundId,
     p_expected_amount_paise: parsed.data.expectedAmountPaise,
     p_expected_currency: parsed.data.expectedCurrency,
     p_expected_reason: parsed.data.expectedReason,
-  });
+  } satisfies ExactRefundRpcArgs;
+  const { data, error } = await caller.session.supabase.rpc(
+    'complete_manual_addon_refund',
+    args as unknown as RefundRpcArgs,
+  );
   if (error) {
     if (error.code === '42501') return apiFail('forbidden', 'not_permitted', 'Your role may not record this return.');
     if (error.code === 'P0002') return apiFail('not_found', 'not_found', 'That return is unavailable.');

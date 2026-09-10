@@ -10,7 +10,9 @@ import { apiFail, apiOk, staffSession } from '../../../lib/api';
 const CATALOGUE_ROLES = ['gym_owner', 'gym_manager'] as const;
 type AddonProductInsert = Database['public']['Tables']['addon_products']['Insert'];
 type AddonProductUpdate = Database['public']['Tables']['addon_products']['Update'];
-type ExactInsert = Omit<AddonProductInsert, 'price_paise'> & { price_paise: string };
+type ExactInsert = Omit<AddonProductInsert, 'price_paise' | 'quote_version'> & {
+  price_paise: string;
+};
 type ExactUpdate = Omit<AddonProductUpdate, 'price_paise'> & { price_paise: string };
 
 async function jsonBody(request: Request): Promise<{ payload: unknown } | { failure: Response }> {

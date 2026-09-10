@@ -47,11 +47,17 @@ export type Database = {
           currency: string
           expires_on: string | null
           id: string
+          idempotency_key: string | null
+          initial_session_id: string | null
           member_id: string
           payment_id: string | null
           quantity: number
+          sale_request: Json | null
+          sale_snapshot: Json | null
           sessions_total: number | null
           sessions_used: number
+          sold_at: string | null
+          sold_by_staff_id: string | null
           starts_on: string | null
           status: Database["public"]["Enums"]["addon_order_status"]
           tenant_id: string
@@ -67,11 +73,17 @@ export type Database = {
           currency?: string
           expires_on?: string | null
           id?: string
+          idempotency_key?: string | null
+          initial_session_id?: string | null
           member_id: string
           payment_id?: string | null
           quantity?: number
+          sale_request?: Json | null
+          sale_snapshot?: Json | null
           sessions_total?: number | null
           sessions_used?: number
+          sold_at?: string | null
+          sold_by_staff_id?: string | null
           starts_on?: string | null
           status?: Database["public"]["Enums"]["addon_order_status"]
           tenant_id: string
@@ -87,11 +99,17 @@ export type Database = {
           currency?: string
           expires_on?: string | null
           id?: string
+          idempotency_key?: string | null
+          initial_session_id?: string | null
           member_id?: string
           payment_id?: string | null
           quantity?: number
+          sale_request?: Json | null
+          sale_snapshot?: Json | null
           sessions_total?: number | null
           sessions_used?: number
+          sold_at?: string | null
+          sold_by_staff_id?: string | null
           starts_on?: string | null
           status?: Database["public"]["Enums"]["addon_order_status"]
           tenant_id?: string
@@ -130,6 +148,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "addon_orders_tenant_id_initial_session_id_fkey"
+            columns: ["tenant_id", "initial_session_id"]
+            isOneToOne: false
+            referencedRelation: "pt_sessions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "addon_orders_tenant_id_sold_by_staff_id_fkey"
+            columns: ["tenant_id", "sold_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
             foreignKeyName: "addon_orders_trainer_staff_id_fkey"
             columns: ["tenant_id", "trainer_staff_id"]
             isOneToOne: false
@@ -150,10 +182,12 @@ export type Database = {
           kind: Database["public"]["Enums"]["addon_kind"]
           name: string
           price_paise: number
+          quote_version: string
           session_count: number | null
           sort_order: number
           stock_quantity: number | null
           tenant_id: string
+          trainer_qualification: string | null
           trainer_staff_id: string | null
           updated_at: string
           validity_days: number | null
@@ -169,10 +203,12 @@ export type Database = {
           kind: Database["public"]["Enums"]["addon_kind"]
           name: string
           price_paise: number
+          quote_version: string
           session_count?: number | null
           sort_order?: number
           stock_quantity?: number | null
           tenant_id: string
+          trainer_qualification?: string | null
           trainer_staff_id?: string | null
           updated_at?: string
           validity_days?: number | null
@@ -188,10 +224,12 @@ export type Database = {
           kind?: Database["public"]["Enums"]["addon_kind"]
           name?: string
           price_paise?: number
+          quote_version?: string
           session_count?: number | null
           sort_order?: number
           stock_quantity?: number | null
           tenant_id?: string
+          trainer_qualification?: string | null
           trainer_staff_id?: string | null
           updated_at?: string
           validity_days?: number | null
@@ -2417,6 +2455,64 @@ export type Database = {
       }
     }
     Functions: {
+      complete_addon_order: {
+        Args: { p_order_id: string }
+        Returns: {
+          order_id: string
+          order_status: Database["public"]["Enums"]["addon_order_status"]
+          replayed: boolean
+        }[]
+      }
+      complete_manual_addon_refund: {
+        Args: {
+          p_expected_amount_paise: number
+          p_expected_currency: string
+          p_expected_reason: string
+          p_refund_id: string
+        }
+        Returns: {
+          order_id: string
+          order_status: Database["public"]["Enums"]["addon_order_status"]
+          processed_at: string
+          refund_id: string
+          refund_status: Database["public"]["Enums"]["refund_status"]
+          replayed: boolean
+        }[]
+      }
+      finish_pt_session: {
+        Args: {
+          p_session_id: string
+          p_status: Database["public"]["Enums"]["pt_session_status"]
+        }
+        Returns: {
+          order_id: string
+          order_status: Database["public"]["Enums"]["addon_order_status"]
+          replayed: boolean
+          session_id: string
+          session_status: Database["public"]["Enums"]["pt_session_status"]
+        }[]
+      }
+      read_member_addon_returns: { Args: { p_order_id: string }; Returns: Json }
+      record_addon_sale: {
+        Args: {
+          p_idempotency_key: string
+          p_initial_ends_at: string
+          p_initial_starts_at: string
+          p_member_id: string
+          p_method: Database["public"]["Enums"]["payment_method"]
+          p_product_id: string
+          p_quantity: number
+          p_quote_version: string
+          p_reason: string
+          p_trainer_staff_id: string
+        }
+        Returns: {
+          initial_session_id: string
+          order_id: string
+          payment_id: string
+          replayed: boolean
+        }[]
+      }
       record_refund: {
         Args: {
           p_amount_paise: number
@@ -2437,6 +2533,20 @@ export type Database = {
           gym: string
           opened: number
           tenant_id: string
+        }[]
+      }
+      schedule_pt_session: {
+        Args: {
+          p_ends_at: string
+          p_notes: string
+          p_order_id: string
+          p_session_id: string
+          p_starts_at: string
+        }
+        Returns: {
+          order_id: string
+          replayed: boolean
+          session_id: string
         }[]
       }
     }

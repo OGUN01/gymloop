@@ -10,6 +10,8 @@ import { apiFail, apiOk, staffSession } from '../../../../../lib/api';
 import { UUID_PATTERN } from '../../../../../lib/keyset';
 
 type Context = { params: Promise<{ orderId: string }> };
+type ScheduleRpcArgs = Database['public']['Functions']['schedule_pt_session']['Args'];
+type ExactScheduleRpcArgs = Omit<ScheduleRpcArgs, 'p_notes'> & { p_notes: string | null };
 
 function sessionFailure(code: string, details: string | null, message: string): Response {
   if (code === '42501') return apiFail('forbidden', 'not_permitted', 'Your role may not manage this PT session.');
@@ -56,13 +58,17 @@ export async function POST(request: Request, { params }: Context): Promise<Respo
     return apiFail('bad_request', 'invalid_request', 'That PT command was not readable.');
   }
 
-  const { data, error } = await caller.session.supabase.rpc('schedule_pt_session', {
+  const args = {
     p_order_id: orderId,
     p_session_id: parsed.data.sessionId,
     p_starts_at: parsed.data.startsAt,
     p_ends_at: parsed.data.endsAt,
     p_notes: parsed.data.notes,
-  });
+  } satisfies ExactScheduleRpcArgs;
+  const { data, error } = await caller.session.supabase.rpc(
+    'schedule_pt_session',
+    args as unknown as ScheduleRpcArgs,
+  );
   if (error) return sessionFailure(error.code, error.details, error.message);
   const result = schedulePtSessionResultSchema.safeParse(data);
   const row = result.success ? result.data[0] : undefined;
