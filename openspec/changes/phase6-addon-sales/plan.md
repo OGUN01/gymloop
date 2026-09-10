@@ -26,7 +26,7 @@ replays migration plus rollback-wrapped suites against the linked project only
 while its DB workflow is idle.
 
 - [x] Detailed contract, shared seam, member-return boundary and Astra working-screen brief fixed.
-- [ ] Independent visible and holdout tests committed red.
+- [x] Independent visible and holdout tests committed red.
 - [ ] Catalogue, sale, fulfilment, return read and working screens implemented.
 - [ ] Targeted and full local gates pass.
 - [ ] Fresh Astra money/security and UI critics return GO.
