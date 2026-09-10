@@ -41,6 +41,15 @@ export async function POST(request: Request, { params }: Context): Promise<Respo
     if (error.code === 'P0002') return apiFail('not_found', 'not_found', 'That return is unavailable.');
     if (error.code === '22023') return apiFail('bad_request', 'invalid_request', 'That return command was not valid.');
     if (error.code === '40001' || error.code === '40P01') return apiFail('conflict', 'retryable', 'Please retry that return.');
+    const moneyCodes: Record<string, string> = {
+      GL036: 'exceeds_payment',
+      GL040: 'refund_not_yours',
+      GL041: 'refund_is_a_record',
+      GL048: 'idempotency_conflict',
+    };
+    if (Object.hasOwn(moneyCodes, error.code)) {
+      return apiFail('conflict', moneyCodes[error.code] ?? 'operation_failed', 'That return could not be completed.');
+    }
     const code = error.details === 'order_is_a_record' || error.details === 'invalid_order_transition' ||
       error.details === 'order_unavailable'
       ? error.details

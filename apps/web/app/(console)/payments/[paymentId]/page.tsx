@@ -66,7 +66,10 @@ export default async function ReceiptPage({
 }) {
   const { paymentId } = await params;
   const { error } = await searchParams;
-  const { payment, gym, refunds, refundablePaise, errorMessage } = await loadReceipt(paymentId);
+  const {
+    payment, gym, refunds, addonOrderId, completedReturnedPaise,
+    pendingRefundPaise, refundablePaise, errorMessage,
+  } = await loadReceipt(paymentId);
 
   if (errorMessage !== null) {
     return (
@@ -85,6 +88,11 @@ export default async function ReceiptPage({
       <Link href="/payments" className="text-sm text-neutral-600 underline print:hidden">
         All payments
       </Link>
+      {addonOrderId ? (
+        <Link href={`/add-ons/orders/${addonOrderId}`} className="ml-4 text-sm text-neutral-600 underline print:hidden">
+          Back to add-on order
+        </Link>
+      ) : null}
 
       <article className="mt-4 rounded-lg border border-neutral-300 p-6">
         <header className="flex items-baseline justify-between border-b border-neutral-200 pb-4">
@@ -218,9 +226,11 @@ export default async function ReceiptPage({
         <p className="mt-2 text-xs text-neutral-500">
           {!ARRIVED.has(payment.status)
             ? 'This payment took nothing, so there is nothing to send back.'
-            : refundablePaise !== '0'
-              ? `${payment.currency} ${rupeesFromPaise(refundablePaise)} of this payment has not been refunded. Only an owner or a manager may send money back.`
-              : 'This payment has been refunded in full.'}
+            : completedReturnedPaise === payment.amount_paise
+              ? 'This payment has been refunded in full.'
+              : pendingRefundPaise !== '0'
+                ? `Returned ${payment.currency} ${rupeesFromPaise(completedReturnedPaise)}. Refund requests pending ${payment.currency} ${rupeesFromPaise(pendingRefundPaise)}. Available for another refund request ${payment.currency} ${rupeesFromPaise(refundablePaise)}.`
+                : `Returned ${payment.currency} ${rupeesFromPaise(completedReturnedPaise)}. Available for another refund request ${payment.currency} ${rupeesFromPaise(refundablePaise)}. Only an owner or a manager may send money back.`}
         </p>
       </section>
 

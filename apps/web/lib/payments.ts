@@ -142,6 +142,7 @@ export async function loadReceipt(paymentId: string) {
       payment: null,
       gym: null,
       refunds: [],
+      addonOrderId: null,
       completedReturnedPaise: '0',
       pendingRefundPaise: '0',
       refundablePaise: '0',
@@ -151,7 +152,7 @@ export async function loadReceipt(paymentId: string) {
 
   const supabase = await createServerSupabase();
 
-  const [payment, gym, refunds] = await Promise.all([
+  const [payment, gym, refunds, addonOrder] = await Promise.all([
     supabase.from('payments').select(PAYMENT_COLUMNS).eq('id', paymentId).maybeSingle(),
     supabase.from('organizations').select('name, gym_code, timezone').limit(1).maybeSingle(),
     // Every refund against this payment, oldest first — the receipt is where
@@ -163,6 +164,10 @@ export async function loadReceipt(paymentId: string) {
       .select('id, amount_paise::text, currency, kind, reason, status, created_at, staff(full_name)')
       .eq('payment_id', paymentId)
       .order('created_at'),
+    // A receipt created by an add-on sale returns to the order where delivery
+    // and manual-return confirmation happen. RLS keeps an unrelated order
+    // indistinguishable from no order.
+    supabase.from('addon_orders').select('id').eq('payment_id', paymentId).maybeSingle(),
   ]);
 
   const paymentRow = payment.data === null
@@ -192,6 +197,7 @@ export async function loadReceipt(paymentId: string) {
     payment: paymentRow,
     gym: gym.data,
     refunds: recorded,
+    addonOrderId: addonOrder.data?.id ?? null,
     // Keep staff-facing receipt state honest: only `completed` represents
     // money already returned; requested and processing rows reserve the amount
     // that the database's ceiling has promised to them. Failed rows do neither.

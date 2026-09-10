@@ -30,6 +30,7 @@ function sessionFailure(code: string, details: string | null, message: string): 
     'session_is_a_record', 'invalid_order_transition', 'invalid_session_transition',
     'session_budget_exhausted', 'session_outside_validity', 'session_not_ended',
     'session_identity_mismatch', 'trainer_not_yours', 'order_unavailable',
+    'idempotency_conflict',
   ]);
   const refusal = details !== null && known.has(details) ? details : 'operation_failed';
   return apiFail(

@@ -57,7 +57,7 @@ export function AddonOfferDetails({ offer }: { offer: AddonOffer }) {
     <p className="text-sm">{offer.validity_days ? `Valid for ${offer.validity_days} days, including the acceptance date.` : 'Validity unavailable'}</p>
     {offer.kind === 'product' ? <p className="text-sm">Stock: {offer.stock_quantity ?? 'Not recorded'}</p> : null}
     {offer.kind === 'pt_package' ? <div className="text-sm">
-      <p>Trainer: {offer.staff?.full_name ?? (offer.trainer_staff_id ? `Assigned by the gym · ${offer.trainer_staff_id}` : 'Not recorded')}</p>
+      <p>Trainer: {offer.staff?.full_name ?? (offer.trainer_staff_id ? 'Assigned by the gym' : 'Not recorded')}</p>
       <p>Gym-stated qualification: {offer.trainer_qualification?.trim() || 'Not recorded'}</p>
       <p>Purchased sessions: {offer.session_count ?? 'Not recorded'}</p>
     </div> : null}
@@ -66,7 +66,9 @@ export function AddonOfferDetails({ offer }: { offer: AddonOffer }) {
   </div>;
 }
 
-export function AddonOrderFacts({ order, timezone }: { order: AddonOrder; timezone: string }) {
+export function AddonOrderFacts({ order, timezone, showPayment = true }: {
+  order: AddonOrder; timezone: string; showPayment?: boolean;
+}) {
   const snapshot = order.sale_snapshot;
   const localTime = gymTimeLabel(new Date().toISOString(), timezone);
   const today = localTime === 'Gym timezone unavailable' ? null : localTime.split(' ')[0];
@@ -87,8 +89,9 @@ export function AddonOrderFacts({ order, timezone }: { order: AddonOrder; timezo
       <div><dt className="text-neutral-600">Accepted</dt><dd>{order.sold_at ? gymTimeLabel(order.sold_at, timezone) : 'Not recorded'}</dd></div>
       <div><dt className="text-neutral-600">Inclusive validity</dt><dd>{order.starts_on ?? 'Not recorded'} through {order.expires_on ?? 'Not recorded'}</dd></div>
     </dl>
-    {order.total_paise === '0' && !order.payment_id ? <p className="rounded-lg bg-neutral-100 p-3 text-sm">Complimentary · {order.currency} 0.00 — no payment and no receipt.</p> :
-      <p className="text-sm">Payment: {order.payments?.status ?? 'Not recorded'} · Receipt: {order.payments?.receipt_number ?? 'Not recorded'}</p>}
+    {showPayment ? order.total_paise === '0' && !order.payment_id ? <p className="rounded-lg bg-neutral-100 p-3 text-sm">Complimentary · {order.currency} 0.00 — no payment and no receipt.</p> :
+      <p className="text-sm">Payment: {order.payments?.status ?? 'Not recorded'} · Receipt: {order.payments?.receipt_number ?? 'Not recorded'}</p> :
+      <p className="text-sm text-neutral-600">Payment and receipt details are available to front-office staff.</p>}
     {expired ? <p className="text-sm font-medium text-amber-900">Expired · the inclusive validity has ended. Recorded purchase and usage history remain visible.</p> : null}
   </div>;
 }

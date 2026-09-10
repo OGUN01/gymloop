@@ -28,6 +28,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
   const today = localTime === 'Gym timezone unavailable' ? null : localTime.split(' ')[0] ?? null;
   const expired = Boolean(order.expires_on && today && today > order.expires_on);
   const frontOffice = identity.kind === 'staff' && identity.role !== 'trainer';
+  const financeVisible = frontOffice;
   const admin = identity.kind === 'staff' && (identity.role === 'gym_owner' || identity.role === 'gym_manager');
   const trainer = identity.kind === 'staff' && identity.role === 'trainer' && identity.staffId === order.trainer_staff_id;
   let sessionsQuery = supabase.from('pt_sessions').select(ADDON_SESSION_COLUMNS).eq('addon_order_id', orderId).order('id');
@@ -35,7 +36,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
   const [sessionResult, scheduledResult, refundResult] = await Promise.all([
     sessionsQuery.limit(PAYMENT_PAGE_SIZE_DEFAULT + 1),
     supabase.from('pt_sessions').select('id', { count: 'exact', head: true }).eq('addon_order_id', orderId).eq('status', 'scheduled'),
-    order.payment_id ? (async () => {
+    financeVisible && order.payment_id ? (async () => {
       const collected: Refund[] = [];
       let after: string | null = null;
       // Read every refund before reconciling; a PostgREST row cap must never understate returned money.
@@ -62,20 +63,21 @@ export default async function AddonOrderPage({ params, searchParams }: {
   const fullyReturned = amount > 0 && returned === amount;
   const scheduled = scheduledResult.error ? null : scheduledResult.count;
   const availableSessions = scheduled == null || order.sessions_total == null ? null : order.sessions_total - order.sessions_used - scheduled;
-  const deliverable = order.status === 'active' && !expired && today !== null && !fullyReturned && !refundResult.error;
+  const deliverable = order.status === 'active' && !expired && today !== null &&
+    (trainer || (!fullyReturned && !refundResult.error));
   const detailHref = `/add-ons/orders/${orderId}`;
 
   return <main className="mx-auto max-w-5xl px-4 py-7 sm:px-6">
     <header className="flex flex-wrap items-baseline justify-between gap-3"><h1 className="text-2xl font-semibold">Add-on order</h1><Link href="/add-ons#orders" className="inline-flex min-h-11 items-center underline">All add-on orders</Link></header>
     {query.saved === '1' ? <p role="status" className="my-4 rounded-lg bg-green-50 p-3 text-green-900">Confirmation recorded. Current order details are shown below.</p> : null}
     <article className="mt-5 rounded-xl border border-neutral-200 p-4 sm:p-6">
-      <AddonOrderFacts order={order} timezone={timezone} />
+      <AddonOrderFacts order={order} timezone={timezone} showPayment={financeVisible} />
       <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         <div><dt className="text-neutral-600">Member</dt><dd>{order.members?.full_name ?? 'Not recorded'}{order.members?.phone ? ` · ${order.members.phone}` : ''}</dd></div>
         <div><dt className="text-neutral-600">Sold by</dt><dd>{order.seller?.full_name ?? 'Not recorded'}</dd></div>
         {order.trainer_staff_id ? <div><dt className="text-neutral-600">Assigned trainer</dt><dd>{order.trainer?.full_name ?? 'Not recorded'}</dd></div> : null}
       </dl>
-      {order.payment_id ? <Link href={`/payments/${order.payment_id}`} className="mt-3 inline-flex min-h-11 items-center underline">Open receipt {order.payments?.receipt_number ?? '(number not recorded)'}</Link> : null}
+      {financeVisible && order.payment_id ? <Link href={`/payments/${order.payment_id}`} className="mt-3 inline-flex min-h-11 items-center underline">Open receipt {order.payments?.receipt_number ?? '(number not recorded)'}</Link> : null}
       {expired ? <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Expired · delivery is unavailable after expiry. An expired order cannot be delivered; its recorded fulfilment history stays visible.</p> : null}
       {fullyReturned ? <p className="mt-3 rounded-lg bg-neutral-100 p-3 font-medium">Fully returned · no further service can be delivered.</p> : null}
       {order.sale_snapshot?.kind === 'product' ? <p className="mt-3 text-sm">Products are handed over and completed at sale. A refund does not restock an item.</p> : null}
@@ -105,7 +107,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
       {trainer && deliverable && availableSessions !== null && availableSessions > 0 ? <AddonScheduleForm orderId={orderId} timezone={timezone} /> :
         <p className="mt-4 text-sm text-neutral-600">{!trainer ? 'Only the assigned trainer can schedule or finish sessions.' : availableSessions === 0 ? 'All purchased sessions are used or scheduled. Cancel an unused booking before scheduling another.' : 'Scheduling unavailable because of status, expiry, returned money or unavailable reservation counts.'}</p>}
     </section> : null}
-    <section className="mt-8" aria-labelledby="returns-heading">
+    {financeVisible ? <section className="mt-8" aria-labelledby="returns-heading">
       <h2 id="returns-heading" className="text-xl font-semibold">Returned money</h2>
       <p className="mt-2 text-sm text-neutral-600">Completed returns record the money staff confirm was returned. Confirmation does not initiate a transfer.</p>
       {refundResult.error ? <AddonLoadError label="returns" href={detailHref} /> : <>
@@ -124,6 +126,9 @@ export default async function AddonOrderPage({ params, searchParams }: {
         </li>)}</ul>}
         {admin && order.payment_id && available > 0 ? <Link href={`/payments/${order.payment_id}`} className="mt-3 inline-flex min-h-11 items-center underline">Open receipt to request a refund</Link> : null}
       </>}
-    </section>
+    </section> : <section className="mt-8" aria-labelledby="finance-heading">
+      <h2 id="finance-heading" className="text-xl font-semibold">Payment and returns</h2>
+      <p className="mt-2 text-sm text-neutral-600">Financial details and receipt actions are available to front-office staff.</p>
+    </section>}
   </main>;
 }
