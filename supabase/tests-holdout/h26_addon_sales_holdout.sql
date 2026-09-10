@@ -133,6 +133,8 @@ insert into public.organizations(id,name,gym_code,timezone,currency,status) valu
   (pg_temp.h26_id(1,2),'H26 Gym B','H26GYB','Pacific/Kiritimati','INR','active');
 insert into public.branches(id,tenant_id,name,is_default)
 select pg_temp.h26_id(2,n),pg_temp.h26_id(1,n),'Main',true from generate_series(1,2) n;
+-- Authenticated effect guards verify each real staff subject independently.
+insert into auth.users(id) select pg_temp.h26_id(9,n) from generate_series(1,6) n;
 insert into public.staff(id,tenant_id,branch_id,role,full_name) values
   (pg_temp.h26_id(3,1),pg_temp.h26_id(1,1),pg_temp.h26_id(2,1),'gym_owner','H26 Owner'),
   (pg_temp.h26_id(3,2),pg_temp.h26_id(1,1),pg_temp.h26_id(2,1),'gym_manager','H26 Manager'),
@@ -140,6 +142,8 @@ insert into public.staff(id,tenant_id,branch_id,role,full_name) values
   (pg_temp.h26_id(3,4),pg_temp.h26_id(1,1),pg_temp.h26_id(2,1),'trainer','H26 Trainer'),
   (pg_temp.h26_id(3,5),pg_temp.h26_id(1,1),pg_temp.h26_id(2,1),'trainer','H26 Other Trainer'),
   (pg_temp.h26_id(3,6),pg_temp.h26_id(1,2),pg_temp.h26_id(2,2),'gym_owner','H26 Owner B');
+update public.staff s set user_id=pg_temp.h26_id(9,n)
+from generate_series(1,6) n where s.id=pg_temp.h26_id(3,n);
 insert into public.members(id,tenant_id,branch_id,full_name,phone)
 select pg_temp.h26_id(5,n),pg_temp.h26_id(1,case when n=3 then 2 else 1 end),
   pg_temp.h26_id(2,case when n=3 then 2 else 1 end),'H26 Member '||n,
