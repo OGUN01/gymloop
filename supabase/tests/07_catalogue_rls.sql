@@ -57,8 +57,10 @@ values ('a0000000-0000-4000-8000-000000000003'::uuid,
        ('b0000000-0000-4000-8000-000000000003'::uuid,
         'b0000000-0000-4000-8000-000000000001'::uuid, 'trainer', 'B Trainer One', 'NASM CPT');
 
-insert into public.staff (id, tenant_id, role, full_name)
-values ('a0000000-0000-4000-8000-000000000009', 'a0000000-0000-4000-8000-000000000001', 'gym_owner', 'A Owner');
+-- The acting owner is a real staff account bound to the claim subject.
+insert into auth.users(id) values ('a0000000-0000-4000-8000-000000000901');
+insert into public.staff (id, user_id, tenant_id, role, full_name)
+values ('a0000000-0000-4000-8000-000000000009', 'a0000000-0000-4000-8000-000000000901', 'a0000000-0000-4000-8000-000000000001', 'gym_owner', 'A Owner');
 
 insert into public.members (id, tenant_id, branch_id, full_name, phone)
 values ('a0000000-0000-4000-8000-000000000005'::uuid,
@@ -119,7 +121,7 @@ values ('a0000000-0000-4000-8000-000000000008'::uuid,
 
 select set_config(
   'request.jwt.claims',
-  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+  json_build_object('sub', 'a0000000-0000-4000-8000-000000000901', 'role', 'authenticated',
                     'tenant_id', 'a0000000-0000-4000-8000-000000000001',
                     'app_role', 'gym_owner', 'staff_id', 'a0000000-0000-4000-8000-000000000009')::text,
   true
@@ -439,7 +441,7 @@ select ok(
 
 select set_config(
   'request.jwt.claims',
-  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+  json_build_object('sub', 'a0000000-0000-4000-8000-000000000901', 'role', 'authenticated',
                     'tenant_id', 'a0000000-0000-4000-8000-000000000001',
                     'app_role', 'gym_owner', 'staff_id', 'a0000000-0000-4000-8000-000000000009')::text,
   true
@@ -526,7 +528,7 @@ values ('a0000000-0000-4000-8000-00000000000a', 'a0000000-0000-4000-8000-0000000
         'a0000000-0000-4000-8000-000000000005', 'a0000000-0000-4000-8000-000000000006',
         1, 0, 0, 'active', 'a0000000-0000-4000-8000-000000000004', 10,
         (now() at time zone 'Asia/Kolkata')::date, (now() at time zone 'Asia/Kolkata')::date+90);
-select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+select set_config('request.jwt.claims', json_build_object('sub', 'a0000000-0000-4000-8000-000000000901', 'role', 'authenticated',
   'tenant_id', 'a0000000-0000-4000-8000-000000000001', 'app_role', 'gym_owner',
   'staff_id', 'a0000000-0000-4000-8000-000000000009')::text, true);
 set local role authenticated;

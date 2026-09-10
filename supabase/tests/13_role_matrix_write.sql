@@ -96,12 +96,14 @@ insert into public.branches (id, tenant_id, name, is_default) values
   ('13000000-0000-4000-8000-000000000012'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, 'A Annexe', false),
   ('13000000-0000-4000-8000-000000000013'::uuid, '13000000-0000-4000-8000-000000000002'::uuid, 'B Main', true);
 
-insert into public.staff (id, tenant_id, branch_id, role, full_name) values
-  ('13000000-0000-4000-8000-000000000021'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000011'::uuid, 'gym_owner',   'A Owner'),
-  ('13000000-0000-4000-8000-000000000022'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000011'::uuid, 'gym_manager', 'A Manager'),
-  ('13000000-0000-4000-8000-000000000023'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000011'::uuid, 'front_desk',  'A Desk'),
-  ('13000000-0000-4000-8000-000000000024'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000011'::uuid, 'trainer',     'A Trainer'),
-  ('13000000-0000-4000-8000-000000000025'::uuid, '13000000-0000-4000-8000-000000000002'::uuid, '13000000-0000-4000-8000-000000000013'::uuid, 'gym_owner',   'B Owner');
+-- Real staff capabilities require a stable authenticated subject for each actor.
+insert into auth.users(id) values ('13000000-0000-4000-8000-000000000901'),('13000000-0000-4000-8000-000000000902'),('13000000-0000-4000-8000-000000000903'),('13000000-0000-4000-8000-000000000904'),('13000000-0000-4000-8000-000000000905');
+insert into public.staff (id, user_id, tenant_id, branch_id, role, full_name) values
+  ('13000000-0000-4000-8000-000000000021'::uuid, '13000000-0000-4000-8000-000000000901'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000011'::uuid, 'gym_owner',   'A Owner'),
+  ('13000000-0000-4000-8000-000000000022'::uuid, '13000000-0000-4000-8000-000000000902'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000011'::uuid, 'gym_manager', 'A Manager'),
+  ('13000000-0000-4000-8000-000000000023'::uuid, '13000000-0000-4000-8000-000000000903'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000011'::uuid, 'front_desk',  'A Desk'),
+  ('13000000-0000-4000-8000-000000000024'::uuid, '13000000-0000-4000-8000-000000000904'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000011'::uuid, 'trainer',     'A Trainer'),
+  ('13000000-0000-4000-8000-000000000025'::uuid, '13000000-0000-4000-8000-000000000905'::uuid, '13000000-0000-4000-8000-000000000002'::uuid, '13000000-0000-4000-8000-000000000013'::uuid, 'gym_owner',   'B Owner');
 
 insert into public.members (id, tenant_id, branch_id, full_name, phone) values
   ('13000000-0000-4000-8000-000000000031'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000011'::uuid, 'Member X', '+91130000031'),
@@ -262,9 +264,9 @@ insert into auth.users (id) values ('13000000-0000-4000-8000-00000000002c'::uuid
 
 select set_config(
   'request.jwt.claims',
-  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+  json_build_object('sub', '13000000-0000-4000-8000-000000000902', 'role', 'authenticated',
                     'tenant_id', '13000000-0000-4000-8000-000000000001',
-                    'app_role', 'gym_manager')::text,
+                    'app_role', 'gym_manager', 'staff_id', '13000000-0000-4000-8000-000000000022')::text,
   true
 );
 set local role authenticated;
@@ -327,7 +329,7 @@ set local role postgres;
 -- GL016/GL026/GL030), so the fixture now matches what a genuine session carries.
 select set_config(
   'request.jwt.claims',
-  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+  json_build_object('sub', '13000000-0000-4000-8000-000000000903', 'role', 'authenticated',
                     'tenant_id', '13000000-0000-4000-8000-000000000001',
                     'app_role', 'front_desk',
                     'staff_id', '13000000-0000-4000-8000-000000000023')::text,
@@ -441,7 +443,7 @@ set local role postgres;
 
 select set_config(
   'request.jwt.claims',
-  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+  json_build_object('sub', '13000000-0000-4000-8000-000000000904', 'role', 'authenticated',
                     'tenant_id', '13000000-0000-4000-8000-000000000001',
                     'app_role', 'trainer',
                     'staff_id', '13000000-0000-4000-8000-000000000024')::text,
@@ -563,9 +565,9 @@ set local role postgres;
 
 select set_config(
   'request.jwt.claims',
-  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+  json_build_object('sub', '13000000-0000-4000-8000-000000000901', 'role', 'authenticated',
                     'tenant_id', '13000000-0000-4000-8000-000000000001',
-                    'app_role', 'gym_owner')::text,
+                    'app_role', 'gym_owner', 'staff_id', '13000000-0000-4000-8000-000000000021')::text,
   true
 );
 set local role authenticated;
