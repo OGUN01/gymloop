@@ -8,10 +8,11 @@ select plan(57);
 
 insert into public.organizations(id,name,gym_code,status,timezone,currency) values
  ('57000000-0000-4000-8000-000000000001','Acceptance evidence tests','ADD57A','active','Asia/Kolkata','INR');
-insert into auth.users(id) values ('57000000-0000-4000-8000-000000000901'),('57000000-0000-4000-8000-000000000902'),('57000000-0000-4000-8000-000000000903');
+insert into auth.users(id) values ('57000000-0000-4000-8000-000000000901'),('57000000-0000-4000-8000-000000000902'),('57000000-0000-4000-8000-000000000903'),('57000000-0000-4000-8000-000000000904');
 insert into public.staff(id,tenant_id,user_id,role,full_name) values
  ('57000000-0000-4000-8000-000000000021','57000000-0000-4000-8000-000000000001','57000000-0000-4000-8000-000000000901','gym_owner','Owner'),
- ('57000000-0000-4000-8000-000000000022','57000000-0000-4000-8000-000000000001','57000000-0000-4000-8000-000000000902','trainer','Trainer');
+ ('57000000-0000-4000-8000-000000000022','57000000-0000-4000-8000-000000000001','57000000-0000-4000-8000-000000000902','trainer','Trainer'),
+ ('57000000-0000-4000-8000-000000000023','57000000-0000-4000-8000-000000000001','57000000-0000-4000-8000-000000000904','front_desk','Front desk');
 insert into public.branches(id,tenant_id,name,is_default) values
  ('57000000-0000-4000-8000-000000000011','57000000-0000-4000-8000-000000000001','Main',true);
 insert into public.members(id,tenant_id,branch_id,full_name,phone,status) values
@@ -26,7 +27,7 @@ insert into public.plans(id,tenant_id,name,duration_days,price_paise) values
 insert into public.memberships(id,tenant_id,member_id,plan_id,price_paise) values
  ('57000000-0000-4000-8000-000000000402','57000000-0000-4000-8000-000000000001','57000000-0000-4000-8000-000000000032','57000000-0000-4000-8000-000000000401',10000);
 insert into public.payments(id,tenant_id,member_id,membership_id,amount_paise,status,method,recorded_by_staff_id,receipt_number,paid_at) values
- ('57000000-0000-4000-8000-000000000501','57000000-0000-4000-8000-000000000001','57000000-0000-4000-8000-000000000031',null,10000,'paid','cash','57000000-0000-4000-8000-000000000021','VISIBLE57A',transaction_timestamp()),
+ ('57000000-0000-4000-8000-000000000501','57000000-0000-4000-8000-000000000001','57000000-0000-4000-8000-000000000031',null,10000,'paid','cash','57000000-0000-4000-8000-000000000023','VISIBLE57A',transaction_timestamp()),
  ('57000000-0000-4000-8000-000000000502','57000000-0000-4000-8000-000000000001','57000000-0000-4000-8000-000000000032','57000000-0000-4000-8000-000000000402',10000,'paid','cash','57000000-0000-4000-8000-000000000021','VISIBLE57B',transaction_timestamp());
 
 
@@ -37,7 +38,7 @@ insert into public.addon_products(id,tenant_id,kind,name,description,price_paise
 values('57000000-0000-4000-8000-000000000103','57000000-0000-4000-8000-000000000001','product','Stock item','One item',10000,30,5,'No automatic restock');
 set local session_replication_role=replica;
 insert into public.addon_orders(id,tenant_id,member_id,addon_product_id,status,quantity,unit_price_paise,total_paise,payment_id,trainer_staff_id,sessions_total,sessions_used,sold_by_staff_id,sold_at,starts_on,expires_on,sale_snapshot) values
- ('57000000-0000-4000-8000-000000000601','57000000-0000-4000-8000-000000000001','57000000-0000-4000-8000-000000000031','57000000-0000-4000-8000-000000000103','pending',1,10000,10000,'57000000-0000-4000-8000-000000000501',null,null,0,'57000000-0000-4000-8000-000000000021',null,null,null,'{"kind":"product","name":"Stock item","description":"One item","cancellationTerms":"No automatic restock","validityDays":30}'),
+ ('57000000-0000-4000-8000-000000000601','57000000-0000-4000-8000-000000000001','57000000-0000-4000-8000-000000000031','57000000-0000-4000-8000-000000000103','pending',1,10000,10000,'57000000-0000-4000-8000-000000000501',null,null,0,'57000000-0000-4000-8000-000000000023',null,null,null,'{"kind":"product","name":"Stock item","description":"One item","cancellationTerms":"No automatic restock","validityDays":30}'),
  ('57000000-0000-4000-8000-000000000602','57000000-0000-4000-8000-000000000001','57000000-0000-4000-8000-000000000031','57000000-0000-4000-8000-000000000101','active',1,0,0,null,'57000000-0000-4000-8000-000000000022',2,0,'57000000-0000-4000-8000-000000000021',transaction_timestamp(),(transaction_timestamp() at time zone 'Asia/Kolkata')::date,(transaction_timestamp() at time zone 'Asia/Kolkata')::date+29,'{"kind":"pt_package","name":"Free PT","description":"Two PT sessions","cancellationTerms":"Cancel before delivery","validityDays":30,"trainerQualification":"Gym qualification"}');
 insert into public.pt_sessions(id,tenant_id,addon_order_id,trainer_staff_id,member_id,starts_at,ends_at,status) values
  ('57000000-0000-4000-8000-000000000701','57000000-0000-4000-8000-000000000001','57000000-0000-4000-8000-000000000602','57000000-0000-4000-8000-000000000022','57000000-0000-4000-8000-000000000031',transaction_timestamp()-interval '2 hours',transaction_timestamp()-interval '1 hour','scheduled');
@@ -83,7 +84,8 @@ select set_config('request.jwt.claims','',true);
 -- Isolate each private helper at its real source relation. Removing the other
 -- triggers and RLS inside this rolled-back probe prevents an outer invoker guard
 -- from accidentally proving the private definer's own capability check for it.
--- Positive controls require that each exact source operation really can run.
+-- Positive controls use the source action's real actor: assigned trainer for
+-- PT completion, front desk for sale acceptance, owner for returned money.
 create function pg_temp.capability_probe(p_helper text,p_case text) returns jsonb language plpgsql as $fn$
 declare
  v_source text:=case when p_helper='apply_addon_refund_effect' then 'refunds'
@@ -114,6 +116,11 @@ begin
  end if;
  execute format('grant select,update,delete on %s to authenticated',v_target);
  execute format('create trigger visible_capability_probe %s %s on %s for each row execute function app.%I()',v_timing,case when p_case='wrong_operation' then 'delete' else 'update' end,v_target,p_helper);
+ if v_source='pt_sessions' then
+  v_claims:=v_claims||'{"sub":"57000000-0000-4000-8000-000000000902","app_role":"trainer","staff_id":"57000000-0000-4000-8000-000000000022"}';
+ elsif v_source='addon_orders' then
+  v_claims:=v_claims||'{"sub":"57000000-0000-4000-8000-000000000904","app_role":"front_desk","staff_id":"57000000-0000-4000-8000-000000000023"}';
+ end if;
  if p_case='missing_actor' then v_claims:=v_claims-'staff_id';
  elsif p_case='unknown_actor' then v_claims:=v_claims||'{"staff_id":"57000000-0000-4000-8000-000000000999"}';
  elsif p_case='foreign_tenant' then v_claims:=v_claims||'{"tenant_id":"57000000-0000-4000-8000-000000000099"}';
@@ -143,7 +150,7 @@ insert into capability_results select helper,scenario,pg_temp.capability_probe(h
 from unnest(array['apply_addon_order_effects','apply_addon_refund_effect','apply_pt_session_effect','lock_addon_order_for_pt_session','lock_addon_product_for_order']) helper
 cross join unnest(array['control','wrong_table','wrong_operation','missing_actor','unknown_actor','foreign_tenant','member_role','preview','malformed_tenant','wrong_subject']) scenario;
 select ok(not result ? 'harnessError' and case when scenario='control' then result->>'error' is null when scenario in ('wrong_table','wrong_operation') then result->>'error' is not null and (result->>'unchanged')::boolean else result->>'error'='42501' and (result->>'unchanged')::boolean end,
- 'A-005/A-008/A-012 capability '||helper||': '||scenario||case when scenario='control' then ' permits its authenticated owner source action' else ' refuses before changing source, stock, usage, return or audit evidence' end)
+ 'A-005/A-008/A-012 capability '||helper||': '||scenario||case when scenario='control' then ' permits its authorized source actor action' else ' refuses before changing source, stock, usage, return or audit evidence' end)
 from capability_results order by helper,scenario;
 select * from finish();
 rollback;
