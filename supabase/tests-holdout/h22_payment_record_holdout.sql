@@ -442,6 +442,10 @@
 -- future, partly elapsed and dateless starts with a part payment, a first grant
 -- worth several periods, and a renewal. The existing 985 assertions are kept.
 
+-- NET-PRICE RECONCILIATION (spec 5b041e9), by an independent holdout author.
+-- Discount now participates in the agreed price and freezes on any received
+-- money. Only the two post-receipt discount edits and the explicit gross-price
+-- tripwire below change expectations; unpaid edits and all 1001 tests remain.
 begin;
 
 set local role postgres;
@@ -2614,9 +2618,10 @@ select set_config(
   true
 );
 
-select lives_ok(
+select throws_ok(
   $$update public.memberships set discount_paise = 5000 where id = '220000ff-0022-4000-8000-600000000059'$$,
-  'OPEN-026 / ADR-089: and the row is still EDITABLE, which is the thing 16i was written to protect. ADR-089 rejected a consistency trigger because it would have bricked rows whose recorded count and banked money legitimately disagree; this row is one, and GL045 takes its two dates and nothing else');
+  'GL043', null,
+  'NET-PRICE / OPEN-026: a paid half-dated row cannot change its discount; the new contract freezes that scored term even when its lifecycle remains unresolved');
 
 select set_config(
   'request.jwt.claims',
@@ -4273,14 +4278,15 @@ select set_config(
   true
 );
 
-select lives_ok(
+select throws_ok(
   $$update public.memberships set discount_paise = 15000 where id = '220000ff-0022-4000-8000-600000000924'$$,
-  'GL043/permitted: discount_paise is still writable after money has arrived — it is deliberately not a term, because nothing in the money path reads it, and a length rule that swept the row''s money columns together would take it');
+  'GL043', null,
+  'NET-PRICE / GL043: an admin cannot rewrite the discount after money has arrived');
 
 select is(
   (select discount_paise from public.memberships where id = '220000ff-0022-4000-8000-600000000924'::uuid),
-  15000::bigint,
-  'GL043/permitted: and that write landed');
+  0::bigint,
+  'NET-PRICE / GL043: the refused discount remains zero');
 
 select set_config(
   'request.jwt.claims',
@@ -5630,8 +5636,8 @@ select lives_ok(
 
 select is(
   (select (ends_on - starts_on)::text || '/' || periods_granted::text from public.memberships where id = '220000ff-0022-4000-8000-600000000b08'::uuid),
-  '30/1',
-  'GL046/discount-unread: and it bought exactly ONE period — OPEN-028 asserted from the money''s side rather than the column''s. If the granting rule ever scores against `price_paise - discount_paise` this reads 300/10, and the requirement one heading up says whoever makes that change adds discount_paise to the frozen terms in the same commit. This assertion is the tripwire for that day');
+  '300/10',
+  'NET-PRICE / GL046: the gross receipt buys ten periods at the agreed 10000-paise net price; the old OPEN-028 tripwire is now the contracted behavior');
 
 select is(
   (select price_paise from public.plans where id = '220000ff-0022-4000-8000-400000000b01'::uuid),
