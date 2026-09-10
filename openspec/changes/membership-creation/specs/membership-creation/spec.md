@@ -54,8 +54,9 @@ should start from what refuted this one: **measure the population the rule
 binds, not the population that inspired it.**
 
 ### Requirement: The first period is set, not added
-WHERE a membership has been granted no periods, THE SYSTEM SHALL set its span
-from the plan rather than extend a span it already carries.
+WHERE a membership has been granted no periods and its dates are either both
+present or both absent, THE SYSTEM SHALL set its span from the recorded sold
+duration rather than extend a span it already carries.
 
 `app.grant_periods()` computes `ends_on = greatest(ends_on, today) + duration ×
 periods`. It must add, for renewals. But **when `periods_granted = 0`, any span
@@ -108,11 +109,11 @@ that admits on dates (ADR-084), with `GL045` making whatever lands permanent:
 | pre-sold, starts next Monday | Mon … Mon+30 ✓ | live today — a free week | **Mon … Mon+30** |
 | lapsed member returns and pays | expired last month — **paid for nothing** | today … today+30 ✓ | **today … today+30** |
 
-**WHERE a membership has been granted no periods, THE SYSTEM SHALL start it at
-the later of its `starts_on` and today.** A future start date was chosen and is
+**WHERE a membership has been granted no periods and its dates are both present,
+THE SYSTEM SHALL start it at the later of its `starts_on` and today.** A future start date was chosen and is
 honoured; a past one is not, because a membership nobody paid for never started.
-The span is then exactly `duration_days × periods_granted` on every first-grant
-path — measured on all of them, including a single payment worth two periods
+The span is then exactly `duration_days × periods_granted` on the fully dated
+and fully dateless first-grant paths, including a single payment worth two periods
 (span 60, two periods granted).
 
 A third reading — keep `starts_on`, floor only `ends_on` at today — is what the
@@ -146,3 +147,11 @@ two.
 #### Scenario: The ordinary path
 - **WHEN** a payment grants the first period of a dateless membership
 - **THEN** it SHALL be dated from the plan exactly as it is today
+
+#### Scenario: A pending membership with only an end date
+- **WHEN** a payment buys a period for a pending membership with a null start date and a present end date
+- **THEN** its start date SHALL remain null, its end SHALL extend from the later of its existing end and gym-local today, and it SHALL remain pending, preserving the existing behavior deferred under OPEN-026
+
+#### Scenario: A pending membership with only a start date
+- **WHEN** a payment is recorded for a pending membership with a present start date and a null end date
+- **THEN** its dates and granted-period count SHALL remain unchanged, preserving the existing behavior deferred under OPEN-026
