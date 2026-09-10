@@ -53,6 +53,7 @@ const STAFF = {
   sub: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', app_role: 'gym_owner',
   tenant_id: TENANT_ID, staff_id: STAFF_ID,
 };
+const TRAINER = { ...STAFF, app_role: 'trainer' };
 
 const sale = {
   memberId: MEMBER_ID,
@@ -212,6 +213,7 @@ describe('recording an add-on sale', () => {
 
 describe('PT, delivery, and manual-return commands', () => {
   it('schedules with an explicit generated session id and has a replay-safe, immutable slot payload', async () => {
+    state.claims = TRAINER;
     state.results = [{ data: [{ session_id: SESSION_ID, order_id: ORDER_ID, replayed: false }], error: null }];
     const { POST } = await sessionRoute();
     const response = await POST(json(`/api/add-on-orders/${ORDER_ID}/sessions`, {
@@ -226,6 +228,7 @@ describe('PT, delivery, and manual-return commands', () => {
   });
 
   it('rejects a forged order, reschedule, or status/body mix before the RPC', async () => {
+    state.claims = TRAINER;
     const { PATCH } = await sessionRoute();
     const response = await PATCH(json(`/api/add-on-orders/${ORDER_ID}/sessions`, {
       sessionId: SESSION_ID, orderId: PRODUCT_ID, status: 'completed', startsAt: '2026-09-10T10:00:00+05:30',
@@ -237,6 +240,7 @@ describe('PT, delivery, and manual-return commands', () => {
   });
 
   it('finishes only through the session terminal command and validates the exact result row', async () => {
+    state.claims = TRAINER;
     state.results = [{ data: [{ session_id: SESSION_ID, order_id: ORDER_ID, session_status: 'completed', order_status: 'active', replayed: false }], error: null }];
     const { PATCH } = await sessionRoute();
     const response = await PATCH(json(`/api/add-on-orders/${ORDER_ID}/sessions`, { sessionId: SESSION_ID, status: 'completed' }, 'PATCH'), { params: Promise.resolve({ orderId: ORDER_ID }) });
