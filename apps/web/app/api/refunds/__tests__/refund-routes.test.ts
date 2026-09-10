@@ -224,12 +224,12 @@ describe('converting rupees to paise', () => {
     },
   );
 
-  it('converts a valid rupee string to integer paise in the RPC request', async () => {
+  it('converts a valid rupee string to exact decimal-text paise in the RPC request', async () => {
     state.results = [ok()];
 
     await recordRefund(post({ ...VALID, amountRupees: '150.50' }));
 
-    expect(lastRequest()).toMatchObject({ p_amount_paise: 15050 });
+    expect(lastRequest()).toMatchObject({ p_amount_paise: '15050' });
   });
 
   it('ADD-009/ADD-011: converts a legal amount beyond safe Number precision without losing one paise', async () => {
@@ -272,7 +272,7 @@ describe('calling the refund RPC', () => {
     await recordRefund(post(VALID));
 
     expect(state.calls).toEqual([{ name: 'record_refund', args: {
-      p_payment_id: PAYMENT_ID, p_amount_paise: 20000, p_currency: 'INR',
+      p_payment_id: PAYMENT_ID, p_amount_paise: '20000', p_currency: 'INR',
       p_kind: 'refund', p_reason: VALID.reason, p_idempotency_key: VALID.idempotencyKey,
     } }]);
   });
@@ -417,7 +417,7 @@ describe('refund request identity and replay', () => {
       status: 'completed', id: OTHER_PAYMENT_ID, providerRefundId: 'forged', notes: 'do not append',
     }));
     expect(state.calls).toEqual([{ name: 'record_refund', args: {
-      p_payment_id: PAYMENT_ID, p_amount_paise: 20000, p_currency: 'INR',
+      p_payment_id: PAYMENT_ID, p_amount_paise: '20000', p_currency: 'INR',
       p_kind: 'refund', p_reason: 'Returned  CAFÉ e\u0301', p_idempotency_key: VALID.idempotencyKey,
     } }]);
   });
