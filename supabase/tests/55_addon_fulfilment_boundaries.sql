@@ -11,9 +11,11 @@ insert into public.organizations(id,name,gym_code,status,timezone,currency) valu
  ('55000000-0000-4000-8000-000000000001','Add-on boundary tests','ADD55A','active','Asia/Kolkata','INR');
 insert into public.branches(id,tenant_id,name,is_default) values
  ('55000000-0000-4000-8000-000000000011','55000000-0000-4000-8000-000000000001','Main',true);
-insert into public.staff(id,tenant_id,branch_id,role,full_name) values
- ('55000000-0000-4000-8000-000000000021','55000000-0000-4000-8000-000000000001','55000000-0000-4000-8000-000000000011','gym_owner','Owner'),
- ('55000000-0000-4000-8000-000000000022','55000000-0000-4000-8000-000000000001','55000000-0000-4000-8000-000000000011','trainer','Trainer');
+-- Claims below identify real staff with matching authenticated subjects.
+insert into auth.users(id) values ('55000000-0000-4000-8000-000000000901'),('55000000-0000-4000-8000-000000000902');
+insert into public.staff(id,user_id,tenant_id,branch_id,role,full_name) values
+ ('55000000-0000-4000-8000-000000000021','55000000-0000-4000-8000-000000000901','55000000-0000-4000-8000-000000000001','55000000-0000-4000-8000-000000000011','gym_owner','Owner'),
+ ('55000000-0000-4000-8000-000000000022','55000000-0000-4000-8000-000000000902','55000000-0000-4000-8000-000000000001','55000000-0000-4000-8000-000000000011','trainer','Trainer');
 insert into public.members(id,tenant_id,branch_id,full_name,phone) values
  ('55000000-0000-4000-8000-000000000031','55000000-0000-4000-8000-000000000001','55000000-0000-4000-8000-000000000011','Member','+915500000031');
 insert into public.addon_products(id,tenant_id,kind,name,description,price_paise,currency,validity_days,session_count,trainer_staff_id,trainer_qualification,stock_quantity,cancellation_terms,is_active) values
