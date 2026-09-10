@@ -3,7 +3,7 @@
 begin;
 set local role postgres;
 set local search_path=public,extensions;
-select plan(27);
+select plan(41);
 create function pg_temp.cap_id(n integer) returns uuid language sql immutable as $fn$
  select ('ca240000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid
 $fn$;
@@ -58,21 +58,23 @@ alter table public.refunds disable row level security;
 alter table public.pt_sessions disable row level security;
 update public.addon_orders set status='pending' where id=pg_temp.cap_id(50);
 
-create function pg_temp.cap_probe(p_kind text,p_bad text default null,p_trusted boolean default false) returns text language plpgsql as $fn$
+create function pg_temp.cap_probe(p_kind text,p_bad text default null,p_trusted boolean default false,p_service boolean default false) returns text language plpgsql as $fn$
 declare claims jsonb; answer text;
 begin
- claims:=jsonb_build_object('sub',case when p_kind='pt' then pg_temp.cap_id(14) else pg_temp.cap_id(10) end,
-  'role','authenticated','tenant_id',pg_temp.cap_id(1),'app_role',case when p_kind='pt' then 'trainer' else 'gym_owner' end,
-  'staff_id',case when p_kind='pt' then pg_temp.cap_id(12) else pg_temp.cap_id(11) end);
+ claims:=jsonb_build_object('sub',case when p_kind in ('pt','pt_lock') then pg_temp.cap_id(14) else pg_temp.cap_id(10) end,
+  'role','authenticated','tenant_id',pg_temp.cap_id(1),'app_role',case when p_kind in ('pt','pt_lock') then 'trainer' else 'gym_owner' end,
+  'staff_id',case when p_kind in ('pt','pt_lock') then pg_temp.cap_id(12) else pg_temp.cap_id(11) end);
  if p_bad='tenant' then claims:=claims||jsonb_build_object('tenant_id',gen_random_uuid()); end if;
  if p_bad='actor' then claims:=claims||jsonb_build_object('staff_id',gen_random_uuid()); end if;
  if p_bad='role' then claims:=claims||jsonb_build_object('app_role','member','member_id',pg_temp.cap_id(21)); end if;
  if p_bad='preview' then claims:=claims||jsonb_build_object('impersonation_session_id',gen_random_uuid()); end if;
  if p_bad='subject' then claims:=claims||jsonb_build_object('sub',gen_random_uuid()); end if;
+ if p_bad='missing_subject' then claims:=claims-'sub'; end if;
  begin
-  perform set_config('request.jwt.claims',case when p_trusted then '' else claims::text end,true);
-  if not p_trusted then set local role authenticated; end if;
-  if p_kind='order' then
+  perform set_config('request.jwt.claims',case when p_service then '{"role":"service_role"}' when p_trusted then '' else claims::text end,true);
+  if p_service then set local role service_role;
+  elsif not p_trusted then set local role authenticated; end if;
+  if p_kind in ('order','product_lock') then
    update public.addon_orders set status='paid',sold_at=transaction_timestamp() where id=pg_temp.cap_id(50);
   elsif p_kind='refund' then
    update public.refunds set status='completed',processed_at=transaction_timestamp() where id=pg_temp.cap_id(61);
@@ -81,7 +83,9 @@ begin
   end if;
   set local role postgres;
   perform set_config('request.jwt.claims','',true);
-  if p_kind='order' then select case when stock_quantity=9 then 'APPLIED' else 'NO_EFFECT' end into answer from public.addon_products where id=pg_temp.cap_id(40);
+  if p_kind='product_lock' then select case when status='paid' then 'LOCKED' else 'NO_EFFECT' end into answer from public.addon_orders where id=pg_temp.cap_id(50);
+  elsif p_kind='pt_lock' then select case when status='completed' then 'LOCKED' else 'NO_EFFECT' end into answer from public.pt_sessions where id=pg_temp.cap_id(70);
+  elsif p_kind='order' then select case when stock_quantity=9 then 'APPLIED' else 'NO_EFFECT' end into answer from public.addon_products where id=pg_temp.cap_id(40);
   elsif p_kind='refund' then select case when status='refunded' and not exists(select 1 from public.pt_sessions where id=pg_temp.cap_id(70) and status='scheduled') then 'APPLIED' else 'NO_EFFECT' end into answer from public.addon_orders where id=pg_temp.cap_id(51);
   else select case when sessions_used=1 then 'APPLIED' else 'NO_EFFECT' end into answer from public.addon_orders where id=pg_temp.cap_id(51);
   end if;
@@ -93,12 +97,14 @@ begin
 end;
 $fn$;
 do $do$ begin
- execute format('grant usage on schema %s to authenticated',pg_my_temp_schema()::regnamespace);
+ execute format('grant usage on schema %s to authenticated, service_role',pg_my_temp_schema()::regnamespace);
 end; $do$;
 
 create trigger cap_order_effect after update on public.addon_orders for each row execute function app.apply_addon_order_effects();
 select is(pg_temp.cap_probe('order'),'APPLIED','Private order effect permits its real owner acceptance');
 select is(pg_temp.cap_probe('order',null,true),'APPLIED','Private order effect permits trusted null-auth processing');
+select is(pg_temp.cap_probe('order',null,true,true),'APPLIED','Private order effect permits subjectless trusted service processing');
+select is(pg_temp.cap_probe('order','missing_subject'),'42501','Private order effect refuses authenticated claims without a subject');
 select is(pg_temp.cap_probe('order','tenant'),'42501','Private order effect independently rejects a foreign tenant claim');
 select is(pg_temp.cap_probe('order','actor'),'42501','Private order effect independently rejects an invented staff actor');
 select is(pg_temp.cap_probe('order','role'),'42501','Private order effect independently rejects member authority');
@@ -108,6 +114,8 @@ drop trigger cap_order_effect on public.addon_orders;
 create trigger cap_refund_effect after update on public.refunds for each row execute function app.apply_addon_refund_effect();
 select is(pg_temp.cap_probe('refund'),'APPLIED','Private refund effect permits its real owner completion');
 select is(pg_temp.cap_probe('refund',null,true),'APPLIED','Private refund effect permits trusted null-auth processing');
+select is(pg_temp.cap_probe('refund',null,true,true),'APPLIED','Private refund effect permits subjectless trusted service processing');
+select is(pg_temp.cap_probe('refund','missing_subject'),'42501','Private refund effect refuses authenticated claims without a subject');
 select is(pg_temp.cap_probe('refund','tenant'),'42501','Private refund effect independently rejects a foreign tenant claim');
 select is(pg_temp.cap_probe('refund','actor'),'42501','Private refund effect independently rejects an invented staff actor');
 select is(pg_temp.cap_probe('refund','role'),'42501','Private refund effect independently rejects member authority');
@@ -117,12 +125,27 @@ drop trigger cap_refund_effect on public.refunds;
 create trigger cap_pt_effect after update on public.pt_sessions for each row execute function app.apply_pt_session_effect();
 select is(pg_temp.cap_probe('pt'),'APPLIED','Private PT effect permits its real assigned trainer completion');
 select is(pg_temp.cap_probe('pt',null,true),'APPLIED','Private PT effect permits trusted null-auth processing');
+select is(pg_temp.cap_probe('pt',null,true,true),'APPLIED','Private PT effect permits subjectless trusted service processing');
+select is(pg_temp.cap_probe('pt','missing_subject'),'42501','Private PT effect refuses authenticated claims without a subject');
 select is(pg_temp.cap_probe('pt','tenant'),'42501','Private PT effect independently rejects a foreign tenant claim');
 select is(pg_temp.cap_probe('pt','actor'),'42501','Private PT effect independently rejects an invented staff actor');
 select is(pg_temp.cap_probe('pt','role'),'42501','Private PT effect independently rejects member authority');
 select is(pg_temp.cap_probe('pt','preview'),'42501','Private PT effect independently rejects impersonation');
 select is(pg_temp.cap_probe('pt','subject'),'42501','Private PT effect independently verifies actor subject linkage');
 drop trigger cap_pt_effect on public.pt_sessions;
+
+create trigger cap_product_lock before update on public.addon_orders for each row execute function app.lock_addon_product_for_order();
+select is(pg_temp.cap_probe('product_lock'),'LOCKED','Private product lock permits its real owner acceptance');
+select is(pg_temp.cap_probe('product_lock',null,true),'LOCKED','Private product lock permits subjectless trusted postgres processing');
+select is(pg_temp.cap_probe('product_lock',null,true,true),'LOCKED','Private product lock permits subjectless trusted service processing');
+select is(pg_temp.cap_probe('product_lock','missing_subject'),'42501','Private product lock refuses authenticated claims without a subject');
+drop trigger cap_product_lock on public.addon_orders;
+create trigger cap_pt_lock before update on public.pt_sessions for each row execute function app.lock_addon_order_for_pt_session();
+select is(pg_temp.cap_probe('pt_lock'),'LOCKED','Private session lock permits its real assigned trainer');
+select is(pg_temp.cap_probe('pt_lock',null,true),'LOCKED','Private session lock permits subjectless trusted postgres processing');
+select is(pg_temp.cap_probe('pt_lock',null,true,true),'LOCKED','Private session lock permits subjectless trusted service processing');
+select is(pg_temp.cap_probe('pt_lock','missing_subject'),'42501','Private session lock refuses authenticated claims without a subject');
+drop trigger cap_pt_lock on public.pt_sessions;
 
 -- The same privileged functions cannot be borrowed by another table, even by a
 -- structurally identical caller, or run on an unsupported source operation.
