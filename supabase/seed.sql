@@ -313,8 +313,8 @@ on conflict (id) do update set
 
 insert into public.addon_products (
   id, tenant_id, kind, name, description, price_paise, currency, gst_rate_bp,
-  validity_days, session_count, trainer_staff_id, stock_quantity,
-  cancellation_terms, is_active, sort_order
+  validity_days, session_count, trainer_staff_id, trainer_qualification,
+  stock_quantity, cancellation_terms, is_active, sort_order
 )
 select
   ('00000009-0000-4000-8000-' || lpad(a.n::text, 12, '0'))::uuid,
@@ -330,6 +330,7 @@ select
   case when a.trainer_no is null then null
        else ('00000003-0000-4000-8000-' || lpad(a.trainer_no::text, 12, '0'))::uuid
   end,
+  a.trainer_qualification,
   a.stock_quantity,
   a.cancellation_terms,
   true,
@@ -337,40 +338,41 @@ select
 from (values
   (1, 'pt_package', 'PT Starter — 12 Sessions',
       'Twelve one-hour personal training sessions with Rohit.',
-      800000::bigint, 90, 12, 1, null::integer,
+      800000::bigint, 90, 12, 1, 'ACE-CPT', null::integer,
       'Unused sessions lapse at expiry. Cancel 12 hours ahead or the session is consumed.'),
   (2, 'pt_package', 'PT Transform — 24 Sessions',
       'Twenty-four sessions with Meera, includes a nutrition review every month.',
-      1500000::bigint, 180, 24, 2, null::integer,
+      1500000::bigint, 180, 24, 2, 'NSCA-CPT', null::integer,
       'Unused sessions lapse at expiry. Cancel 12 hours ahead or the session is consumed.'),
   (3, 'diet_plan', 'Fat-Loss Diet Plan — 8 Weeks',
       'Eight-week Indian-kitchen meal plan with a fortnightly review call.',
-      250000::bigint, 56, null::integer, 2, null::integer,
+      250000::bigint, 56, null::integer, null::integer, null::text, null::integer,
       'Non-refundable once the first plan has been shared.'),
   (4, 'product', 'Whey Protein 1 kg — Chocolate',
       'Imported whey concentrate, 1 kg tub.',
-      240000::bigint, null::integer, null::integer, null::integer, 24,
+      240000::bigint, 7, null::integer, null::integer, null::text, 24,
       'Sealed tubs only, within 7 days of purchase.'),
   (5, 'product', 'BCAA 300 g — Lemon',
       'Intra-workout BCAA, 300 g.',
-      130000::bigint, null::integer, null::integer, null::integer, 15,
+      130000::bigint, 7, null::integer, null::integer, null::text, 15,
       'Sealed tubs only, within 7 days of purchase.')
 ) as a(n, kind, name, description, price_paise, validity_days, session_count,
-       trainer_no, stock_quantity, cancellation_terms)
+       trainer_no, trainer_qualification, stock_quantity, cancellation_terms)
 on conflict (id) do update set
-  kind               = excluded.kind,
-  name               = excluded.name,
-  description        = excluded.description,
-  price_paise        = excluded.price_paise,
-  currency           = excluded.currency,
-  gst_rate_bp        = excluded.gst_rate_bp,
-  validity_days      = excluded.validity_days,
-  session_count      = excluded.session_count,
-  trainer_staff_id   = excluded.trainer_staff_id,
-  stock_quantity     = excluded.stock_quantity,
-  cancellation_terms = excluded.cancellation_terms,
-  is_active          = excluded.is_active,
-  sort_order         = excluded.sort_order;
+  kind                  = excluded.kind,
+  name                  = excluded.name,
+  description           = excluded.description,
+  price_paise           = excluded.price_paise,
+  currency              = excluded.currency,
+  gst_rate_bp           = excluded.gst_rate_bp,
+  validity_days         = excluded.validity_days,
+  session_count         = excluded.session_count,
+  trainer_staff_id      = excluded.trainer_staff_id,
+  trainer_qualification = excluded.trainer_qualification,
+  stock_quantity        = excluded.stock_quantity,
+  cancellation_terms    = excluded.cancellation_terms,
+  is_active             = excluded.is_active,
+  sort_order            = excluded.sort_order;
 
 
 -- ---------------------------------------------------------------------------
@@ -1056,7 +1058,17 @@ on conflict (id) do nothing;
 -- 19. Three add-on orders, one of each kind. Every one is past `pending`, so
 --     addon_orders_paid_has_payment_chk requires the payment — and each names
 --     the paid row above. ADD-004: sessions_used never exceeds sessions_total.
+--
+--     Like the membership dates in 16b, these rows are the seed's own history:
+--     starts_on and expires_on are derived from today so a re-run always
+--     describes a current-but-past order, and ADD-005/006 rightly freeze those
+--     dates on an accepted record. The seed constructs that history in one
+--     visible act, disabling addon_orders_enforce for the length of the one
+--     statement, the same deliberate act the memberships rule's own migration
+--     prescribes for its trigger.
 -- ---------------------------------------------------------------------------
+
+alter table public.addon_orders disable trigger addon_orders_enforce;
 
 with today as (select (now() at time zone 'Asia/Kolkata')::date as d)
 insert into public.addon_orders (
@@ -1088,7 +1100,7 @@ from (values
   (1,  2, 1, 101, 'active',     1,  800000::bigint,  800000::bigint, 1,
        12, 3, -18, 72),
   -- diet plan: paid, 8 weeks of validity
-  (2,  7, 3, 102, 'paid',       1,  250000::bigint,  250000::bigint, 2,
+  (2,  7, 3, 102, 'paid',       1,  250000::bigint,  250000::bigint, null::integer,
        null::integer, 0, -5, 51),
   -- supplement: handed over the counter, done
   (3, 15, 4, 103, 'completed',  1,  240000::bigint,  240000::bigint, null::integer,
@@ -1112,6 +1124,8 @@ on conflict (id) do update set
   starts_on        = excluded.starts_on,
   expires_on       = excluded.expires_on;
 
+alter table public.addon_orders enable trigger addon_orders_enforce;
+
 
 -- ---------------------------------------------------------------------------
 -- 20. Five PT sessions on the open package: three delivered, two booked.
@@ -1123,7 +1137,15 @@ on conflict (id) do update set
 --     re-run whose day shift equalled the gap between them would move one onto
 --     the other's not-yet-updated slot and raise 23P01. Distinct hours make an
 --     overlap impossible whatever the shift.
+--
+--     The sessions' slots are also derived from today so the seed always
+--     describes a current-but-past package, and ADD-007 rightly freezes a
+--     session's identity and slot once booked. The seed constructs that
+--     history in one visible act, disabling pt_sessions_enforce for the
+--     length of the one statement, like the memberships and orders above.
 -- ---------------------------------------------------------------------------
+
+alter table public.pt_sessions disable trigger pt_sessions_enforce;
 
 with today as (select (now() at time zone 'Asia/Kolkata')::date as d)
 insert into public.pt_sessions (
@@ -1156,6 +1178,8 @@ on conflict (id) do update set
   ends_at          = excluded.ends_at,
   status           = excluded.status,
   notes            = excluded.notes;
+
+alter table public.pt_sessions enable trigger pt_sessions_enforce;
 
 
 -- ---------------------------------------------------------------------------
