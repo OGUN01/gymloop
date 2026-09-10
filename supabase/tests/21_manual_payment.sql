@@ -51,7 +51,7 @@
 -- Four tenants, not two, and each owns exactly one concern: A (staff
 -- attribution, desk-vs-provider, same-gym receipt uniqueness, refunds,
 -- same/cross-gym idempotency), B (cross-tenant receipt independence and
--- idempotency), C (extension / greatest(ends_on, today) — isolated so its
+-- idempotency), C (paid membership dates — isolated so its
 -- membership dates are never read by anything else in the file), D
 -- (financial-year restart — isolated so its document_counters rows are
 -- never touched by any other section's payments). ADR-050: every count is
@@ -296,6 +296,8 @@ insert into public.members (id, tenant_id, branch_id, full_name, phone) values
 
 -- Tenant C's own plan and four memberships, for Section 4. Duration is 30
 -- days across the board so every expected end date below is a plain offset.
+-- No fixture has earned a period: the paid writes below are first grants,
+-- governed by membership-creation, even when the typed end date is still ahead.
 insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
   ('21000000-0000-4000-8000-000000000033'::uuid, '21000000-0000-4000-8000-000000000003'::uuid, 'C Plan (30d)', 30, 100000);
 
@@ -821,9 +823,10 @@ select results_eq(
 
 
 -- ---------------------------------------------------------------------------
--- Section 4 — A payment extends the membership on the same rules an online
--- one would, measured from greatest(ends_on, today) in the gym's own
--- timezone (26-35). Tenant C, isolated. Every fixture supplies a synthetic
+-- Section 4 — A manual payment grants membership time on the same rules an
+-- online one would. These unpaid fixtures receive their first period from
+-- gym-local today under membership-creation (26-35). Tenant C, isolated.
+-- Every fixture supplies a synthetic
 -- receipt_number by hand so payments_paid_has_reference_chk (already
 -- proven in Section 0) never enters into what these assertions measure.
 -- ---------------------------------------------------------------------------
@@ -867,7 +870,7 @@ select set_config(
   true);
 set local role authenticated;
 
--- 28 — membership 032: ends_on = today + 3 (renewing three days early).
+-- 28 — membership 032: a typed ends_on = today + 3, but no prior paid period.
 select lives_ok($$
   insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id, receipt_number)
   values ('21000000-0000-4000-8000-00000000100c'::uuid,
@@ -875,16 +878,19 @@ select lives_ok($$
           '21000000-0000-4000-8000-00000000004c'::uuid,
           '21000000-0000-4000-8000-000000000032'::uuid,
           100000, 'cash', 'paid', '21000000-0000-4000-8000-000000000027'::uuid, 'C-RCT-0002')
-$$, 'scenario "Renewing early" — a cash payment three days before expiry is not refused');
+$$, 'first grant before a typed expiry — a cash payment three days before the existing end date is not refused');
 
 set local role postgres;
 
--- 29 — greatest(today+3, today) = today+3, plus 30 = today+33. Three days
--- further out than a same-day renewal (assertion 26, today+30) would give.
+-- 29 — the membership-creation contract supersedes the old today+33 answer.
+-- This row carries zero granted periods and a past start; its first payment
+-- sets today ... today+30. The remaining three typed days were never bought.
+-- A genuine renewal is still additive, as 22_payment_record.sql asserts using
+-- a membership whose first payment has actually earned that earlier period.
 select results_eq(
   $$ select ends_on from public.memberships where id = '21000000-0000-4000-8000-000000000032'::uuid $$,
-  $$ select (select d from today_c) + 33 $$,
-  'scenario "Renewing early" — the new end date is three days further out than a same-day renewal would give; the member renewing early lost nothing'
+  $$ select (select d from today_c) + 30 $$,
+  'first grant before a typed expiry — one paid period ends thirty days from today, without adding the three unpaid days the row already carried'
 );
 
 select set_config(
@@ -896,7 +902,7 @@ select set_config(
   true);
 set local role authenticated;
 
--- 30 — membership 034: ends_on = today - 21 (lapsed three weeks ago).
+-- 30 — membership 034: typed ends_on = today - 21, with no prior paid period.
 select lives_ok($$
   insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id, receipt_number)
   values ('21000000-0000-4000-8000-00000000100d'::uuid,
@@ -904,16 +910,16 @@ select lives_ok($$
           '21000000-0000-4000-8000-00000000004d'::uuid,
           '21000000-0000-4000-8000-000000000034'::uuid,
           100000, 'cash', 'paid', '21000000-0000-4000-8000-000000000027'::uuid, 'C-RCT-0003')
-$$, 'scenario "Renewing late" — a cash payment three weeks after expiry is not refused');
+$$, 'first grant after a typed expiry — a cash payment three weeks after the existing end date is not refused');
 
 set local role postgres;
 
--- 31 — greatest(today-21, today) = today, plus 30 = today+30. Not
--- today-21+30 (=today+9), which would hand the member three free weeks.
+-- 31 — a first grant with a past start runs today ... today+30. The end-date
+-- expectation is unchanged; the typed past span was not an earlier paid period.
 select results_eq(
   $$ select ends_on from public.memberships where id = '21000000-0000-4000-8000-000000000034'::uuid $$,
   $$ select (select d from today_c) + 30 $$,
-  'scenario "Renewing late" — the new period starts from today, not from the lapsed end date; the member renewing late gained nothing extra'
+  'first grant after a typed expiry — the paid period ends thirty days from today'
 );
 
 select set_config(

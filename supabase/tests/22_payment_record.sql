@@ -545,7 +545,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(805);
+select plan(809);
 
 
 -- ---------------------------------------------------------------------------
@@ -14334,7 +14334,7 @@ select results_eq(
 
 -- ===========================================================================
 -- SECTION 37 (ROUND TWENTY-THREE, contract `membership-creation`) — "THE FIRST
--- PERIOD IS SET, NOT ADDED." Tenant 30. Assertions 783-805.
+-- PERIOD IS SET, NOT ADDED." Tenant 30. Assertions 783-809.
 --
 -- WHAT THE REQUIREMENT SAYS, IN ITS OWN TERMS. `app.grant_periods()` computes
 -- `ends_on = greatest(ends_on, today) + duration x periods`. It MUST add — that
@@ -14963,6 +14963,80 @@ select results_eq(
       ('22000000-0000-4000-8000-000000300089'::uuid, (select d from today_t30), (select d from today_t30) + 30, 1),
       ('22000000-0000-4000-8000-000000300090'::uuid, (select d from today_t30), (select d from today_t30) + 30, 1) $$,
   'two half payments buy exactly one thirty-day span: preserve the future start, replace the past start with today, and date the dateless membership from today'
+);
+
+-- ---------------------------------------------------------------------------
+-- GROUP 10 (806-809) — HALF-DATED PENDING ROWS KEEP THEIR EXISTING BEHAVIOR.
+-- The membership-creation contract covers both-present and both-absent dates.
+-- Its OPEN-026 scenarios explicitly preserve the other two shapes: a start
+-- without an end is inert; an end without a start extends from the later of
+-- that end and gym-local today without filling the start or activating the row.
+-- ---------------------------------------------------------------------------
+
+-- 806 — Section 9 already paid this start-only membership in full. Add the
+-- count and status to its existing date checks without rebuilding the fixture.
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted, status::text
+       from public.memberships
+      where id = '22000000-0000-4000-8000-00000000008a'::uuid $$,
+  $$ select (select d from today_t9) - 10, null::date, 0, 'pending'::text $$,
+  'OPEN-026 start-only: the full payment leaves both dates and the granted count unchanged, and the membership remains pending'
+);
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000300051'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300011'::uuid, 'M30 End Future', '+912230000051'),
+  ('22000000-0000-4000-8000-000000300052'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300011'::uuid, 'M30 End Past', '+912230000052');
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('22000000-0000-4000-8000-000000300091'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300051'::uuid, '22000000-0000-4000-8000-000000300061'::uuid,
+   'pending', null, (select d from today_t30) + 3, 100000),
+  ('22000000-0000-4000-8000-000000300092'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300052'::uuid, '22000000-0000-4000-8000-000000300061'::uuid,
+   'pending', null, (select d from today_t30) - 21, 100000);
+
+-- 807 — both sides of the later-of-end/today boundary start with no periods.
+select results_eq(
+  $$ select id, starts_on, ends_on, periods_granted, status::text
+       from public.memberships
+      where id in ('22000000-0000-4000-8000-000000300091'::uuid,
+                   '22000000-0000-4000-8000-000000300092'::uuid)
+      order by id $$,
+  $$ values
+      ('22000000-0000-4000-8000-000000300091'::uuid, null::date, (select d from today_t30) + 3, 0, 'pending'::text),
+      ('22000000-0000-4000-8000-000000300092'::uuid, null::date, (select d from today_t30) - 21, 0, 'pending'::text) $$,
+  'OPEN-026 end-only fixtures: future and past end dates, null starts, zero periods and pending status'
+);
+
+set local role authenticated;
+
+-- 808 — a whole period bought for each end-only membership.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id) values
+    ('22000000-0000-4000-8000-000000301015'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+     '22000000-0000-4000-8000-000000300051'::uuid, '22000000-0000-4000-8000-000000300091'::uuid,
+     100000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid),
+    ('22000000-0000-4000-8000-000000301016'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+     '22000000-0000-4000-8000-000000300052'::uuid, '22000000-0000-4000-8000-000000300092'::uuid,
+     100000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid)
+$$, 'OPEN-026 end-only: full-price payments are recorded with both future and past end dates');
+
+set local role postgres;
+
+-- 809 — the absent start remains absent, including when the existing end was
+-- already past. Neither end-only row becomes a fully dated active membership.
+select results_eq(
+  $$ select id, starts_on, ends_on, periods_granted, status::text
+       from public.memberships
+      where id in ('22000000-0000-4000-8000-000000300091'::uuid,
+                   '22000000-0000-4000-8000-000000300092'::uuid)
+      order by id $$,
+  $$ values
+      ('22000000-0000-4000-8000-000000300091'::uuid, null::date, (select d from today_t30) + 33, 1, 'pending'::text),
+      ('22000000-0000-4000-8000-000000300092'::uuid, null::date, (select d from today_t30) + 30, 1, 'pending'::text) $$,
+  'OPEN-026 end-only: each end extends from the later of itself and today, each count records one period, and null starts and pending statuses are preserved'
 );
 
 select * from finish();
