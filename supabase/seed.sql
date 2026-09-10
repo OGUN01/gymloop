@@ -47,10 +47,13 @@
 --   impersonation_sessions — a seed cannot create Supabase Auth identities.
 --   razorpay_accounts, razorpay_mandates — the key columns hold Supabase Vault
 --     secret ids; inventing uuids for secrets that do not exist would be a lie.
---   audit_log, webhook_events, invoices, document_counters, refunds,
+--   webhook_events, invoices, document_counters, refunds,
 --   membership_pauses, attendance_corrections, member_imports — Phase 1 owns
 --     shape, not behaviour; these tables are written by the phase that performs
 --     the action, and an empty table is their correct Phase-1 state.
+-- Audit rows are not inserted manually here. Financial INSERT/UPDATE triggers
+-- now record accepted seed payment writes; ON CONFLICT DO NOTHING replays add
+-- neither payment rows nor financial audit events.
 
 
 -- ---------------------------------------------------------------------------

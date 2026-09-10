@@ -21,6 +21,8 @@ import { z } from 'zod';
  */
 export const refundRequestSchema = z.object({
   paymentId: z.uuid(),
+  /** One submission identity, reused by network retries and double clicks. */
+  idempotencyKey: z.uuid(),
   /** As typed. Converted to integer paise by `paiseFromRupees`, never by the schema. */
   amountRupees: z.string().trim().min(1),
   /** `refund` or `reversal` — checked against `Constants.public.Enums.refund_kind` at the edge. */

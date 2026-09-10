@@ -164,7 +164,11 @@ elevation.
 
 ### Requirement: A refund is bounded when it is written and whenever it changes
 THE SYSTEM SHALL apply the refund ceiling on insert AND on update, and SHALL
-refuse any change to a refund's `payment_id` or `amount_paise` once recorded.
+refuse any change to a refund's `id`, `idempotency_key`, `payment_id`,
+`amount_paise`, `currency` or `kind` once recorded (`GL041`). Historical null
+request keys SHALL remain null. The refund retry and financial audit contract
+defines exact keyed replay and the order among named project-owned refusals;
+native PostgreSQL constraints and RLS retain their own behavior.
 
 The ceiling passed at insert and the row was then edited past it: a ₹1,000
 payment carrying a ₹1,00,000 refund, and every later ceiling check reading that
@@ -545,8 +549,9 @@ on another.
 
 ### Requirement: A period is granted when it has been paid for, not when a payment arrives
 WHEN a payment against a membership is `paid`, THE SYSTEM SHALL grant one period
-for each whole multiple of that membership's own price that the money against it
-has now reached, and no period for money that has not reached one.
+for each whole multiple of that membership's own net period price
+(`price_paise - discount_paise`) that the money against it has now reached, and
+no period for money that has not reached one.
 
 > **Narrowed by "Money does not extend a membership that has been retired",
 > 476 lines below in this same file.** This sentence is unconditional and a `cancelled` or
@@ -565,8 +570,8 @@ on a thirty-day plan.
 
 Counted against what the membership has ALREADY been granted, which is
 recorded on it — `memberships.periods_granted` — and never derived by
-subtraction: a payment grants `floor(total / price) − periods_granted` periods,
-and records the new total.
+subtraction: for a positive net period price, a payment grants
+`floor(total / net_price) − periods_granted` periods, and records the new total.
 
 **Deriving "already granted" by subtracting this payment's own amount from the
 running total is wrong, and was wrong three times.** Subtraction needs a
@@ -603,8 +608,9 @@ line. Measured — ₹1,000 in ten rows bought **300 days** on a 30-day plan, fr
 an ordinary front-desk session, through one `supabase-js` call.
 
 **The money must be the membership's own currency.** `amount_paise` summed
-across currencies and compared to `memberships.price_paise` grants a month for
-money in a currency the gym does not price in (MNY-002, AGENTS.md rule 8).
+across currencies and compared to the membership's net period price grants a
+month for money in a currency the gym does not price in (MNY-002, AGENTS.md
+rule 8).
 
 **And the count must be serialised on the membership.** Two transactions each
 recording half the price, concurrently, each see only their own row and each
@@ -621,34 +627,26 @@ for exactly this reason; the extension needs the same on the membership.
 - **WHEN** a paid payment's currency differs from the membership's
 - **THEN** it SHALL grant no period
 
-The price is the membership's own `price_paise`, and never the plan's list
-price. **This used to add "including any discount", and that was false against
-the only rows where a discount exists**: `seed.sql` writes a GROSS `price_paise`
-plus a separate `discount_paise`, so the demo gym's one discounted membership is
-priced ₹12,000 with ₹1,200 off, has paid ₹10,800 — her agreed price — and is
-scored against ₹12,000, granting nothing while the console tells the desk she
-still owes ₹1,200. Nothing in the money path reads `discount_paise`, which this
-same file states 220 lines below, where it contradicted this sentence for two
-rounds. Whether the agreed price is the gross or the net is a product question
-this phase does not answer: **OPEN-028**, and the sentence no longer claims an
-answer it does not have.
+The net period price is the membership's own `price_paise - discount_paise`,
+and never the plan's current list price. The membership records the sold terms:
+a ₹12,000 membership with ₹1,200 off is paid in full by ₹10,800.
 
 #### Scenario: Two half payments
-- **WHEN** two payments each of half the membership's price are recorded
+- **WHEN** two payments each of half the membership's positive net period price are recorded
 - **THEN** exactly one period SHALL be granted, on the second
 
 #### Scenario: A part payment alone
-- **WHEN** a payment below the membership's price is recorded and no other money has been taken
+- **WHEN** a payment below the membership's positive net period price is recorded and no other money has been taken
 - **THEN** it SHALL be recorded and receipted and SHALL grant no period
 
-#### Scenario: A membership with no price
-- **WHEN** the membership's price is zero
-- **THEN** the payment SHALL be recorded and SHALL grant no period, rather than raising
+#### Scenario: A membership with zero net price
+- **WHEN** the membership's `price_paise` equals its `discount_paise`
+- **THEN** the payment SHALL be recorded, display a zero fee, and SHALL neither divide nor grant a period
 
 ### Requirement: The terms money is scored against are frozen by money arriving
 WHERE any money has arrived against a membership, THE SYSTEM SHALL refuse any
-change to the terms that money is scored against — its price, its currency, and
-the plan it was sold on — and SHALL leave the membership as it stood.
+change to the terms that money is scored against — its price, discount, currency,
+and the plan it was sold on — and SHALL leave the membership as it stood.
 
 The duration a period is measured in is frozen harder than these and by a
 different rule: it is derived from the plan and never typed, so it cannot be
@@ -656,8 +654,9 @@ changed at all except by changing the plan, which this requirement refuses once
 money has arrived.
 
 **Frozen by the first payment, not by the first period.** A membership that has
-taken real money but not yet crossed one whole multiple of its price has been
-granted nothing, and an earlier draft of this requirement left it wide open —
+taken real money but not yet crossed one whole multiple of its positive net
+period price has been granted nothing, and an earlier draft of this requirement
+left it wide open —
 its own scenario said "granted nothing" three lines under prose saying "before
 any money has arrived", and the second sentence is the correct one. A part
 payment is ordinary practice and the console says so on the page: a full price
@@ -670,11 +669,11 @@ then pay **one paisa**, and `ends_on` moves **ten years**. The money was always
 being scored; the total counts every paisa that has arrived whether or not it has
 crossed a multiple.
 
-A period is granted for each whole multiple of the membership's own price that
-its money has reached, and it lasts the duration of the membership's own plan.
-**Every one of those three inputs is re-read on the next payment and applied to
-all the money already on record**, so changing one retroactively re-prices or
-re-lengthens periods that were already bought and paid for.
+A period is granted for each whole multiple of the membership's own positive net
+period price that its money has reached, and it lasts the duration of the
+membership's own plan. **Every sold term is re-read on the next payment and
+applied to all the money already on record**, so changing one retroactively
+re-prices or re-lengthens periods that were already bought and paid for.
 
 Measured, each in a single ordinary front-desk statement: cutting a ₹1,000 price
 to ₹500 and then paying **one paisa** released a second month, and it compounds —
@@ -683,15 +682,16 @@ a 365-day plan and paying one further ₹1,000 moved `ends_on` **395 days**.
 
 The terms a membership was sold on are recorded facts, like a payment's amount
 and for the same reason: they are what the member agreed to, and every paisa on
-record was taken against them. **Correcting a mistyped price or a wrong plan
-before any money has arrived stays free** — nothing has been scored yet.
+record was taken against them. **Correcting a mistyped price, discount, or a
+wrong plan before any money has arrived stays free** — nothing has been scored
+yet.
 Afterwards the honest instrument is a refund and a new membership, which this
 phase has.
 
 **The duration a period is measured in is one of those terms, and it SHALL be
 recorded on the membership** rather than read from the plan when money arrives.
-A membership already records the price and the currency it was sold at; the
-duration was the one term still read live from `plans`, and one manager statement
+A membership already records the price, discount, and currency it was sold at;
+the duration was the one term still read live from `plans`, and one manager statement
 setting `duration_days = 3650` followed by an ordinary renewal moved `ends_on`
 **3650 days** — silently, and to every membership on that plan. Recording it
 means editing a plan changes what the *next* membership is sold at and nothing
@@ -720,6 +720,9 @@ Annual re-derived the length and left the Monthly price behind, so one ₹12,000
 Annual fee bought `floor(1200000 / 150000)` = eight periods of 365 days —
 **2,920 days**. Price and length come from the same plan or from neither, unless
 the correction names a price of its own, which keeps a negotiated price possible.
+A preserved discount must remain no greater than the resulting price; an unpaid
+plan correction that would make it invalid is refused unless the same write
+supplies a valid discount, with no silent reduction.
 
 **Why creating ignores a named length while editing refuses one**, which both
 blind authors read as an inconsistency and were right to: `memberships.duration_days`
@@ -884,15 +887,11 @@ implementation:**
     already reading `1` changes nothing, and every exploit needs the value
     moved. A rule that refuses a write that cannot do harm buys nothing and
     breaks ordinary column-listing updates.
-  * **`discount_paise` is deliberately NOT a frozen term.** A holdout author
-    asked why it is missing from the list, which was the right question: it
-    exists, the seed uses it, and ADR-088's worked example is a discounted
-    membership. The reason is that nothing in the money path reads it — a
-    period is scored against `price_paise` alone. Freezing it would be a claim
-    the system does not make. **Whoever teaches the granting rule to score
-    against `price_paise - discount_paise` adds `discount_paise` to this
-    requirement in the same change**, because at that moment it becomes a term
-    and grows exactly the door the other three had.
+  * **`discount_paise` is a frozen term.** A period is scored against
+    `price_paise - discount_paise`, so the discount is part of the agreed amount.
+    Once any paid, refunded, or reversed money exists in any currency, every
+    writer, including a trusted writer, is refused a changed discount with
+    `GL043`.
 
 #### Scenario: The rule granting a period
 - **WHEN** a payment grants a period
@@ -911,7 +910,8 @@ WHEN a session changes a membership's `price_paise`, `currency`, `plan_id`,
 `discount_paise` or `coupon_id`, THE SYSTEM SHALL refuse it unless that session
 is a gym admin, and SHALL leave the membership as it stood.
 
-`ends_on` is `duration_days x floor(money / price_paise)`. The requirement above
+`ends_on` is `duration_days x floor(money / (price_paise - discount_paise))` for
+a positive net period price. The requirement above
 made the length underivable by hand because it multiplies that product. **The
 price is the other factor and it was freely typed.** Measured: a front desk sets
 a Rs.1,500 membership's price to Rs.150 and takes the ordinary Rs.1,500 — **300
@@ -1021,9 +1021,9 @@ session and no reason recorded, is what `docs/security.md` exists to prevent.
 - **WHEN** a gym admin does the same
 - **THEN** it SHALL be allowed and SHALL land at the price named
 
-#### Scenario: A gym admin correcting a price before any money arrives
-- **WHEN** a gym owner or manager changes the price of a membership against which no money has arrived
-- **THEN** it SHALL be allowed, and a payment SHALL be scored against the corrected price
+#### Scenario: A gym admin correcting a price or discount before any money arrives
+- **WHEN** a gym owner or manager changes the price or discount of a membership against which no money has arrived
+- **THEN** it SHALL be allowed when the discount remains within the price, and a payment SHALL be scored against the corrected net period price
 
 #### Scenario: A gym admin after money has arrived
 - **WHEN** a gym admin changes a term of a membership that has taken money
@@ -1033,8 +1033,8 @@ session and no reason recorded, is what `docs/security.md` exists to prevent.
 WHEN a payment names a membership that is `cancelled` or `expired`, THE SYSTEM
 SHALL record the payment and SHALL NOT extend that membership.
 
-`app.grant_periods()` reads a membership's price, currency, dates, count and
-length — **and never its status.** Measured by a critic on the very sequence
+`app.grant_periods()` reads a membership's price, discount, currency, dates,
+count and length — **and never its status.** Measured by a critic on the very sequence
 this phase prescribes as the repair for a mis-sold membership: refund, cancel,
 sell a new one, and then name the *retired* one on the payment. The money is
 recorded and receipted, the cancelled row's dates move, and the member stays
@@ -1149,8 +1149,8 @@ payment gives them dates and no session may type one:
     four, because that row *is* extended and *is* granted its period, so the gym
     has taken the money and issued the receipt while the member stays `pending`
     and refused at the gate;
-  * a **zero-price** or complimentary membership, which the granting rule can
-    never extend at any amount because there is no price to divide by;
+  * a **zero-net-price** or complimentary membership, which the granting rule
+    shall never divide by or automatically extend at any amount;
   * a **currency-mismatched** membership, for the same reason.
 
 All four are OPEN-026's family and belong with it. Nothing in the product

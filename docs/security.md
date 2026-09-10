@@ -55,6 +55,22 @@ The red banner and the mandatory reason prompt are UI obligations that Phase 7 o
 
 Every mutation of financial data, an attendance correction, a follow-up record, a role change, or an impersonation session writes an audit row: actor, action, record type, record id, a before/after summary, and a timestamp (INT-003). Audit rows are themselves subject to INT-001 (never hard-deleted).
 
+For payments and refunds, `app.audit_money_change()` appends one event for each
+accepted INSERT or UPDATE, including an UPDATE that leaves the values unchanged.
+The private trigger runs with an empty search path and narrowly elevated audit
+insert privileges; authenticated callers cannot invoke it or write audit rows.
+Failure to append the event aborts the financial write. Equivalent refund-key
+replays perform no UPDATE and produce no second event. Existing financial rows
+receive no invented historical backfill.
+
+The event retains `auth.uid()` when present, resolves its role only against the
+canonical enum, and copies its impersonation claim. An absent or invalid role
+becomes null without discarding a valid subject. Subjectless trusted writes have
+null actor, role and impersonation attribution. The exact financial summaries
+are defined in `docs/planning/refund-contract-detail.md`; refund reasons are
+retained, while automatic created/updated timestamps are excluded. This payment
+and refund coverage does not claim that every other INT-003 surface is complete.
+
 ## DPDP compliance (Digital Personal Data Protection Act)
 
 - **Roles**: the gym (organization) is the **Data Fiduciary**; the platform (Gymloop) is the **Data Processor**. The gym's contract with the platform needs a Data Processing Agreement (DPA) clause reflecting this — a legal/commercial deliverable, not a schema one, but the schema must support everything the DPA promises members.

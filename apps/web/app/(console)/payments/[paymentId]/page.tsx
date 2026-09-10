@@ -52,6 +52,7 @@ const MESSAGES: Record<string, string> = {
   not_permitted: 'Only an owner or a manager may send money back. A front desk may take it, not return it.',
   invalid: 'That refund was not readable — check the amount and the reason.',
   refund_failed: 'That refund could not be saved.',
+  idempotency_conflict: 'That submission already recorded different refund details. Check the refund below, then reload for a new request.',
 };
 
 export default async function ReceiptPage({
@@ -170,6 +171,7 @@ export default async function ReceiptPage({
         {ARRIVED.has(payment.status) && refundablePaise > 0 ? (
           <form method="post" action="/api/refunds" className="mt-4 flex flex-wrap items-end gap-3">
             <input type="hidden" name="paymentId" value={payment.id} />
+            <input type="hidden" name="idempotencyKey" value={crypto.randomUUID()} />
             <label className="text-sm">
               <span className="block text-neutral-600">Amount (₹)</span>
               <input
@@ -206,13 +208,13 @@ export default async function ReceiptPage({
               />
             </label>
             <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-white">
-              Send money back
+              Record refund
             </button>
           </form>
         ) : null}
 
         <p className="mt-2 text-xs text-neutral-500">
-          {payment.status !== 'paid'
+          {!ARRIVED.has(payment.status)
             ? 'This payment took nothing, so there is nothing to send back.'
             : refundablePaise > 0
               ? `${payment.currency} ${rupeesFromPaise(refundablePaise)} of this payment has not been refunded. Only an owner or a manager may send money back.`

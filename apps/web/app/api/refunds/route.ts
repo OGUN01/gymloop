@@ -1,6 +1,6 @@
 import { Constants } from '@gymloop/db';
 import type { Database } from '@gymloop/db';
-import { paiseFromRupees, refundRequestSchema } from '@gymloop/shared';
+import { DEFAULT_CURRENCY, paiseFromRupees, refundRequestSchema } from '@gymloop/shared';
 import {
   seeOther,
   staffFormParsed,
@@ -30,7 +30,9 @@ import { UUID_PATTERN } from '../../../lib/keyset';
  * on `app.is_front_office()`. A front desk may take money and may not send it
  * back. This handler does NOT re-check that: the policy refuses with `42501`
  * and this reports it, which is the same division of labour every other console
- * handler uses (`openspec/specs/authorization/spec.md`). Re-listing the roles
+ * handler uses (`openspec/specs/authorization/spec.md`). The invoker RPC now
+ * checks the same canonical gym-admin accessor before insert or replay lookup.
+ * Re-listing the roles
  * here would be a second copy of the matrix that can disagree with the first.
  */
 
@@ -39,6 +41,7 @@ const REFUSALS: Record<string, string> = {
   GL036: 'exceeds_payment',
   GL040: 'refund_not_yours',
   GL041: 'refund_is_a_record',
+  GL048: 'idempotency_conflict',
 };
 
 export async function POST(request: Request): Promise<Response> {
@@ -56,9 +59,9 @@ export async function POST(request: Request): Promise<Response> {
       ? seeOther(request, `/payments/${submittedPaymentId}`, 'invalid')
       : seeOther(request, '/payments', 'invalid');
   }
-  const { supabase, tenantId, staffId, data } = caller;
+  const { supabase, data } = caller;
 
-  const { paymentId, amountRupees, kind, reason } = data;
+  const { paymentId, amountRupees, kind, reason, idempotencyKey } = data;
 
   /** Back to the receipt this refund is against — the document the conversation is about. */
   const backToReceipt = (error?: string) => seeOther(request, `/payments/${paymentId}`, error);
@@ -73,19 +76,24 @@ export async function POST(request: Request): Promise<Response> {
   const kinds: readonly string[] = Constants.public.Enums.refund_kind;
   if (!kinds.includes(kind)) return backToReceipt('invalid');
 
-  const { error } = await supabase.from('refunds').insert({
-    tenant_id: tenantId,
-    payment_id: paymentId,
-    amount_paise: amountPaise,
-    kind: kind as Database['public']['Enums']['refund_kind'],
-    reason,
-    // From the verified claim, never from the form — and `GL040` refuses a row
-    // that says otherwise, which is what makes this line a convenience rather
-    // than the rule. Fifth appearance, first on money going out.
-    initiated_by_staff_id: staffId,
+  // The database owns claim-derived attribution and atomic exact replay. The
+  // nonce itself is the key; changing money facts must not create a new key.
+  const { data: recorded, error } = await supabase.rpc('record_refund', {
+    p_payment_id: paymentId,
+    p_amount_paise: amountPaise,
+    p_currency: DEFAULT_CURRENCY,
+    p_kind: kind as Database['public']['Enums']['refund_kind'],
+    p_reason: reason,
+    p_idempotency_key: idempotencyKey,
   });
 
-  if (error === null) return backToReceipt();
+  if (error === null) {
+    const result = recorded?.[0];
+    return recorded?.length === 1 && typeof result?.refund_id === 'string' &&
+      UUID_PATTERN.test(result.refund_id) && typeof result.replayed === 'boolean'
+      ? backToReceipt()
+      : backToReceipt('refund_failed');
+  }
 
   if (error.code === PG_INSUFFICIENT_PRIVILEGE) return backToReceipt('not_permitted');
 
