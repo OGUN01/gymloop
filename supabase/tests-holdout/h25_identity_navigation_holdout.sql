@@ -2,7 +2,7 @@
 -- No implementation or visible suite was read. NAV-006/008 are deliberately absent.
 begin;
 set local role postgres;
-select no_plan();
+select plan(66);
 
 create function pg_temp.nav_event(p_user text) returns jsonb
 language sql as $fn$
