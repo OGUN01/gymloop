@@ -370,14 +370,14 @@ select ok((select exists(select 1 from pg_trigger t where t.tgrelid='public.addo
 
 -- Capture SQL DETAIL because throws_ok proves SQLSTATE/message, not DETAIL.
 create or replace function pg_temp.captured_error(p_sql text)
-returns table(sqlstate text,detail text)
+returns table(returned_state text,detail text)
 language plpgsql
 as $fn$
 begin
   execute p_sql;
   return query select null::text,null::text;
 exception when others then
-  get stacked diagnostics sqlstate=returned_sqlstate,detail=pg_exception_detail;
+  get stacked diagnostics returned_state=returned_sqlstate,detail=pg_exception_detail;
   return next;
 end
 $fn$;
