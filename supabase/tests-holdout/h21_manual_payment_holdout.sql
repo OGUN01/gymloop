@@ -69,6 +69,15 @@
 -- '210000ff-0021-...'.
 --
 -- ADR-030: one transaction, ending in ROLLBACK.
+--
+-- ROUND-TWENTY RECONCILIATION, independently audited against the committed
+-- membership-creation contract at 826021d, without reading implementation or
+-- visible tests. Every membership fixture below starts fully dated with zero
+-- granted periods. Its first completed payment therefore SETS one sold period
+-- from the later of its start and gym-local today; its typed end contributes no
+-- bought time. Ten expected dates change for that reason alone. Assertions of
+-- no grant before payment, no duplicate grant, no reversal on refund and gym-
+-- local arithmetic are retained, as are all 68 assertions and the fixtures.
 
 begin;
 
@@ -147,8 +156,9 @@ insert into public.members (id, tenant_id, branch_id, full_name, phone) values
   ('210000ff-0021-4000-8000-500000000211'::uuid, '210000ff-0021-4000-8000-100000000004'::uuid, '210000ff-0021-4000-8000-200000000004'::uuid, 'H21 M Early', '+919210000211'),
   ('210000ff-0021-4000-8000-500000000212'::uuid, '210000ff-0021-4000-8000-100000000004'::uuid, '210000ff-0021-4000-8000-200000000004'::uuid, 'H21 M Late',  '+919210000212');
 
--- Memberships. starts_on is a fixed, deliberately-irrelevant past date;
--- ends_on is what each section's assertions turn on.
+-- Memberships. starts_on is a fixed past date; the first grant now replaces it
+-- with gym-local today. All counts start at their zero default, so the typed
+-- ends below are unpaid spans, not evidence of a previously bought period.
 insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
   ('210000ff-0021-4000-8000-600000000001'::uuid, '210000ff-0021-4000-8000-100000000001'::uuid, '210000ff-0021-4000-8000-500000000008'::uuid, '210000ff-0021-4000-8000-400000000001'::uuid, 'active', date '2020-01-01', (now() at time zone 'Asia/Kolkata')::date + 100, 100000),
   ('210000ff-0021-4000-8000-600000000002'::uuid, '210000ff-0021-4000-8000-100000000001'::uuid, '210000ff-0021-4000-8000-500000000009'::uuid, '210000ff-0021-4000-8000-400000000001'::uuid, 'active', date '2020-01-01', (now() at time zone 'Asia/Kolkata')::date + 60,  100000),
@@ -442,8 +452,8 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '210000ff-0021-4000-8000-600000000001'::uuid),
-  ((now() at time zone 'Asia/Kolkata')::date + 100 + 30),
-  'the membership''s end date moved forward by exactly the plan''s 30-day duration, from its own prior end date (renewing well before expiry)');
+  ((now() at time zone 'Asia/Kolkata')::date + 30),
+  'the first grant sets one sold 30-day period from gym-local today; the 100 typed future days were never bought');
 
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id)
@@ -461,8 +471,8 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '210000ff-0021-4000-8000-600000000002'::uuid),
-  ((now() at time zone 'Asia/Kolkata')::date + 60 + 30),
-  'ADR-070''s shape: the extension fires on the UPDATE that flips status to paid, not only on an INSERT that arrives already paid — an insert-only trigger would leave this membership un-extended');
+  ((now() at time zone 'Asia/Kolkata')::date + 30),
+  'ADR-070''s shape: the first grant fires on the UPDATE that flips status to paid, setting one sold period from today; an insert-only rule would leave the unpaid typed end unchanged');
 
 -- paid_at left null: the rule must key off status, not off a proxy column.
 select lives_ok(
@@ -472,8 +482,8 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '210000ff-0021-4000-8000-600000000003'::uuid),
-  ((now() at time zone 'Asia/Kolkata')::date + 40 + 30),
-  'and the membership is extended exactly as it would be with paid_at populated — the extension reads status, not paid_at');
+  ((now() at time zone 'Asia/Kolkata')::date + 30),
+  'and the first grant sets exactly one period as it would with paid_at populated — eligibility still follows paid status');
 
 -- membership_id left null: a gym may take money for something else.
 select lives_ok(
@@ -497,8 +507,8 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '210000ff-0021-4000-8000-600000000004'::uuid),
-  ((now() at time zone 'Asia/Kolkata')::date + 45 + 30),
-  'the extension from the first, genuine recording');
+  ((now() at time zone 'Asia/Kolkata')::date + 30),
+  'the first genuine recording sets one sold period from today; the typed 45-day remainder is not a prior grant');
 
 select throws_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, receipt_number, idempotency_key, recorded_by_staff_id)
@@ -508,8 +518,8 @@ select throws_ok(
 
 select is(
   (select ends_on from public.memberships where id = '210000ff-0021-4000-8000-600000000004'::uuid),
-  ((now() at time zone 'Asia/Kolkata')::date + 45 + 30),
-  'the membership is still extended exactly once — the refused duplicate INSERT left no trace');
+  ((now() at time zone 'Asia/Kolkata')::date + 30),
+  'the membership still carries exactly its first granted period — the refused duplicate INSERT left no trace');
 
 select lives_ok(
   $$update public.payments set paid_at = now() where id = '210000ff-0021-4000-8000-700000000205' and status = 'paid'$$,
@@ -517,8 +527,8 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '210000ff-0021-4000-8000-600000000004'::uuid),
-  ((now() at time zone 'Asia/Kolkata')::date + 45 + 30),
-  'and the membership is STILL extended exactly once, not twice — an UPDATE that re-affirms an already-paid row must not extend a second time');
+  ((now() at time zone 'Asia/Kolkata')::date + 30),
+  'and the first grant is STILL the only grant — an UPDATE that re-affirms an already-paid row must not extend a second time');
 
 -- ---------------------------------------------------------------------------
 -- 7. Refunds: a new row, never a mutation; the boundary at exactly the
@@ -532,8 +542,8 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '210000ff-0021-4000-8000-600000000005'::uuid),
-  ((now() at time zone 'Asia/Kolkata')::date + 20 + 30),
-  'and it extends the membership, same as any other paid payment');
+  ((now() at time zone 'Asia/Kolkata')::date + 30),
+  'and its first grant sets one sold period from today, establishing the dates the refund must preserve');
 
 select lives_ok(
   $$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
@@ -547,8 +557,8 @@ select is(
 
 select is(
   (select ends_on from public.memberships where id = '210000ff-0021-4000-8000-600000000005'::uuid),
-  ((now() at time zone 'Asia/Kolkata')::date + 20 + 30),
-  'and the membership''s extension is NOT silently reversed by the refund — what happens to the membership is left for a human, not undone automatically');
+  ((now() at time zone 'Asia/Kolkata')::date + 30),
+  'and the first grant is NOT silently reversed by the refund — the corrected first-grant baseline is unchanged across money returning');
 
 select throws_ok(
   $$insert into public.refunds (id, tenant_id, payment_id, kind, amount_paise, reason, initiated_by_staff_id)
@@ -599,8 +609,8 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '210000ff-0021-4000-8000-600000000201'::uuid),
-  ((now() at time zone 'Etc/GMT-12')::date + 3 + 30),
-  'extended from its own end date, which is later than gym P''s own today — renewing early loses no days');
+  ((now() at time zone 'Etc/GMT-12')::date + 30),
+  'the first grant starts from gym P''s own today; the three future typed days were unpaid, and the gym-local date must still be used');
 
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, receipt_number, recorded_by_staff_id)
@@ -619,8 +629,8 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '210000ff-0021-4000-8000-600000000211'::uuid),
-  ((now() at time zone 'Etc/GMT+12')::date + 3 + 30),
-  'gym M''s early renewal also loses no days, evaluated in ITS OWN timezone, 24 hours from gym P''s');
+  ((now() at time zone 'Etc/GMT+12')::date + 30),
+  'gym M''s first grant likewise sets one sold period from ITS OWN today, evaluated 24 hours from gym P''s date');
 
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, receipt_number, recorded_by_staff_id)

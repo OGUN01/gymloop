@@ -6801,8 +6801,8 @@ select lives_ok(
 
 select is(
   pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000000d03'),
-  'frozen/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 40)::text || '/1',
-  'r13/frozen: and it EXTENDS, staying frozen. `frozen` is inside the live partial unique index alongside `active` — it is a paused membership, not a retired one — so a guard reading "extend only `active`" fails here while passing every refusal in 22b and 22c. This is the assertion that catches the over-correction');
+  'frozen/' || (select today from gym_today where org_key='A')::text || '..' || ((select today from gym_today where org_key='A') + 30)::text || '/1',
+  'r13/frozen: and it grants a period, staying frozen. ROUND-TWENTY RECONCILIATION: the fully dated row has zero granted periods, so its past start and typed end are replaced by today and today plus one sold period. `frozen` is inside the live partial unique index alongside `active` — it is a paused membership, not a retired one — so a guard reading "grant only to active" still fails this permitted case');
 
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
@@ -6811,8 +6811,8 @@ select lives_ok(
 
 select is(
   pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000000d05'),
-  'active/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 40)::text || '/1',
-  'r13/pending-dated: and it extends AND is activated. `pending` is the status a sale sits in until money arrives; refusing to extend it would leave a paid-for member refused at the gate, which is the exact harm ADR-084 was raised to stop. The requirement is silent on `pending` — its sibling is not, and this is what the sibling requires');
+  'active/' || (select today from gym_today where org_key='A')::text || '..' || ((select today from gym_today where org_key='A') + 30)::text || '/1',
+  'r13/pending-dated: and it grants AND activates. ROUND-TWENTY RECONCILIATION: both dates are present and no period was previously granted, so the first bought span runs from today for one sold period. Activation remains required; this fully dated case is distinct from both half-dated shapes deferred under OPEN-026');
 
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
@@ -6840,8 +6840,8 @@ select lives_ok(
 
 select is(
   pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000000d07'),
-  'active/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 40)::text || '/1',
-  'r13/between: and it extends, as it always has');
+  'active/' || (select today from gym_today where org_key='A')::text || '..' || ((select today from gym_today where org_key='A') + 30)::text || '/1',
+  'r13/between: the first grant sets one sold period from today. ROUND-TWENTY RECONCILIATION: this fixture carried dates but no previously granted period');
 
 select lives_ok(
   $$update public.memberships set status = 'cancelled', cancelled_at = now(), cancel_reason = 'h22 r13 between' where id = '220000ff-0022-4000-8000-600000000d07'$$,
@@ -6849,8 +6849,8 @@ select lives_ok(
 
 select is(
   pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000000d07'),
-  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 40)::text || '/1',
-  'r13/between: AND NOTHING IS REVERSED. The period the member paid for while the membership was live stays granted and the dates stay where the money put them — this requirement stops a retired row GROWING, it does not unwind history, and a fix that recomputes dates from live payments would fail exactly here');
+  'cancelled/' || (select today from gym_today where org_key='A')::text || '..' || ((select today from gym_today where org_key='A') + 30)::text || '/1',
+  'r13/between: AND NOTHING IS REVERSED. The period the member paid for while the membership was live stays granted and the dates stay where the first grant put them. ROUND-TWENTY RECONCILIATION changes that earlier baseline, not this cancellation invariant: retiring a membership does not unwind its granted history');
 
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
@@ -6859,8 +6859,8 @@ select lives_ok(
 
 select is(
   pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000000d07'),
-  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 40)::text || '/1',
-  'r13/between: and it changes nothing. Same row, same member, same amount, same desk — the only thing that differs between the payment that extended and the payment that must not is the status the rule never read');
+  'cancelled/' || (select today from gym_today where org_key='A')::text || '..' || ((select today from gym_today where org_key='A') + 30)::text || '/1',
+  'r13/between: and it changes nothing. Same row, same member, same amount, same desk — only the membership status differs. ROUND-TWENTY RECONCILIATION retains the corrected first-grant baseline; the payment after cancellation still grants nothing');
 
 -- 22e2. Cancel AFTER the payment, in the same transaction, in that order.
 select lives_ok(
@@ -6874,8 +6874,8 @@ select lives_ok(
 
 select is(
   pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000000d08'),
-  'cancelled/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 40)::text || '/1',
-  'r13/after: the grant stands. Ordering inside one transaction is not a licence to re-decide a grant that already happened — a guard implemented as a deferred constraint or an end-of-transaction sweep would fail here while passing every INSERT-time assertion above');
+  'cancelled/' || (select today from gym_today where org_key='A')::text || '..' || ((select today from gym_today where org_key='A') + 30)::text || '/1',
+  'r13/after: the grant stands. ROUND-TWENTY RECONCILIATION: the first grant on this fully dated zero-period fixture sets today through today plus one sold period. Cancellation later in the same transaction must preserve those dates and that count');
 
 -- 22e3. THE LEAK A GUARD ON `INSERT` ALONE LEAVES: created while live,
 -- cancelled, then walked to `paid`. The extension has its own AFTER UPDATE
@@ -7003,8 +7003,8 @@ select lives_ok(
 
 select is(
   pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000000d15'),
-  'active/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 40)::text || '/1',
-  'r13/multi-insert: the LIVE one is extended. A guard written as "if any row in the transition table names a retired membership, skip the whole statement" fails here, and it is the cheapest wrong fix available');
+  'active/' || (select today from gym_today where org_key='A')::text || '..' || ((select today from gym_today where org_key='A') + 30)::text || '/1',
+  'r13/multi-insert: the LIVE one receives its first period. ROUND-TWENTY RECONCILIATION sets its fully dated zero-period span from today. A retired membership elsewhere in the same statement must still not suppress this legitimate grant');
 
 select is(
   pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000000d16'),
@@ -7025,8 +7025,8 @@ select lives_ok(
 
 select is(
   pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000000d17'),
-  'active/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 40)::text || '/1',
-  'r13/multi-update: the live one is extended');
+  'active/' || (select today from gym_today where org_key='A')::text || '..' || ((select today from gym_today where org_key='A') + 30)::text || '/1',
+  'r13/multi-update: the live one receives its first period. ROUND-TWENTY RECONCILIATION sets the fully dated zero-period span from today; the payment UPDATE must still grant independently of the retired membership in the same statement');
 
 select is(
   pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000000d18'),
@@ -8737,8 +8737,8 @@ select lives_ok(
 
 select is(
   pg_temp.h22r13_shape('220000ff-0022-4000-8000-600000001802'),
-  'active/' || ((select today from gym_today where org_key='A') - 10)::text || '..' || ((select today from gym_today where org_key='A') + 40)::text || '/1',
-  'r18/chain: and it extends that membership normally — one period, thirty days. The member has ended up exactly where they would have been had the desk named the right membership first time, which is what makes the answer "refundable" rather than "stranded"');
+  'active/' || (select today from gym_today where org_key='A')::text || '..' || ((select today from gym_today where org_key='A') + 30)::text || '/1',
+  'r18/chain: and it grants that membership one period, thirty days. ROUND-TWENTY RECONCILIATION: this live membership has both dates and no previously granted period, so recollecting after the refund sets its span from today. The member ends up exactly where an original payment against the correct membership would have placed them');
 
 -- The same chain on `expired`, shortened to the two links that could
 -- plausibly differ: `expired` is a distinct enum value, and a fix keyed on
@@ -9693,13 +9693,17 @@ insert into public.branches (id, tenant_id, name, is_default) values
 insert into public.staff (id, tenant_id, branch_id, role, full_name) values
   ('220000ff-0022-4000-8000-300000002701'::uuid, '220000ff-0022-4000-8000-100000002701'::uuid, '220000ff-0022-4000-8000-200000002701'::uuid, 'front_desk', 'H22 R20 Desk');
 
--- Two plans. The 30-day one carries every path; the ONE-DAY one exists because
+-- Three plans. The 30-day paid plan carries most paths; the ONE-DAY one exists because
 -- "set its span from the plan" has to read the plan, and a rule that reads a
 -- constant, or reads the wrong row, is green on a suite built entirely of
--- thirty-day multiples.
+-- thirty-day multiples. The complimentary path uses its own zero-priced plan:
+-- the existing pricing contract permits the desk to sell at list, not to turn
+-- a paid plan into a free membership. This fixture correction changes no
+-- membership terms or grant assertions.
 insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
   ('220000ff-0022-4000-8000-400000002701'::uuid, '220000ff-0022-4000-8000-100000002701'::uuid, 'H22 R20 Plan 30d', 30, 100000),
-  ('220000ff-0022-4000-8000-400000002702'::uuid, '220000ff-0022-4000-8000-100000002701'::uuid, 'H22 R20 Plan 1d',  1,  100000);
+  ('220000ff-0022-4000-8000-400000002702'::uuid, '220000ff-0022-4000-8000-100000002701'::uuid, 'H22 R20 Plan 1d',  1,  100000),
+  ('220000ff-0022-4000-8000-400000002703'::uuid, '220000ff-0022-4000-8000-100000002701'::uuid, 'H22 R20 Plan Complimentary', 30, 0);
 
 insert into gym_today (org_key, org_id, today, fy)
 select 'R20', o.id, (now() at time zone o.timezone)::date, pg_temp.h22_fy((now() at time zone o.timezone)::date)
@@ -9771,7 +9775,8 @@ select is(
     select ('220000ff-0022-4000-8000-60000000270' || f.sfx)::uuid,
            '220000ff-0022-4000-8000-100000002701'::uuid,
            ('220000ff-0022-4000-8000-50000000270' || f.sfx)::uuid,
-           '220000ff-0022-4000-8000-400000002701'::uuid,
+           case when f.sfx = '9' then '220000ff-0022-4000-8000-400000002703'::uuid
+                else '220000ff-0022-4000-8000-400000002701'::uuid end,
            f.st::public.membership_status,
            case when f.dated then (select today from gym_today where org_key='R20') + f.s0 end,
            case when f.dated then (select today from gym_today where org_key='R20') + f.e0 end,
