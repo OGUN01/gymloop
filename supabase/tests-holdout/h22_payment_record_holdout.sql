@@ -394,11 +394,59 @@
 -- and `active -> expired` is a legal one-way door a front desk can walk a live
 -- member through in one statement.
 
+-- THIRTEENTH-SESSION EXTENSION - section 27, plan 937 -> 985, round TWENTY,
+-- written blind by an ELEVENTH author against openspec/changes/
+-- membership-creation/. That change proposed TWO requirements and shipped ONE:
+-- the creation rule (GL048, "at most the one period it is sold") was withdrawn
+-- mid-authoring after its own implementation refuted it - spliced into all 47
+-- pgTAP files it blocked six of them outright and cost a seventh four
+-- assertions, because six independently-authored suites build multi-period
+-- memberships directly. Nothing in section 27 asserts GL048 or the half-dated
+-- clause that went with it; the whole section is the surviving requirement,
+-- "the first period is SET, not added", which the withdrawal leaves as the
+-- only thing standing between a ten-year membership typed at creation and a
+-- ten-year membership somebody has paid one month for.
+--
+-- Not read by this author: any migration; supabase/tests/22_payment_record.sql,
+-- written in parallel by a different author; docs/decisions.md;
+-- docs/registry.md; any function or trigger body.
+--
+-- Section 27 leaves the requirement's own three scenarios to the visible suite
+-- and takes what none of them reaches: the first grant that grants MORE THAN
+-- ONE period (two halves, a double payment, two payments in one statement and
+-- in two), the three paths where nothing is granted and so nothing may move (a
+-- part payment, a foreign currency, a complimentary membership), a plan whose
+-- period is ONE DAY, the ten-year row collapsing to thirty days, and the
+-- invariant `ends_on - starts_on = duration_days * periods_granted` asserted
+-- over every path at once AND asserted NOT to hold where ADR-088's objection
+-- says it legitimately does not. See section 27's own header.
+--
+-- ITS FINDING, raised staged and since SETTLED IN THE CONTRACT (27d): "set its
+-- span from the plan" fixes a LENGTH and never said where `starts_on` lands.
+-- Three readings fitted the sentence and agreed on every scenario the
+-- requirement stages, because in all of them `starts_on` was already today; on
+-- a pre-sold membership and on a lapsed member returning they differed by up to
+-- a hundred days at a gate that admits on dates, and the first implementation
+-- picked the reading that gave a returning member a 61-day span for one month's
+-- money. The contract now says the first grant starts a membership at the LATER
+-- of its `starts_on` and today, and 27d asserts the position as well as the
+-- span. 27e/5 records the consequence for this file: the earlier cumulative,
+-- multi-row, price and date-guard assertions encoded the pre-change arithmetic
+-- and are now reconciled in place under the same `spec:` change. Their original
+-- refusal, grant-count and refund checks remain intact.
+--
+-- INDEPENDENT CONTRACT AUDIT: a subsequent holdout author read the committed
+-- membership-creation contract at f337a3a, this file, AGENTS.md and the schema
+-- contract in docs/data-model.md; no visible suite, implementation, migration,
+-- plan or decision narrative was read. Section 27f adds 16 assertions combining
+-- future, partly elapsed and dateless starts with a part payment, a first grant
+-- worth several periods, and a renewal. The existing 985 assertions are kept.
+
 begin;
 
 set local role postgres;
 
-select plan(937);
+select plan(1001);
 
 -- ---------------------------------------------------------------------------
 -- 0. Fixtures.
@@ -964,8 +1012,8 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000011'::uuid),
-  (select today from gym_today where org_key = 'A') + 15 + 30,
-  'cumulative: and exactly one period is granted on the second half, once the cumulative total reaches the price — never two months for the two halves');
+  (select today from gym_today where org_key = 'A') + 30,
+  'cumulative: and exactly one period is granted on the second half, once the cumulative total reaches the price — never two months for the two halves. ROUND-TWENTY RECONCILIATION: this read `today + 15 + 30`. The membership was created today-10..today+15 with periods_granted at ZERO, so the second half is its FIRST grant, and "the first period is set, not added" sets the span from the membership''s own recorded length and starts it at the later of its starts_on and today. The fifteen typed days nobody bought are gone; one period''s price still buys exactly one period, which is what this line was always measuring');
 
 -- Two at once.
 select lives_ok(
@@ -975,8 +1023,8 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000012'::uuid),
-  (select today from gym_today where org_key = 'A') + 5 + 60,
-  'cumulative: and grants two periods in one step — floor(200000/100000) - floor(0/100000) = 2');
+  (select today from gym_today where org_key = 'A') + 60,
+  'cumulative: and grants two periods in one step — floor(200000/100000) - floor(0/100000) = 2. ROUND-TWENTY RECONCILIATION: this read `today + 5 + 60`. Created today-10..today+5 with periods_granted at ZERO, so this is a FIRST grant and the new requirement sets the span rather than adding to it: two periods of the membership''s own length, from today. It also pins the multi-period case the new requirement never stages a scenario for — the span is the length times the COUNT, so two months'' money still buys two months');
 
 -- A membership with no price at all: recorded, and grants nothing, rather
 -- than raising a division-by-zero.
@@ -1015,8 +1063,8 @@ select lives_ok(
 select ok(
   (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000014'::uuid)
     in ((select today from gym_today where org_key = 'A') + 8,
-        (select today from gym_today where org_key = 'A') + 8 + 30),
-  'cumulative/refund-mid: whatever the answer, it is bounded to zero or one period — never two, since only one multiple of the price was ever paid in, refunded or not');
+        (select today from gym_today where org_key = 'A') + 30),
+  'cumulative/refund-mid: whatever the answer, it is bounded to zero or one period — never two, since only one multiple of the price was ever paid in, refunded or not. ROUND-TWENTY RECONCILIATION: the upper bound read `today + 8 + 30` and now reads `today + 30`. Only the bound moved: the row was created today-10..today+8 with periods_granted at ZERO, so the granting branch of this open question is a FIRST grant and sets the span instead of adding to the eight typed days. The lower bound, the row untouched at today+8, is unchanged, and the question this line stages — whether a refunded payment still counts toward the total — is exactly as open as it was');
 
 select diag(
   format('cumulative/refund-mid OBSERVED: membership 600000000014 ends_on is %s (baseline was %s) — %s a refunded first-half payment toward the cumulative total. The spec does not say which is correct; report, do not resolve.',
@@ -1501,8 +1549,8 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000030'::uuid),
-  (select today from gym_today where org_key = 'A') + 10 + 30,
-  'multi-row/ten: exactly ONE period is granted for the statement''s total — not ten, which is what ten independent per-row crossings would grant (300 days on this 30-day plan, the spec''s own measured defect)');
+  (select today from gym_today where org_key = 'A') + 30,
+  'multi-row/ten: exactly ONE period is granted for the statement''s total — not ten, which is what ten independent per-row crossings would grant (300 days on this 30-day plan, the spec''s own measured defect). ROUND-TWENTY RECONCILIATION: this read `today + 10 + 30`. The membership was created today-10..today+10 with periods_granted at its default of ZERO, so the grant scored here is its FIRST, and openspec/changes/membership-creation adds "the first period is set, not added": where a membership has been granted no periods the rule SETS its span from the membership''s own recorded length rather than extending a span it already carries, and starts it at the later of its starts_on and today — today here, since starts_on is ten days back. The ten days that were typed and never bought are gone; what the statement''s own total actually bought is what is left, which is the thing this assertion has always been about. The expected value moved because the requirement did, not because the assertion was weakened');
 
 -- Seam: mixed statement — two DIFFERENT memberships written by the same
 -- statement, each reaching a different multiple of its OWN price.
@@ -1519,13 +1567,13 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000031'::uuid),
-  (select today from gym_today where org_key = 'A') + 10 + 30,
-  'multi-row/mixed-memberships: B1 gains exactly one period (100000 / 100000 = 1) — unaffected by B2''s rows in the same statement');
+  (select today from gym_today where org_key = 'A') + 30,
+  'multi-row/mixed-memberships: B1 gains exactly one period (100000 / 100000 = 1) — unaffected by B2''s rows in the same statement. ROUND-TWENTY RECONCILIATION: this read `today + 10 + 30`. The membership was created today-10..today+10 with periods_granted at its default of ZERO, so the grant scored here is its FIRST, and openspec/changes/membership-creation adds "the first period is set, not added": where a membership has been granted no periods the rule SETS its span from the membership''s own recorded length rather than extending a span it already carries, and starts it at the later of its starts_on and today — today here, since starts_on is ten days back. The ten days that were typed and never bought are gone; what the statement''s own total actually bought is what is left, which is the thing this assertion has always been about. The expected value moved because the requirement did, not because the assertion was weakened');
 
 select is(
   (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000032'::uuid),
-  (select today from gym_today where org_key = 'A') + 10 + 60,
-  'multi-row/mixed-memberships: B2 gains exactly two periods (100000 / 50000 = 2) in the SAME statement — each membership''s own total, not a shared or confused one');
+  (select today from gym_today where org_key = 'A') + 60,
+  'multi-row/mixed-memberships: B2 gains exactly two periods (100000 / 50000 = 2) in the SAME statement — each membership''s own total, not a shared or confused one. ROUND-TWENTY RECONCILIATION: this read `today + 10 + 60`. The membership was created today-10..today+10 with periods_granted at its default of ZERO, so the grant scored here is its FIRST, and openspec/changes/membership-creation adds "the first period is set, not added": where a membership has been granted no periods the rule SETS its span from the membership''s own recorded length rather than extending a span it already carries, and starts it at the later of its starts_on and today — today here, since starts_on is ten days back. The ten days that were typed and never bought are gone; what the statement''s own total actually bought is what is left, which is the thing this assertion has always been about. The expected value moved because the requirement did, not because the assertion was weakened');
 
 -- Seam: some rows paid, some not, in one statement.
 select lives_ok(
@@ -1537,8 +1585,8 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000033'::uuid),
-  (select today from gym_today where org_key = 'A') + 10 + 30,
-  'multi-row/mixed-status: exactly one period, from the 100000 that is actually paid — the created row''s 50000 is not money that arrived and must not join the total');
+  (select today from gym_today where org_key = 'A') + 30,
+  'multi-row/mixed-status: exactly one period, from the 100000 that is actually paid — the created row''s 50000 is not money that arrived and must not join the total. ROUND-TWENTY RECONCILIATION: this read `today + 10 + 30`. The membership was created today-10..today+10 with periods_granted at its default of ZERO, so the grant scored here is its FIRST, and openspec/changes/membership-creation adds "the first period is set, not added": where a membership has been granted no periods the rule SETS its span from the membership''s own recorded length rather than extending a span it already carries, and starts it at the later of its starts_on and today — today here, since starts_on is ten days back. The ten days that were typed and never bought are gone; what the statement''s own total actually bought is what is left, which is the thing this assertion has always been about. The expected value moved because the requirement did, not because the assertion was weakened');
 
 -- Seam: an UPDATE, not an INSERT, moving some rows to paid and others to
 -- failed within one statement.
@@ -1559,8 +1607,8 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000034'::uuid),
-  (select today from gym_today where org_key = 'A') + 10 + 30,
-  'multi-row/update: exactly one period — the row moved to failed contributes nothing, and the two moved to paid are counted as their statement''s own total, not three independent per-row guesses');
+  (select today from gym_today where org_key = 'A') + 30,
+  'multi-row/update: exactly one period — the row moved to failed contributes nothing, and the two moved to paid are counted as their statement''s own total, not three independent per-row guesses. ROUND-TWENTY RECONCILIATION: this read `today + 10 + 30`. The membership was created today-10..today+10 with periods_granted at its default of ZERO, so the grant scored here is its FIRST, and openspec/changes/membership-creation adds "the first period is set, not added": where a membership has been granted no periods the rule SETS its span from the membership''s own recorded length rather than extending a span it already carries, and starts it at the later of its starts_on and today — today here, since starts_on is ten days back. The ten days that were typed and never bought are gone; what the statement''s own total actually bought is what is left, which is the thing this assertion has always been about. The expected value moved because the requirement did, not because the assertion was weakened');
 
 -- Seam: the SAME membership touched twice at different amounts in one
 -- statement, summing to just past one multiple.
@@ -1572,8 +1620,8 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000035'::uuid),
-  (select today from gym_today where org_key = 'A') + 10 + 30,
-  'multi-row/uneven: exactly one period (110000 crosses 100000 once) — a per-row guess using the final total for both unequal rows would double-grant, since each row alone (40000 and 70000) still looks like the one that crossed 100000 against a shared final total');
+  (select today from gym_today where org_key = 'A') + 30,
+  'multi-row/uneven: exactly one period (110000 crosses 100000 once) — a per-row guess using the final total for both unequal rows would double-grant, since each row alone (40000 and 70000) still looks like the one that crossed 100000 against a shared final total. ROUND-TWENTY RECONCILIATION: this read `today + 10 + 30`. The membership was created today-10..today+10 with periods_granted at its default of ZERO, so the grant scored here is its FIRST, and openspec/changes/membership-creation adds "the first period is set, not added": where a membership has been granted no periods the rule SETS its span from the membership''s own recorded length rather than extending a span it already carries, and starts it at the later of its starts_on and today — today here, since starts_on is ten days back. The ten days that were typed and never bought are gone; what the statement''s own total actually bought is what is left, which is the thing this assertion has always been about. The expected value moved because the requirement did, not because the assertion was weakened');
 
 -- Seam: currency, INSIDE a multi-row statement against one membership —
 -- one row in the membership's own currency, one row in a currency the gym
@@ -1586,8 +1634,8 @@ select lives_ok(
 
 select is(
   (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000036'::uuid),
-  (select today from gym_today where org_key = 'A') + 10 + 30,
-  'multi-row/currency: exactly one period, from the INR row alone — the USD row does not join the total even though it is against the same membership in the same statement');
+  (select today from gym_today where org_key = 'A') + 30,
+  'multi-row/currency: exactly one period, from the INR row alone — the USD row does not join the total even though it is against the same membership in the same statement. ROUND-TWENTY RECONCILIATION: this read `today + 10 + 30`. The membership was created today-10..today+10 with periods_granted at its default of ZERO, so the grant scored here is its FIRST, and openspec/changes/membership-creation adds "the first period is set, not added": where a membership has been granted no periods the rule SETS its span from the membership''s own recorded length rather than extending a span it already carries, and starts it at the later of its starts_on and today — today here, since starts_on is ten days back. The ten days that were typed and never bought are gone; what the statement''s own total actually bought is what is left, which is the thing this assertion has always been about. The expected value moved because the requirement did, not because the assertion was weakened');
 
 -- Seam: the plain, single-row version of the currency rule.
 select lives_ok(
@@ -1819,8 +1867,8 @@ select is(
 
 select is(
   (select ends_on from public.memberships where id = '220000ff-0022-4000-8000-600000000043'::uuid),
-  (select today from gym_today where org_key = 'A') + 60,
-  'periods_granted/price-cut: baseline — ends_on moved by that one period');
+  (select today from gym_today where org_key = 'A') + 30,
+  'periods_granted/price-cut: baseline — ends_on moved by that one period. ROUND-TWENTY RECONCILIATION: this read `today + 60`. The fixture is dated today..today+30 with periods_granted typed at ZERO, so this full payment is its FIRST grant and "the first period is set, not added" sets the span from the membership''s own length instead of adding a bought period on top of a typed one. starts_on is already today, so it does not move. Everything this baseline exists to support — that one period was granted at the original price, and the price-cut refusals below are measured against it — is unchanged');
 
 select throws_ok(
   $$update public.memberships set price_paise = 50000 where id = '220000ff-0022-4000-8000-600000000043'$$,
@@ -4549,6 +4597,21 @@ set local role authenticated;
 -- null", or armed on the statement rather than on the write, takes one of
 -- these with it — and a renewal that silently stops renewing is invisible to
 -- the gym and visible only to the member, at the gate, weeks later.
+--
+-- ROUND-TWENTY RECONCILIATION (spec:). Ten expected values below moved and no
+-- assertion did. openspec/changes/membership-creation/ added "the first period
+-- is set, not added": where a membership has been granted NO periods, the
+-- granting rule sets its span from the plan and starts it at the LATER of its
+-- own starts_on and today, instead of extending a span that was typed and never
+-- bought. Every row in this block's ordinary population is dated
+-- today..today+30 with periods_granted at its default of zero — so what this
+-- block called "a renewal" was in fact each row's FIRST grant, which is the
+-- defect that change exists to close, asserted here as correct behaviour.
+-- a02, a04, a05, a06, a07, a08, a09, a10 and a11 are re-expected; a01
+-- (dateless) and a03 (a part payment that grants nothing) are untouched,
+-- because the new rule does not reach either. Each changed line says so in
+-- place, so a reader sees a contract that moved rather than a test that was
+-- weakened.
 -- ---------------------------------------------------------------------------
 
 select lives_ok(
@@ -4570,8 +4633,8 @@ select lives_ok(
 select is(
   (select (starts_on - (select today from gym_today where org_key = 'A'))::text || '/' || (ends_on - (select today from gym_today where org_key = 'A'))::text || '/' || periods_granted::text
      from public.memberships where id = '220000ff-0022-4000-8000-600000000a02'::uuid),
-  '0/60/1',
-  'GL045/grant-shapes: the renewal moved ends_on by one period and left starts_on where it was — the rule writes ONE of the two dates here and both on a01, so a guard that authorises "the write that fills the dates" and not "the write that extends them" passes a01 and breaks this');
+  '0/30/1',
+  'GL045/grant-shapes: ROUND-TWENTY RECONCILIATION — this read 0/60/1, and it moved because the CONTRACT moved, not because the assertion was weakened. a02 is dated today..today+30 with periods_granted at its default of ZERO, so this payment is not a renewal at all: it is the row''s FIRST grant onto a typed span, and "the first period is set, not added" makes it SET the span from the plan rather than add a bought period on top of a typed one. The original point survives intact — the rule still writes BOTH dates here, starts_on to the later of its own value and today, which on this row is where it already was — so a guard that authorises "the write that fills the dates" and not "the write that sets them" passes a01 and still breaks this');
 
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
@@ -4581,8 +4644,8 @@ select lives_ok(
 select is(
   (select (ends_on - (select today from gym_today where org_key = 'A'))::text || '/' || periods_granted::text
      from public.memberships where id = '220000ff-0022-4000-8000-600000000a02'::uuid),
-  '90/2',
-  'GL045/grant-shapes: which moved it again. A rule that arms once per transaction, or once per row, renews exactly once and then stops — silently, and only the member finds out');
+  '60/2',
+  'GL045/grant-shapes: which moved it again — and THIS one is a genuine renewal, because the payment above granted the first period. ROUND-TWENTY RECONCILIATION: 90/2 became 60/2 for one reason only, that the row it starts from is thirty days shorter than it used to be. The renewal arithmetic is untouched and still ADDS, which the new requirement says in as many words. A rule that arms once per transaction, or once per row, renews exactly once and then stops — silently, and only the member finds out');
 
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
@@ -4603,8 +4666,8 @@ select lives_ok(
 select is(
   (select (ends_on - starts_on)::text || '/' || periods_granted::text
      from public.memberships where id = '220000ff-0022-4000-8000-600000000a04'::uuid),
-  '180/5',
-  'GL045/grant-shapes: and the dates moved by five periods in one write — a guard that permits "one period''s worth of movement" rather than "the rule wrote it" refuses this and hands the gym back a member who paid for five months and got one');
+  '150/5',
+  'GL045/grant-shapes: and the dates moved by five periods in one write. ROUND-TWENTY RECONCILIATION: 180 became 150, the typed month no longer surviving underneath the five that were bought. It now also pins something the new requirement''s own scenarios never stage, because every one of them grants exactly one period: "set its span from the plan" means duration_days * periods_granted — 150 here, not 30. A guard that permits "one period''s worth of movement" rather than "the rule wrote it" still refuses this and hands the gym back a member who paid for five months and got one');
 
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
@@ -4618,8 +4681,8 @@ select lives_ok(
 select is(
   (select (ends_on - starts_on)::text || '/' || periods_granted::text
      from public.memberships where id = '220000ff-0022-4000-8000-600000000a05'::uuid),
-  '330/10',
-  'GL045/grant-shapes: and all ten granted. Ten rows means ten fires of the rule against one membership inside one statement, and a guard that reads the row it is about to write rather than the write it is making sees ten "unexplained" date moves here');
+  '300/10',
+  'GL045/grant-shapes: and all ten granted. ROUND-TWENTY RECONCILIATION: 330 became 300, the typed month gone from under the ten that were paid for. Ten rows means ten fires of the rule against one membership inside one statement, and a guard that reads the row it is about to write rather than the write it is making sees ten "unexplained" date moves here');
 
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id)
@@ -4641,8 +4704,8 @@ select lives_ok(
 select is(
   (select (ends_on - starts_on)::text || '/' || periods_granted::text
      from public.memberships where id = '220000ff-0022-4000-8000-600000000a06'::uuid),
-  '60/1',
-  'GL045/grant-shapes: which granted. The grant fires on the payment''s UPDATE, not only on its INSERT, and a date guard that only knows about the INSERT path refuses every online settlement');
+  '30/1',
+  'GL045/grant-shapes: which granted. ROUND-TWENTY RECONCILIATION: 60/1 became 30/1 — a first grant onto a typed span, set rather than added. The grant fires on the payment''s UPDATE, not only on its INSERT, and a date guard that only knows about the INSERT path refuses every online settlement');
 
 select lives_ok(
   $$merge into public.payments p
@@ -4654,8 +4717,8 @@ select lives_ok(
 select is(
   (select (ends_on - starts_on)::text || '/' || periods_granted::text
      from public.memberships where id = '220000ff-0022-4000-8000-600000000a07'::uuid),
-  '60/1',
-  'GL045/grant-shapes: and it granted. MERGE is named in ADR-092 as a measured route into this table and it must stay a working one');
+  '30/1',
+  'GL045/grant-shapes: and it granted. ROUND-TWENTY RECONCILIATION: 60/1 became 30/1, same first-grant reason as a06. MERGE is named in ADR-092 as a measured route into this table and it must stay a working one');
 
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id)
@@ -4671,8 +4734,8 @@ select lives_ok(
 select is(
   (select (ends_on - starts_on)::text || '/' || periods_granted::text
      from public.memberships where id = '220000ff-0022-4000-8000-600000000a08'::uuid),
-  '60/1',
-  'GL045/grant-shapes: which granted too');
+  '30/1',
+  'GL045/grant-shapes: which granted too — 30/1 rather than 60/1 since round twenty, same first-grant reason as a06');
 
 select lives_ok(
   $$with p as (
@@ -4685,8 +4748,8 @@ select lives_ok(
 select is(
   (select (ends_on - starts_on)::text || '/' || periods_granted::text
      from public.memberships where id = '220000ff-0022-4000-8000-600000000a09'::uuid),
-  '60/1',
-  'GL045/grant-shapes: and it granted. This is the honest half of 19b''s statement and it must survive whatever refuses the dishonest half');
+  '30/1',
+  'GL045/grant-shapes: and it granted. ROUND-TWENTY RECONCILIATION: 60/1 became 30/1, same first-grant reason as a06. This is the honest half of 19b''s statement and it must survive whatever refuses the dishonest half');
 
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, recorded_by_staff_id)
@@ -4700,8 +4763,8 @@ select lives_ok(
 select is(
   (select (ends_on - starts_on)::text || '/' || periods_granted::text
      from public.memberships where id = '220000ff-0022-4000-8000-600000000a10'::uuid),
-  '60/1',
-  'GL045/grant-shapes: which granted');
+  '30/1',
+  'GL045/grant-shapes: which granted — 30/1 rather than 60/1 since round twenty, same first-grant reason as a06');
 
 select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
@@ -4711,8 +4774,8 @@ select lives_ok(
 select is(
   (select (starts_on - (select today from gym_today where org_key = 'A'))::text || '/' || (ends_on - (select today from gym_today where org_key = 'A'))::text || '/' || status::text || '/' || periods_granted::text
      from public.memberships where id = '220000ff-0022-4000-8000-600000000a11'::uuid),
-  '-90/30/active/1',
-  'GL045/grant-shapes: and the rule measured from the gym''s TODAY, not from an ends_on already sixty days in the past — otherwise the renewal buys thirty days that finished last month. starts_on stays where it was, so the row now spans 120 days on one period granted');
+  '0/30/active/1',
+  'GL045/grant-shapes: ROUND-TWENTY RECONCILIATION, and this is the value that moved furthest. It read -90/30/active/1: starts_on left ninety days in the past, ends_on measured from today, and the row therefore spanning 120 DAYS on ONE period granted. That is the very defect the new requirement closes, reached from the other side — an honest starts_on, an honest ends_on, and a first grant adding a bought period on top of a span that had already been lived. The contract now settles where the first grant starts a membership: at the LATER of its own starts_on and today, so a member who never paid starts today, and a pre-sold membership keeps the future date it was sold for. This returning member therefore starts today and spans exactly the thirty days they paid for. The block''s original point is unchanged and is still what the 30 asserts: the rule measures from the gym''s TODAY, not from an ends_on already sixty days in the past, or the renewal buys thirty days that finished last month');
 
 -- ---------------------------------------------------------------------------
 -- 19b. THE SEAM BETWEEN "THE RULE MOVED IT" AND "A HAND MOVED IT IN THE SAME
@@ -4752,8 +4815,8 @@ select lives_ok(
 select is(
   (select (ends_on - starts_on)::text || '/' || periods_granted::text
      from public.memberships where id = '220000ff-0022-4000-8000-600000000a13'::uuid),
-  '60/1',
-  'GL045/two-statements: and it granted a period, in the ordinary way');
+  '30/1',
+  'GL045/two-statements: and it granted a period, in the ordinary way. ROUND-TWENTY RECONCILIATION: this read 60/1. a13 is dated today..today+30 with periods_granted at its default of ZERO, so this is a FIRST grant, and the new requirement sets the span rather than adding to it');
 
 select throws_ok(
   $$update public.memberships set ends_on = ends_on + 3650 where id = '220000ff-0022-4000-8000-600000000a13'$$,
@@ -4763,8 +4826,8 @@ select throws_ok(
 select is(
   (select (ends_on - starts_on)::text || '/' || periods_granted::text
      from public.memberships where id = '220000ff-0022-4000-8000-600000000a13'::uuid),
-  '60/1',
-  'GL045/two-statements: dates unchanged at the sixty days the money actually bought');
+  '30/1',
+  'GL045/two-statements: dates unchanged at the thirty days the money actually bought. ROUND-TWENTY RECONCILIATION: this read 60/1, and "sixty days" in this line''s own wording was the typed month plus the bought one — which is the defect the new requirement closes. What the line asserts is untouched: the hand-written extension in the next statement moved nothing');
 
 select is(
   (select count(*)::int from public.payments where id = '220000ff-0022-4000-8000-700000000a13'::uuid),
@@ -4965,8 +5028,8 @@ select lives_ok(
 
 select is(
   (select (ends_on - starts_on)::text || '/' || periods_granted::text from public.memberships where id = '220000ff-0022-4000-8000-600000000a24'::uuid),
-  '60/1',
-  'GL045/refund: sixty days, one period');
+  '30/1',
+  'GL045/refund: thirty days, one period. ROUND-TWENTY RECONCILIATION: this read 60/1 — a24 is dated today..today+30 with periods_granted at ZERO, so the payment is its FIRST grant and now sets the span instead of adding to it');
 
 select lives_ok(
   $$update public.payments set status = 'refunded' where id = '220000ff-0022-4000-8000-700000000a24'$$,
@@ -4974,8 +5037,8 @@ select lives_ok(
 
 select is(
   (select (ends_on - starts_on)::text || '/' || periods_granted::text from public.memberships where id = '220000ff-0022-4000-8000-600000000a24'::uuid),
-  '60/1',
-  'GL045/refund: and the dates did not move back, nor did the count. This is asserted because the requirement''s own remedy depends on it: "correcting a mistake means refunding and selling again", and a refund measurably corrects no date — see the diag below and the report');
+  '30/1',
+  'GL045/refund: and the dates did not move back, nor did the count — 30/1 before the refund and 30/1 after it, where both readings were 60/1 before round twenty. What is asserted is the SAMENESS across the refund, and that is exactly as true at the new value. This is asserted because the requirement''s own remedy depends on it: "correcting a mistake means refunding and selling again", and a refund measurably corrects no date — see the diag below and the report');
 
 select diag(
   'h22 R10 / GL045: the requirement offers one remedy for a wrong date — "correcting a mistake means refunding and selling again". Measured on membership 600000000a24: after the refund the span is '
@@ -5222,8 +5285,8 @@ select lives_ok(
 
 select is(
   (select (ends_on - starts_on)::text || '/' || periods_granted::text from public.memberships where id = '220000ff-0022-4000-8000-600000000a2c'::uuid),
-  '60/1',
-  'GL045/service_role: and it granted a period. The trusted caller must keep the rule''s own write, or every online renewal stops');
+  '30/1',
+  'GL045/service_role: and it granted a period. ROUND-TWENTY RECONCILIATION: this read 60/1 — a2c is dated today..today+30 with periods_granted at ZERO, so the webhook''s payment is its FIRST grant and sets the span. The trusted caller must keep the rule''s own write, or every online renewal stops');
 
 select throws_ok(
   $$update public.memberships set ends_on = starts_on + 3650 where id = '220000ff-0022-4000-8000-600000000a2c'$$,
@@ -5232,8 +5295,8 @@ select throws_ok(
 
 select is(
   (select (ends_on - starts_on)::text from public.memberships where id = '220000ff-0022-4000-8000-600000000a2c'::uuid),
-  '60',
-  'GL045/service_role: and the dates are unchanged at what the money bought');
+  '30',
+  'GL045/service_role: and the dates are unchanged at what the money bought — 30 rather than 60 since round twenty, because what the money bought is now all the row carries');
 
 set local role postgres;
 select set_config(
@@ -9536,6 +9599,717 @@ select diag(
 
 select diag(
   'r19 UNDECIDED 5/5 — the order AMONG the absolutes is unwritten: GL043 vs GL044, GL043 vs GL045, GL044 vs GL045. The contract decides GL042 against everything ("not another one the same statement also violates") and every absolute against the one permission ("an absolute beats a permission"), and stops there. A statement setting `price_paise` and `ends_on` on a frozen membership, or `periods_granted` and `ends_on` on any membership, has no answer in the spec, and this section asserts none of them. Related: the payment-side GL042 ("a payment extends only the membership of the member who paid") shares a SQLSTATE with the membership-side rule but NOT its precedence sentence, which is written under the membership requirement and about it — so a payment naming another member''s membership and also naming a colleague is undecided too, despite that code appearing in decided pairs above.');
+
+-- ---------------------------------------------------------------------------
+-- 27. THIRTEENTH-SESSION EXTENSION, round TWENTY, written blind by an
+-- ELEVENTH author against openspec/changes/membership-creation/ — reduced by
+-- the coordinator, mid-authoring, to its ONE surviving requirement:
+--
+--   "THE FIRST PERIOD IS SET, NOT ADDED." Where a membership has been granted
+--   no periods, the granting rule SETS its span from the plan rather than
+--   extending a span it already carries.
+--
+-- The sibling requirement — a creation refused unless `ends_on <= starts_on +
+-- the plan's duration`, GL048 — was WITHDRAWN before a line of this section
+-- was committed, and this file asserts nothing about it. The orchestrator's
+-- account, recorded here because it changes what the surviving requirement is
+-- for: with the creation rule spliced in, six of the forty-seven pgTAP files
+-- would not run at all and a seventh lost four assertions — 3087 assertions
+-- reachable of 4152 — because six independently-authored suites build
+-- multi-period memberships directly, a renewed membership genuinely spanning
+-- several. The contract justified the rule from 45 live rows in one demo gym;
+-- the rule bound every INSERT by anybody. Different populations, and nothing
+-- in the measurement said so. The half-dated clause went with it: a row with
+-- `ends_on` null carries no span, cannot be live at the turnstile, and is
+-- inert to `app.grant_periods()` — whose dateless branch wants BOTH dates null
+-- and whose dated branch wants `ends_on is not null` — so it was never this
+-- change's harm.
+--
+-- WHICH LEAVES THE GRANT AS THE WHOLE OF THE DEFENCE, not half of it. A
+-- membership may still be created spanning ten years, and the only thing
+-- standing between that and a paid-for ten years is that the first period of
+-- money SETS the span instead of adding to it. The change's own plan said this
+-- was becoming "the load-bearing one"; it is now the only one.
+--
+-- Read by this author: the change's spec.md and plan.md, docs/domain-rules.md,
+-- this file, the live catalogue's shape, and the coordinator's own measurement
+-- above. NOT read, then or since: any migration; supabase/tests/22_payment_
+-- record.sql, written in parallel by a different author; docs/decisions.md;
+-- docs/registry.md; any function or trigger body.
+--
+-- WHERE THIS SECTION GOES. The requirement stages three scenarios — a typed
+-- span paid once, a renewal, and the dateless path — and the visible suite
+-- will have them. This one spends its weight on what none of the three
+-- reaches:
+--
+--   * THE FIRST GRANT THAT GRANTS MORE THAN ONE PERIOD. Every scenario grants
+--     exactly one, so "set its span from the plan" is never made to choose
+--     between `duration` and `duration * periods`. Two half payments, one
+--     double payment, two payments in one statement and two in two statements
+--     are each run against a typed one-period span. Read literally, the
+--     requirement's own sentence ("the span SHALL become exactly one period")
+--     hands a member who paid for two months a single month.
+--   * THE PATHS WHERE NOTHING IS GRANTED AND SO NOTHING MAY MOVE. A part
+--     payment, a payment in a currency the membership is not priced in, and a
+--     complimentary membership. The requirement is keyed on "has been granted
+--     no periods", not on "no money has arrived", and these three are where
+--     the two keys come apart. They also guard the other direction: a fix that
+--     normalises the span whenever a payment lands would confiscate a free
+--     month the gym deliberately gave.
+--   * THE PLAN WHOSE PERIOD IS ONE DAY, where an off-by-one is a whole
+--     period and where a rule that hardcoded thirty passes everything else.
+--   * THE INVARIANT the requirement names in its own prose — `ends_on -
+--     starts_on` against `duration_days * periods_granted` — asserted over
+--     every path at once (27c), and asserted NOT to hold where it legitimately
+--     does not. ADR-088 declined to enforce it as a trigger and was right to;
+--     that is a reason to check it in a test, not a reason for nothing to
+--     check it anywhere.
+--
+-- WHAT IT REFUSED TO GUESS is in 27e. The sharpest of them - "set its span
+-- from the plan" fixes a LENGTH and said nothing about a POSITION - was raised
+-- by this section as a staged measurement and has since been SETTLED in the
+-- contract: the first grant starts a membership at the later of its `starts_on`
+-- and today. 27d asserts that settlement rather than reporting it.
+--
+-- Fixtures are a gym of this section's own (`H22R20`) so nothing here can
+-- move a row another section measures; every membership gets its own member,
+-- because `memberships_tenant_id_member_id_live_key` is partial on
+-- `active`/`frozen` and a second live row per member would answer 23505 for
+-- the wrong reason. Every date is derived from `(now() at time zone
+-- o.timezone)::date` through `gym_today`, never `current_date` (ADR-039): the
+-- orchestrator's own probe read 31 days where the plan sells 30, purely
+-- because it created the row on the UTC date and the rule dated it in IST.
+-- ---------------------------------------------------------------------------
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+insert into public.organizations (id, name, gym_code, timezone) values
+  ('220000ff-0022-4000-8000-100000002701'::uuid, 'Holdout PAYREC Gym R20', 'H22R20', 'Asia/Kolkata');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('220000ff-0022-4000-8000-200000002701'::uuid, '220000ff-0022-4000-8000-100000002701'::uuid, 'H22 R20 Main', true);
+
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('220000ff-0022-4000-8000-300000002701'::uuid, '220000ff-0022-4000-8000-100000002701'::uuid, '220000ff-0022-4000-8000-200000002701'::uuid, 'front_desk', 'H22 R20 Desk');
+
+-- Two plans. The 30-day one carries every path; the ONE-DAY one exists because
+-- "set its span from the plan" has to read the plan, and a rule that reads a
+-- constant, or reads the wrong row, is green on a suite built entirely of
+-- thirty-day multiples.
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('220000ff-0022-4000-8000-400000002701'::uuid, '220000ff-0022-4000-8000-100000002701'::uuid, 'H22 R20 Plan 30d', 30, 100000),
+  ('220000ff-0022-4000-8000-400000002702'::uuid, '220000ff-0022-4000-8000-100000002701'::uuid, 'H22 R20 Plan 1d',  1,  100000);
+
+insert into gym_today (org_key, org_id, today, fy)
+select 'R20', o.id, (now() at time zone o.timezone)::date, pg_temp.h22_fy((now() at time zone o.timezone)::date)
+  from public.organizations o where o.id = '220000ff-0022-4000-8000-100000002701'::uuid;
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone)
+select
+  ('220000ff-0022-4000-8000-50000000270' || f.sfx)::uuid,
+  '220000ff-0022-4000-8000-100000002701'::uuid,
+  '220000ff-0022-4000-8000-200000002701'::uuid,
+  'H22 R20 ' || f.nm,
+  '+919220270' || f.ph
+from (values
+  ('1','TypedOnePeriod','001'), ('2','ConsoleZeroSpan','002'), ('3','Dateless','003'),
+  ('4','TwoHalves','004'),      ('5','DoubleAtOnce','005'),    ('6','TwoInOneStmt','006'),
+  ('7','TwoStatements','007'),  ('8','ForeignCurrency','008'), ('9','ZeroPrice','009'),
+  ('a','TenYears','010'),       ('b','OneDayPlan','011'),      ('c','FutureDated','012'),
+  ('d','Lapsed','013')
+) as f(sfx, nm, ph);
+
+-- The section's own reader: offsets from THIS gym's today, never a literal,
+-- with the span reported beside the count so the requirement's own invariant
+-- can be read off one string.
+create function pg_temp.h22r20_shape(mid text) returns text
+language plpgsql as $fn$
+declare r text; t date;
+begin
+  select today into t from gym_today where org_key = 'R20';
+  execute format(
+    'select coalesce((starts_on - %L::date)::text, ''-'') || ''/'' || '
+    || 'coalesce((ends_on - %L::date)::text, ''-'') || ''/'' || '
+    || 'coalesce((ends_on - starts_on)::text, ''-'') || ''/'' || '
+    || 'periods_granted::text || ''/'' || status::text '
+    || 'from public.memberships where id = %L', t, t, mid) into r;
+  return coalesce(r, 'NO ROW');
+exception when others then
+  return 'ERR:' || sqlstate;
+end
+$fn$;
+
+grant execute on function pg_temp.h22r20_shape(text) to public;
+
+-- An ordinary front desk throughout — the session every measurement in this
+-- change was taken from, and the one that records payments (GL034).
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000002701',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000002701')::text,
+  true
+);
+set local role authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 27a. NINE PATHS INTO A DATED MEMBERSHIP, ONE MEMBER EACH.
+--
+-- The nine are created in ONE multi-row statement, asserted once. That is
+-- deliberate on two counts. It is the shape ADR-092 names as a measured route
+-- into this table, and — after what the withdrawn requirement did to six other
+-- suites — it is a standing assertion that WHATEVER implements "set, not
+-- added" refuses no creation at all. The rule being asserted below lives in
+-- the granting function; if a creation ever starts failing here, the fix has
+-- wandered back to the door the contract just closed the book on.
+-- ---------------------------------------------------------------------------
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+    select ('220000ff-0022-4000-8000-60000000270' || f.sfx)::uuid,
+           '220000ff-0022-4000-8000-100000002701'::uuid,
+           ('220000ff-0022-4000-8000-50000000270' || f.sfx)::uuid,
+           '220000ff-0022-4000-8000-400000002701'::uuid,
+           f.st::public.membership_status,
+           case when f.dated then (select today from gym_today where org_key='R20') + f.s0 end,
+           case when f.dated then (select today from gym_today where org_key='R20') + f.e0 end,
+           f.price, 'INR'
+      from (values
+        -- (1) the measured defect: one period typed, then one period paid for.
+        ('1', 'active',  true,  0, 30, 100000),
+        -- (2) what POST /api/memberships actually writes: zero span, active.
+        ('2', 'active',  true,  0,  0, 100000),
+        -- (3) the honest path the requirement says already works.
+        ('3', 'pending', false, 0,  0, 100000),
+        -- (4)-(7) four ways of paying for a typed one-period span.
+        ('4', 'active',  true,  0, 30, 100000),
+        ('5', 'active',  true,  0, 30, 100000),
+        ('6', 'active',  true,  0, 30, 100000),
+        ('7', 'active',  true,  0, 30, 100000),
+        -- (8) priced in INR, about to be paid in USD.
+        ('8', 'active',  true,  0, 30, 100000),
+        -- (9) complimentary: no money can ever buy a period of it.
+        ('9', 'active',  true,  0, 30, 0)
+      ) as f(sfx, st, dated, s0, e0, price)$q$),
+  'OK',
+  'r20/fixtures: nine memberships, nine members, one multi-row statement. Asserted rather than assumed: the requirement that would have policed creation was withdrawn because it broke six suites'' fixtures, and this line is what notices if a fix for the SURVIVING requirement quietly re-imposes it. Every one of these spans at most one period anyway, so it is not the fixtures that are being defended — it is the door');
+
+select is(
+  (select string_agg(right(m.id::text, 2) || '=' || coalesce((m.starts_on - t.today)::text, '-') || '/' || coalesce((m.ends_on - t.today)::text, '-') || '/' || m.periods_granted::text || '/' || m.status::text, ' ' order by m.id)
+     from public.memberships m, gym_today t
+    where t.org_key = 'R20' and m.tenant_id = '220000ff-0022-4000-8000-100000002701'::uuid),
+  '01=0/30/0/active 02=0/0/0/active 03=-/-/0/pending 04=0/30/0/active 05=0/30/0/active 06=0/30/0/active 07=0/30/0/active 08=0/30/0/active 09=0/30/0/active',
+  'r20/fixtures: and every one of them landed where it was put, with `periods_granted = 0` on all nine. The count is the thing: it is the requirement''s KEY, so a fixture that arrived carrying a period would send every assertion below down the renewal branch and the whole section would pass without testing anything. Offsets are from this gym''s own today, so nothing here depends on the UTC date the suite happens to run on');
+
+-- (1) THE MEASURED DEFECT, exactly as the change's own table A states it:
+-- created `today .. today + 30` on a 30-day plan, then one payment of the
+-- plan's price.
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000002701', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-500000002701', '220000ff-0022-4000-8000-600000002701', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/typed-span: one ordinary cash payment at the plan''s own price. It must be RECORDED — the defect was never that a statement was refused, and a fix that refuses this has stopped the gym taking money');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-600000002701'),
+  '0/30/30/1/active',
+  'r20/typed-span: THE HEADLINE. One period of money bought one period of membership. Today this row reads 0/60/60/1 — double the membership for the same money, with one payment, one receipt, `periods_granted = floor(money / price)`, the plan''s own price on the row and no frozen term touched. Nothing in this system compares the span against the count, which is why it audits clean and why this assertion has to exist');
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000027a1', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-500000002701', '220000ff-0022-4000-8000-600000002701', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/typed-span: and the member renews');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-600000002701'),
+  '0/60/60/2/active',
+  'r20/typed-span: THE RENEWAL STILL EXTENDS. "A renewal is untouched, which is the whole reason for the `periods_granted = 0` key." This is the mirror-image defect an over-eager reading of "set, not added" produces: a rule that SETS on every grant gives this member thirty days for their second month''s money, and the gym hears about it from the member, at the door, in a month');
+
+-- (2) The console's own zero-span row. Green today, and here to fail an
+-- over-broad fix: this is the path every real sale takes.
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000002702', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-500000002702', '220000ff-0022-4000-8000-600000002702', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/zero-span: the console''s own sequence — `POST /api/memberships` writes today..today, then the desk takes the cash');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-600000002702'),
+  '0/30/30/1/active',
+  'r20/zero-span: thirty days — which is also what it gives today. The zero-span row is the ONE shape where "set" and "add" agree, so it can never be the path a fix is validated on. ADR-083 records that this line used to add the duration and that the product has already been bitten by this doubling once');
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000027a2', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-500000002702', '220000ff-0022-4000-8000-600000002702', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/zero-span: renewed');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-600000002702'),
+  '0/60/60/2/active',
+  'r20/zero-span: sixty days on two periods');
+
+-- (3) The dateless path — the requirement's "ordinary path", and the yardstick
+-- for everything else: after the change, path (1) and path (3) must agree.
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000002703', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-500000002703', '220000ff-0022-4000-8000-600000002703', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/dateless: a first payment against a `pending` membership with no dates at all');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-600000002703'),
+  '0/30/30/1/active',
+  'r20/dateless: "it SHALL be dated from the plan exactly as it is today", and activated. The dateless branch is the one the requirement holds up as already correct, so it is the control for the whole section: today paths (1) and (3) differ by a factor of two on identical money, and after the change they must be indistinguishable');
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000027a3', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-500000002703', '220000ff-0022-4000-8000-600000002703', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/dateless: renewed');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-600000002703'),
+  '0/60/60/2/active',
+  'r20/dateless: sixty days on two periods. Three creations — a typed period, a zero span, and no dates at all — and one arithmetic at the end of them');
+
+-- (4) TWO HALF PAYMENTS. The half that grants nothing must move nothing; the
+-- half that completes the price must SET. A rule armed on "money has arrived"
+-- rather than "a period has been granted" fires on the first half and dates a
+-- membership nobody has finished paying for.
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000002704', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-500000002704', '220000ff-0022-4000-8000-600000002704', 50000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/halves: a typed one-period membership takes HALF its price');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-600000002704'),
+  '0/30/30/0/active',
+  'r20/halves: and nothing moved, because nothing was granted. The typed span is still there and still unbought — which is now a permanent residual rather than a temporary one, since the creation rule that would have capped it was withdrawn. This row is exactly where "granted no periods" and "no money has arrived" disagree');
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000027a4', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-500000002704', '220000ff-0022-4000-8000-600000002704', 50000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/halves: and the other half arrives, completing one period''s price across two receipts');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-600000002704'),
+  '0/30/30/1/active',
+  'r20/halves: THIRTY DAYS, not sixty. The FIRST period is granted here by a payment that is not the first payment — so a fix that asks "is this the first payment against this membership" instead of "has this membership been granted a period" sets on the wrong one of the two. A part payment is exactly what walked through round eight''s gate, arriving from the other side');
+
+-- (5) ONE payment worth TWO periods against a typed one-period span. Every
+-- scenario in the requirement grants exactly one period, so this is where
+-- "set its span from the plan" is made to choose between `duration` and
+-- `duration * periods`.
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000002705', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-500000002705', '220000ff-0022-4000-8000-600000002705', 200000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/double: a member pays two months up front against a membership already carrying a typed month');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-600000002705'),
+  '0/60/60/2/active',
+  'r20/double: SIXTY days on two periods — `duration * periods_granted`, not `duration`. The requirement''s scenario sentence, "the span SHALL become exactly one period", is true of every case it stages because every case it stages grants one; read literally against this row it hands back thirty days for two months'' money. Today this row reads ninety, so the assertion is red against the current behaviour AND against the literal reading, and only the middle answer survives');
+
+-- (6) TWO full payments in ONE statement. Two grants inside one statement is
+-- where a rule that evaluates `periods_granted = 0` against the pre-statement
+-- snapshot sets twice.
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    select ('220000ff-0022-4000-8000-7000000027b' || i::text)::uuid, '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-500000002706', '220000ff-0022-4000-8000-600000002706', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701'
+      from generate_series(1, 2) i$q$),
+  'OK',
+  'r20/two-in-one: TWO full payments in ONE statement — the multi-row shape ADR-092 names, and the shape every defect in this phase survived the single-row case and died on');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-600000002706'),
+  '0/60/60/2/active',
+  'r20/two-in-one: sixty days on two periods, whichever way the rule fires — twice at one period each (set, then extend) or once at two (set) both land here. What does NOT land here is a rule reading `periods_granted` as the statement STARTED: it sees zero for both rows, sets twice, and leaves thirty days on a count of two — a row that satisfies the requirement''s scenario sentence while breaking the invariant the requirement was written to restore');
+
+-- (7) The same two payments in TWO statements, same transaction. The
+-- intermediate state is asserted rather than skipped: it is the only place the
+-- boundary between "set" and "extend" is crossed in the open.
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000002707', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-500000002707', '220000ff-0022-4000-8000-600000002707', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/two-statements: the first of two payments');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-600000002707'),
+  '0/30/30/1/active',
+  'r20/two-statements: the first grant SET — and the row is now indistinguishable from one sold honestly. That is the property worth naming: after the first paisa the typed period is GONE, not merely capped, which is what lets the withdrawal of the creation rule be survivable at all');
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000027a7', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-500000002707', '220000ff-0022-4000-8000-600000002707', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/two-statements: and the second, in its own statement');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-600000002707'),
+  '0/60/60/2/active',
+  'r20/two-statements: which extends, landing exactly where (6) landed. Two payments reach the same place whether they arrive together or apart — a property a rule keyed on the statement rather than on the row cannot deliver');
+
+-- (8) A payment in a currency the membership does not carry. Measured
+-- elsewhere in this file as a payment that lands, is receipted, and grants
+-- nothing.
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000002708', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-500000002708', '220000ff-0022-4000-8000-600000002708', 100000, 'USD', 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/foreign currency: a full-price payment in USD against an INR membership is recorded, exactly as it is today');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-600000002708'),
+  '0/30/30/0/active',
+  'r20/foreign currency: and it granted NOTHING, so it moved nothing. Money arriving is not what this requirement is keyed on, and this row tells a `periods_granted = 0` key from a "has any payment landed" key without needing a part payment to do it — currency decides which payments count toward the price at all');
+
+-- (9) A complimentary membership: price zero, so no money can ever buy a
+-- period of it. The gym gave this month away on purpose.
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-700000002709', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-500000002709', '220000ff-0022-4000-8000-600000002709', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/zero price: a complimentary membership takes a payment anyway. `memberships_price_paise_chk` permits the zero and the desk can still bank cash against it');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-600000002709'),
+  '0/30/30/0/active',
+  'r20/zero price: nothing granted, nothing moved — and the part worth asserting is the second half. The free month is NOT confiscated by a rule that decided an ungranted span ought to be zeroed. "Set its span from the plan" is something the granting rule does WHEN IT GRANTS, not something that happens to spans nobody paid for');
+
+-- ---------------------------------------------------------------------------
+-- 27b. THE TWO CASES THE WITHDRAWAL PUT BACK ON THIS RULE'S DESK.
+--
+-- (i) TEN YEARS, CREATED AND THEN PAID FOR. With no creation rule, `today ..
+-- today + 3650` is an ordinary INSERT any front desk may write, and the
+-- granting rule is the ONLY thing between it and ten years of turnstile bought
+-- with one month's money. This is the single most important assertion in the
+-- section: it is the change's original measured harm, and after the withdrawal
+-- it has exactly one line of defence.
+--
+-- (ii) THE ONE-DAY PLAN, where a period is a day and a rule that hardcoded
+-- thirty — or read the plan of the wrong membership — is invisible everywhere
+-- else in this file.
+-- ---------------------------------------------------------------------------
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+    values ('220000ff-0022-4000-8000-60000000270a', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-50000000270a', '220000ff-0022-4000-8000-400000002701', 'active', (select today from gym_today where org_key='R20'), (select today from gym_today where org_key='R20') + 3650, 100000, 'INR')$q$),
+  'OK',
+  'r20/ten years: a front desk creates a TEN-YEAR membership on a thirty-day plan, in one statement, with no payment anywhere. Asserted as PERMITTED, which is now the contract: the rule that would have refused it was withdrawn, and asserting the residual out loud is the difference between a known cost and a surprise a year from now');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-60000000270a'),
+  '0/3650/3650/0/active',
+  'r20/ten years: there it sits — live at the turnstile today (ADR-084 admits on dates), `periods_granted = 0`, and unrepairable, because GL045 froze the dates against whoever tries to undo it as firmly as against whoever typed them');
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-70000000270a', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-50000000270a', '220000ff-0022-4000-8000-60000000270a', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/ten years: and one month''s money is taken against it');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-60000000270a'),
+  '0/30/30/1/active',
+  'r20/ten years: THE TEN YEARS COLLAPSE TO THIRTY DAYS. This is the whole of the change in one assertion: the grant does not add its period to what it found, it SETS. A span nobody bought survives only as long as nobody pays — and note what that means for the withdrawn requirement''s residual, which is now the entire residual: it is bounded by whether anyone ever pays, not by any number in the schema');
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+    values ('220000ff-0022-4000-8000-60000000270b', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-50000000270b', '220000ff-0022-4000-8000-400000002702', 'active', (select today from gym_today where org_key='R20'), (select today from gym_today where org_key='R20') + 1, 100000, 'INR')$q$),
+  'OK',
+  'r20/one-day plan: a day pass, sold on the one-day plan and typed with its one day');
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-70000000270b', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-50000000270b', '220000ff-0022-4000-8000-60000000270b', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/one-day plan: paid for');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-60000000270b'),
+  '0/1/1/1/active',
+  'r20/one-day plan: ONE day, not two. The bound is read from THE PLAN — a rule that hardcoded thirty, or read the membership''s own `duration_days` before `app.stamp_membership()` derived it, or read the gym''s only other plan, passes every 30-day assertion in this file and fails here. Today this row spans two days, which is a 100 per cent overrun that looks like nothing at all');
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-7000000027ab', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-50000000270b', '220000ff-0022-4000-8000-60000000270b', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/one-day plan: and the day pass is renewed for a second day');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-60000000270b'),
+  '0/2/2/2/active',
+  'r20/one-day plan: two days on two periods. The renewal branch reads the plan too, and on a one-day plan the whole rule fits inside the rounding of every other assertion here');
+
+-- ---------------------------------------------------------------------------
+-- 27c. THE INVARIANT, OVER EVERY PATH AT ONCE — AND WHERE IT LEGITIMATELY
+-- FAILS. The requirement names this comparison as the only thing that
+-- disagrees on a doubled row: "`ends_on - starts_on` against `duration_days *
+-- periods_granted`, and nothing in this system compares those two numbers".
+-- ADR-088 declined to enforce it as a trigger because five legitimate
+-- early-returns leave the two disagreeing — and every one of those is a row
+-- that has been granted NOTHING. So it is asserted here exactly where
+-- ADR-088's objection does not reach, and the exemption is asserted too,
+-- rather than left as a gap a future trigger could be built into.
+-- ---------------------------------------------------------------------------
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+select is(
+  (select coalesce(string_agg(right(id::text, 2) || ' span=' || coalesce((ends_on - starts_on)::text, 'null') || ' owed=' || (duration_days * periods_granted)::text, ', ' order by id), 'none')
+     from public.memberships
+    where tenant_id = '220000ff-0022-4000-8000-100000002701'::uuid
+      and periods_granted > 0
+      and (starts_on is null or ends_on is null or (ends_on - starts_on) <> duration_days * periods_granted)),
+  'none',
+  'r20/invariant: EVERY membership this section has granted a period to spans exactly `duration_days * periods_granted` days — nine paths, two plans, first grants and renewals, one assertion. A per-path assertion is satisfied by a rule that happens to be right on the paths somebody thought of; this one is satisfied only by a rule that is right, and it names the offending rows in its own failure message. Scoped to this section''s tenant per ADR-050');
+
+select is(
+  (select string_agg(right(id::text, 2) || '=' || (ends_on - starts_on)::text, ' ' order by id)
+     from public.memberships
+    where tenant_id = '220000ff-0022-4000-8000-100000002701'::uuid
+      and periods_granted = 0),
+  '08=30 09=30',
+  'r20/invariant exemption: and the rows that have been granted NOTHING still carry the span that was typed on them — the USD-paid one and the complimentary one, thirty days each, both breaking the invariant on purpose. This is ADR-088''s objection stated as an assertion rather than left implicit: the equation is a property of GRANTED periods, not of memberships, and anybody who later promotes it to a CHECK or a trigger will fail on exactly these two rows and on every part-paid row in the product');
+
+-- ---------------------------------------------------------------------------
+-- 27d. WHERE `starts_on` LANDS. This subsection was written to STAGE a gap:
+-- "set its span from the plan" fixes the LENGTH of a span and said nothing
+-- about its POSITION, and three readings fitted the sentence -
+--
+--   (A) both dates from today:  starts = today,      ends = today + d*n
+--   (B) keep starts_on:         starts = starts_on,  ends = starts_on + d*n
+--   (C) keep today's floor:     ends = greatest(ends_on, today) + d*n,
+--                               starts = ends - d*n
+--
+-- On all eleven rows above they agree, because `starts_on` was today. On the
+-- two below they differ by up to 100 days at a turnstile that admits on dates,
+-- and (C) - which the first implementation chose - gave a returning lapsed
+-- member a span longer than the money bought, which is this change's own defect
+-- reached from the other side.
+--
+-- THE CONTRACT NOW DECIDES IT: the first grant starts a membership at the LATER
+-- of its `starts_on` and today. A future start date was sold and is honoured; a
+-- past one is not, because a membership nobody paid for never started. That is
+-- (A) and (B) joined at exactly the seam where they disagreed, and it is
+-- neither of them alone. So the position is now ASSERTED here rather than
+-- reported - a pre-sold row keeps its future start, a lapsed row is pulled to
+-- today, and both span exactly what was paid for.
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                     'tenant_id', '220000ff-0022-4000-8000-100000002701',
+                     'app_role', 'front_desk',
+                     'staff_id', '220000ff-0022-4000-8000-300000002701')::text,
+  true
+);
+set local role authenticated;
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+    values ('220000ff-0022-4000-8000-60000000270c', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-50000000270c', '220000ff-0022-4000-8000-400000002701', 'active', (select today from gym_today where org_key='R20') + 10, (select today from gym_today where org_key='R20') + 40, 100000, 'INR')$q$),
+  'OK',
+  'r20/starts-on future: a membership sold today to START in ten days — an ordinary pre-sale, spanning exactly one period, refused by nothing');
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-70000000270c', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-50000000270c', '220000ff-0022-4000-8000-60000000270c', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/starts-on future: and paid for today');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-60000000270c'),
+  '10/40/30/1/active',
+  'r20/starts-on future: the membership STILL STARTS IN TEN DAYS, and now spans exactly one period from there. Both halves are the contract''s: "the later of its starts_on and today" is this sale''s own future date, so the member is not made live today for a membership that has not begun, and the span is what the money bought. This assertion was span-only while the position was undecided, and was tightened when the contract settled it - which is the whole point of having staged it rather than guessed');
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+    values ('220000ff-0022-4000-8000-60000000270d', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-50000000270d', '220000ff-0022-4000-8000-400000002701', 'active', (select today from gym_today where org_key='R20') - 90, (select today from gym_today where org_key='R20') - 60, 100000, 'INR')$q$),
+  'OK',
+  'r20/starts-on lapsed: a membership that ran out sixty days ago and was never paid for — the seed''s own lapsed-fixture shape, and 19a''s a11. This is the retention loop''s subject matter, so nothing may refuse it');
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    values ('220000ff-0022-4000-8000-70000000270d', '220000ff-0022-4000-8000-100000002701', '220000ff-0022-4000-8000-50000000270d', '220000ff-0022-4000-8000-60000000270d', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701')$q$),
+  'OK',
+  'r20/starts-on lapsed: the member comes back and pays. Whatever the rule does here, it must not refuse this — this is the transaction the whole product exists to produce');
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-60000000270d'),
+  '0/30/30/1/active',
+  'r20/starts-on lapsed: the returning member STARTS TODAY and spans exactly the thirty days they paid for. Before the change this row spanned a hundred and twenty, and nobody typed a defect to get there - `starts_on` was honest, `ends_on` was honest, and the first grant added a bought period on top of a span that had already been LIVED. "The later of its starts_on and today" is what makes the row right in both directions at once: reading (B) alone would have ended this membership sixty days in the PAST, and reading (C) - the first implementation - left it sixty-one days long for one month''s money');
+
+-- A second payment: a genuine renewal on a row that has now been granted a
+-- period. Recorded as a fixture rather than scored, so the one assertion that
+-- follows is about the arithmetic rather than about the insert.
+insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+  values ('220000ff-0022-4000-8000-7000000027ad'::uuid, '220000ff-0022-4000-8000-100000002701'::uuid, '220000ff-0022-4000-8000-50000000270d'::uuid, '220000ff-0022-4000-8000-60000000270d'::uuid, 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701'::uuid);
+
+select is(
+  pg_temp.h22r20_shape('220000ff-0022-4000-8000-60000000270d'),
+  '0/60/60/2/active',
+  'r20/starts-on lapsed: and the renewal EXTENDS from where the first grant left the row - sixty days on two periods. This outcome was staged rather than sided while the position was undecided, because it was the place that undecided sentence decided something else as well: had the first grant left `starts_on` ninety days back, this renewal would have landed on a 120-day span against two periods and broken the invariant 27c asserts - legitimately, and by the rule''s own hand. Settling the position settles that too, and 27c''s scoped population is exact now rather than lucky');
+
+select diag(
+  'r20/starts-on SETTLED, and recorded here because the assertions above no longer show that it ever was not. This subsection was written to STAGE the question, asserting only the span, because "set its span from the plan" fixed a length and never a position: reading (A) started every first grant at today, (B) kept `starts_on` wherever it was, (C) kept the old `greatest(ends_on, today)` floor and pulled `starts_on` back to suit. All three satisfied every scenario the requirement stages, because in all of them `starts_on` was already today. The first implementation shipped (C) and gave the lapsed member above a sixty-one-day span for one month''s money - this change''s own defect, one shape over. The contract now says the first grant starts a membership at the LATER of its `starts_on` and today, which is (A) and (B) joined at the seam where they disagreed and is neither alone; both rows above now assert the position as well as the span.');
+
+-- ---------------------------------------------------------------------------
+-- 27e. WHAT WAS REPORTED RATHER THAN GUESSED, AND WHAT BECAME OF IT. Two of
+-- the five were settled in the contract after this section staged them and are
+-- kept, renumbered SETTLED rather than deleted. The recorded duration is also
+-- explicit in the schema contract. The universal invariant remains outside
+-- this change; reconciliation of the earlier assertions is complete.
+-- ---------------------------------------------------------------------------
+
+select diag(
+  'r20 SETTLED 1/5 - WHERE `starts_on` LANDS ON THE FIRST GRANT. Raised by 27d as a staged measurement rather than an assertion, on the grounds that a blind author cannot assert it without inventing contract, and that it was the kind of thing most likely to be settled BY ACCIDENT - by whichever line the implementer happened to write. It was: the first implementation kept the old `greatest(ends_on, today)` floor and gave a returning lapsed member sixty-one days for one month''s money. The contract now carries the sentence - the first grant starts a membership at the LATER of its `starts_on` and today - and 27d asserts both halves of it. Kept in this list, renumbered rather than deleted, because the value was in staging it, and a reader who finds only the assertions will not see that.');
+
+select diag(
+  'r20 DOCUMENTED 2/5 — THE RECORDED DURATION. This was originally staged as an ambiguity between the plan and the membership. The schema contract in docs/data-model.md explicitly defines memberships.duration_days as the duration sold, copied from the plan at creation or an allowed plan change and retained independently of later edits to the plan row. Section 27 uses memberships.duration_days in its scoped invariant consistently with that existing contract; this membership-creation change does not redefine how the sold duration is recorded.');
+
+select diag(
+  'r20 SETTLED 3/5 - THE MULTI-PERIOD FIRST GRANT. This was asserted here on an inference: the requirement''s scenario says the span "SHALL become exactly one period", every scenario it stages grants exactly one, and 27a/5, 27a/6 and 27a/7 assert `duration_days * periods_granted` instead - on the strength of the requirement''s own prose naming that product as the invariant being restored, which is a paragraph of rationale rather than a scenario. Read literally the sentence would hand a member who paid for two months a single month, the doubling with its sign flipped. Now measured against the implementation and confirmed: one payment worth two periods gives a sixty-day span on a count of two. The inference is retired; 19a''s a04 (five periods at once, 150 days) and a05 (ten in one statement, 300) pin the same thing from the other suite-half.');
+
+select diag(
+  'r20 UNDECIDED 4/5 — IS THE INVARIANT TRUE ON EVERY PATH AFTER THIS CHANGE? Measured across everything this section builds: no, and two of the exceptions are legitimate. (a) Rows granted NOTHING keep whatever span was typed — 27c asserts exactly this for the USD-paid and the complimentary rows, and it is also true of every part-paid row, which is ADR-088''s original objection and is unchanged by this requirement. (b) A renewal arriving after a membership has LAPSED measures from today, not from a stale `ends_on`, so it legitimately produces a span longer than `duration * periods`. This one WAS contingent on the settled question and no longer is, in the direction that narrows it: because the first grant now pulls `starts_on` up to today, a membership cannot reach its second period still carrying a lived-through span, and no row this section builds hits case (b) at all. It remains reachable in production, where a membership lapses between two real payments weeks apart - which one transaction cannot stage. (c) Anything that moves a date without granting — the pause approvals and freeze cancellations 19d covers — breaks it too. So the honest statement of the invariant is: it holds for a membership whose periods were all granted while it was live or unstarted, and nowhere else. That is a narrower claim than the requirement''s prose implies, and it is why 27c asserts it over a scoped population rather than over the table.');
+
+select diag(
+  'r20 RECONCILED 5/5 — the original audit identified earlier assertions that treated an unpaid typed span as already bought. Their first-grant expectations are now reconciled across the cumulative-periods battery, multi-row seams, price-cut baseline, section 19a, the two-statement date guard, the refund pair and the service-role pair. Each changed assertion records its contract reason in place. The assertion count and the original protections are retained: cumulative money still determines the period count, refusals still leave rows unchanged, and refunds still preserve the dates and count already granted. Zero-span fixtures keep their existing outcomes.');
+
+
+-- ---------------------------------------------------------------------------
+-- 27f. COMBINED BOUNDARIES FROM THE SETTLED CONTRACT.
+--
+-- The individual rules above must also hold when combined. Three memberships
+-- receive identical money: a pre-sale with an excessive typed end, a partly
+-- elapsed typed period, and a pending row with neither date. One paisa short of
+-- the price must leave every date alone. The next payment takes the total to
+-- three periods plus one paisa: this is the FIRST grant despite being the
+-- second payment. A final payment uses that spare paisa to complete a renewal.
+-- No new helper or implementation assumption is needed.
+-- ---------------------------------------------------------------------------
+
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone)
+select ('220000ff-0022-4000-8000-5000000027e' || i::text)::uuid,
+       '220000ff-0022-4000-8000-100000002701'::uuid,
+       '220000ff-0022-4000-8000-200000002701'::uuid,
+       'H22 R20 First Grant Boundary ' || i::text,
+       '+919220271' || lpad(i::text, 3, '0')
+  from generate_series(1, 3) i;
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '220000ff-0022-4000-8000-100000002701',
+                    'app_role', 'front_desk',
+                    'staff_id', '220000ff-0022-4000-8000-300000002701')::text,
+  true
+);
+set local role authenticated;
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, currency)
+    select ('220000ff-0022-4000-8000-6000000027e' || f.i::text)::uuid,
+           '220000ff-0022-4000-8000-100000002701'::uuid,
+           ('220000ff-0022-4000-8000-5000000027e' || f.i::text)::uuid,
+           '220000ff-0022-4000-8000-400000002701'::uuid,
+           f.st::public.membership_status,
+           (select today from gym_today where org_key = 'R20') + f.s0,
+           (select today from gym_today where org_key = 'R20') + f.e0,
+           100000, 'INR'
+      from (values (1, 'active', 12, 3650),
+                   (2, 'active', -15, 15),
+                   (3, 'pending', null::int, null::int)) as f(i, st, s0, e0)$q$),
+  'OK',
+  'r20/boundaries: create future, partly elapsed and dateless memberships under the unchanged creation contract');
+
+select is(pg_temp.h22r20_shape('220000ff-0022-4000-8000-6000000027e1'),
+  '12/3650/3638/0/active',
+  'r20/boundaries future: the unpaid pre-sale retains its chosen start and excessive typed end');
+select is(pg_temp.h22r20_shape('220000ff-0022-4000-8000-6000000027e2'),
+  '-15/15/30/0/active',
+  'r20/boundaries elapsed: the unpaid membership began fifteen days ago and still has a future end');
+select is(pg_temp.h22r20_shape('220000ff-0022-4000-8000-6000000027e3'),
+  '-/-/-/0/pending',
+  'r20/boundaries dateless: the unpaid ordinary path has neither date and no granted period');
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    select ('220000ff-0022-4000-8000-7000000027e' || i::text)::uuid,
+           '220000ff-0022-4000-8000-100000002701'::uuid,
+           ('220000ff-0022-4000-8000-5000000027e' || i::text)::uuid,
+           ('220000ff-0022-4000-8000-6000000027e' || i::text)::uuid,
+           99999, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701'::uuid
+      from generate_series(1, 3) i$q$),
+  'OK',
+  'r20/boundaries partial: all three memberships take a payment one paisa short of one period');
+
+select is(pg_temp.h22r20_shape('220000ff-0022-4000-8000-6000000027e1'),
+  '12/3650/3638/0/active',
+  'r20/boundaries partial future: even an excessive typed end is unchanged before a full period is paid');
+select is(pg_temp.h22r20_shape('220000ff-0022-4000-8000-6000000027e2'),
+  '-15/15/30/0/active',
+  'r20/boundaries partial elapsed: a past start is not moved to today before a full period is paid');
+select is(pg_temp.h22r20_shape('220000ff-0022-4000-8000-6000000027e3'),
+  '-/-/-/0/pending',
+  'r20/boundaries partial dateless: a part payment neither dates nor activates the ordinary path');
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    select ('220000ff-0022-4000-8000-7000000027f' || i::text)::uuid,
+           '220000ff-0022-4000-8000-100000002701'::uuid,
+           ('220000ff-0022-4000-8000-5000000027e' || i::text)::uuid,
+           ('220000ff-0022-4000-8000-6000000027e' || i::text)::uuid,
+           200002, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701'::uuid
+      from generate_series(1, 3) i$q$),
+  'OK',
+  'r20/boundaries first grant: second payments bring each cumulative total to three periods plus one paisa');
+
+select is(pg_temp.h22r20_shape('220000ff-0022-4000-8000-6000000027e1'),
+  '12/102/90/3/active',
+  'r20/boundaries first future: set exactly three periods from the chosen future start; discard the old typed end');
+select is(pg_temp.h22r20_shape('220000ff-0022-4000-8000-6000000027e2'),
+  '0/90/90/3/active',
+  'r20/boundaries first elapsed: start today even though the old end is still in the future; set exactly three periods');
+select is(pg_temp.h22r20_shape('220000ff-0022-4000-8000-6000000027e3'),
+  '0/90/90/3/active',
+  'r20/boundaries first dateless: activate today for exactly three periods; the spare paisa buys no additional day');
+
+select is(
+  pg_temp.h22r17_state($q$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
+    select ('220000ff-0022-4000-8000-7000000027d' || i::text)::uuid,
+           '220000ff-0022-4000-8000-100000002701'::uuid,
+           ('220000ff-0022-4000-8000-5000000027e' || i::text)::uuid,
+           ('220000ff-0022-4000-8000-6000000027e' || i::text)::uuid,
+           99999, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000002701'::uuid
+      from generate_series(1, 3) i$q$),
+  'OK',
+  'r20/boundaries renewal: the next payments use the carried paisa to complete a fourth period');
+
+select is(pg_temp.h22r20_shape('220000ff-0022-4000-8000-6000000027e1'),
+  '12/132/120/4/active',
+  'r20/boundaries renewal future: extend by one period and retain the future start chosen at sale');
+select is(pg_temp.h22r20_shape('220000ff-0022-4000-8000-6000000027e2'),
+  '0/120/120/4/active',
+  'r20/boundaries renewal elapsed: extend from the first grant without restoring the discarded past start');
+select is(pg_temp.h22r20_shape('220000ff-0022-4000-8000-6000000027e3'),
+  '0/120/120/4/active',
+  'r20/boundaries renewal dateless: the ordinary path renews identically after its first grant');
+
 
 set local role postgres;
 select * from finish();
