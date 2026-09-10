@@ -204,6 +204,35 @@ describe('order detail and receipt truthfulness', () => {
 });
 
 describe('member add-on page and preview', () => {
+  it('ADD-011: switches own orders without carrying the prior order session cursor', async () => {
+    state.identity = { kind: 'member', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', tenantId: '11111111-1111-4111-8111-111111111111', memberId: MEMBER_ID };
+    state.rows.addon_orders = [
+      { id: ORDER_ID, tenant_id: '11111111-1111-4111-8111-111111111111', member_id: MEMBER_ID,
+        status: 'active', quantity: 1, total_paise: '10000', unit_price_paise: '10000', currency: 'INR',
+        sale_snapshot: { kind: 'diet_plan', name: 'First selected order', description: 'First sold disclosure', cancellationTerms: 'Terms', validityDays: 30 } },
+      { id: PRODUCT_ID, tenant_id: '11111111-1111-4111-8111-111111111111', member_id: MEMBER_ID,
+        status: 'active', quantity: 1, total_paise: '20000', unit_price_paise: '20000', currency: 'INR',
+        sale_snapshot: { kind: 'diet_plan', name: 'Second selected order', description: 'Second sold disclosure', cancellationTerms: 'Terms', validityDays: 30 } },
+    ];
+    const { default: Page } = await import('../member/add-ons/page');
+    const markup = html(await Page({ searchParams: Promise.resolve({
+      order: ORDER_ID,
+      sessionAfter: 'first-order-session-cursor',
+      offerAfter: 'offer-cursor',
+      listAfter: 'order-list-cursor',
+    }) }));
+    const secondOrderHref = [...markup.matchAll(/href="([^"]+)"/g)]
+      .map(([, href]) => href.replaceAll('&amp;', '&'))
+      .find((href) => new URL(href, 'https://gymloop.test').searchParams.get('order') === PRODUCT_ID);
+
+    expect(secondOrderHref).toBeDefined();
+    const secondOrderParams = new URL(secondOrderHref!, 'https://gymloop.test').searchParams;
+    expect(secondOrderParams.get('order')).toBe(PRODUCT_ID);
+    expect(secondOrderParams.has('sessionAfter')).toBe(false);
+    expect(secondOrderParams.get('offerAfter')).toBe('offer-cursor');
+    expect(secondOrderParams.get('listAfter')).toBe('order-list-cursor');
+  });
+
   it('shows a reservation section error and recovery when member PT usage counts cannot load', async () => {
     state.identity = { kind: 'member', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', tenantId: '11111111-1111-4111-8111-111111111111', memberId: MEMBER_ID };
     state.rows.addon_orders = [{ id: ORDER_ID, tenant_id: '11111111-1111-4111-8111-111111111111', member_id: MEMBER_ID,
