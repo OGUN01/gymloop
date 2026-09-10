@@ -82,11 +82,20 @@ function catalogueValues(data: CatalogueCommand): CatalogueValues {
   };
 }
 
-function catalogueWriteFailure(code: string): Response {
+function catalogueWriteFailure(code: string, details: string | null): Response {
+  if (code === '42501') {
+    return apiFail('forbidden', 'not_permitted', 'Your role may not change this catalogue.');
+  }
+  if (code === 'GL055' && details === 'catalogue_incomplete') {
+    return apiFail('conflict', 'catalogue_incomplete', 'Complete the required offer details before saving.');
+  }
+  if (code === '40001' || code === '40P01') {
+    return apiFail('conflict', 'retryable', 'That offer changed while it was being saved. Please retry.');
+  }
   return apiFail(
-    code === '42501' ? 'forbidden' : 'server_error',
-    code === '42501' ? 'not_permitted' : 'operation_failed',
-    code === '42501' ? 'Your role may not change this catalogue.' : 'That offer could not be saved.',
+    'server_error',
+    'operation_failed',
+    'That offer could not be saved.',
   );
 }
 
@@ -103,11 +112,14 @@ export async function POST(request: Request): Promise<Response> {
   // PostgREST accepts bigint as decimal JSON text. The generated database type
   // says `number`, which cannot carry every legal paise amount exactly.
   const { data, error } = await requested.caller.supabase.from('addon_products')
-    .insert(offer as unknown as AddonProductInsert).select().maybeSingle();
+    .insert(offer as unknown as AddonProductInsert)
+    .select('id,name,kind,description,price_paise::text,currency,validity_days,cancellation_terms,session_count,stock_quantity,is_active,trainer_staff_id,trainer_qualification,quote_version')
+    .maybeSingle();
 
-  if (error) return catalogueWriteFailure(error.code);
+  if (error) return catalogueWriteFailure(error.code, error.details);
   if (!data) return apiFail('server_error', 'operation_failed', 'That offer could not be saved.');
-  return apiOk(data);
+  const { price_paise: pricePaise, ...catalogue } = data;
+  return apiOk({ ...catalogue, pricePaise });
 }
 
 /** PATCH /api/add-ons — edit a caller-visible offer; the database protects referenced kind changes. */
@@ -118,9 +130,12 @@ export async function PATCH(request: Request): Promise<Response> {
   const offer = catalogueValues(requested.data);
   const { data, error } = await requested.caller.supabase.from('addon_products')
     .update(offer as unknown as AddonProductUpdate)
-    .eq('id', requested.data.productId).select().maybeSingle();
+    .eq('id', requested.data.productId)
+    .select('id,name,kind,description,price_paise::text,currency,validity_days,cancellation_terms,session_count,stock_quantity,is_active,trainer_staff_id,trainer_qualification,quote_version')
+    .maybeSingle();
 
-  if (error) return catalogueWriteFailure(error.code);
+  if (error) return catalogueWriteFailure(error.code, error.details);
   if (!data) return apiFail('not_found', 'not_found', 'That add-on offer is unavailable.');
-  return apiOk(data);
+  const { price_paise: pricePaise, ...catalogue } = data;
+  return apiOk({ ...catalogue, pricePaise });
 }

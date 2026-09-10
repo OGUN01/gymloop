@@ -79,7 +79,7 @@ export function AddonOrderFacts({ order, timezone, showPayment = true }: {
       <p>{snapshot.description || 'Historical description unavailable'}</p>
       <p className="text-sm">Cancellation terms: {snapshot.cancellationTerms || 'Historical terms unavailable'}</p>
       {snapshot.trainerQualification ? <p className="text-sm">Gym-stated qualification at sale: {snapshot.trainerQualification}</p> : null}
-      {snapshot.kind === 'pt_package' ? <p className="text-sm">Trainer: {order.trainer?.full_name ?? (order.trainer_staff_id ? `Assigned by the gym · ${order.trainer_staff_id}` : 'Not recorded')}</p> : null}
+      {snapshot.kind === 'pt_package' ? <p className="text-sm">Trainer: {order.trainer?.full_name ?? (order.trainer_staff_id ? 'Assigned by the gym' : 'Not recorded')}</p> : null}
     </> : <p>Historical terms unavailable{order.addon_products?.name ? ' · the name shown is the current catalogue label.' : ''}</p>}
     <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
       <div><dt className="text-neutral-600">Fulfilment</dt><dd className="font-medium">{order.status}</dd></div>
