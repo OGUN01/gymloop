@@ -28,6 +28,6 @@ while the shared database workflow is idle.
 - [x] Identity, API, hook, preview boundary and working role homes implemented.
 - [x] Targeted and full regression gates pass.
 - [x] Fresh independent critic GO.
-- [ ] CI migration, generated type verification and all workflows pass.
-- [ ] Real role navigation and end-preview browser proof, exact cleanup.
-- [ ] Current specifications, registry and evidence synchronized; archive.
+- [x] CI migration, generated type verification and all workflows pass.
+- [x] Real role navigation and end-preview browser proof, exact cleanup.
+- [x] Current specifications, registry and evidence synchronized; archive.

@@ -22,7 +22,7 @@ THE SYSTEM SHALL define the access-token hook in the `app` schema, not in `publi
 - **THEN** it SHALL hold it
 
 ### Requirement: A failing hook degrades to a claimless token, never to an outage
-A Postgres auth hook fails closed: an exception issues no token at all, for every user of the project at once. THE SYSTEM SHALL therefore contain the hook's resolution logic in an exception handler that returns the event unmodified, so that any unanticipated failure yields a token carrying no Gymloop claims — a session that reads zero rows — rather than a sign-in outage.
+A Postgres auth hook fails closed: an exception issues no token at all, for every user of the project at once. THE SYSTEM SHALL therefore remove every Gymloop claim from the copied claims object before resolution and contain the remaining logic in an exception handler that returns that cleaned event, so any unanticipated failure yields a token carrying no Gymloop claims — a session that reads zero rows — rather than a sign-in outage. Reserved Auth claims SHALL remain unchanged.
 
 #### Scenario: An event that is not the documented shape
 - **WHEN** the hook is called with a jsonb value that carries no `user_id` key

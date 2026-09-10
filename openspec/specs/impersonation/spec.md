@@ -114,7 +114,7 @@ THE SYSTEM SHALL store an impersonation session's start time as no later than th
 
 #### Scenario: Retargeting a session while ending it
 - **WHEN** a caller carrying the impersonation claims for session X ends session X and in the same statement changes its tenant to another gym
-- **THEN** the stored tenant SHALL be unchanged, and the end audit row SHALL name the gym that was actually impersonated
+- **THEN** the write SHALL be refused with `insufficient_privilege` (`42501`), the stored session SHALL remain unchanged, and no end audit row SHALL be written
 
 #### Scenario: Rewriting the reason while ending
 - **WHEN** that same caller ends the session and in the same statement changes its stated reason

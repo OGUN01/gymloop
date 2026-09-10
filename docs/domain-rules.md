@@ -61,6 +61,20 @@ Canonical status vocabularies referenced below are defined in `docs/data-model.m
 - **ADD-003** WHEN a member attempts to purchase a PT add-on THE SYSTEM SHALL check trainer availability before accepting payment, not after.
 - **ADD-004** IF fulfilling an add-on order would take product stock or a trainer's session count below zero THEN THE SYSTEM SHALL reject the order.
 
+## Identity navigation (NAV)
+
+NAV-001–005 and NAV-007 are current. NAV-006 and NAV-008 are fixed Phase 6
+requirements deferred to the platform slice, before commercial controls appear.
+
+- **NAV-001** WHEN a verified session has one complete Gymloop identity shape THE SYSTEM SHALL route it to its role's working home; missing or contradictory claims SHALL route to not-linked and authorize no mutation, while a missing verified session SHALL reach sign-in.
+- **NAV-002** THE SYSTEM SHALL use one pure identity classifier and one home selector across sign-in, root, not-linked, audience layouts and API session helpers: staff `/console`, members `/member/add-ons`, platform users `/platform`, and previews `/console`.
+- **NAV-003** WHILE a super admin previews a gym THE SYSTEM SHALL show a persistent red banner naming the gym and expiry, permit only ending that caller's exact preview session among product mutations, and SHALL infer no staff or member identity.
+- **NAV-004** WHEN a preview ends THE SYSTEM SHALL update only the verified claim session, refresh Auth and return to platform; IF refresh fails THEN it SHALL clear the local session and return to sign-in.
+- **NAV-005** THE SYSTEM SHALL expose a real member catalogue and own-order read surface plus a real platform fleet read surface, with truthful empty/error states; platform support SHALL receive no mutation controls.
+- **NAV-006** WHEN a gym is pending approval, suspended, closed or has an expired or malformed trial THE SYSTEM SHALL issue no fresh gym-side identity; an explicitly requested super-admin preview remains permitted, and suspension/closure SHALL revoke linked staff/member refresh sessions.
+- **NAV-007** WHEN the access-token hook resolves or fails to resolve an identity THE SYSTEM SHALL first remove stale Gymloop claim keys, preserve reserved Auth facts, and retain the established identity precedence and deterministic tenant choice.
+- **NAV-008** THE SYSTEM SHALL allow only a non-preview super admin to change organization status, tier, trial or activation fields, so a suspended gym cannot reactivate itself during the residual token window.
+
 ## Data integrity (INT)
 
 - **INT-001** THE SYSTEM SHALL NOT hard-delete financial records, attendance corrections, or follow-up history under any user-facing action.

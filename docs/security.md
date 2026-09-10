@@ -12,7 +12,7 @@ Single Postgres database, Row-Level Security on every table. `tenant_id` (the or
 
 **It does read prices, and saying otherwise would be false.** The matrix is *table-granular*, so a role that needs any column of a table gets all of them: `memberships` carries `price_paise`, `addon_orders` carries `total_paise`, `plans` carries `price_paise`, and `organization_settings` carries `gstin` — all four are `is_staff()` reads, and `is_staff()` includes `trainer`. That is the honest answer to "what intra-tenant read remains that a role should not have", and narrowing it needs column privileges or per-audience views. Recorded as **OPEN-015**, to be decided when a screen needs it. *An earlier version of this paragraph claimed a trainer reads no money; a blind critic checked it against the live columns rather than against the sentence, twice — the second time because the correction had reached `design.md` and not this file, which is the one `AGENTS.md` routes readers to.*
 
-**Claims come from a Postgres access-token hook** in the `app` schema, `security definer`, executable only by `supabase_auth_admin`. It resolves a signed-in user against `platform_users`, then `staff`, then `members`, stopping at the first table the user appears in, and stamps `tenant_id`, `app_role`, and one of `member_id` / `staff_id`. **A hook that raises issues no token to anyone**, so its body sits inside an exception handler that returns the event unchanged: a failure degrades to a session that reads nothing, never to a sign-in outage (ADR-054).
+**Claims come from a Postgres access-token hook** in the `app` schema, `security definer`, executable only by `supabase_auth_admin`. It resolves a signed-in user against `platform_users`, then `staff`, then `members`, stopping at the first table the user appears in, and stamps `tenant_id`, `app_role`, and one of `member_id` / `staff_id`. Before resolution and on every fallback, the hook removes all five Gymloop claim keys from the incoming claims so a changed, inactive, unlinked or failed identity cannot retain stale authority (NAV-007). **A hook that raises issues no token to anyone**, so its body sits inside an exception handler that returns the cleaned event: a failure degrades to a session that reads nothing, never to a sign-in outage (ADR-054).
 
 ### Revoking access, and the window that remains
 
@@ -41,7 +41,15 @@ The reason, the hard expiry and the audit rows were specified in Phase 1's schem
 - **The database writes both audit rows**, on insert and on the update that sets `ended_at`. A caller who must remember would eventually forget, and `audit_log` is not writable by a signed-in session in any case.
 - **An expired session that nobody ends leaves a start row with no end row.** Nothing sweeps the table. Read `expires_at` on the session rather than assuming an end row exists.
 
-The red banner and the mandatory reason prompt are UI obligations that Phase 7 owes; Phase 2 supplies the `impersonation_session_id` claim they read.
+Phase 6 renders the persistent red preview banner and its target/expiry, exposes
+the exact own-session end action, and treats preview as read-only at three layers:
+mutation controls are absent or disabled in the screen, API staff helpers reject
+the incomplete real-staff shape, and a metadata-covered private invoker trigger
+refuses direct authenticated writes on every public table granted authenticated
+DML. The only product mutation admitted is setting `ended_at` on the exact session
+named by the caller's `impersonation_session_id`. If the post-end Auth refresh
+fails, the response expires every Supabase auth-token base/chunk cookie before
+returning to sign-in, so stale preview claims do not remain locally active.
 
 
 ## Payment integrity

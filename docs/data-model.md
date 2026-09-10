@@ -556,6 +556,11 @@ Column notation: `name type` then constraints; `→ table` is a foreign key; `�
 - Indexes: `actor_user_id`; `(tenant_id, started_at desc)`.
 - RLS: platform-access policy for everything; the tenant policy is **select only** (the gym can see who impersonated it and when).
 - Privileges: no `delete` for `authenticated` (INT-003 history).
+- Preview write boundary: `app.enforce_preview_read_only()` is attached as a
+  `BEFORE` trigger to every public table that grants authenticated DML. It is a
+  security-invoker guard and raises `42501` whenever the JWT carries an
+  `impersonation_session_id`, except for the exact update that ends that same
+  session. Metadata tests require complete trigger coverage as grants change.
 
 **`audit_log`** — INT-003. Append-only; rows with a null tenant are platform-level (role changes among platform users) and visible only to platform roles. Tenant path: direct, nullable.
 - `id uuid` pk · `tenant_id uuid ∅` → organizations · `actor_user_id uuid ∅` · `actor_role app_role ∅` · `impersonation_session_id uuid ∅` → impersonation_sessions · `action text` check ≠ '' (`<record_type>.<verb>`) · `record_type text` check ≠ '' · `record_id uuid ∅` · `before jsonb ∅` · `after jsonb ∅` · `reason text ∅` · `occurred_at timestamptz =now()`
