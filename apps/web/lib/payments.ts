@@ -27,7 +27,27 @@ import { createServerSupabase } from './supabase/server';
  * each table, so neither needs a disambiguating hint.
  */
 const PAYMENT_COLUMNS =
-  'id, member_id, membership_id, amount_paise, currency, status, method, receipt_number, notes, paid_at, created_at, members!inner(full_name, phone), staff(full_name)';
+  'id, member_id, membership_id, amount_paise::text, currency, status, method, receipt_number, notes, paid_at, created_at, members!inner(full_name, phone), staff(full_name)';
+
+/**
+ * The receipt boundary reads `bigint` through PostgREST as text.  Supabase's
+ * generated row type still describes the physical column as a JavaScript
+ * number, so test doubles and older clients can present a safe number here.
+ * Rejecting every other value is deliberate: an unsafe JSON number has already
+ * lost a digit and cannot truthfully become a money amount again.
+ */
+function canonicalPaise(value: unknown): string {
+  if (typeof value === 'string' && /^(?:0|[1-9][0-9]*)$/.test(value)) return value;
+  if (typeof value === 'number') {
+    try {
+      const exact = BigInt(value);
+      if (exact >= BigInt('0') && exact <= BigInt('9007199254740991')) return exact.toString();
+    } catch {
+      // A fractional or non-finite legacy test-double value has no exact paise representation.
+    }
+  }
+  throw new TypeError('Payment amounts must be non-negative canonical integer strings.');
+}
 
 /**
  * The gym's payments, newest first.
@@ -38,8 +58,9 @@ const PAYMENT_COLUMNS =
  * predicate would return the right rows even with that policy broken, hiding
  * the defect the pgTAP suite exists to catch.
  *
- * Amounts stay integer paise all the way out of here. The division by 100
- * happens once, in the screen, via `rupeesFromPaise` (MNY-001).
+ * Amounts cross this boundary as decimal strings. The division by 100 happens
+ * once, in the screen, via `rupeesFromPaise` (MNY-001); no money value passes
+ * through a JavaScript Number on its way there.
  */
 export async function loadPayments(
   searchParams: Promise<{ cursor?: string; limit?: string }>,
@@ -90,7 +111,10 @@ export async function loadPayments(
     .limit(pageSize + 1);
 
   const rows = data ?? [];
-  const payments = rows.slice(0, pageSize);
+  const payments = rows.slice(0, pageSize).map((row) => ({
+    ...row,
+    amount_paise: canonicalPaise(row.amount_paise),
+  }));
   const last = rows.length > pageSize ? payments[payments.length - 1] : undefined;
 
   return {
@@ -116,7 +140,15 @@ export async function loadPayments(
  */
 export async function loadReceipt(paymentId: string) {
   if (!UUID_PATTERN.test(paymentId)) {
-    return { payment: null, gym: null, refunds: [], refundablePaise: 0, errorMessage: null };
+    return {
+      payment: null,
+      gym: null,
+      refunds: [],
+      completedReturnedPaise: '0',
+      pendingRefundPaise: '0',
+      refundablePaise: '0',
+      errorMessage: null,
+    };
   }
 
   const supabase = await createServerSupabase();
@@ -130,28 +162,45 @@ export async function loadReceipt(paymentId: string) {
     // as everything else here.
     supabase
       .from('refunds')
-      .select('id, amount_paise, currency, kind, reason, status, created_at, staff(full_name)')
+      .select('id, amount_paise::text, currency, kind, reason, status, created_at, staff(full_name)')
       .eq('payment_id', paymentId)
       .order('created_at'),
   ]);
 
-  const recorded = refunds.data ?? [];
+  const paymentRow = payment.data === null
+    ? null
+    : { ...payment.data, amount_paise: canonicalPaise(payment.data.amount_paise) };
+  const recorded = (refunds.data ?? []).map((row) => ({
+    ...row,
+    amount_paise: canonicalPaise(row.amount_paise),
+  }));
+  const paymentAmount = BigInt(paymentRow?.amount_paise ?? '0');
+  const completedReturned = recorded.reduce(
+    (total, row) =>
+      row.status === 'completed' && row.currency === paymentRow?.currency
+        ? total + BigInt(row.amount_paise)
+        : total,
+    BigInt('0'),
+  );
+  const pendingReserved = recorded.reduce(
+    (total, row) =>
+      (row.status === 'requested' || row.status === 'processing') && row.currency === paymentRow?.currency
+        ? total + BigInt(row.amount_paise)
+        : total,
+    BigInt('0'),
+  );
 
   return {
-    payment: payment.data,
+    payment: paymentRow,
     gym: gym.data,
     refunds: recorded,
-    // What is left to refund, computed from paise and never from a float. A
-    // `failed` refund took nothing, so it does not count — the same exclusion
-    // `app.enforce_refund_total()` makes, and the screen must agree with the
-    // rule or it will offer a control the database refuses.
-    refundablePaise:
-      payment.data === null
-        ? 0
-        : payment.data.amount_paise -
-          recorded
-            .filter((row) => row.status !== 'failed')
-            .reduce((total, row) => total + row.amount_paise, 0),
+    // Keep staff-facing receipt state honest: only `completed` represents
+    // money already returned; requested and processing rows reserve the amount
+    // that the database's ceiling has promised to them. Failed rows do neither.
+    // BigInt keeps all three amounts exact beyond Number.MAX_SAFE_INTEGER.
+    completedReturnedPaise: completedReturned.toString(),
+    pendingRefundPaise: pendingReserved.toString(),
+    refundablePaise: (paymentAmount - completedReturned - pendingReserved).toString(),
     errorMessage: payment.error?.message ?? gym.error?.message ?? refunds.error?.message ?? null,
   };
 }
