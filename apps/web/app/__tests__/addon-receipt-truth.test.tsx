@@ -25,6 +25,7 @@ vi.mock('../../lib/supabase/server', () => ({ createServerSupabase: async () => 
       eq: (key: string, value: unknown) => { rows = rows.filter((row) => row[key] === value); return query; },
       in: (key: string, values: unknown[]) => { rows = rows.filter((row) => values.includes(row[key])); return query; },
       order: () => query, limit: () => query,
+      range: (from: number, to: number) => { rows = rows.slice(from, to + 1); return query; },
       single: async () => ({ data: rows[0] ?? null, error: null }),
       maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
       then: (resolve: (value: { data: typeof rows; error: null }) => unknown) =>
