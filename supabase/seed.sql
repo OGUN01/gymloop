@@ -737,7 +737,7 @@ alter table public.memberships enable trigger memberships_terms_frozen;
 -- above says it exists to prevent.
 drop table if exists seed_membership_period;
 create temp table seed_membership_period as
-  select id, ends_on
+  select id, starts_on, ends_on
     from public.memberships
    where tenant_id = '00000001-0000-4000-8000-000000000001'::uuid;
 
@@ -871,11 +871,15 @@ alter table public.memberships disable trigger memberships_terms_frozen;
 --     touches nothing once the dates already agree.
 -- ---------------------------------------------------------------------------
 
+-- First paid grants set both dates. Restore both historical endpoints after
+-- constructing the seed's paid period, including its discounted annual row.
 update public.memberships m
-   set ends_on = p.ends_on
+   set starts_on = p.starts_on,
+       ends_on = p.ends_on
   from seed_membership_period p
  where m.id = p.id
-   and m.ends_on is distinct from p.ends_on;
+   and (m.starts_on is distinct from p.starts_on
+        or m.ends_on is distinct from p.ends_on);
 
 alter table public.memberships enable trigger memberships_terms_frozen;
 

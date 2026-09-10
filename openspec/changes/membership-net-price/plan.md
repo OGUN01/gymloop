@@ -18,10 +18,10 @@ Phase 6 metrics/reminders consume the same definition.
 
 ## Verification
 
-- [ ] Commit fixed contract and authority before independent test authors.
-- [ ] Visible and holdout tests independently written and committed red.
-- [ ] Implement without changing tests; verify both suites and seed replay.
-- [ ] Fresh critic GO and required local gates.
+- [x] Commit fixed contract and authority before independent test authors.
+- [x] Visible and holdout tests independently written and committed red.
+- [x] Implement without changing tests; verify both suites and seed replay.
+- [x] Fresh critic GO and required local gates.
 - [ ] Push on main; CI applies migration, all CI gates pass.
 - [ ] Browser verifies discounted period price; reconcile historical row and verify seed consistency.
 - [ ] Sync current specs, registry and evidence; archive.

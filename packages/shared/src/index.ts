@@ -2,6 +2,7 @@ export * from './api/check-in';
 export * from './api/follow-ups';
 export * from './api/forms';
 export * from './api/memberships';
+export * from './api/membership-price';
 export * from './api/payments';
 export * from './api/refunds';
 export * from './config/constants';

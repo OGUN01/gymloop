@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { DEFAULT_TIMEZONE, PAISE_PER_RUPEE, rupeesFromPaise } from '@gymloop/shared';
+import { DEFAULT_TIMEZONE, PAISE_PER_RUPEE, membershipNetPrice, rupeesFromPaise } from '@gymloop/shared';
 import { createServerSupabase } from '../../../../lib/supabase/server';
 
 /**
@@ -97,7 +97,7 @@ function isLive(row: { status: string; starts_on: string | null; ends_on: string
 const DESK_METHODS = ['cash', 'upi', 'card', 'bank_transfer'] as const;
 
 const MEMBERSHIP_COLUMNS =
-  'id, status, starts_on, ends_on, price_paise, currency, duration_days, plans(name), membership_pauses(id, starts_on, ends_on, reason, approved_at, rejected_at)';
+  'id, status, starts_on, ends_on, price_paise, discount_paise, currency, duration_days, plans(name), membership_pauses(id, starts_on, ends_on, reason, approved_at, rejected_at)';
 
 export default async function MemberMembershipsPage({
   params,
@@ -172,6 +172,9 @@ export default async function MemberMembershipsPage({
    * weeks ago starts from today rather than handing back the lapsed weeks.
    */
   const renewable = live ?? lapsed;
+  const renewablePrice = renewable === undefined
+    ? undefined
+    : membershipNetPrice(renewable.price_paise, renewable.discount_paise);
   // Minted here, on the server, once per render of this page: the form carries
   // it, so every submission of THIS form is the same payment however many
   // times it is sent, and a fresh page is a fresh payment.
@@ -202,7 +205,7 @@ export default async function MemberMembershipsPage({
             <p className="mt-2 text-sm">
               <span className="font-medium">{lapsed.plans.name}</span> —{' '}
               <strong>lapsed</strong>, ran {lapsed.starts_on} to {lapsed.ends_on},{' '}
-              {money(lapsed.price_paise, lapsed.currency)}.{' '}
+              {money(membershipNetPrice(lapsed.price_paise, lapsed.discount_paise), lapsed.currency)} per period.{' '}
               <span className="text-neutral-600">
                 This member is refused at the gate until it is renewed — take the payment below and
                 it runs again from today.
@@ -212,7 +215,7 @@ export default async function MemberMembershipsPage({
         ) : (
           <p className="mt-2 text-sm">
             <span className="font-medium">{live.plans.name}</span> — {live.status}, {live.starts_on}{' '}
-            to {live.ends_on}, {money(live.price_paise, live.currency)}
+            to {live.ends_on}, {money(membershipNetPrice(live.price_paise, live.discount_paise), live.currency)} per period
           </p>
         )}
 
@@ -281,7 +284,7 @@ export default async function MemberMembershipsPage({
                  typed, not nudged. Two decimal places at most, refused rather
                  than rounded. */
               pattern="\d{1,9}(\.\d{1,2})?"
-              defaultValue={renewable === undefined ? undefined : rupeesFromPaise(renewable.price_paise)}
+              defaultValue={renewablePrice === undefined ? undefined : rupeesFromPaise(renewablePrice)}
               className="mt-1 w-32 rounded-md border border-neutral-300 px-3 py-2 text-base tabular-nums"
             />
           </label>
@@ -320,11 +323,13 @@ export default async function MemberMembershipsPage({
               price that the money against it has reached (ADR-087). */}
           {renewable === undefined ? (
             'This member has no membership to renew, so this records money taken for something else and extends nothing.'
+          ) : renewablePrice === 0 ? (
+            'This membership is complimentary. No membership fee is due; recording a payment does not grant extra periods.'
           ) : (
             <>
               The first fully paid period starts from today or a future agreed start date.
               Later paid periods extend the membership from its expiry or today, whichever is later.{' '}
-              A full {money(renewable.price_paise, renewable.currency)} buys one period of{' '}
+              A full {money(renewablePrice ?? 0, renewable.currency)} buys one period of{' '}
               {renewable.duration_days} days; part of it is recorded and receipted and buys none
               until the balance is paid.
             </>
