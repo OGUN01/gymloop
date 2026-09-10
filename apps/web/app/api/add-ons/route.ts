@@ -8,6 +8,10 @@ import {
 import { apiFail, apiOk, staffSession } from '../../../lib/api';
 
 const CATALOGUE_ROLES = ['gym_owner', 'gym_manager'] as const;
+type AddonProductInsert = Database['public']['Tables']['addon_products']['Insert'];
+type AddonProductUpdate = Database['public']['Tables']['addon_products']['Update'];
+type ExactInsert = Omit<AddonProductInsert, 'price_paise'> & { price_paise: string };
+type ExactUpdate = Omit<AddonProductUpdate, 'price_paise'> & { price_paise: string };
 
 async function jsonBody(request: Request): Promise<{ payload: unknown } | { failure: Response }> {
   try {
@@ -36,7 +40,7 @@ export async function POST(request: Request): Promise<Response> {
   const parsed = addonCatalogueCreateSchema.safeParse(body.payload);
   if (!parsed.success || !knownKind(parsed.data.kind)) return invalidCatalogue();
 
-  const { data, error } = await caller.session.supabase.from('addon_products').insert({
+  const offer = {
     tenant_id: caller.session.tenantId,
     kind: parsed.data.kind,
     name: parsed.data.name,
@@ -50,7 +54,11 @@ export async function POST(request: Request): Promise<Response> {
     trainer_qualification: parsed.data.trainerQualification,
     session_count: parsed.data.sessionCount,
     stock_quantity: parsed.data.stockQuantity,
-  }).select().maybeSingle();
+  } satisfies ExactInsert;
+  // PostgREST accepts bigint as decimal JSON text. The generated database type
+  // says `number`, which cannot carry every legal paise amount exactly.
+  const { data, error } = await caller.session.supabase.from('addon_products')
+    .insert(offer as unknown as AddonProductInsert).select().maybeSingle();
 
   if (error) {
     return apiFail(
@@ -73,7 +81,7 @@ export async function PATCH(request: Request): Promise<Response> {
   const parsed = addonCatalogueUpdateSchema.safeParse(body.payload);
   if (!parsed.success || !knownKind(parsed.data.kind)) return invalidCatalogue();
 
-  const { data, error } = await caller.session.supabase.from('addon_products').update({
+  const offer = {
     kind: parsed.data.kind,
     name: parsed.data.name,
     description: parsed.data.description,
@@ -85,7 +93,10 @@ export async function PATCH(request: Request): Promise<Response> {
     trainer_qualification: parsed.data.trainerQualification,
     session_count: parsed.data.sessionCount,
     stock_quantity: parsed.data.stockQuantity,
-  }).eq('id', parsed.data.productId).select().maybeSingle();
+  } satisfies ExactUpdate;
+  const { data, error } = await caller.session.supabase.from('addon_products')
+    .update(offer as unknown as AddonProductUpdate)
+    .eq('id', parsed.data.productId).select().maybeSingle();
 
   if (error) {
     return apiFail(

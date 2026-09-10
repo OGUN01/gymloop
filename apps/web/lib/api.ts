@@ -83,7 +83,9 @@ export async function staffSession(allowedRoles?: readonly StaffRole[]): Promise
   const { supabase, identity } = await readIdentity();
   if (identity.kind !== 'staff') {
     return {
-      failure: apiFail('unauthorized', 'not_signed_in', 'Sign in as staff of a gym first.'),
+      failure: identity.kind === 'unlinked'
+        ? apiFail('unauthorized', 'not_signed_in', 'Sign in as staff of a gym first.')
+        : apiFail('forbidden', 'not_permitted', 'This account cannot perform staff actions.'),
     };
   }
 

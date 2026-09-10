@@ -36,7 +36,7 @@ export async function POST(request: Request, { params }: Context): Promise<Respo
       ? error.details
       : 'operation_failed';
     return apiFail(
-      code === 'operation_failed' && !error.code.startsWith('GL') ? 'server_error' : 'conflict',
+      code === 'operation_failed' ? 'server_error' : 'conflict',
       code,
       'That order could not be completed.',
     );
