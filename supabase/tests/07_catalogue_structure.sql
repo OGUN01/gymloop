@@ -80,46 +80,52 @@ values ('0a000000-0000-4000-8000-000000000001'::uuid, 'Catalogue Gym A', 'CATP01
 insert into public.organizations (id, name, gym_code)
 values ('0b000000-0000-4000-8000-000000000001'::uuid, 'Catalogue Gym B', 'CATP02');
 
-insert into public.addon_products (id, tenant_id, kind, name, price_paise, stock_quantity)
+insert into public.staff (id, tenant_id, role, full_name)
+values ('0a000000-0000-4000-8000-000000000003'::uuid,
+        '0a000000-0000-4000-8000-000000000001'::uuid, 'trainer', 'Catalogue Trainer');
+
+-- Complete active disclosures isolate each original structural assertion from
+-- the additional Phase 6 acceptance requirements.
+insert into public.addon_products (id, tenant_id, kind, name, price_paise, stock_quantity, description, validity_days, cancellation_terms)
 values ('0a000000-0000-4000-8000-000000000006'::uuid,
         '0a000000-0000-4000-8000-000000000001'::uuid,
-        'product', 'Whey 1kg', 250000, 10);
+        'product', 'Whey 1kg', 250000, 10, 'Whey disclosure', 30, 'Unopened returns only');
 
 -- ---------------------------------------------------------------------------
 -- ADD-002 structural: a PT package needs a session count, a product needs stock
 -- ---------------------------------------------------------------------------
 
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise)
-     values ('0a000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'PT 10 unmetered', 500000) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, description, validity_days, cancellation_terms, trainer_staff_id, trainer_qualification)
+     values ('0a000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'PT 10 unmetered', 500000, 'PT disclosure', 30, 'Cancel before delivery', '0a000000-0000-4000-8000-000000000003', 'Gym-stated qualification') $$,
   '23514'::char(5),
   null,
   'ADD-002: a pt_package with no session_count is rejected'
 );
 
 select lives_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, session_count)
-     values ('0a000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'PT 10', 500000, 10) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, session_count, description, validity_days, cancellation_terms, trainer_staff_id, trainer_qualification)
+     values ('0a000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'PT 10', 500000, 10, 'PT disclosure', 30, 'Cancel before delivery', '0a000000-0000-4000-8000-000000000003', 'Gym-stated qualification') $$,
   'ADD-002: a pt_package with a session_count is accepted'
 );
 
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise)
-     values ('0a000000-0000-4000-8000-000000000001'::uuid, 'product', 'Shaker unstocked', 30000) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, description, validity_days, cancellation_terms)
+     values ('0a000000-0000-4000-8000-000000000001'::uuid, 'product', 'Shaker unstocked', 30000, 'Shaker disclosure', 30, 'Unopened returns only') $$,
   '23514'::char(5),
   null,
   'ADD-002: a product with no stock_quantity is rejected'
 );
 
 select lives_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity)
-     values ('0a000000-0000-4000-8000-000000000001'::uuid, 'product', 'Shaker', 30000, 25) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity, description, validity_days, cancellation_terms)
+     values ('0a000000-0000-4000-8000-000000000001'::uuid, 'product', 'Shaker', 30000, 25, 'Shaker disclosure', 30, 'Unopened returns only') $$,
   'ADD-002: a product with a stock_quantity is accepted'
 );
 
 select lives_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise)
-     values ('0a000000-0000-4000-8000-000000000001'::uuid, 'diet_plan', 'Cut 8 weeks', 200000) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, description, validity_days, cancellation_terms)
+     values ('0a000000-0000-4000-8000-000000000001'::uuid, 'diet_plan', 'Cut 8 weeks', 200000, 'Diet disclosure', 56, 'Cancel before delivery') $$,
   'ADD-002: a diet_plan needs neither a session_count nor a stock_quantity'
 );
 
@@ -128,16 +134,16 @@ select lives_ok(
 -- ---------------------------------------------------------------------------
 
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity)
-     values ('0a000000-0000-4000-8000-000000000001'::uuid, 'product', 'Whey 1kg', 260000, 4) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity, description, validity_days, cancellation_terms)
+     values ('0a000000-0000-4000-8000-000000000001'::uuid, 'product', 'Whey 1kg', 260000, 4, 'Whey disclosure', 30, 'Unopened returns only') $$,
   '23505'::char(5),
   null,
   'ADD-002: a second add-on with an existing name at the same organisation is rejected'
 );
 
 select lives_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity)
-     values ('0b000000-0000-4000-8000-000000000001'::uuid, 'product', 'Whey 1kg', 260000, 4) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity, description, validity_days, cancellation_terms)
+     values ('0b000000-0000-4000-8000-000000000001'::uuid, 'product', 'Whey 1kg', 260000, 4, 'Whey disclosure', 30, 'Unopened returns only') $$,
   'ADD-002: the same add-on name at a different organisation is accepted'
 );
 
@@ -146,8 +152,8 @@ select lives_ok(
 -- ---------------------------------------------------------------------------
 
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity)
-     values ('0a000000-0000-4000-8000-000000000001'::uuid, 'product', 'Creatine', 180000, -1) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity, description, validity_days, cancellation_terms)
+     values ('0a000000-0000-4000-8000-000000000001'::uuid, 'product', 'Creatine', 180000, -1, 'Creatine disclosure', 30, 'Unopened returns only') $$,
   '23514'::char(5),
   null,
   'DQA-004 and ADD-004: an insert with a negative stock_quantity is rejected'

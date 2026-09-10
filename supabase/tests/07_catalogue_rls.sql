@@ -57,6 +57,9 @@ values ('a0000000-0000-4000-8000-000000000003'::uuid,
        ('b0000000-0000-4000-8000-000000000003'::uuid,
         'b0000000-0000-4000-8000-000000000001'::uuid, 'trainer', 'B Trainer One', 'NASM CPT');
 
+insert into public.staff (id, tenant_id, role, full_name)
+values ('a0000000-0000-4000-8000-000000000009', 'a0000000-0000-4000-8000-000000000001', 'gym_owner', 'A Owner');
+
 insert into public.members (id, tenant_id, branch_id, full_name, phone)
 values ('a0000000-0000-4000-8000-000000000005'::uuid,
         'a0000000-0000-4000-8000-000000000001'::uuid,
@@ -65,27 +68,35 @@ values ('a0000000-0000-4000-8000-000000000005'::uuid,
         'b0000000-0000-4000-8000-000000000001'::uuid,
         'b0000000-0000-4000-8000-000000000002'::uuid, 'B Member One', '+919100000002');
 
-insert into public.addon_products (id, tenant_id, kind, name, price_paise, session_count, trainer_staff_id)
+insert into public.addon_products (id, tenant_id, kind, name, price_paise, session_count, trainer_staff_id, description, validity_days, cancellation_terms, trainer_qualification)
 values ('a0000000-0000-4000-8000-000000000006'::uuid,
         'a0000000-0000-4000-8000-000000000001'::uuid,
-        'pt_package', 'PT 10 A', 500000, 10, 'a0000000-0000-4000-8000-000000000003'::uuid),
+        'pt_package', 'PT 10 A', 500000, 10, 'a0000000-0000-4000-8000-000000000003'::uuid, 'Ten PT sessions', 90, 'Cancel before delivery', 'ACSM CPT'),
        ('b0000000-0000-4000-8000-000000000006'::uuid,
         'b0000000-0000-4000-8000-000000000001'::uuid,
-        'pt_package', 'PT 10 B', 500000, 10, 'b0000000-0000-4000-8000-000000000003'::uuid);
+        'pt_package', 'PT 10 B', 500000, 10, 'b0000000-0000-4000-8000-000000000003'::uuid, 'Ten PT sessions', 90, 'Cancel before delivery', 'NASM CPT');
+
+-- Known request facts are supplied even for a refused cross-tenant insert;
+-- the assertion must reach authorization rather than fail on missing input.
+create temp table catalogue_quote_fixtures as select id, quote_version from public.addon_products
+where tenant_id in ('a0000000-0000-4000-8000-000000000001','b0000000-0000-4000-8000-000000000001');
+grant select on catalogue_quote_fixtures to authenticated;
 
 insert into public.addon_orders (id, tenant_id, member_id, addon_product_id,
                                  quantity, unit_price_paise, total_paise,
-                                 sessions_total, trainer_staff_id)
+                                 sessions_total, trainer_staff_id, status, starts_on, expires_on)
 values ('a0000000-0000-4000-8000-000000000007'::uuid,
         'a0000000-0000-4000-8000-000000000001'::uuid,
         'a0000000-0000-4000-8000-000000000005'::uuid,
         'a0000000-0000-4000-8000-000000000006'::uuid,
-        1, 500000, 500000, 10, 'a0000000-0000-4000-8000-000000000003'::uuid),
+        1, 0, 0, 10, 'a0000000-0000-4000-8000-000000000003'::uuid, 'active',
+        (now() at time zone 'Asia/Kolkata')::date, (now() at time zone 'Asia/Kolkata')::date+90),
        ('b0000000-0000-4000-8000-000000000007'::uuid,
         'b0000000-0000-4000-8000-000000000001'::uuid,
         'b0000000-0000-4000-8000-000000000005'::uuid,
         'b0000000-0000-4000-8000-000000000006'::uuid,
-        1, 500000, 500000, 10, 'b0000000-0000-4000-8000-000000000003'::uuid);
+        1, 0, 0, 10, 'b0000000-0000-4000-8000-000000000003'::uuid, 'active',
+        (now() at time zone 'Asia/Kolkata')::date, (now() at time zone 'Asia/Kolkata')::date+90);
 
 insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id,
                                 starts_at, ends_at)
@@ -110,7 +121,7 @@ select set_config(
   'request.jwt.claims',
   json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
                     'tenant_id', 'a0000000-0000-4000-8000-000000000001',
-                    'app_role', 'gym_owner')::text,
+                    'app_role', 'gym_owner', 'staff_id', 'a0000000-0000-4000-8000-000000000009')::text,
   true
 );
 set local role authenticated;
@@ -190,20 +201,25 @@ select throws_ok(
 -- otherwise legal, so the only thing that can reject it is the policy.
 
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, session_count)
-     values ('b0000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'Planted by Gym A', 500000, 5) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, session_count, trainer_staff_id, description, validity_days, cancellation_terms, trainer_qualification)
+     values ('b0000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'Planted by Gym A', 500000, 5, 'b0000000-0000-4000-8000-000000000003', 'Five PT sessions', 90, 'Cancel before delivery', 'NASM CPT') $$,
   '42501'::char(5),
   null,
   'catalogue RLS: inserting an addon_products row carrying Gym B''s tenant_id as Gym A is refused'
 );
 
 select throws_ok(
-  $$ insert into public.addon_orders (tenant_id, member_id, addon_product_id,
-                                      quantity, unit_price_paise, total_paise)
-     values ('b0000000-0000-4000-8000-000000000001'::uuid,
-             'b0000000-0000-4000-8000-000000000005'::uuid,
-             'b0000000-0000-4000-8000-000000000006'::uuid,
-             1, 500000, 500000) $$,
+  $$ insert into public.addon_orders (tenant_id, member_id, addon_product_id, quantity,
+       unit_price_paise, total_paise, trainer_staff_id, sessions_total,
+       sold_by_staff_id, idempotency_key, sale_snapshot, sale_request)
+     values ('b0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000005', 'b0000000-0000-4000-8000-000000000006', 1,
+       500000, 500000, 'b0000000-0000-4000-8000-000000000003', 10, 'b0000000-0000-4000-8000-000000000003', gen_random_uuid()::text,
+       jsonb_build_object('kind','pt_package','name','PT 10 B','description','Ten PT sessions',
+         'cancellationTerms','Cancel before delivery','validityDays',90,'trainerQualification','NASM CPT'),
+       jsonb_build_object('memberId','b0000000-0000-4000-8000-000000000005','productId','b0000000-0000-4000-8000-000000000006',
+         'quantity',1,'quoteVersion',(select quote_version::text from catalogue_quote_fixtures where id='b0000000-0000-4000-8000-000000000006'),
+         'trainerStaffId','b0000000-0000-4000-8000-000000000003','initialStartsAt',(transaction_timestamp()+interval '5 days')::text,
+         'initialEndsAt',(transaction_timestamp()+interval '5 days 1 hour')::text,'method','cash','reason',null)) $$,
   '42501'::char(5),
   null,
   'catalogue RLS: inserting an addon_orders row carrying Gym B''s tenant_id as Gym A is refused'
@@ -332,20 +348,25 @@ select is_empty(
 );
 
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, session_count)
-     values ('a0000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'Planted with no claims', 500000, 5) $$,
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, session_count, trainer_staff_id, description, validity_days, cancellation_terms, trainer_qualification)
+     values ('a0000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'Planted with no claims', 500000, 5, 'a0000000-0000-4000-8000-000000000003', 'Five PT sessions', 90, 'Cancel before delivery', 'ACSM CPT') $$,
   '42501'::char(5),
   null,
   'catalogue RLS: inserting into addon_products with no claims is refused'
 );
 
 select throws_ok(
-  $$ insert into public.addon_orders (tenant_id, member_id, addon_product_id,
-                                      quantity, unit_price_paise, total_paise)
-     values ('a0000000-0000-4000-8000-000000000001'::uuid,
-             'a0000000-0000-4000-8000-000000000005'::uuid,
-             'a0000000-0000-4000-8000-000000000006'::uuid,
-             1, 500000, 500000) $$,
+  $$ insert into public.addon_orders (tenant_id, member_id, addon_product_id, quantity,
+       unit_price_paise, total_paise, trainer_staff_id, sessions_total,
+       sold_by_staff_id, idempotency_key, sale_snapshot, sale_request)
+     values ('a0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000005', 'a0000000-0000-4000-8000-000000000006', 1,
+       500000, 500000, 'a0000000-0000-4000-8000-000000000003', 10, 'a0000000-0000-4000-8000-000000000009', gen_random_uuid()::text,
+       jsonb_build_object('kind','pt_package','name','PT 10 A','description','Ten PT sessions',
+         'cancellationTerms','Cancel before delivery','validityDays',90,'trainerQualification','ACSM CPT'),
+       jsonb_build_object('memberId','a0000000-0000-4000-8000-000000000005','productId','a0000000-0000-4000-8000-000000000006',
+         'quantity',1,'quoteVersion',(select quote_version::text from catalogue_quote_fixtures where id='a0000000-0000-4000-8000-000000000006'),
+         'trainerStaffId','a0000000-0000-4000-8000-000000000003','initialStartsAt',(transaction_timestamp()+interval '5 days')::text,
+         'initialEndsAt',(transaction_timestamp()+interval '5 days 1 hour')::text,'method','cash','reason',null)) $$,
   '42501'::char(5),
   null,
   'catalogue RLS: inserting into addon_orders with no claims is refused'
@@ -420,15 +441,15 @@ select set_config(
   'request.jwt.claims',
   json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
                     'tenant_id', 'a0000000-0000-4000-8000-000000000001',
-                    'app_role', 'gym_owner')::text,
+                    'app_role', 'gym_owner', 'staff_id', 'a0000000-0000-4000-8000-000000000009')::text,
   true
 );
 set local role authenticated;
 
 select throws_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, session_count, trainer_staff_id)
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, session_count, trainer_staff_id, description, validity_days, cancellation_terms, trainer_qualification)
      values ('a0000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'PT with a Gym B trainer',
-             500000, 5, 'b0000000-0000-4000-8000-000000000003'::uuid) $$,
+             500000, 5, 'b0000000-0000-4000-8000-000000000003'::uuid, 'Five PT sessions', 90, 'Cancel before delivery', 'NASM CPT') $$,
   '23503'::char(5),
   null,
   'ADD-002 (ADR-052): addon_products.trainer_staff_id naming another gym''s staff row is rejected with 23503 — the key is (tenant_id, trainer_staff_id)'
@@ -438,21 +459,27 @@ select throws_ok(
 -- it is written `match full`: trainer_staff_id is optional, and leaving it null
 -- is still "no reference", not "a broken reference". Under match full the row
 -- above and this one would both be refused, because tenant_id is not null and
--- the pair would then be partially null.
+-- the pair would then be partially null. Phase 6 requires a trainer for an
+-- active PT offer; this optional-reference control is an inactive draft.
 select lives_ok(
-  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, session_count)
+  $$ insert into public.addon_products (tenant_id, kind, name, price_paise, session_count, is_active)
      values ('a0000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'PT with no trainer',
-             500000, 5) $$,
-  'ADD-002 (ADR-052): a null trainer_staff_id is still accepted — the composite key is match simple, so a row is exempt from the check when the optional column is null'
+             500000, 5, false) $$,
+  'ADD-002 (ADR-052): an inactive draft can retain a null trainer_staff_id — the composite key is match simple, so a row is exempt from the foreign-key check when the optional column is null'
 );
 
 select throws_ok(
-  $$ insert into public.addon_orders (tenant_id, member_id, addon_product_id,
-                                      quantity, unit_price_paise, total_paise, trainer_staff_id)
-     values ('a0000000-0000-4000-8000-000000000001'::uuid,
-             'a0000000-0000-4000-8000-000000000005'::uuid,
-             'a0000000-0000-4000-8000-000000000006'::uuid,
-             1, 500000, 500000, 'b0000000-0000-4000-8000-000000000003'::uuid) $$,
+  $$ insert into public.addon_orders (tenant_id, member_id, addon_product_id, quantity,
+       unit_price_paise, total_paise, trainer_staff_id, sessions_total,
+       sold_by_staff_id, idempotency_key, sale_snapshot, sale_request)
+     values ('a0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000005', 'a0000000-0000-4000-8000-000000000006', 1,
+       500000, 500000, 'b0000000-0000-4000-8000-000000000003', 10, 'a0000000-0000-4000-8000-000000000009', gen_random_uuid()::text,
+       jsonb_build_object('kind','pt_package','name','PT 10 A','description','Ten PT sessions',
+         'cancellationTerms','Cancel before delivery','validityDays',90,'trainerQualification','ACSM CPT'),
+       jsonb_build_object('memberId','a0000000-0000-4000-8000-000000000005','productId','a0000000-0000-4000-8000-000000000006',
+         'quantity',1,'quoteVersion',(select quote_version::text from catalogue_quote_fixtures where id='a0000000-0000-4000-8000-000000000006'),
+         'trainerStaffId','b0000000-0000-4000-8000-000000000003','initialStartsAt',(transaction_timestamp()+interval '5 days')::text,
+         'initialEndsAt',(transaction_timestamp()+interval '5 days 1 hour')::text,'method','cash','reason',null)) $$,
   '23503'::char(5),
   null,
   'ADD-003 (ADR-052): addon_orders.trainer_staff_id naming another gym''s staff row is rejected with 23503'
@@ -488,6 +515,22 @@ select throws_ok(
 -- force, which is how every real write arrives.
 -- ---------------------------------------------------------------------------
 
+-- The second trainer's positive overlap control uses a separate accepted
+-- legacy order. Add it after the exact tenant-row-count assertions above.
+set local role postgres;
+select set_config('request.jwt.claims', '', true);
+insert into public.addon_orders (id, tenant_id, member_id, addon_product_id, quantity,
+                                 unit_price_paise, total_paise, status, trainer_staff_id,
+                                 sessions_total, starts_on, expires_on)
+values ('a0000000-0000-4000-8000-00000000000a', 'a0000000-0000-4000-8000-000000000001',
+        'a0000000-0000-4000-8000-000000000005', 'a0000000-0000-4000-8000-000000000006',
+        1, 0, 0, 'active', 'a0000000-0000-4000-8000-000000000004', 10,
+        (now() at time zone 'Asia/Kolkata')::date, (now() at time zone 'Asia/Kolkata')::date+90);
+select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+  'tenant_id', 'a0000000-0000-4000-8000-000000000001', 'app_role', 'gym_owner',
+  'staff_id', 'a0000000-0000-4000-8000-000000000009')::text, true);
+set local role authenticated;
+
 select throws_ok(
   $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
                                      starts_at, ends_at)
@@ -505,7 +548,7 @@ select lives_ok(
   $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
                                      starts_at, ends_at)
      values ('a0000000-0000-4000-8000-000000000001'::uuid,
-             'a0000000-0000-4000-8000-000000000007'::uuid,
+             'a0000000-0000-4000-8000-00000000000a'::uuid,
              'a0000000-0000-4000-8000-000000000004'::uuid,
              'a0000000-0000-4000-8000-000000000005'::uuid,
              timestamptz '2026-11-01 10:30:00+05:30', timestamptz '2026-11-01 11:30:00+05:30') $$,

@@ -182,17 +182,20 @@ insert into public.follow_ups (id, tenant_id, case_id, staff_id, channel, outcom
   ('13000000-0000-4000-8000-000000000005'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000003'::uuid, '13000000-0000-4000-8000-000000000024'::uuid, 'call', 'will_return'),
   ('13000000-0000-4000-8000-000000000006'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000004'::uuid, '13000000-0000-4000-8000-000000000024'::uuid, 'call', 'no_response');
 
--- A pt_package must carry a session_count and a product must carry a
--- stock_quantity (addon_products_pt_package_has_session_count_chk,
--- addon_products_product_has_stock_quantity_chk). Neither is a Phase 2 rule;
--- both are Phase 1 constraints this fixture has to satisfy to exist at all.
-insert into public.addon_products (id, tenant_id, kind, name, price_paise, session_count) values
-  ('13000000-0000-4000-8000-000000000007'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'PT 10',     500000, 10),
-  ('13000000-0000-4000-8000-000000000008'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, 'diet_plan',  'Diet Plan', 100000, null);
+-- Phase 6 active offers carry complete kind-specific disclosure. These facts
+-- are fixtures only; the role read/write expectations below are unchanged.
+insert into public.addon_products (id, tenant_id, kind, name, price_paise, session_count, trainer_staff_id, description, validity_days, cancellation_terms, trainer_qualification) values
+  ('13000000-0000-4000-8000-000000000007'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'PT 10',     500000, 10, '13000000-0000-4000-8000-000000000024', 'Ten PT sessions', 90, 'Cancel before delivery', 'Gym-stated qualification'),
+  ('13000000-0000-4000-8000-000000000008'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, 'diet_plan',  'Diet Plan', 100000, null, null, 'Diet plan disclosure', 30, 'Cancel before delivery', null);
 
-insert into public.addon_orders (id, tenant_id, member_id, addon_product_id, unit_price_paise, total_paise) values
-  ('13000000-0000-4000-8000-000000000009'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000031'::uuid, '13000000-0000-4000-8000-000000000007'::uuid, 500000, 500000),
-  ('13000000-0000-4000-8000-00000000000a'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000032'::uuid, '13000000-0000-4000-8000-000000000007'::uuid, 500000, 500000);
+create temp table catalogue_quote_fixtures as select id, quote_version from public.addon_products
+where tenant_id='13000000-0000-4000-8000-000000000001';
+grant select on catalogue_quote_fixtures to authenticated;
+
+-- Consistent legacy complimentary orders exercise access without adding money rows.
+insert into public.addon_orders (id, tenant_id, member_id, addon_product_id, unit_price_paise, total_paise, status, trainer_staff_id, sessions_total, starts_on, expires_on) values
+  ('13000000-0000-4000-8000-000000000009'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000031'::uuid, '13000000-0000-4000-8000-000000000007'::uuid, 0, 0, 'active', '13000000-0000-4000-8000-000000000024', 10, (now() at time zone 'Asia/Kolkata')::date, (now() at time zone 'Asia/Kolkata')::date+90),
+  ('13000000-0000-4000-8000-00000000000a'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000032'::uuid, '13000000-0000-4000-8000-000000000007'::uuid, 0, 0, 'active', '13000000-0000-4000-8000-000000000024', 10, (now() at time zone 'Asia/Kolkata')::date, (now() at time zone 'Asia/Kolkata')::date+90);
 
 insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at) values
   ('13000000-0000-4000-8000-00000000000b'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000009'::uuid, '13000000-0000-4000-8000-000000000024'::uuid, '13000000-0000-4000-8000-000000000031'::uuid, now() + interval '1 day', now() + interval '1 day 1 hour'),
@@ -389,8 +392,8 @@ select throws_ok(
 );
 
 select throws_ok(
-  $$insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity)
-    values ('13000000-0000-4000-8000-000000000001', 'product', 'Desk Shaker', 50000, 20)$$,
+  $$insert into public.addon_products (tenant_id, kind, name, price_paise, stock_quantity, description, validity_days, cancellation_terms)
+    values ('13000000-0000-4000-8000-000000000001', 'product', 'Desk Shaker', 50000, 20, 'Shaker disclosure', 30, 'Unopened returns only')$$,
   '42501', null,
   'design.md 8.3: addon_products reads is_staff() and writes is_gym_admin() -- the catalogue is priced by an admin'
 );
@@ -508,10 +511,17 @@ select throws_ok(
 );
 
 select throws_ok(
-  $$insert into public.addon_orders (tenant_id, member_id, addon_product_id, unit_price_paise, total_paise)
-    values ('13000000-0000-4000-8000-000000000001',
-            '13000000-0000-4000-8000-000000000031',
-            '13000000-0000-4000-8000-000000000007', 100000, 100000)$$,
+  $$ insert into public.addon_orders (tenant_id, member_id, addon_product_id, quantity,
+       unit_price_paise, total_paise, trainer_staff_id, sessions_total,
+       sold_by_staff_id, idempotency_key, sale_snapshot, sale_request)
+     values ('13000000-0000-4000-8000-000000000001', '13000000-0000-4000-8000-000000000031', '13000000-0000-4000-8000-000000000007', 1,
+       500000, 500000, '13000000-0000-4000-8000-000000000024', 10, '13000000-0000-4000-8000-000000000024', gen_random_uuid()::text,
+       jsonb_build_object('kind','pt_package','name','PT 10','description','Ten PT sessions',
+         'cancellationTerms','Cancel before delivery','validityDays',90,'trainerQualification','Gym-stated qualification'),
+       jsonb_build_object('memberId','13000000-0000-4000-8000-000000000031','productId','13000000-0000-4000-8000-000000000007',
+         'quantity',1,'quoteVersion',(select quote_version::text from catalogue_quote_fixtures where id='13000000-0000-4000-8000-000000000007'),
+         'trainerStaffId','13000000-0000-4000-8000-000000000024','initialStartsAt',(transaction_timestamp()+interval '5 days')::text,
+         'initialEndsAt',(transaction_timestamp()+interval '5 days 1 hour')::text,'method','cash','reason',null)) $$,
   '42501', null,
   'design.md 8.3: addon_orders reads is_staff() and writes is_front_office() -- a trainer delivers the PT package and does not sell it'
 );

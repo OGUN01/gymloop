@@ -803,21 +803,29 @@ select is_empty(
 -- definer (design.md 1, so that supabase_auth_admin needs no grant on the five
 -- tables the hook reads), and so must the revocation trigger (design.md 7, so
 -- that deleting from auth.sessions does not depend on the gym owner holding a
--- privilege there). The rule that survives is the one that was doing the work:
--- nothing elevated in `public`, which is the schema the Data API exposes, and
--- nothing elevated anywhere without a pinned search_path, which is what turns
--- a security definer function into an escalation.
+-- privilege there). Phase 6 additionally approves exactly two member-safe
+-- display projections: completed own-order returns (ADR-116), and active
+-- PT offer trainer names. Their exact signatures are the complete public
+-- allowlist; overloads and every other exposed elevated function still fail.
+-- Every elevated function in either application schema must use an empty path.
 -- ---------------------------------------------------------------------------
 
 select is_empty(
   $$select n.nspname || '.' || p.proname
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where p.prosecdef
-       and (n.nspname = 'public'
-            or (n.nspname = 'app'
-                and not exists (select 1 from unnest(coalesce(p.proconfig, '{}'::text[])) c
-                                 where c like 'search_path=%')))$$,
-  'ADR-032 / design.md 1 and 7: no security definer function in public at all -- public is the schema config.toml exposes to the Data API and supabase gen types reads -- and every security definer function in app pins its search_path. Phase 2 adds two elevated functions on purpose; an elevated function with a resolvable search_path is a different thing entirely'
+       and n.nspname in ('public', 'app')
+       and (not coalesce(p.proconfig @> array['search_path=""'], false)
+            or (n.nspname = 'public'
+                and (p.provolatile <> 's'
+                     or pg_get_userbyid(p.proowner) <> 'postgres'
+                     or not exists (
+                       select 1 from (values
+                         ('public.read_member_addon_returns(uuid)'),
+                         ('public.read_member_addon_trainer_names()')
+                       ) allowed(signature)
+                       where p.oid = to_regprocedure(allowed.signature)))))$$,
+  'ADR-032, ADR-116 and the approved Phase 6 member projections: all app/public security-definer functions have an empty search_path; only the exact postgres-owned STABLE member-return and trainer-name projection signatures may be elevated in public, with no unapproved overload or function'
 );
 
 -- Phase 4 (20260909130000_red_list_view.sql) added public.red_list_cases,

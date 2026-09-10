@@ -182,17 +182,16 @@ insert into public.follow_ups (id, tenant_id, case_id, staff_id, channel, outcom
   ('12000000-0000-4000-8000-000000000005'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000003'::uuid, '12000000-0000-4000-8000-000000000024'::uuid, 'call', 'will_return'),
   ('12000000-0000-4000-8000-000000000006'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000004'::uuid, '12000000-0000-4000-8000-000000000024'::uuid, 'call', 'no_response');
 
--- A pt_package must carry a session_count and a product must carry a
--- stock_quantity (addon_products_pt_package_has_session_count_chk,
--- addon_products_product_has_stock_quantity_chk). Neither is a Phase 2 rule;
--- both are Phase 1 constraints this fixture has to satisfy to exist at all.
-insert into public.addon_products (id, tenant_id, kind, name, price_paise, session_count) values
-  ('12000000-0000-4000-8000-000000000007'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'PT 10',     500000, 10),
-  ('12000000-0000-4000-8000-000000000008'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, 'diet_plan',  'Diet Plan', 100000, null);
+-- Phase 6 active offers carry complete kind-specific disclosure. These facts
+-- are fixtures only; the role read/write expectations below are unchanged.
+insert into public.addon_products (id, tenant_id, kind, name, price_paise, session_count, trainer_staff_id, description, validity_days, cancellation_terms, trainer_qualification) values
+  ('12000000-0000-4000-8000-000000000007'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, 'pt_package', 'PT 10',     500000, 10, '12000000-0000-4000-8000-000000000024', 'Ten PT sessions', 90, 'Cancel before delivery', 'Gym-stated qualification'),
+  ('12000000-0000-4000-8000-000000000008'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, 'diet_plan',  'Diet Plan', 100000, null, null, 'Diet plan disclosure', 30, 'Cancel before delivery', null);
 
-insert into public.addon_orders (id, tenant_id, member_id, addon_product_id, unit_price_paise, total_paise) values
-  ('12000000-0000-4000-8000-000000000009'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000031'::uuid, '12000000-0000-4000-8000-000000000007'::uuid, 500000, 500000),
-  ('12000000-0000-4000-8000-00000000000a'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000032'::uuid, '12000000-0000-4000-8000-000000000007'::uuid, 500000, 500000);
+-- Consistent legacy complimentary orders exercise access without adding money rows.
+insert into public.addon_orders (id, tenant_id, member_id, addon_product_id, unit_price_paise, total_paise, status, trainer_staff_id, sessions_total, starts_on, expires_on) values
+  ('12000000-0000-4000-8000-000000000009'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000031'::uuid, '12000000-0000-4000-8000-000000000007'::uuid, 0, 0, 'active', '12000000-0000-4000-8000-000000000024', 10, (now() at time zone 'Asia/Kolkata')::date, (now() at time zone 'Asia/Kolkata')::date+90),
+  ('12000000-0000-4000-8000-00000000000a'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000032'::uuid, '12000000-0000-4000-8000-000000000007'::uuid, 0, 0, 'active', '12000000-0000-4000-8000-000000000024', 10, (now() at time zone 'Asia/Kolkata')::date, (now() at time zone 'Asia/Kolkata')::date+90);
 
 insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at) values
   ('12000000-0000-4000-8000-00000000000b'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000009'::uuid, '12000000-0000-4000-8000-000000000024'::uuid, '12000000-0000-4000-8000-000000000031'::uuid, now() + interval '1 day', now() + interval '1 day 1 hour'),

@@ -48,25 +48,29 @@ values ('0a000000-0000-4000-8000-000000000005'::uuid,
         '0a000000-0000-4000-8000-000000000002'::uuid,
         'Member One', '+919000000001');
 
-insert into public.payments (id, tenant_id, member_id, amount_paise, method, recorded_by_staff_id)
+insert into public.payments (id, tenant_id, member_id, amount_paise, method, recorded_by_staff_id, status, paid_at)
 values ('0a000000-0000-4000-8000-000000000009'::uuid,
         '0a000000-0000-4000-8000-000000000001'::uuid,
         '0a000000-0000-4000-8000-000000000005'::uuid,
-        500000, 'cash', '0a000000-0000-4000-8000-000000000003'::uuid);
+        500000, 'cash', '0a000000-0000-4000-8000-000000000003'::uuid, 'paid', transaction_timestamp());
 
-insert into public.addon_products (id, tenant_id, kind, name, price_paise, session_count, trainer_staff_id)
+insert into public.addon_products (id, tenant_id, kind, name, price_paise, session_count, trainer_staff_id, description, validity_days, cancellation_terms, trainer_qualification)
 values ('0a000000-0000-4000-8000-000000000006'::uuid,
         '0a000000-0000-4000-8000-000000000001'::uuid,
         'pt_package', 'PT 10', 500000, 10,
-        '0a000000-0000-4000-8000-000000000003'::uuid);
+        '0a000000-0000-4000-8000-000000000003'::uuid, 'Ten PT sessions', 90, 'Cancel before delivery', 'ACSM CPT');
 
+-- Consistent legacy complimentary service history. Positive arrived money is
+-- reserved for the independent payment-link assertion below.
 insert into public.addon_orders (id, tenant_id, member_id, addon_product_id,
-                                 quantity, unit_price_paise, total_paise, sessions_total)
+                                 quantity, unit_price_paise, total_paise, sessions_total,
+                                 status, trainer_staff_id, starts_on, expires_on)
 values ('0a000000-0000-4000-8000-000000000007'::uuid,
         '0a000000-0000-4000-8000-000000000001'::uuid,
         '0a000000-0000-4000-8000-000000000005'::uuid,
         '0a000000-0000-4000-8000-000000000006'::uuid,
-        1, 500000, 500000, 10);
+        1, 0, 0, 10, 'active', '0a000000-0000-4000-8000-000000000003',
+        (now() at time zone 'Asia/Kolkata')::date-3, (now() at time zone 'Asia/Kolkata')::date+90);
 
 -- ---------------------------------------------------------------------------
 -- ADD-004: sessions used can never exceed sessions bought
@@ -218,11 +222,25 @@ select throws_ok(
 -- each on its own day so the tests below do not interfere.
 -- ---------------------------------------------------------------------------
 
+-- Keep calendar tests independent of the earlier usage-boundary write, which
+-- deliberately exhausted a different order. One historical session was used.
+insert into public.addon_orders (id, tenant_id, member_id, addon_product_id, quantity,
+                                 unit_price_paise, total_paise, status, trainer_staff_id,
+                                 sessions_total, sessions_used, starts_on, expires_on)
+values ('0a000000-0000-4000-8000-00000000000e', '0a000000-0000-4000-8000-000000000001',
+        '0a000000-0000-4000-8000-000000000005', '0a000000-0000-4000-8000-000000000006',
+        1, 0, 0, 'active', '0a000000-0000-4000-8000-000000000003', 10, 1,
+        (now() at time zone 'Asia/Kolkata')::date-3, (now() at time zone 'Asia/Kolkata')::date+90);
+
+-- These are historical rows, not new session commands. Preserve their terminal
+-- states without invoking the scheduled-only creation path under test later.
+set local session_replication_role=replica;
+
 insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id,
                                 starts_at, ends_at)
 values ('0a000000-0000-4000-8000-000000000008'::uuid,
         '0a000000-0000-4000-8000-000000000001'::uuid,
-        '0a000000-0000-4000-8000-000000000007'::uuid,
+        '0a000000-0000-4000-8000-00000000000e'::uuid,
         '0a000000-0000-4000-8000-000000000003'::uuid,
         '0a000000-0000-4000-8000-000000000005'::uuid,
         timestamptz '2026-10-01 10:00:00+05:30', timestamptz '2026-10-01 11:00:00+05:30');
@@ -230,7 +248,7 @@ values ('0a000000-0000-4000-8000-000000000008'::uuid,
 insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
                                 starts_at, ends_at, status)
 values ('0a000000-0000-4000-8000-000000000001'::uuid,
-        '0a000000-0000-4000-8000-000000000007'::uuid,
+        '0a000000-0000-4000-8000-00000000000e'::uuid,
         '0a000000-0000-4000-8000-000000000003'::uuid,
         '0a000000-0000-4000-8000-000000000005'::uuid,
         timestamptz '2026-10-02 10:00:00+05:30', timestamptz '2026-10-02 11:00:00+05:30',
@@ -239,11 +257,22 @@ values ('0a000000-0000-4000-8000-000000000001'::uuid,
 insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
                                 starts_at, ends_at, status)
 values ('0a000000-0000-4000-8000-000000000001'::uuid,
-        '0a000000-0000-4000-8000-000000000007'::uuid,
+        '0a000000-0000-4000-8000-00000000000e'::uuid,
         '0a000000-0000-4000-8000-000000000003'::uuid,
         '0a000000-0000-4000-8000-000000000005'::uuid,
         timestamptz '2026-10-03 10:00:00+05:30', timestamptz '2026-10-03 11:00:00+05:30',
         'completed');
+
+set local session_replication_role=origin;
+
+-- A different trainer's overlap control needs that trainer's own frozen order.
+insert into public.addon_orders (id, tenant_id, member_id, addon_product_id, quantity,
+                                 unit_price_paise, total_paise, status, trainer_staff_id,
+                                 sessions_total, starts_on, expires_on)
+values ('0a000000-0000-4000-8000-00000000000d', '0a000000-0000-4000-8000-000000000001',
+        '0a000000-0000-4000-8000-000000000005', '0a000000-0000-4000-8000-000000000006',
+        1, 0, 0, 'active', '0a000000-0000-4000-8000-000000000004', 10,
+        (now() at time zone 'Asia/Kolkata')::date-3, (now() at time zone 'Asia/Kolkata')::date+90);
 
 -- ---------------------------------------------------------------------------
 -- A session ends after it starts
@@ -253,7 +282,7 @@ select throws_ok(
   $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
                                      starts_at, ends_at)
      values ('0a000000-0000-4000-8000-000000000001'::uuid,
-             '0a000000-0000-4000-8000-000000000007'::uuid,
+             '0a000000-0000-4000-8000-00000000000e'::uuid,
              '0a000000-0000-4000-8000-000000000003'::uuid,
              '0a000000-0000-4000-8000-000000000005'::uuid,
              timestamptz '2026-10-05 10:00:00+05:30', timestamptz '2026-10-05 10:00:00+05:30') $$,
@@ -266,7 +295,7 @@ select throws_ok(
   $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
                                      starts_at, ends_at)
      values ('0a000000-0000-4000-8000-000000000001'::uuid,
-             '0a000000-0000-4000-8000-000000000007'::uuid,
+             '0a000000-0000-4000-8000-00000000000e'::uuid,
              '0a000000-0000-4000-8000-000000000003'::uuid,
              '0a000000-0000-4000-8000-000000000005'::uuid,
              timestamptz '2026-10-05 10:00:00+05:30', timestamptz '2026-10-05 09:00:00+05:30') $$,
@@ -283,7 +312,7 @@ select throws_ok(
   $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
                                      starts_at, ends_at)
      values ('0a000000-0000-4000-8000-000000000001'::uuid,
-             '0a000000-0000-4000-8000-000000000007'::uuid,
+             '0a000000-0000-4000-8000-00000000000e'::uuid,
              '0a000000-0000-4000-8000-000000000003'::uuid,
              '0a000000-0000-4000-8000-000000000005'::uuid,
              timestamptz '2026-10-01 10:30:00+05:30', timestamptz '2026-10-01 11:30:00+05:30') $$,
@@ -296,7 +325,7 @@ select lives_ok(
   $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
                                      starts_at, ends_at)
      values ('0a000000-0000-4000-8000-000000000001'::uuid,
-             '0a000000-0000-4000-8000-000000000007'::uuid,
+             '0a000000-0000-4000-8000-00000000000e'::uuid,
              '0a000000-0000-4000-8000-000000000003'::uuid,
              '0a000000-0000-4000-8000-000000000005'::uuid,
              timestamptz '2026-10-01 11:00:00+05:30', timestamptz '2026-10-01 12:00:00+05:30') $$,
@@ -307,7 +336,7 @@ select lives_ok(
   $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
                                      starts_at, ends_at)
      values ('0a000000-0000-4000-8000-000000000001'::uuid,
-             '0a000000-0000-4000-8000-000000000007'::uuid,
+             '0a000000-0000-4000-8000-00000000000d'::uuid,
              '0a000000-0000-4000-8000-000000000004'::uuid,
              '0a000000-0000-4000-8000-000000000005'::uuid,
              timestamptz '2026-10-01 10:30:00+05:30', timestamptz '2026-10-01 11:30:00+05:30') $$,
@@ -318,7 +347,7 @@ select lives_ok(
   $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
                                      starts_at, ends_at)
      values ('0a000000-0000-4000-8000-000000000001'::uuid,
-             '0a000000-0000-4000-8000-000000000007'::uuid,
+             '0a000000-0000-4000-8000-00000000000e'::uuid,
              '0a000000-0000-4000-8000-000000000003'::uuid,
              '0a000000-0000-4000-8000-000000000005'::uuid,
              timestamptz '2026-10-02 10:30:00+05:30', timestamptz '2026-10-02 11:30:00+05:30') $$,
@@ -329,7 +358,7 @@ select throws_ok(
   $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
                                      starts_at, ends_at)
      values ('0a000000-0000-4000-8000-000000000001'::uuid,
-             '0a000000-0000-4000-8000-000000000007'::uuid,
+             '0a000000-0000-4000-8000-00000000000e'::uuid,
              '0a000000-0000-4000-8000-000000000003'::uuid,
              '0a000000-0000-4000-8000-000000000005'::uuid,
              timestamptz '2026-10-03 10:30:00+05:30', timestamptz '2026-10-03 11:30:00+05:30') $$,
