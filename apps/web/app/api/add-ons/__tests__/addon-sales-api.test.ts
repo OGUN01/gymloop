@@ -206,15 +206,15 @@ describe('recording an add-on sale', () => {
   });
 
   it.each([
-    ['GL052', 'idempotency_conflict', 'GL052', undefined],
-    ['GL055', 'quote_changed', 'GL055', undefined],
-    ['GL057', 'insufficient_stock', 'GL057', undefined],
+    ['GL052', 'idempotency_conflict', 'GL052', 'idempotency_conflict'],
+    ['GL055', 'quote_changed', 'GL055', 'quote_changed'],
+    ['GL057', 'insufficient_stock', 'GL057', 'insufficient_stock'],
     ['23P01', 'slot_unavailable', 'conflicting key value violates exclusion constraint "pt_sessions_trainer_overlap_excl"', 'Constraint pt_sessions_trainer_overlap_excl rejected an overlapping trainer slot'],
     ['40001', 'retryable', '40001', undefined],
     ['P0002', 'not_found', 'P0002', undefined],
     ['42501', 'not_permitted', '42501', undefined],
   ])('maps %s to the stable %s error instead of success', async (code, expected, message, details) => {
-    state.results = [{ data: null, error: { code, message, details } }];
+    state.results = [{ data: null, error: { code, message, ...(details === undefined ? {} : { details }) } }];
     const { POST } = await saleRoute();
     const response = await POST(json('/api/add-on-orders', sale));
 

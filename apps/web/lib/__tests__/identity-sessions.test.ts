@@ -43,16 +43,28 @@ describe('verified identity wrappers', () => {
   it.each([
     null, { tenant_id: tenantId, staff_id: staffId },
     { ...staff, sub: 'invalid' }, { ...staff, member_id: memberId },
-    { sub: userId, app_role: 'member', tenant_id: tenantId, member_id: memberId },
-    { sub: userId, app_role: 'super_admin' },
-    { sub: userId, app_role: 'gym_owner', tenant_id: tenantId, impersonation_session_id: previewId },
-  ])('rejects incomplete or nonstaff identity %j', async (claims) => {
+  ])('rejects malformed or unlinked identity %j', async (claims) => {
     state.claims = claims;
     const result = await api.staffSession();
     expect(result).toHaveProperty('failure');
     if ('failure' in result) {
       expect(result.failure.status).toBe(401);
       expect(await result.failure.json()).toMatchObject({ ok: false, error: { code: 'not_signed_in' } });
+    }
+    expect(state.writes).not.toHaveBeenCalled();
+  });
+  it.each([
+    { sub: userId, app_role: 'member', tenant_id: tenantId, member_id: memberId },
+    { sub: userId, app_role: 'super_admin' },
+    { sub: userId, app_role: 'platform_support' },
+    { sub: userId, app_role: 'gym_owner', tenant_id: tenantId, impersonation_session_id: previewId },
+  ])('forbids complete nonstaff identity %j', async (claims) => {
+    state.claims = claims;
+    const result = await api.staffSession();
+    expect(result).toHaveProperty('failure');
+    if ('failure' in result) {
+      expect(result.failure.status).toBe(403);
+      expect(await result.failure.json()).toMatchObject({ ok: false, error: { code: 'not_permitted' } });
     }
     expect(state.writes).not.toHaveBeenCalled();
   });
