@@ -5731,7 +5731,7 @@ select set_config(
 
 select ok(
   pg_temp.h22r8_refused($q$update public.memberships set price_paise = 50000 where id = '220000ff-0022-4000-8000-600000000b13'$q$),
-  'GL046/super_admin: a bare platform session is NOT a gym admin and is refused. SIDED, and called out in the report as one of two places this author chose a side. `memberships_platform_write` permits the write today and it lands (measured), so this is a real choice: docs/security.md is that an impersonating token carries the target gym''s tenant_id and `app_role = gym_owner` and "is NOT a platform session", which is exactly the mechanism by which platform support makes a change ON BEHALF of a gym. A platform operator re-pricing a member''s membership out of band, with no impersonation session and no reason recorded, is the act that posture exists to prevent');
+  'GL046/super_admin: a bare platform session is not a gym admin and cannot re-price a membership; NAV-003 separately keeps support preview read-only');
 
 select is(
   (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-600000000b13'::uuid),
@@ -5748,14 +5748,15 @@ select set_config(
   true
 );
 
-select lives_ok(
-  $$update public.memberships set price_paise = 60000 where id = '220000ff-0022-4000-8000-600000000b14'$$,
-  'GL046/impersonation: and the support path the assertion above pushes platform staff onto still WORKS — an impersonating token carrying the gym''s tenant_id, `app_role = gym_owner` and an impersonation_session_id re-prices normally. Refusing the bare platform session buys nothing if it also refuses this, and this is the half that keeps the refusal proportionate');
+select is(
+  pg_temp.h22r8_try($$update public.memberships set price_paise = 60000 where id = '220000ff-0022-4000-8000-600000000b14'$$),
+  '42501',
+  'NAV-003/GL046: an authenticated preview cannot re-price a membership, including a contradictory token carrying a staff id');
 
 select is(
   (select price_paise from public.memberships where id = '220000ff-0022-4000-8000-600000000b14'::uuid),
-  60000::bigint,
-  'GL046/impersonation: and it landed');
+  100000::bigint,
+  'NAV-003/GL046: refused preview repricing leaves the original amount unchanged');
 
 select set_config(
   'request.jwt.claims',
