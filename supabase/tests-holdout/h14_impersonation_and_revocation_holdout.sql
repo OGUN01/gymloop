@@ -10,6 +10,8 @@
 --
 -- ADR-050: the two organizations, the six platform accounts and the four auth users below
 -- are this file's own fixtures. Every count is filtered to them; nothing counts a table.
+-- NAV-003: the independent Phase 6 revision requires exact own-session ending;
+-- mixed mutations are refused and stale preview claims remain read-only.
 
 begin;
 
@@ -17,7 +19,7 @@ begin;
 -- assumed explicitly (ADR-046).
 set local role postgres;
 
-select plan(58);
+select plan(65);
 
 create function pg_temp.hook_raw(p_user text) returns jsonb
 language plpgsql as $fn$
@@ -169,8 +171,8 @@ insert into public.impersonation_sessions
   ('dddd0000-0014-4000-8000-000000000008', 'aaaa0000-0014-4000-8000-000000000001',
      '11110000-0014-4000-8000-0000000000f9', 'the session that ends itself',
      now() + interval '1 hour', null),
-  -- The live session the write-once block ends, retargets and rewrites in one
-  -- statement. Its expiry is exactly now() + 1 hour and now() is the transaction
+  -- The live session the write-once block first attempts to end and retarget,
+  -- then ends with an exact end-only update. Its expiry is now() + 1 hour, the transaction
   -- timestamp, so the later assertions can name the value rather than remember it.
   ('dddd0000-0014-4000-8000-000000000009', 'aaaa0000-0014-4000-8000-000000000001',
      '11110000-0014-4000-8000-0000000000fa', 'the session that is written once',
@@ -668,21 +670,12 @@ select lives_ok(
   'a session whose expiry is exactly two hours after its start is accepted');
 
 -- ---------------------------------------------------------------------------
--- 47-55. A session is written once and then only ended
+-- A session is written once and then only ended
 --
--- Two mechanisms now stop a retarget, and a test that only proves "the retarget
--- failed" cannot say which one held. They are deliberately separated below:
---
---   the trigger catches   a change to reason or expires_at, which no policy clause
---                         mentions at all -- assertions 49 and 51 are the only
---                         things in either suite that would notice if the trigger
---                         were dropped as redundant;
---   the policy catches    a caller whose impersonation claim names this session but
---                         whose tenant claim names another gym -- assertion 52. The
---                         trigger cannot help there: it restores columns on a row
---                         the policy has already admitted.
---
--- Their overlap is the tenant column, and only there.
+-- NAV-003 narrows the preview exception to the exact own-session end operation.
+-- A mixed end/retarget/reason write must fail atomically, followed by a permitted
+-- ended_at-only update with the original audit attribution. Ownership and tenant
+-- filtering are still tested separately, as are immutable values after refusal.
 -- ---------------------------------------------------------------------------
 
 set local role postgres;
@@ -694,18 +687,14 @@ select set_config('request.jwt.claims', json_build_object(
   'impersonation_session_id', 'dddd0000-0014-4000-8000-000000000009')::text, true);
 set local role authenticated;
 
--- One statement that ends the session and, in the same breath, retargets it at
--- another gym and rewrites why it existed. It is not refused -- the trigger restores
--- the columns before the row-security check ever sees them, so the write lands with
--- only the end time changed. That is the shape to assert: succeeded, and changed
--- nothing it was not allowed to change.
+-- Adding an end time does not authorize any other field mutation.
 select ok(
   pg_temp.attempt($q$update public.impersonation_sessions
                         set ended_at = now(),
                             tenant_id = 'bbbb0000-0014-4000-8000-000000000002',
                             reason    = 'rewritten after the fact'
-                      where id = 'dddd0000-0014-4000-8000-000000000009'$q$) = 'rows=1',
-  'ending a session succeeds even when the statement also tries to retarget and rewrite it');
+                      where id = 'dddd0000-0014-4000-8000-000000000009'$q$) = 'error=42501',
+  'NAV-003 mixed own-end, retarget and reason rewrite is refused');
 
 select is(
   (select tenant_id from public.impersonation_sessions
@@ -717,7 +706,26 @@ select is(
   (select reason from public.impersonation_sessions
     where id = 'dddd0000-0014-4000-8000-000000000009'),
   'the session that is written once',
-  'the stored reason is unchanged -- the one column no policy clause mentions');
+  'the stored reason is unchanged after the refused mixed mutation');
+
+select is(
+  (select ended_at from public.impersonation_sessions
+    where id = 'dddd0000-0014-4000-8000-000000000009'),
+  null::timestamptz,
+  'NAV-003 refused mixed mutation leaves the session open');
+
+select is(
+  (select count(*) from public.audit_log
+    where action = 'impersonation_session.ended'
+      and record_id = 'dddd0000-0014-4000-8000-000000000009'),
+  0::bigint,
+  'NAV-003 refused mixed mutation creates no end audit evidence');
+
+select is(
+  pg_temp.attempt($q$update public.impersonation_sessions set ended_at = now()
+                     where id = 'dddd0000-0014-4000-8000-000000000009'$q$),
+  'rows=1',
+  'NAV-003 exact own-session end succeeds after a refused mixed mutation');
 
 select ok(
   exists (
@@ -726,15 +734,15 @@ select ok(
        and record_id = 'dddd0000-0014-4000-8000-000000000009'
        and tenant_id = 'aaaa0000-0014-4000-8000-000000000001'
        and reason = 'the session that is written once'),
-  'the end audit row names the gym actually impersonated, so the trigger ran before the audit trigger');
+  'the exact end audit row names the original gym and reason');
 
--- The session has ended. Extending it now is the same class of write, and the same
--- mechanism refuses it: the policy admits the row, the trigger puts the expiry back.
-do $extend$ begin
-  perform pg_temp.attempt($q$update public.impersonation_sessions
-                               set expires_at = now() + interval '2 hours'
-                             where id = 'dddd0000-0014-4000-8000-000000000009'$q$);
-end; $extend$;
+-- The old preview claim authorizes no expiry mutation after the session ends.
+select is(
+  pg_temp.attempt($q$update public.impersonation_sessions
+                        set expires_at = now() + interval '2 hours'
+                      where id = 'dddd0000-0014-4000-8000-000000000009'$q$),
+  'error=42501',
+  'NAV-003 a stale ended-preview claim cannot extend its session');
 
 select is(
   (select expires_at from public.impersonation_sessions
@@ -742,19 +750,30 @@ select is(
   now() + interval '1 hour',
   'the stored expiry is unchanged after an attempt to extend an ended session');
 
--- Clearing the end time is the one write the trigger cannot catch, because ended_at is
--- the one column it must not restore. The policy's `with check` carries it instead, so
--- a session that has ended does not come back to life.
-do $reopen$ begin
-  perform pg_temp.attempt($q$update public.impersonation_sessions set ended_at = null
-                             where id = 'dddd0000-0014-4000-8000-000000000009'$q$);
-end; $reopen$;
+-- Clearing an end time is not the permitted end operation.
+select is(
+  pg_temp.attempt($q$update public.impersonation_sessions set ended_at = null
+                     where id = 'dddd0000-0014-4000-8000-000000000009'$q$),
+  'error=42501',
+  'NAV-003 a stale ended-preview claim cannot reopen its session');
 
 select is(
   (select ended_at from public.impersonation_sessions
     where id = 'dddd0000-0014-4000-8000-000000000009'),
   now(),
   'an ended session cannot be re-opened by clearing its end time');
+
+select is(
+  pg_temp.attempt($q$update public.members set full_name = 'stale preview overwrite'
+                     where id = '33330000-0014-4000-8000-0000000000a1'$q$),
+  'error=42501',
+  'NAV-003 ending a preview does not grant its stale token product writes');
+
+select is(
+  (select full_name from public.members
+    where id = '33330000-0014-4000-8000-0000000000a1'),
+  'Member A One',
+  'NAV-003 stale preview refusal preserves target-gym member data and read access');
 
 -- The policy-only half: the impersonation claim names this session, but the tenant
 -- claim names another gym. No column restoration can catch this, because the row is
