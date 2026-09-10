@@ -545,7 +545,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(782);
+select plan(805);
 
 
 -- ---------------------------------------------------------------------------
@@ -1687,9 +1687,26 @@ set local role postgres;
 -- payment. If the rule read the plan's 120000 list price instead of the
 -- membership's own 100000, total_after (100000) would still be below one
 -- multiple and this would fail.
+--
+-- THE EXPECTED VALUE MOVED, AND THE REQUIREMENT MOVED, NOT THE TEST. This read
+-- `today + 30 + 30` for as long as this file has existed: the membership's
+-- TYPED span (`today … today + 30`) plus the one period the money bought. The
+-- `membership-creation` contract's "the first period is set, not added"
+-- (Section 37) settles that a membership which has been granted NO periods has
+-- its span SET from the plan rather than extended — the span it was created
+-- carrying was typed and not bought, and adding a bought period on top of a
+-- typed one hands the typed one out free. 085 is created with
+-- `periods_granted` defaulted to 0, so the second half payment here is its
+-- FIRST grant, and one period of money now buys exactly one period of gym. The
+-- first `+ 30` was the typed half; it is what fell away. `starts_on` is
+-- unchanged and still today — it is the later of its own value and today, and
+-- today they are the same date. WHAT THIS ASSERTION TESTS IS UNTOUCHED: two
+-- half payments reaching one multiple grant exactly one period, scored against
+-- the membership's own 100000 and not the plan's 120000 list price, which is
+-- still the only reason this pair of payments is split in half.
 select results_eq(
   $$ select ends_on from public.memberships where id = '22000000-0000-4000-8000-000000000085'::uuid $$,
-  $$ select (select d from today_t8) + 30 + 30 $$,
+  $$ select (select d from today_t8) + 30 $$,
   'scenario "Two half payments" — exactly one period was granted, on the second, using the membership''s own price'
 );
 
@@ -1769,9 +1786,21 @@ $$, 'a double payment against a fresh membership is recorded, not refused');
 set local role postgres;
 
 -- 67 — two multiples: exactly two periods granted in one payment.
+--
+-- THE EXPECTED VALUE MOVED, AND THE REQUIREMENT MOVED, NOT THE TEST. This read
+-- `today + 30 + 60` — the membership's TYPED span plus the two periods bought.
+-- 088 is created at `periods_granted = 0`, so this single payment is its FIRST
+-- grant, and "the first period is set, not added" (the `membership-creation`
+-- contract, Section 37) makes that grant SET the span to `duration_days x
+-- periods_granted` rather than add to a span nobody paid for: 60 days, not 90.
+-- The first `+ 30` was the typed half and it is what fell away; the `+ 60` —
+-- the part this assertion is actually about — is unchanged. WHAT THIS ASSERTION
+-- TESTS IS UNTOUCHED: two multiples in ONE payment grant exactly TWO periods,
+-- which is still the only thing distinguishing "counts the money" from "grants
+-- one period per statement".
 select results_eq(
   $$ select ends_on from public.memberships where id = '22000000-0000-4000-8000-000000000088'::uuid $$,
-  $$ select (select d from today_t8) + 30 + 60 $$,
+  $$ select (select d from today_t8) + 60 $$,
   'two multiples in a single payment grant exactly two periods'
 );
 
@@ -14301,6 +14330,639 @@ select results_eq(
        from public.memberships m where m.id = '22000000-0000-4000-8000-000000290084'::uuid $$,
   $$ values ('22000000-0000-4000-8000-000000290045'::uuid, 'active'::text, 0) $$,
   'and the membership is unchanged after it — still B''s, still active, and T2 still holds nothing'
+);
+
+-- ===========================================================================
+-- SECTION 37 (ROUND TWENTY-THREE, contract `membership-creation`) — "THE FIRST
+-- PERIOD IS SET, NOT ADDED." Tenant 30. Assertions 783-805.
+--
+-- WHAT THE REQUIREMENT SAYS, IN ITS OWN TERMS. `app.grant_periods()` computes
+-- `ends_on = greatest(ends_on, today) + duration x periods`. It MUST add — that
+-- is what a renewal is. But WHERE A MEMBERSHIP HAS BEEN GRANTED NO PERIODS, any
+-- span the row carries was TYPED and not BOUGHT, and adding a bought period on
+-- top of a typed one hands the typed one out free. So on a first grant the span
+-- is SET from the plan rather than extended, and the row is started at THE
+-- LATER OF ITS `starts_on` AND TODAY.
+--
+-- THE MEASURED DEFECT THIS SECTION IS BUILT AROUND. Ordinary front desk, two
+-- ordinary statements: create a membership dated `today … today + 30` on a
+-- 30-day plan, record ONE payment of the plan's own price, and the span becomes
+-- SIXTY DAYS with `periods_granted = 1`. One period of money buying two, and
+-- every audit invariant this file already pins is intact while it happens — one
+-- payment, one receipt, `periods_granted = floor(money / price)`, the
+-- membership's own price on the row, no frozen term touched. The ONLY number
+-- that disagrees is `ends_on - starts_on` against `duration_days x
+-- periods_granted`, and ADR-088 declined to make that an invariant, for reasons
+-- that are still right. Nothing in this system compares those two numbers,
+-- which is precisely why nothing in this system noticed. Assertion 800 compares
+-- them, once, across every path this section builds.
+--
+-- WHAT IS *NOT* ASSERTED HERE, STATED SO IT IS NOT MISREAD AS AN OVERSIGHT. An
+-- earlier draft of this contract carried a second requirement — a membership is
+-- created with at most the one period it is sold, answered `GL048`. It has been
+-- WITHDRAWN and struck, refuted by its own implementation: spliced into all 47
+-- pgTAP files it blocked SIX of them outright and failed four assertions in a
+-- seventh, because fixtures in six independently-authored files create
+-- memberships spanning more than one period directly. Six files by different
+-- authors at different times are not six mistakes. THERE IS NO `GL048`. Nothing
+-- below asserts one, and nothing below asserts anything about what a membership
+-- may be CREATED as — every fixture here is created freely and the rule under
+-- test acts at the moment money lands. That is the whole point of the split:
+-- the creation rule would have been keyed on what a writer may TYPE, and this
+-- one is keyed on what has actually been PAID FOR, which no `alter table …
+-- disable trigger` window in `seed.sql` can switch off because it IS the
+-- granting rule.
+--
+-- WHY THE `starts_on` HALF NEEDED DECIDING AT ALL. "Set the span" fixes a
+-- LENGTH and not a POSITION, and three readings satisfy the headline scenario
+-- identically because in it `starts_on` is already today. They differ by up to
+-- a hundred days on two real shapes, at a gate that admits on dates (ADR-084),
+-- with GL045 making whatever lands permanent. Groups 2 and 3 are those two
+-- shapes and they exist to separate the readings:
+--   * PRE-SOLD (group 2) — starts next Monday. Keeping `starts_on` gives
+--     Mon … Mon+30. Moving both to today gives a free week before Monday.
+--   * LAPSED (group 3) — started and ended in the past. Keeping `starts_on`
+--     leaves a member who just paid holding a membership that expired last
+--     month: PAID FOR NOTHING. Moving both to today gives today … today+30.
+-- "The later of its `starts_on` and today" is the one reading that answers both
+-- correctly, and a THIRD reading — keep `starts_on`, floor only `ends_on` — is
+-- what the first implementation did and gives the returning member a 61-DAY
+-- SPAN for one month's money: the same defect from the other side. Group 3
+-- catches exactly that, and it is the only group that does.
+--
+-- THE CONTROLS, AND WHY THREE OF THEM. This project has three times this phase
+-- shipped a fix that was correct on the harm and too broad on the permitted
+-- side, so the permitted side is asserted at the same weight as the harm:
+--   * GROUP 4, THE RENEWAL — THE MOST IMPORTANT ASSERTION IN THIS SECTION. A
+--     membership that has ALREADY BEEN GRANTED A PERIOD, paid again, must
+--     EXTEND, because extending is what a renewal IS. It is built by paying a
+--     dateless membership twice rather than by typing `periods_granted = 1`
+--     into a fixture, because GL044 refuses a hand-written count at creation
+--     (assertion 166) — so the first payment EARNS the state the second one is
+--     tested against. Both halves are GREEN TODAY and must both still be green
+--     afterwards. A fix that reads "always set, never add" passes every red
+--     assertion in this section and fails 793, and 793 alone.
+--   * GROUP 5, THE ORDINARY DATELESS PATH — the product's own answer today
+--     (Section 9, assertion 69) and the yardstick the contract measures the
+--     defect against: the same payment gives 30 days here and 60 days at the
+--     headline. Green today, green afterwards.
+--   * GROUP 6, THE CONSOLE'S ZERO-SPAN SHAPE — `starts_on = ends_on = today`,
+--     the shape assertion 170 already pins, and the shape a correct fix leaves
+--     numerically untouched (`greatest(today, today) + 30` and
+--     `today + 30 x 1` are the same date). It is here because it is the one
+--     dated first-grant path that is ALREADY right, and a fix that changed it
+--     would be changing the console's own behaviour by accident.
+--
+-- GROUP 7 is the arithmetic rather than the boundary: ONE payment worth TWO
+-- periods against a typed span. `duration x periods` has to be the multiplier
+-- on a first grant too, not a single period plus whatever was typed — measured
+-- in the contract as span 60, two periods granted.
+--
+-- FIXTURES. Seven memberships, ONE MEMBER EACH, because
+-- `memberships_tenant_id_member_id_live_key` allows a member only one live
+-- membership and five of these seven are live simultaneously. The lapsed
+-- membership at group 3 is `active` with both dates in the past — NOT
+-- `expired` and NOT `cancelled` — for a measured reason: assertion 675 records
+-- that `expired` is "the status the product itself never writes", and Section
+-- 30 (682) records that a payment against a RETIRED membership grants nothing
+-- and moves no date at all. A terminal fixture would make group 3 assert the
+-- retirement rule instead of this one. Two memberships are created `pending`
+-- with typed dates (P, the pre-sold one) or with none (D and R) and the rest
+-- `active`; the status spread is deliberate, so that an implementation keyed on
+-- STATUS rather than on `periods_granted = 0` splits this section's answers
+-- instead of passing it. No fixture names `periods_granted` at all — GL044
+-- (166) refuses a typed count — and none names `duration_days`, so 783 also
+-- pins that the plan's 30 was copied onto every row, without which 800's
+-- identity would be comparing against nothing.
+--
+-- ADR-039: every date below is derived from `today_t30`, the gym's OWN today
+-- read through its timezone, never `current_date`. The org is IST; a UTC-dated
+-- fixture produces a 31-day span where 30 was meant, and this project has
+-- shipped that defect twice. ADR-030: nothing is committed; the file's single
+-- BEGIN … ROLLBACK covers this section as it covers every other.
+-- ===========================================================================
+
+set local role postgres;
+
+insert into public.organizations (id, name, gym_code) values
+  ('22000000-0000-4000-8000-000000300001'::uuid, 'PayRec Gym 30', 'PYR22A');
+
+insert into public.branches (id, tenant_id, name, is_default) values
+  ('22000000-0000-4000-8000-000000300011'::uuid, '22000000-0000-4000-8000-000000300001'::uuid, 'G30 Main', true);
+
+-- payments_offline_has_staff_chk requires a staff attribution on every
+-- non-razorpay payment, and every payment below is cash at the desk.
+insert into public.staff (id, tenant_id, branch_id, role, full_name) values
+  ('22000000-0000-4000-8000-000000300021'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300011'::uuid, 'front_desk', 'T30 Desk');
+
+-- One member per membership: five of the seven memberships below are live at
+-- the same moment and the live partial unique index permits one apiece.
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000300041'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300011'::uuid, 'M30 H (headline)', '+912230000041'),
+  ('22000000-0000-4000-8000-000000300042'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300011'::uuid, 'M30 P (pre-sold)', '+912230000042'),
+  ('22000000-0000-4000-8000-000000300043'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300011'::uuid, 'M30 L (lapsed)', '+912230000043'),
+  ('22000000-0000-4000-8000-000000300044'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300011'::uuid, 'M30 D (dateless)', '+912230000044'),
+  ('22000000-0000-4000-8000-000000300045'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300011'::uuid, 'M30 C (console)', '+912230000045'),
+  ('22000000-0000-4000-8000-000000300046'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300011'::uuid, 'M30 X2 (double)', '+912230000046'),
+  ('22000000-0000-4000-8000-000000300047'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300011'::uuid, 'M30 R (renewal)', '+912230000047');
+
+-- A plain 30-day plan at the plan's own list price, so that ONE payment of
+-- 100000 is exactly ONE period and no part of this section turns on truncation
+-- (Section 14 owns that) or on list-price-versus-membership-price (Section 8
+-- owns that).
+insert into public.plans (id, tenant_id, name, duration_days, price_paise) values
+  ('22000000-0000-4000-8000-000000300061'::uuid, '22000000-0000-4000-8000-000000300001'::uuid, 'G30 Plan (30d)', 30, 100000);
+
+create temp table today_t30 as
+  select (now() at time zone o.timezone)::date as d
+    from public.organizations o where o.id = '22000000-0000-4000-8000-000000300001'::uuid;
+grant select on today_t30 to public;
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  -- H (…081): THE HEADLINE. Dated exactly one period, on a one-period plan.
+  -- The contract's two ordinary statements, shape one.
+  ('22000000-0000-4000-8000-000000300081'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300041'::uuid, '22000000-0000-4000-8000-000000300061'::uuid,
+   'active', (select d from today_t30), (select d from today_t30) + 30, 100000),
+  -- P (…082): PRE-SOLD. Starts a week out; `pending` because a membership sold
+  -- and not yet paid for is what pending means, and because the rule must be
+  -- keyed on the COUNT rather than on the status.
+  ('22000000-0000-4000-8000-000000300082'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300042'::uuid, '22000000-0000-4000-8000-000000300061'::uuid,
+   'pending', (select d from today_t30) + 7, (select d from today_t30) + 37, 100000),
+  -- L (…083): LAPSED. Started and ended in the past, and `active` rather than
+  -- `expired`/`cancelled` on purpose — see the header: a terminal row grants
+  -- nothing (Section 30, 682) and would test the wrong rule.
+  ('22000000-0000-4000-8000-000000300083'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300043'::uuid, '22000000-0000-4000-8000-000000300061'::uuid,
+   'active', (select d from today_t30) - 60, (select d from today_t30) - 30, 100000),
+  -- D (…084): the ordinary dateless path, untouched control.
+  ('22000000-0000-4000-8000-000000300084'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300044'::uuid, '22000000-0000-4000-8000-000000300061'::uuid,
+   'pending', null, null, 100000),
+  -- C (…085): the console's own zero-span shape, byte for byte the fixture
+  -- assertion 168 creates. Untouched control.
+  ('22000000-0000-4000-8000-000000300085'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300045'::uuid, '22000000-0000-4000-8000-000000300061'::uuid,
+   'active', (select d from today_t30), (select d from today_t30), 100000),
+  -- X2 (…086): a typed one-period span that will take TWO periods in a single
+  -- payment, so the multiplier is asserted and not just the boundary.
+  ('22000000-0000-4000-8000-000000300086'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300046'::uuid, '22000000-0000-4000-8000-000000300061'::uuid,
+   'active', (select d from today_t30), (select d from today_t30) + 30, 100000),
+  -- R (…087): the RENEWAL control. Created dateless and granted nothing; its
+  -- first payment EARNS the period that its second payment is then tested
+  -- against, because GL044 (166) refuses a count typed into a fixture.
+  ('22000000-0000-4000-8000-000000300087'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300047'::uuid, '22000000-0000-4000-8000-000000300061'::uuid,
+   'pending', null, null, 100000);
+
+-- 783 — THE GUARDED FIXTURE. Every claim below is a claim about a CHANGE, and
+-- a change can only be read against a starting point that was verified. Four
+-- things are pinned here and each of them is load-bearing: the seven spans are
+-- the seven shapes named above (so groups 1-3 really are the headline, the
+-- pre-sold and the lapsed row and not three copies of one another); EVERY
+-- `periods_granted` IS 0 (so every first grant below really is a FIRST grant,
+-- which is the only condition the requirement is keyed on); every
+-- `duration_days` is the plan's 30, copied by the product rather than typed
+-- here (without which 800's identity compares against a default of 1); and
+-- every price is 100000 (so one payment of 100000 is exactly one period and no
+-- assertion below turns on truncation).
+select results_eq(
+  $$ select id, starts_on, ends_on, periods_granted, duration_days, price_paise
+       from public.memberships
+      where tenant_id = '22000000-0000-4000-8000-000000300001'::uuid
+      order by id $$,
+  $$ values
+      ('22000000-0000-4000-8000-000000300081'::uuid, (select d from today_t30), (select d from today_t30) + 30, 0, 30, 100000::bigint),
+      ('22000000-0000-4000-8000-000000300082'::uuid, (select d from today_t30) + 7, (select d from today_t30) + 37, 0, 30, 100000::bigint),
+      ('22000000-0000-4000-8000-000000300083'::uuid, (select d from today_t30) - 60, (select d from today_t30) - 30, 0, 30, 100000::bigint),
+      ('22000000-0000-4000-8000-000000300084'::uuid, null::date, null::date, 0, 30, 100000::bigint),
+      ('22000000-0000-4000-8000-000000300085'::uuid, (select d from today_t30), (select d from today_t30), 0, 30, 100000::bigint),
+      ('22000000-0000-4000-8000-000000300086'::uuid, (select d from today_t30), (select d from today_t30) + 30, 0, 30, 100000::bigint),
+      ('22000000-0000-4000-8000-000000300087'::uuid, null::date, null::date, 0, 30, 100000::bigint) $$,
+  'guarded fixture: seven memberships in the seven shapes this section needs, EVERY ONE of them granted nothing yet, every one carrying the plan''s own 30-day term and 100000 price'
+);
+
+select set_config(
+  'request.jwt.claims',
+  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+                    'tenant_id', '22000000-0000-4000-8000-000000300001',
+                    'app_role', 'front_desk',
+                    'staff_id', '22000000-0000-4000-8000-000000300021')::text,
+  true);
+
+-- ---------------------------------------------------------------------------
+-- GROUP 1 (784-785) — THE HEADLINE. The contract's own measurement, reproduced
+-- as the two ordinary statements it names: a membership dated `today …
+-- today + 30` on a 30-day plan, and ONE payment of the plan's own price. Today
+-- this leaves a SIXTY-day span with `periods_granted = 1` — one period of money
+-- buying two, and nothing else on the row disagreeing.
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+
+-- 784
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000301001'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+          '22000000-0000-4000-8000-000000300041'::uuid, '22000000-0000-4000-8000-000000300081'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid)
+$$, 'the headline, statement two: an ordinary front desk records one payment of the plan''s own price against a membership dated exactly one period. It is RECORDED — the requirement is about what the money BUYS, never about refusing the money');
+
+set local role postgres;
+
+-- 785 — THE HEADLINE ASSERTION. One period of money buys ONE period of gym.
+-- The span the row was created carrying was TYPED and not BOUGHT, so the first
+-- grant SETS it from the plan instead of adding to it. `starts_on` is the later
+-- of its own value and today, and today they are the same date, which is
+-- exactly why this assertion alone cannot decide where `starts_on` lands and
+-- groups 2 and 3 exist.
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000300081'::uuid $$,
+  $$ select (select d from today_t30), (select d from today_t30) + 30, 1 $$,
+  'THE HEADLINE: one payment of one period''s price against a membership dated exactly one period leaves it spanning ONE period — the first grant SET the span from the plan rather than extending the span nobody paid for'
+);
+
+-- ---------------------------------------------------------------------------
+-- GROUP 2 (786-787) — PRE-SOLD, the first of the two shapes the `starts_on`
+-- rule exists for. The membership starts NEXT WEEK and the member pays for it
+-- today. `starts_on` is the later of `today + 7` and today, so the FUTURE START
+-- DATE WAS CHOSEN AND IS HONOURED: the span is `today + 7 … today + 37`, and a
+-- reading that moved both dates to today would hand this member a free week
+-- before their membership was ever meant to begin.
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+
+-- 786
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000301002'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+          '22000000-0000-4000-8000-000000300042'::uuid, '22000000-0000-4000-8000-000000300082'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid)
+$$, 'pre-sold: the member pays today for a membership that starts next week, and the payment is recorded');
+
+set local role postgres;
+
+-- 787 — the pre-sold answer. TWO things are pinned in one row and both matter:
+-- `starts_on` did NOT move to today (the chosen date is honoured), and the span
+-- is thirty days rather than the sixty a first grant that ADDED would
+-- produce here. It is `pending`, and its status is deliberately not asserted —
+-- what a first grant does to `status` is not what this requirement decides, and
+-- asserting it would be guessing.
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000300082'::uuid $$,
+  $$ select (select d from today_t30) + 7, (select d from today_t30) + 37, 1 $$,
+  'PRE-SOLD: a future start date was chosen and is HONOURED — the membership still starts next week and now spans exactly the one period that was paid for, not the sixty days an addition would have given it'
+);
+
+-- ---------------------------------------------------------------------------
+-- GROUP 3 (788-789) — LAPSED, the second shape, and the ONLY group that
+-- separates the decided reading from the one the first implementation shipped.
+-- The membership started sixty days ago and ended thirty days ago; the member
+-- comes back and pays. `starts_on` is the later of `today - 60` and today, so
+-- it becomes TODAY — a past start date is NOT honoured, because a membership
+-- nobody paid for never started.
+--
+-- WHY THIS GROUP IS THE DISCRIMINATOR. All three candidate readings agree at
+-- the headline. Here they do not:
+--   * keep `starts_on` outright  -> today - 60 … today - 30: the member has
+--     just paid for a membership that EXPIRED LAST MONTH. Paid for nothing.
+--   * keep `starts_on`, floor only `ends_on` at today (WHAT THE FIRST
+--     IMPLEMENTATION DID) -> today - 60 … today + 30: a NINETY-day span for
+--     one month's money — this requirement's own defect, reached from the other
+--     side, and the reason `ends_on` alone is not enough to assert.
+--   * the decided rule -> today … today + 30.
+-- `ends_on` reads `today + 30` under the third reading AND under the second, so
+-- this assertion is red today on `starts_on` and only on `starts_on`. That is
+-- the point of asserting the two columns together in one row rather than
+-- asserting the end date and calling the shape proven.
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+
+-- 788
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000301003'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+          '22000000-0000-4000-8000-000000300043'::uuid, '22000000-0000-4000-8000-000000300083'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid)
+$$, 'lapsed: a member whose membership ran out last month comes back to the desk and pays, and the payment is recorded');
+
+set local role postgres;
+
+-- 789
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000300083'::uuid $$,
+  $$ select (select d from today_t30), (select d from today_t30) + 30, 1 $$,
+  'LAPSED: a PAST start date is not honoured — the membership is started at today and spans exactly thirty days, rather than carrying a start date sixty days old and a ninety-day span for one month''s money'
+);
+
+-- ---------------------------------------------------------------------------
+-- GROUP 4 (790-793) — THE RENEWAL. THE MOST IMPORTANT CONTROL IN THIS SECTION,
+-- and the assertion an over-broad fix fails. "Set, not added" is keyed on
+-- `periods_granted = 0` and on nothing else; a membership that HAS been granted
+-- a period must still EXTEND when it is paid again, because extending is what a
+-- renewal IS.
+--
+-- The state is EARNED, not typed: GL044 (assertions 166-167) refuses a
+-- `periods_granted` a hand wrote at creation, so R is created dateless and its
+-- FIRST payment (790) puts it at one period and `today … today + 30`, exactly
+-- as Section 9 already pins. 792 is then the renewal under test and 793 is the
+-- answer: `today … today + 60`, two periods.
+--
+-- WHAT FAILS HERE AND NOWHERE ELSE. A fix that reads "on a first grant, set" is
+-- correct and passes everything. A fix that reads "always set, never add" —
+-- which passes 785, 787, 789 and 799, every red assertion in this section —
+-- would leave R at `today … today + 30` after its second payment: a month of
+-- money silently eaten, which is the same class of harm the requirement exists
+-- to close. So would a fix keyed on "the row already carries dates" rather than
+-- on the count, since R carries dates by the time 792 lands.
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+
+-- 790
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000301004'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+          '22000000-0000-4000-8000-000000300047'::uuid, '22000000-0000-4000-8000-000000300087'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid)
+$$, 'renewal, the fixture half: the FIRST payment against a dateless membership, which earns the period that the renewal below is tested against');
+
+set local role postgres;
+
+-- 791 — the earned state, verified before the renewal is attempted rather than
+-- assumed. If this is wrong the renewal below proves nothing.
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000300087'::uuid $$,
+  $$ select (select d from today_t30), (select d from today_t30) + 30, 1 $$,
+  'renewal, the fixture half: one period EARNED from one payment, dated from the gym''s own today — the state a hand may not type and the granting rule must produce'
+);
+
+set local role authenticated;
+
+-- 792
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000301005'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+          '22000000-0000-4000-8000-000000300047'::uuid, '22000000-0000-4000-8000-000000300087'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid)
+$$, 'renewal: the member pays again, a month before they have to');
+
+set local role postgres;
+
+-- 793 — THE CONTROL THAT AN OVER-BROAD FIX FAILS. Green today. Must be green
+-- afterwards. A renewal EXTENDS.
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000300087'::uuid $$,
+  $$ select (select d from today_t30), (select d from today_t30) + 60, 2 $$,
+  'THE RENEWAL CONTROL: a membership that has already been granted a period is EXTENDED by the next payment, not reset to one period — `starts_on` unmoved, sixty days, two periods. A fix that set the span on every grant rather than only the first would eat this month of money and pass every other assertion in this section'
+);
+
+-- ---------------------------------------------------------------------------
+-- GROUP 5 (794-795) — THE ORDINARY DATELESS PATH, UNCHANGED. The product's own
+-- answer today (Section 9, assertion 69) and the yardstick the contract
+-- measures the defect against: against this path the same payment gives thirty
+-- days, and at the headline it gave sixty. Green today, green afterwards.
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+
+-- 794
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000301006'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+          '22000000-0000-4000-8000-000000300044'::uuid, '22000000-0000-4000-8000-000000300084'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid)
+$$, 'the ordinary path: a payment against a dateless pending membership');
+
+set local role postgres;
+
+-- 795
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000300084'::uuid $$,
+  $$ select (select d from today_t30), (select d from today_t30) + 30, 1 $$,
+  'THE ORDINARY PATH IS UNCHANGED: a dateless pending membership is still dated from the gym''s own today for the plan''s duration — the answer this requirement wants the dated paths to agree with, not one it changes'
+);
+
+-- ---------------------------------------------------------------------------
+-- GROUP 6 (796-797) — THE CONSOLE'S ZERO-SPAN SHAPE, UNCHANGED. `starts_on =
+-- ends_on = today` is what assertion 168 creates and what 170 already pins, and
+-- it is the one DATED first-grant path that is already numerically right:
+-- `greatest(today, today) + 30 x 1` and "set from the plan at today" are the
+-- same date, so a correct fix touches nothing here. It is asserted because a
+-- fix that DID change it would be changing the console's own behaviour by
+-- accident, and this is the only place in the file that would notice.
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+
+-- 796
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000301007'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+          '22000000-0000-4000-8000-000000300045'::uuid, '22000000-0000-4000-8000-000000300085'::uuid,
+          100000, 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid)
+$$, 'the console''s shape: a payment against a membership created with a zero-length span');
+
+set local role postgres;
+
+-- 797
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000300085'::uuid $$,
+  $$ select (select d from today_t30), (select d from today_t30) + 30, 1 $$,
+  'THE CONSOLE''S ZERO-SPAN SHAPE IS UNCHANGED: still today … today + 30 for one period — the one dated first-grant path that was already right, and a fix that moved it would be moving the console'
+);
+
+-- ---------------------------------------------------------------------------
+-- GROUP 7 (798-799) — ONE PAYMENT WORTH TWO PERIODS, ON A TYPED SPAN. The
+-- boundary groups above all buy exactly one period, so none of them can tell a
+-- span that was SET from the plan (`duration x periods`) from one that was set
+-- to a single period and happened to match. This one can: 200000 against a
+-- 100000 membership is two periods, and the span must be SIXTY days measured
+-- from today — not the typed thirty plus sixty (ninety) an addition gives, and
+-- not thirty.
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+
+-- 798
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, status, method, recorded_by_staff_id)
+  values ('22000000-0000-4000-8000-000000301008'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+          '22000000-0000-4000-8000-000000300046'::uuid, '22000000-0000-4000-8000-000000300086'::uuid,
+          200000, 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid)
+$$, 'two periods in a single payment against a membership carrying a typed one-period span — recorded, not refused');
+
+set local role postgres;
+
+-- 799
+select results_eq(
+  $$ select starts_on, ends_on, periods_granted from public.memberships
+      where id = '22000000-0000-4000-8000-000000300086'::uuid $$,
+  $$ select (select d from today_t30), (select d from today_t30) + 60, 2 $$,
+  'A FIRST GRANT SETS `duration x periods`, NOT ONE PERIOD: a single payment worth two periods leaves a sixty-day span and a count of two — proving the multiplier survives the change, which a section that only ever bought one period could not show'
+);
+
+-- ---------------------------------------------------------------------------
+-- GROUP 8 (800) — THE IDENTITY, ACROSS EVERY PATH AT ONCE. The contract names
+-- `ends_on - starts_on` versus `duration_days x periods_granted` as THE ONLY
+-- number that disagreed while the defect was live, and ADR-088 declined to make
+-- it a trigger, for reasons that are still right. So it is asserted here
+-- instead, once, on all seven memberships together — six of them freshly
+-- granted and the seventh renewed — because a rule that held on the headline
+-- and drifted on the pre-sold or the lapsed row would be exactly as silent as
+-- the defect was. Every row is compared against its OWN frozen `duration_days`,
+-- not against the plan's. This group has matching membership and plan lengths;
+-- it asserts the span identity, not the separate frozen-duration requirement.
+-- ---------------------------------------------------------------------------
+
+-- 800
+select results_eq(
+  $$ select id, (ends_on - starts_on), (duration_days * periods_granted)
+       from public.memberships
+      where tenant_id = '22000000-0000-4000-8000-000000300001'::uuid
+      order by id $$,
+  $$ values
+      ('22000000-0000-4000-8000-000000300081'::uuid, 30, 30),
+      ('22000000-0000-4000-8000-000000300082'::uuid, 30, 30),
+      ('22000000-0000-4000-8000-000000300083'::uuid, 30, 30),
+      ('22000000-0000-4000-8000-000000300084'::uuid, 30, 30),
+      ('22000000-0000-4000-8000-000000300085'::uuid, 30, 30),
+      ('22000000-0000-4000-8000-000000300086'::uuid, 60, 60),
+      ('22000000-0000-4000-8000-000000300087'::uuid, 60, 60) $$,
+  'THE IDENTITY HOLDS ON EVERY PATH: `ends_on - starts_on` equals `duration_days x periods_granted` on all seven memberships — the headline, the pre-sold, the lapsed, the dateless, the console''s zero-span, the double payment and the renewal. This is the one comparison the system never makes, which is why the defect audited clean for a whole phase'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- GROUP 9 (801-805) — A PART PAYMENT SETS NOTHING. The new contract explicitly
+-- leaves both dates untouched until the accumulated money buys a whole period.
+-- Section 8 checks the end date alone; these shapes also expose a start date
+-- moving too early, and the dateless case must keep both dates null.
+--
+-- The dated fixtures deliberately carry 3650 days, which creation still allows.
+-- Once the second half pays for one period, the span must become thirty days:
+-- preserve a future start, move a past start to today, and start a dateless row
+-- today. A typed span's length is not credit toward paid membership time.
+-- ---------------------------------------------------------------------------
+
+insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+  ('22000000-0000-4000-8000-000000300048'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300011'::uuid, 'M30 Part Future', '+912230000048'),
+  ('22000000-0000-4000-8000-000000300049'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300011'::uuid, 'M30 Part Past', '+912230000049'),
+  ('22000000-0000-4000-8000-000000300050'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300011'::uuid, 'M30 Part Dateless', '+912230000050');
+
+insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise) values
+  ('22000000-0000-4000-8000-000000300088'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300048'::uuid, '22000000-0000-4000-8000-000000300061'::uuid,
+   'pending', (select d from today_t30) + 7, (select d from today_t30) + 3657, 100000),
+  ('22000000-0000-4000-8000-000000300089'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300049'::uuid, '22000000-0000-4000-8000-000000300061'::uuid,
+   'active', (select d from today_t30) - 90, (select d from today_t30) + 3560, 100000),
+  ('22000000-0000-4000-8000-000000300090'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+   '22000000-0000-4000-8000-000000300050'::uuid, '22000000-0000-4000-8000-000000300061'::uuid,
+   'pending', null, null, 100000);
+
+-- 801 — verify every starting date and that no period has been granted.
+select results_eq(
+  $$ select id, starts_on, ends_on, periods_granted, duration_days, price_paise
+       from public.memberships
+      where id in ('22000000-0000-4000-8000-000000300088'::uuid,
+                   '22000000-0000-4000-8000-000000300089'::uuid,
+                   '22000000-0000-4000-8000-000000300090'::uuid)
+      order by id $$,
+  $$ values
+      ('22000000-0000-4000-8000-000000300088'::uuid, (select d from today_t30) + 7, (select d from today_t30) + 3657, 0, 30, 100000::bigint),
+      ('22000000-0000-4000-8000-000000300089'::uuid, (select d from today_t30) - 90, (select d from today_t30) + 3560, 0, 30, 100000::bigint),
+      ('22000000-0000-4000-8000-000000300090'::uuid, null::date, null::date, 0, 30, 100000::bigint) $$,
+  'part-payment fixtures: future and past starts carry 3650 typed days, the dateless row carries none, and all three have zero granted periods on the same thirty-day terms'
+);
+
+set local role authenticated;
+
+-- 802 — one half-price payment per membership; none reaches one period.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id) values
+    ('22000000-0000-4000-8000-000000301009'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+     '22000000-0000-4000-8000-000000300048'::uuid, '22000000-0000-4000-8000-000000300088'::uuid,
+     50000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid),
+    ('22000000-0000-4000-8000-000000301010'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+     '22000000-0000-4000-8000-000000300049'::uuid, '22000000-0000-4000-8000-000000300089'::uuid,
+     50000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid),
+    ('22000000-0000-4000-8000-000000301011'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+     '22000000-0000-4000-8000-000000300050'::uuid, '22000000-0000-4000-8000-000000300090'::uuid,
+     50000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid)
+$$, 'half-price payments are recorded against the future, past-start and dateless memberships');
+
+set local role postgres;
+
+-- 803 — dates means BOTH columns, including nulls; the count remains zero.
+select results_eq(
+  $$ select id, starts_on, ends_on, periods_granted
+       from public.memberships
+      where id in ('22000000-0000-4000-8000-000000300088'::uuid,
+                   '22000000-0000-4000-8000-000000300089'::uuid,
+                   '22000000-0000-4000-8000-000000300090'::uuid)
+      order by id $$,
+  $$ values
+      ('22000000-0000-4000-8000-000000300088'::uuid, (select d from today_t30) + 7, (select d from today_t30) + 3657, 0),
+      ('22000000-0000-4000-8000-000000300089'::uuid, (select d from today_t30) - 90, (select d from today_t30) + 3560, 0),
+      ('22000000-0000-4000-8000-000000300090'::uuid, null::date, null::date, 0) $$,
+  'a payment short of one period moves neither date and grants nothing: future, past-start and dateless shapes are all unchanged'
+);
+
+set local role authenticated;
+
+-- 804 — the other half reaches exactly one period on each membership.
+select lives_ok($$
+  insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id) values
+    ('22000000-0000-4000-8000-000000301012'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+     '22000000-0000-4000-8000-000000300048'::uuid, '22000000-0000-4000-8000-000000300088'::uuid,
+     50000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid),
+    ('22000000-0000-4000-8000-000000301013'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+     '22000000-0000-4000-8000-000000300049'::uuid, '22000000-0000-4000-8000-000000300089'::uuid,
+     50000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid),
+    ('22000000-0000-4000-8000-000000301014'::uuid, '22000000-0000-4000-8000-000000300001'::uuid,
+     '22000000-0000-4000-8000-000000300050'::uuid, '22000000-0000-4000-8000-000000300090'::uuid,
+     50000, 'INR', 'paid', 'cash', '22000000-0000-4000-8000-000000300021'::uuid)
+$$, 'the second half of each price is recorded and completes the first paid period');
+
+set local role postgres;
+
+-- 805 — setting occurs only at the first complete period, even when the typed
+-- span was much longer than one period. Both dates and the earned count matter.
+select results_eq(
+  $$ select id, starts_on, ends_on, periods_granted
+       from public.memberships
+      where id in ('22000000-0000-4000-8000-000000300088'::uuid,
+                   '22000000-0000-4000-8000-000000300089'::uuid,
+                   '22000000-0000-4000-8000-000000300090'::uuid)
+      order by id $$,
+  $$ values
+      ('22000000-0000-4000-8000-000000300088'::uuid, (select d from today_t30) + 7, (select d from today_t30) + 37, 1),
+      ('22000000-0000-4000-8000-000000300089'::uuid, (select d from today_t30), (select d from today_t30) + 30, 1),
+      ('22000000-0000-4000-8000-000000300090'::uuid, (select d from today_t30), (select d from today_t30) + 30, 1) $$,
+  'two half payments buy exactly one thirty-day span: preserve the future start, replace the past start with today, and date the dateless membership from today'
 );
 
 select * from finish();
