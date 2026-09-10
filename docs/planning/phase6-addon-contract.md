@@ -1,6 +1,6 @@
 # Phase 6 add-on sale and fulfilment contract
 
-**Status:** normative freeze candidate under ADR-111, 2026-09-10. This fixes
+**Status:** normative freeze under ADR-111 and ADR-116, 2026-09-10. This fixes
 Cluster A of `phase6-draft.md`, inheriting `phase6-contract-seam.md`. Start its
 OpenSpec/tests only after Phase 5 is green and archived and this contract is
 reviewed. It changes no source, tests or database by itself.
@@ -107,7 +107,7 @@ part of this planning task; CI owns the currently busy Cloud project.
 
 ## Callable commands and wire schemas
 
-Every RPC below is VOLATILE, SECURITY INVOKER, SET search_path=''; revoke
+The five mutation RPCs below are VOLATILE, SECURITY INVOKER, SET search_path=''; revoke
 PUBLIC/anon execute, grant authenticated. It derives tenant and actor from
 verified claims, rejects impersonation, and checks its named role before any
 lookup. No tenant, seller, price, usage, stock or payment status argument is
@@ -149,8 +149,38 @@ public.complete_manual_addon_refund(
                 processed_at timestamptz, replayed boolean);
 ```
 
-RPC results always contain exactly one row on success. Each UUID result is
-non-null except sale payment/initial-session ids; `processed_at` is non-null.
+Member returned-money disclosure uses one deliberately narrow read boundary:
+
+```sql
+public.read_member_addon_returns(p_order_id uuid) returns jsonb;
+```
+
+It is STABLE, SECURITY DEFINER, postgres-owned, and has an empty search path.
+PUBLIC/anon execute are revoked and authenticated execute is granted. Before
+lookup it requires the complete verified NAV member shape: valid subject,
+tenant and member UUIDs, role `member`, and no staff or impersonation claim.
+Every other identity is `42501`; after authorization a null argument is `22023`.
+The named order and any linked payment must independently equal the claimed
+tenant/member. Missing, foreign or inconsistent order/payment linkage is the
+same `P0002` result. It uses only fully qualified static reads and has no write,
+lock, audit or trusted-caller path.
+
+Its one JSON object has exactly `orderId` and `returns`. Each return has exactly
+`refundId`, `kind`, `amountPaise`, `currency`, `processedAt`; kind preserves the
+row's generated `refund_kind` value (`refund` or `reversal`),
+amount is canonical decimal text, and processedAt may be null only for undated
+historical completion. Include completed refund/reversal records only, ordered
+by processed_at ascending nulls last then id. Own orders with no completed
+return, including complimentary orders, return an empty array. Do not expose
+reason, actor, provider reference, request key or pending/failed attempts, and
+do not combine currencies. The member screen labels these as recorded completed
+returns, never provider-verified transfers. This fixed projection is the only
+security-definer read exception; member SELECT on `refunds` remains denied.
+
+The five mutation RPC results always contain exactly one row on success. Each
+UUID result is non-null except sale payment/initial-session ids. `processed_at`
+is non-null on a new completion and may remain null only when an exact replay
+returns an undated historical completed refund.
 HTTP JSON success wraps those fields with the existing typed envelope;
 forms use the existing successful redirect convention. First writes and proven
 replays both succeed; failures never redirect as success.
@@ -183,6 +213,8 @@ slot times before calling the RPC; the RPC accepts offset-bearing instants.
 The session UUID is the creation request key. Schedule generates it once per
 form, reuses it on retry, and inserts only `scheduled`; an existing same-gym id
 is replay only if order, original slot and normalized notes match exactly.
+Session notes are outer-trimmed; blank becomes null, and otherwise case, Unicode
+and internal whitespace are preserved.
 Slots/notes are immutable after creation: reschedule means cancel then create
 a new UUID. Finish accepts only completed/cancelled/no_show; its existing UUID
 plus target status is the natural terminal-command identity. Same terminal
@@ -327,7 +359,7 @@ locks product before its new payment. Arbitrary direct SQL/provider updates can
 already hold a session/refund row before a trigger runs: native 40P01/40001 is a
 retryable rolled-back failure, never success. No universal deadlock-free claim.
 
-Private uncallable SECURITY DEFINER trigger helpers are permitted only for:
+Private uncallable mutating SECURITY DEFINER trigger helpers are permitted only for:
 (1) locking/checking the selected catalogue row at pending-order insert and
 conditionally decrementing its stock on acceptance; (2) validating/serializing
 accepted PT session effects and updating only parent sessions_used/status;
@@ -367,9 +399,11 @@ only the named overlap exclusion→slot_unavailable, native deadlock/serializati
 failure→retryable, and unrelated native failures→operation_failed. Never map an
 arbitrary 23505/23514/23P01 to replay or a specific business refusal.
 For named project errors, HTTP error.code is the listed DETAIL value; the
-existing envelope remains `{ok:false,error:{code,message}}`. Auth failure is
-403, invisible target (`P0002`) 404, invalid arguments (`22023`) 400, business
-refusal/retryable conflict 409, unrelated failure 500. Successful JSON is 200.
+existing envelope remains `{ok:false,error:{code,message}}`. A missing or
+incomplete verified identity is `401 not_signed_in`; a complete identity whose
+role is refused, and SQLSTATE `42501`, are `403 not_permitted`. Invisible target
+(`P0002`) is 404, invalid arguments (`22023`) 400, business refusal/retryable
+conflict 409, unrelated failure 500. Successful JSON is 200.
 
 Extend `app.audit_money_change()` for addon_orders INSERT/UPDATE using actions
 `addon_order.created`/`addon_order.updated`, record_type `addon_order`, order id,
@@ -400,7 +434,8 @@ completion, sale rollback at every child failure,
 cross-tenant/member/trainer references, direct-write snapshot/usage attacks,
 both OLD/NEW trainer assignment, all enum pairs and named refusal pairs,
 expiry/midnight/adjacent-slot boundaries, partial/full/terminal refunds,
-processed_at freeze, exact audit and member/owner reconciliation. Exercise
+processed_at freeze, the member return projection's identity/cross-tenant/data
+minimization rules, exact audit and member/owner reconciliation. Exercise
 Journey C with receipt, consumed PT and completed manual refund. Keep full
 money/RLS independence and CI-only migrations; regenerate types via CLI after
 CI applies them, register exports, then archive OpenSpec before completion.

@@ -507,6 +507,20 @@ tier; such data requires explicit review. This is a demo commercial-label
 normalization, not a subscription, charge, invoice or historical price claim.
 No database change was made during the inspection.
 
+**ADR-116 — Disclose completed add-on returns through one bounded member read.**
+The Phase 6 add-on screen promises the member the returned money on their own
+order, while the Phase 2 role matrix deliberately denies members direct SELECT
+on `refunds`. Widening that policy would expose every refund column and require
+a cross-table ownership lookup; an invoker view would still be denied. Keep the
+table policy unchanged. Add one postgres-owned, STABLE, empty-search-path
+security-definer function that accepts only an order id, requires a complete
+verified member identity, independently matches order and payment to its tenant
+and member claims, and returns a fixed JSON projection of completed return id,
+kind, exact decimal-string amount, currency and processing time. Foreign and
+missing facts share one result, and no pending attempt, reason, actor, provider
+reference or request key is exposed. This is settled before add-on test authors
+are dispatched under ADR-111.
+
 **ADR-112 — Preserve migration order when existing versions are ahead of the clock.**
 The refund unit's CLI-generated version `20260910074537` sorts before the
 already-applied `20260915100000` migration. Under the owner's ADR-111 delegation,
