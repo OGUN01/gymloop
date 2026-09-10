@@ -2493,6 +2493,13 @@ export type Database = {
         }[]
       }
       read_member_addon_returns: { Args: { p_order_id: string }; Returns: Json }
+      read_member_addon_trainer_names: {
+        Args: never
+        Returns: {
+          product_id: string
+          trainer_name: string
+        }[]
+      }
       record_addon_sale: {
         Args: {
           p_idempotency_key: string
