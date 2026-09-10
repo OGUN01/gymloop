@@ -108,9 +108,10 @@ answers `23514` for invalid bounds.
 ## Delivery and accepted boundaries
 
 Net-price completed its independent test authors, fresh Astra critic, local
-gates, CI-only migration apply and browser evidence. Refund retry protection and
-its refund-record rules land together; payment refusal ordering remains a
-separate coherent unit.
+gates, CI-only migration apply and browser evidence. Refund retry protection,
+immutable refund facts, payment/refund refusal ordering and financial audit
+completed together in refund-retries-and-money-audit with green final CI,
+live concurrency, browser verification and exact cleanup.
 
 The previously accepted Razorpay test-credential/signed-payload gap remains
 explicit. The withdrawn universal INSERT date cap is not reinstated here;
