@@ -268,6 +268,11 @@ select ok(
 -- 19-31. Front desk: money and the member desk, not the price list
 -- ---------------------------------------------------------------------------
 
+-- The preceding owner test proved promotion; restore this actor before issuing
+-- its next front-desk claim so the real staff role and current JWT agree.
+update public.staff set role='front_desk'
+where id='22220000-0013-4000-8000-0000000000a3';
+
 select set_config('request.jwt.claims', json_build_object(
   'sub', '00000000-0013-4000-8000-000000000002', 'role', 'authenticated',
   'tenant_id', 'aaaa0000-0013-4000-8000-000000000001',
