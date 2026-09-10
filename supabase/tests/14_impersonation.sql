@@ -42,7 +42,7 @@ begin;
 -- the owner role is assumed explicitly, never inherited from the connection.
 set local role postgres;
 
-select plan(35);
+select plan(38);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Five platform accounts, each in a different session state, so
@@ -490,21 +490,15 @@ select is(
   'spec "The impersonator ends its own session": one row, and this is the assertion the fourth policy exists for. The previous version of this file asserted the same thing with a hand-set super_admin claim -- one the hook cannot mint while the session is live -- and so passed against a schema where ending was impossible for everybody'
 );
 
--- The session is ended now, so `ended_at is not null` -- the one term the write
--- policy checks -- is satisfied by every subsequent update. That is exactly
--- when the immutability trigger has to carry the weight on its own, and it is
--- why `returning` is used: an assertion that read the row back afterwards would
--- pass identically against an update that affected NO rows, which is the
--- vacuity this file has already been caught by once.
-with reopened as (
-  update public.impersonation_sessions
+-- NAV-003: the stale preview token still carries its impersonation claim.
+-- After own-end, that token may not rewrite expiry, even though the old policy
+-- accepts a row with nonnull ended_at. Refuse rather than normalize the write.
+select throws_ok(
+  $$update public.impersonation_sessions
      set expires_at = now() + interval '30 minutes'
-   where id = '14000000-0000-4000-8000-000000000055'::uuid
-  returning expires_at
-)
-select is(
-  (select count(*) from reopened where expires_at = now() + interval '2 hours'), 1::bigint,
-  'spec "A session is written once and then only ended": the update reaches the row -- one row, so this is not a filtered no-op -- and the expiry it tried to move is still the two hours the session was created with. Once ended_at is set, the with check clause stops discriminating, so from here on nothing but the trigger prevents an ended session being quietly reopened'
+   where id = '14000000-0000-4000-8000-000000000055'::uuid$$,
+  '42501', null,
+  'NAV-003: an ended session cannot be rewritten by its stale preview token; only the original own-end operation is permitted'
 );
 
 set local role postgres;
@@ -525,13 +519,16 @@ set local role authenticated;
 select is(
   (select count(*) from public.audit_log
     where record_id = '14000000-0000-4000-8000-000000000055'::uuid
+      and exists (select 1 from public.impersonation_sessions s
+                   where s.id = '14000000-0000-4000-8000-000000000055'::uuid
+                     and s.expires_at = now() + interval '2 hours')
       and (action = 'impersonation_session.started'
         or (action = 'impersonation_session.ended'
             and reason = 'gym B asked for help with onboarding'
             and before is not null
             and after is not null))),
   2::bigint,
-  'spec "Ending a session" / design.md 6: a SECOND audit row for the same session, written by the trigger on the update that set ended_at -- and written under the IMPERSONATOR''s session, which is the only thing that can end it. The row still names a5 as the actor, because section 6 takes actor_user_id from the session row and not from a claim, and the claim at that moment said gym_owner. It carries the reason again, so an auditor reading only the end row need not join to learn why the session existed'
+  'spec "Ending a session" / design.md 6 and NAV-003: the original two-hour expiry remains unchanged after the refused stale-preview write, and exactly the original start plus own-end audit rows remain, carrying the original reason and before/after evidence'
 );
 
 select lives_ok(
@@ -703,7 +700,7 @@ select is(
 set local role postgres;
 
 -- ---------------------------------------------------------------------------
--- 30-31. Ending a session WHILE RETARGETING IT, as the impersonator of session
+-- 30-33. Ending a session WHILE RETARGETING IT, as the impersonator of session
 --        56 -- the second defect, and the one with no escalation in it at all.
 --
 --        `_impersonator_write` pinned `ended_at is not null` and nothing else,
@@ -715,12 +712,9 @@ set local role postgres;
 --        trail simply stops being true, which is the one thing INT-003 exists
 --        to prevent.
 --
---        Two assertions, because they are two different claims: the first is
---        the MECHANISM (the write lands, and the trigger put both columns
---        back), the second is the REQUIREMENT (the end row names the gym that
---        was actually impersonated). A test of the session row alone would be
---        satisfied by an implementation that leaves the row alone and still
---        audits from the values the caller supplied.
+--        NAV-003 narrows the exception to exact own-end. The mixed write must
+--        now be refused, leave the session open and emit no end audit. A later
+--        exact own-end still succeeds and writes the original gym/reason.
 -- ---------------------------------------------------------------------------
 
 select set_config(
@@ -733,20 +727,31 @@ select set_config(
 );
 set local role authenticated;
 
-with retargeted as (
-  update public.impersonation_sessions
+select throws_ok(
+  $$update public.impersonation_sessions
      set ended_at  = now(),
          tenant_id = '14000000-0000-4000-8000-000000000001'::uuid,
          reason    = 'a gym we never entered'
-   where id = '14000000-0000-4000-8000-000000000056'::uuid
-  returning tenant_id, reason
-)
-select is(
-  (select count(*) from retargeted
-    where tenant_id = '14000000-0000-4000-8000-000000000002'::uuid
-      and reason = 'a different actor, the same gym'),
-  1::bigint,
-  'spec "A session is written once and then only ended", the mechanism: the end lands -- one row, not a filtered no-op -- and both columns the statement tried to move come back unchanged. `returning` reads the row the trigger produced, so this cannot be satisfied by an update that quietly matched nothing'
+   where id = '14000000-0000-4000-8000-000000000056'::uuid$$,
+  '42501', null,
+  'NAV-003: own-end cannot also retarget tenant or rewrite reason, even when an old immutability trigger would have normalized them'
+);
+
+select ok(
+  exists (select 1 from public.impersonation_sessions
+           where id = '14000000-0000-4000-8000-000000000056'::uuid
+             and tenant_id = '14000000-0000-4000-8000-000000000002'::uuid
+             and reason = 'a different actor, the same gym' and ended_at is null)
+  and not exists (select 1 from public.audit_log
+                   where record_id = '14000000-0000-4000-8000-000000000056'::uuid
+                     and action = 'impersonation_session.ended'),
+  'NAV-003: rejected mixed own-end preserves the original open session and emits no end audit'
+);
+
+select lives_ok(
+  $$update public.impersonation_sessions set ended_at = now()
+     where id = '14000000-0000-4000-8000-000000000056'::uuid$$,
+  'NAV-003: exact own-end remains permitted after the refused mixed write'
 );
 
 select is(
@@ -762,7 +767,7 @@ select is(
 set local role postgres;
 
 -- ---------------------------------------------------------------------------
--- 32-35. The token itself, as RLS sees it. These are the claims assertion 1
+-- 34-38. The token itself, as RLS sees it. These are the claims assertion 1
 --        proved the hook mints, now set as the session's claims: the point is
 --        that a token which is simultaneously platform-wide and gym-scoped
 --        would have a strictly larger blast radius than either, for no product
@@ -800,14 +805,16 @@ select is_empty(
   'spec "An impersonating session cannot reach the platform roster": platform_users has no gym-side policy at all, so an impersonating token -- including the impersonator''s own row -- reads nothing from it'
 );
 
-with changed as (
-  update public.plans set price_paise = 250000
-   where id = '14000000-0000-4000-8000-000000000041'::uuid
-  returning 1
-)
+select throws_ok(
+  $$update public.plans set price_paise = 250000
+     where id = '14000000-0000-4000-8000-000000000041'::uuid$$,
+  '42501', null,
+  'NAV-003 supersedes writable gym preview: the impersonator retains gym reads but cannot reprice a plan'
+);
 select is(
-  (select count(*) from changed), 1::bigint,
-  'design.md 6: an impersonator acts AS THE GYM, with the gym''s reach -- so it writes what a gym_owner writes. The claim is a narrowing of the platform role, not a read-only observation post'
+  (select price_paise from public.plans where id = '14000000-0000-4000-8000-000000000041'::uuid),
+  200000::bigint,
+  'NAV-003: the refused preview repricing leaves the original price intact'
 );
 
 set local role postgres;

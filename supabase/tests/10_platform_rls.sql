@@ -103,8 +103,9 @@ select policies_are(
 );
 
 -- ---------------------------------------------------------------------------
--- Nothing writes to audit_log from `leads` or `member_imports`, and nothing
--- ever will: the shared updated_at trigger is the only one those two carry.
+-- NAV-003 adds the exact private preview guard to leads and member_imports,
+-- alongside their shared updated_at triggers. This guard refuses a write and
+-- does not write audit rows. Keep exact trigger identities, never just a count.
 --
 -- Phase 2 changes this for the other three tables and the scope of the
 -- assertion narrows with it, rather than the assertion being deleted.
@@ -125,9 +126,11 @@ select results_eq(
         and n.nspname = 'public'
         and c.relname in ('audit_log', 'leads', 'member_imports')
       order by 1, 2$q$,
-  $q$values ('leads'::text, 'leads_touch_updated_at'::text),
+  $q$values ('leads'::text, 'leads_preview_read_only'::text),
+           ('leads'::text, 'leads_touch_updated_at'::text),
+           ('member_imports'::text, 'member_imports_preview_read_only'::text),
            ('member_imports'::text, 'member_imports_touch_updated_at'::text)$q$,
-  'leads and member_imports carry the shared updated_at trigger and nothing else, and audit_log carries no trigger at all (docs/data-model.md, Audit rows)'
+  'NAV-003: leads and member_imports carry exactly their updated_at and preview_read_only triggers; audit_log remains trigger-free'
 );
 
 -- The action format is `<record_type>.<verb>`, both halves lowercase. The
