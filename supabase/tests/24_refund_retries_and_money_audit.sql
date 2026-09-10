@@ -24,7 +24,9 @@ create temp table refund_results (label text, refund_id uuid, replayed boolean);
 select has_column('public','refunds','idempotency_key','refunds carries a request key');
 
 -- the key is nullable text with no default or historical backfill expression
-select results_eq($$select data_type::text, is_nullable::text, column_default::text from information_schema.columns where table_schema='public' and table_name='refunds' and column_name='idempotency_key'$$, $$select 'text'::text,'YES'::text,null::text$$, 'the key is nullable text with no default or historical backfill expression');
+-- Catalog-derived text can retain C collation after ::text. Give both records
+-- the same explicit collation before pgTAP compares them (docs/data-model.md).
+select results_eq($$select data_type::text collate "default", is_nullable::text collate "default", column_default::text collate "default" from information_schema.columns where table_schema='public' and table_name='refunds' and column_name='idempotency_key'$$, $$select 'text'::text collate "default",'YES'::text collate "default",null::text collate "default"$$, 'the key is nullable text with no default or historical backfill expression');
 
 -- the named tenant-key unique index is partial only on non-null keys
 select ok((select i.indisunique and pg_get_indexdef(i.indexrelid) like '%(tenant_id, idempotency_key)%' and pg_get_expr(i.indpred,i.indrelid) = '(idempotency_key IS NOT NULL)' from pg_index i join pg_class c on c.oid=i.indexrelid where c.relname='refunds_tenant_id_idempotency_key_key'), 'the named tenant-key unique index is partial only on non-null keys');
