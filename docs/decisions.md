@@ -534,6 +534,62 @@ pages, reconcile completed and reserved totals exactly, label completed rows by
 choices close the final security, precision, pagination and role-control
 findings from the add-on gauntlet without widening the Phase 2 table policies.
 
+**ADR-118 — A preview session's lead writes are refused by a statement-level
+guard, not silently filtered.** The frozen leads contract pins what a preview
+identity may not do on the RPC surface but is silent on direct table writes.
+The visible suite had pinned a silent empty UPDATE; the holdout author, blind
+to both, pinned `42501`. Resolving against the system-wide invariant — the
+identity-navigation migration already refuses every authenticated-writable
+table with `42501` `Support preview is read-only.` — a permissive policy only
+filters, so a preview UPDATE matches no row and fires no row-level trigger,
+and a WITH CHECK exclusion would raise only on INSERT. The answer is
+`leads_preview_write_guard`, a BEFORE STATEMENT trigger executing the existing
+`app.enforce_preview_read_only()`, whose `row_security_active` gate keeps
+database authority untouched; no policy expression changes. The one visible
+line that pinned the silent empty UPDATE is amended to the `42501` pin in the
+same `spec:` commit as this record. Three catalogue pins that name the exact shapes are
+amended in the same commit rather than widened: `04_contract_meta`'s policy
+matrix admits the leads impersonation term as its one named table exception,
+its trigger catalogue admits the `<table>_preview_write_guard` STATEMENT
+shape (tgtype 30, the same private invoker), and `10_platform_rls`' NAV-003
+trigger set names `leads_preview_write_guard`. The same commit repairs
+holdout harness defects under ADR-060: the `update_lead` wrapper's format
+string had eight slots for nine arguments (the notes argument dropped, phone
+and source unquoted, email double-quoted); the trial-done fixtures omitted
+the trial instant the contract requires on every `trial_done` transition;
+the `h27_stale` and `h27_unavailable` helpers read "returned conflict" as a
+raised SQLSTATE, while both the contract and the visible suite pin the
+`staleLead` and `memberUnavailable` result envelopes; and the terminal-freeze
+fixture restated the row's own facts, a no-op that is correctly accepted, so
+its source now differs.
+
+**ADR-119 — The leads visible suite's own harness defects, repaired before the
+first green sweep.** The leads implementation made the suite's failures
+inspectable for the first time, and the visible files carried defects of
+authoring, not of requirement. pgTAP `results_eq` compares column types
+strictly: eleven want-side literals were untyped integers against `count(*)`
+bigints, one boolean slot carried an untyped `null`, and the `list_leads`
+signature pin compared `pronargs` (smallint) and `provolatile` (`"char"`)
+against untyped literals — all now cast to the catalogued types. Two
+`updated_at >` pins demanded a clock tick that cannot exist inside one
+transaction (`now()` is transaction-stable), so they pin `>=` and the
+description says what that proves. The `trial_scheduled` revision pin
+referenced the row's old stage after the transition already moved it, so the
+pre-transition revision is captured in a probe table first, the same pattern
+the suite already used for its later probes. The suites also coupled to the
+seeded demo gym in three places the drafts assumed empty: the whole-table
+`audit_log` counts met the seed's two existing rows (both now scoped to the
+fixture tenants), and the platform-role lead counts see the seed's eight
+demo-gym leads alongside the nine fixtures (now pinned as seventeen). One
+cross-gym pin asked a tenant A session to count tenant B's members, which
+members RLS correctly hides, so the untouched-other-gym count is captured
+outside RLS in a probe table. One fixture row carried seventeen values for
+sixteen columns, a `42601` that aborted the whole conversion file before any
+test could run. And two cursor tests expected a raise where the frozen
+contract says "An unusable cursor starts page one." — the contract wins, and
+the tests now pin the page-one snapshot. No requirement changed in any of
+this; every repair was committed under the `spec:` prefix with this record.
+
 **ADR-112 — Preserve migration order when existing versions are ahead of the clock.**
 The refund unit's CLI-generated version `20260910074537` sorts before the
 already-applied `20260915100000` migration. Under the owner's ADR-111 delegation,

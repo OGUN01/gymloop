@@ -75,7 +75,7 @@ grant select,insert on lp to authenticated;
 -- ---------------------------------------------------------------------------
 
 select is(to_regprocedure('public.list_leads(public.lead_stage,public.lead_source,text,uuid,text,timestamptz,uuid,integer)'),'public.list_leads(public.lead_stage,public.lead_source,text,uuid,text,timestamptz,uuid,integer)'::regprocedure,'list_leads exists with the exact eight-argument contract signature');
-select results_eq($$select p.pronargs, p.prorettype='jsonb'::regtype, p.provolatile, p.prosecdef, p.proretset, coalesce(p.proconfig,'{}') @> array['search_path=""'] from pg_proc p where p.oid=to_regprocedure('public.list_leads(public.lead_stage,public.lead_source,text,uuid,text,timestamptz,uuid,integer)')$$,$$select 8, true, 's', false, false, true$$,'list_leads is a non-set-returning STABLE SECURITY INVOKER jsonb RPC with a pinned search_path');
+select results_eq($$select p.pronargs, p.prorettype='jsonb'::regtype, p.provolatile, p.prosecdef, p.proretset, coalesce(p.proconfig,'{}') @> array['search_path=""'] from pg_proc p where p.oid=to_regprocedure('public.list_leads(public.lead_stage,public.lead_source,text,uuid,text,timestamptz,uuid,integer)')$$,$$select 8::smallint, true, 's'::"char", false, false, true$$,'list_leads is a non-set-returning STABLE SECURITY INVOKER jsonb RPC with a pinned search_path');
 select results_eq($$select ro, has_function_privilege(ro,'public.list_leads(public.lead_stage,public.lead_source,text,uuid,text,timestamptz,uuid,integer)','execute') from (values ('authenticated'),('anon'),('service_role')) v(ro) order by ro$$,$$values ('anon'::text,false),('authenticated'::text,true),('service_role'::text,false)$$,'only authenticated may execute list_leads');
 
 -- ---------------------------------------------------------------------------
@@ -136,8 +136,14 @@ select results_eq($$select result->>'totalMatchingCount', jsonb_array_length(res
 -- ---------------------------------------------------------------------------
 
 select throws_ok($$select public.list_leads(null,null,'not-a-uuid',null,null,null,null,null)$$,'GL060',null,'an assignee that is neither unassigned nor a UUID is GL060');
-select throws_ok($$select public.list_leads(null,null,null,null,null,'2026-09-04 10:00:00+00'::timestamptz,null,3)$$,null,'a cursor must supply both its updated_at and id parts');
-select throws_ok($$select public.list_leads(null,null,null,null,null,null,'59000000-0000-4000-8000-000000000603'::uuid,3)$$,null,'a cursor must supply both its updated_at and id parts');
+
+-- Spec amendment: the frozen contract says "An unusable cursor starts page one."
+-- (phase6-leads-contract.md), so a cursor supplying only one of its two parts is
+-- not an error; the original draft's raise expectation contradicted the contract.
+insert into lp select 'badcursor-ts', public.list_leads(null,null,null,null,null,'2026-09-04 10:00:00+00'::timestamptz,null,3);
+insert into lp select 'badcursor-id', public.list_leads(null,null,null,null,null,null,'59000000-0000-4000-8000-000000000603'::uuid,3);
+select results_eq($$select result->>'pageResultCount', result->>'totalMatchingCount', (select string_agg(r->>'id',' ' order by ord) from jsonb_array_elements(result->'rows') with ordinality as x(r,ord)) from lp where label='badcursor-ts'$$,$$select '3','8','59000000-0000-4000-8000-000000000601 59000000-0000-4000-8000-000000000602 59000000-0000-4000-8000-000000000603'::text$$,'a cursor supplying only its updated_at part starts page one');
+select results_eq($$select result->>'pageResultCount', result->>'totalMatchingCount', (select string_agg(r->>'id',' ' order by ord) from jsonb_array_elements(result->'rows') with ordinality as x(r,ord)) from lp where label='badcursor-id'$$,$$select '3','8','59000000-0000-4000-8000-000000000601 59000000-0000-4000-8000-000000000602 59000000-0000-4000-8000-000000000603'::text$$,'a cursor supplying only its id part starts page one');
 
 -- ---------------------------------------------------------------------------
 -- Tenant isolation and role gates.
@@ -155,10 +161,13 @@ select set_config('request.jwt.claims','{"sub":"59000000-0000-4000-8000-00000000
 select throws_ok($$select public.list_leads(null,null,null,null,null,null,null,null)$$,'42501',null,'a preview identity cannot read the lead list');
 select set_config('request.jwt.claims','{"sub":"59000000-0000-4000-8000-000000000909","role":"authenticated","app_role":"platform_support"}',true);
 select throws_ok($$select public.list_leads(null,null,null,null,null,null,null,null)$$,'42501',null,'platform support cannot read the lead list through the gym RPC');
-select results_eq($$select count(*) from public.leads$$,$$select 9$$,'platform support keeps its cross-gym lead read under RLS');
+-- Spec amendment: the count pins the whole cross-gym population visible to the
+-- platform role, which includes the eight seeded demo-gym leads alongside this
+-- suite's nine fixture rows; the original draft counted only the fixtures.
+select results_eq($$select count(*) from public.leads$$,$$select 17::bigint$$,'platform support keeps its cross-gym lead read under RLS');
 select set_config('request.jwt.claims','{"sub":"59000000-0000-4000-8000-00000000090a","role":"authenticated","app_role":"super_admin"}',true);
 select throws_ok($$select public.list_leads(null,null,null,null,null,null,null,null)$$,'42501',null,'super admin cannot read the lead list through the gym RPC');
-select results_eq($$select count(*) from public.leads$$,$$select 9$$,'super admin keeps its existing direct lead authority');
+select results_eq($$select count(*) from public.leads$$,$$select 17::bigint$$,'super admin keeps its existing direct lead authority');
 set local role anon;
 select throws_ok($$select public.list_leads(null,null,null,null,null,null,null,null)$$,'42501',null,'an anonymous caller cannot read the lead list');
 

@@ -76,40 +76,67 @@ create function pg_temp.h27_missing(p_state text) returns boolean language sql i
   select coalesce(p_state,'') in ('42883','42P01','42703','42601','42704')
 $$;
 create function pg_temp.h27_stale(p_outcome jsonb) returns boolean language sql immutable as $$
-  select not pg_temp.h27_missing(p_outcome->>'state')
-    and coalesce(p_outcome->>'state','') not in ('00000','23505','P0002','GL062')
+  -- Harness repair: the contract says a CAS miss on a visible lead is
+  -- "returned", not raised -- the visible suite pins lives_ok plus the exact
+  -- staleLead/currentRevision envelope -- so the outcome may be a success
+  -- row carrying that envelope as well as an error code.
+  select coalesce(p_outcome->'value'->>'staleLead','') = 'true'
+      or (not pg_temp.h27_missing(p_outcome->>'state')
+          and coalesce(p_outcome->>'state','') not in ('00000','23505','P0002','GL062'))
 $$;
 create function pg_temp.h27_unavailable(p_outcome jsonb) returns boolean language sql immutable as $$
-  select not pg_temp.h27_missing(p_outcome->>'state')
-    and coalesce(p_outcome->>'state','') not in ('00000','23505','P0002','GL061','GL062')
+  -- Harness repair: an unavailable exact-phone member is likewise "returned"
+  -- as a generic conflict, never raised, and the implementation returns the
+  -- memberUnavailable envelope with no id or profile.
+  select coalesce(p_outcome->'value'->>'memberUnavailable','') = 'true'
+      or (not pg_temp.h27_missing(p_outcome->>'state')
+          and coalesce(p_outcome->>'state','') not in ('00000','23505','P0002','GL061','GL062'))
 $$;
 create function pg_temp.h27_mentions(p_outcome jsonb, needle text) returns boolean language sql immutable as $$
   select coalesce(position(needle in p_outcome::text),0) > 0
 $$;
+create temp table h27_ids(n integer primary key, lead_id uuid not null);
+grant all on h27_ids to public;
+-- The RPC owns the lead id, so the suite maps every created lead by its
+-- scenario number instead of assuming a fixture uuid.
+create function pg_temp.h27_lid(p_lead integer) returns uuid language sql as $$
+  select lead_id from h27_ids where n = p_lead
+$$;
 create function pg_temp.h27_lead(p_lead integer) returns jsonb language sql as $$
-  select to_jsonb(l) from public.leads l where l.id = pg_temp.h27_id(7,p_lead)
+  select to_jsonb(l) from public.leads l where l.id = pg_temp.h27_lid(p_lead)
 $$;
 create function pg_temp.h27_rev(p_lead integer) returns text language sql as $$
-  select to_jsonb(l)->>'revision' from public.leads l where l.id = pg_temp.h27_id(7,p_lead)
+  select to_jsonb(l)->>'revision' from public.leads l where l.id = pg_temp.h27_lid(p_lead)
 $$;
 create function pg_temp.h27_create(p_key integer, p_branch integer, p_name text, p_phone text,
   p_email text, p_source text, p_assignee integer, p_notes text) returns jsonb language plpgsql as $$
+declare v_outcome jsonb;
 begin
-  return pg_temp.h27_call(format(
+  v_outcome := pg_temp.h27_call(format(
     'select public.create_lead(%L,%L,%L,%L,%s,%L,%s,%s) as value',
     pg_temp.h27_id(8,p_key), pg_temp.h27_id(2,p_branch), p_name, p_phone,
     coalesce(quote_literal(p_email),'null'), p_source,
     coalesce(quote_literal(pg_temp.h27_id(3,p_assignee)::text),'null'),
     coalesce(quote_literal(p_notes),'null')));
+  if v_outcome->>'state' = '00000' and v_outcome->'value'->>'leadId' is not null then
+    insert into h27_ids(n, lead_id)
+      values (p_key, (v_outcome->'value'->>'leadId')::uuid)
+      on conflict (n) do nothing;
+  end if;
+  return v_outcome;
 end
 $$;
 create function pg_temp.h27_update(p_lead integer, p_branch integer, p_name text, p_phone text,
   p_email text, p_source text, p_assignee integer, p_notes text,
   p_revision text default null) returns jsonb language plpgsql as $$
 begin
+  -- Harness repair: the previous format string had eight slots for nine
+  -- arguments, dropped the notes argument, left the phone and source
+  -- unquoted and double-quoted the email. Every slot now mirrors the
+  -- creation helper's quoting exactly.
   return pg_temp.h27_call(format(
-    'select public.update_lead(%L,%s,%L,%L,%s,%L,%s,%s) as value',
-    pg_temp.h27_id(7,p_lead), coalesce(quote_literal(coalesce(p_revision,pg_temp.h27_rev(p_lead))),'null'),
+    'select public.update_lead(%L,%s,%L,%L,%L,%s,%L,%s,%s) as value',
+    pg_temp.h27_lid(p_lead), coalesce(quote_literal(coalesce(p_revision,pg_temp.h27_rev(p_lead))),'null'),
     pg_temp.h27_id(2,p_branch), p_name, p_phone,
     coalesce(quote_literal(p_email),'null'), p_source,
     coalesce(quote_literal(pg_temp.h27_id(3,p_assignee)::text),'null'),
@@ -122,7 +149,7 @@ create function pg_temp.h27_transition(p_lead integer, p_stage text,
 begin
   return pg_temp.h27_call(format(
     'select public.transition_lead(%L,%s,%L,%s,%s) as value',
-    pg_temp.h27_id(7,p_lead), coalesce(quote_literal(coalesce(p_revision,pg_temp.h27_rev(p_lead))),'null'),
+    pg_temp.h27_lid(p_lead), coalesce(quote_literal(coalesce(p_revision,pg_temp.h27_rev(p_lead))),'null'),
     p_stage, coalesce(quote_literal(p_trial_at::text),'null'),
     coalesce(quote_literal(p_reason),'null')));
 end
@@ -132,7 +159,7 @@ create function pg_temp.h27_convert(p_lead integer, p_key integer, p_mode text,
 begin
   return pg_temp.h27_call(format(
     'select public.convert_lead(%L,%L,%s,%L,%s) as value',
-    pg_temp.h27_id(7,p_lead), pg_temp.h27_id(8,p_key),
+    pg_temp.h27_lid(p_lead), pg_temp.h27_id(8,p_key),
     coalesce(quote_literal(coalesce(p_revision,pg_temp.h27_rev(p_lead))),'null'),
     p_mode, coalesce(quote_literal(pg_temp.h27_id(5,p_member)::text),'null')));
 end
@@ -175,7 +202,7 @@ select ok(exists(select 1 from pg_constraint c where c.conrelid='public.leads'::
   and c.conkey=array[(select attnum from pg_attribute where attrelid=c.conrelid and attname='tenant_id'),
     (select attnum from pg_attribute where attrelid=c.conrelid and attname='created_by_staff_id')]
   and c.confkey=array[(select attnum from pg_attribute where attrelid=c.confrelid and attname='tenant_id'),
-    (select attnum from pg_attribute where attrelid=c.confrelid and attname='id')])),
+    (select attnum from pg_attribute where attrelid=c.confrelid and attname='id')]),
   'H27 creation actor is a tenant-composite staff reference');
 select ok(to_regclass('public.leads_created_by_staff_id_idx') is not null,
   'H27 creation actor is indexed');
@@ -246,7 +273,7 @@ select is((select value->>'state' from h27_seen where name='L1-create'),'00000',
 select is((select array_agg(k order by k) from jsonb_object_keys(
     (select value->'value' from h27_seen where name='L1-create')) k),
   array['leadId','replayed','revision'],'H27 the creation result is exactly the frozen envelope');
-select is((select value->'value'->>'leadId' from h27_seen where name='L1-create'),pg_temp.h27_id(7,1)::text,
+select is((select value->'value'->>'leadId' from h27_seen where name='L1-create'),pg_temp.h27_lid(1)::text,
   'H27 the creation result names the new lead');
 select is((select pg_temp.h27_lead(1)->>'stage'),'new','H27 a lead is created only at new');
 select matches((select pg_temp.h27_rev(1)),'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$','H27 creation stamps a database-owned revision uuid');
@@ -259,7 +286,7 @@ select is((select jsonb_build_array(pg_temp.h27_lead(1)->'trial_at',pg_temp.h27_
   'H27 trial, conversion and loss fields start null');
 insert into h27_seen values ('L2-create', pg_temp.h27_create(2, 1, 'H27 Lead Two', '+919271000001', null, 'walk_in', 2, null));
 select is((select value->>'state' from h27_seen where name='L2-create'),'00000','H27 assigned enquiry created');
-select is((select to_jsonb(l)->>'assigned_to_staff_id' from public.leads l where l.id=pg_temp.h27_id(7,2)),pg_temp.h27_id(3,2)::text,'H27 same-tenant active manager may be assigned at creation');
+select is((select to_jsonb(l)->>'assigned_to_staff_id' from public.leads l where l.id=pg_temp.h27_lid(2)),pg_temp.h27_id(3,2)::text,'H27 same-tenant active manager may be assigned at creation');
 select is((select count(*) from (values
   (3, 1,'H27 Lead Three','+919271000002',null::text,'walk_in',null::int,null::text),
   (4, 1,'H27 Lead Four','+919271000006',null,'walk_in',null,null),
@@ -274,9 +301,9 @@ select is((select count(*) from (values
   (15,1,'H27 Lead Fifteen','+919271000007',null,'referral',null,null)
 ) v(key,branch,name,phone,email,source,assignee,notes)
   where pg_temp.h27_create(v.key,v.branch,v.name,v.phone,v.email,v.source,v.assignee,v.notes)->>'state'='00000'),
-  11,'H27 scenario enquiries created through the keyed RPC');
+  11::bigint,'H27 scenario enquiries created through the keyed RPC');
 select is((select count(*) from public.leads l where l.stage='new' and l.id in
-  (select pg_temp.h27_id(7,n) from unnest(array[3,4,5,6,7,8,9,10,11,12,15]) n)),11,
+  (select lead_id from h27_ids where n = any(array[3,4,5,6,7,8,9,10,11,12,15]))),11::bigint,
   'H27 every scenario enquiry rests at new');
 select is((select count(*) from (values
   (20,2,'H27 Lead Twenty','+919272000020',null::text,'referral',2,null::text),
@@ -287,16 +314,16 @@ select is((select count(*) from (values
   (25,1,'H27 Lead Twentyfive','+919272000025',null,'phone',null,null)
 ) v(key,branch,name,phone,email,source,assignee,notes)
   where pg_temp.h27_create(v.key,v.branch,v.name,v.phone,v.email,v.source,v.assignee,v.notes)->>'state'='00000'),
-  6,'H27 list fixtures created through the keyed RPC');
+  6::bigint,'H27 list fixtures created through the keyed RPC');
 select is((select count(*) from public.leads l where l.stage='new' and l.id in
-  (select pg_temp.h27_id(7,n) from unnest(array[20,21,22,23,24,25]) n)),6,
+  (select lead_id from h27_ids where n = any(array[20,21,22,23,24,25]))),6::bigint,
   'H27 every list fixture rests at new');
 select is(pg_temp.h27_create(31,999,'H27 Lead Thirtyone','+919272000031',null,'walk_in',null,null)->>'state',
   'P0002','H27 unknown branch is a generic not-found');
 select is(pg_temp.h27_create(32,3,'H27 Lead Thirtytwo','+919272000032',null,'walk_in',null,null)->>'state',
   'P0002','H27 cross-gym branch is the same generic not-found');
 select is(pg_temp.h27_create(31,999,'H27 Lead Thirtyone','+919272000031',null,'walk_in',null,null)->>'state',
-  pg_temp.h27_create(32,3,'H27 Lead Thirtytwo','+919272000032',null,'walk_in',null,null)->>'state'),
+  pg_temp.h27_create(32,3,'H27 Lead Thirtytwo','+919272000032',null,'walk_in',null,null)->>'state',
   'H27 unknown and cross-gym branch UUIDs are indistinguishable');
 select is(pg_temp.h27_create(33,1,'H27 Lead Thirtythree','+919272000033',null,'walk_in',999,null)->>'state',
   'P0002','H27 unknown assignee is a generic not-found');
@@ -308,6 +335,8 @@ select is((select value->>'state' from h27_seen where name='L14-create'),'00000'
 select is((select value->'value'->>'replayed' from h27_seen where name='L14-create'),'false','H27 the foreign same-key creation is not a replay');
 insert into h27_seen values ('L14-replay', pg_temp.h27_create(10, 3, 'H27 Lead Fourteen', '+919273000014', null, 'walk_in', null, null));
 select is((select value->'value'->>'replayed' from h27_seen where name='L14-replay'),'true','H27 the foreign gym replays its own key');
+insert into h27_ids(n, lead_id)
+  select 14, (value->'value'->>'leadId')::uuid from h27_seen where name='L14-create';
 select pg_temp.h27_claim();
 insert into h27_seen values ('L30-refused', pg_temp.h27_create(30,999,'H27 Lead Thirty','+919272000030',null,'walk_in',null,null));
 select is((select value->>'state' from h27_seen where name='L30-refused'),'P0002','H27 a refused creation fails before its key is consumed');
@@ -347,7 +376,7 @@ select isnt((select value->'value'->'lead'->>'revision' from h27_seen where name
   (select value->>'rev' from h27_seen where name='L10-rev0'),'H27 accepted material change rotates the revision');
 insert into h27_seen values ('L10-replay', pg_temp.h27_create(10, 1, 'H27 Lead Ten', '+919272000010', 'h27ten@example.test', 'walk_in', null, 'H27 creation notes'));
 select is((select value->'value'->>'replayed' from h27_seen where name='L10-replay'),'true','H27 exact creation retry replays the original lead');
-select is((select value->'value'->>'leadId' from h27_seen where name='L10-replay'),pg_temp.h27_id(7,10)::text,
+select is((select value->'value'->>'leadId' from h27_seen where name='L10-replay'),pg_temp.h27_lid(10)::text,
   'H27 creation replay returns the original stable lead id');
 select is((select value->'value'->>'revision' from h27_seen where name='L10-replay'),pg_temp.h27_rev(10),
   'H27 creation replay returns the current revision, never an old snapshot');
@@ -357,12 +386,12 @@ select isnt(pg_temp.h27_attempt(format(
   'insert into public.leads (id,tenant_id,branch_id,full_name,phone,source) values (%L,%L,%L,''H27 Direct Fifty'',''+919272000050'',''walk_in'')',
   pg_temp.h27_id(7,50),pg_temp.h27_id(1,1),pg_temp.h27_id(2,1))),'rows=1',
   'H27 a direct insert without creation evidence is refused');
-select is((select count(*) from public.leads l where l.phone='+919272000050'),0,'H27 the evidenceless row does not exist');
+select is((select count(*) from public.leads l where l.phone='+919272000050'),0::bigint,'H27 the evidenceless row does not exist');
 select isnt(pg_temp.h27_attempt(format(
   'insert into public.leads (id,tenant_id,branch_id,full_name,phone,source,created_by_staff_id,creation_request_key,creation_request_facts) values (%L,%L,%L,''H27 Direct Fiftyone'',''+919272000051'',''walk_in'',%L,%L,''{}''::jsonb)',
   pg_temp.h27_id(7,51),pg_temp.h27_id(1,1),pg_temp.h27_id(2,1),pg_temp.h27_id(3,2),pg_temp.h27_id(8,51))),'rows=1',
   'H27 a direct insert naming a different evidence actor is refused');
-select is((select count(*) from public.leads l where l.phone='+919272000051'),0,'H27 the wrong-actor row does not exist');
+select is((select count(*) from public.leads l where l.phone='+919272000051'),0::bigint,'H27 the wrong-actor row does not exist');
 
 -- --------------------------------------------- F. legal stage pipeline ----
 insert into h27_seen values ('L1-rev-pre-contact', jsonb_build_object('rev', pg_temp.h27_rev(1)));
@@ -372,27 +401,27 @@ select isnt(pg_temp.h27_rev(1),(select value->>'rev' from h27_seen where name='L
 insert into h27_seen values ('L1-scheduled', pg_temp.h27_transition(1,'trial_scheduled', transaction_timestamp()+interval '2 days'));
 select is((select value->>'state' from h27_seen where name='L1-scheduled'),'00000','H27 trial_scheduled accepts an instant');
 select is((select (pg_temp.h27_lead(1)->>'trial_at')::timestamptz),transaction_timestamp()+interval '2 days','H27 trial_at is stored exactly');
-insert into h27_seen values ('L1-done', pg_temp.h27_transition(1,'trial_done'));
+insert into h27_seen values ('L1-done', pg_temp.h27_transition(1,'trial_done', transaction_timestamp()+interval '2 days'));
 select is((select value->>'state' from h27_seen where name='L1-done'),'00000','H27 trial_done completes the legal path');
 select is((select count(*) from (values (2),(3),(4),(5),(6),(7),(8),(11),(15)) v(lead)
-  where pg_temp.h27_transition(v.lead,'contacted')->>'state'='00000'),9,
+  where pg_temp.h27_transition(v.lead,'contacted')->>'state'='00000'),9::bigint,
   'H27 conversion fixtures move to contacted');
 select is((select count(*) from (values (2),(3),(4),(5),(6),(7),(8),(11),(15)) v(lead)
-  where pg_temp.h27_transition(v.lead,'trial_scheduled', transaction_timestamp()+interval '2 days')->>'state'='00000'),9,
+  where pg_temp.h27_transition(v.lead,'trial_scheduled', transaction_timestamp()+interval '2 days')->>'state'='00000'),9::bigint,
   'H27 conversion fixtures schedule their trial');
 select is((select count(*) from (values (2),(3),(4),(5),(6),(7),(8),(11),(15)) v(lead)
-  where pg_temp.h27_transition(v.lead,'trial_done')->>'state'='00000'),9,
+  where pg_temp.h27_transition(v.lead,'trial_done', transaction_timestamp()+interval '2 days')->>'state'='00000'),9::bigint,
   'H27 conversion fixtures reach trial_done');
 select is((select count(*) from public.leads l where l.stage='trial_done' and l.id in
-  (select pg_temp.h27_id(7,n) from unnest(array[2,3,4,5,6,7,8,11,15]) n)),9,
+  (select lead_id from h27_ids where n = any(array[2,3,4,5,6,7,8,11,15]))),9::bigint,
   'H27 all nine conversion fixtures rest at trial_done');
 select is((select count(*) from (values (21),(22),(25)) v(lead)
-  where pg_temp.h27_transition(v.lead,'contacted')->>'state'='00000'),3,
+  where pg_temp.h27_transition(v.lead,'contacted')->>'state'='00000'),3::bigint,
   'H27 list fixtures move to contacted');
 select is((select count(*) from (values (21),(22)) v(lead)
-  where pg_temp.h27_transition(v.lead,'trial_scheduled', transaction_timestamp()+interval '2 days')->>'state'='00000'),2,
+  where pg_temp.h27_transition(v.lead,'trial_scheduled', transaction_timestamp()+interval '2 days')->>'state'='00000'),2::bigint,
   'H27 list fixtures schedule their trial');
-select is(pg_temp.h27_transition(22,'trial_done')->>'state','00000','H27 the trial-done list fixture completes its path');
+select is(pg_temp.h27_transition(22,'trial_done', transaction_timestamp()+interval '2 days')->>'state','00000','H27 the trial-done list fixture completes its path');
 select is(pg_temp.h27_transition(23,'lost',null,'H27 list lost')->>'state','00000','H27 the lost list fixture retains its reason');
 
 -- ------------------------- G. graph, CAS and loss discipline (L9) -------
@@ -402,49 +431,52 @@ select is(pg_temp.h27_transition(9,'trial_done')->>'state','GL059','H27 a skippe
 select is(pg_temp.h27_transition(9,'trial_scheduled', transaction_timestamp()+interval '3 days')->>'state','00000','H27 L9 schedules its trial');
 select is((select (pg_temp.h27_lead(9)->>'trial_at')::timestamptz),transaction_timestamp()+interval '3 days','H27 L9 trial_at stored');
 select is(pg_temp.h27_transition(9,'contacted')->>'state','GL059','H27 a reverse transition is refused');
-select is(pg_temp.h27_transition(9,'trial_done')->>'state','00000','H27 L9 reaches trial_done');
+select is(pg_temp.h27_transition(9,'trial_done', transaction_timestamp()+interval '3 days')->>'state','00000','H27 L9 reaches trial_done');
 insert into h27_seen values ('L9-stale-convert', pg_temp.h27_convert(9,90,'create',null,pg_temp.h27_id(8,900)::text));
 select ok(pg_temp.h27_stale((select value from h27_seen where name='L9-stale-convert')),
   'H27 a visible lead with a wrong expectedRevision is a conflict, not a crash and not a not-found');
-select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919272000009'),0,
+select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919272000009'),0::bigint,
   'H27 the refused conversion creates no member');
 select is(pg_temp.h27_transition(9,'lost',null,'   ')->>'state','GL060','H27 lost requires a trimmed nonempty reason');
 insert into h27_seen values ('L9-lost', pg_temp.h27_transition(9,'lost',null,'H27 lost reason'));
 select is((select value->>'state' from h27_seen where name='L9-lost'),'00000','H27 a legal loss is accepted');
-select is((select to_jsonb(l)->>'lost_reason' from public.leads l where l.id=pg_temp.h27_id(7,9)),'H27 lost reason','H27 the loss reason is retained');
+select is((select to_jsonb(l)->>'lost_reason' from public.leads l where l.id=pg_temp.h27_lid(9)),'H27 lost reason','H27 the loss reason is retained');
 select is(pg_temp.h27_transition(9,'contacted')->>'state','GL059','H27 a lost lead cannot be reopened');
-select is(pg_temp.h27_update(9, 1, 'H27 Lead Nine', '+919272000009', null, 'phone', null, null)->>'state','GL059',
+-- Harness repair: the original call restated the fixture's own facts, a
+-- no-op that is correctly accepted; the source now differs so the terminal
+-- freeze is actually exercised.
+select is(pg_temp.h27_update(9, 1, 'H27 Lead Nine', '+919272000009', null, 'walk_in', null, null)->>'state','GL059',
   'H27 a terminal row''s business facts cannot change through update_details');
-select isnt(pg_temp.h27_attempt(format('update public.leads set lost_reason=''rewritten'' where id=%L',pg_temp.h27_id(7,9))),
+select isnt(pg_temp.h27_attempt(format('update public.leads set lost_reason=''rewritten'' where id=%L',pg_temp.h27_lid(9))),
   'rows=1','H27 a terminal row''s loss reason is frozen even for a direct writer');
-select is((select to_jsonb(l)->>'lost_reason' from public.leads l where l.id=pg_temp.h27_id(7,9)),'H27 lost reason',
+select is((select to_jsonb(l)->>'lost_reason' from public.leads l where l.id=pg_temp.h27_lid(9)),'H27 lost reason',
   'H27 the refused rewrite changed nothing');
 
 -- ------------------------------ H. direct-write graph discipline (L12) --
-select is(pg_temp.h27_attempt(format('update public.leads set stage=''trial_done'' where id=%L',pg_temp.h27_id(7,12))),
+select is(pg_temp.h27_attempt(format('update public.leads set stage=''trial_done'' where id=%L',pg_temp.h27_lid(12))),
   'error=GL059','H27 a direct write cannot skip stages');
 select is(pg_temp.h27_transition(12,'contacted', transaction_timestamp()+interval '1 day')->>'state','GL060',
   'H27 earlier stages forbid trial_at');
 select is(pg_temp.h27_transition(12,'contacted')->>'state','00000','H27 L12 moves to contacted');
-select is(pg_temp.h27_attempt(format('update public.leads set stage=''trial_scheduled'' where id=%L',pg_temp.h27_id(7,12))),
+select is(pg_temp.h27_attempt(format('update public.leads set stage=''trial_scheduled'' where id=%L',pg_temp.h27_lid(12))),
   'error=GL060','H27 a direct write cannot schedule without trial_at');
 insert into h27_seen values ('L12-rev0', jsonb_build_object('rev', pg_temp.h27_rev(12)));
 select is(pg_temp.h27_attempt(format('update public.leads set stage=''trial_scheduled'', trial_at=%L where id=%L',
-  transaction_timestamp()+interval '2 days',pg_temp.h27_id(7,12))),'rows=1',
+  transaction_timestamp()+interval '2 days',pg_temp.h27_lid(12))),'rows=1',
   'H27 a legal direct stage change with trial_at is accepted');
 select isnt(pg_temp.h27_rev(12),(select value->>'rev' from h27_seen where name='L12-rev0'),
   'H27 the accepted direct change rotates the revision');
 select is(pg_temp.h27_attempt(format('update public.leads set stage=''lost'', lost_reason=''H27 direct lost'' where id=%L',
-  pg_temp.h27_id(7,12))),'rows=1','H27 a legal direct loss with a reason is accepted');
-select is((select jsonb_build_array(to_jsonb(l)->>'stage',to_jsonb(l)->>'lost_reason') from public.leads l where l.id=pg_temp.h27_id(7,12)),
+  pg_temp.h27_lid(12))),'rows=1','H27 a legal direct loss with a reason is accepted');
+select is((select jsonb_build_array(to_jsonb(l)->>'stage',to_jsonb(l)->>'lost_reason') from public.leads l where l.id=pg_temp.h27_lid(12)),
   jsonb_build_array('lost','H27 direct lost'),'H27 the direct loss stored its facts');
-select is(pg_temp.h27_attempt(format('update public.leads set stage=''contacted'' where id=%L',pg_temp.h27_id(7,12))),
+select is(pg_temp.h27_attempt(format('update public.leads set stage=''contacted'' where id=%L',pg_temp.h27_lid(12))),
   'error=GL059','H27 a direct writer cannot reopen a terminal row');
-select isnt(pg_temp.h27_attempt(format('update public.leads set lost_reason='''' where id=%L',pg_temp.h27_id(7,12))),
+select isnt(pg_temp.h27_attempt(format('update public.leads set lost_reason='''' where id=%L',pg_temp.h27_lid(12))),
   'rows=1','H27 a direct writer cannot blank a loss reason');
-select is((select to_jsonb(l)->>'lost_reason' from public.leads l where l.id=pg_temp.h27_id(7,12)),'H27 direct lost',
+select is((select to_jsonb(l)->>'lost_reason' from public.leads l where l.id=pg_temp.h27_lid(12)),'H27 direct lost',
   'H27 the loss reason survived the refused blanking');
-select is(pg_temp.h27_attempt(format('update public.leads set lost_reason=''nope'' where id=%L',pg_temp.h27_id(7,8))),
+select is(pg_temp.h27_attempt(format('update public.leads set lost_reason=''nope'' where id=%L',pg_temp.h27_lid(8))),
   'error=GL060','H27 every non-lost stage forbids a loss reason');
 
 -- ------------------------------ I. assignee facts on update_lead (L8) ---
@@ -457,7 +489,7 @@ select is(pg_temp.h27_update(8, 1, 'H27 Lead Eight', '+919272000008', null, 'ins
 select is(pg_temp.h27_update(8, 1, 'H27 Lead Eight', '+919272000008', null, 'instagram', 6, null)->>'state','P0002',
   'H27 cross-gym assignee is the same generic not-found');
 select is(pg_temp.h27_update(8, 1, 'H27 Lead Eight', '+919272000008', null, 'instagram', 999, null)->>'state',
-  pg_temp.h27_update(8, 1, 'H27 Lead Eight', '+919272000008', null, 'instagram', 6, null)->>'state'),
+  pg_temp.h27_update(8, 1, 'H27 Lead Eight', '+919272000008', null, 'instagram', 6, null)->>'state',
   'H27 unknown and cross-gym assignees are indistinguishable on update');
 insert into h27_seen values ('L8-rev0', jsonb_build_object('rev', pg_temp.h27_rev(8)));
 insert into h27_seen values ('L8-reassign', pg_temp.h27_update(8, 1, 'H27 Lead Eight', '+919272000008', null, 'instagram', 3, null));
@@ -469,23 +501,23 @@ select ok(pg_temp.h27_stale((select value from h27_seen where name='L8-stale')),
 
 -- ---------------- J. revision ownership and evidence immutability (L30) -
 insert into h27_seen values ('L30-rev0', jsonb_build_object('rev', pg_temp.h27_rev(30)));
-select is(pg_temp.h27_attempt(format('update public.leads set full_name=full_name where id=%L',pg_temp.h27_id(7,30))),
+select is(pg_temp.h27_attempt(format('update public.leads set full_name=full_name where id=%L',pg_temp.h27_lid(30))),
   'rows=1','H27 a no-op write is accepted');
 select is(pg_temp.h27_rev(30),(select value->>'rev' from h27_seen where name='L30-rev0'),'H27 a no-op write does not rotate the revision');
-select is(pg_temp.h27_attempt(format('update public.leads set full_name=''H27 Lead Thirty Renamed'' where id=%L',pg_temp.h27_id(7,30))),
+select is(pg_temp.h27_attempt(format('update public.leads set full_name=''H27 Lead Thirty Renamed'' where id=%L',pg_temp.h27_lid(30))),
   'rows=1','H27 a material direct edit is accepted');
 select isnt(pg_temp.h27_rev(30),(select value->>'rev' from h27_seen where name='L30-rev0'),'H27 the material edit rotates the revision');
-select pg_temp.h27_attempt(format('update public.leads set revision=%L where id=%L',pg_temp.h27_id(8,901),pg_temp.h27_id(7,30)));
+select pg_temp.h27_attempt(format('update public.leads set revision=%L where id=%L',pg_temp.h27_id(8,901),pg_temp.h27_lid(30)));
 select isnt(pg_temp.h27_rev(30),pg_temp.h27_id(8,901)::text,'H27 clients cannot set the revision');
-select isnt(pg_temp.h27_attempt(format('update public.leads set creation_request_key=%L where id=%L',pg_temp.h27_id(8,999),pg_temp.h27_id(7,30))),
+select isnt(pg_temp.h27_attempt(format('update public.leads set creation_request_key=%L where id=%L',pg_temp.h27_id(8,999),pg_temp.h27_lid(30))),
   'rows=1','H27 creation evidence is immutable for a direct writer');
-select is((select to_jsonb(l)->>'creation_request_key' from public.leads l where l.id=pg_temp.h27_id(7,30)),
+select is((select to_jsonb(l)->>'creation_request_key' from public.leads l where l.id=pg_temp.h27_lid(30)),
   pg_temp.h27_id(8,30)::text,'H27 the creation key is unchanged');
-select isnt(pg_temp.h27_attempt(format('update public.leads set created_by_staff_id=%L where id=%L',pg_temp.h27_id(3,2),pg_temp.h27_id(7,30))),
+select isnt(pg_temp.h27_attempt(format('update public.leads set created_by_staff_id=%L where id=%L',pg_temp.h27_id(3,2),pg_temp.h27_lid(30))),
   'rows=1','H27 the creation actor is immutable for a direct writer');
-select is((select to_jsonb(l)->>'created_by_staff_id' from public.leads l where l.id=pg_temp.h27_id(7,30)),
+select is((select to_jsonb(l)->>'created_by_staff_id' from public.leads l where l.id=pg_temp.h27_lid(30)),
   pg_temp.h27_id(3,1)::text,'H27 the creation actor is unchanged');
-select isnt(pg_temp.h27_attempt(format('update public.leads set creation_request_facts=''{"injected":"yes"}''::jsonb where id=%L',pg_temp.h27_id(7,30))),
+select isnt(pg_temp.h27_attempt(format('update public.leads set creation_request_facts=''{"injected":"yes"}''::jsonb where id=%L',pg_temp.h27_lid(30))),
   'rows=1','H27 creation facts are immutable for a direct writer');
 
 -- --------------------------------- K. conversion, replay and finality ----
@@ -496,14 +528,14 @@ select is((select array_agg(k order by k) from jsonb_object_keys(
     (select value->'value' from h27_seen where name='L1-convert')) k),
   array['leadId','memberId','outcome','replayed','revision'],
   'H27 the conversion result is exactly the frozen envelope');
-select is((select value->'value'->>'leadId' from h27_seen where name='L1-convert'),pg_temp.h27_id(7,1)::text,
+select is((select value->'value'->>'leadId' from h27_seen where name='L1-convert'),pg_temp.h27_lid(1)::text,
   'H27 the conversion result names its lead');
 select is((select value->'value'->>'memberId' from h27_seen where name='L1-convert'),
-  (select to_jsonb(l)->>'converted_member_id' from public.leads l where l.id=pg_temp.h27_id(7,1)),
+  (select to_jsonb(l)->>'converted_member_id' from public.leads l where l.id=pg_temp.h27_lid(1)),
   'H27 the conversion result names the member it created');
 select is((select value->'value'->>'outcome' from h27_seen where name='L1-convert'),'created_member','H27 create mode reports created_member');
 select is((select value->'value'->>'replayed' from h27_seen where name='L1-convert'),'false','H27 the first conversion is not a replay');
-select is((select jsonb_build_array(to_jsonb(l)->>'stage', to_jsonb(l)->'converted_at' is not null) from public.leads l where l.id=pg_temp.h27_id(7,1)),
+select is((select jsonb_build_array(to_jsonb(l)->>'stage', to_jsonb(l)->'converted_at' is not null) from public.leads l where l.id=pg_temp.h27_lid(1)),
   jsonb_build_array('converted',true),'H27 the lead is converted with a server time');
 select is((select jsonb_build_array(m.tenant_id::text,m.branch_id::text,m.full_name,m.phone,to_jsonb(m.email),m.status::text)
   from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919272000001'),
@@ -527,7 +559,7 @@ select is((select value->'value'->>'replayed' from h27_seen where name='L1-repla
 select is((select value->'value'->>'outcome' from h27_seen where name='L1-replay'),'created_member',
   'H27 the replay returns the original immutable outcome');
 select is((select value->'value'->>'memberId' from h27_seen where name='L1-replay'),
-  (select to_jsonb(l)->>'converted_member_id' from public.leads l where l.id=pg_temp.h27_id(7,1)),
+  (select to_jsonb(l)->>'converted_member_id' from public.leads l where l.id=pg_temp.h27_lid(1)),
   'H27 the replay returns the original member id');
 select is((select value->'value'->>'revision' from h27_seen where name='L1-replay'),pg_temp.h27_rev(1),
   'H27 the replay returns the lead''s current revision');
@@ -545,13 +577,13 @@ select pg_temp.h27_claim();
 insert into h27_seen values ('L1-again-create', pg_temp.h27_convert(1,101,'create'));
 select ok(pg_temp.h27_stale((select value from h27_seen where name='L1-again-create')),
   'H27 a converted lead can never be converted again');
-select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919272000001'),1,
+select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919272000001'),1::bigint,
   'H27 the second conversion attempt creates no second member for the phone');
 insert into h27_seen values ('L1-again-link', pg_temp.h27_convert(1,102,'link_existing',1));
 select ok(pg_temp.h27_stale((select value from h27_seen where name='L1-again-link')),
   'H27 a converted lead can never be relinked');
 select is((select jsonb_build_array(to_jsonb(l)->>'stage', to_jsonb(l)->>'converted_member_id')
-    from public.leads l where l.id=pg_temp.h27_id(7,1)),
+    from public.leads l where l.id=pg_temp.h27_lid(1)),
   jsonb_build_array('converted',
     (select m.id::text from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919272000001')),
   'H27 the relink attempt leaves the converted member unchanged');
@@ -560,19 +592,19 @@ select is(pg_temp.h27_transition(1,'lost',null,'H27 never')->>'state','GL059',
 select is(pg_temp.h27_update(1, 1, 'H27 Lead One Renamed', '+919272000001', null, 'walk_in', null, null)->>'state','GL059',
   'H27 a converted lead refuses a detail edit');
 select is(pg_temp.h27_attempt(format('update public.leads set converted_member_id=%L where id=%L',
-  pg_temp.h27_id(5,5),pg_temp.h27_id(7,1))),'error=GL059','H27 the converted member is frozen against a direct writer');
-select is(pg_temp.h27_attempt(format('update public.leads set converted_at=null where id=%L',pg_temp.h27_id(7,1))),
+  pg_temp.h27_id(5,5),pg_temp.h27_lid(1))),'error=GL059','H27 the converted member is frozen against a direct writer');
+select is(pg_temp.h27_attempt(format('update public.leads set converted_at=null where id=%L',pg_temp.h27_lid(1))),
   'error=GL059','H27 the conversion time is frozen against a direct writer');
-select is(pg_temp.h27_attempt(format('update public.leads set stage=''lost'' where id=%L',pg_temp.h27_id(7,1))),
+select is(pg_temp.h27_attempt(format('update public.leads set stage=''lost'' where id=%L',pg_temp.h27_lid(1))),
   'error=GL059','H27 a direct writer cannot leave the terminal converted stage');
-select isnt(pg_temp.h27_attempt(format('update public.leads set lost_reason=''x'' where id=%L',pg_temp.h27_id(7,1))),
+select isnt(pg_temp.h27_attempt(format('update public.leads set lost_reason=''x'' where id=%L',pg_temp.h27_lid(1))),
   'rows=1','H27 a converted row cannot grow a loss reason');
-select is((select to_jsonb(l)->>'lost_reason' from public.leads l where l.id=pg_temp.h27_id(7,1)),null,
+select is((select to_jsonb(l)->>'lost_reason' from public.leads l where l.id=pg_temp.h27_lid(1)),null,
   'H27 the converted row still has no loss reason');
 select isnt(pg_temp.h27_attempt(format('update public.leads set conversion_request_key=%L where id=%L',
-  pg_temp.h27_id(8,999),pg_temp.h27_id(7,1))),'rows=1','H27 conversion evidence is immutable');
+  pg_temp.h27_id(8,999),pg_temp.h27_lid(1))),'rows=1','H27 conversion evidence is immutable');
 select isnt(pg_temp.h27_attempt(format('update public.leads set conversion_request_facts=''{"injected":"yes"}''::jsonb where id=%L',
-  pg_temp.h27_id(7,1))),'rows=1','H27 conversion facts are immutable');
+  pg_temp.h27_lid(1))),'rows=1','H27 conversion facts are immutable');
 
 -- -------------- L. GL061, explicit linking, unavailability, privacy ------
 insert into h27_seen values ('L2-rev-pre', jsonb_build_object('rev', pg_temp.h27_rev(2)));
@@ -580,21 +612,21 @@ insert into h27_seen values ('L2-convert', pg_temp.h27_convert(2,2,'create'));
 select is((select value->>'state' from h27_seen where name='L2-convert'),'GL061',
   'H27 an eligible same-gym member owning the phone refuses automatic creation');
 select is((select jsonb_build_array(to_jsonb(l)->>'stage',to_jsonb(l)->>'converted_member_id',to_jsonb(l)->>'revision')
-    from public.leads l where l.id=pg_temp.h27_id(7,2)),
+    from public.leads l where l.id=pg_temp.h27_lid(2)),
   jsonb_build_array('trial_done','null'::jsonb,(select value->>'rev' from h27_seen where name='L2-rev-pre')),
   'H27 the refused conversion leaves the lead at trial_done with no member and no rotation');
 insert into h27_seen values ('L2-link', pg_temp.h27_convert(2,3,'link_existing',1));
 select is((select value->>'state' from h27_seen where name='L2-link'),'00000','H27 the explicit link is accepted');
 select is((select value->'value'->>'outcome' from h27_seen where name='L2-link'),'linked_existing','H27 link mode reports linked_existing');
 select is((select jsonb_build_array(to_jsonb(l)->>'stage',to_jsonb(l)->>'converted_member_id',l.full_name)
-  from public.leads l where l.id=pg_temp.h27_id(7,2)),
+  from public.leads l where l.id=pg_temp.h27_lid(2)),
   jsonb_build_array('converted',pg_temp.h27_id(5,1)::text,'H27 Lead Two'),
   'H27 the link converts the lead to the named member without editing its profile');
 select is((select jsonb_build_array(m.full_name,m.phone,m.status::text,m.joined_on::text,to_jsonb(m.email))
   from public.members m where m.id=pg_temp.h27_id(5,1)),
   jsonb_build_array('H27 Member Active','+919271000001','active','2026-09-01','null'::jsonb),
   'H27 linking edits neither profile');
-select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919271000001'),1,
+select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919271000001'),1::bigint,
   'H27 linking creates no duplicate member');
 insert into h27_seen values ('L7-convert', pg_temp.h27_convert(7,7,'create'));
 select is((select value->>'state' from h27_seen where name='L7-convert'),'GL061',
@@ -616,20 +648,20 @@ select ok(not pg_temp.h27_mentions((select value from h27_seen where name='L3-co
   'H27 the unavailable conflict names no member id');
 select ok(not pg_temp.h27_mentions((select value from h27_seen where name='L3-convert'),'H27 Member Cancelled'),
   'H27 the unavailable conflict names no profile');
-select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919271000002'),1,
+select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919271000002'),1::bigint,
   'H27 the unavailable path creates no member');
 select is((select jsonb_build_array(to_jsonb(l)->>'stage',to_jsonb(l)->>'converted_member_id')
-  from public.leads l where l.id=pg_temp.h27_id(7,3)),jsonb_build_array('trial_done','null'::jsonb),
+  from public.leads l where l.id=pg_temp.h27_lid(3)),jsonb_build_array('trial_done','null'::jsonb),
   'H27 the unavailable path changes no lead fact');
 insert into h27_seen values ('L5-convert', pg_temp.h27_convert(5,50,'create'));
 select ok(pg_temp.h27_unavailable((select value from h27_seen where name='L5-convert')),
   'H27 a blocked same-phone member yields the same generic conflict');
-select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919271000003'),1,
+select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919271000003'),1::bigint,
   'H27 the blocked path creates no member');
 insert into h27_seen values ('L6-convert', pg_temp.h27_convert(6,60,'create'));
 select ok(pg_temp.h27_unavailable((select value from h27_seen where name='L6-convert')),
   'H27 an erased same-phone member yields the same generic conflict');
-select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919271000004'),1,
+select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919271000004'),1::bigint,
   'H27 the erased path creates no member');
 select ok((select count(distinct value->>'state')=1 from h27_seen where name in ('L3-convert','L5-convert','L6-convert'))
   and not exists(select 1 from h27_seen where name in ('L3-convert','L5-convert','L6-convert')
@@ -658,11 +690,11 @@ select is((select value->'value'->>'outcome' from h27_seen where name='L4-conver
   'H27 the foreign-phone conversion reports created_member');
 select ok(not pg_temp.h27_mentions((select value from h27_seen where name='L4-convert'),pg_temp.h27_id(5,6)::text),
   'H27 the result discloses no other gym''s member');
-select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919271000006'),1,
+select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919271000006'),1::bigint,
   'H27 the new same-gym member owns the phone now');
 select pg_temp.h27_claim();
 select is(pg_temp.h27_convert(21,210,'create')->>'state','GL059','H27 only trial_done may convert');
-select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919272000021'),0,
+select is((select count(*) from public.members m where m.tenant_id=pg_temp.h27_id(1,1) and m.phone='+919272000021'),0::bigint,
   'H27 the stage refusal creates no member');
 select pg_temp.h27_claim('gym_owner',2,6);
 select is(pg_temp.h27_convert(3,211,'create')->>'state','P0002','H27 another gym''s front office sees a generic not-found, not the lead');
@@ -673,47 +705,47 @@ select pg_temp.h27_claim();
 
 -- ------------------------ M. direct-write conversion guard (L11) --------
 select is(pg_temp.h27_attempt(format('update public.leads set stage=''converted'', converted_member_id=%L, converted_at=%L where id=%L',
-  pg_temp.h27_id(5,1),transaction_timestamp(),pg_temp.h27_id(7,11))),'error=GL060',
+  pg_temp.h27_id(5,1),transaction_timestamp(),pg_temp.h27_lid(11))),'error=GL060',
   'H27 a direct conversion needs the exact lead phone');
 select is(pg_temp.h27_attempt(format('update public.leads set stage=''converted'', converted_member_id=%L, converted_at=%L where id=%L',
-  pg_temp.h27_id(5,2),transaction_timestamp(),pg_temp.h27_id(7,11))),'error=GL060',
+  pg_temp.h27_id(5,2),transaction_timestamp(),pg_temp.h27_lid(11))),'error=GL060',
   'H27 a direct conversion needs an eligible member');
 select is(pg_temp.h27_attempt(format('update public.leads set stage=''converted'', converted_at=%L where id=%L',
-  transaction_timestamp(),pg_temp.h27_id(7,11))),'error=GL060',
+  transaction_timestamp(),pg_temp.h27_lid(11))),'error=GL060',
   'H27 a direct conversion requires a member');
 select is(pg_temp.h27_attempt(format('update public.leads set stage=''converted'', converted_member_id=%L, converted_at=%L where id=%L',
-  pg_temp.h27_id(5,2),'2020-01-01 00:00:00+00',pg_temp.h27_id(7,11))),'error=GL060',
+  pg_temp.h27_id(5,2),'2020-01-01 00:00:00+00',pg_temp.h27_lid(11))),'error=GL060',
   'H27 a direct conversion stamps the server time, never a supplied one');
 select is(pg_temp.h27_attempt(format('update public.leads set stage=''converted'', converted_member_id=%L where id=%L',
-  pg_temp.h27_id(5,2),pg_temp.h27_id(7,11))),'error=GL060',
+  pg_temp.h27_id(5,2),pg_temp.h27_lid(11))),'error=GL060',
   'H27 a direct conversion requires the conversion time');
 select is(pg_temp.h27_attempt(format('update public.leads set stage=''converted'', converted_member_id=%L, converted_at=%L where id=%L',
-  pg_temp.h27_id(5,6),transaction_timestamp(),pg_temp.h27_id(7,11))),'error=GL060',
+  pg_temp.h27_id(5,6),transaction_timestamp(),pg_temp.h27_lid(11))),'error=GL060',
   'H27 a direct conversion cannot name a cross-gym member');
-select is((select to_jsonb(l)->>'stage' from public.leads l where l.id=pg_temp.h27_id(7,11)),'trial_done',
+select is((select to_jsonb(l)->>'stage' from public.leads l where l.id=pg_temp.h27_lid(11)),'trial_done',
   'H27 every refused direct conversion left the lead unchanged');
 
 -- --------------------------------- N. platform authority boundary -------
 select pg_temp.h27_claim('super_admin',null,null,null,7);
-select is(pg_temp.h27_attempt(format('update public.leads set stage=''lost'' where id=%L',pg_temp.h27_id(7,1))),
+select is(pg_temp.h27_attempt(format('update public.leads set stage=''lost'' where id=%L',pg_temp.h27_lid(1))),
   'error=GL059','H27 retained database authority cannot reopen a terminal row');
 insert into h27_seen values ('L30-rev-notes', jsonb_build_object('rev', pg_temp.h27_rev(30)));
-select is(pg_temp.h27_attempt(format('update public.leads set notes=''H27 platform note'' where id=%L',pg_temp.h27_id(7,30))),
+select is(pg_temp.h27_attempt(format('update public.leads set notes=''H27 platform note'' where id=%L',pg_temp.h27_lid(30))),
   'rows=1','H27 super admin retains its existing direct write authority');
 select isnt(pg_temp.h27_rev(30),(select value->>'rev' from h27_seen where name='L30-rev-notes'),
   'H27 the platform material edit still rotates the revision');
 select pg_temp.h27_claim('platform_support',null,null,null,8);
-select isnt(pg_temp.h27_attempt(format('update public.leads set notes=''H27 support note'' where id=%L',pg_temp.h27_id(7,30))),
+select isnt(pg_temp.h27_attempt(format('update public.leads set notes=''H27 support note'' where id=%L',pg_temp.h27_lid(30))),
   'rows=1','H27 platform support cannot mutate lead rows');
-select is((select to_jsonb(l)->>'notes' from public.leads l where l.id=pg_temp.h27_id(7,30)),'H27 platform note',
+select is((select to_jsonb(l)->>'notes' from public.leads l where l.id=pg_temp.h27_lid(30)),'H27 platform note',
   'H27 the refused support write changed nothing');
 select isnt(pg_temp.h27_attempt(format('update public.leads set stage=''lost'', lost_reason=''H27 support lost'' where id=%L',
-  pg_temp.h27_id(7,30))),'rows=1','H27 platform support cannot change lead stage directly');
+  pg_temp.h27_lid(30))),'rows=1','H27 platform support cannot change lead stage directly');
 select ok(exists(select 1 from public.leads l where l.tenant_id=pg_temp.h27_id(1,1))
   and exists(select 1 from public.leads l where l.tenant_id=pg_temp.h27_id(1,2)),
   'H27 platform support keeps its cross-gym lead reads');
 select pg_temp.h27_claim('gym_owner',1,1,null,null,1);
-select is(pg_temp.h27_attempt(format('update public.leads set notes=''preview'' where id=%L',pg_temp.h27_id(7,30))),
+select is(pg_temp.h27_attempt(format('update public.leads set notes=''preview'' where id=%L',pg_temp.h27_lid(30))),
   'error=42501','H27 an impersonation preview cannot write lead rows');
 select pg_temp.h27_claim();
 
@@ -798,7 +830,7 @@ select is((select array_agg(k order by k) from jsonb_object_keys(
 select is((select array_agg(k order by k) from h27_seen s,
     jsonb_array_elements(s.value->'value'->'rows') rr,
     jsonb_object_keys(rr) k
-  where s.name='list-all' and rr->>'id'=pg_temp.h27_id(7,1)::text),
+  where s.name='list-all' and rr->>'id'=pg_temp.h27_lid(1)::text),
   array['assignedToName','assignedToStaffId','branchId','branchName','convertedMemberId','fullName','id',
     'lostReason','phone','revision','source','stage','trialAt','updatedAt'],
   'H27 every row is exactly LeadListRow');
@@ -816,25 +848,25 @@ select ok((select bool_and(jsonb_typeof(e.value)='string') from jsonb_each(
 select ok(jsonb_typeof((select value->'value'->'asOf' from h27_seen where name='list-all'))='string',
   'H27 asOf is the statement timestamp as a string');
 select is((select r->>'assignedToName' from h27_seen s, jsonb_array_elements(s.value->'value'->'rows') r
-    where s.name='list-all' and r->>'id'=pg_temp.h27_id(7,2)::text),'H27 Manager',
+    where s.name='list-all' and r->>'id'=pg_temp.h27_lid(2)::text),'H27 Manager',
   'H27 an assigned row names its assignee');
 select is((select jsonb_build_array(r->'assignedToName',r->'assignedToStaffId') from h27_seen s,
-    jsonb_array_elements(s.value->'value'->'rows') r where s.name='list-all' and r->>'id'=pg_temp.h27_id(7,30)::text),
+    jsonb_array_elements(s.value->'value'->'rows') r where s.name='list-all' and r->>'id'=pg_temp.h27_lid(30)::text),
   jsonb_build_array(to_jsonb(null::text),to_jsonb(null::uuid)),
   'H27 an unassigned row carries explicit nulls');
 select is((select jsonb_build_array(r->>'branchId',r->>'branchName') from h27_seen s,
-    jsonb_array_elements(s.value->'value'->'rows') r where s.name='list-all' and r->>'id'=pg_temp.h27_id(7,20)::text),
+    jsonb_array_elements(s.value->'value'->'rows') r where s.name='list-all' and r->>'id'=pg_temp.h27_lid(20)::text),
   jsonb_build_array(pg_temp.h27_id(2,2)::text,'H27 Branch Two'),
   'H27 rows carry their branch identity');
 select ok((select r->'trialAt' is not null from h27_seen s,
-    jsonb_array_elements(s.value->'value'->'rows') r where s.name='list-all' and r->>'id'=pg_temp.h27_id(7,21)::text),
+    jsonb_array_elements(s.value->'value'->'rows') r where s.name='list-all' and r->>'id'=pg_temp.h27_lid(21)::text),
   'H27 a scheduled trial exposes its instant');
 select is((select r->>'convertedMemberId' from h27_seen s,
-    jsonb_array_elements(s.value->'value'->'rows') r where s.name='list-all' and r->>'id'=pg_temp.h27_id(7,1)::text),
-  (select to_jsonb(l)->>'converted_member_id' from public.leads l where l.id=pg_temp.h27_id(7,1)),
+    jsonb_array_elements(s.value->'value'->'rows') r where s.name='list-all' and r->>'id'=pg_temp.h27_lid(1)::text),
+  (select to_jsonb(l)->>'converted_member_id' from public.leads l where l.id=pg_temp.h27_lid(1)),
   'H27 a converted row names its member');
 select is((select r->>'lostReason' from h27_seen s,
-    jsonb_array_elements(s.value->'value'->'rows') r where s.name='list-all' and r->>'id'=pg_temp.h27_id(7,9)::text),
+    jsonb_array_elements(s.value->'value'->'rows') r where s.name='list-all' and r->>'id'=pg_temp.h27_lid(9)::text),
   'H27 lost reason','H27 a lost row carries its reason');
 
 -- ------------------------------------ R. filtered counts stay exact -----
@@ -846,7 +878,7 @@ select is(coalesce((select value->'value'->'filteredStageCounts'->>'new' from h2
   coalesce((select value->'value'->>'totalMatchingCount' from h27_seen where name='list-new'),'h27-none-b'),
   'H27 the selected stage bucket equals the matched population');
 select is((select count(*) from jsonb_each((select value->'value'->'filteredStageCounts' from h27_seen where name='list-new')) e
-    where e.key<>'new' and e.value#>>'{}'<>'0'),0,
+    where e.key<>'new' and e.value#>>'{}'<>'0'),0::bigint,
   'H27 every other bucket is zero under the stage filter');
 select is(coalesce((select jsonb_array_length(value->'value'->'rows')::text from h27_seen where name='list-new'),'h27-none-a'),
   coalesce((select value->'value'->>'totalMatchingCount' from h27_seen where name='list-new'),'h27-none-b'),
@@ -894,7 +926,7 @@ select pg_temp.h27_claim('gym_owner',2,6);
 insert into h27_seen values ('list-t2', pg_temp.h27_list());
 select is((select value->'value'->>'totalMatchingCount' from h27_seen where name='list-t2'),
   (select count(*)::text from public.leads),'H27 gym B counts only its own leads');
-select ok((select bool_and(r->>'id'=pg_temp.h27_id(7,14)::text) from h27_seen s,
+select ok((select bool_and(r->>'id'=pg_temp.h27_lid(14)::text) from h27_seen s,
     jsonb_array_elements(s.value->'value'->'rows') r where s.name='list-t2'),
   'H27 gym B''s page contains only its own lead');
 select pg_temp.h27_claim();
@@ -960,7 +992,7 @@ select is(coalesce((select value->'value'->>'pageResultCount' from h27_seen wher
 select is((select count(distinct r->>'id') from h27_seen s,
     jsonb_array_elements(case when s.name in ('walk-1','walk-2') then s.value->'value'->'rows' else '[]'::jsonb end) r
     where s.name in ('walk-1','walk-2')),
-  (select (value->'value'->>'totalMatchingCount')::int from h27_seen where name='walk-1'),
+  (select (value->'value'->>'totalMatchingCount')::bigint from h27_seen where name='walk-1'),
   'H27 the walked pages cover the population with no overlap and no gap');
 
 -- ------------------------------------------- U. no invented audit rows ---
@@ -970,7 +1002,7 @@ select is((select count(*) from public.audit_log a
   where (a.record_type='lead'
      or a.record_id in (select l.id from public.leads l
         where l.tenant_id in (pg_temp.h27_id(1,1),pg_temp.h27_id(1,2))))
-    and a.tenant_id in (pg_temp.h27_id(1,1),pg_temp.h27_id(1,2))),0,
+    and a.tenant_id in (pg_temp.h27_id(1,1),pg_temp.h27_id(1,2))),0::bigint,
   'H27 ordinary lead writes invent no audit evidence');
 select * from finish();
 rollback;

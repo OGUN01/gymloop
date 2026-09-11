@@ -127,10 +127,11 @@ select results_eq(
         and c.relname in ('audit_log', 'leads', 'member_imports')
       order by 1, 2$q$,
   $q$values ('leads'::text, 'leads_preview_read_only'::text),
+           ('leads'::text, 'leads_preview_write_guard'::text),
            ('leads'::text, 'leads_touch_updated_at'::text),
            ('member_imports'::text, 'member_imports_preview_read_only'::text),
            ('member_imports'::text, 'member_imports_touch_updated_at'::text)$q$,
-  'NAV-003: leads and member_imports carry exactly their updated_at and preview_read_only triggers; audit_log remains trigger-free'
+  'NAV-003: leads and member_imports carry exactly their updated_at and preview guards -- leads gains the statement-level preview_write_guard because the tenant policies filter a preview session''s writes to zero rows, so the row-level guard never fires for one (ADR-118); audit_log remains trigger-free'
 );
 
 -- The action format is `<record_type>.<verb>`, both halves lowercase. The
