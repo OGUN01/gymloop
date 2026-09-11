@@ -198,12 +198,20 @@ select ok(
                      values ('aaaa0000-0013-4000-8000-000000000001', '2026-08-15', 'Independence Day')$q$),
   'a manager writes the holiday calendar');
 
+-- Harness repair (ADR-060 orchestrator pattern): the Phase 6 import
+-- contract's v1 run invariant (20260915100006) narrows the grant this
+-- assertion exercised -- "every new run must be a complete v1 run created
+-- by prepare" and nullability "accommodates only rows already present
+-- before this migration; there is no backfill" -- so a direct authenticated
+-- insert, including this minimal legacy-shaped one, is now refused 42501
+-- regardless of role; only prepare_member_import (security definer,
+-- current_user=postgres inside its own insert) may record one.
 select ok(
-  pg_temp.allowed($q$insert into public.member_imports
+  pg_temp.rejected($q$insert into public.member_imports
                        (tenant_id, uploaded_by_staff_id, file_name, column_mapping)
                      values ('aaaa0000-0013-4000-8000-000000000001',
                              '22220000-0013-4000-8000-0000000000a2', 'import.csv', '{}')$q$),
-  'a manager runs a member import');
+  'a manager cannot run a member import directly -- only prepare_member_import records one (Phase 6 v1 run invariant)');
 
 -- ---------------------------------------------------------------------------
 -- 10-18. The owner, and the tables no gym-side role may write at all

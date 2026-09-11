@@ -97,9 +97,8 @@ const sha256 = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex
 const CSV_TEXT = 'Full Name,Phone\nAsha Rao,+919876543210\nBela Das,+919999999999\n';
 const CSV_BYTES = Buffer.from(CSV_TEXT, 'utf8');
 const CSV_SHA = sha256(CSV_BYTES);
-// The invisible first character below is the literal U+FEFF BOM; it is the
-// point of this fixture; do not strip it.
-const BOM_BYTES = Buffer.from(`﻿${CSV_TEXT}`, 'utf8');
+// The template below prepends U+FEFF (BOM) via escape; that is the point of the fixture.
+const BOM_BYTES = Buffer.from(`\uFEFF${CSV_TEXT}`, 'utf8');
 const BAD_PHONE_BYTES = Buffer.from('Full Name,Phone\nAsha Rao,+919876543210\nCara Po,12345\n', 'utf8');
 const SWAPPED_BYTES = Buffer.from('Phone,Full Name\n+919876543210,Asha Rao\n', 'utf8');
 const GARBAGE_BYTES = Buffer.from([0xff, 0xfe, 0x00, 0x81]);

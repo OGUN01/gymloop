@@ -303,7 +303,8 @@ select is_empty(
              to_regclass('public.' || m.tbl) as rel,
              e.frag as pol_extra
         from m
-        left join (values ('leads', 'andselectapp\.current_impersonation_idisnull'))
+        left join (values ('leads', 'andselectapp\.current_impersonation_idisnull'),
+                          ('member_imports', 'andselectapp\.current_impersonation_idisnull'))
                e(tbl, frag) on e.tbl::text = m.tbl::text
     ),
     g(tbl, tcol, read_gate, write_gate, member_gate, pol_extra,
@@ -819,10 +820,18 @@ select is_empty(
 -- tables the hook reads), and so must the revocation trigger (design.md 7, so
 -- that deleting from auth.sessions does not depend on the gym owner holding a
 -- privilege there). Phase 6 additionally approves exactly two member-safe
--- display projections: completed own-order returns (ADR-116), and active
--- PT offer trainer names. Their exact signatures are the complete public
--- allowlist; overloads and every other exposed elevated function still fail.
--- Every elevated function in either application schema must use an empty path.
+-- display projections, STABLE because they only read: completed own-order
+-- returns (ADR-116), and active PT offer trainer names. The member-import
+-- commit contract (docs/planning/phase6-import-contract.md, "Schema,
+-- generated types and test split") requires two more, VOLATILE because they
+-- write: `prepare_member_import` and `commit_member_import` bypass RLS on
+-- purpose to classify duplicates against every same-gym member and to run
+-- the run lock/candidate-digest/member-insert command atomically, with their
+-- own independent tenant/staff/impersonation checks replacing RLS rather than
+-- assuming it. Every allowlisted signature names its own required volatility
+-- rather than sharing one; overloads and every other exposed elevated
+-- function still fail. Every elevated function in either application schema
+-- must use an empty path.
 -- ---------------------------------------------------------------------------
 
 select is_empty(
@@ -832,15 +841,17 @@ select is_empty(
        and n.nspname in ('public', 'app')
        and (not coalesce(p.proconfig @> array['search_path=""'], false)
             or (n.nspname = 'public'
-                and (p.provolatile <> 's'
-                     or pg_get_userbyid(p.proowner) <> 'postgres'
+                and (pg_get_userbyid(p.proowner) <> 'postgres'
                      or not exists (
                        select 1 from (values
-                         ('public.read_member_addon_returns(uuid)'),
-                         ('public.read_member_addon_trainer_names()')
-                       ) allowed(signature)
-                       where p.oid = to_regprocedure(allowed.signature)))))$$,
-  'ADR-032, ADR-116 and the approved Phase 6 member projections: all app/public security-definer functions have an empty search_path; only the exact postgres-owned STABLE member-return and trainer-name projection signatures may be elevated in public, with no unapproved overload or function'
+                         ('public.read_member_addon_returns(uuid)', 's'),
+                         ('public.read_member_addon_trainer_names()', 's'),
+                         ('public.prepare_member_import(uuid, text, text, text, uuid, text, jsonb, integer, jsonb, jsonb)', 'v'),
+                         ('public.commit_member_import(uuid, text, jsonb)', 'v')
+                       ) allowed(signature, volatility)
+                       where p.oid = to_regprocedure(allowed.signature)
+                         and p.provolatile = allowed.volatility))))$$,
+  'ADR-032, ADR-116 and the approved Phase 6 member projections and import commands: all app/public security-definer functions have an empty search_path; only the exact postgres-owned signatures on the allowlist may be elevated in public, each at its own required volatility, with no unapproved overload or function'
 );
 
 -- Phase 4 (20260909130000_red_list_view.sql) added public.red_list_cases,
@@ -935,7 +946,7 @@ select is_empty(
     select c.relname || '.missing_or_invalid_preview_read_only'
       from preview_tables c
      where not exists (select 1 from valid_preview_triggers t where t.tgrelid = c.oid)$$,
-  'docs/data-model.md "What a cluster agent must not do", narrowed by design.md 6 and 7, ADR-066, NAV-003 and the frozen Phase 6 add-on contract: every authenticated-writable public table requires its exact enabled ROW BEFORE INSERT/UPDATE/DELETE preview_read_only trigger calling private invoker app.enforce_preview_read_only(). Only that named, correctly shaped trigger and touch_updated_at are admitted universally, plus one exact sibling shape: <table>_preview_write_guard, the enabled STATEMENT BEFORE INSERT/UPDATE/DELETE trigger (tgtype 30 = BEFORE 2 + INSERT 4 + UPDATE 16 + DELETE 8, no ROW bit) calling the same private invoker. Phase 6 leads needs that sibling because a preview UPDATE matches no row through the tenant policies, so the row guard never fires for one and the statement guard answers before any row resolution (ADR-118). Fourteen named table exemptions remain; every other unexplained trigger still fails this exact catalogue assertion, and a missing or malformed preview guard fails even on an exempt table. The original eleven exemptions retain their recorded identity, attribution, financial-integrity, monotonic-counter and membership-period reasons. Phase 6 adds exactly three table exemptions because their rules require OLD/NEW or cross-row state that a CHECK, index, policy or Route Handler cannot enforce for every writer. addon_products owns database-stamped quote_version rotation across the complete offer-term set while preserving the version for stock and presentation edits, plus kind-specific disclosure and stock shape. addon_orders owns the ordered GL053-GL057 lifecycle and immutable sale record, validates linked member/payment/catalogue/session facts, serializes stock and returned-money effects, and invokes app.audit_money_change() for every accepted insert/update. pt_sessions owns immutable order/member/trainer/slot identity, validates BOTH trainer assignments and the parent order validity/reservation budget, serializes scheduled-to-terminal effects, and advances only the parent order usage/status. These exemptions permit those contract-required trigger families on the three named tables; they do not widen the predicate for any other table or excuse a missing preview guard.'
+  'docs/data-model.md "What a cluster agent must not do", narrowed by design.md 6 and 7, ADR-066, NAV-003 and the frozen Phase 6 add-on and member-import contracts: every authenticated-writable public table requires its exact enabled ROW BEFORE INSERT/UPDATE/DELETE preview_read_only trigger calling private invoker app.enforce_preview_read_only(). Only that named, correctly shaped trigger and touch_updated_at are admitted universally, plus one exact sibling shape: <table>_preview_write_guard, the enabled STATEMENT BEFORE INSERT/UPDATE/DELETE trigger (tgtype 30 = BEFORE 2 + INSERT 4 + UPDATE 16 + DELETE 8, no ROW bit) calling the same private invoker. Phase 6 leads needs that sibling because a preview UPDATE matches no row through the tenant policies, so the row guard never fires for one and the statement guard answers before any row resolution (ADR-118). Member imports carries its v1 run invariant (docs/planning/phase6-import-contract.md, "Schema, generated types and test split") inside the touch_updated_at slot itself, the same fusion leads uses for app.enforce_lead_discipline() -- a table gets exactly one substantive row trigger beyond the preview guard, under one of these two universal names, never a third. Fourteen named table exemptions remain; every other unexplained trigger still fails this exact catalogue assertion, and a missing or malformed preview guard fails even on an exempt table. The original eleven exemptions retain their recorded identity, attribution, financial-integrity, monotonic-counter and membership-period reasons. Phase 6 adds exactly three table exemptions because their rules require OLD/NEW or cross-row state that a CHECK, index, policy or Route Handler cannot enforce for every writer. addon_products owns database-stamped quote_version rotation across the complete offer-term set while preserving the version for stock and presentation edits, plus kind-specific disclosure and stock shape. addon_orders owns the ordered GL053-GL057 lifecycle and immutable sale record, validates linked member/payment/catalogue/session facts, serializes stock and returned-money effects, and invokes app.audit_money_change() for every accepted insert/update. pt_sessions owns immutable order/member/trainer/slot identity, validates BOTH trainer assignments and the parent order validity/reservation budget, serializes scheduled-to-terminal effects, and advances only the parent order usage/status. These exemptions permit those contract-required trigger families on the three named tables; they do not widen the predicate for any other table or excuse a missing preview guard.'
 );
 
 select is(

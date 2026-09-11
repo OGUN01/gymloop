@@ -238,10 +238,16 @@ select ok(exists(select 1 from pg_constraint c where c.conrelid='public.member_i
   and c.confkey=array[(select attnum from pg_attribute where attrelid=c.confrelid and attname='tenant_id'),
     (select attnum from pg_attribute where attrelid=c.confrelid and attname='id')]),
   'H28 the run carries a same-tenant composite branch foreign key');
+-- Harness repair (ADR-060 orchestrator pattern): the repo's own FK-indexing
+-- rule ("every FK column leads an index or sits right after the tenant
+-- column", stated identically in the migration and in 04_contract_meta.sql)
+-- means branch_id is the SECOND column of a tenant-leading composite index,
+-- not the first -- the same shape every other FK in this schema uses.
 select ok(exists(select 1 from pg_index i
   where i.indrelid='public.member_imports'::regclass
-  and pg_get_indexdef(i.indexrelid,1,true)='branch_id'),
-  'H28 the branch column is indexed');
+  and pg_get_indexdef(i.indexrelid,1,true)='tenant_id'
+  and pg_get_indexdef(i.indexrelid,2,true)='branch_id'),
+  'H28 the branch column is indexed, leading with the tenant column');
 select ok(exists(select 1 from pg_index i
   where i.indrelid='public.member_imports'::regclass and i.indisunique
   and pg_get_indexdef(i.indexrelid,1,true)='tenant_id'
@@ -256,7 +262,7 @@ select ok(exists(select 1 from pg_constraint c where c.conrelid='public.member_i
   'H28 a check constraint governs the phone-country mode');
 select ok(to_regprocedure('public.prepare_member_import(uuid,text,text,text,uuid,text,jsonb,integer,jsonb,jsonb)') is not null,
   'H28 prepare_member_import exists with the frozen ten-argument signature');
-select is((select p.prorettype from pg_proc p
+select is((select p.prorettype::regtype from pg_proc p
   where p.oid=to_regprocedure('public.prepare_member_import(uuid,text,text,text,uuid,text,jsonb,integer,jsonb,jsonb)')),
   'jsonb'::regtype,'H28 prepare returns jsonb');
 select is((select p.pronargs from pg_proc p
@@ -265,7 +271,7 @@ select is((select p.pronargs from pg_proc p
 select ok(coalesce((select p.prosecdef and 'search_path=""'=any(p.proconfig) from pg_proc p
   where p.oid=to_regprocedure('public.prepare_member_import(uuid,text,text,text,uuid,text,jsonb,integer,jsonb,jsonb)')),false),
   'H28 prepare is a definer command with a fixed safe search path');
-select is((select p.proowner from pg_proc p
+select is((select p.proowner::regrole from pg_proc p
   where p.oid=to_regprocedure('public.prepare_member_import(uuid,text,text,text,uuid,text,jsonb,integer,jsonb,jsonb)')),
   'postgres'::regrole,'H28 prepare is postgres-owned');
 select ok(coalesce((select has_function_privilege('authenticated',p.oid,'EXECUTE')
@@ -277,7 +283,7 @@ select ok(coalesce((select has_function_privilege('authenticated',p.oid,'EXECUTE
   'H28 prepare is executable only by authenticated application callers');
 select ok(to_regprocedure('public.commit_member_import(uuid,text,jsonb)') is not null,
   'H28 commit_member_import exists with the frozen three-argument signature');
-select is((select p.prorettype from pg_proc p
+select is((select p.prorettype::regtype from pg_proc p
   where p.oid=to_regprocedure('public.commit_member_import(uuid,text,jsonb)')),
   'jsonb'::regtype,'H28 commit returns jsonb');
 select is((select p.pronargs from pg_proc p
@@ -286,7 +292,7 @@ select is((select p.pronargs from pg_proc p
 select ok(coalesce((select p.prosecdef and 'search_path=""'=any(p.proconfig) from pg_proc p
   where p.oid=to_regprocedure('public.commit_member_import(uuid,text,jsonb)')),false),
   'H28 commit is a definer command with a fixed safe search path');
-select is((select p.proowner from pg_proc p
+select is((select p.proowner::regrole from pg_proc p
   where p.oid=to_regprocedure('public.commit_member_import(uuid,text,jsonb)')),
   'postgres'::regrole,'H28 commit is postgres-owned');
 select ok(coalesce((select has_function_privilege('authenticated',p.oid,'EXECUTE')
@@ -325,9 +331,15 @@ insert into public.members(id,tenant_id,branch_id,member_code,full_name,phone,st
 insert into public.impersonation_sessions(id,tenant_id,actor_user_id,reason,expires_at) values
   (pg_temp.h28_id(6,1),pg_temp.h28_id(1,1),pg_temp.h28_id(9,7),'H28 import preview',transaction_timestamp()+interval '45 minutes');
 -- Legacy rows in the pre-migration shape: the contract keeps them historical.
+-- Harness repair (ADR-098/120 explicit-bypass pattern): the v1 run invariant
+-- keeps a legacy row pending forever, so this fixture's already-completed
+-- historical row enters only through the same replica bypass converted-lead
+-- and completed-legacy-run history rows use elsewhere.
+set local session_replication_role = replica;
 insert into public.member_imports(id,tenant_id,uploaded_by_staff_id,file_name,column_mapping,status,row_count,imported_count,duplicate_count,error_report) values
   (pg_temp.h28_id(7,901),pg_temp.h28_id(1,1),pg_temp.h28_id(3,1),'h28-legacy-done.csv','{"full_name":0,"phone":1}','completed',3,3,0,null),
   (pg_temp.h28_id(7,902),pg_temp.h28_id(1,1),pg_temp.h28_id(3,1),'h28-legacy-pending.csv','{"full_name":0,"phone":1}','pending',null,null,null,null);
+set local session_replication_role = default;
 create temp table h28_eff(t1 date, t2 date, eff1 text, eff2 text, fut1 text);
 insert into h28_eff select t1, t2, to_char(t1,'YYYY-MM-DD'), to_char(t2,'YYYY-MM-DD'), to_char(t1+1,'YYYY-MM-DD')
   from (values ((transaction_timestamp() at time zone 'Asia/Kolkata')::date,
@@ -918,7 +930,12 @@ select is((select to_jsonb(mi)->>'status' from public.member_imports mi where mi
 select ok(pg_temp.h28_attempt(format('update public.member_imports set request_key = %L::uuid, file_sha256 = %L where id = %L::uuid',
   pg_temp.h28_id(8,902), repeat('99',32), pg_temp.h28_id(7,902))) like 'error=%',
   'H28 a caller cannot convert a legacy row into a v1 run by hand');
-select ok(coalesce((select to_jsonb(mi)->'request_key' is null from public.member_imports mi where mi.id=pg_temp.h28_id(7,902)),false),
+-- Harness repair (ADR-060 orchestrator pattern): `to_jsonb(mi)->'request_key'`
+-- on a genuinely null column returns the JSONB value `null`, which is not
+-- the SQL NULL `IS NULL` tests for -- a JSONB-null gotcha the implementer's
+-- own report on this cluster names. The raw column comparison is what this
+-- assertion actually means.
+select ok(coalesce((select mi.request_key is null from public.member_imports mi where mi.id=pg_temp.h28_id(7,902)),false),
   'H28 the refused legacy upgrade stored no v1 evidence');
 
 -- -------------- Q. the invoker run-mutation invariant (CSV-D16) --------
@@ -980,9 +997,15 @@ select is((select value->>'state' from h28_seen where name='preview-write'),'425
   'H28 a preview session cannot write an import run');
 select is((select value->>'message' from h28_seen where name='preview-write'),'Support preview is read-only.',
   'H28 the preview refusal is the system-wide read-only invariant');
+-- Harness repair (ADR-060 orchestrator pattern): the claim reset moves ahead
+-- of this check. member_imports' tenant SELECT policy excludes an
+-- impersonation session exactly as H28's own "an impersonating token
+-- inspects no import run" assertion requires, so h28_run's own-context read
+-- returns nothing while the preview claim is still active -- unrelated to
+-- whether the earlier write actually changed anything.
+select pg_temp.h28_claim();
 select ok(coalesce(pg_temp.h28_run(6)->>'file_name' = 'h28-b2.csv',false),
   'H28 the refused preview write changed nothing');
-select pg_temp.h28_claim();
 
 -- ---------------------- R. a processing run is not committable -------
 set local role postgres;

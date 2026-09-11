@@ -172,21 +172,25 @@ grant select on mi_candidates to authenticated;
 create temp table r2_variants(label text, payload jsonb);
 grant select on r2_variants to authenticated;
 insert into r2_variants
- select 'changed', jsonb_set(c.payload,'{0,full_name}','"Cand One Renamed"'::jsonb) from mi_candidates c where c.label='r2'
- union all select 'missing_row', c.payload - 0 from mi_candidates c where c.label='r2'
- union all select 'extra_row', c.payload || jsonb_build_array(jsonb_build_object('rowNumber',4,'full_name','Extra Row','phone','+919800000299','member_code',null,'email',null,'gender',null,'date_of_birth',null,'joined_on',(transaction_timestamp() at time zone 'Asia/Kolkata')::date::text,'notes',null)) from mi_candidates c where c.label='r2'
- union all select 'omitted_key', jsonb_set(c.payload,'{0}',(c.payload->0)-'notes') from mi_candidates c where c.label='r2'
- union all select 'unknown_key', jsonb_set(c.payload,'{0}',(c.payload->0)||'{"extra_col":1}'::jsonb) from mi_candidates c where c.label='r2'
- union all select 'dup_rows', jsonb_build_array(c.payload->0,c.payload->0) from mi_candidates c where c.label='r2'
+ select 'changed', jsonb_set(c.payload,'{0,full_name}','"Cand One Renamed"'::jsonb) from mi_candidates c where c.run='r2'
+ union all select 'missing_row', c.payload - 0 from mi_candidates c where c.run='r2'
+ union all select 'extra_row', c.payload || jsonb_build_array(jsonb_build_object('rowNumber',4,'full_name','Extra Row','phone','+919800000299','member_code',null,'email',null,'gender',null,'date_of_birth',null,'joined_on',(transaction_timestamp() at time zone 'Asia/Kolkata')::date::text,'notes',null)) from mi_candidates c where c.run='r2'
+ union all select 'omitted_key', jsonb_set(c.payload,'{0}',(c.payload->0)-'notes') from mi_candidates c where c.run='r2'
+ union all select 'unknown_key', jsonb_set(c.payload,'{0}',(c.payload->0)||'{"extra_col":1}'::jsonb) from mi_candidates c where c.run='r2'
+ union all select 'dup_rows', jsonb_build_array(c.payload->0,c.payload->0) from mi_candidates c where c.run='r2'
  union all select 'object', '{"rowNumber":2}'::jsonb
  union all select 'json_null', 'null'::jsonb;
 
 -- Two postgres-owned runs outside the command path: a processing v1 run and
--- a legacy pending row with no uploader user identity.
+-- a legacy pending row with no uploader user identity. A v1 row must start
+-- pending (CSV-D16 -- "force initial pending"), so this fixture reaches
+-- 'processing' the only legal way: insert pending, then take the one graph
+-- edge pending->processing as a second postgres statement.
 insert into public.member_imports(id,tenant_id,uploaded_by_staff_id,file_name,column_mapping,status,row_count,imported_count,duplicate_count,error_report,branch_id,request_key,file_sha256,parser_contract,phone_default_country,effective_on,uploaded_by_user_id,candidate_payload_sha256) values (
- '62000000-0000-4000-8000-000000000b05','62000000-0000-4000-8000-000000000001','62000000-0000-4000-8000-000000000021','processing.csv','{"full_name":0,"phone":1}'::jsonb,'processing',0,0,0,
+ '62000000-0000-4000-8000-000000000b05','62000000-0000-4000-8000-000000000001','62000000-0000-4000-8000-000000000021','processing.csv','{"full_name":0,"phone":1}'::jsonb,'pending',0,0,0,
  '{"version":1,"summary":{"invalid":0,"duplicate":0},"previewCandidateRows":[],"importedRows":[],"rows":[],"failure":null}'::jsonb,
  '62000000-0000-4000-8000-000000000011','62000000-0000-4000-8000-000000000b05',repeat('f5',32),'import-parser-v1','IN',(transaction_timestamp() at time zone 'Asia/Kolkata')::date,'62000000-0000-4000-8000-000000000901',repeat('aa',32));
+update public.member_imports set status='processing' where id='62000000-0000-4000-8000-000000000b05';
 insert into public.member_imports(id,tenant_id,uploaded_by_staff_id,file_name,column_mapping,status,row_count,imported_count,duplicate_count) values (
  '62000000-0000-4000-8000-000000000b06','62000000-0000-4000-8000-000000000001','62000000-0000-4000-8000-000000000021','legacy.csv','{"full_name":0,"phone":1}'::jsonb,'pending',2,0,0);
 insert into run_ids values ('r5','62000000-0000-4000-8000-000000000b05'),('r6','62000000-0000-4000-8000-000000000b06');
@@ -206,7 +210,7 @@ select lives_ok($$insert into prep_results select 'r4_prep', public.prepare_memb
 insert into run_ids
  select k.label, m.id from public.member_imports m
  join (values ('r1','62000000-0000-4000-8000-000000000a01'),('r2','62000000-0000-4000-8000-000000000a02'),('r3','62000000-0000-4000-8000-000000000a03'),('r4','62000000-0000-4000-8000-000000000a04')) as k(label,rk)
- on m.request_key = k.rk
+ on m.request_key = k.rk::uuid
  where m.tenant_id = '62000000-0000-4000-8000-000000000001';
 
 select set_config('request.jwt.claims','{"sub":"62000000-0000-4000-8000-000000000908","role":"authenticated","app_role":"gym_owner","tenant_id":"62000000-0000-4000-8000-000000000002","staff_id":"62000000-0000-4000-8000-000000000028"}',true);

@@ -275,6 +275,12 @@ select throws_ok(
 -- Requirement: An import run records its mapping and its duplicate report.
 -- ---------------------------------------------------------------------------
 
+-- Harness repair (ADR-120's pattern, applied to member_imports): the v1 run
+-- invariant added in 20260915100006 keeps a legacy row (no v1 evidence
+-- columns) pending forever, so a directly inserted 'completed' legacy
+-- history row is refused (55006) outside the explicit bypass -- a completed
+-- legacy run, like a converted lead, enters only through it.
+set local session_replication_role = replica;
 select lives_ok(
   $q$insert into public.member_imports
        (tenant_id, uploaded_by_staff_id, file_name, column_mapping, status,
@@ -285,6 +291,7 @@ select lives_ok(
              120, 118, 2)$q$,
   'an import run records the uploading staff member, the column mapping and its counts'
 );
+set local session_replication_role = default;
 
 select throws_ok(
   $q$insert into public.member_imports (tenant_id, uploaded_by_staff_id, file_name, column_mapping, row_count)
