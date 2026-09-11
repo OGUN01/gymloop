@@ -1290,6 +1290,16 @@ on conflict (id) do update set
 -- 23. Eight leads across six distinct stages. The converted one names the
 --     member it became (leads_converted_has_member_chk).
 -- ---------------------------------------------------------------------------
+--
+-- These are history rows, and history is the one thing the leads discipline
+-- guard refuses on INSERT for every writer — a rule the security review put
+-- back in force for BYPASSRLS roles too, because a service key fabricating a
+-- converted lead with invented evidence must not be able to (ADR-082/098).
+-- The seed is the deliberate writer ADR-098 names, so it says so out loud by
+-- disabling the trigger for the length of this one statement. The `alter`
+-- sits at the statement boundary because a CTE cannot be split from its
+-- INSERT.
+alter table public.leads disable trigger leads_touch_updated_at;
 
 with today as (select (now() at time zone 'Asia/Kolkata')::date as d)
 insert into public.leads (
@@ -1364,6 +1374,8 @@ on conflict (id) do update set
   converted_at         = excluded.converted_at,
   lost_reason          = excluded.lost_reason,
   notes                = excluded.notes;
+
+alter table public.leads enable trigger leads_touch_updated_at;
 
 
 -- ---------------------------------------------------------------------------

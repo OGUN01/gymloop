@@ -2,7 +2,8 @@
 
 import { Constants } from '@gymloop/db';
 import { paiseTextFromRupees, rupeesFromPaise } from '@gymloop/shared';
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { Field } from '../field';
 import { usePreviewReadOnly } from '../../preview-context';
 import { UUID_PATTERN } from '../../../lib/keyset';
 import { convertAddonSlot, refreshAddonOffer, searchAddonMembers } from './actions';
@@ -101,10 +102,6 @@ function useAddonCommand() {
       <p aria-live="polite" role="status" className="my-3 text-sm text-neutral-700">{pending ? 'Saving — please wait.' : uncertain ? 'Original request preserved for the same-command retry.' : 'Review every detail before confirming.'}</p>
     </>,
   };
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <label className="block min-w-0 text-sm font-medium"><span className="mb-1 block">{label}</span>{children}</label>;
 }
 
 /** Search and the reviewed request live in one component, so pagination cannot reset a sale. */

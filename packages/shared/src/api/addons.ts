@@ -195,21 +195,15 @@ function zonedParts(formatter: Intl.DateTimeFormat, at: Date): ZonedParts | null
 }
 
 /**
- * Resolves one gym-local datetime to its unique instant. The candidate offsets
- * around that local day expose both sides of a DST change: zero matches is a
- * skipped wall time and two matches is ambiguous.
+ * The gym wall-clock formatter every gym-local time resolver shares: `en-CA`
+ * for zero-padded parts, `h23` so midnight is `00` and not `24`, and a long
+ * offset so the zone's real UTC offset travels as a readable part. Null when
+ * the zone name is not one `Intl` knows — the caller refuses rather than
+ * letting `Intl` guess a zone.
  */
-export function offsetInstantFromGymWallTime(value: string, timezone: string): string | null {
-  const matched = value.match(/^(?<day>[0-9]{4}-[0-9]{2}-[0-9]{2})T(?<time>[0-9]{2}:[0-9]{2})(?::(?<second>[0-9]{2}))?$/);
-  if (!matched?.groups?.day || !matched.groups.time) return null;
-
-  const wallTime = `${matched.groups.day}T${matched.groups.time}:${matched.groups.second ?? '00'}`;
-  const guessed = new Date(`${wallTime}Z`);
-  if (Number.isNaN(guessed.getTime()) || !guessed.toISOString().startsWith(wallTime)) return null;
-
-  let formatter: Intl.DateTimeFormat;
+export function gymWallClockFormatter(timezone: string): Intl.DateTimeFormat | null {
   try {
-    formatter = new Intl.DateTimeFormat('en-CA', {
+    return new Intl.DateTimeFormat('en-CA', {
       timeZone: timezone,
       year: 'numeric',
       month: '2-digit',
@@ -223,6 +217,23 @@ export function offsetInstantFromGymWallTime(value: string, timezone: string): s
   } catch {
     return null;
   }
+}
+
+/**
+ * Resolves one gym-local datetime to its unique instant. The candidate offsets
+ * around that local day expose both sides of a DST change: zero matches is a
+ * skipped wall time and two matches is ambiguous.
+ */
+export function offsetInstantFromGymWallTime(value: string, timezone: string): string | null {
+  const matched = value.match(/^(?<day>[0-9]{4}-[0-9]{2}-[0-9]{2})T(?<time>[0-9]{2}:[0-9]{2})(?::(?<second>[0-9]{2}))?$/);
+  if (!matched?.groups?.day || !matched.groups.time) return null;
+
+  const wallTime = `${matched.groups.day}T${matched.groups.time}:${matched.groups.second ?? '00'}`;
+  const guessed = new Date(`${wallTime}Z`);
+  if (Number.isNaN(guessed.getTime()) || !guessed.toISOString().startsWith(wallTime)) return null;
+
+  const formatter = gymWallClockFormatter(timezone);
+  if (formatter === null) return null;
 
   const nearby = [
     guessed,

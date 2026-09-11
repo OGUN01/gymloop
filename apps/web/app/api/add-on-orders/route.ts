@@ -1,7 +1,7 @@
 import { Constants } from '@gymloop/db';
 import type { Database } from '@gymloop/db';
 import { addonSaleRequestSchema, addonSaleResultSchema } from '@gymloop/shared';
-import { apiFail, apiOk, jsonBody, staffSession } from '../../../lib/api';
+import { apiFail, apiOk, staffJson } from '../../../lib/api';
 
 const FRONT_OFFICE_ROLES = ['gym_owner', 'gym_manager', 'front_desk'] as const;
 type SaleRpcArgs = Database['public']['Functions']['record_addon_sale']['Args'];
@@ -48,12 +48,9 @@ function saleFailure(code: string, details: string | null, message: string): Res
 
 /** POST /api/add-on-orders — accept one desk sale through the claim-derived atomic RPC. */
 export async function POST(request: Request): Promise<Response> {
-  const caller = await staffSession(FRONT_OFFICE_ROLES, { completeWrongAudience: 'forbidden' });
+  const caller = await staffJson(request, FRONT_OFFICE_ROLES, { completeWrongAudience: 'forbidden' });
   if ('failure' in caller) return caller.failure;
-
-  const body = await jsonBody(request);
-  if ('failure' in body) return body.failure;
-  const { payload } = body;
+  const { payload } = caller;
 
   if (
     typeof payload === 'object' && payload !== null &&
@@ -86,7 +83,7 @@ export async function POST(request: Request): Promise<Response> {
   } satisfies ExactSaleRpcArgs;
   // Postgres permits the contract's explicit NULL inputs; generated RPC
   // argument types do not preserve function-parameter nullability.
-  const { data, error } = await caller.session.supabase.rpc(
+  const { data, error } = await caller.supabase.rpc(
     'record_addon_sale',
     args as unknown as SaleRpcArgs,
   );

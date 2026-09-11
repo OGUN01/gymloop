@@ -246,6 +246,35 @@ type Parser<T> = {
 };
 
 /**
+ * A signed-in staff caller and their JSON command body, in one step.
+ *
+ * The JSON twin of `staffForm()`, extracted for the same reason: handlers had
+ * spelled the same five lines out, and `jscpd` was right to call the copies
+ * clones. The order is the whole point and must not vary — identify the
+ * caller, then read the body, never the reverse, because an unauthenticated
+ * request must not use body parsing as an observable side channel.
+ *
+ * The two failures stay distinct because they answer differently: an
+ * unauthenticated or unpermitted caller gets `staffSession()`'s envelope, and
+ * a body that is not JSON gets `jsonBody()`'s `malformed_body`.
+ */
+export async function staffJson(
+  request: Request,
+  allowedRoles?: readonly StaffRole[],
+  options?: StaffSessionOptions,
+): Promise<{ failure: Response } | (StaffSession & { payload: unknown })> {
+  const caller = await staffSession(allowedRoles, options);
+  if ('failure' in caller) return { failure: caller.failure };
+
+  const body = await jsonBody(request);
+  if ('failure' in body) return { failure: body.failure };
+
+  // Flattened rather than nested under `session`, like `staffForm()`, so a
+  // handler opens with two lines instead of three.
+  return { ...caller.session, payload: body.payload };
+}
+
+/**
  * A signed-in staff caller, their form, and the form parsed - the whole
  * preamble of a console form handler in one line.
  *

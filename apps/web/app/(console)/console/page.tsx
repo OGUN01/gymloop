@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import { FRONT_OFFICE_ROLES } from '../../../lib/leads';
 import { loadMemberSearch } from '../../../lib/members';
+import { requireAudience } from '../../../lib/identity-session';
 import { MemberSearchPage } from './member-search-page';
 
 export default async function MembersPage({
@@ -8,6 +10,12 @@ export default async function MembersPage({
   searchParams: Promise<{ q?: string; cursor?: string; limit?: string }>;
 }) {
   const search = await loadMemberSearch(searchParams);
+  // The leads pipeline is front-office only (its loader refuses trainers and
+  // redirects home), so the link is not shown to one in the first place —
+  // same gate the add-ons link applies through the console audience.
+  const { identity } = await requireAudience('console');
+  const frontOffice =
+    identity.kind === 'staff' && (FRONT_OFFICE_ROLES as readonly string[]).includes(identity.role);
 
   return (
     <MemberSearchPage
@@ -22,6 +30,11 @@ export default async function MembersPage({
       <Link href="/add-ons" className="mt-4 inline-flex min-h-11 items-center text-sm underline">
         Add-ons, orders and PT sessions
       </Link>
+      {frontOffice ? (
+        <Link href="/leads" className="mt-2 inline-flex min-h-11 items-center text-sm underline">
+          Leads pipeline
+        </Link>
+      ) : null}
       {search.members.length > 0 ? (
         <table className="mt-6 w-full border-collapse text-left text-sm">
           <thead>
