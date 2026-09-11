@@ -879,15 +879,21 @@ export type Database = {
         Row: {
           assigned_to_staff_id: string | null
           branch_id: string
+          conversion_request_facts: Json | null
+          conversion_request_key: string | null
           converted_at: string | null
           converted_member_id: string | null
           created_at: string
+          created_by_staff_id: string | null
+          creation_request_facts: Json | null
+          creation_request_key: string | null
           email: string | null
           full_name: string
           id: string
           lost_reason: string | null
           notes: string | null
           phone: string
+          revision: string
           source: Database["public"]["Enums"]["lead_source"]
           stage: Database["public"]["Enums"]["lead_stage"]
           tenant_id: string
@@ -897,15 +903,21 @@ export type Database = {
         Insert: {
           assigned_to_staff_id?: string | null
           branch_id: string
+          conversion_request_facts?: Json | null
+          conversion_request_key?: string | null
           converted_at?: string | null
           converted_member_id?: string | null
           created_at?: string
+          created_by_staff_id?: string | null
+          creation_request_facts?: Json | null
+          creation_request_key?: string | null
           email?: string | null
           full_name: string
           id?: string
           lost_reason?: string | null
           notes?: string | null
           phone: string
+          revision?: string
           source: Database["public"]["Enums"]["lead_source"]
           stage?: Database["public"]["Enums"]["lead_stage"]
           tenant_id: string
@@ -915,15 +927,21 @@ export type Database = {
         Update: {
           assigned_to_staff_id?: string | null
           branch_id?: string
+          conversion_request_facts?: Json | null
+          conversion_request_key?: string | null
           converted_at?: string | null
           converted_member_id?: string | null
           created_at?: string
+          created_by_staff_id?: string | null
+          creation_request_facts?: Json | null
+          creation_request_key?: string | null
           email?: string | null
           full_name?: string
           id?: string
           lost_reason?: string | null
           notes?: string | null
           phone?: string
+          revision?: string
           source?: Database["public"]["Enums"]["lead_source"]
           stage?: Database["public"]["Enums"]["lead_stage"]
           tenant_id?: string
@@ -950,6 +968,13 @@ export type Database = {
             columns: ["tenant_id", "converted_member_id"]
             isOneToOne: false
             referencedRelation: "members"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "leads_tenant_id_created_by_staff_id_fkey"
+            columns: ["tenant_id", "created_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["tenant_id", "id"]
           },
           {
@@ -2479,6 +2504,29 @@ export type Database = {
           replayed: boolean
         }[]
       }
+      convert_lead: {
+        Args: {
+          p_expected_revision: string
+          p_lead_id: string
+          p_member_id?: string
+          p_mode: string
+          p_request_key: string
+        }
+        Returns: Json
+      }
+      create_lead: {
+        Args: {
+          p_assigned_to_staff_id: string
+          p_branch_id: string
+          p_email: string
+          p_full_name: string
+          p_notes: string
+          p_phone: string
+          p_request_key: string
+          p_source: Database["public"]["Enums"]["lead_source"]
+        }
+        Returns: Json
+      }
       finish_pt_session: {
         Args: {
           p_session_id: string
@@ -2491,6 +2539,19 @@ export type Database = {
           session_id: string
           session_status: Database["public"]["Enums"]["pt_session_status"]
         }[]
+      }
+      list_leads: {
+        Args: {
+          p_after_id?: string
+          p_after_updated_at?: string
+          p_assignee?: string
+          p_branch_id?: string
+          p_limit?: number
+          p_query?: string
+          p_source?: Database["public"]["Enums"]["lead_source"]
+          p_stage?: Database["public"]["Enums"]["lead_stage"]
+        }
+        Returns: Json
       }
       read_member_addon_returns: { Args: { p_order_id: string }; Returns: Json }
       read_member_addon_trainer_names: {
@@ -2555,6 +2616,30 @@ export type Database = {
           replayed: boolean
           session_id: string
         }[]
+      }
+      transition_lead: {
+        Args: {
+          p_expected_revision: string
+          p_lead_id: string
+          p_lost_reason: string
+          p_target: Database["public"]["Enums"]["lead_stage"]
+          p_trial_at: string
+        }
+        Returns: Json
+      }
+      update_lead: {
+        Args: {
+          p_assigned_to_staff_id: string
+          p_branch_id: string
+          p_email: string
+          p_expected_revision: string
+          p_full_name: string
+          p_lead_id: string
+          p_notes: string
+          p_phone: string
+          p_source: Database["public"]["Enums"]["lead_source"]
+        }
+        Returns: Json
       }
     }
     Enums: {

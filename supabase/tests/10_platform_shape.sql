@@ -219,6 +219,11 @@ select lives_ok(
   'a new lead with an E.164 phone and a vocabulary source is accepted'
 );
 
+-- Harness repair (ADR-120): the INSERT discipline is no longer gated on the
+-- writer's role, so an owner inserting at a non-new stage is refused by
+-- app.enforce_lead_discipline() (GL060) before the converted-member CHECK can
+-- speak; a converted history row enters only through the explicit bypass.
+set local session_replication_role = replica;
 select lives_ok(
   $q$insert into public.leads (tenant_id, branch_id, full_name, phone, source, stage, converted_member_id, converted_at)
      values ('aaaaaaaa-0000-4000-8000-000000000001'::uuid,
@@ -228,13 +233,14 @@ select lives_ok(
              timestamptz '2026-09-06 10:00:00+05:30')$q$,
   'a converted lead that names its member is accepted'
 );
+set local session_replication_role = default;
 
 select throws_ok(
   $q$insert into public.leads (tenant_id, branch_id, full_name, phone, source, stage)
      values ('aaaaaaaa-0000-4000-8000-000000000001'::uuid,
              'aaaaaaaa-0000-4000-8000-000000000002'::uuid,
              'Ghost Conversion', '+919876500004', 'walk_in', 'converted')$q$,
-  '23514', null,
+  'GL060', null,
   'a converted lead with no converted member is rejected (spec: A converted lead with no member)'
 );
 
