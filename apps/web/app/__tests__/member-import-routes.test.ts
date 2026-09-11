@@ -924,14 +924,14 @@ describe('downloading the stored report', () => {
 
     const lines = text.split('\r\n').filter(line => line !== '');
     expect(lines).toHaveLength(3);
-    expect(reportRow(lines[1])).toEqual({
+    expect(reportRow(lines[1] ?? '')).toEqual({
       rowNumber: 5,
       disposition: 'invalid',
       field: 'phone',
       reasonCode: 'ambiguous_phone',
       message: expect.any(String),
     });
-    expect(reportRow(lines[2])).toEqual({
+    expect(reportRow(lines[2] ?? '')).toEqual({
       rowNumber: 6,
       disposition: 'duplicate',
       field: 'phone',
