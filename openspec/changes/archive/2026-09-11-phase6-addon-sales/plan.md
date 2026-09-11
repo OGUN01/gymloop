@@ -30,6 +30,6 @@ while its DB workflow is idle.
 - [x] Catalogue, sale, fulfilment, return read and working screens implemented.
 - [x] Targeted and full local gates pass.
 - [x] Fresh Astra money/security and UI critics return GO.
-- [ ] CI applies migration; generated types, pgTAP, seed and all workflows pass.
-- [ ] Real product/diet/PT sale, fulfilment, receipt and return journey passes with exact cleanup.
-- [ ] Current specifications, registry, evidence and roadmap synchronized; archive.
+- [x] CI applies migration; generated types, pgTAP, seed and all workflows pass.
+- [x] Real product/diet/PT sale, fulfilment, receipt and return journey passes with exact cleanup.
+- [x] Current specifications, registry, evidence and roadmap synchronized; archive.
