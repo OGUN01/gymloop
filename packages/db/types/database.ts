@@ -1039,48 +1039,79 @@ export type Database = {
       }
       member_imports: {
         Row: {
+          branch_id: string | null
+          candidate_payload_sha256: string | null
           column_mapping: Json
           created_at: string
           duplicate_count: number | null
+          effective_on: string | null
           error_report: Json | null
           file_name: string
+          file_sha256: string | null
           id: string
           imported_count: number | null
+          parser_contract: string | null
+          phone_default_country: string | null
+          request_key: string | null
           row_count: number | null
           status: Database["public"]["Enums"]["import_status"]
           tenant_id: string
           updated_at: string
           uploaded_by_staff_id: string
+          uploaded_by_user_id: string | null
         }
         Insert: {
+          branch_id?: string | null
+          candidate_payload_sha256?: string | null
           column_mapping: Json
           created_at?: string
           duplicate_count?: number | null
+          effective_on?: string | null
           error_report?: Json | null
           file_name: string
+          file_sha256?: string | null
           id?: string
           imported_count?: number | null
+          parser_contract?: string | null
+          phone_default_country?: string | null
+          request_key?: string | null
           row_count?: number | null
           status?: Database["public"]["Enums"]["import_status"]
           tenant_id: string
           updated_at?: string
           uploaded_by_staff_id: string
+          uploaded_by_user_id?: string | null
         }
         Update: {
+          branch_id?: string | null
+          candidate_payload_sha256?: string | null
           column_mapping?: Json
           created_at?: string
           duplicate_count?: number | null
+          effective_on?: string | null
           error_report?: Json | null
           file_name?: string
+          file_sha256?: string | null
           id?: string
           imported_count?: number | null
+          parser_contract?: string | null
+          phone_default_country?: string | null
+          request_key?: string | null
           row_count?: number | null
           status?: Database["public"]["Enums"]["import_status"]
           tenant_id?: string
           updated_at?: string
           uploaded_by_staff_id?: string
+          uploaded_by_user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "member_imports_tenant_id_branch_id_fkey"
+            columns: ["tenant_id", "branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["tenant_id", "id"]
+          },
           {
             foreignKeyName: "member_imports_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -2480,6 +2511,10 @@ export type Database = {
       }
     }
     Functions: {
+      commit_member_import: {
+        Args: { p_file_sha256: string; p_import_id: string; p_rows: Json }
+        Returns: Json
+      }
       complete_addon_order: {
         Args: { p_order_id: string }
         Returns: {
@@ -2550,6 +2585,21 @@ export type Database = {
           p_query?: string
           p_source?: Database["public"]["Enums"]["lead_source"]
           p_stage?: Database["public"]["Enums"]["lead_stage"]
+        }
+        Returns: Json
+      }
+      prepare_member_import: {
+        Args: {
+          p_branch_id: string
+          p_column_mapping: Json
+          p_file_name: string
+          p_file_sha256: string
+          p_parser_contract: string
+          p_phone_default_country: string
+          p_preclassified_report: Json
+          p_request_key: string
+          p_row_count: number
+          p_rows: Json
         }
         Returns: Json
       }
