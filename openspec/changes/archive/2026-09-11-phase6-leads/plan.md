@@ -34,7 +34,7 @@ is idle.
 - [x] Independent visible and holdout tests committed red.
 - [x] Graph enforcement, conversion RPC, list read and working screens implemented.
 - [x] Targeted and full local gates pass.
-- [ ] Fresh-context money/security and UI critics return GO.
-- [ ] CI applies migration; generated types, pgTAP, seed and all workflows pass.
-- [ ] Real enquiry-to-conversion and duplicate-link journey passes with exact cleanup.
-- [ ] Current specifications, registry, evidence and roadmap synchronized; archive.
+- [x] Fresh-context money/security and UI critics return GO.
+- [x] CI applies migration; generated types, pgTAP, seed and all workflows pass.
+- [x] Real enquiry-to-conversion and duplicate-link journey passes with exact cleanup.
+- [x] Current specifications, registry, evidence and roadmap synchronized; archive.
