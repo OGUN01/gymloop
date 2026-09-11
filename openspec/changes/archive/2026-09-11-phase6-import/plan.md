@@ -56,7 +56,7 @@ fewer-imports-than-preview warning.
 - [x] Independent unit, route and screen tests committed red.
 - [x] Schema migration, prepare/commit RPCs, routes, parser and working screens implemented.
 - [x] Targeted and full local gates pass.
-- [ ] Fresh-context critics return GO.
-- [ ] CI applies migration; generated types, pgTAP, seed and all workflows pass.
-- [ ] Real import journey passes with exact cleanup.
-- [ ] Current specifications, registry, evidence and roadmap synchronized; archive.
+- [x] Fresh-context critics return GO.
+- [x] CI applies migration; generated types, pgTAP, seed and all workflows pass.
+- [x] Real import journey passes with exact cleanup.
+- [x] Current specifications, registry, evidence and roadmap synchronized; archive.
