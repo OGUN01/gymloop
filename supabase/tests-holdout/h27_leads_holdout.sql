@@ -38,7 +38,7 @@ begin
   execute 'select to_jsonb(r) from ('||statement||') r' into strict result;
   return coalesce(result,'null'::jsonb) || jsonb_build_object('state','00000');
 exception when others then
-  get stacked diagnostics detail = pg_exception_detail, message = pg_exception_message;
+  get stacked diagnostics detail = pg_exception_detail, message = message_text;
   return jsonb_build_object('state',sqlstate,'message',message,'detail',detail);
 end
 $$;
