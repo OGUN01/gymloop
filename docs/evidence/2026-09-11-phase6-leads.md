@@ -75,6 +75,9 @@ rest), 46 members. No seeded row's content changed.
 
 Implementation commit `fc888dd` (with the red suites at `15c8601`), types
 integration `586b9f8`, and the transition-parameter repair `e8427a2`. Database
-workflow `34562963974` applied migration `20260915100005`, passed pgTAP and
-seed dry run, and schema-drift went green on the types push. CI
-`34564043351` covers the repair commit.
+workflow `34562963974` applied migration `20260915100005`, went green on
+schema-drift against the regenerated types, and passed migrate, pgtap-rollback
+and seed-dry-run jobs; its full pgTAP job failed only on the import cluster's
+intentionally red suites (28/29/30 and h28, already on main red-first with
+their implementation in flight) — no leads file failed. CI `34564043351`
+covers the repair commit.
