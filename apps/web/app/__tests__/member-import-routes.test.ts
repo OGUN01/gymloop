@@ -906,12 +906,20 @@ describe('downloading the stored report', () => {
     expect(response.headers.get('content-type')).toBe('text/csv; charset=utf-8');
     const disposition = response.headers.get('content-disposition') ?? '';
     expect(disposition).toContain(`member-import-${IMPORT_ID}-errors.csv`);
-    expect(disposition).toMatch(/member-import-[0-9a-f]{36}-errors\.csv/);
+    expect(disposition).toMatch(
+      /member-import-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-errors\.csv/,
+    );
 
-    const text = await response.text();
-    // The invisible character before row_number is the literal U+FEFF BOM
-    // the contract requires at byte zero of the CSV.
-    expect(text.startsWith('﻿row_number,disposition,field,reason_code,message\r\n')).toBe(true);
+    // The BOM must be asserted at the byte level: `response.text()` decodes
+    // UTF-8 and strips a leading BOM per the fetch spec, so a string starting
+    // with U+FEFF is unsatisfiable for a body that carries exactly one BOM —
+    // which is what the contract requires (CSV-D15).
+    const raw = new Uint8Array(await response.arrayBuffer());
+    const bomAndHeader = [...new TextEncoder().encode('row_number,disposition,field,reason_code,message\r\n')];
+    expect([...raw.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    expect([...raw.slice(3, 3 + bomAndHeader.length)]).toEqual(bomAndHeader);
+
+    const text = new TextDecoder().decode(raw.slice(3));
     expect(text.replace(/\r\n/g, '')).not.toContain('\n');
 
     const lines = text.split('\r\n').filter(line => line !== '');
