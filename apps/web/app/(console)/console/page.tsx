@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { FRONT_OFFICE_ROLES } from '../../../lib/leads';
 import { loadMemberSearch } from '../../../lib/members';
 import { requireAudience } from '../../../lib/identity-session';
+import { canImportMembers } from '../../../lib/member-imports';
 import { MemberSearchPage } from './member-search-page';
 
 export default async function MembersPage({
@@ -33,6 +34,13 @@ export default async function MembersPage({
       {frontOffice ? (
         <Link href="/leads" className="mt-2 inline-flex min-h-11 items-center text-sm underline">
           Leads pipeline
+        </Link>
+      ) : null}
+      {/* The import screen is owner/manager only — imports create members — so
+          the link applies through the same helper the loader's refusal reads. */}
+      {canImportMembers(identity) ? (
+        <Link href="/imports" className="mt-2 inline-flex min-h-11 items-center text-sm underline">
+          Import members from a file
         </Link>
       ) : null}
       {search.members.length > 0 ? (

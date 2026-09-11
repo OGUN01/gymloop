@@ -29,6 +29,8 @@ const STATUS = {
   not_found: 404,
   conflict: 409,
   unprocessable: 422,
+  /** A file or upload past a fixed limit (member imports). */
+  payload_too_large: 413,
   server_error: 500,
   /** Not a failure — the redirect `seeOther()` answers a form post with. */
   see_other: 303,

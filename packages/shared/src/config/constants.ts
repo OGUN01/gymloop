@@ -167,3 +167,104 @@ export const IDEMPOTENCY_KEY_MAX_LENGTH = 200;
 
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 export type PlanTier = keyof typeof PLAN_TIER_PRICES_PAISE;
+
+/*
+ * Member CSV/XLSX import — the frozen v1 limits (CSV-D02, contract
+ * docs/planning/phase6-import-contract.md, "Fixed v1 limits"). "An upload at
+ * a limit is accepted; one unit above it is refused." Every parser, route and
+ * screen reads these names; the values are never repeated as literals there.
+ */
+
+/** Raw uploaded-file ceiling, measured as `File.size` before any decoding. */
+export const IMPORT_FILE_MAX_BYTES = 5_242_880;
+
+/**
+ * Sum of actually decompressed chunks emitted across every ZIP entry of an
+ * `.xlsx` during the streaming preflight (CSV-D02a).
+ */
+export const IMPORT_XLSX_TOTAL_MAX_BYTES = 33_554_432;
+
+/** Actually decompressed chunks emitted for any one ZIP entry. */
+export const IMPORT_XLSX_ENTRY_MAX_BYTES = 8_388_608;
+
+/** Every file and directory entry in the `.xlsx` ZIP counts. */
+export const IMPORT_XLSX_MAX_ZIP_ENTRIES = 256;
+
+/** Non-blank data records after the one header record. The header is not a data row. */
+export const IMPORT_DATA_ROWS_MAX = 5_000;
+
+/** Greatest non-empty cell position in the header or any data row. */
+export const IMPORT_COLUMNS_MAX = 64;
+
+/** Highest permitted source row coordinate of an `.xlsx` worksheet, header included. */
+export const IMPORT_XLSX_ROW_ADDRESS_MAX = IMPORT_DATA_ROWS_MAX + 1;
+
+/** Greatest permitted number of explicit `<c>` elements (rows times columns). */
+export const IMPORT_XLSX_MAX_PHYSICAL_CELLS = (IMPORT_DATA_ROWS_MAX + 1) * IMPORT_COLUMNS_MAX;
+
+/** Decoded scalar rendered as text, before trimming or other field normalization. */
+export const IMPORT_CELL_MAX_CODE_POINTS = 2_000;
+
+/** Stored file name: basename only, after path and NUL/control removal. */
+export const IMPORT_FILE_NAME_MAX_CODE_POINTS = 255;
+
+/** Inspect sample — returned only to the authenticated caller; never stored. */
+export const IMPORT_INSPECT_SAMPLE_ROWS = 10;
+
+/** Preview sample — returned only to the authenticated caller; totals still cover the whole file. */
+export const IMPORT_PREVIEW_SAMPLE_ROWS = 100;
+
+/*
+ * Character and encoding constants the import parser needs. They live with
+ * the import limits because they are part of the same frozen wire contract
+ * (strict UTF-8, RFC 4180) and nowhere else may spell them.
+ */
+
+/** The three bytes of a UTF-8 BOM at the start of an uploaded file. */
+export const UTF8_BOM_BYTES = [0xef, 0xbb, 0xbf] as const;
+
+/** The smallest code point a stored file name may carry (control chars are stripped). */
+export const IMPORT_FILE_NAME_MIN_CODE_POINT = 0x20;
+
+/** The one deleted code point above the C0 range: DEL. */
+export const DEL_CODE_POINT = 0x7f;
+
+/** The code units bounding the UTF-16 surrogate range. */
+export const SURROGATE_HIGH_MIN = 0xd800;
+export const SURROGATE_HIGH_MAX = 0xdbff;
+export const SURROGATE_LOW_MIN = 0xdc00;
+export const SURROGATE_LOW_MAX = 0xdfff;
+
+/** Letters per base-26 column coordinate (`A`..`Z`); `A` is letter 0. */
+export const A1_LETTERS = 26;
+export const A1_FIRST_LETTER_CODE = 65;
+
+/** The last 1900-system serial whose day count is not shifted by the fictitious leap day. */
+export const EXCEL_1900_PRE_LEAP_SERIAL_MAX = 59;
+
+/** The highest Excel date serial per system: 9999-12-31. */
+export const EXCEL_1900_SERIAL_MAX = 2_958_465;
+export const EXCEL_1904_SERIAL_MAX = 2_957_003;
+
+/** UTC-millisecond epochs of the two Excel date systems' day before serial 1/serial 0. */
+export const EXCEL_1900_EPOCH_UTC_MS = Date.UTC(1899, 11, 31);
+export const EXCEL_1904_EPOCH_UTC_MS = Date.UTC(1904, 0, 1);
+
+/*
+ * Proleptic-Gregorian calendar arithmetic (CSV-D06 date validation and the
+ * XLSX serial conversion). A month is 1-12 and a day runs to the month's
+ * true length; February gains a day only on the documented leap rule.
+ */
+export const GREGORIAN_MONTH_MIN = 1;
+export const GREGORIAN_MONTH_MAX = 12;
+export const GREGORIAN_DAY_MIN = 1;
+export const MONTH_LENGTHS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
+export const LEAP_MONTH_NUMBER = 2;
+export const LEAP_MONTH_LENGTH = 29;
+export const LEAP_YEAR_DIVISOR_4 = 4;
+export const LEAP_YEAR_DIVISOR_100 = 100;
+export const LEAP_YEAR_DIVISOR_400 = 400;
+
+/** Zero-padded render widths of an ISO date's parts (`YYYY`, `MM`, `DD`). */
+export const ISO_YEAR_DIGITS = 4;
+export const ISO_MONTH_DAY_DIGITS = 2;
