@@ -747,13 +747,23 @@ select lives_ok(
              'impersonation_session.started', 'impersonation_session')$q$,
   'ADR-033: a platform-level audit row carries no tenant');
 
+-- Harness repair (ADR-060/120): the INSERT discipline is no longer gated on
+-- the writer's role, so an owner inserting at a non-new stage is refused by
+-- app.enforce_lead_discipline() (GL060) before the converted-member CHECK can
+-- speak. The refusal itself is what this assertion has always demanded.
 select throws_ok(
   $q$insert into public.leads (id, tenant_id, branch_id, full_name, phone, source, stage)
      values ('00000000-0000-4000-8000-000001000096'::uuid, '00000000-0000-4000-8000-00000100000a'::uuid,
              '00000000-0000-4000-8000-00000100001a'::uuid, 'Unconverted', '+919000000021', 'walk_in', 'converted')$q$,
-  '23514', null,
+  'GL060', null,
   'spec: A converted lead with no member');
 
+-- Harness repair (ADR-060/098/120): a converted or lost history row now
+-- enters only through an explicit bypass — the discipline binds the owner
+-- too. Replica role so the fixture, not the enforcement trigger, is what the
+-- CHECK constraint judges; the named-converted and lost-with-reason cases it
+-- accepts are unchanged.
+set local session_replication_role = replica;
 select lives_ok(
   $q$insert into public.leads (id, tenant_id, branch_id, full_name, phone, source, stage, converted_member_id, converted_at)
      values ('00000000-0000-4000-8000-00000100009d'::uuid, '00000000-0000-4000-8000-00000100000a'::uuid,
@@ -766,6 +776,7 @@ select lives_ok(
      values ('00000000-0000-4000-8000-00000100009e'::uuid, '00000000-0000-4000-8000-00000100000a'::uuid,
              '00000000-0000-4000-8000-00000100001a'::uuid, 'Lost', '+919000000023', 'google', 'lost', 'went elsewhere')$q$,
   'docs/data-model.md Enums: only the converted stage requires a member');
+set local session_replication_role = default;
 
 select throws_ok(
   $q$insert into public.leads (id, tenant_id, branch_id, full_name, phone, source)

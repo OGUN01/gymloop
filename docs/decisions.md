@@ -590,6 +590,49 @@ contract says "An unusable cursor starts page one." — the contract wins, and
 the tests now pin the page-one snapshot. No requirement changed in any of
 this; every repair was committed under the `spec:` prefix with this record.
 
+**ADR-120 — The leads direct-write discipline applies to BYPASSRLS writers,
+and the seed says its bypass out loud.** The leads security review rejected
+the INSERT half of `app.enforce_lead_discipline()` as first written: gated on
+`row_security_active()`, it exempted the table owner and every BYPASSRLS role
+from the fresh-enquiry graph, the stage facts and the evidence coherence — so
+a `service_role` insert (a role that cannot disable triggers) could fabricate
+a `converted` lead with invented evidence naming an ineligible member, and
+nothing would record it. That is ADR-082's exact carve-out prohibition: where
+the rule's subject is an invariant about the data, the trusted caller needs
+the rule *more*. The INSERT half is now ungated exactly like the UPDATE half,
+with one claim-keyed exception kept — the creator stamp, because "who is the
+authenticated actor" is a fact about the session, not the row, and a claimless
+owner insert stays a policy question rather than an evidence one. History
+rows enter only through a bypass the writer states out loud, ADR-098's
+pattern: the pgTAP fixtures already ran their lead inserts under
+`session_replication_role = replica`, and the seed now wraps its one history
+statement in `alter table public.leads disable trigger leads_touch_updated_at`
+the way `memberships`, `addon_orders` and `pt_sessions` already do. The same
+arbitration fixed three smaller findings: `transition_lead` now answers the
+CAS miss before the graph check (a stale writer gets the contract's exact
+`stale_lead` envelope with the retry revision, not a graph refusal that hands
+the desk nothing to retry against); a conversion key reused on a *different*
+lead of the same gym is answered as `GL062` before the unique index turns it
+into a raw `23505` and a 500; and a fresh row's `created_at` and `updated_at`
+are both server-stamped on INSERT, so a direct writer cannot backdate a
+creation or pin a row to the top of the keyset list. On the route side, an
+omitted optional fact (`email`/`notes`/`assignedToStaffId`) is accepted as
+null on creation, which the frozen contract's `email?: string | null` always
+allowed, and `list_leads`' `ilike` search escapes `%` and `_` so a query
+matches the characters the desk typed, not a wider wildcard. One visible web
+harness defect surfaced with the screen's move to `next/link`: the leads page
+test's `next/link` mock returned a bare `{ type, props }` object, which the
+tree-walker treats as not-an-element, ending the walk and swallowing every
+link's text and href; the mock now returns a real element and is committed
+under the `spec:` prefix with this record. The ungate reached one holdout file
+too, repaired by the orchestrator under ADR-060: `h10_platform_holdout` had
+pinned the owner's own direct inserts at `converted` and `lost` as the way to
+exercise the CHECK constraints — the exact premise this ADR retires for
+`leads`. The two `lives_ok` history fixtures now state the ADR-098 replica
+bypass out loud so the constraints are still what judges them, and the
+`converted`-with-no-member refusal is repinned from `23514` to `GL060`, the
+discipline that now answers first; the refusal itself never changed.
+
 **ADR-112 — Preserve migration order when existing versions are ahead of the clock.**
 The refund unit's CLI-generated version `20260910074537` sorts before the
 already-applied `20260915100000` migration. Under the owner's ADR-111 delegation,
