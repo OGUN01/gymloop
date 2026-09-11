@@ -47,7 +47,14 @@ vi.mock('next/navigation', () => ({
   }),
   redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); },
 }));
-vi.mock('next/link', () => ({ default: (props: Record<string, unknown>) => ({ type: 'a', props }) }));
+vi.mock('next/link', async () => {
+  // Harness repair (ADR-120): the screen now renders its links through
+  // next/link, and the tree-walker only descends into real React elements —
+  // the old mock returned a bare { type, props } object that ended the walk
+  // and swallowed the anchor's text and href.
+  const { createElement } = await import('react');
+  return { default: (props: Record<string, unknown>) => createElement('a', props) };
+});
 vi.mock('../../preview-context', async (original) => ({
   ...(await original<Record<string, unknown>>()),
   usePreviewReadOnly: () => false,
