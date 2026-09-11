@@ -228,7 +228,7 @@ describe('editing a lead', () => {
     expect(state.rpc).toEqual([{
       name: 'transition_lead',
       args: {
-        p_lead_id: LEAD_ID, p_expected_revision: REVISION, p_to_stage: 'trial_scheduled',
+        p_lead_id: LEAD_ID, p_expected_revision: REVISION, p_target: 'trial_scheduled',
         p_trial_at: expect.stringMatching(/[+-]\d{2}:\d{2}$/), p_lost_reason: null,
       },
     }]);
@@ -276,7 +276,7 @@ describe('editing a lead', () => {
     expect(state.rpc).toEqual([{
       name: 'transition_lead',
       args: {
-        p_lead_id: LEAD_ID, p_expected_revision: REVISION, p_to_stage: 'lost',
+        p_lead_id: LEAD_ID, p_expected_revision: REVISION, p_target: 'lost',
         p_trial_at: null, p_lost_reason: 'Chose another gym',
       },
     }]);

@@ -64,7 +64,7 @@ export async function PATCH(
   const { data, error } = await callLeadRpc(read.supabase, 'transition_lead', {
     p_lead_id: read.leadId,
     p_expected_revision: command.expectedRevision,
-    p_to_stage: command.toStage,
+    p_target: command.toStage,
     p_trial_at: trialAt,
     p_lost_reason: command.lostReason,
   });
