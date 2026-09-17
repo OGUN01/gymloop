@@ -43,9 +43,9 @@ insert into public.message_templates (id, tenant_id, key, channel, locale, categ
   ('09c00000-0000-4000-8000-000000000a11'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, 'holdout.renewal', 'push', 'en', 'renewal', 'Gym A template body'),
   ('09c00000-0000-4000-8000-000000000b11'::uuid, '09c00000-0000-4000-8000-000000000b00'::uuid, 'holdout.renewal', 'push', 'en', 'renewal', 'Gym B template body');
 
-insert into public.notifications (id, tenant_id, member_id, channel) values
-  ('09c00000-0000-4000-8000-000000000a10'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, '09c00000-0000-4000-8000-000000000a02'::uuid, 'push'),
-  ('09c00000-0000-4000-8000-000000000b10'::uuid, '09c00000-0000-4000-8000-000000000b00'::uuid, '09c00000-0000-4000-8000-000000000b02'::uuid, 'push');
+insert into public.notifications (id, tenant_id, member_id, channel, category, dedupe_key) values
+  ('09c00000-0000-4000-8000-000000000a10'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, '09c00000-0000-4000-8000-000000000a02'::uuid, 'push', 'promotion', 'h09:fixture:a10'),
+  ('09c00000-0000-4000-8000-000000000b10'::uuid, '09c00000-0000-4000-8000-000000000b00'::uuid, '09c00000-0000-4000-8000-000000000b02'::uuid, 'push', 'promotion', 'h09:fixture:b10');
 
 insert into public.member_devices (id, tenant_id, member_id, platform, push_token) values
   ('09c00000-0000-4000-8000-000000000a12'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, '09c00000-0000-4000-8000-000000000a02'::uuid, 'android', 'h9.comms.holdout.token.a1'),
@@ -130,7 +130,7 @@ select is_empty(
   'ISO notifications: Gym A cannot read Gym B notification rows'
 );
 select throws_ok(
-  $$ insert into public.notifications (tenant_id, member_id, channel) values ('09c00000-0000-4000-8000-000000000b00', '09c00000-0000-4000-8000-000000000b02', 'push') $$,
+  $$ insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key) values ('09c00000-0000-4000-8000-000000000b00', '09c00000-0000-4000-8000-000000000b02', 'push', 'promotion', 'h09:cross') $$,
   '42501'::char(5), null,
   'ISO notifications: Gym A cannot insert a row labelled with Gym B'
 );
@@ -197,7 +197,7 @@ select throws_ok(
 
 -- The policy is not simply deny-all: a correctly labelled write succeeds.
 select lives_ok(
-  $$ insert into public.notifications (tenant_id, member_id, channel) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'in_app') $$,
+  $$ insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'in_app', 'promotion', 'h09:own') $$,
   'ISO notifications: Gym A may insert a row labelled with its own tenant'
 );
 
@@ -309,7 +309,7 @@ select results_eq(
   'ISO platform: super_admin reads messaging_wallets across both tenants'
 );
 select lives_ok(
-  $$ insert into public.notifications (tenant_id, member_id, channel) values ('09c00000-0000-4000-8000-000000000b00', '09c00000-0000-4000-8000-000000000b02', 'in_app') $$,
+  $$ insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key) values ('09c00000-0000-4000-8000-000000000b00', '09c00000-0000-4000-8000-000000000b02', 'in_app', 'promotion', 'h09:platform') $$,
   'ISO platform: the platform policy with check admits a row labelled with any tenant'
 );
 
@@ -347,21 +347,21 @@ set local role authenticated;
 -- --- PAY-002: one message per stage, made structural ------------------------
 
 select lives_ok(
-  $$ insert into public.notifications (tenant_id, member_id, channel, dedupe_key) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'push', 'holdout:renewal:expiry_minus_7') $$,
+  $$ insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'push', 'renewal', 'holdout:renewal:expiry_minus_7') $$,
   'PAY-002: the first notification carrying a de-duplication key is accepted'
 );
 select throws_ok(
-  $$ insert into public.notifications (tenant_id, member_id, channel, dedupe_key) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'push', 'holdout:renewal:expiry_minus_7') $$,
+  $$ insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'push', 'renewal', 'holdout:renewal:expiry_minus_7') $$,
   '23505'::char(5), null,
   'PAY-002: a second notification reusing the de-duplication key within the same organisation is rejected'
 );
 select lives_ok(
-  $$ insert into public.notifications (tenant_id, member_id, channel, dedupe_key) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'push', null) $$,
-  'PAY-002: an ad-hoc notification with no de-duplication key is accepted'
+  $$ insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'push', 'promotion', 'h09:ad-hoc:one') $$,
+  'PAY-002: an ad-hoc notification with its own de-duplication key is accepted'
 );
 select lives_ok(
-  $$ insert into public.notifications (tenant_id, member_id, channel, dedupe_key) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'push', null) $$,
-  'PAY-002: a second notification with no de-duplication key is also accepted, the key is only unique where it is present'
+  $$ insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'push', 'promotion', 'h09:ad-hoc:two') $$,
+  'PAY-002: a second ad-hoc notification with a distinct de-duplication key is accepted'
 );
 
 -- --- message_templates: unique per gym, key, channel and locale -------------
@@ -398,12 +398,12 @@ select throws_ok(
 -- --- notifications: the vocabularies are closed -----------------------------
 
 select throws_ok(
-  $$ insert into public.notifications (tenant_id, member_id, channel, status) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'push', 'bounced') $$,
+  $$ insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key, status) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'push', 'promotion', 'h09:invalid-status', 'bounced') $$,
   '22P02'::char(5), null,
   'notifications: a status of bounced is rejected, delivery reporting cannot invent a state'
 );
 select throws_ok(
-  $$ insert into public.notifications (tenant_id, member_id, channel) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'telegram') $$,
+  $$ insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'telegram', 'promotion', 'h09:invalid-channel') $$,
   '22P02'::char(5), null,
   'notifications: a channel of telegram is rejected, the channel vocabulary is closed'
 );
@@ -516,7 +516,7 @@ select lives_ok(
   'ADR-016/ADR-047: the same push token registered at a second gym is accepted, push_token is unique per gym - a member may belong to two gyms and each needs its own delivery target for the one handset'
 );
 select lives_ok(
-  $$ insert into public.notifications (tenant_id, member_id, channel, dedupe_key) values ('09c00000-0000-4000-8000-000000000b00', '09c00000-0000-4000-8000-000000000b02', 'push', 'holdout:renewal:expiry_minus_7') $$,
+  $$ insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key) values ('09c00000-0000-4000-8000-000000000b00', '09c00000-0000-4000-8000-000000000b02', 'push', 'renewal', 'holdout:renewal:expiry_minus_7') $$,
   'PAY-002: the same de-duplication key at a different gym is accepted, the key is unique per organisation'
 );
 select results_eq(

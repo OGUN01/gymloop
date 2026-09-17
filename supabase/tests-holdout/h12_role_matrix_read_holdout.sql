@@ -486,11 +486,11 @@ insert into public.consents (id, tenant_id, member_id, purpose, granted, version
   ('99990000-0012-4000-8000-0000000000a7', 'aaaa0000-0012-4000-8000-000000000001',
      '33330000-0012-4000-8000-0000000000a2', 'marketing', true, 'v1', 'signup');
 
-insert into public.notifications (id, tenant_id, member_id, channel) values
+insert into public.notifications (id, tenant_id, member_id, channel, category, dedupe_key) values
   ('99990000-0012-4000-8000-0000000000a8', 'aaaa0000-0012-4000-8000-000000000001',
-     '33330000-0012-4000-8000-0000000000a1', 'push'),
+     '33330000-0012-4000-8000-0000000000a1', 'push', 'promotion', 'h12:notification:a8'),
   ('99990000-0012-4000-8000-0000000000a9', 'aaaa0000-0012-4000-8000-000000000001',
-     '33330000-0012-4000-8000-0000000000a2', 'push');
+     '33330000-0012-4000-8000-0000000000a2', 'push', 'promotion', 'h12:notification:a9');
 
 insert into public.member_devices (id, tenant_id, member_id, platform, push_token) values
   ('99990000-0012-4000-8000-0000000000aa', 'aaaa0000-0012-4000-8000-000000000001',

@@ -1,5 +1,5 @@
 -- h29_comms_holdout — HOLDOUT pgTAP suite for the Phase 6 communications/wallet
--- contract (docs/planning/phase6-comms-contract.md, ADR-111, 2026-09-10).
+-- contract (docs/planning/phase6-comms-contract.md, ADR-111, ADR-122, 2026-09-10).
 --
 -- Written blind from that contract, phase6-contract-seam.md, docs/data-model.md,
 -- docs/domain-rules.md, docs/security.md, docs/registry.md, supabase/seed.sql
@@ -25,12 +25,9 @@ set local search_path to public, extensions;
 select plan(123);
 
 -- ===========================================================================
--- FIXTURES — inserted as postgres (BYPASSRLS). Rows that must land in a
--- non-'scheduled' notification status, or carry a controlled membership
--- ends_on/periods_granted/duration_days, go in under
--- `session_replication_role = replica` (ADR-098's stated-out-loud bypass):
--- the invariant triggers this contract describes are not under test in the
--- fixture-setup itself, only in the assertions that follow.
+-- FIXTURES — inserted as postgres (BYPASSRLS). Controlled membership
+-- ends_on/periods_granted/duration_days values use the established ADR-098
+-- fixture bypass; notification fixtures do not bypass their contract trigger.
 -- ===========================================================================
 
 insert into public.organizations (id, name, gym_code, status, timezone, currency) values
@@ -103,9 +100,12 @@ insert into public.payments
 
 set local session_replication_role = origin;
 
--- A service consent for member A1 (eligible for reminders), none for A2/A3.
+-- Service consent makes A1 eligible for promotion-free reminder tests and lets
+-- A2 isolate the separate motivation-disabled outcome; A2 has no marketing
+-- consent for the missing-consent case below.
 insert into public.consents (id, tenant_id, member_id, purpose, granted, version, source, recorded_at) values
-  ('b2900000-0000-4000-8000-000000000a50'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a10'::uuid, 'service', true, 'h29-v1', 'holdout fixture', now() - interval '10 days');
+  ('b2900000-0000-4000-8000-000000000a50'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a10'::uuid, 'service', true, 'h29-v1', 'holdout fixture', now() - interval '10 days'),
+  ('b2900000-0000-4000-8000-000000000a52'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a11'::uuid, 'service', true, 'h29-v1', 'holdout fixture', now() - interval '10 days');
 
 insert into public.messaging_wallets (tenant_id, balance_credits) values
   ('b2900000-0000-4000-8000-000000000a00'::uuid, 500),
@@ -115,17 +115,12 @@ insert into public.messaging_wallet_ledger (id, tenant_id, delta_credits, reason
   ('b2900000-0000-4000-8000-000000000a51'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 500, 'holdout fixture top up'),
   ('b2900000-0000-4000-8000-000000000b51'::uuid, 'b2900000-0000-4000-8000-000000000b00'::uuid, 500, 'holdout fixture top up');
 
--- A source in_app renewal-shaped notification, sent, for the WhatsApp/ack tests
--- below. status is not 'scheduled', so the fixture insert bypasses the future
--- invariant trigger (ADR-098 pattern) rather than going through send_notification,
--- which is the thing under test elsewhere in this file.
-set local session_replication_role = replica;
-
+-- A source in_app notification for the WhatsApp/ack tests below. It is created
+-- in its legal scheduled state and is made available through the public command
+-- under a real gym-admin claim before those tests run.
 insert into public.notifications
-  (id, tenant_id, member_id, channel, status, dedupe_key, scheduled_for, sent_at, related_type, related_id, payload) values
-  ('b2900000-0000-4000-8000-000000000a60'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a10'::uuid, 'in_app', 'sent', 'h29:source:a60', now() - interval '1 hour', now() - interval '1 hour', 'membership', 'b2900000-0000-4000-8000-000000000a30'::uuid, jsonb_build_object('body','Your membership ends soon.'));
-
-set local session_replication_role = origin;
+  (id, tenant_id, member_id, channel, category, dedupe_key, scheduled_for, related_type, related_id, payload) values
+  ('b2900000-0000-4000-8000-000000000a60'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a10'::uuid, 'in_app', 'promotion', 'h29:source:a60', now() - interval '1 hour', 'membership', 'b2900000-0000-4000-8000-000000000a30'::uuid, jsonb_build_object('body','Your membership ends soon.'));
 
 -- ===========================================================================
 -- PART 1 — §1 shared boundaries: function shape and ACLs (catalog-only,
@@ -465,9 +460,9 @@ select throws_ok($tap$
 do $$
 declare v_id uuid;
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app',
-    'h29:illegal1:' || gen_random_uuid()::text)
+    'fulfilment', 'h29:illegal1:' || gen_random_uuid()::text)
   returning id into v_id; -- starts scheduled
   update public.notifications set status = 'delivered' where id = v_id; -- scheduled -> delivered is not an edge
 end $$;
@@ -478,9 +473,9 @@ select throws_ok($tap$
 do $$
 declare v_id uuid;
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app',
-    'h29:illegal2:' || gen_random_uuid()::text)
+    'promotion', 'h29:illegal2:' || gen_random_uuid()::text)
   returning id into v_id;
   update public.notifications set status = 'sent', sent_at = now() where id = v_id;
   update public.notifications set status = 'failed', failed_at = now(), failed_reason = 'x' where id = v_id;
@@ -493,9 +488,9 @@ select throws_ok($tap$
 do $$
 declare v_id uuid;
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app',
-    'h29:illegal3:' || gen_random_uuid()::text)
+    'promotion', 'h29:illegal3:' || gen_random_uuid()::text)
   returning id into v_id;
   update public.notifications set status = 'sent', sent_at = now() where id = v_id;
   update public.notifications set status = 'delivered', delivered_at = now() where id = v_id;
@@ -508,9 +503,9 @@ select throws_ok($tap$
 do $$
 declare v_id uuid;
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app',
-    'h29:samestate:' || gen_random_uuid()::text)
+    'promotion', 'h29:samestate:' || gen_random_uuid()::text)
   returning id into v_id;
   update public.notifications set status = 'sent', sent_at = now() where id = v_id;
   -- same-state (sent -> sent) is allowed, but it may not append new evidence.
@@ -532,16 +527,16 @@ select set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-
 set local role authenticated;
 
 select throws_ok($tap$
-  insert into public.notifications (tenant_id, member_id, channel, template_key, category, related_type, related_id)
+  insert into public.notifications (tenant_id, member_id, channel, template_key, category, dedupe_key, related_type, related_id)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app', 'renewal_reminder',
-    'renewal', 'membership', 'b2900000-0000-4000-8000-000000000a30')
+    'renewal', 'h29:forged:renewal', 'membership', 'b2900000-0000-4000-8000-000000000a30')
 $tap$, '42501'::char(5), null,
   '4: a direct authenticated write cannot create a base renewal row - creation belongs to the trusted scheduler');
 
 select throws_ok($tap$
-  insert into public.notifications (tenant_id, member_id, channel, template_key, category, related_type, related_id, payload)
+  insert into public.notifications (tenant_id, member_id, channel, template_key, category, dedupe_key, related_type, related_id, payload)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app', 'renewal_reminder',
-    'promotion', 'membership', 'b2900000-0000-4000-8000-000000000a30', '{"forged":true}'::jsonb)
+    'promotion', 'h29:forged:category', 'membership', 'b2900000-0000-4000-8000-000000000a30', '{"forged":true}'::jsonb)
 $tap$, '4: naming the reserved renewal template key with a different category/payload does not bypass the identity check');
 
 select lives_ok($tap$
@@ -551,9 +546,9 @@ declare
   v_field text;
   v_failed_fields text[] := array[]::text[];
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key, related_type, related_id, payload)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key, related_type, related_id, payload)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'push',
-    'h29:freeze:' || gen_random_uuid()::text, 'membership', 'b2900000-0000-4000-8000-000000000a30', '{"a":1}'::jsonb)
+    'fulfilment', 'h29:freeze:' || gen_random_uuid()::text, 'membership', 'b2900000-0000-4000-8000-000000000a30', '{"a":1}'::jsonb)
   returning id into v_id;
 
   begin
@@ -593,9 +588,9 @@ do $$
 declare
   v_id uuid;
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app',
-    'h29:pairing:' || gen_random_uuid()::text)
+    'fulfilment', 'h29:pairing:' || gen_random_uuid()::text)
   returning id into v_id;
   update public.notifications set status = 'failed', failed_at = now() where id = v_id; -- no failed_reason
 end $$;
@@ -606,9 +601,9 @@ do $$
 declare
   v_id uuid;
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'push',
-    'h29:pairing2:' || gen_random_uuid()::text)
+    'fulfilment', 'h29:pairing2:' || gen_random_uuid()::text)
   returning id into v_id;
   update public.notifications set status = 'delivered', delivered_at = now() where id = v_id; -- no sent_at
 end $$;
@@ -619,9 +614,9 @@ do $$
 declare
   v_id uuid;
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app',
-    'h29:pairing3:' || gen_random_uuid()::text)
+    'promotion', 'h29:pairing3:' || gen_random_uuid()::text)
   returning id into v_id;
   update public.notifications set status = 'sent', sent_at = now() where id = v_id;
   update public.notifications set status = 'sent', sent_at = now() - interval '1 hour' where id = v_id; -- backdate an existing event
@@ -634,9 +629,9 @@ declare
   v_id uuid;
   v_scheduled timestamptz := now();
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key, scheduled_for)
-  values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'push',
-    'h29:backdate:' || gen_random_uuid()::text, v_scheduled)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key, scheduled_for)
+  values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app',
+    'promotion', 'h29:backdate:' || gen_random_uuid()::text, v_scheduled)
   returning id into v_id;
   update public.notifications set status = 'sent', sent_at = now() - interval '10 minutes' where id = v_id;
   if (select sent_at from public.notifications where id = v_id) < v_scheduled - interval '1 second' then
@@ -670,13 +665,18 @@ select throws_ok($tap$
 $tap$, 'P0002'::char(5), null,
   '4: send_notification against a missing/cross-gym id is P0002, identical to any other absent target');
 
+do $$
+begin
+  perform public.send_notification('b2900000-0000-4000-8000-000000000a60'::uuid);
+end $$;
+
 select throws_ok($tap$
 do $$
 declare v_id uuid;
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key, scheduled_for)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key, scheduled_for)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app',
-    'h29:future:' || gen_random_uuid()::text, now() + interval '1 hour')
+    'fulfilment', 'h29:future:' || gen_random_uuid()::text, now() + interval '1 hour')
   returning id into v_id;
   perform public.send_notification(v_id);
 end $$;
@@ -689,9 +689,9 @@ declare
   v_id uuid;
   v_result jsonb;
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a12', 'in_app',
-    'h29:ineligible:' || gen_random_uuid()::text)
+    'fulfilment', 'h29:ineligible:' || gen_random_uuid()::text)
   returning id into v_id; -- member A12 is 'blocked'
   v_result := public.send_notification(v_id);
   if (v_result ->> 'status') <> 'opted_out' or (v_result ->> 'optedOutReason') <> 'recipient_ineligible' then
@@ -706,9 +706,9 @@ declare
   v_id uuid;
   v_result jsonb;
 begin
-  -- member A2 (no motivation, no service consent) has no consent row at all.
+  -- Member A2 has no marketing consent.
   insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
-  values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a11', 'in_app', 'fulfilment',
+  values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a11', 'in_app', 'promotion',
     'h29:noconsent:' || gen_random_uuid()::text)
   returning id into v_id;
   v_result := public.send_notification(v_id);
@@ -743,9 +743,9 @@ declare
   v_result jsonb;
   v_ledger_count int;
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app',
-    'h29:inapp:' || gen_random_uuid()::text)
+    'promotion', 'h29:inapp:' || gen_random_uuid()::text)
   returning id into v_id;
   v_result := public.send_notification(v_id);
   if (v_result ->> 'status') <> 'sent' or (v_result ->> 'sentAt') is null then
@@ -764,9 +764,9 @@ declare
   v_id uuid;
   v_result jsonb;
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'push',
-    'h29:push:' || gen_random_uuid()::text)
+    'promotion', 'h29:push:' || gen_random_uuid()::text)
   returning id into v_id;
   v_result := public.send_notification(v_id);
   if (v_result ->> 'status') <> 'failed' or (v_result ->> 'failedReason') <> 'provider_unconfigured'
@@ -780,9 +780,9 @@ select throws_ok($tap$
 do $$
 declare v_id uuid;
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'sms',
-    'h29:sms:' || gen_random_uuid()::text)
+    'promotion', 'h29:sms:' || gen_random_uuid()::text)
   returning id into v_id;
   perform public.send_notification(v_id);
 end $$;
@@ -834,9 +834,9 @@ select throws_ok($tap$
 do $$
 declare v_id uuid;
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app',
-    'h29:notack:' || gen_random_uuid()::text)
+    'fulfilment', 'h29:notack:' || gen_random_uuid()::text)
   returning id into v_id; -- still 'scheduled'
   perform public.acknowledge_notification(v_id);
 end $$;
@@ -935,9 +935,9 @@ end $$;
 $tap$, '5: repeated opening is inert - same child, same url, no second row');
 
 select throws_ok($tap$
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key, source_notification_id)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key, source_notification_id)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'whatsapp_link',
-    'whatsapp:b2900000-0000-4000-8000-000000000a60', 'b2900000-0000-4000-8000-000000000a60')
+    'promotion', 'whatsapp:b2900000-0000-4000-8000-000000000a60', 'b2900000-0000-4000-8000-000000000a60')
 $tap$, '23505'::char(5), null,
   '5: a direct second whatsapp_link child for the same source, same dedupe key, is rejected by the unique index');
 
@@ -945,9 +945,9 @@ select throws_ok($tap$
 do $$
 declare v_scheduled_id uuid;
 begin
-  insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app',
-    'h29:notyetsent:' || gen_random_uuid()::text)
+    'fulfilment', 'h29:notyetsent:' || gen_random_uuid()::text)
   returning id into v_scheduled_id; -- still scheduled, never sent/delivered
   perform public.open_notification_whatsapp(v_scheduled_id);
 end $$;
@@ -961,12 +961,17 @@ declare
   v_child_count int;
 begin
   -- member A2 has no service/marketing consent recorded at all.
-  set local session_replication_role = replica;
-  insert into public.notifications (tenant_id, member_id, channel, status, dedupe_key, sent_at)
-  values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a11', 'in_app', 'sent',
-    'h29:optedout-source:' || gen_random_uuid()::text, now())
+  perform set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-4000-8000-000000000a02',
+    'role', 'authenticated', 'tenant_id', 'b2900000-0000-4000-8000-000000000a00',
+    'staff_id', 'b2900000-0000-4000-8000-000000000a02', 'app_role', 'gym_owner')::text, true);
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
+  values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a11', 'in_app', 'promotion',
+    'h29:optedout-source:' || gen_random_uuid()::text)
   returning id into v_source_id;
-  set local session_replication_role = origin;
+  perform public.send_notification(v_source_id);
+  perform set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-4000-8000-000000000a03',
+    'role', 'authenticated', 'tenant_id', 'b2900000-0000-4000-8000-000000000a00',
+    'staff_id', 'b2900000-0000-4000-8000-000000000a03', 'app_role', 'front_desk')::text, true);
   begin
     v_result := public.open_notification_whatsapp(v_source_id);
     raise exception 'a member with no current consent must never receive a whatsapp url, got %', v_result;
@@ -988,12 +993,17 @@ declare
   v_source_id uuid;
   v_child_id uuid;
 begin
-  set local session_replication_role = replica;
-  insert into public.notifications (tenant_id, member_id, channel, status, dedupe_key, sent_at, recipient_phone)
-  values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app', 'sent',
-    'h29:phonecheck:' || gen_random_uuid()::text, now(), '+919000000001')
+  perform set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-4000-8000-000000000a02',
+    'role', 'authenticated', 'tenant_id', 'b2900000-0000-4000-8000-000000000a00',
+    'staff_id', 'b2900000-0000-4000-8000-000000000a02', 'app_role', 'gym_owner')::text, true);
+  insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
+  values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app', 'promotion',
+    'h29:phonecheck:' || gen_random_uuid()::text)
   returning id into v_source_id;
-  set local session_replication_role = origin;
+  perform public.send_notification(v_source_id);
+  perform set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-4000-8000-000000000a03',
+    'role', 'authenticated', 'tenant_id', 'b2900000-0000-4000-8000-000000000a00',
+    'staff_id', 'b2900000-0000-4000-8000-000000000a03', 'app_role', 'front_desk')::text, true);
   perform public.open_notification_whatsapp(v_source_id);
   update public.members set phone = '+919000099999' where id = 'b2900000-0000-4000-8000-000000000a10';
   perform public.open_notification_whatsapp(v_source_id); -- phone now differs from the frozen snapshot

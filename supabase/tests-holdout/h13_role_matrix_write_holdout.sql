@@ -183,9 +183,9 @@ select ok(
 -- notifications is the highest-risk cell in the matrix: its write gate is
 -- is_gym_admin() while both of its neighbours in section 8.3 are is_front_office().
 select ok(
-  pg_temp.allowed($q$insert into public.notifications (tenant_id, member_id, channel)
+  pg_temp.allowed($q$insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
                      values ('aaaa0000-0013-4000-8000-000000000001',
-                             '33330000-0013-4000-8000-0000000000a1', 'push')$q$),
+                             '33330000-0013-4000-8000-0000000000a1', 'push', 'promotion', 'h13:manager')$q$),
   'a manager writes notifications');
 
 select ok(
@@ -328,9 +328,9 @@ select ok(
   'front desk reads refunds but cannot issue one');
 
 select ok(
-  pg_temp.rejected($q$insert into public.notifications (tenant_id, member_id, channel)
+  pg_temp.rejected($q$insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
                     values ('aaaa0000-0013-4000-8000-000000000001',
-                            '33330000-0013-4000-8000-0000000000a2', 'push')$q$),
+                            '33330000-0013-4000-8000-0000000000a2', 'push', 'promotion', 'h13:front-desk')$q$),
   'front desk cannot write notifications, though both neighbouring tables are open to it');
 
 select ok(
@@ -467,9 +467,9 @@ select ok(
   'a member cannot withdraw a consent directly');
 
 select ok(
-  pg_temp.rejected($q$insert into public.notifications (tenant_id, member_id, channel)
+  pg_temp.rejected($q$insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
                     values ('aaaa0000-0013-4000-8000-000000000001',
-                            '33330000-0013-4000-8000-0000000000a1', 'push')$q$),
+                            '33330000-0013-4000-8000-0000000000a1', 'push', 'promotion', 'h13:member')$q$),
   'a member cannot write a notification');
 
 select ok(
