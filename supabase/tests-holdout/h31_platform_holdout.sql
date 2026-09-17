@@ -137,7 +137,7 @@ SELECT lives_ok(
   'owner linking resolves one exact normalized existing Auth user'
 );
 SELECT throws_ok(
-  $$ SELECT public.link_gym_owner('31000000-0000-4000-8000-000000000101', (SELECT owner_staff_id FROM h31_ids), NULL, 'h31-other@example.test', '31000000-0000-4000-8000-000000000114') $$,
+  $$ SELECT public.link_gym_owner('31000000-0000-4000-8000-000000000101', (SELECT owner_staff_id FROM h31_ids), (SELECT user_id FROM public.staff WHERE id = (SELECT owner_staff_id FROM h31_ids)), 'h31-other@example.test', '31000000-0000-4000-8000-000000000114') $$,
   '22023', NULL,
   'a platform identity is never a candidate owner account'
 );

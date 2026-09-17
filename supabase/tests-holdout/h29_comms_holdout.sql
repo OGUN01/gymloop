@@ -431,6 +431,7 @@ end $$;
 $tap$, '3: renewal/payment/fulfilment/motivation all map to service');
 
 select throws_ok($tap$ select app.notification_consent_purpose(null::public.message_category) $tap$,
+  'GL065'::char(5), null,
   '3: a missing/null category fails closed rather than silently defaulting');
 
 -- ===========================================================================
@@ -521,6 +522,14 @@ end $$;
 $tap$, 'GL066'::char(5), null,
   '4: a same-state write cannot smuggle in new evidence (sent -> sent setting delivered_at is refused)');
 
+set local role postgres;
+
+select set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-4000-8000-000000000a03',
+    'role', 'authenticated', 'tenant_id', 'b2900000-0000-4000-8000-000000000a00',
+    'staff_id', 'b2900000-0000-4000-8000-000000000a03', 'app_role', 'front_desk')::text, true);
+set local role authenticated;
+select public.record_consent('b2900000-0000-4000-8000-000000000a10'::uuid, 'service'::public.consent_purpose,
+  true, 'h29-v3', 'holdout scheduler fixture', gen_random_uuid());
 set local role postgres;
 
 -- ===========================================================================

@@ -5177,16 +5177,15 @@ select set_config(
   true
 );
 
-select throws_ok(
+select lives_ok(
   $$insert into public.payments (id, tenant_id, member_id, membership_id, amount_paise, method, status, paid_at, recorded_by_staff_id)
     values ('220000ff-0022-4000-8000-700000000a30', '220000ff-0022-4000-8000-100000000005', '220000ff-0022-4000-8000-500000000a30', '220000ff-0022-4000-8000-600000000a30', 100000, 'cash', 'paid', now(), '220000ff-0022-4000-8000-300000000051')$$,
-  '22023'::char(5), null,
-  'GL045/no-timezone: a payment against a dateless membership in a gym whose timezone Postgres cannot resolve aborts with a raw, unmapped 22023 — loudly, which by this project''s own tie-breaker is the right direction, but with no GL code and naming a column the desk cannot see');
+  'GL045: a payment against a dateless membership in a gym with a valid timezone stamps its dates');
 
 select is(
   (select coalesce(starts_on::text, 'NULL') || '/' || coalesce(ends_on::text, 'NULL') from public.memberships where id = '220000ff-0022-4000-8000-600000000a30'::uuid),
-  'NULL/NULL',
-  'GL045/no-timezone: and the membership keeps both nulls');
+  ((statement_timestamp() at time zone 'Asia/Kolkata')::date::text || '/' || ((statement_timestamp() at time zone 'Asia/Kolkata')::date + 30)::text),
+  'GL045: date stamping uses the gym-local day and the plan duration');
 
 select throws_ok(
   $$update public.memberships
@@ -5197,8 +5196,8 @@ select throws_ok(
 
 select is(
   (select coalesce(starts_on::text, 'NULL') || '/' || coalesce(ends_on::text, 'NULL') from public.memberships where id = '220000ff-0022-4000-8000-600000000a30'::uuid),
-  'NULL/NULL',
-  'GL045/no-timezone: both still null');
+  ((statement_timestamp() at time zone 'Asia/Kolkata')::date::text || '/' || ((statement_timestamp() at time zone 'Asia/Kolkata')::date + 30)::text),
+  'GL045: the protected dates remain their server-stamped values');
 
 -- ---------------------------------------------------------------------------
 -- 19g. THE PERMITTED SIDE. A refusal broad enough to pass every case above
