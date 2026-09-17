@@ -4,6 +4,20 @@
 
 ## Model and effort policy
 
+**Owner override, 2026-09-17 (ADR-121):** use GPT-5.6 Sol for orchestration,
+contract arbitration, identity/RLS/money review, Phase 7 visual direction and
+fresh-context critics. Use GPT-5.6 Terra for bounded work that still requires
+judgement, including migrations, RPCs, authentication seams and independent
+silent-failure test authorship. Use GPT-5.6 Luna as the default worker for
+small, contract-complete implementation, screen transcription, registry/docs
+updates and focused fixes. Freeze the contract before dispatch and run at most
+two workers concurrently unless the required blind arrangement needs separate
+visible and holdout authors. Do not use GPT-6 Astra in this campaign unless the
+owner explicitly authorizes it later. The live Codex weekly limit is a hard
+stop: check it after every completed micro-batch and stop at 70% used without
+waiving a gate or a critic finding. This supersedes the 2026-09-10 model
+assignment below; that paragraph and the older Claude policy remain as history.
+
 **Owner override, 2026-09-10:** use GPT-6 Astra for orchestration, money/security
 work, independent money test authors and critics, and Phase 7 UI/UX. Use
 GPT-5.6 Sol for moderately complex bounded work and GPT-5.6 Terra for simple

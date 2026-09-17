@@ -633,6 +633,26 @@ bypass out loud so the constraints are still what judges them, and the
 `converted`-with-no-member refusal is repinned from `23514` to `GL060`, the
 discipline that now answers first; the refusal itself never changed.
 
+**ADR-121 — Sol arbitrates the remaining build; Terra and Luna execute bounded
+contracts under a hard weekly-usage stop.** On 2026-09-17 the owner replaced
+the 2026-09-10 Astra-led assignment for the Phase 6 remainder and Phase 7.
+GPT-5.6 Sol now owns orchestration, contract arbitration, identity/RLS/money
+review, Phase 7 visual direction and fresh-context critics. GPT-5.6 Terra owns
+bounded work that still requires judgement: migrations, RPCs, authentication
+seams, mobile architecture and independent silent-failure tests. GPT-5.6 Luna
+is the default for small work whose contract is complete: routes, forms,
+components, screen conversion, fixtures, focused fixes and registry/docs
+synchronization. Contracts remain serial and fixed before fan-out; at most two
+workers run concurrently except where the blind visible/holdout arrangement
+requires separate authors. GPT-6 Astra is not used unless the owner explicitly
+authorizes it later. The account was at 65% weekly usage when this campaign
+started; 70% is a hard stop checked after each completed micro-batch. Hitting
+the stop pauses at the last green commit and never permits a skipped gate,
+weakened test or accepted critic finding. Rejected: treating lower model price
+as proof the whole remainder fits in five percentage points — the product does
+not publish a task-to-weekly-percentage conversion, so the cap is enforced by
+measurement, narrow contexts and independently shippable batches.
+
 **ADR-112 — Preserve migration order when existing versions are ahead of the clock.**
 The refund unit's CLI-generated version `20260910074537` sorts before the
 already-applied `20260915100000` migration. Under the owner's ADR-111 delegation,
