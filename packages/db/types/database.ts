@@ -516,6 +516,7 @@ export type Database = {
           purpose: Database["public"]["Enums"]["consent_purpose"]
           recorded_at: string
           recorded_by_staff_id: string | null
+          request_key: string | null
           source: string
           tenant_id: string
           version: string
@@ -528,6 +529,7 @@ export type Database = {
           purpose: Database["public"]["Enums"]["consent_purpose"]
           recorded_at?: string
           recorded_by_staff_id?: string | null
+          request_key?: string | null
           source: string
           tenant_id: string
           version: string
@@ -540,6 +542,7 @@ export type Database = {
           purpose?: Database["public"]["Enums"]["consent_purpose"]
           recorded_at?: string
           recorded_by_staff_id?: string | null
+          request_key?: string | null
           source?: string
           tenant_id?: string
           version?: string
@@ -1391,6 +1394,7 @@ export type Database = {
       message_templates: {
         Row: {
           body: string
+          category: Database["public"]["Enums"]["message_category"] | null
           channel: Database["public"]["Enums"]["notification_channel"]
           created_at: string
           id: string
@@ -1402,6 +1406,7 @@ export type Database = {
         }
         Insert: {
           body: string
+          category?: Database["public"]["Enums"]["message_category"] | null
           channel: Database["public"]["Enums"]["notification_channel"]
           created_at?: string
           id?: string
@@ -1413,6 +1418,7 @@ export type Database = {
         }
         Update: {
           body?: string
+          category?: Database["public"]["Enums"]["message_category"] | null
           channel?: Database["public"]["Enums"]["notification_channel"]
           created_at?: string
           id?: string
@@ -1434,27 +1440,36 @@ export type Database = {
       }
       messaging_wallet_ledger: {
         Row: {
+          balance_after_credits: number | null
           created_at: string
           delta_credits: number
           id: string
           notification_id: string | null
           reason: string
+          recorded_by_user_id: string | null
+          request_key: string | null
           tenant_id: string
         }
         Insert: {
+          balance_after_credits?: number | null
           created_at?: string
           delta_credits: number
           id?: string
           notification_id?: string | null
           reason: string
+          recorded_by_user_id?: string | null
+          request_key?: string | null
           tenant_id: string
         }
         Update: {
+          balance_after_credits?: number | null
           created_at?: string
           delta_credits?: number
           id?: string
           notification_id?: string | null
           reason?: string
+          recorded_by_user_id?: string | null
+          request_key?: string | null
           tenant_id?: string
         }
         Relationships: [
@@ -1464,6 +1479,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "notifications"
             referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "messaging_wallet_ledger_recorded_by_user_id_fkey"
+            columns: ["recorded_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "platform_users"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "messaging_wallet_ledger_tenant_id_fkey"
@@ -1581,61 +1603,82 @@ export type Database = {
       }
       notifications: {
         Row: {
+          category: Database["public"]["Enums"]["message_category"] | null
           channel: Database["public"]["Enums"]["notification_channel"]
           clicked_at: string | null
           converted_at: string | null
           created_at: string
           dedupe_key: string | null
           delivered_at: string | null
+          failed_at: string | null
           failed_reason: string | null
           id: string
           member_id: string
+          opted_out_at: string | null
+          opted_out_reason: string | null
           payload: Json
+          recipient_phone: string | null
           related_id: string | null
           related_type: string | null
           scheduled_for: string
           sent_at: string | null
+          source_notification_id: string | null
           status: Database["public"]["Enums"]["notification_status"]
+          template_id: string | null
           template_key: string | null
           tenant_id: string
           updated_at: string
         }
         Insert: {
+          category?: Database["public"]["Enums"]["message_category"] | null
           channel: Database["public"]["Enums"]["notification_channel"]
           clicked_at?: string | null
           converted_at?: string | null
           created_at?: string
           dedupe_key?: string | null
           delivered_at?: string | null
+          failed_at?: string | null
           failed_reason?: string | null
           id?: string
           member_id: string
+          opted_out_at?: string | null
+          opted_out_reason?: string | null
           payload?: Json
+          recipient_phone?: string | null
           related_id?: string | null
           related_type?: string | null
           scheduled_for?: string
           sent_at?: string | null
+          source_notification_id?: string | null
           status?: Database["public"]["Enums"]["notification_status"]
+          template_id?: string | null
           template_key?: string | null
           tenant_id: string
           updated_at?: string
         }
         Update: {
+          category?: Database["public"]["Enums"]["message_category"] | null
           channel?: Database["public"]["Enums"]["notification_channel"]
           clicked_at?: string | null
           converted_at?: string | null
           created_at?: string
           dedupe_key?: string | null
           delivered_at?: string | null
+          failed_at?: string | null
           failed_reason?: string | null
           id?: string
           member_id?: string
+          opted_out_at?: string | null
+          opted_out_reason?: string | null
           payload?: Json
+          recipient_phone?: string | null
           related_id?: string | null
           related_type?: string | null
           scheduled_for?: string
           sent_at?: string | null
+          source_notification_id?: string | null
           status?: Database["public"]["Enums"]["notification_status"]
+          template_id?: string | null
           template_key?: string | null
           tenant_id?: string
           updated_at?: string
@@ -1654,6 +1697,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_tenant_id_source_notification_id_fkey"
+            columns: ["tenant_id", "source_notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "notifications_tenant_id_template_id_fkey"
+            columns: ["tenant_id", "template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
@@ -2511,6 +2568,19 @@ export type Database = {
       }
     }
     Functions: {
+      acknowledge_notification: {
+        Args: { p_notification_id: string }
+        Returns: Json
+      }
+      adjust_messaging_wallet: {
+        Args: {
+          p_delta_credits: number
+          p_reason: string
+          p_request_key: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       commit_member_import: {
         Args: { p_file_sha256: string; p_import_id: string; p_rows: Json }
         Returns: Json
@@ -2588,6 +2658,16 @@ export type Database = {
         }
         Returns: Json
       }
+      list_notifications: {
+        Args: {
+          p_channel?: Database["public"]["Enums"]["notification_channel"]
+        }
+        Returns: Json
+      }
+      open_notification_whatsapp: {
+        Args: { p_notification_id: string }
+        Returns: Json
+      }
       prepare_member_import: {
         Args: {
           p_branch_id: string
@@ -2631,6 +2711,17 @@ export type Database = {
           replayed: boolean
         }[]
       }
+      record_consent: {
+        Args: {
+          p_granted: boolean
+          p_member_id: string
+          p_purpose: Database["public"]["Enums"]["consent_purpose"]
+          p_request_key: string
+          p_source: string
+          p_version: string
+        }
+        Returns: Json
+      }
       record_refund: {
         Args: {
           p_amount_paise: number
@@ -2653,6 +2744,7 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      run_renewal_reminders_all: { Args: never; Returns: Json }
       schedule_pt_session: {
         Args: {
           p_ends_at: string
@@ -2667,6 +2759,7 @@ export type Database = {
           session_id: string
         }[]
       }
+      send_notification: { Args: { p_notification_id: string }; Returns: Json }
       transition_lead: {
         Args: {
           p_expected_revision: string
@@ -2753,6 +2846,12 @@ export type Database = {
         | "frozen"
         | "expired"
         | "cancelled"
+      message_category:
+        | "renewal"
+        | "payment"
+        | "fulfilment"
+        | "promotion"
+        | "motivation"
       no_show_case_status:
         | "open"
         | "contacted"
@@ -2987,6 +3086,13 @@ export const Constants = {
         "frozen",
         "expired",
         "cancelled",
+      ],
+      message_category: [
+        "renewal",
+        "payment",
+        "fulfilment",
+        "promotion",
+        "motivation",
       ],
       no_show_case_status: [
         "open",

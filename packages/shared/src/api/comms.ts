@@ -13,10 +13,9 @@ import { z } from 'zod';
  * (`streaks/streaks.ts` records the same constraint), so those catalogues are
  * checked against `Constants` at the `apps/web` route layer — the same split
  * `apps/web/app/api/leads/lead-input.ts` already draws for `lead_stage` and
- * `lead_source`. `message_category` becomes generated only after this
- * migration lands; until then its request value is a nonblank wire string and
- * PostgreSQL's enum is authoritative. No parallel TypeScript vocabulary is
- * maintained here.
+ * `lead_source`. `message_category` is checked at the route against the
+ * generated catalogue; its request value remains a nonblank wire string here.
+ * No parallel TypeScript vocabulary is maintained here.
  */
 
 const CANONICAL_DECIMAL_INTEGER = /^(?:0|-?[1-9][0-9]*)$/;

@@ -14,10 +14,10 @@ run "jscpd"           pnpm run jscpd
 run "knip"            pnpm run knip
 run "web tests"       pnpm --filter @gymloop/web test --run
 run "shared tests"    pnpm --filter @gymloop/shared test --run
-run "registry-lint"   node scripts/registry-lint.mjs
+run "registry-lint"   pnpm run registry-lint
 run "renewal-windows" pnpm run check-renewal-reminder-windows
-run "escape-hatches"  node scripts/check-escape-hatches.mjs
-run "pgtap-rollback"  node scripts/check-pgtap-rollback.mjs
+run "escape-hatches"  pnpm run check-escape-hatches
+run "pgtap-rollback"  pnpm run check-pgtap-rollback
 echo "---"
 [ "$fail" = 0 ] && echo "ALL GATES GREEN" || echo "SOME GATES RED — do not push"
 exit "$fail"

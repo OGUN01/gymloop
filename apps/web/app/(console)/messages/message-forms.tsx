@@ -164,7 +164,10 @@ export function MessageTemplateForm({ template }: { template?: { id: string; key
     (template?.channel as (typeof Constants.public.Enums.notification_channel)[number] | undefined) ?? 'push',
   );
   const [locale, setLocale] = useState<MessageTemplateLocale>((template?.locale as MessageTemplateLocale | undefined) ?? 'en');
-  const [category, setCategory] = useState(template?.category ?? '');
+  const [category, setCategory] = useState<(typeof Constants.public.Enums.message_category)[number]>(
+    (template?.category as (typeof Constants.public.Enums.message_category)[number] | undefined)
+      ?? Constants.public.Enums.message_category[0],
+  );
   const [body, setBody] = useState(template?.body ?? '');
   const [isActive, setIsActive] = useState(template?.isActive ?? true);
   const [keyInput, setKeyInput] = useState(template?.key ?? '');
@@ -192,7 +195,9 @@ export function MessageTemplateForm({ template }: { template?: { id: string; key
       </select>
     </Field>
     <Field label="Category">
-      <input value={category} onChange={(event) => setCategory(event.target.value)} className={inputClass} />
+      <select value={category} onChange={(event) => setCategory(event.target.value as typeof category)} className={inputClass}>
+        {Constants.public.Enums.message_category.map((value) => <option key={value} value={value}>{value}</option>)}
+      </select>
     </Field>
     <Field label="Body"><textarea value={body} onChange={(event) => setBody(event.target.value)} className={inputClass} /></Field>
     <label className="flex items-center gap-2 text-sm">
@@ -203,38 +208,4 @@ export function MessageTemplateForm({ template }: { template?: { id: string; key
       {pending ? 'Saving…' : template ? 'Save template' : 'Create template'}
     </button>
   </MutationForm>;
-}
-
-/** Move credits in or out of the gym's messaging wallet (contract §7). Only a super-admin session can succeed here — a gym-side caller is honestly refused by the route. */
-export function WalletAdjustForm({ tenantId }: { tenantId: string }) {
-  const [deltaCredits, setDeltaCredits] = useState('');
-  const [reason, setReason] = useState('');
-  const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
-  const replaceRequestKey = () => setRequestKey(crypto.randomUUID());
-  const { pending, problem, submit } = useMutationSubmit(
-    () => (!/^-?[0-9]+$/.test(deltaCredits) || reason.trim() === '')
-      ? 'Enter a whole-number delta and a reason, then try again.' : null,
-    () => postJson('/api/messaging-wallet/adjust', {
-      tenantId, deltaCredits: normalizeCreditsInput(deltaCredits), reason, requestKey,
-    }),
-    () => { setDeltaCredits(''); setReason(''); },
-    replaceRequestKey,
-    'The connection was interrupted. The outcome is uncertain. Retry this adjustment.',
-  );
-
-  return <MutationForm onSubmit={submit} className="mt-3 space-y-3 rounded-lg border border-neutral-200 p-3">
-    <Field label="Delta credits (negative to debit)"><input value={deltaCredits} onChange={(event) => { setDeltaCredits(event.target.value); replaceRequestKey(); }} inputMode="numeric" className={inputClass} /></Field>
-    <Field label="Reason"><input value={reason} onChange={(event) => { setReason(event.target.value); replaceRequestKey(); }} className={inputClass} /></Field>
-    {problem !== '' ? <Alert>{problem}</Alert> : null}
-    <button type="submit" disabled={pending} className="min-h-11 rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-white disabled:opacity-50">
-      {pending ? 'Adjusting…' : 'Adjust wallet'}
-    </button>
-  </MutationForm>;
-}
-
-/** `"-0"`/leading-zero input typed by hand collapsed to the §1 canonical grammar before it ever reaches the wire. */
-function normalizeCreditsInput(value: string): string {
-  const negative = value.startsWith('-');
-  const digits = (negative ? value.slice(1) : value).replace(/^0+(?=\d)/, '');
-  return (negative && digits !== '0' ? '-' : '') + digits;
 }

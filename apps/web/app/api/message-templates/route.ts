@@ -99,6 +99,9 @@ export async function POST(request: Request): Promise<Response> {
   if (!(Constants.public.Enums.notification_channel as readonly string[]).includes(channel)) {
     return apiFail('bad_request', 'invalid_request', 'That channel is not recognized.');
   }
+  if (!(Constants.public.Enums.message_category as readonly string[]).includes(category)) {
+    return apiFail('bad_request', 'invalid_request', 'That category is not recognized.');
+  }
   if (key === RESERVED_RENEWAL_TEMPLATE_KEY) {
     return apiFail('bad_request', 'invalid_request', '"renewal_reminder" is a reserved system key and cannot be authored here.');
   }
