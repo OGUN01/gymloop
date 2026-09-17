@@ -12,6 +12,3 @@ export async function POST(_request: Request, context?: { params?: Promise<{ id?
   if (!data) return platformError({ code: 'XX000' });
   return commandSuccess(_request, data, '/platform');
 }
-
-
-

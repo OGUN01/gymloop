@@ -7,5 +7,3 @@ export async function POST(request: Request): Promise<Response> {
   return onboardGym(command.client, command.data, request);
 }
 
-
-

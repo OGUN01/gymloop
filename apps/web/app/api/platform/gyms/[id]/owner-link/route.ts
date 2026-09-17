@@ -6,8 +6,3 @@ export async function POST(request: Request, context?: { params?: Promise<{ id?:
   if ('failure' in command) return command.failure;
   return linkGymOwner(command.client, command.id!, command.data, request);
 }
-
-
-
-
-

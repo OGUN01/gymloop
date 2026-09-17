@@ -26,5 +26,3 @@ export async function POST(request: Request): Promise<Response> {
   const refreshed = await readIdentity(command.client);
   return seeOther(request, identityHome(refreshed.identity));
 }
-
-

@@ -13,4 +13,3 @@ export default async function PlatformGymPage({ params }: { params: Promise<{ id
   if (!gym) return <main className="p-8"><p role="alert">That gym is not available.</p></main>;
   return <main className="mx-auto max-w-4xl px-6 py-8"><h1 className="text-2xl font-semibold">{gym.name}</h1><p className="mt-1 text-neutral-500">{gym.gym_code} · {gym.status} · {gym.tier ?? 'Unassigned'}</p><section className="mt-8 rounded border p-5"><h2 className="font-semibold">Readiness</h2><pre className="mt-3 overflow-auto text-sm">{JSON.stringify(readiness ?? null)}</pre></section></main>;
 }
-
