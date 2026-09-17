@@ -10,8 +10,8 @@ must be independently recomputable from the component rows in its response.
 
 `public.owner_metrics(p_from date DEFAULT NULL,p_through date DEFAULT NULL)
 RETURNS jsonb` is SQL STABLE SECURITY INVOKER with empty search path. Require
-the existing gym-admin read identity (owner/manager or the authorized read-only
-preview), derive the tenant from the verified claim, and reject other roles
+the existing real gym-admin read identity (owner/manager), derive the tenant
+from the verified claim, and reject previews and other roles
 with 42501 before looking up rows. No supplied tenant or asOf is accepted.
 The wrapper and its read helpers use one containing SQL statement snapshot;
 STABLE helpers must not query a newer snapshot. RLS remains enabled throughout.
@@ -182,8 +182,11 @@ need independent security tests, including cross-tenant and claimless callers.
 
 ## Routes and verification
 
-Owner `/dashboard` admits real owner/manager and the authorized preview read
-identity. Its read loader calls the invoker RPC directly through the caller's
+Owner `/dashboard` admits real owner/manager identities only. An authorized
+support preview is redirected before the RPC: NAV-003 deliberately hides leads
+from preview identities, so a partial owner snapshot would turn an unreadable
+cohort into a dishonest zero. Support uses the complete fleet view instead of
+the owner dashboard. The read loader calls the invoker RPC directly through the caller's
 Supabase client, following the architecture's read path; add no read-only Route
 Handler. Support uses fleet, not a fabricated gym identity. Dates use `from`
 and `through`; absence of both means month-to-date. The loader validates the

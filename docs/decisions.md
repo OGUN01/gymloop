@@ -672,6 +672,18 @@ prohibiting the contract-required direct decisions; a statement trigger that
 locks every tenant member because it cannot see row OLD/NEW; and retaining
 opposing orders while treating retryable deadlocks as normal behavior.
 
+**ADR-123 — The owner snapshot refuses support preview; support reads fleet.**
+The first metrics contract admitted an authorized preview to `/dashboard` while
+NAV-003 deliberately withholds `leads` from that identity. Because lead
+conversion is one of the exact snapshot cards, an invoker read under preview
+would serialize an unreadable population as a plausible zero. Elevating the
+owner wrapper would weaken the established read-only boundary, and dropping the
+card would make the response role-dependent. The truthful boundary is real
+owner/manager only for `owner_metrics`; support uses `fleet_metrics`, which is
+already the platform contract. Preview is rejected before the RPC and inside
+the SQL wrapper. This resolves the contract conflict raised by the first fresh
+metrics critic without broadening impersonation or returning partial data.
+
 **ADR-112 — Preserve migration order when existing versions are ahead of the clock.**
 The refund unit's CLI-generated version `20260910074537` sorts before the
 already-applied `20260915100000` migration. Under the owner's ADR-111 delegation,
