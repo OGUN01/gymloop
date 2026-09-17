@@ -93,8 +93,10 @@ select is((select user_id::text from public.staff where id=(select (result->>'ow
   '37000000-0000-4000-8000-000000000902','owner linking changes only the selected staff Auth association');
 select is((select email from public.staff where id=(select (result->>'ownerStaffId')::uuid from platform37_result)),
   'owner37@gymloop.test','owner linking stores the lower-trimmed exact account email');
+set local role postgres;
 select is((select raw_app_meta_data->>'active_tenant_id' from auth.users where id='37000000-0000-4000-8000-000000000902'),
   '37000000-0000-4000-8000-000000000001','owner linking sets only the target owner preferred tenant');
+set local role authenticated;
 select is((select count(*) from public.audit_log where tenant_id='37000000-0000-4000-8000-000000000001'
   and action='staff.owner_linked' and record_id=(select (result->>'ownerStaffId')::uuid from platform37_result)
   and request_key='37000000-0000-4000-8000-000000000030'),1::bigint,
