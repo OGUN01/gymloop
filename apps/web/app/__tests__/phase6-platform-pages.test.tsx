@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   identity: null as Record<string, unknown> | null,
-  result: [] as unknown[], error: null as unknown,
+  result: [] as unknown[], owners: [] as unknown[], error: null as unknown,
 }));
 
 vi.mock('../../lib/identity-session', () => ({
@@ -21,7 +21,7 @@ vi.mock('../../lib/identity-session', () => ({
       from: () => ({
         select: () => ({
           order: () => ({
-            order: async () => ({ data: state.result, error: state.error }),
+            order: async () => ({ data: state.owners, error: state.error }),
           }),
         }),
       }),
@@ -41,6 +41,11 @@ const GYM = {
   providerReadiness: { push: { ready: false, reason: 'provider_unconfigured' }, sms: { ready: false, reason: 'outside_v1' }, email: { ready: false, reason: 'outside_v1' }, whatsappBusiness: { ready: false, reason: 'outside_v1' } },
   metricsError: null, components: { liveMembers: [], cases: [], failedNotifications: [] },
 };
+const OWNER = {
+  id: '33333333-3333-4333-8333-333333333333', tenant_id: TENANT_ID,
+  user_id: null, full_name: 'Gym Owner', email: 'owner@example.test',
+  role: 'gym_owner', is_active: true,
+};
 
 function inspect(node: ReactNode): string {
   if (Array.isArray(node)) return node.map(inspect).join(' ');
@@ -55,7 +60,7 @@ function elements(node: ReactNode): Array<Record<string, unknown>> {
   return [node.props, ...elements(node.props.children as ReactNode)];
 }
 
-beforeEach(() => { state.identity = ADMIN; state.result = [GYM]; state.error = null; });
+beforeEach(() => { state.identity = ADMIN; state.result = [GYM]; state.owners = [OWNER]; state.error = null; });
 
 describe('Phase 6 platform fleet screen', () => {
   it('renders the fleet and readiness/count facts from one response', async () => {
