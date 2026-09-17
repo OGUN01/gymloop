@@ -41,9 +41,11 @@ insert into public.payments(id,tenant_id,member_id,membership_id,amount_paise,cu
 insert into public.refunds(id,tenant_id,payment_id,kind,amount_paise,currency,status,reason,processed_at) values
  ('35000000-0000-4000-8000-000000000101','35000000-0000-4000-8000-000000000001','35000000-0000-4000-8000-000000000092','refund',500,'USD','completed','old payment return','2026-09-15 11:00+00'),
  ('35000000-0000-4000-8000-000000000102','35000000-0000-4000-8000-000000000001','35000000-0000-4000-8000-000000000091','reversal',100,'INR','completed','partial','2026-09-15 11:01+00');
+set local session_replication_role = replica;
 insert into public.leads(id,tenant_id,branch_id,full_name,phone,source,stage,created_at,converted_member_id,converted_at) values
  ('35000000-0000-4000-8000-000000000111','35000000-0000-4000-8000-000000000001','35000000-0000-4000-8000-000000000011','Converted','+915350000111','walk_in','converted','2026-09-15 09:00+00','35000000-0000-4000-8000-000000000031','2026-09-20 09:00+00'),
  ('35000000-0000-4000-8000-000000000112','35000000-0000-4000-8000-000000000001','35000000-0000-4000-8000-000000000011','New','+915350000112','walk_in','new','2026-09-15 09:00+00',null,null);
+set local session_replication_role = origin;
 select set_config('request.jwt.claims','{"sub":"35000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"gym_owner","tenant_id":"35000000-0000-4000-8000-000000000001","staff_id":"35000000-0000-4000-8000-000000000021"}',true);
 set local role authenticated;
 create temp table probe as select app.gym_metrics('35000000-0000-4000-8000-000000000001','2026-09-15 18:30+00','2026-09-15','2026-09-15') j;
