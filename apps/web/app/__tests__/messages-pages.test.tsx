@@ -196,10 +196,14 @@ function inspect(node: ReactNode): { text: string; forms: number } {
 beforeEach(() => {
   state.claims = OWNER;
   state.rpc = [];
-  state.rpcResult = { rows: ROWS, statusCounts: STATUS_COUNTS, asOf: '2026-09-10T10:00:00+00:00' };
+  state.rpcResult = {
+    rows: ROWS,
+    statusCounts: STATUS_COUNTS,
+    walletBalanceCredits: '4500',
+    asOf: '2026-09-10T10:00:00+00:00',
+  };
   state.rows = {
     message_templates: [{ id: TEMPLATE_ID, key: 'trial_reminder', channel: 'push', locale: 'en', category: 'motivation', body: 'Come back!', is_active: true }],
-    messaging_wallets: [{ balance_credits: '4500' }],
     notifications: [
       { id: SENT_ID, channel: 'in_app', category: 'renewal', status: 'sent', sent_at: '2026-09-10T04:30:00+00:00', delivered_at: null, payload: { body: 'Your membership ends on 2026-09-20.' } },
       { id: DELIVERED_ID, channel: 'in_app', category: 'payment', status: 'delivered', sent_at: '2026-09-09T04:30:00+00:00', delivered_at: '2026-09-09T05:00:00+00:00', payload: { body: 'Payment received, thank you.' } },
@@ -289,7 +293,7 @@ describe('staff /messages — role-gated sections', () => {
 
   it.each([
     ['an owner', OWNER], ['a manager', MANAGER],
-  ])('%s manages templates and sees the read-only wallet balance', async (_name, claims) => {
+  ])('%s manages templates and sees the read-only wallet balance from the list RPC snapshot', async (_name, claims) => {
     state.claims = claims;
     const page = await loadMessagesPage();
     const view = inspect(page);
@@ -297,6 +301,7 @@ describe('staff /messages — role-gated sections', () => {
     expect(view.text).toContain('Message templates');
     expect(view.text).toContain('Wallet');
     expect(view.text).toContain('4500');
+    expect(state.reads).not.toContain('messaging_wallets');
     expect(findComponent(page, 'MessageTemplateForm')).toBeDefined();
     expect(findComponent(page, 'WalletAdjustForm')).toBeUndefined();
   });
@@ -308,7 +313,9 @@ describe('staff /messages — role-gated sections', () => {
     ];
     state.rpcResult = {
       rows: [...ROWS, { ...ROWS[1], id: WHATSAPP_CHILD.notificationId, channel: 'whatsapp_link', sourceNotificationId: SENT_ID }],
-      statusCounts: STATUS_COUNTS, asOf: '2026-09-10T10:00:00+00:00',
+      statusCounts: STATUS_COUNTS,
+      walletBalanceCredits: '4500',
+      asOf: '2026-09-10T10:00:00+00:00',
     };
     const page = await loadMessagesPage();
     const view = inspect(page);
