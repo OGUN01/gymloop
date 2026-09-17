@@ -119,6 +119,7 @@ CREATE TEMP TABLE h31_ids AS
 SELECT
   '31000000-0000-4000-8000-000000000101'::uuid AS tenant_id,
   (SELECT id FROM public.staff WHERE tenant_id = '31000000-0000-4000-8000-000000000101'::uuid AND role = 'gym_owner') AS owner_staff_id;
+GRANT SELECT ON h31_ids TO authenticated;
 
 SET LOCAL ROLE authenticated;
 SELECT throws_ok(

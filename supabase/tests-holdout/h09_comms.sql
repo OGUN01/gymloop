@@ -386,17 +386,17 @@ select lives_ok(
 );
 select throws_ok(
   $$ insert into public.message_templates (tenant_id, key, channel, locale, category, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.locale', 'push', 'en-IN', 'promotion', 'x') $$,
-  'GL065'::char(5), null,
+  '23514'::char(5), null,
   'message_templates: a locale of en-IN is rejected, the locale is exactly two lower-case letters'
 );
 select throws_ok(
   $$ insert into public.message_templates (tenant_id, key, channel, locale, category, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.locale', 'push', 'EN', 'promotion', 'x') $$,
-  'GL065'::char(5), null,
+  '23514'::char(5), null,
   'message_templates: an upper-case locale of EN is rejected'
 );
 select throws_ok(
   $$ insert into public.message_templates (tenant_id, key, channel, locale, category, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.locale', 'push', 'eng', 'promotion', 'x') $$,
-  '23514'::char(5), null,
+  'GL065'::char(5), null,
   'message_templates: a three-letter locale of eng is rejected'
 );
 
@@ -431,7 +431,7 @@ select throws_ok(
 );
 select throws_ok(
   $$ insert into public.member_devices (tenant_id, member_id, platform, push_token) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'windows', 'h9.comms.holdout.token.a3') $$,
-  '23514'::char(5), null,
+  'GL065'::char(5), null,
   'ADR-016: a device platform outside (ios, android, web) is rejected'
 );
 

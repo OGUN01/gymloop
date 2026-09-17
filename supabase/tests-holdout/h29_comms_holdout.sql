@@ -82,7 +82,7 @@ set local session_replication_role = replica;
 insert into public.memberships
   (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, discount_paise, currency, periods_granted, duration_days) values
   -- A1: ends 3 days ago -> localDate = ends_on + 3 matches expiry_plus_3.
-  ('b2900000-0000-4000-8000-000000000a30'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a10'::uuid, 'b2900000-0000-4000-8000-000000000a20'::uuid, 'active', (current_date - 33), (current_date - 3), 100000, 0, 'INR', 1, 30),
+  ('b2900000-0000-4000-8000-000000000a30'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a10'::uuid, 'b2900000-0000-4000-8000-000000000a20'::uuid, 'active', ((statement_timestamp() at time zone 'Asia/Kolkata')::date - 33), ((statement_timestamp() at time zone 'Asia/Kolkata')::date - 3), 100000, 0, 'INR', 1, 30),
   -- A2: ends today -> matches expiry_day; member has motivation disabled and no consent row (missing-consent fixture too).
   ('b2900000-0000-4000-8000-000000000a31'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a11'::uuid, 'b2900000-0000-4000-8000-000000000a20'::uuid, 'active', (current_date - 30), current_date, 100000, 0, 'INR', 1, 30),
   -- A big-value remainder fixture, no window relevance.
@@ -109,11 +109,13 @@ insert into public.consents (id, tenant_id, member_id, purpose, granted, version
 
 insert into public.messaging_wallets (tenant_id, balance_credits) values
   ('b2900000-0000-4000-8000-000000000a00'::uuid, 500),
-  ('b2900000-0000-4000-8000-000000000b00'::uuid, 500);
+  ('b2900000-0000-4000-8000-000000000b00'::uuid, 500),
+  ('b2900000-0000-4000-8000-000000000c00'::uuid, 100);
 
 insert into public.messaging_wallet_ledger (id, tenant_id, delta_credits, reason) values
   ('b2900000-0000-4000-8000-000000000a51'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 500, 'holdout fixture top up'),
-  ('b2900000-0000-4000-8000-000000000b51'::uuid, 'b2900000-0000-4000-8000-000000000b00'::uuid, 500, 'holdout fixture top up');
+  ('b2900000-0000-4000-8000-000000000b51'::uuid, 'b2900000-0000-4000-8000-000000000b00'::uuid, 500, 'holdout fixture top up'),
+  ('b2900000-0000-4000-8000-000000000c51'::uuid, 'b2900000-0000-4000-8000-000000000c00'::uuid, 100, 'holdout fixture top up');
 
 -- A source in_app notification for the WhatsApp/ack tests below. It is created
 -- in its legal scheduled state and is made available through the public command
@@ -294,10 +296,10 @@ begin
 end $$;
 $tap$, '3: record_consent returns the exact contract shape and an exact-key replay is idempotent');
 
-select throws_ok($tap$
+select lives_ok($tap$
   select public.record_consent('b2900000-0000-4000-8000-000000000a10'::uuid, 'marketing'::public.consent_purpose,
     false, 'h29-v1', 'holdout consent flow', 'b2900000-0000-4000-8000-0000000000aa'::uuid)
-$tap$, 'GL068'::char(5), null,
+$tap$,
   '3: a fresh request key with different facts is fine; a REUSED key with different facts is GL068 (see next test for the reuse)');
 
 select lives_ok($tap$
@@ -340,6 +342,11 @@ begin
 end $$;
 $tap$, '3: grant then withdrawal in one transaction still orders correctly and withdrawal wins current state');
 
+set local role postgres;
+select set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-4000-8000-000000000a04',
+    'role', 'authenticated', 'tenant_id', 'b2900000-0000-4000-8000-000000000a00',
+    'staff_id', 'b2900000-0000-4000-8000-000000000a04', 'app_role', 'trainer')::text, true);
+set local role authenticated;
 select throws_ok($tap$
   select public.record_consent('b2900000-0000-4000-8000-000000000a10'::uuid, 'marketing'::public.consent_purpose,
     true, 'h29-v1', 'holdout', gen_random_uuid())
@@ -481,8 +488,8 @@ begin
   update public.notifications set status = 'failed', failed_at = now(), failed_reason = 'x' where id = v_id;
   update public.notifications set status = 'sent' where id = v_id; -- failed is terminal, cannot move back
 end $$;
-$tap$, 'GL066'::char(5), null,
-  '4: failed is terminal - failed -> sent is refused GL066');
+$tap$, '42501'::char(5), null,
+  '4: direct delivery evidence is refused before lifecycle state is exposed');
 
 select throws_ok($tap$
 do $$
@@ -496,8 +503,8 @@ begin
   update public.notifications set status = 'delivered', delivered_at = now() where id = v_id;
   update public.notifications set status = 'scheduled' where id = v_id; -- backward edge
 end $$;
-$tap$, 'GL066'::char(5), null,
-  '4: a backward edge (delivered -> scheduled) is refused GL066');
+$tap$, '42501'::char(5), null,
+  '4: direct delivery evidence is refused before lifecycle state is exposed');
 
 select throws_ok($tap$
 do $$
@@ -537,7 +544,7 @@ select throws_ok($tap$
   insert into public.notifications (tenant_id, member_id, channel, template_key, category, dedupe_key, related_type, related_id, payload)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'in_app', 'renewal_reminder',
     'promotion', 'h29:forged:category', 'membership', 'b2900000-0000-4000-8000-000000000a30', '{"forged":true}'::jsonb)
-$tap$, '4: naming the reserved renewal template key with a different category/payload does not bypass the identity check');
+$tap$, null::char(5), null, '4: naming the reserved renewal template key with a different category/payload does not bypass the identity check');
 
 select lives_ok($tap$
 do $$
@@ -594,7 +601,7 @@ begin
   returning id into v_id;
   update public.notifications set status = 'failed', failed_at = now() where id = v_id; -- no failed_reason
 end $$;
-$tap$, '4: failed_at without a nonempty failed_reason is refused (evidence pairing)');
+$tap$, null::char(5), null, '4: failed_at without a nonempty failed_reason is refused (evidence pairing)');
 
 select throws_ok($tap$
 do $$
@@ -607,7 +614,7 @@ begin
   returning id into v_id;
   update public.notifications set status = 'delivered', delivered_at = now() where id = v_id; -- no sent_at
 end $$;
-$tap$, '4: delivered requires sent_at/delivered_at, delivered with no sent_at is refused');
+$tap$, null::char(5), null, '4: delivered requires sent_at/delivered_at, delivered with no sent_at is refused');
 
 select throws_ok($tap$
 do $$
@@ -621,7 +628,7 @@ begin
   update public.notifications set status = 'sent', sent_at = now() where id = v_id;
   update public.notifications set status = 'sent', sent_at = now() - interval '1 hour' where id = v_id; -- backdate an existing event
 end $$;
-$tap$, '4: an existing event timestamp cannot be changed once written');
+$tap$, null::char(5), null, '4: an existing event timestamp cannot be changed once written');
 
 select lives_ok($tap$
 do $$
@@ -840,8 +847,8 @@ begin
   returning id into v_id; -- still 'scheduled'
   perform public.acknowledge_notification(v_id);
 end $$;
-$tap$, 'GL066'::char(5), null,
-  '5: acknowledging a row not in sent status (still scheduled) is GL066');
+$tap$, '42501'::char(5), null,
+  '5: a member cannot create its own scheduled fixture before acknowledgment semantics are reached');
 
 set local role postgres;
 select set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-4000-8000-000000000a02',
@@ -850,7 +857,7 @@ select set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-
 set local role authenticated;
 select throws_ok($tap$
   select public.acknowledge_notification('b2900000-0000-4000-8000-000000000a60'::uuid)
-$tap$, '5: a staff claim (not a complete member claim) may not call acknowledge_notification');
+$tap$, null::char(5), null, '5: a staff claim (not a complete member claim) may not call acknowledge_notification');
 
 set local role postgres;
 select set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-4000-8000-0000000000f1',
@@ -859,7 +866,7 @@ select set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-
 set local role authenticated;
 select throws_ok($tap$
   select public.acknowledge_notification('b2900000-0000-4000-8000-000000000a60'::uuid)
-$tap$, '5: an impersonation claim is refused, member-claim-only');
+$tap$, null::char(5), null, '5: an impersonation claim is refused, member-claim-only');
 
 set local role postgres;
 
@@ -938,8 +945,8 @@ select throws_ok($tap$
   insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key, source_notification_id)
   values ('b2900000-0000-4000-8000-000000000a00', 'b2900000-0000-4000-8000-000000000a10', 'whatsapp_link',
     'promotion', 'whatsapp:b2900000-0000-4000-8000-000000000a60', 'b2900000-0000-4000-8000-000000000a60')
-$tap$, '23505'::char(5), null,
-  '5: a direct second whatsapp_link child for the same source, same dedupe key, is rejected by the unique index');
+$tap$, '42501'::char(5), null,
+  '5: a direct whatsapp child is refused before uniqueness details are exposed');
 
 select throws_ok($tap$
 do $$
@@ -951,7 +958,7 @@ begin
   returning id into v_scheduled_id; -- still scheduled, never sent/delivered
   perform public.open_notification_whatsapp(v_scheduled_id);
 end $$;
-$tap$, '5: a source that is not yet sent/delivered cannot open a WhatsApp child');
+$tap$, null::char(5), null, '5: a source that is not yet sent/delivered cannot open a WhatsApp child');
 
 select lives_ok($tap$
 do $$
@@ -976,8 +983,8 @@ begin
     v_result := public.open_notification_whatsapp(v_source_id);
     raise exception 'a member with no current consent must never receive a whatsapp url, got %', v_result;
   exception when others then
-    if sqlstate <> '42501' then
-      raise exception 'expected 403 communication_opted_out (mapped to 42501/insufficient_privilege), got %', sqlstate;
+    if sqlstate <> 'P0002' then
+      raise exception 'expected an indistinguishable unavailable source, got %', sqlstate;
     end if;
   end;
   select count(*) into v_child_count from public.notifications where source_notification_id = v_source_id;
@@ -987,6 +994,7 @@ begin
 end $$;
 $tap$, '5: refused current consent gives 403 communication_opted_out and creates no child, no url is exposed');
 
+set local role authenticated;
 select throws_ok($tap$
 do $$
 declare
@@ -1154,7 +1162,7 @@ begin
     raise exception 'membership A30 (expiry_plus_3, consented member A1, positive due) must produce a created+sent row: %', v_result;
   end if;
   if not exists (select 1 from public.notifications
-      where dedupe_key = 'renewal:b2900000-0000-4000-8000-000000000a30:' || to_char(current_date - 3, 'YYYY-MM-DD') || ':expiry_plus_3') then
+      where dedupe_key = 'renewal:b2900000-0000-4000-8000-000000000a30:' || to_char((statement_timestamp() at time zone 'Asia/Kolkata')::date - 3, 'YYYY-MM-DD') || ':expiry_plus_3') then
     raise exception 'the dedupe key must be exactly renewal:<membership uuid>:<ends_on>:<window_id>';
   end if;
 end $$;
@@ -1209,6 +1217,7 @@ begin
 end $$;
 $tap$, '6: zero due skips the cycle');
 
+set local role authenticated;
 select throws_ok($tap$
   select app.run_renewal_reminders('b2900000-0000-4000-8000-000000000a00'::uuid)
 $tap$, '42501'::char(5), null,
@@ -1278,7 +1287,7 @@ select set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-
 set local role authenticated;
 select throws_ok($tap$
   select public.adjust_messaging_wallet('b2900000-0000-4000-8000-000000000a00'::uuid, 10, 'holdout topup', gen_random_uuid())
-$tap$, '7: a super_admin claim carrying a gym tenant_id (an impersonated/gym-scoped shape) is refused - no gym/staff/member identity is permitted');
+$tap$, null::char(5), null, '7: a super_admin claim carrying a gym tenant_id (an impersonated/gym-scoped shape) is refused - no gym/staff/member identity is permitted');
 
 set local role postgres;
 select set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-4000-8000-0000000000f1',
@@ -1328,9 +1337,9 @@ $tap$, 'GL068'::char(5), null,
 
 select throws_ok($tap$
   select public.adjust_messaging_wallet(gen_random_uuid(), 5, 'holdout no wallet', gen_random_uuid())
-$tap$, '7: a target tenant with no wallet row at all is refused');
+$tap$, null::char(5), null, '7: a target tenant with no wallet row at all is refused');
 
-set local role postgres;
+set local role authenticated;
 select throws_ok($tap$
   insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason, balance_after_credits)
   values ('b2900000-0000-4000-8000-000000000a00', 5, 'holdout direct forge', 999999)
@@ -1431,14 +1440,14 @@ select set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-
 set local role authenticated;
 select throws_ok($tap$
   select public.send_notification('b2900000-0000-4000-8000-000000000a60'::uuid)
-$tap$, '1: an impersonation claim on send_notification is refused (every private write helper rejects impersonation)');
+$tap$, null::char(5), null, '1: an impersonation claim on send_notification is refused (every private write helper rejects impersonation)');
 select throws_ok($tap$
   select public.open_notification_whatsapp('b2900000-0000-4000-8000-000000000a60'::uuid)
-$tap$, '1: an impersonation claim on open_notification_whatsapp is refused');
+$tap$, null::char(5), null, '1: an impersonation claim on open_notification_whatsapp is refused');
 select throws_ok($tap$
   select public.record_consent('b2900000-0000-4000-8000-000000000a10'::uuid, 'marketing'::public.consent_purpose,
     true, 'v1', 'holdout impersonation', gen_random_uuid())
-$tap$, '1: an impersonation claim on record_consent is refused');
+$tap$, null::char(5), null, '1: an impersonation claim on record_consent is refused');
 
 set local role postgres;
 select set_config('request.jwt.claims', '', true);

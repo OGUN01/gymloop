@@ -52,7 +52,8 @@ insert into public.staff (id, tenant_id, role, full_name) values
   ('22220000-0013-4000-8000-0000000000a4', 'aaaa0000-0013-4000-8000-000000000001', 'trainer',     'Trainer A');
 
 -- Phase 6 commands require a real subject-to-staff identity, not only a role label.
-insert into auth.users(id) values ('00000000-0013-4000-8000-000000000002'),('00000000-0013-4000-8000-000000000004');
+insert into auth.users(id) values ('00000000-0013-4000-8000-000000000001'),('00000000-0013-4000-8000-000000000002'),('00000000-0013-4000-8000-000000000004');
+update public.staff set user_id='00000000-0013-4000-8000-000000000001' where id='22220000-0013-4000-8000-0000000000a1';
 update public.staff set user_id='00000000-0013-4000-8000-000000000002' where id='22220000-0013-4000-8000-0000000000a3';
 update public.staff set user_id='00000000-0013-4000-8000-000000000004' where id='22220000-0013-4000-8000-0000000000a4';
 
@@ -218,7 +219,7 @@ select ok(
 -- ---------------------------------------------------------------------------
 
 select set_config('request.jwt.claims', json_build_object(
-  'sub', '00000000-0013-4000-8000-000000000004', 'role', 'authenticated',
+  'sub', '00000000-0013-4000-8000-000000000001', 'role', 'authenticated',
   'tenant_id', 'aaaa0000-0013-4000-8000-000000000001',
   'app_role', 'gym_owner', 'staff_id', '22220000-0013-4000-8000-0000000000a1')::text, true);
 
@@ -227,9 +228,10 @@ select ok(
                      where id = '22220000-0013-4000-8000-0000000000a3'$q$),
   'an owner changes a staff member role');
 
-select ok(
-  pg_temp.rejected($q$update public.organizations set tier = 'basic'
+select is(
+  pg_temp.attempt($q$update public.organizations set tier = 'basic'
                      where id = 'aaaa0000-0013-4000-8000-000000000001'$q$),
+  'error=GL049',
   'an owner cannot directly change the commercial tier');
 
 select ok(

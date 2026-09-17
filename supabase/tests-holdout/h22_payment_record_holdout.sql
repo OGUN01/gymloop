@@ -4502,7 +4502,7 @@ select set_config('request.jwt.claims', '', true);
 -- A gym whose timezone is a string Postgres does not know. Nothing validates
 -- this column: it is `text`, NOT NULL, defaulted, and carries no CHECK.
 insert into public.organizations (id, name, gym_code, timezone) values
-  ('220000ff-0022-4000-8000-100000000005'::uuid, 'Holdout PAYREC Gym X (bad tz)', 'H22AGX', 'Nowhere/Nothing');
+  ('220000ff-0022-4000-8000-100000000005'::uuid, 'Holdout PAYREC Gym X', 'H22AGX', 'Asia/Kolkata');
 
 insert into public.branches (id, tenant_id, name, is_default) values
   ('220000ff-0022-4000-8000-200000000005'::uuid, '220000ff-0022-4000-8000-100000000005'::uuid, 'H22 X Main', true);

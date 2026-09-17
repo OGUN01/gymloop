@@ -1921,6 +1921,7 @@ select is(
 -- the write that creates the row.
 -- ===========================================================================
 
+select set_config('request.jwt.claims', '', true);
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000000010'::uuid, 'PayRec Gym 10', 'PYR22X');
 
@@ -2033,6 +2034,7 @@ select results_eq(
 -- supabase-js call."
 -- ===========================================================================
 
+select set_config('request.jwt.claims', '', true);
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000000011'::uuid, 'PayRec Gym 11', 'PYR22Y');
 
@@ -2349,6 +2351,7 @@ $$, 'scenario "The member it was paid for" — admitted the same day, since the 
 -- Section 13 left the session as authenticated (its own last statement, the
 -- QR check-in scan); this section's fixtures need postgres back first.
 set local role postgres;
+select set_config('request.jwt.claims', '', true);
 
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000140001'::uuid, 'PayRec Gym 14', 'PYR22E');
@@ -2978,6 +2981,7 @@ select results_eq(
 -- ===========================================================================
 
 set local role postgres;
+select set_config('request.jwt.claims', '', true);
 
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000160001'::uuid, 'PayRec Gym 16', 'PYR22F'),
@@ -3813,6 +3817,7 @@ select results_eq(
 -- ===========================================================================
 
 set local role postgres;
+select set_config('request.jwt.claims', '', true);
 
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000170001'::uuid, 'PayRec Gym 17', 'PYR22H');
@@ -4808,6 +4813,7 @@ select results_eq(
 -- ===========================================================================
 
 set local role postgres;
+select set_config('request.jwt.claims', '', true);
 
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000180001'::uuid, 'PayRec Gym 18', 'PYR22I'),
@@ -5614,6 +5620,7 @@ select results_eq(
 -- ===========================================================================
 
 set local role postgres;
+select set_config('request.jwt.claims', '', true);
 
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000190001'::uuid, 'PayRec Gym 19', 'PYR22K');
@@ -6505,6 +6512,7 @@ select results_eq(
 -- ===========================================================================
 
 set local role postgres;
+select set_config('request.jwt.claims', '', true);
 
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000200001'::uuid, 'PayRec Gym 20', 'PYR22L'),
@@ -9124,6 +9132,7 @@ select results_eq(
 -- the in-flight statuses are walked.
 -- ===========================================================================
 
+select set_config('request.jwt.claims', '', true);
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000210001'::uuid, 'PayRec Gym 21', 'PYR22N');
 
@@ -9652,6 +9661,7 @@ select results_eq(
 -- through, which is exactly the shape of mistake this phase keeps making.
 -- ===========================================================================
 
+select set_config('request.jwt.claims', '', true);
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000220001'::uuid, 'PayRec Gym 22', 'PYR22O');
 
@@ -10066,6 +10076,7 @@ select results_eq(
 -- drift ("Change, not write").
 -- ===========================================================================
 
+select set_config('request.jwt.claims', '', true);
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000230001'::uuid, 'PayRec Gym 23', 'PYR22P');
 
@@ -10840,6 +10851,7 @@ select results_eq(
 -- ===========================================================================
 
 set local role postgres;
+select set_config('request.jwt.claims', '', true);
 
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000240001'::uuid, 'PayRec Gym 24', 'PYR22Q');
@@ -12403,6 +12415,7 @@ select results_eq(
 -- ===========================================================================
 
 set local role postgres;
+select set_config('request.jwt.claims', '', true);
 
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000250001'::uuid, 'PayRec Gym 25', 'PYR22R');
@@ -12646,6 +12659,7 @@ select results_eq(
 -- ===========================================================================
 
 set local role postgres;
+select set_config('request.jwt.claims', '', true);
 
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000260001'::uuid, 'PayRec Gym 26', 'PYR22S');
@@ -12975,6 +12989,7 @@ select results_eq(
 -- ===========================================================================
 
 set local role postgres;
+select set_config('request.jwt.claims', '', true);
 
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000270001'::uuid, 'PayRec Gym 27', 'PYR22T'),
@@ -13482,6 +13497,7 @@ select results_eq(
 -- ===========================================================================
 
 set local role postgres;
+select set_config('request.jwt.claims', '', true);
 
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000280001'::uuid, 'PayRec Gym 28', 'PYR22V'),
@@ -13952,6 +13968,7 @@ select results_eq(
 -- ===========================================================================
 
 set local role postgres;
+select set_config('request.jwt.claims', '', true);
 
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000290001'::uuid, 'PayRec Gym 29', 'PYR22Z');
@@ -14449,6 +14466,7 @@ select results_eq(
 
 set local role postgres;
 
+select set_config('request.jwt.claims', '', true);
 insert into public.organizations (id, name, gym_code) values
   ('22000000-0000-4000-8000-000000300001'::uuid, 'PayRec Gym 30', 'PYR22A');
 
