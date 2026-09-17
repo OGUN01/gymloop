@@ -87,7 +87,7 @@ export const PLAN_TIER_PRICES_PAISE = {
   basic: 149900,
   growth: 299900,
   pro: 499900,
-} as const satisfies Record<'basic' | 'growth' | 'pro', number>;
+} as const satisfies Record<PlanTier, number>;
 
 export const SUPABASE_REGION = 'ap-south-1';
 
@@ -201,9 +201,7 @@ export const IDEMPOTENCY_KEY_MAX_LENGTH = 200;
 
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 /** Canonical database enum generated from the plan_tier Postgres enum. */
-export type PlanTier = Database['public']['Enums'] extends { plan_tier: infer Tier }
-  ? Tier
-  : keyof typeof PLAN_TIER_PRICES_PAISE;
+export type PlanTier = Database['public']['Enums']['plan_tier'];
 
 /*
  * Member CSV/XLSX import — the frozen v1 limits (CSV-D02, contract

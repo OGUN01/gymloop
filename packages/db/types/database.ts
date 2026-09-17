@@ -417,6 +417,8 @@ export type Database = {
           reason: string | null
           record_id: string | null
           record_type: string
+          request_facts: Json | null
+          request_key: string | null
           tenant_id: string | null
         }
         Insert: {
@@ -432,6 +434,8 @@ export type Database = {
           reason?: string | null
           record_id?: string | null
           record_type: string
+          request_facts?: Json | null
+          request_key?: string | null
           tenant_id?: string | null
         }
         Update: {
@@ -447,6 +451,8 @@ export type Database = {
           reason?: string | null
           record_id?: string | null
           record_type?: string
+          request_facts?: Json | null
+          request_key?: string | null
           tenant_id?: string | null
         }
         Relationships: [
@@ -1853,7 +1859,7 @@ export type Database = {
           id: string
           name: string
           status: Database["public"]["Enums"]["organization_status"]
-          tier: string | null
+          tier: Database["public"]["Enums"]["plan_tier"] | null
           timezone: string
           trial_ends_at: string | null
           updated_at: string
@@ -1866,7 +1872,7 @@ export type Database = {
           id?: string
           name: string
           status?: Database["public"]["Enums"]["organization_status"]
-          tier?: string | null
+          tier?: Database["public"]["Enums"]["plan_tier"] | null
           timezone?: string
           trial_ends_at?: string | null
           updated_at?: string
@@ -1879,7 +1885,7 @@ export type Database = {
           id?: string
           name?: string
           status?: Database["public"]["Enums"]["organization_status"]
-          tier?: string | null
+          tier?: Database["public"]["Enums"]["plan_tier"] | null
           timezone?: string
           trial_ends_at?: string | null
           updated_at?: string
@@ -2632,6 +2638,7 @@ export type Database = {
         }
         Returns: Json
       }
+      end_expired_gym_preview: { Args: { p_session_id: string }; Returns: Json }
       finish_pt_session: {
         Args: {
           p_session_id: string
@@ -2644,6 +2651,17 @@ export type Database = {
           session_id: string
           session_status: Database["public"]["Enums"]["pt_session_status"]
         }[]
+      }
+      fleet_metrics: { Args: never; Returns: Json }
+      link_gym_owner: {
+        Args: {
+          p_expected_user_id: string
+          p_owner_email: string
+          p_owner_staff_id: string
+          p_request_key: string
+          p_tenant_id: string
+        }
+        Returns: Json
       }
       list_leads: {
         Args: {
@@ -2664,8 +2682,25 @@ export type Database = {
         }
         Returns: Json
       }
+      onboard_gym: {
+        Args: {
+          p_branch_name: string
+          p_currency: string
+          p_name: string
+          p_owner_email: string
+          p_owner_name: string
+          p_preset: Database["public"]["Enums"]["gym_preset"]
+          p_request_key: string
+          p_timezone: string
+        }
+        Returns: Json
+      }
       open_notification_whatsapp: {
         Args: { p_notification_id: string }
+        Returns: Json
+      }
+      owner_metrics: {
+        Args: { p_from?: string; p_through?: string }
         Returns: Json
       }
       prepare_member_import: {
@@ -2760,6 +2795,29 @@ export type Database = {
         }[]
       }
       send_notification: { Args: { p_notification_id: string }; Returns: Json }
+      set_gym_status: {
+        Args: {
+          p_expected_status: Database["public"]["Enums"]["organization_status"]
+          p_reason: string
+          p_request_key: string
+          p_status: Database["public"]["Enums"]["organization_status"]
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      set_gym_tier: {
+        Args: {
+          p_expected_tier: Database["public"]["Enums"]["plan_tier"]
+          p_request_key: string
+          p_tenant_id: string
+          p_tier: Database["public"]["Enums"]["plan_tier"]
+        }
+        Returns: Json
+      }
+      start_gym_preview: {
+        Args: { p_reason: string; p_request_key: string; p_tenant_id: string }
+        Returns: Json
+      }
       transition_lead: {
         Args: {
           p_expected_revision: string
@@ -2886,6 +2944,7 @@ export type Database = {
         | "failed"
         | "refunded"
         | "reversed"
+      plan_tier: "basic" | "growth" | "pro"
       pt_session_status: "scheduled" | "completed" | "cancelled" | "no_show"
       refund_kind: "refund" | "reversal"
       refund_status: "requested" | "processing" | "completed" | "failed"
@@ -3127,6 +3186,7 @@ export const Constants = {
         "refunded",
         "reversed",
       ],
+      plan_tier: ["basic", "growth", "pro"],
       pt_session_status: ["scheduled", "completed", "cancelled", "no_show"],
       refund_kind: ["refund", "reversal"],
       refund_status: ["requested", "processing", "completed", "failed"],
