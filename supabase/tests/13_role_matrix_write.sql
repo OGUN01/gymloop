@@ -208,8 +208,8 @@ insert into public.consents (id, tenant_id, member_id, purpose, granted, version
   ('13000000-0000-4000-8000-00000000000e'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000032'::uuid, 'marketing', false, 'v1', 'signup');
 
 insert into public.notifications (id, tenant_id, member_id, channel, category, dedupe_key) values
-  ('13000000-0000-4000-8000-00000000000f'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000031'::uuid, 'push', 'transactional', 'role-matrix-write-1'),
-  ('13000000-0000-4000-8000-000000000010'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000032'::uuid, 'push', 'transactional', 'role-matrix-write-2');
+  ('13000000-0000-4000-8000-00000000000f'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000031'::uuid, 'push', 'promotion', 'role-matrix-write-1'),
+  ('13000000-0000-4000-8000-000000000010'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000032'::uuid, 'push', 'promotion', 'role-matrix-write-2');
 
 insert into public.member_devices (id, tenant_id, member_id, platform, push_token) values
   ('13000000-0000-4000-8000-000000000014'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000031'::uuid, 'android', 'token-13-x'),
