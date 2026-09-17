@@ -289,7 +289,7 @@ describe('staff /messages — role-gated sections', () => {
 
   it.each([
     ['an owner', OWNER], ['a manager', MANAGER],
-  ])('%s sees the template and wallet sections too', async (_name, claims) => {
+  ])('%s manages templates and sees the read-only wallet balance', async (_name, claims) => {
     state.claims = claims;
     const page = await loadMessagesPage();
     const view = inspect(page);
@@ -298,7 +298,7 @@ describe('staff /messages — role-gated sections', () => {
     expect(view.text).toContain('Wallet');
     expect(view.text).toContain('4500');
     expect(findComponent(page, 'MessageTemplateForm')).toBeDefined();
-    expect(findComponent(page, 'WalletAdjustForm')).toBeDefined();
+    expect(findComponent(page, 'WalletAdjustForm')).toBeUndefined();
   });
 
   it('a whatsapp_link child is labelled "Opened in WhatsApp", verbatim', async () => {
