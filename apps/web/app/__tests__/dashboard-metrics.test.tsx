@@ -22,8 +22,8 @@ const response = { tenantId: '11111111-1111-4111-8111-111111111111', asOf: '2026
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const STAFF_ID = '33333333-3333-4333-8333-333333333333';
 beforeEach(() => { state.identity = { kind: 'staff', role: 'gym_owner', userId: USER_ID, tenantId: response.tenantId, staffId: STAFF_ID }; state.rpc = []; state.result = response; state.error = null; state.hooks = []; state.cursor = 0; state.redirects = []; });
-function inspect(node: ReactNode): string { if (Array.isArray(node)) return node.map(inspect).join(' '); if (!isValidElement(node)) return typeof node === 'string' || typeof node === 'number' ? String(node) : ''; if (typeof node.type === 'function') return inspect((node.type as (props: Record<string, unknown>) => ReactNode)(node.props)); return inspect(node.props.children as ReactNode); }
-function buttons(node: ReactNode): Array<Record<string, unknown>> { if (Array.isArray(node)) return node.flatMap(buttons); if (!isValidElement(node)) return []; if (typeof node.type === 'function') return buttons((node.type as (props: Record<string, unknown>) => ReactNode)(node.props)); return [node.props as Record<string, unknown>, ...buttons(node.props.children as ReactNode)]; }
+function inspect(node: ReactNode): string { if (Array.isArray(node)) return node.map(inspect).join(' '); if (!isValidElement<Record<string, unknown>>(node)) return typeof node === 'string' || typeof node === 'number' ? String(node) : ''; if (typeof node.type === 'function') return inspect((node.type as (props: Record<string, unknown>) => ReactNode)(node.props)); return inspect(node.props.children as ReactNode); }
+function buttons(node: ReactNode): Array<Record<string, unknown>> { if (Array.isArray(node)) return node.flatMap(buttons); if (!isValidElement<Record<string, unknown>>(node)) return []; if (typeof node.type === 'function') return buttons((node.type as (props: Record<string, unknown>) => ReactNode)(node.props)); return [node.props, ...buttons(node.props.children as ReactNode)]; }
 
 describe('owner dashboard metrics', () => {
   it.each([
