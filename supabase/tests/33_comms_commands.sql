@@ -121,23 +121,20 @@ insert into public.consents(id,tenant_id,member_id,purpose,granted,version,sourc
 
 insert into public.message_templates(id,tenant_id,key,channel,locale,category,body) values
  ('3c000000-0000-4000-8000-000000000101','3c000000-0000-4000-8000-000000000001','promo_jan','in_app','en','promotion','January promo'),
- ('3c000000-0000-4000-8000-000000000102','3c000000-0000-4000-8000-000000000001','motivation_checkin','push','en','motivation','Time to move'),
+ ('3c000000-0000-4000-8000-000000000102','3c000000-0000-4000-8000-000000000001','motivation_checkin','in_app','en','motivation','Time to move'),
+ ('3c000000-0000-4000-8000-000000000104','3c000000-0000-4000-8000-000000000001','payment_notice','in_app','en','payment','Payment notice'),
  ('3c000000-0000-4000-8000-000000000103','3c000000-0000-4000-8000-000000000002','other_gym_t','in_app','en','payment','Other gym body');
 
--- Historical source notifications, inserted as the owner under RLS-off.
--- ADR-098: these are honest historical-shape rows (sent in-app source, a
--- scheduled push, a scheduled whatsapp-able source); inserting them directly
--- rather than through product commands is what "trusted history loading" means.
-set local session_replication_role = replica;
+-- Every notification fixture enters through the new-row boundary: scheduled,
+-- classified, deduplicated, and with every lifecycle evidence field null.
+-- The command probes below perform the sent/delivered/failed/opted-out edges.
 insert into public.notifications(id,tenant_id,member_id,channel,status,dedupe_key,scheduled_for,sent_at,delivered_at,related_type,related_id,payload,category,template_key) values
- ('3c000000-0000-4000-8000-000000000201','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','in_app','sent','33-src-a1',transaction_timestamp(),transaction_timestamp(),transaction_timestamp(),'membership','3c000000-0000-4000-8000-000000000451','{"body":"Your membership ends soon","locale":"en"}','renewal','renewal_reminder'),
- ('3c000000-0000-4000-8000-000000000202','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000032','in_app','sent','33-src-a2',transaction_timestamp(),transaction_timestamp(),transaction_timestamp(),'membership','3c000000-0000-4000-8000-000000000452','{"body":"Renewal due","locale":"en"}','renewal','renewal_reminder'),
- ('3c000000-0000-4000-8000-000000000203','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','push','scheduled','33-push-a1',transaction_timestamp(),null,null,null,null,'{"body":"Push body"}','promotion','promo_jan'),
- ('3c000000-0000-4000-8000-000000000204','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','in_app','scheduled','33-inapp-a1',transaction_timestamp() - interval '2 hours',null,null,null,null,'{"body":"Stale schedule"}','promotion','promo_jan'),
- ('3c000000-0000-4000-8000-000000000205','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','sms','scheduled',null,transaction_timestamp(),null,null,null,null,'{"body":"SMS"}','promotion','promo_jan'),
- ('3c000000-0000-4000-8000-000000000206','3c000000-0000-4000-8000-000000000002','3c000000-0000-4000-8000-000000000036','in_app','sent','33-src-b1',transaction_timestamp(),transaction_timestamp(),transaction_timestamp(),'membership','3c000000-0000-4000-8000-000000000451','{"body":"Other gym","locale":"en"}','renewal','renewal_reminder'),
- ('3c000000-0000-4000-8000-000000000210','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','in_app','scheduled','33-inapp-future',transaction_timestamp() + interval '1 hour',null,null,null,null,'{"body":"Future schedule"}','promotion','promo_jan');
-set local session_replication_role = origin;
+ ('3c000000-0000-4000-8000-000000000201','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','in_app','scheduled','33-src-a1',transaction_timestamp(),null,null,null,null,'{"body":"Payment notice","locale":"en"}','payment','payment_notice'),
+ ('3c000000-0000-4000-8000-000000000203','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','push','scheduled','33-push-a1',transaction_timestamp(),null,null,null,null,'{"body":"Push body"}','promotion',null),
+ ('3c000000-0000-4000-8000-000000000204','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','in_app','scheduled','33-inapp-a1',transaction_timestamp() - interval '2 hours',null,null,null,null,'{"body":"January promo"}','promotion','promo_jan'),
+ ('3c000000-0000-4000-8000-000000000205','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','sms','scheduled','33-sms-a1',transaction_timestamp(),null,null,null,null,'{"body":"SMS"}','promotion',null),
+ ('3c000000-0000-4000-8000-000000000206','3c000000-0000-4000-8000-000000000002','3c000000-0000-4000-8000-000000000036','in_app','scheduled','33-src-b1',transaction_timestamp(),null,null,null,null,'{"body":"Other gym body","locale":"en"}','payment','other_gym_t'),
+ ('3c000000-0000-4000-8000-000000000210','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','in_app','scheduled','33-inapp-future',transaction_timestamp() + interval '1 hour',null,null,null,null,'{"body":"January promo"}','promotion','promo_jan');
 
 create function pg_temp.captured_error(p_sql text)
 returns table(returned_state text, detail text)
@@ -190,8 +187,44 @@ begin
                          (f='delivered' and t in ('clicked','converted')) or
                          (f='clicked' and t='converted')) then
         nid := gen_random_uuid();
-        insert into public.notifications(id,tenant_id,member_id,channel,status,category,template_key,dedupe_key,scheduled_for)
-        values (nid,'3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','in_app',f,'promotion','promo_probe',null,transaction_timestamp());
+        if f = 'failed' then
+          insert into public.notifications(id,tenant_id,member_id,channel,status,category,template_key,dedupe_key,scheduled_for,payload)
+          values (nid,'3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031',
+                  'push','scheduled','promotion',null,nid::text,transaction_timestamp(),'{"body":"Transition probe"}'::jsonb);
+        elsif f = 'opted_out' then
+          insert into public.notifications(id,tenant_id,member_id,channel,status,category,template_key,dedupe_key,scheduled_for,payload)
+          values (nid,'3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000035',
+                  'in_app','scheduled','motivation','motivation_checkin',nid::text,transaction_timestamp(),'{"body":"Time to move"}'::jsonb);
+        else
+          insert into public.notifications(id,tenant_id,member_id,channel,status,category,template_key,dedupe_key,scheduled_for,payload)
+          values (nid,'3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031',
+                  'in_app','scheduled','promotion','promo_jan',nid::text,transaction_timestamp(),'{"body":"January promo"}'::jsonb);
+        end if;
+
+        -- Build the source state only through changing edges allowed by the
+        -- frozen graph. Lifecycle evidence is database-stamped, never seeded.
+        perform set_config('request.jwt.claims',
+          '{"sub":"3c000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"gym_owner","tenant_id":"3c000000-0000-4000-8000-000000000001","staff_id":"3c000000-0000-4000-8000-000000000021"}', true);
+        if f in ('sent','delivered','clicked','converted','failed','opted_out') then
+          execute 'set local role authenticated';
+          perform public.send_notification(nid);
+          execute 'reset role';
+        end if;
+
+        if f in ('delivered','clicked','converted') then
+          perform set_config('request.jwt.claims',
+            '{"sub":"3c000000-0000-4000-8000-000000000904","role":"authenticated","app_role":"member","tenant_id":"3c000000-0000-4000-8000-000000000001","member_id":"3c000000-0000-4000-8000-000000000031"}', true);
+          execute 'set local role authenticated';
+          perform public.acknowledge_notification(nid);
+          execute 'reset role';
+        end if;
+
+        if f = 'clicked' then
+          update public.notifications set status='clicked' where id=nid;
+        elsif f = 'converted' then
+          update public.notifications set status='converted' where id=nid;
+        end if;
+
         begin
           update public.notifications set status=t where id=nid;
           return false;
@@ -203,6 +236,7 @@ begin
       end if;
     end loop;
   end loop;
+  perform set_config('request.jwt.claims', '', true);
   return true;
 end $fn$;
 
@@ -297,8 +331,8 @@ select results_eq(
 -- motivation source scheduled; withdrawing at send time refuses the action.
 set local role postgres;
 select set_config('request.jwt.claims', '', true);
-insert into public.notifications(id,tenant_id,member_id,channel,status,category,template_key,dedupe_key,scheduled_for)
-values ('3c000000-0000-4000-8000-000000000207','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000035','in_app','scheduled','motivation','motivation_checkin','33-mot-a5',transaction_timestamp());
+insert into public.notifications(id,tenant_id,member_id,channel,status,category,template_key,dedupe_key,scheduled_for,payload)
+values ('3c000000-0000-4000-8000-000000000207','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000035','in_app','scheduled','motivation','motivation_checkin','33-mot-a5',transaction_timestamp(),'{"body":"Time to move"}'::jsonb);
 set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"3c000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"gym_owner","tenant_id":"3c000000-0000-4000-8000-000000000001","staff_id":"3c000000-0000-4000-8000-000000000021"}', true);
@@ -312,22 +346,27 @@ select results_eq(
   $$select 'opted_out'::text, 'motivation_disabled'::text$$,
   'COM: a disabled motivation push is opted_out with reason motivation_disabled');
 
--- consent_withdrawn: member A3 has service consent withdrawn.
+-- consent_withdrawn: member A3 has service consent withdrawn. Payment is a
+-- service-purpose category and avoids borrowing the reserved renewal identity.
 set local role postgres;
 select set_config('request.jwt.claims', '', true);
-insert into public.notifications(id,tenant_id,member_id,channel,status,category,template_key,dedupe_key,scheduled_for,related_type,related_id)
-values ('3c000000-0000-4000-8000-000000000208','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000033','in_app','scheduled','renewal','renewal_reminder','33-consent-a3',transaction_timestamp(),'membership','3c000000-0000-4000-8000-000000000453');
+insert into public.notifications(id,tenant_id,member_id,channel,status,category,template_key,dedupe_key,scheduled_for,payload)
+values ('3c000000-0000-4000-8000-000000000208','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000033','in_app','scheduled','payment','payment_notice','33-consent-a3',transaction_timestamp(),'{"body":"Payment notice"}'::jsonb);
 set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"3c000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"gym_owner","tenant_id":"3c000000-0000-4000-8000-000000000001","staff_id":"3c000000-0000-4000-8000-000000000021"}', true);
 select lives_ok(
   $q$insert into cmd_results select 'consent-withdrawn', public.send_notification('3c000000-0000-4000-8000-000000000208')$q$,
-  'COM: sending a renewal message for a member with withdrawn service consent is refused as opted_out');
+  'COM: sending a service-purpose message for a member with withdrawn consent is refused as opted_out');
 select results_eq(
   $$select r.result->>'status', r.result->>'optedOutReason'
       from cmd_results r where r.label='consent-withdrawn'$$,
   $$select 'opted_out'::text, 'consent_withdrawn'::text$$,
   'COM: missing/withdrawn consent is opted_out with reason consent_withdrawn');
+
+-- Send the source through the public command before testing the inert replay.
+insert into cmd_results
+select 'source-first-send', public.send_notification('3c000000-0000-4000-8000-000000000201');
 
 -- An already-processed row returns its current result without UPDATE.
 select lives_ok(
@@ -378,8 +417,8 @@ select results_eq(
 -- from absent. The scheduler's own fixture cannot bypass the member path.
 set local role postgres;
 select set_config('request.jwt.claims', '', true);
-insert into public.notifications(id,tenant_id,member_id,channel,status,category,template_key,dedupe_key,scheduled_for)
-values ('3c000000-0000-4000-8000-000000000209','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','in_app','scheduled','promotion','promo_jan','33-ack-probe',transaction_timestamp());
+insert into public.notifications(id,tenant_id,member_id,channel,status,category,template_key,dedupe_key,scheduled_for,payload)
+values ('3c000000-0000-4000-8000-000000000209','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','in_app','scheduled','promotion','promo_jan','33-ack-probe',transaction_timestamp(),'{"body":"January promo"}'::jsonb);
 set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"3c000000-0000-4000-8000-000000000904","role":"authenticated","app_role":"member","tenant_id":"3c000000-0000-4000-8000-000000000001","member_id":"3c000000-0000-4000-8000-000000000031"}', true);

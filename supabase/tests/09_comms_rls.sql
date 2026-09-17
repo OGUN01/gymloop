@@ -91,11 +91,13 @@ insert into public.message_templates (id, tenant_id, key, channel, locale, categ
   ('b0000000-0000-4000-8000-000000000005'::uuid, 'b0000000-0000-4000-8000-000000000001'::uuid,
    'plan_renewal_notice', 'push', 'en', 'renewal', 'Gym B copy');
 
-insert into public.notifications (id, tenant_id, member_id, channel, template_key, dedupe_key) values
+insert into public.notifications (id, tenant_id, member_id, channel, status, template_key, category, dedupe_key, scheduled_for, payload) values
   ('a0000000-0000-4000-8000-000000000006'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
-   'a0000000-0000-4000-8000-000000000004'::uuid, 'push', 'plan_renewal_notice', 'renewal:a:expiry_minus_7'),
+   'a0000000-0000-4000-8000-000000000004'::uuid, 'push', 'scheduled', 'plan_renewal_notice', 'renewal',
+   'renewal:a:expiry_minus_7', transaction_timestamp(), '{"body":"Gym A copy"}'::jsonb),
   ('b0000000-0000-4000-8000-000000000006'::uuid, 'b0000000-0000-4000-8000-000000000001'::uuid,
-   'b0000000-0000-4000-8000-000000000004'::uuid, 'push', 'plan_renewal_notice', 'renewal:b:expiry_minus_7');
+   'b0000000-0000-4000-8000-000000000004'::uuid, 'push', 'scheduled', 'plan_renewal_notice', 'renewal',
+   'renewal:b:expiry_minus_7', transaction_timestamp(), '{"body":"Gym B copy"}'::jsonb);
 
 insert into public.member_devices (id, tenant_id, member_id, platform, push_token) values
   ('a0000000-0000-4000-8000-000000000007'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
@@ -224,9 +226,10 @@ select throws_ok(
   'gate 7: gym A inserting a message_templates row for gym B is rejected by with check'
 );
 select throws_ok(
-  $q$ insert into public.notifications (tenant_id, member_id, channel)
+  $q$ insert into public.notifications (tenant_id, member_id, channel, status, category, dedupe_key, scheduled_for, payload)
       values ('b0000000-0000-4000-8000-000000000001'::uuid,
-              'b0000000-0000-4000-8000-000000000004'::uuid, 'push') $q$,
+              'b0000000-0000-4000-8000-000000000004'::uuid, 'in_app', 'scheduled', 'promotion',
+              'rls-cross-tenant', transaction_timestamp(), '{"body":"Cross-tenant probe"}'::jsonb) $q$,
   '42501'::text, null::text,
   'gate 7: gym A inserting a notifications row for gym B is rejected by with check'
 );
@@ -380,9 +383,10 @@ select throws_ok(
   '42501'::text, null::text,
   'gate 7: no claims, an insert into message_templates is rejected');
 select throws_ok(
-  $q$ insert into public.notifications (tenant_id, member_id, channel)
+  $q$ insert into public.notifications (tenant_id, member_id, channel, status, category, dedupe_key, scheduled_for, payload)
       values ('a0000000-0000-4000-8000-000000000001'::uuid,
-              'a0000000-0000-4000-8000-000000000004'::uuid, 'push') $q$,
+              'a0000000-0000-4000-8000-000000000004'::uuid, 'in_app', 'scheduled', 'promotion',
+              'rls-no-claims', transaction_timestamp(), '{"body":"No-claims probe"}'::jsonb) $q$,
   '42501'::text, null::text,
   'gate 7: no claims, an insert into notifications is rejected');
 select throws_ok(
@@ -455,9 +459,10 @@ select throws_ok(
   '42501'::text, null::text,
   'gate 7: empty tenant_id claim, an insert into message_templates is rejected');
 select throws_ok(
-  $q$ insert into public.notifications (tenant_id, member_id, channel)
+  $q$ insert into public.notifications (tenant_id, member_id, channel, status, category, dedupe_key, scheduled_for, payload)
       values ('a0000000-0000-4000-8000-000000000001'::uuid,
-              'a0000000-0000-4000-8000-000000000004'::uuid, 'push') $q$,
+              'a0000000-0000-4000-8000-000000000004'::uuid, 'in_app', 'scheduled', 'promotion',
+              'rls-empty-claim', transaction_timestamp(), '{"body":"Empty-claim probe"}'::jsonb) $q$,
   '42501'::text, null::text,
   'gate 7: empty tenant_id claim, an insert into notifications is rejected');
 select throws_ok(

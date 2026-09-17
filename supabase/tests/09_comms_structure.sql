@@ -52,9 +52,10 @@ insert into public.message_templates (id, tenant_id, key, channel, locale, categ
   ('a0000000-0000-4000-8000-000000000005'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
    'plan_renewal_notice', 'push', 'en', 'renewal', 'Your membership expires soon');
 
-insert into public.notifications (id, tenant_id, member_id, channel, dedupe_key) values
+insert into public.notifications (id, tenant_id, member_id, channel, status, template_key, category, dedupe_key, scheduled_for, payload) values
   ('a0000000-0000-4000-8000-000000000006'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
-   'a0000000-0000-4000-8000-000000000004'::uuid, 'push', 'renewal:a0000000:expiry_minus_7');
+   'a0000000-0000-4000-8000-000000000004'::uuid, 'push', 'scheduled', 'plan_renewal_notice', 'renewal',
+   'renewal:a0000000:expiry_minus_7', transaction_timestamp(), '{"body":"Your membership expires soon"}'::jsonb);
 
 insert into public.member_devices (id, tenant_id, member_id, platform, push_token) values
   ('a0000000-0000-4000-8000-000000000007'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
@@ -119,7 +120,7 @@ select col_type_is('public', 'notifications', 'status', 'notification_status',
 select col_default_is('public', 'notifications', 'status', 'scheduled'::text,
   'comms: notifications.status defaults to scheduled (PAY-002 — a reminder is written scheduled, then sent)');
 select col_is_null('public', 'notifications', 'dedupe_key',
-  'comms: notifications.dedupe_key is nullable (spec: ad-hoc messages with no key)');
+  'comms: notifications.dedupe_key remains nullable for historical rows; new product rows require a key');
 select col_not_null('public', 'notifications', 'member_id',
   'comms: notifications.member_id is required — PAY-002 dedupes a message to a member');
 select col_type_is('public', 'notifications', 'payload', 'jsonb',
@@ -229,27 +230,35 @@ select lives_ok(
 );
 
 select throws_ok(
-  $q$ insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
+  $q$ insert into public.notifications (tenant_id, member_id, channel, status, template_key, category, dedupe_key, scheduled_for, payload)
       values ('a0000000-0000-4000-8000-000000000001'::uuid,
-              'a0000000-0000-4000-8000-000000000004'::uuid, 'push', 'renewal:a0000000:expiry_minus_7') $q$,
+              'a0000000-0000-4000-8000-000000000004'::uuid, 'push', 'scheduled', 'plan_renewal_notice', 'renewal',
+              'renewal:a0000000:expiry_minus_7', transaction_timestamp(), '{"body":"Your membership expires soon"}'::jsonb) $q$,
   '23505'::text, null::text,
   'PAY-002: a second notification with the same dedupe key in the same gym is rejected (spec scenario: the same reminder stage scheduled twice)'
 );
 
 select lives_ok(
-  $q$ insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
+  $q$ insert into public.notifications (tenant_id, member_id, channel, status, category, dedupe_key, scheduled_for, payload)
       values ('b0000000-0000-4000-8000-000000000001'::uuid,
-              'b0000000-0000-4000-8000-000000000004'::uuid, 'push', 'renewal:a0000000:expiry_minus_7') $q$,
+              'b0000000-0000-4000-8000-000000000004'::uuid, 'push', 'scheduled', 'renewal',
+              'renewal:a0000000:expiry_minus_7', transaction_timestamp(), '{"body":"Other-gym renewal notice"}'::jsonb) $q$,
   'PAY-002: the same dedupe key at a different gym is accepted (spec scenario: the same key at another gym)'
 );
 
-select lives_ok(
-  $q$ insert into public.notifications (tenant_id, member_id, channel, dedupe_key)
-      values ('a0000000-0000-4000-8000-000000000001'::uuid,
-              'a0000000-0000-4000-8000-000000000004'::uuid, 'push', null),
-             ('a0000000-0000-4000-8000-000000000001'::uuid,
-              'a0000000-0000-4000-8000-000000000004'::uuid, 'push', null) $q$,
-  'PAY-002: two notifications with a null dedupe key in the same gym are both accepted — the index is partial (spec scenario: ad-hoc messages with no key)'
+select ok(
+  (select exists (
+    select 1
+      from pg_index i
+     where i.indrelid = 'public.notifications'::regclass
+       and i.indisunique
+       and (select array_agg(a.attname order by keys.ordinality)
+              from unnest(i.indkey) with ordinality as keys(attnum, ordinality)
+              join pg_attribute a on a.attrelid=i.indrelid and a.attnum=keys.attnum)
+           = array['tenant_id','dedupe_key']::name[]
+       and pg_get_expr(i.indpred, i.indrelid) = '(dedupe_key IS NOT NULL)'
+  )),
+  'PAY-002: the tenant/dedupe uniqueness remains partial for historical null keys without creating an invalid new null-key row'
 );
 
 select lives_ok(
