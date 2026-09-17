@@ -177,7 +177,7 @@ select throws_ok(
   $q$ insert into public.consents (tenant_id, member_id, purpose, granted, version, source)
       values ('a0000000-0000-4000-8000-000000000001'::uuid,
               'a0000000-0000-4000-8000-000000000004'::uuid, 'marketing', true, '', 'signup_form') $q$,
-  '23514'::text, null::text,
+  'GL065'::text, null::text,
   'comms: an empty consent version is rejected (spec scenario: consent with no version, DPD-002)'
 );
 
@@ -185,7 +185,7 @@ select throws_ok(
   $q$ insert into public.consents (tenant_id, member_id, purpose, granted, version, source)
       values ('a0000000-0000-4000-8000-000000000001'::uuid,
               'a0000000-0000-4000-8000-000000000004'::uuid, 'marketing', true, 'v1', '') $q$,
-  '23514'::text, null::text,
+  'GL065'::text, null::text,
   'comms: an empty consent source is rejected (DPD-002 — a consent decision states where it came from)'
 );
 

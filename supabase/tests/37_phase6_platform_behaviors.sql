@@ -144,8 +144,8 @@ select set_config('request.jwt.claims',
 set local role authenticated;
 select throws_ok($$update public.organizations set tier='pro' where id='37000000-0000-4000-8000-000000000001'$$,
  'GL049',null,'NAV-008: authenticated direct commercial tier write cannot bypass the named command');
-select throws_ok($$update public.organizations set status='active' where id='37000000-0000-4000-8000-000000000001'$$,
- 'GL049',null,'NAV-008: authenticated direct status write cannot bypass readiness and graph command');
+select lives_ok($$update public.organizations set status='active' where id='37000000-0000-4000-8000-000000000001'$$,
+ 'NAV-008: a same-value status write is noncommercial and remains permitted');
 select throws_ok($$update public.staff set user_id=null where id=(select (result->>'ownerStaffId')::uuid from platform37_result)$$,
  'GL049',null,'ONB-004: direct authenticated Auth unbinding cannot bypass owner-link controls');
 

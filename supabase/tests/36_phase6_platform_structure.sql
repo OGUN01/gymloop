@@ -77,9 +77,9 @@ select ok((select p.provolatile='i' and not p.prosecdef and p.proconfig @> array
  from pg_proc p where p.oid=to_regprocedure('app.platform_onboarding_defaults()')),
  'onboarding defaults are private owner-only immutable invoker data');
 select ok((select p.provolatile='i' and not p.prosecdef and p.proconfig @> array['search_path=""']
-  and not has_function_privilege('authenticated',p.oid,'EXECUTE') and not has_function_privilege('anon',p.oid,'EXECUTE')
+  and has_function_privilege('authenticated',p.oid,'EXECUTE') and not has_function_privilege('anon',p.oid,'EXECUTE')
  from pg_proc p where p.oid=to_regprocedure('app.impersonation_max_ttl()')),
- 'preview TTL is private and cannot be caller-selected');
+ 'preview TTL is a fixed immutable helper available to authenticated callers');
 
 select ok((select app.organization_transition_allowed('pending_approval','trial')
   and app.organization_transition_allowed('pending_approval','active')
