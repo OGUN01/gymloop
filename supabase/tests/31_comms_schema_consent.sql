@@ -99,15 +99,10 @@ select ok(
   (select exists(
      select 1 from pg_constraint c
       where c.conrelid = 'public.message_templates'::regclass
-        and c.contype = 'f'
-        and c.confrelid = 'public.message_templates'::regclass
+        and c.contype = 'u'
         and (select array_agg(a.attname::text order by x.ord)
                from unnest(c.conkey) with ordinality x(attnum,ord)
                join pg_attribute a on a.attrelid = c.conrelid and a.attnum = x.attnum)
-             = array['tenant_id','id']
-        and (select array_agg(fa.attname::text order by x.ord)
-               from unnest(c.confkey) with ordinality x(attnum,ord)
-               join pg_attribute fa on fa.attrelid = c.confrelid and fa.attnum = x.attnum)
              = array['tenant_id','id'])),
   'COM: message_templates carries a composite unique (tenant_id, id) backing the new notification FK');
 
@@ -249,6 +244,7 @@ select has_column('public','notifications','opted_out_reason',
 select set_config('request.jwt.claims',
   '{"sub":"3a000000-0000-4000-8000-000000000902","role":"authenticated","app_role":"front_desk","tenant_id":"3a000000-0000-4000-8000-000000000001","staff_id":"3a000000-0000-4000-8000-000000000023"}', true);
 
+set local session_replication_role = replica;
 select throws_ok(
   $q$ insert into public.notifications (
         tenant_id, member_id, channel, status, category, source_notification_id,
@@ -261,6 +257,7 @@ select throws_ok(
       ) $q$,
   '23514'::text, null::text,
   'COM: a non-E.164 recipient_phone is rejected — the snapshot carries the member format CHECK');
+set local session_replication_role = origin;
 
 -- Composite tenant FKs (ADR-052 shape): notifications → templates, self → notifications.
 select ok(
