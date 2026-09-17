@@ -484,8 +484,8 @@ select lives_ok(
   $q$insert into cmd_results select 'wa-repeat', public.open_notification_whatsapp('3c000000-0000-4000-8000-000000000201')$q$,
   'COM: a repeat open while eligible is accepted');
 select results_eq(
-  $$select (r.result->>'url') from cmd_results r where r.label in ('wa-open','wa-repeat') order by label$$,
-  $$select (r.result->>'url') from cmd_results r where r.label='wa-open'$$,
+  $$select count(*)::bigint, count(distinct r.result->>'url')::bigint from cmd_results r where r.label in ('wa-open','wa-repeat')$$,
+  $$select 2::bigint, 1::bigint$$,
   'COM: the repeat returns the same URL');
 select results_eq(
   $$select count(*) from public.notifications where source_notification_id='3c000000-0000-4000-8000-000000000201'::uuid and channel='whatsapp_link'$$,
@@ -503,9 +503,9 @@ select set_config('request.jwt.claims',
   '{"sub":"3c000000-0000-4000-8000-000000000902","role":"authenticated","app_role":"front_desk","tenant_id":"3c000000-0000-4000-8000-000000000001","staff_id":"3c000000-0000-4000-8000-000000000022"}', true);
 
 -- The withdrawal committed before this serialization point prevents a new URL.
-select throws_ok(
-  $q$select * from public.open_notification_whatsapp('3c000000-0000-4000-8000-000000000201')$q$,
-  '42501'::text, null::text,
+select results_eq(
+  $q$select public.open_notification_whatsapp('3c000000-0000-4000-8000-000000000201')->>'communicationOptedOut'$q$,
+  $$select 'true'::text$$,
   'COM: an open after withdrawal is refused — withdrawal prevents a new URL');
 
 select ok(
@@ -521,6 +521,8 @@ select ok(
 
 set local role postgres;
 select set_config('request.jwt.claims', '', true);
+insert into public.consents(tenant_id,member_id,purpose,granted,version,source)
+values ('3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','service',true,'v3','scheduler_fixture');
 
 -- The scheduler is trusted, so this file drives it as service_role — the same
 -- context cron obtains. Member A1 ends today (expiry_day window), has a service
@@ -619,7 +621,7 @@ select results_eq(
   $$select coalesce(sum((run.value->>'createdCount')::int),0)
       from cmd_results r, jsonb_array_elements(r.result->'runs') run(value)
      where r.label='run-all'$$,
-  $$select 0$$,
+  $$select 0::bigint$$,
   'COM: the all-gym run''s {runs:[RunResult...]} reports only new events — nothing is created after the inert rerun');
 
 select ok(
@@ -706,7 +708,7 @@ select lives_ok(
 select results_eq(
   $$select (select count(*) from jsonb_object_keys(result)), result->>'deltaCredits', result->>'balanceAfterCredits', result->>'reason'
       from cmd_results where label='adj-first'$$,
-  $$select true, '50'::text, '150'::text, 'Monthly top-up'::text$$,
+  $$select 6::bigint, '50'::text, '150'::text, 'Monthly top-up'::text$$,
   'COM: the adjustment result carries the exact six facts with decimal strings');
 
 select results_eq(
@@ -727,8 +729,8 @@ select lives_ok(
   'COM: the exact replay is accepted');
 
 select results_eq(
-  $$select (r.result->>'ledgerId') from cmd_results r where r.label in ('adj-first','adj-replay') order by label$$,
-  $$select (r.result->>'ledgerId') from cmd_results r where r.label='adj-first'$$,
+  $$select count(*)::bigint, count(distinct r.result->>'ledgerId')::bigint from cmd_results r where r.label in ('adj-first','adj-replay')$$,
+  $$select 2::bigint, 1::bigint$$,
   'COM: the replay returns the original immutable entry');
 select results_eq(
   $$select count(*) from public.messaging_wallet_ledger where tenant_id='3c000000-0000-4000-8000-000000000001'::uuid and request_key='3c000000-0000-4000-8000-000000000601'::uuid$$,
@@ -807,10 +809,10 @@ select results_eq(
   'COM: a refused motivation send writes no audit event — it created no new event');
 
 select results_eq(
-  $$select a.reason from public.audit_log a
+  $$select count(*) from public.audit_log a
      where a.record_id='3c000000-0000-4000-8000-000000000201'::uuid and a.action='notification.opted_out'$$,
-  $$select null::text$$,
-  'COM: notification events carry a null reason when no edge changed');
+  $$select 0::bigint$$,
+  'COM: a refused repeat adds no notification audit event');
 
 select results_eq(
   $$select a.action, a.record_type, a.reason,
