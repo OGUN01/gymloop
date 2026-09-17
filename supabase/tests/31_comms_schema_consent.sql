@@ -239,11 +239,8 @@ select col_type_is('public','notifications','opted_out_at','timestamptz',
 select has_column('public','notifications','opted_out_reason',
   'COM: notifications gains opted_out_reason evidence');
 
--- Child probes execute in the exact trusted evidence context the invariant
--- requires: postgres plus a verified active front-office identity.
-select set_config('request.jwt.claims',
-  '{"sub":"3a000000-0000-4000-8000-000000000902","role":"authenticated","app_role":"front_desk","tenant_id":"3a000000-0000-4000-8000-000000000001","staff_id":"3a000000-0000-4000-8000-000000000023"}', true);
-
+-- This structural CHECK probe uses trusted postgres evidence with no caller
+-- claims, so the later second-gym fixture remains an ordinary trusted setup.
 set local session_replication_role = replica;
 select throws_ok(
   $q$ insert into public.notifications (

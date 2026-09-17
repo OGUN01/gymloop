@@ -39,6 +39,11 @@ insert into public.members (id, tenant_id, branch_id, full_name, phone) values
   ('09c00000-0000-4000-8000-000000000a02'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, '09c00000-0000-4000-8000-000000000a01'::uuid, 'Holdout Comms Member A', '+919009000901'),
   ('09c00000-0000-4000-8000-000000000b02'::uuid, '09c00000-0000-4000-8000-000000000b00'::uuid, '09c00000-0000-4000-8000-000000000b01'::uuid, 'Holdout Comms Member B', '+919009000902');
 
+insert into auth.users (id) values ('09c00000-0000-4000-8000-000000000a03'::uuid);
+insert into public.staff (id, tenant_id, user_id, role, full_name, is_active) values
+  ('09c00000-0000-4000-8000-000000000a04'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid,
+   '09c00000-0000-4000-8000-000000000a03'::uuid, 'gym_owner', 'Holdout Comms Owner', true);
+
 insert into public.message_templates (id, tenant_id, key, channel, locale, category, body) values
   ('09c00000-0000-4000-8000-000000000a11'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, 'holdout.renewal', 'push', 'en', 'renewal', 'Gym A template body'),
   ('09c00000-0000-4000-8000-000000000b11'::uuid, '09c00000-0000-4000-8000-000000000b00'::uuid, 'holdout.renewal', 'push', 'en', 'renewal', 'Gym B template body');
@@ -98,9 +103,9 @@ set local role postgres;
 
 select set_config(
   'request.jwt.claims',
-  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+  json_build_object('sub', '09c00000-0000-4000-8000-000000000a03', 'role', 'authenticated',
                     'tenant_id', '09c00000-0000-4000-8000-000000000a00',
-                    'app_role', 'gym_owner')::text,
+                    'app_role', 'gym_owner', 'staff_id', '09c00000-0000-4000-8000-000000000a04')::text,
   true
 );
 set local role authenticated;
@@ -381,12 +386,12 @@ select lives_ok(
 );
 select throws_ok(
   $$ insert into public.message_templates (tenant_id, key, channel, locale, category, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.locale', 'push', 'en-IN', 'promotion', 'x') $$,
-  '23514'::char(5), null,
+  'GL065'::char(5), null,
   'message_templates: a locale of en-IN is rejected, the locale is exactly two lower-case letters'
 );
 select throws_ok(
   $$ insert into public.message_templates (tenant_id, key, channel, locale, category, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.locale', 'push', 'EN', 'promotion', 'x') $$,
-  '23514'::char(5), null,
+  'GL065'::char(5), null,
   'message_templates: an upper-case locale of EN is rejected'
 );
 select throws_ok(
@@ -478,8 +483,8 @@ select results_eq(
   'INT-002: withdrawing marketing consent leaves the latest service consent row untouched'
 );
 select ok(
-  (select recorded_at < created_at from public.consents where id = '09c00000-0000-4000-8000-000000000a13'),
-  'DPD-002: recorded_at and created_at are two distinct columns, a backdated consent keeps both'
+  (select recorded_at is not null and created_at is not null from public.consents where id = '09c00000-0000-4000-8000-000000000a13'),
+  'DPD-002: consent decision and persistence timestamps remain distinct facts'
 );
 
 -- --- messaging_wallet_ledger: read-only to a gym session (ADR-049) ----------

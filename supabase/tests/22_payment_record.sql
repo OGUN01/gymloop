@@ -755,6 +755,7 @@ select lives_ok($$
 $$, 'scenario "Correcting a note" — notes may be changed on a paid payment');
 
 set local role postgres;
+select set_config('request.jwt.claims', '', true);
 
 -- 14
 select results_eq(

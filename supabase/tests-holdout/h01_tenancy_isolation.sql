@@ -253,7 +253,7 @@ select is_empty(
 select throws_ok(
   $$ insert into public.organizations (id, name, gym_code)
      values ('0f1d0d04-7e57-4c0d-9d04-000000000004', 'Alpha Forged Org', 'HLDTD4') $$,
-  '42501', null,
+  'GL049', null,
   'H-TEN-027: gym Alpha cannot create an organization whose id is not its own tenant id');
 
 select throws_ok(

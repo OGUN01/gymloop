@@ -249,9 +249,10 @@ select throws_ok(
 );
 
 select throws_ok(
-  $$insert into public.organizations (name, gym_code) values ('Rogue Gym', 'ZZZZZZ')$$,
+  $$insert into public.organizations (id, name, gym_code)
+      values ('00000000-0000-4000-8000-0000000000b1', 'Rogue Gym', 'ZZZZZZ')$$,
   '42501', null,
-  'spec "Inserting a row labelled with another tenant": organizations with check compares id, so a gym cannot create a second tenant'
+  'spec "Inserting a row labelled with another tenant": a cross-tenant organization insert is refused by RLS before the commercial-write guard can disclose another error'
 );
 
 select throws_ok(

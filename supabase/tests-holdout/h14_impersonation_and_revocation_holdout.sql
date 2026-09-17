@@ -471,6 +471,7 @@ select is(
 -- ---------------------------------------------------------------------------
 
 set local role postgres;
+select set_config('request.jwt.claims', '', true);
 
 update public.staff set is_active = false
  where id = '22220000-0014-4000-8000-0000000000a1';

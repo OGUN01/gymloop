@@ -984,6 +984,7 @@ select ok(
 -- (same technique as h18/h21): the server (UTC) and these two gyms are on
 -- different calendar dates for most of any given day, and the two gyms are
 -- on different calendar dates from EACH OTHER for most of any given day too.
+select set_config('request.jwt.claims', '', true);
 insert into public.organizations (id, name, gym_code, timezone)
 values ('cafe1600-0000-4000-8000-000000000001', 'Holdout Live-Membership Gym P (GMT-12)', 'H16CFP', 'Etc/GMT-12'),
        ('cafe1600-0000-4000-8000-000000000002', 'Holdout Live-Membership Gym M (GMT+12)', 'H16CFM', 'Etc/GMT+12');

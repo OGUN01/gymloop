@@ -6,8 +6,11 @@ select set_config('request.jwt.claims','',true);
 select plan(37);
 insert into public.organizations(id,name,gym_code,status,timezone,currency,trial_ends_at) values
  ('35000000-0000-4000-8000-000000000001','Alpha Metrics','AM3501','active','Asia/Kolkata','INR',null),
- ('35000000-0000-4000-8000-000000000002','Broken Metrics','BM3502','trial','Not/AZone','INR','2026-09-14 00:00+00'),
  ('35000000-0000-4000-8000-000000000003','Zulu Metrics','ZM3503','active','Asia/Kolkata','INR',null);
+set local session_replication_role = replica;
+insert into public.organizations(id,name,gym_code,status,timezone,currency,trial_ends_at) values
+ ('35000000-0000-4000-8000-000000000002','Broken Metrics','BM3502','trial','Not/AZone','INR','2026-09-14 00:00+00');
+set local session_replication_role = origin;
 insert into public.branches(id,tenant_id,name,is_default) values
  ('35000000-0000-4000-8000-000000000011','35000000-0000-4000-8000-000000000001','Main',true),
  ('35000000-0000-4000-8000-000000000012','35000000-0000-4000-8000-000000000002','Main',true),

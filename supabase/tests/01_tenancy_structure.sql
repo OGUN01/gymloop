@@ -112,7 +112,7 @@ select results_eq(
            ('id'::text, 'uuid'::text, true),
            ('name'::text, 'text'::text, true),
            ('status'::text, 'organization_status'::text, true),
-           ('tier'::text, 'text'::text, false),
+            ('tier'::text, 'plan_tier'::text, false),
            ('timezone'::text, 'text'::text, true),
            ('trial_ends_at'::text, 'timestamptz'::text, false),
            ('updated_at'::text, 'timestamptz'::text, true)
@@ -260,7 +260,7 @@ values ('00000000-0000-4000-8000-0000000000a4'::uuid, '00000000-0000-4000-8000-0
 
 select results_eq(
   $$
-    select status::text, timezone, currency, tier, trial_ends_at, activated_at
+    select status::text, timezone, currency, tier::text, trial_ends_at, activated_at
     from public.organizations where id = '00000000-0000-4000-8000-0000000000a1'::uuid
   $$,
   $$ values ('pending_approval'::text, 'Asia/Kolkata'::text, 'INR'::text, null::text, null::timestamptz, null::timestamptz) $$,
@@ -335,6 +335,7 @@ end;
 -- implicit savepoint, so they leave no state behind.
 -- ---------------------------------------------------------------------------
 
+set local session_replication_role = replica;
 select throws_ok(
   $$insert into public.organizations (name, gym_code) values ('Bad Code Gym', 'abc123')$$,
   '23514', null,
@@ -346,6 +347,7 @@ select throws_ok(
   '23514', null,
   'MNY-002: organizations.currency is checked even with no money column beside it'
 );
+set local session_replication_role = origin;
 
 select ok(
   exists (select 1 from pg_constraint

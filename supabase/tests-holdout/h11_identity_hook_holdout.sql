@@ -59,10 +59,10 @@ $fn$;
 -- Fixtures
 -- ---------------------------------------------------------------------------
 
-insert into public.organizations (id, name, gym_code, created_at) values
-  ('aaaa0000-0011-4000-8000-000000000001', 'Holdout Gym A', 'HA1101', '2020-01-01T00:00:00Z'),
-  ('bbbb0000-0011-4000-8000-000000000002', 'Holdout Gym B', 'HB1102', '2020-01-01T00:00:00Z'),
-  ('cccc0000-0011-4000-8000-000000000003', 'Holdout Gym C', 'HC1103', '2020-01-01T00:00:00Z');
+insert into public.organizations (id, name, gym_code, status, created_at) values
+  ('aaaa0000-0011-4000-8000-000000000001', 'Holdout Gym A', 'HA1101', 'active', '2020-01-01T00:00:00Z'),
+  ('bbbb0000-0011-4000-8000-000000000002', 'Holdout Gym B', 'HB1102', 'active', '2020-01-01T00:00:00Z'),
+  ('cccc0000-0011-4000-8000-000000000003', 'Holdout Gym C', 'HC1103', 'active', '2020-01-01T00:00:00Z');
 
 insert into public.branches (id, tenant_id, name, is_default) values
   ('aaaa0000-0011-4000-8000-0000000000b1', 'aaaa0000-0011-4000-8000-000000000001', 'Main A', true),

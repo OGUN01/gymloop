@@ -171,7 +171,7 @@ select ok(
   'a manager cannot add a staff member');
 
 select ok(
-  pg_temp.silent($q$update public.organizations set tier = 'enterprise'
+  pg_temp.silent($q$update public.organizations set tier = 'basic'
                      where id = 'aaaa0000-0013-4000-8000-000000000001'$q$),
   'a manager cannot write the organization row, which carries the commercial relationship');
 
@@ -228,9 +228,9 @@ select ok(
   'an owner changes a staff member role');
 
 select ok(
-  pg_temp.allowed($q$update public.organizations set tier = 'enterprise'
+  pg_temp.rejected($q$update public.organizations set tier = 'basic'
                      where id = 'aaaa0000-0013-4000-8000-000000000001'$q$),
-  'an owner writes the organization row');
+  'an owner cannot directly change the commercial tier');
 
 select ok(
   pg_temp.allowed($q$update public.razorpay_accounts set is_enabled = true

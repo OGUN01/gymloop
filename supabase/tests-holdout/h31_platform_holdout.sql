@@ -12,10 +12,10 @@ VALUES
   ('31000000-0000-4000-8000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'h31-owner@example.test', 'not-used', statement_timestamp(), '{"other":"preserved"}', '{"nickname":"Owner"}'),
   ('31000000-0000-4000-8000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'h31-other@example.test', 'not-used', statement_timestamp(), '{}'::jsonb, '{}'::jsonb);
 
-INSERT INTO public.platform_users (user_id, role, is_active)
+INSERT INTO public.platform_users (user_id, role, full_name, email, is_active)
 VALUES
-  ('31000000-0000-4000-8000-000000000001', 'super_admin', true),
-  ('31000000-0000-4000-8000-000000000003', 'platform_support', true);
+  ('31000000-0000-4000-8000-000000000001', 'super_admin', 'H31 Admin', 'h31-admin@example.test', true),
+  ('31000000-0000-4000-8000-000000000003', 'platform_support', 'H31 Support', 'h31-other@example.test', true);
 
 SELECT set_config(
   'request.jwt.claims',

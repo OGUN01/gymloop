@@ -372,6 +372,7 @@ $$, null::char(5), null,
 );
 
 set local role postgres;
+select set_config('request.jwt.claims', '', true);
 
 -- 12
 select is(

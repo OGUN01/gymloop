@@ -73,11 +73,10 @@ end;
 $grant_temp$;
 grant select on nav_observations to authenticated;
 
--- Pending-approval organization defaults are intentional: this slice must not
--- introduce the later NAV-006 organization-status eligibility rule.
-insert into public.organizations (id, name, gym_code) values
-  ('a6250000-0000-4000-8000-000000000001', 'NAV Holdout Alpha', 'NV25A1'),
-  ('a6250000-0000-4000-8000-000000000002', 'NAV Holdout Beta', 'NV25B2');
+-- Positive NAV-007 cases require the later NAV-006 eligible gym shape.
+insert into public.organizations (id, name, gym_code, status) values
+  ('a6250000-0000-4000-8000-000000000001', 'NAV Holdout Alpha', 'NV25A1', 'active'),
+  ('a6250000-0000-4000-8000-000000000002', 'NAV Holdout Beta', 'NV25B2', 'active');
 insert into public.organization_settings (tenant_id) values
   ('a6250000-0000-4000-8000-000000000001');
 insert into public.branches (id, tenant_id, name, is_default) values

@@ -743,7 +743,8 @@ select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app' and p.prosecdef
       and p.proname not in ('audit_impersonation_session', 'custom_access_token_hook', 'revoke_sessions_on_identity_change', 'audit_money_change',
-        'lock_addon_product_for_order', 'apply_addon_order_effects', 'lock_addon_order_for_pt_session', 'apply_pt_session_effect', 'apply_addon_refund_effect', 'addon_order_fully_returned')),
+        'lock_addon_product_for_order', 'apply_addon_order_effects', 'lock_addon_order_for_pt_session', 'apply_pt_session_effect', 'apply_addon_refund_effect', 'addon_order_fully_returned',
+        'write_consent_audit', 'write_notification_audit', 'record_wallet_movement', 'gym_readiness', 'require_platform_super_admin', 'organization_result', 'platform_audit', 'platform_request_replay', 'revoke_sessions_on_staff_binding_change', 'revoke_sessions_on_organization_status_change')),
   0,
   'ADR-066/AUD-001/A-012: elevation remains within the closed identity, audit and approved private add-on capability allowlist');
 

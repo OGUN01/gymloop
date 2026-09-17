@@ -3,7 +3,7 @@
 begin;
 set local role postgres;
 set local search_path = extensions, public;
-select plan(42);
+select plan(43);
 
 insert into auth.users(id,email) values
  ('37000000-0000-4000-8000-000000000901','platform37@gymloop.test'),
@@ -149,7 +149,9 @@ select throws_ok($$update public.organizations set tier='pro' where id='37000000
 select lives_ok($$update public.organizations set status='active' where id='37000000-0000-4000-8000-000000000001'$$,
  'NAV-008: a same-value status write is noncommercial and remains permitted');
 select throws_ok($$update public.staff set user_id=null where id=(select (result->>'ownerStaffId')::uuid from platform37_result)$$,
- 'GL049',null,'ONB-004: direct authenticated Auth unbinding cannot bypass owner-link controls');
+  'GL049',null,'ONB-004: direct authenticated Auth unbinding cannot bypass owner-link controls');
+select throws_ok($$insert into public.organizations(id,name,gym_code) values ('37000000-0000-4000-8000-000000000001','Direct commercial bypass','PLT370')$$,
+  'GL049',null,'NAV-008: an in-scope authenticated direct organization insert remains a commercial-write refusal');
 
 select * from finish();
 rollback;

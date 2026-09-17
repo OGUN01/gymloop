@@ -197,7 +197,9 @@ select throws_ok($$select * from public.record_addon_sale('54000000-0000-4000-80
 -- Invalid timezone, payment shape and arithmetic fail before any child survives.
 set local role postgres;
 select set_config('request.jwt.claims','',true);
+set local session_replication_role=replica;
 update public.organizations set timezone='Not/A_Zone' where id='54000000-0000-4000-8000-000000000001';
+set local session_replication_role=origin;
 set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"54000000-0000-4000-8000-000000000903","role":"authenticated","app_role":"front_desk","tenant_id":"54000000-0000-4000-8000-000000000001","staff_id":"54000000-0000-4000-8000-000000000023"}',true);
 select throws_ok($$select * from public.record_addon_sale('54000000-0000-4000-8000-000000000031','54000000-0000-4000-8000-000000000102',1,(select quote_version from public.addon_products where id='54000000-0000-4000-8000-000000000102'),null,null,null,null,'Gift','54000000-0000-4000-8000-000000000217')$$,'GL055',null,'invalid gym timezone is invalid_validity');

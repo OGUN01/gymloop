@@ -13,7 +13,7 @@ select ok(
 select ok(
   exists (
     select 1 from pg_proc, unnest(coalesce(proconfig, array[]::text[])) setting
-    where oid = 'public.owner_metrics(date,date)'::regprocedure and setting = 'search_path='
+    where oid = 'public.owner_metrics(date,date)'::regprocedure and setting = 'search_path=""'
   ),
   'MET-001 owner snapshot pins an empty search path'
 );
@@ -37,7 +37,7 @@ select ok(
 select ok(
   exists (
     select 1 from pg_proc, unnest(coalesce(proconfig, array[]::text[])) setting
-    where oid = 'app.gym_metrics(uuid,timestamp with time zone,date,date)'::regprocedure and setting = 'search_path='
+    where oid = 'app.gym_metrics(uuid,timestamp with time zone,date,date)'::regprocedure and setting = 'search_path=""'
   ),
   'MET-002 shared gym helper pins an empty search path'
 );
@@ -50,7 +50,7 @@ select is(
   'MET-002 authenticated wrappers can execute shared gym metrics'
 );
 select is(
-  app.gym_metrics(gen_random_uuid(), statement_timestamp(), current_date, current_date), 'null'::jsonb,
+  app.gym_metrics(gen_random_uuid(), statement_timestamp(), current_date, current_date), null::jsonb,
   'MET-002 unreadable or absent gyms return SQL null rather than a fabricated snapshot'
 );
 
@@ -65,7 +65,7 @@ select ok(
 select ok(
   exists (
     select 1 from pg_proc, unnest(coalesce(proconfig, array[]::text[])) setting
-    where oid = 'public.fleet_metrics()'::regprocedure and setting = 'search_path='
+    where oid = 'public.fleet_metrics()'::regprocedure and setting = 'search_path=""'
   ),
   'MET-003 fleet snapshot pins an empty search path'
 );
@@ -89,7 +89,7 @@ select ok(
 select ok(
   exists (
     select 1 from pg_proc, unnest(coalesce(proconfig, array[]::text[])) setting
-    where oid = 'app.gym_readiness(uuid)'::regprocedure and setting = 'search_path='
+    where oid = 'app.gym_readiness(uuid)'::regprocedure and setting = 'search_path=""'
   ),
   'MET-005 readiness pins an empty search path'
 );
@@ -98,7 +98,7 @@ select is(
   'MET-005 anonymous callers cannot execute readiness'
 );
 select is(
-  app.gym_readiness(gen_random_uuid()), 'null'::jsonb,
+  app.gym_readiness(gen_random_uuid()), null::jsonb,
   'MET-005 absent or unreadable gyms do not disclose readiness or auth-roster facts'
 );
 select ok(
@@ -151,13 +151,13 @@ select ok(
   'OPS-001 owner metrics names the explicit invalid-range contract'
 );
 select ok(
-  position('invalid_gym_timezone' in pg_get_functiondef('public.owner_metrics(date,date)'::regprocedure)) > 0
+  position('invalid_gym_timezone' in pg_get_functiondef('app.gym_metrics(uuid,timestamp with time zone,date,date)'::regprocedure)) > 0
   and position('invalid_gym_timezone' in pg_get_functiondef('public.fleet_metrics()'::regprocedure)) > 0,
   'OPS-001 owner and fleet keep malformed timezones explicit and isolated'
 );
 select ok(
-  position('pg_timezone_names' in pg_get_functiondef('public.owner_metrics(date,date)'::regprocedure)) > 0,
-  'OPS-001 owner metrics validates the configured timezone before local boundaries'
+  position('pg_timezone_names' in pg_get_functiondef('app.gym_metrics(uuid,timestamp with time zone,date,date)'::regprocedure)) > 0,
+  'OPS-001 shared owner metrics validates the configured timezone before local boundaries'
 );
 select ok(
   position('owner_access' in pg_get_functiondef('app.gym_readiness(uuid)'::regprocedure)) > 0

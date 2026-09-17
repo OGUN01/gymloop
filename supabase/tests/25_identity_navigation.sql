@@ -1,12 +1,12 @@
 -- NAV-001..005/007 preview boundary: independently authored from dc391b4.
--- No NAV-006/008 organization eligibility changes are assumed here.
+-- NAV-006 eligibility is isolated by explicitly active fixture gyms below.
 begin;
 set local role postgres;
 select plan(25);
 
-insert into public.organizations(id,name,gym_code) values
- ('a6500000-0000-4000-8000-000000000001','Visible navigation A','V25AAA'),
- ('a6500000-0000-4000-8000-000000000002','Visible navigation B','V25BBB');
+insert into public.organizations(id,name,gym_code,status) values
+ ('a6500000-0000-4000-8000-000000000001','Visible navigation A','V25AAA','active'),
+ ('a6500000-0000-4000-8000-000000000002','Visible navigation B','V25BBB','active');
 insert into public.branches(id,tenant_id,name,is_default) values
  ('a6500000-0000-4000-8000-000000000011','a6500000-0000-4000-8000-000000000001','A',true),
  ('a6500000-0000-4000-8000-000000000012','a6500000-0000-4000-8000-000000000002','B',true);

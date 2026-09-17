@@ -144,10 +144,10 @@ select ok(
 -- typo.
 -- ---------------------------------------------------------------------------
 
-insert into public.organizations (id, name, gym_code) values
-  ('11000000-0000-4000-8000-000000000001'::uuid, 'Hook Gym A', 'HOOKGA'),
-  ('11000000-0000-4000-8000-000000000002'::uuid, 'Hook Gym B', 'HOOKGB'),
-  ('11000000-0000-4000-8000-000000000003'::uuid, 'Hook Gym C', 'HOOKGC');
+insert into public.organizations (id, name, gym_code, status) values
+  ('11000000-0000-4000-8000-000000000001'::uuid, 'Hook Gym A', 'HOOKGA', 'active'),
+  ('11000000-0000-4000-8000-000000000002'::uuid, 'Hook Gym B', 'HOOKGB', 'active'),
+  ('11000000-0000-4000-8000-000000000003'::uuid, 'Hook Gym C', 'HOOKGC', 'active');
 
 insert into public.branches (id, tenant_id, name, is_default) values
   ('11000000-0000-4000-8000-000000000011'::uuid, '11000000-0000-4000-8000-000000000001'::uuid, 'A Main', true),
