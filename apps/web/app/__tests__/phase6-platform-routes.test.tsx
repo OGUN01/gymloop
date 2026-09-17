@@ -1,16 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-type Result = { data: unknown; error: { code: string; message: string } | null };
+type Result = { data: unknown; error: { code: string; message: string; details?: string } | null };
 const state = vi.hoisted(() => ({
   claims: null as Record<string, unknown> | null,
   rpc: [] as Array<{ name: string; args: Record<string, unknown> }>,
   results: [] as Result[],
+  refreshThrows: false,
+  signOutThrows: false,
 }));
 vi.mock('../../lib/supabase/server', () => ({
   createServerSupabase: async () => ({
     auth: {
       getClaims: async () => ({ data: state.claims ? { claims: state.claims } : null, error: null }),
-      refreshSession: async () => ({ data: {}, error: null }),
+      refreshSession: async () => {
+        if (state.refreshThrows) throw new Error('refresh failed');
+        return { data: {}, error: null };
+      },
+      signOut: async () => {
+        if (state.signOutThrows) throw new Error('sign out failed');
+        return { error: null };
+      },
     },
     rpc: async (name: string, args: Record<string, unknown>) => { state.rpc.push({ name, args }); return state.results.shift() ?? { data: null, error: null }; },
   }),
@@ -34,9 +43,9 @@ async function route(path: string) {
     default: throw new Error(`unknown route ${path}`);
   }
 }
-async function payload(response: Response) { return await response.json() as { ok: boolean; error?: { code: string; message: string } }; }
+async function payload(response: Response) { return await response.json() as { ok: boolean; error?: { code: string; message: string; missingSettings?: string[] } }; }
 
-beforeEach(() => { state.claims = ADMIN; state.rpc = []; state.results = []; });
+beforeEach(() => { state.claims = ADMIN; state.rpc = []; state.results = []; state.refreshThrows = false; state.signOutThrows = false; });
 
 describe('Phase 6 platform command routes', () => {
   it('onboards with the exact normalized request and returns 303', async () => {
@@ -88,5 +97,28 @@ describe('Phase 6 platform command routes', () => {
     const body = await payload(response);
     expect(body.ok).toBe(false);
     expect(JSON.stringify(body)).not.toContain('secret service role detail');
+  });
+
+  it('returns the ordered readiness keys with GL051', async () => {
+    const missingSettings = ['settings', 'default_branch', 'owner_access'];
+    state.results = [{ data: null, error: { code: 'GL051', message: 'private detail', details: JSON.stringify({ missingSettings }) } }];
+    const { POST } = await route('../api/platform/gyms/[id]/status/route');
+    const response = await POST(form(`/api/platform/gyms/${TENANT_ID}/status`, { expectedStatus: 'trial', status: 'active', reason: 'approved', requestKey: KEY }), { params: Promise.resolve({ id: TENANT_ID }) });
+    expect(response.status).toBe(409);
+    expect((await payload(response)).error?.missingSettings).toEqual(missingSettings);
+  });
+
+  it('expires local Auth cookies when preview refresh and sign-out both throw', async () => {
+    state.results = [{ data: { sessionId: SESSION_ID, tenantId: TENANT_ID }, error: null }];
+    state.refreshThrows = true;
+    state.signOutThrows = true;
+    const { POST } = await route('../api/platform/impersonations/route');
+    const request = form('/api/platform/impersonations', { tenantId: TENANT_ID, reason: 'support', requestKey: KEY });
+    request.headers.set('cookie', 'sb-project-auth-token=secret; unrelated=value');
+    const response = await POST(request);
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toContain('/sign-in');
+    expect(response.headers.get('set-cookie')).toContain('sb-project-auth-token=;');
+    expect(response.headers.get('set-cookie')).not.toContain('unrelated');
   });
 });
