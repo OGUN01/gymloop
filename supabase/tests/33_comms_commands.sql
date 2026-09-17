@@ -61,6 +61,9 @@ select plan(82);
 insert into public.organizations(id,name,gym_code,status,timezone,trial_ends_at,currency) values
  ('3c000000-0000-4000-8000-000000000001','Comms Commands A','CCA33A','active','Asia/Kolkata',null,'INR'),
  ('3c000000-0000-4000-8000-000000000002','Comms Commands B','CCB33B','active','Asia/Kolkata',null,'INR');
+insert into public.organization_settings(tenant_id) values
+ ('3c000000-0000-4000-8000-000000000001'),
+ ('3c000000-0000-4000-8000-000000000002');
 insert into public.branches(id,tenant_id,name,is_default) values
  ('3c000000-0000-4000-8000-000000000011','3c000000-0000-4000-8000-000000000001','Main',true),
  ('3c000000-0000-4000-8000-000000000012','3c000000-0000-4000-8000-000000000002','Main B',true);

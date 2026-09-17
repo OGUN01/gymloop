@@ -401,9 +401,9 @@ select throws_ok(
 );
 
 select throws_ok(
-  $$insert into public.notifications (tenant_id, member_id, channel)
+  $$insert into public.notifications (tenant_id, member_id, channel, category, dedupe_key)
     values ('13000000-0000-4000-8000-000000000001',
-            '13000000-0000-4000-8000-000000000031', 'sms')$$,
+            '13000000-0000-4000-8000-000000000031', 'sms', 'promotion', 'role-matrix-write-refusal')$$,
   '42501', null,
   'design.md 8.3: notifications reads is_front_office() and writes is_gym_admin() -- every send spends the messaging wallet'
 );
