@@ -806,16 +806,16 @@ select results_eq(
   'COM: the member acknowledgement writes exactly one notification.delivered event');
 
 select results_eq(
-  $$select count(*) from public.audit_log a
-     where a.record_id='3c000000-0000-4000-8000-000000000201'::uuid and a.action='notification.opted_out'$$,
-  $$select 0::bigint$$,
-  'COM: a refused motivation send writes no audit event — it created no new event');
+  $$select count(*), min(a.reason) from public.audit_log a
+     where a.record_id='3c000000-0000-4000-8000-000000000207'::uuid and a.action='notification.opted_out'$$,
+  $$select 1::bigint, 'motivation_disabled'::text$$,
+  'COM: a disabled motivation send writes exactly one opted_out audit with its decision reason');
 
 select results_eq(
   $$select count(*) from public.audit_log a
-     where a.record_id='3c000000-0000-4000-8000-000000000201'::uuid and a.action='notification.opted_out'$$,
-  $$select 0::bigint$$,
-  'COM: a refused repeat adds no notification audit event');
+     where a.record_id='3c000000-0000-4000-8000-000000000201'::uuid$$,
+  $$select 3::bigint$$,
+  'COM: the refused WhatsApp repeat adds no event to the source notification audit history');
 
 select results_eq(
   $$select a.action, a.record_type, a.reason,

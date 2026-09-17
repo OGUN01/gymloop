@@ -12,6 +12,40 @@ vi.mock('next/navigation', () => ({ redirect: (path: string) => { throw new Erro
 vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
 vi.mock('../../lib/supabase/server', () => ({ createServerSupabase: async () => ({
   auth: { getClaims: async () => ({ data: state.claims && { claims: state.claims }, error: null }) },
+  rpc: async (name: string) => {
+    if (name !== 'fleet_metrics') return { data: null, error: state.error };
+    const gyms = (state.rows.organizations ?? []).map((organization) => ({
+      tenantId: organization.id,
+      name: organization.name,
+      gymCode: organization.gym_code,
+      status: organization.status,
+      tier: organization.tier ?? null,
+      timezone: organization.timezone,
+      trialEndsAt: organization.trial_ends_at ?? null,
+      activeMembers: '0',
+      openCases: '0',
+      failedNotifications: '0',
+      settingsComplete: true,
+      missingSettings: [],
+      ownerAccessPending: false,
+      providerReadiness: {
+        push: { ready: false, reason: 'provider_unconfigured' },
+        sms: { ready: false, reason: 'outside_v1' },
+        email: { ready: false, reason: 'outside_v1' },
+        whatsappBusiness: { ready: false, reason: 'outside_v1' },
+      },
+      metricsError: null,
+      components: { liveMembers: [], cases: [], failedNotifications: [] },
+    }));
+    return state.error ? { data: null, error: state.error } : {
+      data: {
+        asOf: '2026-09-15T12:00:00Z',
+        gyms,
+        exceptions: { settingsIncomplete: [], ownerAccessPending: [], providerUnavailable: [], trialExpired: [] },
+      },
+      error: null,
+    };
+  },
   from: (table: string) => {
     let rows = state.rows[table] ?? [];
     const query = {
