@@ -119,13 +119,18 @@ consent_purpose` is IMMUTABLE INVOKER: promotion→marketing; every other catego
 the latest decision in each purpose stands independently. There is no implied
 consent from purchase, import, attendance, device registration or trial.
 
-Every send/availability/WhatsApp decision takes that same member FOR UPDATE
-lock before the notification lock, then reads current consent in a separate
-fresh SQL command in a VOLATILE routine. Do not combine lock acquisition and
-consent lookup in one stale CTE/snapshot. Check member, organization and
-motivation eligibility under that lock too. Withdrawal committed before this
-serialization point prevents the new action. A send serialized first remains
-a truthful historical send; withdrawal does not retroactively erase it.
+Every send/availability/WhatsApp decision for an existing notification locks
+that notification first, then takes the same member FOR UPDATE lock and reads
+current consent in a separate fresh SQL command in a VOLATILE routine. Direct
+authenticated UPDATE already owns the notification row lock before its row
+trigger can run, so this one order is universal and cannot deadlock against the
+command path. A creator with no existing notification row (the scheduler)
+starts at the member lock. Do not combine member-lock acquisition and consent
+lookup in one stale CTE/snapshot, and never read the decision before the member
+lock. Check member, organization and motivation eligibility under that lock
+too. Withdrawal committed before this serialization point prevents the new
+action. A send serialized first remains a truthful historical send; withdrawal
+does not retroactively erase it.
 Two decisions in one transaction, including grant then withdrawal, obey this
 ordering. Batch commands acquire member ids in ascending UUID order.
 
@@ -355,7 +360,7 @@ uuid,p_provider_message_id text,p_cost_credits bigint,p_request_key uuid)
 RETURNS jsonb`, a service-only INVOKER contract, never an authenticated route.
 No implementation or grant is added in this phase. A later provider change
 must bind a verified acceptance reference and fixed positive cost to
-the notification, take member→notification→wallet locks, recheck consent,
+the notification, take notification→member→wallet locks, recheck consent,
 reject insufficient funds before recording acceptance, and atomically mark
 sent, append exactly one negative keyed ledger entry and audit. Its exact
 result will be `{notification:NotificationResult,ledgerId,debitedCredits,

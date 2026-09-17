@@ -14,7 +14,7 @@ updates and focused fixes. Freeze the contract before dispatch and run at most
 two workers concurrently unless the required blind arrangement needs separate
 visible and holdout authors. Do not use GPT-6 Astra in this campaign unless the
 owner explicitly authorizes it later. The live Codex weekly limit is a hard
-stop: check it after every completed micro-batch and stop at 70% used without
+stop: check it after every completed micro-batch and stop at 75% used without
 waiving a gate or a critic finding. This supersedes the 2026-09-10 model
 assignment below; that paragraph and the older Claude policy remain as history.
 

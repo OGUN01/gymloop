@@ -646,12 +646,31 @@ synchronization. Contracts remain serial and fixed before fan-out; at most two
 workers run concurrently except where the blind visible/holdout arrangement
 requires separate authors. GPT-6 Astra is not used unless the owner explicitly
 authorizes it later. The account was at 65% weekly usage when this campaign
-started; 70% is a hard stop checked after each completed micro-batch. Hitting
+started. On 2026-09-17 the owner extended the hard stop from 70% to 75% so the
+same campaign can finish Phase 7; it remains checked after each completed
+micro-batch. Hitting
 the stop pauses at the last green commit and never permits a skipped gate,
 weakened test or accepted critic finding. Rejected: treating lower model price
 as proof the whole remainder fits in five percentage points — the product does
 not publish a task-to-weekly-percentage conversion, so the cap is enforced by
 measurement, narrow contexts and independently shippable batches.
+
+**ADR-122 — Existing-notification decisions lock notification then member;
+fresh consent is still read only under the member lock.** The frozen comms
+contract required commands to lock member then notification while also
+permitting direct authenticated notification updates. PostgreSQL acquires the
+target row lock before a row-level BEFORE UPDATE trigger runs, so the direct
+path is structurally notification→member. A concurrent command using the
+opposite order forms a real deadlock cycle; no row-trigger body can run early
+enough to change it. The universal order is therefore notification→member for
+every existing-row decision, followed by the same fresh consent and eligibility
+read under the member lock. The scheduler still starts with the member because
+no notification row exists yet. This changes no authorization, state edge or
+consent outcome: a withdrawal that gets the member lock first prevents the
+send, and a send that gets it first remains truthful history. Rejected:
+prohibiting the contract-required direct decisions; a statement trigger that
+locks every tenant member because it cannot see row OLD/NEW; and retaining
+opposing orders while treating retryable deadlocks as normal behavior.
 
 **ADR-112 — Preserve migration order when existing versions are ahead of the clock.**
 The refund unit's CLI-generated version `20260910074537` sorts before the
