@@ -10,6 +10,14 @@ vi.mock('../../lib/identity-session', () => ({
   requireAudience: async () => ({
     identity: state.identity,
     supabase: {
+      rpc: async () => ({
+        data: {
+          asOf: '2026-09-18T10:00:00Z',
+          gyms: state.result,
+          exceptions: { settingsIncomplete: [TENANT_ID], ownerAccessPending: [TENANT_ID], providerUnavailable: [TENANT_ID], trialExpired: [] },
+        },
+        error: state.error,
+      }),
       from: () => ({
         select: () => ({
           order: () => ({

@@ -8,7 +8,10 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock('../../lib/supabase/server', () => ({
   createServerSupabase: async () => ({
-    auth: { getClaims: async () => ({ data: state.claims ? { claims: state.claims } : null, error: null }) },
+    auth: {
+      getClaims: async () => ({ data: state.claims ? { claims: state.claims } : null, error: null }),
+      refreshSession: async () => ({ data: {}, error: null }),
+    },
     rpc: async (name: string, args: Record<string, unknown>) => { state.rpc.push({ name, args }); return state.results.shift() ?? { data: null, error: null }; },
   }),
 }));
