@@ -6,6 +6,7 @@ export * from './api/forms';
 export * from './api/memberships';
 export * from './api/membership-price';
 export * from './api/payments';
+export * from './api/platform';
 export * from './api/refunds';
 export * from './api/member-imports';
 export * from './api/metrics';

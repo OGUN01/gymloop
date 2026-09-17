@@ -1,3 +1,5 @@
+import type { Database } from '@gymloop/db';
+
 /**
  * Single source of truth for every magic value that is NOT a database enum.
  *
@@ -52,12 +54,40 @@ export type RenewalReminderWindowId = (typeof RENEWAL_REMINDER_WINDOWS)[number][
 export const TRIAL_DAYS = 14;
 export const GYM_CODE_LENGTH = 6;
 
+/**
+ * The onboarding settings copied once into a new gym. The SQL payload is
+ * generated from this exact object; later edits require a forward migration.
+ */
+export const GYM_PRESET_SETTINGS = {
+  neighbourhood_gym: {
+    noShowThresholdDays: 7,
+    streakRule: 'visit_streak',
+    weeklyGoal: 3,
+    maxFreezeDays: 30,
+    pauseApproverRole: 'gym_owner',
+  },
+  premium_studio: {
+    noShowThresholdDays: 5,
+    streakRule: 'weekly_goal',
+    weeklyGoal: 3,
+    maxFreezeDays: 30,
+    pauseApproverRole: 'gym_owner',
+  },
+  functional_box: {
+    noShowThresholdDays: 3,
+    streakRule: 'weekly_goal',
+    weeklyGoal: 4,
+    maxFreezeDays: 14,
+    pauseApproverRole: 'gym_owner',
+  },
+} as const;
+
 /** Monthly tier prices in integer paise — never floating point (§8). */
 export const PLAN_TIER_PRICES_PAISE = {
   basic: 149900,
   growth: 299900,
   pro: 499900,
-} as const;
+} as const satisfies Record<'basic' | 'growth' | 'pro', number>;
 
 export const SUPABASE_REGION = 'ap-south-1';
 
@@ -170,7 +200,10 @@ export const IDEMPOTENCY_KEY_MAX_LENGTH = 200;
  */
 
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
-export type PlanTier = keyof typeof PLAN_TIER_PRICES_PAISE;
+/** Canonical database enum generated from the plan_tier Postgres enum. */
+export type PlanTier = Database['public']['Enums'] extends { plan_tier: infer Tier }
+  ? Tier
+  : keyof typeof PLAN_TIER_PRICES_PAISE;
 
 /*
  * Member CSV/XLSX import — the frozen v1 limits (CSV-D02, contract

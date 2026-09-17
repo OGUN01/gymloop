@@ -49,9 +49,9 @@ local replays only while the DB workflow is idle.
 - [x] Detailed contract verified against current schema; OpenSpec change opened.
 - [x] Independent visible and holdout database tests committed red.
 - [x] Independent unit, route and screen tests committed red.
-- [ ] Migration, RPCs, routes and working screens implemented.
-- [ ] Targeted and full local gates pass.
-- [ ] Fresh-context critics return GO.
+- [x] Migration, RPCs, routes and working screens implemented.
+- [x] Targeted and full local gates pass.
+- [x] Fresh-context critics return GO.
 - [ ] CI applies migration; generated types, pgTAP, seed and all workflows pass.
-- [ ] Real messaging journeys pass with exact cleanup.
+- [x] Real messaging journeys pass with exact cleanup.
 - [ ] Current specifications, registry, evidence and roadmap synchronized; archive.

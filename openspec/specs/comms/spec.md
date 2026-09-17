@@ -101,3 +101,84 @@ THE SYSTEM SHALL constrain a notification's status and channel to their enums, s
 #### Scenario: A channel outside the vocabulary
 - **WHEN** a notification is written with a channel of `telegram`
 - **THEN** the write SHALL be rejected
+
+### Requirement: Consent decisions are claim-derived and serialized
+COM-007 and DPD-002–004 SHALL be implemented by `public.record_consent`: THE
+SYSTEM SHALL derive the gym, member or acting staff identity from verified
+claims, lock one member/purpose decision stream, persist the caller's request
+key, and return the existing row on an exact replay. A staff caller may record
+consent only for a same-gym member; a member may record only their own decision.
+The current decision is the newest server timestamp with the row id as the
+total-order tie-breaker. Direct inserts SHALL obey the same stamps and source
+rules, and consent rows remain append-only.
+
+#### Scenario: Two consent decisions race
+- **WHEN** grant and withdrawal requests for one member and purpose overlap
+- **THEN** they SHALL serialize and the newest committed row SHALL be the current decision
+
+#### Scenario: A request key is replayed with different facts
+- **WHEN** the same caller reuses a consent request key with different decision facts
+- **THEN** the command SHALL fail explicitly rather than return the earlier row
+
+### Requirement: Notification lifecycle and evidence are structural
+COM-001–007, INT-002/003 and PAY-002 SHALL be enforced for every writer. A
+notification SHALL carry a category, claim-compatible source and member, and
+an allowed status/evidence combination. Scheduled may advance to sent,
+delivered, failed or opted_out; sent may advance to delivered or failed; every
+other state is terminal. Identity, content, consent evidence, request identity,
+wallet identity and provider evidence SHALL be immutable after insert. A
+consent-required notification SHALL persist the exact current granted decision;
+marketing never inherits service consent. In-app notifications require no paid
+wallet movement; a paid adapter may accept a message only through the private
+wallet command whose debit and notification acceptance are one transaction.
+
+#### Scenario: Delivery evidence is invented
+- **WHEN** a writer marks a notification delivered without the required delivery timestamp
+- **THEN** the write SHALL be rejected
+
+#### Scenario: A terminal notification is changed
+- **WHEN** a delivered, failed or opted-out notification is transitioned again or its immutable facts are edited
+- **THEN** the write SHALL be rejected
+
+#### Scenario: A member acknowledges an in-app notification
+- **WHEN** its owner replays `public.acknowledge_notification` for the same sent or delivered in-app row
+- **THEN** the command SHALL return the same delivered result and SHALL NOT create paid-delivery evidence
+
+### Requirement: Renewal reminders use the money path's one remainder formula
+COM-004/005 and PAY-001 SHALL use `app.membership_renewal_remainder` for both
+reminder scheduling and metrics. The remainder is the Phase 5 net period price
+less arrived receipt money after whole periods granted, expressed as canonical
+decimal strings. Daily stages use the gym-local date, the configured positive
+windows and a tenant/date/stage de-duplication key. Replays and overlapping
+schedulers SHALL produce at most one notification for a stage. Zero-net
+renewals remain visible to reads but SHALL NOT schedule a reminder.
+
+#### Scenario: The daily scheduler is replayed
+- **WHEN** the same tenant and gym-local date are run more than once, including concurrently
+- **THEN** each eligible membership/window stage SHALL have at most one notification
+
+### Requirement: Wallet adjustments are exact, replay-safe money movements
+PAY-003 SHALL be implemented by `public.adjust_messaging_wallet`: only an
+authorized platform actor may adjust a gym wallet, amounts are non-zero signed
+integer paise with explicit currency, the wallet row is locked before its
+ledger stream, and a movement is accepted only when its stored resulting
+balance equals the wallet balance in the same transaction. Caller/request key
+replay returns the original movement; mismatched replay, currency mismatch and
+negative result fail explicitly. The ledger remains append-only.
+
+#### Scenario: Two debits compete for the final balance
+- **WHEN** concurrent commands would together make the wallet negative
+- **THEN** at most the affordable debit SHALL commit and every accepted ledger balance SHALL reconcile
+
+### Requirement: Staff and member messaging screens expose only honest state
+THE SYSTEM SHALL provide `/messages` for authorized gym staff and
+`/member/messages` for the signed-in member. The staff snapshot SHALL expose
+counts, rows, current consent actions and role-gated template/wallet controls
+from one validated response. The member view SHALL expose only that member's
+in-app messages and consent history; it SHALL NOT fabricate provider delivery,
+wallet balance or another member's rows. Generated database enum values are the
+only accepted template category vocabulary at the HTTP and form boundaries.
+
+#### Scenario: A member opens the staff workspace
+- **WHEN** a member session requests `/messages`
+- **THEN** the product SHALL redirect to the member home rather than render staff data

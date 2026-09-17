@@ -57,7 +57,7 @@
 
 
 -- ---------------------------------------------------------------------------
--- 1. The organisation — one Tier-2 neighbourhood gym.
+-- 1. The organisation — one growth-tier neighbourhood gym.
 -- ---------------------------------------------------------------------------
 
 insert into public.organizations
@@ -67,7 +67,7 @@ values (
   'Iron Box Fitness — Vijay Nagar',
   'IRNBX1',
   'active',
-  'tier_2',
+  'growth',
   now() - interval '18 months',
   'Asia/Kolkata',
   'INR'
@@ -77,7 +77,6 @@ on conflict (id) do update set
   gym_code     = excluded.gym_code,
   status       = excluded.status,
   tier         = excluded.tier,
-  activated_at = excluded.activated_at,
   timezone     = excluded.timezone,
   currency     = excluded.currency;
 
