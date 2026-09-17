@@ -13,7 +13,7 @@ export function commandSuccess(request: Request, data: unknown, path: string): R
     ? apiOk(data) : seeOther(request, path);
 }
 
-export async function platformBody(request: Request): Promise<{ payload: unknown } | { failure: Response }> {
+async function platformBody(request: Request): Promise<{ payload: unknown } | { failure: Response }> {
   if ((request.headers.get('content-type') ?? '').toLowerCase().includes('application/json')) return jsonBody(request);
   const parsed = await formFields(request);
   if ('failure' in parsed) return parsed;
