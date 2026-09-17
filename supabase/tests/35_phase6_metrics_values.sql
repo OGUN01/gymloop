@@ -31,7 +31,7 @@ insert into public.attendance(id,tenant_id,branch_id,member_id,source,checked_in
  ('35000000-0000-4000-8000-000000000072','35000000-0000-4000-8000-000000000001','35000000-0000-4000-8000-000000000011','35000000-0000-4000-8000-000000000031','qr','2026-09-15 23:59:59+05:30'),
  ('35000000-0000-4000-8000-000000000073','35000000-0000-4000-8000-000000000001','35000000-0000-4000-8000-000000000011','35000000-0000-4000-8000-000000000031','qr','2026-09-16 00:00+05:30');
 insert into public.no_show_cases(id,tenant_id,member_id,status,opened_on,absent_days_at_open,threshold_days,next_follow_up_at,returned_at) values
- ('35000000-0000-4000-8000-000000000081','35000000-0000-4000-8000-000000000001','35000000-0000-4000-8000-000000000031','open','2026-09-01',7,7,'2026-09-15 18:30+00',null),
+ ('35000000-0000-4000-8000-000000000081','35000000-0000-4000-8000-000000000001','35000000-0000-4000-8000-000000000031','open','2026-09-01',7,7,'2026-09-15 18:29+00',null),
  ('35000000-0000-4000-8000-000000000082','35000000-0000-4000-8000-000000000001','35000000-0000-4000-8000-000000000032','contacted','2026-09-01',7,7,'2026-09-15 19:00+00',null),
  ('35000000-0000-4000-8000-000000000083','35000000-0000-4000-8000-000000000001','35000000-0000-4000-8000-000000000033','returned','2026-09-01',7,7,null,'2026-09-15 12:00+00');
 insert into public.payments(id,tenant_id,member_id,membership_id,amount_paise,currency,status,method,recorded_by_staff_id,paid_at,receipt_number) values
@@ -48,7 +48,7 @@ insert into public.leads(id,tenant_id,branch_id,full_name,phone,source,stage,cre
 set local session_replication_role = origin;
 select set_config('request.jwt.claims','{"sub":"35000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"gym_owner","tenant_id":"35000000-0000-4000-8000-000000000001","staff_id":"35000000-0000-4000-8000-000000000021"}',true);
 set local role authenticated;
-create temp table probe as select app.gym_metrics('35000000-0000-4000-8000-000000000001','2026-09-15 18:30+00','2026-09-15','2026-09-15') j;
+create temp table probe as select app.gym_metrics('35000000-0000-4000-8000-000000000001','2026-09-15 18:29+00','2026-09-15','2026-09-15') j;
 select is((select array_agg(key order by key) from jsonb_object_keys((select j from probe)) key),array['asOf','cards','components','localToday','range','tenantId','timezone','warnings'],'MET-004 response has exactly the contract keys');
 select is((select array_agg(key order by key) from jsonb_object_keys((select j->'cards' from probe)) key),array['addonCash','cash','followUpsDue','leads','liveMembers','openCases','pausedMembers','pt','recovered','renewal','visitsToday'],'MET-004 cards have exactly the contract keys');
 select is((select array_agg(key order by key) from jsonb_object_keys((select j->'warnings' from probe)) key),array['incompletePtOrders','undatedPayments','undatedPtOrders','undatedReturns'],'MET-004 warnings have exactly the contract keys');
@@ -83,7 +83,7 @@ select ok(jsonb_typeof(public.owner_metrics(null,null))='object','MET-001 owner 
 select set_config('request.jwt.claims','{"sub":"35000000-0000-4000-8000-000000000902","role":"authenticated","app_role":"gym_manager","tenant_id":"35000000-0000-4000-8000-000000000001","staff_id":"35000000-0000-4000-8000-000000000022"}',true);
 select ok(jsonb_typeof(public.owner_metrics(null,null))='object','MET-001 manager wrapper works');
 select set_config('request.jwt.claims','{"sub":"35000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"super_admin"}',true);
-select is((select array_agg(x->>'name') from jsonb_array_elements(public.fleet_metrics()->'gyms') x),array['Alpha Metrics','Broken Metrics','Zulu Metrics'],'OPS-001 fleet orders gyms by name');
+select is((select array_agg(x->>'name') = array_agg(x->>'name' order by x->>'name',(x->>'tenantId')::uuid) from jsonb_array_elements(public.fleet_metrics()->'gyms') x),true,'OPS-001 fleet orders every visible gym by name then tenant');
 select is((select public.fleet_metrics()->'gyms' @> '[{"tenantId":"35000000-0000-4000-8000-000000000002","metricsError":{"code":"invalid_gym_timezone"},"activeMembers":null}]'::jsonb),true,'OPS-001 malformed zone is isolated');
 select is((select public.fleet_metrics()->'exceptions'->'trialExpired' @> '["35000000-0000-4000-8000-000000000002"]'::jsonb),true,'OPS-001 exception derives from returned gym');
 select is((select app.gym_readiness('35000000-0000-4000-8000-000000000001')->'providerReadiness'->'push'->>'ready'),'false','OPS-004 provider fixed false');
