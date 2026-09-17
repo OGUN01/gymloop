@@ -8,6 +8,8 @@ Update this file in the same commit that adds the export. One row per symbol, ke
 
 | Name | File | Purpose | Used by |
 |---|---|---|---|
+| `BASIS_POINT_DECIMAL_PLACES` | `packages/shared/src/config/constants.ts` | Two decimal places in a displayed basis-point percentage | `formatBasisPoints` |
+| `BASIS_POINTS_PER_PERCENT` | `packages/shared/src/config/constants.ts` | Exact basis-point divisor for one displayed percent | `formatBasisPoints` |
 | `DEFAULT_CURRENCY` | `packages/shared/src/config/constants.ts` | ISO currency code for money amounts | Phase 5 (money) |
 | `DEFAULT_TIMEZONE` | `packages/shared/src/config/constants.ts` | Fallback IANA timezone; gyms override per-tenant | Phase 1 (data model), Phase 4 (retention scans) |
 | `GATE_CODE_BYTES` | `packages/shared/src/config/constants.ts` | Randomness in a check-in gate code: 8 bytes rendered as 16 uppercase hex characters — unguessable, and still typeable when `BarcodeDetector` is absent (ATT-003). Only its SHA-256 hash is ever stored | `apps/web/lib/gate-code.ts` |
@@ -17,7 +19,9 @@ Update this file in the same commit that adds the export. One row per symbol, ke
 | `PG_UNIQUE_VIOLATION` | `apps/web/lib/api.ts` | SQLSTATE `23505` — on `attendance_tenant_id_client_event_id_key` it means one check-in attempt arrived twice, which the handler answers with the row that already exists rather than with an error | `apps/web/app/api/check-in/route.ts` |
 | `PLAN_TIER_PRICES_PAISE` | `packages/shared/src/config/constants.ts` | Monthly SaaS tier prices in integer paise (§5) | Phase 6 (platform billing) |
 | `PRODUCT_NAME` | `packages/shared/src/config/constants.ts` | The one place the placeholder product name lives | Everywhere the name is displayed |
+| `RATIO_BASIS_POINT_SCALE` | `packages/shared/src/config/constants.ts` | Exact 10,000-basis-point scale used for integer ratio arithmetic | `ratioBasisPoints` |
 | `RENEWAL_REMINDER_WINDOWS` | `packages/shared/src/config/constants.ts` | Renewal reminder windows, each with an explicit `daysFromExpiry`: **negative = before expiry, 0 = expiry date, positive = after** (so the spec's "+3" is `+3`). Ids (`expiry_minus_14` … `expiry_plus_3`) are unambiguous without reading the sign (PAY-001) | Phase 4 (reminders), Phase 5 (renewals) |
+| `ROUND_HALF_UP_MULTIPLIER` | `packages/shared/src/config/constants.ts` | Integer multiplier used to implement exact half-up ratio rounding without floating point | `ratioBasisPoints` |
 | `SUPABASE_REGION` | `packages/shared/src/config/constants.ts` | ap-south-1 (Mumbai) — latency-driven choice, see `docs/decisions.md` | Infra docs, onboarding checks |
 | `SUPPORTED_LOCALES` | `packages/shared/src/config/constants.ts` | English + Hindi (§4) | i18n setup, all UI phases |
 | `TRIAL_DAYS` | `packages/shared/src/config/constants.ts` | 14-day full-feature trial length (§5) | Phase 2 (gym signup/onboarding) |
@@ -241,6 +245,21 @@ Frozen contract `docs/planning/phase6-comms-contract.md` (COM-001..009, PAY-001.
 | `app.record_wallet_movement(uuid, bigint, text, uuid, uuid, uuid)` | `supabase/migrations/20260915100007_phase6_comms.sql` | Private uncallable definer helper (§7): the locked replay comparison, derived `balance_after_credits`, ledger append, wallet update and the one wallet audit event; callers never supply the resulting balance. Revoked from PUBLIC, anon, authenticated and service_role — only the owning command may call it | `public.adjust_messaging_wallet` |
 | `public.adjust_messaging_wallet(uuid, bigint, text, uuid)` | `supabase/migrations/20260915100007_phase6_comms.sql` | `security definer` super-admin-only command (§7): zero delta or blank reason is native `23514`; locks the wallet before replay lookup; exact replay returns the original immutable entry even if the current balance later changed; a reused key with different facts is `GL068`; a movement that would drive the wallet negative is `GL067`; a bigint overflow is native `22003` | `POST /api/messaging-wallet/adjust` |
 | `app.accept_paid_notification(uuid, text, bigint, uuid)` | `supabase/migrations/20260915100007_phase6_comms.sql` | Service-only invoker contract stub for a future paid provider (§7): no implementation body and no grant in this phase — raises `GL069` unconditionally. Exists only so the signature is frozen ahead of the adapter work | Not yet called by anything |
+
+### Phase 6 metrics database functions
+
+Frozen contract `docs/planning/phase6-metrics-contract.md` (MET-001..008,
+OPS-001/004). Every owner card and component row is produced by one statement
+snapshot; every integer count or money value crosses JSON as a decimal string.
+
+| Name | File | Purpose | Used by |
+|---|---|---|---|
+| `app.gym_case_rows(uuid, timestamptz)` | `supabase/migrations/20260915100008_phase6_metrics.sql` | Stable invoker helper returning the ordered current open/contacted/follow-up-due population and its as-of due flag | `app.gym_metrics`, `public.fleet_metrics` |
+| `app.gym_live_members(uuid, date)` | `supabase/migrations/20260915100008_phase6_metrics.sql` | Stable invoker helper owning the one inclusive membership/pause predicate; a null local day returns SQL null rather than a fabricated empty cohort | `app.gym_metrics`, `public.fleet_metrics` |
+| `app.gym_metrics(uuid, timestamptz, date, date)` | `supabase/migrations/20260915100008_phase6_metrics.sql` | Stable invoker snapshot helper producing exact owner cards, component rows and all-date data-quality warnings for one readable gym | `public.owner_metrics` |
+| `app.gym_readiness(uuid)` | `supabase/migrations/20260915100008_phase6_metrics.sql` | Narrow stable definer returning settings completeness, owner-access readiness and explicit provider states without exposing Auth roster data | `public.fleet_metrics`, Phase 6 platform activation |
+| `public.fleet_metrics()` | `supabase/migrations/20260915100008_phase6_metrics.sql` | Platform-only stable invoker snapshot of every gym, current populations, failed-message evidence, readiness and same-response exception groups | Phase 6 platform fleet screen |
+| `public.owner_metrics(date, date)` | `supabase/migrations/20260915100008_phase6_metrics.sql` | Real owner/manager-only stable invoker wrapper deriving tenant/as-of from the verified caller and refusing support preview before any partial snapshot can be returned | `loadOwnerMetrics` |
 
 ### Phase 6 comms and wallet database triggers
 
@@ -629,3 +648,14 @@ The shared money/credit codec, template/category placeholder vocab and request s
 | `MessagesPage` | `apps/web/app/(console)/messages/page.tsx` | The console messages screen | Console navigation |
 | `MemberMessageAck` | `apps/web/app/member/messages/member-message-actions.tsx` | The member's explicit-open acknowledge control — never fires from prefetch, list visibility, hydration or a background effect | `MemberMessagesPage` |
 | `MemberMessagesPage` | `apps/web/app/member/messages/page.tsx` | The member messages screen | Member navigation |
+
+## Phase 6 metrics web contracts
+
+| Symbol | Location | Contract | Consumers |
+|---|---|---|---|
+| `ownerMetricsSchema` / `OwnerMetrics` | `packages/shared/src/api/metrics.ts` | Strict exact owner snapshot codec: decimal-string counts/money, range, cards, reconciling components and explicit warning populations | `loadOwnerMetrics`, `MetricsDashboard` |
+| `fleetMetricsSchema` / `FleetMetrics` | `packages/shared/src/api/metrics.ts` | Strict exact platform fleet snapshot codec, preserving nullable tier and failed-message evidence rather than inventing facts | Phase 6 platform fleet loader/screen |
+| `ratioBasisPoints` / `formatBasisPoints` | `packages/shared/src/api/metrics.ts` | BigInt-only half-up ratio calculation and exact two-decimal percentage formatting; zero denominators return null/No cohort | `MetricsDashboard` |
+| `MetricsLoadErrorCode` / `MetricsLoadError` / `loadOwnerMetrics` | `apps/web/lib/metrics.ts` | Real owner/manager loader: validates a paired real ISO range before one caller-session `owner_metrics` RPC, refuses preview/other roles before that read and exposes only the three safe error codes | `DashboardPage` |
+| `MetricsDashboard` | `apps/web/app/(console)/dashboard/metrics-dashboard.tsx` | Owner metric cards with exact fractions, current-state/all-date scope disclosure, range navigation and same-response component/warning drill-downs | `DashboardPage` |
+| `DashboardPage` / `/dashboard` | `apps/web/app/(console)/dashboard/page.tsx` | Owner metrics route that renders one validated snapshot or a safe mapped metrics error | Owner/manager console navigation |

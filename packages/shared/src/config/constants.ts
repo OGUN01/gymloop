@@ -15,6 +15,10 @@ export const PRODUCT_NAME = 'Gymloop';
 
 export const DEFAULT_TIMEZONE = 'Asia/Kolkata';
 export const DEFAULT_CURRENCY = 'INR';
+export const BASIS_POINTS_PER_PERCENT = 100n;
+export const RATIO_BASIS_POINT_SCALE = 10_000n;
+export const ROUND_HALF_UP_MULTIPLIER = 2n;
+export const BASIS_POINT_DECIMAL_PLACES = 2;
 export const SUPPORTED_LOCALES = ['en', 'hi'] as const;
 
 /**

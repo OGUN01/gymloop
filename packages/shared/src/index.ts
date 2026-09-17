@@ -8,6 +8,7 @@ export * from './api/membership-price';
 export * from './api/payments';
 export * from './api/refunds';
 export * from './api/member-imports';
+export * from './api/metrics';
 export * from './config/constants';
 export * from './config/env';
 export * from './streaks/streaks';
