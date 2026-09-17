@@ -47,7 +47,7 @@ set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims', '', true);
 
-select plan(62);
+select plan(63);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Prefix 3a000000 is this file's alone; no other suite or the seed
@@ -74,12 +74,6 @@ insert into public.members(id,tenant_id,branch_id,full_name,phone,status) values
 -- below, while every newly inserted template fixture remains classified.
 insert into public.message_templates(id,tenant_id,key,channel,locale,category,body) values
  ('3a000000-0000-4000-8000-000000000101','3a000000-0000-4000-8000-000000000001','winback_absent','push','en','promotion','We have missed you');
-
--- A source notification the child-index assertions hang off. Inserted as the
--- owner under RLS-off — it is a plain historical-shape row (no category yet,
--- null dedupe key is not needed here).
-insert into public.notifications(id,tenant_id,member_id,channel,status,dedupe_key,scheduled_for,sent_at) values
- ('3a000000-0000-4000-8000-000000000201','3a000000-0000-4000-8000-000000000001','3a000000-0000-4000-8000-000000000031','in_app','sent','31-source:legacy',transaction_timestamp(),transaction_timestamp());
 
 -- ---------------------------------------------------------------------------
 -- 1. message_category: one new enum, labels in the contract order
@@ -190,6 +184,29 @@ select lives_ok(
               'service', true, 'v1', 'signup_form', transaction_timestamp() - interval '400 days') $q$,
   'COM: a trusted historical consent row with a NULL request_key and NULL actor is still accepted — history stays loadable');
 
+-- The WhatsApp FK/index probes below need a sent in-app source. Build it as a
+-- new, fully classified/deduplicated product row, then make it available via
+-- the ordinary gym-admin command; do not manufacture a post-migration
+-- "historical" sent row that bypasses the new-row invariants.
+select set_config('request.jwt.claims',
+  '{"sub":"3a000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"gym_owner","tenant_id":"3a000000-0000-4000-8000-000000000001","staff_id":"3a000000-0000-4000-8000-000000000021"}', true);
+set local role authenticated;
+
+insert into public.notifications(
+  id,tenant_id,member_id,channel,status,category,template_key,dedupe_key,scheduled_for,payload
+) values (
+  '3a000000-0000-4000-8000-000000000201','3a000000-0000-4000-8000-000000000001',
+  '3a000000-0000-4000-8000-000000000031','in_app','scheduled','payment','payment_receipt',
+  '31-source:payment-receipt',transaction_timestamp(),'{"body":"Payment received"}'::jsonb
+);
+
+select lives_ok(
+  $q$ select public.send_notification('3a000000-0000-4000-8000-000000000201'::uuid) $q$,
+  'COM: the source fixture reaches sent through the ordinary gym-admin send command');
+
+set local role postgres;
+select set_config('request.jwt.claims','',true);
+
 -- ---------------------------------------------------------------------------
 -- 4. notifications: identity, evidence and phone columns
 -- ---------------------------------------------------------------------------
@@ -227,10 +244,21 @@ select col_type_is('public','notifications','opted_out_at','timestamptz',
 select has_column('public','notifications','opted_out_reason',
   'COM: notifications gains opted_out_reason evidence');
 
+-- Child probes execute in the exact trusted evidence context the invariant
+-- requires: postgres plus a verified active front-office identity.
+select set_config('request.jwt.claims',
+  '{"sub":"3a000000-0000-4000-8000-000000000902","role":"authenticated","app_role":"front_desk","tenant_id":"3a000000-0000-4000-8000-000000000001","staff_id":"3a000000-0000-4000-8000-000000000023"}', true);
+
 select throws_ok(
-  $q$ insert into public.notifications (tenant_id, member_id, channel, status, recipient_phone)
-      values ('3a000000-0000-4000-8000-000000000001'::uuid, '3a000000-0000-4000-8000-000000000031'::uuid,
-              'whatsapp_link', 'scheduled', '1234567890') $q$,
+  $q$ insert into public.notifications (
+        tenant_id, member_id, channel, status, category, source_notification_id,
+        recipient_phone, dedupe_key, scheduled_for, payload
+      ) values (
+        '3a000000-0000-4000-8000-000000000001'::uuid, '3a000000-0000-4000-8000-000000000031'::uuid,
+        'whatsapp_link', 'scheduled', 'payment', '3a000000-0000-4000-8000-000000000201'::uuid,
+        '1234567890', 'whatsapp:3a000000-0000-4000-8000-000000000201', transaction_timestamp(),
+        '{"body":"Payment received"}'::jsonb
+      ) $q$,
   '23514'::text, null::text,
   'COM: a non-E.164 recipient_phone is rejected — the snapshot carries the member format CHECK');
 
@@ -275,12 +303,24 @@ insert into public.message_templates(id,tenant_id,key,channel,locale,category,bo
  ('3a000000-0000-4000-8000-000000000102','3a000000-0000-4000-8000-000000000001','child_probe','whatsapp_link','en','promotion','promotion body'),
  ('3a000000-0000-4000-8000-000000000103','3a000000-0000-4000-8000-000000000002','other_gym','in_app','en','payment','Other gym body');
 
+-- This is a base-notification probe, so use the verified gym-admin identity;
+-- the child probes below switch back to the verified front-office identity.
+select set_config('request.jwt.claims',
+  '{"sub":"3a000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"gym_owner","tenant_id":"3a000000-0000-4000-8000-000000000001","staff_id":"3a000000-0000-4000-8000-000000000021"}', true);
+
 select throws_ok(
-  $q$ insert into public.notifications (tenant_id, member_id, channel, status, template_id)
-      values ('3a000000-0000-4000-8000-000000000001'::uuid, '3a000000-0000-4000-8000-000000000031'::uuid,
-              'in_app', 'scheduled', '3a000000-0000-4000-8000-000000000103'::uuid) $q$,
+  $q$ insert into public.notifications (
+        tenant_id, member_id, channel, status, category, template_id, dedupe_key, scheduled_for, payload
+      ) values (
+        '3a000000-0000-4000-8000-000000000001'::uuid, '3a000000-0000-4000-8000-000000000031'::uuid,
+        'in_app', 'scheduled', 'payment', '3a000000-0000-4000-8000-000000000103'::uuid,
+        '31-cross-template', transaction_timestamp(), '{"body":"Other gym body"}'::jsonb
+      ) $q$,
   '23503'::text, null::text,
   'COM: a notification referencing another gym''s template is refused by the composite FK');
+
+select set_config('request.jwt.claims',
+  '{"sub":"3a000000-0000-4000-8000-000000000902","role":"authenticated","app_role":"front_desk","tenant_id":"3a000000-0000-4000-8000-000000000001","staff_id":"3a000000-0000-4000-8000-000000000023"}', true);
 
 -- New index set on notifications.
 select ok(
@@ -315,26 +355,29 @@ select ok(
   'COM: the existing notifications queue index is preserved — no second queue table');
 
 select throws_ok(
-  $q$ insert into public.notifications (id, tenant_id, member_id, channel, status, category, source_notification_id, recipient_phone, dedupe_key, scheduled_for)
+  $q$ insert into public.notifications (id, tenant_id, member_id, channel, status, category, source_notification_id, recipient_phone, dedupe_key, scheduled_for, payload)
       values ('3a000000-0000-4000-8000-000000000202'::uuid, '3a000000-0000-4000-8000-000000000001'::uuid,
-              '3a000000-0000-4000-8000-000000000031'::uuid, 'whatsapp_link', 'scheduled', 'promotion',
+              '3a000000-0000-4000-8000-000000000031'::uuid, 'whatsapp_link', 'scheduled', 'payment',
               '3a000000-0000-4000-8000-000000000201'::uuid, '+915300000031',
-              'whatsapp:3a000000-0000-4000-8000-000000000201', transaction_timestamp()),
+              'whatsapp:3a000000-0000-4000-8000-000000000201', transaction_timestamp(), '{"body":"Payment received"}'::jsonb),
              ('3a000000-0000-4000-8000-000000000203'::uuid, '3a000000-0000-4000-8000-000000000001'::uuid,
-              '3a000000-0000-4000-8000-000000000031'::uuid, 'whatsapp_link', 'sent', 'promotion',
+              '3a000000-0000-4000-8000-000000000031'::uuid, 'whatsapp_link', 'scheduled', 'payment',
               '3a000000-0000-4000-8000-000000000201'::uuid, '+915300000031',
-              'whatsapp:3a000000-0000-4000-8000-000000000201', transaction_timestamp()) $q$,
+              'whatsapp:3a000000-0000-4000-8000-000000000201', transaction_timestamp(), '{"body":"Payment received"}'::jsonb) $q$,
   '23505'::text, null::text,
   'COM: a second whatsapp_link child for one source is rejected — opening twice reuses one child');
 
 select throws_ok(
-  $q$ insert into public.notifications (id, tenant_id, member_id, channel, status, category, source_notification_id, recipient_phone, dedupe_key)
+  $q$ insert into public.notifications (id, tenant_id, member_id, channel, status, category, source_notification_id, recipient_phone, dedupe_key, scheduled_for, payload)
       values ('3a000000-0000-4000-8000-000000000204'::uuid, '3a000000-0000-4000-8000-000000000001'::uuid,
-              '3a000000-0000-4000-8000-000000000032'::uuid, 'whatsapp_link', 'scheduled', 'promotion',
+              '3a000000-0000-4000-8000-000000000032'::uuid, 'whatsapp_link', 'scheduled', 'payment',
               '3a000000-0000-4000-8000-000000000201'::uuid, '+915300000032',
-              'whatsapp:3a000000-0000-4000-8000-000000000201-x') $q$,
+              'whatsapp:3a000000-0000-4000-8000-000000000201', transaction_timestamp(),
+              '{"body":"Payment received"}'::jsonb) $q$,
   '23503'::text, null::text,
   'COM: a whatsapp child naming a different member than its source is refused — source and child share the member');
+
+select set_config('request.jwt.claims','',true);
 
 -- ---------------------------------------------------------------------------
 -- 5. messaging_wallet_ledger: actor, key and resulting balance

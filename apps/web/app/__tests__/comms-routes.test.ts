@@ -188,7 +188,7 @@ describe('POST /api/consents', () => {
   it.each([
     ['GL065', 422, 'invalid_consent'],
     ['P0002', 404, 'not_found'],
-    ['42501', 403, 'not_permitted'],
+    ['42501', 403, 'forbidden'],
     ['GL068', 409, 'idempotency_conflict'],
     ['40001', 409, 'retryable'],
     ['40P01', 409, 'retryable'],

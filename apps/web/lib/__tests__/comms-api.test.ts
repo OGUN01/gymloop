@@ -29,8 +29,7 @@ import { describe, expect, it } from 'vitest';
  *   the §1 error table in one place, the same role `leadWriteFailure` plays
  *   for leads: GL065→422 invalid_consent, GL066→422 invalid_notification,
  *   GL067→409 insufficient_credits, GL068→409 idempotency_conflict,
- *   GL069→422 invalid_provider_evidence, 42501→403 not_permitted (the house
- *   code for a forbidden write, `lib/api.ts`/`lead-input.ts`), P0002→404
+ *   GL069→422 invalid_provider_evidence, 42501→403 forbidden, P0002→404
  *   not_found, 40001/40P01→409 retryable, 23514→422 invalid_adjustment
  *   (wallet), 22003→422 credits_out_of_range, anything else→500
  *   operation_failed.
@@ -274,7 +273,7 @@ describe('commsRpcFailure — the §1 error table, one honest outcome per code',
     ['GL067', 'This credit movement would put the wallet below zero.', 409, 'insufficient_credits'],
     ['GL068', 'This request key was already used for different facts.', 409, 'idempotency_conflict'],
     ['GL069', 'That paid-acceptance request lacks valid evidence.', 422, 'invalid_provider_evidence'],
-    ['42501', 'Row security refused the write.', 403, 'not_permitted'],
+    ['42501', 'Row security refused the write.', 403, 'forbidden'],
     ['P0002', 'No such row.', 404, 'not_found'],
     ['40001', 'Serialization failure.', 409, 'retryable'],
     ['40P01', 'Deadlock detected.', 409, 'retryable'],
