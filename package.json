@@ -16,6 +16,8 @@
     "jscpd": "jscpd --exit-code 1",
     "depcruise": "dependency-cruiser --config .dependency-cruiser.mjs apps packages supabase",
     "registry-lint": "node scripts/registry-lint.mjs",
+    "generate-renewal-reminder-windows": "node scripts/check-renewal-reminder-windows.mjs --write",
+    "check-renewal-reminder-windows": "node scripts/check-renewal-reminder-windows.mjs",
     "check-test-immutability": "node scripts/check-test-immutability.mjs",
     "check-escape-hatches": "node scripts/check-escape-hatches.mjs",
     "check-pgtap-rollback": "node scripts/check-pgtap-rollback.mjs",

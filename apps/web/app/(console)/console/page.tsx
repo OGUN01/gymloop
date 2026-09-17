@@ -3,6 +3,7 @@ import { FRONT_OFFICE_ROLES } from '../../../lib/leads';
 import { loadMemberSearch } from '../../../lib/members';
 import { requireAudience } from '../../../lib/identity-session';
 import { canImportMembers } from '../../../lib/member-imports';
+import { canViewMessages } from '../../../lib/messages';
 import { MemberSearchPage } from './member-search-page';
 
 export default async function MembersPage({
@@ -41,6 +42,11 @@ export default async function MembersPage({
       {canImportMembers(identity) ? (
         <Link href="/imports" className="mt-2 inline-flex min-h-11 items-center text-sm underline">
           Import members from a file
+        </Link>
+      ) : null}
+      {canViewMessages(identity) ? (
+        <Link href="/messages" className="mt-2 inline-flex min-h-11 items-center text-sm underline">
+          Messages
         </Link>
       ) : null}
       {search.members.length > 0 ? (

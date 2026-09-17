@@ -1,0 +1,240 @@
+'use client';
+
+import { Constants } from '@gymloop/db';
+import { MESSAGE_TEMPLATE_LOCALES, type MessageTemplateLocale } from '@gymloop/shared';
+import { useState, type FormEvent } from 'react';
+import { Alert } from '../alert';
+import { Field, inputClass } from '../field';
+import { MutationForm } from '../../preview-context';
+import type { MemberChoice } from '../../../lib/messages';
+
+/**
+ * The staff `/messages` screen's client half: recording a consent decision,
+ * opening a source message's WhatsApp link, and — for gym admin — saving a
+ * template and adjusting the wallet. Every form is mounted through
+ * `MutationForm` (`apps/web/app/preview-context.tsx`), which renders nothing
+ * during a support preview — the same boundary every other console screen
+ * with a mutation already uses, so a read-only preview cannot post any of
+ * these actions even before hydration.
+ *
+ * Commands retain one logical request key across an uncertain retry. A key is
+ * replaced only after a received response or after the user changes facts.
+ */
+
+const COMMS_ERRORS: Record<string, string> = {
+  not_signed_in: 'Your session ended. Sign in again, then try once more.',
+  not_permitted: 'Your role cannot perform this action.',
+  invalid_request: 'Check the fields and try again.',
+  invalid_consent: 'That consent could not be recorded — check the version and source.',
+  invalid_notification: 'That message cannot make that move right now.',
+  insufficient_credits: 'This credit movement would put the wallet below zero.',
+  idempotency_conflict: 'This request key was already used for different facts. Try again.',
+  invalid_provider_evidence: 'That request lacks valid evidence.',
+  invalid_adjustment: 'Enter a nonzero delta and a reason.',
+  credits_out_of_range: 'That delta is outside the supported credit range.',
+  not_found: 'That record is not available. Reload the screen.',
+  retryable: 'Another change just landed. Try again.',
+  communication_opted_out: 'This member has opted out or is no longer eligible. No message link was created.',
+  operation_failed: 'The change could not be saved. Nothing was written.',
+};
+
+function commsProblemText(code: string): string {
+  return Object.hasOwn(COMMS_ERRORS, code) ? COMMS_ERRORS[code] ?? 'Review the details and try again.' : 'The outcome is uncertain. Retry, or reload this screen.';
+}
+
+async function postJson(path: string, body?: unknown): Promise<{ ok: boolean; data: Record<string, unknown> | null; errorCode: string }> {
+  const response = await fetch(path, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const payload = await response.json() as { ok?: boolean; data?: Record<string, unknown>; error?: { code?: unknown } };
+  return {
+    ok: response.ok && payload.ok === true,
+    data: (payload.data ?? null) as Record<string, unknown> | null,
+    errorCode: typeof payload.error?.code === 'string' ? payload.error.code : '',
+  };
+}
+
+/**
+ * The pending/problem/submit shape every comms form shares: validate first
+ * (a non-null return is shown as the problem and the request never runs),
+ * then run the request, showing either its error code's text or a fixed
+ * interrupted-connection message, and always clear `pending` after.
+ */
+function useMutationSubmit(
+  validate: () => string | null,
+  request: () => Promise<{ ok: boolean; data: Record<string, unknown> | null; errorCode: string }>,
+  onSuccess: (data: Record<string, unknown> | null) => void,
+  onResponse: (() => void) | undefined,
+  interruptedText: string,
+): { pending: boolean; problem: string; submit: (event: FormEvent<HTMLFormElement>) => Promise<void> } {
+  const [pending, setPending] = useState(false);
+  const [problem, setProblem] = useState('');
+
+  async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    const validationProblem = validate();
+    if (validationProblem !== null) {
+      setProblem(validationProblem);
+      return;
+    }
+    setPending(true);
+    setProblem('');
+    try {
+      const result = await request();
+      onResponse?.();
+      if (result.ok) { onSuccess(result.data); return; }
+      setProblem(commsProblemText(result.errorCode));
+    } catch {
+      setProblem(interruptedText);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return { pending, problem, submit };
+}
+
+/** Record a consent grant or withdrawal for a named member (contract §3, front office). */
+export function ConsentForm({ members }: { members: MemberChoice[] }) {
+  const [memberId, setMemberId] = useState(members[0]?.id ?? '');
+  const [purpose, setPurpose] = useState<(typeof Constants.public.Enums.consent_purpose)[number]>('marketing');
+  const [granted, setGranted] = useState(true);
+  const [version, setVersion] = useState('2026-09-01');
+  const [source, setSource] = useState('front_desk_form');
+  const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
+  const replaceRequestKey = () => setRequestKey(crypto.randomUUID());
+  const { pending, problem, submit } = useMutationSubmit(
+    () => (memberId === '' || version.trim() === '' || source.trim() === '')
+      ? 'Enter the member, version and source, then try again.' : null,
+    () => postJson('/api/consents', { memberId, purpose, granted, version, source, requestKey }),
+    () => {},
+    replaceRequestKey,
+    'The connection was interrupted. The outcome is uncertain. Retry recording this consent.',
+  );
+
+  return <MutationForm onSubmit={submit} className="mt-3 space-y-3 rounded-lg border border-neutral-200 p-3">
+    <Field label="Member">
+      {members.length > 0
+        ? <select value={memberId} onChange={(event) => { setMemberId(event.target.value); replaceRequestKey(); }} className={inputClass}>
+          {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+        </select>
+        : <input value={memberId} onChange={(event) => { setMemberId(event.target.value); replaceRequestKey(); }} placeholder="Member id" className={inputClass} />}
+    </Field>
+    <Field label="Purpose">
+      <select value={purpose} onChange={(event) => { setPurpose(event.target.value as typeof purpose); replaceRequestKey(); }} className={inputClass}>
+        {Constants.public.Enums.consent_purpose.map((value) => <option key={value} value={value}>{value}</option>)}
+      </select>
+    </Field>
+    <label className="flex items-center gap-2 text-sm">
+      <input type="checkbox" checked={granted} onChange={(event) => { setGranted(event.target.checked); replaceRequestKey(); }} /> Granted
+    </label>
+    <Field label="Version"><input value={version} onChange={(event) => { setVersion(event.target.value); replaceRequestKey(); }} className={inputClass} /></Field>
+    <Field label="Source"><input value={source} onChange={(event) => { setSource(event.target.value); replaceRequestKey(); }} className={inputClass} /></Field>
+    {problem !== '' ? <Alert>{problem}</Alert> : null}
+    <button type="submit" disabled={pending} className="min-h-11 rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-white disabled:opacity-50">
+      {pending ? 'Recording…' : 'Record consent'}
+    </button>
+  </MutationForm>;
+}
+
+/** Open the WhatsApp deep link for one already-sent in-app source message (contract §5). */
+export function WhatsAppOpenButton({ notificationId }: { notificationId: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const { pending, problem, submit } = useMutationSubmit(
+    () => null,
+    () => postJson(`/api/notifications/${notificationId}/whatsapp`),
+    (data) => { if (typeof data?.url === 'string') setUrl(data.url); },
+    undefined,
+    'The connection was interrupted. The outcome is uncertain. Retry opening WhatsApp.',
+  );
+
+  return <MutationForm onSubmit={submit} className="mt-2 inline-block">
+    <button type="submit" disabled={pending} className="min-h-11 rounded-lg border border-neutral-400 px-3 py-2 text-sm font-medium disabled:opacity-50">
+      {pending ? 'Opening…' : 'Open in WhatsApp'}
+    </button>
+    {url !== null ? <p className="mt-1 text-sm"><a href={url} target="_blank" rel="noreferrer" className="underline">{url}</a></p> : null}
+    {problem !== '' ? <Alert>{problem}</Alert> : null}
+  </MutationForm>;
+}
+
+/** Create a template, or edit an existing one's category/body/active state (contract §2, §8, gym admin only). */
+export function MessageTemplateForm({ template }: { template?: { id: string; key: string; channel: string; locale: string; category: string; body: string; isActive: boolean } }) {
+  const [channel, setChannel] = useState<(typeof Constants.public.Enums.notification_channel)[number]>(
+    (template?.channel as (typeof Constants.public.Enums.notification_channel)[number] | undefined) ?? 'push',
+  );
+  const [locale, setLocale] = useState<MessageTemplateLocale>((template?.locale as MessageTemplateLocale | undefined) ?? 'en');
+  const [category, setCategory] = useState(template?.category ?? '');
+  const [body, setBody] = useState(template?.body ?? '');
+  const [isActive, setIsActive] = useState(template?.isActive ?? true);
+  const [keyInput, setKeyInput] = useState(template?.key ?? '');
+  const { pending, problem, submit } = useMutationSubmit(
+    () => (keyInput.trim() === '' || category.trim() === '' || body.trim() === '') ? 'Enter a key, category and body, then try again.' : null,
+    () => postJson('/api/message-templates', {
+      ...(template ? { templateId: template.id } : {}),
+      key: keyInput, channel, locale, category, body, isActive,
+    }),
+    () => {},
+    undefined,
+    'The connection was interrupted. The outcome is uncertain. Retry saving this template.',
+  );
+
+  return <MutationForm onSubmit={submit} className="mt-3 space-y-3 rounded-lg border border-neutral-200 p-3">
+    <Field label="Key"><input value={keyInput} onChange={(event) => setKeyInput(event.target.value)} disabled={template !== undefined} className={inputClass} /></Field>
+    <Field label="Channel">
+      <select value={channel} onChange={(event) => setChannel(event.target.value as typeof channel)} disabled={template !== undefined} className={inputClass}>
+        {Constants.public.Enums.notification_channel.map((value) => <option key={value} value={value}>{value}</option>)}
+      </select>
+    </Field>
+    <Field label="Locale">
+      <select value={locale} onChange={(event) => setLocale(event.target.value as MessageTemplateLocale)} disabled={template !== undefined} className={inputClass}>
+        {MESSAGE_TEMPLATE_LOCALES.map((value) => <option key={value} value={value}>{value}</option>)}
+      </select>
+    </Field>
+    <Field label="Category">
+      <input value={category} onChange={(event) => setCategory(event.target.value)} className={inputClass} />
+    </Field>
+    <Field label="Body"><textarea value={body} onChange={(event) => setBody(event.target.value)} className={inputClass} /></Field>
+    <label className="flex items-center gap-2 text-sm">
+      <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} /> Active
+    </label>
+    {problem !== '' ? <Alert>{problem}</Alert> : null}
+    <button type="submit" disabled={pending} className="min-h-11 rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-white disabled:opacity-50">
+      {pending ? 'Saving…' : template ? 'Save template' : 'Create template'}
+    </button>
+  </MutationForm>;
+}
+
+/** Move credits in or out of the gym's messaging wallet (contract §7). Only a super-admin session can succeed here — a gym-side caller is honestly refused by the route. */
+export function WalletAdjustForm({ tenantId }: { tenantId: string }) {
+  const [deltaCredits, setDeltaCredits] = useState('');
+  const [reason, setReason] = useState('');
+  const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
+  const replaceRequestKey = () => setRequestKey(crypto.randomUUID());
+  const { pending, problem, submit } = useMutationSubmit(
+    () => (!/^-?[0-9]+$/.test(deltaCredits) || reason.trim() === '')
+      ? 'Enter a whole-number delta and a reason, then try again.' : null,
+    () => postJson('/api/messaging-wallet/adjust', {
+      tenantId, deltaCredits: normalizeCreditsInput(deltaCredits), reason, requestKey,
+    }),
+    () => { setDeltaCredits(''); setReason(''); },
+    replaceRequestKey,
+    'The connection was interrupted. The outcome is uncertain. Retry this adjustment.',
+  );
+
+  return <MutationForm onSubmit={submit} className="mt-3 space-y-3 rounded-lg border border-neutral-200 p-3">
+    <Field label="Delta credits (negative to debit)"><input value={deltaCredits} onChange={(event) => { setDeltaCredits(event.target.value); replaceRequestKey(); }} inputMode="numeric" className={inputClass} /></Field>
+    <Field label="Reason"><input value={reason} onChange={(event) => { setReason(event.target.value); replaceRequestKey(); }} className={inputClass} /></Field>
+    {problem !== '' ? <Alert>{problem}</Alert> : null}
+    <button type="submit" disabled={pending} className="min-h-11 rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-white disabled:opacity-50">
+      {pending ? 'Adjusting…' : 'Adjust wallet'}
+    </button>
+  </MutationForm>;
+}
+
+/** `"-0"`/leading-zero input typed by hand collapsed to the §1 canonical grammar before it ever reaches the wire. */
+function normalizeCreditsInput(value: string): string {
+  const negative = value.startsWith('-');
+  const digits = (negative ? value.slice(1) : value).replace(/^0+(?=\d)/, '');
+  return (negative && digits !== '0' ? '-' : '') + digits;
+}

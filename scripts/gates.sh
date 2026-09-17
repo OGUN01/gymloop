@@ -15,6 +15,7 @@ run "knip"            pnpm run knip
 run "web tests"       pnpm --filter @gymloop/web test --run
 run "shared tests"    pnpm --filter @gymloop/shared test --run
 run "registry-lint"   node scripts/registry-lint.mjs
+run "renewal-windows" pnpm run check-renewal-reminder-windows
 run "escape-hatches"  node scripts/check-escape-hatches.mjs
 run "pgtap-rollback"  node scripts/check-pgtap-rollback.mjs
 echo "---"

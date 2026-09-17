@@ -1,7 +1,7 @@
 import { Constants } from '@gymloop/db';
 import { gymWallClockFormatter, offsetInstantFromGymWallTime } from '@gymloop/shared';
 import { apiFail, PG_INSUFFICIENT_PRIVILEGE, staffJson, type StaffSession } from '../../../lib/api';
-import { UUID_PATTERN } from '../../../lib/keyset';
+import { isObject, isUuid, UUID_PATTERN } from '../../../lib/keyset';
 import { FRONT_OFFICE_ROLES, type LeadDetail, type LeadSource, type LeadStage } from '../../../lib/leads';
 
 /**
@@ -147,14 +147,6 @@ export async function callLeadRpc<A extends Record<string, unknown>>(
 const E164_PHONE = /^\+[1-9][0-9]{7,14}$/;
 const TRIAL_LOCAL = /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$/;
 const ALLOWED_OUTCOMES = ['created_member', 'linked_existing'] as const;
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isUuid(value: unknown): value is string {
-  return typeof value === 'string' && UUID_PATTERN.test(value);
-}
 
 /** Collapses runs of whitespace to single spaces and trims the ends. */
 function canonicalText(value: string): string {

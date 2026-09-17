@@ -65,6 +65,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: pnpm run registry-lint
 
+      - name: renewal-reminder-windows
+        if: ${{ !cancelled() }}
+        run: pnpm run check-renewal-reminder-windows
+
       # AGENTS.md hard rule #4's second half. Was honour-system until a
       # fresh-context critic noted it was stated as constitutional while nothing
       # enforced it — a rule that can be silently bypassed is a preference.

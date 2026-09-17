@@ -379,23 +379,24 @@ on conflict (id) do update set
 -- 8. Message templates for the two loops the demo has to show.
 -- ---------------------------------------------------------------------------
 
-insert into public.message_templates (id, tenant_id, key, channel, locale, body, is_active)
+insert into public.message_templates (id, tenant_id, key, channel, locale, category, body, is_active)
 select
   ('00000019-0000-4000-8000-' || lpad(m.n::text, 12, '0'))::uuid,
   '00000001-0000-4000-8000-000000000001'::uuid,
   m.key,
   m.channel::public.notification_channel,
   'en',
+  m.category::public.message_category,
   m.body,
   true
 from (values
-  (1, 'renewal_due', 'push',
+  (1, 'renewal_due', 'push', 'renewal',
       'Hi {{name}}, your {{plan}} at Iron Box ends on {{ends_on}}. Renew today and keep your streak going.'),
-  (2, 'winback_absent', 'push',
+  (2, 'winback_absent', 'push', 'motivation',
       'We have missed you at Iron Box, {{name}} — it has been {{absent_days}} days. Shall we book you in this week?'),
-  (3, 'streak_milestone', 'push',
+  (3, 'streak_milestone', 'push', 'motivation',
       '{{name}}, that is {{streak}} days in a row. Outstanding.')
-) as m(n, key, channel, body)
+) as m(n, key, channel, category, body)
 on conflict (id) do update set
   key       = excluded.key,
   channel   = excluded.channel,
@@ -596,11 +597,15 @@ on conflict (id) do update set
 --     production — the seed anchors on a fixed id so a re-run rewrites the same
 --     row instead of stacking a second grant.
 --     Row index is idx*10 + purpose (1 = service, 2 = marketing).
+--
+-- app.stamp_consent() stamps every accepted decision from its server clock.
+-- Seed decisions therefore use the same append-only invariant as production;
+-- a rerun anti-joins existing fixed ids before it can invoke that trigger.
 -- ---------------------------------------------------------------------------
 
 insert into public.consents (
   id, tenant_id, member_id, purpose, granted, version, source,
-  recorded_at, recorded_by_staff_id
+  recorded_by_staff_id
 )
 select
   ('00000016-0000-4000-8000-' || lpad((n * 10 + pr.purpose_no)::text, 12, '0'))::uuid,
@@ -610,19 +615,16 @@ select
   case when pr.purpose = 'service' then true else (n % 2 = 0) end,
   'v1',
   'front_desk_signup',
-  (m.joined_on + time '11:00') at time zone 'Asia/Kolkata',
   '00000003-0000-4000-8000-000000000004'::uuid
 from generate_series(1, 30) as n
 cross join (values (1, 'service'), (2, 'marketing')) as pr(purpose_no, purpose)
 join public.members m
   on m.id = ('00000005-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid
-on conflict (id) do update set
-  purpose              = excluded.purpose,
-  granted              = excluded.granted,
-  version              = excluded.version,
-  source               = excluded.source,
-  recorded_at          = excluded.recorded_at,
-  recorded_by_staff_id = excluded.recorded_by_staff_id;
+where not exists (
+  select 1 from public.consents c
+   where c.id = ('00000016-0000-4000-8000-' || lpad((n * 10 + pr.purpose_no)::text, 12, '0'))::uuid
+)
+on conflict (id) do nothing;
 
 
 -- ---------------------------------------------------------------------------
@@ -1383,12 +1385,16 @@ alter table public.leads enable trigger leads_touch_updated_at;
 --     expiring this week, and the win-back push on each of the six retention
 --     cases. dedupe_key is index-derived and never shifts, so PAY-002's partial
 --     unique index holds across re-runs.
+--
+-- These are queued fixtures, inserted through app.enforce_notification() with
+-- no delivery evidence. A rerun anti-joins fixed ids before trigger execution.
 -- ---------------------------------------------------------------------------
 
 with roster as (
   select
     n as idx,
     case when n <= 5 then 'renewal_due' else 'winback_absent' end as template_key,
+    case when n <= 5 then 'renewal' else 'motivation' end as category,
     case when n <= 5 then n else 60 + n end as days_to_expiry,
     case n when 6 then 11 when 7 then 13 when 8 then 15
            when 9 then 16 when 10 then 18 when 11 then 20 end as absent_days
@@ -1396,7 +1402,7 @@ with roster as (
 ),
 today as (select (now() at time zone 'Asia/Kolkata')::date as d)
 insert into public.notifications (
-  id, tenant_id, member_id, channel, template_key, status, dedupe_key,
+  id, tenant_id, member_id, channel, template_key, category, status, dedupe_key,
   scheduled_for, sent_at, delivered_at, related_type, related_id, payload
 )
 select
@@ -1405,19 +1411,15 @@ select
   ('00000005-0000-4000-8000-' || lpad(r.idx::text, 12, '0'))::uuid,
   'push',
   r.template_key,
-  case when r.idx <= 5 then 'sent' else 'delivered' end::public.notification_status,
+  r.category::public.message_category,
+  'scheduled'::public.notification_status,
   'seed:' || r.template_key || ':' || lpad(r.idx::text, 4, '0'),
   case when r.idx <= 5
        then ((t.d + r.days_to_expiry - 7) + time '10:00') at time zone 'Asia/Kolkata'
        else ((t.d - (r.absent_days - 8)) + time '10:00') at time zone 'Asia/Kolkata'
   end,
-  case when r.idx <= 5
-       then ((t.d + r.days_to_expiry - 7) + time '10:00') at time zone 'Asia/Kolkata'
-       else ((t.d - (r.absent_days - 8)) + time '10:00') at time zone 'Asia/Kolkata'
-  end,
-  case when r.idx <= 5 then null
-       else ((t.d - (r.absent_days - 8)) + time '10:01') at time zone 'Asia/Kolkata'
-  end,
+  null,
+  null,
   case when r.idx <= 5 then 'membership' else 'no_show_case' end,
   case when r.idx <= 5
        then ('00000006-0000-4000-8000-' || lpad(r.idx::text, 12, '0'))::uuid
@@ -1429,18 +1431,11 @@ select
   end
 from roster r
 cross join today t
-on conflict (id) do update set
-  member_id     = excluded.member_id,
-  channel       = excluded.channel,
-  template_key  = excluded.template_key,
-  status        = excluded.status,
-  dedupe_key    = excluded.dedupe_key,
-  scheduled_for = excluded.scheduled_for,
-  sent_at       = excluded.sent_at,
-  delivered_at  = excluded.delivered_at,
-  related_type  = excluded.related_type,
-  related_id    = excluded.related_id,
-  payload       = excluded.payload;
+where not exists (
+  select 1 from public.notifications n
+   where n.id = ('00000018-0000-4000-8000-' || lpad(r.idx::text, 12, '0'))::uuid
+)
+on conflict (id) do nothing;
 
 
 -- ---------------------------------------------------------------------------
