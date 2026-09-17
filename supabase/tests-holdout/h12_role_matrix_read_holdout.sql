@@ -498,9 +498,9 @@ insert into public.member_devices (id, tenant_id, member_id, platform, push_toke
   ('99990000-0012-4000-8000-0000000000ab', 'aaaa0000-0012-4000-8000-000000000001',
      '33330000-0012-4000-8000-0000000000a2', 'android', 'holdout-token-a2');
 
-insert into public.message_templates (id, tenant_id, key, channel, body) values
+insert into public.message_templates (id, tenant_id, key, channel, category, body) values
   ('aaaa0000-0012-4000-8000-0000000000c1', 'aaaa0000-0012-4000-8000-000000000001',
-     'renewal_due', 'push', 'Your membership expires soon');
+     'renewal_due', 'push', 'renewal', 'Your membership expires soon');
 
 insert into public.leads (id, tenant_id, branch_id, full_name, phone, source) values
   ('aaaa0000-0012-4000-8000-0000000000c2', 'aaaa0000-0012-4000-8000-000000000001',

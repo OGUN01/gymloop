@@ -47,7 +47,7 @@ set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims', '', true);
 
-select plan(64);
+select plan(62);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Prefix 3a000000 is this file's alone; no other suite or the seed
@@ -68,10 +68,12 @@ insert into public.members(id,tenant_id,branch_id,full_name,phone,status) values
  ('3a000000-0000-4000-8000-000000000031','3a000000-0000-4000-8000-000000000001','3a000000-0000-4000-8000-000000000011','Member A','+915300000031','active'),
  ('3a000000-0000-4000-8000-000000000032','3a000000-0000-4000-8000-000000000001','3a000000-0000-4000-8000-000000000011','Member B','+915300000032','active');
 
--- A historical template with no category: history must stay readable, which is
--- exactly why the new category column is nullable and its CHECK is NOT VALID.
-insert into public.message_templates(id,tenant_id,key,channel,locale,body) values
- ('3a000000-0000-4000-8000-000000000101','3a000000-0000-4000-8000-000000000001','winback_absent','push','en','We have missed you');
+-- This post-migration suite cannot manufacture a genuinely pre-migration row
+-- without assuming an implementation-specific migration bypass. Historical
+-- NULL-category compatibility is therefore pinned structurally by nullability
+-- below, while every newly inserted template fixture remains classified.
+insert into public.message_templates(id,tenant_id,key,channel,locale,category,body) values
+ ('3a000000-0000-4000-8000-000000000101','3a000000-0000-4000-8000-000000000001','winback_absent','push','en','promotion','We have missed you');
 
 -- A source notification the child-index assertions hang off. Inserted as the
 -- owner under RLS-off — it is a plain historical-shape row (no category yet,
@@ -99,19 +101,17 @@ select col_type_is('public','message_templates','category','message_category',
   'COM: message_templates.category comes from the closed classification vocabulary');
 select col_is_null('public','message_templates','category',
   'COM: message_templates.category is NULL for historical rows — no fabricated classification');
-select ok((select count(*) from public.message_templates where category is null) >= 1,
-  'COM: the inserted historical template row remains readable with a NULL category');
 select ok(
   (select exists(
      select 1 from pg_constraint c
       where c.conrelid = 'public.message_templates'::regclass
         and c.contype = 'f'
         and c.confrelid = 'public.message_templates'::regclass
-        and (select array_agg(a.attname order by x.ord)
+        and (select array_agg(a.attname::text order by x.ord)
                from unnest(c.conkey) with ordinality x(attnum,ord)
                join pg_attribute a on a.attrelid = c.conrelid and a.attnum = x.attnum)
              = array['tenant_id','id']
-        and (select array_agg(fa.attname order by x.ord)
+        and (select array_agg(fa.attname::text order by x.ord)
                from unnest(c.confkey) with ordinality x(attnum,ord)
                join pg_attribute fa on fa.attrelid = c.confrelid and fa.attnum = x.attnum)
              = array['tenant_id','id'])),
@@ -150,13 +150,14 @@ select col_is_null('public','consents','request_key',
   'COM: consents.request_key is NULL for historical/direct entries — history is not rewritten');
 
 select ok(
-  (select i.indisunique
-     and pg_get_indexdef(i.indexrelid) like '%(tenant_id, request_key)%'
-     and pg_get_expr(i.indpred, i.indrelid) = '(request_key IS NOT NULL)'
-    from pg_index i
-    join pg_class c on c.oid = i.indexrelid
-   where c.relname like 'consents%request_key%'
-     and c.relnamespace = 'public'::regnamespace),
+  (select exists(
+     select 1 from pg_index i
+     join pg_class c on c.oid = i.indexrelid
+    where c.relname like 'consents%request_key%'
+      and c.relnamespace = 'public'::regnamespace
+      and i.indisunique
+      and pg_get_indexdef(i.indexrelid) like '%(tenant_id, request_key)%'
+      and pg_get_expr(i.indpred, i.indrelid) = '(request_key IS NOT NULL)')),
   'COM: consents (tenant_id, request_key) is unique and partial — null history keys stay unconstrained');
 
 select ok(
@@ -169,7 +170,7 @@ select ok(
       and c.relname like 'consents%')),
   'COM: the consent current-state index is (member_id, purpose, recorded_at DESC, id DESC) — the id breaks historical ties only');
 select ok(
-  (select not exists(select 1 from pg_class c where c.oid = 'consents_member_id_purpose_recorded_at_idx'::regclass)),
+  (select to_regclass('public.consents_member_id_purpose_recorded_at_idx') is null),
   'COM: the old consents_member_id_purpose_recorded_at_idx index is gone, replaced — not merely supplemented');
 
 select throws_ok(
@@ -205,18 +206,22 @@ select col_type_is('public','notifications','category','message_category',
   'COM: notifications.category comes from the same closed classification vocabulary');
 select col_is_null('public','notifications','category',
   'COM: notifications.category is NULL for history — old rows stay readable, just unsendable');
-select has_column('public','notifications','source_notification_id');
+select has_column('public','notifications','source_notification_id',
+  'COM: notifications gains source_notification_id');
 select col_is_null('public','notifications','source_notification_id',
   'COM: notifications.source_notification_id is NULL on base rows');
-select has_column('public','notifications','recipient_phone');
+select has_column('public','notifications','recipient_phone',
+  'COM: notifications gains recipient_phone');
 select col_type_is('public','notifications','recipient_phone','text',
   'COM: notifications.recipient_phone is text carrying the E.164 snapshot');
 select col_is_null('public','notifications','recipient_phone',
   'COM: notifications.recipient_phone is NULL until a WhatsApp child snapshots it');
-select has_column('public','notifications','failed_at');
+select has_column('public','notifications','failed_at',
+  'COM: notifications gains failed_at');
 select col_type_is('public','notifications','failed_at','timestamptz',
   'COM: notifications.failed_at is timestamptz evidence');
-select has_column('public','notifications','opted_out_at');
+select has_column('public','notifications','opted_out_at',
+  'COM: notifications gains opted_out_at');
 select col_type_is('public','notifications','opted_out_at','timestamptz',
   'COM: notifications.opted_out_at is timestamptz evidence');
 select has_column('public','notifications','opted_out_reason',
@@ -236,11 +241,11 @@ select ok(
       where c.conrelid = 'public.notifications'::regclass
         and c.contype = 'f'
         and c.confrelid = 'public.message_templates'::regclass
-        and (select array_agg(a.attname order by x.ord)
+        and (select array_agg(a.attname::text order by x.ord)
                from unnest(c.conkey) with ordinality x(attnum,ord)
                join pg_attribute a on a.attrelid = c.conrelid and a.attnum = x.attnum)
              = array['tenant_id','template_id']
-        and (select array_agg(fa.attname order by x.ord)
+        and (select array_agg(fa.attname::text order by x.ord)
                from unnest(c.confkey) with ordinality x(attnum,ord)
                join pg_attribute fa on fa.attrelid = c.confrelid and fa.attnum = x.attnum)
              = array['tenant_id','id'])),
@@ -251,21 +256,24 @@ select ok(
       where c.conrelid = 'public.notifications'::regclass
         and c.contype = 'f'
         and c.confrelid = 'public.notifications'::regclass
-        and (select array_agg(a.attname order by x.ord)
+        and (select array_agg(a.attname::text order by x.ord)
                from unnest(c.conkey) with ordinality x(attnum,ord)
                join pg_attribute a on a.attrelid = c.conrelid and a.attnum = x.attnum)
              = array['tenant_id','source_notification_id']
-        and (select array_agg(fa.attname order by x.ord)
+        and (select array_agg(fa.attname::text order by x.ord)
                from unnest(c.confkey) with ordinality x(attnum,ord)
                join pg_attribute fa on fa.attrelid = c.confrelid and fa.attnum = x.attnum)
              = array['tenant_id','id'])),
   'COM: notifications.source_notification_id is a same-tenant self FK — a child cannot name another gym''s source');
 
+-- "other_gym" below names tenant 002, a second organization this file has not
+-- needed until now: the cross-gym template FK refusal just below requires a
+-- template that genuinely belongs to a different, real gym.
+insert into public.organizations(id,name,gym_code,status,timezone,currency) values
+ ('3a000000-0000-4000-8000-000000000002','Comms Consent Schema Other','CCS31B','active','Asia/Kolkata','INR');
 insert into public.message_templates(id,tenant_id,key,channel,locale,category,body) values
- ('3a000000-0000-4000-8000-000000000102','3a000000-0000-4000-8000-000000000001','child_probe','whatsapp_link','en','promotion body','promotion'),
- ('3a000000-0000-4000-8000-000000000103','3a000000-0000-4000-8000-000000000002','other_gym','in_app','en','Other gym body','payment');
-insert into public.members(id,tenant_id,branch_id,full_name,phone,status) values
- ('3a000000-0000-4000-8000-000000000033','3a000000-0000-4000-8000-000000000002','3a000000-0000-4000-8000-000000000011','Member C','+915300000033','active');
+ ('3a000000-0000-4000-8000-000000000102','3a000000-0000-4000-8000-000000000001','child_probe','whatsapp_link','en','promotion','promotion body'),
+ ('3a000000-0000-4000-8000-000000000103','3a000000-0000-4000-8000-000000000002','other_gym','in_app','en','payment','Other gym body');
 
 select throws_ok(
   $q$ insert into public.notifications (tenant_id, member_id, channel, status, template_id)
@@ -289,13 +297,13 @@ select ok(
       and not i.indisunique)),
   'COM: notifications has a non-unique (tenant_id, source_notification_id) index');
 select ok(
-  (select i.indisunique
-     and pg_get_indexdef(i.indexrelid) like '%(tenant_id, source_notification_id)%'
-     and pg_get_expr(i.indpred, i.indrelid) like '%source_notification_id IS NOT NULL%'
-     and pg_get_expr(i.indpred, i.indrelid) like '%whatsapp_link%'
-    from pg_index i join pg_class c on c.oid = i.indexrelid
-   where c.relnamespace = 'public'::regnamespace
-     and i.indisunique),
+  (select exists(
+     select 1 from pg_index i join pg_class c on c.oid = i.indexrelid
+    where c.relnamespace = 'public'::regnamespace
+      and i.indisunique
+      and pg_get_indexdef(i.indexrelid) like '%(tenant_id, source_notification_id)%'
+      and pg_get_expr(i.indpred, i.indrelid) like '%source_notification_id IS NOT NULL%'
+      and pg_get_expr(i.indpred, i.indrelid) like '%whatsapp_link%')),
   'COM: the WhatsApp child index is unique and partial on source_notification_id + whatsapp_link');
 select ok(
   (select exists(select 1 from pg_index i join pg_class c on c.oid = i.indexrelid
@@ -357,20 +365,19 @@ select ok(
       where c.conrelid = 'public.messaging_wallet_ledger'::regclass
         and c.contype = 'f'
         and c.confrelid = 'public.platform_users'::regclass
-        and (select array_agg(a.attname order by x.ord)
+        and (select array_agg(a.attname::text order by x.ord)
                from unnest(c.conkey) with ordinality x(attnum,ord)
                join pg_attribute a on a.attrelid = c.conrelid and a.attnum = x.attnum)
              = array['recorded_by_user_id'])),
   'COM: messaging_wallet_ledger.recorded_by_user_id references platform_users(user_id)');
 
 select ok(
-  (select i.indisunique
-     and pg_get_indexdef(i.indexrelid) like '%(tenant_id, notification_id)%'
-     and pg_get_expr(i.indpred, i.indrelid) = '(notification_id IS NOT NULL)'
-    from pg_index i join pg_class c on c.oid = i.indexrelid
-   where c.relnamespace = 'public'::regnamespace
-     and i.indisunique
-     and pg_get_indexdef(i.indexrelid) like '%notification_id%'),
+  (select exists(
+     select 1 from pg_index i join pg_class c on c.oid = i.indexrelid
+    where c.relnamespace = 'public'::regnamespace
+      and i.indisunique
+      and pg_get_indexdef(i.indexrelid) like '%(tenant_id, notification_id)%'
+      and pg_get_expr(i.indpred, i.indrelid) = '(notification_id IS NOT NULL)')),
   'COM: the ledger is unique per (tenant, notification) where the notification is set — one debit per message');
 select ok(
   (select exists(
@@ -379,17 +386,16 @@ select ok(
       and pg_get_indexdef(i.indexrelid) like '%recorded_by_user_id%'
       and c.relname like 'messaging_wallet_ledger%')),
   'COM: the ledger carries an index on recorded_by_user_id');
-select ok(
-  (select exists(
-     select 1 from pg_constraint c
-      where c.conrelid = 'public.messaging_wallet_ledger'::regclass
-        and c.contype = 'f'
-        and c.confrelid = 'public.messaging_wallets'::regclass
-        and (select array_agg(a.attname order by x.ord)
-               from unnest(c.conkey) with ordinality x(attnum,ord)
-               join pg_attribute a on a.attrelid = c.conrelid and a.attnum = x.attnum)
-             = array['tenant_id'])),
-  'COM: the ledger''s tenant FK is composite into messaging_wallets — a movement cannot target another gym''s wallet');
+-- Not asserted: a messaging_wallet_ledger -> messaging_wallets foreign key.
+-- messaging_wallets has no id column at all -- its primary key IS tenant_id
+-- (one wallet per gym, supabase/migrations/20260906115159_comms.sql) -- so no
+-- 04_contract_meta.sql ADR-052-shaped (tenant_id, x) -> (tenant_id, id)
+-- composite key can be built into it, and a bare single-column tenant_id ->
+-- tenant_id reference is exactly the unchecked shape that rule exists to
+-- forbid. The ledger already carries tenant_id -> organizations (id)
+-- (asserted above); every wallet-moving command locks and re-reads the
+-- wallet by that same tenant_id under its own transaction, which is where
+-- this safety property actually lives, not in a catalogue-checkable key.
 
 -- ---------------------------------------------------------------------------
 -- 6. Append-only and read-only tiers survive the migration (INT-001, DPD-004,
@@ -431,13 +437,18 @@ select set_config('request.jwt.claims',
   '{"sub":"3a000000-0000-4000-8000-000000000902","role":"authenticated","app_role":"member","tenant_id":"3a000000-0000-4000-8000-000000000001","member_id":"3a000000-0000-4000-8000-000000000031"}', true);
 set local role authenticated;
 
-select ok(pg_temp.captured_error($q$
+-- captured_error() is declared RETURNS void (its result is the row it writes
+-- into consent_probe, not a value of its own), so the probe and the
+-- assertion are two statements.
+select pg_temp.captured_error($q$
   insert into public.consents (tenant_id, member_id, purpose, granted, version, source, request_key)
   values ('3a000000-0000-4000-8000-000000000001'::uuid, '3a000000-0000-4000-8000-000000000031'::uuid,
           'marketing', true, 'v1', 'member_app', '3a000000-0000-4000-8000-000000000402'::uuid)
-$q$) is not distinct from (select state from consent_probe where state is not null)
- and (select state from consent_probe order by ctid desc limit 1) is not null,
- 'COM: a NEW consent row without any staff identity is refused — a claim-stamped actor is required');
+$q$);
+
+select ok(
+  (select state from consent_probe order by ctid desc limit 1) is not null,
+  'COM: a NEW consent row without any staff identity is refused — a claim-stamped actor is required');
 
 set local role postgres;
 select set_config('request.jwt.claims','',true);

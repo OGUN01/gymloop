@@ -209,9 +209,9 @@ insert into public.member_devices (id, tenant_id, member_id, platform, push_toke
   ('12000000-0000-4000-8000-000000000014'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000031'::uuid, 'android', 'token-12-x'),
   ('12000000-0000-4000-8000-000000000015'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000032'::uuid, 'ios',     'token-12-y');
 
-insert into public.message_templates (id, tenant_id, key, channel, body) values
-  ('12000000-0000-4000-8000-000000000016'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, 'renewal_due', 'push',          'Your plan expires soon'),
-  ('12000000-0000-4000-8000-000000000017'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, 'we_miss_you', 'whatsapp_link', 'We miss you');
+insert into public.message_templates (id, tenant_id, key, channel, category, body) values
+  ('12000000-0000-4000-8000-000000000016'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, 'renewal_due', 'push',          'renewal',   'Your plan expires soon'),
+  ('12000000-0000-4000-8000-000000000017'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, 'we_miss_you', 'whatsapp_link', 'motivation', 'We miss you');
 
 insert into public.leads (id, tenant_id, branch_id, full_name, phone, source) values
   ('12000000-0000-4000-8000-000000000018'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000011'::uuid, 'Lead One', '+91120000018', 'walk_in'),

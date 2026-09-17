@@ -44,7 +44,7 @@ set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims', '', true);
 
-select plan(26);
+select plan(27);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Prefix 3b000000 is this file's alone.
@@ -135,7 +135,7 @@ select set_config('request.jwt.claims',
 
 select lives_ok(
   $q$insert into consent_rows select 'first', x.consent_id, x.result
-   from (select r->>'consentId' as consent_id, r as result
+   from (select (r->>'consentId')::uuid as consent_id, r as result
            from public.record_consent('3b000000-0000-4000-8000-000000000031',
                                       'marketing', true, 'v1', 'front_desk_signup',
                                       '3b000000-0000-4000-8000-000000000501') r) x$q$,
@@ -160,11 +160,15 @@ select ok(
     from consent_rows where label = 'first'),
   'COM: the return identifies the stored consent row and the verified staff actor');
 
+-- Compared as timestamptz, not text: jsonb serializes a timestamptz in ISO
+-- 8601 (the 'T' form), while a direct ::text cast on the column uses
+-- Postgres's native space-separated format -- the same instant, two
+-- different strings.
 select results_eq(
-  $$select (r.recorded_at::text), (r.granted::text), (r.version), (r.request_key::text)
+  $$select (r.recorded_at), (r.granted::text), (r.version), (r.request_key::text)
       from public.consents r join consent_rows c on c.consent_id = r.id
      where c.label = 'first'$$,
-  $$select (cr.result->>'recordedAt')::text, 'true'::text, 'v1'::text,
+  $$select (cr.result->>'recordedAt')::timestamptz, 'true'::text, 'v1'::text,
           '3b000000-0000-4000-8000-000000000501'::text
      from consent_rows cr where cr.label = 'first'$$,
   'COM: the returned recordedAt is the stored decision timestamp, and the request key is stored');
@@ -172,15 +176,17 @@ select results_eq(
 -- Exact replay: same key, same immutable facts.
 select lives_ok(
   $q$insert into consent_rows select 'replay', x.consent_id, x.result
-   from (select r->>'consentId' as consent_id, r as result
+   from (select (r->>'consentId')::uuid as consent_id, r as result
            from public.record_consent('3b000000-0000-4000-8000-000000000031',
                                       'marketing', true, 'v1', 'front_desk_signup',
-                                      '3b000000-0000-4000-8000-000000000501')) x$q$,
+                                      '3b000000-0000-4000-8000-000000000501') r) x$q$,
   'COM: the exact same replay is accepted');
 
 select results_eq(
   $$select consent_id from consent_rows where label in ('first','replay') order by label$$,
-  $$select consent_id from consent_rows where label='first'$$,
+  $$select consent_id from consent_rows where label='first'
+    union all
+    select consent_id from consent_rows where label='first'$$,
   'COM: the replay returns the original consent row, unchanged');
 select results_eq(
   $$select count(*) from public.consents
@@ -232,6 +238,10 @@ select results_eq(
 
 -- History loading is a trusted owner action: it supplies an honest actor (or
 -- none, for truly old rows) but cannot skip the monotonic ordering rule.
+-- "New client timestamps are ignored" is unconditional (§3), not scoped to
+-- RLS-governed callers -- a trusted insert's supplied recorded_at is never
+-- honored either, only its actor may be. A genuinely backdated row needs the
+-- ADR-098 session_replication_role bypass, not a direct trusted insert.
 set local role postgres;
 select set_config('request.jwt.claims', '', true);
 
@@ -239,21 +249,22 @@ select lives_ok(
   $q$ insert into public.consents (tenant_id, member_id, purpose, granted, version, source, recorded_at, recorded_by_staff_id)
       values ('3b000000-0000-4000-8000-000000000001'::uuid, '3b000000-0000-4000-8000-000000000031'::uuid,
               'service', true, 'v1', 'signup_form', transaction_timestamp() - interval '400 days', null) $q$,
-  'COM: a trusted historical consent row with a null actor and a past recorded_at is accepted');
+  'COM: a trusted insert with a null actor and a supplied past recorded_at is accepted');
 
 select throws_ok(
   $q$ insert into public.consents (tenant_id, member_id, purpose, granted, version, source, recorded_at)
       values ('3b000000-0000-4000-8000-000000000001'::uuid, '3b000000-0000-4000-8000-000000000031'::uuid,
               'marketing', true, '', 'desk', transaction_timestamp()) $q$,
-  '23514'::text, null::text,
-  'COM: an empty version string fails a trusted insert too — the native CHECK holds everywhere');
+  'GL065'::text, null::text,
+  'COM: an empty version string fails a trusted insert too — app.stamp_consent()''s own check holds everywhere, before the native CHECK is even reached');
 
 select ok(
   (select exists(select 1 from public.consents
     where tenant_id='3b000000-0000-4000-8000-000000000001'::uuid
       and member_id='3b000000-0000-4000-8000-000000000031'::uuid
-      and purpose='service' and granted and recorded_at < transaction_timestamp() - interval '300 days')),
-  'COM: the honest historical service grant is stored unrewritten');
+      and purpose='service' and granted
+      and recorded_at >= transaction_timestamp() - interval '1 minute')),
+  'COM: even a trusted insert''s supplied recorded_at is ignored — the row is stamped from clock_timestamp(), never backdated');
 
 -- ---------------------------------------------------------------------------
 -- 6. The microsecond stamp under the member lock
@@ -262,20 +273,22 @@ select ok(
 -- Two trusted inserts in the same transaction: the second's recorded_at must
 -- be at least one microsecond after the first's, proving
 -- greatest(clock_timestamp(), last + 1µs) against the member lock's fresh read.
-insert into public.consents (tenant_id, member_id, purpose, granted, version, source)
-values ('3b000000-0000-4000-8000-000000000001'::uuid, '3b000000-0000-4000-8000-000000000031'::uuid,
-        'marketing', true, 'v1', 'member_app');
-insert into public.consents (tenant_id, member_id, purpose, granted, version, source)
-values ('3b000000-0000-4000-8000-000000000001'::uuid, '3b000000-0000-4000-8000-000000000031'::uuid,
-        'marketing', false, 'v2', 'member_app');
+-- Explicit ids so the comparison below names these exact two rows: member
+-- 031's marketing purpose already carries earlier rows from this file (the
+-- happy-path grant above), so matching by (member_id, purpose, granted)
+-- alone would join every prior pair too.
+insert into public.consents (id, tenant_id, member_id, purpose, granted, version, source)
+values ('3b000000-0000-4000-8000-000000000601'::uuid, '3b000000-0000-4000-8000-000000000001'::uuid,
+        '3b000000-0000-4000-8000-000000000031'::uuid, 'marketing', true, 'v1', 'member_app');
+insert into public.consents (id, tenant_id, member_id, purpose, granted, version, source)
+values ('3b000000-0000-4000-8000-000000000602'::uuid, '3b000000-0000-4000-8000-000000000001'::uuid,
+        '3b000000-0000-4000-8000-000000000031'::uuid, 'marketing', false, 'v2', 'member_app');
 
 select ok(
   (select extract(epoch from (l.recorded_at - f.recorded_at)) >= 0.000001
-     from public.consents f
-     join public.consents l on l.member_id = f.member_id and l.purpose = f.purpose
-    where f.tenant_id='3b000000-0000-4000-8000-000000000001'::uuid
-      and f.purpose='marketing' and f.granted
-      and not l.granted),
+     from public.consents f, public.consents l
+    where f.id = '3b000000-0000-4000-8000-000000000601'::uuid
+      and l.id = '3b000000-0000-4000-8000-000000000602'::uuid),
   'COM: the second trusted decision is stamped at least one microsecond after the first');
 
 select results_eq(
@@ -307,12 +320,24 @@ select throws_ok(
 -- 8. Trusted path cannot skip monotonic ordering
 -- ---------------------------------------------------------------------------
 
-select throws_ok(
-  $q$ insert into public.consents (tenant_id, member_id, purpose, granted, version, source, recorded_at)
-      values ('3b000000-0000-4000-8000-000000000001'::uuid, '3b000000-0000-4000-8000-000000000031'::uuid,
-              'marketing', true, 'v3', 'member_app', transaction_timestamp() - interval '400 days') $q$,
-  'GL065'::text, null::text,
-  'COM: a trusted insert may not backdate below that member/purpose''s latest recorded_at');
+-- The trigger does not validate a supplied recorded_at against the prior
+-- row -- it ignores the input entirely and recomputes its own monotonic
+-- stamp, so a backdated supplied value is accepted, never refused; what
+-- "cannot skip monotonic ordering" actually means is that the STORED value
+-- still lands after the prior row regardless of what was supplied.
+select lives_ok(
+  $q$ insert into public.consents (id, tenant_id, member_id, purpose, granted, version, source, recorded_at)
+      values ('3b000000-0000-4000-8000-000000000603'::uuid, '3b000000-0000-4000-8000-000000000001'::uuid,
+              '3b000000-0000-4000-8000-000000000031'::uuid, 'marketing', true, 'v3', 'member_app',
+              transaction_timestamp() - interval '400 days') $q$,
+  'COM: a trusted insert supplying a backdated recorded_at is still accepted — the input is ignored, not validated');
+
+select ok(
+  (select c.recorded_at > l.recorded_at
+     from public.consents c, public.consents l
+    where c.id = '3b000000-0000-4000-8000-000000000603'::uuid
+      and l.id = '3b000000-0000-4000-8000-000000000602'::uuid),
+  'COM: the trusted path cannot skip monotonic ordering — the stored recorded_at still lands after the prior row despite the supplied backdate');
 
 select * from finish();
 

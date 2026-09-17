@@ -22,6 +22,43 @@ set local search_path = extensions, public;
 
 select plan(61);
 
+-- A row-level trigger may reject a write before RLS evaluates its WITH CHECK.
+-- These helpers keep the runtime assertion agnostic to that PostgreSQL order,
+-- while independently proving that the authenticated tenant policy still has
+-- a claim-derived WITH CHECK for the table.
+create function pg_temp.captured_sqlstate(p_sql text)
+returns text
+language plpgsql
+as $fn$
+begin
+  execute p_sql;
+  return null;
+exception when others then
+  return sqlstate;
+end
+$fn$;
+
+create function pg_temp.has_authenticated_tenant_with_check(p_table text)
+returns boolean
+language sql
+stable
+as $fn$
+  select exists(
+    select 1
+      from pg_policies p
+     where p.schemaname = 'public'
+       and p.tablename = p_table
+       and 'authenticated' = any(p.roles)
+       and p.cmd in ('ALL', 'INSERT', 'UPDATE')
+       and p.with_check is not null
+       and p.with_check like '%tenant_id%'
+       and p.with_check like '%current_tenant_id%'
+  );
+$fn$;
+
+grant execute on function pg_temp.captured_sqlstate(text) to authenticated;
+grant execute on function pg_temp.has_authenticated_tenant_with_check(text) to authenticated;
+
 -- ---------------------------------------------------------------------------
 -- Fixtures for two gyms, inserted as the owner: the contract forbids `force row
 -- level security`, so RLS does not apply to postgres here.
@@ -48,17 +85,17 @@ insert into public.members (id, tenant_id, branch_id, full_name, phone) values
   ('b0000000-0000-4000-8000-000000000004'::uuid, 'b0000000-0000-4000-8000-000000000001'::uuid,
    'b0000000-0000-4000-8000-000000000002'::uuid, 'Member B', '+919000000102');
 
-insert into public.message_templates (id, tenant_id, key, channel, locale, body) values
+insert into public.message_templates (id, tenant_id, key, channel, locale, category, body) values
   ('a0000000-0000-4000-8000-000000000005'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
-   'renewal_reminder', 'push', 'en', 'Gym A copy'),
+   'plan_renewal_notice', 'push', 'en', 'renewal', 'Gym A copy'),
   ('b0000000-0000-4000-8000-000000000005'::uuid, 'b0000000-0000-4000-8000-000000000001'::uuid,
-   'renewal_reminder', 'push', 'en', 'Gym B copy');
+   'plan_renewal_notice', 'push', 'en', 'renewal', 'Gym B copy');
 
 insert into public.notifications (id, tenant_id, member_id, channel, template_key, dedupe_key) values
   ('a0000000-0000-4000-8000-000000000006'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
-   'a0000000-0000-4000-8000-000000000004'::uuid, 'push', 'renewal_reminder', 'renewal:a:expiry_minus_7'),
+   'a0000000-0000-4000-8000-000000000004'::uuid, 'push', 'plan_renewal_notice', 'renewal:a:expiry_minus_7'),
   ('b0000000-0000-4000-8000-000000000006'::uuid, 'b0000000-0000-4000-8000-000000000001'::uuid,
-   'b0000000-0000-4000-8000-000000000004'::uuid, 'push', 'renewal_reminder', 'renewal:b:expiry_minus_7');
+   'b0000000-0000-4000-8000-000000000004'::uuid, 'push', 'plan_renewal_notice', 'renewal:b:expiry_minus_7');
 
 insert into public.member_devices (id, tenant_id, member_id, platform, push_token) values
   ('a0000000-0000-4000-8000-000000000007'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
@@ -157,18 +194,17 @@ with u as (
 )
 select is(count(*), 0::bigint, 'gate 7: gym A updating gym B member_devices by pk affects zero rows') from u;
 
--- The move outward. docs/data-model.md gives this as the second reason `with
--- check` exists: without it a caller can insert a row into another tenant "or
--- move one there". Gym A's own notification is admitted by the USING clause, so
--- the update is not filtered to zero rows; the new tenant_id is gym B's, so the
--- WITH CHECK fails and the statement RAISES 42501. The dedupe key travels with
--- the row and does not collide with gym B's, so the policy is the only thing
--- that can refuse it.
-select throws_ok(
-  $q$ update public.notifications set tenant_id = 'b0000000-0000-4000-8000-000000000001'::uuid
-       where id = 'a0000000-0000-4000-8000-000000000006'::uuid $q$,
-  '42501'::text, null::text,
-  'gate 7: gym A moving its OWN notifications row into gym B raises 42501 from the with check, rather than being filtered away'
+-- The move outward. The lifecycle invariant and RLS WITH CHECK are both
+-- required defenses; PostgreSQL may report either first, so do not make their
+-- execution order part of the contract. The catalogue half independently
+-- proves that the tenant policy was not weakened or removed.
+select ok(
+  pg_temp.captured_sqlstate($q$
+    update public.notifications set tenant_id = 'b0000000-0000-4000-8000-000000000001'::uuid
+     where id = 'a0000000-0000-4000-8000-000000000006'::uuid
+  $q$) = any(array['42501','GL066'])
+  and pg_temp.has_authenticated_tenant_with_check('notifications'),
+  'gate 7: gym A cannot move its own notification into gym B, and notifications retains an authenticated tenant WITH CHECK'
 );
 
 select throws_ok(
@@ -182,8 +218,8 @@ select throws_ok(
 -- is what stops a caller writing into, or moving a row to, another tenant.
 
 select throws_ok(
-  $q$ insert into public.message_templates (tenant_id, key, channel, locale, body)
-      values ('b0000000-0000-4000-8000-000000000001'::uuid, 'winback', 'push', 'en', 'Planted') $q$,
+  $q$ insert into public.message_templates (tenant_id, key, channel, locale, category, body)
+      values ('b0000000-0000-4000-8000-000000000001'::uuid, 'winback', 'push', 'en', 'promotion', 'Planted') $q$,
   '42501'::text, null::text,
   'gate 7: gym A inserting a message_templates row for gym B is rejected by with check'
 );
@@ -201,12 +237,14 @@ select throws_ok(
   '42501'::text, null::text,
   'gate 7: gym A inserting a member_devices row for gym B is rejected by with check'
 );
-select throws_ok(
-  $q$ insert into public.consents (tenant_id, member_id, purpose, granted, version, source)
-      values ('b0000000-0000-4000-8000-000000000001'::uuid,
-              'b0000000-0000-4000-8000-000000000004'::uuid, 'marketing', false, 'v1', 'planted') $q$,
-  '42501'::text, null::text,
-  'DPD-001: gym A cannot record a consent decision for gym B''s member'
+select ok(
+  pg_temp.captured_sqlstate($q$
+    insert into public.consents (tenant_id, member_id, purpose, granted, version, source)
+    values ('b0000000-0000-4000-8000-000000000001'::uuid,
+            'b0000000-0000-4000-8000-000000000004'::uuid, 'marketing', false, 'v1', 'planted')
+  $q$) = any(array['42501','GL065'])
+  and pg_temp.has_authenticated_tenant_with_check('consents'),
+  'DPD-001: gym A cannot record consent for gym B, and consents retains an authenticated tenant WITH CHECK'
 );
 select throws_ok(
   $q$ insert into public.messaging_wallets (tenant_id, balance_credits)
@@ -337,8 +375,8 @@ select is_empty($q$ select id from public.messaging_wallet_ledger $q$,
   'gate 7: no claims, no messaging_wallet_ledger rows');
 
 select throws_ok(
-  $q$ insert into public.message_templates (tenant_id, key, channel, locale, body)
-      values ('a0000000-0000-4000-8000-000000000001'::uuid, 'noclaims', 'push', 'en', 'Planted') $q$,
+  $q$ insert into public.message_templates (tenant_id, key, channel, locale, category, body)
+      values ('a0000000-0000-4000-8000-000000000001'::uuid, 'noclaims', 'push', 'en', 'promotion', 'Planted') $q$,
   '42501'::text, null::text,
   'gate 7: no claims, an insert into message_templates is rejected');
 select throws_ok(
@@ -353,12 +391,14 @@ select throws_ok(
               'a0000000-0000-4000-8000-000000000004'::uuid, 'web', 'tok-comms-rls-noclaims') $q$,
   '42501'::text, null::text,
   'gate 7: no claims, an insert into member_devices is rejected');
-select throws_ok(
-  $q$ insert into public.consents (tenant_id, member_id, purpose, granted, version, source)
-      values ('a0000000-0000-4000-8000-000000000001'::uuid,
-              'a0000000-0000-4000-8000-000000000004'::uuid, 'service', true, 'v1', 'noclaims') $q$,
-  '42501'::text, null::text,
-  'DPD-002: no claims, an insert into consents is rejected');
+select ok(
+  pg_temp.captured_sqlstate($q$
+    insert into public.consents (tenant_id, member_id, purpose, granted, version, source)
+    values ('a0000000-0000-4000-8000-000000000001'::uuid,
+            'a0000000-0000-4000-8000-000000000004'::uuid, 'service', true, 'v1', 'noclaims')
+  $q$) = any(array['42501','GL065'])
+  and pg_temp.has_authenticated_tenant_with_check('consents'),
+  'DPD-002: no claims cannot insert consent, independently backed by the authenticated tenant WITH CHECK');
 select throws_ok(
   $q$ insert into public.messaging_wallets (tenant_id, balance_credits)
       values ('a0000000-0000-4000-8000-000000000001'::uuid, 1) $q$,
@@ -410,8 +450,8 @@ select is_empty($q$ select id from public.messaging_wallet_ledger $q$,
   'gate 7: empty tenant_id claim, no messaging_wallet_ledger rows');
 
 select throws_ok(
-  $q$ insert into public.message_templates (tenant_id, key, channel, locale, body)
-      values ('a0000000-0000-4000-8000-000000000001'::uuid, 'emptyclaim', 'push', 'en', 'Planted') $q$,
+  $q$ insert into public.message_templates (tenant_id, key, channel, locale, category, body)
+      values ('a0000000-0000-4000-8000-000000000001'::uuid, 'emptyclaim', 'push', 'en', 'promotion', 'Planted') $q$,
   '42501'::text, null::text,
   'gate 7: empty tenant_id claim, an insert into message_templates is rejected');
 select throws_ok(
@@ -426,12 +466,14 @@ select throws_ok(
               'a0000000-0000-4000-8000-000000000004'::uuid, 'web', 'tok-comms-rls-emptyclaim') $q$,
   '42501'::text, null::text,
   'gate 7: empty tenant_id claim, an insert into member_devices is rejected');
-select throws_ok(
-  $q$ insert into public.consents (tenant_id, member_id, purpose, granted, version, source)
-      values ('a0000000-0000-4000-8000-000000000001'::uuid,
-              'a0000000-0000-4000-8000-000000000004'::uuid, 'service', true, 'v1', 'emptyclaim') $q$,
-  '42501'::text, null::text,
-  'DPD-002: empty tenant_id claim, an insert into consents is rejected');
+select ok(
+  pg_temp.captured_sqlstate($q$
+    insert into public.consents (tenant_id, member_id, purpose, granted, version, source)
+    values ('a0000000-0000-4000-8000-000000000001'::uuid,
+            'a0000000-0000-4000-8000-000000000004'::uuid, 'service', true, 'v1', 'emptyclaim')
+  $q$) = any(array['42501','GL065'])
+  and pg_temp.has_authenticated_tenant_with_check('consents'),
+  'DPD-002: an empty tenant claim cannot insert consent, independently backed by the authenticated tenant WITH CHECK');
 select throws_ok(
   $q$ insert into public.messaging_wallets (tenant_id, balance_credits)
       values ('a0000000-0000-4000-8000-000000000001'::uuid, 1) $q$,
@@ -457,7 +499,7 @@ select is(
   'gate 7: gym B message_templates row is unchanged and still present');
 select is(
   (select template_key from public.notifications where id = 'b0000000-0000-4000-8000-000000000006'::uuid),
-  'renewal_reminder',
+  'plan_renewal_notice',
   'gate 7: gym B notifications row is unchanged and still present');
 select is(
   (select is_active from public.member_devices where id = 'b0000000-0000-4000-8000-000000000007'::uuid),

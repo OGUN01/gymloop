@@ -462,7 +462,7 @@ describe('POST /api/message-templates', () => {
     const response = await POST(json('/api/message-templates', { ...creation, key: 'renewal_tip', category: 'renewal' }));
 
     expect(response.status).toBe(201);
-    expect(state.writes).toHaveLength(1);
+    expect(state.writes.filter((write) => write.method === 'insert')).toHaveLength(1);
   });
 
   it.each([

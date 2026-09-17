@@ -76,7 +76,7 @@ vi.mock('next/link', async () => {
   const { createElement } = await import('react');
   return { default: (props: Record<string, unknown>) => createElement('a', props) };
 });
-vi.mock('../../preview-context', async () => {
+vi.mock('../preview-context', async () => {
   const { createElement } = await import('react');
   return {
     PreviewProvider: ({ children }: { children: ReactNode }) => children,
@@ -303,7 +303,7 @@ describe('staff /messages — role-gated sections', () => {
 
   it('a whatsapp_link child is labelled "Opened in WhatsApp", verbatim', async () => {
     state.rows.notifications = [
-      ...state.rows.notifications,
+      ...(state.rows.notifications ?? []),
       { id: WHATSAPP_CHILD.notificationId, channel: 'whatsapp_link', category: 'renewal', status: 'sent', sent_at: WHATSAPP_CHILD.sentAt, delivered_at: null, payload: { body: 'Your membership ends soon.' }, source_notification_id: SENT_ID },
     ];
     state.rpcResult = {
@@ -359,6 +359,7 @@ describe('ConsentForm — grant/refuse with version, source and a fresh request 
 
   it('does not render for a member — consent is recorded by front office only', async () => {
     // ConsentForm is a staff-side component; this asserts the member screen never mounts it.
+    state.claims = MEMBER;
     const page = await loadMemberMessagesPage();
     expect(findComponent(page, 'ConsentForm')).toBeUndefined();
   });

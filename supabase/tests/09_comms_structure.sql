@@ -48,9 +48,9 @@ insert into public.members (id, tenant_id, branch_id, full_name, phone) values
   ('b0000000-0000-4000-8000-000000000004'::uuid, 'b0000000-0000-4000-8000-000000000001'::uuid,
    'b0000000-0000-4000-8000-000000000002'::uuid, 'Member B', '+919000000002');
 
-insert into public.message_templates (id, tenant_id, key, channel, locale, body) values
+insert into public.message_templates (id, tenant_id, key, channel, locale, category, body) values
   ('a0000000-0000-4000-8000-000000000005'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
-   'renewal_reminder', 'push', 'en', 'Your membership expires soon');
+   'plan_renewal_notice', 'push', 'en', 'renewal', 'Your membership expires soon');
 
 insert into public.notifications (id, tenant_id, member_id, channel, dedupe_key) values
   ('a0000000-0000-4000-8000-000000000006'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
@@ -216,15 +216,15 @@ select throws_ok(
 -- ---------------------------------------------------------------------------
 
 select throws_ok(
-  $q$ insert into public.message_templates (tenant_id, key, channel, locale, body)
-      values ('a0000000-0000-4000-8000-000000000001'::uuid, 'renewal_reminder', 'push', 'en', 'Second copy') $q$,
+  $q$ insert into public.message_templates (tenant_id, key, channel, locale, category, body)
+      values ('a0000000-0000-4000-8000-000000000001'::uuid, 'plan_renewal_notice', 'push', 'en', 'renewal', 'Second copy') $q$,
   '23505'::text, null::text,
   'comms: a duplicate (tenant, key, channel, locale) template is rejected (spec scenario: a duplicate template)'
 );
 
 select lives_ok(
-  $q$ insert into public.message_templates (tenant_id, key, channel, locale, body)
-      values ('a0000000-0000-4000-8000-000000000001'::uuid, 'renewal_reminder', 'push', 'hi', 'Hindi copy') $q$,
+  $q$ insert into public.message_templates (tenant_id, key, channel, locale, category, body)
+      values ('a0000000-0000-4000-8000-000000000001'::uuid, 'plan_renewal_notice', 'push', 'hi', 'renewal', 'Hindi copy') $q$,
   'comms: the same key and channel in another locale is accepted (spec scenario: the same key in another locale)'
 );
 
@@ -427,8 +427,24 @@ select has_trigger('public', 'messaging_wallets', 'messaging_wallets_touch_updat
 
 select hasnt_column('public', 'consents', 'updated_at',
   'DPD-004: consents has no updated_at — a consent row is never updated');
-select hasnt_trigger('public', 'consents', 'consents_touch_updated_at',
-  'DPD-004: consents therefore carries no updated_at trigger');
+-- Phase 6 adds app.stamp_consent() as the row-level BEFORE INSERT invariant.
+-- Its trigger name is not contractual; pin the function, timing and event.
+select ok(
+  (select exists(
+     select 1
+       from pg_trigger t
+       join pg_proc p on p.oid = t.tgfoid
+       join pg_namespace n on n.oid = p.pronamespace
+      where t.tgrelid = 'public.consents'::regclass
+        and not t.tgisinternal
+        and t.tgenabled <> 'D'
+        and n.nspname = 'app'
+        and p.proname = 'stamp_consent'
+        and (t.tgtype & 1) = 1
+        and (t.tgtype & 2) = 2
+        and (t.tgtype & 4) = 4
+        and (t.tgtype & (8 | 16 | 32)) = 0)),
+  'DPD-004: consents has an enabled row-level BEFORE INSERT trigger invoking app.stamp_consent()');
 select hasnt_column('public', 'messaging_wallet_ledger', 'updated_at',
   'INT-001: messaging_wallet_ledger has no updated_at — a ledger row is never updated');
 select hasnt_trigger('public', 'messaging_wallet_ledger', 'messaging_wallet_ledger_touch_updated_at',

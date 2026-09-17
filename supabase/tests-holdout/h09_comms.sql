@@ -39,9 +39,9 @@ insert into public.members (id, tenant_id, branch_id, full_name, phone) values
   ('09c00000-0000-4000-8000-000000000a02'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, '09c00000-0000-4000-8000-000000000a01'::uuid, 'Holdout Comms Member A', '+919009000901'),
   ('09c00000-0000-4000-8000-000000000b02'::uuid, '09c00000-0000-4000-8000-000000000b00'::uuid, '09c00000-0000-4000-8000-000000000b01'::uuid, 'Holdout Comms Member B', '+919009000902');
 
-insert into public.message_templates (id, tenant_id, key, channel, locale, body) values
-  ('09c00000-0000-4000-8000-000000000a11'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, 'holdout.renewal', 'push', 'en', 'Gym A template body'),
-  ('09c00000-0000-4000-8000-000000000b11'::uuid, '09c00000-0000-4000-8000-000000000b00'::uuid, 'holdout.renewal', 'push', 'en', 'Gym B template body');
+insert into public.message_templates (id, tenant_id, key, channel, locale, category, body) values
+  ('09c00000-0000-4000-8000-000000000a11'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, 'holdout.renewal', 'push', 'en', 'renewal', 'Gym A template body'),
+  ('09c00000-0000-4000-8000-000000000b11'::uuid, '09c00000-0000-4000-8000-000000000b00'::uuid, 'holdout.renewal', 'push', 'en', 'renewal', 'Gym B template body');
 
 insert into public.notifications (id, tenant_id, member_id, channel) values
   ('09c00000-0000-4000-8000-000000000a10'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, '09c00000-0000-4000-8000-000000000a02'::uuid, 'push'),
@@ -115,7 +115,7 @@ select is_empty(
   'ISO message_templates: Gym A cannot read Gym B template rows'
 );
 select throws_ok(
-  $$ insert into public.message_templates (tenant_id, key, channel, body) values ('09c00000-0000-4000-8000-000000000b00', 'holdout.cross', 'push', 'x') $$,
+  $$ insert into public.message_templates (tenant_id, key, channel, category, body) values ('09c00000-0000-4000-8000-000000000b00', 'holdout.cross', 'push', 'promotion', 'x') $$,
   '42501'::char(5), null,
   'ISO message_templates: Gym A cannot insert a row labelled with Gym B'
 );
@@ -367,30 +367,30 @@ select lives_ok(
 -- --- message_templates: unique per gym, key, channel and locale -------------
 
 select throws_ok(
-  $$ insert into public.message_templates (tenant_id, key, channel, locale, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.renewal', 'push', 'en', 'duplicate') $$,
+  $$ insert into public.message_templates (tenant_id, key, channel, locale, category, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.renewal', 'push', 'en', 'renewal', 'duplicate') $$,
   '23505'::char(5), null,
   'message_templates: a duplicate of (tenant, key, channel, locale) is rejected so a send is never ambiguous'
 );
 select lives_ok(
-  $$ insert into public.message_templates (tenant_id, key, channel, locale, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.renewal', 'push', 'hi', 'same key another locale') $$,
+  $$ insert into public.message_templates (tenant_id, key, channel, locale, category, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.renewal', 'push', 'hi', 'renewal', 'same key another locale') $$,
   'message_templates: the same key and channel in a different locale is accepted'
 );
 select lives_ok(
-  $$ insert into public.message_templates (tenant_id, key, channel, locale, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.renewal', 'in_app', 'en', 'same key another channel') $$,
+  $$ insert into public.message_templates (tenant_id, key, channel, locale, category, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.renewal', 'in_app', 'en', 'renewal', 'same key another channel') $$,
   'message_templates: the same key and locale on a different channel is accepted'
 );
 select throws_ok(
-  $$ insert into public.message_templates (tenant_id, key, channel, locale, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.locale', 'push', 'en-IN', 'x') $$,
+  $$ insert into public.message_templates (tenant_id, key, channel, locale, category, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.locale', 'push', 'en-IN', 'promotion', 'x') $$,
   '23514'::char(5), null,
   'message_templates: a locale of en-IN is rejected, the locale is exactly two lower-case letters'
 );
 select throws_ok(
-  $$ insert into public.message_templates (tenant_id, key, channel, locale, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.locale', 'push', 'EN', 'x') $$,
+  $$ insert into public.message_templates (tenant_id, key, channel, locale, category, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.locale', 'push', 'EN', 'promotion', 'x') $$,
   '23514'::char(5), null,
   'message_templates: an upper-case locale of EN is rejected'
 );
 select throws_ok(
-  $$ insert into public.message_templates (tenant_id, key, channel, locale, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.locale', 'push', 'eng', 'x') $$,
+  $$ insert into public.message_templates (tenant_id, key, channel, locale, category, body) values ('09c00000-0000-4000-8000-000000000a00', 'holdout.locale', 'push', 'eng', 'promotion', 'x') $$,
   '23514'::char(5), null,
   'message_templates: a three-letter locale of eng is rejected'
 );

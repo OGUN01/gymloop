@@ -89,29 +89,35 @@ insert into public.messaging_wallets(tenant_id,balance_credits) values
  ('3c000000-0000-4000-8000-000000000002',0);
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values
  ('3c000000-0000-4000-8000-000000000401','3c000000-0000-4000-8000-000000000001','Monthly',30,20000);
+-- Only membership 451 (member A1) ends today (the expiry_day window) --
+-- 452/453/454 end 60 days out, well outside every default offset
+-- (-14,-7,-3,0,+3), so the renewal scheduler tests below see exactly one
+-- eligible membership rather than incidentally sweeping up three.
 insert into public.memberships(id,tenant_id,member_id,plan_id,status,price_paise,discount_paise,currency,starts_on,ends_on,periods_granted) values
  ('3c000000-0000-4000-8000-000000000451','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','3c000000-0000-4000-8000-000000000401','active',20000,0,'INR',
   (transaction_timestamp() at time zone 'Asia/Kolkata')::date - 16,(transaction_timestamp() at time zone 'Asia/Kolkata')::date,0),
  ('3c000000-0000-4000-8000-000000000452','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000032','3c000000-0000-4000-8000-000000000401','active',20000,0,'INR',
-  (transaction_timestamp() at time zone 'Asia/Kolkata')::date - 15,(transaction_timestamp() at time zone 'Asia/Kolkata')::date,0),
+  (transaction_timestamp() at time zone 'Asia/Kolkata')::date - 15,(transaction_timestamp() at time zone 'Asia/Kolkata')::date + 60,0),
  ('3c000000-0000-4000-8000-000000000453','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000033','3c000000-0000-4000-8000-000000000401','active',20000,0,'INR',
-  (transaction_timestamp() at time zone 'Asia/Kolkata')::date - 15,(transaction_timestamp() at time zone 'Asia/Kolkata')::date,0),
+  (transaction_timestamp() at time zone 'Asia/Kolkata')::date - 15,(transaction_timestamp() at time zone 'Asia/Kolkata')::date + 60,0),
  ('3c000000-0000-4000-8000-000000000454','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000034','3c000000-0000-4000-8000-000000000401','active',20000,0,'INR',
-  (transaction_timestamp() at time zone 'Asia/Kolkata')::date - 15,(transaction_timestamp() at time zone 'Asia/Kolkata')::date,0);
+  (transaction_timestamp() at time zone 'Asia/Kolkata')::date - 15,(transaction_timestamp() at time zone 'Asia/Kolkata')::date + 60,0);
 insert into public.payments(id,tenant_id,member_id,membership_id,amount_paise,currency,status,method,recorded_by_staff_id,receipt_number,paid_at) values
  ('3c000000-0000-4000-8000-000000000461','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','3c000000-0000-4000-8000-000000000451',12000,'INR','paid','cash','3c000000-0000-4000-8000-000000000021','33-R1',transaction_timestamp()),
  ('3c000000-0000-4000-8000-000000000462','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','3c000000-0000-4000-8000-000000000451',5000,'INR','paid','cash','3c000000-0000-4000-8000-000000000021','33-R2',transaction_timestamp());
 
 -- Historical consent rows give members a current service grant; the exact
 -- consent probe in 32_comms_consent_serialization.sql covers ordering, so
--- these are the honest minimum this file needs.
-insert into public.consents(tenant_id,member_id,purpose,granted,version,source,recorded_at,request_key) values
- ('3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','service',true,'v1','front_desk_signup',transaction_timestamp() - interval '1 day','3c000000-0000-4000-8000-000000000501'),
- ('3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000032','service',true,'v1','front_desk_signup',transaction_timestamp() - interval '1 day','3c000000-0000-4000-8000-000000000502'),
- ('3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000032','marketing',true,'v1','front_desk_signup',transaction_timestamp() - interval '1 day','3c000000-0000-4000-8000-000000000503'),
- ('3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000033','service',false,'v1','member_app',transaction_timestamp() - interval '1 day','3c000000-0000-4000-8000-000000000506'),
- ('3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000034','service',true,'v1','front_desk_signup',transaction_timestamp() - interval '1 day','3c000000-0000-4000-8000-000000000504'),
- ('3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000035','service',true,'v1','front_desk_signup',transaction_timestamp() - interval '1 day','3c000000-0000-4000-8000-000000000505');
+-- these are the honest minimum this file needs. Row 511 (member A2, marketing)
+-- carries an explicit id so the exact audit-shape probe below can reference it.
+insert into public.consents(id,tenant_id,member_id,purpose,granted,version,source,recorded_at,request_key) values
+ ('3c000000-0000-4000-8000-000000000510','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','service',true,'v1','front_desk_signup',transaction_timestamp() - interval '1 day','3c000000-0000-4000-8000-000000000501'),
+ ('3c000000-0000-4000-8000-000000000508','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','marketing',true,'v1','front_desk_signup',transaction_timestamp() - interval '1 day','3c000000-0000-4000-8000-000000000507'),
+ ('3c000000-0000-4000-8000-000000000509','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000032','service',true,'v1','front_desk_signup',transaction_timestamp() - interval '1 day','3c000000-0000-4000-8000-000000000502'),
+ ('3c000000-0000-4000-8000-000000000511','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000032','marketing',true,'v1','front_desk_signup',transaction_timestamp() - interval '1 day','3c000000-0000-4000-8000-000000000503'),
+ ('3c000000-0000-4000-8000-000000000512','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000033','service',false,'v1','member_app',transaction_timestamp() - interval '1 day','3c000000-0000-4000-8000-000000000506'),
+ ('3c000000-0000-4000-8000-000000000513','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000034','service',true,'v1','front_desk_signup',transaction_timestamp() - interval '1 day','3c000000-0000-4000-8000-000000000504'),
+ ('3c000000-0000-4000-8000-000000000514','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000035','service',true,'v1','front_desk_signup',transaction_timestamp() - interval '1 day','3c000000-0000-4000-8000-000000000505');
 
 insert into public.message_templates(id,tenant_id,key,channel,locale,category,body) values
  ('3c000000-0000-4000-8000-000000000101','3c000000-0000-4000-8000-000000000001','promo_jan','in_app','en','promotion','January promo'),
@@ -129,7 +135,8 @@ insert into public.notifications(id,tenant_id,member_id,channel,status,dedupe_ke
  ('3c000000-0000-4000-8000-000000000203','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','push','scheduled','33-push-a1',transaction_timestamp(),null,null,null,null,'{"body":"Push body"}','promotion','promo_jan'),
  ('3c000000-0000-4000-8000-000000000204','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','in_app','scheduled','33-inapp-a1',transaction_timestamp() - interval '2 hours',null,null,null,null,'{"body":"Stale schedule"}','promotion','promo_jan'),
  ('3c000000-0000-4000-8000-000000000205','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','sms','scheduled',null,transaction_timestamp(),null,null,null,null,'{"body":"SMS"}','promotion','promo_jan'),
- ('3c000000-0000-4000-8000-000000000206','3c000000-0000-4000-8000-000000000002','3c000000-0000-4000-8000-000000000036','in_app','sent','33-src-b1',transaction_timestamp(),transaction_timestamp(),transaction_timestamp(),'membership','3c000000-0000-4000-8000-000000000451','{"body":"Other gym","locale":"en"}','renewal','renewal_reminder');
+ ('3c000000-0000-4000-8000-000000000206','3c000000-0000-4000-8000-000000000002','3c000000-0000-4000-8000-000000000036','in_app','sent','33-src-b1',transaction_timestamp(),transaction_timestamp(),transaction_timestamp(),'membership','3c000000-0000-4000-8000-000000000451','{"body":"Other gym","locale":"en"}','renewal','renewal_reminder'),
+ ('3c000000-0000-4000-8000-000000000210','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000031','in_app','scheduled','33-inapp-future',transaction_timestamp() + interval '1 hour',null,null,null,null,'{"body":"Future schedule"}','promotion','promo_jan');
 set local session_replication_role = origin;
 
 create function pg_temp.captured_error(p_sql text)
@@ -146,7 +153,7 @@ $fn$;
 grant execute on function pg_temp.captured_error(text) to authenticated;
 
 create temp table cmd_results(label text, result jsonb);
-grant select,insert on cmd_results to authenticated;
+grant select,insert on cmd_results to authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- 1. Transition graph: every allowed changing edge and all 34 disallowed ones
@@ -209,9 +216,20 @@ select set_config('request.jwt.claims',
   '{"sub":"3c000000-0000-4000-8000-000000000902","role":"authenticated","app_role":"front_desk","tenant_id":"3c000000-0000-4000-8000-000000000001","staff_id":"3c000000-0000-4000-8000-000000000022"}', true);
 set local role authenticated;
 
--- Front-office gate: a member cannot send; a trainer cannot either. Member A1's
--- message (206) is another gym's row for this session and must be P0002
--- indistinguishable from absent, which is why this runs as the desk of gym A.
+-- Gym-admin gate: "requiring a real gym admin" (contract §4) names
+-- app.is_gym_admin() -- gym_owner/gym_manager only -- distinct from the
+-- front-office gate record_consent and open_notification_whatsapp use.
+-- Front desk, though front-office, is refused before any row lookup.
+select throws_ok(
+  $q$select * from public.send_notification('3c000000-0000-4000-8000-000000000204')$q$,
+  '42501'::text, null::text,
+  'COM: front desk is refused — sending requires a real gym admin, not merely front-office');
+
+select set_config('request.jwt.claims',
+  '{"sub":"3c000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"gym_owner","tenant_id":"3c000000-0000-4000-8000-000000000001","staff_id":"3c000000-0000-4000-8000-000000000021"}', true);
+
+-- Owner A's message (206) belongs to gym B for this session and must be
+-- P0002 indistinguishable from absent.
 select results_eq(
   $$select returned_state from pg_temp.captured_error($q$select * from public.send_notification('3c000000-0000-4000-8000-000000000206')$q$)$$,
   $$select 'P0002'::text$$,
@@ -220,30 +238,25 @@ select results_eq(
   $$select returned_state from pg_temp.captured_error($q$select * from public.send_notification('3c000000-0000-4000-8000-000000000205')$q$)$$,
   $$select 'GL066'::text$$,
   'COM: SMS has no v1 send action — GL066');
+-- scheduled_for is one of the identity/content facts app.enforce_notification()
+-- freezes after creation (contract §4) -- there is no way to prepare a future
+-- schedule by updating an existing row, so this uses its own dedicated fixture
+-- (210) created already scheduled an hour out, rather than mutating 204.
 select results_eq(
-  $$select returned_state from pg_temp.captured_error($q$update public.notifications set scheduled_for=transaction_timestamp()+interval '1 hour' where id='3c000000-0000-4000-8000-000000000204'; select * from public.send_notification('3c000000-0000-4000-8000-000000000204')$q$)$$,
+  $$select returned_state from pg_temp.captured_error($q$select * from public.send_notification('3c000000-0000-4000-8000-000000000210')$q$)$$,
   $$select 'GL066'::text$$,
   'COM: sending before scheduled_for is GL066');
 
-select ok(
-  (select count(*) from pg_temp.captured_error($q$update public.notifications set scheduled_for=transaction_timestamp()+interval '1 hour' where id='3c000000-0000-4000-8000-000000000204'$q$)) = 1,
-  'COM: future-schedule preparation completes in its own probe');
-
 -- In-app promotion send for an eligible scheduled message. Notification 204
--- was re-stamped to the future above, so reset it to now inside its own probe
--- and send 204, whose promotion send is genuinely allowed (member 031 has a
--- current marketing grant through the fixture consents).
-set local role postgres;
-select set_config('request.jwt.claims', '', true);
-update public.notifications set scheduled_for=transaction_timestamp() where id='3c000000-0000-4000-8000-000000000204'::uuid;
-set local role authenticated;
-select set_config('request.jwt.claims',
-  '{"sub":"3c000000-0000-4000-8000-000000000902","role":"authenticated","app_role":"front_desk","tenant_id":"3c000000-0000-4000-8000-000000000001","staff_id":"3c000000-0000-4000-8000-000000000022"}', true);
+-- was created already due (scheduled_for 2 hours in the past), so it needs
+-- no preparation: send 204 directly, whose promotion send is genuinely
+-- allowed (member 031 has a current marketing grant through the fixture
+-- consents).
 
 select lives_ok(
   $q$insert into cmd_results select 'promo-sent', x.result from
     (select public.send_notification('3c000000-0000-4000-8000-000000000204') result) x$q$,
-  'COM: front desk sends an eligible in-app message');
+  'COM: the gym owner sends an eligible in-app message');
 
 select results_eq(
   $$select n.status::text, n.sent_at is not null, n.delivered_at is null
@@ -288,7 +301,7 @@ insert into public.notifications(id,tenant_id,member_id,channel,status,category,
 values ('3c000000-0000-4000-8000-000000000207','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000035','in_app','scheduled','motivation','motivation_checkin','33-mot-a5',transaction_timestamp());
 set local role authenticated;
 select set_config('request.jwt.claims',
-  '{"sub":"3c000000-0000-4000-8000-000000000902","role":"authenticated","app_role":"front_desk","tenant_id":"3c000000-0000-4000-8000-000000000001","staff_id":"3c000000-0000-4000-8000-000000000022"}', true);
+  '{"sub":"3c000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"gym_owner","tenant_id":"3c000000-0000-4000-8000-000000000001","staff_id":"3c000000-0000-4000-8000-000000000021"}', true);
 
 select lives_ok(
   $q$insert into cmd_results select 'motivation-disabled', public.send_notification('3c000000-0000-4000-8000-000000000207')$q$,
@@ -302,9 +315,11 @@ select results_eq(
 -- consent_withdrawn: member A3 has service consent withdrawn.
 set local role postgres;
 select set_config('request.jwt.claims', '', true);
-insert into public.notifications(id,tenant_id,member_id,channel,status,category,template_key,dedupe_key,scheduled_for)
-values ('3c000000-0000-4000-8000-000000000208','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000033','in_app','scheduled','renewal','renewal_reminder','33-consent-a3',transaction_timestamp());
+insert into public.notifications(id,tenant_id,member_id,channel,status,category,template_key,dedupe_key,scheduled_for,related_type,related_id)
+values ('3c000000-0000-4000-8000-000000000208','3c000000-0000-4000-8000-000000000001','3c000000-0000-4000-8000-000000000033','in_app','scheduled','renewal','renewal_reminder','33-consent-a3',transaction_timestamp(),'membership','3c000000-0000-4000-8000-000000000453');
 set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"3c000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"gym_owner","tenant_id":"3c000000-0000-4000-8000-000000000001","staff_id":"3c000000-0000-4000-8000-000000000021"}', true);
 select lives_ok(
   $q$insert into cmd_results select 'consent-withdrawn', public.send_notification('3c000000-0000-4000-8000-000000000208')$q$,
   'COM: sending a renewal message for a member with withdrawn service consent is refused as opted_out');
@@ -340,9 +355,11 @@ select results_eq(
   'COM: acknowledge transitions sent→delivered with a delivered timestamp');
 
 -- Inert replay: acknowledging an already-delivered row changes nothing.
+-- Compared as timestamptz: jsonb serializes ISO 8601, a direct ::text cast
+-- on the column uses Postgres's native space-separated format.
 select results_eq(
-  $$select (select delivered_at::text from public.notifications where id='3c000000-0000-4000-8000-000000000201'::uuid)$$,
-  $q$select (r.result->>'deliveredAt') from cmd_results r where r.label='ack-a1'$q$,
+  $$select (select delivered_at from public.notifications where id='3c000000-0000-4000-8000-000000000201'::uuid)$$,
+  $q$select (r.result->>'deliveredAt')::timestamptz from cmd_results r where r.label='ack-a1'$q$,
   'COM: the acknowledged delivered_at is the one the first acknowledgement wrote');
 
 select lives_ok(
@@ -498,7 +515,11 @@ select lives_ok(
 -- pg_cron is installed by a prior migration, but the DO block keeps the
 -- assertion alive (false, not an abort) if it ever is not, and the TAP line
 -- stays a top-level select ok(...) so the emitted stream always matches the
--- counter.
+-- counter. Back to postgres first: service_role (still active from the
+-- scheduler probes above) has no grant on the cron schema, the same reason
+-- 20_red_list.sql's identical check runs as postgres.
+set local role postgres;
+
 do $do$
 declare
   v_scheduled boolean;
@@ -520,6 +541,7 @@ begin
   create temp table cron_fixture as select v_scheduled as scheduled;
 end
 $do$;
+grant select on cron_fixture to authenticated, service_role;
 
 select ok(
   (select exists(select 1 from public.notifications
@@ -530,19 +552,23 @@ select ok(
       and category='renewal' and channel='in_app' and template_key='renewal_reminder')),
   'COM: the renewal dedupe key is exactly renewal:<lowercase membership UUID>:<YYYY-MM-DD ends_on>:<window_id>');
 
+-- Membership 451: A = price-discount = 20000-0 = 20000; periods_granted = 0
+-- so R = T - 0*A = T = sum(receipts 461+462) = 12000+5000 = 17000;
+-- due = greatest(0, A-R) = greatest(0, 20000-17000) = 3000 paise = INR 30.00.
 select results_eq(
   $$select n.payload->>'body', n.payload->>'locale', n.payload->>'membershipId', n.payload->>'duePaise', n.payload->>'currency', n.payload->>'windowId', n.payload->>'cycleEndsOn'
       from public.notifications n
      where n.dedupe_key like 'renewal:3c000000-0000-4000-8000-000000000451:%:expiry_day'$$,
   $$select 'Your membership ends on ' ||
           to_char((transaction_timestamp() at time zone 'Asia/Kolkata')::date,'YYYY-MM-DD') ||
-          '. Renewal amount due: INR 200.00.'::text,
+          '. Renewal amount due: INR 30.00.'::text,
           'en'::text,
           '3c000000-0000-4000-8000-000000000451'::text,
-          '20000'::text,
+          '3000'::text,
           'INR'::text,
+          'expiry_day'::text,
           to_char((transaction_timestamp() at time zone 'Asia/Kolkata')::date,'YYYY-MM-DD')::text$$,
-  'COM: the reminder payload is the exact contract object with body, locale, membership, due, currency');
+  'COM: the reminder payload is the exact contract object with body, locale, membership, due, currency, window and cycle end');
 
 select results_eq(
   $$select r.result->>'createdCount', r.result->>'sentCount'
@@ -551,15 +577,25 @@ select results_eq(
   'COM: an unchanged rerun returns zero new counts');
 
 select results_eq(
-  $$select r.result->>'createdCount' from cmd_results r where r.label='run-all'$$,
-  $$select '0'::text$$,
-  'COM: the all-gym run reports only new events — nothing is created after the inert rerun');
+  $$select coalesce(sum((run.value->>'createdCount')::int),0)
+      from cmd_results r, jsonb_array_elements(r.result->'runs') run(value)
+     where r.label='run-all'$$,
+  $$select 0$$,
+  'COM: the all-gym run''s {runs:[RunResult...]} reports only new events — nothing is created after the inert rerun');
 
 select ok(
   (select not exists(select 1 from public.notifications
     where tenant_id='3c000000-0000-4000-8000-000000000002'::uuid
       and dedupe_key like 'renewal:%')),
   'COM: an inactive membership in another gym creates no reminder');
+
+-- Ordinary authenticated (not service_role, not postgres) has no execute on
+-- either trusted stage runner. Role was left at postgres by the cron check
+-- above, which would not raise 42501 either -- an explicit switch is needed,
+-- not an inherited role from earlier in the file.
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"3c000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"gym_owner","tenant_id":"3c000000-0000-4000-8000-000000000001","staff_id":"3c000000-0000-4000-8000-000000000021"}', true);
 
 select throws_ok(
   $q$select app.run_renewal_reminders('3c000000-0000-4000-8000-000000000001')$q$,
@@ -595,6 +631,10 @@ select ok(
     from pg_proc p where p.oid=to_regprocedure('app.default_renewal_reminder_windows()')),
   'COM: default_renewal_reminder_windows is the immutable window source');
 
+-- The default-window helper grants execute to service_role only (contract
+-- §1) -- narrower than the transition/category helpers, and narrower than
+-- the ordinary authenticated session left active by the 42501 probes above.
+set local role service_role;
 select results_eq(
   $$select window_id, days_from_expiry from app.default_renewal_reminder_windows()$$,
   $$select * from (values ('expiry_minus_14'::text,(-14)::smallint),
@@ -605,16 +645,19 @@ select results_eq(
   'COM: the default windows are exactly RENEWAL_REMINDER_WINDOWS in order');
 
 select ok(
-  (select v_scheduled from cron_fixture),
+  (select scheduled from cron_fixture),
   'COM: a cron.job row runs public.run_renewal_reminders_all() hourly');
 
 -- ---------------------------------------------------------------------------
 -- 6. adjust_messaging_wallet: gates, replay, conflicts, negative race
 -- ---------------------------------------------------------------------------
 
--- A super_admin session with a matching active platform_users row.
+-- A super_admin session with a matching active platform_users row and no
+-- gym identity — adjust_messaging_wallet explicitly refuses a caller whose
+-- claims carry a tenant_id at all (contract §7: "no gym/staff/member/
+-- impersonation identity"), so this claim set names no tenant.
 select set_config('request.jwt.claims',
-  '{"sub":"3c000000-0000-4000-8000-000000000905","role":"authenticated","app_role":"super_admin","tenant_id":"3c000000-0000-4000-8000-000000000001"}', true);
+  '{"sub":"3c000000-0000-4000-8000-000000000905","role":"authenticated","app_role":"super_admin"}', true);
 set local role authenticated;
 
 select lives_ok(
@@ -679,8 +722,8 @@ select throws_ok(
 
 select throws_ok(
   $q$select * from public.adjust_messaging_wallet('3c000000-0000-4000-8000-000000000001', 9223372036854775807::bigint, 'Overflow probe', '3c000000-0000-4000-8000-000000000605')$q$,
-  '422'::text, null::text,
-  'COM: a bigint overflow maps to 422 credits_out_of_range');
+  '22003'::text, null::text,
+  'COM: a bigint overflow is the native 22003, mapped to 422 credits_out_of_range at the route');
 
 -- The private helper is uncallable.
 select ok(
@@ -702,7 +745,8 @@ select results_eq(
       from public.audit_log a
      where a.record_id='3c000000-0000-4000-8000-000000000201'::uuid and a.action='notification.sent'$$,
   $$select 'notification.sent'::text, 'notification'::text, true,
-          array['member_id','channel','category','template_key','source_notification_id','dedupe_key','status','scheduled_for','sent_at','delivered_at','clicked_at','converted_at','failed_at','failed_reason','opted_out_at','opted_out_reason','related_type','related_id']::text[]$$,
+          (select array_agg(k order by k)
+             from unnest(array['member_id','channel','category','template_key','source_notification_id','dedupe_key','status','scheduled_for','sent_at','delivered_at','clicked_at','converted_at','failed_at','failed_reason','opted_out_at','opted_out_reason','related_type','related_id']::text[]) as expected(k))$$,
   'COM: notification.sent carries exactly the N-shape after object');
 
 select results_eq(
@@ -738,15 +782,25 @@ select results_eq(
        and a.action='messaging_wallet.adjusted'$$,
   $$select 'messaging_wallet.adjusted'::text, 'messaging_wallet'::text, 'Monthly top-up'::text,
           '100'::text, '150'::text,
-          array['balance_credits','ledger_id','delta_credits','notification_id','request_key','recorded_by_user_id']::text[]$$,
+          (select array_agg(k order by k)
+             from unnest(array['balance_credits','ledger_id','delta_credits','notification_id','request_key','recorded_by_user_id']::text[]) as expected(k))$$,
   'COM: messaging_wallet.adjusted carries the exact W shape with integer values as strings');
 
 select results_eq(
-  $$select a."before", a."after" from public.audit_log a
-     where a.record_id='3c000000-0000-4000-8000-000000000201'::uuid and a.action='consent.recorded'$$,
-  $$select null::jsonb,
-          '{"member_id":"3b000000-0000-4000-8000-000000000031","purpose":"marketing","granted":true,"version":"v1","source":"front_desk_signup","recorded_at":null,"recorded_by_staff_id":null,"request_key":null}'::jsonb$$,
-  'COM: consent.recorded carries exactly the eight consent keys');
+  $$select a."before" is null, a."after"->>'member_id', a."after"->>'purpose',
+          (a."after"->>'granted')::boolean, a."after"->>'version', a."after"->>'source',
+          a."after"->>'recorded_at' is not null, a."after"->>'recorded_by_staff_id' is null,
+          a."after"->>'request_key',
+          (select array_agg(k order by k) from jsonb_object_keys(a."after") k)
+      from public.audit_log a
+     where a.record_id='3c000000-0000-4000-8000-000000000511'::uuid and a.action='consent.recorded'$$,
+  $$select true, '3c000000-0000-4000-8000-000000000032'::text, 'marketing'::text,
+          true, 'v1'::text, 'front_desk_signup'::text,
+          true, true,
+          '3c000000-0000-4000-8000-000000000503'::text,
+          (select array_agg(k order by k)
+             from unnest(array['member_id','purpose','granted','version','source','recorded_at','recorded_by_staff_id','request_key']::text[]) as expected(k))$$,
+  'COM: consent.recorded carries exactly the eight consent keys, member A2''s marketing grant, trusted-history null actor');
 
 select ok(
   (select not exists(select 1 from public.audit_log

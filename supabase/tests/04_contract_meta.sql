@@ -828,10 +828,16 @@ select is_empty(
 -- purpose to classify duplicates against every same-gym member and to run
 -- the run lock/candidate-digest/member-insert command atomically, with their
 -- own independent tenant/staff/impersonation checks replacing RLS rather than
--- assuming it. Every allowlisted signature names its own required volatility
--- rather than sharing one; overloads and every other exposed elevated
--- function still fail. Every elevated function in either application schema
--- must use an empty path.
+-- assuming it. The comms/wallet cluster (docs/planning/phase6-comms-contract.md
+-- §5, §7) adds three narrow-privilege VOLATILE commands that bypass RLS for
+-- the same reason: `acknowledge_notification` and `open_notification_whatsapp`
+-- widen a member's or front desk's access beyond what the base notifications
+-- RLS grants, and `adjust_messaging_wallet` writes the platform-only wallet
+-- ledger, each replacing RLS with its own tenant/actor/impersonation checks.
+-- Every allowlisted signature names its own required volatility rather than
+-- sharing one; overloads and every other exposed elevated function still
+-- fail. Every elevated function in either application schema must use an
+-- empty path.
 -- ---------------------------------------------------------------------------
 
 select is_empty(
@@ -847,7 +853,10 @@ select is_empty(
                          ('public.read_member_addon_returns(uuid)', 's'),
                          ('public.read_member_addon_trainer_names()', 's'),
                          ('public.prepare_member_import(uuid, text, text, text, uuid, text, jsonb, integer, jsonb, jsonb)', 'v'),
-                         ('public.commit_member_import(uuid, text, jsonb)', 'v')
+                         ('public.commit_member_import(uuid, text, jsonb)', 'v'),
+                         ('public.acknowledge_notification(uuid)', 'v'),
+                         ('public.open_notification_whatsapp(uuid)', 'v'),
+                         ('public.adjust_messaging_wallet(uuid, bigint, text, uuid)', 'v')
                        ) allowed(signature, volatility)
                        where p.oid = to_regprocedure(allowed.signature)
                          and p.provolatile = allowed.volatility))))$$,
