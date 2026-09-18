@@ -177,6 +177,131 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .route-workspace :is(.text-red-700, .text-amber-800) { color: var(--gymloop-color-error-risk-text); }
 .route-workspace :is(button.bg-neutral-900, a.bg-neutral-900) { border: 0; background: var(--gymloop-color-primary-action); color: var(--gymloop-color-text-on-primary); }
 .route-workspace :is(a, button) { transition: background-color var(--gymloop-motion-press) ease, color var(--gymloop-motion-press) ease, opacity var(--gymloop-motion-press) ease; }
+
+/* Phase 7 route interiors: a quiet, operational surface shared by every
+   owner and platform route. Tailwind remains responsible for layout; these
+   hooks provide the same material, rhythm and state treatment when a route
+   has a sparse/empty response. */
+.route-workspace,
+.platform-route {
+  color: var(--gymloop-color-primary-text);
+}
+.route-workspace > :is(section, article, form),
+.platform-route > :is(section, article, form) {
+  border-radius: var(--gymloop-radius-section);
+}
+.route-workspace h1,
+.platform-route h1,
+.member-route h1 {
+  color: var(--gymloop-color-primary-text);
+}
+.route-workspace h2,
+.platform-route h2,
+.member-route h2 {
+  color: var(--gymloop-color-primary-text);
+  font-weight: var(--gymloop-type-emphasis-weight);
+}
+.route-workspace :is(label, legend) {
+  color: var(--gymloop-color-primary-text);
+  font-weight: 500;
+}
+.route-workspace :is(input, select, textarea),
+.platform-route :is(input, select, textarea) {
+  padding-inline: var(--gymloop-space-12);
+  box-shadow: inset 0 0 0 1px transparent;
+  transition: border-color var(--gymloop-motion-press) ease, box-shadow var(--gymloop-motion-press) ease;
+}
+.route-workspace :is(input, select, textarea):focus,
+.platform-route :is(input, select, textarea):focus {
+  border-color: var(--gymloop-color-primary-action);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gymloop-color-primary-action) 22%, transparent);
+  outline: 0;
+}
+.route-workspace :is(button, a.inline-flex),
+.platform-route :is(button, a.inline-flex) {
+  border-radius: var(--gymloop-radius-control);
+  font-weight: 600;
+}
+.route-workspace :is(button.bg-neutral-900, a.bg-neutral-900):hover,
+.route-workspace :is(button.bg-neutral-900, a.bg-neutral-900):focus-visible {
+  opacity: .9;
+}
+.route-workspace table {
+  width: 100%;
+  border: 1px solid var(--gymloop-color-decorative-separator);
+  border-radius: var(--gymloop-radius-row);
+  background: var(--gymloop-color-surface);
+}
+.route-workspace table :is(th, td) {
+  min-height: 3.25rem;
+  border-bottom: 1px solid var(--gymloop-color-decorative-separator);
+  padding: var(--gymloop-space-12) var(--gymloop-space-16);
+  vertical-align: middle;
+}
+.route-workspace table tr:last-child td { border-bottom: 0; }
+.route-workspace table thead { background: var(--gymloop-color-elevated-surface); }
+.route-workspace :is(.bg-green-50, .bg-emerald-50) {
+  background: color-mix(in srgb, var(--gymloop-color-primary-action) 12%, var(--gymloop-color-surface));
+  color: var(--gymloop-color-primary-text);
+}
+.route-workspace :is(.text-green-900, .text-emerald-900) { color: var(--gymloop-color-primary-action); }
+.route-workspace :is(.text-red-800, .text-amber-900) { color: var(--gymloop-color-error-risk-text); }
+.route-workspace > :is(section, article, form) + :is(section, article, form) { margin-top: var(--gymloop-space-24); }
+
+/* Lists become labelled, touchable summaries at tablet widths without hiding
+   any action or changing the server response. */
+.route-workspace li.rounded-xl,
+.route-workspace li.rounded-lg,
+.route-workspace article.rounded-xl,
+.route-workspace article.rounded-lg {
+  border-color: var(--gymloop-color-decorative-separator);
+  background: var(--gymloop-color-surface);
+}
+.route-workspace a:not(.bg-neutral-900) { text-underline-offset: 3px; }
+.route-workspace a:not(.bg-neutral-900):hover { color: var(--gymloop-color-primary-action); }
+.platform-route > section { box-shadow: 0 10px 28px color-mix(in srgb, var(--gymloop-color-primary-text) 5%, transparent); }
+
+/* Member surfaces retain the same information density as native member
+   screens: opaque content, calm grouping and controls sized for a thumb. */
+.member-route {
+  color: var(--gymloop-color-primary-text);
+}
+.member-route > section,
+.member-route > article {
+  border-color: var(--gymloop-color-decorative-separator);
+  background: var(--gymloop-color-surface);
+  border-radius: var(--gymloop-radius-section);
+}
+.member-route :is(.border-neutral-200, .border-neutral-300, .border-neutral-400) { border-color: var(--gymloop-color-decorative-separator); }
+.member-route :is(.bg-neutral-50, .bg-neutral-100) { background: var(--gymloop-color-elevated-surface); }
+.member-route :is(.text-neutral-500, .text-neutral-600, .text-neutral-700) { color: var(--gymloop-color-secondary-text); }
+.member-route :is(a.inline-flex, button) { border-radius: var(--gymloop-radius-control); font-weight: 600; }
+.member-route :is(input, select, textarea) { padding-inline: var(--gymloop-space-12); }
+.member-route ul > li { border-color: var(--gymloop-color-decorative-separator); }
+.member-route .tabular-nums { font-variant-numeric: tabular-nums; }
+.member-tab-bar {
+  border-color: color-mix(in srgb, var(--gymloop-color-decorative-separator) 90%, transparent);
+  background: color-mix(in srgb, var(--gymloop-color-surface) 94%, transparent);
+}
+.member-tab-bar a[aria-current='page'] {
+  background: var(--gymloop-color-primary-action);
+  color: var(--gymloop-color-text-on-primary);
+}
+
+@media (max-width: 64rem) {
+  .route-workspace table { border-radius: var(--gymloop-radius-control); }
+  .route-workspace table :is(th, td) { padding-inline: var(--gymloop-space-12); }
+}
+@media (max-width: 40rem) {
+  .route-workspace > header,
+  .platform-route > header { gap: var(--gymloop-space-12); }
+  .route-workspace table { margin-inline: calc(var(--gymloop-space-20) * -1); width: calc(100% + var(--gymloop-space-20) + var(--gymloop-space-20)); border-inline: 0; border-radius: 0; }
+  .route-workspace table :is(th, td) { white-space: nowrap; }
+  .member-route { padding-bottom: 6rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-workspace :is(input, select, textarea), .member-tab-bar a { transition: none; }
+}
 .member-shell { min-height: calc(100vh - var(--gymloop-target-interactive)); padding-bottom: 6rem; }
 .member-shell-content { width: 100%; }
 .member-tab-bar { position: fixed; z-index: 10; right: 1rem; bottom: 1rem; left: 1rem; display: grid; grid-template-columns: repeat(4, 1fr); max-width: 32rem; margin-inline: auto; padding: .5rem; border: 1px solid var(--gymloop-color-decorative-separator); border-radius: 2rem; background: color-mix(in srgb, var(--gymloop-color-surface) 90%, transparent); box-shadow: 0 12px 32px color-mix(in srgb, var(--gymloop-color-primary-text) 12%, transparent); backdrop-filter: blur(12px); }
@@ -187,4 +312,5 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .platform-route { width: min(100%, 90rem); margin-inline: auto; padding: var(--gymloop-space-32); }
 @media (max-width: 64rem) { .route-workspace, .member-route, .platform-route { padding: var(--gymloop-layout-mobile-inset); } }
 @media (max-width: 40rem) { .route-workspace, .member-route, .platform-route { padding: var(--gymloop-space-20); } .member-tab-bar { right: .5rem; bottom: .5rem; left: .5rem; } .member-tab-bar a { font-size: .75rem; } }
+@media (max-width: 30rem) { .route-workspace, .member-route, .platform-route { padding: var(--gymloop-space-16); } .route-workspace table { margin-inline: calc(var(--gymloop-space-16) * -1); width: calc(100% + var(--gymloop-space-16) + var(--gymloop-space-16)); } .member-tab-bar { padding: var(--gymloop-space-4); } }
 @media (prefers-reduced-motion: reduce) { .route-workspace :is(a, button), .member-tab-bar a { transition: none; } }

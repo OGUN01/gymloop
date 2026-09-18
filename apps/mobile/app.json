@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Gymloop",
+    "slug": "gymloop",
+    "scheme": "gymloop",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Gymloop to scan the current QR code at your gym."
+        }
+      ],
+      "expo-font",
+      "expo-localization"
+    ],
+    "ios": {
+      "bundleIdentifier": "in.gymloop.mobile"
+    },
+    "android": {
+      "package": "in.gymloop.mobile"
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

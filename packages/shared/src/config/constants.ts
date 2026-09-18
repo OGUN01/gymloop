@@ -52,6 +52,7 @@ export const UI_TOKENS = {
     press: 120, tabs: 180, dialogEnter: 240, dialogExit: 180,
     checkInAcknowledgementMin: 240, checkInAcknowledgementMax: 320,
   },
+  opacity: { pressed: 0.78, disabled: 0.5, glass: 0.94 },
 } as const;
 
 export const DEFAULT_TIMEZONE = 'Asia/Kolkata';

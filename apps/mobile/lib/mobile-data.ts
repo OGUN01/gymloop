@@ -1,0 +1,131 @@
+import type { Database } from '@gymloop/db';
+import { DAYS_PER_WEEK, DEFAULT_TIMEZONE, MEMBER_PAGE_SIZE_DEFAULT, MS_PER_DAY, toLocalDate, weeklyGoalStreak, visitStreak } from '@gymloop/shared';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+type DbClient = SupabaseClient<Database>;
+type MemberIdentity = { memberId: string; tenantId: string };
+
+export type MemberSnapshot = {
+  member: { fullName: string; memberCode: string | null; email: string | null; phone: string; goal: number; restDays: number[] };
+  gym: { name: string; code: string; timezone: string; city: string | null; state: string | null; branchName: string; branchAddress: string | null };
+  membership: { status: string; startsOn: string | null; endsOn: string | null; planName: string } | null;
+  visits: { id: string; checkedInAt: string; source: string }[];
+  weekVisits: number;
+  streak: { current: number; unit: 'day' | 'week'; missed: readonly string[] };
+  receipts: { id: string; amountPaise: number; currency: string; paidAt: string | null; receiptNumber: string | null; status: string }[];
+  messages: { id: string; body: string; sentAt: string | null; status: string }[];
+  consents: { purpose: string; granted: boolean; recordedAt: string }[];
+  addOns: { id: string; name: string; status: string; totalPaise: number; currency: string; sessionsUsed: number; sessionsTotal: number | null }[];
+};
+
+type LooseResult = { data: Record<string, unknown>[] | null; error: { message: string } | null };
+interface LooseQuery extends PromiseLike<LooseResult> {
+  select(columns: string): LooseQuery;
+  eq(column: string, value: string | boolean): LooseQuery;
+  in(column: string, values: readonly string[]): LooseQuery;
+  order(column: string, options?: { ascending: boolean }): LooseQuery;
+  limit(count: number): LooseQuery;
+}
+
+function loose(client: DbClient, table: string): LooseQuery {
+  return (client as unknown as { from(name: string): LooseQuery }).from(table);
+}
+
+function text(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function number(value: unknown): number {
+  return typeof value === 'number' ? value : 0;
+}
+
+function payloadBody(value: unknown): string {
+  return value !== null && typeof value === 'object' && typeof (value as { body?: unknown }).body === 'string'
+    ? (value as { body: string }).body
+    : '';
+}
+
+export async function loadMemberSnapshot(client: DbClient, identity: MemberIdentity): Promise<MemberSnapshot> {
+  const [memberRead, gymRead, settingsRead, branchRead, membershipRead, attendanceRead, paymentsRead, messagesRead, consentsRead, addOnsRead, pausesRead, holidaysRead] = await Promise.all([
+    client.from('members').select('full_name,member_code,email,phone,weekly_goal_visits,rest_days,branch_id').eq('id', identity.memberId).eq('tenant_id', identity.tenantId).single(),
+    client.from('organizations').select('name,gym_code,timezone').eq('id', identity.tenantId).single(),
+    client.from('organization_settings').select('city,state,weekly_goal_default,week_start_day,streak_rule_type').eq('tenant_id', identity.tenantId).single(),
+    client.from('branches').select('name,address').eq('tenant_id', identity.tenantId).order('is_default', { ascending: false }).limit(1).maybeSingle(),
+    client.from('memberships').select('status,starts_on,ends_on,plans(name)').eq('member_id', identity.memberId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    client.from('attendance').select('id,checked_in_at,source').eq('member_id', identity.memberId).order('checked_in_at', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT),
+    client.from('payments').select('id,amount_paise,currency,paid_at,receipt_number,status').eq('member_id', identity.memberId).order('created_at', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT),
+    client.from('notifications').select('id,payload,sent_at,status').eq('member_id', identity.memberId).eq('channel', 'in_app').in('status', ['sent', 'delivered']).order('sent_at', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT),
+    client.from('consents').select('purpose,granted,recorded_at').eq('member_id', identity.memberId).order('recorded_at', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT),
+    loose(client, 'addon_orders').select('id,status,total_paise,currency,sessions_used,sessions_total,addon_products(name)').eq('member_id', identity.memberId).order('created_at', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT),
+    client.from('membership_pauses').select('starts_on,ends_on,approved_at,rejected_at,memberships!inner(member_id)').eq('memberships.member_id', identity.memberId),
+    client.from('organization_holidays').select('holiday_on').eq('tenant_id', identity.tenantId),
+  ]);
+
+  const firstError = [memberRead, gymRead, settingsRead, branchRead, membershipRead, attendanceRead, paymentsRead, messagesRead, consentsRead, addOnsRead, pausesRead, holidaysRead]
+    .find((result) => result.error !== null)?.error;
+  if (firstError) throw new Error(firstError.message);
+  if (!memberRead.data || !gymRead.data || !settingsRead.data) throw new Error('Your gym profile is not available.');
+
+  const timezone = gymRead.data.timezone || DEFAULT_TIMEZONE;
+  const goal = memberRead.data.weekly_goal_visits ?? settingsRead.data.weekly_goal_default;
+  const visitInstants = (attendanceRead.data ?? []).map((row) => row.checked_in_at);
+  const today = toLocalDate(new Date(), timezone);
+  const todayNumber = Date.parse(`${today}T00:00:00Z`) / MS_PER_DAY;
+  const todayWeekday = new Date(`${today}T00:00:00Z`).getUTCDay();
+  const weekStartNumber = todayNumber - ((todayWeekday - settingsRead.data.week_start_day + DAYS_PER_WEEK) % DAYS_PER_WEEK);
+  const weekVisits = new Set(visitInstants.map((instant) => toLocalDate(instant, timezone)).filter((day) => {
+    const value = Date.parse(`${day}T00:00:00Z`) / MS_PER_DAY;
+    return value >= weekStartNumber && value < weekStartNumber + DAYS_PER_WEEK;
+  })).size;
+  const base = {
+    visits: visitInstants,
+    asOf: new Date(),
+    timeZone: timezone,
+    restDays: memberRead.data.rest_days,
+    pauses: (pausesRead.data ?? []).map((pause) => ({ startsOn: pause.starts_on, endsOn: pause.ends_on, approvedAt: pause.approved_at, rejectedAt: pause.rejected_at })),
+    holidays: (holidaysRead.data ?? []).map((holiday) => holiday.holiday_on),
+  };
+  const streak = settingsRead.data.streak_rule_type === 'weekly_goal'
+    ? weeklyGoalStreak({ ...base, goal, weekStartDay: settingsRead.data.week_start_day })
+    : visitStreak(base);
+
+  const membership = membershipRead.data;
+  const planRelation = membership && 'plans' in membership ? membership.plans as { name?: unknown } | null : null;
+  return {
+    member: { fullName: memberRead.data.full_name, memberCode: memberRead.data.member_code, email: memberRead.data.email, phone: memberRead.data.phone, goal, restDays: memberRead.data.rest_days },
+    gym: { name: gymRead.data.name, code: gymRead.data.gym_code, timezone, city: settingsRead.data.city, state: settingsRead.data.state, branchName: branchRead.data?.name ?? 'Main branch', branchAddress: branchRead.data?.address ?? null },
+    membership: membership ? { status: membership.status, startsOn: membership.starts_on, endsOn: membership.ends_on, planName: text(planRelation?.name, 'Membership') } : null,
+    visits: (attendanceRead.data ?? []).map((row) => ({ id: row.id, checkedInAt: row.checked_in_at, source: row.source })),
+    weekVisits,
+    streak: { current: streak.current, unit: streak.unit, missed: streak.missed },
+    receipts: (paymentsRead.data ?? []).map((row) => ({ id: row.id, amountPaise: row.amount_paise, currency: row.currency, paidAt: row.paid_at, receiptNumber: row.receipt_number, status: row.status })),
+    messages: (messagesRead.data ?? []).map((row) => ({ id: row.id, body: payloadBody(row.payload), sentAt: row.sent_at, status: row.status })),
+    consents: (consentsRead.data ?? []).map((row) => ({ purpose: row.purpose, granted: row.granted, recordedAt: row.recorded_at })),
+    addOns: (addOnsRead.data ?? []).map((row) => {
+      const product = row.addon_products !== null && typeof row.addon_products === 'object' ? row.addon_products as { name?: unknown } : null;
+      return { id: text(row.id), name: text(product?.name, 'Add-on'), status: text(row.status), totalPaise: number(row.total_paise), currency: text(row.currency, 'INR'), sessionsUsed: number(row.sessions_used), sessionsTotal: typeof row.sessions_total === 'number' ? row.sessions_total : null };
+    }),
+  };
+}
+
+export type DeskMember = { id: string; fullName: string; phone: string; status: string; memberCode: string | null };
+export async function loadDeskMembers(client: DbClient, query: string): Promise<DeskMember[]> {
+  const request = client.from('members').select('id,full_name,phone,status,member_code').order('full_name').limit(MEMBER_PAGE_SIZE_DEFAULT);
+  const normalized = query.trim();
+  const { data, error } = await request;
+  if (error) throw new Error(error.message);
+  return (data ?? []).filter((row) => normalized === '' || row.full_name.toLocaleLowerCase().includes(normalized.toLocaleLowerCase()) || row.phone.includes(normalized)).map((row) => ({ id: row.id, fullName: row.full_name, phone: row.phone, status: row.status, memberCode: row.member_code }));
+}
+
+export type DeskFollowUp = { id: string; memberId: string; memberName: string; memberPhone: string; daysAbsent: number; nextFollowUpAt: string | null; status: string };
+export async function loadDeskFollowUps(client: DbClient): Promise<DeskFollowUp[]> {
+  const { data, error } = await client.from('red_list_cases').select('id,member_id,member_name,member_phone,days_absent,next_follow_up_at,status').order('days_absent', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT);
+  if (error) throw new Error(error.message);
+  return (data ?? []).flatMap((row) => row.id && row.member_id && row.member_name && row.member_phone && row.status ? [{ id: row.id, memberId: row.member_id, memberName: row.member_name, memberPhone: row.member_phone, daysAbsent: row.days_absent ?? 0, nextFollowUpAt: row.next_follow_up_at, status: row.status }] : []);
+}
+
+export async function loadDefaultBranch(client: DbClient): Promise<{ id: string; name: string } | null> {
+  const { data, error } = await client.from('branches').select('id,name').order('is_default', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}

@@ -1,5 +1,5 @@
 import { createServerSupabase } from './supabase/server';
-import { readIdentity } from './identity-session';
+import { readIdentity, readRequestIdentity } from './identity-session';
 import type { StaffRole, PlatformRole } from './identity';
 
 /**
@@ -106,8 +106,11 @@ type StaffSessionOptions = { completeWrongAudience?: 'forbidden' };
 export async function staffSession(
   allowedRoles?: readonly StaffRole[],
   options?: StaffSessionOptions,
+  request?: Request,
 ): Promise<{ session: StaffSession } | { failure: Response }> {
-  const { supabase, identity } = await readIdentity();
+  const caller = request === undefined ? await readIdentity() : await readRequestIdentity(request);
+  if (caller === null) return { failure: apiFail('unauthorized', 'not_signed_in', 'Sign in as staff of a gym first.') };
+  const { supabase, identity } = caller;
   if (identity.kind !== 'staff') {
     return {
       failure: identity.kind !== 'unlinked' && options?.completeWrongAudience === 'forbidden'
@@ -131,8 +134,10 @@ export type PlatformSession = {
 };
 
 /** A member can access only the identity carried by the verified member claim. */
-export async function memberSession(): Promise<{ session: MemberSession } | { failure: Response }> {
-  const { supabase, identity } = await readIdentity();
+export async function memberSession(request?: Request): Promise<{ session: MemberSession } | { failure: Response }> {
+  const caller = request === undefined ? await readIdentity() : await readRequestIdentity(request);
+  if (caller === null) return { failure: apiFail('unauthorized', 'not_signed_in', 'Sign in as a member first.') };
+  const { supabase, identity } = caller;
   if (identity.kind !== 'member') {
     return { failure: apiFail('unauthorized', 'not_signed_in', 'Sign in as a member first.') };
   }
@@ -287,7 +292,7 @@ export async function staffJson(
   allowedRoles?: readonly StaffRole[],
   options?: StaffSessionOptions,
 ): Promise<{ failure: Response } | (StaffSession & { payload: unknown })> {
-  const caller = await staffSession(allowedRoles, options);
+  const caller = await staffSession(allowedRoles, options, request);
   if ('failure' in caller) return { failure: caller.failure };
 
   const body = await jsonBody(request);

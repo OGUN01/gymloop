@@ -1,180 +1,50 @@
 import { checkInRequestSchema } from '@gymloop/shared';
-import {
-  apiFail,
-  apiOk,
-  staffSession,
-  PG_INSUFFICIENT_PRIVILEGE,
-  PG_UNIQUE_VIOLATION,
-  type ApiFailStatus,
-} from '../../../lib/api';
+import { apiFail, apiOk, PG_INSUFFICIENT_PRIVILEGE, PG_UNIQUE_VIOLATION, type ApiFailStatus } from '../../../lib/api';
+import { readRequestIdentity } from '../../../lib/identity-session';
 import { hashGateCode } from '../../../lib/gate-code';
 
-/**
- * POST /api/check-in — record a visit (ATT-001 to ATT-006).
- *
- * **This handler does not make exactly-once true and must not be read as if it
- * did.** `attendance` grants `insert` to `authenticated` and
- * `attendance_tenant_write` admits any front-office session, so a screen could
- * insert a row through `supabase-js` without ever coming here — that is the
- * architecture working as designed, reads and writes both going through RLS. A
- * rule enforced by a caller is therefore a rule that has a way round it. Every
- * rule below is enforced by the `attendance_enforce_check_in` trigger, which
- * every writer meets; this handler's job is to turn one HTTP request into one
- * insert, and to turn what the database refuses into something a person at a
- * front desk can act on.
- *
- * The one thing it does decide is which row to propose: it resolves a gate code
- * to a `qr_sessions` id (the code itself is never stored, so nothing downstream
- * can do that lookup), and it reads the tenant from the verified JWT claim so
- * that no request body ever names a gym.
- */
-
-/**
- * The five refusals `app.enforce_check_in()` raises, by SQLSTATE.
- *
- * Mapped by code and never by matching the message text: the message carries a
- * uuid and a timestamp for whoever reads the Postgres log, and the message here
- * is the one that has to be legible across a room.
- */
 const REFUSALS: Record<string, { status: ApiFailStatus; message: string }> = {
-  GL010: { status: 'unprocessable', message: 'That gate code belongs to another gym.' },
-  GL011: { status: 'unprocessable', message: 'That gate code has expired. Show a new one.' },
-  GL012: { status: 'unprocessable', message: 'That gate code has been revoked.' },
-  GL013: {
-    status: 'unprocessable',
-    message: 'No active membership. Renew before checking in.',
-  },
-  GL014: { status: 'conflict', message: 'Already checked in a moment ago.' },
+  GL010: { status: 'unprocessable', message: 'That gate code belongs to another gym.' }, GL011: { status: 'unprocessable', message: 'That gate code has expired. Show a new one.' }, GL012: { status: 'unprocessable', message: 'That gate code has been revoked.' }, GL013: { status: 'unprocessable', message: 'No active membership. Renew before checking in.' }, GL014: { status: 'conflict', message: 'Already checked in a moment ago.' }, GL017: { status: 'unprocessable', message: 'That offline check-in time is not valid for this gate session.' },
 };
-
 const RECORDED_COLUMNS = 'id, checked_in_at, source';
 
+/** POST /api/check-in — staff assistance and verified member QR replay. */
 export async function POST(request: Request): Promise<Response> {
-  const caller = await staffSession();
-  if ('failure' in caller) return caller.failure;
-  const { supabase, tenantId } = caller.session;
-
+  const caller = await readRequestIdentity(request);
+  if (caller === null) return apiFail('unauthorized', 'not_signed_in', 'Sign in with one valid user session first.');
+  if (caller.identity.kind !== 'staff' && caller.identity.kind !== 'member') return apiFail('forbidden', 'not_permitted', 'This account cannot record attendance.');
+  const { supabase, identity } = caller;
   let payload: unknown;
-  try {
-    payload = await request.json();
-  } catch {
-    return apiFail('bad_request', 'malformed_body', 'The request body was not JSON.');
-  }
-
+  try { payload = await request.json(); } catch { return apiFail('bad_request', 'malformed_body', 'The request body was not JSON.'); }
   const parsed = checkInRequestSchema.safeParse(payload);
-  if (!parsed.success) {
-    return apiFail('bad_request', 'invalid_request', 'That check-in was not readable.');
-  }
-  const { memberId, token, reason, clientEventId } = parsed.data;
-
-  // No `.eq('tenant_id', …)`: the policy on `members` does the filtering, so a
-  // member id from another gym simply is not there. Adding the predicate would
-  // return the right row even with the policy broken, hiding the defect the
-  // pgTAP suite exists to find.
-  const { data: member } = await supabase
-    .from('members')
-    .select('id, full_name, branch_id')
-    .eq('id', memberId)
-    .maybeSingle();
-
-  if (!member) {
-    return apiFail('not_found', 'member_unknown', 'No member of this gym has that id.');
-  }
-
+  if (!parsed.success) return apiFail('bad_request', 'invalid_request', 'That check-in was not readable.');
+  const { token, reason, clientEventId, offlineRecordedAt } = parsed.data;
+  const memberId = identity.kind === 'member' ? identity.memberId : parsed.data.memberId;
+  if (memberId === undefined) return apiFail('bad_request', 'member_required', 'Choose a member before recording an assisted check-in.');
+  if (identity.kind === 'member' && (token === undefined || reason !== undefined)) return apiFail('bad_request', 'member_gate_required', 'Member check-in requires a scanned gate code.');
+  if (identity.kind === 'staff' && offlineRecordedAt !== undefined) return apiFail('bad_request', 'invalid_request', 'Only member device replay may carry an offline capture time.');
+  const { data: member } = await supabase.from('members').select('id, full_name, branch_id').eq('id', memberId).maybeSingle();
+  if (!member) return apiFail('not_found', 'member_unknown', 'No member of this gym has that id.');
   let qrSessionId: string | null = null;
   let branchId = member.branch_id;
-
   if (token === undefined) {
-    // No gate code means the desk is recording this visit for someone, which is
-    // the case ATT-005/006 requires a reason for. The schema already rejects a
-    // blank one and the check constraint rejects a whitespace one; this is the
-    // "neither a code nor a reason" case, which is neither kind of check-in.
-    if (reason === undefined) {
-      return apiFail(
-        'bad_request',
-        'reason_required',
-        'Scan the gate code, or give a reason for checking this member in at the desk.',
-      );
-    }
+    if (reason === undefined) return apiFail('bad_request', 'reason_required', 'Scan the gate code, or give a reason for checking this member in at the desk.');
   } else {
-    // Only the hash is stored, so the code can be matched but never read back.
-    const { data: gate } = await supabase
-      .from('qr_sessions')
-      .select('id, branch_id')
-      .eq('token_hash', hashGateCode(token))
-      .maybeSingle();
-
-    if (!gate) {
-      return apiFail('unprocessable', 'gate_code_unknown', 'That gate code is not in use here.');
-    }
-    // Expiry and revocation are the trigger's to judge, against the instant of
-    // the scan rather than the instant of the lookup. Re-testing them here would
-    // put the same rule in two places, and the copy in the weaker place.
-    qrSessionId = gate.id;
-    branchId = gate.branch_id;
+    const { data: gate } = await supabase.from('qr_sessions').select('id, branch_id').eq('token_hash', hashGateCode(token)).maybeSingle();
+    if (!gate) return apiFail('unprocessable', 'gate_code_unknown', 'That gate code is not in use here.');
+    qrSessionId = gate.id; branchId = gate.branch_id;
   }
-
-  const { data: recorded, error } = await supabase
-    .from('attendance')
-    .insert({
-      tenant_id: tenantId,
-      branch_id: branchId,
-      member_id: memberId,
-      source: qrSessionId === null ? 'front_desk' : 'qr',
-      qr_session_id: qrSessionId,
-      // A scan carries no reason and so must carry no acting staff member either
-      // (`attendance_assisted_pair_chk`). The staff member on an assisted row is
-      // stamped from the JWT by the trigger, not sent from here.
-      assist_reason: qrSessionId === null ? (reason ?? null) : null,
-      client_event_id: clientEventId ?? null,
-    })
-    .select(RECORDED_COLUMNS)
-    .single();
-
-  if (error === null) {
-    return apiOk({ memberName: member.full_name, replay: false, ...recorded });
-  }
-
-  // The same attempt arriving twice — a retry or a replay, not a second visit.
-  // Reporting it as an error would make a correctly-retrying client look broken,
-  // so the answer is the row that already exists.
+  const attendance = { tenant_id: identity.tenantId, branch_id: branchId, member_id: memberId, source: qrSessionId === null ? 'front_desk' as const : 'qr' as const, qr_session_id: qrSessionId, assist_reason: qrSessionId === null ? (reason ?? null) : null, client_event_id: clientEventId ?? null };
+  const offlineAttendance = offlineRecordedAt === undefined ? attendance : { ...attendance, checked_in_at: offlineRecordedAt, offline_recorded_at: offlineRecordedAt };
+  const { data: recorded, error } = await supabase.from('attendance').insert(offlineAttendance).select(RECORDED_COLUMNS).single();
+  if (error === null) return apiOk({ memberName: member.full_name, replay: false, ...recorded });
   if (error.code === PG_UNIQUE_VIOLATION && clientEventId !== undefined) {
-    // `member_id` is part of the lookup and not an optimisation. The unique
-    // index is `(tenant_id, client_event_id)`, so a client that reuses one id
-    // across two members collides with the *other* member's row; matching on
-    // the id alone would answer with that row, and the desk would be told the
-    // person in front of them is already checked in, under their own name,
-    // having recorded nothing.
-    const { data: already } = await supabase
-      .from('attendance')
-      .select(RECORDED_COLUMNS)
-      .eq('client_event_id', clientEventId)
-      .eq('member_id', memberId)
-      .maybeSingle();
-
-    if (already) {
-      return apiOk({ memberName: member.full_name, replay: true, ...already });
-    }
-
-    return apiFail(
-      'conflict',
-      'client_event_id_reused',
-      'That check-in id has already been used for a different member.',
-    );
+    const { data: already } = await supabase.from('attendance').select(RECORDED_COLUMNS).eq('client_event_id', clientEventId).eq('member_id', memberId).maybeSingle();
+    if (already) return apiOk({ memberName: member.full_name, replay: true, ...already });
+    return apiFail('conflict', 'client_event_id_reused', 'That check-in id has already been used for a different member.');
   }
-
-  if (error.code === PG_INSUFFICIENT_PRIVILEGE) {
-    return apiFail('forbidden', 'not_permitted', 'Your role may not record attendance.');
-  }
-
-  // `Object.hasOwn`, not a plain lookup: `REFUSALS['constructor']` is inherited
-  // from Object.prototype and truthy, so a bare index would take this branch
-  // with `status` undefined and answer HTTP 200 carrying `{ok:false}` — a
-  // failure a client reads as a success.
+  if (error.code === PG_INSUFFICIENT_PRIVILEGE) return apiFail('forbidden', 'not_permitted', 'Your role may not record attendance.');
   const refusal = Object.hasOwn(REFUSALS, error.code) ? REFUSALS[error.code] : undefined;
-  if (refusal) {
-    return apiFail(refusal.status, error.code, refusal.message);
-  }
-
+  if (refusal) return apiFail(refusal.status, error.code, refusal.message);
   return apiFail('server_error', 'check_in_failed', 'That check-in could not be recorded.');
 }

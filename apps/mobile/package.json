@@ -1,0 +1,40 @@
+{
+  "name": "@gymloop/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@expo-google-fonts/inter": "0.4.2",
+    "@expo-google-fonts/noto-sans-devanagari": "0.4.1",
+    "@gymloop/api-client": "workspace:*",
+    "@gymloop/db": "workspace:*",
+    "@gymloop/shared": "workspace:*",
+    "@supabase/supabase-js": "2.112.4",
+    "expo": "57.0.24",
+    "expo-camera": "~57.0.5",
+    "expo-crypto": "~57.0.3",
+    "expo-font": "~57.0.4",
+    "expo-haptics": "~57.0.3",
+    "expo-localization": "~57.0.2",
+    "expo-network": "~57.0.2",
+    "expo-router": "57.0.22",
+    "expo-secure-store": "57.0.4",
+    "lucide-react-native": "1.47.0",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.2",
+    "react-native-svg": "15.15.4"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.18",
+    "typescript": "6.0.3"
+  }
+}

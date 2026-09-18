@@ -15,8 +15,7 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  void request;
-  const caller = await memberSession();
+  const caller = await memberSession(request);
   if ('failure' in caller) return caller.failure;
 
   const id = await resolveNotificationId(context);

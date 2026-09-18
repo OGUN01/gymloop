@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { classifyIdentity, identityHome, type GymloopIdentity } from './identity';
 import { createServerSupabase } from './supabase/server';
+import { createRequestSupabase } from './supabase/request';
 
 /** Always signature-verifies before exposing a classified identity. */
 export async function readIdentity(client?: Awaited<ReturnType<typeof createServerSupabase>>) {
@@ -8,6 +9,35 @@ export async function readIdentity(client?: Awaited<ReturnType<typeof createServ
   const { data, error } = await supabase.auth.getClaims();
   const signedIn = !error && Boolean(data?.claims);
   return { supabase, signedIn, identity: classifyIdentity(signedIn ? data?.claims : null) };
+}
+
+/**
+ * Resolve one request credential transport before a route reads its body.
+ * Bearers are verified by Auth, then classified from verified claims; a decoded
+ * JWT is never treated as identity evidence.
+ */
+export async function readRequestIdentity(request: Request) {
+  try {
+    const resolved = await createRequestSupabase(request);
+    if (resolved === null) return null;
+    const { supabase, bearer } = resolved;
+    if (bearer !== undefined) {
+      const [{ data: claimsData, error: claimsError }, { data: userData, error: userError }] = await Promise.all([
+        supabase.auth.getClaims(bearer),
+        supabase.auth.getUser(bearer),
+      ]);
+      if (claimsError || userError || claimsData?.claims.role !== 'authenticated' || userData.user === null) return null;
+      const identity = classifyIdentity(claimsData.claims);
+      if (identity.kind === 'unlinked' || userData.user.id !== identity.userId) return null;
+      return { supabase, identity };
+    }
+    const { data, error } = await supabase.auth.getClaims();
+    if (error || !data?.claims) return null;
+    const identity = classifyIdentity(data.claims);
+    return identity.kind === 'unlinked' ? null : { supabase, identity };
+  } catch {
+    return null;
+  }
 }
 
 type AudienceIdentity = {

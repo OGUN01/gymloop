@@ -31,10 +31,18 @@ import { z } from 'zod';
  * visit; omitting it is legal and simply gives up that protection.
  */
 export const checkInRequestSchema = z.object({
-  memberId: z.uuid(),
+  /** Staff names a member; a member identity is derived from the verified token. */
+  memberId: z.uuid().optional(),
   token: z.string().trim().min(1).optional(),
   reason: z.string().trim().min(1).optional(),
   clientEventId: z.uuid().optional(),
+  /** Original device capture time for an offline QR command, never a server clock. */
+  offlineRecordedAt: z.iso.datetime().optional(),
+}).superRefine((command, context) => {
+  if (command.offlineRecordedAt !== undefined &&
+      (command.token === undefined || command.clientEventId === undefined)) {
+    context.addIssue({ code: 'custom', message: 'Offline check-in requires its original gate token and event id.' });
+  }
 });
 
 export type CheckInRequest = z.infer<typeof checkInRequestSchema>;

@@ -17,6 +17,12 @@ const clientSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
 });
 
+const mobileClientSchema = z.object({
+  EXPO_PUBLIC_SUPABASE_URL: z.url(),
+  EXPO_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
+  EXPO_PUBLIC_API_BASE_URL: z.url(),
+});
+
 /** Server-only secrets. Never import serverEnv()/env() from client code. */
 const serverOnlySchema = z.object({
   SUPABASE_PROJECT_REF: z.string().min(1),
@@ -31,9 +37,11 @@ const serverOnlySchema = z.object({
 
 type ClientEnv = z.infer<typeof clientSchema>;
 type ServerEnv = z.infer<typeof serverOnlySchema>;
+type MobileClientEnv = z.infer<typeof mobileClientSchema>;
 
 let cachedClient: ClientEnv | undefined;
 let cachedServer: ServerEnv | undefined;
+let cachedMobileClient: MobileClientEnv | undefined;
 
 /**
  * Validated on first access, not at module load. An eager parse here would
@@ -43,6 +51,15 @@ let cachedServer: ServerEnv | undefined;
  */
 export function clientEnv(): ClientEnv {
   return (cachedClient ??= clientSchema.parse(process.env));
+}
+
+/** Expo-public values, referenced literally here so Metro can inline them. */
+export function mobileClientEnv(): MobileClientEnv {
+  return (cachedMobileClient ??= mobileClientSchema.parse({
+    EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+    EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+  }));
 }
 
 export function serverEnv(): ServerEnv {
