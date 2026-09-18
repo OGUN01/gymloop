@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const MEMBER_DESTINATIONS = [
-  { href: '/member', label: 'Home', matches: (path: string) => path === '/member' },
+  { href: '/member', label: 'Home', matches: (path: string) => path === '/member' || path.startsWith('/member/check-in') },
   { href: '/member/activity', label: 'Activity', matches: (path: string) => path === '/member/activity' },
   { href: '/member/my-gym', label: 'My gym', matches: (path: string) => path === '/member/my-gym' || path.startsWith('/member/messages') || path.startsWith('/member/add-ons') },
   { href: '/member/you', label: 'You', matches: (path: string) => path === '/member/you' },

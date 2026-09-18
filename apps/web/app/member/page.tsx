@@ -8,7 +8,7 @@ export default async function MemberHomePage() {
   const remaining = Math.max(portal.weeklyGoal - portal.weekVisits, 0);
   return <main className="member-route member-portal">
     <header className="member-portal-header"><div><span>{portal.gym.name}</span><p>{portal.gym.branchName} · {portal.gym.gym_code}</p></div><strong aria-label={`${firstName} account`}>{firstName.slice(0, 1)}</strong></header>
-    <section className="member-hero"><p>Ready when you are.</p><h1>Hey, {firstName}.</h1><Link className="member-primary-action" href="/member/my-gym">View my gym</Link></section>
+    <section className="member-hero"><p>Ready when you are.</p><h1>Hey, {firstName}.</h1><Link className="member-primary-action" href="/member/check-in">Scan to check in</Link><small>Scan the QR at your gym in the Gymloop mobile app.</small></section>
     <section className="member-week"><div><span>Your week</span><strong>{portal.weekVisits} / {portal.weeklyGoal}</strong><small>visits this week</small></div><p>{remaining === 0 ? 'Weekly goal complete.' : `${remaining} more ${remaining === 1 ? 'visit' : 'visits'} to your weekly goal.`}</p></section>
     <Link className="member-summary-row" href="/member/my-gym"><span><small>Membership</small><strong>{portal.membership?.status ?? 'Not available'}</strong></span><span>{portal.membership?.endsOn ? `Ends ${portal.membership.endsOn}` : 'View details'} →</span></Link>
     {portal.latestMessage ? <Link className="member-summary-row" href="/member/messages"><span><small>A note from your gym</small><strong>{portal.latestMessage.body}</strong></span><span>Open →</span></Link> : null}
