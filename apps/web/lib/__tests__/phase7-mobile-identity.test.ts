@@ -15,7 +15,7 @@ describe('Phase 7 mobile request identity boundary', () => {
 
     const session = await readRequestIdentity(request);
 
-    expect(session).toMatchObject({ signedIn: false, identity: { kind: 'unlinked' } });
+    expect(session).toBeNull();
   });
 
   it.each([
@@ -27,7 +27,7 @@ describe('Phase 7 mobile request identity boundary', () => {
       headers: { authorization },
     }));
 
-    expect(session).toMatchObject({ signedIn: false, identity: { kind: 'unlinked' } });
+    expect(session).toBeNull();
   });
 
   it('refuses mixed cookie and bearer transports even when the bearer claims a complete member identity', async () => {
@@ -40,12 +40,12 @@ describe('Phase 7 mobile request identity boundary', () => {
     const request = new Request('https://gymloop.test/api/check-in', {
       headers: {
         authorization: `Bearer eyJhbGciOiJub25lIn0.${encodedClaims}.not-a-signature`,
-        cookie: 'sb-access-token=pretend-cookie',
+        cookie: 'sb-pecxrpskmfeuyzngvewq-auth-token=pretend-cookie',
       },
     });
 
     const session = await readRequestIdentity(request);
 
-    expect(session).toMatchObject({ signedIn: false, identity: { kind: 'unlinked' } });
+    expect(session).toBeNull();
   });
 });
