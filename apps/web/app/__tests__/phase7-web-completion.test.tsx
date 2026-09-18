@@ -65,8 +65,8 @@ describe('Phase 7 remaining web presentation contract', () => {
     );
     expect(themedCss).toMatch(/prefers-color-scheme\s*:\s*dark|\[data-theme=['"]dark['"]\]|\.dark\b|dark/i);
     expect(css).toMatch(/(?:min-width|min-height)\s*:\s*var\(--gymloop-target-(?:interactive|touch)\)/);
-    expect(css).toMatch(/@media[^\{]*(?:1024|64rem|63\.99rem)/i);
-    expect(css).toMatch(/@media[^\{]*(?:390|24\.375rem|480|30rem)/i);
+    expect(css).toMatch(/@media[^{]*(?:1024|64rem|63\.99rem)/i);
+    expect(css).toMatch(/@media[^{]*(?:390|24\.375rem|480|30rem)/i);
     expect(css).toMatch(/min-height\s*:\s*var\(--gymloop-target-(?:interactive|touch)\)/);
   });
 });
