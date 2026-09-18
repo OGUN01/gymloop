@@ -14,7 +14,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 
 .gymloop-glass { background: color-mix(in srgb, var(--gymloop-color-surface) 88%, transparent); backdrop-filter: blur(12px); }
 .account-header { min-height: var(--gymloop-target-interactive); display: flex; flex-wrap: wrap; align-items: center; gap: var(--gymloop-space-12); border-bottom: 1px solid var(--gymloop-color-decorative-separator); padding: var(--gymloop-space-12) clamp(var(--gymloop-space-16), 4vw, var(--gymloop-space-32)); }
-.brand-link { color: inherit; font-size: 1.125rem; font-weight: 700; letter-spacing: -0.02em; text-decoration: none; }
+.brand-link { display: inline-flex; min-height: var(--gymloop-target-interactive); align-items: center; color: inherit; font-size: 1.125rem; font-weight: 700; letter-spacing: -0.02em; text-decoration: none; }
 .account-label, .sign-in-help { color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); line-height: var(--gymloop-type-secondary-line-height); }
 .account-actions { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--gymloop-space-12); }
 .theme-control { display: grid; grid-template-columns: repeat(3, minmax(var(--gymloop-target-interactive), 1fr)); min-height: var(--gymloop-target-interactive); overflow: hidden; border: 1px solid var(--gymloop-color-required-control-outline); border-radius: var(--gymloop-radius-control); }
