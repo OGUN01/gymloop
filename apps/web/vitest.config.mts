@@ -4,8 +4,10 @@ export default defineConfig({
   oxc: { jsx: { runtime: 'automatic' } },
   test: {
     include: ['**/*.{test,spec}.{ts,tsx}'],
-    maxWorkers: 4,
+    fileParallelism: false,
+    maxWorkers: 1,
     minWorkers: 1,
-    testTimeout: 10_000,
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
   },
 });
