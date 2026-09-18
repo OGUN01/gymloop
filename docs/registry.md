@@ -551,7 +551,8 @@ Phase 7 owns the design system. What is here is the one screen whose behaviour c
 | `identityHome` | `apps/web/lib/identity.ts` | One role-home mapping, with unlinked and preview outcomes | Sign-in, root, not-linked and audience layouts |
 | `readIdentity` | `apps/web/lib/identity-session.ts` | Signature-verified claims plus pure classification; Auth failures expose no identity | Navigation, API helpers and end-preview route |
 | `requireAudience` | `apps/web/lib/identity-session.ts` | Typed console/member/platform read guard with central home redirects | Layouts and role home pages |
-| `AccountFrame` | `apps/web/app/account-frame.tsx` | Shared account header and sign-out | Console, member and platform layouts |
+| `AccountFrame` | `apps/web/app/account-frame.tsx` | Shared account frame and sign-out; console callers receive the responsive owner shell while member/platform callers retain the generic horizontal header | Console, member and platform layouts |
+| `ConsoleNavigation` | `apps/web/app/console-navigation.tsx` | Presentation-only permitted console links with longest-route `aria-current` selection; server loaders remain authoritative | Console layout through `AccountFrame` |
 | `AppThemeProvider` / `ThemeControl` | `apps/web/app/theme-provider.tsx` | System/light/dark persistence on `data-theme` and the accessible three-choice appearance control with a stable unresolved placeholder | Root layout; `AccountFrame` |
 | `ThemeTokenStyle` | `apps/web/app/theme-token-style.tsx` | Web-only adapter that renders trusted CSS custom properties from `UI_TOKENS`, including reduced-motion and reduced-transparency fallbacks | Root layout |
 | `PreviewProvider` | `apps/web/app/preview-context.tsx` | Read-only preview state for descendants, rendered on the server too | Console layout |

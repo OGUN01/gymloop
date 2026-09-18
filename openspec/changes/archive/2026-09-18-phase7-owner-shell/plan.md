@@ -64,9 +64,9 @@ gate pass. A real owner light/dark journey visits `/dashboard`, `/red-list` and
 fresh Sol critic compares the shell directly with the approved owner v2 board.
 
 - [x] Contract and path ownership frozen.
-- [ ] Independent focused tests committed red.
-- [ ] Owner shell implemented without authority changes.
-- [ ] Focused checks and one full repository gate pass.
-- [ ] Real light/dark desktop/1024px/390px journey recorded without mutation.
-- [ ] Fresh Sol visual critic returns GO.
-- [ ] Registry/spec/evidence synchronized and change archived.
+- [x] Independent focused tests committed red.
+- [x] Owner shell implemented without authority changes.
+- [x] Focused checks and one full repository gate pass.
+- [x] Real light/dark desktop/1024px/390px journey recorded without mutation.
+- [x] Fresh Sol visual critic returns GO.
+- [x] Registry/spec/evidence synchronized and change archived.

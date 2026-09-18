@@ -148,4 +148,16 @@ warnings/errors before returning GO. The route was reviewed without submitting
 a follow-up. Evidence: `docs/evidence/2026-09-18-phase7-follow-up-surface.md`;
 archive: `openspec/changes/archive/2026-09-18-phase7-follow-up-surface/`.
 
+**Phase 7 owner shell completed 2026-09-18:** authenticated gym-console routes
+now share the approved owner-board frame with truthful organization/code
+context, permission-filtered navigation, exact current-route state and a
+responsive rail/top-shell conversion. The first fresh Sol pass rejected the
+desktop footer falling below tall content and narrow identity truncation;
+independent regression `fb7589a` preceded repair `c94c6cc`. The rerun measured
+the rail and Sign out inside the 900px viewport on both tall core routes in both
+themes, complete identity at 390px, a 247px 1024px top shell, 44px targets, no
+horizontal overflow and no console warnings/errors. Evidence:
+`docs/evidence/2026-09-18-phase7-owner-shell.md`; archive:
+`openspec/changes/archive/2026-09-18-phase7-owner-shell/`.
+
 Each phase opens its own OpenSpec change (`openspec/changes/000N-<phase-name>/`) and follows the Gauntlet Loop (`AGENTS.md`) — bar, spec, tests-first, build, fresh-context critic, gates, archive. Phase 0's own change is the worked template — proposal, design, tasks, and the evidence trail of what was proven and what went wrong on the way: `openspec/changes/archive/2026-09-06-phase-0-foundation/`.

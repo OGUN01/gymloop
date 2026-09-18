@@ -103,6 +103,27 @@ staff identity, gate-code, assisted-reason, event-key or retry contracts.
 - **THEN** the exact outcome remains the strongest announced region until explicit action
 - **AND** its retry or dismissal preserves the original event and request behavior
 
+### Requirement: The gym console uses the approved owner workspace shell
+UX7-006/013/014 SHALL present authenticated gym-console routes inside the
+approved owner-board frame: a truthful gym identity, permission-filtered
+navigation, one exact current-route state and locally available appearance and
+sign-out controls. The shell is presentation only; server loaders remain the
+authority for route access.
+
+#### Scenario: Owner or manager opens a console route on desktop
+- **WHEN** the verified audience and organization data load
+- **THEN** a viewport-bound slim rail shows the real organization name and gym code
+- **AND** permitted destinations, theme controls and sign-out remain reachable while long route content scrolls
+
+#### Scenario: The owner shell reflows at intermediate and narrow widths
+- **WHEN** the viewport reaches 1024px or 390px
+- **THEN** the rail becomes an intentional top shell without absorbing spare height or causing page overflow
+- **AND** truthful identity text remains complete and navigation/account targets remain at least 44px high
+
+#### Scenario: A generic member or platform frame loads
+- **WHEN** `AccountFrame` has no console navigation/context
+- **THEN** its existing horizontal account-header semantics remain unchanged
+
 ### Requirement: Follow-up is a truthful owner-board work queue
 UX7-006/007/013/014 SHALL present `/red-list` as the board-conformant “People to
 follow up” queue, with real member identity, current absence evidence, latest-

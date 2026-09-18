@@ -57,6 +57,12 @@ with lower bespoke-polish priority. Iron Pulse is superseded.
   links; the tested repair measured full text, 44px links and zero overflow at
   1024px before a replacement fresh critic returned GO. Evidence is
   `docs/evidence/2026-09-18-phase7-follow-up-surface.md`.
+- The gym-console owner shell now carries the approved board's slim rail,
+  truthful gym context, permission-filtered navigation and responsive top-shell
+  form across every console route. A fresh Sol rejection caught the tall-route
+  footer and 390px identity defects; an independent regression and bounded CSS
+  repair closed both. Evidence is
+  `docs/evidence/2026-09-18-phase7-owner-shell.md`.
 - Core-loop route redesign and the native app/API-client, member self-check-in,
   join/switch and bearer seams still need their own frozen contracts,
   independent tests and implementation. The foundation changed no database,
