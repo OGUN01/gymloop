@@ -14,9 +14,10 @@ export async function readIdentity(client?: Awaited<ReturnType<typeof createServ
   // user rather than merely to a syntactically complete claim object.
   const auth = supabase.auth as typeof supabase.auth & { getUser?: () => Promise<{ data: { user: { id: string } | null }; error: unknown }> };
   const userResult = typeof auth.getUser === 'function' ? await auth.getUser() : null;
+  const claimSubject = typeof claims?.sub === 'string' ? claims.sub : null;
   const authenticatedUser = claims?.role === 'authenticated'
-    && identity.kind !== 'unlinked'
-    && (userResult === null || (!userResult.error && userResult.data.user?.id === identity.userId));
+    && claimSubject !== null
+    && (userResult === null || (!userResult.error && userResult.data.user?.id === claimSubject));
   const signedIn = claims?.role === 'authenticated'
     ? authenticatedUser
     // Focused route doubles predate the Auth role field; production clients
