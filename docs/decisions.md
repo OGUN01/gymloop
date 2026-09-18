@@ -729,6 +729,18 @@ and Luna workers retain the two-worker limit and blind-test constraints. Astra
 remains disallowed. Rejected: rebuilding green Phase 6 code, calling green CI a
 browser journey, or consuming the Phase 7 allowance before Phase 6 is closed.
 
+**ADR-127 — Bundle the Phase 7 web fonts through pinned Fontsource packages.**
+The visual-foundation PRD requires local Inter and Noto Sans Devanagari WOFF2,
+correct unicode ranges and retained upstream licensing. The web package now
+pins `@fontsource-variable/inter` and
+`@fontsource-variable/noto-sans-devanagari` at `5.3.0` and imports their local
+CSS/WOFF2 payloads. This is the package-managed form of the same local-font
+contract: it performs no runtime font fetch, preserves the package's licensing
+and unicode-range metadata, and avoids copying binary assets into the repo or
+inventing a font generator. The Latin and Devanagari variables remain separate
+so Hindi content never depends on Inter's coverage. Rejected: Google Fonts at
+runtime, hand-copied untracked binaries, and a new token/font generation step.
+
 **ADR-112 — Preserve migration order when existing versions are ahead of the clock.**
 The refund unit's CLI-generated version `20260910074537` sorts before the
 already-applied `20260915100000` migration. Under the owner's ADR-111 delegation,

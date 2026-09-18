@@ -37,10 +37,15 @@ with lower bespoke-polish priority. Iron Pulse is superseded.
   recorded in the communications, metrics and platform evidence files.
 - Communications, metrics and platform are archived at
   `openspec/changes/archive/2026-09-18-phase6-{comms,metrics,platform}/`.
-- Phase 7 has visual/planning artifacts, not an implemented design system.
-  Native app/API-client, member self-check-in, join/switch and bearer seams
-  still need detailed frozen contracts, independent tests and implementation.
-- This planning batch changes no runtime code, dependencies or database state.
+- Phase 7's shared web visual foundation is implemented: platform-neutral
+  tokens, pinned local Latin/Devanagari fonts, persistent System/Light/Dark,
+  accessible focus/targets, reduced-effect fallbacks, polished sign-in and the
+  authenticated account shell. Final Sol visual review and repository gates
+  passed; evidence is `docs/evidence/2026-09-18-phase7-visual-foundation.md`.
+- Core-loop route redesign and the native app/API-client, member self-check-in,
+  join/switch and bearer seams still need their own frozen contracts,
+  independent tests and implementation. The foundation changed no database,
+  identity, navigation, money or domain contract.
 
 ## Budget and delegation
 
@@ -53,6 +58,10 @@ not promise work fits a percentage. At the applicable cap, stop new work and
 report the last green commit and preserved outstanding work. Phase 8 follows
 Phase 7 as a separately verified stage; this allowance does not waive or skip
 either phase's completion boundary.
+
+Measured after the completed Phase 7 visual-foundation micro-batch: **77% used**.
+The slice is green and archived; the 79% absolute ceiling remains in force for
+any next bounded Phase 7 slice.
 
 Sol orchestrates/reviews; Terra owns bounded architecture/security/native work;
 Luna is the default small-scope implementer. Maximum two simultaneous workers,

@@ -77,9 +77,9 @@ reduced-motion/transparency emulation where the browser exposes it. A fresh Sol
 visual critic reviews rendered light/dark crops against the approved references.
 
 - [x] Contract and path ownership frozen.
-- [ ] Independent focused tests committed red.
-- [ ] Tokens, fonts, theme provider/control and immediate consumers implemented.
-- [ ] Focused checks and one full repository gate pass.
-- [ ] Real light/dark browser journey and visual crops recorded.
-- [ ] Fresh Sol visual critic returns GO.
-- [ ] Registry/spec/evidence synchronized and change archived.
+- [x] Independent focused tests committed red.
+- [x] Tokens, fonts, theme provider/control and immediate consumers implemented.
+- [x] Focused checks and one full repository gate pass.
+- [x] Real light/dark browser journey and visual crops recorded.
+- [x] Fresh Sol visual critic returns GO.
+- [x] Registry/spec/evidence synchronized and change archived.

@@ -115,4 +115,15 @@ The reason, in the owner's words: *"all of these are taking time — we want an 
 
 **Phase 6 closeout completed 2026-09-18:** the preceding historical “Next” marker is superseded. Communications/wallet, owner and fleet metrics, and platform control now join the earlier identity/navigation, add-ons, leads and import slices. Cloud evidence remains 81 pgTAP files / 6812 assertions at `3e5120b`; final owner, super-admin, support and preview browser journeys passed with exact cleanup. A browser-only platform-detail defect was captured by the separate red-test commit `0ad90dc` and corrected in `745108c`. The three final changes are archived under `openspec/changes/archive/2026-09-18-phase6-*`. Phase 7 is now active under the approved experience PRD and ADR-126's usage boundary.
 
+**Phase 7 visual foundation completed 2026-09-18:** shared platform-neutral
+tokens, pinned local Inter/Devanagari fonts, persistent System/Light/Dark,
+reduced-effect fallbacks and accessible sign-in/account-shell foundations are
+live. The real owner journey, Hindi glyphs, reload persistence, 44px shell
+target and 32/38/600 title passed browser measurement with no hydration or
+console errors. The focused suite is 8/8, final repository gates are green and
+the fresh Sol visual critic returned GO. Canonical spec:
+`openspec/specs/design-system/spec.md`; archive:
+`openspec/changes/archive/2026-09-18-phase7-visual-foundation/`. Phase 7 remains
+active for the core-loop route redesign and real member/front-desk mobile app.
+
 Each phase opens its own OpenSpec change (`openspec/changes/000N-<phase-name>/`) and follows the Gauntlet Loop (`AGENTS.md`) — bar, spec, tests-first, build, fresh-context critic, gates, archive. Phase 0's own change is the worked template — proposal, design, tasks, and the evidence trail of what was proven and what went wrong on the way: `openspec/changes/archive/2026-09-06-phase-0-foundation/`.

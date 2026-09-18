@@ -20,6 +20,7 @@ Update this file in the same commit that adds the export. One row per symbol, ke
 | `PG_UNIQUE_VIOLATION` | `apps/web/lib/api.ts` | SQLSTATE `23505` — on `attendance_tenant_id_client_event_id_key` it means one check-in attempt arrived twice, which the handler answers with the row that already exists rather than with an error | `apps/web/app/api/check-in/route.ts` |
 | `PLAN_TIER_PRICES_PAISE` | `packages/shared/src/config/constants.ts` | Monthly SaaS tier prices in integer paise (§5) | Phase 6 (platform billing) |
 | `PRODUCT_NAME` | `packages/shared/src/config/constants.ts` | The one place the placeholder product name lives | Everywhere the name is displayed |
+| `UI_TOKENS` | `packages/shared/src/config/constants.ts` | Platform-neutral Phase 7 semantic colours, typography, spacing, radii, target sizes, layout dimensions and motion durations; no web/native import | Web `ThemeTokenStyle`; future native adapter |
 | `RATIO_BASIS_POINT_SCALE` | `packages/shared/src/config/constants.ts` | Exact 10,000-basis-point scale used for integer ratio arithmetic | `ratioBasisPoints` |
 | `RENEWAL_REMINDER_WINDOWS` | `packages/shared/src/config/constants.ts` | Renewal reminder windows, each with an explicit `daysFromExpiry`: **negative = before expiry, 0 = expiry date, positive = after** (so the spec's "+3" is `+3`). Ids (`expiry_minus_14` … `expiry_plus_3`) are unambiguous without reading the sign (PAY-001) | Phase 4 (reminders), Phase 5 (renewals) |
 | `ROUND_HALF_UP_MULTIPLIER` | `packages/shared/src/config/constants.ts` | Integer multiplier used to implement exact half-up ratio rounding without floating point | `ratioBasisPoints` |
@@ -551,6 +552,8 @@ Phase 7 owns the design system. What is here is the one screen whose behaviour c
 | `readIdentity` | `apps/web/lib/identity-session.ts` | Signature-verified claims plus pure classification; Auth failures expose no identity | Navigation, API helpers and end-preview route |
 | `requireAudience` | `apps/web/lib/identity-session.ts` | Typed console/member/platform read guard with central home redirects | Layouts and role home pages |
 | `AccountFrame` | `apps/web/app/account-frame.tsx` | Shared account header and sign-out | Console, member and platform layouts |
+| `AppThemeProvider` / `ThemeControl` | `apps/web/app/theme-provider.tsx` | System/light/dark persistence on `data-theme` and the accessible three-choice appearance control with a stable unresolved placeholder | Root layout; `AccountFrame` |
+| `ThemeTokenStyle` | `apps/web/app/theme-token-style.tsx` | Web-only adapter that renders trusted CSS custom properties from `UI_TOKENS`, including reduced-motion and reduced-transparency fallbacks | Root layout |
 | `PreviewProvider` | `apps/web/app/preview-context.tsx` | Read-only preview state for descendants, rendered on the server too | Console layout |
 | `usePreviewReadOnly` | `apps/web/app/preview-context.tsx` | Reads the UI preview state, never authorizes database access | MutationForm and CheckInGate |
 | `MutationForm` | `apps/web/app/preview-context.tsx` | Hides product POST forms during preview; preserves ordinary native forms | Member, membership, refund and follow-up screens |
