@@ -36,9 +36,10 @@ The first native application exposes the approved four labelled member tabs
 (Home, Activity, My gym, You) and four desk tabs (Check-in, Members, Follow-ups,
 More), complete Light/Dark/System tokens, verified gym identity/code, member QR
 scan/queue/status, attendance/streak, membership/receipts, messages/consent,
-add-on history, desk search/assisted check-in/follow-up/lead entry, appearance,
-language and sign-out. It consumes real authorized reads; no mock production
-data, UI-only tenant switch or decorative disabled delivery claim is allowed.
+add-on history, desk search/assisted check-in/follow-up/lead entry, appearance
+and sign-out. All product copy is English and no language mode is exposed. It
+consumes real authorized reads; no mock production data, UI-only tenant switch
+or decorative disabled delivery claim is allowed.
 
 Gym joining/switching is not inferred from a public code. If the existing data
 model cannot prove a second association without a new owner-approved linking

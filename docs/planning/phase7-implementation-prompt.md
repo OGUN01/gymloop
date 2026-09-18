@@ -8,8 +8,8 @@ You are completing Gymloop Phase 6 closeout and Phase 7 under the owner's
 Sol/Terra/Luna policy. Deliver equally excellent member and gym-owner interfaces,
 a fast front desk, matching light/dark appearances and the real native workflows.
 The accepted direction is calm, contemporary, Apple-inspired minimalism:
-porcelain/ink surfaces, emerald/mint accents, clear gym identity, Inter with Noto
-Sans Devanagari, considered curves and restrained motion. Iron Pulse is historical.
+porcelain/ink surfaces, emerald/mint accents, clear gym identity, local Inter,
+considered curves and restrained motion. Product UI is English-only. Iron Pulse is historical.
 Do not claim an AI bitmap's font is an identified font or copy its sample data.
 
 Read `AGENTS.md`, `docs/planning/current-campaign-goal.md`,
@@ -85,7 +85,7 @@ Field/AccountFrame API. Root alone coordinates registry/manifest/lockfile edits
 and licenses. A separate test author owns focused theme and accessibility
 behaviour tests; commit new behaviour tests red before implementation.
 Acceptance: both themes on sign-in and one real owner screen, preference reload,
-keyboard focus, Hindi sample, reduced effects, no layout/hydration error.
+keyboard focus, English enlarged-text coverage, reduced effects, no layout/hydration error.
 Forbidden: new auth semantics, new domain APIs, unconsumed primitives, generators.
 
 **2 — Web core-loop route groups.** Requirements: UX7-002–007, UX7-012–014 and
@@ -146,7 +146,7 @@ interfaces. Add member web counterparts only over the same authorized contracts.
 Freeze stack/route destinations, read models and state matrices before dispatch.
 
 Member batches: Home/check-in → Activity/streak → My gym/membership/receipts →
-messages/consent/add-ons → You/appearance/language. Desk batches: search/assisted
+messages/consent/add-ons → You/appearance. Desk batches: search/assisted
 attendance → directory → follow-ups → lead capture. Do not hide unimplemented
 deliverables behind disabled decorative controls and then call the phase done.
 

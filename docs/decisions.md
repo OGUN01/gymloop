@@ -28,7 +28,7 @@ The **Open Decisions** section at the bottom is different in kind: these are gen
 
 **ADR-010 — Observability: Sentry (web, mobile, edge) + structured JSON logs carrying `tenant_id`.** Rejected: a self-hosted error tracker (operational overhead not justified pre-revenue); logs without a tenant dimension (would make gate 28's per-tenant incident triage impossible).
 
-**ADR-011 — i18n: English + Hindi from day one.** Not deferred to a later phase — Indian gym staff and members routinely mix languages, and retrofitting i18n into components built English-only is expensive. Rejected: English-only for v1 with i18n "added later" (the standard version of this decision, and the reason so many Indian SaaS products never ship Hindi at all); a third language in v1 (no evidence of demand, and each one multiplies copy review).
+**ADR-011 — i18n: English + Hindi from day one.** Superseded for product UI by ADR-132 on 2026-09-18. Retained as decision history.
 
 **ADR-012 — API architecture: mutations via Next.js Route Handlers (zod + typed error envelope); reads direct via supabase-js + RLS; Supabase Edge Functions only for Razorpay webhooks and cron.** Rejected: GraphQL (adds a resolver layer with no clear win over direct RLS reads for this data shape); tRPC (couples client/server in a way that complicates the shared `packages/api-client` used by both web and mobile); Edge Functions for all backend logic (Vercel Route Handlers are colocated with the web app and simpler to deploy; Edge Functions are reserved for the two things that must sit next to the database regardless of Vercel's availability — webhooks and cron).
 
@@ -1376,6 +1376,16 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 ---
 
 ## Open decisions added after the Phase 0 blind critic
+
+- **ADR-132 — Product UI is English-only (owner override, 2026-09-18).** Remove
+  the Hindi mode, language selector, persisted locale, Hindi sample copy,
+  Devanagari font dependencies and planned i18n runtime from web and native
+  presentation layers. Keep accessible dynamic type and the complete
+  System/Light/Dark appearance contract. This supersedes ADR-011 and the
+  Devanagari half of ADR-127. It does not silently rewrite Phase 6's stored
+  message-template locale schema (`en`/`hi`), which is delivery metadata rather
+  than an application language mode and requires its own domain change if the
+  owner later wants it removed.
 
 - **ADR-124 — owner extension, 2026-09-18.** The owner extended the campaign
   weekly-usage hard stop from 75% to 77% for Phase 6 closeout and Phase 7. This

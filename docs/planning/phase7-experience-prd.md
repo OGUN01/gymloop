@@ -71,7 +71,7 @@ check-in action, the configured weekly goal, membership summary and the latest
 eligible gym message. Activity contains visits, planned/rest/paused days and
 the configured streak, with supportive missed-day copy. My gym contains gym
 identity/code, membership and receipts, messages/consent, catalogue and owned
-add-on history. You contains profile/account, appearance, English/Hindi and
+add-on history. You contains profile/account, appearance and
 sign-out. A compact inbox entry is available without adding a fifth tab.
 
 Check-in: open scanner → request camera permission in context → scan the
@@ -124,11 +124,10 @@ override for expired memberships. Owner controls never appear for desk/trainers.
 
 ### Typography
 
-Use **Inter** for Latin text: variable WOFF2 on web through `next/font/local`,
-static 400/500/600/700 native font files bundled with `expo-font`. Use **Noto
-Sans Devanagari** for Hindi, matching weights and with enough line height for
-marks. Retain upstream font licenses with the assets. Choose by content locale
-and verify mixed Hindi/English names; do not assume Inter includes Devanagari.
+Use **Inter** for product text: variable WOFF2 on web through local pinned
+assets and static 400/500/600/700 native files bundled with `expo-font`.
+Retain upstream font licenses with the assets. Product UI is English-only;
+there is no runtime language switcher or secondary script font payload.
 Use the platform monospace stack for six-character codes, not a third download.
 
 Web body 16/24 px; compact owner table 14/20; secondary labels 13/18; mobile body
@@ -202,7 +201,7 @@ it. Avoid scroll hijacking, looping shimmer, number count-up, bouncing money,
 confetti and delays before acknowledging input. Financial facts are never
 optimistically confirmed. Retain check-in confirmation until explicit next action.
 
-## 6. Theme, language and state rules
+## 6. Theme and state rules
 
 Appearance has **System / Light / Dark**, defaults to System and persists per
 device. Load the web preference before first paint through the theme provider;
@@ -211,10 +210,9 @@ hydration exception to the provider-owned root only. Native resolves appearance
 before splash dismissal. System mode follows OS changes; explicit mode does not.
 Clearing private account data does not require discarding a non-sensitive theme.
 
-English and Hindi cover labels, forms, validation, empty/error/offline states,
-not only navigation. Use i18next dictionaries in a platform-neutral shared layer,
-server instances scoped to each request, and React bindings in app layers.
-Localized display must preserve decimal-string/BigInt arithmetic. Consent and
+English covers labels, forms, validation and empty/error/offline states. Do not
+ship a language selector, locale preference or unused localization runtime.
+Display formatting must preserve decimal-string/BigInt arithmetic. Consent and
 provider copy stay faithful to the source contract.
 
 Every screen specification enumerates loading, empty, recoverable error,
@@ -237,7 +235,6 @@ Pin exact versions in manifests/lockfile when the consuming batch begins.
 | Web theme | `next-themes` 0.4.6 | System/light/dark persistence and early theme application |
 | Web icons | `lucide-react` 1.47.0 | One icon family, named imports; decorative icons hidden, icon buttons labelled |
 | Web motion | `motion` 13.4.0, conditional adoption | Use only for needed presence/layout; reduced-motion policy required |
-| Language | `i18next` 26.4.2 + `react-i18next` 17.0.14 | Shared messages, app-level React adapters, no server singleton locale leakage |
 | Mobile | Expo 57.0.23, React Native 0.86 compatible patch, React 19.2.3 | Stable SDK 57; no SDK 58 beta, no web React version forced into mobile |
 | Navigation | Expo Router 57.0.21 with SDK-compatible navigation peers | Stable stack/JS tabs; shared four-tab visual design, native back semantics |
 | Native motion | SDK-selected Reanimated + Worklets + Gesture Handler | Expo docs recommend Reanimated 4.5.1; registry latest is 4.6.0—use SDK recommendation |
@@ -303,7 +300,7 @@ New IDs describe Phase 7 requirements, not already passing tests.
 | UX7-001 | WHEN a member opens Home THE SYSTEM SHALL foreground the verified gym identity/code and check-in action, with four labelled tabs. | Member light/dark screens, thumb navigation, claim-correct gym |
 | UX7-002 | WHEN the owner opens Overview THE SYSTEM SHALL foreground operational metrics/actions and retain MET-001–008 snapshot semantics. | Card-to-component reconciliation, period/timezone/warnings, real owner journey |
 | UX7-003 | WHEN appearance changes THE SYSTEM SHALL apply a complete light/dark theme, persist explicit choice and respect System mode. | Reload/cold-start/OS-change check without flash or hydration error |
-| UX7-004 | WHEN text is Hindi or enlarged THE SYSTEM SHALL preserve meaning, glyphs, hierarchy and operable controls. | Mixed-script samples, 200% scaling and narrow layouts |
+| UX7-004 | WHEN English text is enlarged THE SYSTEM SHALL preserve meaning, hierarchy and operable controls. | 200% scaling and narrow layouts |
 | UX7-005 | WHILE reduced motion/transparency is enabled THE SYSTEM SHALL preserve all content/actions with reduced effects. | Device/browser setting checks, static opaque fallback |
 | UX7-006 | WHEN controls receive keyboard, screen-reader or touch input THE SYSTEM SHALL provide names, focus, adequate targets and AA contrast. | Focus/modal/back flow, contrast, accessibility scan and manual review |
 | UX7-007 | WHEN a request is loading, empty, refused, stale, offline, uncertain or conflicting THE SYSTEM SHALL show the truthful actionable state. | State matrix and focused interaction checks |
@@ -338,7 +335,7 @@ offline concurrency retain the full blind arrangement. Do not rerun passing
 suites unless affected. Run slice-level repository gates once, retain CI-only
 migrations and serialized DB workflows, and check weekly usage after each batch.
 
-Phase 7 done means: all scoped routes/screens use the system; theme and Hindi
+Phase 7 done means: all scoped routes/screens use the system; theme
 work; real member/owner/desk journeys pass; Android AND iOS development builds,
 auth, role isolation and offline replay are verified; critics inspect rendered
 crops against public bars and approved references; registry/spec/evidence are
@@ -351,7 +348,6 @@ substitute for the missing evidence.
 ## 11. Research sources
 
 - [Inter and its optical sizes/tabular figures](https://rsms.me/inter/)
-- [Noto Sans Devanagari](https://fonts.google.com/noto/specimen/Noto+Sans+Devanagari)
 - [Next font loading](https://nextjs.org/docs/app/getting-started/fonts)
 - [Radix primitives](https://www.radix-ui.com/primitives/docs/overview/introduction)
 - [Lucide React](https://lucide.dev/guide/react)
@@ -362,7 +358,6 @@ substitute for the missing evidence.
 - [Expo tabs](https://docs.expo.dev/router/advanced/tabs/)
 - [Expo Reanimated recommendation](https://docs.expo.dev/versions/latest/sdk/reanimated/)
 - [Expo GlassEffect availability and fallback](https://docs.expo.dev/versions/latest/sdk/glass-effect/)
-- [i18next](https://www.i18next.com/overview/getting-started)
 - [Apple's new design in practice](https://developer.apple.com/videos/play/meet-with-apple/208/)
 
 Package versions/peers above were read with `pnpm view <package> version

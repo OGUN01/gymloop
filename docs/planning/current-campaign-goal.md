@@ -42,7 +42,7 @@ fundamentals with lower bespoke-polish priority. Iron Pulse is superseded.
 - Communications, metrics and platform are archived at
   `openspec/changes/archive/2026-09-18-phase6-{comms,metrics,platform}/`.
 - Phase 7's shared web visual foundation is implemented: platform-neutral
-  tokens, pinned local Latin/Devanagari fonts, persistent System/Light/Dark,
+  tokens, pinned local Inter fonts, persistent System/Light/Dark,
   accessible focus/targets, reduced-effect fallbacks, polished sign-in and the
   authenticated account shell. Final Sol visual review and repository gates
   passed; evidence is `docs/evidence/2026-09-18-phase7-visual-foundation.md`.
@@ -116,12 +116,21 @@ application remain mandatory. No quota workaround or relaxed gate is authorized.
 ## Completion boundary
 
 Phase 6 is archived with real owner/platform journeys. Phase 7 covers the PRD's
-member, owner and desk surfaces; accessible English/Hindi light/dark states;
+member, owner and desk surfaces; accessible English-only light/dark states;
 real Android and iOS development builds; role-isolated authentication; honest
 offline capture and exactly-once replay; cropped visual criticism; current
 registry/spec/evidence and archive. Missing device/signing/provider access is
 a named blocker, never replaced by a simulated success. Phase 8 operational
 hardening and credential-blocked Razorpay integration remain out of scope.
+
+## Owner language override
+
+The 2026-09-18 owner instruction supersedes ADR-011 for product UI: Gymloop is
+English-only. Phase 7 must expose no Hindi mode, language selector, locale
+preference, Hindi sample copy or Devanagari font payload. Stored communication
+template locale values remain a Phase 6 delivery contract and are not an app
+language mode; changing that data contract is outside this presentation-only
+override.
 
 ## Desktop goal-record limitation
 
