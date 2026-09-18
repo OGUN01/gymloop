@@ -123,5 +123,8 @@ describe('Phase 7 owner shell', () => {
     expect(css).toMatch(/\.owner-navigation-disclosure\[open\]\s*>\s*\.owner-navigation|\.owner-navigation-disclosure\s+\.owner-navigation/);
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*[\s\S]*\.owner-navigation-disclosure\[open\]\s*>\s*\.owner-navigation[^}]*flex-direction\s*:\s*column/s);
     expect(css).toMatch(/\.owner-navigation-disclosure\[open\]\s*>\s*\.owner-navigation[^}]*overflow-x\s*:\s*(?:hidden|clip|visible)/s);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*64rem[^)]*[\s\S]*\.owner-navigation-disclosure\s*\{[^}]*grid-column\s*:\s*1\s*\/\s*-1[^}]*min-width\s*:\s*0[^}]*display\s*:\s*(?!contents)[^;}]+/s);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*64rem[^)]*[\s\S]*\.owner-navigation-disclosure\s*>\s*summary[^}]*display\s*:\s*none/s);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*64rem[^)]*[\s\S]*\.owner-navigation-disclosure\s*>\s*\.owner-navigation[^}]*display\s*:\s*(?:flex|block|grid)/s);
   });
 });
