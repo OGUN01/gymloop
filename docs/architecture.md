@@ -93,9 +93,23 @@ The Gauntlet Loop's blind critic compares our work against a **named, fetchable,
 
 For **backend** phases the bar is measurable rather than visual: zero visible-vs-holdout gap, Stripe-grade API ergonomics (typed error envelopes, idempotency keys, predictable pagination, errors that say how to fix themselves), the p95 latency budget from Mumbai, and a green pgTAP isolation suite.
 
-## 2026 design direction (Phase 7, not before)
+## 2026 design direction (Phase 7; owner override 2026-09-18)
 
-Dark-first with a refined light mode. Spatial depth and subtle tactile surfaces rather than flat cards. Thumb-optimised reach on mobile. Purposeful microinteractions and haptics — especially the check-in confirmation. Large numerals and high contrast for a gym floor. Gesture-first navigation. Expressive but restrained motion. Inclusive accessibility as a requirement, not a pass. The owner dashboard prioritises actionable lists over decorative charts. Clear English/Hindi labels and rupee amounts.
+Calm, Apple-inspired minimalism with equally finished light and dark appearances;
+porcelain/ink surfaces, restrained emerald/mint actions, Inter and Noto Sans
+Devanagari, clear gym identity/code, generous but practical spacing and considered
+corners. Member AND gym-owner experiences receive the highest visual quality.
+Platform super-admin uses the common system with lower bespoke-polish priority.
+Use opaque content with optional subtle navigation translucency, thumb-friendly
+labelled controls, reduced-motion/transparency fallbacks and restrained haptics.
+Owner lists foreground the next useful action; exact money and metrics beat
+decorative charts. English/Hindi, accessible contrast and scaling are required.
+This supersedes dark-first/Iron Pulse styling, not domain or security contracts.
+
+Exact tokens, fonts, selected libraries and acceptance are in
+`docs/planning/phase7-experience-prd.md`; dispatch instructions are in
+`docs/planning/phase7-implementation-prompt.md`. Owner-authorized planning may
+precede Phase 6 closeout, but does not count as completing either phase.
 
 ## The four journeys (E2E, gate 32)
 

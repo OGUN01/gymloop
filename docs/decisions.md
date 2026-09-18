@@ -684,6 +684,40 @@ already the platform contract. Preview is rejected before the RPC and inside
 the SQL wrapper. This resolves the contract conflict raised by the first fresh
 metrics critic without broadening impersonation or returning partial data.
 
+**ADR-125 — Equal-quality member and gym-owner minimalism replaces Iron Pulse;
+implementation follows a concrete experience PRD.** On 2026-09-18 the owner
+approved the fresh member concept and asked for the same quality for gym owners,
+including fonts, libraries, curves, smoothness, light/dark support and an updated
+goal/prompt before implementation. Platform super-admin remains function-first.
+The member v2 image is the approved direction; the owner v2 adaptation is a new
+proposal. Neither image authorizes sample numbers, new permissions or unfinished
+features to be represented as real.
+
+`docs/planning/phase7-experience-prd.md` fixes the proposed production system:
+Inter + Noto Sans Devanagari, porcelain/ink and emerald/mint semantic colours,
+accessible continuous-corner geometry, modest motion and opaque content. Retain
+the existing Next/React/Tailwind stack; add owned Radix-based primitives,
+next-themes, Lucide and i18next only with real consumers. Motion is conditional.
+Native uses stable Expo SDK 57 with RN 0.86 and React 19.2.3, SDK-compatible
+Reanimated and capability packages, not SDK 58 beta or arbitrarily newest peers.
+The compatibility facts checked for this PRD supersede ADR-020's historical
+version example, not its principle of verifying versions at implementation time.
+All numeric tokens stay in the existing shared constants file; adapters remain
+platform-specific. No token generator, second design kit or speculative scaffold.
+
+`docs/planning/phase7-implementation-prompt.md` defines bounded assignments and
+`docs/planning/current-campaign-goal.md` records the owner-updated objective.
+Detailed member joining/switching, self-check-in, bearer/session and offline
+contracts must still freeze before blind tests and implementation. This decision
+does not mark Phase 6/7 complete, waive gates, install libraries or authorize
+Phase 8. The Sol/Terra/Luna policy and 77% ceiling remain unchanged. The desktop
+goal tool cannot rewrite an unfinished objective; the durable goal update does
+not falsely claim to have changed that tool's stored record.
+
+Rejected: retaining the rejected neon direction for owners, styling every page
+independently, equating heavy glass/animation with quality, automatically
+upgrading the working web stack, and describing an AI bitmap as shipped UI.
+
 **ADR-112 — Preserve migration order when existing versions are ahead of the clock.**
 The refund unit's CLI-generated version `20260910074537` sorts before the
 already-applied `20260915100000` migration. Under the owner's ADR-111 delegation,
@@ -1261,6 +1295,12 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 ---
 
 ## Open decisions added after the Phase 0 blind critic
+
+- **ADR-124 — owner extension, 2026-09-18.** The owner extended the campaign
+  weekly-usage hard stop from 75% to 77% for Phase 6 closeout and Phase 7. This
+  does not authorize GPT-6 Astra; the 2026-09-17 Sol/Terra/Luna assignment and
+  explicit no-Astra restriction remain in force. Earlier owner overrides are
+  retained as superseded history rather than deleted.
 
 - **OPEN-005 — resolved by ADR-030** (CI applies migrations on serial merge to `main`; drift and pgTAP verify after the apply; `AGENTS.md` rule #7, ADR-024 and gate 9 updated together).
 - **OPEN-006 (before real gym data lands — around Phase 5).** Split to a separate Supabase test project so the pgTAP suite and integration tests stop sharing a database with production rows. Until then the rollback rule (ADR-030) is the whole protection; once a paying gym's data exists it is not enough.
