@@ -40,6 +40,7 @@ describe('Phase 7 follow-up surface', () => {
     expect(html).toMatch(/stopped coming|longest away|longest absent/i);
     expect(html).toContain('href="/console"');
     expect(html).toContain('Members');
+    expect(html).toContain('href="/memberships/member-1"');
     for (const truth of ['Asha Rao', '9876543210', '12', '2026-09-01', 'Nobody has contacted them yet.', 'Bharat Singh', '9123456780', 'Front desk', 'whatsapp', 'no_response']) {
       expect(html).toContain(truth);
     }
@@ -61,7 +62,7 @@ describe('Phase 7 follow-up surface', () => {
     const page = (await import('../(console)/red-list/page')).default;
     state.result = { cases: [], nextCursor: null, pageSize: 50, errorMessage: null };
     let html = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
-    expect(html).toMatch(/no (members|people|follow.?ups)|nothing to follow/i);
+    expect(html).toMatch(/Nobody is overdue today|no (members|people|follow.?ups)|nothing to follow/i);
     expect(html).not.toContain('Asha Rao');
 
     state.result = { cases: [caseFixture], nextCursor: 'cursor-2', pageSize: 50, errorMessage: null };
