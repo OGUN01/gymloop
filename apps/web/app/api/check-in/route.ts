@@ -4,9 +4,15 @@ import { readIdentity, readRequestIdentity } from '../../../lib/identity-session
 import { hashGateCode } from '../../../lib/gate-code';
 
 const REFUSALS: Record<string, { status: ApiFailStatus; message: string }> = {
-  GL010: { status: 'unprocessable', message: 'That gate code belongs to another gym.' }, GL011: { status: 'unprocessable', message: 'That gate code has expired. Show a new one.' }, GL012: { status: 'unprocessable', message: 'That gate code has been revoked.' }, GL013: { status: 'unprocessable', message: 'No active membership. Renew before checking in.' }, GL014: { status: 'conflict', message: 'Already checked in a moment ago.' }, GL017: { status: 'unprocessable', message: 'That offline check-in time is not valid for this gate session.' },
+  GL010: { status: 'unprocessable', message: 'That gate code belongs to another gym.' }, GL011: { status: 'unprocessable', message: 'That gate code has expired. Show a new one.' }, GL012: { status: 'unprocessable', message: 'That gate code has been revoked.' }, GL013: { status: 'unprocessable', message: 'No active membership. Renew before checking in.' }, GL014: { status: 'conflict', message: 'Already checked in a moment ago.' }, GL017: { status: 'unprocessable', message: 'That offline check-in time is not valid for this gate session.' }, GL018: { status: 'conflict', message: 'That check-in id has already been used for a different member.' },
 };
 const RECORDED_COLUMNS = 'id, checked_in_at, source';
+type MemberCheckInRecord = { id: string; checked_in_at: string; source: string; replay: boolean };
+type MemberCheckInRpc = {
+  rpc(name: 'member_mobile_check_in', args: { p_token_hash: string; p_client_event_id: string | null; p_offline_recorded_at: string | null }): {
+    single(): Promise<{ data: MemberCheckInRecord | null; error: { code: string } | null }>;
+  };
+};
 
 /** POST /api/check-in — staff assistance and verified member QR replay. */
 export async function POST(request: Request): Promise<Response> {
@@ -17,6 +23,7 @@ export async function POST(request: Request): Promise<Response> {
     catch { caller = null; }
   }
   if (caller === null || caller.identity.kind === 'unlinked') return apiFail('unauthorized', 'not_signed_in', 'Sign in with one valid user session first.');
+  if (caller.identity.kind === 'member' && caller.authenticatedUser === false) return apiFail('unauthorized', 'not_signed_in', 'Sign in with one valid user session first.');
   if (caller.identity.kind !== 'staff' && caller.identity.kind !== 'member') return apiFail('forbidden', 'not_permitted', 'This account cannot record attendance.');
   const { supabase, identity } = caller;
   let payload: unknown;
@@ -30,6 +37,19 @@ export async function POST(request: Request): Promise<Response> {
   if (identity.kind === 'staff' && offlineRecordedAt !== undefined) return apiFail('bad_request', 'invalid_request', 'Only member device replay may carry an offline capture time.');
   const { data: member } = await supabase.from('members').select('id, full_name, branch_id').eq('id', memberId).maybeSingle();
   if (!member) return apiFail('not_found', 'member_unknown', 'No member of this gym has that id.');
+  if (identity.kind === 'member') {
+    const { data: recorded, error } = await (supabase as unknown as MemberCheckInRpc)
+      .rpc('member_mobile_check_in', {
+        p_token_hash: hashGateCode(token as string),
+        p_client_event_id: clientEventId ?? null,
+        p_offline_recorded_at: offlineRecordedAt ?? null,
+      }).single();
+    if (error === null && recorded !== null) return apiOk({ memberName: member.full_name, ...recorded });
+    if (error?.code === PG_INSUFFICIENT_PRIVILEGE) return apiFail('forbidden', 'not_permitted', 'Your role may not record attendance.');
+    const refusal = error && Object.hasOwn(REFUSALS, error.code) ? REFUSALS[error.code] : undefined;
+    if (refusal) return apiFail(refusal.status, error?.code ?? 'check_in_failed', refusal.message);
+    return apiFail('server_error', 'check_in_failed', 'That check-in could not be recorded.');
+  }
   let qrSessionId: string | null = null;
   let branchId = member.branch_id;
   if (token === undefined) {

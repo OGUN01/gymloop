@@ -12,10 +12,10 @@ export type MemberSnapshot = {
   visits: { id: string; checkedInAt: string; source: string }[];
   weekVisits: number;
   streak: { current: number; unit: 'day' | 'week'; missed: readonly string[] };
-  receipts: { id: string; amountPaise: number; currency: string; paidAt: string | null; receiptNumber: string | null; status: string }[];
+  receipts: { id: string; amountPaise: string; currency: string; paidAt: string | null; receiptNumber: string | null; status: string }[];
   messages: { id: string; body: string; sentAt: string | null; status: string }[];
   consents: { purpose: string; granted: boolean; recordedAt: string }[];
-  addOns: { id: string; name: string; status: string; totalPaise: number; currency: string; sessionsUsed: number; sessionsTotal: number | null }[];
+  addOns: { id: string; name: string; status: string; totalPaise: string; currency: string; sessionsUsed: number; sessionsTotal: number | null }[];
 };
 
 type LooseResult = { data: Record<string, unknown>[] | null; error: { message: string } | null };
@@ -25,6 +25,13 @@ interface LooseQuery extends PromiseLike<LooseResult> {
   in(column: string, values: readonly string[]): LooseQuery;
   order(column: string, options?: { ascending: boolean }): LooseQuery;
   limit(count: number): LooseQuery;
+}
+
+type MobileMoneyRead = { receipts?: Record<string, unknown>[]; addOns?: Record<string, unknown>[] };
+type MobileMoneyQuery = PromiseLike<{ data: MobileMoneyRead | null; error: { message: string } | null }>;
+
+function memberMoney(client: DbClient): MobileMoneyQuery {
+  return (client as unknown as { rpc(name: 'read_member_mobile_money'): MobileMoneyQuery }).rpc('read_member_mobile_money');
 }
 
 function loose(client: DbClient, table: string): LooseQuery {
@@ -46,22 +53,21 @@ function payloadBody(value: unknown): string {
 }
 
 export async function loadMemberSnapshot(client: DbClient, identity: MemberIdentity): Promise<MemberSnapshot> {
-  const [memberRead, gymRead, settingsRead, branchRead, membershipRead, attendanceRead, paymentsRead, messagesRead, consentsRead, addOnsRead, pausesRead, holidaysRead] = await Promise.all([
+  const [memberRead, gymRead, settingsRead, branchRead, membershipRead, attendanceRead, moneyRead, messagesRead, consentsRead, pausesRead, holidaysRead] = await Promise.all([
     client.from('members').select('full_name,member_code,email,phone,weekly_goal_visits,rest_days,branch_id').eq('id', identity.memberId).eq('tenant_id', identity.tenantId).single(),
     client.from('organizations').select('name,gym_code,timezone').eq('id', identity.tenantId).single(),
     client.from('organization_settings').select('city,state,weekly_goal_default,week_start_day,streak_rule_type').eq('tenant_id', identity.tenantId).single(),
     client.from('branches').select('name,address').eq('tenant_id', identity.tenantId).order('is_default', { ascending: false }).limit(1).maybeSingle(),
     client.from('memberships').select('status,starts_on,ends_on,plans(name)').eq('member_id', identity.memberId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     client.from('attendance').select('id,checked_in_at,source').eq('member_id', identity.memberId).order('checked_in_at', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT),
-    client.from('payments').select('id,amount_paise,currency,paid_at,receipt_number,status').eq('member_id', identity.memberId).order('created_at', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT),
+    memberMoney(client),
     client.from('notifications').select('id,payload,sent_at,status').eq('member_id', identity.memberId).eq('channel', 'in_app').in('status', ['sent', 'delivered']).order('sent_at', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT),
     client.from('consents').select('purpose,granted,recorded_at').eq('member_id', identity.memberId).order('recorded_at', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT),
-    loose(client, 'addon_orders').select('id,status,total_paise,currency,sessions_used,sessions_total,addon_products(name)').eq('member_id', identity.memberId).order('created_at', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT),
     client.from('membership_pauses').select('starts_on,ends_on,approved_at,rejected_at,memberships!inner(member_id)').eq('memberships.member_id', identity.memberId),
     client.from('organization_holidays').select('holiday_on').eq('tenant_id', identity.tenantId),
   ]);
 
-  const firstError = [memberRead, gymRead, settingsRead, branchRead, membershipRead, attendanceRead, paymentsRead, messagesRead, consentsRead, addOnsRead, pausesRead, holidaysRead]
+  const firstError = [memberRead, gymRead, settingsRead, branchRead, membershipRead, attendanceRead, moneyRead, messagesRead, consentsRead, pausesRead, holidaysRead]
     .find((result) => result.error !== null)?.error;
   if (firstError) throw new Error(firstError.message);
   if (!memberRead.data || !gymRead.data || !settingsRead.data) throw new Error('Your gym profile is not available.');
@@ -98,13 +104,10 @@ export async function loadMemberSnapshot(client: DbClient, identity: MemberIdent
     visits: (attendanceRead.data ?? []).map((row) => ({ id: row.id, checkedInAt: row.checked_in_at, source: row.source })),
     weekVisits,
     streak: { current: streak.current, unit: streak.unit, missed: streak.missed },
-    receipts: (paymentsRead.data ?? []).map((row) => ({ id: row.id, amountPaise: row.amount_paise, currency: row.currency, paidAt: row.paid_at, receiptNumber: row.receipt_number, status: row.status })),
+    receipts: (moneyRead.data?.receipts ?? []).map((row) => ({ id: text(row.id), amountPaise: text(row.amountPaise), currency: text(row.currency), paidAt: typeof row.paidAt === 'string' ? row.paidAt : null, receiptNumber: typeof row.receiptNumber === 'string' ? row.receiptNumber : null, status: text(row.status) })),
     messages: (messagesRead.data ?? []).map((row) => ({ id: row.id, body: payloadBody(row.payload), sentAt: row.sent_at, status: row.status })),
     consents: (consentsRead.data ?? []).map((row) => ({ purpose: row.purpose, granted: row.granted, recordedAt: row.recorded_at })),
-    addOns: (addOnsRead.data ?? []).map((row) => {
-      const product = row.addon_products !== null && typeof row.addon_products === 'object' ? row.addon_products as { name?: unknown } : null;
-      return { id: text(row.id), name: text(product?.name, 'Add-on'), status: text(row.status), totalPaise: number(row.total_paise), currency: text(row.currency, 'INR'), sessionsUsed: number(row.sessions_used), sessionsTotal: typeof row.sessions_total === 'number' ? row.sessions_total : null };
-    }),
+    addOns: (moneyRead.data?.addOns ?? []).map((row) => ({ id: text(row.id), name: text(row.name, 'Add-on'), status: text(row.status), totalPaise: text(row.totalPaise), currency: text(row.currency, 'INR'), sessionsUsed: number(row.sessionsUsed), sessionsTotal: typeof row.sessionsTotal === 'number' ? row.sessionsTotal : null })),
   };
 }
 

@@ -40,7 +40,7 @@ const api = createApiClient({
 });
 
 function scopeKey(identity: GymloopIdentity): string | null {
-  if (identity.kind === 'member' || identity.kind === 'staff') return `${identity.userId}:${identity.tenantId}`;
+  if (identity.kind === 'member') return `${identity.userId}:${identity.tenantId}:${identity.memberId}`;
   return null;
 }
 

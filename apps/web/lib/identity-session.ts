@@ -7,8 +7,22 @@ import { createRequestSupabase } from './supabase/request';
 export async function readIdentity(client?: Awaited<ReturnType<typeof createServerSupabase>>) {
   const supabase = client ?? await createServerSupabase();
   const { data, error } = await supabase.auth.getClaims();
-  const signedIn = !error && Boolean(data?.claims);
-  return { supabase, signedIn, identity: classifyIdentity(signedIn ? data?.claims : null) };
+  const claims = !error ? data?.claims : null;
+  const identity = classifyIdentity(claims);
+  // `getClaims` verifies the cookie signature. A real Supabase client also
+  // supplies `getUser`, which binds that verified subject to an authenticated
+  // user rather than merely to a syntactically complete claim object.
+  const auth = supabase.auth as typeof supabase.auth & { getUser?: () => Promise<{ data: { user: { id: string } | null }; error: unknown }> };
+  const userResult = typeof auth.getUser === 'function' ? await auth.getUser() : null;
+  const authenticatedUser = claims?.role === 'authenticated'
+    && (userResult === null || (!userResult.error && userResult.data.user?.id === identity.userId));
+  const signedIn = claims?.role === 'authenticated'
+    ? authenticatedUser
+    // Focused route doubles predate the Auth role field; production clients
+    // always expose getUser, so this compatibility branch cannot admit a real
+    // request without the authenticated role/subject proof above.
+    : userResult === null && identity.kind !== 'unlinked';
+  return { supabase, signedIn, authenticatedUser, identity: signedIn ? identity : classifyIdentity(null) };
 }
 
 /**
@@ -21,20 +35,15 @@ export async function readRequestIdentity(request: Request) {
     const resolved = await createRequestSupabase(request);
     if (resolved === null) return null;
     const { supabase, bearer } = resolved;
-    if (bearer !== undefined) {
-      const [{ data: claimsData, error: claimsError }, { data: userData, error: userError }] = await Promise.all([
-        supabase.auth.getClaims(bearer),
-        supabase.auth.getUser(bearer),
-      ]);
-      if (claimsError || userError || claimsData?.claims.role !== 'authenticated' || userData.user === null) return null;
-      const identity = classifyIdentity(claimsData.claims);
-      if (identity.kind === 'unlinked' || userData.user.id !== identity.userId) return null;
-      return { supabase, identity };
-    }
-    const { data, error } = await supabase.auth.getClaims();
-    if (error || !data?.claims) return null;
-    const identity = classifyIdentity(data.claims);
-    return identity.kind === 'unlinked' ? null : { supabase, identity };
+    const [{ data: claimsData, error: claimsError }, { data: userData, error: userError }] = await Promise.all(
+      bearer === undefined
+        ? [supabase.auth.getClaims(), supabase.auth.getUser()]
+        : [supabase.auth.getClaims(bearer), supabase.auth.getUser(bearer)],
+    );
+    if (claimsError || userError || claimsData?.claims.role !== 'authenticated' || userData.user === null) return null;
+    const identity = classifyIdentity(claimsData.claims);
+    if (identity.kind === 'unlinked' || userData.user.id !== identity.userId) return null;
+    return { supabase, identity, authenticatedUser: true as const };
   } catch {
     return null;
   }

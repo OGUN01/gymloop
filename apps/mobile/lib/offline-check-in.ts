@@ -39,10 +39,10 @@ async function readQueue(): Promise<OfflineCheckInCommand[]> {
  * Device-only commands are scoped to the verified account and gym that created
  * them. A later account, sign-out or association change gets no replay list.
  */
-export async function loadOfflineCheckIns(scope: Pick<OfflineCheckInCommand, 'tenantId' | 'userId'>): Promise<OfflineCheckInCommand[]> {
+export async function loadOfflineCheckIns(scope: Pick<OfflineCheckInCommand, 'tenantId' | 'userId' | 'memberId'>): Promise<OfflineCheckInCommand[]> {
   return await serialized(async () => {
     const commands = await readQueue();
-    if (commands.some((command) => command.tenantId !== scope.tenantId || command.userId !== scope.userId)) {
+    if (commands.some((command) => command.tenantId !== scope.tenantId || command.userId !== scope.userId || command.memberId !== scope.memberId)) {
       await SecureStore.deleteItemAsync(OFFLINE_QUEUE_KEY);
       return [];
     }
@@ -52,7 +52,7 @@ export async function loadOfflineCheckIns(scope: Pick<OfflineCheckInCommand, 'te
 export async function saveOfflineCheckIn(command: OfflineCheckInCommand): Promise<void> {
   await serialized(async () => {
     const queue = await readQueue();
-    const sameScope = queue.every((saved) => saved.tenantId === command.tenantId && saved.userId === command.userId);
+    const sameScope = queue.every((saved) => saved.tenantId === command.tenantId && saved.userId === command.userId && saved.memberId === command.memberId);
     const retained = sameScope ? queue : [];
     const existing = retained.find((saved) => saved.clientEventId === command.clientEventId);
     if (existing && JSON.stringify(existing) !== JSON.stringify(command)) throw new Error('Offline event id was reused.');
@@ -65,12 +65,12 @@ export async function clearOfflineCheckIns(): Promise<void> {
 
 /** Serial replay removes only server-confirmed rows; failures and timeouts stay queued. */
 export async function drainOfflineCheckIns(
-  scope: Pick<OfflineCheckInCommand, 'tenantId' | 'userId'>,
+  scope: Pick<OfflineCheckInCommand, 'tenantId' | 'userId' | 'memberId'>,
   client: ApiClient,
 ): Promise<OfflineCheckInOutcome[]> {
   return await serialized(async () => {
     const queue = await readQueue();
-    if (queue.some((command) => command.tenantId !== scope.tenantId || command.userId !== scope.userId)) {
+    if (queue.some((command) => command.tenantId !== scope.tenantId || command.userId !== scope.userId || command.memberId !== scope.memberId)) {
       await SecureStore.deleteItemAsync(OFFLINE_QUEUE_KEY);
       return [];
     }
