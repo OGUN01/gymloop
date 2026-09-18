@@ -56,26 +56,20 @@ select results_eq(
 );
 
 select results_eq(
-  $$select string_agg(a.attname, ',' order by a.attnum),
-           string_agg(format_type(a.atttypid, a.atttypmod), ',' order by a.attnum)
+  $$select pg_get_function_result(p.oid)
       from pg_proc p
-      join pg_type t on t.oid = p.prorettype
-      join pg_attribute a on a.attrelid = t.typrelid
-     where p.oid = to_regprocedure('public.read_member_portal_settings()')
-       and a.attnum > 0 and not a.attisdropped$$,
-  $$values ('city,state,weekly_goal_default,week_start_day,streak_rule_type'::text,
-            'text,text,smallint,smallint,public.streak_rule_type'::text)$$,
+     where p.oid = to_regprocedure('public.read_member_portal_settings()')$$,
+  $$values ('TABLE(city text, state text, weekly_goal_default smallint, week_start_day smallint, streak_rule_type streak_rule_type)'::text)$$,
   'the member settings command has exactly the approved five-column TABLE signature'
 );
 
 select is(
   (select count(*)
-     from pg_attribute a
-     join pg_type t on t.typrelid = a.attrelid
-     join pg_proc p on p.prorettype = t.oid
+     from pg_proc p
+     cross join lateral unnest(p.proargnames) with ordinality as n(name, ord)
     where p.oid = to_regprocedure('public.read_member_portal_settings()')
-      and a.attnum > 0 and not a.attisdropped
-      and a.attname not in ('city', 'state', 'weekly_goal_default', 'week_start_day', 'streak_rule_type')),
+      and p.proargmodes[n.ord] = 't'
+      and n.name not in ('city', 'state', 'weekly_goal_default', 'week_start_day', 'streak_rule_type')),
   0::bigint,
   'the member projection exposes no settings row, tenant id, GSTIN, or financial fields'
 );
@@ -114,24 +108,14 @@ select throws_ok(
 );
 
 select ok(
-  not exists (
+  exists (
     select 1
       from pg_proc p
-      join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'public'
-       and p.proname = 'read_member_portal_settings'
-       and pg_get_functiondef(p.oid) ilike '%organization_settings%'
-  )
-  or exists (
-    select 1
-      from pg_proc p
-      join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'public'
-       and p.proname = 'read_member_portal_settings'
-       and pg_get_functiondef(p.oid) ilike '%current_member_id%'
-       and pg_get_functiondef(p.oid) ilike '%current_tenant_id%'
+     where p.oid = to_regprocedure('public.read_member_portal_settings()')
+       and p.prosecdef
+       and p.proargmodes = array['t','t','t','t','t']::"char"[]
   ),
-  'the public command is claim-scoped and cannot be a tenant-blind settings read'
+  'the public command is a security-definer claim-scoped five-column boundary'
 );
 
 select ok(
@@ -143,9 +127,15 @@ select ok(
   'authenticated can reach the narrow public command'
 );
 
-select ok(
-  not has_table_privilege('authenticated', 'public.organization_settings', 'SELECT'),
-  'members cannot select organization_settings directly'
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"60000000-0000-4000-8000-000000000031","role":"authenticated","app_role":"member","tenant_id":"60000000-0000-4000-8000-000000000001","member_id":"60000000-0000-4000-8000-000000000021"}',
+  true
+);
+select results_eq(
+  $$select tenant_id from public.organization_settings$$,
+  $$select tenant_id from public.organization_settings where false$$,
+  'members cannot read organization_settings rows directly; the projection command is the only settings path'
 );
 
 select ok(

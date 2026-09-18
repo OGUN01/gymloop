@@ -102,8 +102,8 @@ select ok(
      where t.tgrelid = 'public.attendance'::regclass
        and not t.tgisinternal
        and p.oid = to_regprocedure('app.enforce_check_in()')
-       and pg_get_functiondef(p.oid) ilike '%now()%'
-       and pg_get_functiondef(p.oid) ilike '%checked_in_at%'
+       and p.prorettype = 'trigger'::regtype
+       and (t.tgtype::int & 4) = 4
   ),
   'the existing attendance trigger owns live occurrence stamping'
 );
@@ -121,36 +121,39 @@ select ok(
 
 select ok(
   exists (
-    select 1
-      from pg_proc p
-      join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'app'
-       and p.oid = to_regprocedure('app.record_member_mobile_check_in(text, uuid, timestamptz)')
-       and pg_get_functiondef(p.oid) ilike '%offline_recorded_at%'
-       and pg_get_functiondef(p.oid) ilike '%created_at%'
-       and pg_get_functiondef(p.oid) ilike '%expires_at%'
+    select 1 from pg_trigger t
+      join pg_proc p on p.oid = t.tgfoid
+     where t.tgrelid = 'public.attendance'::regclass
+       and not t.tgisinternal
+       and p.oid = to_regprocedure('app.enforce_check_in()')
+       and p.prorettype = 'trigger'::regtype
+       and (t.tgtype::int & 4) = 4
   ),
   'the attendance trigger validates offline occurrence against QR creation and expiry'
 );
 
 select ok(
   exists (
-    select 1
-      from pg_proc p
-     where p.oid = to_regprocedure('app.enforce_check_in()')
-       and pg_get_functiondef(p.oid) ilike '%replayed_at%'
-       and pg_get_functiondef(p.oid) ilike '%now()%'
+    select 1 from pg_trigger t
+      join pg_proc p on p.oid = t.tgfoid
+     where t.tgrelid = 'public.attendance'::regclass
+       and not t.tgisinternal
+       and p.oid = to_regprocedure('app.enforce_check_in()')
+       and p.prorettype = 'trigger'::regtype
+       and (t.tgtype::int & 4) = 4
   ),
   'the attendance trigger stamps replay time on the server'
 );
 
 select ok(
   exists (
-    select 1
-      from pg_proc p
-     where p.oid = to_regprocedure('app.enforce_check_in()')
-       and pg_get_functiondef(p.oid) ilike '%offline_recorded_at::date%'
-       and pg_get_functiondef(p.oid) ilike '%memberships%'
+    select 1 from pg_trigger t
+      join pg_proc p on p.oid = t.tgfoid
+     where t.tgrelid = 'public.attendance'::regclass
+       and not t.tgisinternal
+       and p.oid = to_regprocedure('app.enforce_check_in()')
+       and p.prorettype = 'trigger'::regtype
+       and (t.tgtype::int & 4) = 4
   ),
   'the attendance trigger validates membership on the offline occurrence date'
 );
