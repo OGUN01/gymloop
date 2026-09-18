@@ -15,6 +15,44 @@ import type { Database } from '@gymloop/db';
 /** The one place the product name lives — renaming the product is one edit. */
 export const PRODUCT_NAME = 'Gymloop';
 
+/**
+ * The platform-neutral visual language shared by the web and native clients.
+ * Web maps these values to CSS custom properties; this module deliberately has
+ * no rendering-platform dependency.
+ */
+export const UI_TOKENS = {
+  colors: {
+    light: {
+      canvas: '#F7F7F5', surface: '#FFFFFF', elevatedSurface: '#F0F2F1',
+      primaryText: '#15191C', secondaryText: '#5E656B', primaryAction: '#167C65',
+      textOnPrimary: '#FFFFFF', decorativeSeparator: '#DFE3E0',
+      requiredControlOutline: '#747C78', warningText: '#8B5200', errorRiskText: '#B33F3F',
+    },
+    dark: {
+      canvas: '#101214', surface: '#1C1F22', elevatedSurface: '#262A2D',
+      primaryText: '#F3F4F4', secondaryText: '#AEB6BC', primaryAction: '#93DCC0',
+      textOnPrimary: '#101214', decorativeSeparator: '#353B3E',
+      requiredControlOutline: '#7D8984', warningText: '#F3C47B', errorRiskText: '#FFABA6',
+    },
+  },
+  typography: {
+    body: { size: 16, lineHeight: 24 }, compact: { size: 14, lineHeight: 20 },
+    secondary: { size: 13, lineHeight: 18 }, mobileBody: { size: 17, lineHeight: 25 },
+    mobileSection: { size: 20, lineHeight: 26 }, pageTitle: { size: 32, lineHeight: 38 },
+    largeMetric: { size: 36, lineHeight: 42 }, titleTracking: '-0.02em',
+  },
+  geometry: {
+    spacing: [4, 8, 12, 16, 24, 32, 48],
+    radii: { control: 12, row: 16, section: 24, sheet: 28, floatingNavigation: 32 },
+    targets: { interactive: 44, touch: 48 },
+    layout: { mobileInset: 20, desktopInset: 32, contentMaxWidth: 1440 },
+  },
+  motion: {
+    press: 120, tabs: 180, dialogEnter: 240, dialogExit: 180,
+    checkInAcknowledgementMin: 240, checkInAcknowledgementMax: 320,
+  },
+} as const;
+
 export const DEFAULT_TIMEZONE = 'Asia/Kolkata';
 export const DEFAULT_CURRENCY = 'INR';
 export const BASIS_POINTS_PER_PERCENT = 100n;

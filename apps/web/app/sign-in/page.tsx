@@ -5,7 +5,7 @@ import { readIdentity } from '../../lib/identity-session';
 import { identityHome } from '../../lib/identity';
 
 const FIELD_CLASS =
-  'w-full rounded-md border border-neutral-300 px-3 py-2 text-base outline-none focus:border-neutral-900';
+  'sign-in-field';
 
 export default async function SignInPage({
   searchParams,
@@ -18,21 +18,23 @@ export default async function SignInPage({
   const { failed } = await searchParams;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-6">
-      <div>
-        <h1 className="text-2xl font-semibold">{PRODUCT_NAME}</h1>
-        <p className="mt-1 text-sm text-neutral-600">Sign in to your account.</p>
+    <main className="sign-in-page">
+      <div className="sign-in-panel">
+      <div className="sign-in-heading">
+        <span className="brand-mark" aria-hidden="true">G</span>
+        <h1>{PRODUCT_NAME}</h1>
+        <p>Sign in to your account.</p>
       </div>
 
       {failed ? (
-        <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p role="alert" className="sign-in-alert">
           Those details did not match. Check the email and password and try again.
         </p>
       ) : null}
 
-      <form action={signIn} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="email" className="text-sm font-medium">
+      <form action={signIn} className="sign-in-form">
+        <div className="sign-in-field-group">
+          <label htmlFor="email">
             Email
           </label>
           <input
@@ -45,8 +47,8 @@ export default async function SignInPage({
           />
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="password" className="text-sm font-medium">
+        <div className="sign-in-field-group">
+          <label htmlFor="password">
             Password
           </label>
           <input
@@ -61,15 +63,16 @@ export default async function SignInPage({
 
         <button
           type="submit"
-          className="rounded-md bg-neutral-900 px-3 py-2 text-base font-medium text-white"
+          className="sign-in-submit"
         >
           Sign in
         </button>
       </form>
 
-      <p className="text-sm text-neutral-600">
+      <p className="sign-in-help">
         Use the account linked to your gym or platform access. Ask your gym if you need help signing in.
       </p>
+      </div>
     </main>
   );
 }
