@@ -78,7 +78,7 @@ describe('Phase 7 shared visual foundation', () => {
     const { UI_TOKENS } = await import('@gymloop/shared');
     const { ThemeTokenStyle } = await import('../theme-token-style');
     const css = renderToStaticMarkup(ThemeTokenStyle());
-    const typography = UI_TOKENS.typography as Record<string, { size: number; lineHeight: number }>;
+    const typography = UI_TOKENS.typography;
 
     expect(typography).toEqual(expect.objectContaining({
       pageTitle: expect.any(Object),
@@ -91,8 +91,13 @@ describe('Phase 7 shared visual foundation', () => {
     expect(css).toContain('--gymloop-type-mobile-section');
     expect(css).toContain('--gymloop-type-large-metric');
     expect(css).toContain(`--gymloop-type-page-title-size:${typography.pageTitle.size}px`);
-    expect(css).toContain(`--gymloop-type-page-title-line-height:${typography.pageTitle.lineHeight}`);
-    expect(css).toMatch(/var\(--gymloop-type-(?:page-title|mobile-body|mobile-section|large-metric)\b/);
+    expect(css).toContain(`--gymloop-type-page-title-line-height:${typography.pageTitle.lineHeight}px`);
+
+    const foundationCss = readFileSync(new URL('../globals.css', import.meta.url), 'utf8');
+    expect(foundationCss).toMatch(/var\(--gymloop-type-page-title(?:-|\b)/);
+    expect(foundationCss).toMatch(/var\(--gymloop-type-mobile-body(?:-|\b)/);
+    expect(foundationCss).toMatch(/var\(--gymloop-type-mobile-section(?:-|\b)/);
+    expect(foundationCss).toMatch(/var\(--gymloop-type-large-metric(?:-|\b)/);
   });
 
   it('gives the authenticated shell brand link an effective 44px minimum target', async () => {
