@@ -60,7 +60,6 @@ describe('Phase 7 owner shell', () => {
   });
 
   it('marks only the exact longest matching console route current', async () => {
-    // @ts-expect-error ConsoleNavigation is the frozen next-slice module under test.
     const { ConsoleNavigation } = await import('../console-navigation');
     const html = renderToStaticMarkup(createElement(ConsoleNavigation, { items: navItems }));
     expect(html).toContain('href="/console"');
