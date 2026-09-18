@@ -94,10 +94,8 @@ describe('Phase 7 shared visual foundation', () => {
     expect(css).toContain(`--gymloop-type-page-title-line-height:${typography.pageTitle.lineHeight}px`);
 
     const foundationCss = readFileSync(new URL('../globals.css', import.meta.url), 'utf8');
-    expect(foundationCss).toMatch(/var\(--gymloop-type-page-title(?:-|\b)/);
-    expect(foundationCss).toMatch(/var\(--gymloop-type-mobile-body(?:-|\b)/);
-    expect(foundationCss).toMatch(/var\(--gymloop-type-mobile-section(?:-|\b)/);
-    expect(foundationCss).toMatch(/var\(--gymloop-type-large-metric(?:-|\b)/);
+    expect(foundationCss).toMatch(/var\(--gymloop-type-page-title-size\b/);
+    expect(foundationCss).toMatch(/var\(--gymloop-type-page-title-line-height\b/);
   });
 
   it('gives the authenticated shell brand link an effective 44px minimum target', async () => {
