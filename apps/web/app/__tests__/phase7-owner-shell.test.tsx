@@ -1,25 +1,28 @@
 import { readFileSync } from 'node:fs';
-import { createElement, type ReactNode } from 'react';
+import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const identity = vi.hoisted(() => ({
-  audience: { kind: 'gym_owner', organizationId: 'org-1' },
-  organization: { name: 'Iron Box Fitness', gym_code: 'IRNBX1' },
+  audience: { identity: { kind: 'staff', role: 'gym_owner', userId: 'owner-1', tenantId: 'org-1', staffId: 'staff-1' }, supabase: {} as unknown },
 }));
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/console/check-in' }));
-vi.mock('../lib/identity', () => ({ requireAudience: vi.fn(async () => identity.audience) }));
-vi.mock('../lib/preview-context', () => ({ usePreviewReadOnly: () => false }));
-vi.mock('../preview-context', () => ({ usePreviewReadOnly: () => false }));
-vi.mock('../lib/supabase-server', () => ({
-  getOrganization: vi.fn(async () => identity.organization),
-  getSession: vi.fn(async () => ({ user: { id: 'owner-1' } })),
+const supabase = vi.hoisted(() => ({
+  from: vi.fn((table: string) => ({
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => table === 'organizations'
+        ? { data: { name: 'Iron Box Fitness', gym_code: 'IRNBX1', timezone: 'Asia/Kolkata' }, error: null }
+        : { data: { expires_at: '2099-01-01T00:00:00Z' }, error: null }) }))
+    }))
+  })),
 }));
+
+vi.mock('next/navigation', () => ({ usePathname: () => '/console/check-in', redirect: vi.fn(() => { throw new Error('unexpected redirect'); }) }));
+vi.mock('../../lib/identity-session', () => ({ requireAudience: vi.fn(async () => identity.audience) }));
 
 beforeEach(() => {
-  identity.audience = { kind: 'gym_owner', organizationId: 'org-1' };
-  identity.organization = { name: 'Iron Box Fitness', gym_code: 'IRNBX1' };
+  identity.audience = { identity: { kind: 'staff', role: 'gym_owner', userId: 'owner-1', tenantId: 'org-1', staffId: 'staff-1' }, supabase };
+  supabase.from.mockClear();
 });
 
 const navItems = [
@@ -34,12 +37,12 @@ describe('Phase 7 owner shell', () => {
     const withOwnerShell = renderToStaticMarkup(AccountFrame({
       home: '/dashboard', label: 'Gym owner', children: 'Owner content',
       navigation: createElement('nav', { className: 'owner-sidebar' }, 'Owner nav'),
-      context: { primary: 'Iron Box Fitness', secondary: 'Vijay Nagar · IRNBX1' },
+      context: { primary: 'Iron Box Fitness', secondary: 'Gym code · IRNBX1' },
     }));
     const generic = renderToStaticMarkup(AccountFrame({ home: '/dashboard', label: 'Member', children: 'Generic content' }));
 
     for (const hook of ['owner-account-frame', 'owner-sidebar', 'owner-context', 'owner-shell-content']) expect(withOwnerShell).toContain(hook);
-    for (const truth of ['Iron Box Fitness', 'Vijay Nagar · IRNBX1', 'Owner content', 'Gym owner', 'Sign out']) expect(withOwnerShell).toContain(truth);
+    for (const truth of ['Iron Box Fitness', 'Gym code · IRNBX1', 'Owner content', 'Gym owner', 'Sign out']) expect(withOwnerShell).toContain(truth);
     expect(withOwnerShell).toContain('href="/dashboard"');
     expect(withOwnerShell).toMatch(/System|Light|Dark|theme-placeholder/);
     expect(generic).not.toContain('owner-sidebar');
@@ -58,13 +61,22 @@ describe('Phase 7 owner shell', () => {
 
   it('keeps owner, trainer and support-preview navigation truthful', async () => {
     const layout = (await import('../(console)/layout')).default;
-    const html = renderToStaticMarkup(await layout({ children: 'Console content' }));
+    const owner = renderToStaticMarkup(await layout({ children: 'Console content' }));
     for (const [href, label] of [['/dashboard', 'Overview'], ['/console/check-in', 'Check-in'], ['/red-list', 'Follow-ups'], ['/console', 'Members'], ['/payments', 'Payments'], ['/messages', 'Messages'], ['/add-ons', 'Add-ons'], ['/leads', 'Leads'], ['/imports', 'Imports']]) {
-      expect(html).toContain(`href="${href}"`);
-      expect(html).toContain(label);
+      expect(owner).toContain(`href="${href}"`); expect(owner).toContain(label);
     }
-    expect(html).toContain('Iron Box Fitness');
-    expect(html).toContain('IRNBX1');
+    expect(owner).toContain('Iron Box Fitness'); expect(owner).toContain('IRNBX1');
+
+    identity.audience = { identity: { kind: 'staff', role: 'trainer', userId: 'trainer-1', tenantId: 'org-1', staffId: 'staff-2' }, supabase };
+    const trainer = renderToStaticMarkup(await layout({ children: 'Trainer content' }));
+    for (const forbidden of ['/dashboard', 'Overview', '/payments', 'Payments', '/messages', 'Messages', '/leads', 'Leads', '/imports', 'Imports']) expect(trainer).not.toContain(forbidden);
+    for (const permitted of ['/console/check-in', '/red-list', '/console', '/add-ons']) expect(trainer).toContain(permitted);
+
+    identity.audience = { identity: { kind: 'impersonation', userId: 'support-1', tenantId: 'org-1', impersonationSessionId: 'preview-1' }, supabase };
+    const preview = renderToStaticMarkup(await layout({ children: 'Preview content' }));
+    for (const forbidden of ['/dashboard', 'Overview', '/leads', 'Leads', '/imports', 'Imports']) expect(preview).not.toContain(forbidden);
+    for (const permitted of ['/console/check-in', '/red-list', '/console', '/payments', '/messages', '/add-ons']) expect(preview).toContain(permitted);
+    expect(preview).toMatch(/Read-only preview|End preview/);
   });
 
   it('uses token-backed centered shell geometry and intentional narrow reflow', () => {
@@ -73,7 +85,7 @@ describe('Phase 7 owner shell', () => {
     expect(css).toMatch(/var\(--gymloop-color-(?:canvas|surface|primary-action|elevated-surface)/);
     expect(css).toMatch(/grid-template-columns\s*:[^;]*minmax\(0\s*,\s*1fr\)/);
     expect(css).toMatch(/min-height\s*:\s*var\(--gymloop-target-interactive\)/);
-    expect(css).toMatch(/background\s*:\s*var\(--gymloop-color-primary-action\)[^}]*aria-current|aria-current[^}]*background\s*:\s*var\(--gymloop-color-primary-action\)/s);
+    expect(css).toMatch(/\[aria-current=['"]page['"]\][^{]*\{[^}]*background\s*:\s*var\(--gymloop-color-(?:primary-action|elevated-surface)/s);
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*64rem[^)]*\)/);
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*(?:owner-sidebar|owner-account-frame)[\s\S]*grid-template-columns|grid-template-rows/s);
     expect(css).toMatch(/overflow-x\s*:\s*auto|flex-wrap\s*:\s*wrap/);
