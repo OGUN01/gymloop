@@ -2,48 +2,24 @@ begin;
 
 select plan(11);
 
--- Phase 7 may add member insertion, but its scope is deliberately narrower
--- than the established staff/platform read and write matrix.  These catalog
--- assertions avoid naming an implementation-owned policy while making the
--- policy's capability and its exclusions observable.
+-- Phase 7 is command-only for members: the authenticated grant and the policy
+-- matrix must not become a second path around the claim-validating command.
 select ok(
-  exists (
+  not exists (
     select 1
       from pg_policies
      where schemaname = 'public'
        and tablename = 'attendance'
-       and cmd = 'INSERT'
+       and cmd in ('ALL', 'INSERT')
        and roles @> array['authenticated']::name[]
-       and coalesce(with_check, '') ~ 'member_id'
        and coalesce(with_check, '') ~ 'current_member_id'
   ),
-  'attendance has a member-scoped authenticated INSERT policy'
+  'ATT-001/Phase-7: attendance has no member-self INSERT policy outside the atomic command'
 );
 
 select ok(
-  not exists (
-    select 1
-      from pg_policies
-     where schemaname = 'public'
-       and tablename = 'attendance'
-       and cmd = 'INSERT'
-       and coalesce(with_check, '') ~ 'current_member_id'
-       and coalesce(with_check, '') !~ 'tenant_id'
-  ),
-  'member insertion binds the tenant as well as the member'
-);
-
-select ok(
-  not exists (
-    select 1
-      from pg_policies
-     where schemaname = 'public'
-       and tablename = 'attendance'
-       and cmd = 'INSERT'
-       and coalesce(with_check, '') ~ 'current_member_id'
-       and coalesce(with_check, '') ~ 'is_front_office'
-  ),
-  'member insertion is not a disguised front-office capability'
+  has_table_privilege('authenticated', 'public.attendance', 'INSERT'),
+  'ATT-001/Phase-7: the command-only member boundary preserves staff attendance INSERT capability'
 );
 
 select ok(
@@ -55,7 +31,19 @@ select ok(
        and cmd = 'ALL'
        and coalesce(with_check, '') ~ 'is_front_office'
   ),
-  'the established staff write policy remains present'
+  'the established staff write policy remains a distinct front-office capability'
+);
+
+select ok(
+  exists (
+    select 1
+      from pg_policies
+     where schemaname = 'public'
+       and tablename = 'attendance'
+       and cmd = 'SELECT'
+       and coalesce(qual, '') ~ 'is_platform'
+  ),
+  'the established platform read policy remains present'
 );
 
 select ok(
@@ -65,9 +53,9 @@ select ok(
      where schemaname = 'public'
        and tablename = 'attendance'
        and cmd = 'ALL'
-       and coalesce(with_check, '') ~ 'is_platform'
+       and coalesce(with_check, '') ~ 'super_admin'
   ),
-  'the established platform policy remains present'
+  'the established platform write policy remains super-admin-only'
 );
 
 -- The existing trigger is the table boundary shared by direct inserts, live
@@ -84,8 +72,8 @@ select ok(
 );
 
 select ok(
-  pg_get_functiondef('app.enforce_check_in()'::regprocedure) ~ 'issued_at',
-  'offline occurrence validation consults the QR session opening boundary'
+  pg_get_functiondef('app.record_member_mobile_check_in(text,uuid,timestamp with time zone)'::regprocedure) ~ 'issued_at',
+  'member offline occurrence validation consults the QR session opening boundary'
 );
 
 select ok(
