@@ -77,6 +77,7 @@ describe('Phase 7 owner overview surface', () => {
     expect(html).toMatch(/name="from"[^>]*value="2026-09-01"/);
     expect(html).toMatch(/name="through"[^>]*value="2026-09-18"/);
     expect(html).toMatch(/₹30,800/);
+    expect(html).toContain('<strong>₹30,800</strong>');
     expect(html).toMatch(/INR[^<]*₹30,800|₹30,800[^<]*INR/);
     expect(html).toMatch(/dashboard-case-list|dashboard-case-row/);
   });
@@ -96,7 +97,9 @@ describe('Phase 7 owner overview surface', () => {
     expect(html).toContain('Asha Rao');
     expect(html).toMatch(/needs follow.?up/i);
     expect(html).toMatch(/19 (?:September|Sep) 2026/i);
-    expect(html).not.toMatch(/case-1|member-1|2026-09-19T09:00:00|needs_follow_up|>true<|>false</i);
+    expect(html).toContain('href="/members/member-1"');
+    const detail = html.match(/<section[^>]*class="[^"]*dashboard-detail[^>]*>[\s\S]*?<\/section>/i)?.[0] ?? '';
+    expect(detail).not.toMatch(/case-1|member-1|2026-09-19T09:00:00|needs_follow_up|>true<|>false</i);
   });
 
   it('states empty and error outcomes without fabricating zero-money or evidence', async () => {
