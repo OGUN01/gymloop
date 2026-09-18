@@ -68,10 +68,17 @@ fundamentals with lower bespoke-polish priority. Iron Pulse is superseded.
   Sol comparisons rejected density and the intermediate navigation box before
   the final blocker-only verdict returned GO. Evidence is
   `docs/evidence/2026-09-18-phase7-owner-overview.md`.
-- Core-loop route redesign and the native app/API-client, member self-check-in,
-  join/switch and bearer seams still need their own frozen contracts,
-  independent tests and implementation. The foundation changed no database,
-  identity, navigation, money or domain contract.
+- The remaining owner/member/platform web interiors and the real Expo
+  member/front-desk application are implemented under frozen contracts. The
+  final web critic returned GO after focused repairs restored the visible owner
+  navigation, dominant member check-in hierarchy and compact 1024px rail.
+  Security-focused visible and holdout files pass individually against Cloud;
+  final Cloud workflow `35371043539` also passes migration, rollback, schema
+  drift and all 87 visible/holdout files / 6,886 assertions.
+- Android ARM64 native `assembleDebug` is proven. The mobile slice remains open
+  for an iOS development build and real-device airplane/reconnect, role,
+  text-scaling, reduced-motion and visual evidence. Gym join/switch remains
+  deliberately absent because no approved second-association mechanism exists.
 
 ## Budget and delegation
 

@@ -203,4 +203,16 @@ blocker-only verdict returned GO. Evidence:
 `docs/evidence/2026-09-18-phase7-owner-overview.md`; archive:
 `openspec/changes/archive/2026-09-18-phase7-owner-overview/`.
 
+**Phase 7 web route completion completed 2026-09-18:** the remaining owner,
+member and platform interiors now use the approved English-only light/dark
+system without changing their authorization, money or mutation contracts. A
+fresh visual critic returned GO after focused regressions restored always-
+visible authorized owner navigation, the dominant member check-in hierarchy
+and the compact 1024px rail. Final Cloud workflow `35371043539` passed migration,
+rollback, schema drift and all 87 visible/holdout pgTAP files / 6,886 assertions.
+Evidence: `docs/evidence/2026-09-18-phase7-web-mobile-foundation.md`; archive:
+`openspec/changes/archive/2026-09-18-phase7-web-completion/`. Phase 7 remains
+active only for its native iOS/real-device acceptance boundary and the
+owner-approved second-association decision described in the evidence.
+
 Each phase opens its own OpenSpec change (`openspec/changes/000N-<phase-name>/`) and follows the Gauntlet Loop (`AGENTS.md`) — bar, spec, tests-first, build, fresh-context critic, gates, archive. Phase 0's own change is the worked template — proposal, design, tasks, and the evidence trail of what was proven and what went wrong on the way: `openspec/changes/archive/2026-09-06-phase-0-foundation/`.

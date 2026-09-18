@@ -29,12 +29,31 @@ select the settings row containing GSTIN and financial configuration.
   only their own contracts in `bc8609d` and `924cb69`; `88a2083` then scoped QR
   creation-time validation to member commands so staff historical check-ins
   remain valid without weakening member live/offline validation.
+- Two subsequent Cloud runs exposed implementation-coupled assertions in the
+  new Phase 7 suites rather than additional product defects. Independent
+  visible and holdout owners aligned their own files with the frozen named
+  boundary in `97af645`, `2cedfb4`, `e018426`, `b615636`, `1cdae77`,
+  `69f20f6` and `ba46ee1`: the public invoker wrapper, private definer core,
+  canonical identity helper, shared attendance trigger and typed five-column
+  settings reader are now tested at the layer that owns each guarantee. The
+  table-level offline/replay pair invariant was reasserted forward-only in
+  `c4e49c6`; focused Cloud execution then passed every formerly failing file,
+  including the 1,002-assertion money holdout, before the final aggregate run.
 - A fresh security critic returned GO on member gate proof, canonical identity,
   time authority, wrapper/helper privileges, cookie/bearer equivalence, queue
   isolation and string money after `554eabe`.
 - The first rendered Luna pass returned NO-GO because all four member routes
   truthfully displayed their shared load error. That finding caused the narrow
   presentation-settings RPC above rather than a permissive table policy.
+- A later fresh visual pass found two presentation blockers that static tests
+  had missed: a closed `details` element hid the authorized owner navigation,
+  and the member Home/My gym hierarchy did not meet the approved check-in bar.
+  Regressions `9e0bfb4` and `6de7884` preceded the bounded fixes `a85e903` and
+  `f3e92f4`. The final re-critic measured a 240px rail and 767px content region
+  at 1024x768, nine visible 192x44px destinations with exact selected states,
+  no horizontal overflow or console/hydration error, and returned GO. At
+  390x844 both member themes render a 343x48px truthful check-in action and
+  seven neutral attendance slots when individual visit-day evidence is absent.
 
 ## Web and native verification
 
@@ -44,6 +63,9 @@ select the settings row containing GSTIN and financial configuration.
 - Shared suite: 9 files / 200 tests green.
 - Repository lint, recursive typecheck, duplication, unused-code, registry,
   renewal-window, escape-hatch and pgTAP rollback checks: green.
+- Final Cloud database workflow `35371043539`: migration, rollback, schema
+  drift and the aggregate visible/holdout pgTAP job are green. The aggregate
+  result is 87 files / 6,886 assertions, `Result: PASS`.
 - Focused identity navigation: 21/21 green, including verified unlinked users.
 - Expo production export: iOS and Android bundles both completed from the same
   SDK 57 source (3,308 and 3,432 modules respectively); the temporary export
@@ -64,8 +86,8 @@ seeded Iron Box gym and signed out afterward. In both Light and Dark:
 - Home rendered `IRNBX1`, Aarav's account, the scan-to-check-in entry, weekly
   goal and live membership instead of the shared error state.
 - Activity rendered the real confirmed QR and desk-assisted history.
-- My gym rendered the real branch address, gym code, membership and destinations
-  for messages, add-ons and attendance.
+- My gym rendered the real branch address, gym code, prominent check-in action,
+  membership and destinations for messages, add-ons and attendance.
 - You rendered the real member identity and working System/Light/Dark control.
 
 No demo row was written by this read-only journey.

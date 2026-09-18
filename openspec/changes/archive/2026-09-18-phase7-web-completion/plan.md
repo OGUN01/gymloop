@@ -40,4 +40,4 @@ comparison close the slice.
 - [x] Independent route test committed red.
 - [x] Remaining web interiors implemented.
 - [x] Focused checks and browser journeys green.
-- [ ] Fresh Sol critic GO; spec/evidence synchronized and archived.
+- [x] Fresh Sol critic GO; spec/evidence synchronized and archived.
