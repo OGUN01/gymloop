@@ -18,24 +18,11 @@ export type MemberSnapshot = {
   addOns: { id: string; name: string; status: string; totalPaise: string; currency: string; sessionsUsed: number; sessionsTotal: number | null }[];
 };
 
-type LooseResult = { data: Record<string, unknown>[] | null; error: { message: string } | null };
-interface LooseQuery extends PromiseLike<LooseResult> {
-  select(columns: string): LooseQuery;
-  eq(column: string, value: string | boolean): LooseQuery;
-  in(column: string, values: readonly string[]): LooseQuery;
-  order(column: string, options?: { ascending: boolean }): LooseQuery;
-  limit(count: number): LooseQuery;
-}
-
 type MobileMoneyRead = { receipts?: Record<string, unknown>[]; addOns?: Record<string, unknown>[] };
 type MobileMoneyQuery = PromiseLike<{ data: MobileMoneyRead | null; error: { message: string } | null }>;
 
 function memberMoney(client: DbClient): MobileMoneyQuery {
   return (client as unknown as { rpc(name: 'read_member_mobile_money'): MobileMoneyQuery }).rpc('read_member_mobile_money');
-}
-
-function loose(client: DbClient, table: string): LooseQuery {
-  return (client as unknown as { from(name: string): LooseQuery }).from(table);
 }
 
 function text(value: unknown, fallback = ''): string {

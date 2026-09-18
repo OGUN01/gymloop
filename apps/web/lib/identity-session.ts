@@ -15,6 +15,7 @@ export async function readIdentity(client?: Awaited<ReturnType<typeof createServ
   const auth = supabase.auth as typeof supabase.auth & { getUser?: () => Promise<{ data: { user: { id: string } | null }; error: unknown }> };
   const userResult = typeof auth.getUser === 'function' ? await auth.getUser() : null;
   const authenticatedUser = claims?.role === 'authenticated'
+    && identity.kind !== 'unlinked'
     && (userResult === null || (!userResult.error && userResult.data.user?.id === identity.userId));
   const signedIn = claims?.role === 'authenticated'
     ? authenticatedUser

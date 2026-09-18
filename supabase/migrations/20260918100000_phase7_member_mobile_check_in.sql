@@ -135,7 +135,7 @@ as $function$
 $function$;
 
 create function public.read_member_mobile_money()
-returns jsonb language plpgsql stable security invoker set search_path = ''
+returns jsonb language plpgsql stable security definer set search_path = ''
 as $function$
 declare v_tenant uuid; v_member uuid;
 begin
