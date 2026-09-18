@@ -2682,6 +2682,19 @@ export type Database = {
         }
         Returns: Json
       }
+      member_mobile_check_in: {
+        Args: {
+          p_client_event_id?: string
+          p_offline_recorded_at?: string
+          p_token_hash: string
+        }
+        Returns: {
+          checked_in_at: string
+          id: string
+          replay: boolean
+          source: Database["public"]["Enums"]["attendance_source"]
+        }[]
+      }
       onboard_gym: {
         Args: {
           p_branch_name: string
@@ -2724,6 +2737,17 @@ export type Database = {
         Returns: {
           product_id: string
           trainer_name: string
+        }[]
+      }
+      read_member_mobile_money: { Args: never; Returns: Json }
+      read_member_portal_settings: {
+        Args: never
+        Returns: {
+          city: string
+          state: string
+          streak_rule_type: Database["public"]["Enums"]["streak_rule_type"]
+          week_start_day: number
+          weekly_goal_default: number
         }[]
       }
       record_addon_sale: {
