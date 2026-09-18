@@ -27,7 +27,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .sign-in-panel { width: min(100%, 26rem); display: flex; flex-direction: column; gap: var(--gymloop-space-24); padding: clamp(var(--gymloop-space-24), 6vw, var(--gymloop-space-48)); border: 1px solid var(--gymloop-color-decorative-separator); border-radius: var(--gymloop-radius-sheet); background: var(--gymloop-color-surface); box-shadow: 0 20px 48px color-mix(in srgb, var(--gymloop-color-primary-text) 8%, transparent); }
 .sign-in-heading { display: grid; gap: var(--gymloop-space-8); }
 .brand-mark { display: grid; width: var(--gymloop-target-interactive); height: var(--gymloop-target-interactive); place-items: center; border-radius: 50%; background: var(--gymloop-color-primary-action); color: var(--gymloop-color-text-on-primary); font-weight: 700; }
-.sign-in-heading h1 { margin: 0; font-size: var(--gymloop-type-page-title-size); line-height: var(--gymloop-type-page-title-line-height); letter-spacing: var(--gymloop-type-title-tracking); }
+.sign-in-heading h1 { margin: 0; font-size: var(--gymloop-type-page-title-size); line-height: var(--gymloop-type-page-title-line-height); letter-spacing: var(--gymloop-type-title-tracking); font-weight: var(--gymloop-type-emphasis-weight); }
 .sign-in-heading p { margin: 0; color: var(--gymloop-color-secondary-text); }
 .sign-in-heading .sign-in-hindi-sample { font-size: var(--gymloop-type-secondary-size); }
 .sign-in-theme { display: flex; justify-content: flex-start; }

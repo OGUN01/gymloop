@@ -39,7 +39,7 @@ export const UI_TOKENS = {
     body: { size: 16, lineHeight: 24 }, compact: { size: 14, lineHeight: 20 },
     secondary: { size: 13, lineHeight: 18 }, mobileBody: { size: 17, lineHeight: 25 },
     mobileSection: { size: 20, lineHeight: 26 }, pageTitle: { size: 32, lineHeight: 38 },
-    largeMetric: { size: 36, lineHeight: 42 }, titleTracking: '-0.02em',
+    largeMetric: { size: 36, lineHeight: 42 }, titleTracking: '-0.02em', emphasisWeight: 600,
   },
   geometry: {
     spacing: [4, 8, 12, 16, 24, 32, 48],
