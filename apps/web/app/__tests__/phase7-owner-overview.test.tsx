@@ -1,4 +1,5 @@
 import { isValidElement, type ReactNode } from 'react';
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OwnerMetrics } from '@gymloop/shared';
@@ -108,5 +109,14 @@ describe('Phase 7 owner overview surface', () => {
     expect(html).toMatch(/no cash movement|no renewals due/i);
     expect(html).toMatch(/no renewals due|no cash movement/i);
     expect(html).not.toMatch(/last visit|this week|recovery revenue/i);
+  });
+
+  it('keeps desktop follow-up cases to one compact operational row', () => {
+    const css = readFileSync(new URL('../globals.css', import.meta.url), 'utf8');
+    const paragraph = css.match(/\.dashboard-case-list\s+p\s*\{([^}]*)\}/s)?.[1] ?? '';
+    expect(paragraph).not.toMatch(/grid-column\s*:\s*1\s*\/\s*-1/);
+    expect(paragraph).toMatch(/white-space\s*:\s*nowrap/);
+    expect(paragraph).toMatch(/overflow\s*:\s*hidden/);
+    expect(paragraph).toMatch(/text-overflow\s*:\s*ellipsis/);
   });
 });
