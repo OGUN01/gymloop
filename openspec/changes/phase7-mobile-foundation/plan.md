@@ -87,8 +87,9 @@ security/visual GO, exact demo cleanup and archive. Windows bundling is not an
 iOS build.
 
 - [x] Contract frozen before dispatch.
-- [ ] Independent visible and holdout tests committed red.
-- [ ] Bearer/RLS/replay/API-client foundation green.
-- [ ] Native member and desk routes green.
-- [ ] Android/iOS/device/security evidence complete.
-- [ ] Fresh critics GO; spec/evidence synchronized and archived.
+- [x] Independent visible and holdout tests committed red.
+- [x] Bearer/RLS/replay/API-client foundation green.
+- [x] Native member and desk routes green.
+- [x] Android ARM64 development/debug build and security evidence complete.
+- [ ] iOS and real-device airplane/reconnect/accessibility evidence complete.
+- [ ] Fresh visual critic GO; spec/evidence synchronized and archived.

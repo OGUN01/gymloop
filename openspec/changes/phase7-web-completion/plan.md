@@ -37,7 +37,7 @@ owner/member/platform Light/Dark journeys at 1600/1024/390 and a fresh Sol crop
 comparison close the slice.
 
 - [x] Contract frozen before dispatch.
-- [ ] Independent route test committed red.
-- [ ] Remaining web interiors implemented.
-- [ ] Focused checks and browser journeys green.
+- [x] Independent route test committed red.
+- [x] Remaining web interiors implemented.
+- [x] Focused checks and browser journeys green.
 - [ ] Fresh Sol critic GO; spec/evidence synchronized and archived.
