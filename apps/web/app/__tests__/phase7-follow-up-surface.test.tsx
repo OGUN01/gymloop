@@ -101,4 +101,13 @@ describe('Phase 7 follow-up surface', () => {
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*\.follow-up-[\s\S]*grid-template-columns\s*:\s*1fr/s);
     expect(css).toMatch(/minmax\(0\s*,\s*1fr\)|min-width\s*:\s*0/);
   });
+
+  it('keeps member identity and follow-up controls readable and operable', () => {
+    const css = readFileSync(new URL('../globals.css', import.meta.url), 'utf8');
+
+    expect(css).toMatch(/\.follow-up-member-name[^}]*display\s*:\s*(?:inline-flex|flex)[^}]*min-height\s*:\s*var\(--gymloop-target-interactive\)/s);
+    expect(css).toMatch(/\.follow-up-form[^}]*grid-template-columns\s*:[^;]*minmax\(\s*7\.5rem\s*,/s);
+    expect(css).toMatch(/\.follow-up-form[^}]*grid-template-columns\s*:[^;]*minmax\(\s*10rem\s*,/s);
+    expect(css).toMatch(/\.follow-up-form[^}]*grid-template-columns\s*:[^;]*auto/s);
+  });
 });
