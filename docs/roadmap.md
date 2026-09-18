@@ -18,6 +18,15 @@ by finishing that closeout. Neither phase is complete on the strength of images.
 
 ## Model and effort policy
 
+**Owner continuation, 2026-09-18 (ADR-129):** the approved member and owner v2
+boards are now the literal end-state references for the full Phase 7 UI/UX,
+including compact responsive composition, equal light/dark finish and restrained
+motion. The measured start is 78% weekly used and the owner authorizes two more
+points, making 80% the absolute ceiling. Sol remains orchestrator/arbitrator,
+Terra owns visual/browser defect discovery and complex interaction corrections,
+and Luna owns small route-complete implementations, with at most two workers.
+No Astra, weakened gate or simulated visual evidence is authorized.
+
 **Owner continuation, 2026-09-18 (ADR-126):** Phase 6 closeout is the immediate
 objective and receives a two-point allowance from the measured 75% usage, with
 a 77% checkpoint. If Phase 6 is fully evidenced and archived below that point,

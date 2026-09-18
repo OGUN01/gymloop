@@ -1,6 +1,6 @@
 # Current owner-authorized campaign goal
 
-Updated 2026-09-18 (owner continuation 2). This is the repository's current execution objective; older
+Updated 2026-09-18 (owner continuation 3). This is the repository's current execution objective; older
 prompt text is historical where it conflicts with this owner override.
 
 ## Objective
@@ -20,10 +20,9 @@ user, owner and front-desk route. Matching them means the same typography,
 whitespace, continuous geometry, quiet chrome, hierarchy and equal-theme finish
 with truthful route content—not merely applying their colours to a Phase 6 layout.
 
-The owner approved the member v2 visual direction and requested its extension
-to the gym-owner console. The new owner image is an adaptation proposal, not
-yet separately approved. Platform super-admin uses the common fundamentals
-with lower bespoke-polish priority. Iron Pulse is superseded.
+The owner approved both the member v2 visual direction and its gym-owner
+adaptation as literal end-state references. Platform super-admin uses the same
+fundamentals with lower bespoke-polish priority. Iron Pulse is superseded.
 
 ## Governing artifacts
 
@@ -73,8 +72,8 @@ with lower bespoke-polish priority. Iron Pulse is superseded.
 Latest measured usage at this continuation's start: 75% weekly consumed.
 Owner-authorized Phase 6 checkpoint: **77% consumed**. If and only if Phase 6 is
 fully closed below that checkpoint, continue Phase 7 under the approved PRD.
-The absolute ceiling for this combined continuation is **79% consumed** (the
-owner's total three-to-four-point allowance). Check after every micro-batch; do
+The absolute ceiling for this combined continuation is now **80% consumed**
+(ADR-129: 78% measured start plus the owner's final two-point allowance). Check after every micro-batch; do
 not promise work fits a percentage. At the applicable cap, stop new work and
 report the last green commit and preserved outstanding work. Phase 8 follows
 Phase 7 as a separately verified stage; this allowance does not waive or skip
@@ -85,9 +84,10 @@ Measured again after the completed check-in surface: **77% used**. These complet
 slices are green and archived; the 79% absolute ceiling remains in force for any
 next bounded Phase 7 slice.
 
-Measured after the completed follow-up surface and its green cloud workflows:
-**78% used**. Do not begin a slice that cannot reasonably close before the 79%
-hard stop; preserve the last green commit if the ceiling is reached.
+Measured after the completed owner-shell surface and its green cloud workflows:
+**78% used**. The owner authorized two further points to finish the reference-
+matched Phase 7 UI/UX. Do not begin a slice that cannot reasonably close before
+the 80% hard stop; preserve the last green commit if the ceiling is reached.
 
 Sol orchestrates/reviews; Terra owns bounded architecture/security/native work;
 Luna is the default small-scope implementer. Maximum two simultaneous workers,
@@ -108,7 +108,9 @@ hardening and credential-blocked Razorpay integration remain out of scope.
 ## Desktop goal-record limitation
 
 The current desktop goal record still contains the older Iron Pulse direction
-and 75% cutoff and was previously marked blocked. The available goal tools can
+and 75% cutoff and is marked blocked. A 2026-09-18 replacement attempt after
+this continuation was rejected because the unfinished blocked record still
+owns the thread. The available goal tools can
 read/create a goal or mark its status complete/blocked; they cannot rewrite an
 unfinished objective or resume its status. This file records the owner's update
 without falsely completing/replacing the unfinished campaign. Synchronize the

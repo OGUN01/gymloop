@@ -759,6 +759,27 @@ composition, finished route controls and intentional mobile header earned GO.
 Rejected: declaring Phase 7 complete because fonts and colours are shared, or
 accepting generic route bodies beneath a polished shell.
 
+**ADR-129 — Finish the reference-matched Phase 7 UI/UX under an 80% weekly-usage
+ceiling.** On 2026-09-18, after the owner shell closed with weekly usage still at
+78%, the owner approved the member and owner v2 boards as the literal full-UI
+end state and allocated two additional weekly-usage points. This supersedes
+ADR-126's 79% ceiling for this continuation only; 80% used is the hard stop.
+The deliverable remains compact, minimal, responsive and equally complete in
+Light and Dark, with restrained motion and truthful existing application data.
+
+Sol remains the root orchestrator and contract arbitrator. Terra performs
+browser/reference inspection and complex visual or interaction corrections;
+Luna receives small route-complete rendering assignments. At most two workers
+run concurrently. The contract freezes before implementation, focused checks
+run during a batch, and real browser/device evidence plus a fresh Sol critic and
+archive still close each slice. No Astra, quota workaround, reduced gate or
+claim that a tokenized legacy layout matches the board is authorized.
+
+The desktop goal record is still the earlier blocked Iron Pulse objective; the
+goal API rejected a replacement because that unfinished record still owns the
+thread. The repository goal/roadmap are therefore the durable current owner
+instruction without falsely marking the older objective complete.
+
 **ADR-112 — Preserve migration order when existing versions are ahead of the clock.**
 The refund unit's CLI-generated version `20260910074537` sorts before the
 already-applied `20260915100000` migration. Under the owner's ADR-111 delegation,
