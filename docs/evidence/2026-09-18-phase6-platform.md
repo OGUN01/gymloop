@@ -12,6 +12,7 @@
 - [x] Main CI `35301481338`, holdout `35301481361`, and test immutability `35301481359` succeeded on `3e5120b`.
 - [x] Database-slice repair commits: `0a5a814`, `45bf5e4`, `9ae50a0`, `480756b`, `7109331`, `3e5120b`.
 - [x] Browser-detail regression test `0ad90dc` and fix `745108c` pass the 7/7 focused suite, web typecheck/lint and the final full local `pnpm run gates`.
+- [x] Post-fix Main CI `35311862433`, holdout `35311862425`, and test immutability `35311862436` succeeded on archive head `4ab88f8`; no database workflow was triggered because this push changed no migration, generated type or seed file.
 
 ## Browser and archive status
 
