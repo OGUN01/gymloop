@@ -18,6 +18,14 @@ by finishing that closeout. Neither phase is complete on the strength of images.
 
 ## Model and effort policy
 
+**Owner continuation, 2026-09-18 (ADR-130):** after the owner-overview slice
+closed at 80% weekly used, the owner revised the continuation allowance to two
+points. The absolute ceiling is therefore 82% used. Complete Phase 7 against
+the approved v2 references with the existing Sol/Terra/Luna hierarchy, at most
+two workers, and no Astra, duplicate exploration, weakened gate or Phase 8 work.
+Stop new work at 82% even if a remaining device or contract dependency prevents
+the formal Phase 7 completion boundary.
+
 **Owner continuation, 2026-09-18 (ADR-129):** the approved member and owner v2
 boards are now the literal end-state references for the full Phase 7 UI/UX,
 including compact responsive composition, equal light/dark finish and restrained

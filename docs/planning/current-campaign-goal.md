@@ -1,6 +1,6 @@
 # Current owner-authorized campaign goal
 
-Updated 2026-09-18 (owner continuation 3). This is the repository's current execution objective; older
+Updated 2026-09-18 (owner continuation 4). This is the repository's current execution objective; older
 prompt text is historical where it conflicts with this owner override.
 
 ## Objective
@@ -78,8 +78,8 @@ fundamentals with lower bespoke-polish priority. Iron Pulse is superseded.
 Latest measured usage at this continuation's start: 75% weekly consumed.
 Owner-authorized Phase 6 checkpoint: **77% consumed**. If and only if Phase 6 is
 fully closed below that checkpoint, continue Phase 7 under the approved PRD.
-The absolute ceiling for this combined continuation is now **80% consumed**
-(ADR-129: 78% measured start plus the owner's final two-point allowance). Check after every micro-batch; do
+The absolute ceiling for this combined continuation is now **82% consumed**
+(ADR-130: 80% measured start plus the owner's revised two-point allowance). Check after every micro-batch; do
 not promise work fits a percentage. At the applicable cap, stop new work and
 report the last green commit and preserved outstanding work. Phase 8 follows
 Phase 7 as a separately verified stage; this allowance does not waive or skip
@@ -93,7 +93,12 @@ next bounded Phase 7 slice.
 Measured after the completed owner-shell surface and its green cloud workflows:
 **78% used**. The owner authorized two further points to finish the reference-
 matched Phase 7 UI/UX. Do not begin a slice that cannot reasonably close before
-the 80% hard stop; preserve the last green commit if the ceiling is reached.
+the active hard stop; preserve the last green commit if the ceiling is reached.
+
+Measured after the completed owner-overview surface and its green cloud
+workflows: **80% used**. Owner continuation 4 replaces the intervening one-point
+allowance with two points, so **82% used is the current absolute hard stop**.
+The work remains Phase 7 only; no Phase 8 scope or quality exception is added.
 
 Sol orchestrates/reviews; Terra owns bounded architecture/security/native work;
 Luna is the default small-scope implementer. Maximum two simultaneous workers,

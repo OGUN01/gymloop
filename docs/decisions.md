@@ -780,6 +780,17 @@ goal API rejected a replacement because that unfinished record still owns the
 thread. The repository goal/roadmap are therefore the durable current owner
 instruction without falsely marking the older objective complete.
 
+**ADR-130 — Extend the Phase 7 completion ceiling to 82% without changing the
+bar.** After the owner-overview slice closed and all three cloud workflows were
+green, the weekly meter read 80%. The owner replaced the intervening one-point
+allowance with a two-point allowance to pursue the complete Phase 7 boundary.
+The current hard stop is therefore 82% consumed. The approved v2 references,
+Sol/Terra/Luna division, maximum two workers, independent security/identity
+tests, real device/browser evidence and archive rules remain unchanged. This
+does not authorize Phase 8, Astra, simulated native evidence or reporting Phase
+7 complete while `apps/mobile`, the request-identity seam or required journeys
+remain absent.
+
 **ADR-112 — Preserve migration order when existing versions are ahead of the clock.**
 The refund unit's CLI-generated version `20260910074537` sorts before the
 already-applied `20260915100000` migration. Under the owner's ADR-111 delegation,
