@@ -64,11 +64,15 @@ select ok(
     select 1 from pg_proc p
      where p.oid = to_regprocedure('app.record_member_mobile_check_in(text, uuid, timestamptz)')
        and pg_get_functiondef(p.oid) ilike '%member_mobile_identity%'
+  )
+  and exists (
+    select 1 from pg_proc p
+     where p.oid = to_regprocedure('app.member_mobile_identity()')
        and pg_get_functiondef(p.oid) ilike '%app_role%'
        and pg_get_functiondef(p.oid) ilike '%tenant_id%'
        and pg_get_functiondef(p.oid) ilike '%member_id%'
   ),
-  'the command derives canonical member role, tenant, and member from verified claims'
+  'the core delegates to the canonical identity helper, which owns role, tenant, and member validation'
 );
 
 select ok(
