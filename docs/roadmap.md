@@ -18,6 +18,12 @@ by finishing that closeout. Neither phase is complete on the strength of images.
 
 ## Model and effort policy
 
+**Owner continuation, 2026-09-18 (ADR-131):** usage remained 82% when the
+owner authorized up to four additional weekly points to finish Phase 7. The
+current hard stop is 86%. Sol xhigh owns implementation; Terra and Luna are
+limited to bounded visual/device verification and repetitive presentation work.
+No contract, blind-test, device-evidence or archive gate is waived.
+
 **Owner continuation, 2026-09-18 (ADR-130):** after the owner-overview slice
 closed at 80% weekly used, the owner revised the continuation allowance to two
 points. The absolute ceiling is therefore 82% used. Complete Phase 7 against

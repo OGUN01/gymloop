@@ -780,6 +780,14 @@ goal API rejected a replacement because that unfinished record still owns the
 thread. The repository goal/roadmap are therefore the durable current owner
 instruction without falsely marking the older objective complete.
 
+**ADR-131 — Extend the Phase 7 completion ceiling to 86% and use Sol xhigh for
+implementation.** At a measured 82% weekly usage, the owner authorized three to
+four more points to complete Phase 7 and selected Sol xhigh for coding, with
+Terra and Luna reserved for bounded visual, device and repetitive presentation
+work. The current hard stop is 86%. All frozen identity/RLS/replay contracts,
+independent tests, real browser/device evidence, maximum-two-worker rule and
+archive requirements remain mandatory. This is not Phase 8 authorization.
+
 **ADR-130 — Extend the Phase 7 completion ceiling to 82% without changing the
 bar.** After the owner-overview slice closed and all three cloud workflows were
 green, the weekly meter read 80%. The owner replaced the intervening one-point
