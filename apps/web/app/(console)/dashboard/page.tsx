@@ -18,7 +18,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   } catch (error) {
     if (!(error instanceof MetricsLoadError)) throw error;
     return (
-      <main>
+      <main className="dashboard-error-state">
         <h1>Metrics</h1>
         <p role="alert">{METRICS_ERROR_MESSAGES[error.code]}</p>
       </main>
