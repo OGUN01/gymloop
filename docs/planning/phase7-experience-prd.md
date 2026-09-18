@@ -40,9 +40,10 @@ integration remain outside this Phase 7 delivery.
 
 ## 3. Starting point and gaps
 
-Phase 6 DB/CI is green at `3e5120b` (81 pgTAP files, 6812 assertions); owner/fleet
-and platform browser closeout and archives are still outstanding. Read the
-Phase 6 evidence files before changing this status.
+Phase 6 is closed and archived. Its database baseline is green at `3e5120b`
+(81 pgTAP files, 6812 assertions), the platform-detail regression/fix is in
+`0ad90dc`/`745108c`, and post-fix/final-head CI is green. Read the Phase 6
+evidence files rather than reopening completed implementation.
 
 Existing web routes include `/console`, `/console/check-in`, `/dashboard`,
 `/red-list`, `/members`, `/memberships`, `/payments`, `/add-ons`, `/messages`,

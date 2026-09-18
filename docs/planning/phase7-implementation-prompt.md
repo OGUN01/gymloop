@@ -43,9 +43,10 @@ holdout author, implementer and critic. Holdout authors see neither visible
 tests nor implementation; they report pass/fail and requirement dimensions,
 not suite contents. Critics still inspect the resulting implementation.
 
-Check actual weekly usage at start and after every completed micro-batch. The
-current campaign ceiling is 77% used (ADR-124); there is no task-to-quota guarantee.
-At the ceiling stop new work, preserve partial work and report the last green
+Check actual weekly usage at start and after every completed micro-batch. Phase
+6 closed at 76% used. The campaign ceiling is now 79% used under the later owner
+continuation (ADR-126); there is no task-to-quota guarantee. At the ceiling stop
+new work, preserve partial work and report the last green
 commit plus exact remaining requirements. Never bypass a gate to fit the cap.
 If the same critic dimension fails three times, ask the owner to resolve the
 under-specified contract; do not increase model size or lower acceptance.
@@ -67,7 +68,7 @@ boundaries, not permission to create an unused component or API.
 
 ### Ordered micro-batches
 
-**0 — Phase 6 evidence closeout.** Requirements: COM-001–009, MET-001–008,
+**0 — Phase 6 evidence closeout (complete 2026-09-18).** Requirements: COM-001–009, MET-001–008,
 OPS-001–004, ONB-001–005 and NAV-006/008. Include the comms contract's referenced
 PAY/INT/DPD/STK IDs when their behavior is exercised. Own only the applicable
 evidence, registry and OpenSpec archive files unless a real failure demands a
