@@ -90,10 +90,10 @@ describe('Phase 7 check-in surface', () => {
     expect(css).toMatch(/\.check-in-gate-panel[\s\S]*\.check-in-members/);
     expect(css).toMatch(/\.check-in-gate-panel[^}]*position\s*:\s*sticky/);
     expect(css).toMatch(/\.check-in-outcome[^}]*grid-column\s*:\s*1\s*\/\s*-1/);
-    expect(css).toMatch(/\.check-in-(?:route-action|workspace-action)[^}]*min-height\s*:\s*var\(--gymloop-target-interactive\)[^}]*text-decoration\s*:\s*none/s);
+    expect(css).toMatch(/\.check-in-(?:route-action|workspace-action|route-link)[^}]*min-height\s*:\s*var\(--gymloop-target-interactive\)[^}]*text-decoration\s*:\s*none/s);
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*\.account-header[^}]*grid-template-columns\s*:/s);
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*\.account-actions[^}]*grid-column\s*:\s*1\s*\/\s*-1/s);
-    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*\.check-in-(?:workspace|composition)[^}]*grid-template-columns\s*:\s*1fr/s);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*\.check-in-(?:gate|composition)[^}]*grid-template-columns\s*:\s*1fr/s);
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*var\(--gymloop-layout-mobile-inset\)/s);
   });
 });
