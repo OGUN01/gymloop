@@ -75,3 +75,30 @@ product data or a permission.
 - **WHEN** the existing verified owner session loads an owner route
 - **THEN** the shared shell adopts the selected appearance
 - **AND** its route destination, data authority and response remain unchanged
+
+### Requirement: Approved boards are route-level conformance references
+UX7-013 SHALL apply the approved v2 typography, whitespace, continuous geometry,
+quiet chrome, action hierarchy and complete light/dark treatment to each user,
+owner and desk route; sharing colours or fonts over an unchanged utility layout
+does not satisfy the visual system.
+
+#### Scenario: A core-loop route receives the visual system
+- **WHEN** rendered desktop and narrow crops are compared with the approved boards
+- **THEN** the route has a deliberate composition for its actual job in both themes
+- **AND** it uses only truthful existing content rather than illustrative board data
+
+### Requirement: Staff check-in keeps visual and attendance truth together
+UX7-006/007/013/014 SHALL present staff check-in on the shared token-backed
+canvas with a primary member queue, supporting gate state, persistent announced
+outcomes, finished controls and one-column mobile reflow, without changing the
+staff identity, gate-code, assisted-reason, event-key or retry contracts.
+
+#### Scenario: Staff opens check-in without a gate code
+- **WHEN** the existing member search and gate state render
+- **THEN** search, roster and gate guidance form one responsive operational composition
+- **AND** direct check-in remains disabled while the assisted-reason path stays available
+
+#### Scenario: Check-in is confirmed, refused or uncertain
+- **WHEN** the existing request produces its outcome
+- **THEN** the exact outcome remains the strongest announced region until explicit action
+- **AND** its retry or dismissal preserves the original event and request behavior

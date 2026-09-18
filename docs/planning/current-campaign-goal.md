@@ -15,6 +15,11 @@ comfortable curves and responsive, restrained motion. Preserve the attendance
 → follow-up → return → renewal → add-on → evidence loop and every security,
 money, identity and constitutional gate.
 
+The approved member/owner v2 boards are the conformance bar for every Phase 7
+user, owner and front-desk route. Matching them means the same typography,
+whitespace, continuous geometry, quiet chrome, hierarchy and equal-theme finish
+with truthful route content—not merely applying their colours to a Phase 6 layout.
+
 The owner approved the member v2 visual direction and requested its extension
 to the gym-owner console. The new owner image is an adaptation proposal, not
 yet separately approved. Platform super-admin uses the common fundamentals
@@ -42,6 +47,10 @@ with lower bespoke-polish priority. Iron Pulse is superseded.
   accessible focus/targets, reduced-effect fallbacks, polished sign-in and the
   authenticated account shell. Final Sol visual review and repository gates
   passed; evidence is `docs/evidence/2026-09-18-phase7-visual-foundation.md`.
+- The staff check-in route is the first board-conformant core-loop redesign. Its
+  initial tokenized 768px pass was rejected; the corrected 1440px roster/gate
+  composition and two-row mobile header passed fresh Sol review. Evidence is
+  `docs/evidence/2026-09-18-phase7-check-in-surface.md`.
 - Core-loop route redesign and the native app/API-client, member self-check-in,
   join/switch and bearer seams still need their own frozen contracts,
   independent tests and implementation. The foundation changed no database,
@@ -60,8 +69,9 @@ Phase 7 as a separately verified stage; this allowance does not waive or skip
 either phase's completion boundary.
 
 Measured after the completed Phase 7 visual-foundation micro-batch: **77% used**.
-The slice is green and archived; the 79% absolute ceiling remains in force for
-any next bounded Phase 7 slice.
+Measured again after the completed check-in surface: **77% used**. Both slices
+are green and archived; the 79% absolute ceiling remains in force for any next
+bounded Phase 7 slice.
 
 Sol orchestrates/reviews; Terra owns bounded architecture/security/native work;
 Luna is the default small-scope implementer. Maximum two simultaneous workers,

@@ -741,6 +741,24 @@ inventing a font generator. The Latin and Devanagari variables remain separate
 so Hindi content never depends on Inter's coverage. Rejected: Google Fonts at
 runtime, hand-copied untracked binaries, and a new token/font generation step.
 
+**ADR-128 — The approved v2 boards are the Phase 7 conformance bar for every
+user, owner and front-desk route.** The owner rejected treating the generated
+member/owner boards as palette inspiration after the first check-in pass still
+looked like a Phase 6 utility form with new colours. From 2026-09-18 onward,
+every Phase 7 route slice must reproduce the boards' typography, whitespace,
+continuous geometry, quiet chrome, action hierarchy and equal light/dark finish
+with that route's truthful content. A tokenized old layout is a NO-GO.
+
+“Match the boards” does not authorize copying illustrative sample totals,
+inventing unavailable facts or forcing an owner-overview/sidebar composition
+onto a different job. Fidelity is judged from real rendered wide/narrow crops;
+product authority still comes from the existing domain, identity and money
+contracts. The corrected check-in slice is the worked example: its first visual
+critic returned NO-GO, then the full shared canvas, asymmetric roster/gate
+composition, finished route controls and intentional mobile header earned GO.
+Rejected: declaring Phase 7 complete because fonts and colours are shared, or
+accepting generic route bodies beneath a polished shell.
+
 **ADR-112 — Preserve migration order when existing versions are ahead of the clock.**
 The refund unit's CLI-generated version `20260910074537` sorts before the
 already-applied `20260915100000` migration. Under the owner's ADR-111 delegation,

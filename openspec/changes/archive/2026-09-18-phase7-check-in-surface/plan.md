@@ -100,9 +100,9 @@ attendance submission. A fresh Sol visual critic compares crops with the approve
 owner/member v2 system and judges only this surface.
 
 - [x] Contract and path ownership frozen.
-- [ ] Independent focused tests committed red.
-- [ ] Check-in surface implemented without behavior changes.
-- [ ] Focused checks and one full repository gate pass.
-- [ ] Real light/dark, wide/narrow browser journey recorded with no domain write.
-- [ ] Fresh Sol visual critic returns GO.
-- [ ] Registry/spec/evidence synchronized and change archived.
+- [x] Independent focused tests committed red.
+- [x] Check-in surface implemented without behavior changes.
+- [x] Focused checks and one full repository gate pass.
+- [x] Real light/dark, wide/narrow browser journey recorded with no domain write.
+- [x] Fresh Sol visual critic returns GO.
+- [x] Registry/spec/evidence synchronized and change archived.

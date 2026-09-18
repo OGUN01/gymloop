@@ -126,4 +126,15 @@ the fresh Sol visual critic returned GO. Canonical spec:
 `openspec/changes/archive/2026-09-18-phase7-visual-foundation/`. Phase 7 remains
 active for the core-loop route redesign and real member/front-desk mobile app.
 
+**Phase 7 staff check-in surface completed 2026-09-18:** the first rendered
+pass shared the new tokens but retained the old centered utility composition,
+and the fresh visual critic correctly returned NO-GO. ADR-128 now makes the
+approved v2 boards a route-level fidelity bar. The corrected screen uses the
+shared 1440px canvas, a measured 2:1 roster/supporting-gate composition, finished
+44/48px controls and a deliberate two-row 390px header; light/dark, no-overflow,
+console and hydration checks passed, and the fresh re-critic returned GO. No
+attendance or gate-code write was made. Evidence:
+`docs/evidence/2026-09-18-phase7-check-in-surface.md`; archive:
+`openspec/changes/archive/2026-09-18-phase7-check-in-surface/`.
+
 Each phase opens its own OpenSpec change (`openspec/changes/000N-<phase-name>/`) and follows the Gauntlet Loop (`AGENTS.md`) — bar, spec, tests-first, build, fresh-context critic, gates, archive. Phase 0's own change is the worked template — proposal, design, tasks, and the evidence trail of what was proven and what went wrong on the way: `openspec/changes/archive/2026-09-06-phase-0-foundation/`.
