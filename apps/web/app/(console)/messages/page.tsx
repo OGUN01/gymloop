@@ -29,7 +29,7 @@ function canOpenWhatsApp(row: MessageListRow): boolean {
 export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ channel?: string }> }) {
   const screen = await loadMessages(searchParams);
 
-  return <main className="mx-auto w-full max-w-5xl px-4 py-8">
+  return <main className="route-workspace">
     <header>
       <h1 className="text-2xl font-semibold">Messages</h1>
       <p className="mt-1 text-sm text-neutral-600">Every renewal, payment, fulfilment, promotion and motivation message this gym has queued or sent.</p>

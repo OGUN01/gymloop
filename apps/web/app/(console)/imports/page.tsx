@@ -12,7 +12,7 @@ export default async function ImportsPage({ searchParams: _searchParams }: { sea
   void _searchParams;
   const screen = await loadMemberImportsScreen();
 
-  return <main className="mx-auto w-full max-w-5xl px-4 py-8">
+  return <main className="route-workspace">
     <header>
       <h1 className="text-2xl font-semibold">Import members</h1>
       <p className="mt-1 text-sm text-neutral-600">

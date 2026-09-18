@@ -95,7 +95,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
   const [params, screen] = await Promise.all([searchParams, loadLeads(searchParams)]);
   const now = Date.now();
 
-  return <main className="mx-auto w-full max-w-5xl px-4 py-8">
+  return <main className="route-workspace">
     <header className="flex flex-wrap items-baseline justify-between gap-3">
       <div>
         <h1 className="text-2xl font-semibold">Leads</h1>

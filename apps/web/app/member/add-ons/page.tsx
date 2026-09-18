@@ -68,7 +68,7 @@ export default async function MemberAddOnsPage({ searchParams = Promise.resolve(
     nextParams.delete('sessionAfter');
     return `?${nextParams}#order-history`;
   };
-  return <main className="mx-auto max-w-5xl px-4 py-7 sm:px-6">
+  return <main className="member-route route-workspace">
     <h1 className="text-2xl font-semibold">Add-ons</h1>
     <p className="mt-2 text-neutral-600">Explore optional offers and see the terms and usage of your purchases.</p>
     <nav className="mt-4 flex flex-wrap gap-5" aria-label="Your add-ons"><a href="#offers" className="inline-flex min-h-11 items-center underline">Available offers</a><a href="#orders" className="inline-flex min-h-11 items-center underline">Your orders</a></nav>

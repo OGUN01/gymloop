@@ -68,7 +68,7 @@ export default async function MemberDetailPage({
   ]);
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-8">
+    <main className="route-workspace">
       <div className="flex items-baseline justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">{member.full_name}</h1>

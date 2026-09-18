@@ -77,7 +77,7 @@ export default async function ReceiptPage({
 
   if (errorMessage !== null) {
     return (
-      <main className="mx-auto max-w-xl px-6 py-8">
+      <main className="route-workspace">
         <Alert>That receipt could not be loaded. {errorMessage}</Alert>
       </main>
     );
@@ -88,7 +88,7 @@ export default async function ReceiptPage({
   const takenAt = payment.paid_at ?? payment.created_at;
 
   return (
-    <main className="mx-auto max-w-xl px-6 py-8">
+    <main className="route-workspace">
       <Link href="/payments" className="text-sm text-neutral-600 underline print:hidden">
         All payments
       </Link>

@@ -160,3 +160,31 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .dashboard-case-list p { grid-column: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 64rem) { .owner-navigation-disclosure { grid-column: 1 / -1; min-width: 0; display: block; } .owner-navigation-disclosure > summary { display: none; } .owner-navigation-disclosure > .owner-navigation { display: flex; flex-direction: row; min-width: 0; overflow-x: clip; } }
 @media (max-width: 40rem) { .owner-navigation-disclosure { display: block; grid-column: 1 / -1; grid-row: 3; min-width: 0; overflow-x: clip; } .owner-navigation-disclosure > summary { display: flex; min-height: var(--gymloop-target-touch); align-items: center; border: 1px solid var(--gymloop-color-required-control-outline); border-radius: var(--gymloop-radius-control); background: var(--gymloop-color-surface); color: var(--gymloop-color-primary-text); padding: 0 var(--gymloop-space-12); cursor: pointer; font-size: var(--gymloop-type-secondary-size); font-weight: var(--gymloop-type-emphasis-weight); } .owner-navigation-disclosure[open] > summary { margin-bottom: var(--gymloop-space-8); } .owner-navigation-disclosure:not([open]) > .owner-navigation { display: none; } .owner-navigation-disclosure[open] > .owner-navigation { display: flex; flex-direction: column; overflow-x: clip; } .owner-navigation { width: 100%; overflow: visible; } .owner-navigation a { width: 100%; } .dashboard-actions { flex-direction: row; flex-wrap: nowrap; gap: var(--gymloop-space-8); } .dashboard-actions > * { width: auto; flex: 1 1 0; padding-inline: var(--gymloop-space-8); white-space: nowrap; } .dashboard-period { width: 100%; margin-top: var(--gymloop-space-8); } .dashboard-period > summary { justify-content: center; } .dashboard-period[open] .dashboard-range { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; } .dashboard-period[open] .dashboard-range button { grid-column: 1 / -1; } .dashboard-primary-metrics { margin-top: var(--gymloop-space-12); } }
+
+/* Phase 7 private route presentation.  These selectors intentionally live in
+   the web adapter: route data, forms, and response contracts stay untouched. */
+.route-workspace { width: min(100%, var(--gymloop-layout-content-max-width)); margin-inline: auto; padding: var(--gymloop-space-32); }
+.route-workspace h1 { margin: 0; font-size: var(--gymloop-type-page-title-size); line-height: var(--gymloop-type-page-title-line-height); letter-spacing: var(--gymloop-type-title-tracking); font-weight: var(--gymloop-type-emphasis-weight); }
+.route-workspace h2 { letter-spacing: -0.01em; }
+.route-workspace > p:first-of-type { color: var(--gymloop-color-secondary-text); }
+.route-workspace :is(input, select, textarea) { min-height: var(--gymloop-target-touch); border-color: var(--gymloop-color-required-control-outline); border-radius: var(--gymloop-radius-control); background: var(--gymloop-color-surface); color: var(--gymloop-color-primary-text); }
+.route-workspace :is(button, a.inline-flex) { min-height: var(--gymloop-target-touch); }
+.route-workspace table { display: block; overflow-x: auto; border-collapse: collapse; }
+.route-workspace :is(article, section.rounded, li.rounded, form.rounded) { border-color: var(--gymloop-color-decorative-separator); background: var(--gymloop-color-surface); }
+.route-workspace :is(.text-neutral-500, .text-neutral-600, .text-neutral-700) { color: var(--gymloop-color-secondary-text); }
+.route-workspace :is(.border-neutral-100, .border-neutral-200, .border-neutral-300, .border-neutral-400) { border-color: var(--gymloop-color-decorative-separator); }
+.route-workspace :is(.bg-neutral-50, .bg-amber-50, .bg-red-50) { background: var(--gymloop-color-elevated-surface); }
+.route-workspace :is(.text-red-700, .text-amber-800) { color: var(--gymloop-color-error-risk-text); }
+.route-workspace :is(button.bg-neutral-900, a.bg-neutral-900) { border: 0; background: var(--gymloop-color-primary-action); color: var(--gymloop-color-text-on-primary); }
+.route-workspace :is(a, button) { transition: background-color var(--gymloop-motion-press) ease, color var(--gymloop-motion-press) ease, opacity var(--gymloop-motion-press) ease; }
+.member-shell { min-height: calc(100vh - var(--gymloop-target-interactive)); padding-bottom: 6rem; }
+.member-shell-content { width: 100%; }
+.member-tab-bar { position: fixed; z-index: 10; right: 1rem; bottom: 1rem; left: 1rem; display: grid; grid-template-columns: repeat(4, 1fr); max-width: 32rem; margin-inline: auto; padding: .5rem; border: 1px solid var(--gymloop-color-decorative-separator); border-radius: 2rem; background: color-mix(in srgb, var(--gymloop-color-surface) 90%, transparent); box-shadow: 0 12px 32px color-mix(in srgb, var(--gymloop-color-primary-text) 12%, transparent); backdrop-filter: blur(12px); }
+.member-tab-bar a { display: inline-flex; min-height: var(--gymloop-target-touch); align-items: center; justify-content: center; border-radius: 1.5rem; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); text-decoration: none; }
+.member-tab-bar a[aria-current='page'] { background: var(--gymloop-color-elevated-surface); color: var(--gymloop-color-primary-action); font-weight: var(--gymloop-type-emphasis-weight); }
+.member-route { width: min(100%, 64rem); margin-inline: auto; padding: var(--gymloop-space-32); }
+.member-route h1 { font-size: var(--gymloop-type-page-title-size); line-height: var(--gymloop-type-page-title-line-height); letter-spacing: var(--gymloop-type-title-tracking); }
+.platform-route { width: min(100%, 90rem); margin-inline: auto; padding: var(--gymloop-space-32); }
+@media (max-width: 64rem) { .route-workspace, .member-route, .platform-route { padding: var(--gymloop-layout-mobile-inset); } }
+@media (max-width: 40rem) { .route-workspace, .member-route, .platform-route { padding: var(--gymloop-space-20); } .member-tab-bar { right: .5rem; bottom: .5rem; left: .5rem; } .member-tab-bar a { font-size: .75rem; } }
+@media (prefers-reduced-motion: reduce) { .route-workspace :is(a, button), .member-tab-bar a { transition: none; } }

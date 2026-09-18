@@ -5,12 +5,12 @@ import { fleetMetrics } from '../../../lib/platform';
 export default async function PlatformGymPage({ params }: { params: Promise<{ id: string }> }) {
   const { supabase } = await requireAudience('platform');
   const { id } = await params;
-  if (!UUID_PATTERN.test(id)) return <main className="p-8"><p role="alert">That gym is not available.</p></main>;
+  if (!UUID_PATTERN.test(id)) return <main className="platform-route route-workspace"><p role="alert">That gym is not available.</p></main>;
   const result = await fleetMetrics(supabase);
-  if ('error' in result) return <main className="p-8"><p role="alert">We couldn’t load this gym’s details. Please try again.</p></main>;
+  if ('error' in result) return <main className="platform-route route-workspace"><p role="alert">We couldn’t load this gym’s details. Please try again.</p></main>;
   const gym = result.data.gyms.find((row) => row.tenantId === id);
-  if (!gym) return <main className="p-8"><p role="alert">That gym is not available.</p></main>;
-  return <main className="mx-auto max-w-4xl px-6 py-8">
+  if (!gym) return <main className="platform-route route-workspace"><p role="alert">That gym is not available.</p></main>;
+  return <main className="platform-route route-workspace">
     <h1 className="text-2xl font-semibold">{gym.name}</h1>
     <p className="mt-1 text-neutral-500">{gym.gymCode} · {gym.status} · {gym.tier ?? 'Unassigned'} · {gym.timezone}</p>
     <section className="mt-8 rounded border p-5">

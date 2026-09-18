@@ -182,7 +182,7 @@ export default async function MemberMembershipsPage({
   const idempotencyKey = randomUUID();
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-8">
+    <main className="route-workspace">
       <div className="flex items-baseline justify-between">
         <h1 className="text-xl font-semibold">{member.data.full_name}</h1>
         <Link href="/memberships" className="text-sm text-neutral-600 underline">

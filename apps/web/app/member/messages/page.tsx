@@ -13,7 +13,7 @@ export default async function MemberMessagesPage(_props: object = {}) {
   void _props;
   const screen = await loadMemberMessages();
 
-  return <main className="mx-auto w-full max-w-3xl px-4 py-8">
+  return <main className="member-route route-workspace">
     <h1 className="text-2xl font-semibold">Your messages</h1>
 
     {screen.errorMessage !== null

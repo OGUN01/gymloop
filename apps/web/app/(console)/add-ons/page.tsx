@@ -37,7 +37,7 @@ export default async function AddOnsPage({ searchParams }: {
   const pageSessions = sessions.slice(0, PAYMENT_PAGE_SIZE_DEFAULT);
   const next = (name: string, id: string, anchor: string) => `?${new URLSearchParams({ ...params, [name]: id })}#${anchor}`;
 
-  return <main className="mx-auto max-w-6xl px-4 py-7 sm:px-6">
+  return <main className="route-workspace">
     <header className="flex flex-wrap items-baseline justify-between gap-3">
       <div><h1 className="text-2xl font-semibold">Add-ons</h1><p className="mt-2 text-neutral-600">Sell an optional offer, deliver it and follow the same order through to returned money.</p></div>
       <Link href="/console" className="inline-flex min-h-11 items-center underline">Members</Link>

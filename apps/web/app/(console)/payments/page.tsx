@@ -53,7 +53,7 @@ export default async function PaymentsPage({
         }).toString()}`;
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-8">
+    <main className="route-workspace">
       <div className="flex items-baseline justify-between">
         <h1 className="text-xl font-semibold">Payments</h1>
         <Link href="/console" className="text-sm text-neutral-600 underline">

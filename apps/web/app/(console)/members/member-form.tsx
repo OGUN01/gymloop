@@ -81,7 +81,7 @@ export async function MemberForm({
   const error = submitted.error;
 
   return (
-    <main className="mx-auto max-w-lg px-6 py-8">
+    <main className="route-workspace">
       <div className="flex items-baseline justify-between">
         <h1 className="text-xl font-semibold">{title}</h1>
         <Link href={cancelHref} className="text-sm text-neutral-600 underline">

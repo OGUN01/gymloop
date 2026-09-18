@@ -73,7 +73,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
     (trainer || (!fullyReturned && !refundResult.error));
   const detailHref = `/add-ons/orders/${orderId}`;
 
-  return <main className="mx-auto max-w-5xl px-4 py-7 sm:px-6">
+  return <main className="route-workspace">
     <header className="flex flex-wrap items-baseline justify-between gap-3"><h1 className="text-2xl font-semibold">Add-on order</h1><Link href="/add-ons#orders" className="inline-flex min-h-11 items-center underline">All add-on orders</Link></header>
     {query.saved === '1' ? <p role="status" className="my-4 rounded-lg bg-green-50 p-3 text-green-900">Confirmation recorded. Current order details are shown below.</p> : null}
     <article className="mt-5 rounded-xl border border-neutral-200 p-4 sm:p-6">

@@ -24,7 +24,7 @@ export default async function PlatformPage() {
   const { supabase, identity } = await requireAudience('platform');
   const result = await fleetMetrics(supabase);
   if ('error' in result) {
-    return <main className="p-8"><p role="alert">We couldn’t load the gym fleet. Please try again.</p></main>;
+    return <main className="platform-route route-workspace"><p role="alert">We couldn’t load the gym fleet. Please try again.</p></main>;
   }
 
   let owners: OwnerRow[] = [];
@@ -41,7 +41,7 @@ export default async function PlatformPage() {
   const { gyms } = result.data;
   const isAdmin = identity.role === 'super_admin';
 
-  return <main className="mx-auto max-w-6xl px-6 py-8">
+  return <main className="platform-route route-workspace">
     <h1 className="text-2xl font-semibold">Gyms</h1>
     <p className="mt-2 text-neutral-600">{isAdmin ? 'Your platform’s gym directory' : 'Support access · read only'}</p>
     <p className="mt-2 text-sm text-neutral-500">
