@@ -15,10 +15,13 @@ export function ConsoleNavigation({ items }: { items: readonly NavigationItem[] 
   ), undefined);
 
   return (
-    <nav className="owner-navigation" aria-label="Console navigation">
-      {items.map((item) => <Link href={item.href} key={item.href} aria-current={current?.href === item.href ? 'page' : undefined}>
-        {item.label}
-      </Link>)}
-    </nav>
+    <details className="owner-navigation-disclosure">
+      <summary>{current?.label ?? 'Console navigation'}</summary>
+      <nav className="owner-navigation" aria-label="Console navigation">
+        {items.map((item) => <Link href={item.href} key={item.href} aria-current={current?.href === item.href ? 'page' : undefined}>
+          {item.label}
+        </Link>)}
+      </nav>
+    </details>
   );
 }

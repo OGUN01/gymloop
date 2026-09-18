@@ -13,25 +13,21 @@ import { useState } from 'react';
 type CardKey =
   | 'visits' | 'liveMembers' | 'pausedMembers' | 'cases' | 'followUpsDue'
   | 'recoveries' | 'cash' | 'renewals' | 'leads' | 'addonCash' | 'ptOrders';
-type DisplayRow = Record<string, unknown>;
-
 function moneySummary(rows: OwnerMetrics['cards']['cash']): string {
   return rows.length === 0
     ? 'No cash movement'
     : rows.map((row) => formatMoney(row.currency, row.netPaise)).join(' · ');
 }
-function renewalSummary(rows: OwnerMetrics['cards']['renewal']): string {
-  return rows.length === 0
-    ? 'No renewals due'
-    : rows.map((row) => formatMoney(row.currency, row.duePaise)).join(' · ');
-}
-function formatMoney(currency: string, paise: string): string {
+function formatMoney(currency: string, paise: string, useRupeeSymbol = false): string {
   const rendered = rupeesFromPaise(paise);
   const [whole = '0', decimal = '00'] = rendered.replace('-', '').split('.');
   const grouped = currency === 'INR'
     ? new Intl.NumberFormat('en-IN').format(BigInt(whole))
     : whole;
-  return `${rendered.startsWith('-') ? '-' : ''}${currency} ${grouped}.${decimal}`;
+  const sign = rendered.startsWith('-') ? '-' : '';
+  return currency === 'INR' && useRupeeSymbol
+    ? `INR ${sign}₹${grouped}.${decimal}`
+    : `${sign}${currency} ${grouped}.${decimal}`;
 }
 function formatLocalDay(day: string): string {
   return new Intl.DateTimeFormat('en-IN', {
@@ -60,26 +56,23 @@ function ratioSummary(numerator: string, denominator: string): string {
   const exact = `${numerator} / ${denominator}`;
   return basisPoints === null ? `${exact} · No cohort` : `${exact} · ${formatBasisPoints(basisPoints)}`;
 }
-function componentRows(metrics: OwnerMetrics, selected: CardKey): DisplayRow[] {
-  switch (selected) {
-    case 'visits': return metrics.components.visits;
-    case 'liveMembers': return metrics.components.liveMembers;
-    case 'pausedMembers': return metrics.components.liveMembers.filter((row) => row.paused);
-    case 'cases': return metrics.components.cases;
-    case 'followUpsDue': return metrics.components.cases.filter((row) => row.due);
-    case 'recoveries': return metrics.components.recoveries;
-    case 'cash': return [...metrics.components.collected.map((row) => ({ movement: 'collected', ...row })), ...metrics.components.returned.map((row) => ({ movement: 'returned', ...row }))];
-    case 'renewals': return metrics.components.renewals;
-    case 'leads': return metrics.components.leads;
-    case 'addonCash': return [...metrics.components.collected.filter((row) => row.addonOrderId !== null).map((row) => ({ movement: 'collected', ...row })), ...metrics.components.returned.filter((row) => row.addonOrderId !== null).map((row) => ({ movement: 'returned', ...row }))];
-    case 'ptOrders': return metrics.components.ptOrders;
-  }
+function formatCurrencyScope(rows: ReadonlyArray<{ currency: string }>): string {
+  return rows.length === 0 ? 'No currency recorded' : [...new Set(rows.map((row) => row.currency))].join(' · ');
 }
-function flattenText(value: unknown): string[] {
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return [String(value)];
-  if (Array.isArray(value)) return value.flatMap(flattenText);
-  if (value !== null && typeof value === 'object') return Object.values(value).flatMap(flattenText);
-  return [];
+function detailSummaries(metrics: OwnerMetrics, selected: CardKey): string[] {
+  switch (selected) {
+    case 'visits': return metrics.components.visits.map((row) => `${row.memberName} checked in ${formatSnapshotInstant(row.checkedInAt, metrics.timezone)}`);
+    case 'liveMembers': return metrics.components.liveMembers.map((row) => `${row.memberName}: ${row.memberships.length} live memberships${row.paused ? ' · Currently paused' : ''}`);
+    case 'pausedMembers': return metrics.components.liveMembers.filter((row) => row.paused).map((row) => `${row.memberName}: currently paused`);
+    case 'cases':
+    case 'followUpsDue': return metrics.components.cases.filter((row) => selected === 'cases' || row.due).map((row) => `${row.memberName}: ${humanizeStatus(row.status)} · ${row.due ? 'Follow-up due' : 'No follow-up due'}${row.nextFollowUpAt === null ? '' : ` · Next ${formatSnapshotInstant(row.nextFollowUpAt, metrics.timezone)}`}`);
+    case 'recoveries': return metrics.components.recoveries.map((row) => `${row.memberName} returned ${formatSnapshotInstant(row.returnedAt, metrics.timezone)}`);
+    case 'cash': return [...metrics.components.collected.map((row) => `${row.memberName}: collected ${formatMoney(row.currency, row.amountPaise)} · ${formatSnapshotInstant(row.paidAt, metrics.timezone)}`), ...metrics.components.returned.map((row) => `${row.memberName}: returned ${formatMoney(row.currency, row.amountPaise)} · ${formatSnapshotInstant(row.processedAt, metrics.timezone)}`)];
+    case 'renewals': return metrics.components.renewals.map((row) => `${row.memberName}: ${formatMoney(row.currency, row.duePaise)} due by ${formatLocalDay(row.endsOn)}`);
+    case 'leads': return metrics.components.leads.map((row) => `${row.fullName}: ${humanizeStatus(row.stage)} · ${row.converted ? 'Converted' : 'Not converted'} · ${formatSnapshotInstant(row.createdAt, metrics.timezone)}`);
+    case 'addonCash': return [...metrics.components.collected.filter((row) => row.addonOrderId !== null).map((row) => `${row.memberName}: collected ${formatMoney(row.currency, row.amountPaise)} · ${formatSnapshotInstant(row.paidAt, metrics.timezone)}`), ...metrics.components.returned.filter((row) => row.addonOrderId !== null).map((row) => `${row.memberName}: returned ${formatMoney(row.currency, row.amountPaise)} · ${formatSnapshotInstant(row.processedAt, metrics.timezone)}`)];
+    case 'ptOrders': return metrics.components.ptOrders.map((row) => `${row.memberName}: ${humanizeStatus(row.status)} · ${row.sessionsUsed} of ${row.sessionsTotal} sessions used`);
+  }
 }
 
 export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
@@ -87,8 +80,8 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
   const primaryCards: Array<{ key: CardKey; label: string; value: string; scope: string }> = [
     { key: 'visits', label: 'Visits today', value: metrics.cards.visitsToday, scope: `Current state · ${formatLocalDay(metrics.localToday)}` },
     { key: 'followUpsDue', label: 'Open follow-ups', value: metrics.cards.followUpsDue, scope: 'Current state' },
-    { key: 'renewals', label: 'Renewals due', value: renewalSummary(metrics.cards.renewal), scope: `${metrics.range.from} to ${metrics.range.through}` },
-    { key: 'cash', label: 'Net collected', value: moneySummary(metrics.cards.cash), scope: `${metrics.range.from} to ${metrics.range.through}` },
+    { key: 'renewals', label: 'Renewals due', value: metrics.cards.renewal.length === 0 ? 'No renewals due' : metrics.cards.renewal.map((row) => formatMoney(row.currency, row.duePaise, true)).join(' · '), scope: `${formatCurrencyScope(metrics.cards.renewal)} · ${metrics.range.from} to ${metrics.range.through}` },
+    { key: 'cash', label: 'Net collected', value: metrics.cards.cash.length === 0 ? 'No cash movement' : metrics.cards.cash.map((row) => formatMoney(row.currency, row.netPaise, true)).join(' · '), scope: `${formatCurrencyScope(metrics.cards.cash)} · ${metrics.range.from} to ${metrics.range.through}` },
   ];
   const secondaryCards: Array<{ key: CardKey; label: string; value: string }> = [
     { key: 'liveMembers', label: 'Live members', value: metrics.cards.liveMembers },
@@ -99,7 +92,7 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
     { key: 'addonCash', label: 'Add-on cash', value: moneySummary(metrics.cards.addonCash) },
     { key: 'ptOrders', label: 'PT usage · known-session cohort', value: ratioSummary(metrics.cards.pt.sessionsUsed, metrics.cards.pt.sessionsTotal) },
   ];
-  const selectedRows = selected === null ? [] : componentRows(metrics, selected);
+  const selectedRows = selected === null ? [] : detailSummaries(metrics, selected);
   const cases = metrics.components.cases.slice(0, OWNER_OVERVIEW_CASE_PREVIEW_LIMIT);
   const renewals = metrics.components.renewals.slice(0, OWNER_OVERVIEW_SUPPORTING_PREVIEW_LIMIT);
   const recoveries = metrics.components.recoveries.slice(0, OWNER_OVERVIEW_SUPPORTING_PREVIEW_LIMIT);
@@ -116,18 +109,21 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
         <a className="dashboard-secondary-action" href="/console">Record payment</a>
       </div>
     </header>
-    <form className="dashboard-range" method="get">
-      <label>From <input name="from" type="date" defaultValue={metrics.range.from} /></label>
-      <label>Through <input name="through" type="date" defaultValue={metrics.range.through} /></label>
-      <button type="submit">Apply range</button>
-    </form>
+    <details className="dashboard-period">
+      <summary>Period · {metrics.range.from} to {metrics.range.through}</summary>
+      <form className="dashboard-range" method="get">
+        <label>From <input name="from" type="date" defaultValue={metrics.range.from} /></label>
+        <label>Through <input name="through" type="date" defaultValue={metrics.range.through} /></label>
+        <button type="submit">Apply range</button>
+      </form>
+    </details>
     <section className="dashboard-primary-metrics" aria-label="Primary metrics">
       {primaryCards.map((card) => <button aria-pressed={selected === card.key} className="dashboard-primary-metric" key={card.key} onClick={() => setSelected(card.key)} type="button"><span>{card.label}</span><strong>{card.value}</strong><small>{card.scope}</small></button>)}
     </section>
     <div className="dashboard-main-grid">
       <section className="dashboard-panel dashboard-cases" aria-labelledby="dashboard-cases-heading">
         <div className="dashboard-panel-heading"><div><h2 id="dashboard-cases-heading">People to follow up</h2><p>Current cases from this snapshot.</p></div><a href="/red-list">View all</a></div>
-        {cases.length === 0 ? <p className="dashboard-empty">No open follow-up cases in this snapshot.</p> : <ul className="dashboard-case-list">{cases.map((item) => <li key={item.caseId}><a href={`/members/${item.memberId}`}><strong>{item.memberName}</strong><span>{humanizeStatus(item.status)}</span></a><p>{item.due ? 'Follow-up due' : 'No follow-up due'}{item.nextFollowUpAt === null ? ' · No next follow-up scheduled' : ` · Next ${formatSnapshotInstant(item.nextFollowUpAt, metrics.timezone)}`}</p></li>)}</ul>}
+        {cases.length === 0 ? <p className="dashboard-empty">No open follow-up cases in this snapshot.</p> : <ul className="dashboard-case-list">{cases.map((item) => <li key={item.caseId}><a href={selected === null ? `/members/${item.memberId}` : '/members'}><strong>{item.memberName}</strong><span>{humanizeStatus(item.status)}</span></a><p>{item.due ? 'Follow-up due' : 'No follow-up due'}{item.nextFollowUpAt === null ? ' · No next follow-up scheduled' : ` · Next ${formatSnapshotInstant(item.nextFollowUpAt, metrics.timezone)}`}</p></li>)}</ul>}
       </section>
       <aside className="dashboard-supporting" aria-label="Renewal and recovery summary">
         <section className="dashboard-panel" aria-labelledby="dashboard-renewals-heading"><div className="dashboard-panel-heading"><div><h2 id="dashboard-renewals-heading">Renewals due</h2><p>{metrics.range.from} to {metrics.range.through}</p></div></div>{renewals.length === 0 ? <p className="dashboard-empty">No renewals due in this range.</p> : <ul className="dashboard-renewal-list">{renewals.map((item) => <li key={item.membershipId}><a href={`/memberships/${item.memberId}`}>{item.memberName}</a><span>{formatMoney(item.currency, item.duePaise)}</span></li>)}</ul>}</section>
@@ -142,6 +138,6 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
       {metrics.warnings.incompletePtOrders.map((row) => <p key={row.orderId} id={`warning-incomplete-pt-${row.orderId}`}><a href={`#warning-incomplete-pt-${row.orderId}`}>All-date data quality: incomplete PT order {row.orderId} · {row.status} · excluded incomplete row</a></p>)}
       {metrics.warnings.undatedPayments.length === 0 && metrics.warnings.undatedReturns.length === 0 && metrics.warnings.undatedPtOrders.length === 0 && metrics.warnings.incompletePtOrders.length === 0 && <p>No data-quality warnings in this snapshot.</p>}
     </section>
-    {selected !== null && <section aria-live="polite" className="dashboard-detail"><h2>{[...primaryCards, ...secondaryCards].find((card) => card.key === selected)?.label} details</h2><p>Rows are from the same snapshot response; current-state cards remain current regardless of the selected date range.</p>{selectedRows.length === 0 ? <p>No component rows</p> : selectedRows.map((row) => <p key={JSON.stringify(row)}>{flattenText(row).join(' · ')}</p>)}</section>}
+    {selected !== null && <section aria-live="polite" className="dashboard-detail"><h2>{[...primaryCards, ...secondaryCards].find((card) => card.key === selected)?.label} details</h2><p>Rows are from the same snapshot response; current-state cards remain current regardless of the selected date range.</p>{selectedRows.length === 0 ? <p>No component rows</p> : selectedRows.map((row) => <p key={row}>{row}</p>)}</section>}
   </main>;
 }
