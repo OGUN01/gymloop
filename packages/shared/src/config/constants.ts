@@ -208,6 +208,12 @@ export const PAYMENT_PAGE_SIZE_DEFAULT = 25;
 /** The clamp for {@link PAYMENT_PAGE_SIZE_DEFAULT} — a page size is a hint. */
 export const PAYMENT_PAGE_SIZE_MAX = 100;
 
+/** Cases shown in the compact owner-overview preview before the full queue. */
+export const OWNER_OVERVIEW_CASE_PREVIEW_LIMIT = 6;
+
+/** Rows shown in each compact owner-overview supporting summary. */
+export const OWNER_OVERVIEW_SUPPORTING_PREVIEW_LIMIT = 3;
+
 /** Paise in a rupee. `* 100` on money is exactly the literal rule 4 exists for. */
 export const PAISE_PER_RUPEE = 100;
 

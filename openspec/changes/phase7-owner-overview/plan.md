@@ -64,7 +64,8 @@ An independent Luna author owns only
 Terra then owns only `apps/web/app/(console)/dashboard/metrics-dashboard.tsx`,
 `apps/web/app/(console)/dashboard/page.tsx` and dashboard-prefixed private CSS in
 `apps/web/app/globals.css`; it never edits tests. Root owns contract,
-registry/spec/evidence/archive.
+registry/spec/evidence/archive and the two registered shared preview-limit
+constants required by the repository's no-magic-number constitution.
 
 During development run the new focused test, the existing
 `dashboard-metrics.test.tsx`, web typecheck and web lint. Root performs a
@@ -73,7 +74,7 @@ metric selection may trigger another network read. A fresh Sol visual critic
 compares rendered crops directly with the owner v2 board. Run full repository
 gates once after GO.
 
-Forbidden: `apps/web/lib/**`, shared schemas/constants, API routes, SQL,
+Forbidden to the implementer: `apps/web/lib/**`, shared schemas/constants, API routes, SQL,
 identity/navigation authorization, generated files, new dependencies, test
 edits by the implementer, or any fabricated board content.
 
