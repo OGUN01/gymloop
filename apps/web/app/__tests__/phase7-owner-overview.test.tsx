@@ -24,7 +24,7 @@ const richFixture: OwnerMetrics = {
   },
   components: {
     visits: [], liveMembers: [],
-    cases: [{ caseId: 'case-1', memberId: 'member-1', memberName: 'Asha Rao', status: 'open', nextFollowUpAt: '2026-09-19T09:00:00+05:30', due: true }],
+    cases: [{ caseId: 'case-1', memberId: 'member-1', memberName: 'Asha Rao', status: 'needs_follow_up', nextFollowUpAt: '2026-09-19T09:00:00+05:30', due: true }],
     recoveries: [{ caseId: 'case-2', memberId: 'member-2', memberName: 'Bharat Singh', returnedAt: '2026-09-17T11:00:00+05:30' }],
     collected: [], returned: [], renewals: [{ membershipId: 'membership-1', memberId: 'member-3', memberName: 'Chitra Das', currency: 'INR', endsOn: '2026-09-20', pricePaise: '300000', discountPaise: '0', netPricePaise: '300000', periodsGranted: '1', eligiblePaidPaise: '0', residualPaise: '0', duePaise: '250000', receipts: [] }], leads: [], ptOrders: [],
   },
@@ -66,6 +66,13 @@ describe('Phase 7 owner overview surface', () => {
     expect(html).toContain('INR');
     expect(html).toContain('USD');
     expect(html).not.toMatch(/last visit|weekly|recovery revenue/i);
+    expect(html).toMatch(/18 (?:September|Sep) 2026/i);
+    expect(html).not.toContain('2026-09-18T10:00:00+05:30');
+    expect(html).not.toContain('2026-09-19T09:00:00+05:30');
+    expect(html).toMatch(/needs follow.?up/i);
+    expect(html).toContain('href="/members/member-1"');
+    expect(html).toContain('href="/memberships/member-3"');
+    expect(html).toMatch(/INR[^<]*(?:USD[^<]*)?|USD[^<]*(?:INR[^<]*)?/);
   });
 
   it('keeps selected detail in the same response and exposes accessible state', async () => {
