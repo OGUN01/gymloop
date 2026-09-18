@@ -67,17 +67,17 @@ const tenantId = 'a6400000-0000-4000-8000-000000000002';
 const memberId = 'a6400000-0000-4000-8000-000000000003';
 const staffId = 'a6400000-0000-4000-8000-000000000004';
 const previewId = 'a6400000-0000-4000-8000-000000000005';
-const member = { sub: userId, app_role: 'member', tenant_id: tenantId, member_id: memberId };
+const member = { sub: userId, role: 'authenticated', app_role: 'member', tenant_id: tenantId, member_id: memberId };
 const pageProps = { searchParams: Promise.resolve({}) };
 beforeEach(() => { state.claims = member; state.rows = {}; state.error = null; state.selections = []; });
 
 describe('NAV-002 entry points use the same identity home', () => {
   const identities = [
     [member, '/member/add-ons'],
-    [{ sub: userId, app_role: 'platform_support' }, '/platform'],
-    [{ sub: userId, app_role: 'gym_owner', tenant_id: tenantId, staff_id: staffId }, '/console'],
-    [{ sub: userId, app_role: 'gym_owner', tenant_id: tenantId, impersonation_session_id: previewId }, '/console'],
-    [{ sub: userId, app_role: 'member', tenant_id: tenantId }, '/not-linked'],
+    [{ sub: userId, role: 'authenticated', app_role: 'platform_support' }, '/platform'],
+    [{ sub: userId, role: 'authenticated', app_role: 'gym_owner', tenant_id: tenantId, staff_id: staffId }, '/console'],
+    [{ sub: userId, role: 'authenticated', app_role: 'gym_owner', tenant_id: tenantId, impersonation_session_id: previewId }, '/console'],
+    [{ sub: userId, role: 'authenticated', app_role: 'member', tenant_id: tenantId }, '/not-linked'],
   ] as const;
   it.each(identities)('root redirects %j to %s', async (claims, home) => {
     state.claims = claims;
@@ -98,12 +98,12 @@ describe('NAV-002 entry points use the same identity home', () => {
     await expect(Promise.resolve().then(() => Layout({ children: 'child' }))).rejects.toThrow('REDIRECT:/member/add-ons');
   });
   it('member layout sends support to platform', async () => {
-    state.claims = { sub: userId, app_role: 'platform_support' };
+    state.claims = { sub: userId, role: 'authenticated', app_role: 'platform_support' };
     const { default: Layout } = await import('../member/layout');
     await expect(Promise.resolve().then(() => Layout({ children: 'child' }))).rejects.toThrow('REDIRECT:/platform');
   });
   it('platform layout sends staff to console', async () => {
-    state.claims = { sub: userId, app_role: 'trainer', tenant_id: tenantId, staff_id: staffId };
+    state.claims = { sub: userId, role: 'authenticated', app_role: 'trainer', tenant_id: tenantId, staff_id: staffId };
     const { default: Layout } = await import('../platform/layout');
     await expect(Promise.resolve().then(() => Layout({ children: 'child' }))).rejects.toThrow('REDIRECT:/console');
   });
@@ -149,7 +149,7 @@ describe('NAV-005 read homes are useful and truthful', () => {
     expect(html).toMatch(/unavailable|incomplete|pending.*completion/i);
   });
   it('fleet shows real values and support has no product mutation forms', async () => {
-    state.claims = { sub: userId, app_role: 'platform_support' };
+    state.claims = { sub: userId, role: 'authenticated', app_role: 'platform_support' };
     state.rows.organizations = [{ id: tenantId, name: 'Visible gym', gym_code: 'VIEW25', status: 'trial', tier: 'growth', timezone: 'Asia/Kolkata', trial_ends_at: '2026-09-15T18:30:00Z' }];
     const { default: Page } = await import('../platform/page');
     const html = markup(await Page());
@@ -158,7 +158,7 @@ describe('NAV-005 read homes are useful and truthful', () => {
     expect(html).not.toMatch(/<form[^>]*method="post"/i);
   });
   it('fleet distinguishes empty and error states', async () => {
-    state.claims = { sub: userId, app_role: 'super_admin' };
+    state.claims = { sub: userId, role: 'authenticated', app_role: 'super_admin' };
     const { default: Page } = await import('../platform/page');
     const empty = markup(await Page());
     expect(empty).toMatch(/no gyms|no organizations|empty/i);
@@ -172,7 +172,7 @@ describe('NAV-005 read homes are useful and truthful', () => {
 
 describe('NAV-003 preview console controls', () => {
   it('shows gym, expiry and own-end action while disabling the real member form and retaining GET search', async () => {
-    state.claims = { sub: userId, app_role: 'gym_owner', tenant_id: tenantId, impersonation_session_id: previewId };
+    state.claims = { sub: userId, role: 'authenticated', app_role: 'gym_owner', tenant_id: tenantId, impersonation_session_id: previewId };
     state.rows.organizations = [{ id: tenantId, name: 'Preview target gym', timezone: 'Asia/Kolkata' }];
     state.rows.impersonation_sessions = [{ id: previewId, tenant_id: tenantId, actor_user_id: userId, expires_at: '2026-09-15T18:30:00Z', ended_at: null }];
     state.rows.branches = [{ id: staffId, tenant_id: tenantId, name: 'Main', is_default: true }];
