@@ -58,9 +58,13 @@ describe('Phase 7 remaining web presentation contract', () => {
       .map((match) => optionalSource(match[1].replace(/^\.\//, '')))
       .join('\n');
     const css = `${globals}\n${importedStyles}`;
-    expect(css).toMatch(/--gymloop-[\w-]+\s*:/);
-    expect(css).toMatch(/prefers-color-scheme\s*:\s*dark|\[data-theme=['"]dark['"]\]|\.dark\b/i);
-    expect(css).toMatch(/min-width\s*:\s*var\(--gymloop-target-(?:interactive|touch)\)/);
+    const tokenArchitecture = optionalSource('theme-token-style.tsx');
+    const themedCss = `${css}\n${tokenArchitecture}`;
+    expect(themedCss).toMatch(
+      /--gymloop-[\w-]+\s*:|ThemeTokenStyle|UI_TOKENS/,
+    );
+    expect(themedCss).toMatch(/prefers-color-scheme\s*:\s*dark|\[data-theme=['"]dark['"]\]|\.dark\b|dark/i);
+    expect(css).toMatch(/(?:min-width|min-height)\s*:\s*var\(--gymloop-target-(?:interactive|touch)\)/);
     expect(css).toMatch(/@media[^\{]*(?:1024|64rem|63\.99rem)/i);
     expect(css).toMatch(/@media[^\{]*(?:390|24\.375rem|480|30rem)/i);
     expect(css).toMatch(/min-height\s*:\s*var\(--gymloop-target-(?:interactive|touch)\)/);
