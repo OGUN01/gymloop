@@ -100,4 +100,14 @@ describe('Phase 7 owner shell', () => {
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*(?:owner-sidebar|owner-account-frame)[\s\S]*grid-template-columns|grid-template-rows/s);
     expect(css).toMatch(/overflow-x\s*:\s*auto|flex-wrap\s*:\s*wrap/);
   });
+
+  it('keeps the owner shell viewport-bound and truthful at intermediate and narrow widths', () => {
+    const css = readFileSync(new URL('../globals.css', import.meta.url), 'utf8');
+
+    expect(css).toMatch(/\.owner-sidebar[^}]*position\s*:\s*sticky[^}]*height\s*:\s*100vh/s);
+    expect(css).toMatch(/\.owner-sidebar[^}]*overflow-y\s*:\s*auto/);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*64rem[^)]*\)[\s\S]*\.owner-(?:account-frame|shell)[^}]*grid-template-rows\s*:\s*auto\s+minmax\(0\s*,\s*1fr\)/s);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*\.owner-context[^}]*min-width\s*:\s*0/s);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*[\s\S]*\.owner-context[^}]*overflow-wrap\s*:\s*(?:anywhere|break-word)|word-break\s*:\s*break-word/s);
+  });
 });
