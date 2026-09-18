@@ -147,6 +147,29 @@ begin
 end;
 $function$;
 
+-- The member portal needs presentation settings, but a table-level settings
+-- read would disclose GSTIN and financial configuration. Keep this projection
+-- claim-scoped and deliberately narrower than the underlying row.
+create function public.read_member_portal_settings()
+returns table (
+  city text,
+  state text,
+  weekly_goal_default smallint,
+  week_start_day smallint,
+  streak_rule_type public.streak_rule_type
+)
+language plpgsql stable security definer set search_path = ''
+as $function$
+declare v_tenant uuid;
+begin
+  select i.tenant_id into v_tenant from app.member_mobile_identity() i;
+  return query
+    select s.city, s.state, s.weekly_goal_default, s.week_start_day, s.streak_rule_type
+    from public.organization_settings s
+    where s.tenant_id = v_tenant;
+end;
+$function$;
+
 revoke all on function app.member_mobile_identity() from public, anon, authenticated;
 revoke all on function app.record_member_mobile_check_in(text, uuid, timestamptz) from public, anon;
 grant execute on function app.record_member_mobile_check_in(text, uuid, timestamptz) to authenticated;
@@ -154,3 +177,5 @@ revoke all on function public.member_mobile_check_in(text, uuid, timestamptz) fr
 grant execute on function public.member_mobile_check_in(text, uuid, timestamptz) to authenticated;
 revoke all on function public.read_member_mobile_money() from public, anon;
 grant execute on function public.read_member_mobile_money() to authenticated;
+revoke all on function public.read_member_portal_settings() from public, anon;
+grant execute on function public.read_member_portal_settings() to authenticated;

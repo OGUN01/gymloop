@@ -20,9 +20,15 @@ export type MemberSnapshot = {
 
 type MobileMoneyRead = { receipts?: Record<string, unknown>[]; addOns?: Record<string, unknown>[] };
 type MobileMoneyQuery = PromiseLike<{ data: MobileMoneyRead | null; error: { message: string } | null }>;
+type MemberPortalSettings = { city: string | null; state: string | null; weekly_goal_default: number; week_start_day: number; streak_rule_type: string };
+type MemberPortalSettingsQuery = PromiseLike<{ data: MemberPortalSettings[] | null; error: { message: string } | null }>;
 
 function memberMoney(client: DbClient): MobileMoneyQuery {
   return (client as unknown as { rpc(name: 'read_member_mobile_money'): MobileMoneyQuery }).rpc('read_member_mobile_money');
+}
+
+function memberPortalSettings(client: DbClient): MemberPortalSettingsQuery {
+  return (client as unknown as { rpc(name: 'read_member_portal_settings'): MemberPortalSettingsQuery }).rpc('read_member_portal_settings');
 }
 
 function text(value: unknown, fallback = ''): string {
@@ -43,7 +49,7 @@ export async function loadMemberSnapshot(client: DbClient, identity: MemberIdent
   const [memberRead, gymRead, settingsRead, branchRead, membershipRead, attendanceRead, moneyRead, messagesRead, consentsRead, pausesRead, holidaysRead] = await Promise.all([
     client.from('members').select('full_name,member_code,email,phone,weekly_goal_visits,rest_days,branch_id').eq('id', identity.memberId).eq('tenant_id', identity.tenantId).single(),
     client.from('organizations').select('name,gym_code,timezone').eq('id', identity.tenantId).single(),
-    client.from('organization_settings').select('city,state,weekly_goal_default,week_start_day,streak_rule_type').eq('tenant_id', identity.tenantId).single(),
+    memberPortalSettings(client),
     client.from('branches').select('name,address').eq('tenant_id', identity.tenantId).order('is_default', { ascending: false }).limit(1).maybeSingle(),
     client.from('memberships').select('status,starts_on,ends_on,plans(name)').eq('member_id', identity.memberId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     client.from('attendance').select('id,checked_in_at,source').eq('member_id', identity.memberId).order('checked_in_at', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT),
@@ -57,15 +63,16 @@ export async function loadMemberSnapshot(client: DbClient, identity: MemberIdent
   const firstError = [memberRead, gymRead, settingsRead, branchRead, membershipRead, attendanceRead, moneyRead, messagesRead, consentsRead, pausesRead, holidaysRead]
     .find((result) => result.error !== null)?.error;
   if (firstError) throw new Error(firstError.message);
-  if (!memberRead.data || !gymRead.data || !settingsRead.data) throw new Error('Your gym profile is not available.');
+  const settings = settingsRead.data?.[0] ?? null;
+  if (!memberRead.data || !gymRead.data || !settings) throw new Error('Your gym profile is not available.');
 
   const timezone = gymRead.data.timezone || DEFAULT_TIMEZONE;
-  const goal = memberRead.data.weekly_goal_visits ?? settingsRead.data.weekly_goal_default;
+  const goal = memberRead.data.weekly_goal_visits ?? settings.weekly_goal_default;
   const visitInstants = (attendanceRead.data ?? []).map((row) => row.checked_in_at);
   const today = toLocalDate(new Date(), timezone);
   const todayNumber = Date.parse(`${today}T00:00:00Z`) / MS_PER_DAY;
   const todayWeekday = new Date(`${today}T00:00:00Z`).getUTCDay();
-  const weekStartNumber = todayNumber - ((todayWeekday - settingsRead.data.week_start_day + DAYS_PER_WEEK) % DAYS_PER_WEEK);
+  const weekStartNumber = todayNumber - ((todayWeekday - settings.week_start_day + DAYS_PER_WEEK) % DAYS_PER_WEEK);
   const weekVisits = new Set(visitInstants.map((instant) => toLocalDate(instant, timezone)).filter((day) => {
     const value = Date.parse(`${day}T00:00:00Z`) / MS_PER_DAY;
     return value >= weekStartNumber && value < weekStartNumber + DAYS_PER_WEEK;
@@ -78,15 +85,15 @@ export async function loadMemberSnapshot(client: DbClient, identity: MemberIdent
     pauses: (pausesRead.data ?? []).map((pause) => ({ startsOn: pause.starts_on, endsOn: pause.ends_on, approvedAt: pause.approved_at, rejectedAt: pause.rejected_at })),
     holidays: (holidaysRead.data ?? []).map((holiday) => holiday.holiday_on),
   };
-  const streak = settingsRead.data.streak_rule_type === 'weekly_goal'
-    ? weeklyGoalStreak({ ...base, goal, weekStartDay: settingsRead.data.week_start_day })
+  const streak = settings.streak_rule_type === 'weekly_goal'
+    ? weeklyGoalStreak({ ...base, goal, weekStartDay: settings.week_start_day })
     : visitStreak(base);
 
   const membership = membershipRead.data;
   const planRelation = membership && 'plans' in membership ? membership.plans as { name?: unknown } | null : null;
   return {
     member: { fullName: memberRead.data.full_name, memberCode: memberRead.data.member_code, email: memberRead.data.email, phone: memberRead.data.phone, goal, restDays: memberRead.data.rest_days },
-    gym: { name: gymRead.data.name, code: gymRead.data.gym_code, timezone, city: settingsRead.data.city, state: settingsRead.data.state, branchName: branchRead.data?.name ?? 'Main branch', branchAddress: branchRead.data?.address ?? null },
+    gym: { name: gymRead.data.name, code: gymRead.data.gym_code, timezone, city: settings.city, state: settings.state, branchName: branchRead.data?.name ?? 'Main branch', branchAddress: branchRead.data?.address ?? null },
     membership: membership ? { status: membership.status, startsOn: membership.starts_on, endsOn: membership.ends_on, planName: text(planRelation?.name, 'Membership') } : null,
     visits: (attendanceRead.data ?? []).map((row) => ({ id: row.id, checkedInAt: row.checked_in_at, source: row.source })),
     weekVisits,
