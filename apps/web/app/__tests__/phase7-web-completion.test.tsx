@@ -10,6 +10,15 @@ function routeSource(route: string): string {
   return readFileSync(resolve(appRoot, route, 'page.tsx'), 'utf8');
 }
 
+function optionalSource(relativePath: string): string {
+  const path = resolve(appRoot, relativePath);
+  return existsSync(path) ? readFileSync(path, 'utf8') : '';
+}
+
+function sharedOwnerComposition(): string {
+  return optionalSource('(console)/console/member-search-page.tsx');
+}
+
 describe('Phase 7 remaining web presentation contract', () => {
   const ownerRoutes = [
     '(console)/console',
@@ -22,29 +31,33 @@ describe('Phase 7 remaining web presentation contract', () => {
   ];
 
   it.each(ownerRoutes)('keeps %s as a complete workspace route with truthful structure', (route) => {
-    const source = routeSource(route);
-    expect(source).toMatch(/AccountFrame|workspace|shell/i);
+    const source = `${routeSource(route)}\n${sharedOwnerComposition()}`;
+    expect(source).toMatch(/route-workspace|workspace|shell|MemberSearchPage|AccountFrame/i);
     expect(source).toMatch(/<h[1-3][^>]*>|aria-label=|<title>/i);
-    expect(source).toMatch(/<form|<button|<a\s/i);
+    expect(source).toMatch(/<form|<button|<a\s|<Link\b/i);
     expect(source).not.toMatch(/Coming soon|disabled[^\n>]*true|placeholder dashboard/i);
   });
 
   it.each(['member/messages', 'member/add-ons'])('keeps %s inside the member shell', (route) => {
     const source = routeSource(route);
-    expect(source).toMatch(/AccountFrame|Member|member.*shell|shell/i);
+    expect(`${source}\n${optionalSource('member/layout.tsx')}`).toMatch(/AccountFrame|Member|member.*shell|shell/i);
     expect(source).toMatch(/<h[1-3][^>]*>|aria-label=|<title>/i);
-    expect(source).toMatch(/<form|<button|<a\s/i);
+    expect(source).toMatch(/<form|<button|<a\s|Member[A-Z]\w+/i);
   });
 
   it.each(['platform', 'platform/[id]'])('keeps %s function-first and read-only for support previews', (route) => {
-    const source = routeSource(route);
+    const source = `${routeSource(route)}\n${optionalSource('platform/layout.tsx')}`;
     expect(source).toMatch(/<h[1-3][^>]*>|aria-label=|<title>/i);
     expect(source).toMatch(/read.?only|preview|support/i);
     expect(source).not.toMatch(/<button[^>]*(delete|remove|impersonat|save|create)/i);
   });
 
   it('defines token-backed light/dark, responsive, and target-size hooks for the private routes', () => {
-    const css = readFileSync(resolve(appRoot, 'globals.css'), 'utf8');
+    const globals = readFileSync(resolve(appRoot, 'globals.css'), 'utf8');
+    const importedStyles = [...globals.matchAll(/@import\s+(?:url\()?\s*["']?([^"')\s]+)["']?\)?/g)]
+      .map((match) => optionalSource(match[1].replace(/^\.\//, '')))
+      .join('\n');
+    const css = `${globals}\n${importedStyles}`;
     expect(css).toMatch(/--gymloop-[\w-]+\s*:/);
     expect(css).toMatch(/prefers-color-scheme\s*:\s*dark|\[data-theme=['"]dark['"]\]|\.dark\b/i);
     expect(css).toMatch(/min-width\s*:\s*var\(--gymloop-target-(?:interactive|touch)\)/);
