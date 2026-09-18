@@ -44,13 +44,16 @@ SELECT set_config(
 
 SELECT is(
   (SELECT array_agg(keys.key ORDER BY keys.key)
-     FROM jsonb_object_keys(to_jsonb(public.read_member_portal_settings())) AS keys(key)),
+     FROM public.read_member_portal_settings() AS settings
+     CROSS JOIN LATERAL jsonb_object_keys(to_jsonb(settings)) AS keys(key)),
   ARRAY['city', 'state', 'streak_rule_type', 'week_start_day', 'weekly_goal_default'],
   'member command exposes exactly the five safe settings fields'
 );
-SELECT ok(
-  public.read_member_portal_settings() IS NOT NULL,
-  'complete canonical member identity is accepted'
+SELECT is(
+  (SELECT to_jsonb(settings)
+     FROM public.read_member_portal_settings() AS settings),
+  '{"city":"Pune","state":"Maharashtra","weekly_goal_default":4,"week_start_day":1,"streak_rule_type":"weekly_goal"}'::jsonb,
+  'complete canonical member identity is accepted and receives its own five-field presentation row'
 );
 
 SELECT throws_ok(
@@ -112,7 +115,8 @@ SELECT set_config(
 SELECT ok(
   NOT EXISTS (
     SELECT 1
-    FROM jsonb_object_keys(to_jsonb(public.read_member_portal_settings())) AS key
+    FROM public.read_member_portal_settings() AS settings
+    CROSS JOIN LATERAL jsonb_object_keys(to_jsonb(settings)) AS key
     WHERE key IN ('gstin', 'financial_config', 'organization_settings', 'tenant_id')
   ),
   'command does not expose settings rows or financial, GSTIN, or tenant fields'

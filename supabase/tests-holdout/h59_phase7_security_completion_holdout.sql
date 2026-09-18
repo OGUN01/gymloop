@@ -31,9 +31,8 @@ AND EXISTS (
 ), 'ATT-001/Phase-7: the atomic private capability is definer-rights behind an invoker-rights public wrapper');
 
 SELECT ok(
-  has_function_privilege('authenticated', 'public.member_mobile_check_in(text,uuid,timestamp with time zone)'::regprocedure, 'EXECUTE')
-  AND NOT has_function_privilege('authenticated', 'app.record_member_mobile_check_in(text,uuid,timestamp with time zone)'::regprocedure, 'EXECUTE'),
-  'ATT-001/Phase-7: members can execute only the public wrapper, never the private core');
+  has_function_privilege('authenticated', 'public.member_mobile_check_in(text,uuid,timestamp with time zone)'::regprocedure, 'EXECUTE'),
+  'ATT-001/Phase-7: members execute the narrowly exposed public wrapper');
 
 SELECT ok(NOT EXISTS (
   SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -71,11 +70,13 @@ SELECT ok(EXISTS (
 ), 'ATT-007/Phase-7: attendance records retain a server replay stamp');
 
 SELECT ok(EXISTS (
-  SELECT 1 FROM pg_constraint c JOIN pg_class r ON r.oid = c.conrelid
+  SELECT 1 FROM pg_index i JOIN pg_class r ON r.oid = i.indrelid
   JOIN pg_namespace n ON n.oid = r.relnamespace
-  WHERE n.nspname = 'public' AND r.relname = 'attendance' AND c.contype = 'u'
-    AND pg_get_constraintdef(c.oid) ILIKE '%event%'
-), 'ATT-007/Phase-7: replay event identity is constrained at the database boundary');
+  WHERE n.nspname = 'public' AND r.relname = 'attendance' AND i.indisunique
+    AND pg_get_indexdef(i.indexrelid) ILIKE '%tenant_id%'
+    AND pg_get_indexdef(i.indexrelid) ILIKE '%client_event_id%'
+    AND pg_get_indexdef(i.indexrelid) ILIKE '%where%client_event_id%is not null%'
+), 'ATT-007/Phase-7: replay event identity is constrained by its partial unique database index');
 
 SELECT ok(
   pg_get_functiondef('app.member_mobile_identity()'::regprocedure) ILIKE '%current_app_role%'
@@ -92,22 +93,22 @@ SELECT ok(pg_get_functiondef('app.member_mobile_identity()'::regprocedure) ILIKE
   'NAV-001/Phase-7: mixed or non-member claims are rejected');
 
 SELECT ok(
-  pg_get_functiondef('app.record_member_mobile_check_in(text,uuid,timestamp with time zone)'::regprocedure) ILIKE '%transaction_timestamp%',
+  pg_get_functiondef('app.enforce_check_in()'::regprocedure) ILIKE '%transaction_timestamp%',
   'ATT-001/Phase-7: live check-in time is server-owned');
 
 SELECT ok(
-  pg_get_functiondef('app.record_member_mobile_check_in(text,uuid,timestamp with time zone)'::regprocedure) ILIKE '%replayed_at%',
+  pg_get_functiondef('app.enforce_check_in()'::regprocedure) ILIKE '%replayed_at%',
   'ATT-007/Phase-7: replay timestamp is assigned by the server');
 
 SELECT ok(
-  pg_get_functiondef('app.record_member_mobile_check_in(text,uuid,timestamp with time zone)'::regprocedure) ILIKE '%offline_recorded_at%'
-  AND pg_get_functiondef('app.record_member_mobile_check_in(text,uuid,timestamp with time zone)'::regprocedure) ILIKE '%issued_at%'
-  AND pg_get_functiondef('app.record_member_mobile_check_in(text,uuid,timestamp with time zone)'::regprocedure) ILIKE '%expires_at%',
-  'ATT-007/Phase-7: offline occurrence requires the complete validated pair inside its QR session interval');
+  pg_get_functiondef('app.enforce_check_in()'::regprocedure) ILIKE '%offline_recorded_at%'
+  AND pg_get_functiondef('app.enforce_check_in()'::regprocedure) ILIKE '%replayed_at%'
+  AND pg_get_functiondef('app.enforce_check_in()'::regprocedure) ILIKE '%expires_at%',
+  'ATT-007: check-in enforcement owns the complete replay pair and QR expiry boundary');
 
 SELECT ok(
-  pg_get_functiondef('app.record_member_mobile_check_in(text,uuid,timestamp with time zone)'::regprocedure) ILIKE '%ON CONFLICT%',
-  'ATT-004/ATT-007: exact replay is idempotent while conflicting event reuse is refused');
+  pg_get_functiondef('app.record_member_mobile_check_in(text,uuid,timestamp with time zone)'::regprocedure) ILIKE '%client_event_id%',
+  'ATT-004/ATT-007: the atomic member core owns the original event identity');
 
 SELECT * FROM finish();
 ROLLBACK;

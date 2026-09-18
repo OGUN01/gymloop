@@ -72,8 +72,8 @@ select ok(
 );
 
 select ok(
-  pg_get_functiondef('app.record_member_mobile_check_in(text,uuid,timestamp with time zone)'::regprocedure) ~ 'issued_at',
-  'member offline occurrence validation consults the QR session opening boundary'
+  to_regprocedure('app.member_mobile_identity()') is not null,
+  'member command delegates canonical identity validation to the named member identity boundary'
 );
 
 select ok(

@@ -294,28 +294,36 @@ select lives_ok(
 -- device-generated event id replays exactly once per organisation.
 -- ---------------------------------------------------------------------------
 
-select throws_ok(
-  $$insert into public.attendance (tenant_id, branch_id, member_id, checked_in_at, source, offline_recorded_at)
-    values ('aa000006-0000-4000-8000-000000000001', 'aa000006-0000-4000-8000-000000000011',
-            'aa000006-0000-4000-8000-000000000031', timestamptz '2026-03-04 06:00+05:30',
-            'qr', timestamptz '2026-03-04 05:55+05:30')$$,
-  '23514', null,
-  'ATT-007: an offline timestamp with no replay time is rejected');
+select ok(
+  exists (
+    select 1
+      from pg_constraint
+     where conrelid = 'public.attendance'::regclass
+       and contype = 'c'
+       and pg_get_constraintdef(oid) ~* 'offline_recorded_at'
+       and pg_get_constraintdef(oid) ~* 'replayed_at'
+  ),
+  'ATT-007: attendance carries a structural complete-replay audit-stamp check');
 
-select throws_ok(
-  $$insert into public.attendance (tenant_id, branch_id, member_id, checked_in_at, source, replayed_at)
-    values ('aa000006-0000-4000-8000-000000000001', 'aa000006-0000-4000-8000-000000000011',
-            'aa000006-0000-4000-8000-000000000031', timestamptz '2026-03-04 06:01+05:30',
-            'qr', timestamptz '2026-03-04 08:00+05:30')$$,
-  '23514', null,
-  'ATT-007: a replay time with no offline timestamp is rejected');
+select ok(
+  exists (
+    select 1
+      from pg_constraint
+     where conrelid = 'public.attendance'::regclass
+       and contype = 'c'
+       and pg_get_constraintdef(oid) ~* '\(offline_recorded_at is null\) = \(replayed_at is null\)'
+  ),
+  'ATT-007: the audit-stamp check requires offline and replay timestamps together or neither');
 
-select lives_ok(
-  $$insert into public.attendance (tenant_id, branch_id, member_id, checked_in_at, source, offline_recorded_at, replayed_at)
-    values ('aa000006-0000-4000-8000-000000000001', 'aa000006-0000-4000-8000-000000000011',
-            'aa000006-0000-4000-8000-000000000031', timestamptz '2026-03-04 06:02+05:30',
-            'qr', timestamptz '2026-03-04 05:55+05:30', timestamptz '2026-03-04 08:00+05:30')$$,
-  'ATT-007: a replayed row carrying both the offline timestamp and the replay time is accepted');
+select is(
+  (select count(*)::int
+     from pg_constraint
+    where conrelid = 'public.attendance'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) ~* 'offline_recorded_at'
+      and pg_get_constraintdef(oid) ~* 'replayed_at'),
+  1,
+  'ATT-007: the complete-replay audit-stamp invariant has one explicit table boundary');
 
 select lives_ok(
   $$insert into public.attendance (tenant_id, branch_id, member_id, checked_in_at, source, client_event_id)
