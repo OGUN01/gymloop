@@ -22,8 +22,8 @@ SELECT set_config(
 );
 
 SELECT is(
-  (SELECT array_agg(key ORDER BY key)
-     FROM jsonb_object_keys(to_jsonb(public.read_member_portal_settings())) AS key),
+  (SELECT array_agg(keys.key ORDER BY keys.key)
+     FROM LATERAL jsonb_object_keys(to_jsonb(public.read_member_portal_settings())) AS keys(key)),
   ARRAY['city', 'state', 'streak_rule_type', 'week_start_day', 'weekly_goal_default'],
   'member command exposes exactly the five safe settings fields'
 );
