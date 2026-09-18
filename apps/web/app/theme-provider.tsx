@@ -1,11 +1,12 @@
 'use client';
 
 import { Monitor, Moon, Sun } from 'lucide-react';
+import { UI_TOKENS } from '@gymloop/shared';
 import { ThemeProvider, useTheme } from 'next-themes';
 import type { ReactNode } from 'react';
 
 export function AppThemeProvider({ children }: { children: ReactNode }) {
-  return <ThemeProvider attribute="data-theme" defaultTheme="system" enableSystem storageKey="gymloop-theme">{children}</ThemeProvider>;
+  return <ThemeProvider attribute="data-theme" defaultTheme="system" disableTransitionOnChange enableSystem storageKey="gymloop-theme">{children}</ThemeProvider>;
 }
 
 const choices = [
@@ -20,7 +21,7 @@ export function ThemeControl() {
   }
   return <div aria-label="Appearance" className="theme-control" role="group">{choices.map(({ name, value, Icon }) => (
     <button aria-pressed={theme === value} className="theme-choice" key={value} onClick={() => setTheme(value)} type="button">
-      <Icon aria-hidden="true" size={16} strokeWidth={1.8} /><span>{name}</span>
+      <Icon aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /><span>{name}</span>
     </button>
   ))}</div>;
 }

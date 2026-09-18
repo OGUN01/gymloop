@@ -47,6 +47,7 @@ export const UI_TOKENS = {
     targets: { interactive: 44, touch: 48 },
     layout: { mobileInset: 20, desktopInset: 32, contentMaxWidth: 1440 },
   },
+  icons: { controlSize: 16, strokeWidth: 1.8 },
   motion: {
     press: 120, tabs: 180, dialogEnter: 240, dialogExit: 180,
     checkInAcknowledgementMin: 240, checkInAcknowledgementMax: 320,
