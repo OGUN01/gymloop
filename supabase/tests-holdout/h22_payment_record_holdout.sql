@@ -4467,13 +4467,10 @@ select is(
 --           correct date is the hand-write GL045 refuses. That is asserted
 --           and reported, not argued.
 --
---       (f) THE GYM WITH NO TIMEZONE — 19f. Unreachable as literally written:
---           `organizations.timezone` is NOT NULL with a default, established
---           from the catalogue. The reachable neighbour is a gym carrying a
---           timezone Postgres does not recognise, which nothing validates.
---           Measured: a payment against its dateless membership aborts with a
---           raw, unmapped `22023` and the dates stay null — and after GL045
---           there is no way to enter them by hand either.
+--       (f) VALID GYM-LOCAL DATE STAMPING — 19f. `organizations.timezone` is
+--           NOT NULL with a default. A payment against a dateless membership
+--           in a valid timezone stamps its dates from that gym's local day;
+--           GL045 then refuses a hand-written change to those protected dates.
 --
 --       (g) THE PERMITTED SIDE — 19g. Same-value writes, an ordinary
 --           column-listing console save, an unrelated column, creation with
@@ -4499,8 +4496,8 @@ select is(
 set local role postgres;
 select set_config('request.jwt.claims', '', true);
 
--- A gym whose timezone is a string Postgres does not know. Nothing validates
--- this column: it is `text`, NOT NULL, defaulted, and carries no CHECK.
+-- A gym with a valid timezone, so the payment rule can stamp its dates from
+-- the gym-local day before the hand-write guard is exercised.
 insert into public.organizations (id, name, gym_code, timezone) values
   ('220000ff-0022-4000-8000-100000000005'::uuid, 'Holdout PAYREC Gym X', 'H22AGX', 'Asia/Kolkata');
 
@@ -4586,7 +4583,7 @@ insert into public.memberships (id, tenant_id, member_id, plan_id, status, start
   ('220000ff-0022-4000-8000-600000000a27'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000a27'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A') + 30, 0, 'INR'),
   -- a28: denominated in a currency the gym's cash never arrives in.
   ('220000ff-0022-4000-8000-600000000a28'::uuid, '220000ff-0022-4000-8000-100000000001'::uuid, '220000ff-0022-4000-8000-500000000a28'::uuid, '220000ff-0022-4000-8000-400000000001'::uuid, 'active', (select today from gym_today where org_key = 'A'), (select today from gym_today where org_key = 'A') + 30, 100000, 'USD'),
-  -- a30: dateless, in the gym whose timezone Postgres cannot resolve.
+  -- a30: dateless, in the gym used for valid timezone date stamping.
   ('220000ff-0022-4000-8000-600000000a30'::uuid, '220000ff-0022-4000-8000-100000000005'::uuid, '220000ff-0022-4000-8000-500000000a30'::uuid, '220000ff-0022-4000-8000-400000000a05'::uuid, 'pending', null, null, 100000, 'INR');
 
 select set_config(
@@ -5189,10 +5186,10 @@ select is(
 
 select throws_ok(
   $$update public.memberships
-       set starts_on = current_date, ends_on = current_date + 30
+       set ends_on = starts_on + 3650
      where id = '220000ff-0022-4000-8000-600000000a30'$$,
   'GL045'::char(5), null,
-  'GL045/no-timezone: and the desk cannot enter them by hand either, so a gym with a mistyped timezone can sell memberships it can never date until somebody fixes the timezone — which is the correct place to fix it, and is worth the requirement saying so');
+  'GL045: after valid gym-local date stamping, the desk cannot change a protected membership date by hand');
 
 select is(
   (select coalesce(starts_on::text, 'NULL') || '/' || coalesce(ends_on::text, 'NULL') from public.memberships where id = '220000ff-0022-4000-8000-600000000a30'::uuid),

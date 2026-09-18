@@ -53,6 +53,7 @@ insert into auth.users (id) values
   ('b2900000-0000-4000-8000-000000000a04'::uuid), ('b2900000-0000-4000-8000-000000000b02'::uuid),
   ('b2900000-0000-4000-8000-000000000a10'::uuid), ('b2900000-0000-4000-8000-000000000a11'::uuid),
   ('b2900000-0000-4000-8000-000000000a12'::uuid), ('b2900000-0000-4000-8000-000000000a13'::uuid),
+  ('b2900000-0000-4000-8000-000000000a14'::uuid),
   ('b2900000-0000-4000-8000-000000000b10'::uuid), ('b2900000-0000-4000-8000-0000000000f1'::uuid);
 
 insert into public.staff (id, tenant_id, user_id, branch_id, role, full_name, is_active) values
@@ -66,6 +67,7 @@ insert into public.members (id, tenant_id, branch_id, user_id, full_name, phone,
   ('b2900000-0000-4000-8000-000000000a11'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a01'::uuid, 'b2900000-0000-4000-8000-000000000a11'::uuid, 'Holdout Member A2 No Motivation', '+919000000002', 'active', false),
   ('b2900000-0000-4000-8000-000000000a12'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a01'::uuid, 'b2900000-0000-4000-8000-000000000a12'::uuid, 'Holdout Member A3 Blocked', '+919000000003', 'blocked', true),
   ('b2900000-0000-4000-8000-000000000a13'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a01'::uuid, 'b2900000-0000-4000-8000-000000000a13'::uuid, 'Holdout Member A4 Zero Due', '+919000000004', 'active', true),
+  ('b2900000-0000-4000-8000-000000000a14'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a01'::uuid, 'b2900000-0000-4000-8000-000000000a14'::uuid, 'Holdout Member A5 No Consent', '+919000000005', 'active', true),
   ('b2900000-0000-4000-8000-000000000b10'::uuid, 'b2900000-0000-4000-8000-000000000b00'::uuid, 'b2900000-0000-4000-8000-000000000b01'::uuid, 'b2900000-0000-4000-8000-000000000b10'::uuid, 'Holdout Member B1', '+919000000011', 'active', true);
 
 insert into public.platform_users (user_id, role, full_name, email, is_active) values
@@ -83,7 +85,7 @@ insert into public.memberships
   (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, discount_paise, currency, periods_granted, duration_days) values
   -- A1: ends 3 days ago -> localDate = ends_on + 3 matches expiry_plus_3.
   ('b2900000-0000-4000-8000-000000000a30'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a10'::uuid, 'b2900000-0000-4000-8000-000000000a20'::uuid, 'active', ((statement_timestamp() at time zone 'Asia/Kolkata')::date - 33), ((statement_timestamp() at time zone 'Asia/Kolkata')::date - 3), 100000, 0, 'INR', 1, 30),
-  -- A2: ends today -> matches expiry_day; member has motivation disabled and no consent row (missing-consent fixture too).
+  -- A2: ends today -> matches expiry_day; member has motivation disabled.
   ('b2900000-0000-4000-8000-000000000a31'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a11'::uuid, 'b2900000-0000-4000-8000-000000000a20'::uuid, 'active', (current_date - 30), current_date, 100000, 0, 'INR', 1, 30),
   -- A big-value remainder fixture, no window relevance.
   ('b2900000-0000-4000-8000-000000000a32'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a10'::uuid, 'b2900000-0000-4000-8000-000000000a20'::uuid, 'expired', (current_date - 400), (current_date - 370), 9007199254740993, 0, 'INR', 1, 30),
@@ -91,7 +93,10 @@ insert into public.memberships
   ('b2900000-0000-4000-8000-000000000a33'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a12'::uuid, 'b2900000-0000-4000-8000-000000000a20'::uuid, 'cancelled', (current_date - 33), (current_date - 3), 100000, 0, 'INR', 1, 30),
   -- zero-due membership (complimentary, distinct member so the one-live-membership
   -- index does not collide with A30): due must be zero, no reminder.
-  ('b2900000-0000-4000-8000-000000000a34'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a13'::uuid, 'b2900000-0000-4000-8000-000000000a20'::uuid, 'active', (current_date - 33), (current_date - 3), 0, 0, 'INR', 1, 30);
+  ('b2900000-0000-4000-8000-000000000a34'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a13'::uuid, 'b2900000-0000-4000-8000-000000000a20'::uuid, 'active', (current_date - 33), (current_date - 3), 0, 0, 'INR', 1, 30),
+  -- A5: a dedicated positive-due, matching-window member that no earlier
+  -- consent scenario touches; it isolates the absent-service-consent path.
+  ('b2900000-0000-4000-8000-000000000a35'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a14'::uuid, 'b2900000-0000-4000-8000-000000000a20'::uuid, 'active', (current_date - 33), (current_date - 3), 100000, 0, 'INR', 1, 30);
 
 insert into public.payments
   (id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, recorded_by_staff_id, receipt_number, paid_at) values
@@ -1197,13 +1202,18 @@ $tap$, '6: rerunning the same gym/day is inert - the existing key stands, no dup
 select lives_ok($tap$
 do $$
 declare
-  v_created int;
+  v_before int;
+  v_after int;
 begin
-  select count(*) into v_created from public.notifications where related_id = 'b2900000-0000-4000-8000-000000000a31';
+  select count(*) into v_before from public.notifications where related_id = 'b2900000-0000-4000-8000-000000000a35';
+  if v_before <> 0 then
+    raise exception 'the dedicated no-consent fixture must begin with no reminder';
+  end if;
   perform app.run_renewal_reminders('b2900000-0000-4000-8000-000000000a00'::uuid);
-  -- member A2 has no service consent at all -> must remain skipped.
-  if exists (select 1 from public.notifications where related_id = 'b2900000-0000-4000-8000-000000000a31') then
-    raise exception 'a membership with no recorded service consent must never get a reminder';
+  select count(*) into v_after from public.notifications where related_id = 'b2900000-0000-4000-8000-000000000a35';
+  -- member A5 has no service consent at all -> must remain skipped.
+  if v_after <> v_before then
+    raise exception 'a membership with no recorded service consent must never get a reminder or consume its dedupe key';
   end if;
 end $$;
 $tap$, '6: absent service consent skips the cycle - no notification, no key consumed');
