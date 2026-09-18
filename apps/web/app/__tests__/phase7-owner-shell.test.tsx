@@ -121,5 +121,7 @@ describe('Phase 7 owner shell', () => {
     expect(css).toMatch(/overflow-x\s*:\s*(?:hidden|clip)/);
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*[\s\S]*\.owner-navigation-disclosure:not\(\[open\]\)\s*>\s*\.owner-navigation\s*\{[^}]*display\s*:\s*none/s);
     expect(css).toMatch(/\.owner-navigation-disclosure\[open\]\s*>\s*\.owner-navigation|\.owner-navigation-disclosure\s+\.owner-navigation/);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*[\s\S]*\.owner-navigation-disclosure\[open\]\s*>\s*\.owner-navigation[^}]*flex-direction\s*:\s*column/s);
+    expect(css).toMatch(/\.owner-navigation-disclosure\[open\]\s*>\s*\.owner-navigation[^}]*overflow-x\s*:\s*(?:hidden|clip|visible)/s);
   });
 });
