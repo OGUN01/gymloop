@@ -98,6 +98,18 @@ describe('Phase 7 shared visual foundation', () => {
     expect(foundationCss).toMatch(/var\(--gymloop-type-page-title-line-height\b/);
   });
 
+  it('exposes the shared 600 emphasis weight and applies it to page titles', async () => {
+    const { UI_TOKENS } = await import('@gymloop/shared');
+    const { ThemeTokenStyle } = await import('../theme-token-style');
+    const css = renderToStaticMarkup(ThemeTokenStyle());
+    const foundationCss = readFileSync(new URL('../globals.css', import.meta.url), 'utf8');
+
+    expect(UI_TOKENS.typography.emphasisWeight).toBe(600);
+    expect(css).toContain('--gymloop-type-emphasis-weight:600');
+    expect(css).not.toContain('--gymloop-type-emphasis-weight:600px');
+    expect(foundationCss).toMatch(/\.sign-in-heading h1\s*\{[^}]*font-weight\s*:\s*var\(--gymloop-type-emphasis-weight\)/s);
+  });
+
   it('gives the authenticated shell brand link an effective 44px minimum target', async () => {
     const { AccountFrame } = await import('../account-frame');
     const html = renderToStaticMarkup(AccountFrame({
