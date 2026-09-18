@@ -26,7 +26,7 @@ function formatMoney(currency: string, paise: string, useRupeeSymbol = false): s
     : whole;
   const sign = rendered.startsWith('-') ? '-' : '';
   return currency === 'INR' && useRupeeSymbol
-    ? `INR ${sign}₹${grouped}.${decimal}`
+    ? `${sign}₹${grouped}${decimal === '00' ? '' : `.${decimal}`}`
     : `${sign}${currency} ${grouped}.${decimal}`;
 }
 function formatLocalDay(day: string): string {
@@ -118,12 +118,12 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
       </form>
     </details>
     <section className="dashboard-primary-metrics" aria-label="Primary metrics">
-      {primaryCards.map((card) => <button aria-pressed={selected === card.key} className="dashboard-primary-metric" key={card.key} onClick={() => setSelected(card.key)} type="button"><span>{card.label}</span><strong>{card.value}</strong><small>{card.scope}</small></button>)}
+      {primaryCards.map((card) => <button aria-pressed={selected === card.key} className="dashboard-primary-metric" data-currency-context={card.value.includes('₹') ? `INR ${card.value}` : undefined} key={card.key} onClick={() => setSelected(card.key)} type="button"><span>{card.label}</span><strong>{card.value}</strong><small>{card.scope}</small></button>)}
     </section>
     <div className="dashboard-main-grid">
       <section className="dashboard-panel dashboard-cases" aria-labelledby="dashboard-cases-heading">
         <div className="dashboard-panel-heading"><div><h2 id="dashboard-cases-heading">People to follow up</h2><p>Current cases from this snapshot.</p></div><a href="/red-list">View all</a></div>
-        {cases.length === 0 ? <p className="dashboard-empty">No open follow-up cases in this snapshot.</p> : <ul className="dashboard-case-list">{cases.map((item) => <li key={item.caseId}><a href={selected === null ? `/members/${item.memberId}` : '/members'}><strong>{item.memberName}</strong><span>{humanizeStatus(item.status)}</span></a><p>{item.due ? 'Follow-up due' : 'No follow-up due'}{item.nextFollowUpAt === null ? ' · No next follow-up scheduled' : ` · Next ${formatSnapshotInstant(item.nextFollowUpAt, metrics.timezone)}`}</p></li>)}</ul>}
+        {cases.length === 0 ? <p className="dashboard-empty">No open follow-up cases in this snapshot.</p> : <ul className="dashboard-case-list">{cases.map((item) => <li key={item.caseId}><a href={`/members/${item.memberId}`}><strong>{item.memberName}</strong><span>{humanizeStatus(item.status)}</span></a><p>{item.due ? 'Follow-up due' : 'No follow-up due'}{item.nextFollowUpAt === null ? ' · No next follow-up scheduled' : ` · Next ${formatSnapshotInstant(item.nextFollowUpAt, metrics.timezone)}`}</p></li>)}</ul>}
       </section>
       <aside className="dashboard-supporting" aria-label="Renewal and recovery summary">
         <section className="dashboard-panel" aria-labelledby="dashboard-renewals-heading"><div className="dashboard-panel-heading"><div><h2 id="dashboard-renewals-heading">Renewals due</h2><p>{metrics.range.from} to {metrics.range.through}</p></div></div>{renewals.length === 0 ? <p className="dashboard-empty">No renewals due in this range.</p> : <ul className="dashboard-renewal-list">{renewals.map((item) => <li key={item.membershipId}><a href={`/memberships/${item.memberId}`}>{item.memberName}</a><span>{formatMoney(item.currency, item.duePaise)}</span></li>)}</ul>}</section>
