@@ -342,9 +342,9 @@ set local role postgres;
 
 select set_config(
   'request.jwt.claims',
-  json_build_object('sub', gen_random_uuid(), 'role', 'authenticated',
+  json_build_object('sub', '09c00000-0000-4000-8000-000000000a03', 'role', 'authenticated',
                     'tenant_id', '09c00000-0000-4000-8000-000000000a00',
-                    'app_role', 'gym_owner')::text,
+                    'app_role', 'gym_owner', 'staff_id', '09c00000-0000-4000-8000-000000000a04')::text,
   true
 );
 set local role authenticated;
