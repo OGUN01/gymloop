@@ -78,9 +78,43 @@ Forbidden to the implementer: `apps/web/lib/**`, shared schemas/constants, API r
 identity/navigation authorization, generated files, new dependencies, test
 edits by the implementer, or any fabricated board content.
 
+## Fresh-critic repair contract
+
+The first fresh Sol comparison returned NO-GO on presentation density only.
+The correction is limited to the cited dimensions:
+
+- Desktop keeps the complete truthful workspace but compacts each follow-up
+  row to one approximately 52–56px line and removes redundant vertical gaps so
+  the supporting panels and snapshot-detail controls sit in the initial desktop
+  workspace rather than below a utility-page stack.
+- The selected period becomes one compact 44px disclosure/control in the header;
+  the existing GET date form remains available inside it and retains its exact
+  `from`/`through` behavior. The period, local day, snapshot time and timezone
+  remain visible and truthful.
+- Primary INR values use the localized rupee symbol and whole-rupee grouping
+  (for example `₹30,800`) with the `INR` currency context retained in adjacent
+  text. Other currencies remain separately and explicitly labelled. This is
+  presentation only; integer paise and rounding behavior do not change.
+- At 390px the two actions share one compact row where labels fit, and the first
+  primary metric begins within the initial 844px viewport.
+- The console navigation uses its existing permission-filtered item array and
+  exact current-route logic, but at 390px becomes one 44px native disclosure
+  labelled with the current destination. Opening it exposes every permitted
+  destination without horizontal clipping; desktop and 1024px navigation stay
+  visible. Server loaders remain the authority.
+- Snapshot detail rows become user-facing summaries: member/lead name, human
+  status/state, localized date/time, explicit money and meaningful counts.
+  Internal ids, raw ISO timestamps, underscore vocabularies and literal boolean
+  values never render. Selection still reads the already loaded response only.
+
+The independent test author may extend only the existing owner-overview and
+owner-shell focused tests for these regressions. Terra may additionally change
+`apps/web/app/console-navigation.tsx` for the compact native disclosure. No
+other ownership or authority boundary changes.
+
 - [x] Contract and path ownership frozen.
-- [ ] Independent focused test committed red.
-- [ ] Owner overview implemented without authority changes.
+- [x] Independent focused test committed red.
+- [x] Owner overview implemented without authority changes.
 - [ ] Focused checks and one full repository gate pass.
 - [ ] Real Light/Dark wide/intermediate/narrow journey recorded without mutation.
 - [ ] Fresh Sol visual critic returns GO.
