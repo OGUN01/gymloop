@@ -127,4 +127,10 @@ describe('Phase 7 owner shell', () => {
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*64rem[^)]*[\s\S]*\.owner-navigation-disclosure\s*>\s*summary[^}]*display\s*:\s*none/s);
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*64rem[^)]*[\s\S]*\.owner-navigation-disclosure\s*>\s*\.owner-navigation[^}]*display\s*:\s*(?:flex|block|grid)/s);
   });
+
+  it('keeps console destinations rendered when the disclosure is closed at desktop and tablet widths', async () => {
+    const { ConsoleNavigation } = await import('../console-navigation');
+    const html = renderToStaticMarkup(createElement(ConsoleNavigation, { items: navItems }));
+    expect(html).toMatch(/<details[^>]*open/);
+  });
 });
