@@ -115,7 +115,7 @@ other ownership or authority boundary changes.
 - [x] Contract and path ownership frozen.
 - [x] Independent focused test committed red.
 - [x] Owner overview implemented without authority changes.
-- [ ] Focused checks and one full repository gate pass.
-- [ ] Real Light/Dark wide/intermediate/narrow journey recorded without mutation.
-- [ ] Fresh Sol visual critic returns GO.
-- [ ] Registry/spec/evidence synchronized and change archived.
+- [x] Focused checks and one full repository gate pass.
+- [x] Real Light/Dark wide/intermediate/narrow journey recorded without mutation.
+- [x] Fresh Sol visual critic returns GO.
+- [x] Registry/spec/evidence synchronized and change archived.

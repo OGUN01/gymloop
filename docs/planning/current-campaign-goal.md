@@ -62,6 +62,12 @@ fundamentals with lower bespoke-polish priority. Iron Pulse is superseded.
   footer and 390px identity defects; an independent regression and bounded CSS
   repair closed both. Evidence is
   `docs/evidence/2026-09-18-phase7-owner-shell.md`.
+- The owner overview is now the next board-conformant core-loop route. It uses
+  the existing one-snapshot metrics authority for its four-card band, compact
+  follow-up/renewal/recovery workspace and humanized local disclosures. Two
+  Sol comparisons rejected density and the intermediate navigation box before
+  the final blocker-only verdict returned GO. Evidence is
+  `docs/evidence/2026-09-18-phase7-owner-overview.md`.
 - Core-loop route redesign and the native app/API-client, member self-check-in,
   join/switch and bearer seams still need their own frozen contracts,
   independent tests and implementation. The foundation changed no database,
@@ -81,7 +87,7 @@ either phase's completion boundary.
 
 Measured after the completed Phase 7 visual-foundation micro-batch: **77% used**.
 Measured again after the completed check-in surface: **77% used**. These completed
-slices are green and archived; the 79% absolute ceiling remains in force for any
+slices are green and archived; the 80% absolute ceiling remains in force for any
 next bounded Phase 7 slice.
 
 Measured after the completed owner-shell surface and its green cloud workflows:

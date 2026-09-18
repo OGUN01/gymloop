@@ -169,4 +169,18 @@ horizontal overflow and no console warnings/errors. Evidence:
 `docs/evidence/2026-09-18-phase7-owner-shell.md`; archive:
 `openspec/changes/archive/2026-09-18-phase7-owner-shell/`.
 
+**Phase 7 owner overview completed 2026-09-18:** `/dashboard` now matches the
+approved owner-board hierarchy without inventing board data or adding a second
+metrics read. Exactly four primary facts, six compact follow-up cases,
+renewal/recovery support and every secondary disclosure reconcile to the one
+existing `OwnerMetrics` snapshot. The first Sol comparison rejected density,
+mobile navigation, verbose money and raw detail rows; independent regressions
+and bounded corrections produced 56px case rows, compact rupee values,
+humanized detail and a 390px disclosure menu. A replacement fresh Sol review
+then exposed the intermediate wrapper off-canvas at 1024px; the final focused
+test and CSS correction contained all nine 44px destinations, and its
+blocker-only verdict returned GO. Evidence:
+`docs/evidence/2026-09-18-phase7-owner-overview.md`; archive:
+`openspec/changes/archive/2026-09-18-phase7-owner-overview/`.
+
 Each phase opens its own OpenSpec change (`openspec/changes/000N-<phase-name>/`) and follows the Gauntlet Loop (`AGENTS.md`) — bar, spec, tests-first, build, fresh-context critic, gates, archive. Phase 0's own change is the worked template — proposal, design, tasks, and the evidence trail of what was proven and what went wrong on the way: `openspec/changes/archive/2026-09-06-phase-0-foundation/`.

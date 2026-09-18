@@ -138,3 +138,23 @@ contact truth and the exact existing follow-up mutation contract in each row.
 - **WHEN** the route renders at desktop, intermediate or 390px width, or its read is empty or fails
 - **THEN** controls and linked identities remain unclipped 44/48px targets without page overflow
 - **AND** honest empty, explicit error and cursor pagination states remain distinct
+
+### Requirement: Owner overview reconciles one truthful snapshot
+UX7-002–007/012–014 and MET-001–008 SHALL present `/dashboard` as the approved
+owner-board workspace while keeping the existing single `OwnerMetrics` request
+and response as its only data authority.
+
+#### Scenario: An owner opens the operational overview
+- **WHEN** the owner or manager opens `/dashboard`
+- **THEN** a compact action header, exactly four primary metrics, six-case follow-up preview and renewal/recovery support form one responsive workspace
+- **AND** every fact, range, currency and component row is traceable to the already loaded snapshot
+
+#### Scenario: An owner asks for metric detail
+- **WHEN** a primary or secondary metric is selected
+- **THEN** an accessible local disclosure renders human names, statuses, localized times, exact money and meaningful counts from that response
+- **AND** internal identifiers, raw ISO values, underscore vocabularies and literal booleans are not presented or fetched again
+
+#### Scenario: The overview reflows through owner breakpoints
+- **WHEN** the workspace renders at 1600px, 1024px or 390px in Light or Dark
+- **THEN** the current-destination navigation, period control, actions and panels remain reachable with at least 44px targets and no page overflow
+- **AND** the narrow navigation starts collapsed, exposes every permitted destination vertically, and preserves the exact single current-route state
