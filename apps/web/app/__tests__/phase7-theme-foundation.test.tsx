@@ -85,7 +85,7 @@ describe('Phase 7 shared visual foundation', () => {
     });
   });
 
-  it('keeps ThemeControl stable and noninteractive until resolved, then exposes named pressed choices', async () => {
+  it('keeps ThemeControl as the same noninteractive placeholder during SSR', async () => {
     const { ThemeControl } = await import('../theme-provider');
     const unresolved = renderToStaticMarkup(ThemeControl());
     expect(unresolved).toMatch(/aria-label="(?:Appearance|Theme|Colour)[^"]*"|<fieldset/);
@@ -95,12 +95,8 @@ describe('Phase 7 shared visual foundation', () => {
     state.theme = 'dark';
     state.resolvedTheme = 'dark';
     const resolved = renderToStaticMarkup(ThemeControl());
-    expect(resolved).toMatch(/System/);
-    expect(resolved).toMatch(/Light/);
-    expect(resolved).toMatch(/Dark/);
-    expect(resolved).toMatch(/role="group"|<fieldset/);
-    expect((resolved.match(/aria-pressed="true"/g) ?? []).length).toBe(1);
-    expect(resolved).toMatch(/Dark[\s\S]*aria-pressed="true"|aria-pressed="true"[\s\S]*Dark/);
+    expect(resolved).toBe(unresolved);
+    expect(resolved).not.toMatch(/<button\b|System|Light|Dark|aria-pressed/);
   });
 
   it('preserves AccountFrame home/label/sign-out semantics while including the theme control', async () => {
