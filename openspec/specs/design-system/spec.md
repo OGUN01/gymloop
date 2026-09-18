@@ -102,3 +102,18 @@ staff identity, gate-code, assisted-reason, event-key or retry contracts.
 - **WHEN** the existing request produces its outcome
 - **THEN** the exact outcome remains the strongest announced region until explicit action
 - **AND** its retry or dismissal preserves the original event and request behavior
+
+### Requirement: Follow-up is a truthful owner-board work queue
+UX7-006/007/013/014 SHALL present `/red-list` as the board-conformant “People to
+follow up” queue, with real member identity, current absence evidence, latest-
+contact truth and the exact existing follow-up mutation contract in each row.
+
+#### Scenario: Staff reviews and records a follow-up
+- **WHEN** the longest-away-first queue contains an open retention case
+- **THEN** the linked member, phone, days away, attendance and contact history remain visible
+- **AND** channel, outcome, optional note, case id and `/api/follow-ups` submission remain exact
+
+#### Scenario: The queue reflows or has no usable result
+- **WHEN** the route renders at desktop, intermediate or 390px width, or its read is empty or fails
+- **THEN** controls and linked identities remain unclipped 44/48px targets without page overflow
+- **AND** honest empty, explicit error and cursor pagination states remain distinct

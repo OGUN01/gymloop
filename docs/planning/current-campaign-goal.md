@@ -51,6 +51,12 @@ with lower bespoke-polish priority. Iron Pulse is superseded.
   initial tokenized 768px pass was rejected; the corrected 1440px roster/gate
   composition and two-row mobile header passed fresh Sol review. Evidence is
   `docs/evidence/2026-09-18-phase7-check-in-surface.md`.
+- The owner follow-up queue is the second board-conformant core-loop redesign.
+  It preserves the real per-row mutation contract inside the owner-board list
+  hierarchy. A first critic rejected clipped enum/note text and 24px member
+  links; the tested repair measured full text, 44px links and zero overflow at
+  1024px before a replacement fresh critic returned GO. Evidence is
+  `docs/evidence/2026-09-18-phase7-follow-up-surface.md`.
 - Core-loop route redesign and the native app/API-client, member self-check-in,
   join/switch and bearer seams still need their own frozen contracts,
   independent tests and implementation. The foundation changed no database,
@@ -69,9 +75,9 @@ Phase 7 as a separately verified stage; this allowance does not waive or skip
 either phase's completion boundary.
 
 Measured after the completed Phase 7 visual-foundation micro-batch: **77% used**.
-Measured again after the completed check-in surface: **77% used**. Both slices
-are green and archived; the 79% absolute ceiling remains in force for any next
-bounded Phase 7 slice.
+Measured again after the completed check-in surface: **77% used**. These completed
+slices are green and archived; the 79% absolute ceiling remains in force for any
+next bounded Phase 7 slice.
 
 Sol orchestrates/reviews; Terra owns bounded architecture/security/native work;
 Luna is the default small-scope implementer. Maximum two simultaneous workers,

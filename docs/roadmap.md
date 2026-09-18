@@ -137,4 +137,15 @@ attendance or gate-code write was made. Evidence:
 `docs/evidence/2026-09-18-phase7-check-in-surface.md`; archive:
 `openspec/changes/archive/2026-09-18-phase7-check-in-surface/`.
 
+**Phase 7 follow-up surface completed 2026-09-18:** `/red-list` now uses the
+approved owner-board list hierarchy while preserving the real longest-away
+ordering, identity/attendance/contact truth, exact generated-enum fields and
+existing POST contract. The first fresh Sol critic rejected clipped Outcome / Note
+content and 24px member links. Independent regression `dd8c7ad` preceded the
+focused repair `96650b7`; the replacement critic then measured full desktop
+labels, exact 44px mobile member links, no 1024px overflow and zero console
+warnings/errors before returning GO. The route was reviewed without submitting
+a follow-up. Evidence: `docs/evidence/2026-09-18-phase7-follow-up-surface.md`;
+archive: `openspec/changes/archive/2026-09-18-phase7-follow-up-surface/`.
+
 Each phase opens its own OpenSpec change (`openspec/changes/000N-<phase-name>/`) and follows the Gauntlet Loop (`AGENTS.md`) — bar, spec, tests-first, build, fresh-context critic, gates, archive. Phase 0's own change is the worked template — proposal, design, tasks, and the evidence trail of what was proven and what went wrong on the way: `openspec/changes/archive/2026-09-06-phase-0-foundation/`.

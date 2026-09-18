@@ -76,9 +76,9 @@ queue and open no external action; no form is submitted. A fresh Sol critic uses
 the approved owner v2 list crop as the strict visual bar.
 
 - [x] Contract and path ownership frozen.
-- [ ] Independent focused tests committed red.
-- [ ] Follow-up surface implemented without behavior changes.
-- [ ] Focused checks and one full repository gate pass.
-- [ ] Real light/dark desktop/390px journey recorded without mutation.
-- [ ] Fresh Sol visual critic returns GO.
-- [ ] Registry/spec/evidence synchronized and change archived.
+- [x] Independent focused tests committed red.
+- [x] Follow-up surface implemented without behavior changes.
+- [x] Focused checks and one full repository gate pass.
+- [x] Real light/dark desktop/390px journey recorded without mutation.
+- [x] Fresh Sol visual critic returns GO after the cited clarity repair.
+- [x] Registry/spec/evidence synchronized and change archived.
