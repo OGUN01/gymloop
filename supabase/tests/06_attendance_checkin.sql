@@ -157,7 +157,10 @@ select lives_ok($$
 $$, 'ATT-007, scenario "Two live check-ins with no device event id"');
 
 -- ---------------------------------------------------------------------------
--- ATT-007's audit stamp — "An offline replay records both timestamps or neither"
+-- ATT-007's audit stamp — offline facts are command-owned in Phase 7.  A
+-- direct table write, even with both fields present, is not a valid replay:
+-- the public member command must first validate the token/session interval,
+-- claim-derived member, and complete pair atomically.
 -- ---------------------------------------------------------------------------
 
 select throws_ok($$
@@ -166,8 +169,8 @@ select throws_ok($$
   values ('a0000000-0000-4000-8000-000000000001',
           'a0000000-0000-4000-8000-000000000002',
           'a0000000-0000-4000-8000-000000000004', 'qr', '2026-09-06T12:00:00Z')
-$$, '23514'::char(5), null,
-  'ATT-007, scenario "A replay time with no offline time"');
+$$, null::char(5), null,
+  'ATT-007, scenario "A replay time with no offline time" — direct table writes are not the replay command');
 
 select throws_ok($$
   insert into public.attendance
@@ -175,17 +178,18 @@ select throws_ok($$
   values ('a0000000-0000-4000-8000-000000000001',
           'a0000000-0000-4000-8000-000000000002',
           'a0000000-0000-4000-8000-000000000004', 'qr', '2026-09-06T11:00:00Z')
-$$, '23514'::char(5), null,
-  'ATT-007, scenario "An offline time with no replay time"');
+$$, null::char(5), null,
+  'ATT-007, scenario "An offline time with no replay time" — direct table writes are not the replay command');
 
-select lives_ok($$
+select throws_ok($$
   insert into public.attendance
     (tenant_id, branch_id, member_id, source, offline_recorded_at, replayed_at)
   values ('a0000000-0000-4000-8000-000000000001',
           'a0000000-0000-4000-8000-000000000002',
           'a0000000-0000-4000-8000-000000000004', 'qr',
           '2026-09-06T11:00:00Z', '2026-09-06T12:00:00Z')
-$$, 'ATT-007 — both halves of the audit stamp together are accepted');
+$$, null::char(5), null,
+  'ATT-007 — even a complete offline pair requires the claim-scoped member command');
 
 -- ---------------------------------------------------------------------------
 -- ATT-008 — "Check-out is optional and never precedes check-in"

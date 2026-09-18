@@ -45,33 +45,26 @@ select ok(
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'public'
-       and p.prosecdef = false
-       and pg_get_functiondef(p.oid) ilike '%qr_sessions%'
-       and pg_get_functiondef(p.oid) ilike '%attendance%'
-       and pg_get_functiondef(p.oid) ilike '%token%'
-       and pg_get_functiondef(p.oid) ilike '%current_member_id%'
+       and p.oid = to_regprocedure('public.member_mobile_check_in(text, uuid, timestamptz)')
+       and p.prosecdef
   ),
-  'an atomic member command derives member and tenant from the verified claim and token proof'
+  'the public member command is a security-definer wrapper around the atomic capability'
 );
 
 select ok(
   exists (
-    select 1
-      from information_schema.routine_privileges r
-     where r.routine_schema = 'public'
-       and r.grantee = 'authenticated'
-       and r.privilege_type = 'EXECUTE'
-       and r.routine_name in (
-         select p.proname
-           from pg_proc p
-           join pg_namespace n on n.oid = p.pronamespace
-          where n.nspname = 'public'
-            and pg_get_functiondef(p.oid) ilike '%qr_sessions%'
-            and pg_get_functiondef(p.oid) ilike '%attendance%'
-            and pg_get_functiondef(p.oid) ilike '%token%'
-       )
+    has_function_privilege(
+      'authenticated',
+      'public.member_mobile_check_in(text, uuid, timestamptz)',
+      'EXECUTE'
+    )
+    and not has_function_privilege(
+      'authenticated',
+      'app.record_member_mobile_check_in(text, uuid, timestamptz)',
+      'EXECUTE'
+    )
   ),
-  'authenticated callers can execute only the narrow token command, not table writes'
+  'authenticated callers can execute only the narrow public token command'
 );
 
 select ok(
@@ -79,7 +72,8 @@ select ok(
     select 1
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'public'
+     where n.nspname = 'app'
+       and p.oid = to_regprocedure('app.record_member_mobile_check_in(text, uuid, timestamptz)')
        and pg_get_functiondef(p.oid) ilike '%app_role%'
        and pg_get_functiondef(p.oid) ilike '%member%'
        and pg_get_functiondef(p.oid) ilike '%member_id%'
@@ -92,7 +86,8 @@ select ok(
     select 1
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'public'
+     where n.nspname = 'app'
+       and p.oid = to_regprocedure('app.record_member_mobile_check_in(text, uuid, timestamptz)')
        and pg_get_functiondef(p.oid) ilike '%tenant_id%'
        and pg_get_functiondef(p.oid) ilike '%current_tenant_id%'
   ),
@@ -104,7 +99,8 @@ select ok(
     select 1
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'public'
+     where n.nspname = 'app'
+       and p.oid = to_regprocedure('app.record_member_mobile_check_in(text, uuid, timestamptz)')
        and pg_get_functiondef(p.oid) ilike '%now()%'
        and pg_get_functiondef(p.oid) ilike '%checked_in_at%'
   ),
@@ -116,7 +112,8 @@ select ok(
     select 1
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'public'
+     where n.nspname = 'app'
+       and p.oid = to_regprocedure('app.record_member_mobile_check_in(text, uuid, timestamptz)')
        and pg_get_functiondef(p.oid) ilike '%offline_recorded_at%'
        and pg_get_functiondef(p.oid) ilike '%client_event_id%'
   ),
@@ -141,7 +138,8 @@ select ok(
     select 1
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'public'
+     where n.nspname = 'app'
+       and p.oid = to_regprocedure('app.record_member_mobile_check_in(text, uuid, timestamptz)')
        and pg_get_functiondef(p.oid) ilike '%replayed_at%'
        and pg_get_functiondef(p.oid) ilike '%now()%'
   ),
@@ -153,7 +151,8 @@ select ok(
     select 1
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'public'
+       and p.oid = to_regprocedure('app.record_member_mobile_check_in(text, uuid, timestamptz)')
+     where n.nspname = 'app'
        and pg_get_functiondef(p.oid) ilike '%offline_recorded_at::date%'
        and pg_get_functiondef(p.oid) ilike '%memberships%'
   ),

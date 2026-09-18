@@ -19,11 +19,11 @@ insert into public.branches (id, tenant_id, name) values
   ('60000000-0000-4000-8000-000000000011', '60000000-0000-4000-8000-000000000001', 'A Main'),
   ('60000000-0000-4000-8000-000000000012', '60000000-0000-4000-8000-000000000002', 'B Main');
 
-insert into public.members (id, tenant_id, branch_id, full_name, phone) values
+insert into public.members (id, tenant_id, branch_id, user_id, full_name, phone) values
   ('60000000-0000-4000-8000-000000000021', '60000000-0000-4000-8000-000000000001',
-   '60000000-0000-4000-8000-000000000011', 'Portal Member A', '+916000000021'),
+   '60000000-0000-4000-8000-000000000011', '60000000-0000-4000-8000-000000000031', 'Portal Member A', '+916000000021'),
   ('60000000-0000-4000-8000-000000000022', '60000000-0000-4000-8000-000000000002',
-   '60000000-0000-4000-8000-000000000012', 'Portal Member B', '+916000000022');
+   '60000000-0000-4000-8000-000000000012', '60000000-0000-4000-8000-000000000032', 'Portal Member B', '+916000000022');
 
 insert into public.organization_settings (tenant_id, city, state, weekly_goal_default,
                                           week_start_day, streak_rule_type)
