@@ -8,7 +8,7 @@ const state = vi.hoisted(() => ({
   error: null as null | { message: string },
   selections: [] as Array<{ table: string; columns: string }>,
 }));
-vi.mock('next/navigation', () => ({ redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); } }));
+vi.mock('next/navigation', () => ({ redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); }, usePathname: () => '/console' }));
 vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
 vi.mock('../../lib/supabase/server', () => ({ createServerSupabase: async () => ({
   auth: { getClaims: async () => ({ data: state.claims && { claims: state.claims }, error: null }) },
