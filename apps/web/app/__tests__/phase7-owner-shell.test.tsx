@@ -106,7 +106,7 @@ describe('Phase 7 owner shell', () => {
 
     expect(css).toMatch(/\.owner-sidebar[^}]*position\s*:\s*sticky[^}]*height\s*:\s*100vh/s);
     expect(css).toMatch(/\.owner-sidebar[^}]*overflow-y\s*:\s*auto/);
-    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*64rem[^)]*\)[\s\S]*\.owner-(?:account-frame|shell)[^}]*grid-template-rows\s*:\s*auto\s+minmax\(0\s*,\s*1fr\)/s);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*56rem[^)]*\)[\s\S]*\.owner-(?:account-frame|shell)[^}]*grid-template-rows\s*:\s*auto\s+minmax\(0\s*,\s*1fr\)/s);
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*\.owner-context[^}]*min-width\s*:\s*0/s);
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*[\s\S]*\.owner-context[^}]*overflow-wrap\s*:\s*(?:anywhere|break-word)|word-break\s*:\s*break-word/s);
   });
@@ -123,14 +123,20 @@ describe('Phase 7 owner shell', () => {
     expect(css).toMatch(/\.owner-navigation-disclosure\[open\]\s*>\s*\.owner-navigation|\.owner-navigation-disclosure\s+\.owner-navigation/);
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*[\s\S]*\.owner-navigation-disclosure\[open\]\s*>\s*\.owner-navigation[^}]*flex-direction\s*:\s*column/s);
     expect(css).toMatch(/\.owner-navigation-disclosure\[open\]\s*>\s*\.owner-navigation[^}]*overflow-x\s*:\s*(?:hidden|clip|visible)/s);
-    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*64rem[^)]*[\s\S]*\.owner-navigation-disclosure\s*\{[^}]*grid-column\s*:\s*1\s*\/\s*-1[^}]*min-width\s*:\s*0[^}]*display\s*:\s*(?!contents)[^;}]+/s);
-    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*64rem[^)]*[\s\S]*\.owner-navigation-disclosure\s*>\s*summary[^}]*display\s*:\s*none/s);
-    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*64rem[^)]*[\s\S]*\.owner-navigation-disclosure\s*>\s*\.owner-navigation[^}]*display\s*:\s*(?:flex|block|grid)/s);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*56rem[^)]*[\s\S]*\.owner-navigation-disclosure\s*\{[^}]*grid-column\s*:\s*1\s*\/\s*-1[^}]*min-width\s*:\s*0[^}]*display\s*:\s*(?!contents)[^;}]+/s);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*56rem[^)]*[\s\S]*\.owner-navigation-disclosure\s*>\s*summary[^}]*display\s*:\s*none/s);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*56rem[^)]*[\s\S]*\.owner-navigation-disclosure\s*>\s*\.owner-navigation[^}]*display\s*:\s*(?:flex|block|grid)/s);
   });
 
   it('keeps console destinations rendered when the disclosure is closed at desktop and tablet widths', async () => {
     const { ConsoleNavigation } = await import('../console-navigation');
     const html = renderToStaticMarkup(createElement(ConsoleNavigation, { items: navItems }));
     expect(html).toMatch(/<details[^>]*open/);
+  });
+
+  it('keeps the productivity rail through the 1024px tablet width', () => {
+    const css = readFileSync(new URL('../globals.css', import.meta.url), 'utf8');
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*56rem[^)]*\)/);
+    expect(css).not.toMatch(/@media\s*\([^)]*max-width\s*:\s*64rem[^)]*\)[^{]*\.owner-account-frame/);
   });
 });
