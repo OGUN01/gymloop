@@ -459,6 +459,19 @@ describe('reading the submission', () => {
     expect((await checkIn(post({ memberId: MEMBER_ID, reason: 'Desk' }))).status).toBe(401);
   });
 
+  it.each([
+    ['member role without a staff identity', { sub: 'a6300000-0000-4000-8000-000000000003', app_role: 'member', tenant_id: 'a6300000-0000-4000-8000-000000000002', member_id: MEMBER_ID }],
+    ['non-canonical role', { sub: 'a6300000-0000-4000-8000-000000000003', app_role: 'staff', tenant_id: 'a6300000-0000-4000-8000-000000000002', staff_id: 'a6300000-0000-4000-8000-000000000001' }],
+    ['service role', { sub: 'service-role', role: 'service_role', app_role: 'gym_owner', tenant_id: 'a6300000-0000-4000-8000-000000000002', staff_id: 'a6300000-0000-4000-8000-000000000001' }],
+    ['contradictory staff and member claims', { sub: 'a6300000-0000-4000-8000-000000000003', app_role: 'member', tenant_id: 'a6300000-0000-4000-8000-000000000002', member_id: MEMBER_ID, staff_id: 'a6300000-0000-4000-8000-000000000001' }],
+  ])('refuses %s before reading the body or database', async (_label, claims) => {
+    state.claims = claims;
+    const response = await checkIn(post('{not json'));
+
+    expect(response.status).toBe(401);
+    expect(state.from).toEqual([]);
+  });
+
   it('answers 400 for a body that is not JSON', async () => {
     const response = await checkIn(post('not json at all'));
 

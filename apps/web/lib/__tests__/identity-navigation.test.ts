@@ -56,4 +56,29 @@ describe('complete identity and home contract', () => {
     expect(classifyIdentity({ sub: userId, app_role: 'gym_manager', tenant_id: tenantId, impersonation_session_id: impersonationSessionId })).toEqual({ kind: 'unlinked' });
     expect(classifyIdentity({ ...shapes[0]?.claims, member_id: memberId })).toEqual({ kind: 'unlinked' });
   });
+
+  it('accepts only the canonical member role for a member-scoped claim set', () => {
+    expect(classifyIdentity({
+      sub: userId,
+      app_role: 'member',
+      tenant_id: tenantId,
+      member_id: memberId,
+    })).toEqual({ kind: 'member', userId, tenantId, memberId });
+
+    for (const role of ['gym_owner', 'gym_manager', 'front_desk', 'trainer', 'super_admin', 'platform_support', 'staff', 'user']) {
+      expect(classifyIdentity({
+        sub: userId,
+        app_role: role,
+        tenant_id: tenantId,
+        member_id: memberId,
+      })).toEqual({ kind: 'unlinked' });
+    }
+  });
+
+  it.each([
+    { sub: userId, app_role: 'member', tenant_id: tenantId, member_id: memberId, staff_id: staffId },
+    { sub: userId, app_role: 'member', tenant_id: tenantId, member_id: memberId, impersonation_session_id: impersonationSessionId },
+  ])('rejects a member claim set with contradictory identity fields: %j', (claims) => {
+    expect(classifyIdentity(claims)).toEqual({ kind: 'unlinked' });
+  });
 });
