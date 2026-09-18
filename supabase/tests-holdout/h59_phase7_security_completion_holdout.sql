@@ -93,7 +93,7 @@ SELECT ok(pg_get_functiondef('app.member_mobile_identity()'::regprocedure) ILIKE
   'NAV-001/Phase-7: mixed or non-member claims are rejected');
 
 SELECT ok(
-  pg_get_functiondef('app.enforce_check_in()'::regprocedure) ILIKE '%transaction_timestamp%',
+  pg_get_functiondef('app.enforce_check_in()'::regprocedure) ILIKE '%statement_timestamp%',
   'ATT-001/Phase-7: live check-in time is server-owned');
 
 SELECT ok(

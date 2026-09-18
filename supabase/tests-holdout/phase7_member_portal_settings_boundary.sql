@@ -56,6 +56,16 @@ SELECT is(
   'complete canonical member identity is accepted and receives its own five-field presentation row'
 );
 
+SELECT set_config(
+  'request.jwt.claims',
+  json_build_object(
+    'sub', '00000000-0000-0000-0000-000000000001',
+    'app_role', 'front_desk',
+    'tenant_id', '00000000-0000-0000-0000-000000000010',
+    'member_id', '00000000-0000-0000-0000-000000000100'
+  )::text,
+  true
+);
 SELECT throws_ok(
   $$SELECT public.read_member_portal_settings()$$,
   NULL,
@@ -67,7 +77,7 @@ SELECT set_config(
   'request.jwt.claims',
   json_build_object(
     'sub', '00000000-0000-0000-0000-000000000001',
-    'app_role', 'front_desk',
+    'app_role', 'member',
     'tenant_id', '00000000-0000-0000-0000-000000000010'
   )::text,
   true
