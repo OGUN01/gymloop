@@ -12,12 +12,12 @@ select ok(
 );
 
 select ok(
-  (select p.prosecdef
+  not (select p.prosecdef
      from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
       and p.oid = to_regprocedure('public.member_mobile_check_in(text, uuid, timestamptz)')),
-  'the public member command is security definer and delegates its narrow capability'
+  'the public member command is an invoker wrapper around the narrow definer core'
 );
 
 select ok(
@@ -35,8 +35,8 @@ select ok(
 
 select ok(
   has_function_privilege('authenticated', 'public.member_mobile_check_in(text, uuid, timestamptz)', 'EXECUTE')
-  and not has_function_privilege('authenticated', 'app.record_member_mobile_check_in(text, uuid, timestamptz)', 'EXECUTE'),
-  'members can execute only the public wrapper, never the private core'
+  and not has_function_privilege('anon', 'public.member_mobile_check_in(text, uuid, timestamptz)', 'EXECUTE'),
+  'authenticated members can execute the public wrapper while anon cannot'
 );
 
 select ok(
@@ -63,9 +63,10 @@ select ok(
   exists (
     select 1 from pg_proc p
      where p.oid = to_regprocedure('app.record_member_mobile_check_in(text, uuid, timestamptz)')
-       and pg_get_functiondef(p.oid) ilike '%current_app_role%'
-       and pg_get_functiondef(p.oid) ilike '%current_tenant_id%'
-       and pg_get_functiondef(p.oid) ilike '%current_member_id%'
+       and pg_get_functiondef(p.oid) ilike '%member_mobile_identity%'
+       and pg_get_functiondef(p.oid) ilike '%app_role%'
+       and pg_get_functiondef(p.oid) ilike '%tenant_id%'
+       and pg_get_functiondef(p.oid) ilike '%member_id%'
   ),
   'the command derives canonical member role, tenant, and member from verified claims'
 );
