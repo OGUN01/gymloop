@@ -59,7 +59,7 @@ function barcodeDetector(): BarcodeDetectorCtor | undefined {
 }
 
 const FIELD_CLASS =
-  'w-full rounded-md border border-neutral-300 px-3 py-2 text-base outline-none focus:border-neutral-900';
+  'check-in-field';
 
 export function CheckInGate({ members }: { members: Member[] }) {
   const readOnly = usePreviewReadOnly();
@@ -212,29 +212,30 @@ export function CheckInGate({ members }: { members: Member[] }) {
   }, [members, outcome, submit]);
 
   return (
-    <fieldset disabled={readOnly} className="mt-6 min-w-0">
+    <fieldset disabled={readOnly} className="check-in-gate">
       {outcome ? (
         <button
           type="button"
           onClick={outcome.retry ? retry : () => setOutcome(null)}
-          className={`block w-full rounded-lg px-6 py-8 text-left ${
-            outcome.ok ? 'bg-green-600' : 'bg-red-600'
+          aria-live="polite"
+          className={`check-in-outcome ${
+            outcome.ok ? 'check-in-outcome-success' : 'check-in-outcome-risk'
           }`}
         >
-          <span className="block text-4xl font-bold text-white sm:text-6xl">{outcome.detail}</span>
-          <span className="mt-1 block text-xl text-white/90 sm:text-3xl">{outcome.headline}</span>
+          <span className="check-in-outcome-detail">{outcome.detail}</span>
+          <span className="check-in-outcome-headline">{outcome.headline}</span>
         </button>
       ) : null}
 
-      <div className="mt-6 rounded-lg border border-neutral-200 p-4">
-        <h2 className="text-sm font-medium text-neutral-700">Gate code</h2>
-        <p className="mt-1 text-sm text-neutral-600">
+      <div className="check-in-gate-panel">
+        <h2 className="check-in-gate-title">Gate code</h2>
+        <p className="check-in-gate-copy">
           {gateCode
             ? 'Scans will be recorded against this code until it expires.'
             : 'Without a gate code, a visit can only be recorded at the desk, with a reason.'}
         </p>
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="check-in-gate-controls">
           <input
             value={gateCode}
             onChange={(event) => rememberGateCode(event.target.value)}
@@ -242,13 +243,13 @@ export function CheckInGate({ members }: { members: Member[] }) {
             aria-label="Gate code"
             autoComplete="off"
             spellCheck={false}
-            className={`${FIELD_CLASS} font-mono uppercase sm:w-80`}
+            className={`${FIELD_CLASS} check-in-gate-input font-mono uppercase`}
           />
           {canScan ? (
             <button
               type="button"
               onClick={scanning ? stopScanning : () => void startScanning()}
-              className="rounded-md bg-neutral-900 px-4 py-2 text-white"
+              className="check-in-primary-action"
             >
               {scanning ? 'Stop' : 'Scan'}
             </button>
@@ -256,7 +257,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
           <button
             type="button"
             onClick={() => void issueGateCode()}
-            className="rounded-md border border-neutral-300 px-4 py-2"
+            className="check-in-secondary-action"
           >
             New code
           </button>
@@ -266,37 +267,40 @@ export function CheckInGate({ members }: { members: Member[] }) {
           ref={videoRef}
           muted
           playsInline
-          className={scanning ? 'mt-3 w-full max-w-sm rounded-md bg-black' : 'hidden'}
+          className={scanning ? 'check-in-camera' : 'hidden'}
         />
 
         {issuedCode ? (
-          <p className="mt-3 break-all font-mono text-2xl tracking-widest">{issuedCode}</p>
+          <p className="check-in-issued-code">{issuedCode}</p>
         ) : null}
 
         {notice ? (
-          <p role="alert" className="mt-3 text-sm text-amber-700">
+          <p role="alert" className="check-in-notice">
             {notice}
           </p>
         ) : null}
       </div>
 
-      <ul className="mt-6 divide-y divide-neutral-100">
+      <ul className="check-in-members">
         {members.map((member) => (
-          <li key={member.id} className="py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="font-medium">{member.full_name}</p>
-                <p className="text-sm tabular-nums text-neutral-600">
+          <li key={member.id} className="check-in-member-row">
+            <div className="check-in-member-content">
+              <div className="check-in-member-identity">
+                <span aria-hidden="true" className="check-in-member-initial">{member.full_name.charAt(0)}</span>
+                <div>
+                <p className="check-in-member-name">{member.full_name}</p>
+                <p className="check-in-member-phone">
                   {member.phone}
-                  {member.status === 'active' ? null : ` · ${member.status}`}
+                  {member.status === 'active' ? null : <span className="check-in-member-status">Status: {member.status}</span>}
                 </p>
+                </div>
               </div>
-              <div className="flex gap-2">
+              <div className="check-in-actions">
                 <button
                   type="button"
                   disabled={gateCode === '' || busyMemberId === member.id}
                   onClick={() => void submit(member, { token: gateCode }, crypto.randomUUID())}
-                  className="rounded-md bg-neutral-900 px-4 py-2 text-white disabled:bg-neutral-300"
+                  className="check-in-primary-action"
                 >
                   Check in
                 </button>
@@ -306,7 +310,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
                     setAssistFor(assistFor === member.id ? '' : member.id);
                     setReason('');
                   }}
-                  className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                  className="check-in-secondary-action"
                 >
                   At the desk
                 </button>
@@ -315,7 +319,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
 
             {assistFor === member.id ? (
               <form
-                className="mt-3 flex flex-wrap gap-2"
+                className="check-in-assist-form"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void submit(member, { reason }, crypto.randomUUID());
@@ -327,12 +331,12 @@ export function CheckInGate({ members }: { members: Member[] }) {
                   required
                   placeholder="Why are you checking them in? (required)"
                   aria-label={`Reason for checking in ${member.full_name} at the desk`}
-                  className={`${FIELD_CLASS} sm:w-96`}
+                  className={`${FIELD_CLASS} check-in-assist-input`}
                 />
                 <button
                   type="submit"
                   disabled={busyMemberId === member.id}
-                  className="rounded-md bg-neutral-900 px-4 py-2 text-white disabled:bg-neutral-300"
+                  className="check-in-primary-action"
                 >
                   Record
                 </button>
@@ -343,7 +347,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
       </ul>
 
       {members.length === 0 ? (
-        <p className="mt-6 text-sm text-neutral-600">No member of this gym matched.</p>
+        <p className="check-in-empty">No member of this gym matched.</p>
       ) : null}
     </fieldset>
   );

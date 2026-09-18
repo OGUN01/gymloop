@@ -51,39 +51,39 @@ export function MemberSearchPage({
           cursor: nextCursor,
         }).toString()}`;
   return (
-    <main className="mx-auto max-w-3xl px-6 py-8">
-      <div className="flex items-baseline justify-between">
-        <h1 className="text-xl font-semibold">{title}</h1>
-        <div className="flex gap-4">
+    <main className="check-in-workspace mx-auto max-w-3xl">
+      <div className="check-in-header">
+        <h1 className="check-in-title">{title}</h1>
+        <div className="check-in-route-actions">
           {/* The red list had no way in: nothing linked to it, so the screen a
               gym is supposed to open each morning was one the owner had to
               type the URL for. ADR-059's rule for phases 3-6 is that each ends
               with something the owner can click. */}
-          <Link href="/red-list" className="text-sm text-neutral-600 underline">
+          <Link href="/red-list" className="check-in-route-link">
             Red list
           </Link>
-          <Link href={linkHref} className="text-sm text-neutral-600 underline">
+          <Link href={linkHref} className="check-in-route-link">
             {linkLabel}
           </Link>
         </div>
       </div>
 
-      <form method="get" className="mt-4 flex gap-2">
+      <form method="get" className="check-in-search">
         <input
           type="search"
           name="q"
           defaultValue={phone}
           placeholder="Search by phone number"
           aria-label="Search by phone number"
-          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-base outline-none focus:border-neutral-900"
+          className="check-in-search-input"
         />
-        <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-white">
+        <button type="submit" className="check-in-primary-action">
           Search
         </button>
       </form>
 
       {errorMessage === null ? null : (
-        <p role="alert" className="mt-6 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p role="alert" className="check-in-search-error">
           The member list could not be loaded. {errorMessage}
         </p>
       )}
@@ -94,7 +94,7 @@ export function MemberSearchPage({
         <Link
           href={nextHref}
           rel="next"
-          className="mt-6 inline-block rounded-md border border-neutral-300 px-4 py-2 text-sm"
+          className="check-in-next-page"
         >
           Next page
         </Link>
