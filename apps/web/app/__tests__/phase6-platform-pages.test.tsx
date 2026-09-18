@@ -104,4 +104,32 @@ describe('Phase 6 platform fleet screen', () => {
     expect(text).not.toContain('secret table');
     expect(text).not.toContain('service role');
   });
+
+  it('loads the authorized gym detail with identity, status, tier, and readiness facts', async () => {
+    const { default: Page } = await import('../platform/[id]/page');
+    const view = await Page({ params: Promise.resolve({ id: TENANT_ID }) });
+    const text = inspect(view);
+    expect(text).toContain('Iron House');
+    expect(text).toContain('IRN001');
+    expect(text).toMatch(/trial/i);
+    expect(text).toMatch(/growth/i);
+    expect(text).toMatch(/owner access|readiness|incomplete/i);
+  });
+
+  it('renders a truthful not-available state for an absent gym id', async () => {
+    state.result = [];
+    const { default: Page } = await import('../platform/[id]/page');
+    const text = inspect(await Page({ params: Promise.resolve({ id: TENANT_ID }) }));
+    expect(text).toMatch(/not available|not found|couldn’t find|could not find/i);
+    expect(text).not.toContain('Iron House');
+  });
+
+  it('maps a failed gym detail read to a safe error without database detail', async () => {
+    state.error = { code: 'XX000', message: 'private schema and service role detail' };
+    const { default: Page } = await import('../platform/[id]/page');
+    const text = inspect(await Page({ params: Promise.resolve({ id: TENANT_ID }) }));
+    expect(text).toMatch(/couldn’t|could not|try again|unavailable/i);
+    expect(text).not.toContain('private schema');
+    expect(text).not.toContain('service role');
+  });
 });
