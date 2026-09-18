@@ -400,6 +400,7 @@ on conflict (id) do update set
   key       = excluded.key,
   channel   = excluded.channel,
   locale    = excluded.locale,
+  category  = excluded.category,
   body      = excluded.body,
   is_active = excluded.is_active;
 
