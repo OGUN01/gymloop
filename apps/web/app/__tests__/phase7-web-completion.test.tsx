@@ -55,7 +55,7 @@ describe('Phase 7 remaining web presentation contract', () => {
   it('defines token-backed light/dark, responsive, and target-size hooks for the private routes', () => {
     const globals = readFileSync(resolve(appRoot, 'globals.css'), 'utf8');
     const importedStyles = [...globals.matchAll(/@import\s+(?:url\()?\s*["']?([^"')\s]+)["']?\)?/g)]
-      .map((match) => optionalSource(match[1].replace(/^\.\//, '')))
+      .map((match) => optionalSource(match[1]!.replace(/^\.\//, '')))
       .join('\n');
     const css = `${globals}\n${importedStyles}`;
     const tokenArchitecture = optionalSource('theme-token-style.tsx');
