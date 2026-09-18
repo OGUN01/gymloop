@@ -47,6 +47,14 @@ and claim-classification checks before body parsing. Mobile money facts cross
 the application boundary as canonical decimal strings, never JavaScript
 numbers; their database read surface casts bigint paise to text.
 
+The shared member snapshot reads organization presentation settings only
+through a claim-scoped `public.read_member_portal_settings()` command. The
+command returns exactly `city`, `state`, `weekly_goal_default`,
+`week_start_day` and `streak_rule_type` for the canonical member tenant after
+the same complete member-identity validation; it exposes no settings row,
+GSTIN, financial configuration or cross-tenant data. Web and native callers
+must use that command instead of selecting `organization_settings` directly.
+
 The first native application exposes the approved four labelled member tabs
 (Home, Activity, My gym, You) and four desk tabs (Check-in, Members, Follow-ups,
 More), complete Light/Dark/System tokens, verified gym identity/code, member QR
