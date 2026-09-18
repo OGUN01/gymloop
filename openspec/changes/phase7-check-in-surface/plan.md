@@ -1,8 +1,11 @@
 # Phase 7 check-in surface
 
 This second Phase 7 slice applies UX7-006, UX7-007, UX7-013 and UX7-014 to the
-existing staff-assisted check-in route. It derives the screen from the approved
-minimal porcelain/ink and emerald/mint system. It does not change ATT-001–008,
+existing staff-assisted check-in route. The approved member/owner v2 boards are
+the visual-fidelity bar, not loose colour inspiration: this route must reproduce
+their deliberate typography, continuous geometry, whitespace, quiet chrome and
+premium productivity character with its own truthful check-in content. It does
+not change ATT-001–008,
 the staff-only request boundary, member search, gate-code issuance, event keys,
 offline/retry semantics, preview read-only behavior, navigation destinations or
 any database/API response.
@@ -12,7 +15,11 @@ any database/API response.
 - `MemberSearchPage` keeps its existing props, GET search, cursor preservation,
   error copy and links. Its visual hierarchy becomes a calm check-in workspace:
   a 32/38/600 page title, quiet route actions, a single prominent search bar,
-  opaque semantic surfaces and a readable 1440px-bounded column.
+  opaque semantic surfaces and a shared-token 1440px-bounded canvas. At desktop
+  width the search spans the canvas and the member queue plus gate-state panel
+  form a purposeful asymmetric operational composition rather than a centered
+  768px form with dead margins. Route actions are finished controls, not raw
+  underlined utility links.
 - `CheckInGate` keeps its existing `{ members }` prop and every request/state
   transition. Gate-code entry and issuance form one compact operational panel.
   The no-code explanation remains visible and direct; camera capability remains
@@ -28,7 +35,14 @@ any database/API response.
   Activating it preserves the existing retry-or-dismiss behavior.
 - At wide widths, row identity and actions align without dense boxes. Below
   40rem, search, operational controls, rows and desk-reason controls stack in one
-  column with no page-level horizontal overflow or hidden action.
+  column with no page-level horizontal overflow or hidden action. The shared
+  account header also reflows intentionally at this breakpoint: brand and role
+  stay together, while appearance and sign-out form one second row; the role may
+  not be stranded beneath the controls as an accidental third band.
+- The shared web token adapter emits the existing `geometry.layout` values with
+  kebab-case `--gymloop-layout-*` names and `px` units. The workspace consumes
+  `contentMaxWidth`, `desktopInset` and `mobileInset`; no duplicate width or inset
+  literal is introduced.
 - New selectors are private CSS class names in `globals.css`; no component,
   helper, constant, hook, schema or export is added. Existing shared tokens are
   the only visual values. No new library, generator, data read or query ships.
@@ -77,7 +91,8 @@ An independent Luna author owns only
 tests red before implementation. Terra owns only
 `apps/web/app/(console)/console/member-search-page.tsx`,
 `apps/web/app/(console)/console/check-in/check-in-gate.tsx` and
-`apps/web/app/globals.css`; it never edits the test. Root owns contract, evidence,
+`apps/web/app/globals.css`, plus the layout-token emission in
+`apps/web/app/theme-token-style.tsx`; it never edits the test. Root owns contract, evidence,
 canonical spec and archive. During implementation run only the focused check-in
 surface test and web typecheck/lint. At completion run repository gates once,
 then a real light/dark owner browser journey at 1440 and narrow width with no
