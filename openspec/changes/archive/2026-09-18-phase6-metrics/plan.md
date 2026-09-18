@@ -52,10 +52,10 @@ use the relaxed screen arrangement after the database contract is green.
 
 - [x] Detailed owner/fleet metrics contract and snapshot bar frozen.
 - [x] Independent visible and holdout database tests committed red.
-- [ ] Metrics/readiness migration and exact RPC responses implemented.
-- [ ] Dashboard tests committed red; route/page/components implemented.
-- [ ] Focused and slice-level local gates pass.
-- [ ] Fresh-context money/RLS/concurrency critic returns GO.
-- [ ] CI applies migration; generated types, pgTAP, seed and workflows pass.
-- [ ] Real owner/fleet browser reconciliation passes with exact cleanup.
-- [ ] Current specifications, registry, evidence and roadmap synchronized; archive.
+- [x] Metrics/readiness migration and exact RPC responses implemented.
+- [x] Dashboard tests committed red; route/page/components implemented.
+- [x] Focused and slice-level local gates pass.
+- [x] Fresh-context Sol money/RLS/concurrency critic returns GO.
+- [x] CI applies migration; generated types, pgTAP, seed and workflows pass.
+- [x] Real owner/fleet browser reconciliation passes with exact cleanup.
+- [x] Current specifications, registry, evidence and roadmap synchronized; archive moves this completed plan intact.

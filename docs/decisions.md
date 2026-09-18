@@ -718,6 +718,17 @@ Rejected: retaining the rejected neon direction for owners, styling every page
 independently, equating heavy glass/animation with quality, automatically
 upgrading the working web stack, and describing an AI bitmap as shipped UI.
 
+**ADR-126 — Close Phase 6 before spending the continuation on Phase 7.** On
+2026-09-18 the owner allocated two weekly-usage points from the measured 75% to
+finish Phase 6's outstanding real-browser reconciliations, exact cleanup,
+documentation, OpenSpec archives and final verification. The 77% mark is the
+Phase 6 checkpoint. If Phase 6 is fully closed below it, the approved Phase 7
+work may continue, with 79% used as the absolute ceiling for this combined
+three-to-four-point continuation. Sol orchestrates and reviews; bounded Terra
+and Luna workers retain the two-worker limit and blind-test constraints. Astra
+remains disallowed. Rejected: rebuilding green Phase 6 code, calling green CI a
+browser journey, or consuming the Phase 7 allowance before Phase 6 is closed.
+
 **ADR-112 — Preserve migration order when existing versions are ahead of the clock.**
 The refund unit's CLI-generated version `20260910074537` sorts before the
 already-applied `20260915100000` migration. Under the owner's ADR-111 delegation,

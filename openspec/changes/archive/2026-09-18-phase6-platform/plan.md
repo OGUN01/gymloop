@@ -27,10 +27,10 @@ CI and generated database types follow the applied migration.
 
 - [x] Platform contract and cross-cluster seams frozen.
 - [x] Independent visible and holdout database tests committed red.
-- [ ] Independent route/screen tests committed red.
-- [ ] Migration, RPCs, claim/revocation boundaries and generated defaults implemented.
-- [ ] Platform fleet/detail/forms and route wiring implemented.
-- [ ] Focused and Phase 6 gates pass; fresh Sol identity/RLS/money critic returns GO.
-- [ ] CI migration/types/pgTAP/seed workflows pass serially.
-- [ ] Real super-admin/support/preview journeys pass with exact cleanup.
-- [ ] Specifications, registry, evidence and roadmap synchronized; Phase 6 archive.
+- [x] Independent route/screen tests committed red.
+- [x] Migration, RPCs, claim/revocation boundaries and generated defaults implemented.
+- [x] Platform fleet/detail/forms and route wiring implemented.
+- [x] Focused and Phase 6 gates pass; fresh Sol identity/RLS/money critic returns GO.
+- [x] CI migration/types/pgTAP/seed workflows pass serially.
+- [x] Real super-admin/support/preview journeys pass with exact cleanup.
+- [x] Specifications, registry, evidence and roadmap synchronized; archive moves this completed plan intact.

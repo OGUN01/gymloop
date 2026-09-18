@@ -23,8 +23,10 @@ Database workflow `35254672906` applied migration
 `20260915100007_phase6_comms.sql` to the linked Cloud project. The follow-up
 types commit regenerated `packages/db/types/database.ts` from Cloud with the
 Supabase CLI; CI, Holdout and Test immutability workflows for `4461d8c` passed.
-The final database workflow id and result are recorded below when its serialized
-run completes.
+The final closeout database workflow was `35301481339`; it succeeded on
+migration, pgTAP rollback, schema drift, all 81 files / 6812 assertions, and
+the seed dry-run. Main CI `35301481338`, Holdout `35301481361`, and Test
+immutability `35301481359` also succeeded on `3e5120b`.
 
 Against a fresh local web server backed by the real project:
 
@@ -43,6 +45,10 @@ wallet or audit row, so cleanup is exactly zero rows and no seeded fact changed.
 
 ## Delivery
 
-Implementation commit `690fafd`; generated-contract and final gate commit
-`4461d8c`. Registry and current OpenSpec communications requirements are
-synchronized with the shipped helpers and screens.
+Implementation commit `690fafd`; generated-contract and final repair commits
+`0a5a814`, `45bf5e4`, `9ae50a0`, `480756b`, `7109331`, `3e5120b`. Registry and
+current OpenSpec communications requirements are synchronized with the shipped
+helpers and screens. The communications browser journey above remains valid.
+The current specification, registry entries and plan are synchronized. The
+completed change is archived at
+`openspec/changes/archive/2026-09-18-phase6-comms/`.

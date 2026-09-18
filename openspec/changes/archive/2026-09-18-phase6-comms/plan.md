@@ -52,6 +52,6 @@ local replays only while the DB workflow is idle.
 - [x] Migration, RPCs, routes and working screens implemented.
 - [x] Targeted and full local gates pass.
 - [x] Fresh-context critics return GO.
-- [ ] CI applies migration; generated types, pgTAP, seed and all workflows pass.
+- [x] CI applies migration; generated types, pgTAP, seed and all workflows pass.
 - [x] Real messaging journeys pass with exact cleanup.
-- [ ] Current specifications, registry, evidence and roadmap synchronized; archive.
+- [x] Current specifications, registry, evidence and roadmap synchronized; archive moves this completed plan intact.

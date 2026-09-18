@@ -1,12 +1,14 @@
 # Current owner-authorized campaign goal
 
-Updated 2026-09-18. This is the repository's current execution objective; older
+Updated 2026-09-18 (owner continuation 2). This is the repository's current execution objective; older
 prompt text is historical where it conflicts with this owner override.
 
 ## Objective
 
-Complete the outstanding Phase 6 owner/fleet and platform browser closeout and
-archives, then deliver Phase 7's real web and member/front-desk mobile experience.
+Phase 6 is closed: owner/fleet metrics and super-admin/support/preview browser
+journeys passed, exact cleanup was verified, and the three final changes were
+archived. The current objective is Phase 7's real web and member/front-desk
+mobile experience without rebuilding the completed Phase 6 implementation.
 Give members AND gym owners a polished, user-centric minimalist interface with
 equal light/dark quality, visible gym identity/code, accessible typography,
 comfortable curves and responsive, restrained motion. Preserve the attendance
@@ -31,9 +33,10 @@ with lower bespoke-polish priority. Iron Pulse is superseded.
 ## Current evidence and remaining work
 
 - Phase 6 backend/CI is green at `3e5120b`; latest recorded pgTAP evidence is
-  81 files / 6812 assertions. Communications browser evidence exists.
-- Metrics and platform real-browser journeys, exact demo cleanup and archives
-  remain outstanding. Read their evidence files rather than inferring completion.
+  81 files / 6812 assertions. All final browser journeys and exact cleanup are
+  recorded in the communications, metrics and platform evidence files.
+- Communications, metrics and platform are archived at
+  `openspec/changes/archive/2026-09-18-phase6-{comms,metrics,platform}/`.
 - Phase 7 has visual/planning artifacts, not an implemented design system.
   Native app/API-client, member self-check-in, join/switch and bearer seams
   still need detailed frozen contracts, independent tests and implementation.
@@ -41,10 +44,15 @@ with lower bespoke-polish priority. Iron Pulse is superseded.
 
 ## Budget and delegation
 
-Latest measured usage at this planning batch's start: 74% weekly consumed.
-Owner-authorized campaign hard stop: **77% consumed**, including Phase 6 and 7.
-Check after each micro-batch; do not promise work fits a percentage. At the cap,
-stop new work and report the last green commit and preserved outstanding work.
+Latest measured usage at this continuation's start: 75% weekly consumed.
+Owner-authorized Phase 6 checkpoint: **77% consumed**. If and only if Phase 6 is
+fully closed below that checkpoint, continue Phase 7 under the approved PRD.
+The absolute ceiling for this combined continuation is **79% consumed** (the
+owner's total three-to-four-point allowance). Check after every micro-batch; do
+not promise work fits a percentage. At the applicable cap, stop new work and
+report the last green commit and preserved outstanding work. Phase 8 follows
+Phase 7 as a separately verified stage; this allowance does not waive or skip
+either phase's completion boundary.
 
 Sol orchestrates/reviews; Terra owns bounded architecture/security/native work;
 Luna is the default small-scope implementer. Maximum two simultaneous workers,

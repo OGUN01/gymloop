@@ -123,9 +123,10 @@ rules, and consent rows remain append-only.
 ### Requirement: Notification lifecycle and evidence are structural
 COM-001–007, INT-002/003 and PAY-002 SHALL be enforced for every writer. A
 notification SHALL carry a category, claim-compatible source and member, and
-an allowed status/evidence combination. Scheduled may advance to sent,
-delivered, failed or opted_out; sent may advance to delivered or failed; every
-other state is terminal. Identity, content, consent evidence, request identity,
+an allowed status/evidence combination. Scheduled may advance to sent, failed
+or opted_out; sent may advance to delivered or failed; delivered may advance
+to clicked or converted; clicked may advance to converted; failed, converted
+and opted_out are terminal. Identity, content, consent evidence, request identity,
 wallet identity and provider evidence SHALL be immutable after insert. A
 consent-required notification SHALL persist the exact current granted decision;
 marketing never inherits service consent. In-app notifications require no paid
@@ -137,7 +138,7 @@ wallet command whose debit and notification acceptance are one transaction.
 - **THEN** the write SHALL be rejected
 
 #### Scenario: A terminal notification is changed
-- **WHEN** a delivered, failed or opted-out notification is transitioned again or its immutable facts are edited
+- **WHEN** a failed, converted or opted-out notification is transitioned again or its immutable facts are edited
 - **THEN** the write SHALL be rejected
 
 #### Scenario: A member acknowledges an in-app notification
