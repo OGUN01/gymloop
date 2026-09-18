@@ -45,6 +45,14 @@ describe('Phase 7 remaining web presentation contract', () => {
     expect(source).toMatch(/<form|<button|<a\s|Member[A-Z]\w+/i);
   });
 
+  it('gives member Home a truthful check-in or scanner entry without claiming attendance succeeded', () => {
+    const source = routeSource('member');
+    expect(source).toMatch(/check.?in|scan(?:ner)?/i);
+    expect(source).toMatch(/<Link\b|<a\b|<button\b/);
+    expect(source).toMatch(/unavailable|native|app|scan|check.?in/i);
+    expect(source).not.toMatch(/attendance[^\n]*(?:recorded|success)|(?:recorded|success)[^\n]*attendance|checked\s+in/i);
+  });
+
   it.each(['platform', 'platform/[id]'])('keeps %s function-first and read-only for support previews', (route) => {
     const source = `${routeSource(route)}\n${optionalSource('platform/layout.tsx')}`;
     expect(source).toMatch(/<h[1-3][^>]*>|aria-label=|<title>/i);
