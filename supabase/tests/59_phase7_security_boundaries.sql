@@ -71,12 +71,13 @@ select ok(
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'app'
-       and p.oid = to_regprocedure('app.record_member_mobile_check_in(text, uuid, timestamptz)')
+       and p.oid = to_regprocedure('app.member_mobile_identity()')
        and pg_get_functiondef(p.oid) ilike '%app_role%'
-       and pg_get_functiondef(p.oid) ilike '%member%'
+       and pg_get_functiondef(p.oid) ilike '%auth.uid%'
+       and pg_get_functiondef(p.oid) ilike '%tenant_id%'
        and pg_get_functiondef(p.oid) ilike '%member_id%'
   ),
-  'the member command requires the canonical member role and member claim'
+  'the canonical identity helper validates authenticated subject, role, tenant, and member'
 );
 
 select ok(
@@ -86,32 +87,32 @@ select ok(
       join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'app'
        and p.oid = to_regprocedure('app.record_member_mobile_check_in(text, uuid, timestamptz)')
-       and pg_get_functiondef(p.oid) ilike '%tenant_id%'
-       and pg_get_functiondef(p.oid) ilike '%current_tenant_id%'
+       and pg_get_functiondef(p.oid) ilike '%member_mobile_identity%'
+       and pg_get_functiondef(p.oid) ilike '%token%'
+       and pg_get_functiondef(p.oid) ilike '%client_event_id%'
   ),
-  'the command binds the attendance tenant to the verified tenant claim'
+  'the definer core calls canonical identity and resolves token/event facts'
 );
 
 select ok(
   exists (
     select 1
-      from pg_proc p
-      join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'app'
-       and p.oid = to_regprocedure('app.record_member_mobile_check_in(text, uuid, timestamptz)')
+      from pg_trigger t
+      join pg_proc p on p.oid = t.tgfoid
+     where t.tgrelid = 'public.attendance'::regclass
+       and not t.tgisinternal
+       and p.oid = to_regprocedure('app.enforce_check_in()')
        and pg_get_functiondef(p.oid) ilike '%now()%'
        and pg_get_functiondef(p.oid) ilike '%checked_in_at%'
   ),
-  'live attendance occurrence is server-stamped'
+  'the existing attendance trigger owns live occurrence stamping'
 );
 
 select ok(
   exists (
     select 1
       from pg_proc p
-      join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'app'
-       and p.oid = to_regprocedure('app.record_member_mobile_check_in(text, uuid, timestamptz)')
+     where p.oid = to_regprocedure('app.enforce_check_in()')
        and pg_get_functiondef(p.oid) ilike '%offline_recorded_at%'
        and pg_get_functiondef(p.oid) ilike '%client_event_id%'
   ),
@@ -129,33 +130,29 @@ select ok(
        and pg_get_functiondef(p.oid) ilike '%created_at%'
        and pg_get_functiondef(p.oid) ilike '%expires_at%'
   ),
-  'offline occurrence is validated against the scanned QR session interval'
+  'the attendance trigger validates offline occurrence against QR creation and expiry'
 );
 
 select ok(
   exists (
     select 1
       from pg_proc p
-      join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'app'
-       and p.oid = to_regprocedure('app.record_member_mobile_check_in(text, uuid, timestamptz)')
+     where p.oid = to_regprocedure('app.enforce_check_in()')
        and pg_get_functiondef(p.oid) ilike '%replayed_at%'
        and pg_get_functiondef(p.oid) ilike '%now()%'
   ),
-  'replay time is stamped by the server'
+  'the attendance trigger stamps replay time on the server'
 );
 
 select ok(
   exists (
     select 1
       from pg_proc p
-      join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'app'
-       and p.oid = to_regprocedure('app.record_member_mobile_check_in(text, uuid, timestamptz)')
+     where p.oid = to_regprocedure('app.enforce_check_in()')
        and pg_get_functiondef(p.oid) ilike '%offline_recorded_at::date%'
        and pg_get_functiondef(p.oid) ilike '%memberships%'
   ),
-  'offline membership validity uses the validated occurrence date'
+  'the attendance trigger validates membership on the offline occurrence date'
 );
 
 select ok(

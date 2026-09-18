@@ -49,25 +49,33 @@ select set_config(
 set local role authenticated;
 
 select results_eq(
-  $$select public.read_member_portal_settings()$$,
-  $$select jsonb_build_object(
-    'city', 'Pune', 'state', 'Maharashtra', 'weekly_goal_default', 4,
-    'week_start_day', 1, 'streak_rule_type', 'weekly_goal'
-  )$$,
+  $$select city, state, weekly_goal_default, week_start_day, streak_rule_type::text
+      from public.read_member_portal_settings()$$,
+  $$values ('Pune'::text, 'Maharashtra'::text, 4::smallint, 1::smallint, 'weekly_goal'::text)$$,
   'a complete canonical member receives only their tenant presentation settings'
 );
 
 select results_eq(
-  $$select string_agg(key, ',' order by key)
-      from jsonb_object_keys(public.read_member_portal_settings()) as key$$,
-  $$select 'city,state,streak_rule_type,week_start_day,weekly_goal_default'$$,
-  'the member settings command returns exactly the five approved keys'
+  $$select string_agg(a.attname, ',' order by a.attnum),
+           string_agg(format_type(a.atttypid, a.atttypmod), ',' order by a.attnum)
+      from pg_proc p
+      join pg_type t on t.oid = p.prorettype
+      join pg_attribute a on a.attrelid = t.typrelid
+     where p.oid = to_regprocedure('public.read_member_portal_settings()')
+       and a.attnum > 0 and not a.attisdropped$$,
+  $$values ('city,state,weekly_goal_default,week_start_day,streak_rule_type'::text,
+            'text,text,smallint,smallint,public.streak_rule_type'::text)$$,
+  'the member settings command has exactly the approved five-column TABLE signature'
 );
 
 select is(
-  (select count(*) from jsonb_object_keys(public.read_member_portal_settings())
-    where key in ('id', 'tenant_id', 'gstin', 'financial_year_start_month',
-                  'checkin_dedupe_seconds', 'trainer_member_cap')),
+  (select count(*)
+     from pg_attribute a
+     join pg_type t on t.typrelid = a.attrelid
+     join pg_proc p on p.prorettype = t.oid
+    where p.oid = to_regprocedure('public.read_member_portal_settings()')
+      and a.attnum > 0 and not a.attisdropped
+      and a.attname not in ('city', 'state', 'weekly_goal_default', 'week_start_day', 'streak_rule_type')),
   0::bigint,
   'the member projection exposes no settings row, tenant id, GSTIN, or financial fields'
 );
@@ -78,7 +86,7 @@ select set_config(
   true
 );
 select throws_ok(
-  $$select public.read_member_portal_settings()$$,
+  $$select * from public.read_member_portal_settings()$$,
   null::char(5), null,
   'an incomplete member identity is refused'
 );
@@ -89,7 +97,7 @@ select set_config(
   true
 );
 select throws_ok(
-  $$select public.read_member_portal_settings()$$,
+  $$select * from public.read_member_portal_settings()$$,
   null::char(5), null,
   'a non-member role carrying member_id is refused'
 );
@@ -100,7 +108,7 @@ select set_config(
   true
 );
 select throws_ok(
-  $$select public.read_member_portal_settings()$$,
+  $$select * from public.read_member_portal_settings()$$,
   null::char(5), null,
   'a member claim whose tenant does not own member_id is refused'
 );
@@ -146,8 +154,8 @@ select ok(
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'public'
-       and p.proname = 'read_member_portal_settings'
-       and pg_get_function_result(p.oid) ilike '%json%'
+       and p.oid = to_regprocedure('public.read_member_portal_settings()')
+       and pg_get_function_result(p.oid) ilike 'table%'
   ),
   'the settings boundary has a typed structured result rather than exposing a table row'
 );
