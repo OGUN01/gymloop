@@ -1,8 +1,10 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const appRoot = resolve(process.cwd(), 'apps/web/app');
+const appRoot = existsSync(resolve(process.cwd(), 'apps/web/app'))
+  ? resolve(process.cwd(), 'apps/web/app')
+  : resolve(process.cwd(), 'app');
 
 function routeSource(route: string): string {
   return readFileSync(resolve(appRoot, route, 'page.tsx'), 'utf8');
