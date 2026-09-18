@@ -31,6 +31,6 @@ describe('Phase 7 member surfaces', () => {
     const page = (await import('../member/my-gym/page')).default;
     const html = renderToStaticMarkup(await page());
     expect(html).toContain('Scan to check in');
-    expect(html).toMatch(/(?:href="\/member\/check-in"[^>]*class|class="[^"]*member-primary-action[^\"]*"[^>]*href="\/member\/check-in")/);
+    expect(html).toMatch(/(?:href="\/member\/check-in"[^>]*class|class="[^"]*member-primary-action[^"]*"[^>]*href="\/member\/check-in")/);
   });
 });
