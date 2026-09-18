@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
@@ -71,6 +72,39 @@ describe('Phase 7 shared visual foundation', () => {
     expect(css).toMatch(/prefers-reduced-transparency/);
     expect(css).toMatch(/animation-duration\s*:\s*0ms|transition-duration\s*:\s*0ms/);
     expect(css).toMatch(/background(?:-color)?\s*:\s*(?:#|var\(--gymloop-color-(?:canvas|surface))/);
+  });
+
+  it('keeps typography token emitter and consumer names aligned in kebab case', async () => {
+    const { UI_TOKENS } = await import('@gymloop/shared');
+    const { ThemeTokenStyle } = await import('../theme-token-style');
+    const css = renderToStaticMarkup(ThemeTokenStyle());
+    const typography = UI_TOKENS.typography as Record<string, { size: number; lineHeight: number }>;
+
+    expect(typography).toEqual(expect.objectContaining({
+      pageTitle: expect.any(Object),
+      mobileBody: expect.any(Object),
+      mobileSection: expect.any(Object),
+      largeMetric: expect.any(Object),
+    }));
+    expect(css).toContain('--gymloop-type-page-title');
+    expect(css).toContain('--gymloop-type-mobile-body');
+    expect(css).toContain('--gymloop-type-mobile-section');
+    expect(css).toContain('--gymloop-type-large-metric');
+    expect(css).toContain(`--gymloop-type-page-title-size:${typography.pageTitle.size}px`);
+    expect(css).toContain(`--gymloop-type-page-title-line-height:${typography.pageTitle.lineHeight}`);
+    expect(css).toMatch(/var\(--gymloop-type-(?:page-title|mobile-body|mobile-section|large-metric)\b/);
+  });
+
+  it('gives the authenticated shell brand link an effective 44px minimum target', async () => {
+    const { AccountFrame } = await import('../account-frame');
+    const html = renderToStaticMarkup(AccountFrame({
+      home: '/console', label: 'Gym owner', children: 'Account content',
+    }));
+    const foundationCss = readFileSync(new URL('../globals.css', import.meta.url), 'utf8');
+    const brandLinkRule = foundationCss.match(/\.brand-link\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(html).toMatch(/class="[^"]*brand-link[^"]*"/);
+    expect(brandLinkRule).toMatch(/min-height\s*:\s*(?:44px|var\(--gymloop-target-interactive\))/);
   });
 
   it('passes the frozen system default, data-theme attribute and storage key to next-themes', async () => {
