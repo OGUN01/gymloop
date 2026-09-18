@@ -73,4 +73,27 @@ describe('Phase 7 check-in surface', () => {
     expect(css).toMatch(/font-weight\s*:\s*var\(--gymloop-type-emphasis-weight\)/);
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*check-in-[\s\S]*grid-template-columns\s*:\s*1fr/);
   });
+
+  it('requires the approved token-backed asymmetric workspace composition', async () => {
+    const { UI_TOKENS } = await import('@gymloop/shared');
+    const { ThemeTokenStyle } = await import('../theme-token-style');
+    const tokenCss = renderToStaticMarkup(ThemeTokenStyle());
+    const css = readFileSync(new URL('../globals.css', import.meta.url), 'utf8');
+
+    expect(tokenCss).toContain('--gymloop-layout-mobile-inset:20px');
+    expect(tokenCss).toContain('--gymloop-layout-desktop-inset:32px');
+    expect(tokenCss).toContain('--gymloop-layout-content-max-width:1440px');
+    expect(UI_TOKENS.geometry.layout).toMatchObject({ mobileInset: 20, desktopInset: 32, contentMaxWidth: 1440 });
+
+    expect(css).toMatch(/\.check-in-workspace[^{]*\{[^}]*max-width\s*:\s*var\(--gymloop-layout-content-max-width\)/s);
+    expect(css).toMatch(/\.check-in-workspace[^{]*\{[^}]*padding[^;]*var\(--gymloop-layout-desktop-inset\)/s);
+    expect(css).toMatch(/\.check-in-gate-panel[\s\S]*\.check-in-members/);
+    expect(css).toMatch(/\.check-in-gate-panel[^}]*position\s*:\s*sticky/);
+    expect(css).toMatch(/\.check-in-outcome[^}]*grid-column\s*:\s*1\s*\/\s*-1/);
+    expect(css).toMatch(/\.check-in-(?:route-action|workspace-action)[^}]*min-height\s*:\s*var\(--gymloop-target-interactive\)[^}]*text-decoration\s*:\s*none/s);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*\.account-header[^}]*grid-template-columns\s*:/s);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*\.account-actions[^}]*grid-column\s*:\s*1\s*\/\s*-1/s);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*\.check-in-(?:workspace|composition)[^}]*grid-template-columns\s*:\s*1fr/s);
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*var\(--gymloop-layout-mobile-inset\)/s);
+  });
 });
