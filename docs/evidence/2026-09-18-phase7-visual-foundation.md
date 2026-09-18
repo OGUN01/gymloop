@@ -12,6 +12,8 @@
 - [x] The final independent focused suite passed 8/8. Web typecheck and lint,
   shared typecheck and registry-lint passed. `pnpm run gates` was rerun after
   the critic repairs and every repository gate passed on the final source.
+- [x] On pushed archive commit `48612f9`, Cloud CI `35315680186`, Holdout
+  `35315680617` and Test immutability `35315680296` all completed successfully.
 - [x] The real-browser pass found the first provider implementation's hydration
   mismatch. A separate red contract repair (`538c0ed`) required a structurally
   stable unresolved placeholder; `4538388` made that contract green. A fresh
