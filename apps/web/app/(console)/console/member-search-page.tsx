@@ -51,7 +51,7 @@ export function MemberSearchPage({
           cursor: nextCursor,
         }).toString()}`;
   return (
-    <main className="check-in-workspace mx-auto max-w-3xl">
+    <main className="check-in-workspace">
       <div className="check-in-header">
         <h1 className="check-in-title">{title}</h1>
         <div className="check-in-route-actions">

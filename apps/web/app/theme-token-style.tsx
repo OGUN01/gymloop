@@ -14,6 +14,7 @@ export function ThemeTokenStyle() {
     ...geometry.spacing.map((value) => `--gymloop-space-${value}:${value}px`),
     ...Object.entries(geometry.radii).map(([name, value]) => `--gymloop-radius-${cssName(name)}:${value}px`),
     ...Object.entries(geometry.targets).map(([name, value]) => `--gymloop-target-${name}:${value}px`),
+    ...Object.entries(geometry.layout).map(([name, value]) => `--gymloop-layout-${cssName(name)}:${value}px`),
     ...Object.entries(motion).map(([name, value]) => `--gymloop-motion-${cssName(name)}:${value}ms`),
     ...Object.entries(typography).flatMap(([name, value]) => typeof value === 'object'
       ? Object.entries(value).map(([property, token]) => `--gymloop-type-${cssName(name)}-${cssName(property)}:${token}px`)
