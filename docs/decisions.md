@@ -1377,6 +1377,15 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-133 — Final two-point completion allowance (owner override,
+  2026-09-18).** At 86% measured weekly usage, the owner added two points for
+  Phase 7 security repair, visual verification, gates and archive. Luna writes
+  independent visible/holdout tests and performs bounded visual inspection;
+  Terra implements cited security/UI corrections; Sol is escalation-only.
+  Phase 8 may begin only after Phase 7 is green and archived, and provider-
+  credential work remains blocked. The allowance does not relax any security,
+  test-independence, device-evidence or archive gate.
+
 - **ADR-132 — Product UI is English-only (owner override, 2026-09-18).** Remove
   the Hindi mode, language selector, persisted locale, Hindi sample copy,
   Devanagari font dependencies and planned i18n runtime from web and native

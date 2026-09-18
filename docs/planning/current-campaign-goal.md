@@ -78,8 +78,8 @@ fundamentals with lower bespoke-polish priority. Iron Pulse is superseded.
 Latest measured usage at this continuation's start: 75% weekly consumed.
 Owner-authorized Phase 6 checkpoint: **77% consumed**. If and only if Phase 6 is
 fully closed below that checkpoint, continue Phase 7 under the approved PRD.
-The absolute ceiling for this combined continuation is now **86% consumed**
-(ADR-131: 82% measured restart plus the owner's revised four-point allowance). Check after every micro-batch; do
+The active completion budget for this combined continuation is now **88% consumed**
+(ADR-133: 86% measured restart plus the owner's final two-point allowance). Check after every micro-batch; do
 not promise work fits a percentage. At the applicable cap, stop new work and
 report the last green commit and preserved outstanding work. Phase 8 follows
 Phase 7 as a separately verified stage; this allowance does not waive or skip
@@ -107,6 +107,14 @@ current absolute hard stop**. The extra allowance changes neither the frozen
 security/mobile contract nor the requirement to finish, verify and archive
 Phase 7 before any Phase 8 work.
 
+Measured after the English-only correction, final visual pass and first full
+gate attempt: **86% used**. Owner continuation 6 adds two points, to **88% used**,
+for the frozen Phase 7 security repair, rendered verification, green gates and
+archive. Optimize for completing those outcomes rather than spending the
+allowance. Sol is escalation-only; Terra implements bounded security or visual
+repairs and Luna owns independent tests and visual inspection. Phase 8 may
+start only if Phase 7 is green and archived with allowance remaining.
+
 Sol orchestrates/reviews; Terra owns bounded architecture/security/native work;
 Luna is the default small-scope implementer. Maximum two simultaneous workers,
 except independent visible/holdout authors. No Astra without explicit owner
@@ -121,7 +129,8 @@ real Android and iOS development builds; role-isolated authentication; honest
 offline capture and exactly-once replay; cropped visual criticism; current
 registry/spec/evidence and archive. Missing device/signing/provider access is
 a named blocker, never replaced by a simulated success. Phase 8 operational
-hardening and credential-blocked Razorpay integration remain out of scope.
+hardening is eligible only after Phase 7 is green and archived; credential-
+blocked Razorpay provider integration remains outside this campaign.
 
 ## Owner language override
 

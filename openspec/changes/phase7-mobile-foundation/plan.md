@@ -22,6 +22,14 @@ body cannot choose either, and a member request requires a gate token. Staff
 assisted behavior stays exact. Member insertion receives a dedicated
 member-self RLS policy; it does not widen staff/platform policies.
 
+Gate-token proof is atomic at the database boundary. Members cannot select QR
+session rows or insert attendance directly through PostgREST; a narrowly
+granted claim-validating command accepts the scanned token proof, derives
+tenant/member from canonical member claims and records the attendance in one
+transaction. Both policy and command require `app_role = member` and reject
+mixed/non-member claim sets. Live check-in server-stamps its occurrence time;
+only a complete validated offline command may carry an earlier occurrence.
+
 An offline command contains the original UUID event key, scanned gate token and
 `offlineRecordedAt`. Server replay stamps `replayed_at` itself and accepts the
 claimed occurrence only when it falls inside that QR session's own creation/
@@ -31,6 +39,13 @@ live request. Same event+member returns the existing success; event reuse by a
 different member conflicts. Sign-out/account/gym change cannot replay another
 identity's queued event. Only server confirmation is success; queued UI says
 saved on this device and awaiting confirmation.
+
+Queue ownership is the exact `(userId, tenantId, memberId)` identity triple,
+and any change clears/refuses the prior association's commands. Cookie and
+bearer transports enforce the same signature, authenticated-user role, subject
+and claim-classification checks before body parsing. Mobile money facts cross
+the application boundary as canonical decimal strings, never JavaScript
+numbers; their database read surface casts bigint paise to text.
 
 The first native application exposes the approved four labelled member tabs
 (Home, Activity, My gym, You) and four desk tabs (Check-in, Members, Follow-ups,
