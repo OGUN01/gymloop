@@ -110,4 +110,14 @@ describe('Phase 7 owner shell', () => {
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*\)[\s\S]*\.owner-context[^}]*min-width\s*:\s*0/s);
     expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*[\s\S]*\.owner-context[^}]*overflow-wrap\s*:\s*(?:anywhere|break-word)|word-break\s*:\s*break-word/s);
   });
+
+  it('provides a labelled narrow navigation disclosure without changing desktop links', async () => {
+    const layout = (await import('../(console)/layout')).default;
+    const html = renderToStaticMarkup(await layout({ children: 'Console content' }));
+    expect(html).toMatch(/<details[^>]*>[s\S]*<summary[^>]*>[^<]*(?:Check-in|current)[^<]*<\/summary>/i);
+    for (const href of ['/dashboard', '/console/check-in', '/red-list', '/console', '/payments', '/messages', '/add-ons', '/leads', '/imports']) expect(html).toContain(`href="${href}"`);
+    const css = readFileSync(new URL('../globals.css', import.meta.url), 'utf8');
+    expect(css).toMatch(/@media\s*\([^)]*max-width\s*:\s*40rem[^)]*[\s\S]*details|details[\s\S]*@media\s*\([^)]*max-width\s*:\s*40rem/);
+    expect(css).toMatch(/overflow-x\s*:\s*(?:hidden|clip)/);
+  });
 });

@@ -19,7 +19,7 @@ const richFixture: OwnerMetrics = {
   cards: {
     visitsToday: '7', liveMembers: '42', pausedMembers: '3', openCases: '5', followUpsDue: '2', recovered: '4',
     cash: [{ currency: 'INR', collectedPaise: '125000', returnedPaise: '5000', netPaise: '120000' }, { currency: 'USD', collectedPaise: '900', returnedPaise: '0', netPaise: '900' }],
-    renewal: [{ currency: 'INR', duePaise: '250000', receipts: [] } as never], leads: { converted: '2', total: '8' },
+    renewal: [{ currency: 'INR', duePaise: '3080000', receipts: [] } as never], leads: { converted: '2', total: '8' },
     addonCash: [], pt: { sessionsUsed: '2', sessionsTotal: '5', orders: '1' },
   },
   components: {
@@ -73,20 +73,30 @@ describe('Phase 7 owner overview surface', () => {
     expect(html).toContain('href="/members/member-1"');
     expect(html).toContain('href="/memberships/member-3"');
     expect(html).toMatch(/INR[^<]*(?:USD[^<]*)?|USD[^<]*(?:INR[^<]*)?/);
+    expect(html).toMatch(/method="get"/);
+    expect(html).toMatch(/name="from"[^>]*value="2026-09-01"/);
+    expect(html).toMatch(/name="through"[^>]*value="2026-09-18"/);
+    expect(html).toMatch(/₹30,800/);
+    expect(html).toMatch(/INR[^<]*₹30,800|₹30,800[^<]*INR/);
+    expect(html).toMatch(/dashboard-case-list|dashboard-case-row/);
   });
 
   it('keeps selected detail in the same response and exposes accessible state', async () => {
     const { MetricsDashboard } = await import('../(console)/dashboard/metrics-dashboard');
     const rendered = (MetricsDashboard as unknown as (props: Record<string, unknown>) => ReactNode)({ metrics: richFixture });
-    const visit = elements(rendered).find((props) => typeof props.onClick === 'function' && /visits today/i.test(inspect(props.children as ReactNode)));
-    expect(visit).toBeDefined();
-    (visit!.onClick as () => void)();
+    const cases = elements(rendered).find((props) => typeof props.onClick === 'function' && /open follow-ups/i.test(inspect(props.children as ReactNode)));
+    expect(cases).toBeDefined();
+    (cases!.onClick as () => void)();
     state.cursor = 0;
     const html = renderToStaticMarkup(<MetricsDashboard metrics={richFixture} />);
     expect(html).toMatch(/aria-label="(?:Metric cards|Primary metrics)/i);
     expect(html).toMatch(/aria-live="polite"/);
     expect(html).toMatch(/aria-pressed|aria-selected/);
     expect(html).toContain('Rows are from the same snapshot response');
+    expect(html).toContain('Asha Rao');
+    expect(html).toMatch(/needs follow.?up/i);
+    expect(html).toMatch(/19 (?:September|Sep) 2026/i);
+    expect(html).not.toMatch(/case-1|member-1|2026-09-19T09:00:00|needs_follow_up|>true<|>false</i);
   });
 
   it('states empty and error outcomes without fabricating zero-money or evidence', async () => {
