@@ -79,6 +79,10 @@ Measured again after the completed check-in surface: **77% used**. These complet
 slices are green and archived; the 79% absolute ceiling remains in force for any
 next bounded Phase 7 slice.
 
+Measured after the completed follow-up surface and its green cloud workflows:
+**78% used**. Do not begin a slice that cannot reasonably close before the 79%
+hard stop; preserve the last green commit if the ceiling is reached.
+
 Sol orchestrates/reviews; Terra owns bounded architecture/security/native work;
 Luna is the default small-scope implementer. Maximum two simultaneous workers,
 except independent visible/holdout authors. No Astra without explicit owner

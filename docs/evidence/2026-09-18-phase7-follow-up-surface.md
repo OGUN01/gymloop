@@ -38,6 +38,8 @@
 
 - [x] Replacement fresh Sol critic returned GO after independently measuring
   the two cited regressions and intermediate-width overflow.
+- [x] Final push `5305840` passed CI `35320914141`, Holdout `35320914112` and
+  Test immutability `35320914160`.
 - [x] Canonical design-system spec, roadmap and campaign state were synchronized.
 - [x] Change archived at
   `openspec/changes/archive/2026-09-18-phase7-follow-up-surface/`.

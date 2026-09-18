@@ -37,6 +37,8 @@
 ## Review and archive
 
 - [x] Fresh Sol re-critic returned GO against the approved member/owner v2 boards.
+- [x] Final push `88eb4d4` passed CI `35318346655`, Holdout `35318346827` and
+  Test immutability `35318346773`.
 - [x] ADR-128 and the canonical design-system spec record that the boards are the
   per-route conformance bar, not palette inspiration.
 - [x] Change archived at
