@@ -1,24 +1,34 @@
 import { readFileSync } from 'node:fs';
-import { createElement } from 'react';
+import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+type OwnerAudience = {
+  identity:
+    | { kind: 'staff'; role: 'gym_owner' | 'trainer'; userId: string; tenantId: string; staffId: string }
+    | { kind: 'impersonation'; userId: string; tenantId: string; impersonationSessionId: string };
+  supabase: unknown;
+};
+
 const identity = vi.hoisted(() => ({
-  audience: { identity: { kind: 'staff', role: 'gym_owner', userId: 'owner-1', tenantId: 'org-1', staffId: 'staff-1' }, supabase: {} as unknown },
+  audience: null as OwnerAudience | null,
 }));
 
 const supabase = vi.hoisted(() => ({
-  from: vi.fn((table: string) => ({
-    select: vi.fn(() => ({
-      eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => table === 'organizations'
+  from: vi.fn((table: string) => {
+    const builder = {
+      select: vi.fn(() => builder),
+      eq: vi.fn(() => builder),
+      maybeSingle: vi.fn(async () => table === 'organizations'
         ? { data: { name: 'Iron Box Fitness', gym_code: 'IRNBX1', timezone: 'Asia/Kolkata' }, error: null }
-        : { data: { expires_at: '2099-01-01T00:00:00Z' }, error: null }) }))
-    }))
-  })),
+        : { data: { expires_at: '2099-01-01T00:00:00Z' }, error: null }),
+    };
+    return builder;
+  }),
 }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => '/console/check-in', redirect: vi.fn(() => { throw new Error('unexpected redirect'); }) }));
-vi.mock('../../lib/identity-session', () => ({ requireAudience: vi.fn(async () => identity.audience) }));
+vi.mock('../../lib/identity-session', () => ({ requireAudience: vi.fn(async () => identity.audience!) }));
 
 beforeEach(() => {
   identity.audience = { identity: { kind: 'staff', role: 'gym_owner', userId: 'owner-1', tenantId: 'org-1', staffId: 'staff-1' }, supabase };
@@ -34,7 +44,7 @@ const navItems = [
 describe('Phase 7 owner shell', () => {
   it('adds a truthful owner frame while preserving generic AccountFrame semantics', async () => {
     const { AccountFrame } = await import('../account-frame');
-    const withOwnerShell = renderToStaticMarkup(AccountFrame({
+    const withOwnerShell = renderToStaticMarkup((AccountFrame as unknown as (props: Record<string, unknown>) => ReactNode)({
       home: '/dashboard', label: 'Gym owner', children: 'Owner content',
       navigation: createElement('nav', { className: 'owner-sidebar' }, 'Owner nav'),
       context: { primary: 'Iron Box Fitness', secondary: 'Gym code · IRNBX1' },
@@ -50,6 +60,7 @@ describe('Phase 7 owner shell', () => {
   });
 
   it('marks only the exact longest matching console route current', async () => {
+    // @ts-expect-error ConsoleNavigation is the frozen next-slice module under test.
     const { ConsoleNavigation } = await import('../console-navigation');
     const html = renderToStaticMarkup(createElement(ConsoleNavigation, { items: navItems }));
     expect(html).toContain('href="/console"');
