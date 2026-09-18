@@ -1,6 +1,6 @@
 import { checkInRequestSchema } from '@gymloop/shared';
 import { apiFail, apiOk, PG_INSUFFICIENT_PRIVILEGE, PG_UNIQUE_VIOLATION, type ApiFailStatus } from '../../../lib/api';
-import { readRequestIdentity } from '../../../lib/identity-session';
+import { readIdentity, readRequestIdentity } from '../../../lib/identity-session';
 import { hashGateCode } from '../../../lib/gate-code';
 
 const REFUSALS: Record<string, { status: ApiFailStatus; message: string }> = {
@@ -10,8 +10,13 @@ const RECORDED_COLUMNS = 'id, checked_in_at, source';
 
 /** POST /api/check-in — staff assistance and verified member QR replay. */
 export async function POST(request: Request): Promise<Response> {
-  const caller = await readRequestIdentity(request);
-  if (caller === null) return apiFail('unauthorized', 'not_signed_in', 'Sign in with one valid user session first.');
+  let caller: Awaited<ReturnType<typeof readIdentity>> | Awaited<ReturnType<typeof readRequestIdentity>>;
+  if (request.headers.get('authorization') !== null) caller = await readRequestIdentity(request);
+  else {
+    try { caller = await readIdentity(); }
+    catch { caller = null; }
+  }
+  if (caller === null || caller.identity.kind === 'unlinked') return apiFail('unauthorized', 'not_signed_in', 'Sign in with one valid user session first.');
   if (caller.identity.kind !== 'staff' && caller.identity.kind !== 'member') return apiFail('forbidden', 'not_permitted', 'This account cannot record attendance.');
   const { supabase, identity } = caller;
   let payload: unknown;
@@ -20,7 +25,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!parsed.success) return apiFail('bad_request', 'invalid_request', 'That check-in was not readable.');
   const { token, reason, clientEventId, offlineRecordedAt } = parsed.data;
   const memberId = identity.kind === 'member' ? identity.memberId : parsed.data.memberId;
-  if (memberId === undefined) return apiFail('bad_request', 'member_required', 'Choose a member before recording an assisted check-in.');
+  if (memberId === undefined) return apiFail('bad_request', 'invalid_request', 'Choose a member before recording an assisted check-in.');
   if (identity.kind === 'member' && (token === undefined || reason !== undefined)) return apiFail('bad_request', 'member_gate_required', 'Member check-in requires a scanned gate code.');
   if (identity.kind === 'staff' && offlineRecordedAt !== undefined) return apiFail('bad_request', 'invalid_request', 'Only member device replay may carry an offline capture time.');
   const { data: member } = await supabase.from('members').select('id, full_name, branch_id').eq('id', memberId).maybeSingle();

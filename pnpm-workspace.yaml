@@ -10,3 +10,4 @@ minimumReleaseAgeExclude:
   - '@expo/cli@57.0.26'
   - expo-asset@57.0.18
   - expo@57.0.24
+  - expo-updates@57.0.23

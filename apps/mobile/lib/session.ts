@@ -1,10 +1,10 @@
 import * as SecureStore from 'expo-secure-store';
-import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@gymloop/db';
 import { clearOfflineCheckIns } from './offline-check-in';
 
 const SESSION_KEY = 'gymloop.session';
-export type MobileConfig = { supabaseUrl: string; supabaseAnonKey: string; apiBaseUrl: string };
+type MobileConfig = { supabaseUrl: string; supabaseAnonKey: string; apiBaseUrl: string };
 
 /** Native Auth client: only public credentials and encrypted device persistence. */
 export function createMobileSupabase(config: Pick<MobileConfig, 'supabaseUrl' | 'supabaseAnonKey'>) {
@@ -20,4 +20,3 @@ export async function signOutMobile(supabase: SupabaseClient<Database>): Promise
   await clearOfflineCheckIns();
   await supabase.auth.signOut();
 }
-export type MobileSession = Session;

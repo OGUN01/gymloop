@@ -16,13 +16,13 @@ export function Eyebrow({ children }: { children: ReactNode }) {
 }
 
 export function Title({ children }: { children: ReactNode }) {
-  const { palette, language } = useMobile();
-  return <Text accessibilityRole="header" style={[styles.title, { color: palette.primaryText, fontFamily: language === 'hi' ? 'NotoSansDevanagari_600SemiBold' : 'Inter_600SemiBold' }]}>{children}</Text>;
+  const { palette } = useMobile();
+  return <Text accessibilityRole="header" style={[styles.title, { color: palette.primaryText, fontFamily: 'Inter_600SemiBold' }]}>{children}</Text>;
 }
 
 export function Body({ children, muted = false }: { children: ReactNode; muted?: boolean }) {
-  const { palette, language } = useMobile();
-  return <Text style={[styles.body, { color: muted ? palette.secondaryText : palette.primaryText, fontFamily: language === 'hi' ? 'NotoSansDevanagari_400Regular' : 'Inter_400Regular' }]}>{children}</Text>;
+  const { palette } = useMobile();
+  return <Text style={[styles.body, { color: muted ? palette.secondaryText : palette.primaryText, fontFamily: 'Inter_400Regular' }]}>{children}</Text>;
 }
 
 export function Surface({ children }: { children: ReactNode }) {
@@ -31,18 +31,18 @@ export function Surface({ children }: { children: ReactNode }) {
 }
 
 export function ActionButton({ children, secondary = false, disabled, ...props }: PressableProps & { children: ReactNode; secondary?: boolean }) {
-  const { palette, language } = useMobile();
+  const { palette } = useMobile();
   return <Pressable accessibilityRole="button" disabled={disabled} {...props} style={({ pressed }) => [
     styles.action,
     { backgroundColor: secondary ? palette.surface : palette.primaryAction, borderColor: secondary ? palette.requiredControlOutline : palette.primaryAction },
     pressed && styles.pressed,
     disabled && styles.disabled,
-  ]}><Text style={[styles.actionText, { color: secondary ? palette.primaryText : palette.textOnPrimary, fontFamily: language === 'hi' ? 'NotoSansDevanagari_600SemiBold' : 'Inter_600SemiBold' }]}>{children}</Text></Pressable>;
+  ]}><Text style={[styles.actionText, { color: secondary ? palette.primaryText : palette.textOnPrimary, fontFamily: 'Inter_600SemiBold' }]}>{children}</Text></Pressable>;
 }
 
 export function Field(props: TextInputProps) {
-  const { palette, language } = useMobile();
-  return <TextInput placeholderTextColor={palette.secondaryText} {...props} style={[styles.field, { backgroundColor: palette.surface, borderColor: palette.requiredControlOutline, color: palette.primaryText, fontFamily: language === 'hi' ? 'NotoSansDevanagari_400Regular' : 'Inter_400Regular' }, props.style]} />;
+  const { palette } = useMobile();
+  return <TextInput placeholderTextColor={palette.secondaryText} {...props} style={[styles.field, { backgroundColor: palette.surface, borderColor: palette.requiredControlOutline, color: palette.primaryText, fontFamily: 'Inter_400Regular' }, props.style]} />;
 }
 
 export function StateMessage({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'error' | 'warning' }) {

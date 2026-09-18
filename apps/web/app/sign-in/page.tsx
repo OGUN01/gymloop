@@ -25,7 +25,6 @@ export default async function SignInPage({
         <span className="brand-mark" aria-hidden="true">G</span>
         <h1>{PRODUCT_NAME}</h1>
         <p>Sign in to your account.</p>
-        <p className="sign-in-hindi-sample" lang="hi">आपका स्वागत है।</p>
       </div>
 
       <div className="sign-in-theme"><ThemeControl /></div>

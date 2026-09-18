@@ -108,7 +108,9 @@ export async function staffSession(
   options?: StaffSessionOptions,
   request?: Request,
 ): Promise<{ session: StaffSession } | { failure: Response }> {
-  const caller = request === undefined ? await readIdentity() : await readRequestIdentity(request);
+  const caller = request !== undefined && request.headers.get('authorization') !== null
+    ? await readRequestIdentity(request)
+    : await readIdentity();
   if (caller === null) return { failure: apiFail('unauthorized', 'not_signed_in', 'Sign in as staff of a gym first.') };
   const { supabase, identity } = caller;
   if (identity.kind !== 'staff') {
@@ -135,7 +137,9 @@ export type PlatformSession = {
 
 /** A member can access only the identity carried by the verified member claim. */
 export async function memberSession(request?: Request): Promise<{ session: MemberSession } | { failure: Response }> {
-  const caller = request === undefined ? await readIdentity() : await readRequestIdentity(request);
+  const caller = request !== undefined && request.headers.get('authorization') !== null
+    ? await readRequestIdentity(request)
+    : await readIdentity();
   if (caller === null) return { failure: apiFail('unauthorized', 'not_signed_in', 'Sign in as a member first.') };
   const { supabase, identity } = caller;
   if (identity.kind !== 'member') {

@@ -3,6 +3,7 @@
     "name": "Gymloop",
     "slug": "gymloop",
     "scheme": "gymloop",
+    "platforms": ["ios", "android"],
     "plugins": [
       "expo-router",
       "expo-secure-store",
@@ -13,7 +14,7 @@
         }
       ],
       "expo-font",
-      "expo-localization"
+      "expo-splash-screen"
     ],
     "ios": {
       "bundleIdentifier": "in.gymloop.mobile"
