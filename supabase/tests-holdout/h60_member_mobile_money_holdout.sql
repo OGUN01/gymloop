@@ -22,7 +22,7 @@ insert into public.organizations (id, name, gym_code, status)
 values (
   '60000000-0000-0000-0000-000000000010',
   'Mobile money holdout gym',
-  'MONEY60',
+  'MONY60',
   'active'
 );
 
