@@ -14,7 +14,8 @@ context: |
   ap-south-1 (Mumbai) - project ref pecxrpskmfeuyzngvewq. Single database,
   Row-Level Security, tenant_id from a JWT claim (never a per-row subquery).
   Cloudflare R2 for storage. Razorpay per-gym for payments. pg_cron + pgmq
-  for jobs. English + Hindi.
+  for jobs. Product UI is English-only; message-template locale metadata remains
+  a separate delivery-domain contract.
 
   API architecture: mutations go through Next.js Route Handlers (zod-validated,
   typed error envelope); reads go direct through supabase-js + RLS; Supabase

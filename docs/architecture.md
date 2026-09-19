@@ -96,14 +96,16 @@ For **backend** phases the bar is measurable rather than visual: zero visible-vs
 ## 2026 design direction (Phase 7; owner override 2026-09-18)
 
 Calm, Apple-inspired minimalism with equally finished light and dark appearances;
-porcelain/ink surfaces, restrained emerald/mint actions, Inter and Noto Sans
-Devanagari, clear gym identity/code, generous but practical spacing and considered
+porcelain/ink surfaces, restrained emerald/mint actions, locally bundled Inter,
+clear gym identity/code, generous but practical spacing and considered
 corners. Member AND gym-owner experiences receive the highest visual quality.
 Platform super-admin uses the common system with lower bespoke-polish priority.
 Use opaque content with optional subtle navigation translucency, thumb-friendly
 labelled controls, reduced-motion/transparency fallbacks and restrained haptics.
 Owner lists foreground the next useful action; exact money and metrics beat
-decorative charts. English/Hindi, accessible contrast and scaling are required.
+decorative charts. Product UI is English-only; accessible contrast and scaling
+are required. Stored message-template locale metadata is not an application
+language mode.
 This supersedes dark-first/Iron Pulse styling, not domain or security contracts.
 
 Exact tokens, fonts, selected libraries and acceptance are in
