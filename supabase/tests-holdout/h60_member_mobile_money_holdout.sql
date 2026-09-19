@@ -34,6 +34,15 @@ values (
   true
 );
 
+insert into public.staff (id, tenant_id, branch_id, role, full_name)
+values (
+  '60000000-0000-0000-0000-000000000022',
+  '60000000-0000-0000-0000-000000000010',
+  '60000000-0000-0000-0000-000000000011',
+  'front_desk',
+  'Mobile money front desk'
+);
+
 insert into public.members (id, tenant_id, branch_id, user_id, full_name, phone)
 values
   (
@@ -88,7 +97,7 @@ insert into public.addon_products (
 
 insert into public.payments (
   id, tenant_id, member_id, amount_paise, currency, status, method,
-  receipt_number, paid_at
+  receipt_number, recorded_by_staff_id, paid_at
 ) values
   (
     '60000000-0000-0000-0000-000000000018',
@@ -99,6 +108,7 @@ insert into public.payments (
     'paid',
     'cash',
     'MOBILE-MONEY-OWN-RECEIPT',
+    '60000000-0000-0000-0000-000000000022',
     now()
   ),
   (
@@ -110,6 +120,7 @@ insert into public.payments (
     'paid',
     'cash',
     'MOBILE-MONEY-FOREIGN-RECEIPT',
+    '60000000-0000-0000-0000-000000000022',
     now()
   );
 
