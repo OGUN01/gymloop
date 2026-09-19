@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
   eyebrow: { fontFamily: 'Inter_500Medium', fontSize: UI_TOKENS.typography.secondary.size, lineHeight: UI_TOKENS.typography.secondary.lineHeight },
   title: { fontSize: UI_TOKENS.typography.pageTitle.size, lineHeight: UI_TOKENS.typography.pageTitle.lineHeight },
   body: { fontSize: UI_TOKENS.typography.mobileBody.size, lineHeight: UI_TOKENS.typography.mobileBody.lineHeight },
-  surface: { borderWidth: StyleSheet.hairlineWidth, borderRadius: UI_TOKENS.geometry.radii.section, borderCurve: 'continuous', padding: space[4], gap: space[2] },
+  surface: { borderWidth: StyleSheet.hairlineWidth, borderRadius: UI_TOKENS.geometry.radii.section, borderCurve: 'continuous', padding: space[3], gap: space[2] },
   action: { minHeight: UI_TOKENS.geometry.targets.touch, borderRadius: UI_TOKENS.geometry.radii.control, borderCurve: 'continuous', borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: space[4], alignItems: 'center', justifyContent: 'center' },
   actionText: { fontSize: UI_TOKENS.typography.mobileBody.size, lineHeight: UI_TOKENS.typography.mobileBody.lineHeight },
   field: { minHeight: UI_TOKENS.geometry.targets.touch, borderWidth: StyleSheet.hairlineWidth, borderRadius: UI_TOKENS.geometry.radii.control, borderCurve: 'continuous', paddingHorizontal: space[3], fontSize: UI_TOKENS.typography.mobileBody.size },

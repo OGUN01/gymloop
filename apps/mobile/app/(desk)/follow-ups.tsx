@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Linking } from 'react-native';
+import { UI_TOKENS } from '@gymloop/shared';
+import { Linking, StyleSheet, View } from 'react-native';
 import { ActionButton, Body, Eyebrow, LoadingState, Screen, StateMessage, Surface, Title } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
 import { loadDeskFollowUps, type DeskFollowUp } from '../../lib/mobile-data';
@@ -7,7 +8,7 @@ import { loadDeskFollowUps, type DeskFollowUp } from '../../lib/mobile-data';
 type Feedback = { text: string; tone: 'neutral' | 'error' };
 
 export default function FollowUpsScreen() {
-  const { identity, supabase } = useMobile();
+  const { identity, palette, supabase } = useMobile();
   const [rows, setRows] = useState<DeskFollowUp[]>([]);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -47,6 +48,12 @@ export default function FollowUpsScreen() {
     {loadState === 'loading' ? <LoadingState /> : null}
     {loadState === 'error' ? <Surface><StateMessage tone="error">Follow-ups could not be loaded.</StateMessage><ActionButton secondary onPress={() => void reload()}>Try again</ActionButton></Surface> : null}
     {loadState === 'ready' && rows.length === 0 ? <StateMessage>No open follow-ups.</StateMessage> : null}
-    {loadState === 'ready' ? rows.map((row) => <Surface key={row.id}><Body>{row.memberName}</Body><Body muted>{row.daysAbsent} days absent · {row.memberPhone}</Body><ActionButton disabled={pendingId !== null} secondary onPress={() => void Linking.openURL(`tel:${row.memberPhone}`)}>Call member</ActionButton><ActionButton disabled={pendingId !== null} onPress={() => void log(row)}>{pendingId === row.id ? 'Recording…' : 'Log no answer'}</ActionButton></Surface>) : null}
+    {loadState === 'ready' ? rows.map((row) => <View key={row.id} style={[styles.followUpRow, { borderColor: palette.decorativeSeparator }]}><Body>{row.memberName}</Body><Body muted>{row.daysAbsent} days away · {row.memberPhone}</Body><View style={styles.actions}><View style={styles.actionSlot}><ActionButton disabled={pendingId !== null} secondary onPress={() => void Linking.openURL(`tel:${row.memberPhone}`)}>Call member</ActionButton></View><View style={styles.actionSlot}><ActionButton disabled={pendingId !== null} onPress={() => void log(row)}>{pendingId === row.id ? 'Recording…' : 'Log no answer'}</ActionButton></View></View></View>) : null}
   </Screen>;
 }
+
+const styles = StyleSheet.create({
+  followUpRow: { borderBottomWidth: StyleSheet.hairlineWidth, gap: UI_TOKENS.geometry.spacing[1], paddingVertical: UI_TOKENS.geometry.spacing[2] },
+  actions: { flexDirection: 'row', gap: UI_TOKENS.geometry.spacing[1] },
+  actionSlot: { flex: 1 },
+});

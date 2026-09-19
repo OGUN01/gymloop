@@ -91,5 +91,8 @@ iOS build.
 - [x] Bearer/RLS/replay/API-client foundation green.
 - [x] Native member and desk routes green.
 - [x] Android ARM64 development/debug build and security evidence complete.
+- [x] Physical Android member/desk authentication, all eight tabs, Light/Dark and sign-out transitions complete.
+- [x] Fresh Sol visual critic GO and synchronized English-only design/evidence.
 - [ ] iOS and real-device airplane/reconnect/accessibility evidence complete.
-- [ ] Fresh visual critic GO; spec/evidence synchronized and archived.
+- [ ] Owner-approved second-association linking decision complete.
+- [ ] Mobile foundation archived after every remaining acceptance boundary is proved.

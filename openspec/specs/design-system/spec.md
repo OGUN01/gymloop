@@ -2,7 +2,7 @@
 
 Provide one platform-neutral visual language for Gymloop's member, owner and
 front-desk experiences, with complete accessible light/dark appearances,
-licensed English/Hindi typography and immediate local interaction feedback.
+licensed English typography and immediate local interaction feedback.
 
 ## Requirements
 
@@ -16,14 +16,13 @@ follow the operating-system preference without a hydration mismatch.
 - **THEN** the root appearance and selected control restore that choice
 - **AND** only System follows a subsequent operating-system appearance change
 
-### Requirement: English, Hindi and enlarged text remain usable
-UX7-004 SHALL use locally bundled licensed Latin and Devanagari faces and
-preserve meaning, hierarchy and operable actions when text is Hindi, narrow or
-enlarged to 200 percent.
+### Requirement: English and enlarged text remain usable
+UX7-004 SHALL use a locally bundled licensed Latin face and preserve meaning,
+hierarchy and operable actions when text is narrow or enlarged to 200 percent.
 
-#### Scenario: Mixed-script content reflows
-- **WHEN** a surface renders English and Hindi content at an enlarged scale
-- **THEN** both scripts retain their intended glyphs and hierarchy
+#### Scenario: Enlarged English content reflows
+- **WHEN** a surface renders English content at an enlarged scale
+- **THEN** its intended glyphs and hierarchy remain clear
 - **AND** shell actions reflow without clipping or losing an action
 
 ### Requirement: Reduced effects preserve the complete interface

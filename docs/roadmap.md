@@ -215,4 +215,19 @@ Evidence: `docs/evidence/2026-09-18-phase7-web-mobile-foundation.md`; archive:
 active only for its native iOS/real-device acceptance boundary and the
 owner-approved second-association decision described in the evidence.
 
+**Phase 7 Android device acceptance advanced 2026-09-20:** the ARM64 app is
+installed on a physical Android 13 device; real member and front-desk sessions,
+all eight native tabs, Light/Dark and sign-out role isolation passed. The device
+journey exposed and closed a stale member-money RPC column (`337b51d`,
+`33d82f4`) under independent visible/holdout tests and fresh money/security GO,
+then exposed a nested sign-out redirect loop fixed directly at both role
+layouts. Cloud DB workflow `35462598284` applied the repair and the still-signed-
+in member loaded the complete live snapshot. Evidence:
+`docs/evidence/2026-09-20-phase7-android-device.md`. Phase 7 remains active for
+real QR airplane/reconnect evidence, manual accessibility settings evidence,
+iOS, and the already-recorded second-association decision; none is claimed from
+an emulator or synthetic scan. A fresh Sol comparison returned visual GO on the
+final original-resolution Android member and front-desk renders, including the
+English-only light/dark system, compact operational rows and persistent tabs.
+
 Each phase opens its own OpenSpec change (`openspec/changes/000N-<phase-name>/`) and follows the Gauntlet Loop (`AGENTS.md`) — bar, spec, tests-first, build, fresh-context critic, gates, archive. Phase 0's own change is the worked template — proposal, design, tasks, and the evidence trail of what was proven and what went wrong on the way: `openspec/changes/archive/2026-09-06-phase-0-foundation/`.

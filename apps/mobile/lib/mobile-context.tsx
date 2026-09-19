@@ -5,7 +5,7 @@ import type { Session, SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@gymloop/db';
 import * as SecureStore from 'expo-secure-store';
 import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { StatusBar, useColorScheme } from 'react-native';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { clearOfflineCheckIns } from './offline-check-in';
 import { createMobileSupabase, signOutMobile } from './session';
@@ -102,7 +102,13 @@ export function MobileProvider({ children }: { children: ReactNode }) {
     session, supabase, setAppearance, signOut,
   }), [appearance, identity, palette, ready, session, setAppearance, signOut]);
   if (!ready) return null;
-  return <MobileContext.Provider value={value}>{children}</MobileContext.Provider>;
+  return <MobileContext.Provider value={value}>
+    <StatusBar
+      backgroundColor={palette.canvas}
+      barStyle={resolvedAppearance === 'dark' ? 'light-content' : 'dark-content'}
+    />
+    {children}
+  </MobileContext.Provider>;
 }
 
 export function useMobile(): MobileContextValue {
