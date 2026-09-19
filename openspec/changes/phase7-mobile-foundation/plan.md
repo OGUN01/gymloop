@@ -93,6 +93,7 @@ iOS build.
 - [x] Android ARM64 development/debug build and security evidence complete.
 - [x] Physical Android member/desk authentication, all eight tabs, Light/Dark and sign-out transitions complete.
 - [x] Fresh Sol visual critic GO and synchronized English-only design/evidence.
-- [ ] iOS and real-device airplane/reconnect/accessibility evidence complete.
+- [x] Physical Android device-max text and Remove animations evidence complete, with settings restored.
+- [ ] iOS and real-device airplane/reconnect evidence complete.
 - [ ] Owner-approved second-association linking decision complete.
 - [ ] Mobile foundation archived after every remaining acceptance boundary is proved.

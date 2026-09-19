@@ -223,10 +223,11 @@ journey exposed and closed a stale member-money RPC column (`337b51d`,
 then exposed a nested sign-out redirect loop fixed directly at both role
 layouts. Cloud DB workflow `35462598284` applied the repair and the still-signed-
 in member loaded the complete live snapshot. Evidence:
-`docs/evidence/2026-09-20-phase7-android-device.md`. Phase 7 remains active for
-real QR airplane/reconnect evidence, manual accessibility settings evidence,
-iOS, and the already-recorded second-association decision; none is claimed from
-an emulator or synthetic scan. A fresh Sol comparison returned visual GO on the
+`docs/evidence/2026-09-20-phase7-android-device.md`. Physical device-max text
+and Android Remove animations now preserve the authenticated member shell and
+all actions, with device settings restored after capture. Phase 7 remains active
+for real QR airplane/reconnect evidence, iOS, and the already-recorded
+second-association decision; none is claimed from an emulator or synthetic scan. A fresh Sol comparison returned visual GO on the
 final original-resolution Android member and front-desk renders, including the
 English-only light/dark system, compact operational rows and persistent tabs.
 
