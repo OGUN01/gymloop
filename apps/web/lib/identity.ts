@@ -7,6 +7,7 @@ export type { GymloopIdentity, PlatformRole, StaffRole } from '@gymloop/shared';
 export function identityHome(identity: GymloopIdentity) {
   switch (identity.kind) {
     case 'staff':
+      if (identity.role === 'gym_owner' || identity.role === 'gym_manager') return '/dashboard';
       return identity.role === 'front_desk' ? '/console/check-in' : '/console';
     case 'impersonation': return '/console';
     case 'member': return '/member';
