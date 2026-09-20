@@ -14,6 +14,7 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('@gymloop/shared', () => ({
   serverEnv: () => ({ WEB_APP_URL: 'https://app.gymloop.example' }),
+  webAppEnv: () => ({ WEB_APP_URL: 'https://app.gymloop.example' }),
 }));
 vi.mock('../../lib/supabase/server', () => ({
   createServerSupabase: vi.fn(async () => ({

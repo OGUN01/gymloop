@@ -67,6 +67,32 @@ describe('env.ts', () => {
     expect(() => reloaded.serverEnv()).toThrow();
   });
 
+  it('webAppEnv() returns the local origin by default without unrelated server secrets', async () => {
+    vi.unstubAllEnvs();
+    const { webAppEnv } = await import('../env');
+    expect(webAppEnv()).toEqual({ WEB_APP_URL: 'http://127.0.0.1:3000' });
+  });
+
+  it('webAppEnv() returns only the configured origin', async () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv('WEB_APP_URL', 'https://app.gymloop.example');
+    const { webAppEnv } = await import('../env');
+    expect(webAppEnv()).toEqual({ WEB_APP_URL: 'https://app.gymloop.example' });
+  });
+
+  it.each([
+    'not a url',
+    'ftp://app.gymloop.example',
+    'https://app.gymloop.example/path',
+    'https://app.gymloop.example?next=/dashboard',
+    'https://app.gymloop.example#fragment',
+  ])('webAppEnv() rejects a non-origin WEB_APP_URL: %s', async (value) => {
+    vi.unstubAllEnvs();
+    vi.stubEnv('WEB_APP_URL', value);
+    const { webAppEnv } = await import('../env');
+    expect(() => webAppEnv()).toThrow();
+  });
+
   it('playwrightEnv() validates lazily and requires the demo account password', async () => {
     stubValidEnv();
     const { playwrightEnv } = await import('../env');
