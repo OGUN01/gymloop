@@ -50,6 +50,8 @@ describe('HARD-004 isolated load safety', () => {
     expect(assertSafeLoadTarget(NON_PRODUCTION_TARGET)).toMatchObject({
       projectRef: NON_PRODUCTION_TARGET.projectRef,
       nonProduction: true,
+      apiUrl: NON_PRODUCTION_TARGET.apiUrl,
+      supabaseUrl: NON_PRODUCTION_TARGET.supabaseUrl,
     });
     expect(() =>
       assertSafeLoadTarget({
@@ -65,6 +67,10 @@ describe('HARD-004 isolated load safety', () => {
     expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, observedSupabaseProjectRef: 'other-project' })).toThrow();
     expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, supabaseUrl: 'http://phase8-load-sandbox.supabase.co' })).toThrow(/https/i);
     expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, supabaseUrl: 'https://other-project.supabase.co' })).toThrow();
+    expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, apiUrl: 'https://user:pass@phase8-load-sandbox.example.test' })).toThrow(/origin|credential/i);
+    expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, apiUrl: 'https://phase8-load-sandbox.example.test/api' })).toThrow(/origin|path/i);
+    expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, supabaseUrl: 'https://phase8-load-sandbox.supabase.co?query=1' })).toThrow(/origin|query/i);
+    expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, supabaseUrl: 'https://phase8-load-sandbox.supabase.co#fragment' })).toThrow(/origin|fragment/i);
   });
 
   it('encodes exactly 100 gyms, 500 members per gym, and the morning check-in spike', () => {
