@@ -226,8 +226,14 @@ in member loaded the complete live snapshot. Evidence:
 `docs/evidence/2026-09-20-phase7-android-device.md`. Physical device-max text
 and Android Remove animations now preserve the authenticated member shell and
 all actions, with device settings restored after capture. Phase 7 remains active
-for real QR airplane/reconnect evidence, iOS, and the already-recorded
-second-association decision; none is claimed from an emulator or synthetic scan. A fresh Sol comparison returned visual GO on the
+for iOS and the already-recorded second-association decision. The Android real-
+QR journey is now complete: a physical airplane-mode scan queued one event, an
+actual force-stop/restart exposed and closed the transient-JWKS identity defect,
+reconnect moved the live week from `0 / 4` to `1 / 4`, and another restart left
+it at `1 / 4`. Independent visible and blind contracts cover same-member
+recovery and different-member refusal (`edeb6f1`, `fe22b4e`, `2c2b64e`,
+`e3005bd`, `d82a415`, `8767ee1`, `d1a85cf`). No emulator or synthetic scan was
+substituted. A fresh Sol comparison returned visual GO on the
 final original-resolution Android member and front-desk renders, including the
 English-only light/dark system, compact operational rows and persistent tabs.
 
@@ -239,7 +245,7 @@ contract. It does not claim an iPhone-installable IPA or runtime journey: EAS
 physical-device signing requires a paid Apple Developer team, which the owner
 does not currently have, and the App Store Expo Go client does not support SDK
 57. Evidence: `docs/evidence/2026-09-20-phase7-ios-build.md`. Phase 7 remains
-open at that external signing boundary, real QR airplane/reconnect evidence and
-the second-association decision.
+open at that external signing boundary and the second-association decision; the
+Android real-QR airplane/reconnect boundary is complete.
 
 Each phase opens its own OpenSpec change (`openspec/changes/000N-<phase-name>/`) and follows the Gauntlet Loop (`AGENTS.md`) — bar, spec, tests-first, build, fresh-context critic, gates, archive. Phase 0's own change is the worked template — proposal, design, tasks, and the evidence trail of what was proven and what went wrong on the way: `openspec/changes/archive/2026-09-06-phase-0-foundation/`.

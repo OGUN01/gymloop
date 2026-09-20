@@ -96,6 +96,7 @@ iOS build.
 - [x] Physical Android device-max text and Remove animations evidence complete, with settings restored.
 - [x] Minimal EAS internal-distribution profile configured for a real iPhone build without a local Mac.
 - [x] Credential-free EAS iOS Simulator profile and SDK 57 cloud build complete (`22ede637-bdad-428b-b091-ceda282e7fa5`).
-- [ ] iOS and real-device airplane/reconnect evidence complete.
+- [x] Physical Android real-QR airplane capture, cold restart, reconnect replay and duplicate restart evidence complete.
+- [ ] Physical iOS runtime and airplane/reconnect evidence complete (owner postponed; paid Apple signing is unavailable).
 - [ ] Owner-approved second-association linking decision complete.
 - [ ] Mobile foundation archived after every remaining acceptance boundary is proved.

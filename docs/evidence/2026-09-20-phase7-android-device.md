@@ -18,7 +18,14 @@
 - The demo member was signed out after this accessibility journey. Font scale was restored to `1.0` and all three animation scales were restored to `1`.
 - A real front-desk session signed in as `divya@ironbox.example.com`. Check-in, Members, Follow-ups and More rendered the staff-only navigation and live tenant-scoped lists. Evidence crops are under `docs/evidence/screens/2026-09-20-phase7-android-front-desk*.png`.
 - The final desk evidence shows the check-in workflow, compact roster/follow-up rows and a direct Light/Dark pair in `front-desk-check-in-final.png`, `front-desk-members-final.png`, `front-desk-followups-final.png`, `front-desk-more-light-final.png` and `front-desk-more-dark-final.png`.
-- No attendance, lead, money or member row was created during these journeys. One short-lived gate session was issued through the real owner UI and expired by design, so there was no durable demo row to clean up.
+- The front-desk gate surface initially exposed only the short text code. A separate red contract commit (`a7cd599`) required a machine-scannable QR; `fe856af` added the SVG QR without weakening the short-code fallback.
+- With Android airplane mode enabled, Aarav scanned the real gate QR. The app stored exactly one device command and showed `1 check-in is awaiting confirmation`; evidence: `screens/2026-09-20-phase7-android-offline-queued.png`.
+- A force-stop and cold launch exposed a production defect: remote JWKS resolution failed offline and the old client fell back to sign-in even though its encrypted session and queued command still existed. Independent visible and holdout contracts landed in `edeb6f1`, `fe22b4e` and `2c2b64e`; `8767ee1` retained only the last authenticated local identity during transient failure while keeping all server capability behind bearer verification and RLS.
+- Reauthentication then exposed the remaining scope-transition edge: the queue must survive a signed-out cold start for the same member but never become replayable by another member. Independent red commits `e3005bd` and `d82a415` pinned that boundary; `d1a85cf` made the exact identity triple authoritative. Both focused visible tests and the blind holdout pass.
+- The updated APK was installed over the existing package with the same debug certificate and no data clear. The saved command survived the install/restart. On reconnect it was confirmed once, the queue disappeared and the live week moved from `0 / 4` to `1 / 4`; evidence: `screens/2026-09-20-phase7-android-replay-confirmed.png`.
+- A second connected force-stop/relaunch remained at `1 / 4` with no queued or confirmation row, proving no duplicate visit. A later airplane-mode cold launch stayed on the authenticated member Home rather than sign-in; evidence: `screens/2026-09-20-phase7-android-offline-restart.png`. Airplane mode was restored to off afterward.
+- This local evidence APK used a USB-reversed loopback development API and a generated-worktree cleartext allowance solely for the physical-device journey. Neither the loopback value nor that generated Android manifest is tracked production configuration; release API traffic remains expected to use HTTPS.
+- The journey intentionally created one attendance row for Aarav from the queued event. No lead, money or member row was created. The attendance row is the acceptance result rather than disposable test debris; the gate session expires by design.
 
 ## Visual gauntlet
 
@@ -30,7 +37,7 @@ The first member Home load failed because `public.read_member_mobile_money()` st
 
 ## Remaining acceptance boundary
 
-- A real QR plus airplane-mode capture/restart/reconnect replay still needs a person to place the phone camera in front of the generated test QR. No synthetic scan was substituted.
 - iOS development-build evidence requires a macOS/Xcode or EAS device-build environment and is not produced by this Windows host.
 - The frozen contract deliberately exposes no gym join/switch control until the owner approves a second-association linking mechanism; a public gym code alone never grants access.
 - Production signing and Play Console submission remain release work, not debug-build evidence.
+- The Android UI covers real capture, cold restart, reconnect replay and a duplicate restart. The separately tested `GL018` different-member event-key conflict and invalid offline timestamp remain backend security evidence because manufacturing either case through the product UI would require tampering with encrypted device state.
