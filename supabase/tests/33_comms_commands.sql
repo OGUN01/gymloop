@@ -551,6 +551,20 @@ select lives_ok(
 
 -- The all-gym stage visits gyms in tenant order in one statement; gym B has no
 -- eligible membership, so it contributes nothing new.
+-- Snapshot only this file's fixtures. The linked Cloud database can contain
+-- unrelated tenants, so ADR-050 forbids a closed-world count over all runs.
+set local role postgres;
+create temp table renewal_fixture_notification_counts_before as
+select tenant_id, count(*)::bigint as notification_count
+  from public.notifications
+ where tenant_id in (
+   '3c000000-0000-4000-8000-000000000001'::uuid,
+   '3c000000-0000-4000-8000-000000000002'::uuid
+ )
+ group by tenant_id;
+grant select on renewal_fixture_notification_counts_before to service_role;
+set local role service_role;
+
 select lives_ok(
   $q$insert into cmd_results select 'run-all', public.run_renewal_reminders_all()$q$,
   'COM: the trusted scheduler runs the all-gym stage');
@@ -621,11 +635,20 @@ select results_eq(
   'COM: an unchanged rerun returns zero new counts');
 
 select results_eq(
-  $$select coalesce(sum((run.value->>'createdCount')::int),0)
-      from cmd_results r, jsonb_array_elements(r.result->'runs') run(value)
-     where r.label='run-all'$$,
-  $$select 0::bigint$$,
-  'COM: the all-gym run''s {runs:[RunResult...]} reports only new events — nothing is created after the inert rerun');
+  $$select run.value->>'tenantId', run.value->>'createdCount'
+      from cmd_results r
+      cross join jsonb_array_elements(r.result->'runs') run(value)
+      join renewal_fixture_notification_counts_before b
+        on b.tenant_id=(run.value->>'tenantId')::uuid
+     where r.label='run-all'
+     order by b.tenant_id$$,
+  $$select b.tenant_id::text,
+            (count(n.id)::bigint-b.notification_count)::text
+      from renewal_fixture_notification_counts_before b
+      left join public.notifications n on n.tenant_id=b.tenant_id
+     group by b.tenant_id, b.notification_count
+     order by b.tenant_id$$,
+  'COM: each fixture-gym result in the all-gym {runs:[RunResult...]} reports exactly that call''s new notification count');
 
 select ok(
   (select not exists(select 1 from public.notifications
