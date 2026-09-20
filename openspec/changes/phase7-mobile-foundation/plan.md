@@ -95,7 +95,7 @@ iOS build.
 - [x] Fresh Sol visual critic GO and synchronized English-only design/evidence.
 - [x] Physical Android device-max text and Remove animations evidence complete, with settings restored.
 - [x] Minimal EAS internal-distribution profile configured for a real iPhone build without a local Mac.
-- [x] Credential-free EAS iOS Simulator profile configured to prove the SDK 57 iOS build independently of Apple membership.
+- [x] Credential-free EAS iOS Simulator profile and SDK 57 cloud build complete (`22ede637-bdad-428b-b091-ceda282e7fa5`).
 - [ ] iOS and real-device airplane/reconnect evidence complete.
 - [ ] Owner-approved second-association linking decision complete.
 - [ ] Mobile foundation archived after every remaining acceptance boundary is proved.

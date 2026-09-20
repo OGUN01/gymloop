@@ -231,4 +231,15 @@ second-association decision; none is claimed from an emulator or synthetic scan.
 final original-resolution Android member and front-desk renders, including the
 English-only light/dark system, compact operational rows and persistent tabs.
 
+**Phase 7 iOS build evidence advanced 2026-09-20:** EAS project
+`@harsh9887/gymloop` is linked and credential-free simulator build
+`22ede637-bdad-428b-b091-ceda282e7fa5` finished from SDK 57 commit `2f87add`.
+This proves the native iOS project compiles on macOS without weakening the SDK
+contract. It does not claim an iPhone-installable IPA or runtime journey: EAS
+physical-device signing requires a paid Apple Developer team, which the owner
+does not currently have, and the App Store Expo Go client does not support SDK
+57. Evidence: `docs/evidence/2026-09-20-phase7-ios-build.md`. Phase 7 remains
+open at that external signing boundary, real QR airplane/reconnect evidence and
+the second-association decision.
+
 Each phase opens its own OpenSpec change (`openspec/changes/000N-<phase-name>/`) and follows the Gauntlet Loop (`AGENTS.md`) — bar, spec, tests-first, build, fresh-context critic, gates, archive. Phase 0's own change is the worked template — proposal, design, tasks, and the evidence trail of what was proven and what went wrong on the way: `openspec/changes/archive/2026-09-06-phase-0-foundation/`.
