@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { usePreviewReadOnly } from '../../../preview-context';
 
 /**
@@ -9,11 +10,11 @@ import { usePreviewReadOnly } from '../../../preview-context';
  *
  * Three notes on what it deliberately is not.
  *
- * **No QR library.** `BarcodeDetector` is in Chrome and on Android and is what
- * this uses; where it is absent — Safari, an old browser, a desktop with no
- * camera — the same field takes the code typed by hand, which is why the code is
- * sixteen characters of hex and not a 43-character token. A scanner shipped as a
- * dependency would be a decoder for a format the platform already decodes.
+ * **One encoder, platform decoding.** `BarcodeDetector` handles staff-side
+ * scanning where the browser provides it. The small SVG encoder exists for the
+ * opposite direction: a member phone must be able to scan every newly issued
+ * gate code from this screen. The text remains visible as the accessible and
+ * manual fallback.
  *
  * **No client-side tenant.** Nothing here names a gym. The member list came from
  * a Server Component read that RLS filtered, and the endpoint reads the tenant
@@ -271,7 +272,17 @@ export function CheckInGate({ members }: { members: Member[] }) {
         />
 
         {issuedCode ? (
-          <p className="check-in-issued-code">{issuedCode}</p>
+          <div className="check-in-issued-gate">
+            <div className="check-in-issued-qr" aria-label="Member check-in QR code">
+              <QRCodeSVG
+                value={issuedCode}
+                level="M"
+                marginSize={1}
+                title="Scan this QR in the Gymloop member app"
+              />
+            </div>
+            <p className="check-in-issued-code">{issuedCode}</p>
+          </div>
         ) : null}
 
         {notice ? (
