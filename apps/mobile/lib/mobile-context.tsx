@@ -1,5 +1,5 @@
 import { createApiClient, type ApiClient, type ApiFetch } from '@gymloop/api-client';
-import { classifyIdentity, mobileClientEnv, type GymloopIdentity, UI_TOKENS } from '@gymloop/shared';
+import { mobileClientEnv, type GymloopIdentity, UI_TOKENS } from '@gymloop/shared';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, useFonts } from '@expo-google-fonts/inter';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@gymloop/db';
@@ -8,7 +8,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar, useColorScheme } from 'react-native';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { clearOfflineCheckIns } from './offline-check-in';
-import { createMobileSupabase, signOutMobile } from './session';
+import { createMobileSupabase, resolveNativeMobileSession, signOutMobile } from './native-session';
 
 const APPEARANCE_KEY = 'gymloop.appearance';
 export type AppearanceMode = 'system' | 'light' | 'dark';
@@ -57,21 +57,15 @@ export function MobileProvider({ children }: { children: ReactNode }) {
   });
 
   const resolve = useCallback(async (nextSession: Session | null) => {
-    let nextIdentity: GymloopIdentity = { kind: 'unlinked' };
-    try {
-      if (nextSession !== null) {
-        const verified = await supabase.auth.getClaims(nextSession.access_token);
-        if (!verified.error && verified.data?.claims.role === 'authenticated') {
-          const classified = classifyIdentity(verified.data.claims);
-          if (classified.kind !== 'unlinked' && classified.userId === nextSession.user.id) nextIdentity = classified;
-        }
-      }
-    } catch {
-      nextIdentity = { kind: 'unlinked' };
-    }
+    const startup = nextSession === null
+      ? { identity: { kind: 'unlinked' } as const, replay: 'blocked' as const }
+      : await resolveNativeMobileSession(supabase, nextSession);
+    const nextIdentity: GymloopIdentity = startup.identity;
     const nextScope = scopeKey(nextIdentity);
-    if (previousScope.current !== undefined && previousScope.current !== nextScope) await clearOfflineCheckIns();
-    previousScope.current = nextScope;
+    if (startup.replay !== 'deferred') {
+      if (previousScope.current !== undefined && previousScope.current !== nextScope) await clearOfflineCheckIns();
+      previousScope.current = nextScope;
+    }
     setSession(nextIdentity.kind === 'unlinked' ? null : nextSession);
     setIdentity(nextIdentity);
     setSessionReady(true);
