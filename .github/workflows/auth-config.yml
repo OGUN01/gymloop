@@ -1,8 +1,9 @@
 name: Apply auth configuration
 
-# Enables the custom access-token hook and sets the access-token lifetime on the
-# Cloud project. Manual only, for the same reason the seed is (ADR-034): this is
-# configuration of a live project, not part of the forward-only migration stream.
+# Enables the custom access-token hook, sets the access-token lifetime, and
+# configures the reviewed Google OAuth/redirect boundary on the Cloud project.
+# Manual only, for the same reason the seed is (ADR-034): this is configuration
+# of a live project, not part of the forward-only migration stream.
 #
 # WHY NOT `supabase config push`, which exists in CLI 2.110.0 and is the obvious
 # tool: it pushes the WHOLE of supabase/config.toml — 414 lines of Supabase's
@@ -10,9 +11,10 @@ name: Apply auth configuration
 # local SMTP block, and storage and realtime sections that have never been
 # reconciled against what this project actually has. There is no --dry-run.
 # Enabling one hook that way would silently set a production project's site URL
-# to localhost and break every email link. So this patches exactly three fields
-# and touches nothing else. supabase/config.toml carries the same three values as
-# the repo's record of the project — not as the mechanism that sets them.
+# to localhost and break every email link. So this patches only the reviewed
+# hook, expiry, site, redirect and Google-provider fields and touches nothing
+# else. supabase/config.toml carries the local equivalents as the repo's record
+# of intent — not as the mechanism that sets production.
 #
 # ORDERING: the hook must not be enabled before the migration that creates
 # app.custom_access_token_hook has been applied. A Postgres auth hook fails
@@ -45,6 +47,10 @@ env:
   # refresh executes the hook, so this is a load decision as well as a security
   # one — four refreshes per user per hour rather than one.
   JWT_EXP: 900
+  SITE_URL: https://gymloop-phi.vercel.app
+  URI_ALLOW_LIST: https://gymloop-phi.vercel.app/auth/callback,http://127.0.0.1:3000/auth/callback,gymloop://auth/callback
+  GOOGLE_CLIENT_ID: ${{ secrets.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID }}
+  GOOGLE_CLIENT_SECRET: ${{ secrets.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET }}
 
 jobs:
   apply:
@@ -78,19 +84,38 @@ jobs:
             exit 1
           }
 
-      - name: Patch the three auth settings
+      - name: Patch the reviewed auth settings
         run: |
           set -euo pipefail
+          test -n "$GOOGLE_CLIENT_ID"
+          test -n "$GOOGLE_CLIENT_SECRET"
+          case "$GOOGLE_CLIENT_ID" in
+            *.apps.googleusercontent.com) ;;
+            *) echo "::error::Google client id has an unexpected shape."; exit 1 ;;
+          esac
+          payload=$(jq -n \
+            --arg hook_uri "$HOOK_URI" \
+            --arg site_url "$SITE_URL" \
+            --arg uri_allow_list "$URI_ALLOW_LIST" \
+            --arg google_client_id "$GOOGLE_CLIENT_ID" \
+            --arg google_client_secret "$GOOGLE_CLIENT_SECRET" \
+            --argjson jwt_exp "$JWT_EXP" \
+            '{hook_custom_access_token_enabled: true,
+              hook_custom_access_token_uri: $hook_uri,
+              jwt_exp: $jwt_exp,
+              site_url: $site_url,
+              uri_allow_list: $uri_allow_list,
+              external_google_enabled: true,
+              external_google_client_id: $google_client_id,
+              external_google_secret: $google_client_secret}')
           code=$(curl -sS -o /tmp/auth.json -w '%{http_code}' \
             -X PATCH "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"hook_custom_access_token_enabled\": true,
-                 \"hook_custom_access_token_uri\": \"$HOOK_URI\",
-                 \"jwt_exp\": $JWT_EXP}")
+            -d "$payload")
           echo "HTTP $code"
           # The response echoes the whole auth config, including secrets. Print
-          # only the three fields this workflow set.
+          # only reviewed non-secret fields and boolean presence checks.
           python3 - <<'PY'
           import json
           d = json.load(open('/tmp/auth.json'))
@@ -98,8 +123,11 @@ jobs:
               print('API said:', d['message'])
           else:
               for k in ('hook_custom_access_token_enabled',
-                        'hook_custom_access_token_uri', 'jwt_exp'):
+                        'hook_custom_access_token_uri', 'jwt_exp', 'site_url',
+                        'uri_allow_list', 'external_google_enabled'):
                   print(f'{k} = {d.get(k, "<absent>")}')
+              print('external_google_client_id_present =', bool(d.get('external_google_client_id')))
+              print('external_google_secret_present =', bool(d.get('external_google_secret')))
           PY
           # A known unknown, recorded rather than assumed away: an open Supabase
           # issue reports this endpoint refusing a send_email hook with "Auth
