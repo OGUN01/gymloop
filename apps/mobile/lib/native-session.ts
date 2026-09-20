@@ -14,6 +14,19 @@ const SESSION_KEY = 'gymloop.session';
 const IDENTITY_KEY = 'gymloop.authenticated-identity';
 type MobileConfig = { supabaseUrl: string; supabaseAnonKey: string; apiBaseUrl: string };
 type LinkedIdentity = Exclude<GymloopIdentity, { kind: 'unlinked' }>;
+const MOBILE_GOOGLE_CALLBACK = 'gymloop://auth/callback';
+
+type MobileGoogleSupabase = {
+  auth: {
+    signInWithOAuth: (options: {
+      provider: 'google';
+      options: { redirectTo: string; skipBrowserRedirect: true };
+    }) => Promise<{ data: { url: string | null }; error: unknown }>;
+    exchangeCodeForSession: (code: string) => Promise<{ data: unknown; error: unknown }>;
+  };
+};
+
+type MobileGoogleBrowser = (url: string, callback: string) => Promise<{ type: string; url?: string }>;
 
 function claimsForIdentity(value: unknown): unknown {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
@@ -71,9 +84,36 @@ export function createMobileSupabase(config: Pick<MobileConfig, 'supabaseUrl' | 
   return createClient<Database>(config.supabaseUrl, config.supabaseAnonKey, {
     auth: {
       storage: { getItem: (key) => SecureStore.getItemAsync(`${SESSION_KEY}.${key}`), setItem: (key, value) => SecureStore.setItemAsync(`${SESSION_KEY}.${key}`, value), removeItem: (key) => SecureStore.deleteItemAsync(`${SESSION_KEY}.${key}`) },
-      persistSession: true, autoRefreshToken: true, detectSessionInUrl: false,
+      persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, flowType: 'pkce',
     },
   });
+}
+
+/** Opens the fixed Google callback and exchanges only its PKCE authorization code. */
+export async function signInWithGoogleMobile(input: {
+  supabase: MobileGoogleSupabase;
+  openBrowser: MobileGoogleBrowser;
+}): Promise<{ ok: true } | { ok: false }> {
+  try {
+    const { data, error } = await input.supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: MOBILE_GOOGLE_CALLBACK, skipBrowserRedirect: true },
+    });
+    if (error || data.url === null) return { ok: false };
+
+    const browserResult = await input.openBrowser(data.url, MOBILE_GOOGLE_CALLBACK);
+    if (browserResult.type !== 'success' || browserResult.url === undefined) return { ok: false };
+
+    const callback = new URL(browserResult.url);
+    if (callback.protocol !== 'gymloop:' || callback.hostname !== 'auth' || callback.pathname !== '/callback') return { ok: false };
+
+    const code = callback.searchParams.get('code');
+    if (code === null || code === '') return { ok: false };
+    const exchanged = await input.supabase.auth.exchangeCodeForSession(code);
+    return exchanged.error === null ? { ok: true } : { ok: false };
+  } catch {
+    return { ok: false };
+  }
 }
 
 /** Resolve remote claims when possible and defer, rather than erase, offline work on transient failure. */

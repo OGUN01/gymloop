@@ -26,13 +26,13 @@ export const UI_TOKENS = {
       canvas: '#F7F7F5', surface: '#FFFFFF', elevatedSurface: '#F0F2F1',
       primaryText: '#15191C', secondaryText: '#5E656B', primaryAction: '#167C65',
       textOnPrimary: '#FFFFFF', decorativeSeparator: '#DFE3E0',
-      requiredControlOutline: '#747C78', warningText: '#8B5200', errorRiskText: '#B33F3F',
+      requiredControlOutline: '#747C78', warningText: '#8B5200', errorRiskText: '#B33F3F', scrim: 'rgba(21,25,28,0.24)',
     },
     dark: {
       canvas: '#101214', surface: '#1C1F22', elevatedSurface: '#262A2D',
       primaryText: '#F3F4F4', secondaryText: '#AEB6BC', primaryAction: '#93DCC0',
       textOnPrimary: '#101214', decorativeSeparator: '#353B3E',
-      requiredControlOutline: '#7D8984', warningText: '#F3C47B', errorRiskText: '#FFABA6',
+      requiredControlOutline: '#7D8984', warningText: '#F3C47B', errorRiskText: '#FFABA6', scrim: 'rgba(0,0,0,0.48)',
     },
   },
   typography: {
@@ -46,6 +46,7 @@ export const UI_TOKENS = {
     radii: { control: 12, row: 16, section: 24, sheet: 28, floatingNavigation: 32 },
     targets: { interactive: 44, touch: 48 },
     layout: { mobileInset: 20, desktopInset: 32, contentMaxWidth: 1440 },
+    media: { authHeroAspectRatio: 1.8 },
   },
   icons: { controlSize: 16, strokeWidth: 1.8 },
   motion: {

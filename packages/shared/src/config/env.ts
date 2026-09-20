@@ -28,8 +28,15 @@ const playwrightSchema = z.object({
   PLAYWRIGHT_BASE_URL: z.url().default('http://127.0.0.1:3000'),
 });
 
+/** A deploy-owned public origin used for OAuth redirects, never request input. */
+const publicOriginSchema = z.url().refine((value) => {
+  const url = new URL(value);
+  return (url.protocol === 'http:' || url.protocol === 'https:') && url.origin === value;
+}, 'Must be an origin without a path, query, or hash');
+
 /** Server-only secrets. Never import serverEnv()/env() from client code. */
 const serverOnlySchema = z.object({
+  WEB_APP_URL: publicOriginSchema.default('http://127.0.0.1:3000'),
   SUPABASE_PROJECT_REF: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   SUPABASE_DB_PASSWORD: z.string().min(1),

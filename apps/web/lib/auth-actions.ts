@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { serverEnv } from '@gymloop/shared';
 import { createServerSupabase } from './supabase/server';
 import { readIdentity } from './identity-session';
 import { identityHome } from './identity';
@@ -38,6 +39,23 @@ export async function signIn(formData: FormData): Promise<void> {
   revalidatePath('/', 'layout');
   const session = await readIdentity(supabase);
   redirect(session.signedIn ? identityHome(session.identity) : '/sign-in?failed=1');
+}
+
+/** Starts Google only for an identity already linked by Gymloop administration. */
+export async function startGoogleSignIn(): Promise<void> {
+  let authorizationUrl: string | null = null;
+  try {
+    const supabase = await createServerSupabase();
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${serverEnv().WEB_APP_URL}/auth/callback` },
+    });
+    authorizationUrl = error === null ? data.url : null;
+  } catch {
+    authorizationUrl = null;
+  }
+  if (authorizationUrl === null) redirect('/sign-in?failed=1');
+  redirect(authorizationUrl);
 }
 
 /** Clears the session, after which every console route redirects to sign-in. */

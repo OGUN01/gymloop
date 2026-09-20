@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
+import Image from 'next/image';
 import { PRODUCT_NAME } from '@gymloop/shared';
 import { signIn } from '../../lib/auth-actions';
+import { startGoogleSignIn } from '../../lib/auth-actions';
 import { readIdentity } from '../../lib/identity-session';
 import { identityHome } from '../../lib/identity';
 import { ThemeControl } from '../theme-provider';
@@ -20,6 +22,7 @@ export default async function SignInPage({
 
   return (
     <main className="sign-in-page">
+      <div className="sign-in-visual" aria-hidden="true"><Image src="/images/auth-gym-arrival-v1.png" alt="" fill sizes="(max-width: 56rem) 100vw, 50vw" priority /></div>
       <div className="sign-in-panel">
       <div className="sign-in-heading">
         <span className="brand-mark" aria-hidden="true">G</span>
@@ -35,7 +38,12 @@ export default async function SignInPage({
         </p>
       ) : null}
 
-      <form action={signIn} className="sign-in-form">
+      <form action={startGoogleSignIn} className="sign-in-provider-form">
+        <button type="submit" className="sign-in-provider"><span className="provider-glyph" aria-hidden="true">G</span><span>Continue with Google</span></button>
+      </form>
+      <details className="sign-in-email-disclosure">
+        <summary>Use email instead</summary>
+        <form action={signIn} className="sign-in-form">
         <div className="sign-in-field-group">
           <label htmlFor="email">
             Email
@@ -70,7 +78,8 @@ export default async function SignInPage({
         >
           Sign in
         </button>
-      </form>
+        </form>
+      </details>
 
       <p className="sign-in-help">
         Use the account linked to your gym or platform access. Ask your gym if you need help signing in.
