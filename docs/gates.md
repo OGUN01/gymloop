@@ -15,7 +15,7 @@ Note: this table is the 33 gates from §11. The separate CI-mechanism table in �
 | 1 | EARS requirements approved before code | No — process | Gauntlet Loop step 2 (`openspec` proposal + human approval) | Applied to this change: `proposal.md` preceded all implementation |
 | 2 | Every requirement has ≥1 visible and ≥1 holdout test | Partial | Requirement IDs in `docs/domain-rules.md` are the anchor; a coverage check mapping IDs → tests does not exist yet | Phase 1+ — no requirements have implementations yet |
 | 3 | CI blocks commits touching tests and implementation together | Yes | `.github/workflows/test-immutability.yml` + `scripts/check-test-immutability.mjs` | **Proven failing** on `chore/gate-proof` |
-| 4 | Quality bar captured as real artifacts | No — process | Playwright MCP capture against named bars (`docs/architecture.md`'s quality-bar table, master prompt §9) | Phase 7 — bars named, not yet captured |
+| 4 | Quality bar captured as real artifacts | No — process | Versioned approved boards and rendered evidence against named bars (`docs/architecture.md`'s quality-bar table) | **MET (Phase 7).** The approved member/owner v2 boards and route/device renders are versioned under `docs/design/phase7/` and `docs/evidence/`; fresh critics used cropped/original-resolution comparisons rather than an uncaptured verbal bar. |
 | 5 | Blind critic sign-off, exit on win not round count | No — process | Gauntlet Loop step 5 (fresh-context sub-agent, no implementation knowledge) | Applied to this change (Task 9.2) |
 
 ## Data & tenancy
@@ -66,10 +66,10 @@ Note: this table is the 33 gates from §11. The separate CI-mechanism table in �
 
 | # | Gate | Automated? | Enforced by | Status |
 |---|---|---|---|---|
-| 30 | Every screen enumerates loading, empty, error, permission-denied, and offline states in its spec | No — spec review | UI spec template (Phase 7) | N/A — Phase 7 |
-| 31 | WCAG AA contrast, 44px targets, screen-reader labels | Yes (once UI exists) | axe/Playwright a11y assertions | N/A — Phase 7 |
-| 32 | Playwright E2E covers all four journeys (A–D, master prompt §9) | Yes (once written) | `tests/e2e/` | N/A — journeys don't exist until Phase 3–6 build them |
-| 33 | Blind critic picks ours over the captured bar | No — process | Gauntlet Loop step 5 | N/A — Phase 7 |
+| 30 | Every screen enumerates loading, empty, error, permission-denied, and offline states in its spec | No — spec review | Phase 7 PRD state matrix and canonical route/mobile specs | **MET (Phase 7).** UX7-007 enumerates loading, empty, recoverable error, permission denied, offline/stale, pending, success, validation and conflict states; canonical route and mobile specs bind those states to truthful actions. |
+| 31 | WCAG AA contrast, 44px targets, screen-reader labels | Yes (once UI exists) | Focused component/device assertions; axe/Playwright hardening in Phase 8 | **PARTIALLY MET (Phase 7).** Shared semantic pairs, visible focus/names, 44/48px controls, 200% web text and Android device-maximum text/reduced-motion journeys passed. A repository-wide axe/Playwright assertion remains Phase 8 work. |
+| 32 | Playwright E2E covers all four journeys (A–D, master prompt §9) | Yes (once written) | `tests/e2e/` | **OPEN (Phase 8).** The four product journeys passed real browser/device acceptance in their slices, but no checked-in Playwright A–D suite exists yet. Manual evidence is not represented as this automated gate. |
+| 33 | Blind critic picks ours over the captured bar | No — process | Gauntlet Loop step 5 | **MET (Phase 7).** Fresh-context critics returned GO for the visual foundation, core web routes and final original-resolution Android member/front-desk renders after the cited focused corrections. |
 
 ## What Phase 0 actually proves
 

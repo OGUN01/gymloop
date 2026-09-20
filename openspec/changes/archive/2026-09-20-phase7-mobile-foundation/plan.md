@@ -69,6 +69,11 @@ model cannot prove a second association without a new owner-approved linking
 mechanism, the app shows no switch/join control and Phase 7 remains formally
 incomplete with that precise blocker recorded; code alone never grants access.
 
+ADR-134 supplies the later owner decision: v1 supports one verified gym
+association, exposes no public-code join/switch control and defers secure
+invitation-based multi-gym linking. The absence of that post-v1 mechanism is
+therefore no longer a Phase 7 blocker.
+
 ## Blind ownership and gates
 
 Because identity/RLS/offline replay fail silently, independent visible and
@@ -80,11 +85,13 @@ owns shared exports/constants/registry/spec/evidence. CI alone applies a
 migration; wait before any later migration and regenerate types through the
 Supabase CLI.
 
-Acceptance requires Android and iOS development builds, member and desk auth,
-airplane-mode capture, restart/reconnect/duplicate/conflict/revocation tests,
-role isolation, Light/Dark device crops, reduced motion/text scaling, fresh Sol
-security/visual GO, exact demo cleanup and archive. Windows bundling is not an
-iOS build.
+The original acceptance required Android and iOS development builds, member and
+desk auth, airplane-mode capture, restart/reconnect/duplicate/conflict/revocation
+tests, role isolation, Light/Dark device crops, reduced motion/text scaling,
+fresh Sol security/visual GO, exact demo cleanup and archive. ADR-134 supersedes
+only that platform boundary: physical iOS runtime is deferred and not claimed;
+the complete Android evidence remains mandatory. Windows bundling is not an iOS
+build.
 
 - [x] Contract frozen before dispatch.
 - [x] Independent visible and holdout tests committed red.
@@ -97,6 +104,6 @@ iOS build.
 - [x] Minimal EAS internal-distribution profile configured for a real iPhone build without a local Mac.
 - [x] Credential-free EAS iOS Simulator profile and SDK 57 cloud build complete (`22ede637-bdad-428b-b091-ceda282e7fa5`).
 - [x] Physical Android real-QR airplane capture, cold restart, reconnect replay and duplicate restart evidence complete.
-- [ ] Physical iOS runtime and airplane/reconnect evidence complete (owner postponed; paid Apple signing is unavailable).
-- [ ] Owner-approved second-association linking decision complete.
-- [ ] Mobile foundation archived after every remaining acceptance boundary is proved.
+- [x] Physical iOS runtime and airplane/reconnect acceptance explicitly deferred outside the Android-first v1 boundary by ADR-134; no runtime claim is made.
+- [x] Owner-approved association decision complete: v1 supports one verified gym, exposes no public-code join/switch control and defers secure invitation linking.
+- [x] Mobile foundation folded into `openspec/specs/mobile/spec.md` and archived under the ADR-134 Android-first boundary.

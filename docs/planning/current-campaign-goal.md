@@ -24,12 +24,17 @@ external blockers rather than simulated.
 Updated 2026-09-18 (owner continuation 5). This is the repository's current execution objective; older
 prompt text is historical where it conflicts with this owner override.
 
+Phase 7 is now green and archived under this boundary. Phase 8 is the active
+objective; the historical Phase 7 execution detail below remains the evidence
+trail rather than outstanding work.
+
 ## Objective
 
-Phase 6 is closed: owner/fleet metrics and super-admin/support/preview browser
-journeys passed, exact cleanup was verified, and the three final changes were
-archived. The current objective is Phase 7's real web and member/front-desk
-mobile experience without rebuilding the completed Phase 6 implementation.
+Phase 6 and the Android-first Phase 7 boundary are closed. Owner/fleet metrics,
+super-admin/support/preview journeys, the reference-matched web experience and
+the real Android member/front-desk application passed their required evidence
+and archive boundaries. The current objective is Phase 8 hardening and Android
+release readiness without rebuilding those completed phases.
 Give members AND gym owners a polished, user-centric minimalist interface with
 equal light/dark quality, visible gym identity/code, accessible typography,
 comfortable curves and responsive, restrained motion. Preserve the attendance
@@ -96,10 +101,15 @@ fundamentals with lower bespoke-polish priority. Iron Pulse is superseded.
   Security-focused visible and holdout files pass individually against Cloud;
   final Cloud workflow `35371043539` also passes migration, rollback, schema
   drift and all 87 visible/holdout files / 6,886 assertions.
-- Android ARM64 native `assembleDebug` is proven. The mobile slice remains open
-  for an iOS development build and real-device airplane/reconnect, role,
-  text-scaling, reduced-motion and visual evidence. Gym join/switch remains
-  deliberately absent because no approved second-association mechanism exists.
+- Phase 7 is complete under ADR-134. Physical Android proved the ARM64 build,
+  member/desk authentication, all eight tabs, Light/Dark, sign-out, maximum
+  text, Remove animations, real airplane-mode QR capture, cold restart,
+  reconnect replay and duplicate-restart stability. Canonical spec:
+  `openspec/specs/mobile/spec.md`; archive:
+  `openspec/changes/archive/2026-09-20-phase7-mobile-foundation/`.
+- Physical iOS runtime is deferred and not claimed. The owner selected one
+  verified gym association for v1, so no public-code join/switch control is a
+  deliberate authorization boundary rather than unfinished Phase 7 work.
 
 ## Budget and delegation
 
@@ -151,14 +161,14 @@ application remain mandatory. No quota workaround or relaxed gate is authorized.
 
 ## Completion boundary
 
-Phase 6 is archived with real owner/platform journeys. Phase 7 covers the PRD's
-member, owner and desk surfaces; accessible English-only light/dark states;
-real Android and iOS development builds; role-isolated authentication; honest
-offline capture and exactly-once replay; cropped visual criticism; current
-registry/spec/evidence and archive. Missing device/signing/provider access is
-a named blocker, never replaced by a simulated success. Phase 8 operational
-hardening is eligible only after Phase 7 is green and archived; credential-
-blocked Razorpay provider integration remains outside this campaign.
+Phase 6 and the ADR-134 Android-first Phase 7 boundary are archived with real
+browser/device journeys. Phase 7 covers the PRD's member, owner and desk
+surfaces; accessible English-only Light/Dark states; real Android builds;
+role-isolated authentication; honest offline capture and exactly-once replay;
+cropped visual criticism; current registry/spec/evidence and archive. Physical
+iOS runtime is deferred, never simulated. Phase 8 operational hardening is now
+active; credential-blocked Razorpay provider integration remains outside this
+campaign unless its real external evidence becomes available.
 
 ## Owner language override
 
