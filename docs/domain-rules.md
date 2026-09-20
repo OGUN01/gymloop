@@ -83,7 +83,7 @@ NAV-001–005 and NAV-007 are current. NAV-006 and NAV-008 are fixed Phase 6
 requirements deferred to the platform slice, before commercial controls appear.
 
 - **NAV-001** WHEN a verified session has one complete Gymloop identity shape THE SYSTEM SHALL route it to its role's working home; missing or contradictory claims SHALL route to not-linked and authorize no mutation, while a missing verified session SHALL reach sign-in.
-- **NAV-002** THE SYSTEM SHALL use one pure identity classifier and one home selector across sign-in, root, not-linked, audience layouts and API session helpers: staff `/console`, members `/member/add-ons`, platform users `/platform`, and previews `/console`.
+- **NAV-002** THE SYSTEM SHALL use one pure identity classifier and one home selector across sign-in, root, not-linked, audience layouts and API session helpers: owners and managers `/dashboard`, front desk `/console/check-in`, trainers `/console`, members `/member`, platform users `/platform`, and previews `/console`.
 - **NAV-003** WHILE a super admin previews a gym THE SYSTEM SHALL show a persistent red banner naming the gym and expiry, permit only ending that caller's exact preview session among product mutations, and SHALL infer no staff or member identity.
 - **NAV-004** WHEN a preview ends THE SYSTEM SHALL update only the verified claim session, refresh Auth and return to platform; IF refresh fails THEN it SHALL clear the local session and return to sign-in.
 - **NAV-005** THE SYSTEM SHALL expose a real member catalogue and own-order read surface plus a real platform fleet read surface, with truthful empty/error states; platform support SHALL receive no mutation controls.

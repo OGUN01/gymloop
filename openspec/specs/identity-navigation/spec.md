@@ -15,8 +15,8 @@ identifiers SHALL be valid strings; missing or contradictory Gymloop facts SHALL
 classify as unlinked. Reserved non-Gymloop claims SHALL not affect classification.
 
 #### Scenario: Role home
-- **WHEN** claims form a complete real staff, member, platform or impersonation identity
-- **THEN** home SHALL respectively be `/console`, `/member/add-ons`, `/platform` or `/console`
+- **WHEN** claims form a complete owner/manager, front-desk, trainer, member, platform or impersonation identity
+- **THEN** home SHALL respectively be `/dashboard`, `/console/check-in`, `/console`, `/member`, `/platform` or `/console`
 
 #### Scenario: Contradictory or incomplete claims
 - **WHEN** the subject or required identity UUID is invalid, the role unknown, or a forbidden Gymloop key is nonnull
