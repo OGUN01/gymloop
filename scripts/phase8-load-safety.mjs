@@ -72,8 +72,19 @@ function validatedFixtures(gymFixtures) {
     for (const memberId of currentMembers) {
       memberIds.add(memberId);
     }
-    return { gymId: fixture.gymId, memberIds: [...fixture.memberIds], ownedMemberIds: [...fixture.ownedMemberIds] };
+    return { gymId: fixture.gymId, token: fixture.token, memberIds: [...fixture.memberIds], ownedMemberIds: [...fixture.ownedMemberIds] };
   });
+}
+
+function credentialFreeWorkload(workload) {
+  return {
+    ...workload,
+    gymFixtures: workload.gymFixtures.map((fixture) => ({
+      gymId: fixture.gymId,
+      memberIds: fixture.memberIds,
+      ownedMemberIds: fixture.ownedMemberIds,
+    })),
+  };
 }
 
 /** Validates the canonical non-production target and returns no credentials. */
@@ -135,7 +146,7 @@ export function summarizeRawResult(input) {
     if (typeof measured?.p95Ms !== 'number' || !Number.isFinite(measured.p95Ms) || measured.p95Ms > threshold ||
         measured.completedCheckIns !== TOTAL_MEMBER_CHECK_INS || readDenied !== true ||
         (mutationStatus === undefined ? !legacyMutationDenied : has2xx(mutationStatus))) return { rawResultPath: input.rawResultPath, status: 'blocked' };
-    return { rawResultPath: input.rawResultPath, status: 'passed', projectRef: target.projectRef, apiUrl: target.apiUrl, supabaseUrl: target.supabaseUrl, completedCheckIns: TOTAL_MEMBER_CHECK_INS };
+    return { rawResultPath: input.rawResultPath, status: 'passed', target, completedCheckIns: TOTAL_MEMBER_CHECK_INS };
   } catch { return { rawResultPath: input.rawResultPath, status: 'blocked' }; }
 }
 
@@ -147,7 +158,7 @@ export function preflightLoadRun(config) {
   const workload = buildMorningCheckInWorkload(source ?? config.workload);
   if (!nonBlankString(config.rawResultPath)) throw loadSafetyError('a caller-selected raw result path is required.');
   if (Array.isArray(config.mutationStatuses) && config.mutationStatuses.some(has2xx)) throw loadSafetyError('a cross-tenant mutation 2xx response is a failure.');
-  return { target, workload, rawResultPath: config.rawResultPath, command: `k6 run --out json=${config.rawResultPath} tests/load/phase8-morning-checkin.js` };
+  return { target, workload: credentialFreeWorkload(workload), rawResultPath: config.rawResultPath, command: `k6 run --out json=${config.rawResultPath} tests/load/phase8-morning-checkin.js` };
 }
 
 function main() {
