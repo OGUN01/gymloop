@@ -80,6 +80,20 @@ provider configuration is verified.
 Acceptance: adapter contract, redaction checks, and runbook evidence exist;
 synthetic provider delivery is not accepted as external monitoring proof.
 
+Frozen application interface: `apps/web/lib/observability.ts` exports
+`createOperationalLogger(options)`. The options supply a structured `write`
+sink, an optional `report` adapter and an injectable ISO timestamp source. The
+returned `info` and `error` methods accept an event name plus optional
+`tenantId`, `correlationId`, message and nested context; they send the same
+JSON-safe, recursively redacted event to the sink, and `error` additionally
+sends it to the report adapter. Keys naming authorization/cookies/passwords,
+access or refresh tokens, API/service-role keys or secrets, and direct member
+PII (email, phone, full name) are replaced by `[REDACTED]`; cycles are replaced
+by `[Circular]`. Top-level tenant/correlation identifiers remain permitted.
+Adapter failure must never replace the application failure or expose the raw
+input. No monitoring vendor dependency is required until a real destination is
+owner-configured.
+
 ### HARD-006 — DPDP export, erasure, and retention runner
 
 When the DPDP operational runner executes, it shall produce an auditable export
