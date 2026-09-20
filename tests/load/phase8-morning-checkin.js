@@ -26,7 +26,7 @@ function requiredOrigin(name) {
   const value = required(name);
   let url;
   try { url = new URL(value); } catch { fail(`HARD-004 ${name} must be a valid HTTPS origin.`); }
-  if (value.endsWith('/') || url.protocol !== 'https:' || url.username !== '' || url.password !== '' ||
+  if (url.protocol !== 'https:' || url.username !== '' || url.password !== '' ||
       url.pathname !== '/' || url.search !== '' || url.hash !== '' || url.hostname.includes(PRODUCTION_PROJECT_REF)) {
     fail(`HARD-004 ${name} must be an isolated HTTPS origin-only non-production target.`);
   }

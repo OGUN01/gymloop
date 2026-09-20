@@ -26,7 +26,6 @@ function exactKeys(value, keys, label) {
 
 function originOnly(value, label) {
   if (!nonBlankString(value)) throw loadSafetyError(`${label} is required.`);
-  if (value.endsWith('/')) throw loadSafetyError(`${label} must be an origin-only URL without a trailing path.`);
   let url;
   try { url = new globalThis.URL(value); } catch { throw loadSafetyError(`${label} is not a valid URL.`); }
   if (url.protocol !== 'https:') throw loadSafetyError(`${label} must use HTTPS.`);
@@ -123,12 +122,11 @@ export function buildMorningCheckInWorkload(options = undefined) {
       Object.keys(tenantIsolation).length !== TENANT_ISOLATION_FLAG_COUNT || tenantIsolation.denyCrossTenantRead !== true || tenantIsolation.denyCrossTenantMutation !== true) {
     throw loadSafetyError('both cross-tenant denial assertions must be exactly true.');
   }
-  if (!nonBlankString(options?.fixturePath)) throw loadSafetyError('a caller-selected fixture path is required.');
   const safeFixtures = validatedFixtures(options?.gymFixtures);
   const workload = { gyms: GYM_COUNT, membersPerGym: MEMBERS_PER_GYM, totalMembers: TOTAL_MEMBER_CHECK_INS,
     spike: { name: 'morning_check_in_spike' }, thresholds: { p95Ms },
-    tenantIsolation: { denyCrossTenantRead: true, denyCrossTenantMutation: true }, fixturePath: options.fixturePath, gymFixtures: safeFixtures };
-  workloadSources.set(workload, { thresholds: options.thresholds, tenantIsolation, fixturePath: options.fixturePath, gymFixtures: options.gymFixtures });
+    tenantIsolation: { denyCrossTenantRead: true, denyCrossTenantMutation: true }, gymFixtures: safeFixtures };
+  workloadSources.set(workload, { thresholds: options.thresholds, tenantIsolation, gymFixtures: options.gymFixtures });
   return workload;
 }
 
@@ -176,7 +174,8 @@ export function preflightLoadRun(config) {
     }
     if (config.mutationStatuses.some(has2xx)) throw loadSafetyError('a cross-tenant mutation 2xx response is a failure.');
   }
-  return { target, workload: credentialFreeWorkload(workload), fixturePath: workload.fixturePath, rawResultPath: config.rawResultPath, command: `k6 run --out json=${config.rawResultPath} tests/load/phase8-morning-checkin.js` };
+  if (!nonBlankString(config.fixturePath)) throw loadSafetyError('a caller-selected fixture path is required.');
+  return { target, workload: credentialFreeWorkload(workload), fixturePath: config.fixturePath, rawResultPath: config.rawResultPath, command: `k6 run --out json=${config.rawResultPath} tests/load/phase8-morning-checkin.js` };
 }
 
 function main() {
