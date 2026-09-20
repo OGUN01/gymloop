@@ -741,3 +741,9 @@ The shared money/credit codec, template/category placeholder vocab and request s
 | `Layout` / `Index` / `SignIn` / `MemberLayout` / `DeskLayout` / `MemberHome` / `ActivityScreen` / `GymScreen` / `YouScreen` / `DeskCheckIn` / `MembersScreen` / `FollowUpsScreen` / `MoreScreen` / `DeskHome` | `apps/mobile/app/**/*.tsx` | Expo Router root, verified-role redirects, four real member tabs, four real desk tabs and compatibility redirects; every state is backed by caller-session RLS facts or a real command | Native application entry point |
 | `MemberNavigation` / `loadMemberPortal` | `apps/web/app/member/member-navigation.tsx`, `apps/web/lib/member-portal.ts` | Route-derived four-destination member navigation and one caller-session RLS fact source for gym identity, progress, membership and messages | Member web routes |
 | `MemberHomePage` / `MemberCheckInPage` / `MemberActivityPage` / `MemberGymPage` / `MemberYouPage` | `apps/web/app/member/**/page.tsx` | Four truthful member destinations plus a mobile-scan handoff that records no attendance itself, with compact responsive presentation and no invented writes or facts | Member navigation |
+
+## Phase 8 hardening
+
+| Symbol | Location | Contract | Consumers |
+|---|---|---|---|
+| `createOperationalLogger` | `apps/web/lib/observability.ts` | Structured sink/report adapter that emits the same JSON-safe recursively redacted operational event, retaining only permitted tenant and correlation context while isolating adapter failures | Phase 8 operational logging callers |
