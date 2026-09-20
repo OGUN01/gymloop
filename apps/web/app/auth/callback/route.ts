@@ -1,11 +1,11 @@
-import { serverEnv } from '@gymloop/shared';
+import { webAppEnv } from '@gymloop/shared';
 import { NextResponse } from 'next/server';
 import { identityHome } from '../../../lib/identity';
 import { readIdentity } from '../../../lib/identity-session';
 import { createServerSupabase } from '../../../lib/supabase/server';
 
 function appRedirect(path: string): NextResponse {
-  return NextResponse.redirect(new URL(path, serverEnv().WEB_APP_URL), { status: 303 });
+  return NextResponse.redirect(new URL(path, webAppEnv().WEB_APP_URL), { status: 303 });
 }
 
 /** Completes the fixed OAuth callback without trusting callback-host or next input. */

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { serverEnv } from '@gymloop/shared';
+import { webAppEnv } from '@gymloop/shared';
 import { createServerSupabase } from './supabase/server';
 import { readIdentity } from './identity-session';
 import { identityHome } from './identity';
@@ -48,7 +48,7 @@ export async function startGoogleSignIn(): Promise<void> {
       const supabase = await createServerSupabase();
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${serverEnv().WEB_APP_URL}/auth/callback` },
+        options: { redirectTo: `${webAppEnv().WEB_APP_URL}/auth/callback` },
       });
       return error === null ? data.url : null;
     } catch {

@@ -47,6 +47,10 @@ const serverOnlySchema = z.object({
   R2_ENDPOINT: z.url(),
 });
 
+const webAppSchema = z.object({
+  WEB_APP_URL: publicOriginSchema.default('http://127.0.0.1:3000'),
+});
+
 type ClientEnv = z.infer<typeof clientSchema>;
 type ServerEnv = z.infer<typeof serverOnlySchema>;
 type MobileClientEnv = z.infer<typeof mobileClientSchema>;
@@ -81,6 +85,11 @@ export function playwrightEnv(): PlaywrightEnv {
     DEMO_ACCOUNT_PASSWORD: process.env.DEMO_ACCOUNT_PASSWORD,
     PLAYWRIGHT_BASE_URL: process.env.PLAYWRIGHT_BASE_URL,
   });
+}
+
+/** The deploy-owned public origin required by web OAuth, without server secrets. */
+export function webAppEnv(): { WEB_APP_URL: string } {
+  return webAppSchema.parse({ WEB_APP_URL: process.env.WEB_APP_URL });
 }
 
 export function serverEnv(): ServerEnv {
