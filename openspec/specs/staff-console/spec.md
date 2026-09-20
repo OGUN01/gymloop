@@ -1,6 +1,10 @@
 ## Purpose
 
-The first screens: a staff member signs in with email and password, and sees the members of their own gym. This is the slice that makes Phase 2's identity layer observable — until now every claim has been set by hand in a pgTAP fixture and no real token has ever been issued.
+The first screens: a staff member signs in with a pre-provisioned identity and
+sees the members of their own gym. Password remains supported; Phase 8 adds
+Google as an alternative provider for an already linked identity. This is the
+slice that makes Phase 2's identity layer observable — until now every claim has
+been set by hand in a pgTAP fixture and no real token has ever been issued.
 
 ## Requirements
 
@@ -15,12 +19,25 @@ THE SYSTEM SHALL redirect an unauthenticated visitor from every console route to
 - **WHEN** a visitor with a valid session requests the sign-in page
 - **THEN** they SHALL be redirected to the console
 
-### Requirement: Sign-in is by email and password, and there is no self-signup
-THE SYSTEM SHALL authenticate a staff member by email and password. It SHALL NOT offer a route by which a visitor creates their own account — gym accounts are created by the gym, and platform accounts by an existing super admin.
+### Requirement: Sign-in supports password and pre-linked Google identities, with no app self-signup
+THE SYSTEM SHALL authenticate a staff member by email and password, or through
+Google when that provider session resolves to an existing complete Gymloop
+identity. It SHALL NOT offer a route by which a visitor creates their own
+Gymloop role, tenant link, membership, or claim — gym accounts are linked by the
+gym, and platform accounts by an existing super admin. A Google-authenticated
+user without that link is an unlinked session with no app privileges.
 
 #### Scenario: Correct credentials
 - **WHEN** a staff member submits an email and password matching an active identity
 - **THEN** a session SHALL be established and they SHALL land on the console
+
+#### Scenario: A pre-linked staff member chooses Google
+- **WHEN** Google returns a valid session whose verified claims form one complete Gymloop identity
+- **THEN** a session SHALL be established and the staff member SHALL reach the canonical home for that identity
+
+#### Scenario: Google authenticates an account with no Gymloop link
+- **WHEN** Google returns a valid provider session without one complete verified Gymloop identity
+- **THEN** the account SHALL reach the not-linked state and SHALL receive no tenant or role capability
 
 #### Scenario: Wrong credentials
 - **WHEN** the password does not match

@@ -54,6 +54,19 @@ describe('env.ts', () => {
     expect(second).toEqual(first);
   });
 
+  it('validates one origin-only server-owned WEB_APP_URL without leaking it through clientEnv()', async () => {
+    stubValidEnv();
+    vi.stubEnv('WEB_APP_URL', 'https://app.gymloop.example');
+    const { clientEnv, serverEnv } = await import('../env');
+    expect((serverEnv() as Record<string, unknown>).WEB_APP_URL).toBe('https://app.gymloop.example');
+    expect(clientEnv()).not.toHaveProperty('WEB_APP_URL');
+
+    vi.resetModules();
+    vi.stubEnv('WEB_APP_URL', 'https://app.gymloop.example/not-a-public-origin');
+    const reloaded = await import('../env');
+    expect(() => reloaded.serverEnv()).toThrow();
+  });
+
   it('playwrightEnv() validates lazily and requires the demo account password', async () => {
     stubValidEnv();
     const { playwrightEnv } = await import('../env');

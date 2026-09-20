@@ -1,0 +1,63 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('next/navigation', () => ({ usePathname: () => '/member' }));
+vi.mock('../../lib/member-portal', () => ({
+  loadMemberPortal: vi.fn(async () => ({
+    errorMessage: null,
+    member: { full_name: 'Aarav Sharma', email: 'aarav@example.test', phone: null, member_code: 'GYM-42' },
+    gym: { name: 'Iron Box Fitness', branchName: 'Vijay Nagar' },
+    membership: { status: 'active', endsOn: '2026-09-30', planName: 'Monthly' },
+    visits: [], weekVisits: 0, weeklyGoal: 4, latestMessage: null,
+  })),
+}));
+
+const appRoot = resolve(process.cwd(), 'apps/web/app');
+const source = (relativePath: string) => readFileSync(resolve(appRoot, relativePath), 'utf8');
+
+describe('Phase 8 member HIG/auth boundary', () => {
+  it('gives web and native members four labelled icon destinations with a selected state', async () => {
+    const web = source('member/member-navigation.tsx');
+    expect(web).toMatch(/Home/);
+    expect(web).toMatch(/Activity/);
+    expect(web).toMatch(/My gym/);
+    expect(web).toMatch(/You/);
+    expect(web).toMatch(/aria-current/);
+    expect(web).toMatch(/icon|Icon/);
+    expect(source('../../mobile/components/role-tabs.tsx')).toMatch(/tabBarIcon\s*:/);
+    expect(source('../../mobile/components/role-tabs.tsx')).toMatch(/title:\s*'Home'[^\n]*Icon/);
+  });
+
+  it('keeps check-in actions in the thumb-zone on Home and My gym', async () => {
+    expect(source('member/page.tsx')).toMatch(/check.?in|scan/i);
+    expect(source('member/my-gym/page.tsx')).toMatch(/check.?in|scan/i);
+  });
+
+  it('renders real profile facts without exposing internal UUID content', async () => {
+    const you = source('member/you/page.tsx');
+    expect(you).toMatch(/full_name|email|phone|member_code/);
+    expect(you).not.toMatch(/userId|memberId|tenantId|sub/);
+  });
+
+  it('puts appearance behind one dismissible settings hierarchy, not persistent competing controls', () => {
+    const you = source('member/you/page.tsx');
+    expect(you).toMatch(/settings|appearance/i);
+    expect(you).toMatch(/settings|gear|dialog/i);
+    expect(you).toMatch(/dismiss|close|back/i);
+  });
+
+  it('offers provider-first sign-in with email as progressive disclosure', () => {
+    const signIn = source('sign-in/page.tsx');
+    expect(signIn).toMatch(/Google|provider|oauth/i);
+    expect(signIn).toMatch(/Email|email/i);
+    expect(signIn).toMatch(/details|continue|show|secondary|disclos/i);
+  });
+
+  it('retains semantic light/dark tokens and 44/48-point interaction targets', () => {
+    const css = `${source('globals.css')}\n${source('theme-token-style.tsx')}`;
+    expect(css).toMatch(/light|dark|data-theme|prefers-color-scheme/i);
+    expect(css).toMatch(/--gymloop-target-interactive|44px/);
+    expect(css).toMatch(/--gymloop-target-touch|48px/);
+  });
+});

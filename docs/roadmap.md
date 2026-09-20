@@ -1,5 +1,22 @@
 # Roadmap
 
+**Owner Phase 8 experience/auth continuation, 2026-09-20 (ADR-136):** Phase 7's
+Android-first functional boundary remains archived, but its visual finish is not
+accepted as the product bar. Phase 8 now begins with a focused member experience
+refinement before the remaining hardening work: the approved minimalist v2
+boards are literal conformance references for authentication, Home, Activity,
+My gym and You; light and dark must be equally intentional; presentation is
+English-only; gym imagery is purposeful on authentication/profile surfaces and
+does not replace operational content. Google sign-in is added for existing,
+pre-linked Gymloop identities on web first and Android second. It grants no
+membership or role, performs no self-service linking, and an unlinked provider
+identity reaches the existing no-access state. The measured start is 9% weekly
+usage and the owner's extended allowance makes **12% used the hard stop for new
+work**. Sol freezes/reviews the contract, while at most two bounded Terra/Luna
+workers own independent identity tests, narrow implementation, and visual/device
+verification. No Astra, broad speculative rewrite, unreviewed cloud credential,
+or synthetic provider success is authorized.
+
 **Owner Android-first continuation, 2026-09-20:** iOS runtime acceptance is
 deferred until Android is complete through Phase 8. V1 remains one verified gym
 association per member; no public gym-code join/switch surface will be added,

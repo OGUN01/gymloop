@@ -1377,6 +1377,19 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-136 — Phase 8 experience and pre-linked Google sign-in refinement
+  (owner override, 2026-09-20).** The owner rejected the archived Phase 7 visual
+  result as the final bar and made reference-matched member refinement the first
+  Phase 8 slice. The approved minimalist v2 board remains authoritative for
+  geometry, hierarchy, typography and equal light/dark quality; a new auth and
+  profile board may extend it without changing identity or money rules. Google
+  becomes an alternative sign-in provider for existing pre-linked identities,
+  while password remains. Provider authentication grants no Gymloop role,
+  tenant, membership, link or claim; an unknown provider identity is unlinked
+  and unauthorized. Web precedes Android; iOS stays deferred. The measured 9%
+  usage plus the owner's two-point allowance gives an 11% hard stop for new
+  work, with Sol orchestration and at most two bounded Terra/Luna workers.
+
 - **ADR-135 — Two-point Android/web completion continuation (owner override,
   2026-09-20).** At 6% weekly usage the owner authorized two additional
   points, making **8% used the hard stop for new work**. Finish Phase 7's

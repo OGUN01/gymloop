@@ -22,6 +22,64 @@ recorded as such rather than represented by a synthetic success.
 
 ## Requirements
 
+### HARD-010 — reference-matched member experience
+
+When a member uses authentication, Home, Activity, My gym, or You on web or
+Android, the system shall use the approved minimalist v2 hierarchy and shared
+light/dark tokens: immediate verified gym identity, dominant check-in, compact
+truthful summaries, readable seven-day rhythm, a real profile/account surface,
+and four labelled destinations. Both appearances shall be intentionally
+composed, English-only, accessible at enlarged text, and usable with reduced
+motion/transparency. Raw internal UUIDs shall not be presented as profile
+content. Gym imagery may establish place and emotion on authentication and
+profile entry surfaces; it shall not obscure controls, invent member facts, or
+replace operational content.
+
+Acceptance: representative web and physical-Android crops for auth, Home, My
+gym and You in light and dark are compared with the approved boards; focused
+interaction/accessibility checks cover labels, targets, enlarged text and
+reduced effects.
+
+Review artifact: `docs/design/phase8/member-hig-auth-core-v4.png`. The main
+surface uses one accessible settings icon; appearance lives behind the settings
+hierarchy rather than as persistent page content. On iPhone, Apple precedes
+Google; Android remains Google-first. The artifact is not implementation
+approval until the owner accepts it.
+
+### HARD-011 — Google sign-in grants no Gymloop identity
+
+When an existing pre-linked user chooses Google sign-in, the system shall
+complete OAuth through the approved Supabase project, establish the normal
+session, classify the returned verified claims through the existing identity
+boundary, and route to the canonical home from NAV-001/NAV-002. Password sign-in
+shall remain available. Google sign-in shall not create or mutate a Gymloop
+role, tenant, member association, membership, or claim; a provider-authenticated
+account without one complete verified Gymloop identity shall reach the existing
+not-linked/no-access state. Failure copy shall be generic and shall not reveal
+whether an account or link exists.
+
+Acceptance: independent visible and holdout tests cover a fixed canonical
+callback, missing/bad code, exchange failure, every canonical linked-role home,
+the unlinked result, refusal of caller-controlled redirect destinations, and no
+identity mutation. Real-provider completion remains external until configured
+and exercised with a controlled account.
+
+### HARD-012 — OAuth redirect and credential boundary
+
+When OAuth begins on web, the app shall derive its callback from one validated
+server-owned public application origin, never a request Host header or caller
+provided `next` value. The Google redirect registered in Google Cloud shall be
+the Supabase Auth callback for the approved project; Supabase shall allow only
+the exact production/local app callbacks required by the verified journeys.
+Secrets shall remain outside source control and browser bundles. Android OAuth
+shall be a separate deep-link batch that reuses the same identity classifier
+and secure mobile session store; iOS remains deferred.
+
+Acceptance: source/registry checks and focused tests prove the fixed callback
+and generic failure behavior. Creating OAuth credentials, entering a client
+secret, enabling the provider, and changing hosted redirect allow-lists require
+real console evidence and are never inferred from local code.
+
 ### HARD-001 — truthful gate and evidence ledger
 
 When a Phase 8 gate is reported, the system or runbook shall record the exact

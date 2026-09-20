@@ -1,5 +1,38 @@
 # Current owner-authorized campaign goal
 
+## Phase 8 member experience and Google sign-in override — 2026-09-20
+
+The active first slice of Phase 8 is a reference-matched refinement of the
+member experience on web and Android. The Phase 7 archive remains truthful for
+the functional Android-first boundary, but its visual result is not accepted as
+the final product bar. Use the approved member v2 board as the literal geometry,
+hierarchy and light/dark reference, extended by the Phase 8 auth/profile board.
+Authentication, Home, Activity, My gym, You, and the four-tab shell must feel
+like one calm, compact product; raw UUIDs, giant generic cards, decorative
+dashboard clutter, and Hindi/localization controls are forbidden.
+
+Google sign-in is an alternative entry method for existing pre-linked Gymloop
+identities. It does not create app privileges, memberships, staff links, or
+tenant claims. A provider-authenticated account without a complete verified
+Gymloop identity is routed to the existing not-linked/no-access state. Password
+sign-in remains available. Web is implemented and verified first; Android uses
+the same claim boundary in a separate micro-batch. OAuth secrets and provider
+configuration are external actions and cannot be represented as complete until
+the real Google/Supabase configuration and a controlled-account journey exist.
+
+Sol owns the frozen contract and final visual/identity review. Terra owns the
+identity seam, callback/deep-link implementation and browser/device diagnostics.
+Luna owns bounded screen refinements and repetitive visual corrections. At most
+two workers run concurrently. Usage started at 9%; the owner extended the
+campaign on 2026-09-20 and **12% used is now the absolute stop for new work**.
+Run only tests for changed behavior plus the affected
+package checks, then one real journey per completed slice.
+
+Current review artifact: `../design/phase8/member-hig-auth-core-v4.png`, with
+rationale in `../design/phase8/member-hig-auth-core-v4.md`. It supersedes the v3
+candidate by adding strict HIG safe-area, thumb-zone, tab, semantic-type and
+iPhone provider-order rules. The owner approved this artifact for implementation.
+
 ## Owner Android-first Phase 8 override — 2026-09-20
 
 This supersedes the older Phase-7-only scope and percentage markers below.
