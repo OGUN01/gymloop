@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -13,7 +13,9 @@ vi.mock('../../lib/member-portal', () => ({
   })),
 }));
 
-const appRoot = resolve(process.cwd(), 'apps/web/app');
+const appRoot = existsSync(resolve(process.cwd(), 'app'))
+  ? resolve(process.cwd(), 'app')
+  : resolve(process.cwd(), 'apps/web/app');
 const source = (relativePath: string) => readFileSync(resolve(appRoot, relativePath), 'utf8');
 
 describe('Phase 8 member HIG/auth boundary', () => {

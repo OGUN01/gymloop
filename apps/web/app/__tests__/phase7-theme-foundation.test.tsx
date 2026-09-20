@@ -41,12 +41,14 @@ describe('Phase 7 shared visual foundation', () => {
         primaryText: '#15191C', secondaryText: '#5E656B', primaryAction: '#167C65',
         textOnPrimary: '#FFFFFF', decorativeSeparator: '#DFE3E0',
         requiredControlOutline: '#747C78', warningText: '#8B5200', errorRiskText: '#B33F3F',
+        scrim: 'rgba(21,25,28,0.24)',
       },
       dark: {
         canvas: '#101214', surface: '#1C1F22', elevatedSurface: '#262A2D',
         primaryText: '#F3F4F4', secondaryText: '#AEB6BC', primaryAction: '#93DCC0',
         textOnPrimary: '#101214', decorativeSeparator: '#353B3E',
         requiredControlOutline: '#7D8984', warningText: '#F3C47B', errorRiskText: '#FFABA6',
+        scrim: 'rgba(0,0,0,0.48)',
       },
     });
     expect(UI_TOKENS.geometry).toMatchObject({
