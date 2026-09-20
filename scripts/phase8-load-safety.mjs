@@ -143,6 +143,11 @@ export function summarizeRawResult(input) {
   if (measured === undefined || measured === null || typeof measured !== 'object' || Array.isArray(measured)) {
     return { rawResultPath: input.rawResultPath, status: 'blocked' };
   }
+  try {
+    exactKeys(measured, ['p95Ms', 'completedCheckIns', 'crossTenantReadDenied', 'crossTenantMutationStatus'], 'the measured result');
+  } catch {
+    return { rawResultPath: input.rawResultPath, status: 'blocked' };
+  }
   if (
       typeof measured.p95Ms !== 'number' || !Number.isFinite(measured.p95Ms) || measured.p95Ms < 0) {
     throw loadSafetyError('passed evidence requires a finite nonnegative measured p95.');
@@ -150,13 +155,9 @@ export function summarizeRawResult(input) {
   try {
     const target = assertSafeLoadTarget(input.target);
     const threshold = positiveThreshold(input.thresholds);
-    if (!nonBlankString(input.fixturePath)) return { rawResultPath: input.rawResultPath, status: 'blocked' };
-    const legacyIsolation = measured.tenantIsolation;
-    const readDenied = measured.crossTenantReadDenied ?? legacyIsolation?.denyCrossTenantRead;
-    const mutationStatus = measured.crossTenantMutationStatus;
-    const legacyMutationDenied = legacyIsolation?.denyCrossTenantMutation === true;
-    if (measured.p95Ms > threshold || measured.completedCheckIns !== TOTAL_MEMBER_CHECK_INS || readDenied !== true ||
-        (mutationStatus === undefined ? !legacyMutationDenied : !Number.isInteger(mutationStatus) || mutationStatus < HTTP_STATUS_MIN || mutationStatus > HTTP_STATUS_MAX || has2xx(mutationStatus))) return { rawResultPath: input.rawResultPath, status: 'blocked' };
+    if (measured.p95Ms > threshold || measured.completedCheckIns !== TOTAL_MEMBER_CHECK_INS || measured.crossTenantReadDenied !== true ||
+        !Number.isInteger(measured.crossTenantMutationStatus) || measured.crossTenantMutationStatus < HTTP_STATUS_MIN ||
+        measured.crossTenantMutationStatus > HTTP_STATUS_MAX || has2xx(measured.crossTenantMutationStatus)) return { rawResultPath: input.rawResultPath, status: 'blocked' };
     return { rawResultPath: input.rawResultPath, status: 'passed', target, completedCheckIns: TOTAL_MEMBER_CHECK_INS };
   } catch { return { rawResultPath: input.rawResultPath, status: 'blocked' }; }
 }
