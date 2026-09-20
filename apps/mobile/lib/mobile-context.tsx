@@ -62,7 +62,7 @@ export function MobileProvider({ children }: { children: ReactNode }) {
       : await resolveNativeMobileSession(supabase, nextSession);
     const nextIdentity: GymloopIdentity = startup.identity;
     const nextScope = scopeKey(nextIdentity);
-    if (startup.replay !== 'deferred') {
+    if (startup.replay !== 'deferred' && nextScope !== null) {
       if (previousScope.current !== undefined && previousScope.current !== nextScope) await clearOfflineCheckIns();
       previousScope.current = nextScope;
     }

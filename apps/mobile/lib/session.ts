@@ -26,6 +26,25 @@ type OfflineStartupDecision = {
   capability: boolean;
 };
 
+function sameOfflineIdentity(
+  cached: LinkedIdentity | PersistedMemberIdentity | null,
+  verified: LinkedIdentity | PersistedMemberIdentity,
+): boolean {
+  if (cached === null) return true;
+  const cachedKind = 'kind' in cached ? cached.kind : cached.role;
+  const verifiedKind = 'kind' in verified ? verified.kind : verified.role;
+  if (cachedKind !== 'member' || verifiedKind !== 'member') {
+    return cachedKind === verifiedKind && cached.userId === verified.userId;
+  }
+  const cachedMember = 'kind' in cached ? (cached.kind === 'member' ? cached : null) : cached;
+  const verifiedMember = 'kind' in verified ? (verified.kind === 'member' ? verified : null) : verified;
+  return cachedMember !== null
+    && verifiedMember !== null
+    && cachedMember.userId === verifiedMember.userId
+    && cachedMember.tenantId === verifiedMember.tenantId
+    && cachedMember.memberId === verifiedMember.memberId;
+}
+
 function memberScope(identity: GymloopIdentity): MobileStartupState['queueScope'] {
   if (identity.kind !== 'member') return null;
   return { userId: identity.userId, tenantId: identity.tenantId, memberId: identity.memberId };
@@ -48,7 +67,10 @@ export function resolveMobileStartup(input: {
 }): MobileStartupState | OfflineStartupDecision {
   if ('ok' in input.refresh) {
     const refresh = input.refresh;
-    if (refresh.ok) return { identity: refresh.identity, signedOut: false, replay: true, capability: true };
+    if (refresh.ok) {
+      const sameIdentity = sameOfflineIdentity(input.cachedIdentity, refresh.identity);
+      return { identity: refresh.identity, signedOut: false, replay: sameIdentity, capability: sameIdentity };
+    }
     const cachedIdentity = input.cachedIdentity;
     const retain = refresh.transient && cachedIdentity !== null;
     return {

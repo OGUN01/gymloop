@@ -4,6 +4,8 @@ import type { ApiClient, ApiEnvelope, CheckInResult } from '@gymloop/api-client'
 const OFFLINE_QUEUE_KEY = 'gymloop.offline-check-in';
 export type OfflineCheckInCommand = { clientEventId: string; token: string; offlineRecordedAt: string; memberId: string; tenantId: string; userId: string };
 export type OfflineCheckInOutcome = { command: OfflineCheckInCommand; result: ApiEnvelope<CheckInResult> | null };
+type OfflineCheckInScope = Pick<OfflineCheckInCommand, 'tenantId' | 'userId' | 'memberId'>;
+type QueueRecoveryIdentity = ({ kind: 'member' } & OfflineCheckInScope) | null;
 
 let queueTail = Promise.resolve();
 
@@ -35,14 +37,35 @@ async function readQueue(): Promise<OfflineCheckInCommand[]> {
   }
 }
 
+/** Keep a cold-start queue private until its exact verified member returns. */
+export function resolveOfflineQueueRecovery(input: {
+  identity: QueueRecoveryIdentity;
+  queuedScope: OfflineCheckInScope | null;
+}): { queueScope: OfflineCheckInScope | null; replay: boolean } {
+  if (input.queuedScope === null) return { queueScope: null, replay: false };
+  if (input.identity === null) return { queueScope: input.queuedScope, replay: false };
+  const sameScope = input.identity.userId === input.queuedScope.userId
+    && input.identity.tenantId === input.queuedScope.tenantId
+    && input.identity.memberId === input.queuedScope.memberId;
+  return sameScope
+    ? { queueScope: input.queuedScope, replay: true }
+    : { queueScope: null, replay: false };
+}
+
 /**
  * Device-only commands are scoped to the verified account and gym that created
  * them. A later account, sign-out or association change gets no replay list.
  */
-export async function loadOfflineCheckIns(scope: Pick<OfflineCheckInCommand, 'tenantId' | 'userId' | 'memberId'>): Promise<OfflineCheckInCommand[]> {
+export async function loadOfflineCheckIns(scope: OfflineCheckInScope): Promise<OfflineCheckInCommand[]> {
   return await serialized(async () => {
     const commands = await readQueue();
-    if (commands.some((command) => command.tenantId !== scope.tenantId || command.userId !== scope.userId || command.memberId !== scope.memberId)) {
+    const first = commands[0];
+    const queuedScope = first === undefined ? null : { tenantId: first.tenantId, userId: first.userId, memberId: first.memberId };
+    const uniformScope = queuedScope === null || commands.every((command) => command.tenantId === queuedScope.tenantId
+      && command.userId === queuedScope.userId
+      && command.memberId === queuedScope.memberId);
+    const recovery = resolveOfflineQueueRecovery({ identity: { kind: 'member', ...scope }, queuedScope });
+    if ((!uniformScope || !recovery.replay) && queuedScope !== null) {
       await SecureStore.deleteItemAsync(OFFLINE_QUEUE_KEY);
       return [];
     }
