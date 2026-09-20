@@ -101,6 +101,10 @@ describe('HARD-004 isolated load safety', () => {
     expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: blankGym, tenantIsolation: TENANT_ISOLATION })).toThrow(/gym/i);
     const blankToken = structuredClone(fixtures); blankToken[0].token = '';
     expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: blankToken, tenantIsolation: TENANT_ISOLATION })).toThrow(/token/i);
+    const blankMember = structuredClone(fixtures); blankMember[0].memberIds[0] = '   ';
+    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: blankMember, tenantIsolation: TENANT_ISOLATION })).toThrow(/member/i);
+    const blankOwnedMember = structuredClone(fixtures); blankOwnedMember[0].ownedMemberIds[0] = '\t';
+    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: blankOwnedMember, tenantIsolation: TENANT_ISOLATION })).toThrow(/member|owned/i);
     expect(assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, apiUrl: 'https://phase8-load-sandbox.example.test/' })).toMatchObject({
       apiUrl: NON_PRODUCTION_TARGET.apiUrl,
     });
