@@ -24,7 +24,9 @@ describe('manual auth-configuration workflow credential boundaries', () => {
   it('does not expose Supabase credentials outside the steps that use them', () => {
     expect(topLevelEnv).not.toMatch(/secrets\.[A-Z0-9_]*(SUPABASE|DB_PASSWORD)/i);
     expect(patchStep).toMatch(/secrets\.[A-Z0-9_]*(SUPABASE|ACCESS_TOKEN)/i);
-    expect(patchStep).toMatch(/secrets\.[A-Z0-9_]*(DB_PASSWORD|PASSWORD)/i);
+    expect(patchStep).not.toMatch(/secrets\.[A-Z0-9_]*(DB_PASSWORD|PASSWORD)/i);
+    expect(WORKFLOW).toMatch(/secrets\.[A-Z0-9_]*(DB_PASSWORD|PASSWORD)/i);
+    expect(WORKFLOW).toMatch(/supabase\s+(link|db\s+query)/i);
   });
 
   it('gives checkout and setup actions no live secrets', () => {
