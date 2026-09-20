@@ -56,6 +56,14 @@ join/switch control.
 Acceptance: journey artifacts identify the users, sessions, gyms, route, and
 assertions; a missing journey or isolation proof is not a pass.
 
+Browser credentials are read only through a lazy `playwrightEnv()` export in
+`packages/shared/src/config/env.ts`; no test/config file reads `process.env`.
+It returns a required `DEMO_ACCOUNT_PASSWORD` and an optional validated
+`PLAYWRIGHT_BASE_URL` defaulting to `http://127.0.0.1:3000`. Local execution
+loads the gitignored `.env.local` through Node's environment-file option; CI
+supplies repository secrets. Missing credentials fail the run before tests are
+collected and must never turn the suite green by skipping it.
+
 ### HARD-004 — isolated k6 load and tenant-safety test environment
 
 When k6 load or isolation testing runs, it shall target an explicitly separate
