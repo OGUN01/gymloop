@@ -1377,6 +1377,17 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-135 — Two-point Android/web completion continuation (owner override,
+  2026-09-20).** At 6% weekly usage the owner authorized two additional
+  points, making **8% used the hard stop for new work**. Finish Phase 7's
+  truthful Android-first archive, then execute Phase 8 locally end to end for
+  Android and web; iOS is excluded from this campaign. Use Sol only for
+  orchestration and difficult arbitration, with at most two bounded
+  Terra/Luna workers for tests, implementation and browser/device evidence.
+  The extra point changes neither constitutional gates nor the rule that paid
+  Play-account, provider-credential, legal-sign-off and cloud-console actions
+  remain external until real evidence exists.
+
 - **ADR-134 — Android-first Phase 8 and single-gym v1 (owner override,
   2026-09-20).** Defer physical iOS acceptance until the Android product is
   complete through Phase 8. A member has one verified gym association in v1;
