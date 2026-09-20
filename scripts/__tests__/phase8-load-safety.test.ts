@@ -24,7 +24,6 @@ const makeGymFixtures = () => Array.from({ length: 100 }, (_, gymIndex) => ({
   memberIds: Array.from({ length: 500 }, (_, memberIndex) => `member-${gymIndex}-${memberIndex}`),
   ownedMemberIds: Array.from({ length: 500 }, (_, memberIndex) => `member-${gymIndex}-${memberIndex}`),
 }));
-const FIXTURE_PATH = 'artifacts/phase8-load/fixtures.json';
 const TENANT_ISOLATION = { denyCrossTenantRead: true, denyCrossTenantMutation: true };
 
 describe('HARD-004 isolated load safety', () => {
