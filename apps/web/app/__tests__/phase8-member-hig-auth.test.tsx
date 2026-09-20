@@ -17,6 +17,8 @@ const appRoot = existsSync(resolve(process.cwd(), 'app'))
   ? resolve(process.cwd(), 'app')
   : resolve(process.cwd(), 'apps/web/app');
 const source = (relativePath: string) => readFileSync(resolve(appRoot, relativePath), 'utf8');
+const repoRoot = resolve(appRoot, '../../..');
+const repoSource = (relativePath: string) => readFileSync(resolve(repoRoot, relativePath), 'utf8');
 
 describe('Phase 8 member HIG/auth boundary', () => {
   it('gives web and native members four labelled icon destinations with a selected state', async () => {
@@ -61,5 +63,13 @@ describe('Phase 8 member HIG/auth boundary', () => {
     expect(css).toMatch(/light|dark|data-theme|prefers-color-scheme/i);
     expect(css).toMatch(/--gymloop-target-interactive|44px/);
     expect(css).toMatch(/--gymloop-target-touch|48px/);
+  });
+
+  it('uses a named bounded height token for the mobile auth hero', () => {
+    const signIn = repoSource('apps/mobile/app/sign-in.tsx');
+    const constants = repoSource('packages/shared/src/config/constants.ts');
+    expect(constants).toMatch(/mobileAuthHeroHeight/);
+    expect(signIn).toMatch(/mobileAuthHeroHeight/);
+    expect(signIn).toMatch(/height\s*:\s*UI_TOKENS\.geometry\.media\.mobileAuthHeroHeight/);
   });
 });
