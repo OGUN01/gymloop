@@ -8,6 +8,11 @@ const WORKFLOW = readFileSync(
 
 const topLevelEnv = /^env:\s*$(.*?)(?=^jobs:)/ms.exec(WORKFLOW)?.[1] ?? '';
 const patchStep = /- name:\s*Patch the reviewed auth settings[\s\S]*$/m.exec(WORKFLOW)?.[0] ?? '';
+const setupActionSteps = [
+  ...WORKFLOW.matchAll(
+    /^[ \t]*- uses:\s*(?:actions\/checkout|supabase\/setup-cli)[^\r\n]*(?:\r?\n(?![ \t]*- (?:name|uses|run):)[^\r\n]*)*/gm,
+  ),
+].map(([source]) => source);
 
 describe('manual auth-configuration workflow credential boundaries', () => {
   it('declares only read-only repository access', () => {
@@ -30,8 +35,9 @@ describe('manual auth-configuration workflow credential boundaries', () => {
   });
 
   it('gives checkout and setup actions no live secrets', () => {
-    const setupSection = /steps:\s*([\s\S]*?)(?=- name:\s*Patch the reviewed auth settings)/m.exec(WORKFLOW)?.[1] ?? '';
-    expect(setupSection).toMatch(/actions\/(checkout|setup-)/i);
-    expect(setupSection).not.toMatch(/secrets\.[A-Z0-9_]+/);
+    expect(setupActionSteps.length).toBeGreaterThan(0);
+    for (const source of setupActionSteps) {
+      expect(source).not.toMatch(/secrets\.[A-Z0-9_]+/);
+    }
   });
 });
