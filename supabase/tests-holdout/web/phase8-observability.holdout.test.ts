@@ -22,8 +22,8 @@ describe('independent HARD-005 operational logger holdout', () => {
     logger.info('member.checked', { tenantId: TENANT, correlationId: CORRELATION, context: nested });
 
     const event = write.mock.calls[0]?.[0];
-    expect(event.tenantId).toBe(TENANT);
-    expect(event.correlationId).toBe(CORRELATION);
+    expect(event.tenant_id).toBe(TENANT);
+    expect(event.correlation_id).toBe(CORRELATION);
     expect(event.context).toEqual({
       Authorization: REDACTED,
       'access-token': REDACTED,
