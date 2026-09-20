@@ -8,7 +8,7 @@ export function identityHome(identity: GymloopIdentity) {
   switch (identity.kind) {
     case 'staff':
     case 'impersonation': return '/console';
-    case 'member': return '/member/add-ons';
+    case 'member': return '/member';
     case 'platform': return '/platform';
     case 'unlinked': return '/not-linked';
   }
