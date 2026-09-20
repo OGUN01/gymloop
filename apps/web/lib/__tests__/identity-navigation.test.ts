@@ -14,7 +14,7 @@ const shapes = [
     required: ['sub', 'tenant_id', 'staff_id'], forbidden: ['member_id', 'impersonation_session_id'],
   })),
   { claims: { sub: userId, app_role: 'member', tenant_id: tenantId, member_id: memberId },
-    expected: { kind: 'member', userId, tenantId, memberId }, home: '/member/add-ons',
+    expected: { kind: 'member', userId, tenantId, memberId }, home: '/member',
     required: ['sub', 'tenant_id', 'member_id'], forbidden: ['staff_id', 'impersonation_session_id'] },
   ...(['super_admin', 'platform_support'] as const).map((role) => ({
     claims: { sub: userId, app_role: role }, expected: { kind: 'platform', userId, role }, home: '/platform',

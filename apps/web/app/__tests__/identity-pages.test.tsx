@@ -73,7 +73,7 @@ beforeEach(() => { state.claims = member; state.rows = {}; state.error = null; s
 
 describe('NAV-002 entry points use the same identity home', () => {
   const identities = [
-    [member, '/member/add-ons'],
+    [member, '/member'],
     [{ sub: userId, role: 'authenticated', app_role: 'platform_support' }, '/platform'],
     [{ sub: userId, role: 'authenticated', app_role: 'gym_owner', tenant_id: tenantId, staff_id: staffId }, '/console'],
     [{ sub: userId, role: 'authenticated', app_role: 'gym_owner', tenant_id: tenantId, impersonation_session_id: previewId }, '/console'],
@@ -91,11 +91,11 @@ describe('NAV-002 entry points use the same identity home', () => {
   });
   it('not-linked sends a newly linked member home', async () => {
     const { default: Page } = await import('../not-linked/page');
-    await expect(Promise.resolve().then(() => Page())).rejects.toThrow('REDIRECT:/member/add-ons');
+    await expect(Promise.resolve().then(() => Page())).rejects.toThrow('REDIRECT:/member');
   });
   it('console sends a member to the member home', async () => {
     const { default: Layout } = await import('../(console)/layout');
-    await expect(Promise.resolve().then(() => Layout({ children: 'child' }))).rejects.toThrow('REDIRECT:/member/add-ons');
+    await expect(Promise.resolve().then(() => Layout({ children: 'child' }))).rejects.toThrow('REDIRECT:/member');
   });
   it('member layout sends support to platform', async () => {
     state.claims = { sub: userId, role: 'authenticated', app_role: 'platform_support' };
