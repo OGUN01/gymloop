@@ -29,8 +29,14 @@ describe('HARD-002 Android release configuration', () => {
 
   it('permits camera access without recording audio', () => {
     const permissions = android.permissions as string[];
+    const blockedPermissions = android.blockedPermissions as string[];
     expect(permissions).toContain('android.permission.CAMERA');
-    expect(permissions).not.toContain('android.permission.RECORD_AUDIO');
+    expect(blockedPermissions).toEqual(expect.arrayContaining([
+      'android.permission.RECORD_AUDIO',
+      'android.permission.SYSTEM_ALERT_WINDOW',
+      'android.permission.READ_EXTERNAL_STORAGE',
+      'android.permission.WRITE_EXTERNAL_STORAGE',
+    ]));
     expect(cameraPlugin?.[1]?.recordAudioAndroid, 'expo-camera must disable Android audio recording').toBe(false);
   });
 
