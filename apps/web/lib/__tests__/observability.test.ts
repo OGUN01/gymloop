@@ -76,8 +76,10 @@ describe('createOperationalLogger', () => {
 
     expect(write).toHaveBeenCalledTimes(1);
     expect(report).toHaveBeenCalledTimes(1);
-    expect(report).toHaveBeenCalledWith(write.mock.calls[0][0]);
-    expect(write.mock.calls[0][0]).toEqual({
+    const written = write.mock.calls.at(0)?.at(0);
+    if (written === undefined) throw new Error('expected a sink event');
+    expect(report).toHaveBeenCalledWith(written);
+    expect(written).toEqual({
       level: 'error',
       event: 'payment.failed',
       timestamp,
@@ -96,7 +98,9 @@ describe('createOperationalLogger', () => {
     expect(() => logger.error('security.alert', {
       context: { secret: 'raw-secret', password: 'raw-password' },
     })).not.toThrow();
-    expect(write.mock.calls[0][0]).not.toHaveProperty('context.secret', 'raw-secret');
-    expect(write.mock.calls[0][0]).not.toHaveProperty('context.password', 'raw-password');
+    const written = write.mock.calls.at(0)?.at(0);
+    if (written === undefined) throw new Error('expected a sink event');
+    expect(written).not.toHaveProperty('context.secret', 'raw-secret');
+    expect(written).not.toHaveProperty('context.password', 'raw-password');
   });
 });
