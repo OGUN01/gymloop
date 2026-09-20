@@ -13,7 +13,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Gymloop to scan the current QR code at your gym."
+          "cameraPermission": "Allow Gymloop to scan the current QR code at your gym.",
+          "recordAudioAndroid": false
         }
       ],
       "expo-font",
@@ -25,8 +26,7 @@
     "android": {
       "package": "in.gymloop.mobile",
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.CAMERA"
       ]
     },
     "experiments": {

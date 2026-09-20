@@ -3,6 +3,11 @@
     "version": ">= 24.7.0"
   },
   "build": {
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      }
+    },
     "preview": {
       "distribution": "internal"
     },
