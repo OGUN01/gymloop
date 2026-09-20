@@ -10,17 +10,20 @@ import {
 const PRODUCTION_PROJECT_REF = 'pecxrpskmfeuyzngvewq';
 const NON_PRODUCTION_TARGET = {
   projectRef: 'phase8-load-sandbox',
-  configuredProjectRef: 'phase8-load-sandbox',
   apiUrl: 'https://phase8-load-sandbox.example.test',
-  apiProjectRef: 'phase8-load-sandbox',
   supabaseUrl: 'https://phase8-load-sandbox.supabase.co',
-  supabaseProjectRef: 'phase8-load-sandbox',
-  observedProjectRef: 'phase8-load-sandbox',
   observedApiProjectRef: 'phase8-load-sandbox',
   observedSupabaseProjectRef: 'phase8-load-sandbox',
   confirmation: 'NON_PRODUCTION_LOAD_APPROVED',
   credentials: { kind: 'non-production', present: true, projectRef: 'phase8-load-sandbox' },
 };
+
+const makeGymFixtures = () => Array.from({ length: 100 }, (_, gymIndex) => ({
+  gymId: `gym-${gymIndex}`,
+  token: `token-${gymIndex}`,
+  memberIds: Array.from({ length: 500 }, (_, memberIndex) => `member-${gymIndex}-${memberIndex}`),
+  ownedMemberIds: Array.from({ length: 500 }, (_, memberIndex) => `member-${gymIndex}-${memberIndex}`),
+}));
 
 describe('HARD-004 isolated load safety', () => {
   it('fails closed when project identity, API identity, credentials, or confirmation is incomplete', () => {
@@ -38,7 +41,7 @@ describe('HARD-004 isolated load safety', () => {
     expect(() =>
       assertSafeLoadTarget({
         ...NON_PRODUCTION_TARGET,
-        resolvedProjectRef: PRODUCTION_PROJECT_REF,
+        observedApiProjectRef: PRODUCTION_PROJECT_REF,
       }),
     ).toThrow(/production/i);
   });
@@ -57,9 +60,9 @@ describe('HARD-004 isolated load safety', () => {
   });
 
   it('requires configured and independently observed refs to match, with Supabase HTTPS hostname bound to that ref', () => {
-    expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, configuredProjectRef: 'other-project', observedProjectRef: 'other-project' })).toThrow();
-    expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, apiProjectRef: 'other-project', observedApiProjectRef: 'other-project' })).toThrow();
-    expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, supabaseProjectRef: 'other-project', observedSupabaseProjectRef: 'other-project' })).toThrow();
+    expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, projectRef: 'other-project' })).toThrow();
+    expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, observedApiProjectRef: 'other-project' })).toThrow();
+    expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, observedSupabaseProjectRef: 'other-project' })).toThrow();
     expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, supabaseUrl: 'http://phase8-load-sandbox.supabase.co' })).toThrow(/https/i);
     expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, supabaseUrl: 'https://other-project.supabase.co' })).toThrow();
   });
@@ -67,6 +70,7 @@ describe('HARD-004 isolated load safety', () => {
   it('encodes exactly 100 gyms, 500 members per gym, and the morning check-in spike', () => {
     expect(buildMorningCheckInWorkload({
       thresholds: { p95Ms: 750 },
+      gymFixtures: makeGymFixtures(),
       tenantIsolation: { denyCrossTenantRead: true, denyCrossTenantMutation: true },
     })).toMatchObject({
       gyms: 100,
@@ -78,7 +82,7 @@ describe('HARD-004 isolated load safety', () => {
 
   it('requires caller-supplied thresholds instead of inventing a latency budget', () => {
     expect(() => buildMorningCheckInWorkload()).toThrow(/threshold/i);
-    expect(buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 } })).toMatchObject({
+    expect(buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: makeGymFixtures() })).toMatchObject({
       thresholds: { p95Ms: 750 },
     });
   });
@@ -86,6 +90,7 @@ describe('HARD-004 isolated load safety', () => {
   it('requires both cross-tenant read and mutation denial assertions', () => {
     const workload = buildMorningCheckInWorkload({
       thresholds: { p95Ms: 750 },
+      gymFixtures: makeGymFixtures(),
       tenantIsolation: { denyCrossTenantRead: true, denyCrossTenantMutation: true },
     });
     expect(workload.tenantIsolation).toEqual({
@@ -95,8 +100,10 @@ describe('HARD-004 isolated load safety', () => {
   });
 
   it('builds 100 distinct gym fixtures with 500 distinct owned members and rejects duplicate or cross-owned identities', () => {
+    const gymFixtures = makeGymFixtures();
     const workload = buildMorningCheckInWorkload({
       thresholds: { p95Ms: 750 },
+      gymFixtures,
       tenantIsolation: { denyCrossTenantRead: true, denyCrossTenantMutation: true },
     });
     expect(workload.gymFixtures).toHaveLength(100);
@@ -105,19 +112,24 @@ describe('HARD-004 isolated load safety', () => {
       expect(gym.memberIds).toHaveLength(500);
       expect(gym.memberIds.every((memberId: string) => gym.ownedMemberIds.includes(memberId))).toBe(true);
     }
-    expect(() => preflightLoadRun({ target: NON_PRODUCTION_TARGET, workload, duplicateGymIds: ['gym-1'] })).toThrow(/duplicate/i);
-    expect(() => preflightLoadRun({ target: NON_PRODUCTION_TARGET, workload, duplicateTokenIds: ['token-1'] })).toThrow(/duplicate/i);
-    expect(() => preflightLoadRun({ target: NON_PRODUCTION_TARGET, workload, duplicateMemberIds: ['member-1'] })).toThrow(/duplicate/i);
-    expect(() => preflightLoadRun({ target: NON_PRODUCTION_TARGET, workload, crossOwnedMemberIds: ['member-1'] })).toThrow(/cross-owned/i);
+    const duplicateGymFixtures = structuredClone(gymFixtures); duplicateGymFixtures[1].gymId = duplicateGymFixtures[0].gymId;
+    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: duplicateGymFixtures })).toThrow(/duplicate/i);
+    const duplicateTokenFixtures = structuredClone(gymFixtures); duplicateTokenFixtures[1].token = duplicateTokenFixtures[0].token;
+    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: duplicateTokenFixtures })).toThrow(/duplicate/i);
+    const duplicateMemberFixtures = structuredClone(gymFixtures); duplicateMemberFixtures[1].memberIds[0] = duplicateMemberFixtures[0].memberIds[0];
+    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: duplicateMemberFixtures })).toThrow(/duplicate/i);
+    const crossOwnedFixtures = structuredClone(gymFixtures); crossOwnedFixtures[1].ownedMemberIds[0] = crossOwnedFixtures[0].memberIds[0];
+    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: crossOwnedFixtures })).toThrow(/cross-owned|owned/i);
   });
 
   it('treats every 2xx mutation response, including 202 and 204, as a failure', () => {
     const workload = buildMorningCheckInWorkload({
       thresholds: { p95Ms: 750 },
+      gymFixtures: makeGymFixtures(),
       tenantIsolation: { denyCrossTenantRead: true, denyCrossTenantMutation: true },
     });
-    expect(() => preflightLoadRun({ target: NON_PRODUCTION_TARGET, workload, thresholds: { p95Ms: 750 }, rawResultPath: 'artifacts/phase8-load/raw.json', mutationResponses: [{ status: 202 }] })).toThrow(/2xx|mutation/i);
-    expect(() => preflightLoadRun({ target: NON_PRODUCTION_TARGET, workload, thresholds: { p95Ms: 750 }, rawResultPath: 'artifacts/phase8-load/raw.json', mutationResponses: [{ status: 204 }] })).toThrow(/2xx|mutation/i);
+    expect(() => preflightLoadRun({ target: NON_PRODUCTION_TARGET, workload, rawResultPath: 'artifacts/phase8-load/raw.json', mutationStatuses: [202] })).toThrow(/2xx|mutation/i);
+    expect(() => preflightLoadRun({ target: NON_PRODUCTION_TARGET, workload, rawResultPath: 'artifacts/phase8-load/raw.json', mutationStatuses: [204] })).toThrow(/2xx|mutation/i);
   });
 
   it('returns a reviewable raw-result summary without treating a missing raw path as success', () => {
