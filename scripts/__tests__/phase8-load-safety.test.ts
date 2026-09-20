@@ -80,7 +80,6 @@ describe('HARD-004 isolated load safety', () => {
       thresholds: { p95Ms: 750 },
       gymFixtures: makeGymFixtures(),
       tenantIsolation: TENANT_ISOLATION,
-      fixturePath: FIXTURE_PATH,
     })).toMatchObject({
       gyms: 100,
       membersPerGym: 500,
@@ -91,20 +90,21 @@ describe('HARD-004 isolated load safety', () => {
 
   it('requires caller-supplied thresholds instead of inventing a latency budget', () => {
     expect(() => buildMorningCheckInWorkload()).toThrow(/threshold/i);
-    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: makeGymFixtures(), tenantIsolation: TENANT_ISOLATION })).toThrow(/fixture/i);
-    expect(buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: makeGymFixtures(), tenantIsolation: TENANT_ISOLATION, fixturePath: FIXTURE_PATH })).toMatchObject({
+    expect(buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: makeGymFixtures(), tenantIsolation: TENANT_ISOLATION })).toMatchObject({
       thresholds: { p95Ms: 750 },
     });
   });
 
   it('requires tenant isolation, fixture path, and strict k6 fixture identity/URL inputs', () => {
     const fixtures = makeGymFixtures();
-    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: fixtures, fixturePath: FIXTURE_PATH })).toThrow(/tenant/i);
+    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: fixtures })).toThrow(/tenant/i);
     const blankGym = structuredClone(fixtures); blankGym[0].gymId = ' ';
-    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: blankGym, tenantIsolation: TENANT_ISOLATION, fixturePath: FIXTURE_PATH })).toThrow(/gym/i);
+    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: blankGym, tenantIsolation: TENANT_ISOLATION })).toThrow(/gym/i);
     const blankToken = structuredClone(fixtures); blankToken[0].token = '';
-    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: blankToken, tenantIsolation: TENANT_ISOLATION, fixturePath: FIXTURE_PATH })).toThrow(/token/i);
-    expect(() => assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, apiUrl: 'https://phase8-load-sandbox.example.test/' })).toThrow(/origin/i);
+    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: blankToken, tenantIsolation: TENANT_ISOLATION })).toThrow(/token/i);
+    expect(assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, apiUrl: 'https://phase8-load-sandbox.example.test/' })).toMatchObject({
+      apiUrl: NON_PRODUCTION_TARGET.apiUrl,
+    });
   });
 
   it('requires both cross-tenant read and mutation denial assertions', () => {
@@ -112,7 +112,6 @@ describe('HARD-004 isolated load safety', () => {
       thresholds: { p95Ms: 750 },
       gymFixtures: makeGymFixtures(),
       tenantIsolation: TENANT_ISOLATION,
-      fixturePath: FIXTURE_PATH,
     });
     expect(workload.tenantIsolation).toEqual({
       denyCrossTenantRead: true,
@@ -126,7 +125,6 @@ describe('HARD-004 isolated load safety', () => {
       thresholds: { p95Ms: 750 },
       gymFixtures,
       tenantIsolation: TENANT_ISOLATION,
-      fixturePath: FIXTURE_PATH,
     });
     expect(workload.gymFixtures).toHaveLength(100);
     for (const gym of workload.gymFixtures) {
@@ -135,13 +133,13 @@ describe('HARD-004 isolated load safety', () => {
       expect(gym.memberIds.every((memberId: string) => gym.ownedMemberIds.includes(memberId))).toBe(true);
     }
     const duplicateGymFixtures = structuredClone(gymFixtures); duplicateGymFixtures[1].gymId = duplicateGymFixtures[0].gymId;
-    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: duplicateGymFixtures, tenantIsolation: TENANT_ISOLATION, fixturePath: FIXTURE_PATH })).toThrow(/duplicate/i);
+    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: duplicateGymFixtures, tenantIsolation: TENANT_ISOLATION })).toThrow(/duplicate/i);
     const duplicateTokenFixtures = structuredClone(gymFixtures); duplicateTokenFixtures[1].token = duplicateTokenFixtures[0].token;
-    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: duplicateTokenFixtures, tenantIsolation: TENANT_ISOLATION, fixturePath: FIXTURE_PATH })).toThrow(/duplicate/i);
+    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: duplicateTokenFixtures, tenantIsolation: TENANT_ISOLATION })).toThrow(/duplicate/i);
     const duplicateMemberFixtures = structuredClone(gymFixtures); duplicateMemberFixtures[1].memberIds[0] = duplicateMemberFixtures[0].memberIds[0];
-    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: duplicateMemberFixtures, tenantIsolation: TENANT_ISOLATION, fixturePath: FIXTURE_PATH })).toThrow(/duplicate/i);
+    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: duplicateMemberFixtures, tenantIsolation: TENANT_ISOLATION })).toThrow(/duplicate/i);
     const crossOwnedFixtures = structuredClone(gymFixtures); crossOwnedFixtures[1].ownedMemberIds[0] = crossOwnedFixtures[0].memberIds[0];
-    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: crossOwnedFixtures, tenantIsolation: TENANT_ISOLATION, fixturePath: FIXTURE_PATH })).toThrow(/cross-owned|owned/i);
+    expect(() => buildMorningCheckInWorkload({ thresholds: { p95Ms: 750 }, gymFixtures: crossOwnedFixtures, tenantIsolation: TENANT_ISOLATION })).toThrow(/cross-owned|owned/i);
   });
 
   it('treats every 2xx mutation response, including 202 and 204, as a failure', () => {
@@ -149,8 +147,8 @@ describe('HARD-004 isolated load safety', () => {
       thresholds: { p95Ms: 750 },
       gymFixtures: makeGymFixtures(),
       tenantIsolation: TENANT_ISOLATION,
-      fixturePath: FIXTURE_PATH,
     });
+    expect(() => preflightLoadRun({ target: NON_PRODUCTION_TARGET, workload, rawResultPath: '' , mutationStatuses: [200] })).toThrow(/fixture|path/i);
     expect(() => preflightLoadRun({ target: NON_PRODUCTION_TARGET, workload, rawResultPath: 'artifacts/phase8-load/raw.json', mutationStatuses: [200] })).toThrow(/2xx|mutation/i);
     expect(() => preflightLoadRun({ target: NON_PRODUCTION_TARGET, workload, rawResultPath: 'artifacts/phase8-load/raw.json', mutationStatuses: [202] })).toThrow(/2xx|mutation/i);
     expect(() => preflightLoadRun({ target: NON_PRODUCTION_TARGET, workload, rawResultPath: 'artifacts/phase8-load/raw.json', mutationStatuses: [204] })).toThrow(/2xx|mutation/i);
@@ -172,8 +170,8 @@ describe('HARD-004 isolated load safety', () => {
       status: 'passed',
       rawResultPath: 'artifacts/phase8-load/raw.json',
       target: NON_PRODUCTION_TARGET,
-      thresholds: { p95Ms: 750 },
       fixturePath: FIXTURE_PATH,
+      thresholds: { p95Ms: 750 },
       measured: { p95Ms: 700, completedCheckIns: 50000, tenantIsolation: TENANT_ISOLATION },
     })).toMatchObject({ status: 'passed', completedCheckIns: 50000 });
     expect(() => summarizeRawResult({ status: 'passed', rawResultPath: 'artifacts/phase8-load/raw.json', measured: { p95Ms: -1, completedCheckIns: 50000, tenantIsolation: TENANT_ISOLATION } })).toThrow();
