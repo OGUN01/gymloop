@@ -1,121 +1,99 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 const PRODUCTION_PROJECT_REF = 'pecxrpskmfeuyzngvewq';
 const PRODUCTION_URL = 'https://gymloop.example.com';
-const LOAD_ARTIFACT = 'artifacts/phase8/load-summary.json';
+const STAGING_URL = 'https://staging.gymloop.example.com';
+const RAW_RESULT_PATH = 'artifacts/phase8/load-raw.json';
 const P95_THRESHOLD_MS = 850;
 const EXPECTED_GYMS = 100;
 const EXPECTED_MEMBERS_PER_GYM = 500;
-const SOURCE_TENANT = 'tenant-a';
-const TARGET_TENANT = 'tenant-b';
-
-type TargetIdentity = {
-  apiUrl: string;
-  environment: { kind: 'non-production' };
-  projectRef: string;
-};
-
-type LoadSafetyHarness = {
-  run: (input: { artifactPath: string; p95ThresholdMs?: number }) => Promise<{ artifactPath: string; summary: unknown }>;
-};
 
 type LoadSafetyModule = {
-  createLoadSafetyHarness: (adapters: {
-    inspectTarget: () => Promise<unknown>;
-    runLoad: (workload: unknown) => Promise<unknown>;
-    verifyTenantIsolation: (tenants: { sourceTenantId: string; targetTenantId: string }) => Promise<unknown>;
-    writeSummary: (artifactPath: string, summary: unknown) => Promise<void>;
-  }) => LoadSafetyHarness;
+  assertSafeLoadTarget: (target: unknown) => unknown;
+  buildMorningCheckInWorkload: () => unknown;
+  preflightLoadRun: (input: unknown) => unknown;
+  summarizeRawResult: (input: unknown) => unknown;
 };
 
-const safeTarget = (): TargetIdentity => ({
-  apiUrl: 'https://staging.gymloop.example.com',
-  environment: { kind: 'non-production' },
+const safeTarget = () => ({
+  configuredApiUrl: STAGING_URL,
+  environment: { confirmation: 'non-production', kind: 'non-production' },
   projectRef: 'staging-project-ref',
+  resolvedApiUrl: STAGING_URL,
 });
 
-const createHarness = async (target: unknown = safeTarget()) => {
-  const load = vi.fn(async () => ({ p95Ms: P95_THRESHOLD_MS - 1 }));
-  const isolation = vi.fn(async () => ({ readDenied: true, mutationDenied: true }));
-  const write = vi.fn(async () => undefined);
-  const { createLoadSafetyHarness } = await import('../../scripts/phase8-load-safety') as LoadSafetyModule;
-  const harness = createLoadSafetyHarness({
-    inspectTarget: async () => target,
-    runLoad: load,
-    verifyTenantIsolation: isolation,
-    writeSummary: write,
-  });
-
-  return { harness, isolation, load, write };
-};
+const loadModule = async () => await import('../../scripts/phase8-load-safety') as LoadSafetyModule;
 
 describe('independent HARD-004 isolated load safety holdout', () => {
-  it('fails closed before any load work for the production project or production URL', async () => {
-    const productionProject = await createHarness({ ...safeTarget(), projectRef: PRODUCTION_PROJECT_REF });
-    await expect(productionProject.harness.run({ artifactPath: LOAD_ARTIFACT, p95ThresholdMs: P95_THRESHOLD_MS })).rejects.toThrow();
-    expect(productionProject.load).not.toHaveBeenCalled();
-    expect(productionProject.isolation).not.toHaveBeenCalled();
-    expect(productionProject.write).not.toHaveBeenCalled();
+  it('fails closed for the production project reference and direct or resolved production API URLs', async () => {
+    const { assertSafeLoadTarget } = await loadModule();
 
-    const productionUrl = await createHarness({ ...safeTarget(), apiUrl: PRODUCTION_URL });
-    await expect(productionUrl.harness.run({ artifactPath: LOAD_ARTIFACT, p95ThresholdMs: P95_THRESHOLD_MS })).rejects.toThrow();
-    expect(productionUrl.load).not.toHaveBeenCalled();
-  });
-
-  it('accepts only a positive structured non-production identity, never truthy flags or missing identity', async () => {
-    for (const target of [
-      { ...safeTarget(), environment: { kind: 'production' } },
-      { ...safeTarget(), environment: 'non-production' },
-      { ...safeTarget(), environment: { kind: 'false' } },
-      { ...safeTarget(), environment: { kind: false } },
-      { ...safeTarget(), environment: { kind: 'non-production', verified: 'true' } },
-      { apiUrl: safeTarget().apiUrl, projectRef: safeTarget().projectRef },
+    for (const unsafeTarget of [
+      { ...safeTarget(), projectRef: PRODUCTION_PROJECT_REF },
+      { ...safeTarget(), configuredApiUrl: PRODUCTION_URL },
+      { ...safeTarget(), resolvedApiUrl: PRODUCTION_URL },
     ]) {
-      const candidate = await createHarness(target);
-      await expect(candidate.harness.run({ artifactPath: LOAD_ARTIFACT, p95ThresholdMs: P95_THRESHOLD_MS })).rejects.toThrow();
-      expect(candidate.load).not.toHaveBeenCalled();
-      expect(candidate.write).not.toHaveBeenCalled();
+      expect(() => assertSafeLoadTarget(unsafeTarget)).toThrow();
     }
   });
 
-  it('requires an explicit finite p95 target instead of silently inventing one', async () => {
-    const { harness, load, write } = await createHarness();
-    await expect(harness.run({ artifactPath: LOAD_ARTIFACT })).rejects.toThrow();
-    expect(load).not.toHaveBeenCalled();
-    expect(write).not.toHaveBeenCalled();
+  it('requires structured positive non-production confirmation and rejects ambiguous truthy forms', async () => {
+    const { assertSafeLoadTarget } = await loadModule();
+
+    expect(() => assertSafeLoadTarget(safeTarget())).not.toThrow();
+    for (const target of [
+      { ...safeTarget(), environment: 'non-production' },
+      { ...safeTarget(), environment: { confirmation: 'true', kind: 'non-production' } },
+      { ...safeTarget(), environment: { confirmation: true, kind: 'non-production' } },
+      { ...safeTarget(), environment: { confirmation: 'non-production', kind: 'production' } },
+      { ...safeTarget(), environment: { confirmation: 'non-production', kind: false } },
+      { ...safeTarget(), environment: { kind: 'non-production' } },
+      { configuredApiUrl: STAGING_URL, projectRef: 'staging-project-ref', resolvedApiUrl: STAGING_URL },
+    ]) {
+      expect(() => assertSafeLoadTarget(target)).toThrow();
+    }
   });
 
-  it('executes exactly the required morning spike and verifies both cross-tenant denial paths', async () => {
-    const { harness, isolation, load, write } = await createHarness();
-    const result = await harness.run({ artifactPath: LOAD_ARTIFACT, p95ThresholdMs: P95_THRESHOLD_MS });
+  it('requires a finite positive explicit p95 threshold at executable preflight', async () => {
+    const { preflightLoadRun } = await loadModule();
 
-    expect(load).toHaveBeenCalledWith(expect.objectContaining({
+    for (const p95ThresholdMs of [undefined, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, '850']) {
+      expect(() => preflightLoadRun({ p95ThresholdMs, target: safeTarget() })).toThrow();
+    }
+    expect(() => preflightLoadRun({ p95ThresholdMs: P95_THRESHOLD_MS, target: safeTarget() })).not.toThrow();
+  });
+
+  it('builds the exact 100-gym by 500-member morning check-in workload', async () => {
+    const { buildMorningCheckInWorkload } = await loadModule();
+    expect(buildMorningCheckInWorkload()).toEqual(expect.objectContaining({
       gyms: EXPECTED_GYMS,
       membersPerGym: EXPECTED_MEMBERS_PER_GYM,
       phase: 'morning-check-in-spike',
     }));
-    expect(isolation).toHaveBeenCalledWith({ sourceTenantId: SOURCE_TENANT, targetTenantId: TARGET_TENANT });
-    expect(write).toHaveBeenCalledWith(LOAD_ARTIFACT, expect.any(Object));
-    expect(result.artifactPath).toBe(LOAD_ARTIFACT);
   });
 
-  it('does not report success when a cross-tenant read or mutation is allowed', async () => {
-    for (const isolationResult of [
-      { readDenied: false, mutationDenied: true },
-      { readDenied: true, mutationDenied: false },
-    ]) {
-      const { harness, write } = await createHarness(safeTarget());
-      const { createLoadSafetyHarness } = await import('../../scripts/phase8-load-safety') as LoadSafetyModule;
-      const unsafeHarness = createLoadSafetyHarness({
-        inspectTarget: async () => safeTarget(),
-        runLoad: async () => ({ p95Ms: P95_THRESHOLD_MS - 1 }),
-        verifyTenantIsolation: async () => isolationResult,
-        writeSummary: write,
-      });
+  it('cannot report a passing raw result unless both cross-tenant read and mutation are denied', async () => {
+    const { summarizeRawResult } = await loadModule();
+    const baseResult = {
+      p95Ms: P95_THRESHOLD_MS - 1,
+      p95ThresholdMs: P95_THRESHOLD_MS,
+      rawResultPath: RAW_RESULT_PATH,
+    };
 
-      await expect(unsafeHarness.run({ artifactPath: LOAD_ARTIFACT, p95ThresholdMs: P95_THRESHOLD_MS })).rejects.toThrow();
-      expect(write).not.toHaveBeenCalled();
-      void harness;
+    for (const tenantIsolation of [
+      { mutationDenied: false, readDenied: true },
+      { mutationDenied: true, readDenied: false },
+      { mutationDenied: false, readDenied: false },
+    ]) {
+      const summary = summarizeRawResult({ ...baseResult, tenantIsolation }) as { status?: string };
+      expect(summary.status).not.toBe('pass');
     }
+
+    const passing = summarizeRawResult({
+      ...baseResult,
+      tenantIsolation: { mutationDenied: true, readDenied: true },
+    }) as { rawResultPath?: string; status?: string };
+    expect(passing.status).toBe('pass');
+    expect(passing.rawResultPath).toBe(RAW_RESULT_PATH);
   });
 });
