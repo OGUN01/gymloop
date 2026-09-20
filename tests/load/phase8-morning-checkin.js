@@ -64,8 +64,10 @@ function validatedFixtures(fixtures) {
     }
     gymIds.add(fixture.gymId); tokens.add(fixture.token);
     const owned = new Set(fixture.ownedMemberIds); const current = new Set(fixture.memberIds);
-    if (owned.size !== MEMBERS_PER_GYM || current.size !== MEMBERS_PER_GYM || [...owned].some((memberId) => typeof memberId !== 'string' || memberId === '') ||
-        [...current].some((memberId) => typeof memberId !== 'string' || memberId === '') || [...owned].some((memberId) => !current.has(memberId))) {
+    const ownedMemberIdsAreNonblank = [...owned].every((memberId) => typeof memberId === 'string' && memberId.trim() !== '');
+    const currentMemberIdsAreNonblank = [...current].every((memberId) => typeof memberId === 'string' && memberId.trim() !== '');
+    if (owned.size !== MEMBERS_PER_GYM || current.size !== MEMBERS_PER_GYM || !ownedMemberIdsAreNonblank ||
+        !currentMemberIdsAreNonblank || [...owned].some((memberId) => !current.has(memberId))) {
       fail('HARD-004 fixture members must be unique and exactly owned by their gym.');
     }
     for (const memberId of current) { if (memberIds.has(memberId)) fail('HARD-004 member identities must be globally unique.'); memberIds.add(memberId); }
@@ -97,7 +99,7 @@ if (!Number.isFinite(p95Ms) || p95Ms <= 0) fail('HARD-004 requires a positive ca
 if (!Array.isArray(tenants) || tenants.length !== GYM_COUNT || tenants.some((tenant) =>
   tenant === null || typeof tenant !== 'object' || typeof tenant.token !== 'string' ||
   !Array.isArray(tenant.memberIds) || tenant.memberIds.length !== MEMBERS_PER_GYM ||
-  tenant.memberIds.some((memberId) => typeof memberId !== 'string' || memberId === ''))) {
+  !tenant.memberIds.every((memberId) => typeof memberId === 'string' && memberId.trim() !== ''))) {
   fail('HARD-004 requires exactly 100 isolated tenant fixtures with 500 member ids each.');
 }
 
