@@ -19,7 +19,7 @@ export default function SignIn() {
 }
 
 const styles = StyleSheet.create({
-  hero: { width: '100%', aspectRatio: UI_TOKENS.geometry.media.mobileAuthHeroAspectRatio, borderRadius: UI_TOKENS.geometry.radii.sheet, borderCurve: 'continuous', resizeMode: 'cover' },
+  hero: { width: '100%', height: UI_TOKENS.geometry.media.mobileAuthHeroHeight, borderRadius: UI_TOKENS.geometry.radii.sheet, borderCurve: 'continuous', resizeMode: 'cover' },
   brand: { flexDirection: 'row', alignItems: 'center', gap: UI_TOKENS.geometry.spacing[2] },
   brandMark: { width: UI_TOKENS.geometry.targets.touch, height: UI_TOKENS.geometry.targets.touch, alignItems: 'center', justifyContent: 'center', borderRadius: UI_TOKENS.geometry.radii.control, borderCurve: 'continuous' },
   brandName: { fontFamily: 'Inter_600SemiBold', fontSize: UI_TOKENS.typography.mobileSection.size, lineHeight: UI_TOKENS.typography.mobileSection.lineHeight },
