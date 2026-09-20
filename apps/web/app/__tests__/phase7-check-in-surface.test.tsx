@@ -62,6 +62,15 @@ describe('Phase 7 check-in surface', () => {
     expect(gateSource).toMatch(/outcome\.retry\s*\?\s*retry\s*:\s*\(\)\s*=>\s*setOutcome\(null\)/);
   });
 
+  it('renders each newly issued gate code as a scannable member QR with a text fallback', () => {
+    const gateSource = readFileSync(new URL('../(console)/console/check-in/check-in-gate.tsx', import.meta.url), 'utf8');
+
+    expect(gateSource).toContain("from 'qrcode.react'");
+    expect(gateSource).toMatch(/<QRCodeSVG[\s\S]*value=\{issuedCode\}/);
+    expect(gateSource).toContain('aria-label="Member check-in QR code"');
+    expect(gateSource).toContain('<p className="check-in-issued-code">{issuedCode}</p>');
+  });
+
   it('uses the shared semantic foundation and responsive check-in contracts', () => {
     const css = readFileSync(new URL('../globals.css', import.meta.url), 'utf8');
 
