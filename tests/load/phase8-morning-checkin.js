@@ -23,9 +23,14 @@ function boundedIndex(iteration, size) {
 }
 
 function requiredOrigin(name) {
-  const value = required(name).replace(/\/$/, '');
-  if (!/^https:\/\/[^/?#@]+$/.test(value) || value.includes(PRODUCTION_PROJECT_REF)) fail(`HARD-004 ${name} must be an isolated HTTPS origin-only non-production target.`);
-  return value;
+  const value = required(name);
+  let url;
+  try { url = new URL(value); } catch { fail(`HARD-004 ${name} must be a valid HTTPS origin.`); }
+  if (value.endsWith('/') || url.protocol !== 'https:' || url.username !== '' || url.password !== '' ||
+      url.pathname !== '/' || url.search !== '' || url.hash !== '' || url.hostname.includes(PRODUCTION_PROJECT_REF)) {
+    fail(`HARD-004 ${name} must be an isolated HTTPS origin-only non-production target.`);
+  }
+  return url.origin;
 }
 
 function requireNonProductionIdentity() {
@@ -51,7 +56,8 @@ function validatedFixtures(fixtures) {
   if (!Array.isArray(fixtures) || fixtures.length !== GYM_COUNT) fail('HARD-004 requires exactly 100 isolated gym fixtures.');
   const gymIds = new Set(); const tokens = new Set(); const memberIds = new Set();
   for (const fixture of fixtures) {
-    if (fixture === null || typeof fixture !== 'object' || typeof fixture.gymId !== 'string' || typeof fixture.token !== 'string' ||
+    if (fixture === null || typeof fixture !== 'object' || typeof fixture.gymId !== 'string' || fixture.gymId.trim() === '' ||
+        typeof fixture.token !== 'string' || fixture.token.trim() === '' ||
         !Array.isArray(fixture.memberIds) || !Array.isArray(fixture.ownedMemberIds) || fixture.memberIds.length !== MEMBERS_PER_GYM ||
         fixture.ownedMemberIds.length !== MEMBERS_PER_GYM || gymIds.has(fixture.gymId) || tokens.has(fixture.token)) {
       fail('HARD-004 fixture identity is incomplete or duplicated.');

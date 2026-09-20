@@ -10,6 +10,8 @@ const TOTAL_MEMBER_CHECK_INS = 50_000;
 const TENANT_ISOLATION_FLAG_COUNT = 2;
 const HTTP_SUCCESS_MIN = 200;
 const HTTP_SUCCESS_MAX = 299;
+const HTTP_STATUS_MIN = 100;
+const HTTP_STATUS_MAX = 599;
 const workloadSources = new WeakMap();
 
 function nonBlankString(value) { return typeof value === 'string' && value.trim() !== ''; }
@@ -24,6 +26,7 @@ function exactKeys(value, keys, label) {
 
 function originOnly(value, label) {
   if (!nonBlankString(value)) throw loadSafetyError(`${label} is required.`);
+  if (value.endsWith('/')) throw loadSafetyError(`${label} must be an origin-only URL without a trailing path.`);
   let url;
   try { url = new globalThis.URL(value); } catch { throw loadSafetyError(`${label} is not a valid URL.`); }
   if (url.protocol !== 'https:') throw loadSafetyError(`${label} must use HTTPS.`);
@@ -49,10 +52,11 @@ function validatedFixtures(gymFixtures) {
   const gymIds = new Set(); const tokens = new Set(); const memberIds = new Set();
   return gymFixtures.map((fixture) => {
     exactKeys(fixture, ['gymId', 'token', 'memberIds', 'ownedMemberIds'], 'a gym fixture');
-    if (!nonBlankString(fixture.gymId) || !nonBlankString(fixture.token) || !Array.isArray(fixture.memberIds) ||
-        !Array.isArray(fixture.ownedMemberIds) || fixture.memberIds.length !== MEMBERS_PER_GYM ||
+    if (!nonBlankString(fixture.gymId)) throw loadSafetyError('each fixture requires a nonblank gym identity.');
+    if (!nonBlankString(fixture.token)) throw loadSafetyError('each fixture requires a nonblank token.');
+    if (!Array.isArray(fixture.memberIds) || !Array.isArray(fixture.ownedMemberIds) || fixture.memberIds.length !== MEMBERS_PER_GYM ||
         fixture.ownedMemberIds.length !== MEMBERS_PER_GYM) {
-      throw loadSafetyError(`each fixture needs ${MEMBERS_PER_GYM} owned member ids and one gym identity.`);
+      throw loadSafetyError(`each fixture needs ${MEMBERS_PER_GYM} owned member ids.`);
     }
     if (gymIds.has(fixture.gymId) || tokens.has(fixture.token)) throw loadSafetyError('duplicate gym identity or token is not isolated.');
     gymIds.add(fixture.gymId); tokens.add(fixture.token);
@@ -114,16 +118,17 @@ export function assertSafeLoadTarget(target) {
 /** Validates the complete caller-owned 100 × 500 workload without synthesis. */
 export function buildMorningCheckInWorkload(options = undefined) {
   const p95Ms = positiveThreshold(options?.thresholds);
-  const tenantIsolation = options?.tenantIsolation ?? { denyCrossTenantRead: true, denyCrossTenantMutation: true };
+  const tenantIsolation = options?.tenantIsolation;
   if (tenantIsolation === null || typeof tenantIsolation !== 'object' || Array.isArray(tenantIsolation) ||
       Object.keys(tenantIsolation).length !== TENANT_ISOLATION_FLAG_COUNT || tenantIsolation.denyCrossTenantRead !== true || tenantIsolation.denyCrossTenantMutation !== true) {
     throw loadSafetyError('both cross-tenant denial assertions must be exactly true.');
   }
+  if (!nonBlankString(options?.fixturePath)) throw loadSafetyError('a caller-selected fixture path is required.');
   const safeFixtures = validatedFixtures(options?.gymFixtures);
   const workload = { gyms: GYM_COUNT, membersPerGym: MEMBERS_PER_GYM, totalMembers: TOTAL_MEMBER_CHECK_INS,
     spike: { name: 'morning_check_in_spike' }, thresholds: { p95Ms },
-    tenantIsolation: { denyCrossTenantRead: true, denyCrossTenantMutation: true }, gymFixtures: safeFixtures };
-  workloadSources.set(workload, { thresholds: options.thresholds, tenantIsolation, gymFixtures: options.gymFixtures });
+    tenantIsolation: { denyCrossTenantRead: true, denyCrossTenantMutation: true }, fixturePath: options.fixturePath, gymFixtures: safeFixtures };
+  workloadSources.set(workload, { thresholds: options.thresholds, tenantIsolation, fixturePath: options.fixturePath, gymFixtures: options.gymFixtures });
   return workload;
 }
 
@@ -136,16 +141,24 @@ export function summarizeRawResult(input) {
   }
   if (input.status === 'prepared' || input.status === 'blocked') return { rawResultPath: input.rawResultPath, status: input.status };
   if (input.status !== 'passed') throw loadSafetyError('only prepared, blocked, or evidence-backed passed status is allowed.');
+  const measured = input.measured;
+  if (measured === undefined || measured === null || typeof measured !== 'object' || Array.isArray(measured)) {
+    return { rawResultPath: input.rawResultPath, status: 'blocked' };
+  }
+  if (
+      typeof measured.p95Ms !== 'number' || !Number.isFinite(measured.p95Ms) || measured.p95Ms < 0) {
+    throw loadSafetyError('passed evidence requires a finite nonnegative measured p95.');
+  }
   try {
     const target = assertSafeLoadTarget(input.target);
     const threshold = positiveThreshold(input.thresholds);
-    const measured = input.measured !== null && typeof input.measured === 'object' ? input.measured : input.measured === true ? input : null;
-    const readDenied = measured?.crossTenantReadDenied ?? input.tenantIsolation?.denyCrossTenantRead;
-    const mutationStatus = measured?.crossTenantMutationStatus;
-    const legacyMutationDenied = input.measured === true && input.tenantIsolation?.denyCrossTenantMutation === true;
-    if (typeof measured?.p95Ms !== 'number' || !Number.isFinite(measured.p95Ms) || measured.p95Ms > threshold ||
-        measured.completedCheckIns !== TOTAL_MEMBER_CHECK_INS || readDenied !== true ||
-        (mutationStatus === undefined ? !legacyMutationDenied : has2xx(mutationStatus))) return { rawResultPath: input.rawResultPath, status: 'blocked' };
+    if (!nonBlankString(input.fixturePath)) return { rawResultPath: input.rawResultPath, status: 'blocked' };
+    const legacyIsolation = measured.tenantIsolation;
+    const readDenied = measured.crossTenantReadDenied ?? legacyIsolation?.denyCrossTenantRead;
+    const mutationStatus = measured.crossTenantMutationStatus;
+    const legacyMutationDenied = legacyIsolation?.denyCrossTenantMutation === true;
+    if (measured.p95Ms > threshold || measured.completedCheckIns !== TOTAL_MEMBER_CHECK_INS || readDenied !== true ||
+        (mutationStatus === undefined ? !legacyMutationDenied : !Number.isInteger(mutationStatus) || mutationStatus < HTTP_STATUS_MIN || mutationStatus > HTTP_STATUS_MAX || has2xx(mutationStatus))) return { rawResultPath: input.rawResultPath, status: 'blocked' };
     return { rawResultPath: input.rawResultPath, status: 'passed', target, completedCheckIns: TOTAL_MEMBER_CHECK_INS };
   } catch { return { rawResultPath: input.rawResultPath, status: 'blocked' }; }
 }
@@ -157,8 +170,13 @@ export function preflightLoadRun(config) {
   const source = workloadSources.get(config.workload);
   const workload = buildMorningCheckInWorkload(source ?? config.workload);
   if (!nonBlankString(config.rawResultPath)) throw loadSafetyError('a caller-selected raw result path is required.');
-  if (Array.isArray(config.mutationStatuses) && config.mutationStatuses.some(has2xx)) throw loadSafetyError('a cross-tenant mutation 2xx response is a failure.');
-  return { target, workload: credentialFreeWorkload(workload), rawResultPath: config.rawResultPath, command: `k6 run --out json=${config.rawResultPath} tests/load/phase8-morning-checkin.js` };
+  if (config.mutationStatuses !== undefined) {
+    if (!Array.isArray(config.mutationStatuses) || config.mutationStatuses.some((status) => !Number.isInteger(status) || status < HTTP_STATUS_MIN || status > HTTP_STATUS_MAX)) {
+      throw loadSafetyError('mutation probe statuses must be integer HTTP statuses.');
+    }
+    if (config.mutationStatuses.some(has2xx)) throw loadSafetyError('a cross-tenant mutation 2xx response is a failure.');
+  }
+  return { target, workload: credentialFreeWorkload(workload), fixturePath: workload.fixturePath, rawResultPath: config.rawResultPath, command: `k6 run --out json=${config.rawResultPath} tests/load/phase8-morning-checkin.js` };
 }
 
 function main() {
