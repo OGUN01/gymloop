@@ -5,6 +5,13 @@
   "build": {
     "preview": {
       "distribution": "internal"
+    },
+    "simulator": {
+      "environment": "development",
+      "withoutCredentials": true,
+      "ios": {
+        "simulator": true
+      }
     }
   }
 }
