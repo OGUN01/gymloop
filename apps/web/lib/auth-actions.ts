@@ -43,17 +43,18 @@ export async function signIn(formData: FormData): Promise<void> {
 
 /** Starts Google only for an identity already linked by Gymloop administration. */
 export async function startGoogleSignIn(): Promise<void> {
-  let authorizationUrl: string | null = null;
-  try {
-    const supabase = await createServerSupabase();
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${serverEnv().WEB_APP_URL}/auth/callback` },
-    });
-    authorizationUrl = error === null ? data.url : null;
-  } catch {
-    authorizationUrl = null;
-  }
+  const authorizationUrl = await (async () => {
+    try {
+      const supabase = await createServerSupabase();
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${serverEnv().WEB_APP_URL}/auth/callback` },
+      });
+      return error === null ? data.url : null;
+    } catch {
+      return null;
+    }
+  })();
   if (authorizationUrl === null) redirect('/sign-in?failed=1');
   redirect(authorizationUrl);
 }
