@@ -267,4 +267,15 @@ visual critics returned GO, and CI is green. Canonical mobile spec:
 `openspec/specs/mobile/spec.md`; archive:
 `openspec/changes/archive/2026-09-20-phase7-mobile-foundation/`. Phase 8 is active.
 
+**Phase 8 production release advanced 2026-09-20:** the web/API is live at
+`https://gymloop-phi.vercel.app` on Vercel `bom1`, and EAS build
+`2c0c4e0c-317d-4912-b50a-1f361d979b85` produced the signed Android `1.0.0`
+store AAB from `2252bdc`. Bundletool validation and merged-manifest inspection
+passed after the first candidate was rejected for unnecessary overlay and
+legacy-storage permissions. HARD-002 is Passed; HARD-008 remains Partial /
+External until the exact artifact is installed from a Play internal track (or
+an explicitly authorized derived APK set) and the physical checklist runs.
+Phase 8 remains active for the external non-production load fixture, monitoring
+destination, legal/data-lifecycle decisions, restore drill and Play actions.
+
 Each phase opens its own OpenSpec change (`openspec/changes/000N-<phase-name>/`) and follows the Gauntlet Loop (`AGENTS.md`) — bar, spec, tests-first, build, fresh-context critic, gates, archive. Phase 0's own change is the worked template — proposal, design, tasks, and the evidence trail of what was proven and what went wrong on the way: `openspec/changes/archive/2026-09-06-phase-0-foundation/`.

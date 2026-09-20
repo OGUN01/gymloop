@@ -22,6 +22,9 @@ none implies the next.
 
 The configuration/test commits are `cdd99fb` and `674255e`. They prove a
 reviewable app-bundle/least-permission configuration, not signing or upload.
+The merged-manifest correction is independently specified in `94f058f` and
+implemented in `2252bdc`; it blocks microphone, overlay and legacy-storage
+permissions contributed by dependencies while retaining camera access.
 
 ## Build and artifact evidence
 
@@ -41,6 +44,12 @@ With an authorized production signing owner present:
 
 If the signing credential is unavailable, stop at **External — signing owner
 action required**. An unsigned bundle or debug APK is not a production AAB.
+
+The 2026-09-20 execution completed the signed-build portion of this runbook with
+EAS build `2c0c4e0c-317d-4912-b50a-1f361d979b85`. Its exact artifact hash,
+certificate, merged permissions and the rejected first candidate are recorded
+in `docs/evidence/2026-09-20-phase8-production-release.md`. This evidence does
+not claim an exact-artifact device install or Play upload.
 
 ## Physical-device smoke checklist
 
