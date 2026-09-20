@@ -233,7 +233,7 @@ describe('leads list screen', () => {
       'Contact lead', 'Schedule trial', 'Record trial outcome', 'Convert or mark lost', 'Open member',
       'Chose a rival gym', String(stageRows.length), '9',
     ]) expect(view.text).toContain(text);
-    expect(view.text).toMatch(/Trial at/i);
+    expect(view.text).toMatch(/Currently scheduled:/i);
     expect(view.text).toContain('2026-09-20');
     expect(view.text).toContain('10:00');
     expect(view.hrefs.some((href) => href.includes(`/members/${MEMBER_ID}`))).toBe(true);
