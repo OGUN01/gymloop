@@ -12,6 +12,7 @@ const accounts = {
 
 async function signIn(page: import('@playwright/test').Page, email: string) {
   await page.goto('/sign-in');
+  await page.getByText('Use email instead', { exact: true }).click();
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(demoPassword ?? '');
   await page.getByRole('button', { name: 'Sign in' }).click();
