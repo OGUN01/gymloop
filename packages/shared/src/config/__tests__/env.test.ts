@@ -53,4 +53,34 @@ describe('env.ts', () => {
     const second = env();
     expect(second).toEqual(first);
   });
+
+  it('playwrightEnv() validates lazily and requires the demo account password', async () => {
+    stubValidEnv();
+    const { playwrightEnv } = await import('../env');
+    expect(() => playwrightEnv()).toThrow();
+    vi.stubEnv('DEMO_ACCOUNT_PASSWORD', 'demo-password');
+    expect(() => playwrightEnv()).not.toThrow();
+  });
+
+  it('playwrightEnv() defaults and validates the configured base URL', async () => {
+    stubValidEnv();
+    vi.stubEnv('DEMO_ACCOUNT_PASSWORD', 'demo-password');
+    const { playwrightEnv } = await import('../env');
+    expect(playwrightEnv().PLAYWRIGHT_BASE_URL).toBe('http://127.0.0.1:3000');
+    vi.stubEnv('PLAYWRIGHT_BASE_URL', 'not a url');
+    expect(() => playwrightEnv()).toThrow();
+  });
+
+  it('playwrightEnv() does not return server secrets', async () => {
+    stubValidEnv();
+    vi.stubEnv('DEMO_ACCOUNT_PASSWORD', 'demo-password');
+    const { playwrightEnv } = await import('../env');
+    const result = playwrightEnv();
+    expect(result).toEqual({
+      DEMO_ACCOUNT_PASSWORD: 'demo-password',
+      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:3000',
+    });
+    expect(result).not.toHaveProperty('SUPABASE_SERVICE_ROLE_KEY');
+    expect(result).not.toHaveProperty('SUPABASE_DB_PASSWORD');
+  });
 });

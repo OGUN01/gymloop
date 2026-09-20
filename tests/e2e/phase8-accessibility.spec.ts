@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { playwrightEnv } from '@gymloop/shared';
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? process.env.BASE_URL ?? 'http://127.0.0.1:3000';
-const demoPassword = process.env.DEMO_ACCOUNT_PASSWORD;
+const { DEMO_ACCOUNT_PASSWORD: demoPassword } = playwrightEnv();
 
 const accounts = {
   member: { email: 'aarav.member@ironbox.example.com', home: '/member', forbidden: ['Overview', 'Payments', 'Members'] },
@@ -11,7 +11,7 @@ const accounts = {
 } as const;
 
 async function signIn(page: import('@playwright/test').Page, email: string) {
-  await page.goto(`${baseURL}/sign-in`);
+  await page.goto('/sign-in');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(demoPassword ?? '');
   await page.getByRole('button', { name: 'Sign in' }).click();
@@ -26,9 +26,8 @@ async function assertEnglishAndResponsive(page: import('@playwright/test').Page,
 }
 
 test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
-  test.skip(!demoPassword, 'DEMO_ACCOUNT_PASSWORD is required for seeded demo journeys');
-
   test('journeys A–C land on the role-correct surface and isolate primary navigation', async ({ browser }) => {
+    const baseURL = test.info().project.use.baseURL;
     for (const account of Object.values(accounts)) {
       const context = await browser.newContext({ baseURL });
       const page = await context.newPage();
@@ -44,6 +43,7 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
 
   for (const theme of ['light', 'dark'] as const) {
     test(`journey accessibility scans pass for member, desk and owner in ${theme} mode`, async ({ browser }) => {
+      const baseURL = test.info().project.use.baseURL;
       for (const account of Object.values(accounts)) {
         const context = await browser.newContext({ baseURL, colorScheme: theme });
         const page = await context.newPage();
