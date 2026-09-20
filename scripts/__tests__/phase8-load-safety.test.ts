@@ -170,11 +170,10 @@ describe('HARD-004 isolated load safety', () => {
       status: 'passed',
       rawResultPath: 'artifacts/phase8-load/raw.json',
       target: NON_PRODUCTION_TARGET,
-      fixturePath: FIXTURE_PATH,
       thresholds: { p95Ms: 750 },
-      measured: { p95Ms: 700, completedCheckIns: 50000, tenantIsolation: TENANT_ISOLATION },
+      measured: { p95Ms: 700, completedCheckIns: 50000, crossTenantReadDenied: true, crossTenantMutationStatus: 403 },
     })).toMatchObject({ status: 'passed', completedCheckIns: 50000 });
-    expect(() => summarizeRawResult({ status: 'passed', rawResultPath: 'artifacts/phase8-load/raw.json', measured: { p95Ms: -1, completedCheckIns: 50000, tenantIsolation: TENANT_ISOLATION } })).toThrow();
-    expect(() => summarizeRawResult({ status: 'passed', rawResultPath: 'artifacts/phase8-load/raw.json', measured: { p95Ms: Number.NaN, completedCheckIns: 50000, tenantIsolation: TENANT_ISOLATION } })).toThrow();
+    expect(() => summarizeRawResult({ status: 'passed', rawResultPath: 'artifacts/phase8-load/raw.json', measured: { p95Ms: -1, completedCheckIns: 50000, crossTenantReadDenied: true, crossTenantMutationStatus: 403 } })).toThrow();
+    expect(() => summarizeRawResult({ status: 'passed', rawResultPath: 'artifacts/phase8-load/raw.json', measured: { p95Ms: Number.NaN, completedCheckIns: 50000, crossTenantReadDenied: true, crossTenantMutationStatus: 403 } })).toThrow();
   });
 });
