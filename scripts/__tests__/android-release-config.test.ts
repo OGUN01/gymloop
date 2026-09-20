@@ -1,0 +1,47 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+
+type JsonObject = Record<string, unknown>;
+
+const readJson = (relativePath: string): JsonObject =>
+  JSON.parse(readFileSync(new URL(`../../${relativePath}`, import.meta.url), 'utf8')) as JsonObject;
+
+const mobilePackage = readJson('apps/mobile/package.json');
+const appConfig = readJson('apps/mobile/app.json');
+const easConfig = readJson('apps/mobile/eas.json');
+
+const expo = appConfig.expo as JsonObject;
+const android = expo.android as JsonObject;
+const plugins = expo.plugins as unknown[];
+const cameraPlugin = plugins.find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-camera') as
+  | [string, JsonObject]
+  | undefined;
+const buildProfiles = (easConfig.build ?? {}) as JsonObject;
+const production = (buildProfiles.production ?? {}) as JsonObject;
+const productionAndroid = (production.android ?? {}) as JsonObject;
+
+describe('HARD-002 Android release configuration', () => {
+  it('@gymloop/mobile runs its tests through a package test script', () => {
+    const scripts = mobilePackage.scripts as JsonObject;
+    expect(scripts.test, 'apps/mobile/package.json must define a test script').toEqual(expect.any(String));
+    expect(String(scripts.test)).toMatch(/vitest|jest|mocha|expo\s+test/);
+  });
+
+  it('permits camera access without recording audio', () => {
+    const permissions = android.permissions as string[];
+    expect(permissions).toContain('android.permission.CAMERA');
+    expect(permissions).not.toContain('android.permission.RECORD_AUDIO');
+    expect(cameraPlugin?.[1]?.recordAudioAndroid, 'expo-camera must disable Android audio recording').toBe(false);
+  });
+
+  it('defines a production Android app-bundle profile for store distribution', () => {
+    expect(buildProfiles.production, 'EAS production profile is required').toEqual(expect.any(Object));
+    expect(productionAndroid.buildType).toBe('app-bundle');
+  });
+
+  it('does not make the production profile internal or credential-free', () => {
+    expect(production.distribution).not.toBe('internal');
+    expect(production.withoutCredentials).not.toBe(true);
+    expect(productionAndroid.withoutCredentials).not.toBe(true);
+  });
+});
