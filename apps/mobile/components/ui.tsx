@@ -5,9 +5,12 @@ import { useMobile } from '../lib/mobile-context';
 
 const space = UI_TOKENS.geometry.spacing;
 
-export function Screen({ children }: { children: ReactNode }) {
+export function Screen({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   const { palette } = useMobile();
-  return <ScrollView contentContainerStyle={[styles.screen, { backgroundColor: palette.canvas }]} keyboardShouldPersistTaps="handled">{children}</ScrollView>;
+  return <View style={[styles.screenFrame, { backgroundColor: palette.canvas }]}>
+    <ScrollView contentContainerStyle={[styles.screen, footer ? styles.screenWithFooter : null]} keyboardShouldPersistTaps="handled">{children}</ScrollView>
+    {footer ? <View style={styles.footer}>{footer}</View> : null}
+  </View>;
 }
 
 export function Eyebrow({ children }: { children: ReactNode }) {
@@ -57,7 +60,10 @@ export function LoadingState() {
 }
 
 const styles = StyleSheet.create({
+  screenFrame: { flex: 1 },
   screen: { flexGrow: 1, paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[5], paddingBottom: UI_TOKENS.geometry.targets.touch + space[6], gap: space[3] },
+  screenWithFooter: { paddingBottom: UI_TOKENS.geometry.targets.touch + UI_TOKENS.geometry.targets.touch + space[6] },
+  footer: { position: 'absolute', right: UI_TOKENS.geometry.layout.mobileInset, bottom: UI_TOKENS.geometry.targets.touch + space[6], left: UI_TOKENS.geometry.layout.mobileInset },
   eyebrow: { fontFamily: 'Inter_500Medium', fontSize: UI_TOKENS.typography.secondary.size, lineHeight: UI_TOKENS.typography.secondary.lineHeight },
   title: { fontSize: UI_TOKENS.typography.pageTitle.size, lineHeight: UI_TOKENS.typography.pageTitle.lineHeight },
   body: { fontSize: UI_TOKENS.typography.mobileBody.size, lineHeight: UI_TOKENS.typography.mobileBody.lineHeight },

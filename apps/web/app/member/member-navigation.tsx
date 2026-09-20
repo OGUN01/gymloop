@@ -17,6 +17,6 @@ export function MemberNavigation() {
   const pathname = usePathname();
   const icons = [Home, Activity, Dumbbell, CircleUserRound] as const;
   return <nav className="member-tab-bar" aria-label="Member navigation">
-    {MEMBER_DESTINATIONS.map((destination, index) => { const Icon = icons[index] ?? Home; return <Link key={destination.href} href={destination.href} aria-current={destination.matches(pathname) ? 'page' : undefined}><Icon aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /><span>{destination.label}</span></Link>; })}
+    {MEMBER_DESTINATIONS.map((destination, index) => { const Icon = icons[index] ?? Home; return <Link key={destination.href} href={destination.href} aria-current={destination.matches(pathname) ? 'page' : undefined}><Icon aria-hidden="true" size={UI_TOKENS.icons.navigationSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /><span>{destination.label}</span></Link>; })}
   </nav>;
 }

@@ -5,7 +5,6 @@ import { signIn } from '../../lib/auth-actions';
 import { startGoogleSignIn } from '../../lib/auth-actions';
 import { readIdentity } from '../../lib/identity-session';
 import { identityHome } from '../../lib/identity';
-import { ThemeControl } from '../theme-provider';
 
 const FIELD_CLASS =
   'sign-in-field';
@@ -25,12 +24,10 @@ export default async function SignInPage({
       <div className="sign-in-visual" aria-hidden="true"><Image src="/images/auth-gym-arrival-v1.png" alt="" fill sizes="(max-width: 56rem) 100vw, 50vw" priority /></div>
       <div className="sign-in-panel">
       <div className="sign-in-heading">
-        <span className="brand-mark" aria-hidden="true">G</span>
-        <h1>{PRODUCT_NAME}</h1>
-        <p>Sign in to your account.</p>
+        <div className="brand-lockup"><span className="brand-mark" aria-hidden="true"><i /><i /><i /></span><strong>{PRODUCT_NAME}</strong></div>
+        <h1>Welcome back</h1>
+        <p>Your gym, always with you.</p>
       </div>
-
-      <div className="sign-in-theme"><ThemeControl /></div>
 
       {failed ? (
         <p role="alert" className="sign-in-alert">

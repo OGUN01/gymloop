@@ -46,9 +46,9 @@ export const UI_TOKENS = {
     radii: { control: 12, row: 16, section: 24, sheet: 28, floatingNavigation: 32 },
     targets: { interactive: 44, touch: 48 },
     layout: { mobileInset: 20, desktopInset: 32, contentMaxWidth: 1440 },
-    media: { authHeroAspectRatio: 1.8 },
+    media: { authHeroAspectRatio: 1.8, mobileAuthHeroAspectRatio: 1.14 },
   },
-  icons: { controlSize: 16, strokeWidth: 1.8 },
+  icons: { controlSize: 16, navigationSize: 22, strokeWidth: 1.8 },
   motion: {
     press: 120, tabs: 180, dialogEnter: 240, dialogExit: 180,
     checkInAcknowledgementMin: 240, checkInAcknowledgementMax: 320,

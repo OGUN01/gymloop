@@ -3,7 +3,7 @@ import { Activity, CircleUserRound, Dumbbell, Home, ListTodo, MoreHorizontal, Qr
 import { UI_TOKENS } from '@gymloop/shared';
 import { useMobile } from '../lib/mobile-context';
 import type { ColorValue } from 'react-native';
-const ICON_SIZE = UI_TOKENS.icons.controlSize;
+const ICON_SIZE = UI_TOKENS.icons.navigationSize;
 const icon = (Icon: typeof Home) => ({ color }: { color: ColorValue }) => <Icon color={color} size={ICON_SIZE} strokeWidth={UI_TOKENS.icons.strokeWidth} />;
 export function RoleTabs({ desk = false }: { desk?: boolean }) {
   const { palette } = useMobile();
