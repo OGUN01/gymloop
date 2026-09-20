@@ -69,7 +69,12 @@ describe('Phase 8 member HIG/auth boundary', () => {
     const signIn = repoSource('apps/mobile/app/sign-in.tsx');
     const constants = repoSource('packages/shared/src/config/constants.ts');
     expect(constants).toMatch(/mobileAuthHeroHeight/);
+    const height = constants.match(/mobileAuthHeroHeight\s*:\s*(\d+)/)?.[1];
+    expect(height).toBeDefined();
+    expect(Number(height)).toBeLessThanOrEqual(280);
     expect(signIn).toMatch(/mobileAuthHeroHeight/);
     expect(signIn).toMatch(/height\s*:\s*UI_TOKENS\.geometry\.media\.mobileAuthHeroHeight/);
+    expect(signIn).not.toMatch(/width\s*:\s*['"]100%['"]/);
+    expect(signIn).toMatch(/alignSelf\s*:\s*['"]stretch['"]/);
   });
 });
