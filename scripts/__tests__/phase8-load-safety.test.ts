@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 import {
   assertSafeLoadTarget,
@@ -25,6 +26,7 @@ const makeGymFixtures = () => Array.from({ length: 100 }, (_, gymIndex) => ({
   ownedMemberIds: Array.from({ length: 500 }, (_, memberIndex) => `member-${gymIndex}-${memberIndex}`),
 }));
 const TENANT_ISOLATION = { denyCrossTenantRead: true, denyCrossTenantMutation: true };
+const DIRECT_K6_SOURCE = readFileSync(new URL('../../tests/load/phase8-morning-checkin.js', import.meta.url), 'utf8');
 
 describe('HARD-004 isolated load safety', () => {
   it('fails closed when project identity, API identity, credentials, or confirmation is incomplete', () => {
@@ -108,6 +110,11 @@ describe('HARD-004 isolated load safety', () => {
     expect(assertSafeLoadTarget({ ...NON_PRODUCTION_TARGET, apiUrl: 'https://phase8-load-sandbox.example.test/' })).toMatchObject({
       apiUrl: NON_PRODUCTION_TARGET.apiUrl,
     });
+  });
+
+  it('keeps direct k6 member validators trim-aware for both member collections', () => {
+    const trimAwareMemberChecks = DIRECT_K6_SOURCE.match(/memberId\.trim\(\)\s*!==\s*['"]['"]/g) ?? [];
+    expect(trimAwareMemberChecks.length).toBeGreaterThanOrEqual(2);
   });
 
   it('requires both cross-tenant read and mutation denial assertions', () => {
