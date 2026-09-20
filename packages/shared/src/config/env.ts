@@ -23,6 +23,11 @@ const mobileClientSchema = z.object({
   EXPO_PUBLIC_API_BASE_URL: z.url(),
 });
 
+const playwrightSchema = z.object({
+  DEMO_ACCOUNT_PASSWORD: z.string().min(1),
+  PLAYWRIGHT_BASE_URL: z.url().default('http://127.0.0.1:3000'),
+});
+
 /** Server-only secrets. Never import serverEnv()/env() from client code. */
 const serverOnlySchema = z.object({
   SUPABASE_PROJECT_REF: z.string().min(1),
@@ -38,6 +43,7 @@ const serverOnlySchema = z.object({
 type ClientEnv = z.infer<typeof clientSchema>;
 type ServerEnv = z.infer<typeof serverOnlySchema>;
 type MobileClientEnv = z.infer<typeof mobileClientSchema>;
+type PlaywrightEnv = z.infer<typeof playwrightSchema>;
 
 let cachedClient: ClientEnv | undefined;
 let cachedServer: ServerEnv | undefined;
@@ -60,6 +66,14 @@ export function mobileClientEnv(): MobileClientEnv {
     EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
   }));
+}
+
+/** Browser-test credentials and endpoint, validated only when the harness starts. */
+export function playwrightEnv(): PlaywrightEnv {
+  return playwrightSchema.parse({
+    DEMO_ACCOUNT_PASSWORD: process.env.DEMO_ACCOUNT_PASSWORD,
+    PLAYWRIGHT_BASE_URL: process.env.PLAYWRIGHT_BASE_URL,
+  });
 }
 
 export function serverEnv(): ServerEnv {

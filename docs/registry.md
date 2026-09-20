@@ -747,3 +747,4 @@ The shared money/credit codec, template/category placeholder vocab and request s
 | Symbol | Location | Contract | Consumers |
 |---|---|---|---|
 | `createOperationalLogger` | `apps/web/lib/observability.ts` | Structured sink/report adapter that emits the same JSON-safe recursively redacted operational event, retaining only permitted tenant and correlation context while isolating adapter failures | Phase 8 operational logging callers |
+| `playwrightEnv` | `packages/shared/src/config/env.ts` | Lazy, minimal browser-harness credential and optional validated endpoint boundary; fails before collection when the demo password is absent and exposes no server secrets | Playwright config and HARD-003 journeys |

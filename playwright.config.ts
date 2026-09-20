@@ -1,9 +1,7 @@
-import { loadEnvConfig } from '@next/env';
 import { defineConfig, devices } from '@playwright/test';
+import { playwrightEnv } from '@gymloop/shared';
 
-const BASE_URL = 'http://127.0.0.1:3000';
-
-loadEnvConfig(process.cwd());
+const { PLAYWRIGHT_BASE_URL: BASE_URL } = playwrightEnv();
 
 export default defineConfig({
   testDir: './tests/e2e',
