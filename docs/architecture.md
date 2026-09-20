@@ -5,16 +5,15 @@
 ```
 apps/
   web/              Next.js 16.3 App Router, React 19.2, TS strict, Tailwind. REAL, built in Phase 0.
-  mobile/           Expo/React Native, New Architecture. DEFERRED to Phase 7 — see docs/decisions.md ADR-019/ADR-020.
-                    Does not exist yet. Its absence is a decision, not a bug — do not recreate it ad hoc.
+  mobile/           Expo SDK 57 / React Native 0.86 application for verified member and front-desk roles.
+                    REAL, built and accepted on physical Android in Phase 7; iOS runtime is deferred by ADR-134.
 packages/
   shared/           Cross-cutting config, constants, env validation. REAL, built in Phase 0. Platform-free
                     by construction — see "Boundaries" below.
   db/               Generated Supabase types (packages/db/types/database.ts) — the one artifact of the
                     truth chain described below. REAL, built in Phase 0.
-  api-client/       "One generated client" consumed by both web and mobile (§4). DEFERRED to Phase 2 —
-                    nothing to generate until Route Handlers exist. Generator tool is an open decision,
-                    see docs/decisions.md OPEN-002.
+  api-client/       Platform-neutral typed envelope/check-in client consumed by mobile and web contracts.
+                    REAL, built in Phase 7 without a generator or platform imports.
 docs/               This layer — on-demand knowledge, pulled when a session needs it, not always loaded. EXISTS.
 scripts/            CI gate implementations (registry-lint, check-test-immutability, check-escape-hatches)
                     + their tests. EXISTS. Also linted and registry-checked, unlike in Phase 0 as first built.
@@ -25,27 +24,24 @@ scripts/            CI gate implementations (registry-lint, check-test-immutabil
   commands/opsx/    OpenSpec's own slash commands (/opsx:propose, :apply, :archive, ...), installed by
                     `openspec init`. Tool-provided, not hand-written.
 openspec/
-  specs/            Current system truth, one capability per file, updated by archiving changes.
-                    EXISTS but EMPTY — Phase 0 declared skip_specs (it changes no product behavior),
-                    so the first entries arrive when Phase 1 archives.
+  specs/            Current system truth, one capability per file, updated by archiving changes. REAL.
   changes/          In-flight proposals; archived into changes/archive/ on completion. EXISTS.
 supabase/
   config.toml       EXISTS. Project id + local stack config.
-  migrations/       DOES NOT EXIST YET — created by Phase 1. Applied by CI only, never by hand.
-  tests/            DOES NOT EXIST YET — created by Phase 1. pgTAP suites, every file BEGIN … ROLLBACK (ADR-030).
-tests/              DOES NOT EXIST YET — created by the phase that first needs each layer.
-  visible/          Phase 1+. Tests the implementer sees, derived from EARS specs before implementation.
-  e2e/              Phase 3+. Playwright, the four journeys (docs/gates.md gate 32).
-  load/             Phase 8. k6.
-                    The holdout suite lives in a separate private repo (github.com/OGUN01/gymloop-holdout),
-                    never here — that is the point of it.
+  migrations/       Forward-only schema history. Applied by CI only, never by hand.
+  tests/            Visible pgTAP suites, every file BEGIN … ROLLBACK (ADR-030).
+  tests-holdout/    Independent blind pgTAP/web suites in this repo under ADR-060; implementers do not read them.
+tests/
+  e2e/              Phase 8 Playwright acceptance (docs/gates.md gates 31–32).
+  load/             Phase 8 k6; created only with an explicit fail-closed non-production target contract.
 ```
 
-Directories marked DOES NOT EXIST YET are part of the §10 target layout but are deliberately not created empty: an empty directory carries no information git will even track, and `knip` flags empty scaffolding. The phase that first needs one creates it. This is the same reasoning as `apps/mobile` and `packages/api-client` above, applied to directories rather than packages.
+Directories are created only when a phase adds a real artifact; empty scaffolding
+carries no information and is rejected by the repository's unused-file gate.
 
 ## API architecture (one place for every invariant — master prompt §4)
 
-- **Mutations** go through Next.js Route Handlers in `apps/web`, zod-validated against schemas derived from the generated Supabase types, returning a typed error envelope. Both web and mobile consume them through `packages/api-client` once it exists (Phase 2).
+- **Mutations** go through Next.js Route Handlers in `apps/web`, zod-validated against schemas derived from the generated Supabase types, returning a typed error envelope. Mobile consumes that envelope through `packages/api-client`; web server actions and routes share the same schemas.
 - **Reads** go direct through `supabase-js` with RLS enforcing tenant isolation — for speed and Supabase Realtime, not routed through a Route Handler.
 - **Supabase Edge Functions** are used for exactly two things: Razorpay webhooks, and an operator's manual entry point to a scheduled job. Both must sit next to the database and must not depend on Vercel being up. Nothing else runs as an Edge Function — application logic that could live in a Route Handler does, so it stays colocated with the web app.
 - **Scheduling itself is `pg_cron`, not a function on a timer** (ADR-077). A scheduled job reached over HTTP needs a public endpoint, a deployment step and a shared secret; ADR-074 is what one wrongly-written grant on that endpoint cost — every signed-in member could run the nightly job. `cron.schedule` is reachable by nothing outside the database, cannot be applied-but-not-running, and depends on less than the thing it replaced. `supabase/functions/no-show-scan` remains as the door an operator opens to re-run after an incident; `pg_cron` is the schedule.
@@ -131,7 +127,7 @@ These are what Playwright must cover end to end. They are the product, expressed
 | Integration | Vitest against the real Cloud project (ADR-030 — no Docker, no `supabase start`) — **not mocks** | API contracts, state machines, idempotency |
 | E2E | Playwright (MCP to author, CI to run) | The four journeys above |
 | Load | k6 | 100 gyms × 500 members, morning check-in spike |
-| Holdout | Same runners, CI-only, separate private repo | Anti-gaming signal |
+| Holdout | Same runners, independently authored in `supabase/tests-holdout/` (ADR-060) | Anti-gaming signal |
 
 ## Session hygiene
 
