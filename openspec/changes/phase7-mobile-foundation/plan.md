@@ -94,6 +94,7 @@ iOS build.
 - [x] Physical Android member/desk authentication, all eight tabs, Light/Dark and sign-out transitions complete.
 - [x] Fresh Sol visual critic GO and synchronized English-only design/evidence.
 - [x] Physical Android device-max text and Remove animations evidence complete, with settings restored.
+- [x] Minimal EAS internal-distribution profile configured for a real iPhone build without a local Mac.
 - [ ] iOS and real-device airplane/reconnect evidence complete.
 - [ ] Owner-approved second-association linking decision complete.
 - [ ] Mobile foundation archived after every remaining acceptance boundary is proved.
