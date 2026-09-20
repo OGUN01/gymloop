@@ -17,6 +17,13 @@ workers own independent identity tests, narrow implementation, and visual/device
 verification. No Astra, broad speculative rewrite, unreviewed cloud credential,
 or synthetic provider success is authorized.
 
+**Owner Phase 8 non-visual resume, 2026-09-21 (ADR-137):** the remaining UI/UX
+refinement is deferred to a later session. This continuation is limited to the
+locally executable Android/web production, Google-authentication and truthful
+evidence closeout. Passing focused evidence is reused rather than rerun. iOS and
+every provider/legal/cloud/store action without real evidence remain deferred or
+external; HARD-010 is not represented as visually accepted.
+
 **Owner Android-first continuation, 2026-09-20:** iOS runtime acceptance is
 deferred until Android is complete through Phase 8. V1 remains one verified gym
 association per member; no public gym-code join/switch surface will be added,
@@ -286,13 +293,19 @@ visual critics returned GO, and CI is green. Canonical mobile spec:
 
 **Phase 8 production release advanced 2026-09-20:** the web/API is live at
 `https://gymloop-phi.vercel.app` on Vercel `bom1`, and EAS build
-`2c0c4e0c-317d-4912-b50a-1f361d979b85` produced the signed Android `1.0.0`
-store AAB from `2252bdc`. Bundletool validation and merged-manifest inspection
-passed after the first candidate was rejected for unnecessary overlay and
-legacy-storage permissions. HARD-002 is Passed; HARD-008 remains Partial /
-External until the exact artifact is installed from a Play internal track (or
-an explicitly authorized derived APK set) and the physical checklist runs.
-Phase 8 remains active for the external non-production load fixture, monitoring
-destination, legal/data-lifecycle decisions, restore drill and Play actions.
+`146221dd-dab2-4ef1-a99b-61dc14be4675` produced the signed Android `1.0.0`
+store AAB with unique version code `2` from `7a31384`. Bundletool validation,
+signature verification and merged-manifest inspection passed with the same
+approved upload certificate and least-privilege permission set. The latest
+production deployment `9h745WmLGeD3YeMBtMkgCrb54qdm` is Ready from `5e4b534`.
+Auth workflow `35533772247` enabled Google with the exact hook/site/allow-list
+boundary, public settings reported Google enabled, and a controlled real Google
+account completed OAuth to the unlinked/no-access state without receiving a
+Gymloop identity. HARD-011 and HARD-012 are Passed. HARD-002 is Passed; HARD-008
+remains Partial / External until the exact artifact is installed from a Play
+internal track (or an explicitly authorized derived APK set) and the physical
+checklist runs. Phase 8 remains active for the owner-deferred visual acceptance,
+external non-production load fixture, monitoring destination,
+legal/data-lifecycle decisions, restore drill and Play actions.
 
 Each phase opens its own OpenSpec change (`openspec/changes/000N-<phase-name>/`) and follows the Gauntlet Loop (`AGENTS.md`) — bar, spec, tests-first, build, fresh-context critic, gates, archive. Phase 0's own change is the worked template — proposal, design, tasks, and the evidence trail of what was proven and what went wrong on the way: `openspec/changes/archive/2026-09-06-phase-0-foundation/`.

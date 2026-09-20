@@ -1377,6 +1377,18 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-137 — Phase 8 non-visual completion resumes; UI refinement is
+  owner-deferred (owner override, 2026-09-21).** The owner resumed the existing
+  Phase 8 goal while explicitly moving the remaining UI/UX redesign to a later
+  session. This continuation completes only the locally executable Android/web
+  production, Google-authentication and evidence work without reopening the
+  frozen identity, tenant, money or release contracts. It must reuse passing
+  focused evidence instead of duplicating tests. Physical iOS remains deferred,
+  and Play publication, destructive data lifecycle, legal approval, monitoring,
+  load execution and cloud restore remain non-Passed until their real external
+  actions and evidence exist. The deferral does not convert HARD-010 to Passed
+  and does not permit Phase 8 to be archived as fully complete.
+
 - **ADR-136 — Phase 8 experience and pre-linked Google sign-in refinement
   (owner override, 2026-09-20).** The owner rejected the archived Phase 7 visual
   result as the final bar and made reference-matched member refinement the first
