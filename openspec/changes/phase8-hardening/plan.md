@@ -90,9 +90,14 @@ production reference `pecxrpskmfeuyzngvewq`. The exact confirmation is
 contains only `projectRef`, normalized `apiUrl`, normalized `supabaseUrl`, and
 `nonProduction: true`, never credentials.
 
+Both URLs are origin-only base URLs: no username, password, non-root path,
+query or fragment is accepted. Normalized URLs are returned as `URL.origin`
+with no trailing slash.
+
 `buildMorningCheckInWorkload({ thresholds, tenantIsolation, gymFixtures })`
 requires `thresholds: { p95Ms }`, both denial flags set to the boolean `true`,
-and caller-supplied real fixtures. Each fixture is
+where the exact flag names are `denyCrossTenantRead` and
+`denyCrossTenantMutation`, and caller-supplied real fixtures. Each fixture is
 `{ gymId, token, memberIds, ownedMemberIds }`. There are exactly 100 unique
 gym IDs and tokens; each contains exactly 500 unique member IDs; member IDs
 are globally unique; and each fixture's member set exactly matches its owned
