@@ -49,7 +49,10 @@ describe('HARD-004 isolated load safety', () => {
   });
 
   it('encodes exactly 100 gyms, 500 members per gym, and the morning check-in spike', () => {
-    expect(buildMorningCheckInWorkload()).toMatchObject({
+    expect(buildMorningCheckInWorkload({
+      thresholds: { p95Ms: 750 },
+      tenantIsolation: { denyCrossTenantRead: true, denyCrossTenantMutation: true },
+    })).toMatchObject({
       gyms: 100,
       membersPerGym: 500,
       totalMembers: 50000,
