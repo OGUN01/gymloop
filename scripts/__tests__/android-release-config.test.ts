@@ -45,6 +45,11 @@ describe('HARD-002 Android release configuration', () => {
     expect(productionAndroid.buildType).toBe('app-bundle');
   });
 
+  it('uses remote EAS versioning and automatically increments production Android releases', () => {
+    expect(easConfig.cli?.appVersionSource).toBe('remote');
+    expect(production.autoIncrement).toBe(true);
+  });
+
   it('does not make the production profile internal or credential-free', () => {
     expect(production.distribution).not.toBe('internal');
     expect(production.withoutCredentials).not.toBe(true);
