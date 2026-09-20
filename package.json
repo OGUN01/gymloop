@@ -11,6 +11,7 @@
     "lint:root": "eslint scripts eslint.config.mjs .dependency-cruiser.mjs --no-error-on-unmatched-pattern supabase/functions",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:e2e": "playwright test",
     "test:scripts": "vitest run scripts",
     "knip": "knip",
     "jscpd": "jscpd --exit-code 1",
@@ -24,7 +25,10 @@
     "gates": "bash scripts/gates.sh"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@eslint/js": "10.0.1",
+    "@next/env": "16.3.4",
+    "@playwright/test": "1.63.0",
     "dependency-cruiser": "18.2.0",
     "eslint": "10.10.0",
     "jscpd": "5.1.2",

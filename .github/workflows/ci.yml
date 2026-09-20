@@ -49,6 +49,18 @@ jobs:
         if: ${{ !cancelled() }}
         run: pnpm run test:scripts
 
+      - name: install Playwright Chromium
+        if: ${{ !cancelled() }}
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: test:e2e accessibility
+        if: ${{ !cancelled() }}
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          DEMO_ACCOUNT_PASSWORD: ${{ secrets.DEMO_ACCOUNT_PASSWORD }}
+        run: pnpm run test:e2e -- tests/e2e/phase8-accessibility.spec.ts
+
       - name: knip
         if: ${{ !cancelled() }}
         run: pnpm run knip
