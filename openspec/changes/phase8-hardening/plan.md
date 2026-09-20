@@ -78,26 +78,50 @@ target.
 
 Frozen harness interface: `scripts/phase8-load-safety.mjs` exports
 `assertSafeLoadTarget`, `buildMorningCheckInWorkload`, `summarizeRawResult`
-and `preflightLoadRun`. A safe target supplies an HTTPS API URL, an HTTPS
-Supabase URL, the configured project reference and independently observed
-Supabase/API project references; all three references must match, the Supabase
-hostname must belong to that reference, and none may be the production
-reference `pecxrpskmfeuyzngvewq`. The exact confirmation is
-`NON_PRODUCTION_LOAD_APPROVED` and credentials must be positively identified
-as present and non-production; truthy substitutes do not pass.
+and `preflightLoadRun`. `assertSafeLoadTarget(target)` accepts exactly the
+canonical safety fields `projectRef`, `observedApiProjectRef`,
+`observedSupabaseProjectRef`, `apiUrl`, `supabaseUrl`, `confirmation`, and
+`credentials: { kind, present, projectRef }`. A safe target has HTTPS URLs;
+all three project references and the credential reference are the same; and
+the Supabase hostname is exactly `<projectRef>.supabase.co`. None may be the
+production reference `pecxrpskmfeuyzngvewq`. The exact confirmation is
+`NON_PRODUCTION_LOAD_APPROVED`, `kind` is exactly `non-production`, and
+`present` is exactly `true`; truthy substitutes do not pass. The return value
+contains only `projectRef`, normalized `apiUrl`, normalized `supabaseUrl`, and
+`nonProduction: true`, never credentials.
 
-The workload is exactly 100 distinct gym fixtures with 500 distinct member
-identities owned by each gym. Duplicate gym identities, tokens, member
-identities or cross-owned members fail preflight. The caller supplies a finite
-positive p95 budget. The morning scenario covers all 50,000 gym/member pairs,
-and separate probes prove both a cross-tenant read denial and a cross-tenant
-mutation denial; every 2xx mutation response is a failure.
+`buildMorningCheckInWorkload({ thresholds, tenantIsolation, gymFixtures })`
+requires `thresholds: { p95Ms }`, both denial flags set to the boolean `true`,
+and caller-supplied real fixtures. Each fixture is
+`{ gymId, token, memberIds, ownedMemberIds }`. There are exactly 100 unique
+gym IDs and tokens; each contains exactly 500 unique member IDs; member IDs
+are globally unique; and each fixture's member set exactly matches its owned
+member set. Duplicate gym identities, tokens, member identities or
+cross-owned members fail preflight. The caller supplies a finite positive p95
+budget. No fixture is synthesized by the harness. The returned workload has
+`gyms`, `membersPerGym`, `totalMembers`, `spike`, `thresholds`,
+`tenantIsolation`, and the validated `gymFixtures`. The morning scenario
+covers all 50,000 gym/member pairs, and separate probes prove both a
+cross-tenant read denial and a cross-tenant mutation denial; every 2xx
+mutation response is a failure.
 
-`summarizeRawResult` may return `prepared` or `blocked` without execution. It
-may return `passed` only from measured evidence tied to the reviewed target and
-raw artifact: p95 is within the caller-approved budget, the full 50,000
-check-ins completed, and both isolation probes passed. A caller-supplied status
-string alone can never turn an unverified result green.
+`preflightLoadRun({ target, workload, fixturePath, rawResultPath })` validates
+the target and revalidates the complete workload before returning prepared
+metadata and a credential-free command. Missing or extra caller-declared
+duplicate flags are not evidence; the fixture contents themselves are checked.
+
+`summarizeRawResult(input)` accepts `rawResultPath` and a requested `status`.
+`prepared` or `blocked` may be returned without execution. A requested
+`passed` additionally requires the canonical `target`,
+`thresholds: { p95Ms }`, and
+`measured: { p95Ms, completedCheckIns, crossTenantReadDenied,
+crossTenantMutationStatus }`. It returns `passed` only when the target validates,
+measured p95 is finite and within the approved threshold, exactly 50,000
+check-ins completed, the read denial is exactly `true`, and the mutation
+status is outside the entire 200–299 range. Otherwise it throws or returns a
+non-passing status. The result contains the normalized target identity and raw
+artifact path, not credentials. A caller-supplied status string alone can never
+turn an unverified result green.
 
 ### HARD-005 — structured redacted logging and monitoring runbook
 
