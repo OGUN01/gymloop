@@ -76,7 +76,8 @@ describe('NAV-002 entry points use the same identity home', () => {
     [member, '/member'],
     [{ sub: userId, role: 'authenticated', app_role: 'front_desk', tenant_id: tenantId, staff_id: staffId }, '/console/check-in'],
     [{ sub: userId, role: 'authenticated', app_role: 'platform_support' }, '/platform'],
-    [{ sub: userId, role: 'authenticated', app_role: 'gym_owner', tenant_id: tenantId, staff_id: staffId }, '/console'],
+    [{ sub: userId, role: 'authenticated', app_role: 'gym_owner', tenant_id: tenantId, staff_id: staffId }, '/dashboard'],
+    [{ sub: userId, role: 'authenticated', app_role: 'gym_manager', tenant_id: tenantId, staff_id: staffId }, '/dashboard'],
     [{ sub: userId, role: 'authenticated', app_role: 'gym_owner', tenant_id: tenantId, impersonation_session_id: previewId }, '/console'],
     [{ sub: userId, role: 'authenticated', app_role: 'member', tenant_id: tenantId }, '/not-linked'],
   ] as const;
