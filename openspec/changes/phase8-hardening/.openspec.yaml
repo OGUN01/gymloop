@@ -1,0 +1,9 @@
+schema: spec-driven
+created: 2026-09-20
+goal: Phase 8 hardening contract and Android-first release-readiness evidence
+skip_specs: true
+skip_specs_reason: >
+  This change is the Phase 8 contract ledger. Its EARS requirements live in
+  plan.md and must be approved before implementation; no application code,
+  migrations, tests, provider actions, legal sign-off, store upload, or
+  completion claims are included here.
