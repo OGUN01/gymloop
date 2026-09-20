@@ -74,6 +74,7 @@ beforeEach(() => { state.claims = member; state.rows = {}; state.error = null; s
 describe('NAV-002 entry points use the same identity home', () => {
   const identities = [
     [member, '/member'],
+    [{ sub: userId, role: 'authenticated', app_role: 'front_desk', tenant_id: tenantId, staff_id: staffId }, '/console/check-in'],
     [{ sub: userId, role: 'authenticated', app_role: 'platform_support' }, '/platform'],
     [{ sub: userId, role: 'authenticated', app_role: 'gym_owner', tenant_id: tenantId, staff_id: staffId }, '/console'],
     [{ sub: userId, role: 'authenticated', app_role: 'gym_owner', tenant_id: tenantId, impersonation_session_id: previewId }, '/console'],

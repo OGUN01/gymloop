@@ -10,7 +10,7 @@ const impersonationSessionId = 'a6000000-0000-4000-8000-000000000005';
 const shapes = [
   ...(['gym_owner', 'gym_manager', 'front_desk', 'trainer'] as const).map((role) => ({
     claims: { sub: userId, app_role: role, tenant_id: tenantId, staff_id: staffId },
-    expected: { kind: 'staff', userId, tenantId, staffId, role }, home: '/console',
+    expected: { kind: 'staff', userId, tenantId, staffId, role }, home: role === 'front_desk' ? '/console/check-in' : '/console',
     required: ['sub', 'tenant_id', 'staff_id'], forbidden: ['member_id', 'impersonation_session_id'],
   })),
   { claims: { sub: userId, app_role: 'member', tenant_id: tenantId, member_id: memberId },
