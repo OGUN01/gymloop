@@ -76,6 +76,29 @@ Acceptance: the environment identity, safety preflight, workload, thresholds,
 and raw/result artifacts are recorded; production is never used as a load
 target.
 
+Frozen harness interface: `scripts/phase8-load-safety.mjs` exports
+`assertSafeLoadTarget`, `buildMorningCheckInWorkload`, `summarizeRawResult`
+and `preflightLoadRun`. A safe target supplies an HTTPS API URL, an HTTPS
+Supabase URL, the configured project reference and independently observed
+Supabase/API project references; all three references must match, the Supabase
+hostname must belong to that reference, and none may be the production
+reference `pecxrpskmfeuyzngvewq`. The exact confirmation is
+`NON_PRODUCTION_LOAD_APPROVED` and credentials must be positively identified
+as present and non-production; truthy substitutes do not pass.
+
+The workload is exactly 100 distinct gym fixtures with 500 distinct member
+identities owned by each gym. Duplicate gym identities, tokens, member
+identities or cross-owned members fail preflight. The caller supplies a finite
+positive p95 budget. The morning scenario covers all 50,000 gym/member pairs,
+and separate probes prove both a cross-tenant read denial and a cross-tenant
+mutation denial; every 2xx mutation response is a failure.
+
+`summarizeRawResult` may return `prepared` or `blocked` without execution. It
+may return `passed` only from measured evidence tied to the reviewed target and
+raw artifact: p95 is within the caller-approved budget, the full 50,000
+check-ins completed, and both isolation probes passed. A caller-supplied status
+string alone can never turn an unverified result green.
+
 ### HARD-005 — structured redacted logging and monitoring runbook
 
 When an application error or operational event is emitted, logs shall be
