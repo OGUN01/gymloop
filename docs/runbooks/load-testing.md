@@ -33,6 +33,10 @@ missing fixture/result path. Its printed metadata contains no bearer tokens.
 
 ## Execution
 
+The root `k6` npm development dependency is only the module manifest used by
+static dependency analysis; it does not install the k6 executable. Install and
+record the approved standalone k6 binary before running this procedure.
+
 Inject these values through the operator's secret mechanism, never a committed
 file or shell history:
 

@@ -32,6 +32,7 @@
     "dependency-cruiser": "18.2.0",
     "eslint": "10.10.0",
     "jscpd": "5.1.2",
+    "k6": "0.0.0",
     "knip": "6.34.0",
     "turbo": "2.10.12",
     "typescript": "6.0.3",
