@@ -1,5 +1,26 @@
 # Current owner-authorized campaign goal
 
+## Owner Android-first Phase 8 override — 2026-09-20
+
+This supersedes the older Phase-7-only scope and percentage markers below.
+The active objective is to finish Android first through Phase 8 while iOS is
+explicitly deferred. Close the current Phase 7 CI regressions, record v1 as a
+single verified gym association with no public-code join/switch control, archive
+the Android Phase 7 change, then complete the applicable hardening gates and
+Android release-readiness evidence. Browser journeys may use multiple demo gyms
+to prove tenant isolation; they may not manufacture a second member association
+that the product does not support.
+
+Sol remains orchestrator and security/money arbitrator. Terra owns bounded
+architecture, security, load and release tasks; Luna owns narrow tests, UI
+repairs and device/browser verification. At most two workers run concurrently.
+No Astra, duplicated exploration, broad reruns after a passing result, invented
+provider success or weakened gate is authorized. Weekly usage was 6% at this
+continuation and the owner's one-point allowance makes **7% used the absolute
+stop for new work**. External actions requiring provider credentials, legal
+sign-off, a paid store account or a platform backup control must be reported as
+external blockers rather than simulated.
+
 Updated 2026-09-18 (owner continuation 5). This is the repository's current execution objective; older
 prompt text is historical where it conflicts with this owner override.
 

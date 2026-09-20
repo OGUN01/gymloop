@@ -1,5 +1,15 @@
 # Roadmap
 
+**Owner Android-first continuation, 2026-09-20:** iOS runtime acceptance is
+deferred until Android is complete through Phase 8. V1 remains one verified gym
+association per member; no public gym-code join/switch surface will be added,
+and a future secure invitation/linking mechanism is post-v1. Close and archive
+Phase 7 after green CI under this Android-first boundary, then execute Phase 8
+hardening and Android release readiness. Usage was 6% at this continuation;
+7% used is the hard stop. External provider credentials, legal approval,
+platform backup controls and Play-account actions are reported honestly rather
+than replaced by synthetic success.
+
 ## Current experience goal — owner override, 2026-09-18 (ADR-125)
 
 The member v2 minimalist direction is approved; extend the same quality to the

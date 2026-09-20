@@ -1377,6 +1377,17 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-134 — Android-first Phase 8 and single-gym v1 (owner override,
+  2026-09-20).** Defer physical iOS acceptance until the Android product is
+  complete through Phase 8. A member has one verified gym association in v1;
+  the app exposes no public-code join/switch control, because a code is not
+  authorization. Secure invitation-based multi-gym linking is post-v1. Phase 7
+  may close once Android evidence and CI are green under this boundary. Phase 8
+  covers all locally executable hardening and Android release-readiness gates;
+  paid-store, provider-credential, legal-sign-off and platform-console actions
+  remain explicit external dependencies. Sol orchestrates with at most two
+  bounded Terra/Luna workers, no Astra, and a 7%-used weekly hard stop.
+
 - **ADR-133 — Final two-point completion allowance (owner override,
   2026-09-18).** At 86% measured weekly usage, the owner added two points for
   Phase 7 security repair, visual verification, gates and archive. Luna writes
