@@ -13,6 +13,17 @@ release, provided the product exposes no gateway route and the manual money
 path passes its own tests. This does not change the status of any other HARD
 gate or certify an online transaction.
 
+**2026-09-21 closeout checkpoint:** CI, Holdout and Test immutability passed
+for `42ef6d4`, but DB workflow `35633578490` failed at `supabase db push`
+before a connection was established. It did not apply a migration. A local
+read-only CLI attempt failed with the same connection message; the Gymloop
+project reported `ACTIVE_HEALTHY`, the pooler TCP port was reachable, network
+restrictions allowed traffic and the ban list was empty. The stored database
+credential needs protected rotation/re-entry, followed by a successful DB run.
+This is not a manual-payment defect, but it blocks migration-based Phase 8 work.
+The owner deferred exact Play-installed Android acceptance to the final
+prelaunch step, not to Passed.
+
 | Requirement | Status | Commit/build, environment and time | Command or procedure and fetchable evidence | Blocker, owner, required evidence and next safe step |
 |---|---|---|---|---|
 | HARD-001 | **Partial** | Phase 7 closeout `d1888c6`; Phase 8 contract `c768dff`; repository, 2026-09-20 | Procedure: review each HARD row for status, identity, time, result, artifact and dependency. This ledger is the current artifact. | Owner: Phase 8 orchestrator. Complete only after every row links exact executed commands/procedures and results; keep skipped/blocked/external visible. |

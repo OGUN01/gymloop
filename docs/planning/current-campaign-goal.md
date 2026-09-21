@@ -1,5 +1,25 @@
 # Current owner-authorized campaign goal
 
+## 2026-09-21 non-visual closeout sequencing override
+
+The owner asks for every safely completable Phase 8 non-visual row to be closed,
+including repeatable two-gym acceptance, isolated load, privacy operations,
+recovery and monitoring. The exact Play-installed production Android bundle
+and physical-device release smoke are deferred to the final prelaunch step;
+HARD-008 remains Partial until that step actually passes. The owner will handle
+the separate UI/UX redesign. This sequencing does not relax HARD-003 through
+HARD-007, the manual-payment integrity gate or the final customer-launch GO
+decision. An unsafe load target, missing legal approval, unperformed restore,
+or absent monitoring receipt remains visibly unpassed rather than simulated.
+
+The 2026-09-21 database workflow failed before applying migrations when its
+stored database credential could not connect. A local read-only CLI connection
+also failed, while the project health, network restriction and ban checks were
+normal. The owner must verify or reset the password in Supabase's dashboard and
+update protected local/GitHub secret stores without posting the value in chat;
+then rerun the DB workflow before any migration slice. No migration is to be
+applied by hand.
+
 ## Phase 8 GO campaign — owner continuation (2026-09-21)
 
 **Payment-scope override (ADR-146):** the initial release records only money
