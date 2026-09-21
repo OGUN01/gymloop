@@ -21,6 +21,19 @@ mock or synthetic provider response never changes External to Passed.
 | HARD-011 | **Passed** | Visible/holdout contracts `2e8d313`/`71b6f0c`; implementation `4dc787f`; origin-boundary contracts `90a6a2d`/`27df988`; repair `5e4b534`; production deployment `9h745WmLGeD3YeMBtMkgCrb54qdm`, 2026-09-21 | Independent tests cover the fixed callback, every linked-role home, unlinked/no-access result, failure handling, redirect refusal and no identity mutation. A controlled real Google account completed production OAuth and reached `/not-linked` with the generic “no complete active gym or platform identity” state; no Gymloop role, tenant, member, membership or claim was created, and the session was signed out. Email/password remains available. | Requirement passed. Real linked-role routing is independently test-proven; the provider journey intentionally used an unlinked controlled account to prove authentication alone grants no Gymloop identity. |
 | HARD-012 | **Passed** | Config `5d88237`; credential-scope contracts `167d24f`, `2da5f2e`, `f7a4b2f`, `b0e6592`; scoped implementation `88335cf`; origin-boundary contracts/repair `90a6a2d`, `27df988`, `5e4b534`; auth workflow `35533772247`; deployment `9h745WmLGeD3YeMBtMkgCrb54qdm`, 2026-09-20/21 | Google Cloud project `gymloop-auth-prod-2026` has web client `Gymloop Supabase production` and exact callback `https://pecxrpskmfeuyzngvewq.supabase.co/auth/v1/callback`. The workflow returned HTTP 200 with the access-token hook enabled, `site_url=https://gymloop-phi.vercel.app`, the exact production/local/mobile allow-list, and Google client id/secret presence booleans. Public Auth settings then reported Google and email enabled. `webAppEnv()` isolates the fixed server-owned origin from unrelated secrets; Android uses PKCE and `gymloop://auth/callback`. Credential-scope tests passed and fresh Sol critics returned GO. No secret value is stored in source, browser bundles or evidence. | Requirement passed. Physical installation of the exact AAB and Play distribution remain separately External under HARD-008; they are not OAuth credential-boundary requirements. |
 
+## 2026-09-21 bounded live browser check
+
+At 08:55 UTC, source `91fe8ee` ran
+`$env:PLAYWRIGHT_BASE_URL='https://gymloop-phi.vercel.app'; node --env-file=.env.local node_modules/@playwright/test/cli.js test tests/e2e/phase8-accessibility.spec.ts --workers=1 --reporter=line`
+against the public Vercel site and linked Gymloop Supabase project. Result:
+**4 passed in 33.8 seconds**. The run signed in with the existing demo member,
+front-desk and owner identities, checked their role homes and navigation,
+verified the member's gym name/code at mobile width, and ran light/dark axe,
+English-only and overflow checks. The suite made no product-data mutation; Auth
+sessions were created. This is evidence only for the named read-only journeys.
+It does not supply journey D, a second gym, cross-tenant mutation denial, the
+100 × 500 load run, or exact cleanup evidence, and HARD-003/004 remain Partial.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
