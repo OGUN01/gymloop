@@ -78,3 +78,10 @@ capability and run the approved disposable-target drill. Required evidence:
 cloud control/operation id, source and distinct target references, timestamps,
 validation results, artifact hashes and cleanup. Until that exists, gate 29 is
 not green.
+
+The 2026-09-21 CLI control inspection found no available physical backups and
+PITR disabled on the current free project; see the Phase 8 evidence ledger.
+Before customer data relies on this project, establish a protected off-site
+logical-export destination, recovery ownership and retention/access rules. Do
+not place an unencrypted dump in the repository or treat an export as proof of
+a successful restore drill.

@@ -57,6 +57,25 @@ No form was submitted or gym record intentionally mutated; Auth sessions were
 created. This is route-health evidence, not assertion of a completed payment,
 check-in, message, import, second-gym isolation or HARD-003 acceptance.
 
+## 2026-09-21 production control inspection
+
+At 09:39 UTC, `supabase backups list --project-ref pecxrpskmfeuyzngvewq
+--output-format json` returned `backups: []` and `pitr_enabled: false` for the
+linked Gymloop project in `ap-south-1`. A read-only database-size query returned
+30 MB. This proves the cloud control currently lists no recovery point; it is
+not a backup or restore result. No dump or restore was attempted. HARD-007 and
+gate 29 remain Partial/External. A manual logical backup needs a protected,
+off-site destination and a recovery/retention procedure before it can count as
+an operational control.
+
+The authenticated Vercel CLI identified `ogun01s-projects/gymloop`; its
+production environment list contained only `WEB_APP_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_SUPABASE_URL`. No monitoring
+destination or alert route is configured there. The repository's
+`createOperationalLogger` is an adapter contract with tests, but no production
+caller or provider credential was found in tracked source/config. No provider
+event or alert was emitted. HARD-005 remains Partial/External, not Passed.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
