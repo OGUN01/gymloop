@@ -1,5 +1,23 @@
 # Current owner-authorized campaign goal
 
+## Owner-delegated privacy decision and safe verification — 2026-09-21 (ADR-144)
+
+Gymloop does not sell member data or use it for independent advertising.
+Retain personal data only to deliver the gym's service or for a documented
+financial, audit or case-specific legal obligation; provide a portable export
+and erase unnecessary personal data on a verified request. Freeze the exact
+field dispositions, retention clocks, request authorization and hold scope
+before independent tests and implementation. The existing duration matrix is
+an engineering default, not legal sign-off. Qualified legal review and the
+gym-facing DPA remain launch gates.
+
+The owner requested the 100 × 500 load run on the existing linked project.
+Its free-plan backup inspection found no available backup and PITR disabled,
+so the accepted HARD-004 preflight still refuses this production reference.
+Continue bounded synthetic scenarios and rollback-wrapped tests in the same
+project; do not run persistent stress or a restore drill there. Provision a
+distinct disposable target and a verified recovery path for those gates.
+
 ## Phase 8 non-visual completion ownership — current, 2026-09-21 (ADR-143)
 
 Sol owns execution, integration, evidence and truthful release recommendations

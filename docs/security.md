@@ -91,6 +91,13 @@ and refund coverage does not claim that every other INT-003 surface is complete.
 
 ## DPDP compliance (Digital Personal Data Protection Act)
 
+- **Owner-delegated product policy (ADR-144)**: Gymloop does not sell member
+  personal data or use it for independent advertising. Processing is limited
+  to delivering the gym's service and a documented financial, audit or legal
+  obligation. A verified member request starts a portable export or erasure
+  workflow; it does not trigger an unreviewed cascade delete. This direction
+  still requires a field-level contract, operating procedure, DPA and
+  qualified legal review before claiming compliance.
 - **Roles**: the gym (organization) is the **Data Fiduciary**; the platform (Gymloop) is the **Data Processor**. The gym's contract with the platform needs a Data Processing Agreement (DPA) clause reflecting this — a legal/commercial deliverable, not a schema one, but the schema must support everything the DPA promises members.
 - **Consent**: versioned records, each with a timestamp and a stated purpose (DPD-002). Marketing consent and service-communication consent are independently controlled and independently withdrawable (INT-002, DPD-003).
 - **Withdrawal**: withdrawing consent stops the corresponding communication category without deleting consent history (DPD-004).

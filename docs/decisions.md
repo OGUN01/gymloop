@@ -1377,6 +1377,35 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-144 — owner-delegated privacy direction and production-load safety
+  boundary (2026-09-21).** The owner delegates Gymloop's product privacy
+  policy: member data is processed to deliver the gym service, never sold or
+  used for Gymloop's independent advertising; a verified person may request
+  a portable export or erasure. Erasure removes unnecessary personal data but
+  preserves only narrowly justified financial, audit or case-specific legal
+  records for an applicable, documented period. This is a product direction,
+  not an assertion of DPDP legal compliance. The existing per-table durations
+  in `docs/security.md` remain engineering defaults until their clocks,
+  field-level dispositions, legal bases and qualified legal review are frozen.
+  No retention runner or destructive erasure is authorized by this paragraph.
+  The owner also requested the 100 gyms × 500 members load run on the linked
+  project `pecxrpskmfeuyzngvewq`. The request does not itself create a
+  recoverable database: the 2026-09-21 CLI control reports no available
+  backups and PITR disabled, while HARD-004's accepted fail-closed contract
+  expressly rejects the production reference. Bounded synthetic functional
+  journeys and rollback-wrapped SQL tests remain allowed on this project;
+  the 50,000-event load and a restore drill do not. Do not disable the guard
+  to manufacture a pass. Establish a distinct disposable target and verified
+  recovery before executing those gates. Sources for this boundary:
+  `docs/evidence/phase8/ledger.md`,
+  https://supabase.com/docs/guides/platform/backups and
+  https://supabase.com/pricing. The erasure/retention distinction follows
+  https://www.meity.gov.in/static/uploads/2024/02/Digital-Personal-Data-Protection-Act-2023.pdf
+  (sections 8 and 12), subject to qualified interpretation. The owner's
+  delegation allows the engineering
+  contract to be drafted, independently tested and implemented; DPA terms,
+  statutory applicability and legal sign-off remain external release proofs.
+
 - **ADR-143 — non-visual Phase 8 completion accountability remains open
   (owner direction, 2026-09-21).** The owner asks Sol to take responsibility
   for completing every non-visual Phase 8 requirement, with UI/UX redesigned
