@@ -28,11 +28,19 @@ async function signIn(page: import('@playwright/test').Page, email: string) {
   await page.getByRole('button', { name: 'Sign in' }).click();
 }
 
-async function assertEnglishAndResponsive(page: import('@playwright/test').Page, width: number, height: number) {
+async function assertEnglishAndResponsive(page: import('@playwright/test').Page, width: number, height: number, allowMessageTemplateLocale = false) {
   await page.setViewportSize({ width, height });
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await expect(page.locator('html')).not.toContainText(/[\u0900-\u097F]/);
-  await expect(page.getByRole('combobox', { name: /language|locale/i })).toHaveCount(0);
+  if (allowMessageTemplateLocale) {
+    const templates = page.locator('section[aria-labelledby="templates-heading"]');
+    await expect(templates).toBeVisible();
+    const localeComboboxes = templates.getByRole('combobox', { name: 'Locale', exact: true });
+    await expect(localeComboboxes.first()).toBeVisible();
+    await expect(page.getByRole('combobox', { name: /language|locale/i })).toHaveCount(await localeComboboxes.count());
+  } else {
+    await expect(page.getByRole('combobox', { name: /language|locale/i })).toHaveCount(0);
+  }
   await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 }
 
@@ -122,6 +130,25 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
         expect(results.violations, `${route} ${theme}`).toEqual([]);
         await assertEnglishAndResponsive(page, 390, 844);
         await assertEnglishAndResponsive(page, 1440, 900);
+        await context.close();
+      });
+    }
+  }
+
+  for (const route of ['/payments', '/messages', '/imports', '/add-ons'] as const) {
+    for (const theme of ['light', 'dark'] as const) {
+      test(`owner ${route} loads accessibly in ${theme} mode`, async ({ browser }) => {
+        const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, colorScheme: theme });
+        const page = await context.newPage();
+        await signIn(page, accounts.owner.email);
+        await page.goto(route);
+        await page.emulateMedia({ colorScheme: theme });
+        await expect(page).toHaveURL(new RegExp(`${route.replace('/', '\\/')}(?:[?#]|$)`));
+        await expect(page.locator('body')).not.toContainText(/sign in|not linked|page not found|404/i);
+        const results = await new AxeBuilder({ page }).analyze();
+        expect(results.violations, `${route} ${theme}`).toEqual([]);
+        await assertEnglishAndResponsive(page, 390, 844, route === '/messages');
+        await assertEnglishAndResponsive(page, 1440, 900, route === '/messages');
         await context.close();
       });
     }
