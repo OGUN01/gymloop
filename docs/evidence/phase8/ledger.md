@@ -411,7 +411,10 @@ subject to documented financial, audit and case-specific legal obligations.
 ADR-144 records this direction, not statutory sign-off or a completed runner.
 The schema inventory found no request/hold/operation ledger, no executable
 field-level disposition map, several ambiguous retention clocks and non-null
-member name/phone constraints. HARD-006 remains Blocked pending a frozen
+member name/phone constraints. The owner-delegated draft at
+`docs/planning/privacy-operations-contract.md` now records safe product choices
+and explicit unknowns; it is not a frozen field map or a working runner.
+HARD-006 remains Blocked pending a frozen
 technical contract, independent tests, implementation and qualified legal
 review. No export or erasure was run.
 
@@ -424,6 +427,36 @@ restore was created. The accepted HARD-004 preflight excludes this production
 reference, and a same-project restore would replace its data. Therefore no
 load, provider restore, reset or SQL mutation was run. HARD-004 and HARD-007
 remain Partial/External; a manual dump alone would not prove a restore drill.
+
+## 2026-09-21 rollback-only reverse-direction database isolation probe
+
+At 15:10 UTC, from repository `74eea1d`, the linked Supabase CLI identified
+project `pecxrpskmfeuyzngvewq`. A one-submission `BEGIN; SELECT
+txid_current_if_assigned(), current_user; ROLLBACK;` confirmed transaction
+handling under the administrative query role. Read-only preflight confirmed
+the active QA owner staff `fc1df639-18fc-45ae-bf16-73c26702a9b7`, the
+distinct Iron Box member `bf4d2076-2501-4217-b7ed-4e1b8f10c74f`, an
+unused event key `540c9d37-e01e-4121-96d5-4778afcc8616`, and the actual
+access-token hook's QA tenant/role/staff claims. No credentials were recorded.
+
+The operator submitted one `BEGIN … ROLLBACK` SQL transaction through
+`supabase db query --linked --output-format json`. It set local JWT claims
+from that live hook result, switched to local `authenticated` role, asserted
+active member RLS and the expected claim accessors, and found the Iron member
+invisible. Inside a caught PL/pgSQL subtransaction it attempted an attendance
+insert with QA tenant plus the foreign Iron member/branch and the fresh event
+key. The result was `DENIED:23503` (cross-tenant foreign-key relationship),
+with `no_visible_probe_row_before_rollback=true`; the explicit outer rollback
+completed. A separate read-only query, `select count(*) from
+public.attendance where client_event_id =
+'540c9d37-e01e-4121-96d5-4778afcc8616'::uuid`, returned **0**. An
+earlier PowerShell SQL-delimiter parse attempt failed before any DML.
+
+This proves live-hook-derived database claim/RLS read isolation and direct
+cross-tenant relationship rejection in the QA-owner → Iron direction with no
+persistent probe row. It does **not** prove an OAuth-issued browser token, an
+API-route denial, or the mutation-complete Playwright A–D journeys; HARD-003
+remains Partial.
 
 ## External dependency index
 

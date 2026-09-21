@@ -16,6 +16,10 @@ The next execution slices and their exit evidence are:
    and holdout authors for identity/RLS assertions. Use rollback-only database
    probes and bounded API requests in the shared project; record which layer
    each proves, and remove only exact fixtures created by the journey.
+   A is member check-in through verified renewal, B is silent churn through
+   contact/return recovery, C is add-on purchase through visible usage, and D
+   is assisted check-in through confirmation and actor audit. A manual payment
+   journey may prove its own branch but never a provider-signed Razorpay branch.
 2. **HARD-006, privacy operations:** freeze a versioned, field-level export,
    erasure, hold and retention contract from ADR-144 and the actual schema.
    Independently write tests, then implement the request ledger, portable
@@ -39,8 +43,10 @@ The next execution slices and their exit evidence are:
    failure/retry path as simulations. Real monitoring receipt, signed Razorpay
    payload, Cloudflare rule proof, truthful Play declarations, exact-AAB
    internal-track install, and final visual acceptance remain separately
-   required. Reconcile HARD-001/009 and archive only when their real evidence
-   exists.
+   required. Rotate the prelaunch database password and account-wide Supabase
+   access token noted in `docs/security.md` without breaking CI, then verify
+   the old credentials are revoked. Reconcile HARD-001/009 and archive only
+   when their real evidence exists.
 
 After each slice, record command, identity, environment, result and artifact
 in `docs/evidence/phase8/ledger.md`; run only affected checks during repairs.
