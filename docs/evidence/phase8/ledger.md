@@ -46,6 +46,17 @@ recent database workflow `35534256559` also passed migration, pgTAP rollback,
 schema drift, pgTAP and seed dry-run against the linked project; those passing
 unchanged suites were not rerun for this smoke.
 
+At 09:16 UTC, a one-off in-memory Playwright smoke used five fresh browser
+contexts and the existing demo credentials against the same production URL.
+It made GET navigations only and observed the expected path, HTTP 200 and no
+fatal page for all **23 primary destinations**: member Home/Activity/My gym/You
+(4); front desk Check-in/Follow-ups/Members/Add-ons/Leads (5); trainer
+Members/Check-in/Follow-ups/Add-ons (4); owner Overview/Check-in/Follow-ups/
+Members/Payments/Messages/Add-ons/Leads/Imports (9); super-admin Platform (1).
+No form was submitted or gym record intentionally mutated; Auth sessions were
+created. This is route-health evidence, not assertion of a completed payment,
+check-in, message, import, second-gym isolation or HARD-003 acceptance.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
