@@ -23,7 +23,7 @@ future owner option, not evidence that a backup, PITR, or load gate has passed.
 
 Close the existing HARD-003–009 gaps in small test-first slices: mutation-complete
 two-gym A–D journeys; privacy export, erasure and retention; recoverability;
-monitoring; isolated load; payment/provider and edge evidence; and exact-AAB
+monitoring; isolated load; manual-payment integrity and edge evidence; and exact-AAB
 Android/Play acceptance. Reconcile HARD-001/002 and the owner-led HARD-010
 visual gate before any customer-launch GO. Never equate a rollback simulation,
 preview APK, local alert sink, unsigned provider mock, or legal draft with the

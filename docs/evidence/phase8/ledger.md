@@ -661,6 +661,27 @@ Workout & Diet Plan, and Flirt Genie—and no Gymloop app record. No app was
 created, declaration accepted, bundle uploaded or release submitted in this
 check. HARD-008 remains Partial/External despite the signed AAB on disk.
 
+## 2026-09-21 PAY-012 manual-only payment critic
+
+The owner excluded in-app gateway collection from the initial release: gyms
+collect cash, UPI, card or bank transfer outside Gymloop, and authenticated
+staff record the resulting payment. ADR-146 and PAY-012 freeze that scope.
+The web payment and add-on request schemas now reject `razorpay` in addition
+to the existing route/RPC and database refusals; no provider charge,
+credential-capture or webhook path was activated. Existing desk navigation
+and receipt behavior were preserved.
+
+Tests were committed before the implementation (`7c160fb` after the spec
+commit `fe51bdd`; implementation `71345fe`). The focused implementation
+run passed 105/105 web tests across manual-only, holdout wrapper, payment
+and add-on routes; shared and web typechecks and changed-file lint passed.
+A fresh-context Sol critic returned **GO for the PAY-012 manual-only payment
+boundary** with no blocking findings, independently passing 164/164 focused
+web tests, 135/135 independent web holdout checks and web typecheck. The
+critic inspected relevant SQL suites but did not run Cloud pgTAP in this
+round. This is a scoped GO, **not** Phase 8 customer-launch GO; unrelated
+HARD gates and the owner-led visual gate remain open.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
@@ -672,7 +693,7 @@ check. HARD-008 remains Partial/External despite the signed AAB on disk.
 | Production API deployment and EAS environment | HARD-002/008 | **Resolved 2026-09-20**; public Vercel alias and EAS production public variables verified | Deployment owner keeps the public endpoint and environment current | Deployment and variable-name evidence in `docs/evidence/2026-09-20-phase8-production-release.md` |
 | Production Android signing/keystore | HARD-002/008 | **Resolved 2026-09-20**; managed EAS credentials produced the signed AAB | Android release owner preserves EAS credential ownership and build provenance | Certificate fingerprint, EAS build id and AAB SHA-256 in the production release evidence |
 | Google Play app, signing and track | HARD-008 | Existing personal developer account `Ductx` (account ID `7649203845150858113`) is accessible; Gymloop is not among its three apps. `in.gymloop.mobile` checked available 2026-09-21; form prepared but not submitted. No upload/publication claim. | Account holder reviews and truthfully certifies Play developer policy and U.S. export-law declarations before app creation, confirms this developer identity for Gymloop, then enrolls Play App Signing, uploads to an internal track and installs the exact artifact. | App/package id, policy declarations, Play artifact/version id, internal-track install, physical-device checklist and console status. A new personal-account app may also require the current closed-test production-access process. |
-| Razorpay provider-signed webhook evidence | Gates 20/21; HARD-009 | External; no provider-signed payload or credential verified | Payments owner obtains a real test-mode payload and signature from Razorpay; freeze a provider-evidence contract before implementation | Captured provider-produced signature/payload reference, verifier tests against that independent evidence, deployment and money-path audit; then re-evaluate gates 20/21. |
+| Razorpay provider-signed webhook evidence | Gates 20/21; future online-payment release only (ADR-146) | Deferred and not applicable while all in-app gateway paths remain disabled; no provider proof claimed | Reopen only if the owner elects to enable online payments; freeze a provider-evidence contract first | Provider-produced signature/payload, verifier tests against independent evidence, deployment and money-path audit before any online-payment release. |
 | Cloudflare edge rate-limit and Turnstile evidence | Gate 24; HARD-009 | External; no edge-control proof attached | Edge/security owner configures the actual production zone and tests the public/OTP abuse paths when provider credentials exist | Cloudflare rule/zone IDs, non-secret configuration capture, controlled allowed/blocked requests and alert/log evidence; then re-evaluate gate 24. |
 
 These pre-launch security gaps are not discharged by any Phase 8 local test.
