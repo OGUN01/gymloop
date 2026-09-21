@@ -1377,6 +1377,20 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-143 — non-visual Phase 8 completion accountability remains open
+  (owner direction, 2026-09-21).** The owner asks Sol to take responsibility
+  for completing every non-visual Phase 8 requirement, with UI/UX redesigned
+  separately. The two-gym browser smoke now has distinct authenticated owners,
+  reciprocal foreign-member read refusals, and one-direction direct mutation
+  refusal, but the frozen HARD-003 Playwright A–D gate is still Partial.
+  Responsibility means completing safe in-scope work, arranging real evidence
+  for external gates, and keeping unresolved gates visible—not representing
+  provider delivery, legal approval, cloud restore, Play declarations, or
+  publication as accomplished by simulation. The active execution order and
+  acceptance boundary are in `docs/planning/current-campaign-goal.md`; the
+  exact statuses remain in `docs/evidence/phase8/ledger.md`. ADR-141's lifted
+  usage stop and ADR-142's no-unverified-reset boundary continue to govern.
+
 - **ADR-142 — synthetic functional testing is authorized on the prelaunch
   linked project; reset is deferred until recovery is proven (owner override,
   2026-09-21).** The owner states there are no live customers and permits

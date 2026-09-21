@@ -1,5 +1,13 @@
 # Roadmap
 
+**Current Phase 8 owner direction, 2026-09-21 (ADR-143):** Sol owns completing
+and evidencing every non-visual Android/web gate; the owner handles the separate
+UI/UX redesign. The execution order is in `docs/planning/current-campaign-goal.md`
+and exact pass/partial/external status is in `docs/evidence/phase8/ledger.md`.
+The two-gym authenticated smoke is real but is not the complete HARD-003 A–D
+Playwright gate. No external or legal gate is passed by taking responsibility
+for it, and no destructive linked reset is authorized without verified recovery.
+
 **Owner Phase 8 synthetic-testing direction, 2026-09-21 (ADR-142):** the owner
 states Gymloop has no live customers and authorizes broad synthetic functional
 testing in the currently linked project, with an eventual data reset. The

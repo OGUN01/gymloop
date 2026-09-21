@@ -1,6 +1,45 @@
 # Current owner-authorized campaign goal
 
-## Phase 8 prelaunch closeout — current direction, 2026-09-21 (ADR-141/142)
+## Phase 8 non-visual completion ownership — current, 2026-09-21 (ADR-143)
+
+Sol owns execution, integration, evidence and truthful release recommendations
+for every non-visual Phase 8 requirement through completion. The owner retains
+the separate UI/UX redesign. “Ownership” means pursuing all safe in-scope
+implementation and verification, coordinating required external steps, and
+refusing to mark a gate passed without its real evidence; it does not make Sol
+a legal signatory, Play account-holder certifier, payment provider, or backup
+operator by assertion. The earlier percentage stop is withdrawn. Preserve
+Phase 6/7 and the shared production-configured project's identifiable QA data.
+
+Execute the remaining non-visual work in this order, with the authoritative
+per-gate evidence and blockers in `docs/evidence/phase8/ledger.md`:
+
+1. Finish HARD-003's checked-in Playwright journeys A–D with independently
+   signed-in gym sessions, reciprocal direct read and write denial, axe,
+   Light/Dark and English-only checks. The bounded two-gym live smoke now
+   proves reciprocal member reads and one-direction check-in refusal, not this
+   full gate. Do not repeatedly mutate the shared project from CI without a
+   controlled fixture and exact cleanup/recovery procedure.
+2. Finish HARD-004 on a positively verified distinct non-production target;
+   never run its 100 × 500 workload against the linked production reference.
+3. Finish HARD-005–007 with real monitoring delivery, a frozen privacy/export/
+   erasure contract and qualified legal review, then a protected backup and
+   disposable-target restore drill. Implement only after those decisions and
+   recovery boundaries are real.
+4. Finish HARD-008 and related payment/edge gates with real provider-signed
+   evidence, truthful Play declarations, an internal-track upload and install
+   of the exact AAB, and physical Android acceptance. A signed bundle or
+   connected phone alone does not pass these gates.
+5. Reconcile HARD-001/009 and all production gates, remove or safely recover
+   the identifiable synthetic state, then archive Phase 8 only after every
+   required non-visual gate passes. HARD-010 remains a separate visual NO-GO
+   until the owner's design work receives its own acceptance.
+
+If a prerequisite is genuinely outside the available accounts, authority or
+free-plan controls, keep the gate explicitly blocked/external with its exact
+next action; do not relabel it complete to satisfy a deadline.
+
+## Phase 8 prelaunch closeout — prior direction, 2026-09-21 (ADR-141/142)
 
 The owner withdrew earlier weekly-usage stops, confirmed there are no live
 customers, and authorized extensive synthetic functional checks in the existing
