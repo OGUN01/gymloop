@@ -103,6 +103,7 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
         const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, colorScheme: theme });
         const page = await context.newPage();
         await signIn(page, accounts.member.email);
+        await expect(page).toHaveURL(new RegExp(`${accounts.member.home.replace('/', '\\/')}(?:[?#]|$)`));
         await page.goto(route);
         await page.emulateMedia({ colorScheme: theme });
         await expect(page).toHaveURL(new RegExp(`${route.replace('/', '\\/')}(?:[?#]|$)`));
@@ -122,6 +123,7 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
         const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, colorScheme: theme });
         const page = await context.newPage();
         await signIn(page, accounts.frontDesk.email);
+        await expect(page).toHaveURL(new RegExp(`${accounts.frontDesk.home.replace('/', '\\/')}(?:[?#]|$)`));
         await page.goto(route);
         await page.emulateMedia({ colorScheme: theme });
         await expect(page).toHaveURL(new RegExp(`${route.replace('/', '\\/')}(?:[?#]|$)`));
@@ -141,6 +143,7 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
         const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, colorScheme: theme });
         const page = await context.newPage();
         await signIn(page, accounts.owner.email);
+        await expect(page).toHaveURL(new RegExp(`${accounts.owner.home.replace('/', '\\/')}(?:[?#]|$)`));
         await page.goto(route);
         await page.emulateMedia({ colorScheme: theme });
         await expect(page).toHaveURL(new RegExp(`${route.replace('/', '\\/')}(?:[?#]|$)`));
