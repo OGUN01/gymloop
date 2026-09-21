@@ -71,6 +71,17 @@ PAY-011 SHALL hold structurally: any payment whose method is not the gateway SHA
 - **WHEN** a gateway payment is written with no recording staff member
 - **THEN** the write SHALL succeed
 
+### Requirement: Initial release records external collections without a gateway
+PAY-012 SHALL keep the initial release manual-payment-only. The gym collects funds outside Gymloop; the desk records a method and amount after collection. The authenticated product SHALL offer no charge initiation, card/UPI credential capture or provider webhook ingestion, and SHALL reject `razorpay` on desk payment and add-on sale writes. A provider enum label or dormant table is not an enabled payment path. PAY-006, PAY-008 and PAY-009 remain mandatory if an online provider path is later enabled.
+
+#### Scenario: A desk attempts to record a provider-method payment
+- **WHEN** an authenticated staff member submits a payment or add-on sale using `razorpay`
+- **THEN** the request SHALL be refused without creating a payment, order, receipt, renewal or audit effect
+
+#### Scenario: The gym collected money using its own terminal
+- **WHEN** an authorized desk staff member records externally collected cash, UPI, card or bank-transfer funds
+- **THEN** Gymloop SHALL record an actor-attributed paid transaction and its numbered receipt, and SHALL apply the existing renewal or add-on rule without waiting for a provider webhook
+
 ### Requirement: Receipt and invoice numbers are unique per gym
 THE SYSTEM SHALL reject a duplicate receipt number within one organisation, a duplicate invoice number within one organisation, and a duplicate provider payment reference within one organisation, and SHALL allow the same value to exist at a different organisation.
 

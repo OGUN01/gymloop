@@ -1,5 +1,12 @@
 # Roadmap
 
+**Manual-payment-only initial release (ADR-146, 2026-09-21):** a gym collects
+money externally and records it through Gymloop's desk interface. Gateway
+charge initiation, callbacks and provider onboarding are deferred. The Phase 5
+manual receipt/renewal/refund work remains required; inactive Razorpay schema
+is not an enabled feature. This scope change does not pass unrelated Phase 8
+privacy, backup, load, monitoring, Play, tenancy or visual gates.
+
 **Current Phase 8 owner direction, 2026-09-21 (ADR-143):** Sol owns completing
 and evidencing every non-visual Android/web gate; the owner handles the separate
 UI/UX redesign. The execution order is in `docs/planning/current-campaign-goal.md`

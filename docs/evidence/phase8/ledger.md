@@ -6,6 +6,13 @@ missing; **Blocked** cannot proceed safely until the named prerequisite exists;
 **External** requires a real owner/provider/legal/cloud/store action. A local
 mock or synthetic provider response never changes External to Passed.
 
+**ADR-146 initial-release payment scope:** only staff-recorded payments
+collected outside Gymloop are in scope. Razorpay provider evidence in this
+ledger is a deferred online-feature dependency, not a blocker for a manual-only
+release, provided the product exposes no gateway route and the manual money
+path passes its own tests. This does not change the status of any other HARD
+gate or certify an online transaction.
+
 | Requirement | Status | Commit/build, environment and time | Command or procedure and fetchable evidence | Blocker, owner, required evidence and next safe step |
 |---|---|---|---|---|
 | HARD-001 | **Partial** | Phase 7 closeout `d1888c6`; Phase 8 contract `c768dff`; repository, 2026-09-20 | Procedure: review each HARD row for status, identity, time, result, artifact and dependency. This ledger is the current artifact. | Owner: Phase 8 orchestrator. Complete only after every row links exact executed commands/procedures and results; keep skipped/blocked/external visible. |

@@ -1377,6 +1377,26 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-146 — initial release records externally collected payments only
+  (owner override, 2026-09-21).** The gym collects cash, UPI, card or bank
+  transfer outside Gymloop using its own process or terminal. Gymloop records
+  the staff-attested amount and method, allocates its numbered receipt,
+  attributes the actor, applies the existing renewal/add-on rules, and keeps
+  refunds and financial audit distinct. It neither initiates a charge nor
+  captures raw payment credentials nor accepts provider callbacks in this
+  initial release. PAY-011 is the launch payment path. PAY-006/008/009 and
+  gates 19–21 remain binding **if** an online Razorpay path is enabled later;
+  their missing provider evidence is not a blocker for this explicitly
+  manual-only payment scope, and they are not marked Passed. Inactive enum
+  labels and schema tables stay for forward compatibility but grant no client
+  capability. This supersedes ADR-015's implication that a real ₹1 Razorpay
+  onboarding payment is needed before a manual-only gym can go live. Reject
+  the alternatives of fabricating provider-signed evidence from a mock, or
+  treating a staff-entered `paid` state as proof of external settlement.
+  Other Phase 8 launch gates—including privacy, recovery, monitoring, Play,
+  tenancy and visual acceptance—are unchanged. Online payments require a
+  separately reviewed and tested activation decision.
+
 - **ADR-145 — temporary disclosed DB credential for bounded prelaunch tests
   (owner direction, 2026-09-21).** After the replacement database password
   appeared in an uncommitted `.env.example` diff and task tool output, the

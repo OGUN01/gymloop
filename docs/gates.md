@@ -8,6 +8,16 @@ Note on `knip`, since the spec bills it as "unused exports/files/deps": in this 
 
 Note: this table is the 33 gates from §11. The separate CI-mechanism table in §10 (knip, jscpd, dependency-cruiser, registry-lint, test-immutability) is the *tooling* — several of those mechanisms enforce more than one numbered gate below.
 
+**Initial-release payment applicability (ADR-146):** Gymloop records only
+payments the gym collected outside the app. Gate 19's per-gym provider-secret
+clause, gate 20's webhook verification, and gate 21's verified-provider half
+remain unresolved future-online requirements, but are **not applicable while
+no gateway route is enabled**. They are not Passed or silently waived. The
+manual path's integer money, actor, receipt, renewal, separate refund,
+idempotency, RLS and audit protections remain required for this release.
+Enabling any online charge or webhook makes the deferred clauses mandatory
+before that feature can serve a gym.
+
 ## Spec & contract
 
 | # | Gate | Automated? | Enforced by | Status |

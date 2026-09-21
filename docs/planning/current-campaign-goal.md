@@ -2,6 +2,16 @@
 
 ## Phase 8 GO campaign — owner continuation (2026-09-21)
 
+**Payment-scope override (ADR-146):** the initial release records only money
+collected outside Gymloop by the gym. Razorpay charge initiation, callbacks,
+provider-signed proof and gateway onboarding are deferred, not launch gates
+for this manual-only scope. PAY-011, exact money, actor, receipt, renewal,
+refund, audit, idempotency and tenant gates remain mandatory. No inactive
+provider schema is to be presented as an enabled payment path. The older
+provider-completion steps below remain history for a future online-payment
+release, superseded for the current GO campaign. All unrelated HARD gates
+remain unchanged.
+
 The owner directs autonomous continuation until the Phase 8 release verdict can
 truthfully change from NO-GO to GO, including decisions within the existing
 Gymloop accounts and environment. Use at most two bounded parallel workers;

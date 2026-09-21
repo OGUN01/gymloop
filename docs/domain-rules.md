@@ -39,12 +39,13 @@ Canonical status vocabularies referenced below are defined in `docs/data-model.m
 - **PAY-003** WHEN a membership's renewal payment is verified, OR the membership is cancelled, OR the member opts out of renewal messaging THEN THE SYSTEM SHALL stop sending further renewal reminders for that renewal cycle.
 - **PAY-004** WHEN a renewal payment fails THE SYSTEM SHALL escalate on a path distinct from the no-response path (different message, different staff-facing signal).
 - **PAY-005** THE SYSTEM SHALL NOT store raw card numbers or raw UPI credentials anywhere in the system.
-- **PAY-006** THE SYSTEM SHALL treat the payment provider (Razorpay) as the sole source of truth for payment state.
+- **PAY-006** WHEN a payment uses the `razorpay` method THE SYSTEM SHALL treat Razorpay as the sole source of truth for that payment's state. A manual-method `paid` row is instead an actor-attributed record that the gym collected money outside Gymloop; it does not claim provider settlement.
 - **PAY-007** THE SYSTEM SHALL NOT treat a `payment_initiated`/`created`/`pending` record as `paid` under any circumstance.
-- **PAY-008** THE SYSTEM SHALL extend a membership only after a webhook signature has been verified or a provider status response has been independently verified — never on client-reported success alone.
+- **PAY-008** WHEN a Razorpay payment would renew a membership THE SYSTEM SHALL extend it only after a webhook signature has been verified or a provider status response has been independently verified — never on client-reported success alone. This provider condition does not apply to a staff-recorded manual payment governed by PAY-011.
 - **PAY-009** WHEN a duplicate webhook delivery for an already-processed event arrives THE SYSTEM SHALL process it idempotently, producing no additional state change or duplicate membership extension.
 - **PAY-010** THE SYSTEM SHALL record refunds and reversals as separate records from the original payment, never by mutating the original payment row.
 - **PAY-011** IF a gym has no payment gateway connected THEN THE SYSTEM SHALL remain fully functional for cash/UPI/card payments recorded by front desk, including staff attribution, a receipt, and a working renewal pipeline.
+- **PAY-012** WHILE the initial release is manual-payment-only THE SYSTEM SHALL offer no in-app charge initiation, raw card/UPI credential capture, or provider webhook ingestion; authenticated desk writes SHALL reject the `razorpay` method. The gym may collect cash, UPI, card or bank-transfer funds using its own external process and then record the amount, method and actor in Gymloop under PAY-011. Latent provider enum values and tables do not enable the gateway.
 
 ## Money and time (MNY)
 
