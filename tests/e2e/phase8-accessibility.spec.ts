@@ -86,4 +86,25 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
       }
     });
   }
+
+  for (const route of [
+    '/member/activity', '/member/my-gym', '/member/you', '/member/check-in', '/member/messages', '/member/add-ons',
+  ] as const) {
+    for (const theme of ['light', 'dark'] as const) {
+      test(`member ${route} loads accessibly in ${theme} mode`, async ({ browser }) => {
+        const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, colorScheme: theme });
+        const page = await context.newPage();
+        await signIn(page, accounts.member.email);
+        await page.goto(route);
+        await page.emulateMedia({ colorScheme: theme });
+        await expect(page).toHaveURL(new RegExp(`${route.replace('/', '\\/')}(?:[?#]|$)`));
+        await expect(page.locator('body')).not.toContainText(/sign in|not linked|page not found|404/i);
+        const results = await new AxeBuilder({ page }).analyze();
+        expect(results.violations, `${route} ${theme}`).toEqual([]);
+        await assertEnglishAndResponsive(page, 390, 844);
+        await assertEnglishAndResponsive(page, 1440, 900);
+        await context.close();
+      });
+    }
+  }
 });
