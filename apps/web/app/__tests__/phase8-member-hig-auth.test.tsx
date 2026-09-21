@@ -77,4 +77,38 @@ describe('Phase 8 member HIG/auth boundary', () => {
     expect(signIn).not.toMatch(/width\s*:\s*['"]100%['"]/);
     expect(signIn).toMatch(/alignSelf\s*:\s*['"]stretch['"]/);
   });
+
+  it('keeps short mobile web sign-in within one 667px viewport', () => {
+    const signIn = source('sign-in/page.tsx');
+    const css = source('globals.css');
+    expect(signIn).toMatch(/sign-in-page/);
+    expect(css).toMatch(/max-height\s*:\s*667px/);
+    expect(css).toMatch(/overflow(?:-y)?\s*:\s*hidden/);
+  });
+
+  it('contains native sign-in content as well as bounding its hero', () => {
+    const signIn = repoSource('apps/mobile/app/sign-in.tsx');
+    const constants = repoSource('packages/shared/src/config/constants.ts');
+    expect(constants).toMatch(/mobileAuthContentMaxHeight/);
+    expect(signIn).toMatch(/mobileAuthContentMaxHeight/);
+    expect(signIn).toMatch(/ScrollView/);
+    expect(signIn).toMatch(/contentContainerStyle|bounded|contained/i);
+  });
+
+  it('keeps member surfaces grouped and puts their primary actions in the footer zone', () => {
+    const home = source('member/page.tsx');
+    const myGym = source('member/my-gym/page.tsx');
+    expect(home).toMatch(/Your week|Membership/);
+    expect(home).toMatch(/Scan to check in|check.?in/i);
+    expect(home).toMatch(/member-primary-action|footer|thumb/i);
+    expect(myGym).toMatch(/Membership & receipts|Messages|My add-ons/);
+    expect(myGym).toMatch(/Scan to check in|check.?in/i);
+    expect(myGym).toMatch(/member-primary-action|footer|thumb/i);
+  });
+
+  it('keeps You behind one settings entry without a persistent appearance selector', () => {
+    const you = source('member/you/page.tsx');
+    expect(you).toMatch(/settings|gear/i);
+    expect(you).not.toMatch(/(?:select|radio|segmented|toggle)[^\n]*(?:appearance|theme)|(?:appearance|theme)[^\n]*(?:select|radio|segmented|toggle)/i);
+  });
 });
