@@ -1,5 +1,6 @@
 import { createServerSupabase } from './supabase/server';
 import { readIdentity, readRequestIdentity } from './identity-session';
+import { createOperationalLogger } from './observability';
 import type { StaffRole, PlatformRole } from './identity';
 
 /**
@@ -71,6 +72,11 @@ export function apiFail(
   message: string,
   details?: Readonly<Record<string, unknown>>,
 ): Response {
+  if (status === 'server_error') {
+    // The response contract remains unchanged; never copy its free-text fields
+    // or caller-provided details into an operational event.
+    createOperationalLogger({ write: (event) => console.error(event) }).error('api.server_error');
+  }
   return new Response(JSON.stringify({ ok: false, error: { ...details, code, message } }), {
     status: STATUS[status],
     headers: JSON_HEADERS,

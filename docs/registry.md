@@ -368,7 +368,7 @@ ONB-001–005, NAV-006/008).
 
 | Name | File | Purpose | Used by |
 |---|---|---|---|
-| `apiFail` | `apps/web/lib/api.ts` | The typed failure envelope `{ ok: false, error: { code, message, ...details } }`, taking a named status rather than a number. `code` is stable and machine-readable; `message` is what somebody at a front desk reads; optional contract-defined structured detail supports values such as ordered activation readiness keys without exposing database errors | Route handlers |
+| `apiFail` | `apps/web/lib/api.ts` | The typed failure envelope `{ ok: false, error: { code, message, ...details } }`, taking a named status rather than a number. `code` is stable and machine-readable; `message` is what somebody at a front desk reads; optional contract-defined structured detail supports values such as ordered activation readiness keys without exposing database errors. A `server_error` also emits one minimal structured operational event with no caller-supplied response fields. | Route handlers |
 | `expireSupabaseAuthCookies` | `apps/web/lib/api.ts` | Defense-in-depth local Auth cleanup: expires only incoming cookie names matching Supabase's Auth-cookie grammar when refresh/sign-out cannot establish a clean local session | Preview start/end recovery paths |
 | `apiOk` | `apps/web/lib/api.ts` | The success envelope `{ ok: true, data }` | `apps/web/app/api/check-in/route.ts`, `apps/web/app/api/gate-code/route.ts` |
 | `assertEnv` | `packages/shared/src/config/env.ts` | Fail-fast env validation for server entrypoints (boot-time, not lazy) | Server app/Edge Function entrypoints |
