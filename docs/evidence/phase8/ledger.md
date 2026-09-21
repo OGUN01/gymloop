@@ -34,6 +34,18 @@ sessions were created. This is evidence only for the named read-only journeys.
 It does not supply journey D, a second gym, cross-tenant mutation denial, the
 100 × 500 load run, or exact cleanup evidence, and HARD-003/004 remain Partial.
 
+At 09:07 UTC, a second read-only production smoke signed in as the existing
+trainer and super-admin demo identities. Trainer landed on `/console`, saw
+Check-in, Follow-ups, Members and Add-ons, and was redirected from `/dashboard`
+back to `/console`. Super-admin landed on `/platform`, saw Gyms, Onboard, status,
+tier, preview and owner-link controls, and was redirected from both `/console`
+and `/dashboard` back to `/platform`. These were separate authentication
+sessions; no gym-record action was invoked. This extends role-landing and
+forbidden-route evidence, not the mutation-complete or two-gym proof. The most
+recent database workflow `35534256559` also passed migration, pgTAP rollback,
+schema drift, pgTAP and seed dry-run against the linked project; those passing
+unchanged suites were not rerun for this smoke.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
