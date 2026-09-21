@@ -1,7 +1,7 @@
 import { UI_TOKENS } from '@gymloop/shared';
 import { ArrowLeft, Check, ChevronRight, Settings } from 'lucide-react-native';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
-import { useState } from 'react';
+import { AccessibilityInfo, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
 import { ActionButton, Body, Eyebrow, Screen, Surface, Title } from '../../components/ui';
 import { useMobile, type AppearanceMode } from '../../lib/mobile-context';
 import { useMemberSnapshot } from '../../lib/use-member-snapshot';
@@ -14,6 +14,12 @@ export default function YouScreen() {
   const { data } = useMemberSnapshot();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => subscription.remove();
+  }, []);
   const closeSettings = () => { setSettingsOpen(false); setAppearanceOpen(false); };
   const initial = data?.member.fullName.slice(0, 1) ?? 'M';
   return <Screen>
@@ -21,7 +27,7 @@ export default function YouScreen() {
     {data ? <View style={styles.profile}><View style={[styles.avatar, { backgroundColor: palette.elevatedSurface }]}><Title>{initial}</Title></View><View style={styles.profileCopy}><Body>{data.member.fullName}</Body><Body muted>{data.member.email ?? data.member.phone ?? 'Verified member access'}</Body><Eyebrow>{data.member.memberCode} · VERIFIED MEMBER</Eyebrow></View></View> : null}
     <Surface><View style={styles.factRow}><Body>Personal details</Body><Body muted>{data?.member.email ?? data?.member.phone ?? 'Available after sign-in'}</Body></View><View style={[styles.factRow, styles.dividedRow, { borderColor: palette.decorativeSeparator }]}><Body>Membership</Body><Body muted>{data?.membership ? `${data.membership.planName} · ${data.membership.status.replaceAll('_', ' ').toLocaleLowerCase()}` : 'No membership is visible'}</Body></View></Surface>
     <ActionButton secondary accessibilityLabel="Sign out" onPress={() => void signOut()}>Sign out</ActionButton>
-    <Modal visible={settingsOpen} transparent animationType="slide" onRequestClose={closeSettings} accessibilityViewIsModal>
+    <Modal visible={settingsOpen} transparent animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={closeSettings} accessibilityViewIsModal>
       <View style={[styles.backdrop, { backgroundColor: palette.scrim }]}><View style={[styles.sheet, { backgroundColor: palette.surface, borderColor: palette.decorativeSeparator }]}>
         <View style={[styles.grabber, { backgroundColor: palette.requiredControlOutline }]} />
         <View style={styles.sheetHeader}>{appearanceOpen ? <Pressable accessibilityRole="button" accessibilityLabel="Back to settings" onPress={() => setAppearanceOpen(false)} style={styles.sheetHeaderAction}><ArrowLeft color={palette.primaryAction} size={UI_TOKENS.icons.navigationSize} /></Pressable> : <View style={styles.sheetHeaderAction} />}<Title>{appearanceOpen ? 'Appearance' : 'Settings'}</Title><Pressable accessibilityRole="button" accessibilityLabel="Close settings" onPress={closeSettings} style={styles.sheetHeaderAction}><Body>Done</Body></Pressable></View>
