@@ -50,10 +50,9 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
     await page.screenshot({ path: testInfo.outputPath('member-you-verified-gym-dark.png') });
   });
 
-  test('all five roles land on the correct surface and reject forbidden routes', async ({ browser }) => {
-    const baseURL = test.info().project.use.baseURL;
-    for (const [role, account] of Object.entries(accounts) as [keyof typeof accounts, (typeof accounts)[keyof typeof accounts]][]) {
-      const context = await browser.newContext({ baseURL });
+  for (const [role, account] of Object.entries(accounts) as [keyof typeof accounts, (typeof accounts)[keyof typeof accounts]][]) {
+    test(`${role} lands on the correct surface and rejects forbidden routes`, async ({ browser }) => {
+      const context = await browser.newContext({ baseURL: test.info().project.use.baseURL });
       const page = await context.newPage();
       await signIn(page, account.email);
       await expect(page).toHaveURL(new RegExp(`${account.home.replace('/', '\\/')}(?:[?#]|$)`));
@@ -67,8 +66,8 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
         await expect(page.locator('html')).toHaveAttribute('lang', 'en');
       }
       await context.close();
-    }
-  });
+    });
+  }
 
   for (const theme of ['light', 'dark'] as const) {
     test(`all five role landing pages pass accessibility in ${theme} mode`, async ({ browser }) => {
