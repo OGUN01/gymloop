@@ -7,7 +7,17 @@ const { DEMO_ACCOUNT_PASSWORD: demoPassword } = playwrightEnv();
 const accounts = {
   member: { email: 'aarav.member@ironbox.example.com', home: '/member', forbidden: ['Overview', 'Payments', 'Members'] },
   frontDesk: { email: 'divya@ironbox.example.com', home: '/console/check-in', forbidden: ['Overview', 'Payments', 'Imports'] },
+  trainer: { email: 'rohit@ironbox.example.com', home: '/console', forbidden: ['Overview', 'Payments', 'Messages', 'Leads', 'Imports'] },
   owner: { email: 'owner@ironbox.example.com', home: '/dashboard', forbidden: [] },
+  superAdmin: { email: 'admin@gymloop.example.com', home: '/platform', forbidden: ['Overview', 'Check-in', 'Members', 'Payments'] },
+} as const;
+
+const forbiddenRoutes = {
+  member: ['/dashboard', '/console'],
+  frontDesk: ['/dashboard', '/imports'],
+  trainer: ['/dashboard', '/imports'],
+  owner: ['/platform'],
+  superAdmin: ['/dashboard', '/console'],
 } as const;
 
 async function signIn(page: import('@playwright/test').Page, email: string) {
@@ -40,9 +50,9 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
     await page.screenshot({ path: testInfo.outputPath('member-you-verified-gym-dark.png') });
   });
 
-  test('journeys A–C land on the role-correct surface and isolate primary navigation', async ({ browser }) => {
+  test('all five roles land on the correct surface and reject forbidden routes', async ({ browser }) => {
     const baseURL = test.info().project.use.baseURL;
-    for (const account of Object.values(accounts)) {
+    for (const [role, account] of Object.entries(accounts) as [keyof typeof accounts, (typeof accounts)[keyof typeof accounts]][]) {
       const context = await browser.newContext({ baseURL });
       const page = await context.newPage();
       await signIn(page, account.email);
@@ -51,12 +61,17 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
         await expect(page.getByRole('navigation').getByRole('link', { name: label, exact: true })).toHaveCount(0);
       }
       await expect(page.locator('body')).not.toContainText(/join gym|switch gym/i);
+      for (const route of forbiddenRoutes[role]) {
+        await page.goto(route);
+        await expect(page).not.toHaveURL(new RegExp(`${route.replace('/', '\\/')}(?:[?#]|$)`));
+        await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+      }
       await context.close();
     }
   });
 
   for (const theme of ['light', 'dark'] as const) {
-    test(`journey accessibility scans pass for member, desk and owner in ${theme} mode`, async ({ browser }) => {
+    test(`all five role landing pages pass accessibility in ${theme} mode`, async ({ browser }) => {
       const baseURL = test.info().project.use.baseURL;
       for (const account of Object.values(accounts)) {
         const context = await browser.newContext({ baseURL, colorScheme: theme });
