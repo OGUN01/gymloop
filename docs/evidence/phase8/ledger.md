@@ -520,6 +520,22 @@ A read-only linked-project count for that tenant/event key remained **1**.
 This proves one real idempotent staff retry, not simultaneous replay or a
 member-device offline conflict. No new attendance fixture was created.
 
+In a third ephemeral session, the existing Iron Box demo member authenticated
+with a real Supabase token and queried `members` through the public client.
+The user's own linked profile returned exactly one visible row; a direct query
+for QA member `6211481a-30fc-4f7c-891b-c02d06e95c74` returned zero rows,
+both without query errors. The session was signed out and no product row was
+changed. This is a live member-role RLS read-isolation positive/negative pair,
+not proof of every member-readable table or of a second-gym member session.
+
+The same member-role positive/negative pattern was repeated for the financial
+read path in a fresh ephemeral session: the member saw **2** own payments and
+zero rows for known Iron Box payment
+`29640260-100f-418c-b776-b14cd12cabbd` belonging to another member in the
+same gym. Neither query errored, the session was signed out, and no payment
+was written. This demonstrates live intra-tenant member-payment isolation for
+that row, not a provider-signed payment, refund completion or all money tables.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |

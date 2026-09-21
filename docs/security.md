@@ -133,7 +133,7 @@ The clock starts at the event named in "Retained from". "Erasable" says whether 
 
 ## Credential rotation — outstanding
 
-**`SUPABASE_DB_PASSWORD` must be rotated too.** Supplied by the owner on 2026-09-07 as a deliberate temporary build credential (ADR-051), on the grounds that the application is not live. It is a repository secret and appears in no committed file. Rotate it when the build phases end.
+**`SUPABASE_DB_PASSWORD` must be rotated before customer launch.** Supplied by the owner on 2026-09-07 as a deliberate temporary build credential (ADR-051), on the grounds that the application is not live. The replacement was exposed in uncommitted task output on 2026-09-21; the owner accepted its temporary use for bounded synthetic testing only (ADR-145). Its value is absent from committed files but is disclosed, not production-ready. Reset it in Supabase, update only the gitignored local value and GitHub Actions secret, then verify both new authentication and old-value rejection through a password-using path before launch.
 
 **`SUPABASE_ACCESS_TOKEN` must be rotated.** The token currently set as a repo secret was transmitted in plaintext through a chat conversation during Phase 0 to unblock the drift gate. It is a personal access token scoped to the whole Supabase account (it can see `gymloop`, `FitAi`, and `gamer_addaz`), not to one project — so its blast radius is every project in that account, not just this one. Revoke it at `supabase.com/dashboard/account/tokens`, issue a replacement, and update the secret with `gh secret set SUPABASE_ACCESS_TOKEN -R OGUN01/gymloop`. Nothing in the repo needs to change — only the secret's value.
 
