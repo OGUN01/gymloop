@@ -1377,6 +1377,17 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-138 — one-point Phase 8 production closeout (owner override,
+  2026-09-21).** At 19% weekly used, the owner authorizes one further point to
+  finish Android/web release blockers and pursue customer launch, with 20% the
+  stop for new work. Correct the HARD-010 member profile's verified gym identity,
+  verify web and physical Android, and build the production AAB from a recorded
+  commit. The available Play developer account does not yet contain Gymloop;
+  creating its app requires policy and export-law attestations the owner must
+  review truthfully. Android-first and iOS-deferred remain unchanged. Neither
+  usage allowance nor launch intent marks unexecuted legal, privacy, load,
+  monitoring, restore, Play-install, review or publication gates green.
+
 - **ADR-137 — Phase 8 non-visual completion resumes; UI refinement is
   owner-deferred (owner override, 2026-09-21).** The owner resumed the existing
   Phase 8 goal while explicitly moving the remaining UI/UX redesign to a later

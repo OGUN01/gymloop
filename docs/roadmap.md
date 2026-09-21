@@ -1,5 +1,18 @@
 # Roadmap
 
+**Owner Phase 8 production closeout, 2026-09-21 (ADR-138):** from 19% weekly
+used, one additional point permits the narrow member-profile correction,
+current-source Android AAB and physical/web verification, and Play internal-test
+preparation. The stop for new work is 20% used. Gymloop is not yet created in
+the available Play developer account; policy/export declarations require the
+account holder's truthful certification. The remaining legal, monitoring,
+non-production load, restore, exact-AAB Play install, and store-publication
+gates retain their real statuses. No signed build is a publication claim.
+At the 20% stop, the fresh HARD-010 review remained NO-GO despite the repaired
+gym identity and verified Android/web builds; see the Phase 8 ledger. Phase 8
+remains active, not archived or production-approved.
+
+
 **Owner Phase 8 experience/auth continuation, 2026-09-20 (ADR-136):** Phase 7's
 Android-first functional boundary remains archived, but its visual finish is not
 accepted as the product bar. Phase 8 now begins with a focused member experience

@@ -35,6 +35,9 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
     await expect(page.locator('.member-profile')).toContainText(/Iron Box Fitness.*IRNBX1/);
     await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath('member-you-verified-gym.png') });
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(page.locator('.member-profile')).toContainText(/Iron Box Fitness.*IRNBX1/);
+    await page.screenshot({ path: testInfo.outputPath('member-you-verified-gym-dark.png') });
   });
 
   test('journeys A–C land on the role-correct surface and isolate primary navigation', async ({ browser }) => {

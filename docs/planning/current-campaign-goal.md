@@ -1,5 +1,30 @@
 # Current owner-authorized campaign goal
 
+## Phase 8 Android/web production closeout — 2026-09-21 (ADR-138)
+
+The owner authorized one additional weekly-usage point from the measured 19%
+position, making **20% used the stop for new work**. Finish the cited HARD-010
+profile-identity visual defect, verify the live web and physical Android result,
+produce a signed AAB from the intended commit, and pursue the Play internal-test
+path. Keep iOS and the separate broad UI redesign deferred. Use one bounded
+Luna/Terra worker at a time alongside Sol; repeat only affected checks. The
+remaining HARD rows stay visibly Partial/External until their actual evidence
+exists. A signed bundle, preview APK, or available Play account cannot be
+reported as an uploaded, installed, policy-approved, or published product.
+
+Closeout at the 20% marker: the current-source signed AAB and preview APK were
+built, and live web/physical Android profile checks passed. The fresh visual
+critic still returned NO-GO for HARD-010's hierarchy/account surface; HARD-003
+through HARD-008 retain the unresolved evidence in the Phase 8 ledger. Stop
+new implementation and release actions at the owner-authorized ceiling. Phase 8
+is not complete or archived, and Gymloop is not customer-launch ready.
+
+Gymloop is not yet an app in the signed-in Play developer account. Its creation
+requires the account holder's truthful Google Play policy and U.S. export-law
+certifications; the orchestrator may prepare and inspect the form but must not
+assert those declarations without the owner's review. This is the active goal;
+older percentage markers below are historical.
+
 ## Phase 8 member experience and Google sign-in override — 2026-09-20
 
 The active first slice of Phase 8 is a reference-matched refinement of the

@@ -46,7 +46,7 @@ If the signing credential is unavailable, stop at **External — signing owner
 action required**. An unsigned bundle or debug APK is not a production AAB.
 
 The 2026-09-20 execution completed the signed-build portion of this runbook with
-EAS build `2c0c4e0c-317d-4912-b50a-1f361d979b85`. Its exact artifact hash,
+EAS build `146221dd-dab2-4ef1-a99b-61dc14be4675`. Its exact artifact hash,
 certificate, merged permissions and the rejected first candidate are recorded
 in `docs/evidence/2026-09-20-phase8-production-release.md`. This evidence does
 not claim an exact-artifact device install or Play upload.
