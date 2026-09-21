@@ -2,6 +2,14 @@
 
 ## Active continuation — finish every verifiable Phase 8 lane (2026-09-21)
 
+**Immediate security dependency:** a 2026-09-21 Supabase CLI dry-run printed
+the current database password in task tool output. The attempted automated
+rotation was blocked before execution, so the credential must be treated as
+active and exposed. Pause further database operations until the project owner
+resets it in Supabase Database Settings, updates `.env.local` and the GitHub
+`SUPABASE_DB_PASSWORD` Actions secret, and verifies the new credential works
+while the old one fails. Never copy the value into a prompt, log or commit.
+
 The owner has explicitly asked Sol to continue, own the remaining non-visual
 work, and use safe simulations where a provider or recovery target is missing.
 The previous two-point usage checkpoint is not a completion claim or a reason

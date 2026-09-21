@@ -458,6 +458,22 @@ persistent probe row. It does **not** prove an OAuth-issued browser token, an
 API-route denial, or the mutation-complete Playwright A–D journeys; HARD-003
 remains Partial.
 
+## 2026-09-21 database-credential exposure and rotation blocker
+
+At approximately 15:18 UTC, a Supabase CLI `db dump --linked --dry-run`
+diagnostic printed the linked project's database password into this task's
+tool output. The command was dry-run only: it created no dump or database
+mutation. No credential value was committed to the repository or copied into
+this ledger. An attempted automated Management API rotation was rejected by
+execution policy **before any process ran**; the password remains active and
+must be treated as exposed. Further database work is paused. The project owner
+must reset the password in Supabase Database Settings, update `.env.local` and
+the GitHub Actions `SUPABASE_DB_PASSWORD` secret without posting the new value
+in chat, then verify a new-password connection and old-password rejection.
+The separate account-wide Supabase access-token rotation already named in
+`docs/security.md` also remains outstanding. HARD-007 and production release
+readiness cannot pass while this credential exposure is unresolved.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
