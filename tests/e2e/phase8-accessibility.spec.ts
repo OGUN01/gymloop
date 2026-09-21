@@ -27,6 +27,16 @@ async function assertEnglishAndResponsive(page: import('@playwright/test').Page,
 }
 
 test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
+  test('member You identifies the verified gym on the production-sized profile', async ({ page }, testInfo) => {
+    await signIn(page, accounts.member.email);
+    await expect(page).toHaveURL(/\/member(?:[?#]|$)/);
+    await page.goto('/member/you');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator('.member-profile')).toContainText(/Iron Box Fitness.*IRNBX1/);
+    await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('member-you-verified-gym.png') });
+  });
+
   test('journeys A–C land on the role-correct surface and isolate primary navigation', async ({ browser }) => {
     const baseURL = test.info().project.use.baseURL;
     for (const account of Object.values(accounts)) {
