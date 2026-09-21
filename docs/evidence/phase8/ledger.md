@@ -385,6 +385,24 @@ mutation tests need independent second-gym credentials and disposable
 fixture/cleanup control. They must not turn CI into uncontrolled permanent
 writes on the linked production-configured project.
 
+## 2026-09-21 QA-owner cross-surface isolation follow-up
+
+At 14:14–14:16 UTC, the existing Google-authenticated owner of synthetic gym
+`7eb2f564-0c3b-49b6-8104-1902241a5955` (code `177141`) used the live
+production alias in its separate in-app browser session. This was read-only:
+no form submission, payment, consent change, message or database write was
+made. The `/console` phone search for Iron Box's fictional member suffix
+`0124` returned “No member of this gym has that phone number”; the unfiltered
+roster contained only QA member `6211481a-30fc-4f7c-891b-c02d06e95c74`.
+On `/add-ons`, searching that foreign suffix returned “No members found”,
+while the positive control `0126` returned that QA member. On `/messages`,
+the consent member selector likewise had no member for `0124` and returned
+the QA member for `0126`. `/payments` showed no payments and `/red-list`
+showed no follow-ups for this gym. These checks extend the earlier direct
+route and check-in refusal evidence across three additional selection/read
+surfaces; they do not prove reverse-direction direct mutation denial or the
+frozen mutation-complete A–D Playwright suite. HARD-003 remains Partial.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
