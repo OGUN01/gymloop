@@ -5,11 +5,10 @@ import { loadMemberSearch } from './members';
 import { redirect } from 'next/navigation';
 
 /**
- * The staff `/messages` screen's one read (contract §4): `list_notifications`
- * returns rows and their drill-down `statusCounts` from one snapshot, in
- * `list_leads`'s tradition — a second query for counts could disagree with
- * the rows a filter actually produced. The admin wallet decimal is in that
- * same RPC snapshot; template reads are skipped for front desk.
+ * The staff `/messages` screen keeps `list_notifications` rows, drill-down
+ * `statusCounts` and admin wallet in one snapshot, so counts cannot disagree
+ * with their filtered rows. Consent member search is a separate RLS-bound
+ * roster read; template reads are skipped for front desk.
  */
 
 /** Front office may view the screen; a support preview may too, the same exception `(console)/layout.tsx` already carries. */

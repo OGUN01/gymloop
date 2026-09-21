@@ -1377,6 +1377,22 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-142 — synthetic functional testing is authorized on the prelaunch
+  linked project; reset is deferred until recovery is proven (owner override,
+  2026-09-21).** The owner states there are no live customers and permits
+  extensive synthetic scenarios in the existing Gymloop project, with an
+  eventual reset. At 10:14 UTC the read-only baseline was one demo gym, 46
+  members, 981 attendance rows, 34 payments, six Auth users and no Storage
+  objects. `supabase/seed.sql` plus `seed-scenarios.sql` explain the demo data,
+  but `docs/demo-accounts.md` explicitly says the seed cannot recreate its
+  five Auth sign-ins after reset. The free project currently reports no
+  backup/PITR recovery point. Therefore a linked reset is not yet a reversible
+  cleanup operation: obtain and verify a protected backup and Auth recreation
+  procedure first. Use rollback-wrapped SQL for broad domain coverage and
+  identifiable demo records for bounded browser checks. The owner statement
+  does not change HARD-004's explicit production-ref refusal for the 100 × 500
+  load run, or convert provider, legal, Play and restore requirements to Passed.
+
 - **ADR-141 — autonomous non-visual Phase 8 closeout without the earlier usage
   stop (owner override, 2026-09-21).** The owner withdrew ADR-140's 30%-used
   stop and asked for efficient autonomous work, with no additional user input

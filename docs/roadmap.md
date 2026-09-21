@@ -1,5 +1,18 @@
 # Roadmap
 
+**Owner Phase 8 synthetic-testing direction, 2026-09-21 (ADR-142):** the owner
+states Gymloop has no live customers and authorizes broad synthetic functional
+testing in the currently linked project, with an eventual data reset. The
+project is nevertheless production-configured and already contains demo Auth
+users and transactional rows. Keep test data identifiable and use rollback-
+wrapped SQL where possible. Do not run a destructive linked reset until a
+verified backup and a procedure to recreate the five demo Auth sign-ins exist;
+`seed.sql` cannot recreate them. The frozen 100 × 500 load acceptance still
+requires a distinct non-production target, and provider/legal/store evidence
+cannot be synthesized by adding rows. This direction supersedes ADR-140's
+blanket exact-cleanup requirement for bounded prelaunch demo-data checks, not
+its prohibition on unproven destructive recovery or production stress.
+
 **Owner Phase 8 autonomous closeout, 2026-09-21 (ADR-141):** the owner lifted
 the earlier 30%-used weekly stop for this campaign and directed completion of
 all safely executable non-visual Phase 8 work, with economical model and test

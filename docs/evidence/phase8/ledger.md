@@ -10,7 +10,7 @@ mock or synthetic provider response never changes External to Passed.
 |---|---|---|---|---|
 | HARD-001 | **Partial** | Phase 7 closeout `d1888c6`; Phase 8 contract `c768dff`; repository, 2026-09-20 | Procedure: review each HARD row for status, identity, time, result, artifact and dependency. This ledger is the current artifact. | Owner: Phase 8 orchestrator. Complete only after every row links exact executed commands/procedures and results; keep skipped/blocked/external visible. |
 | HARD-002 | **Passed** | Original contract/config `cdd99fb`/`674255e`; least-permission contract/config `94f058f`/`2252bdc`; version contract/config `d894ad5`/`7a31384`; CI `35530050420`; EAS build `146221dd-dab2-4ef1-a99b-61dc14be4675`, 2026-09-20 | Focused HARD-002 checks passed 5/5 and mobile typecheck passed; CI, holdout and test immutability were green. The production `STORE` build from `7a31384` is a managed-credential signed AAB for `in.gymloop.mobile` version `1.0.0` (`2`). Artifact, certificate and merged-permission evidence: `docs/evidence/2026-09-20-phase8-production-release.md`; AAB SHA-256 `129C5339A629C3AB2BFE937C7C304D44E4A3BEBEB1ED3CFCEB393F34A674C239`. | HARD-002's reviewable configuration, unique release version, test integration, least-privilege manifest and signed-AAB readiness proof are satisfied. Physical-device install and Play publication remain separately Partial/External under HARD-008. |
-| HARD-003 | **Partial** | Test `6ef23cb`; credential tests/config `f6035dc`/`0505432`; role-home specs/fixes `9e234d2`, `2bd1050`, `12125cd`, `6f40a81`, `7a9fc74`, `731e25b`; CI `35507247973`; latest Vercel deployment `9h745WmLGeD3YeMBtMkgCrb54qdm`, 2026-09-21 | Local/CI accessibility passed 3/3. Production `https://gymloop-phi.vercel.app` is Ready in `bom1`; `/sign-in` returned 200. A production-targeted run had two green cases plus one cold-start member timeout; the narrow role-landing rerun then passed member/front desk/owner. Details: `docs/evidence/2026-09-20-phase8-production-release.md`. | Mutation-complete journeys A–D and a true second-gym cross-tenant browser fixture remain blocked pending a disposable/non-production environment and second tenant identity; read-only production smoke is not substituted for that automation. Owner: web acceptance/infrastructure owner. |
+| HARD-003 | **Partial** | Test `6ef23cb`; role-home fixes through `731e25b`; consent regression/repair `7dbeb59`/`e7a5883`; CI `35590795690`; production Vercel deployment for `e7a5883`, 2026-09-21 | Local/CI accessibility passed 3/3; member/front-desk/owner role landings passed after a cold-start retry. Under the owner's prelaunch synthetic-testing authorization, real UI journeys then passed lead conversion, three-row member import with duplicate/invalid classification, assisted check-in, cash membership, owner receipt/metrics, add-on sale/fulfilment after targeted stale demo-offer corrections, and atomic onboarding of one trial gym with activation-readiness refusal. Exact IDs and read-only database reconciliation are below. The consent-search repair passed focused tests 26/26, CI/holdout/immutability, Vercel Ready and a narrow independent GO review; its production consent write is verified below. | Full automated journeys A–D and a genuine two-signed-in-gym cross-tenant browser fixture remain open. The second synthetic gym is trial with an unlinked owner and no Auth user, so it does not prove that boundary. One-gym manual journeys do not substitute for HARD-003 automation. Owner: web acceptance/infrastructure owner. |
 | HARD-004 | **Partial / External execution** | Red visible/blind contracts from `552313a` and `47ad1f7`, frozen interface through `20e2fff`, final implementation `ee0bc4d`; repository, 2026-09-20 | `pnpm exec vitest run scripts/__tests__/phase8-load-safety.test.ts supabase/tests-holdout/phase8-load-safety.holdout.test.ts` passed 16/16. Fresh Sol critic returned GO after direct-k6 parity review. `scripts/phase8-load-safety.mjs`, `tests/load/phase8-morning-checkin.js`, and `docs/runbooks/load-testing.md` provide the fail-closed preflight, exact 100 × 500 morning spike, approved p95 threshold, unique event keys, real read/mutation denial probes and credential-free evidence boundary. No k6/network/database command was run. | Owner: infrastructure owner. Provision and positively verify a separate non-production Supabase project, deployed API and synthetic 100 × 500 fixture, then execute the runbook and attach raw-result checksum and measured evidence. Production remains refused. |
 | HARD-005 | **Partial / External destination** | Interface `6edba6d`; visible/holdout red tests `c114182`/`6797571`; contract corrections `cf5afc9`/`154a4c8`; implementation `12beeca`; production-call-site tests `658525f` and implementation `bdfc81d`; repository, 2026-09-20/21 | Adapter checks passed 7/7. The API 500 path now emits one minimal event; independent visible/holdout call-site checks passed 3/3 each, and web typecheck/lint passed. `docs/runbooks/operational-monitoring.md` names proposed thresholds, role ownership, escalation and retention, explicitly unconfigured. No production provider delivery was observed. | Owner: production owner. Configure a real monitoring destination and alert route. Evidence still required: provider event id, alert receipt, actual rules/retention and named escalation owner. Until provider proof exists, external monitoring remains External. |
 | HARD-006 | **Blocked / External legal** | Read-only implementation audit completed 2026-09-20; no runner or execution evidence attached | Governing durations and broad blank/delete/hold categories are in `docs/security.md`, but the contract does not classify personal columns, define clocks for several retention rows, cover `razorpay_mandates`, define export wire content, or distinguish category-wide retention from case-specific legal holds. `members.full_name` and `phone` are also non-null today, so truthful erasure cannot be added without a schema/product decision. No destructive command was run. | Owner: product/privacy owner freezes those decisions; production owner obtains qualified legal review. Then independent visible/holdout authors specify the member-derived export/erasure RPCs and service-only retention runner before CI-only migration work starts. Local tests cannot satisfy legal sign-off. |
@@ -102,6 +102,196 @@ The logger's omission of response fields does not sanitize the response itself:
 `apiFail` still accepts arbitrary caller-supplied `details` and `message`.
 Callers must continue to pass only safe user-facing values; this slice does
 not assert end-to-end 500-body secret filtering.
+
+## 2026-09-21 synthetic-test baseline and reset boundary
+
+At 10:14:52 UTC, a read-only `supabase db query --linked` count across
+`auth.users`, the public demo tables and `storage.objects` returned one gym,
+46 members, 981 attendance rows, 34 payments, eight leads, three add-on
+orders, 16 notifications, six Auth users, zero webhook events and zero Storage
+objects. The owner confirms this is prelaunch and authorizes synthetic
+functional testing in the same project. A second read-only status count found
+active, paused, expired, cancelled and blocked member scenarios plus active,
+pending, frozen, expired and cancelled memberships. This is already a broad
+synthetic seed, not an empty database awaiting bulk population.
+
+`supabase db reset --linked` was inspected with `--help` but **not executed**.
+The demo seed does not recreate Auth sign-ins (`docs/demo-accounts.md`), and
+the project currently has no listed backup/PITR recovery point. A future
+reset therefore needs a verified recovery and Auth-recreation procedure; the
+owner's testing authorization is not evidence that one exists. The existing
+rollback-wrapped SQL suites remain the safe way to exercise large scenario
+matrices without permanent rows. HARD-003/004 and the restore gate remain open.
+
+At 10:27:57 UTC, the front-desk demo identity completed a bounded production
+UI journey for fictional lead `QA-20260921-LEAD-A7K3` (lead
+`2805f753-9b05-4c6f-9d1e-4d91affd8ca4`): new → contacted →
+trial_scheduled → trial_done → converted. The screen showed the converted
+member link, and a read-only linked-project query confirmed stage `converted`
+and active member `3041d7d8-4254-4e33-8764-1a1c2e5cee87`. No outbound
+contact or payment occurred. These two IDs are the exact synthetic cleanup
+scope; no reset or cleanup has yet been performed. This proves the one-gym
+lead flow only, not the two-gym HARD-003 journey.
+
+At 10:32:10 UTC, the owner UI processed a three-row fictional member import
+(`dcdee930-6d8a-47ad-a5ec-f4fab5bd7d59`). Its preview and committed result
+reported one accepted row, one duplicate phone within the file (`file_phone`),
+and one invalid phone (`invalid_phone`). A read-only linked-project query
+confirmed `status=completed`, `row_count=3`, `imported_count=1`,
+`duplicate_count=1` and the exact error-report dispositions. The imported
+active member is `743600fe-79d2-4013-bb53-3c0e34c6c71e`, named
+`QA-20260921-IMPORT-A7K3`; the other two rows created no member. No replay
+control was exposed in this completed UI flow, so idempotency was not claimed
+from the browser journey; the existing rollback-wrapped contract tests cover
+it separately. No contact or payment occurred. These IDs remain in the exact
+synthetic cleanup scope.
+
+At 10:29–10:30 UTC, a separate front-desk UI session created member
+`QA-20260921-CORE-R7K3` (`bf4d2076-2501-4217-b7ed-4e1b8f10c74f`), recorded
+one assisted visit (`f916b0e2-3643-4fed-bdf6-2181d41e10ea`, source
+`front_desk`), then sold a 30-day membership
+(`6ecce1b3-2795-47f8-932c-d47bc86091d8`, 2026-09-21 through 2026-10-21)
+for INR 150000 paise cash (`29640260-100f-418c-b776-b14cd12cabbd`, receipt
+`2026-27/000011`). The member history, receipt and owner dashboard rendered
+the visit and collection; read-only linked-project queries independently
+confirmed the visit, active membership and paid payment facts. The receipt
+number is immutable and remains spent even if synthetic rows are later
+cleaned up. This was a real one-gym core-loop browser journey, not HARD-003's
+complete A–D or second-gym proof.
+
+The same journey first exposed stale live demo-catalogue data: the only
+UI-selectable active diet-plan offer returned `catalogue_incomplete`; the
+other displayed offers were disabled as incomplete. The source seed had
+already corrected these fields in `e7f7902`, but the deployed demo rows were
+older. The first refusal created no order or payment. At 10:38:48 UTC, the
+owner UI saved only diet offer `00000009-0000-4000-8000-000000000003` with
+its commercial terms unchanged. A read-only query confirmed the stale trainer
+reference cleared and quote version rotated from
+`ab8d650b-f383-496b-a318-45f1f8c2fc81` to
+`c888b693-6a5e-49cb-b9ab-8afb742d5b30`; historical order
+`00000010-0000-4000-8000-000000000002` remained untouched. No broad seed
+rerun or SQL mutation was used. The remaining incomplete legacy demo offers
+still need their missing disclosures completed before they can be sold.
+
+At 10:40:01 UTC, the front-desk UI sold that now-valid diet plan to the QA
+member: add-on order `f9bcca06-6360-4d6b-b077-c2f008a5d29f`, cash payment
+`0d9f08bb-322f-4059-9ab4-d4aade30d348`, INR 250000 paise, receipt
+`2026-27/000012`. One UI fulfilment action made the order `completed` at
+10:40:02 UTC; it is valid from 2026-09-21 through 2026-11-15. Read-only
+queries independently confirmed the member/offer/payment links, terminal
+order status and paid receipt. The UI showed no second sale, and no refund
+was attempted.
+
+At 11:02:54 UTC, the owner UI corrected only the canonical seven-day
+validity on seeded Whey Protein offer
+`00000009-0000-4000-8000-000000000004` (other terms, INR 240000-paise
+price and starting stock 24 unchanged); its quote version rotated from
+`7e886c5c-4522-4ab1-83c9-2eb8bd8a2744` to
+`586eef33-ec32-4d7b-87ad-a640136b345f`. The front-desk UI then sold one
+unit for cash to the same QA member: order
+`c664f636-992e-4b78-8408-d15c2b49f294`, payment
+`d338dd14-b515-48b0-9307-927a59e2d09d`, receipt
+`2026-27/000013`. Products complete on handover at sale, so no separate
+delivery action was available or claimed. Read-only database queries
+confirmed `completed`, paid INR 240000 paise and stock `24 → 23` exactly
+once. The historical completed order
+`00000010-0000-4000-8000-000000000003` was left unchanged.
+
+At 11:06:09 UTC, the owner UI completed only the missing canonical `ACE-CPT`
+qualification on PT Starter offer
+`00000009-0000-4000-8000-000000000001`; trainer, INR 800000-paise price,
+90-day validity, twelve sessions and other terms were preserved. Quote
+version rotated from `d6bfcf94-fd6a-435e-ad49-82accbe78711` to
+`1ea56982-226f-49d7-b6be-f1a28ec9f9d0`; historical active order
+`00000010-0000-4000-8000-000000000001` was not changed. The front-desk UI
+sold one PT package to the QA member for cash: order
+`7a2614d0-2962-4c5a-9cc6-b7f0ade5eb23`, payment
+`c2d32764-1c2b-4bca-91c4-e75ea30f2708`, receipt
+`2026-27/000014`. Read-only queries confirmed a paid INR 800000-paise
+payment, active twelve-session entitlement with zero used, and one required
+initial booking `6fd29232-7642-4757-8a6f-ff50f1bd3a2a` for 2026-09-22
+15:30–16:30 UTC. The future session was not completed or consumed. Owner and
+front desk correctly lacked a cancellation control; the assigned trainer UI
+then cancelled exactly that synthetic booking once. At 11:15:46 UTC a
+read-only query confirmed `cancelled`, zero other sessions on the order,
+active twelve-session entitlement and zero used. The trainer slot is free.
+
+At 10:33:57 UTC, the platform UI onboarded exactly one synthetic gym,
+`QA-20260921-TENANT-A7K3` (`7eb2f564-0c3b-49b6-8104-1902241a5955`,
+code `177141`). Read-only linked-project queries confirmed one settings row,
+one default branch (`b3331474-91d3-4925-92c5-041c7e744117`), one
+zero-credit messaging wallet and one active unlinked owner
+(`fc1df639-18fc-45ae-bf16-73c26702a9b7`). It remains `trial`, with
+`activated_at` null and a 2026-10-04 18:30 UTC trial boundary. One activation
+attempt was refused with `Readiness incomplete: owner_access`, leaving those
+facts unchanged. No Auth user was created or linked, and this does **not**
+prove a second gym's authenticated browser isolation; that still needs a
+distinct tenant identity and separate session.
+
+At 11:06:54 UTC, the super-admin began one reasoned, time-limited preview of
+the synthetic trial gym (`d45a9eaa-dd5c-46f3-8356-71795989519a`). The
+preview banner showed that gym and code `177141`, its roster showed no
+members, and a direct detail route for known Iron Box member
+`bf4d2076-2501-4217-b7ed-4e1b8f10c74f` returned 404. The exact preview
+ended through the UI at 11:07:48 UTC; a read-only linked-project query
+confirmed `ended_at` and the intended tenant/reason. Audit events
+`3e2b436a-4a75-4a3d-9c82-49f792a2a6a3` (start) and
+`17b03c95-3dcb-4ee6-ac2e-4558a278939a` (end) remain. This supports
+preview-scope read isolation only; it is not a separate gym-owner credential
+or a cross-tenant mutation test.
+
+At 10:41 UTC, a bounded staff messaging attempt for that QA member exposed
+that `/messages` populated its consent selector only from prior notification
+rows. The implementation-blind visible test was committed red in `c9aef0b`,
+its off-gym mock was corrected to respect the RLS boundary in separate
+`spec:` commit `7dbeb59`, and `e7a5883` reused the existing RLS-bound,
+cursor-paged phone search. Focused tests passed 26/26, web typecheck/lint and
+registry-lint passed, CI `35590795690`, holdout `35590795621` and
+test-immutability `35590795573` passed, production deployment was Ready, and
+an independent narrow review returned GO. At 10:59:18 UTC, a real front-desk
+session searched phone suffix `0124`, selected that previously unmessaged QA
+member and recorded one withheld marketing decision
+(`3f9f930d-125d-4efd-b30d-b44e211c4da0`, version `2026-09-01`, source
+`phase8_prelaunch_qa`); the API returned 201. Read-only linked-project
+queries confirmed the exact member/purpose/actor and `granted=false`, zero
+notifications for that member and the demo wallet unchanged at 4,500 credits.
+No message or external delivery occurred. This proves consent capture only,
+not the full paid/outbound communications lifecycle.
+
+At 11:01:47 UTC, a fresh front-desk session inspected the red list for the
+seeded fictional case `ad3840a8-c912-4e75-b3e8-68e02e3994ad` (member
+`00000005-0000-4000-8000-000000000111`). The UI showed 83 days away, no
+visits and no contact; read-only linked-project state showed the case open,
+zero follow-up rows and no contact or next-follow-up timestamp. The available
+actions all represented real outreach (`call`, `whatsapp`, `in_person`,
+`sms`), so no action was submitted or falsely recorded. This is a truthful
+read-only risk-list check, not evidence that a contact/follow-up journey passed.
+
+At 11:13:37 UTC, the owner receipt UI submitted exactly one INR 50000-paise
+partial cash-refund request against the QA membership payment
+`29640260-100f-418c-b776-b14cd12cabbd` (receipt `2026-27/000011`): refund
+`a079c59c-69e3-42a9-8e52-272d022a6f58`, reason `Phase 8 prelaunch
+synthetic QA`. The UI showed INR 50000 pending and INR 100000 still available;
+a read-only query confirmed status `requested`, `processed_at` null, payment
+still paid and the 30-day membership unchanged. No cash was handed to a real
+member, so the refund was **not** marked completed or counted as money
+returned. No generic membership-refund cancellation control was available in
+the UI. This exact synthetic pending request must be resolved through an
+approved product workflow or removed as part of a verified future reset before
+launch; do not misreport it as a completed refund.
+
+At the 11:16 UTC read-only reconciliation, the linked project had six Auth
+users (unchanged from baseline), two gyms (+1), 49 members (+3), 982
+attendance rows (+1), 38 payments (+4), one requested refund (+1), nine
+leads (+1), six add-on orders (+3), 16 notifications (unchanged) and 61
+consents (+1). The QA PT session is included among six `pt_sessions` rows
+but is cancelled and consumes no entitlement. Two `member_imports` rows
+exist for the same QA CSV: completed run
+`dcdee930-6d8a-47ad-a5ec-f4fab5bd7d59` and earlier pending, zero-import
+run `2b05cf12-f75b-4fef-b8bb-8f3172580bd4`. The tester observed an
+abandoned first preview followed by re-upload, which most likely explains
+the two runs; no commit/replay of the first was observed. Both IDs belong
+to the synthetic cleanup scope.
 
 ## External dependency index
 
