@@ -85,7 +85,9 @@ export const addonSaleRequestSchema = z.object({
   trainerStaffId: nullableUuid,
   initialStartsAt: offsetInstant.nullable(),
   initialEndsAt: offsetInstant.nullable(),
-  method: z.string().trim().min(1).nullable(),
+  method: z.string().trim().min(1).nullable().refine((value) => value !== 'razorpay', {
+    message: 'Online payments are not available. Record an externally collected payment.',
+  }),
   reason: optionalReason,
   idempotencyKey: canonicalUuid,
 }).strict().superRefine((value, context) => {

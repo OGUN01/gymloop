@@ -77,10 +77,9 @@ export function rupeesFromPaise(paise: number | string): string {
  * identifiers would be a cash payment wearing an online payment's evidence
  * (`GL035`, PAY-006).
  *
- * `method` is the generated Postgres enum's labels and is validated by the
- * column itself; the schema keeps it a non-empty string rather than a second
- * copy of a vocabulary that lives in `packages/db/types/database.ts`
- * (AGENTS.md rule 5).
+ * `method` is validated against the generated Postgres enum at the web edge
+ * and by the column itself. This schema also refuses `razorpay` during the
+ * manual-only release, before a desk command can reach either boundary.
  */
 export const paymentRequestSchema = z.object({
   memberId: z.uuid(),
@@ -88,7 +87,9 @@ export const paymentRequestSchema = z.object({
   membershipId: optionalField(z.uuid()),
   /** As typed. Converted to integer paise by `paiseFromRupees`, never by the schema. */
   amountRupees: z.string().trim().min(1),
-  method: z.string().trim().min(1),
+  method: z.string().trim().min(1).refine((value) => value !== 'razorpay', {
+    message: 'Online payments are not available. Record an externally collected payment.',
+  }),
   notes: optionalField(z.string().trim().min(1)),
   /**
    * The caller's own key for this attempt, so a resubmitted form is one

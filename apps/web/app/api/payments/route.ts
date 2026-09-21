@@ -7,6 +7,7 @@ import {
   PG_INSUFFICIENT_PRIVILEGE,
   PG_UNIQUE_VIOLATION,
 } from '../../../lib/api';
+import { UUID_PATTERN } from '../../../lib/keyset';
 
 /**
  * POST /api/payments — record money taken at the desk.
@@ -62,7 +63,15 @@ const REFUSALS: Record<string, string> = {
 export async function POST(request: Request): Promise<Response> {
   const caller = await staffFormParsed(request, paymentRequestSchema);
   if ('failure' in caller) return caller.failure;
-  if ('invalid' in caller) return seeOther(request, '/payments', 'invalid');
+  if ('invalid' in caller) {
+    // Keep the existing desk journey for the one method now rejected by the
+    // shared schema: a forged online option returns to the named member.
+    // Other malformed forms still return to the ledger as before.
+    const memberId = caller.fields.memberId;
+    return caller.fields.method === 'razorpay' && UUID_PATTERN.test(memberId ?? '')
+      ? seeOther(request, `/memberships/${memberId}`, 'invalid')
+      : seeOther(request, '/payments', 'invalid');
+  }
   const { supabase, tenantId, staffId, data } = caller;
 
   const { memberId, membershipId, amountRupees, method, notes, idempotencyKey } = data;
