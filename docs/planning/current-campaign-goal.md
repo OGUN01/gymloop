@@ -1,5 +1,27 @@
 # Current owner-authorized campaign goal
 
+## Phase 8 prelaunch closeout — current direction, 2026-09-21 (ADR-141/142)
+
+The owner withdrew earlier weekly-usage stops, confirmed there are no live
+customers, and authorized extensive synthetic functional checks in the existing
+linked Gymloop project. Finish every safely executable non-visual Android/web
+check and fix, preserving independent identity/RLS/money verification; the
+owner will handle the remaining visual redesign. Keep exact QA identities and
+rows in the Phase 8 evidence ledger. Run narrow tests for new behavior, then
+the required gates once per completed slice. Do not claim a partial journey as
+the frozen HARD-003 A–D acceptance.
+
+The same project is production-configured and has no listed backup/PITR point.
+Its seed cannot recreate the five demo Auth sign-ins. Therefore no linked
+reset, bulk 100 × 500 load or synthetic cleanup by guesswork: require verified
+recovery and Auth recreation before any destructive reset, and the distinct
+non-production target required by HARD-004 for load. External monitoring,
+legal/privacy decisions, cloud restore, provider-signed payment evidence and
+truthful Play declarations/exact-artifact install remain separately open.
+Do not archive Phase 8 or declare customer-launch readiness while these or
+HARD-010's visual NO-GO remain. The older percentage ceilings and closeout
+instructions below are historical, not active constraints.
+
 ## Phase 8 non-visual closeout — 2026-09-21 (ADR-139)
 
 The owner will handle the remaining visual redesign. Sol owns the non-visual
