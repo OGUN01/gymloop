@@ -1,5 +1,53 @@
 # Current owner-authorized campaign goal
 
+## Active continuation — finish every verifiable Phase 8 lane (2026-09-21)
+
+The owner has explicitly asked Sol to continue, own the remaining non-visual
+work, and use safe simulations where a provider or recovery target is missing.
+The previous two-point usage checkpoint is not a completion claim or a reason
+to abandon the campaign. Work in small, measured batches; preserve the owner’s
+separate UI/UX work and never relabel a simulation as production proof.
+
+The next execution slices and their exit evidence are:
+
+1. **HARD-003, two-gym isolation:** use the existing controlled identities and
+   exact fixture IDs for reciprocal authenticated read and mutation refusal.
+   Add the missing checked-in Playwright A–D journey with independent visible
+   and holdout authors for identity/RLS assertions. Use rollback-only database
+   probes and bounded API requests in the shared project; record which layer
+   each proves, and remove only exact fixtures created by the journey.
+2. **HARD-006, privacy operations:** freeze a versioned, field-level export,
+   erasure, hold and retention contract from ADR-144 and the actual schema.
+   Independently write tests, then implement the request ledger, portable
+   export, idempotent erasure and dry-run/real retention runner with CI-only
+   migrations. Exercise synthetic requests without erasing existing QA users.
+   Obtain qualified legal/DPA review before claiming statutory readiness.
+3. **HARD-007, recoverability:** inventory Auth, database and Storage recovery;
+   create a protected logical backup if the available tooling can do so
+   without exposing personal data, then restore into a disposable local or
+   otherwise isolated target and verify row/schema checks. Do not reset the
+   linked project. This can prove an operator-run logical recovery path but
+   cannot substitute for unavailable provider PITR or cloud restore evidence.
+4. **HARD-004, load:** run deterministic fixture and k6 preflight simulations
+   without a 50,000-row persistent write to the linked project. A bounded
+   same-project functional spike may test correctness only after exact
+   cleanup/recovery is verified; it cannot establish the frozen 100 × 500
+   performance threshold. Keep that gate Partial until a distinct recoverable
+   non-production target and measured run exist.
+5. **HARD-005/008 and provider gates:** finish all local log/redaction and
+   Android/device checks; exercise a local alert-sink and mock provider
+   failure/retry path as simulations. Real monitoring receipt, signed Razorpay
+   payload, Cloudflare rule proof, truthful Play declarations, exact-AAB
+   internal-track install, and final visual acceptance remain separately
+   required. Reconcile HARD-001/009 and archive only when their real evidence
+   exists.
+
+After each slice, record command, identity, environment, result and artifact
+in `docs/evidence/phase8/ledger.md`; run only affected checks during repairs.
+The desktop goal API cannot edit the objective of its older blocked record;
+this versioned repository goal is the current execution record, not a claim
+that the stale desktop objective changed.
+
 ## Owner-delegated privacy decision and safe verification — 2026-09-21 (ADR-144)
 
 Gymloop does not sell member data or use it for independent advertising.
