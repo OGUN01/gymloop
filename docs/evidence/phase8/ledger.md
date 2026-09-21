@@ -560,6 +560,67 @@ under rollback, **not** a web/mobile end-to-end journey, measured latency,
 50,000 check-ins or a recoverable load environment. HARD-003/004 remain
 Partial; the canonical HARD-004 preflight still refuses this project.
 
+## 2026-09-21 synthetic recovery journey (B backend path)
+
+The existing fictional Iron Box case
+`ad3840a8-c912-4e75-b3e8-68e02e3994ad` began `open` with zero follow-ups
+and no visit today. A real front-desk password session, using its own claim,
+inserted follow-up `65a7c0aa-b87b-49d2-9ce7-558e8b4df1c0`, channel
+`in_person`, outcome `will_return`, with an explicit note that **no real
+contact occurred**. The case became `contacted` and acquired `contacted_at`.
+The same role called the production `POST /api/check-in` with fictional member
+`00000005-0000-4000-8000-000000000111`, a reason explicitly saying **no
+physical visit occurred**, and event key
+`f3e03727-c2b4-484e-b52f-fb63a1637499`. It returned HTTP 200 and
+attendance `caf6e9c7-0730-4230-8e36-a4137c41d077`; the case became
+`closed` with both `returned_at` and `closed_at` set. Every test session was
+signed out.
+
+The Iron Box gym-owner session then called the actual `owner_metrics` RPC:
+the exact case appeared in `components.recoveries`, with `recovered=2` and
+`visitsToday=2` in that snapshot. The separate Google-authenticated QA-gym
+owner's live browser dashboard still displayed one visit and zero recoveries;
+its roster still had only its own one member. A fresh-context read-only
+postflight independently verified tenant/member alignment, matching
+front-desk actor ids on follow-up and assisted attendance, one row for the
+event key, both closure timestamps, and zero notifications for this member
+since the case opened. A further signed-in attempt to log a follow-up after
+closure returned `GL031`; the case's follow-up count stayed one.
+
+This is **synthetic product behavior**, not a claim that anyone was contacted
+or entered a gym. The follow-up and attendance are durable QA rows, not
+rollback artifacts; their exact ids above are in the future verified cleanup
+scope. This closes one live backend/API recovery scenario and demonstrates
+owner/tenant read separation, but it is not the checked-in Playwright A–D
+suite, real outreach delivery, or customer-launch acceptance. HARD-003
+remains Partial.
+
+## 2026-09-21 assisted check-in to linked-member read (D partial)
+
+Preflight found the fictional, app-linked Iron Box member
+`00000005-0000-4000-8000-000000000001` active with no visit today and no
+open no-show case. A real front-desk session called production
+`POST /api/check-in` with a new event key
+`80f6698b-291e-426f-85fa-bfa3e88ff569` and an explicit reason that no
+physical visit occurred. The API returned HTTP 200 and attendance
+`78da1e81-8e69-4978-bf93-1e2743eec93f`. After the desk session signed
+out, an independent demo-member password session read that exact row through
+the same Supabase `attendance` path used by native member Activity. It was
+visible as `front_desk` with a non-null assisted-by actor. Read-only database
+postflight found exactly one event row, the expected member, actor
+`00000003-0000-4000-8000-000000000004`, source and synthetic reason.
+The member session also signed out. This checks an authenticated
+desk-write → member-read handoff and attribution, not a user tapping a
+confirmation control, an actual physical entry, or the full checked-in
+Playwright journey D. The attendance id is in the exact future QA cleanup
+scope.
+
+The connected OnePlus preview build was inspected afterward: it was at the
+English sign-in screen, not in a member session. Therefore no current
+physical-device Activity confirmation was claimed. The prior Phase 7 device
+journeys remain separate evidence, and this preview APK cannot satisfy
+HARD-008's exact production-AAB Play install.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
