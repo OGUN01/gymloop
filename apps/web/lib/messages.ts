@@ -1,6 +1,7 @@
 import { identityHome, type GymloopIdentity } from './identity';
 import { requireAudience } from './identity-session';
 import { FRONT_OFFICE_ROLES } from './leads';
+import { loadMemberSearch } from './members';
 import { redirect } from 'next/navigation';
 
 /**
@@ -60,8 +61,11 @@ export type MessagesScreen = {
   statusCounts: MessageStatusCounts;
   asOf: string | null;
   isAdmin: boolean;
+  isPreview: boolean;
   tenantId: string;
   members: MemberChoice[];
+  memberNextCursor: string | null;
+  memberSearchError: string | null;
   templates: MessageTemplateRow[];
   walletBalanceCredits: string | null;
   errorMessage: string | null;
@@ -75,7 +79,7 @@ type ListNotificationsResult = {
 };
 
 export async function loadMessages(
-  searchParams: Promise<{ channel?: string }>,
+  searchParams: Promise<{ channel?: string; q?: string; memberCursor?: string }>,
 ): Promise<MessagesScreen> {
   const params = await searchParams;
   const { supabase, identity } = await requireAudience('console');
@@ -110,22 +114,26 @@ export async function loadMessages(
     };
   };
 
-  const [page, templates] = await Promise.all([
+  const [page, templates, memberSearch] = await Promise.all([
     reader.rpc('list_notifications', { p_channel: channel }),
     isAdmin
       ? templateReader.from('message_templates').select('id,key,channel,locale,category,body,is_active').order('key')
       : Promise.resolve({ data: [], error: null }),
+    loadMemberSearch(Promise.resolve({
+      ...(params.q ? { q: params.q } : {}),
+      ...(params.memberCursor ? { cursor: params.memberCursor } : {}),
+    })),
   ]);
 
   const unusable: MessagesScreen = {
-    rows: [], statusCounts: EMPTY_STATUS_COUNTS, asOf: null, isAdmin, tenantId, members: [],
+    rows: [], statusCounts: EMPTY_STATUS_COUNTS, asOf: null, isAdmin,
+    isPreview: identity.kind === 'impersonation', tenantId, members: [],
+    memberNextCursor: null, memberSearchError: memberSearch.errorMessage,
     templates: [], walletBalanceCredits: null, errorMessage: 'The messages list could not be loaded.',
   };
   if (page.error || page.data === null || !Array.isArray(page.data.rows)) return unusable;
 
   const rows = page.data.rows;
-  const members = new Map<string, string>();
-  for (const row of rows) members.set(row.memberId, row.memberName);
 
   const templateRows: MessageTemplateRow[] = (templates.data ?? []).map((row) => ({
     id: row.id, key: row.key, channel: row.channel, locale: row.locale,
@@ -137,8 +145,11 @@ export async function loadMessages(
     statusCounts: { ...EMPTY_STATUS_COUNTS, ...page.data.statusCounts },
     asOf: typeof page.data.asOf === 'string' && page.data.asOf !== '' ? page.data.asOf : null,
     isAdmin,
+    isPreview: identity.kind === 'impersonation',
     tenantId,
-    members: [...members].map(([id, name]) => ({ id, name })),
+    members: memberSearch.members.map((member) => ({ id: member.id, name: member.full_name })),
+    memberNextCursor: memberSearch.nextCursor,
+    memberSearchError: memberSearch.errorMessage,
     templates: templateRows,
     walletBalanceCredits: typeof page.data.walletBalanceCredits === 'string' ? page.data.walletBalanceCredits : null,
     errorMessage: null,

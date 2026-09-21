@@ -26,8 +26,13 @@ function canOpenWhatsApp(row: MessageListRow): boolean {
   return row.channel === 'in_app' && (row.status === 'sent' || row.status === 'delivered');
 }
 
-export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ channel?: string }> }) {
-  const screen = await loadMessages(searchParams);
+export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ channel?: string; q?: string; memberCursor?: string }> }) {
+  const params = await searchParams;
+  const screen = await loadMessages(Promise.resolve(params));
+  const nextMemberQuery = new URLSearchParams();
+  if (params.channel) nextMemberQuery.set('channel', params.channel);
+  if (params.q) nextMemberQuery.set('q', params.q);
+  if (screen.memberNextCursor) nextMemberQuery.set('memberCursor', screen.memberNextCursor);
 
   return <main className="route-workspace">
     <header>
@@ -64,7 +69,16 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
     <section aria-labelledby="consent-heading" className="mt-8">
       <h2 id="consent-heading" className="text-lg font-semibold">Consent</h2>
       <p className="mt-1 text-sm text-neutral-600">Record a member's marketing or service consent decision.</p>
-      <ConsentForm members={screen.members} />
+      {!screen.isPreview ? <form action="/messages" method="get" className="mt-3 flex flex-wrap items-end gap-2">
+        {params.channel ? <input type="hidden" name="channel" value={params.channel} /> : null}
+        <label className="grid gap-1 text-sm">Find member by phone
+          <input type="search" name="q" defaultValue={params.q ?? ''} placeholder="Last four digits or full phone" className="min-h-11 rounded-lg border border-neutral-400 px-3" />
+        </label>
+        <button type="submit" className="min-h-11 rounded-lg border border-neutral-400 px-4">Search members</button>
+      </form> : null}
+      {screen.memberSearchError ? <p role="alert" className="mt-2 text-sm text-red-700">Member search could not be loaded.</p> : null}
+      <ConsentForm key={`${params.q ?? ''}:${params.memberCursor ?? ''}`} members={screen.members} />
+      {screen.memberNextCursor ? <a className="mt-3 inline-block text-sm underline" href={`/messages?${nextMemberQuery.toString()}`}>More members</a> : null}
     </section>
 
     {screen.isAdmin ? <section aria-labelledby="templates-heading" className="mt-8">
