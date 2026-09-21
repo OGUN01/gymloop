@@ -536,6 +536,30 @@ same gym. Neither query errored, the session was signed out, and no payment
 was written. This demonstrates live intra-tenant member-payment isolation for
 that row, not a provider-signed payment, refund completion or all money tables.
 
+## 2026-09-21 reversible 10 × 50 database simulation
+
+At the owner's request, the linked project ran a **single-transaction,
+rollback-only** smaller-scale scenario, not the HARD-004 k6 workload. A
+read-only preflight found zero `PX` simulation gyms and zero prefixed members.
+The administrative transaction inserted 10 synthetic `pending_approval` gyms,
+one branch each, and 50 synthetic members per gym (500 total) using distinct
+gym codes, phones and member codes. It recorded counts before changing to a
+local `authenticated` role with one synthetic gym-owner tenant claim. The
+returned row was `fixture_gyms=10`, `fixture_members=500`,
+`own_visible_members=50`, `foreign_visible_members=0` for a named second
+gym. The transaction explicitly ended with `ROLLBACK`.
+
+A separate read-only postflight returned zero simulation gyms and members,
+and the original totals of **2 gyms / 50 members**. A first identical
+transaction returned only its last scalar through the CLI; its postflight
+also confirmed zero residue, so the second run combined the four assertions
+into one returned row. No migration, persistent fixture, Auth user, API
+request, payment, message, provider call or external load was created by
+this simulation. It proves a 10 × 50 database insert/tenant-read boundary
+under rollback, **not** a web/mobile end-to-end journey, measured latency,
+50,000 check-ins or a recoverable load environment. HARD-003/004 remain
+Partial; the canonical HARD-004 preflight still refuses this project.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
