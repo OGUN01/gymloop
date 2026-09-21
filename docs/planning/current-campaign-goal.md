@@ -2,7 +2,7 @@
 
 ## Active continuation — finish every verifiable Phase 8 lane (2026-09-21)
 
-**Credential rotation again required:** a 2026-09-21 Supabase
+**Temporary credential use authorized; prelaunch rotation required:** a 2026-09-21 Supabase
 CLI dry-run printed the then-current database password in task tool output.
 The owner reports resetting it in Supabase Database Settings and replaced the
 gitignored `.env.local` value. The GitHub `SUPABASE_DB_PASSWORD` Actions secret
@@ -10,9 +10,12 @@ was updated at 16:07 UTC and `supabase link` with the new local value succeeded
 against the exact project. At 16:12 UTC, inspection found that same value had
 also been entered into tracked `.env.example`; it was never committed or
 pushed and was immediately scrubbed back to an empty example key. The
-inspection itself printed it into task tool output, so it must be rotated
-again. Only `.env.local` may hold the replacement. Pause database operations
-until the owner resets it and the local/CI copies are resynchronized. An
+inspection itself printed it into task tool output. The owner explicitly
+accepts using this current credential for bounded synthetic testing while
+there are no customers, and will reset it before customer launch (ADR-145).
+Only `.env.local` and the GitHub Actions secret may hold the value; never print
+it or copy it into a command, artifact, or tracked example. The disclosed
+credential remains a security debt, not a production-ready secret. An
 old-value rejection was not independently tested; do not claim it was. Never
 copy either value into a prompt, log or commit. The separate account-wide
 Supabase access-token rotation remains a release item.
@@ -27,6 +30,8 @@ The next execution slices and their exit evidence are:
 
 1. **HARD-003, two-gym isolation:** use the existing controlled identities and
    exact fixture IDs for reciprocal authenticated read and mutation refusal.
+   The bounded reverse-direction live API refusal now passed; still require a
+   repeatable checked-in two-owner browser fixture and complete journeys.
    Add the missing checked-in Playwright A–D journey with independent visible
    and holdout authors for identity/RLS assertions. Use rollback-only database
    probes and bounded API requests in the shared project; record which layer

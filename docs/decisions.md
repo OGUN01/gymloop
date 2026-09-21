@@ -1377,6 +1377,23 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-145 — temporary disclosed DB credential for bounded prelaunch tests
+  (owner direction, 2026-09-21).** After the replacement database password
+  appeared in an uncommitted `.env.example` diff and task tool output, the
+  owner explicitly accepts continuing synthetic tests with that password
+  while Gymloop has no live customers. This supersedes the temporary pause
+  recorded in the Phase 8 goal, not the duty to rotate: before any customer
+  launch the owner must reset the password again, update only the gitignored
+  local secret and GitHub Actions secret, verify current authentication and
+  old-value rejection through a method that actually uses the password, and
+  separately rotate the account-wide Supabase access token. No secret value
+  may be copied to logs, prompts, tracked files or test artifacts. The current
+  project is still production-configured and has no listed backup/PITR;
+  therefore this override permits only bounded, attributable synthetic
+  scenarios and rollback-only SQL probes. It does not authorize a linked
+  reset, uncontrolled persistent writes, 100 × 500 stress, destructive
+  restore, or claiming HARD-004/007 passed without their own recovery proof.
+
 - **ADR-144 — owner-delegated privacy direction and production-load safety
   boundary (2026-09-21).** The owner delegates Gymloop's product privacy
   policy: member data is processed to deliver the gym service, never sold or
