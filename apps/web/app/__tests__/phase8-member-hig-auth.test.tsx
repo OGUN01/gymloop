@@ -83,7 +83,8 @@ describe('Phase 8 member HIG/auth boundary', () => {
     const css = source('globals.css');
     expect(signIn).toMatch(/sign-in-page/);
     expect(css).toMatch(/max-height\s*:\s*667px/);
-    expect(css).toMatch(/overflow(?:-y)?\s*:\s*hidden/);
+    expect(css).toMatch(/min-height\s*:\s*100dvh/);
+    expect(css).not.toMatch(/\.sign-in-page[^}]*overflow-y\s*:\s*hidden/);
   });
 
   it('contains native sign-in content as well as bounding its hero', () => {
