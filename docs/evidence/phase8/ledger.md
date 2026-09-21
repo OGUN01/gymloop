@@ -511,6 +511,15 @@ prove browser OAuth, membership/payment/provider workflows or the complete
 automated A–D acceptance; HARD-003 stays Partial. The CLI read-only query is
 not independent verification of the disclosed database password.
 
+The same Iron Box front-desk identity then retried its already-recorded own-gym
+assisted event `50625596-e967-4f94-8a91-10df5241c9f6` for member
+`bf4d2076-2501-4217-b7ed-4e1b8f10c74f` through the live API. The result
+was HTTP **200**, `replay=true`, and the original attendance id
+`f916b0e2-3643-4fed-bdf6-2181d41e10ea`; the session was signed out.
+A read-only linked-project count for that tenant/event key remained **1**.
+This proves one real idempotent staff retry, not simultaneous replay or a
+member-device offline conflict. No new attendance fixture was created.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
