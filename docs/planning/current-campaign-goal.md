@@ -2,14 +2,20 @@
 
 ## Active continuation — finish every verifiable Phase 8 lane (2026-09-21)
 
-**Credential incident mitigated, verification scoped:** a 2026-09-21 Supabase
+**Credential rotation again required:** a 2026-09-21 Supabase
 CLI dry-run printed the then-current database password in task tool output.
 The owner reports resetting it in Supabase Database Settings and replaced the
 gitignored `.env.local` value. The GitHub `SUPABASE_DB_PASSWORD` Actions secret
 was updated at 16:07 UTC and `supabase link` with the new local value succeeded
-against the exact project. An old-value rejection was not independently tested;
-do not claim it was. Never copy either value into a prompt, log or commit. The
-separate account-wide Supabase access-token rotation remains a release item.
+against the exact project. At 16:12 UTC, inspection found that same value had
+also been entered into tracked `.env.example`; it was never committed or
+pushed and was immediately scrubbed back to an empty example key. The
+inspection itself printed it into task tool output, so it must be rotated
+again. Only `.env.local` may hold the replacement. Pause database operations
+until the owner resets it and the local/CI copies are resynchronized. An
+old-value rejection was not independently tested; do not claim it was. Never
+copy either value into a prompt, log or commit. The separate account-wide
+Supabase access-token rotation remains a release item.
 
 The owner has explicitly asked Sol to continue, own the remaining non-visual
 work, and use safe simulations where a provider or recovery target is missing.

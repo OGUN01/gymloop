@@ -474,8 +474,16 @@ returned success with that new local value; no password value was printed.
 An invalid-password `supabase db query --linked` negative control also
 returned success, showing that query path is not password-verification
 evidence. The old credential's direct rejection was **not** independently
-observed; do not claim it. The separate account-wide Supabase access-token
-rotation already named in `docs/security.md` remains a release item.
+observed; do not claim it. At approximately 16:12 UTC, workspace inspection
+found the replacement value had also been entered in tracked `.env.example`.
+The diff output exposed it to this task, although the file had never been
+committed or pushed. A constrained local scrub restored the example key to
+empty, and `git diff --quiet -- .env.example` confirmed it matches HEAD.
+This second exposure requires another owner-submitted Supabase reset and
+local/CI resynchronization before database work resumes. Do not inspect or
+print the secret-bearing diff again. The separate account-wide Supabase
+access-token rotation already named in `docs/security.md` remains a release
+item.
 
 ## External dependency index
 
