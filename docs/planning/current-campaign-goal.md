@@ -1,5 +1,32 @@
 # Current owner-authorized campaign goal
 
+## Phase 8 GO campaign — owner continuation (2026-09-21)
+
+The owner directs autonomous continuation until the Phase 8 release verdict can
+truthfully change from NO-GO to GO, including decisions within the existing
+Gymloop accounts and environment. Use at most two bounded parallel workers;
+reuse completed workers where sensible. Preserve the separate owner-led visual
+work, all existing synthetic identifiers and evidence, and the current linked
+Supabase project. Run safe functional scenarios across two to four gym tenants
+on that project with exact-ID cleanup; an upgrade to a paid Supabase plan is a
+future owner option, not evidence that a backup, PITR, or load gate has passed.
+
+Close the existing HARD-003–009 gaps in small test-first slices: mutation-complete
+two-gym A–D journeys; privacy export, erasure and retention; recoverability;
+monitoring; isolated load; payment/provider and edge evidence; and exact-AAB
+Android/Play acceptance. Reconcile HARD-001/002 and the owner-led HARD-010
+visual gate before any customer-launch GO. Never equate a rollback simulation,
+preview APK, local alert sink, unsigned provider mock, or legal draft with the
+required production proof. Do not create a new Supabase project or paid service
+merely to change a status label. If an external gate truly cannot be completed
+with the current accounts and authority, exhaust safe in-scope alternatives,
+record the missing artifact and exact dependency, and keep the verdict NO-GO.
+The owner does not want routine clarification requests; make bounded product
+decisions, but do not self-certify legal review or a provider's actions.
+
+The desktop goal record remains an older blocked objective that cannot be
+edited in place; this versioned goal is the current owner instruction.
+
 ## Active continuation — finish every verifiable Phase 8 lane (2026-09-21)
 
 **Temporary credential use authorized; prelaunch rotation required:** a 2026-09-21 Supabase

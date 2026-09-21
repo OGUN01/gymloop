@@ -621,6 +621,39 @@ physical-device Activity confirmation was claimed. The prior Phase 7 device
 journeys remain separate evidence, and this preview APK cannot satisfy
 HARD-008's exact production-AAB Play install.
 
+## 2026-09-21 GO-campaign feasibility recheck
+
+The Google-authenticated QA-gym owner searched the production check-in screen
+for a known fictional Iron Box member's phone. The screen returned **“No
+member of this gym matched.”** This is a live cross-gym UI read refusal, not
+the reverse-direction direct API mutation proof or the checked-in A–D suite.
+No visit was submitted from that search.
+
+A read-only fixture audit found why mutation-complete A–D cannot currently be
+made repeatable and exactly cleaned up on the linked shared project. The
+second gym's owner signs in through Google; there is no checked-in Playwright
+credential or safe storage-state fixture. More importantly, attendance,
+follow-up, payment and add-on journeys create immutable audit/financial history
+with tenant foreign keys. Browser requests cannot share a rollback transaction,
+and deleting that history would violate INT-001/003. A second permanent
+controlled fixture with explicitly retained audit rows would require a new
+contract decision; it would not meet the current exact-cleanup contract.
+HARD-003 remains Partial despite the bounded live positive/negative checks.
+
+The restore preflight found `supabase` CLI available, but no local
+`pg_dump`, `pg_restore`, `initdb`, `psql` or running PostgreSQL server. Docker's
+engine was unavailable. The current free Cloud project has no listed backups
+and PITR is off. No dump, local restore, cloud restore or mutation was attempted.
+A future protected logical backup would still not prove Auth configuration,
+external R2 objects or the required disposable-target cloud/PITR restore.
+HARD-007 remains Partial/External.
+
+Read-only inspection of the authenticated Google Play Console account
+`7649203845150858113` showed exactly three existing apps—FitAi, FitAi: AI
+Workout & Diet Plan, and Flirt Genie—and no Gymloop app record. No app was
+created, declaration accepted, bundle uploaded or release submitted in this
+check. HARD-008 remains Partial/External despite the signed AAB on disk.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
