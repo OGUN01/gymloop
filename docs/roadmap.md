@@ -1,5 +1,12 @@
 # Roadmap
 
+**Owner Phase 8 non-visual continuation, 2026-09-21 (ADR-139):** visual redesign
+is owner-deferred; HARD-010 stays NO-GO until independently accepted. The owner
+confirmed Ductx as Gymloop's intended Play publisher and authorized two more
+weekly-usage points from 22% used, stopping new work at 24%. The local code and
+signed AAB do not discharge the remaining non-production, provider, legal,
+restore, Play declaration/install or publication gates; see the Phase 8 ledger.
+
 **Owner Phase 8 production closeout, 2026-09-21 (ADR-138):** from 19% weekly
 used, one additional point permits the narrow member-profile correction,
 current-source Android AAB and physical/web verification, and Play internal-test

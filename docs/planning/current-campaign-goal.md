@@ -1,5 +1,17 @@
 # Current owner-authorized campaign goal
 
+## Phase 8 non-visual closeout — 2026-09-21 (ADR-139)
+
+The owner will handle the remaining visual redesign. Sol owns the non-visual
+Phase 8 closeout, with two additional weekly-usage points from the last 22%
+reading and **24% used as the stop for new work**. Ductx is the confirmed Google
+Play developer account for Gymloop. HARD-010 remains NO-GO and cannot be called
+customer-launch ready merely because its work is owner-deferred. HARD-003–008
+retain their real external prerequisites: a separate non-production project,
+monitoring destination, approved privacy/export/erasure contract and legal
+review, disposable-target restore, and truthful Play declarations followed by
+an exact-artifact internal-track install. Do not synthesize any of those gates.
+
 ## Phase 8 Android/web production closeout — 2026-09-21 (ADR-138)
 
 The owner authorized one additional weekly-usage point from the measured 19%

@@ -1377,6 +1377,17 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-139 — non-visual Phase 8 closeout and Ductx publisher confirmation
+  (owner override, 2026-09-21).** The owner takes responsibility for the later
+  visual redesign while directing the agent to close non-visual Phase 8 work.
+  From the measured 22% weekly usage, two further points are authorized, with
+  24% used the stop for new work. The owner confirmed the Ductx personal Play
+  developer account is Gymloop's intended publisher. This does not authorize
+  the agent to make Google's developer-policy or export-law certifications on
+  the owner's behalf, nor to treat unsatisfied privacy, monitoring, restore,
+  non-production testing, payment or exact-Play-install gates as Passed.
+  HARD-010 remains NO-GO even though its redesign is owner-deferred.
+
 - **ADR-138 — one-point Phase 8 production closeout (owner override,
   2026-09-21).** At 19% weekly used, the owner authorizes one further point to
   finish Android/web release blockers and pursue customer launch, with 20% the
