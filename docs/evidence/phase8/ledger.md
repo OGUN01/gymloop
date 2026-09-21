@@ -403,6 +403,28 @@ route and check-in refusal evidence across three additional selection/read
 surfaces; they do not prove reverse-direction direct mutation denial or the
 frozen mutation-complete A–D Playwright suite. HARD-003 remains Partial.
 
+## 2026-09-21 privacy delegation and backup/load boundary
+
+The owner delegated Gymloop's product privacy policy: no sale of member data;
+service-purpose retention; portable export and erasure on a verified request,
+subject to documented financial, audit and case-specific legal obligations.
+ADR-144 records this direction, not statutory sign-off or a completed runner.
+The schema inventory found no request/hold/operation ledger, no executable
+field-level disposition map, several ambiguous retention clocks and non-null
+member name/phone constraints. HARD-006 remains Blocked pending a frozen
+technical contract, independent tests, implementation and qualified legal
+review. No export or erasure was run.
+
+The owner also requested HARD-004's 100 × 500 workload on the linked project.
+Read-only `supabase projects list` and backup inspection identified the same
+`pecxrpskmfeuyzngvewq` Gymloop project as `ACTIVE_HEALTHY`; the backup result
+reported `pitr_enabled=false`, no listed backups and no physical backup data.
+`supabase db dump --linked` is available for a logical export, but no dump or
+restore was created. The accepted HARD-004 preflight excludes this production
+reference, and a same-project restore would replace its data. Therefore no
+load, provider restore, reset or SQL mutation was run. HARD-004 and HARD-007
+remain Partial/External; a manual dump alone would not prove a restore drill.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
