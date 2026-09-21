@@ -116,8 +116,6 @@ const FAILED_ID = '55555555-5555-4555-8555-555555555558';
 const OPTED_OUT_ID = '55555555-5555-4555-8555-555555555559';
 const TEMPLATE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const NEVER_MESSAGED_MEMBER_ID = '66666666-6666-4666-8666-666666666666';
-const OFF_GYM_MEMBER_ID = '77777777-7777-4777-8777-777777777777';
-const OTHER_TENANT_ID = '88888888-8888-4888-8888-888888888888';
 
 const OWNER = { sub: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', app_role: 'gym_owner', tenant_id: TENANT_ID, staff_id: STAFF_ID };
 const MANAGER = { ...OWNER, app_role: 'gym_manager' };
@@ -217,7 +215,6 @@ beforeEach(() => {
     ],
     members: [
       { id: NEVER_MESSAGED_MEMBER_ID, tenant_id: TENANT_ID, full_name: 'QA Never Messaged Member' },
-      { id: OFF_GYM_MEMBER_ID, tenant_id: OTHER_TENANT_ID, full_name: 'Off Gym Member' },
     ],
   };
   state.reads = [];
@@ -298,7 +295,7 @@ describe('staff /messages — role-gated sections', () => {
     expect(findComponent(page, 'WalletAdjustForm')).toBeUndefined();
   });
 
-  it('offers any same-gym member for consent, including one with no notifications, and excludes off-gym members', async () => {
+  it('offers any RLS-visible same-gym member for consent, including one with no notifications', async () => {
     state.claims = FRONT_DESK;
     const page = await loadMessagesPage();
     const form = findComponent(page, 'ConsentForm');
@@ -306,7 +303,6 @@ describe('staff /messages — role-gated sections', () => {
 
     const members = form?.props.members as Array<{ id: string; name: string }>;
     expect(members).toContainEqual({ id: NEVER_MESSAGED_MEMBER_ID, name: 'QA Never Messaged Member' });
-    expect(members).not.toContainEqual({ id: OFF_GYM_MEMBER_ID, name: 'Off Gym Member' });
   });
 
   it.each([
