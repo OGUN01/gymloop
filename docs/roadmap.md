@@ -1,5 +1,15 @@
 # Roadmap
 
+**Owner Phase 8 autonomous closeout, 2026-09-21 (ADR-141):** the owner lifted
+the earlier 30%-used weekly stop for this campaign and directed completion of
+all safely executable non-visual Phase 8 work, with economical model and test
+use. Continue bounded verification against the existing Gymloop Supabase
+project; defer a separate staging project and the UI redesign. This does not
+change HARD-004's production-refusing load contract, permit a production
+restore/stress run, or convert missing legal, backup, monitoring, provider,
+Play-policy, or exact-artifact evidence into a pass. Record external blockers
+truthfully and do not archive Phase 8 until its exit criteria are met.
+
 **Owner Phase 8 bounded-production verification and future VPS direction,
 2026-09-21 (ADR-140):** from 25% measured weekly usage, the owner authorized
 five further points, stopping new work at 30%. Reuse the existing free Gymloop

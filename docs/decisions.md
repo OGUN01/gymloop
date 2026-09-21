@@ -1377,6 +1377,19 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-141 — autonomous non-visual Phase 8 closeout without the earlier usage
+  stop (owner override, 2026-09-21).** The owner withdrew ADR-140's 30%-used
+  stop and asked for efficient autonomous work, with no additional user input
+  during this pass. Use the existing Gymloop Supabase project for bounded,
+  reversible functional checks, defer staging and UI redesign, and keep iOS
+  deferred. This is a budget-policy change, not a relaxation of the frozen
+  HARD contracts: production is still ineligible for the 100 × 500 load run or
+  a restore drill, and legal, provider, monitoring, backup, Play-policy and
+  exact-artifact results require their real evidence. If a missing owner or
+  external decision would materially change the product or make a destructive
+  operation unsafe, leave that gate blocked rather than invent a decision.
+  ADR-140's 30%-used stop is retained below as historical context.
+
 - **ADR-140 — bounded production checks, not production stress/restore; future
   self-hosted Supabase is a separate migration (owner override, 2026-09-21).**
   At 25% weekly usage the owner authorized five more points, making 30% used
