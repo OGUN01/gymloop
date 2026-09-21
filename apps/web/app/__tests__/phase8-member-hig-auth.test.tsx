@@ -44,6 +44,16 @@ describe('Phase 8 member HIG/auth boundary', () => {
     expect(you).not.toMatch(/userId|memberId|tenantId|sub/);
   });
 
+  it('identifies the verified gym by name and code at the profile entry on web and Android', () => {
+    const webPage = source('member/you/page.tsx');
+    const webProfile = source('member/you-settings.tsx');
+    const nativeProfile = repoSource('apps/mobile/app/(member)/you.tsx');
+    expect(webPage).toMatch(/gymName: portal\.gym\.name/);
+    expect(webPage).toMatch(/gymCode: portal\.gym\.gym_code/);
+    expect(webProfile).toMatch(/profile\.gymName.*profile\.gymCode/);
+    expect(nativeProfile).toMatch(/data\.gym\.name.*data\.gym\.code/);
+  });
+
   it('puts appearance behind one dismissible settings hierarchy, not persistent competing controls', () => {
     const you = source('member/you/page.tsx');
     expect(you).toMatch(/settings|appearance/i);
