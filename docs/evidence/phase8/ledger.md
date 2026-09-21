@@ -10,7 +10,7 @@ mock or synthetic provider response never changes External to Passed.
 |---|---|---|---|---|
 | HARD-001 | **Partial** | Phase 7 closeout `d1888c6`; Phase 8 contract `c768dff`; repository, 2026-09-20 | Procedure: review each HARD row for status, identity, time, result, artifact and dependency. This ledger is the current artifact. | Owner: Phase 8 orchestrator. Complete only after every row links exact executed commands/procedures and results; keep skipped/blocked/external visible. |
 | HARD-002 | **Passed** | Original contract/config `cdd99fb`/`674255e`; least-permission contract/config `94f058f`/`2252bdc`; version contract/config `d894ad5`/`7a31384`; CI `35530050420`; EAS build `146221dd-dab2-4ef1-a99b-61dc14be4675`, 2026-09-20 | Focused HARD-002 checks passed 5/5 and mobile typecheck passed; CI, holdout and test immutability were green. The production `STORE` build from `7a31384` is a managed-credential signed AAB for `in.gymloop.mobile` version `1.0.0` (`2`). Artifact, certificate and merged-permission evidence: `docs/evidence/2026-09-20-phase8-production-release.md`; AAB SHA-256 `129C5339A629C3AB2BFE937C7C304D44E4A3BEBEB1ED3CFCEB393F34A674C239`. | HARD-002's reviewable configuration, unique release version, test integration, least-privilege manifest and signed-AAB readiness proof are satisfied. Physical-device install and Play publication remain separately Partial/External under HARD-008. |
-| HARD-003 | **Partial** | Test `6ef23cb`; role-home fixes through `731e25b`; consent regression/repair `7dbeb59`/`e7a5883`; CI `35590795690`; production Vercel deployment for `e7a5883`, 2026-09-21 | Local/CI accessibility passed 3/3; member/front-desk/owner role landings passed after a cold-start retry. Under the owner's prelaunch synthetic-testing authorization, real UI journeys then passed lead conversion, three-row member import with duplicate/invalid classification, assisted check-in, cash membership, owner receipt/metrics, add-on sale/fulfilment after targeted stale demo-offer corrections, and atomic onboarding of one trial gym with activation-readiness refusal. Exact IDs and read-only database reconciliation are below. The consent-search repair passed focused tests 26/26, CI/holdout/immutability, Vercel Ready and a narrow independent GO review; its production consent write is verified below. | Full automated journeys A–D and a genuine two-signed-in-gym cross-tenant browser fixture remain open. The second synthetic gym is trial with an unlinked owner and no Auth user, so it does not prove that boundary. One-gym manual journeys do not substitute for HARD-003 automation. Owner: web acceptance/infrastructure owner. |
+| HARD-003 | **Partial** | Test `6ef23cb`; role-home fixes through `731e25b`; consent regression/repair `7dbeb59`/`e7a5883`; CI `35590795690`; production Vercel deployment for `e7a5883`, 2026-09-21 | Local/CI accessibility passed 3/3; member/front-desk/owner role landings passed after a cold-start retry. Synthetic UI journeys passed lead conversion, three-row import classification, assisted check-in, cash membership, owner receipt/metrics, add-on sale/fulfilment, consent capture and trial-gym onboarding. At 11:30–11:35 UTC two distinct real signed-in gym-owner sessions proved reciprocal foreign-member detail 404s, QA-to-Iron-Box payment 404, Iron-Box-to-QA check-in 404 with zero event, and tenant-scoped positive QA check-in/dashboard counts. Exact IDs and read-only reconciliation are below. The consent-search repair passed focused tests 26/26, CI/holdout/immutability, Vercel Ready and narrow independent GO review. | Full Playwright-automated A–D journeys, reverse-direction direct mutation denial, and complete two-gym browser acceptance remain open. The QA owner session was real Google OAuth but exercised through the in-app browser while Iron Box used a separate Playwright context; they were not both in one checked-in Playwright run. Owner: web acceptance/infrastructure owner. |
 | HARD-004 | **Partial / External execution** | Red visible/blind contracts from `552313a` and `47ad1f7`, frozen interface through `20e2fff`, final implementation `ee0bc4d`; repository, 2026-09-20 | `pnpm exec vitest run scripts/__tests__/phase8-load-safety.test.ts supabase/tests-holdout/phase8-load-safety.holdout.test.ts` passed 16/16. Fresh Sol critic returned GO after direct-k6 parity review. `scripts/phase8-load-safety.mjs`, `tests/load/phase8-morning-checkin.js`, and `docs/runbooks/load-testing.md` provide the fail-closed preflight, exact 100 × 500 morning spike, approved p95 threshold, unique event keys, real read/mutation denial probes and credential-free evidence boundary. No k6/network/database command was run. | Owner: infrastructure owner. Provision and positively verify a separate non-production Supabase project, deployed API and synthetic 100 × 500 fixture, then execute the runbook and attach raw-result checksum and measured evidence. Production remains refused. |
 | HARD-005 | **Partial / External destination** | Interface `6edba6d`; visible/holdout red tests `c114182`/`6797571`; contract corrections `cf5afc9`/`154a4c8`; implementation `12beeca`; production-call-site tests `658525f` and implementation `bdfc81d`; repository, 2026-09-20/21 | Adapter checks passed 7/7. The API 500 path now emits one minimal event; independent visible/holdout call-site checks passed 3/3 each, and web typecheck/lint passed. `docs/runbooks/operational-monitoring.md` names proposed thresholds, role ownership, escalation and retention, explicitly unconfigured. No production provider delivery was observed. | Owner: production owner. Configure a real monitoring destination and alert route. Evidence still required: provider event id, alert receipt, actual rules/retention and named escalation owner. Until provider proof exists, external monitoring remains External. |
 | HARD-006 | **Blocked / External legal** | Read-only implementation audit completed 2026-09-20; no runner or execution evidence attached | Governing durations and broad blank/delete/hold categories are in `docs/security.md`, but the contract does not classify personal columns, define clocks for several retention rows, cover `razorpay_mandates`, define export wire content, or distinguish category-wide retention from case-specific legal holds. `members.full_name` and `phone` are also non-null today, so truthful erasure cannot be added without a schema/product decision. No destructive command was run. | Owner: product/privacy owner freezes those decisions; production owner obtains qualified legal review. Then independent visible/holdout authors specify the member-derived export/erasure RPCs and service-only retention runner before CI-only migration work starts. Local tests cannot satisfy legal sign-off. |
@@ -64,7 +64,9 @@ accounts and one linked member account. There is no existing second-gym browser
 fixture. Creating one in production would append platform audit and change Auth
 state, with no supported exact cleanup path, so no onboarding or cross-tenant
 mutation was attempted. The frozen HARD-003 two-gym journey remains Partial;
-the owner-deferred staging environment is still needed for that proof.
+the owner-deferred staging environment was still needed for that proof at
+09:48. The 11:30 two-owner bounded check below supersedes this fixture gap,
+not the full A–D automation gate.
 
 ## 2026-09-21 production control inspection
 
@@ -226,7 +228,8 @@ zero-credit messaging wallet and one active unlinked owner
 attempt was refused with `Readiness incomplete: owner_access`, leaving those
 facts unchanged. No Auth user was created or linked, and this does **not**
 prove a second gym's authenticated browser isolation; that still needs a
-distinct tenant identity and separate session.
+distinct tenant identity and separate session. The 11:30 owner link and
+two-session check below later changed this fixture state.
 
 At 11:06:54 UTC, the super-admin began one reasoned, time-limited preview of
 the synthetic trial gym (`d45a9eaa-dd5c-46f3-8356-71795989519a`). The
@@ -292,6 +295,49 @@ run `2b05cf12-f75b-4fef-b8bb-8f3172580bd4`. The tester observed an
 abandoned first preview followed by re-upload, which most likely explains
 the two runs; no commit/replay of the first was observed. Both IDs belong
 to the synthetic cleanup scope.
+
+## 2026-09-21 two independently signed-in gyms
+
+At 11:30:18 UTC, the super-admin's production platform UI linked the existing,
+previously owner-authorized Google Auth account to the synthetic gym's sole
+active owner staff row `fc1df639-18fc-45ae-bf16-73c26702a9b7`. Before the
+link, a read-only query confirmed that Auth user had zero staff, member and
+platform links, and its Google sign-in reached `/not-linked`. The owner-link
+command created audit event `3232b789-6ed2-4449-a0fe-8483c853ebab`; a
+read-only query confirmed its `user_id` and tenant. After signing out and
+signing in again with Google, a separate in-app browser session landed on
+`/dashboard` with synthetic gym code `177141` and zero initial visits. The
+Iron Box owner signed in independently in a fresh Playwright browser context.
+No new Auth user, credential, platform role or Iron Box identity was created
+or changed. The QA owner link is durable synthetic state with no supported
+exact unlink workflow; it belongs to the future verified cleanup scope.
+
+In the QA-owner session, direct Iron Box member
+`bf4d2076-2501-4217-b7ed-4e1b8f10c74f` and membership detail routes both
+rendered 404. Its direct Iron Box payment receipt
+`29640260-100f-418c-b776-b14cd12cabbd` rendered 404, and check-in search
+for that member's phone suffix `0124` returned “No member of this gym matched.”
+Through the QA owner UI, one fictional active member
+`QA-20260921-TENANT-B-MEMBER` was then created in the QA default branch:
+`6211481a-30fc-4f7c-891b-c02d06e95c74`, phone `+12025550126`.
+The separately authenticated Iron Box owner received HTTP 404 and the same
+404 page for this QA member's detail and membership routes. An Iron Box owner
+POST to `/api/check-in` with that foreign member id, a reason and unique
+client event id `1eb146c2-8cb7-431d-a679-55df021e59d9` returned HTTP 404
+`member_unknown`; a read-only linked-project query found zero attendance rows
+for that event id and zero visits for the QA member immediately afterwards.
+
+The QA owner then recorded exactly one legitimate assisted visit for its own
+member through the UI, reason “Phase 8 synthetic two-gym isolation check”:
+attendance `ff4fdcaf-6490-4079-bcdc-080eff4c7496`, source `front_desk`,
+tenant `7eb2f564-0c3b-49b6-8104-1902241a5955`, at 11:34:36 UTC. A
+read-only query confirmed the tenant/member/reason; both separate owner
+dashboards showed one visit today, not a combined total. At 11:35 UTC the
+linked project had six Auth users, two gyms, 50 members, 983 attendance rows,
+38 payments and one requested refund. These sessions prove a bounded real
+two-gym read boundary and one-direction direct mutation refusal, not the
+frozen mutation-complete A–D Playwright suite or every reverse-direction
+mutation. No reset or synthetic cleanup was performed.
 
 ## External dependency index
 
