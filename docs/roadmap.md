@@ -1,5 +1,17 @@
 # Roadmap
 
+**Owner Phase 8 bounded-production verification and future VPS direction,
+2026-09-21 (ADR-140):** from 25% measured weekly usage, the owner authorized
+five further points, stopping new work at 30%. Reuse the existing free Gymloop
+Supabase project for bounded functional checks with exact baseline and cleanup
+where a write is truly necessary. This does not replace HARD-003's second-gym
+isolation fixture or HARD-004's distinct non-production load target; production
+load and restore drills remain prohibited. The owner intends a later self-hosted
+Supabase deployment on a VPS, but no infrastructure switch is approved in this
+slice. A future migration must explicitly verify Auth claims/hooks, Vault and
+secrets, Edge Functions, Cloudflare R2, backups, monitoring, capacity and
+rollback before any traffic moves. Visual redesign remains owner-deferred.
+
 **Owner Phase 8 non-visual continuation, 2026-09-21 (ADR-139):** visual redesign
 is owner-deferred; HARD-010 stays NO-GO until independently accepted. The owner
 confirmed Ductx as Gymloop's intended Play publisher and authorized two more

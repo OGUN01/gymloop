@@ -1377,6 +1377,22 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-140 — bounded production checks, not production stress/restore; future
+  self-hosted Supabase is a separate migration (owner override, 2026-09-21).**
+  At 25% weekly usage the owner authorized five more points, making 30% used
+  the stop for new work. The current free Gymloop project may host bounded
+  functional verification if a write has a proven baseline, exact cleanup and
+  no irreversible side effect; read-only role/accessibility journeys are safe.
+  Rejected: treating "we will delete the data later" as a cleanup plan, or
+  running the frozen HARD-004 load or HARD-007 restore drill against production.
+  Those still require isolated targets under their existing contracts. The
+  owner's future VPS intent refers to self-hosted Supabase, not a plain
+  Postgres replacement for ADR-004, and does not authorize a hosting change
+  now. Auth hooks/claims, Vault/secrets, Edge Functions, R2, backup/restore,
+  monitoring, capacity and rollback must be proved before a later cutover.
+  Passing one-gym functional tests cannot establish scale or customer-launch
+  readiness. ADR-139's earlier 24% stop is retained as history and superseded.
+
 - **ADR-139 — non-visual Phase 8 closeout and Ductx publisher confirmation
   (owner override, 2026-09-21).** The owner takes responsibility for the later
   visual redesign while directing the agent to close non-visual Phase 8 work.
