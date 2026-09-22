@@ -1,6 +1,6 @@
 # Current owner-authorized campaign goal
 
-## Current status — 2026-09-22 15:38 UTC
+## Current status — 2026-09-22 16:12 UTC
 
 The payment-fix DB workflow `35740835691` is now fully green, including
 migration, schema drift, pgTAP and rollback enforcement. The exact guarded
@@ -13,16 +13,24 @@ any database read or write; the corrected test was committed separately with
 `spec:`. General CI `35747734624`, Holdout and test immutability all passed.
 The staged member, paid period, product and owner remain available for the real
 September 30 and October 1 scheduled observations. The B–D continuation
-harness is still under independent review and has **not** been executed. A
-fresh critic found that its cleanup arm needed durable crash recovery as well
-as ordinary `finally` handling. ADR-154 and the PILOT-009 contract now require
-the arm and retirement key to be persisted before the first B–D request; the
-test author is correcting this and three other narrow assertion gaps. No
-early scan or live continuation was run.
+harness is committed in `619139c` after an independent static review accepted
+its final narrow audit correction. It has **not** been executed: its calendar
+and observer guards intentionally require both real scheduled scans. ADR-154
+and ADR-156 require a durable cleanup arm, exact retirement key, proof before
+escrow removal, and recovery-only restart. No early scan or live continuation
+was run. CI `35751799287`, Holdout and test immutability all passed for
+`619139c`.
 
 Five-gym/customer status remains **NO-GO**. The real elapsed-time A–D journey
 and HARD-004–008/010 evidence remain open. No same-project bounded test may
 be relabeled as the frozen 50,000-check-in load or distinct-target restore.
+
+ADR-155's foreign follow-up refusal was fixed at `8f60644` after independent
+red tests; focused visible/holdout 6/6, web checks, CI and a fresh security
+review passed. The separate B–D harness still has no live execution. Repeated
+static criticism of its cleanup recovery is recorded under ADR-156; its
+bounded static re-review now accepts the two-phase cleanup and redacted
+ledger, not a five-gym GO verdict.
 
 ## Prior status — 2026-09-22 15:01 UTC
 

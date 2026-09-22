@@ -1262,6 +1262,31 @@ immutability passed for the date correction. This supplement
 does not perform the scheduled observations, member return, renewal or add-on
 sale, and it does not change the five-gym **NO-GO** verdict.
 
+The continuation's independent review exposed a deployed follow-up-route
+boundary defect: an Iron owner targeting a QA case could receive generic
+`follow_up_failed`, which is not acceptable proof of tenant refusal. ADR-155
+froze an ordinary `not_permitted` response for an invisible case. Independent
+visible and holdout tests were committed red, the caller-scoped exact-case
+preflight was implemented in `8f60644`, and both suites passed **6/6** with
+web typecheck/lint. A fresh security critic returned bounded GO for the route
+change. CI, Holdout and test immutability passed for `8f60644`, and the
+production alias later resolved to a Ready deployment. This is code and
+test evidence, not the pending live Iron-to-QA-case continuation proof.
+
+The guarded B–D continuation was then committed as test-only `619139c`,
+with ADR-154/156's persisted cleanup arm, exact retirement key and two-phase
+credential cleanup. Its preflight requires the two date-correct observer
+artifacts, the original paid receipt, a live membership within the paid
+period, and the marked product quote; unarmed read-only failure writes a
+separate immutable record without retiring the owner. After the first B–D
+request it never replays an armed run and must retire the exact owner or
+preserve guarded recovery. A fresh Sol critic's narrow final re-review
+accepted the all-QA-audit duplicate-renewal assertion; focused lint and
+Playwright collection passed. CI `35751799287`, Holdout and test immutability
+passed for `619139c`. **No B–D live run or owner retirement has
+occurred**, and this static acceptance does not change HARD-003 or the
+five-gym **NO-GO** verdict.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
