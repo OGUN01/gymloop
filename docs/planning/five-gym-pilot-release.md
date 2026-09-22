@@ -409,7 +409,11 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   business write or owner deactivation; retain the staged manifest and
   encrypted credential for a guarded retry inside the paid-period margin,
   and record the failed preflight separately. This is not an accepted A–D run.
-  Immediately before the first B–D request, arm an exact-ID retirement path.
+  Immediately before the first B–D request, atomically persist an armed state
+  and exact-ID retirement request key in the operator-only manifest, then arm
+  the in-process retirement path. A later process finding an armed manifest
+  SHALL refuse to rerun B–D and instead enter exact-ID recovery, because a
+  prior request may have committed before a crash or lost response.
   Thereafter, on success **or any assertion/request failure**, `finally` SHALL
   have the authenticated super-admin invoke the deployed PILOT-008
   owner-deactivation adapter only for the manifest's QA staff/user/tenant ids,
