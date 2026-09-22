@@ -1287,6 +1287,13 @@ passed for `619139c`. **No B–D live run or owner retirement has
 occurred**, and this static acceptance does not change HARD-003 or the
 five-gym **NO-GO** verdict.
 
+At 2026-09-22 16:13 UTC, a final linked read-only exact-ID check still found
+one active staged QA owner, one active Sep 22–Oct 6 paid membership, one paid
+INR 12,500-paise initial receipt and one active marked product with stock one.
+The staged member still had **zero** attendance and **zero** no-show cases.
+This confirms the fixture remains unconsumed for the actual scheduled scans;
+it does not predict the cron result or authorize early B–D execution.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
