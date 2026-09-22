@@ -16,10 +16,13 @@ This owner directive does not make 10 × 50 equivalent to the frozen HARD-004
 gyms. Record the smaller result as a pilot-scale rehearsal and keep full-load
 capacity unverified until a safe execution/restore method and scale-matched
 evidence exist. A future plan upgrade is not itself a measured load result.
-The 2026-09-22 CLI read-only connection timed out even though the project
-reported healthy and the pooler TCP port was reachable; diagnose before any
-durable bulk fixture creation. No new migration or destructive reset is
-authorized by this testing directive.
+The 2026-09-22 session-pooler CLI connection timed out even though the project
+reported healthy and the pooler TCP port was reachable. The separate
+passwordless `db query --linked` path succeeded: 201 focused tenant/index/money
+assertions passed, all 71 tracked migrations were applied, and generated types
+matched. This does not clear the failed password/pooler migration workflow;
+diagnose that path before any new migration or durable bulk fixture creation.
+No destructive reset is authorized by this testing directive.
 
 ## 2026-09-21 non-visual closeout sequencing override
 

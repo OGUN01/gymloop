@@ -702,6 +702,44 @@ critic inspected relevant SQL suites but did not run Cloud pgTAP in this
 round. This is a scoped GO, **not** Phase 8 customer-launch GO; unrelated
 HARD gates and the owner-led visual gate remain open.
 
+## 2026-09-22 shared-database pilot architecture checkpoint
+
+At repository `40b3c9a`, the linked project was positively identified as
+`pecxrpskmfeuyzngvewq`. A read-only `supabase db query --linked` succeeded
+through the CLI's temporary-login path. Three existing rollback-wrapped visible
+pgTAP files then ran on that project through the repository's `splice.py`
+counter check: `02_tenancy_rls` **36/36**, `04_contract_meta` **29/29**, and
+`05_membership_money_rls` **136/136**, all with zero failures (201 assertions
+total). This rechecks tenant read/write isolation, policy/index metadata and
+membership/money boundaries on the current schema; it does not replace the
+independent holdout suite or the missing browser A–D journeys. The tests left
+no fixture rows because each file ended in `ROLLBACK`.
+
+A read-only comparison of `supabase_migrations.schema_migrations` with the
+tracked migration filenames found **71 local / 71 applied**, no missing or
+unexpected versions, latest `20260918103000`. Fresh Cloud-generated database
+types matched the committed generated file after the same comment/blank-line
+normalization used by CI. Thus the failed DB workflow did **not** leave a
+pending schema migration, but the workflow itself is still red and must be
+repaired before a future migration can ship.
+
+Connection diagnosis remained inconclusive, not a proven bad password.
+`supabase migration list --linked` and `supabase db push --linked --dry-run`
+timed out even with `SUPABASE_DB_PASSWORD` unset, while the passwordless
+Management-API-backed `db query --linked` succeeded. Refreshing the local
+project link returned the same session-pooler host; TCP ports 5432 and 6543
+were reachable and the project ban list was empty. A separate PostgreSQL
+client timed out on the 5432 session pooler; its 6543 attempt stopped at
+certificate verification before authentication. No migration, password
+rotation, durable fixture, or destructive operation was performed. Neither
+the current password nor the pooler path has been proven valid for CI.
+
+The prior 10 × 50 rollback result and these focused checks support a bounded
+multi-tenant **pilot architecture** assessment on one database. They do not
+prove peak capacity, a full Phase 8 GO, privacy operations, recovery, alert
+delivery, exact-AAB Play installation, or visual acceptance. Keep those gates
+open rather than converting a 3–10-gym hypothesis into an unmeasured claim.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
