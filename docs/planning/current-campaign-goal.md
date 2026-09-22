@@ -1,6 +1,30 @@
 # Current owner-authorized campaign goal
 
-## Current status — 2026-09-22 15:01 UTC
+## Current status — 2026-09-22 15:38 UTC
+
+The payment-fix DB workflow `35740835691` is now fully green, including
+migration, schema drift, pgTAP and rollback enforcement. The exact guarded
+PILOT-009 pre-scan product supplement passed **1/1** on the production alias
+at `59603e2`. Independent linked read-only postflight found one QA product,
+zero matching Iron product rows and no premature attendance/case. A fresh
+critic gave **GO for this bounded product-stage evidence**, not five-gym GO.
+The first attempt stopped at a test-only string-date matcher error before
+any database read or write; the corrected test was committed separately with
+`spec:`. General CI `35747734624`, Holdout and test immutability all passed.
+The staged member, paid period, product and owner remain available for the real
+September 30 and October 1 scheduled observations. The B–D continuation
+harness is still under independent review and has **not** been executed. A
+fresh critic found that its cleanup arm needed durable crash recovery as well
+as ordinary `finally` handling. ADR-154 and the PILOT-009 contract now require
+the arm and retirement key to be persisted before the first B–D request; the
+test author is correcting this and three other narrow assertion gaps. No
+early scan or live continuation was run.
+
+Five-gym/customer status remains **NO-GO**. The real elapsed-time A–D journey
+and HARD-004–008/010 evidence remain open. No same-project bounded test may
+be relabeled as the frozen 50,000-check-in load or distinct-target restore.
+
+## Prior status — 2026-09-22 15:01 UTC
 
 The owner explicitly arbitrated the prior repeated PILOT-009 evidence review:
 retain the strict frozen contract and continue to a truthful five-gym GO,

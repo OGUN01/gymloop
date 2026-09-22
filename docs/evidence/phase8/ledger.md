@@ -1,9 +1,10 @@
 # Phase 8 evidence ledger
 
 **Current 2026-09-22 PILOT-009 checkpoint:** the exact-marker paid-period
-stage passed against the deployed web alias. One paid manual INR receipt and
-the initial 14-day membership period are proven, with a fresh critic GO only
-for that bounded stage. The staged member has no attendance or no-show case;
+stage and guarded pre-scan product stage passed against the deployed web
+alias. One paid manual INR receipt, the initial 14-day membership period and
+one marked QA-gym product are proven; the fresh critic's GO covers only the
+bounded paid-period stage. The staged member has no attendance or no-show case;
 the date-gated, read-only scheduled-scan observer is prepared for September
 30 and October 1 after 06:30 IST. A fresh critic returned static GO on its
 executed-command, D+8 creation-window and D+9 same-case proofs; no cron
@@ -1204,8 +1205,8 @@ case, follow-up, return, renewal, add-on or owner retirement has yet been
 claimed. General CI `35740835769`, the separate Holdout workflow
 `35740835804`, and test immutability `35740836173` passed for `972c70d`.
 The full DB pgTAP job in `35740835691`, which includes the new SQL holdout,
-was still running when this stage result was recorded; its final status must
-be attached before changing any release gate. Five-gym pilot verdict remains
+subsequently passed together with migration, schema drift and rollback checks.
+Five-gym pilot verdict remains
 **NO-GO**.
 
 A fresh stage-evidence critic found the base ledger too terse for the frozen
@@ -1226,8 +1227,7 @@ payment audit after the initial payment versus zero before. The before-period
 passing stage test before payment, not a later reconstruction. The fresh
 critic's narrow re-review returned **GO for the bounded paid-period stage
 evidence** when the supplement, base ledger and passing run are read
-together. The full DB workflow remains to be reconciled before release-gate
-promotion; A–D and five-gym remain **NO-GO**.
+together. The full DB workflow later passed; A–D and five-gym remain **NO-GO**.
 
 The date-gated read-only D+8/D+9 observer was added in `dcd739c` and corrected
 in `04ebcd3` after a fresh Sol critic found that merely observing a successful
@@ -1244,6 +1244,23 @@ fresh static critic GO. It has **not been live-run**: its calendar guard
 allows only September 30 and October 1 QA-local, and it writes no business
 rows. Those observations, B–D, final retirement and the other HARD gates
 remain open.
+
+The one-shot pre-scan product supplement, committed in `d51f9f4` with a
+date-comparison test correction in `59603e2`, passed **1/1** on the production
+alias after the first attempt stopped before any database read or write. It
+created only QA-gym product `0f0b001a-04bb-4b76-ae65-b5bdc963c723`, priced
+INR 12,500 paise with one unit of stock, quote version
+`4e71ffe0-faa4-4963-b155-3a7e996493a9`. Its redacted off-repo result is
+`C:\Users\Harsh\.codex\gymloop-pilot-evidence\pilot009\PILOT-009-aa5011e9db034127b93062ceb1f32d94.product-stage.ledger.json`
+(SHA-256 `1121FD44DC43F01026B453B8D704142D9FB619E12401960C3D1E3F630E05BF31`).
+An independent critic checked the hash, ledger and operator-only manifest and
+returned GO for this bounded product stage only. An independent exact-ID
+linked read-only postflight found exactly one matching
+QA product, zero product rows for Iron Box at that ID, and zero attendance or
+no-show cases for the staged member. CI `35747734624`, Holdout and test
+immutability passed for the date correction. This supplement
+does not perform the scheduled observations, member return, renewal or add-on
+sale, and it does not change the five-gym **NO-GO** verdict.
 
 ## External dependency index
 
