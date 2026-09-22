@@ -1,5 +1,16 @@
 # Current owner-authorized campaign goal
 
+## 2026-09-22 password sequencing for five-gym pilot
+
+The owner asks us to finish every safe, independent five-gym preparation task
+before asking them to rotate the Supabase database password. Do not change or
+retry rotating that credential during this preparatory work. This is a
+**sequence**, not a waiver: the current password is disclosed/not accepted by
+the pooler, DB CI is red, and no real gym may be invited until rotation,
+local/CI synchronization, old-value rejection and green database gates have
+actually been verified. Keep testing rollback-only or exact scoped synthetic
+fixtures on the existing project, with no false release-readiness claim.
+
 ## 2026-09-22 five-gym pilot target
 
 The owner asks for market readiness for an initial five gyms on this one
