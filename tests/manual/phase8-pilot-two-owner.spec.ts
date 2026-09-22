@@ -314,8 +314,8 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
             if (ledger) ledger.sessionsImmediatelyAfterDeactivation = 0;
             const retiredContext = await browser.newContext({ baseURL });
             const retiredPage = await retiredContext.newPage();
-            await signIn(retiredPage, email, password);
-            await expect(retiredPage).not.toHaveURL(/\/(?:dashboard|console|member)(?:[/?#]|$)/);
+            await signIn(retiredPage, email, password, /\/not-linked(?:[?#]|$)/);
+            await expect(retiredPage).toHaveURL(/\/not-linked(?:[?#]|$)/);
             const retiredClient = createClient(client.NEXT_PUBLIC_SUPABASE_URL, client.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
               auth: { autoRefreshToken: false, persistSession: false },
             });
