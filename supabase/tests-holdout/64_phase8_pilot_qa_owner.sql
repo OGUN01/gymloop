@@ -3,7 +3,7 @@ BEGIN;
 SET LOCAL ROLE postgres;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(19);
+SELECT plan(21);
 
 -- All identities, tenants, commands, and assertions are synthetic and live only
 -- inside this transaction.  The fixed UUIDs make the postflight assertions
@@ -23,8 +23,9 @@ CREATE TEMP TABLE pilot_qa_claims (claims jsonb NOT NULL) ON COMMIT DROP;
 CREATE TEMP TABLE pilot_qa_links (first_result jsonb NOT NULL, replay_result jsonb NOT NULL) ON COMMIT DROP;
 CREATE TEMP TABLE pilot_qa_mutation (affected bigint NOT NULL) ON COMMIT DROP;
 CREATE TEMP TABLE pilot_qa_deactivated (claims jsonb NOT NULL) ON COMMIT DROP;
+CREATE TEMP TABLE pilot_qa_error (sqlstate text, message text, detail text) ON COMMIT DROP;
 
-GRANT ALL ON pilot_qa_context, pilot_qa_claims, pilot_qa_links, pilot_qa_mutation, pilot_qa_deactivated TO authenticated;
+GRANT ALL ON pilot_qa_context, pilot_qa_claims, pilot_qa_links, pilot_qa_mutation, pilot_qa_deactivated, pilot_qa_error TO authenticated;
 
 INSERT INTO auth.users (id, email)
 VALUES
@@ -137,17 +138,35 @@ SELECT is((SELECT first_result ->> 'ownerStaffId' FROM pilot_qa_links), (SELECT 
 SELECT is((SELECT first_result ->> 'userId' FROM pilot_qa_links), (SELECT owner_a::text FROM pilot_qa_context), 'PILOT-007: link returns userId');
 SELECT is((SELECT first_result ->> 'ownerAccessPending' FROM pilot_qa_links), 'false', 'PILOT-007: owner access is not pending');
 SELECT is((SELECT replay_result FROM pilot_qa_links), (SELECT first_result FROM pilot_qa_links), 'PILOT-007: exact link retry replays original result');
-SELECT throws_ok(
-  format($sql$SELECT public.link_gym_owner(%L::uuid, %L::uuid, NULL, %L, %L::uuid)$sql$,
-    c.tenant_a, c.staff_a, 'changed@example.test', c.link_key_a),
-  NULL,
-  'PILOT-007: changed-facts replay is refused'
-) FROM pilot_qa_context c;
+DO $$
+DECLARE
+  c record;
+  v_state text;
+  v_message text;
+  v_detail text;
+BEGIN
+  SELECT * INTO c FROM pilot_qa_context;
+  BEGIN
+    PERFORM public.link_gym_owner(c.tenant_a, c.staff_a, NULL, 'changed@example.test', c.link_key_a);
+    INSERT INTO pilot_qa_error VALUES ('NO_ERROR', 'no exception', '');
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS
+      v_state = RETURNED_SQLSTATE,
+      v_message = MESSAGE_TEXT,
+      v_detail = PG_EXCEPTION_DETAIL;
+    INSERT INTO pilot_qa_error VALUES (v_state, v_message, v_detail);
+  END;
+END
+$$;
+
+SELECT is((SELECT sqlstate FROM pilot_qa_error), 'GL068', 'PILOT-007: changed-facts replay raises GL068');
+SELECT is((SELECT message FROM pilot_qa_error), 'Idempotency conflict', 'PILOT-007: changed-facts replay identifies GL068');
+SELECT is((SELECT detail FROM pilot_qa_error), 'idempotency_conflict', 'PILOT-007: changed-facts replay identifies idempotency_conflict');
 
 SELECT is((SELECT count(*) FROM public.audit_log a, pilot_qa_context c
            WHERE a.tenant_id = c.tenant_a AND a.action = 'staff.owner_linked'
-             AND a.record_id = c.staff_a), 1::bigint,
-          'PILOT-007: one keyed owner_linked audit exists');
+             AND a.record_id = c.staff_a AND a.request_key = c.link_key_a), 1::bigint,
+          'PILOT-007: one owner_linked audit exists for the request key');
 
 -- Link the second owner, then prove each fresh claim is restricted to its own gym.
 DO $$
