@@ -78,9 +78,9 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
   }
 
   for (const theme of ['light', 'dark'] as const) {
-    test(`all five role landing pages pass accessibility in ${theme} mode`, async ({ browser }) => {
-      const baseURL = test.info().project.use.baseURL;
-      for (const account of Object.values(accounts)) {
+    for (const [role, account] of Object.entries(accounts) as [keyof typeof accounts, (typeof accounts)[keyof typeof accounts]][]) {
+      test(`${role} landing page passes accessibility in ${theme} mode`, async ({ browser }) => {
+        const baseURL = test.info().project.use.baseURL;
         const context = await browser.newContext({ baseURL, colorScheme: theme });
         const page = await context.newPage();
         await signIn(page, account.email);
@@ -91,8 +91,8 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
         await assertEnglishAndResponsive(page, 390, 844);
         await assertEnglishAndResponsive(page, 1440, 900);
         await context.close();
-      }
-    });
+      });
+    }
   }
 
   for (const route of [
