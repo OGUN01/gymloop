@@ -62,6 +62,36 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   `{ok:true,data}` success envelope. The test-only Auth user is created with
   no Gymloop claims; no role or tenant is assigned by the client.
 
+  **Rollback-only SQL fixture contract for independent pgTAP authors:** begin
+  one transaction, use `SET LOCAL ROLE postgres` and `SET LOCAL search_path =
+  extensions, public`, and insert distinct synthetic `auth.users(id, email)`
+  rows for the platform actor and target owner. The two columns are sufficient
+  for this database-command test; this does not issue a real Auth session. Insert
+  `public.platform_users(user_id, role, full_name, email, is_active)` for the
+  platform actor with `role='super_admin'` and `is_active=true`. Set the local
+  `request.jwt.claims` JSON to that actor's `sub`, `role='authenticated'`, and
+  `app_role='super_admin'`, then `SET LOCAL ROLE authenticated`. Call
+  `public.onboard_gym(p_request_key uuid, p_name text, p_timezone text,
+  p_currency text, p_preset public.gym_preset, p_branch_name text,
+  p_owner_name text, p_owner_email text)` using distinct synthetic values,
+  `Asia/Kolkata`, `INR`, and `premium_studio`. Its JSON result supplies
+  `organization.tenantId` and `ownerStaffId`; the latter identifies the active,
+  unlinked owner row. Supply the target owner's exact synthetic Auth email to
+  `public.link_gym_owner` as specified above. Assert the resulting owner link,
+  one keyed audit, replay/refusal, and fresh hook claims by calling
+  `app.custom_access_token_hook(jsonb_build_object('user_id', owner_user_id,
+  'claims', jsonb_build_object('sub', owner_user_id, 'role', 'authenticated')))`:
+  the returned `claims` must include `app_role='gym_owner'`, that tenant id,
+  and that staff id. A second synthetic gym made through `onboard_gym` supplies
+  the foreign-row denial target. For an owner RLS assertion, set local
+  `request.jwt.claims` to the returned `claims` and remain `authenticated`;
+  reset to the platform actor's claims before an authorized deactivation via
+  `UPDATE public.staff SET is_active=false` for the linked row. A fresh hook
+  invocation must then omit Gymloop role/tenant/staff claims. End in `ROLLBACK`
+  and assert postflight absence of all synthetic IDs. This SQL fixture validates
+  the command/claim/RLS contract only; the deployed acceptance must separately
+  use real Auth sessions, never forged JWT claims or service-role browser access.
+
 ## Usable core loop
 
 - **PILOT-003** BEFORE first-customer access, independently authenticated
