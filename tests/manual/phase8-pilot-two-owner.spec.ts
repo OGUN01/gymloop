@@ -88,6 +88,7 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
     let qaContext: import('@playwright/test').BrowserContext | undefined;
     let ironContext: import('@playwright/test').BrowserContext | undefined;
     let cleanupFailure: Error | undefined;
+    let ledger: Record<string, string | number | boolean | null> | undefined;
 
     try {
       // All target, identity and fixture preflights happen before any Auth write.
@@ -192,19 +193,36 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
         data: { memberId: ironMemberId, reason: 'SYNTHETIC cross-gym denial', clientEventId: qaForeignEventKey },
       });
       expect(qaDenied.status()).toBe(404);
-      expectDeniedCheckIn(await qaDenied.json());
+      const qaDeniedBody = await qaDenied.json() as ApiFailure;
+      expectDeniedCheckIn(qaDeniedBody);
       const ironDenied = await ironPage.request.post('/api/check-in', {
         data: { memberId: qaMemberId, reason: 'SYNTHETIC cross-gym denial', clientEventId: ironForeignEventKey },
       });
       expect(ironDenied.status()).toBe(404);
-      expectDeniedCheckIn(await ironDenied.json());
+      const ironDeniedBody = await ironDenied.json() as ApiFailure;
+      expectDeniedCheckIn(ironDeniedBody);
       const attendance = await admin.from('attendance').select('client_event_id').in('client_event_id', [qaForeignEventKey, ironForeignEventKey]);
       expect(attendance.error).toBeNull();
       expect(attendance.data).toEqual([]);
       expect(qaSession.data.user?.id).not.toBe(ironSession.data.user?.id);
-      const ledgerPath = testInfo.outputPath('pilot-two-owner-ledger.json');
-      writeFileSync(ledgerPath, `${JSON.stringify({ userId, staffId, qaTenantId, ironTenantId, qaSessionUserId: qaSession.data.user?.id, ironSessionUserId: ironSession.data.user?.id, requestKey, qaForeignEventKey, ironForeignEventKey, auditId, qaDeniedStatus: qaDenied.status(), ironDeniedStatus: ironDenied.status(), attendanceCount: attendance.data.length })}\n`, 'utf8');
-      await testInfo.attach('pilot-two-owner-ledger', { path: ledgerPath, contentType: 'application/json' });
+      ledger = {
+        userId,
+        staffId,
+        qaTenantId,
+        ironTenantId,
+        qaSessionUserId: qaSession.data.user?.id ?? null,
+        ironSessionUserId: ironSession.data.user?.id ?? null,
+        ownerLinkRequestKey: requestKey,
+        ownerLinkAuditId: auditId ?? null,
+        qaForeignEventKey,
+        ironForeignEventKey,
+        qaDeniedStatus: qaDenied.status(),
+        ironDeniedStatus: ironDenied.status(),
+        qaDeniedCode: qaDeniedBody.error.code,
+        ironDeniedCode: ironDeniedBody.error.code,
+        attendanceCount: attendance.data.length,
+        reciprocalMemberReadsPassed: true,
+      };
     } finally {
       try {
         if (staffId) {
@@ -234,6 +252,11 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
             .eq('action', 'staff.owner_deactivated').eq('request_key', deactivationKey);
           expect(deactivationAudit.error).toBeNull();
           expect(deactivationAudit.count).toBe(1);
+          if (ledger) {
+            ledger.ownerDeactivationRequestKey = deactivationKey;
+            ledger.ownerDeactivationStatus = retirement?.status() ?? null;
+            ledger.ownerDeactivationAuditCount = deactivationAudit.count ?? null;
+          }
         }
           if (currentStaff.data?.user_id !== null) {
             const retiredStaff = await superAdmin.from('staff').select('id,is_active').eq('tenant_id', qaTenantId).eq('id', staffId).single();
@@ -241,6 +264,7 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
             expect(retiredStaff.data).toEqual({ id: staffId, is_active: false });
             expect(userId).toBeTruthy();
             expect(readSessionCount(userId ?? '')).toBe(0);
+            if (ledger) ledger.sessionsImmediatelyAfterDeactivation = 0;
             const retiredContext = await browser.newContext({ baseURL });
             const retiredPage = await retiredContext.newPage();
             await signIn(retiredPage, email, password);
@@ -254,9 +278,14 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
             expect(retiredClaims.app_role).toBeUndefined();
             expect(retiredClaims.tenant_id).toBeUndefined();
             expect(retiredClaims.staff_id).toBeUndefined();
+            if (ledger) {
+              ledger.freshLoginDeniedGymLanding = true;
+              ledger.freshLoginHasNoGymClaims = true;
+            }
             const signedOut = await retiredClient.auth.signOut({ scope: 'global' });
             expect(signedOut.error).toBeNull();
             expect(readSessionCount(userId ?? '')).toBe(0);
+            if (ledger) ledger.finalSessionCount = 0;
             await retiredContext.close();
           }
         }
@@ -267,5 +296,9 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
       }
       expect(cleanupFailure, cleanupFailure?.message).toBeUndefined();
     }
+    if (!ledger) throw new Error('PILOT-007/008 acceptance did not reach a complete evidence ledger');
+    const ledgerPath = testInfo.outputPath('pilot-two-owner-ledger.json');
+    writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8');
+    await testInfo.attach('pilot-two-owner-ledger', { path: ledgerPath, contentType: 'application/json' });
   });
 });
