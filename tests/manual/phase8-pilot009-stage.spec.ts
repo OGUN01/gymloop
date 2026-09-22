@@ -108,7 +108,7 @@ function writeManifest(manifest: Manifest) {
 
 function encryptPasswordForCurrentWindowsUser(password: string) {
   expect(process.platform).toBe('win32');
-  const script = "$plain=[Console]::In.ReadToEnd();$secure=ConvertTo-SecureString -String $plain -AsPlainText -Force;[Console]::Out.Write((ConvertFrom-SecureString -SecureString $secure))";
+  const script = "Add-Type -AssemblyName System.Security;$plain=[Console]::In.ReadToEnd();$cipher=[System.Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes($plain),$null,[System.Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Convert]::ToBase64String($cipher))";
   return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', input: password }).trim();
 }
 
@@ -116,13 +116,13 @@ function escrowPassword(marker: string, password: string) {
   const destination = escrowPath(marker);
   expect(existsSync(destination), 'A colliding credential escrow means this run marker is unsafe.').toBe(false);
   const encrypted = encryptPasswordForCurrentWindowsUser(password);
-  expect(encrypted).toMatch(/^[0-9a-f]+$/i);
+  expect(encrypted).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
   writeFileSync(destination, `${encrypted}\n`, { encoding: 'utf8', mode: 0o600 });
 }
 
 function decryptEscrowedPassword(marker: string) {
   expect(process.platform).toBe('win32');
-  const script = "$cipher=[Console]::In.ReadToEnd().Trim();$secure=ConvertTo-SecureString -String $cipher;[Console]::Out.Write(([System.Net.NetworkCredential]::new('', $secure)).Password)";
+  const script = "Add-Type -AssemblyName System.Security;$cipher=[Convert]::FromBase64String([Console]::In.ReadToEnd().Trim());$plain=[System.Security.Cryptography.ProtectedData]::Unprotect($cipher,$null,[System.Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Text.Encoding]::UTF8.GetString($plain))";
   return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
     encoding: 'utf8', input: readFileSync(escrowPath(marker), 'utf8'),
   });
