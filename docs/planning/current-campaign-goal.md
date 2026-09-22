@@ -1,5 +1,19 @@
 # Current owner-authorized campaign goal
 
+## 2026-09-22 active five-gym GO work
+
+Do not stop at the previous bounded SQL verdict. PILOT-007/008 now have a
+guarded deployed two-owner acceptance runner and an authorized platform
+owner-deactivation command on `main`; the runner must remain unexecuted until
+the CI-only migration is applied. DB run `35700941666` again failed to connect
+before applying it. Continue the safe independent core-loop fixture, privacy,
+recovery, monitoring and Android preparation while preserving the owner's
+password-rotation-last sequence below. Then synchronize the database
+credential, rerun green DB gates, perform the deployed journeys and report a
+five-customer GO only if every required row has actual evidence. The current
+verdict is still NO-GO, not because separate databases are needed, but because
+deployment and operational proofs remain missing.
+
 ## 2026-09-22 password sequencing for five-gym pilot
 
 The owner asks us to finish every safe, independent five-gym preparation task

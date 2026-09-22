@@ -886,6 +886,35 @@ postflight statement; the corrected file ends in `ROLLBACK`, and run
 database credential, skipping full pgTAP, schema drift and seed dry-run. The
 valid credential and green full CI workflow remain a pre-customer stop line.
 
+### Deployed second-owner acceptance preparation (PILOT-007/008)
+
+The independently authored visible and holdout PILOT-008 owner-deactivation
+contracts are committed separately from implementation. The visible suite
+contains 30 assertions; the holdout author reported 17 planned and a visible
+RED because the function was not yet deployed. Its contents were not read by
+the implementer. A fresh Sol critic found no demonstrated authorization or
+concurrency defect in the resulting SQL command, but did **not** grant a live
+pilot GO. The `public.deactivate_gym_owner` command and deployed adapter are
+on `main` at `43dbbaa`. Shared/web typecheck and lint, registry-lint, rollback
+lint, the full web build, test-immutability and manual Playwright collection
+passed locally. A transaction-only SQL compilation rehearsal ended in
+`ROLLBACK`, and a separate catalogue query confirmed the function was absent
+afterward. No owner fixture was created by that rehearsal.
+
+[DB run `35700941666`](https://github.com/OGUN01/gymloop/actions/runs/35700941666)
+passed pgTAP rollback lint but failed at `supabase db push --linked` with the
+same database connection/credential error. The migration was **not** applied;
+full pgTAP, schema drift and seed dry-run were skipped. The linked local
+`--dry-run` also failed to connect without printing a secret. The guarded
+deployed two-owner Playwright test collects but is deliberately unrun: its
+retirement route cannot work until CI deploys the migration. It creates no
+fixture in CI, disables trace/screenshot/video capture and requires an exact
+manual shared-project opt-in. The live project still has two demo/QA gyms,
+not five paying customers. The QA gym has one member and no plan, membership,
+add-on offer or open no-show case, so a full A–D deployed journey needs
+bounded owner-session QA fixture preparation after the identity path is live.
+None of these preparation checks converts the pilot verdict to GO.
+
 Read-only Android preflight found the connected OnePlus DN2101 still reporting
 Gymloop version `1.0.0` (`5`). The on-disk preview APK's signing certificate
 SHA-256 is `AA923C583E2A9DE0B25446DA1917E640198E664687EEDF2B38750DB13333C863`,
