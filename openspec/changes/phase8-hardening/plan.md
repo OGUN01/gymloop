@@ -247,6 +247,22 @@ keeps `VERCEL_TOKEN` step-scoped, collects production Vercel logs and three
 production health probes, passes a file input to the CLI, and creates or
 updates the issue by `.issue.key` using `.issue.body` through `--body-file`.
 
+The exact v1 input keys are
+`{mode,evaluatedAt,evidence,logQuery,endpointProbe}`. `evidence` is
+`{deploymentId,deploymentCommit,runId,runAttempt}`; `logQuery` is
+`{queryId,environment,startedAt,endedAt,events}`; and `endpointProbe` is
+`{probeId,environment,checks}`. An event supplies ISO `observedAt` plus optional
+`correlationId`, integer `httpStatus`, `signal`, and boolean `credible`; extra
+raw event fields may be present but are never copied. A check supplies ISO
+`observedAt`, optional `correlationId`, boolean `ok`, and integer `httpStatus`.
+Both environment values are exactly `production`, `deploymentCommit` is a
+40-character hexadecimal Git commit, `runAttempt` is a positive integer, and
+`logQuery.endedAt` equals `evaluatedAt` while `startedAt` covers the complete
+five-minute window. The v1 output keys are
+`{schemaVersion,decision,severity,testOnly,evaluatedAt,reasons,evidence}` plus
+`issue` only for an alert. These names are part of the contract; a test or
+implementation may not silently substitute a second wire shape.
+
 ### HARD-006 — DPDP export, erasure, and retention runner
 
 When the DPDP operational runner executes, it shall produce an auditable export
