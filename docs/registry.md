@@ -536,6 +536,7 @@ Phase 7 owns the design system. What is here is the one screen whose behaviour c
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account for R2 access | `.env.local`, CI secrets, Vercel |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase publishable key (client-safe) | `.env.local`, CI secrets, Vercel |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (client-safe) | `.env.local`, CI secrets, Vercel |
+| `PILOT_SHARED_PROJECT_ACCEPTANCE` | Exact manual-only opt-in for a bounded shared prelaunch-project acceptance run; never set in CI or deployment defaults | Operator shell for one run |
 | `R2_ACCESS_KEY_ID` | R2 credential | `.env.local`, CI secrets, Vercel |
 | `R2_BUCKET` | R2 bucket name (`gymloop-media`) | `.env.local`, CI secrets, Vercel |
 | `R2_ENDPOINT` | R2 S3-compatible endpoint URL | `.env.local`, CI secrets, Vercel |
@@ -750,5 +751,6 @@ The shared money/credit codec, template/category placeholder vocab and request s
 |---|---|---|---|
 | `createOperationalLogger` | `apps/web/lib/observability.ts` | Structured sink/report adapter that emits the same JSON-safe recursively redacted operational event, retaining only permitted tenant and correlation context while isolating adapter failures | Phase 8 operational logging callers |
 | `playwrightEnv` | `packages/shared/src/config/env.ts` | Lazy, minimal browser-harness credential and optional validated endpoint boundary; fails before collection when the demo password is absent and exposes no server secrets | Playwright config and HARD-003 journeys |
+| `pilotAcceptanceEnv` | `packages/shared/src/config/env.ts` | Uncached exact-literal validation of the manual shared-project acceptance opt-in; no default or deployment setting | PILOT-007 manual deployed two-owner runner |
 | `assertSafeLoadTarget` / `buildMorningCheckInWorkload` / `summarizeRawResult` / `preflightLoadRun` | `scripts/phase8-load-safety.mjs` | HARD-004's local fail-closed preflight, fixed 100-gym × 500-member morning workload encoder and raw-result metadata guard. They never discover a target, execute k6 or log credentials. | Visible safety tests and the isolated k6 operator procedure |
 | `tests/load/phase8-morning-checkin.js` | `tests/load/phase8-morning-checkin.js` | k6 scenario for the fixed morning spike plus real cross-tenant read and mutation denial checks. It requires caller-supplied non-production identity material and writes raw JSON only through k6's caller-selected `--out json=` target. | HARD-004 isolated non-production load run |

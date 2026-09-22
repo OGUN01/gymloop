@@ -28,6 +28,10 @@ const playwrightSchema = z.object({
   PLAYWRIGHT_BASE_URL: z.url().default('http://127.0.0.1:3000'),
 });
 
+const pilotAcceptanceSchema = z.object({
+  PILOT_SHARED_PROJECT_ACCEPTANCE: z.literal('ONE_SHARED_PRELAUNCH_PROJECT'),
+});
+
 /** A deploy-owned public origin used for OAuth redirects, never request input. */
 const publicOriginSchema = z.url().refine((value) => {
   const url = new URL(value);
@@ -55,6 +59,7 @@ type ClientEnv = z.infer<typeof clientSchema>;
 type ServerEnv = z.infer<typeof serverOnlySchema>;
 type MobileClientEnv = z.infer<typeof mobileClientSchema>;
 type PlaywrightEnv = z.infer<typeof playwrightSchema>;
+type PilotAcceptanceEnv = z.infer<typeof pilotAcceptanceSchema>;
 
 let cachedClient: ClientEnv | undefined;
 let cachedServer: ServerEnv | undefined;
@@ -84,6 +89,13 @@ export function playwrightEnv(): PlaywrightEnv {
   return playwrightSchema.parse({
     DEMO_ACCOUNT_PASSWORD: process.env.DEMO_ACCOUNT_PASSWORD,
     PLAYWRIGHT_BASE_URL: process.env.PLAYWRIGHT_BASE_URL,
+  });
+}
+
+/** Explicit, uncached opt-in for a manual shared-project pilot acceptance run. */
+export function pilotAcceptanceEnv(): PilotAcceptanceEnv {
+  return pilotAcceptanceSchema.parse({
+    PILOT_SHARED_PROJECT_ACCEPTANCE: process.env.PILOT_SHARED_PROJECT_ACCEPTANCE,
   });
 }
 
