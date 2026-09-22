@@ -1,5 +1,24 @@
 # Current owner-authorized campaign goal
 
+## 2026-09-22 bounded continuation — 2% weekly usage
+
+The owner grants a further 2% of the weekly limit to pursue the existing
+Phase 8 and five-gym pilot objective. Keep the goal active and use this slice
+for safe, high-value evidence and prerequisite work. The verdict stays
+**NO-GO** until the real scheduled September 30 and October 1 observations,
+guarded A–D continuation, and every applicable HARD gate have their own
+evidence. No same-project rehearsal substitutes for isolated load, restore,
+legal, monitoring, Play or owner-led visual approval.
+
+At 16:45 UTC, `main` (`17f0dbc`) had passing CI, Holdout and test-immutability
+workflows; the latest database workflow (`35740835691`) was green. Fresh linked
+rollback smoke runs reached the final assertions of both five-gym suites,
+and a separate postflight found zero matching pilot organizations, members,
+PILOT-006 audits and Auth identities. The linked query
+tool exposed only each final assertion, so the earlier complete 40/40, 29/29,
+27/27 and 25/25 suite results remain the full five-gym test evidence. The
+details and limits are recorded in `docs/evidence/phase8/ledger.md`.
+
 ## 2026-09-22 owner continuation — five-gym pilot GO
 
 The active objective is a **truthful five-gym, manual-payment Android/web pilot

@@ -1,5 +1,21 @@
 # Phase 8 evidence ledger
 
+**2026-09-22 16:45 UTC five-gym recheck:** `main` at `17f0dbc` has passing
+[CI](https://github.com/OGUN01/gymloop/actions/runs/35755140737),
+[Holdout](https://github.com/OGUN01/gymloop/actions/runs/35755140815), and
+[test immutability](https://github.com/OGUN01/gymloop/actions/runs/35755140797).
+The latest [DB workflow](https://github.com/OGUN01/gymloop/actions/runs/35740835691)
+is green. The linked CLI executed the unchanged rollback-wrapped visible
+`62_phase8_five_gym_pilot.sql` and `63_phase8_five_gym_onboarding.sql` against
+verified project `pecxrpskmfeuyzngvewq`; each returned success and its final
+assertion (`ok 40`, `ok 27`). The Management API output exposed only that last
+assertion, so these fresh runs are smoke checks, **not** new proof that every
+assertion passed. The previously captured complete visible/holdout runs below
+remain the full suite evidence. A separate linked read-only postflight found
+zero synthetic pilot organizations, `Pilot Member` rows, PILOT-006 audits and
+PILOT-006 Auth identities. No five-customer onboarding, throughput or A–D
+acceptance was performed. The pilot verdict remains **NO-GO**.
+
 **Current 2026-09-22 PILOT-009 checkpoint:** the exact-marker paid-period
 stage and guarded pre-scan product stage passed against the deployed web
 alias. One paid manual INR receipt, the initial 14-day membership period and
