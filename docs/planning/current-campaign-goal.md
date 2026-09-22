@@ -1,5 +1,20 @@
 # Current owner-authorized campaign goal
 
+## Current status — 2026-09-22 12:28 UTC
+
+The deployed two-owner slice remains bounded GO, not five-gym GO. PILOT-009
+was not safe to stage under its original contract: an in-memory-only password
+could not survive its mandatory multi-day wait, and native form redirects,
+cross-gym create probes, and the two actual cron observations needed precise
+acceptance rules. ADR-149 and the PILOT-009 contract now specify an encrypted
+operator-only credential escrow outside the repo, same-identity fresh sign-in
+at each resumed phase, form `303` plus caller-scoped read-back, no unsafe Iron
+create probes, and a 14-day marked QA plan. An independent review precedes
+any live fixture write. Then stage exactly one marked QA paid-period fixture
+on the current shared project and preserve it for the real D+8/D+9 nightly
+scan observations. Do not backdate, invoke a broad scan, or claim Phase 8 GO
+while HARD-004/005/006/007/008/010 and the A–D continuation remain open.
+
 ## Current status — 2026-09-22 12:21 UTC
 
 The DB workflow is fully green, and the exact deployed PILOT-007/008

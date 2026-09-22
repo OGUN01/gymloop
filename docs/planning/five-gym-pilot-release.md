@@ -195,8 +195,18 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   this controlled acceptance. It is prerequisite evidence for PILOT-003, not
   CI, a load test, customer onboarding, or authority to mutate a real gym.
   It MUST use the same literal opt-in, project ref, Supabase URL, Vercel origin,
-  in-memory password handling, redacted JSON ledger, and screenshot/trace/video
-  prohibition as PILOT-007. It MUST first confirm the current deployed commit
+  redacted JSON ledger, and screenshot/trace/video prohibition as PILOT-007,
+  with this multi-day credential exception: before creating the staged Auth
+  user, generate one high-entropy password and escrow it under the opaque run
+  marker in an operator-controlled encrypted OS credential store outside the
+  repository. Only the operator/runner may retrieve it into memory for fresh
+  sign-ins; it MUST NOT appear in repository or environment files, logs,
+  evidence, URLs, or persistent browser state. Retain the encrypted entry for
+  exact-ID recovery if interrupted; remove it only after owner deactivation,
+  zero-session verification, and fresh no-access sign-in. Each resumed phase
+  MUST authenticate the same Auth user anew and verify its QA tenant, staff,
+  and role claims; it need not reuse a cookie or browser session across days.
+  It MUST first confirm the current deployed commit
   contains the owner-deactivation command; a successful local build or a
   migration merely present in the repository is not a deployment prerequisite.
 
@@ -205,7 +215,9 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   QA tenant `7eb2f564-0c3b-49b6-8104-1902241a5955`; one newly created,
   independently authenticated **PILOT-009 staged** `gym_owner` user and staff
   id; exactly one newly created QA branch member
-  whose display name, E.164 test phone and nullable email include that marker;
+  whose display name includes that marker, whose E.164 test phone has a
+  deterministic numeric marker-derived suffix, and whose nullable email is
+  either marked and non-deliverable or null;
   exactly one active QA membership for that member; its one selected active QA
   plan; one active QA `product` offer named with the marker; the resulting one
   no-show case, one follow-up, attendance row, **two** manual membership
@@ -216,7 +228,12 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   offer, payment, order, case, or identity is permitted beyond those two
   named membership payments. The PILOT-007 owner is already retired in that
   protocol's `finally` path and MUST NOT be reused or reactivated. Before any
-  fixture write, a real password-authenticated super-admin creates the staged
+  Auth/staff/plan/business fixture write, verify the exact deployed targets,
+  current migration and web adapter, independently authenticated super-admin
+  and Iron sessions, existing QA/Iron tenants and members, QA branch,
+  threshold and schedule, no colliding run marker, and owner-link/deactivation
+  authority with read-only facts. After that preflight, a real
+  password-authenticated super-admin creates the staged
   Auth user without Gymloop claims, creates exactly one active unlinked QA
   `gym_owner` staff row through ordinary QA-scoped PostgREST, and calls the
   deployed owner-link adapter with that row id, the staged email, null expected
@@ -227,8 +244,9 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   no approved pause, and a membership with a verified paid period before it is
   eligible for no-show evaluation. The selected plan MUST already be active,
   QA-scoped, INR, positive-price representable by the deployed
-  `amountRupees` codec, and have a recorded duration of at least
-  `no_show_threshold_days + 2` QA-local calendar days. Its price and duration
+  `amountRupees` codec with price exactly `12500` paise, and have a recorded
+  duration of at least 14 QA-local calendar days when the threshold is 7.
+  Its price and duration
   are captured as immutable run facts. The product is quantity one, INR, `pricePaise`
   exactly `12500`, positive stock exactly one, complete nonblank disclosure
   and cancellation terms, no trainer/session facts, and a captured
@@ -239,7 +257,7 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   fixture setup is separately verified.** In the staged owner's ordinary
   caller-scoped PostgREST session, create exactly one marked QA plan with
   `{tenant_id:<QA tenant>,name:<marked name>,description:<nonblank>,
-  duration_days:<threshold + 2 or greater>,price_paise:12500,currency:'INR',
+  duration_days:<at least 14 when threshold is 7>,price_paise:12500,currency:'INR',
   gst_rate_bp:0,max_freeze_days:0,is_active:true,sort_order:0}` and record its
   returned id, price, duration and tenant. This is an authorized catalogue
   write under RLS, not a service-role/SQL insert and not a direct insert or
@@ -263,7 +281,16 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   owner-RLS creation: its id, INR price and duration are recorded, and the run
   stops before member creation unless it meets the stated gate. There is no
   service-role plan seeding, direct SQL fixture, or
-  direct insert/update of a membership period.
+  direct insert/update of a membership period. The member, membership,
+  payment, and follow-up routes accept native URL-encoded form bodies and
+  return `303 Location` on both success and some validation failures. The
+  runner SHALL capture the first response without auto-following, require a
+  safe same-origin destination with no `?error` for success, follow it, and
+  prove the exact write by caller-scoped read-back and before/after counts;
+  the member success destination is `/members/{id}`, membership and payment
+  use `/memberships/{memberId}`, and follow-up uses `/red-list`. A `303` with
+  an error query is not success. The deliberate duplicate payment MUST have
+  `?error=possible_duplicate` and no new payment, receipt, period, or audit.
 
   **Identity and isolation preflight.** Before fixture creation, independently
   sign in the staged QA owner and Iron Box owner; record distinct `sub`, `staff_id`,
@@ -272,11 +299,18 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   Iron tenant. Under each caller session, a direct PostgREST `members` read
   selecting only `id,tenant_id` and using an exact id plus `maybeSingle()` MUST
   reveal its own designated row and return `null` without error for the other
-  row. Before every QA mutation below, the Iron session repeats the same
-  command against the QA id with its own fresh event/idempotency key and MUST
-  receive the route's ordinary not-found/forbidden refusal; a caller-session
-  read-only postflight MUST show zero rows carrying that foreign key and no
-  changed QA row. In particular, `POST /api/check-in` to the QA member with
+  row. This pre-write member check uses the existing QA member; immediately
+  after creating the marked member, repeat mutual caller-scoped exact-id
+  visibility before creating membership or taking payment. Before QA
+  mutations that have an existing QA target id, the Iron session repeats the
+  same command against that QA id with its own fresh event/idempotency key and
+  MUST receive the route's ordinary not-found/forbidden refusal; a
+  caller-session read-only postflight MUST show zero rows carrying that
+  foreign key and no changed QA row. Do not send an Iron create-member,
+  create-plan, or create-product request without a QA target: it could
+  legitimately create an Iron row. For those, assert claim-derived QA
+  ownership, marker absence from Iron, and caller-scoped read-back instead.
+  In particular, `POST /api/check-in` to the QA member with
   `{memberId,reason,clientEventId}` MUST be `404/member_unknown` and leave no
   attendance row for that event. Cross-tenant attempts never use an owner-link,
   service role, SQL, a supplied tenant id, or a cleanup delete.
@@ -291,19 +325,28 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   If the plan price cannot be represented by the deployed rupee input codec,
   if the payment does not cross one full period, or if any date/status differs,
   stop and retain the failed fixture; do not alter membership dates or status.
-  The runner then waits through at least `no_show_threshold_days + 1` completed
-  QA-local calendar days with no attendance. This is an unavoidable elapsed
-  time; a new paid membership cannot honestly demonstrate silent churn on the
-  day it is sold.
+  The runner then waits for the scheduled scan on a QA-local calendar date
+  whose difference from the paid-period start date D is greater than the
+  configured threshold, with no attendance. With threshold 7, date arithmetic
+  makes the first eligible scan D+8 at 06:30 IST; the second is earliest D+9
+  at 06:30 IST. These are actual elapsed dates, not fabricated completed-day
+  counts. A new paid membership cannot honestly demonstrate silent churn on
+  the day it is sold.
 
   **A — absence detection.** Do not call
   `public.run_no_show_scan_all()`, `app.run_no_show_scan`, or the manual Edge
   Function as part of the run: each spans every gym. Instead, after the member
   preflight is durable, wait for the deployed `pg_cron` nightly execution and
-  verify through scoped read-only QA facts that it opened exactly one case for
+  verify the actual successful scheduled execution and, through scoped
+  read-only QA facts, that it opened exactly one case for
   the marked member, with `status=open`, QA-local `opened_on`, the recorded
-  threshold, and no prior attendance. A second observed scheduled execution
-  MUST leave the same single live case rather than open another.
+  threshold, and no prior attendance. A second actual successful scheduled
+  execution, earliest D+9 at 06:30 IST for the `0 1 * * *` UTC job, MUST
+  leave the same single live case rather than open another. Record both
+  execution IDs and timestamps, and prove the membership remains live through
+  both scans. If missed executions exhaust the plan-duration margin, stop and
+  retire via the exact-ID recovery path; never backdate or invoke a broad
+  manual scan.
 
   **B — contact and return.** The staged QA owner then posts the native follow-up
   form to `POST /api/follow-ups` with exactly
@@ -318,7 +361,8 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   ATT-005/006 and NSH-003/004/005 without backdating an attendance row or
   manually inserting/modifying a case.
 
-  **C — external-money renewal.** In the same staged QA owner session, submit the
+  **C — external-money renewal.** In a newly authenticated session for the
+  same staged QA owner with reverified QA claims, submit the
   native payment form to `POST /api/payments` with `{memberId,membershipId,
   amountRupees:'125.00',method:'cash',
   notes:'PILOT-009 external renewal',idempotencyKey}`. Assert the second and

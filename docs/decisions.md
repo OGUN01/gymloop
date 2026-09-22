@@ -1377,6 +1377,25 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-149 — recoverable multi-day QA-owner acceptance (2026-09-22).** The
+  PILOT-009 no-show acceptance spans at least two real scheduled scans after
+  eight QA-local days. A password kept only in a test process would strand
+  the linked synthetic owner after a restart, so this one staged identity may
+  escrow its high-entropy password in an operator-controlled encrypted OS
+  credential store outside the repository before Auth creation. The runner
+  retrieves it only into memory for newly authenticated sessions; no secret,
+  token, cookie, or browser storage state enters the repo, environment files,
+  evidence, logs, or URLs. Remove the vault entry only after exact-ID owner
+  deactivation, zero sessions and a fresh no-access sign-in. This does not
+  authorize a service-role browser, direct business writes, broad scan or
+  synthetic backdating. Native form routes are judged by safe `303` redirect
+  plus caller-scoped state, not HTTP status alone; duplicate payment's error
+  redirect is deliberately a refusal. The marked plan is 14+ days at the
+  seven-day threshold so two actual cron executions have a missed-run margin.
+  Rejected: a nine-day persistent process (no crash recovery), Auth Admin
+  reset on every resume (unnecessary identity mutation), and treating a
+  scheduled job definition as proof it ran.
+
 - **ADR-148 — one-time authenticated DB-password recovery (owner-delegated,
   2026-09-22).** A previously supplied password failed both the linked
   pooler and CI, and the owner explicitly authorized autonomous replacement.
