@@ -31,6 +31,8 @@ export const setGymTierRequestSchema = z.object({ expectedTier: tier, tier, requ
 export type SetGymTierRequest = z.infer<typeof setGymTierRequestSchema>;
 export const linkGymOwnerRequestSchema = z.object({ ownerStaffId: uuid, expectedUserId: uuid.nullable(), ownerEmail: z.string().trim().email(), requestKey: uuid }).strict();
 export type LinkGymOwnerRequest = z.infer<typeof linkGymOwnerRequestSchema>;
+export const deactivateGymOwnerRequestSchema = z.object({ ownerStaffId: uuid, expectedUserId: uuid, requestKey: uuid }).strict();
+export type DeactivateGymOwnerRequest = z.infer<typeof deactivateGymOwnerRequestSchema>;
 export const startGymPreviewRequestSchema = z.object({ tenantId: uuid, reason: nonBlank, requestKey: uuid }).strict();
 export type StartGymPreviewRequest = z.infer<typeof startGymPreviewRequestSchema>;
 

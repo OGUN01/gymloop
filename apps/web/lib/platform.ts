@@ -1,4 +1,4 @@
-import { fleetMetricsSchema, platformRpcArgs, type OnboardGymRequest, type SetGymStatusRequest, type SetGymTierRequest, type LinkGymOwnerRequest } from '@gymloop/shared';
+import { fleetMetricsSchema, platformRpcArgs, type OnboardGymRequest, type SetGymStatusRequest, type SetGymTierRequest, type LinkGymOwnerRequest, type DeactivateGymOwnerRequest } from '@gymloop/shared';
 import { apiFail, apiOk, formFields, jsonBody, platformSession, seeOther, type PlatformSession } from './api';
 import { UUID_PATTERN } from './keyset';
 
@@ -93,6 +93,7 @@ export const onboardGym = (client: RpcClient, request: OnboardGymRequest, httpRe
 export const setGymStatus = (client: RpcClient, tenantId: string, request: SetGymStatusRequest, httpRequest: Request) => rpc(client, 'set_gym_status', { p_tenant_id: tenantId, p_expected_status: request.expectedStatus, p_status: request.status, p_reason: request.reason, p_request_key: request.requestKey }, httpRequest, `/platform/${tenantId}`);
 export const setGymTier = (client: RpcClient, tenantId: string, request: SetGymTierRequest, httpRequest: Request) => rpc(client, 'set_gym_tier', { p_tenant_id: tenantId, p_expected_tier: request.expectedTier, p_tier: request.tier, p_request_key: request.requestKey }, httpRequest, `/platform/${tenantId}`);
 export const linkGymOwner = (client: RpcClient, tenantId: string, request: LinkGymOwnerRequest, httpRequest: Request) => rpc(client, 'link_gym_owner', { p_tenant_id: tenantId, p_owner_staff_id: request.ownerStaffId, p_expected_user_id: request.expectedUserId, p_owner_email: request.ownerEmail, p_request_key: request.requestKey }, httpRequest, `/platform/${tenantId}`);
+export const deactivateGymOwner = (client: RpcClient, tenantId: string, request: DeactivateGymOwnerRequest, httpRequest: Request) => rpc(client, 'deactivate_gym_owner', { p_tenant_id: tenantId, p_owner_staff_id: request.ownerStaffId, p_expected_user_id: request.expectedUserId, p_request_key: request.requestKey }, httpRequest, `/platform/${tenantId}`);
 export const fleetMetrics = async (client: RpcClient) => {
   const result = await client.rpc('fleet_metrics' as never, {} as never) as unknown as RpcResult;
   if (result.error) return { error: platformError(result.error) } as const;

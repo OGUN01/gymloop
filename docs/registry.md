@@ -290,6 +290,7 @@ ONB-001–005, NAV-006/008).
 | `public.onboard_gym(...)` | `supabase/migrations/20260915100009_phase6_platform.sql` | Super-admin-only atomic gym/settings/default-branch/owner/wallet/trial creation with keyed replay | `POST /api/platform/gyms` |
 | `public.set_gym_status(...)` / `public.set_gym_tier(...)` | `supabase/migrations/20260915100009_phase6_platform.sql` | CAS commercial commands with inert no-ops, exact replay and readiness reuse | Platform status/tier routes |
 | `public.link_gym_owner(...)` | `supabase/migrations/20260915100009_phase6_platform.sql` | Exact-email owner Auth binding without roster disclosure, with protected metadata and session revocation | Platform owner-link route |
+| `public.deactivate_gym_owner(uuid,uuid,uuid,uuid)` | `supabase/migrations/20260922131500_phase8_owner_deactivation.sql` | PILOT-008 exact linked-owner retirement, non-preview super-admin guard, keyed replay/audit and identity-trigger session revocation | Platform owner-deactivation route |
 | `public.start_gym_preview(...)` / `public.end_expired_gym_preview(uuid)` | `supabase/migrations/20260915100009_phase6_platform.sql` | Super-admin invoker commands for bounded preview replay and explicit expired-session recovery | Platform preview routes |
 | `app.custom_access_token_hook(jsonb)` | `supabase/migrations/20260915100009_phase6_platform.sql` | Hook replacement gating real gym claims by active/future-trial eligibility while preserving identity precedence and explicit preview | Supabase Auth hook |
 
@@ -707,16 +708,17 @@ The shared money/credit codec, template/category placeholder vocab and request s
 | `setGymStatusRequestSchema` / `SetGymStatusRequest` | `packages/shared/src/api/platform.ts` | CAS lifecycle facts including nullable normalized reason and request key | Status route/form |
 | `setGymTierRequestSchema` / `SetGymTierRequest` | `packages/shared/src/api/platform.ts` | Nullable CAS tier request using the generated tier vocabulary | Tier route/form |
 | `linkGymOwnerRequestSchema` / `LinkGymOwnerRequest` | `packages/shared/src/api/platform.ts` | Exact owner-link CAS/email/key boundary | Owner-link route/form |
+| `deactivateGymOwnerRequestSchema` / `DeactivateGymOwnerRequest` | `packages/shared/src/api/platform.ts` | Exact linked-owner/stale-user/key input boundary | Owner-deactivation route/form |
 | `startGymPreviewRequestSchema` / `StartGymPreviewRequest` / `previewResultSchema` / `endPreviewResultSchema` | `packages/shared/src/api/platform.ts` | Bounded preview start and explicit expired-recovery wire contracts | Preview routes/forms |
 | `ORGANIZATION_STATUSES` / `PLAN_TIERS` / `GYM_PRESETS` | `packages/shared/src/api/platform.ts` | Runtime platform form vocabularies derived from generated database enums or the registered tier/preset maps | Platform request schemas and forms |
 | `platformRpcArgs` | `packages/shared/src/api/platform.ts` | Exact snake-case onboarding RPC argument mapping | `onboardGym` |
 | `platformAdminRequest` / `platformError` / `commandSuccess` | `apps/web/lib/platform.ts` | Admin-first optional gym-id/body validation with internal form/JSON normalization, safe SQLSTATE/detail mapping and JSON-or-303 accepted-command response without raw database disclosure | Platform POST routes |
-| `onboardGym` / `setGymStatus` / `setGymTier` / `linkGymOwner` | `apps/web/lib/platform.ts` | Caller-session RPC wrappers preserving JSON envelopes and form 303 behavior | Platform routes |
+| `onboardGym` / `setGymStatus` / `setGymTier` / `linkGymOwner` / `deactivateGymOwner` | `apps/web/lib/platform.ts` | Caller-session RPC wrappers preserving JSON envelopes and form 303 behavior | Platform routes |
 | `fleetMetrics` | `apps/web/lib/platform.ts` | One caller-session `fleet_metrics` read validated by the exact shared schema | Platform fleet page |
 | `PlatformPage` / `/platform` | `apps/web/app/platform/page.tsx` | Same-response fleet/readiness/count screen with super-admin controls and support read-only presentation | Platform navigation |
 | `PlatformGymPage` / `/platform/[id]` | `apps/web/app/platform/[id]/page.tsx` | Gym detail/readiness surface selected from the same validated fleet snapshot, with truthful missing/error states and no private-schema RPC | Fleet links |
 | `POST /api/platform/gyms` | `apps/web/app/api/platform/gyms/route.ts` | Super-admin onboarding route; authorization precedes body/RPC and form success is 303 | Platform onboarding form |
-| `POST /api/platform/gyms/[id]/status` / `tier` / `owner-link` | `apps/web/app/api/platform/gyms/[id]/*/route.ts` | Super-admin CAS commands with safe failures and 303 form success | Per-gym controls |
+| `POST /api/platform/gyms/[id]/status` / `tier` / `owner-link` / `owner-deactivation` | `apps/web/app/api/platform/gyms/[id]/*/route.ts` | Super-admin CAS commands with safe failures and 303 form success | Per-gym controls |
 | `POST /api/platform/impersonations` / `[id]/end` | `apps/web/app/api/platform/impersonations/**/route.ts` | Super-admin preview start/refresh and explicit expired-preview recovery | Platform preview controls |
 
 ## Phase 7 mobile foundation
