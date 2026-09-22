@@ -9,6 +9,14 @@ Every rule here is about a record that has to stay true months later. The scan's
 ### Requirement: A follow-up records who did it, and it is the acting staff member
 THE SYSTEM SHALL record `follow_ups.staff_id` as the staff member holding the session, and SHALL refuse a value naming anybody else.
 
+WHEN a signed-in staff member submits the native `POST /api/follow-ups` form
+with a case id that is not visible in that caller's gym, THE SYSTEM SHALL
+redirect to `/red-list?error=not_permitted` and SHALL leave follow-up, case,
+attendance and audit state unchanged. The route's ordinary refusal must not
+be a generic `follow_up_failed` server error, and it must reveal no existence
+or details of the foreign case. Direct table writes remain independently
+protected by RLS and database constraints.
+
 This is the same rule as `attendance.assisted_by_staff_id` (`GL016`) and `membership_pauses.requested_by_staff_id` (`GL026`), for the same reason and with the same failure mode if it is left to the endpoint: `follow_ups` grants `insert` to `authenticated`, so a rule living only in a Route Handler has a supported way round it. **The three should look alike, because they are one rule about attribution appearing three times.**
 
 #### Scenario: Logging a follow-up

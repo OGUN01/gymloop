@@ -312,7 +312,11 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   ownership, marker absence from Iron, and caller-scoped read-back instead.
   In particular, `POST /api/check-in` to the QA member with
   `{memberId,reason,clientEventId}` MUST be `404/member_unknown` and leave no
-  attendance row for that event. Cross-tenant attempts never use an owner-link,
+  attendance row for that event. `POST /api/follow-ups` to the QA case MUST
+  redirect to `/red-list?error=not_permitted` and leave the QA case,
+  follow-up, attendance and audit counts unchanged; a generic
+  `follow_up_failed` is not an accepted tenant refusal. Cross-tenant attempts
+  never use an owner-link,
   service role, SQL, a supplied tenant id, or a cleanup delete.
 
   **Paid-period staging (not an A–D assertion).** Immediately after the
