@@ -235,6 +235,13 @@ against the configured cloud control and its evidence is fetchable.
 Acceptance: local procedure/check evidence is distinct from the external cloud
 restore result; an unperformed drill is blocked, not green.
 
+For the Free-plan five-gym controlled pilot, the owner's ADR-159 exception
+removes the provider restore/PITR drill from the pilot GO decision only. It
+does not mark HARD-007 or gate 29 Passed: incident/breach readiness and a
+protected logical backup export still require real evidence, and any later
+general release or paid-plan restoration claim requires a real Cloud Supabase
+operation and validation.
+
 ### HARD-008 — production AAB and physical-device smoke proof
 
 When Android production readiness is assessed, a production-configured signed

@@ -1,5 +1,15 @@
 # Phase 8 evidence ledger
 
+**2026-09-22 pilot restoration exception:** the owner directed completion of
+all remaining pilot gates while excepting the provider restore/PITR drill on
+the current Supabase Free plan (ADR-159). Supabase's
+[backup guidance](https://supabase.com/docs/guides/platform/backups) recommends
+CLI exports for Free projects; its
+[pricing table](https://supabase.com/pricing) lists automatic backups and PITR
+as unavailable on Free. Gate 29 is still **unperformed**, not Passed. No
+protected logical export artifact exists yet, and no other gate is waived.
+The full five-gym verdict remains **NO-GO** pending those other results.
+
 **2026-09-22 recovery target correction:** the owner directed Cloud Supabase
 only for the Phase 8 recovery drill (ADR-158). The earlier local
 Docker/Postgres/Supabase path is withdrawn. The required target is a distinct,

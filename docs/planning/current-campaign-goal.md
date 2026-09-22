@@ -1,5 +1,15 @@
 # Current owner-authorized campaign goal
 
+## 2026-09-22 owner continuation — complete the pilot gates
+
+The owner directed continued work toward a truthful five-gym pilot GO rather
+than stopping after the prior 2% slice. The Free-plan provider restore/PITR
+exercise is the one stated exception; every other pilot and Phase 8 gate still
+requires its actual result. A protected logical backup export remains required
+before customer data, but it does not prove restoration. Follow ADR-159 and
+the revised PILOT-004 contract; keep the verdict NO-GO while any other required
+evidence is missing.
+
 ## 2026-09-22 recovery target correction
 
 The owner requires **Cloud Supabase only** for recovery work. No local Docker,

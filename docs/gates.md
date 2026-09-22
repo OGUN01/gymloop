@@ -18,6 +18,13 @@ idempotency, RLS and audit protections remain required for this release.
 Enabling any online charge or webhook makes the deferred clauses mandatory
 before that feature can serve a gym.
 
+**Free-plan controlled-pilot restoration exception (ADR-159):** the owner
+excludes gate 29's provider restore/PITR drill from the five-gym pilot GO
+decision because the current Supabase Free plan does not include that control.
+Gate 29 stays **open/unperformed**, not green. A protected logical backup export
+and all other applicable release gates still require evidence; the exception
+does not certify recoverability or apply to a later general release.
+
 ## Spec & contract
 
 | # | Gate | Automated? | Enforced by | Status |

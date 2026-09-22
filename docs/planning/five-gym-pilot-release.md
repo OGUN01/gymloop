@@ -450,11 +450,16 @@ any frozen Phase 8 HARD gate or enable Razorpay.
 ## Operational release conditions
 
 - **PILOT-004** BEFORE inviting the first real gym, the migration workflow
-  SHALL be green with a verified current credential; a recoverable backup and
-  restore procedure, privacy export/erasure with legal review, delivered alert
-  route, and exact release-artifact Android acceptance SHALL have their actual
-  evidence. Synthetic rows, a runbook alone, or an upgrade promise do not pass
-  those gates. The owner-led visual acceptance remains separate and required.
+  SHALL be green with a verified current credential. A protected logical
+  backup export with source identity, scope, integrity digest, encrypted
+  off-project receipt, access owner and cadence SHALL be evidenced; it SHALL
+  NOT be called recoverable without a restore. Privacy export/erasure with
+  qualified legal review, a delivered alert route, and exact release-artifact
+  Android acceptance SHALL have their actual evidence. The owner excepts the
+  provider restore/PITR drill from this **Free-plan controlled pilot** under
+  ADR-159; gate 29 remains unperformed, not Passed. No other gate is waived.
+  Synthetic rows, a runbook alone, or an upgrade promise do not pass the
+  remaining gates. Owner-led visual acceptance remains required.
 - **PILOT-005** The 10 × 50 and five-gym rollback rehearsals are architectural
   evidence only. They SHALL NOT be described as a measured concurrent load or
   as HARD-004's frozen 100 × 500/50,000-check-in result. Capacity, storage and

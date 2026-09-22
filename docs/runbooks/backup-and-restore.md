@@ -4,6 +4,13 @@ This runbook supports HARD-007 and production gate 29. Reading backup status is
 safe; initiating a restore, replacing a database or redirecting an application
 is destructive. No restore is authorized by this document alone.
 
+**Free-plan controlled-pilot exception (ADR-159):** the owner excludes the
+provider restore/PITR drill from the five-gym pilot GO decision because the
+current Free project does not include that control. This does not pass gate 29
+or prove recoverability. Before customer data, the protected logical backup
+export described below still needs its real artifact, custody and cadence.
+Any future drill uses a distinct Cloud Supabase target under ADR-158.
+
 ## Safe read-only review
 
 The production owner or platform operator may perform these checks without
