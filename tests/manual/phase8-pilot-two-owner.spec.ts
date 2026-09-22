@@ -202,10 +202,9 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
       expect(attendance.error).toBeNull();
       expect(attendance.data).toEqual([]);
       expect(qaSession.data.user?.id).not.toBe(ironSession.data.user?.id);
-      await testInfo.attach('pilot-two-owner-ledger', {
-        body: JSON.stringify({ userId, staffId, qaTenantId, ironTenantId, qaSessionUserId: qaSession.data.user?.id, ironSessionUserId: ironSession.data.user?.id, requestKey, qaForeignEventKey, ironForeignEventKey, auditId, qaDeniedStatus: qaDenied.status(), ironDeniedStatus: ironDenied.status(), attendanceCount: attendance.data.length }),
-        contentType: 'application/json',
-      });
+      const ledgerPath = testInfo.outputPath('pilot-two-owner-ledger.json');
+      writeFileSync(ledgerPath, `${JSON.stringify({ userId, staffId, qaTenantId, ironTenantId, qaSessionUserId: qaSession.data.user?.id, ironSessionUserId: ironSession.data.user?.id, requestKey, qaForeignEventKey, ironForeignEventKey, auditId, qaDeniedStatus: qaDenied.status(), ironDeniedStatus: ironDenied.status(), attendanceCount: attendance.data.length })}\n`, 'utf8');
+      await testInfo.attach('pilot-two-owner-ledger', { path: ledgerPath, contentType: 'application/json' });
     } finally {
       try {
         if (staffId) {
@@ -246,14 +245,18 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
             const retiredPage = await retiredContext.newPage();
             await signIn(retiredPage, email, password);
             await expect(retiredPage).not.toHaveURL(/\/(?:dashboard|console|member)(?:[/?#]|$)/);
-            const retiredSession = await createClient(client.NEXT_PUBLIC_SUPABASE_URL, client.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+            const retiredClient = createClient(client.NEXT_PUBLIC_SUPABASE_URL, client.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
               auth: { autoRefreshToken: false, persistSession: false },
-            }).auth.signInWithPassword({ email, password });
+            });
+            const retiredSession = await retiredClient.auth.signInWithPassword({ email, password });
             expect(retiredSession.error).toBeNull();
             const retiredClaims = jwtClaims(retiredSession.data.session?.access_token ?? '');
             expect(retiredClaims.app_role).toBeUndefined();
             expect(retiredClaims.tenant_id).toBeUndefined();
             expect(retiredClaims.staff_id).toBeUndefined();
+            const signedOut = await retiredClient.auth.signOut({ scope: 'global' });
+            expect(signedOut.error).toBeNull();
+            expect(readSessionCount(userId ?? '')).toBe(0);
             await retiredContext.close();
           }
         }
