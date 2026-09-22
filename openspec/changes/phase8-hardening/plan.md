@@ -221,6 +221,32 @@ Adapter failure must never replace the application failure or expose the raw
 input. No monitoring vendor dependency is required until a real destination is
 owner-configured.
 
+Frozen production-monitor interface: the repository CLI is
+`node scripts/phase8-production-monitor.mjs --input <json-file>` and the
+scheduled destination is `.github/workflows/phase8-production-monitor.yml`.
+The input contains `mode` (`scheduled` or `force-test-alert`), an injected ISO
+`evaluatedAt`, deployment/run evidence, a production `logQuery` with event
+rows, and a production `endpointProbe` with ordered check rows. Credible event
+signals are exactly `cross_tenant_disclosure`, `payment_integrity_failure`,
+`credential_exposure`, and `destructive_data_loss`; unknown or unconfirmed
+classifications do not create a security incident. Five HTTP 5xx events in
+the inclusive preceding five minutes create SEV-2; the latest three failed
+endpoint checks create SEV-2; one credible signal creates SEV-1 and takes
+precedence. `force-test-alert` creates a distinct TEST-only issue and never a
+production severity or production-alert label.
+
+JSON output is deterministic and limited to schema version, decision,
+severity, test flag, evaluated time, ordered reasons, whitelisted run/
+deployment/query/probe/correlation evidence, and alert-only issue metadata and
+body. Unsafe correlation ids become `[REDACTED]`; raw messages, response bodies,
+context, authorization, email, phone, password, token and secret values are
+never copied. Missing/invalid evidence, time, or production identity exits
+nonzero without JSON or echoing untrusted input. The workflow runs every five
+minutes and on manual dispatch, has only `contents: read` and `issues: write`,
+keeps `VERCEL_TOKEN` step-scoped, collects production Vercel logs and three
+production health probes, passes a file input to the CLI, and creates or
+updates the issue by `.issue.key` using `.issue.body` through `--body-file`.
+
 ### HARD-006 — DPDP export, erasure, and retention runner
 
 When the DPDP operational runner executes, it shall produce an auditable export
