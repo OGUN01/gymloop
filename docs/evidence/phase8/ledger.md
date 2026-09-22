@@ -50,6 +50,43 @@ new credential. The owner was asked to confirm/reset the exact Gymloop project
 password without posting it again. The previously disclosed temporary value
 must be rotated and rejected before any customer is invited.
 
+**2026-09-22 credential recovery and CI attempt 3:** The owner authorized an
+autonomous rotation. A random replacement was saved in quoted `.env.local`
+without displaying it. The linked CLI's SQL attempt to alter privileged
+`postgres` was denied (`42501`), so it made no change. Using the same CLI's
+OS-protected Supabase login, the official Management API first identified
+project `pecxrpskmfeuyzngvewq` as Gymloop in `ap-south-1`, then accepted the
+database-password PATCH with HTTP 200. After pooler refresh, a separate
+PostgreSQL client authenticated over CA-verified TLS as the expected role;
+`supabase migration list --linked` succeeded. The new local value was synced
+to GitHub's `SUPABASE_DB_PASSWORD` secret without printing it. [DB workflow
+`35700941666` attempt 3](https://github.com/OGUN01/gymloop/actions/runs/35700941666)
+passed rollback lint and CI-only migration application of PILOT-008.
+Schema drift failed only because the new function was absent from committed
+generated types; the CLI-regenerated file adds that function and passes the
+DB package typecheck locally (local commit `3c408c8`). Full pgTAP subsequently
+**failed** at approximately 09:28 UTC after 97 files / 7,079 assertions;
+seed dry-run was skipped. A separate fresh critic classified a genuine
+PILOT-008 linked-owner transition defect, one visible RPC allowlist omission,
+two brittle visible live-demo counts, and independent holdout fixture/harness
+failures. Independent authors repaired the visible allowlist/live-data counts
+and the holdout setup/TAP harness in test-only commit `f66dc1a`; a fresh blind
+critic reviewed the holdout diff and found no weakened substantive checks.
+The linked-owner guard was a genuine implementation failure. Forward-only
+migration `0e28f6f` now guards linked-owner binding, role, state and deletion,
+and removes service-role staff DELETE/TRUNCATE. A fresh Sol critic first found
+a two-step service-role bypass, then returned a narrow static GO after the
+repair; runtime behavior remains unproved until the next CI run. A local
+focused `supabase test db --linked` attempt was stopped before running tests
+because Docker Desktop's Linux engine was unavailable; no DB write resulted.
+Holdout contents remain invisible to the implementer and orchestrator. Do not
+call the workflow green or begin the live two-owner mutation run until the
+new migration and all DB gates pass with generated types pushed. A no-cookie
+POST to the deployed
+owner-deactivation route returned `401/not_signed_in`, proving the route is
+present without making a write. No PILOT-007 Auth/staff fixture has been
+created yet.
+
 Read-only linked-project queries on 2026-09-22 confirmed the shared project's
 `cron.job` entry `no-show-scan-nightly` is active at `0 1 * * *` and its runs
 at 01:00 UTC on September 20, 21 and 22 each reported `succeeded` in

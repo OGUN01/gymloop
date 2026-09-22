@@ -123,8 +123,23 @@ Before the first customer record is accepted, the production owner must:
    and on the scheduled cadence. Failed exports, missing objects or a failed
    validation halt new customer onboarding until repaired.
 
-The linked project's database password is currently not working for the dump
-path and no isolated restore has run. Thus this track is **planned, not
-operational**. It can reduce the Free-plan pilot's recoverability risk after
-execution, but it cannot be described as Supabase PITR or make the frozen
-cloud-restore Gate 29 pass.
+At the earlier 2026-09-21 check, the linked database password did not work
+for the dump path. No isolated restore has run, so this track remains
+**planned, not operational**. It can reduce the Free-plan pilot's
+recoverability risk after execution, but it cannot be described as Supabase
+PITR or make the frozen cloud-restore Gate 29 pass.
+
+**2026-09-22 preflight correction:** the linked password now authenticates,
+but that alone does not create a recovery point. The existing Docker daemon
+and Supabase CLI can host a disposable **local Supabase stack** for the drill;
+a bare Postgres container may not reproduce Auth, Storage, extensions or
+project roles. Before export, verify the CLI dump scope for roles, schema and
+data, and record the source project ref. Decrypt/import only after checking
+the local target's host, port and identity are distinct from the shared Cloud
+project. The encrypted archive may use a dedicated recovery-only prefix in
+R2 only after recovery-specific access, separate encryption-key custody,
+retention and a Privacy Lead-approved handling window are established. The
+existing media credential is not by itself a least-privilege backup principal.
+Inventory R2 media object bytes and Auth/provider/SMTP/JWT configuration
+separately; the SQL dump does not recover those. No dump, upload, restore or
+cleanup has yet been executed, and the cloud PITR gate remains unpassed.

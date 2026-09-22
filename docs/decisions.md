@@ -1377,6 +1377,25 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-148 — one-time authenticated DB-password recovery (owner-delegated,
+  2026-09-22).** A previously supplied password failed both the linked
+  pooler and CI, and the owner explicitly authorized autonomous replacement.
+  The operator generated a high-entropy value without displaying it, saved it
+  only in the gitignored local environment, and confirmed the CLI login's
+  Management API identity matched Gymloop's exact project ref and region.
+  The linked CLI's `postgres` SQL session could not alter that privileged role
+  (`42501`); it made no database change. Since the CLI has no password-reset
+  command, the operator used that same OS-protected CLI login with Supabase's
+  official, project-scoped database-password endpoint exactly once. The API
+  returned HTTP 200, a separate CA-verified PostgreSQL connection succeeded
+  after pooler refresh, the GitHub DB secret was synchronized without printing
+  the value, and CI alone applied the pending migration. This narrow
+  credential-recovery exception does **not** authorize Supabase MCP use,
+  manual migrations, general Management API database writes, or placing
+  secrets in tracked files or logs. Before customer launch, rotate any
+  credential disclosed earlier in chat and the account-wide CLI access token;
+  verify that old values fail and the new CI path works.
+
 - **ADR-147 — retain a controlled second-owner QA fixture on the one shared
   prelaunch project (owner-delegated, 2026-09-22).** The five-real-gym pilot
   remains on project `pecxrpskmfeuyzngvewq`; no per-gym database or new
