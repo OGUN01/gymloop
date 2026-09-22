@@ -41,11 +41,13 @@ select is((select result #>> '{organization,tenantId}' from pilot64_result where
 select ok((select user_id is null and is_active and role = 'gym_owner'::public.app_role
   from public.staff where id = (select (result ->> 'ownerStaffId')::uuid from pilot64_result where name = 'qa')),
   'PILOT-007: the QA owner profile is active and unlinked before owner link');
+set local role postgres;
 select is((app.custom_access_token_hook(jsonb_build_object(
   'user_id', '64000000-0000-4000-8000-000000000902',
   'claims', jsonb_build_object('sub', '64000000-0000-4000-8000-000000000902', 'role', 'authenticated')))
   #>> '{claims,app_role}'), null::text,
   'PILOT-007: the separately created Auth user has no Gymloop role before link');
+set local role authenticated;
 
 create temporary table pilot64_link as
 select public.link_gym_owner(
@@ -81,7 +83,7 @@ select is((select count(*) from public.audit_log
 select is(public.link_gym_owner(
   (select (result ->> 'tenantId')::uuid from pilot64_link),
   (select (result ->> 'ownerStaffId')::uuid from pilot64_link),
-  '64000000-0000-4000-8000-000000000902',
+  null,
   'pilot64-owner@gymloop.test',
   '64000000-0000-4000-8000-000000000010'),
   (select result from pilot64_link),
@@ -114,6 +116,7 @@ with changed as (
 select is((select count(*) from changed), 0::bigint,
   'PILOT-007: the linked QA owner cannot mutate the foreign gym');
 
+set local role postgres;
 select is((app.custom_access_token_hook(jsonb_build_object(
   'user_id', '64000000-0000-4000-8000-000000000902',
   'claims', jsonb_build_object('sub', '64000000-0000-4000-8000-000000000902', 'role', 'authenticated')))
@@ -130,11 +133,13 @@ select is((app.custom_access_token_hook(jsonb_build_object(
   #>> '{claims,staff_id}'), (select result ->> 'ownerStaffId' from pilot64_link),
   'PILOT-007: fresh hook claims name the linked owner staff id');
 
+set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"64000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"super_admin"}', true);
 update public.staff set is_active = false
 where id = (select (result ->> 'ownerStaffId')::uuid from pilot64_link);
 
+set local role postgres;
 select is((app.custom_access_token_hook(jsonb_build_object(
   'user_id', '64000000-0000-4000-8000-000000000902',
   'claims', jsonb_build_object('sub', '64000000-0000-4000-8000-000000000902', 'role', 'authenticated')))
@@ -151,6 +156,7 @@ select is((app.custom_access_token_hook(jsonb_build_object(
   #>> '{claims,staff_id}'), null::text,
   'PILOT-007: deactivated test owner receives no fresh Gymloop staff claim');
 
+set local role authenticated;
 select is((select name from public.organizations
   where id = (select (result #>> '{organization,tenantId}')::uuid from pilot64_result where name = 'foreign')),
   'Pilot 64 Foreign Gym', 'PILOT-007: the denied foreign mutation leaves its row unchanged');
