@@ -793,6 +793,39 @@ No new migration was in this push, and none was applied. PILOT-001 is a
 bounded database rehearsal only.
 PILOT-002 through PILOT-004 and the frozen HARD gates remain open.
 
+### Atomic five-onboarding command rehearsal
+
+The owner-facing acceptance was frozen as PILOT-006 in `a476b54`, distinct
+from PILOT-001's direct tenant fixtures. The independent visible suite
+`supabase/tests/63_phase8_five_gym_onboarding.sql` passed **27/27** against
+the linked project: one synthetic super-admin called the actual
+`public.onboard_gym` command five times with distinct request keys. The
+transaction contained five trial organizations with distinct six-character
+codes; exactly one settings row, default branch, zero-credit wallet, active
+unlinked owner profile and keyed audit event per gym. Exact retries returned
+their original results without duplicate children/audits, and changed-facts
+reuse was refused for all five. A separately authored holdout passed **25/25**
+after correcting its synthetic-auth and public-schema test bindings. Its
+contents were not inspected by the orchestrator or visible author. Both
+rehearsals ended in `ROLLBACK`; independent postflight found zero synthetic
+organizations, child/audit rows and Auth/platform identities. The test-only
+commit is `23570d3`; rollback lint accepted all 93 pgTAP files. No real gym,
+Google owner link, activation or deployed-browser onboarding was claimed.
+
+The owner asked to defer password rotation until all independent preparatory
+work is complete, recorded in `docs/planning/current-campaign-goal.md`. That
+does not waive the pre-customer credential/green-CI gate. DB workflow
+[`35694552410`](https://github.com/OGUN01/gymloop/actions/runs/35694552410)
+again failed in `migrate` before the full pgTAP job could run; rollback lint
+passed, while schema drift, full pgTAP and seed dry-run were skipped. No
+migration was included or applied. A read-only privacy audit also corrected
+the member-linked `razorpay_mandates` classification in `docs/security.md`
+(`e996ce8`), while
+the unfrozen field map/non-null erasure blockers and legal review remain
+open under HARD-006. The real-customer sequence is now in
+`docs/runbooks/five-gym-pilot-onboarding.md` (`d3c186d`), with a stop line
+before inviting any gym rather than fabricated permanent customers.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
