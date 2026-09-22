@@ -40,6 +40,15 @@ gym and You in light and dark are compared with the approved boards; focused
 interaction/accessibility checks cover labels, targets, enlarged text and
 reduced effects.
 
+On the You surface, verified membership state and the current gym name/code
+shall appear with the member name before any wrapping email or phone value.
+Web and Android shall expose one grouped account list containing Personal
+details, Membership, Gym, and Appearance destinations with an accessible name
+and a current-value summary. Appearance may open the existing settings flow;
+the other rows may remain truthful read-only destinations for the pilot. The
+layout shall wrap long contact values without horizontal overflow or pushing
+the verified gym identity below the primary profile facts.
+
 Review artifact: `docs/design/phase8/member-hig-auth-core-v4.png`. The main
 surface uses one accessible settings icon; appearance lives behind the settings
 hierarchy rather than as persistent page content. On iPhone, Apple precedes

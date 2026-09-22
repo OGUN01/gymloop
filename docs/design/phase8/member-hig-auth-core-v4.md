@@ -23,3 +23,10 @@ shows the current appearance and pushes to its own screen; it does not expose a
 large persistent selector or stack another modal. The board is visual guidance,
 not evidence that Apple OAuth, Google OAuth, or provider console configuration
 exists.
+
+The You implementation presents the member name, an explicit verified-member
+state, and the current gym name/code before optional contact text. Its grouped
+account list contains Personal details, Membership, Gym, and Appearance. Each
+row has a useful current-value summary and an accessible name; the Appearance
+row opens the existing settings hierarchy. Long contact text wraps inside its
+column and cannot displace the verified gym identity from the primary facts.
