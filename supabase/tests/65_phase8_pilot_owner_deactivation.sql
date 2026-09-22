@@ -53,6 +53,9 @@ insert into auth.sessions(id, user_id) values
   ('65000000-0000-4000-8000-000000000920', '65000000-0000-4000-8000-000000000902');
 set local role authenticated;
 
+select set_config('request.jwt.claims', (select jsonb_build_object(
+  'sub', result ->> 'userId', 'role', 'authenticated', 'app_role', 'gym_owner',
+  'tenant_id', result ->> 'tenantId', 'staff_id', result ->> 'ownerStaffId')::text from pilot65_link), true);
 select throws_ok($$select public.deactivate_gym_owner(
   (select (result ->> 'tenantId')::uuid from pilot65_link),
   (select (result ->> 'ownerStaffId')::uuid from pilot65_link),
@@ -77,13 +80,9 @@ select throws_ok($$select public.deactivate_gym_owner(
 
 select set_config('request.jwt.claims',
   '{"sub":"65000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"super_admin"}', true);
-with changed as (
-  update public.staff set is_active = false
-  where id = (select (result ->> 'ownerStaffId')::uuid from pilot65_link)
-  returning id
-)
-select is((select count(*) from changed), 0::bigint,
-  'PILOT-008: direct authenticated staff retirement has no side effect');
+select throws_ok($$update public.staff set is_active = false
+  where id = (select (result ->> 'ownerStaffId')::uuid from pilot65_link)$$,
+  'GL049', null, 'PILOT-008: direct authenticated staff retirement is refused');
 select ok((select is_active from public.staff where id = (select (result ->> 'ownerStaffId')::uuid from pilot65_link)),
   'PILOT-008: direct-update refusal leaves the linked owner active');
 select throws_ok($$select public.deactivate_gym_owner(
