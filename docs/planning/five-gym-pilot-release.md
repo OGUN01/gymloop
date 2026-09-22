@@ -99,6 +99,54 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   the command/claim/RLS contract only; the deployed acceptance must separately
   use real Auth sessions, never forged JWT claims or service-role browser access.
 
+  **Frozen deployed owner-fixture protocol (manual-only, one run):** the
+  checked-in browser test must fail before any write unless
+  `PILOT_SHARED_PROJECT_ACCEPTANCE=ONE_SHARED_PRELAUNCH_PROJECT`,
+  `SUPABASE_PROJECT_REF=pecxrpskmfeuyzngvewq`, the Supabase URL is exactly
+  `https://pecxrpskmfeuyzngvewq.supabase.co`, and the browser base origin is
+  exactly `https://gymloop-phi.vercel.app`. The opt-in is read only through
+  `packages/shared/src/config/env.ts`, never `process.env` in a test file.
+  The runner generates one high-entropy password in memory and one unique
+  `@gymloop.test` synthetic email; neither secret nor a token is logged or
+  placed in a browser URL, evidence document, screenshot, or repository file.
+  A server-side-only Supabase Auth Admin call creates and confirms that user
+  with no Gymloop claims. A **real** password-authenticated super-admin session
+  inserts one active unlinked `gym_owner` staff profile into existing QA gym
+  `7eb2f564-0c3b-49b6-8104-1902241a5955` through ordinary tenant-aware
+  PostgREST, then submits the deployed `POST /api/platform/gyms/{tenantId}/owner-link`
+  adapter from its cookie-authenticated browser context. The request uses the
+  newly returned staff id, null expected user id, exact synthetic Auth email,
+  and a fresh UUID key. Service-role credentials may create the Auth fixture
+  and perform read-only postflights on the test runner only; they never bind
+  the staff row, call the owner-link command, or enter a browser context.
+
+  Before business writes, a fresh independent QA-owner password sign-in must
+  land on the QA gym and carry `gym_owner`, that tenant id and the newly linked
+  staff id; the owner-link audit must contain the request key. A separately
+  signed-in Iron Box owner (`owner@ironbox.example.com`, tenant
+  `00000001-0000-4000-8000-000000000001`) must retain its own gym context.
+  The exact existing synthetic QA member is
+  `6211481a-30fc-4f7c-891b-c02d06e95c74`; one Iron member for denial is
+  `00000005-0000-4000-8000-000000000013`. Both owners must see only their
+  own member and get a not-found response for the foreign member detail. Each
+  sends one cross-gym `POST /api/check-in` with a fresh `clientEventId` and
+  nonempty synthetic desk reason; both must receive `404/member_unknown`, and
+  a read-only postflight must find zero attendance rows for those two keys.
+  The exact user/staff/tenant IDs, request/event keys, HTTP status/envelope,
+  two distinct session identities, audit id and zero-side-effect counts go to
+  a redacted run ledger. If any preflight fails, do not create a fixture.
+
+  In a `finally` path, the authenticated super-admin marks only the newly
+  created staff row inactive; the identity trigger must revoke its Auth
+  sessions. A read-only postflight must count zero `auth.sessions` for that
+  test user and a fresh password sign-in must yield no Gymloop role, tenant or
+  staff access. If retirement fails or the runner is interrupted, fail the
+  run and use the manifest's exact IDs for a guarded operator recovery; never
+  delete financial/audit rows or make a blanket cleanup query. Retain the
+  synthetic Auth/staff/audit history, with the account inactive. This run
+  proves the deployed second-owner boundary only; A–D money/follow-up/add-on
+  journeys need their own frozen fixture and assertions before they are run.
+
 ## Usable core loop
 
 - **PILOT-003** BEFORE first-customer access, independently authenticated
