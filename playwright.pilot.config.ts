@@ -27,8 +27,9 @@ export default defineConfig({
   workers: 1,
   use: {
     baseURL,
-    screenshot: 'only-on-failure',
-    trace: 'retain-on-failure',
+    screenshot: 'off',
+    trace: 'off',
+    video: 'off',
   },
   projects: [{ name: 'pilot-chromium', use: devices['Desktop Chrome'] }],
 });

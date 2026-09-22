@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { execFileSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
 import { clientEnv, pilotAcceptanceEnv, playwrightEnv, serverEnv } from '@gymloop/shared';
 
 const qaTenantId = '7eb2f564-0c3b-49b6-8104-1902241a5955';
@@ -44,6 +45,14 @@ function readSessionCount(userId: string) {
   return (JSON.parse(output) as { rows: Array<{ n: number }> }).rows[0]?.n;
 }
 
+function assertUuid(value: string | undefined, label: string): asserts value is string {
+  expect(value, `${label} must be present`).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+}
+
+function writeRecoveryManifest(testInfo: import('@playwright/test').TestInfo, values: Record<string, string | null>) {
+  writeFileSync(testInfo.outputPath('pilot-recovery-manifest.json'), `${JSON.stringify(values, null, 2)}\n`, 'utf8');
+}
+
 test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
   test('links one synthetic QA owner, proves reciprocal foreign check-in denial, and retires it', async ({ browser }, testInfo) => {
     const pilot = pilotAcceptanceEnv();
@@ -76,6 +85,25 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
     let ironContext: import('@playwright/test').BrowserContext | undefined;
 
     try {
+      // All target, identity and fixture preflights happen before any Auth write.
+      const adminSession = await superAdmin.auth.signInWithPassword({
+        email: 'admin@gymloop.example.com',
+        password: demoPassword ?? '',
+      });
+      expect(adminSession.error).toBeNull();
+      expect(jwtClaims(adminSession.data.session?.access_token ?? '')).toMatchObject({ app_role: 'super_admin' });
+      const targetTenants = await superAdmin.from('organizations').select('id').in('id', [qaTenantId, ironTenantId]);
+      expect(targetTenants.error).toBeNull();
+      expect(targetTenants.data?.map(({ id }) => id).sort()).toEqual([ironTenantId, qaTenantId].sort());
+      const targetMembers = await superAdmin.from('members').select('id,tenant_id').in('id', [qaMemberId, ironMemberId]);
+      expect(targetMembers.error).toBeNull();
+      expect(targetMembers.data?.map(({ id }) => id).sort()).toEqual([ironMemberId, qaMemberId].sort());
+
+      platformContext = await browser.newContext({ baseURL });
+      const platformPage = await platformContext.newPage();
+      await signIn(platformPage, 'admin@gymloop.example.com', demoPassword ?? '');
+      await expect(platformPage).toHaveURL(/\/platform(?:[?#]|$)/);
+
       const created = await admin.auth.admin.createUser({
         email,
         password,
@@ -85,13 +113,8 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
       expect(created.error).toBeNull();
       expect(created.data.user?.id).toBeTruthy();
       userId = created.data.user?.id;
-
-      const adminSession = await superAdmin.auth.signInWithPassword({
-        email: 'admin@gymloop.example.com',
-        password: demoPassword ?? '',
-      });
-      expect(adminSession.error).toBeNull();
-      expect(jwtClaims(adminSession.data.session?.access_token ?? '').app_role).toBe('super_admin');
+      assertUuid(userId, 'synthetic Auth user id');
+      writeRecoveryManifest(testInfo, { userId, staffId: null, tenantId: qaTenantId, ownerLinkRequestKey: requestKey });
 
       const inserted = await superAdmin.from('staff').insert({
         tenant_id: qaTenantId,
@@ -101,11 +124,9 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
       }).select('id').single();
       expect(inserted.error).toBeNull();
       staffId = inserted.data.id;
+      assertUuid(staffId, 'synthetic staff id');
+      writeRecoveryManifest(testInfo, { userId, staffId, tenantId: qaTenantId, ownerLinkRequestKey: requestKey });
 
-      platformContext = await browser.newContext({ baseURL });
-      const platformPage = await platformContext.newPage();
-      await signIn(platformPage, 'admin@gymloop.example.com', demoPassword ?? '');
-      await expect(platformPage).toHaveURL(/\/platform(?:[?#]|$)/);
       const linkResponse = await platformPage.request.post(`/api/platform/gyms/${qaTenantId}/owner-link`, {
         data: { ownerStaffId: staffId, expectedUserId: null, ownerEmail: email, requestKey },
       });
@@ -114,9 +135,6 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
         ok: true,
         data: { tenantId: qaTenantId, ownerStaffId: staffId, userId: created.data.user?.id, ownerAccessPending: false },
       });
-      await platformContext.close();
-      platformContext = undefined;
-
       qaContext = await browser.newContext({ baseURL });
       const qaPage = await qaContext.newPage();
       await signIn(qaPage, email, password);
@@ -184,8 +202,14 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
       });
     } finally {
       if (staffId) {
-        const retirement = await superAdmin.from('staff').update({ is_active: false }).eq('id', staffId).eq('tenant_id', qaTenantId);
-        expect(retirement.error).toBeNull();
+        assertUuid(userId, 'synthetic Auth user id for retirement');
+        const deactivationKey = crypto.randomUUID();
+        const retirement = await platformContext?.pages()[0]?.request.post(`/api/platform/gyms/${qaTenantId}/owner-deactivation`, {
+          data: { ownerStaffId: staffId, expectedUserId: userId, requestKey: deactivationKey },
+        });
+        expect(retirement, 'PILOT-008 deactivation response').toBeTruthy();
+        expect(retirement?.status()).toBe(200);
+        await expect(retirement?.json()).resolves.toMatchObject<ApiSuccess<Record<string, unknown>>>({ ok: true });
         expect(userId).toBeTruthy();
         expect(readSessionCount(userId ?? '')).toBe(0);
         const retiredContext = await browser.newContext({ baseURL });
