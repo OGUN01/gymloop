@@ -2,7 +2,7 @@
 -- rehearsal only. It never creates a browser session and always rolls back.
 begin;
 
-select plan(22);
+select plan(23);
 
 set local role postgres;
 set local search_path = extensions, public;
@@ -128,8 +128,14 @@ select is((select count(*) from changed), 0::bigint,
 
 select set_config('request.jwt.claims',
   '{"sub":"64000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"super_admin"}', true);
-update public.staff set is_active = false
-where id = (select (result ->> 'ownerStaffId')::uuid from pilot64_link);
+select throws_ok($$update public.staff set is_active = false
+  where id = (select (result ->> 'ownerStaffId')::uuid from pilot64_link)$$,
+  'GL049', null, 'PILOT-007: direct authenticated staff retirement is refused');
+select public.deactivate_gym_owner(
+  (select (result ->> 'tenantId')::uuid from pilot64_link),
+  (select (result ->> 'ownerStaffId')::uuid from pilot64_link),
+  '64000000-0000-4000-8000-000000000902',
+  '64000000-0000-4000-8000-000000000011');
 
 set local role postgres;
 select is((app.custom_access_token_hook(jsonb_build_object(

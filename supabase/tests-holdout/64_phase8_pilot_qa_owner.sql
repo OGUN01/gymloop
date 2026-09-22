@@ -3,7 +3,7 @@ BEGIN;
 SET LOCAL ROLE postgres;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(21);
+SELECT plan(24);
 
 -- All identities, tenants, commands, and assertions are synthetic and live only
 -- inside this transaction.  The fixed UUIDs make the postflight assertions
@@ -178,6 +178,18 @@ BEGIN
 END
 $$;
 
+-- The identity trigger has one synthetic session to revoke when the owner is retired.
+SET LOCAL ROLE postgres;
+DO $$
+DECLARE
+  c record;
+BEGIN
+  SELECT * INTO c FROM pilot_qa_context;
+  INSERT INTO auth.sessions (id, user_id)
+  VALUES ('10000000-0000-0000-0000-000000000031', c.owner_a);
+END
+$$;
+
 SET LOCAL ROLE postgres;
 DO $$
 DECLARE
@@ -214,19 +226,51 @@ SELECT is((SELECT count(*) FROM public.organizations WHERE id = (SELECT tenant_a
 SELECT is((SELECT count(*) FROM public.organizations WHERE id = (SELECT tenant_b FROM pilot_qa_context)), 0::bigint, 'PILOT-002: owner A cannot read owner B organization');
 SELECT is((SELECT affected FROM pilot_qa_mutation), 0::bigint, 'PILOT-002: owner A foreign mutation affects zero rows');
 
--- Deactivation is authorized by the platform actor, and a fresh hook is then claimless.
+-- Direct retirement is refused; the platform command retires the exact linked owner.
 SET LOCAL request.jwt.claims = '{"sub":"10000000-0000-0000-0000-000000000099","role":"authenticated","app_role":"super_admin"}';
 DO $$
 DECLARE
   c record;
-  claims jsonb;
+  state text;
+  detail text;
 BEGIN
   SELECT * INTO c FROM pilot_qa_context;
-  UPDATE public.staff SET is_active = false WHERE id = c.staff_a;
+  BEGIN
+    UPDATE public.staff SET is_active = false WHERE id = c.staff_a;
+    INSERT INTO pilot_qa_error VALUES ('NO_ERROR', 'no exception', '');
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS state = RETURNED_SQLSTATE, detail = PG_EXCEPTION_DETAIL;
+    INSERT INTO pilot_qa_error VALUES (state, 'direct_update', detail);
+  END;
 END
 $$;
 
+SELECT is((SELECT sqlstate FROM pilot_qa_error WHERE message = 'direct_update'), 'GL049',
+          'PILOT-008: direct linked-owner retirement is refused');
+
+DO $$
+DECLARE
+  c record;
+BEGIN
+  SELECT * INTO c FROM pilot_qa_context;
+  PERFORM public.deactivate_gym_owner(
+    c.tenant_a,
+    c.staff_a,
+    c.owner_a,
+    '10000000-0000-0000-0000-000000000021'
+  );
+END
+$$;
+
+SELECT is((SELECT count(*) FROM public.audit_log a, pilot_qa_context c
+           WHERE a.tenant_id = c.tenant_a AND a.action = 'staff.owner_deactivated'
+             AND a.record_id = c.staff_a
+             AND a.request_key = '10000000-0000-0000-0000-000000000021'::uuid), 1::bigint,
+          'PILOT-008: command appends one keyed owner-deactivation audit');
+
 SET LOCAL ROLE postgres;
+SELECT is((SELECT count(*) FROM auth.sessions s, pilot_qa_context c WHERE s.user_id = c.owner_a), 0::bigint,
+          'PILOT-008: command revokes every owner session');
 DO $$
 DECLARE
   c record;

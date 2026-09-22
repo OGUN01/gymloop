@@ -205,8 +205,10 @@ SELECT is((SELECT count(*) FROM public.audit_log a, pilot_deactivation_context c
              AND a.request_key = c.request_key AND a.actor_user_id = c.platform_user
              AND (a.before ->> 'is_active') = 'true' AND (a.after ->> 'is_active') = 'false'), 1::bigint,
           'PILOT-008: one keyed audit records actor and before/after state');
+SET LOCAL ROLE postgres;
 SELECT is((SELECT count(*) FROM auth.sessions s, pilot_deactivation_context c WHERE s.user_id = c.owner_user), 0::bigint,
           'PILOT-008: identity trigger revokes the owner session');
+SET LOCAL ROLE authenticated;
 
 -- Reusing the key with changed facts is GL068; stale and foreign targets are refused.
 DO $$

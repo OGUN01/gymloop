@@ -111,8 +111,10 @@ select is((select count(*) from public.staff where tenant_id = (select (result -
   'PILOT-008: command does not retire another QA staff row');
 select is((select count(*) from public.staff where tenant_id = (select result #>> '{organization,tenantId}' from pilot65_onboarded where name = 'foreign')::uuid
   and is_active = false), 0::bigint, 'PILOT-008: command does not retire foreign-gym staff');
+set local role postgres;
 select is((select count(*) from auth.sessions where user_id = '65000000-0000-4000-8000-000000000902'), 0::bigint,
   'PILOT-008: owner retirement revokes every target Auth session');
+set local role authenticated;
 select is((select count(*) from public.audit_log where tenant_id = (select (result ->> 'tenantId')::uuid from pilot65_link)
   and action = 'staff.owner_deactivated' and record_id = (select (result ->> 'ownerStaffId')::uuid from pilot65_link)
   and request_key = '65000000-0000-4000-8000-000000000030'::uuid
