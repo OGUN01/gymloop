@@ -130,8 +130,8 @@ recoverability risk after execution, but it cannot be described as Supabase
 PITR or make the frozen cloud-restore Gate 29 pass.
 
 **2026-09-22 preflight correction:** the linked password now authenticates,
-but that alone does not create a recovery point. The existing Docker daemon
-and Supabase CLI can host a disposable **local Supabase stack** for the drill;
+but that alone does not create a recovery point. Once Docker is available,
+the Supabase CLI could host a disposable **local Supabase stack** for the drill;
 a bare Postgres container may not reproduce Auth, Storage, extensions or
 project roles. Before export, verify the CLI dump scope for roles, schema and
 data, and record the source project ref. Decrypt/import only after checking
@@ -143,3 +143,10 @@ existing media credential is not by itself a least-privilege backup principal.
 Inventory R2 media object bytes and Auth/provider/SMTP/JWT configuration
 separately; the SQL dump does not recover those. No dump, upload, restore or
 cleanup has yet been executed, and the cloud PITR gate remains unpassed.
+
+**2026-09-22 local-target availability recheck:** `docker info` could not
+connect to `dockerDesktopLinuxEngine`; the local Docker engine is not running.
+The local Supabase stack is not a currently provisioned recovery environment.
+Before any export or restore drill, verify a distinct disposable target is
+actually running and record its identity and access controls. The missing
+local target leaves the recovery track unperformed and gate 29 open.
