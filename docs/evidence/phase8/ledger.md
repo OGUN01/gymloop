@@ -723,16 +723,24 @@ normalization used by CI. Thus the failed DB workflow did **not** leave a
 pending schema migration, but the workflow itself is still red and must be
 repaired before a future migration can ship.
 
-Connection diagnosis remained inconclusive, not a proven bad password.
+Connection diagnosis remained inconclusive for the session pooler. Both
 `supabase migration list --linked` and `supabase db push --linked --dry-run`
 timed out even with `SUPABASE_DB_PASSWORD` unset, while the passwordless
 Management-API-backed `db query --linked` succeeded. Refreshing the local
 project link returned the same session-pooler host; TCP ports 5432 and 6543
 were reachable and the project ban list was empty. A separate PostgreSQL
-client timed out on the 5432 session pooler; its 6543 attempt stopped at
-certificate verification before authentication. No migration, password
-rotation, durable fixture, or destructive operation was performed. Neither
-the current password nor the pooler path has been proven valid for CI.
+client timed out on the 5432 session pooler; its first 6543 attempt stopped at
+certificate verification before authentication. A second **encrypted but
+certificate-unverified diagnostic only**, matching Supabase's documented
+`sslmode=require` behavior, reached the transaction pooler and received a
+password-authentication rejection for the value currently in `.env.local`.
+The value was neither printed nor recorded. This proves the local value is
+not accepted by that pooler now; it does not prove GitHub's masked secret has
+the same value. The failed DB run `35633578490` was retried once (attempt 2)
+and again failed at `db push --linked` before applying anything. No migration,
+password rotation, durable fixture, or destructive operation was performed.
+The password/pooler path is still not valid for CI and needs credential repair
+and a green rerun before the next migration.
 
 The prior 10 × 50 rollback result and these focused checks support a bounded
 multi-tenant **pilot architecture** assessment on one database. They do not
