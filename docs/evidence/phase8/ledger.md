@@ -1,6 +1,17 @@
 # Phase 8 evidence ledger
 
-**2026-09-22 PILOT-009 staging stop line:** ADR-149 and the PILOT-009
+**Current 2026-09-22 PILOT-009 checkpoint:** the exact-marker paid-period
+stage passed against the deployed web alias. One paid manual INR receipt and
+the initial 14-day membership period are proven, with a fresh critic GO only
+for that bounded stage. The staged member has no attendance or no-show case;
+the date-gated, read-only scheduled-scan observer is prepared for September
+30 and October 1 after 06:30 IST. A fresh critic returned static GO on its
+executed-command, D+8 creation-window and D+9 same-case proofs; no cron
+observation has yet run. The full A–D journey and five-gym verdict remain
+**NO-GO**. Exact stage evidence appears at the end of this ledger.
+
+**Historical 2026-09-22 PILOT-009 staging stop line, superseded by the
+current checkpoint:** ADR-149 and the PILOT-009
 acceptance contract were clarified in `285ef20`; CI, holdout and test
 immutability passed. Vercel's `gymloop-phi.vercel.app` alias resolved to Ready
 production deployment `gymloop-9crqjpiwh-ogun01s-projects.vercel.app`, and
@@ -105,17 +116,19 @@ created yet.
 Read-only linked-project queries on 2026-09-22 confirmed the shared project's
 `cron.job` entry `no-show-scan-nightly` is active at `0 1 * * *` and its runs
 at 01:00 UTC on September 20, 21 and 22 each reported `succeeded` in
-`cron.job_run_details`. This proves the scheduler is firing, not that the QA
-gym currently has a paid, absent member: QA has no plan/membership/case yet.
-PILOT-009 therefore stages a real paid period and waits through the gym's
-absence threshold instead of manufacturing a case or backdating attendance.
+`cron.job_run_details`. This proves the scheduler is firing, not that a QA
+member crossed the absence threshold. PILOT-009 staged a real paid period on
+September 22, as recorded below, and must wait through the gym's threshold
+instead of manufacturing a case or backdating attendance.
 
 **HARD-003 two-owner update:** the dated 2026-09-21 table row below describes
 the earlier checkpoint. The 2026-09-22 guarded PILOT-007/008 run now supplies
 two independently signed-in gym owners and reciprocal direct check-in denials
-with zero attendance effects; its exact evidence is recorded below. HARD-003
-remains Partial because the deployed A–D money, return and add-on journeys
-under PILOT-009 have not run.
+with zero attendance effects; its exact evidence is recorded below. The
+subsequent PILOT-009 paid-period stage also passed with a manual-money receipt
+basis and a denied Iron payment, as detailed near the end of this ledger.
+HARD-003 remains Partial because the scheduled absence, contact, return,
+renewal and add-on A–D continuation has not run.
 
 | Requirement | Status | Commit/build, environment and time | Command or procedure and fetchable evidence | Blocker, owner, required evidence and next safe step |
 |---|---|---|---|---|
@@ -1126,6 +1139,111 @@ the same upload certificate recorded for the v5 production AAB. This closes
 the previously missing *installed-package fingerprint* check only. It is not
 an install from that AAB or a Play internal track. No phone settings, app
 session or product data were changed.
+
+## 2026-09-22 PILOT-009 paid-period stage
+
+The frozen manual stage was run against `https://gymloop-phi.vercel.app` and
+linked project `pecxrpskmfeuyzngvewq` with the exact shared-project opt-in.
+The runner used two independently signed-in gym owners, disabled screenshots,
+traces and video, and kept its multi-day password only as Windows-user DPAPI
+ciphertext outside the repository. The first attempt stopped before any Auth
+or business write because the PowerShell secure-string module could not load;
+exact-marker linked postflight found **zero Auth and staff rows**. Native
+Windows DPAPI replaced that helper in test-only commit `b5117ff`.
+
+A second attempt reached member/membership creation but hit Playwright's
+default 30-second test timeout. Its exact marked QA owner was retired; a
+read-only postflight found the staff inactive, and an exact staged-user
+password sign-in proved no Gymloop role/tenant/staff claims. A global sign-out
+then left **zero Auth sessions**. The original failed manifest and a separate
+recovery attestation are retained outside the repository under
+`C:\Users\Harsh\.codex\gymloop-pilot-evidence\pilot009\`; its marked plan,
+member and membership were not deleted. Commit `b88fc10` gives the manual
+journey a bounded ten-minute timeout.
+
+A third attempt exposed a real payment-route error: Iron's cross-gym manual
+payment was refused with generic `payment_failed` rather than an ordinary
+forbidden/not-found result. The attempt left **zero payment rows** for its
+marked membership; its exact owner was retired and had **zero sessions**.
+Independent visible and holdout money tests were committed before the
+implementation. The narrow caller-scoped membership visibility check in
+`972c70d` returns the same `not_permitted` response for an RLS-invisible or
+nonexistent membership before insert. Focused visible route tests passed
+**51/51**; a fresh Sol money/security critic returned GO for this bounded
+change. No failed-attempt money/audit history was deleted.
+
+The fourth, fresh-marker stage `PILOT-009-aa5011e9db034127b93062ceb1f32d94`
+passed **1/1 in 35.5 seconds** against the production alias after it resolved
+to Ready deployment `gymloop-4otqshrsj-ogun01s-projects.vercel.app` for
+`972c70d`. Its redacted JSON ledger is retained outside the repository at
+`C:\Users\Harsh\.codex\gymloop-pilot-evidence\pilot009\PILOT-009-aa5011e9db034127b93062ceb1f32d94.ledger.json`
+(SHA-256 `2091B9B7D25AEE37C847867AA9A71AD1F57B159653E9E22634C72A1B687786DA`).
+It records the staged QA owner `1251c23d-7871-45fa-a645-bb0d25ffe3dd`,
+staff `c29d04f6-02d1-498b-885b-84e9ae07804c`, link audit
+`b33193da-ccd9-433d-954a-e3108b548206`, plan
+`59bae81b-858e-4b58-a00a-38e28e08b881`, member
+`b62efcf0-a473-450b-a00e-85aa08823b0d`, membership
+`a8b4e044-0765-453c-8ae1-d07b6aea425f`, and initial paid manual
+payment `26bdc895-32ba-46f1-bb4b-581c135b310b` with receipt
+`2026-27/000001`. Two distinct browser-session ids and the owner-link 200
+envelope are captured. Native member, membership and payment writes each
+returned a safe 303/readback. Iron's foreign check-in returned exact
+`404/member_unknown`; its foreign payment returned `303/not_permitted`;
+attendance, payment and QA payment-audit counts were **0 before / 0 after**
+those refusals.
+
+An independent linked read-only postflight found the exact membership active
+from QA-local **2026-09-22** through **2026-10-06**, a single `paid` INR
+**12,500-paise** initial receipt with exactly one payment audit row, and zero
+attendance and no-show cases for that member. The staged owner remains active
+solely for the scheduled PILOT-009 A–D continuation. With the verified
+seven-day threshold and the
+nightly `0 1 * * *` job, the earliest relevant QA-local observations are
+**2026-09-30 06:30 IST (D+8)** and **2026-10-01 06:30 IST (D+9)**. No cron
+case, follow-up, return, renewal, add-on or owner retirement has yet been
+claimed. General CI `35740835769`, the separate Holdout workflow
+`35740835804`, and test immutability `35740836173` passed for `972c70d`.
+The full DB pgTAP job in `35740835691`, which includes the new SQL holdout,
+was still running when this stage result was recorded; its final status must
+be attached before changing any release gate. Five-gym pilot verdict remains
+**NO-GO**.
+
+A fresh stage-evidence critic found the base ledger too terse for the frozen
+paid-period proof: it omitted the observed end date/status, payment amount,
+currency and actor, post-payment audit count, exact owner claims and mutual
+caller-scoped visibility. No transaction was replayed. At 14:46 UTC, new
+independent QA and Iron password sessions performed read-only caller-scoped
+checks, and a supplemental redacted JSON attestation was saved beside the
+base ledger as `PILOT-009-aa5011e9db034127b93062ceb1f32d94.postflight.json`
+(SHA-256 `2A5600BF4AE7B30D9608E4FF3C19A35ABC40D6F726AFE756A26A277C5BAC8D5A`).
+It records exact `gym_owner` sub/staff/tenant claims for both distinct owners,
+own-member and foreign-null reads, QA active/INR/14-day plan and Iron-null
+plan, the QA active membership's **2026-09-22 → 2026-10-06** period and
+Iron-null membership, the single paid cash INR **12500**-paise receipt with
+QA staff attribution and no provider id, Iron-null payment, and exactly one
+payment audit after the initial payment versus zero before. The before-period
+`starts_on=ends_on=2026-09-22` comes from the assertion executed by the
+passing stage test before payment, not a later reconstruction. The fresh
+critic's narrow re-review returned **GO for the bounded paid-period stage
+evidence** when the supplement, base ledger and passing run are read
+together. The full DB workflow remains to be reconciled before release-gate
+promotion; A–D and five-gym remain **NO-GO**.
+
+The date-gated read-only D+8/D+9 observer was added in `dcd739c` and corrected
+in `04ebcd3` after a fresh Sol critic found that merely observing a successful
+same-named cron run did not prove that the scan command created this case.
+It now requires the executed `cron.job_run_details.command` and current job
+command to equal `select public.run_no_show_scan_all()`, binds the D+8 case's
+`created_at` to that exact run's start/end, checks the frozen 8-day absence
+and 7-day threshold snapshots, and on D+9 requires a distinct run ID with
+the same case ID and creation timestamp and exactly one case. A linked
+read-only schema query confirmed the historical `command` field exists, and
+the latest pre-observation row carried the expected command. Focused lint,
+web typecheck and Playwright collection passed; the corrected observer has
+fresh static critic GO. It has **not been live-run**: its calendar guard
+allows only September 30 and October 1 QA-local, and it writes no business
+rows. Those observations, B–D, final retirement and the other HARD gates
+remain open.
 
 ## External dependency index
 

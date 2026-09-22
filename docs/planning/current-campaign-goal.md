@@ -1,5 +1,59 @@
 # Current owner-authorized campaign goal
 
+## Current status — 2026-09-22 15:01 UTC
+
+The owner explicitly arbitrated the prior repeated PILOT-009 evidence review:
+retain the strict frozen contract and continue to a truthful five-gym GO,
+without waiving any HARD gate. The corrected stage harness was reviewed,
+checked and committed. Its first attempt failed before writes on Windows
+credential encryption; the second timed out after a partial marked fixture
+and was recovered by exact owner retirement and zero-session sign-out; the
+third exposed a generic cross-gym payment refusal and was likewise recovered
+without deleting retained history. Separate visible/holdout money tests,
+the caller-scoped payment fix `972c70d`, and a fresh Sol security review
+closed that specific denial gap. Details and exact retained synthetic ids
+are in `docs/evidence/phase8/ledger.md`.
+
+The fourth guarded live stage, marker
+`PILOT-009-aa5011e9db034127b93062ceb1f32d94`, passed **1/1** on the
+production web alias with one paid INR 12,500-paise initial membership period,
+two distinct owner sessions and zero effects from Iron's cross-gym check-in
+and payment attempts. An independent linked read-only postflight confirmed
+the receipt, one audit, a 14-day active period and no attendance or no-show
+case yet. The staged QA owner remains active only for the same-identity
+multi-day A–D continuation. Observe the real QA-local D+8/D+9 nightly cron
+windows on **September 30 and October 1 at 06:30 IST**; do not backdate or
+run a broad scan. General CI, the separate Holdout workflow and test
+immutability passed for `972c70d`; its full DB pgTAP job was still running
+at this checkpoint and must be reconciled.
+
+A fresh critic found the first redacted stage ledger incomplete as evidence,
+despite its passing assertions. A separate **read-only** exact-ID postflight
+from fresh QA/Iron sessions now records the missing role/tenant/staff claims,
+mutual RLS visibility, owner-RLS plan, membership before/after period basis,
+payment amount/status/actor and one audit. Its redacted supplement and hash
+are in the Phase 8 ledger; the fresh critic returned **GO for bounded stage
+evidence**. The full DB result is still pending and must be reconciled before
+release-gate promotion. No second payment or altered date was used as a
+shortcut.
+
+Five-gym/customer verdict remains **NO-GO**. In parallel with the elapsed
+PILOT-009 journey, finish every safe non-visual HARD-004–008 preparation and
+record exact evidence. The frozen isolated full-load run, delivered alert,
+qualified privacy/legal review, cloud restore and exact Play AAB install
+still need their own real artifacts; owner-led HARD-010 visual approval remains
+separate. Do not treat the successful stage or rollback-only five-gym proof
+as any of those gates.
+
+The manual D+8/D+9 read-only observer is committed in `dcd739c` plus the
+`04ebcd3` proof correction. A fresh Sol critic gave its static design GO after
+it tied the actual executed scan command and D+8 case creation timestamp to
+the scheduled run, and D+9 to a distinct run with the same case. Focused
+lint, web typecheck and test collection passed. It is intentionally unrun
+until the real September 30 and October 1 cron windows. Complete B–D and
+exact-ID owner retirement only after those observations; never backdate,
+manually invoke the all-gym scan, or call the five-gym pilot GO early.
+
 ## Current status — 2026-09-22 12:55 UTC
 
 PILOT-009 live staging is **NO-GO** after a third narrow Sol critic rejection
