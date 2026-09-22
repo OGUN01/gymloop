@@ -8,6 +8,12 @@ VALUES
   ('90000009-0000-4000-8000-000000000001', 'Pilot holdout A', 'H9A001', 'active'),
   ('90000009-0000-4000-8000-000000000002', 'Pilot holdout B', 'H9B001', 'active');
 
+INSERT INTO public.organization_settings (tenant_id)
+VALUES
+  ('90000009-0000-4000-8000-000000000001'),
+  ('90000009-0000-4000-8000-000000000002')
+ON CONFLICT (tenant_id) DO NOTHING;
+
 INSERT INTO public.branches (id, tenant_id, name, is_default)
 VALUES
   ('90000009-0001-4000-8000-000000000001', '90000009-0000-4000-8000-000000000001', 'A desk', true),
