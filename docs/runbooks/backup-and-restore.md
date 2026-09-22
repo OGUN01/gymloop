@@ -85,3 +85,46 @@ Before customer data relies on this project, establish a protected off-site
 logical-export destination, recovery ownership and retention/access rules. Do
 not place an unencrypted dump in the repository or treat an export as proof of
 a successful restore drill.
+
+## Free-project logical recovery track for the five-gym pilot
+
+The owner has selected the existing shared project for a controlled five-gym
+pilot and deferred a paid plan. [Supabase's backup guidance](https://supabase.com/docs/guides/platform/backups)
+states that Free projects have no automatic database backup/PITR and recommends
+regular off-site CLI exports. This is a possible **additional** recovery track,
+not evidence that the cloud/PITR drill above passed and not permission to
+restore over the live project.
+
+Before the first customer record is accepted, the production owner must:
+
+1. Repair and verify the CLI database credential without printing it in a
+   command, dry-run output, shell transcript or evidence file. Record a
+   successful connection and the linked project reference; the currently
+   failing CI migration job makes this a release stop line.
+2. Select an encrypted, access-controlled, off-device/off-project destination
+   with an identified recovery operator, key custodian, retention period and
+   scheduled export cadence. A local file or the same Supabase project is not
+   an off-site backup. Protect the encryption key separately from the export.
+3. Use the [official CLI backup sequence](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)
+   to capture roles, schema and data, plus the migration history and any
+   customized Auth/Storage schema objects. Record UTC time, source ref,
+   artifact hashes and encrypted-upload receipt without storing raw data or
+   credentials in Git. Inventory R2/Storage objects, Auth configuration,
+   Edge secrets and external integrations separately: a SQL dump alone is not
+   a complete application recovery point.
+4. Restore a selected encrypted export into a **disposable, isolated local
+   Postgres environment** or other independently identified recovery target;
+   positively verify that the target is not the shared project. Validate
+   expected table counts, migration identity, one attendance/payment/audit
+   reference, two-tenant read isolation and application startup. Record the
+   actual recovery-point age and elapsed restore time, then securely remove
+   the disposable copy. A dump that has never been restored is unproven.
+5. Rehearse the export and restore once after every material schema/auth change
+   and on the scheduled cadence. Failed exports, missing objects or a failed
+   validation halt new customer onboarding until repaired.
+
+The linked project's database password is currently not working for the dump
+path and no isolated restore has run. Thus this track is **planned, not
+operational**. It can reduce the Free-plan pilot's recoverability risk after
+execution, but it cannot be described as Supabase PITR or make the frozen
+cloud-restore Gate 29 pass.

@@ -1,6 +1,6 @@
 # Phase 8 evidence ledger
 
-Updated 2026-09-21. Status meanings: **Passed** has fetchable evidence for the
+Updated 2026-09-22. Status meanings: **Passed** has fetchable evidence for the
 full stated requirement; **Partial** has real evidence but an acceptance part is
 missing; **Blocked** cannot proceed safely until the named prerequisite exists;
 **External** requires a real owner/provider/legal/cloud/store action. A local
@@ -753,6 +753,38 @@ prove peak capacity, a full Phase 8 GO, privacy operations, recovery, alert
 delivery, exact-AAB Play installation, or visual acceptance. Keep those gates
 open rather than converting a 3–10-gym hypothesis into an unmeasured claim.
 
+## 2026-09-22 read-only monitoring destination preflight
+
+At 06:44:47 UTC, the authenticated Vercel CLI resolved identity `ogun01` to
+project `ogun01s-projects/gymloop` (`prj_mteQVcRk0VT6NMeVA3HLmBjPZEAs`).
+`vercel alerts --project prj_mteQVcRk0VT6NMeVA3HLmBjPZEAs --json`
+returned no alert groups. `vercel alerts rules ls --project
+prj_mteQVcRk0VT6NMeVA3HLmBjPZEAs --all --json` found only default rule
+`ar_default` with `notifications: []`. Its owner/admin autosubscribe flags
+are configuration metadata, not a verified recipient or delivered receipt.
+The eight active GitHub workflows include no monitoring workflow; Supabase
+still identifies the linked Gymloop project as `ACTIVE_HEALTHY`. No alert rule,
+environment variable, event, recipient or production data was changed. The
+exact remaining work and redacted receipt requirement are in
+`docs/runbooks/operational-monitoring.md`. HARD-005 remains Partial/External.
+
+`docs/evidence/phase8/pilot-coreloop.md` separately reconciles the existing
+bounded two-gym deployed checks with PILOT-002/003. It adds no new mutation
+proof: a repeatable second-owner browser fixture and durable synthetic-history
+run remain to be executed under the now-frozen ADR-147 policy before checked-in
+A–D journeys can be claimed.
+
+The member-linked schema has now been inventoried in
+`docs/planning/privacy-field-inventory.md` against migrations and generated
+types. This is a technical candidate map, not the frozen export/erasure
+allowlist or qualified legal review; no request, retention runner, Auth
+revocation or destructive privacy operation ran. HARD-006 remains Blocked.
+
+At 06:49 UTC, a read-only `supabase db query --linked` returned two gyms,
+fifty members, 985 attendance rows, 38 payment rows and total database size
+32,009,363 bytes. This is a baseline for fixture/recovery planning, not a
+five-gym throughput measurement or a promise of Free-plan capacity.
+
 ## 2026-09-22 five-gym controlled-pilot rehearsal
 
 The owner froze a five-gym first-customer target in
@@ -836,11 +868,23 @@ delivery worked. No APK was installed,
 app data cleared or phone setting changed in this check. HARD-008 remains
 Partial until the exact-artifact device/Play journey is run.
 
+On 2026-09-22 a second read-only OnePlus DN2101 preflight queried the
+installed `in.gymloop.mobile` package (`versionName=1.0.0`, `versionCode=5`),
+pulled its installed base APK without reinstalling it, and ran Android SDK
+build-tools 36.0.0 `apksigner verify --print-certs`. The installed APK SHA-256
+was `D2E384BDECAC8C3E9C1D7F0D0FC45D35D8BF6968057267EB36266318CAA51AF8`,
+byte-identical to the recorded v5 preview APK; its signing certificate SHA-256
+was `AA923C583E2A9DE0B25446DA1917E640198E664687EEDF2B38750DB13333C863`,
+the same upload certificate recorded for the v5 production AAB. This closes
+the previously missing *installed-package fingerprint* check only. It is not
+an install from that AAB or a Play internal track. No phone settings, app
+session or product data were changed.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
 |---|---|---|---|---|
-| Separate non-production Supabase project | HARD-004 | External; not identified | Infrastructure owner provisions/authorizes it and records its distinct project reference | Safety preflight, non-production credentials source, k6 command/raw result |
+| Frozen 100 × 500 / 50,000-check-in load gate | HARD-004 | Unperformed; owner authorizes the current prelaunch shared project for bounded synthetic tests, not a claim that the frozen scale was measured | Run only a recorded, bounded same-project preflight with exact synthetic IDs and non-destructive cleanup policy; defer or explicitly re-decide the full gate before launch | Test plan, project/ref, request mix and concurrency, raw results, resource telemetry, fixture disposition and independent tenant-isolation postflight |
 | Monitoring destination and alert route | HARD-005 | External; no delivery proof | Production owner chooses/configures a real destination and escalation owner | Redacted event id, alert receipt, thresholds, retention and ownership |
 | DPDP/DPA and breach-notification legal review | HARD-006/007 | External; not approved | Production owner obtains qualified current legal/privacy review | Dated approval/decision naming durations, hold behavior, audiences, timing and channels |
 | Supabase cloud backup/PITR restore | HARD-007 | External/unperformed | Project administrator runs approved disposable-target drill | Cloud operation id, source/distinct target, timings, validation and cleanup |
