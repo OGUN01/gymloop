@@ -183,6 +183,189 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   guarded recovery, disable screenshots/traces/video, and assert one-row
   retirement, zero `auth.sessions`, and fresh unlinked claims.
 
+- **PILOT-009 — deployed two-gym mutation-complete A–D acceptance (manual,
+  one run).** AFTER PILOT-007 has completed its independently authenticated
+  QA-owner acceptance and retirement, and after the PILOT-008 migration, web deployment, Auth hook, `pg_cron`
+  `no-show-scan-nightly` job, and deployed `no-show-scan` Edge Function are
+  verified at the shared-project production origins, one operator MAY execute
+  this controlled acceptance. It is prerequisite evidence for PILOT-003, not
+  CI, a load test, customer onboarding, or authority to mutate a real gym.
+  It MUST use the same literal opt-in, project ref, Supabase URL, Vercel origin,
+  in-memory password handling, redacted JSON ledger, and screenshot/trace/video
+  prohibition as PILOT-007. It MUST first confirm the current deployed commit
+  contains the owner-deactivation command; a successful local build or a
+  migration merely present in the repository is not a deployment prerequisite.
+
+  **Feasibility gate, identity lifecycle, and bounded retained fixture.** The
+  run manifest SHALL have one opaque run marker and contain only: the PILOT-007
+  QA tenant `7eb2f564-0c3b-49b6-8104-1902241a5955`; one newly created,
+  independently authenticated **PILOT-009 staged** `gym_owner` user and staff
+  id; exactly one newly created QA branch member
+  whose display name, E.164 test phone and nullable email include that marker;
+  exactly one active QA membership for that member; its one selected active QA
+  plan; one active QA `product` offer named with the marker; the resulting one
+  no-show case, one follow-up, attendance row, **two** manual membership
+  payments (the initial paid-period basis and the later renewal), add-on order,
+  add-on payment and audit ids; and the existing Iron Box owner
+  and foreign member `00000005-0000-4000-8000-000000000013` in tenant
+  `00000001-0000-4000-8000-000000000001`. No second synthetic member, plan,
+  offer, payment, order, case, or identity is permitted beyond those two
+  named membership payments. The PILOT-007 owner is already retired in that
+  protocol's `finally` path and MUST NOT be reused or reactivated. Before any
+  fixture write, a real password-authenticated super-admin creates the staged
+  Auth user without Gymloop claims, creates exactly one active unlinked QA
+  `gym_owner` staff row through ordinary QA-scoped PostgREST, and calls the
+  deployed owner-link adapter with that row id, the staged email, null expected
+  user id, and a fresh request key. It then verifies the returned owner-link
+  audit and a fresh staged-owner sign-in with exactly its QA tenant/staff/
+  `gym_owner` claims. This is the PILOT-007 link protocol applied to a distinct
+  manifest identity, not a relaxation of its retirement rule. The QA member has no attendance before the scan,
+  no approved pause, and a membership with a verified paid period before it is
+  eligible for no-show evaluation. The selected plan MUST already be active,
+  QA-scoped, INR, positive-price representable by the deployed
+  `amountRupees` codec, and have a recorded duration of at least
+  `no_show_threshold_days + 2` QA-local calendar days. Its price and duration
+  are captured as immutable run facts. The product is quantity one, INR, `pricePaise`
+  exactly `12500`, positive stock exactly one, complete nonblank disclosure
+  and cancellation terms, no trainer/session facts, and a captured
+  `quoteVersion`. The membership payment and product price are intentionally
+  separate facts: the former proves renewal and receipt behavior and the
+  latter proves the add-on atomic money path. **The present QA tenant has zero
+  plans, so PILOT-009 is not runnable until the following single owner-RLS
+  fixture setup is separately verified.** In the staged owner's ordinary
+  caller-scoped PostgREST session, create exactly one marked QA plan with
+  `{tenant_id:<QA tenant>,name:<marked name>,description:<nonblank>,
+  duration_days:<threshold + 2 or greater>,price_paise:12500,currency:'INR',
+  gst_rate_bp:0,max_freeze_days:0,is_active:true,sort_order:0}` and record its
+  returned id, price, duration and tenant. This is an authorized catalogue
+  write under RLS, not a service-role/SQL insert and not a direct insert or
+  update of a paid membership period. If this exact plan creation cannot be
+  independently verified under the staged owner's claims, stop before member
+  creation and leave PILOT-009 blocked.
+
+  Fixture creation SHALL use only the linked staged QA owner's ordinary
+  cookie-authenticated deployed application/PostgREST session, never forged
+  claims or a service-role browser. The runner records each returned id before
+  advancing. It creates the member through `POST /api/members` as the native
+  form fields `full_name`, `phone`, `email`, `status=active`, `branch_id`, and
+  `joined_on`; creates the membership through `POST /api/memberships` with
+  the exact form fields `{memberId,planId,startsOn:<current QA-local ISO day>}`;
+  and creates the product through `POST /api/add-ons` with exactly
+  `{kind:'product',name:<marked name>,description:<nonblank>,pricePaise:'12500',
+  validityDays:<positive integer>,cancellationTerms:<nonblank>,isActive:true,
+  trainerStaffId:null,trainerQualification:null,sessionCount:null,
+  stockQuantity:1}`. The one
+  selected plan is read-only preflight evidence after its separately verified
+  owner-RLS creation: its id, INR price and duration are recorded, and the run
+  stops before member creation unless it meets the stated gate. There is no
+  service-role plan seeding, direct SQL fixture, or
+  direct insert/update of a membership period.
+
+  **Identity and isolation preflight.** Before fixture creation, independently
+  sign in the staged QA owner and Iron Box owner; record distinct `sub`, `staff_id`,
+  `tenant_id`, role and browser-session identities, with QA claims exactly
+  `gym_owner` and the staged tenant/staff ids and Iron claims retaining the
+  Iron tenant. Under each caller session, a direct PostgREST `members` read
+  selecting only `id,tenant_id` and using an exact id plus `maybeSingle()` MUST
+  reveal its own designated row and return `null` without error for the other
+  row. Before every QA mutation below, the Iron session repeats the same
+  command against the QA id with its own fresh event/idempotency key and MUST
+  receive the route's ordinary not-found/forbidden refusal; a caller-session
+  read-only postflight MUST show zero rows carrying that foreign key and no
+  changed QA row. In particular, `POST /api/check-in` to the QA member with
+  `{memberId,reason,clientEventId}` MUST be `404/member_unknown` and leave no
+  attendance row for that event. Cross-tenant attempts never use an owner-link,
+  service role, SQL, a supplied tenant id, or a cleanup delete.
+
+  **Paid-period staging (not an A–D assertion).** Immediately after the
+  membership route succeeds, and before any no-show wait, the staged QA owner submits
+  `POST /api/payments` with `{memberId,membershipId,amountRupees:'125.00',method:'cash',
+  notes:'PILOT-009 initial paid period',idempotencyKey}`. It MUST create exactly
+  one paid INR receipt with caller-staff attribution and grant exactly one
+  initial period: `starts_on` is the current QA-local day, `ends_on` is that
+  day plus the captured membership duration, and the membership is active.
+  If the plan price cannot be represented by the deployed rupee input codec,
+  if the payment does not cross one full period, or if any date/status differs,
+  stop and retain the failed fixture; do not alter membership dates or status.
+  The runner then waits through at least `no_show_threshold_days + 1` completed
+  QA-local calendar days with no attendance. This is an unavoidable elapsed
+  time; a new paid membership cannot honestly demonstrate silent churn on the
+  day it is sold.
+
+  **A — absence detection.** Do not call
+  `public.run_no_show_scan_all()`, `app.run_no_show_scan`, or the manual Edge
+  Function as part of the run: each spans every gym. Instead, after the member
+  preflight is durable, wait for the deployed `pg_cron` nightly execution and
+  verify through scoped read-only QA facts that it opened exactly one case for
+  the marked member, with `status=open`, QA-local `opened_on`, the recorded
+  threshold, and no prior attendance. A second observed scheduled execution
+  MUST leave the same single live case rather than open another.
+
+  **B — contact and return.** The staged QA owner then posts the native follow-up
+  form to `POST /api/follow-ups` with exactly
+  `{caseId,channel:'call',outcome:'will_return',notes:'PILOT-009 follow-up',
+  nextAction:'Return visit',nextFollowUpAt:<future offset ISO instant>}`;
+  `correctsFollowUpId` is omitted. Assert one append-only follow-up attributed to
+  the QA staff id and a live `follow_up_due` case. Finally post
+  `POST /api/check-in` as the staged QA owner with `{memberId,reason:'PILOT-009 assisted
+  return',clientEventId}`. Assert one `attendance` row with source `front_desk`,
+  the QA member and caller staff attribution; the same case is closed with a
+  non-null return time; and its follow-up remains readable. This proves
+  ATT-005/006 and NSH-003/004/005 without backdating an attendance row or
+  manually inserting/modifying a case.
+
+  **C — external-money renewal.** In the same staged QA owner session, submit the
+  native payment form to `POST /api/payments` with `{memberId,membershipId,
+  amountRupees:'125.00',method:'cash',
+  notes:'PILOT-009 external renewal',idempotencyKey}`. Assert the second and
+  only renewal payment is `paid`, INR and exactly the captured integer plan
+  price in paise, has caller-staff attribution and a non-null Gymloop receipt
+  number, and has no provider identifiers. Assert its arrival advances the
+  already granted membership end date exactly once by the membership's captured
+  `duration_days`, without changing `starts_on`; it must not be treated as the
+  initial grant. Re-submit the byte-identical request only to assert the
+  documented possible-duplicate outcome and no third payment, receipt, audit,
+  or extension. `razorpay` is never sent and no provider charge, webhook, raw
+  card data, or raw UPI credential is used.
+
+  **D — manual add-on sale and fulfilment.** Submit JSON to
+  `POST /api/add-on-orders` as the staged QA owner:
+  `{memberId,productId,quantity:1,quoteVersion,trainerStaffId:null,
+  initialStartsAt:null,initialEndsAt:null,method:'upi',reason:null,
+  idempotencyKey}`. Assert `{ok:true,data}` identifies one order and one
+  arrived INR `12500`-paise manual payment; the order freezes the selected
+  quote/disclosure, is `paid` or `active` as returned by the command, and
+  reduces the marked product stock from one to zero exactly once. Replay that
+  exact body and require `replayed:true` with the same ids and no extra payment,
+  order, stock effect, or financial audit. Complete only that returned order
+  through `POST /api/add-on-orders/{orderId}/complete` with `{}` and assert
+  `replayed:false` plus terminal `completed`; replay `{}` and require
+  `replayed:true` with no further state or audit. This is a product fulfilment,
+  not a PT session, discount, refund, coupon, or Razorpay journey.
+
+  **Evidence, retirement, and recovery.** A final caller-scoped QA read SHALL
+  enumerate exactly the marked member's single membership, case, follow-up,
+  attendance, initial paid-period payment, manual renewal payment, add-on
+  order/payment and relevant audit
+  events; the Iron session SHALL enumerate none of those ids. The redacted
+  ledger records opaque ids, HTTP statuses/envelopes, request/event keys only
+  as non-reversible labels, count-before/count-after assertions, plan-duration
+  snapshot, money as decimal paise strings, cron observation time, and all
+  refusal results—never passwords, cookies, access tokens, phone/email, or
+  raw keys. Commit only its human-readable redacted summary under
+  `docs/evidence/phase8/` after success.
+
+  In `finally`, the authenticated super-admin invokes the deployed PILOT-008
+  owner-deactivation adapter only for the manifest's QA staff/user/tenant ids,
+  then uses the correctly linked Supabase CLI Management API for read-only
+  verification of zero sessions and performs a fresh password sign-in proving
+  no Gymloop role, tenant, or staff claims. Retain every marked business,
+  money, attendance, follow-up and audit row and the inactive Auth/staff
+  history. If any preflight, cron observation, assertion, or retirement fails,
+  stop immediately, mark the run failed, preserve the manifest and evidence,
+  and use only its exact ids for guarded operator recovery; never delete rows,
+  rerun a broad scan, or issue a blanket tenant cleanup.
+
 ## Usable core loop
 
 - **PILOT-003** BEFORE first-customer access, independently authenticated

@@ -1,5 +1,37 @@
 # Current owner-authorized campaign goal
 
+## 2026-09-22 credential verification after owner reset
+
+The owner reset the Gymloop project database password and updated `.env.local`.
+The orchestration session copied that value to GitHub's
+`SUPABASE_DB_PASSWORD` secret without displaying it, then reran DB workflow
+`35700941666` (attempt 2). The `migrate` job still failed before applying the
+PILOT-008 migration. The direct pooler host was reachable on port 5432, and
+Supabase's Supavisor log for the same attempt reported `password authentication
+failed for user "postgres"` at 2026-09-22 07:57:11 UTC (event
+`c316c9ae-6d31-49e6-a0ad-1afa4d4f4629`). A separately percent-encoded,
+read-only CLI dry-run failed too, so do not treat URL-special-character
+encoding as a verified fix. The owner has been asked to re-check/reset the
+credential in the dashboard and update `.env.local` without sending it in
+chat; after that, sync GitHub and make one read-only connection check before
+rerunning CI. This supersedes the earlier uncertainty about network versus
+password for these particular attempts. No live two-owner mutation test or
+manual migration is authorized while the migration remains unapplied.
+
+Later in the same session, the owner disclosed the temporary password in chat.
+The local `.env.local` line had the value unquoted and its trailing `#` was
+parsed as a comment; it has now been quoted without printing the value, and
+the full value was re-synchronized to GitHub. A separate PostgreSQL client
+with Supabase's published CA, TLS certificate verification and the literal
+full value reached the session pooler but received SQLSTATE `28P01` at
+approximately 08:09 UTC. This rules out the CLI or dotenv truncation as the
+sole remaining explanation, while the pooler may briefly cache old credentials
+after a reset. The owner must complete/verify a fresh reset for this exact
+Gymloop project and save the new value locally without posting it; then we
+recheck and sync GitHub. Because the current value appeared in chat, another
+rotation and old-value rejection are mandatory before any real customer access.
+Do not rerun CI until a read-only direct connection succeeds.
+
 ## 2026-09-22 active five-gym GO work
 
 Do not stop at the previous bounded SQL verdict. PILOT-007/008 now have a

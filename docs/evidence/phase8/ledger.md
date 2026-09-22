@@ -25,6 +25,39 @@ This is not a manual-payment defect, but it blocks migration-based Phase 8 work.
 The owner deferred exact Play-installed Android acceptance to the final
 prelaunch step, not to Passed.
 
+**2026-09-22 pilot deployment check:** PILOT-007/008 test-first code is on
+`main`; CI `35701635614` passed all general gates after the CLI dependency
+correction. DB workflow `35700941666` attempt 2 failed in `migrate` before
+applying the owner-deactivation migration; schema drift, pgTAP and seed were
+therefore skipped. The owner reset the project database password and saved it
+locally; the session synchronized that value to GitHub without logging it.
+The session pooler accepted TCP on port 5432 but Supavisor event
+`c316c9ae-6d31-49e6-a0ad-1afa4d4f4629` at 07:57:11 UTC reported
+`password authentication failed for user "postgres"`. An encoded-URL
+read-only CLI dry-run also failed. The current value is not verified; no
+migration or live PILOT-007 fixture was applied. The owner has been asked to
+recheck the reset value without transmitting it in chat. Privacy, backup,
+alert receipt, A–D two-gym journeys and exact Play-artifact acceptance still
+remain open; the verdict is not five-customer GO.
+
+At approximately 08:09 UTC the session corrected `.env.local` quoting, which
+had treated the trailing `#` as a comment, and synchronized the full value to
+GitHub. A separate PostgreSQL client with the published Supabase CA and strict
+TLS verification reached the same session pooler but received SQLSTATE
+`28P01`. This does not prove a CLI encoding fault. Supabase documents a short
+post-reset credential-cache window, but this attempt still did not verify the
+new credential. The owner was asked to confirm/reset the exact Gymloop project
+password without posting it again. The previously disclosed temporary value
+must be rotated and rejected before any customer is invited.
+
+Read-only linked-project queries on 2026-09-22 confirmed the shared project's
+`cron.job` entry `no-show-scan-nightly` is active at `0 1 * * *` and its runs
+at 01:00 UTC on September 20, 21 and 22 each reported `succeeded` in
+`cron.job_run_details`. This proves the scheduler is firing, not that the QA
+gym currently has a paid, absent member: QA has no plan/membership/case yet.
+PILOT-009 therefore stages a real paid period and waits through the gym's
+absence threshold instead of manufacturing a case or backdating attendance.
+
 | Requirement | Status | Commit/build, environment and time | Command or procedure and fetchable evidence | Blocker, owner, required evidence and next safe step |
 |---|---|---|---|---|
 | HARD-001 | **Partial** | Phase 7 closeout `d1888c6`; Phase 8 contract `c768dff`; repository, 2026-09-20 | Procedure: review each HARD row for status, identity, time, result, artifact and dependency. This ledger is the current artifact. | Owner: Phase 8 orchestrator. Complete only after every row links exact executed commands/procedures and results; keep skipped/blocked/external visible. |
