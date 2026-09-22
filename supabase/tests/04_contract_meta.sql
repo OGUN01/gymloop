@@ -863,7 +863,8 @@ select is_empty(
                           ('public.onboard_gym(uuid, text, text, text, public.gym_preset, text, text, text)', 'v'),
                          ('public.set_gym_status(uuid, public.organization_status, public.organization_status, text, uuid)', 'v'),
                          ('public.set_gym_tier(uuid, public.plan_tier, public.plan_tier, uuid)', 'v'),
-                         ('public.link_gym_owner(uuid, uuid, uuid, text, uuid)', 'v')
+                         ('public.link_gym_owner(uuid, uuid, uuid, text, uuid)', 'v'),
+                         ('public.deactivate_gym_owner(uuid, uuid, uuid, uuid)', 'v')
                        ) allowed(signature, volatility)
                        where p.oid = to_regprocedure(allowed.signature)
                          and p.provolatile = allowed.volatility))))$$,

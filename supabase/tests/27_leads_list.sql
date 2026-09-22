@@ -18,6 +18,14 @@ select plan(37);
 -- the tie. Gym B owns exactly one lead.
 -- ---------------------------------------------------------------------------
 
+-- The shared demo database may gain legitimate leads between runs. Preserve
+-- the pre-fixture population so platform-role totals stay relative to this
+-- test's nine rows rather than pinning an unrelated absolute count.
+create temp table lead_baseline as
+select count(*)::bigint as lead_count
+from public.leads;
+grant select on lead_baseline to authenticated;
+
 insert into public.organizations(id,name,gym_code,status,timezone,currency) values
  ('59000000-0000-4000-8000-000000000001','Leads List A','LEL59A','active','Asia/Kolkata','INR'),
  ('59000000-0000-4000-8000-000000000002','Leads List B','LEL59B','active','Asia/Kolkata','INR');
@@ -161,13 +169,10 @@ select set_config('request.jwt.claims','{"sub":"59000000-0000-4000-8000-00000000
 select throws_ok($$select public.list_leads(null,null,null,null,null,null,null,null)$$,'42501',null,'a preview identity cannot read the lead list');
 select set_config('request.jwt.claims','{"sub":"59000000-0000-4000-8000-000000000909","role":"authenticated","app_role":"platform_support"}',true);
 select throws_ok($$select public.list_leads(null,null,null,null,null,null,null,null)$$,'42501',null,'platform support cannot read the lead list through the gym RPC');
--- Spec amendment: the count pins the whole cross-gym population visible to the
--- platform role, which includes the eight seeded demo-gym leads alongside this
--- suite's nine fixture rows; the original draft counted only the fixtures.
-select results_eq($$select count(*) from public.leads$$,$$select 17::bigint$$,'platform support keeps its cross-gym lead read under RLS');
+select results_eq($$select count(*) from public.leads$$,$$select lead_count + (select count(*) from public.leads where tenant_id in ('59000000-0000-4000-8000-000000000001','59000000-0000-4000-8000-000000000002')) from lead_baseline$$,'platform support keeps its cross-gym lead read under RLS');
 select set_config('request.jwt.claims','{"sub":"59000000-0000-4000-8000-00000000090a","role":"authenticated","app_role":"super_admin"}',true);
 select throws_ok($$select public.list_leads(null,null,null,null,null,null,null,null)$$,'42501',null,'super admin cannot read the lead list through the gym RPC');
-select results_eq($$select count(*) from public.leads$$,$$select 17::bigint$$,'super admin keeps its existing direct lead authority');
+select results_eq($$select count(*) from public.leads$$,$$select lead_count + (select count(*) from public.leads where tenant_id in ('59000000-0000-4000-8000-000000000001','59000000-0000-4000-8000-000000000002')) from lead_baseline$$,'super admin keeps its existing direct lead authority');
 set local role anon;
 select throws_ok($$select public.list_leads(null,null,null,null,null,null,null,null)$$,'42501',null,'an anonymous caller cannot read the lead list');
 

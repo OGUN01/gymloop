@@ -93,7 +93,13 @@ DECLARE
   c record;
 BEGIN
   SELECT * INTO c FROM pilot_deactivation_context;
-  PERFORM public.link_gym_owner(c.tenant_id, c.owner_staff_id, NULL, 'pilot-deactivation-owner@example.test', c.request_key);
+  PERFORM public.link_gym_owner(
+    c.tenant_id,
+    c.owner_staff_id,
+    NULL,
+    'pilot-deactivation-owner@example.test',
+    '30000000-0000-0000-0000-000000000020'
+  );
 END
 $$;
 

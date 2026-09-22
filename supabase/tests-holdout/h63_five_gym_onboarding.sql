@@ -155,6 +155,8 @@ SELECT throws_ok(
     (SELECT enumlabel::public.gym_preset FROM pg_enum WHERE enumtypid='public.gym_preset'::regtype ORDER BY enumsortorder LIMIT 1),
     'H63 Owner 1', 'h63-owner-1@gymloop.invalid', 'h63-onboard-1'
   )$$,
+  'GL068',
+  'Idempotency conflict',
   'reused onboarding key with changed facts is refused'
 );
 
@@ -164,41 +166,31 @@ SELECT is((SELECT count(*) FROM public.audit_log
   WHERE request_key IN (SELECT ('63000000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid FROM generate_series(1, 5) AS n)), 5::bigint,
   'changed-facts conflict creates no audit event');
 
-DO $$
-DECLARE
-  h63_result text;
-BEGIN
-  FOR h63_result IN SELECT * FROM finish() LOOP
-    IF h63_result LIKE 'not ok%' THEN
-      RAISE EXCEPTION 'holdout assertion failed: %', h63_result;
-    END IF;
-  END LOOP;
-END;
-$$;
+SELECT * FROM finish();
 ROLLBACK;
 
 BEGIN;
-SELECT plan(5);
-SELECT is((SELECT count(*) FROM public.organizations WHERE name LIKE 'H63 Synthetic Gym %'), 0::bigint,
-  'postflight leaves no synthetic organization');
-SELECT is((SELECT count(*) FROM public.organization_settings s JOIN public.organizations o ON o.id=s.tenant_id
-  WHERE o.name LIKE 'H63 Synthetic Gym %'), 0::bigint, 'postflight leaves no synthetic settings');
-SELECT is((SELECT count(*) FROM public.branches b JOIN public.organizations o ON o.id=b.tenant_id
-  WHERE o.name LIKE 'H63 Synthetic Gym %'), 0::bigint, 'postflight leaves no synthetic branch');
-SELECT is((SELECT count(*) FROM public.audit_log
-  WHERE request_key IN (SELECT ('63000000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid FROM generate_series(1, 5) AS n)), 0::bigint,
-  'postflight leaves no synthetic audit event');
-SELECT is((SELECT count(*) FROM auth.users WHERE id='63000000-0000-4000-8000-000000000063'::uuid), 0::bigint,
-  'postflight leaves no synthetic Auth identity');
 DO $$
-DECLARE
-  h63_result text;
 BEGIN
-  FOR h63_result IN SELECT * FROM finish() LOOP
-    IF h63_result LIKE 'not ok%' THEN
-      RAISE EXCEPTION 'holdout assertion failed: %', h63_result;
-    END IF;
-  END LOOP;
+  IF (SELECT count(*) FROM public.organizations WHERE name LIKE 'H63 Synthetic Gym %') <> 0 THEN
+    RAISE EXCEPTION 'PILOT-006 postflight retained a synthetic organization';
+  END IF;
+  IF (SELECT count(*) FROM public.organization_settings s JOIN public.organizations o ON o.id = s.tenant_id
+      WHERE o.name LIKE 'H63 Synthetic Gym %') <> 0 THEN
+    RAISE EXCEPTION 'PILOT-006 postflight retained synthetic settings';
+  END IF;
+  IF (SELECT count(*) FROM public.branches b JOIN public.organizations o ON o.id = b.tenant_id
+      WHERE o.name LIKE 'H63 Synthetic Gym %') <> 0 THEN
+    RAISE EXCEPTION 'PILOT-006 postflight retained a synthetic branch';
+  END IF;
+  IF (SELECT count(*) FROM public.audit_log
+      WHERE request_key IN (SELECT ('63000000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid
+                            FROM generate_series(1, 5) AS n)) <> 0 THEN
+    RAISE EXCEPTION 'PILOT-006 postflight retained a synthetic audit event';
+  END IF;
+  IF (SELECT count(*) FROM auth.users WHERE id = '63000000-0000-4000-8000-000000000063'::uuid) <> 0 THEN
+    RAISE EXCEPTION 'PILOT-006 postflight retained a synthetic Auth identity';
+  END IF;
 END;
 $$;
 ROLLBACK;
