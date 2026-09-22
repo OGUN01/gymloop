@@ -101,6 +101,7 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
       const targetMembers = await superAdmin.from('members').select('id,tenant_id').in('id', [qaMemberId, ironMemberId]);
       expect(targetMembers.error).toBeNull();
       expect(targetMembers.data?.map(({ id }) => id).sort()).toEqual([ironMemberId, qaMemberId].sort());
+      expect(readFileSync('supabase/.temp/project-ref', 'utf8').trim()).toBe(expectedProjectRef);
 
       platformContext = await browser.newContext({ baseURL });
       const platformPage = await platformContext.newPage();
@@ -206,6 +207,7 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
     } finally {
       if (staffId) {
         assertUuid(userId, 'synthetic Auth user id for retirement');
+        const deactivationKey = crypto.randomUUID();
         const currentStaff = await superAdmin.from('staff').select('id,user_id,is_active').eq('tenant_id', qaTenantId).eq('id', staffId).maybeSingle();
         expect(currentStaff.error).toBeNull();
         expect(currentStaff.data?.id).toBe(staffId);
@@ -217,13 +219,20 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
           expect(directRetirement.data?.id).toBe(staffId);
         } else {
           expect(currentStaff.data?.user_id).toBe(userId);
-          const deactivationKey = crypto.randomUUID();
           const retirement = await platformContext?.pages()[0]?.request.post(`/api/platform/gyms/${qaTenantId}/owner-deactivation`, {
             data: { ownerStaffId: staffId, expectedUserId: userId, requestKey: deactivationKey },
           });
           expect(retirement, 'PILOT-008 deactivation response').toBeTruthy();
           expect(retirement?.status()).toBe(200);
-          await expect(retirement?.json()).resolves.toMatchObject<ApiSuccess<Record<string, unknown>>>({ ok: true });
+          await expect(retirement?.json()).resolves.toEqual<ApiSuccess<Record<string, unknown>>>({
+            ok: true,
+            data: { tenantId: qaTenantId, ownerStaffId: staffId, userId, isActive: false },
+          });
+          const deactivationAudit = await admin.from('audit_log').select('id', { count: 'exact', head: true })
+            .eq('tenant_id', qaTenantId).eq('record_id', staffId)
+            .eq('action', 'staff.owner_deactivated').eq('request_key', deactivationKey);
+          expect(deactivationAudit.error).toBeNull();
+          expect(deactivationAudit.count).toBe(1);
         }
         const retiredStaff = await superAdmin.from('staff').select('id,is_active').eq('tenant_id', qaTenantId).eq('id', staffId).single();
         expect(retiredStaff.error).toBeNull();
