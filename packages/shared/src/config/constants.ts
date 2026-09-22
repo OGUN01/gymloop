@@ -132,6 +132,9 @@ export const PLAN_TIER_PRICES_PAISE = {
 
 export const SUPABASE_REGION = 'ap-south-1';
 
+/** Maximum duration for the manual PILOT-009 browser acceptance journey. */
+export const PILOT_STAGE_TIMEOUT_MS = 600_000;
+
 /**
  * The gate code a member scans to check in (ATT-003) — how much randomness it
  * carries, and how long it stays scannable.

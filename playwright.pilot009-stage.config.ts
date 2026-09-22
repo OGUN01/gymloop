@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { clientEnv, pilotAcceptanceEnv, playwrightEnv, serverEnv } from '@gymloop/shared';
+import { clientEnv, PILOT_STAGE_TIMEOUT_MS, pilotAcceptanceEnv, playwrightEnv, serverEnv } from '@gymloop/shared';
 
 const pilot = pilotAcceptanceEnv();
 const client = clientEnv();
@@ -26,6 +26,7 @@ export default defineConfig({
   fullyParallel: false,
   preserveOutput: 'never',
   workers: 1,
+  timeout: PILOT_STAGE_TIMEOUT_MS,
   use: {
     baseURL,
     screenshot: 'off',
