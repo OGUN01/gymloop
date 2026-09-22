@@ -1,5 +1,23 @@
 # Current owner-authorized campaign goal
 
+## Current status — 2026-09-22 12:55 UTC
+
+PILOT-009 live staging is **NO-GO** after a third narrow Sol critic rejection
+of the same evidence dimensions. The unrun, uncommitted manual harness is
+preserved at `tests/manual/phase8-pilot009-stage.spec.ts` and
+`playwright.pilot009-stage.config.ts`; no new Auth user, plan, member or
+payment was created. Its identity/recovery and caller-session checks improved,
+but its audit postflight filters on a payment request key that the payment
+audit trigger does not store, so a new audit could be missed. Its redacted
+ledger also lacks the exact denied check-in and owner-link envelopes and safe
+redirect destinations required by the frozen acceptance. AGENTS.md requires
+human contract arbitration after three failures on one dimension. Do not run
+or commit the harness as accepted until the owner resolves the strict audit
+predicate and stage-ledger content; do not lower the bar. Separately, the
+existing Play Developer account is accessible and `in.gymloop.mobile` is
+available, but app creation awaits the account holder's policy/export-law
+certifications. The full five-gym/Phase 8 verdict remains NO-GO.
+
 ## Current status — 2026-09-22 12:28 UTC
 
 The deployed two-owner slice remains bounded GO, not five-gym GO. PILOT-009

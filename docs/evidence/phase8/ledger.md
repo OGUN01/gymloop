@@ -1,5 +1,20 @@
 # Phase 8 evidence ledger
 
+**2026-09-22 PILOT-009 staging stop line:** ADR-149 and the PILOT-009
+acceptance contract were clarified in `285ef20`; CI, holdout and test
+immutability passed. Vercel's `gymloop-phi.vercel.app` alias resolved to Ready
+production deployment `gymloop-9crqjpiwh-ogun01s-projects.vercel.app`, and
+GitHub deployment `6590662182` tied that URL to `285ef20`. Read-only linked
+preflight found QA threshold 7, zero QA plans, one active `0 1 * * *` nightly
+job with a recent successful run, and one default QA branch. An uncommitted
+manual staging harness was statically checked but **never live-run**. Three
+narrow Sol reviews still returned NO-GO on evidence: its foreign-payment audit
+query uses `request_key`, which the payment audit trigger does not write; the
+ledger omits asserted error/success envelopes and redirect destinations.
+No PILOT-009 Auth user, plan, member, membership, or payment was created.
+Per `AGENTS.md`, the repeated dimension is escalated to the owner, not
+weakened or retried live. HARD-003 A–D remains Partial; this is not pilot GO.
+
 Updated 2026-09-22. Status meanings: **Passed** has fetchable evidence for the
 full stated requirement; **Partial** has real evidence but an acceptance part is
 missing; **Blocked** cannot proceed safely until the named prerequisite exists;
