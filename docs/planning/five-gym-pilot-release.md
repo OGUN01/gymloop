@@ -78,10 +78,13 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   `organization.tenantId` and `ownerStaffId`; the latter identifies the active,
   unlinked owner row. Supply the target owner's exact synthetic Auth email to
   `public.link_gym_owner` as specified above. Assert the resulting owner link,
-  one keyed audit and replay/refusal. The hook is executable only by
-  `supabase_auth_admin`: switch with `SET LOCAL ROLE supabase_auth_admin`
-  before each test-only hook invocation, then return to `authenticated` before
-  RLS or platform-command assertions. Obtain fresh claims by calling
+  one keyed audit and replay/refusal. The linked Management API SQL session
+  is `postgres`, which has hook execute privilege but cannot `SET ROLE` to
+  `supabase_auth_admin`; switch back to `SET LOCAL ROLE postgres` before each
+  **test-only** hook invocation, then return to `authenticated` before RLS or
+  platform-command assertions. Production Auth calls this hook through its
+  `supabase_auth_admin` role, not through this SQL fixture. Obtain fresh claims
+  by calling
   `app.custom_access_token_hook(jsonb_build_object('user_id', owner_user_id,
   'claims', jsonb_build_object('sub', owner_user_id, 'role', 'authenticated')))`:
   the returned `claims` must include `app_role='gym_owner'`, that tenant id,
@@ -90,7 +93,7 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   `request.jwt.claims` to the returned `claims` and remain `authenticated`;
   reset to the platform actor's claims before an authorized deactivation via
   `UPDATE public.staff SET is_active=false` for the linked row. Switch to
-  `supabase_auth_admin` for the fresh hook invocation; it must then omit
+  `postgres` for the fresh test-only hook invocation; it must then omit
   Gymloop role/tenant/staff claims. End in `ROLLBACK`
   and assert postflight absence of all synthetic IDs. This SQL fixture validates
   the command/claim/RLS contract only; the deployed acceptance must separately
