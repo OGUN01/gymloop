@@ -86,7 +86,7 @@ logical-export destination, recovery ownership and retention/access rules. Do
 not place an unencrypted dump in the repository or treat an export as proof of
 a successful restore drill.
 
-## Free-project logical recovery track for the five-gym pilot
+## Cloud Supabase logical recovery track for the five-gym pilot
 
 The owner has selected the existing shared project for a controlled five-gym
 pilot and deferred a paid plan. [Supabase's backup guidance](https://supabase.com/docs/guides/platform/backups)
@@ -97,13 +97,13 @@ restore over the live project.
 
 Before the first customer record is accepted, the production owner must:
 
-1. Repair and verify the CLI database credential without printing it in a
+1. Verify the CLI database credential without printing it in a
    command, dry-run output, shell transcript or evidence file. Record a
-   successful connection and the linked project reference; the currently
-   failing CI migration job makes this a release stop line.
-2. Select an encrypted, access-controlled, off-device/off-project destination
-   with an identified recovery operator, key custodian, retention period and
-   scheduled export cadence. A local file or the same Supabase project is not
+   successful connection and the linked project reference before the export.
+2. Select an encrypted, access-controlled destination in a **distinct Cloud
+   Supabase project** with an identified recovery operator, key custodian,
+   retention period and scheduled export cadence. A local file or the same
+   Supabase project is not
    an off-site backup. Protect the encryption key separately from the export.
 3. Use the [official CLI backup sequence](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)
    to capture roles, schema and data, plus the migration history and any
@@ -112,13 +112,15 @@ Before the first customer record is accepted, the production owner must:
    credentials in Git. Inventory R2/Storage objects, Auth configuration,
    Edge secrets and external integrations separately: a SQL dump alone is not
    a complete application recovery point.
-4. Restore a selected encrypted export into a **disposable, isolated local
-   Postgres environment** or other independently identified recovery target;
-   positively verify that the target is not the shared project. Validate
-   expected table counts, migration identity, one attendance/payment/audit
-   reference, two-tenant read isolation and application startup. Record the
-   actual recovery-point age and elapsed restore time, then securely remove
-   the disposable copy. A dump that has never been restored is unproven.
+4. Restore a selected encrypted export into a **disposable, isolated Cloud
+   Supabase project** with a different project reference, separate credentials
+   and no customer traffic; positively verify that the target is not the
+   shared project. Validate expected table counts, migration identity, one
+   attendance/payment/audit reference, two-tenant read isolation and
+   application startup. Record the
+   actual recovery-point age and elapsed restore time, then securely remove or
+   quarantine the restored copy under the approved handling plan. A dump that
+   has never been restored is unproven.
 5. Rehearse the export and restore once after every material schema/auth change
    and on the scheduled cadence. Failed exports, missing objects or a failed
    validation halt new customer onboarding until repaired.
@@ -130,23 +132,21 @@ recoverability risk after execution, but it cannot be described as Supabase
 PITR or make the frozen cloud-restore Gate 29 pass.
 
 **2026-09-22 preflight correction:** the linked password now authenticates,
-but that alone does not create a recovery point. Once Docker is available,
-the Supabase CLI could host a disposable **local Supabase stack** for the drill;
-a bare Postgres container may not reproduce Auth, Storage, extensions or
-project roles. Before export, verify the CLI dump scope for roles, schema and
-data, and record the source project ref. Decrypt/import only after checking
-the local target's host, port and identity are distinct from the shared Cloud
-project. The encrypted archive may use a dedicated recovery-only prefix in
-R2 only after recovery-specific access, separate encryption-key custody,
-retention and a Privacy Lead-approved handling window are established. The
-existing media credential is not by itself a least-privilege backup principal.
+but that alone does not create a recovery point. The owner requires Cloud
+Supabase only for the recovery target; do not use a local Supabase stack,
+Docker or local Postgres for this drill. Before export, verify the CLI dump
+scope for roles, schema and data, and record the source project ref. Before
+decrypting or importing, record the distinct Cloud recovery project's ref,
+access controls and approved handling window. A separate Cloud Supabase
+archive location and encryption-key custody must be approved before storing
+any production-derived data; the existing media credential is not a backup
+principal.
 Inventory R2 media object bytes and Auth/provider/SMTP/JWT configuration
 separately; the SQL dump does not recover those. No dump, upload, restore or
 cleanup has yet been executed, and the cloud PITR gate remains unpassed.
 
-**2026-09-22 local-target availability recheck:** `docker info` could not
-connect to `dockerDesktopLinuxEngine`; the local Docker engine is not running.
-The local Supabase stack is not a currently provisioned recovery environment.
-Before any export or restore drill, verify a distinct disposable target is
-actually running and record its identity and access controls. The missing
-local target leaves the recovery track unperformed and gate 29 open.
+No distinct Cloud recovery project, protected archive or restored validation
+artifact has been evidenced. A logical export and Cloud import would prove
+only that logical recovery path; it would not prove the frozen provider PITR
+drill unless the provider operation and its validation actually occur. Gate 29
+remains open.

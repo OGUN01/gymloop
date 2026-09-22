@@ -1695,6 +1695,8 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 **ADR-157 — Keep the manual continuation isolated from other Playwright modules.** PILOT-009's stage, product supplement, observer and continuation each register a test at module load; importing a helper from another manual test would unexpectedly register its live-writing case. The continuation therefore keeps its small private DPAPI, manifest and browser helpers local, following ADR-150/153. They are not exported production utilities, and the exact-target guard plus date/manifest gates prevent an accidental shared-project run.
 
+**ADR-158 — Cloud Supabase is the only Phase 8 recovery drill target (owner direction, 2026-09-22).** The owner rejected the proposed local Docker/Postgres/Supabase restore path. The logical recovery rehearsal must positively identify a separate, access-restricted, disposable Cloud Supabase project before any production-derived export is imported. No linked-project reset or same-project restore is permitted. A logical Cloud import remains distinct from the frozen provider PITR drill and cannot pass gate 29 without its own real provider operation and validation. No recovery project, backup archive or drill is claimed by this decision.
+
 ## Taken without the product owner during the Phase 1 overnight run — confirm or reverse
 
 The owner authorised the Phase 1 run end to end and was asleep for it, with a standing instruction: where a decision is genuinely the owner's, pick the safest default, record it, and carry on. Each of these is that. None is load-bearing enough that reversing it later costs more than one migration or one commit, and each names what reversing it would take.

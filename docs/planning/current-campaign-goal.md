@@ -1,5 +1,14 @@
 # Current owner-authorized campaign goal
 
+## 2026-09-22 recovery target correction
+
+The owner requires **Cloud Supabase only** for recovery work. No local Docker,
+local Postgres or local Supabase restore is part of the Phase 8 plan. A drill
+must use a separately identified, disposable Cloud Supabase project and the
+approval, data-handling and validation boundaries in
+`docs/runbooks/backup-and-restore.md`. This changes the target choice, not the
+unperformed restore status or the frozen PITR gate.
+
 ## 2026-09-22 bounded continuation — 2% weekly usage
 
 The owner grants a further 2% of the weekly limit to pursue the existing
@@ -465,10 +474,10 @@ The next execution slices and their exit evidence are:
    Obtain qualified legal/DPA review before claiming statutory readiness.
 3. **HARD-007, recoverability:** inventory Auth, database and Storage recovery;
    create a protected logical backup if the available tooling can do so
-   without exposing personal data, then restore into a disposable local or
-   otherwise isolated target and verify row/schema checks. Do not reset the
+   without exposing personal data, then restore into a distinct, disposable
+   Cloud Supabase project and verify row/schema checks. Do not reset the
    linked project. This can prove an operator-run logical recovery path but
-   cannot substitute for unavailable provider PITR or cloud restore evidence.
+   cannot substitute for an unperformed provider PITR operation and validation.
 4. **HARD-004, load:** run deterministic fixture and k6 preflight simulations
    without a 50,000-row persistent write to the linked project. A bounded
    same-project functional spike may test correctness only after exact

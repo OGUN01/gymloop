@@ -1,5 +1,13 @@
 # Phase 8 evidence ledger
 
+**2026-09-22 recovery target correction:** the owner directed Cloud Supabase
+only for the Phase 8 recovery drill (ADR-158). The earlier local
+Docker/Postgres/Supabase path is withdrawn. The required target is a distinct,
+disposable Cloud Supabase project with approved access and handling; none has
+been provisioned or tested. The historical local-tool preflight below remains
+an observation, not an active restore plan. No export, Cloud import or provider
+PITR restore has run, so HARD-007 and gate 29 remain open.
+
 **2026-09-22 16:45 UTC five-gym recheck:** `main` at `17f0dbc` has passing
 [CI](https://github.com/OGUN01/gymloop/actions/runs/35755140737),
 [Holdout](https://github.com/OGUN01/gymloop/actions/runs/35755140815), and
