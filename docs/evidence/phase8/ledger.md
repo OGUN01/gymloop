@@ -95,6 +95,13 @@ gym currently has a paid, absent member: QA has no plan/membership/case yet.
 PILOT-009 therefore stages a real paid period and waits through the gym's
 absence threshold instead of manufacturing a case or backdating attendance.
 
+**HARD-003 two-owner update:** the dated 2026-09-21 table row below describes
+the earlier checkpoint. The 2026-09-22 guarded PILOT-007/008 run now supplies
+two independently signed-in gym owners and reciprocal direct check-in denials
+with zero attendance effects; its exact evidence is recorded below. HARD-003
+remains Partial because the deployed A–D money, return and add-on journeys
+under PILOT-009 have not run.
+
 | Requirement | Status | Commit/build, environment and time | Command or procedure and fetchable evidence | Blocker, owner, required evidence and next safe step |
 |---|---|---|---|---|
 | HARD-001 | **Partial** | Phase 7 closeout `d1888c6`; Phase 8 contract `c768dff`; repository, 2026-09-20 | Procedure: review each HARD row for status, identity, time, result, artifact and dependency. This ledger is the current artifact. | Owner: Phase 8 orchestrator. Complete only after every row links exact executed commands/procedures and results; keep skipped/blocked/external visible. |
@@ -984,6 +991,104 @@ not five paying customers. The QA gym has one member and no plan, membership,
 add-on offer or open no-show case, so a full A–D deployed journey needs
 bounded owner-session QA fixture preparation after the identity path is live.
 None of these preparation checks converts the pilot verdict to GO.
+
+On 2026-09-22 the exact-project database credential was rotated without
+printing or committing it, and CI applied the PILOT-008 deactivation migration
+plus its linked-owner direct-update guard. DB run
+[`35712196635`](https://github.com/OGUN01/gymloop/actions/runs/35712196635)
+passed migration, rollback lint and schema drift but failed full pgTAP in four
+Phase-8 fixtures. A fresh blind critic found no observed money or security
+assertion mismatch: the fixtures still attempted the newly forbidden direct
+owner update or read `auth.sessions` under the unprivileged test role, aborting
+before their remaining assertions. Independent visible and holdout authors
+repaired only those fixture paths in test-only commit `913cdc0`, preserving
+the `GL049` refusal and checking retirement through the keyed deactivation
+command. Focused linked SQL executions reached their last TAP results at
+visible **23/23** and **30/30**, holdout **24/24** and **17/17**, with no
+synthetic holdout residue; this focused path does not itself replace the full
+pgTAP harness. A fresh Sol critic returned GO on the holdout repair without
+disclosing its contents to the implementation path. General CI, holdout and
+test immutability for `913cdc0` passed, and
+[DB run `35717130209`](https://github.com/OGUN01/gymloop/actions/runs/35717130209)
+passed **all five jobs**: migration, rollback lint, schema drift, full pgTAP
+and seed dry-run.
+
+The guarded deployed PILOT-007/008 run against
+`https://gymloop-phi.vercel.app` passed **1/1** in 28.6 seconds after a
+test-only correction to its in-memory Auth fixture password (`1e7c6e2`).
+The initial attempt stopped before any write because the generated password
+exceeded Supabase Auth's limit; a linked read-only postflight found zero recent
+synthetic pilot users. The successful run created one marked QA owner, linked
+it through the real super-admin route, verified fresh QA owner claims and its
+keyed link audit, and independently signed in the Iron Box owner. Caller-scoped
+member reads showed each owner only its own row; both foreign check-in POSTs
+returned `404/member_unknown` and an attendance postflight found zero rows
+for their event keys. The authenticated deactivation route returned 200, the
+exact staff row became inactive, one keyed retirement audit was present, and
+the command revoked all target Auth sessions. Fresh password sign-in landed
+outside Gymloop with no role, tenant or staff claims.
+
+The test's two deliberate *post-retirement* sign-ins then created two new
+unprivileged Auth refresh sessions. An independent linked postflight verified
+the exact user was a marked `@gymloop.test` synthetic identity tied only to
+the inactive QA staff row; an exact-ID guarded CLI cleanup removed those two
+sessions without deleting the Auth user, staff or audit history. Final
+read-only counts were **zero sessions, one inactive staff row, one link audit
+and one deactivation audit**. The local operator recovery manifest is retained
+only under gitignored `test-results/`; it must not be committed or quoted.
+The Playwright JSON attachment existed during execution but the line reporter
+did not persist its body, so the exact foreign event keys are not a durable
+artifact from this run. Test-only commit `79ed541` makes future runs persist
+the redacted ledger and sign out the fresh no-claim sessions; its new cleanup
+path initially passed focused lint/collection. This was an **intermediate**
+runtime pass, not yet the durable PILOT-007/008 evidence closeout.
+
+The first durable-ledger rerun (`415901d`) passed 1/1 with zero final sessions,
+but a fresh Sol critic found that its ledger omitted the exact HTTP envelopes,
+before/after counts and deactivation audit id. The test-only repair `76e6035`
+added those fields and moved every new pre-retirement read into the outer
+`try`, so a read failure cannot skip the `finally` deactivation attempt. That
+attempt stopped **before any synthetic write** when the deployed super-admin
+browser sign-in did not reach its destination within the default five-second
+assertion window. Commit `f5487eb` replaced the short check with an awaited
+destination and clears a password field on failure. Its next run created and
+retired one synthetic owner and revoked sessions at the deactivation point,
+but ended red with one session created by an unsettled *post-retirement*
+browser sign-in. The exact manifest identity was verified as a marked
+`@gymloop.test` Auth user linked to one inactive QA owner with one link and
+one deactivation audit; a guarded linked-CLI operation removed only that one
+synthetic refresh session, and a separate read confirmed zero. The generated
+failure snapshot was removed because it contained test input, including a
+demo credential; that credential remains a pre-customer rotation item. No
+financial, attendance, staff, Auth-user or audit history was deleted.
+
+Commit `cdaffe1` waits for the retired browser's `/not-linked` destination
+before SDK sign-out, closing that race. The guarded deployed run then passed
+**1/1 in 32.9 seconds** with `PILOT_SHARED_PROJECT_ACCEPTANCE` and
+`PLAYWRIGHT_BASE_URL` explicitly set to the frozen shared-project and public
+origin values, using `node --env-file-if-exists=.env.local
+./node_modules/@playwright/test/cli.js test
+--config=playwright.pilot.config.ts --workers=1 --timeout=180000
+--reporter=line`. This dedicated config sets screenshots, traces and video to
+`off`, including failure runs. Its operator-only durable JSON ledger is retained
+at `test-results/phase8-pilot-two-owner-PIL-bfb33-ck-in-denial-and-retires-it-pilot-chromium/pilot-two-owner-ledger.json`
+and in a private local evidence copy, not committed; the preserved ledger's
+SHA-256 is `905C83329B2BF39F5A81CAEE9D15FE93AFFA07A9B64BA5F39E42ABBF69C9F05E`.
+It records two distinct real owner sessions, reciprocal own/foreign member
+read outcomes, exact `404/member_unknown` envelopes in both directions,
+attendance **0 before / 0 after**, owner-link and deactivation HTTP 200
+envelopes with keyed audits **0 → 1** and distinct audit ids, synthetic owner
+active **true → false**, original owner links unchanged, sessions **2 before
+deactivation → 0 immediately after → 0 final**, and a fresh sign-in landing
+at `/not-linked` with no Gymloop role/tenant/staff claims. Independent linked
+read-only postflight by exact validated ledger ids found one retained marked
+Auth user, one inactive linked QA staff row, one keyed link audit, one keyed
+deactivation audit, zero sessions and zero attendance rows for the two denied
+event keys. A fresh Sol critic returned GO for this bounded runtime, evidence
+and cleanup once the redacted summary is committed, and confirmed the pilot
+config disables failure media. This result is
+bounded PILOT-007/008 evidence only; mutation-complete A–D and the remaining
+HARD gates still bar a five-customer GO.
 
 Read-only Android preflight found the connected OnePlus DN2101 still reporting
 Gymloop version `1.0.0` (`5`). The on-disk preview APK's signing certificate

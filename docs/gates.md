@@ -81,6 +81,13 @@ before that feature can serve a gym.
 | 32 | Playwright E2E covers all four journeys (A–D, master prompt §9) | Yes (once written) | `tests/e2e/` and the CI accessibility step | **PARTIALLY MET (Phase 8).** The checked-in suite now authenticates all five demo roles, checks their home and forbidden-route boundaries, and scans their landing pages in both themes; these are not mutation-complete journeys. Bounded production UI runs additionally proved lead conversion, import classification, check-in, cash membership/add-on receipts and fulfilment, and trial-gym onboarding. On 2026-09-21 a distinct Google-authenticated QA gym owner and Playwright-authenticated Iron Box owner proved reciprocal foreign-member 404s, a foreign payment 404, one direct cross-gym check-in refusal with zero side effects, and separate own-gym visit counts; exact IDs are in `docs/evidence/phase8/ledger.md`. Full mutation-complete A–D Playwright automation and reverse-direction direct mutation proof remain open. |
 | 33 | Blind critic picks ours over the captured bar | No — process | Gauntlet Loop step 5 | **MET (Phase 7).** Fresh-context critics returned GO for the visual foundation, core web routes and final original-resolution Android member/front-desk renders after the cited focused corrections. |
 
+**2026-09-22 gate 32 update:** the older row's reverse-direction and
+independently signed-in two-owner gaps are closed by the guarded deployed
+PILOT-007/008 acceptance at `cdaffe1`, with a durable redacted ledger, exact
+postflight and a fresh bounded Sol GO in `docs/evidence/phase8/ledger.md`.
+Gate 32 remains **partial** until the mutation-complete A–D journeys in
+PILOT-009 pass; this evidence is not a full five-gym release verdict.
+
 ## What Phase 0 actually proves
 
 Gates **3** and **10** are proven failing against a real bad commit (PR #1, `chore/gate-proof`) — and, importantly, proven *green on `main` in the same round*, so each distinguishes a good commit from a bad one rather than merely failing always. Gates **1** and **5** are process gates this very change followed. Gate **16**'s convention (integer paise) and gate **19**'s env-validation half are real code, not placeholders. Every other gate is honestly `N/A` until the phase that needs it — a gate marked `N/A` here is not a gap in Phase 0, it is Phase 0 correctly not building product it wasn't asked to build (master prompt §3).

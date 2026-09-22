@@ -1,5 +1,60 @@
 # Current owner-authorized campaign goal
 
+## Current status — 2026-09-22 12:21 UTC
+
+The DB workflow is fully green, and the exact deployed PILOT-007/008
+two-owner acceptance now passes with a durable redacted ledger after a narrow
+browser/session race repair (`cdaffe1`): two separately authenticated owners,
+reciprocal tenant-read isolation, both foreign check-ins denied with zero
+attendance side effects, keyed link/deactivation audits, unchanged original
+owner links, inactive synthetic owner, fresh no-claim sign-in and zero final
+sessions. An independent exact-ID linked read-only postflight matched the
+ledger, and a fresh Sol critic returned bounded GO once its redacted summary
+is committed. The controlled failed
+attempts and exact synthetic-session recovery are documented in
+`docs/evidence/phase8/ledger.md`. Do not call this the full A–D or pilot GO.
+
+Next, freeze the small PILOT-009 native-form/redirect clarification, then
+stage exactly one QA-local paid-period fixture under its guarded manual-only
+protocol. The QA tenant currently has zero plans and a seven-day no-show
+threshold. The real no-show journey must wait at least eight completed
+QA-local days plus scheduled cron observations; no backdating or broad scan.
+In parallel, close independently executable privacy, recovery, monitoring,
+Android and operational evidence where possible. HARD-004 load, HARD-005
+delivered alert, HARD-006 export/erasure and qualified legal review, HARD-007
+recoverable restore, HARD-008 exact Play installation, and owner-deferred
+HARD-010 visual acceptance remain unresolved. This shared project is still
+pre-customer; no five-gym invitation or release GO is authorized yet.
+
+## Current status — 2026-09-22 11:40 UTC
+
+The credential/deployment blocker is resolved. DB workflow
+[`35717130209`](https://github.com/OGUN01/gymloop/actions/runs/35717130209)
+passed migration, rollback lint, schema drift, full pgTAP and seed dry-run
+after independent visible/holdout fixture repairs. General CI, holdout and
+test immutability also passed on `913cdc0`. The exact-target deployed
+PILOT-007/008 two-owner Playwright journey passed 1/1 at `1e7c6e2`: real
+separate QA/Iron owner sessions, reciprocal RLS and foreign check-in denials
+with zero side effects, keyed owner-link/deactivation audit, and fresh
+post-retirement no-claim access. An exact-ID read-only postflight and guarded
+synthetic-session cleanup left one inactive QA owner, retained Auth/audit
+history and zero Auth sessions. The redacted Playwright attachment was not
+durably saved by the line reporter; `79ed541` fixes future capture, but that
+new cleanup path has only focused lint/collection, not a second live run.
+`docs/evidence/phase8/ledger.md` carries the precise evidence and limitation.
+
+Continue autonomously on the **same shared Supabase project** toward the
+five-gym controlled pilot, with manual/offline gym payments only. The next
+technical slice is PILOT-009's scoped staged paid-period fixture and eventual
+scheduled no-show A–D journey; its real QA-local elapsed days must not be
+backdated or replaced by a broad scan. HARD-004 load, HARD-005 delivered
+monitoring, HARD-006 privacy export/erasure and qualified review, HARD-007
+recoverable restore, HARD-008 exact Play installation and HARD-010 owner-led
+visual acceptance remain open. Do not call this customer GO or archive Phase 8
+until actual exit evidence exists. Old disclosed DB-password rejection and
+account-wide Supabase access-token rotation remain pre-customer security
+steps; do not reopen the resolved connection loop.
+
 ## Current status — 2026-09-22 09:45 UTC
 
 The password blocker below is **resolved** by ADR-148; older reset requests
