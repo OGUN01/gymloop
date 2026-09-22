@@ -94,7 +94,7 @@ function readLatestScheduledRun() {
 function writeObservation(day: string, observation: Record<string, unknown>) {
   const destination = observationPath(day);
   expect(existsSync(destination), 'An existing observer ledger means this exact daily observation must not be overwritten.').toBe(false);
-  writeFileSync(destination, `${JSON.stringify(observation, null, 2)}\n`, 'utf8');
+  writeFileSync(destination, `${JSON.stringify(observation, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
   return destination;
 }
 
