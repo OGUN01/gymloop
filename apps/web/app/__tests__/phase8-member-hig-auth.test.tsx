@@ -54,6 +54,45 @@ describe('Phase 8 member HIG/auth boundary', () => {
     expect(nativeProfile).toMatch(/data\.gym\.name.*data\.gym\.code/);
   });
 
+  it('gives Android You the accepted verified account hierarchy and settings destination', () => {
+    const nativeProfile = repoSource('apps/mobile/app/(member)/you.tsx');
+    const memberNameIndex = nativeProfile.search(/data\.member\.(?:fullName|full_name|name)/);
+    const verifiedIndex = nativeProfile.search(/(?:>|['"])Verified member(?:<|['"])/);
+    const gymNameIndex = nativeProfile.search(/data\.gym\.name/);
+    const gymCodeIndex = nativeProfile.search(/data\.gym\.code/);
+    const contactIndex = nativeProfile.search(/data\.member\.(?:email|phone)/);
+
+    expect.soft(memberNameIndex).toBeGreaterThanOrEqual(0);
+    expect.soft(verifiedIndex).toBeGreaterThan(memberNameIndex);
+    expect.soft(gymNameIndex).toBeGreaterThan(verifiedIndex);
+    expect.soft(gymCodeIndex).toBeGreaterThan(gymNameIndex);
+    expect.soft(contactIndex).toBeGreaterThan(gymCodeIndex);
+    expect.soft(/(?:accessibilityRole|role)\s*=\s*['"]list['"]/.test(nativeProfile)).toBe(true);
+    expect.soft(/accessibilityLabel\s*=\s*['"]Account['"]/i.test(nativeProfile)).toBe(true);
+    expect.soft((nativeProfile.match(/(?:accessibilityRole|role)\s*=\s*['"]listitem['"]/g) ?? []).length).toBe(4);
+
+    const personalDetailsIndex = nativeProfile.indexOf('>Personal details<');
+    const membershipIndex = nativeProfile.indexOf('>Membership<');
+    const gymIndex = nativeProfile.indexOf('>Gym<', membershipIndex);
+    const appearanceIndex = nativeProfile.indexOf('>Appearance<', membershipIndex);
+    expect.soft(personalDetailsIndex).toBeGreaterThan(contactIndex);
+    expect.soft(membershipIndex).toBeGreaterThan(personalDetailsIndex);
+    expect.soft(gymIndex).toBeGreaterThan(membershipIndex);
+    expect.soft(appearanceIndex).toBeGreaterThan(gymIndex);
+
+    const accountList = nativeProfile.slice(personalDetailsIndex);
+    expect.soft(/Personal details[\s\S]{0,500}(?:email|phone|member)/i.test(accountList)).toBe(true);
+    expect.soft(/Membership[\s\S]{0,500}(?:status|plan|active|expiry|expires)/i.test(accountList)).toBe(true);
+    expect.soft(/Gym[\s\S]{0,500}(?:name|code|Iron Box)/i.test(accountList)).toBe(true);
+    expect.soft(/Appearance[\s\S]{0,500}(?:theme|system|light|dark)/i.test(accountList)).toBe(true);
+    for (const label of ['Personal details', 'Membership', 'Gym', 'Appearance'] as const) {
+      const hasAccessibleName = new RegExp(`accessibilityLabel\\s*=\\s*(?:['"][^'"]*${label}[^'"]*['"]|\\{[^}]*${label}[^}]*\\})`, 'i').test(accountList);
+      expect.soft(hasAccessibleName, `${label} row needs an accessible name`).toBe(true);
+    }
+    expect.soft(/(?:Appearance[\s\S]{0,500}(?:onPress|router|settings)|(?:onPress|router|settings)[\s\S]{0,500}Appearance)/i.test(accountList)).toBe(true);
+    expect.soft(/(?:flexShrink\s*:\s*1|minWidth\s*:\s*0|flexWrap\s*:\s*['"]wrap['"])/.test(nativeProfile)).toBe(true);
+  });
+
   it('puts appearance behind one dismissible settings hierarchy, not persistent competing controls', () => {
     const you = source('member/you/page.tsx');
     expect(you).toMatch(/settings|appearance/i);

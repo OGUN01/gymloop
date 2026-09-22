@@ -211,3 +211,51 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
     });
   }
 });
+
+test.describe('HARD-010 member You hierarchy', () => {
+  test('web presents the accepted account hierarchy without narrow contact overflow', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await signIn(page, accounts.member.email);
+    await expect(page).toHaveURL(/\/member(?:[?#]|$)/);
+    await page.goto('/member/you');
+
+    const main = page.getByRole('main');
+    const profile = page.locator('.member-profile');
+    await expect(main.getByText('Aarav Deshpande', { exact: true })).toBeVisible();
+    await expect(profile.getByText('Verified member', { exact: true })).toBeVisible();
+    await expect(profile).toContainText('Iron Box Fitness');
+    await expect(profile).toContainText('IRNBX1');
+
+    const email = main.getByText('aarav.deshpande@example.com', { exact: true });
+    await expect(email).toBeVisible();
+    const profileText = await main.innerText();
+    expect(profileText.indexOf('Aarav Deshpande')).toBeLessThan(profileText.indexOf('Verified member'));
+    expect(profileText.indexOf('Verified member')).toBeLessThan(profileText.indexOf('Iron Box Fitness'));
+    expect(profileText.indexOf('Iron Box Fitness')).toBeLessThan(profileText.indexOf('IRNBX1'));
+    expect(profileText.indexOf('IRNBX1')).toBeLessThan(profileText.indexOf('aarav.deshpande@example.com'));
+
+    const accountList = main.getByRole('list', { name: /account/i });
+    await expect(accountList).toHaveCount(1);
+    const rows = accountList.getByRole('listitem');
+    await expect(rows).toHaveCount(4);
+    for (const label of ['Personal details', 'Membership', 'Gym', 'Appearance'] as const) {
+      const row = rows.filter({ hasText: label });
+      await expect(row, `${label} account destination`).toHaveCount(1);
+      await expect(row).toHaveAccessibleName(new RegExp(label, 'i'));
+      const summary = (await row.innerText()).replace(label, '').trim();
+      expect(summary, `${label} must expose a useful current-value summary`).toMatch(/[A-Za-z0-9]/);
+    }
+
+    await email.evaluate((node) => {
+      node.textContent = 'aarav.deshpande.with.an.intentionally.long.contact.address@ironbox-fitness.example.com';
+    });
+    await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    expect(await email.evaluate((node) => {
+      const style = window.getComputedStyle(node);
+      return ['anywhere', 'break-word'].includes(style.overflowWrap) || ['break-all', 'break-word'].includes(style.wordBreak);
+    })).toBe(true);
+
+    await rows.filter({ hasText: 'Appearance' }).locator('a, button').click();
+    await expect(page.getByRole('dialog', { name: /settings/i })).toBeVisible();
+  });
+});
