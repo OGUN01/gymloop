@@ -382,14 +382,15 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   initialStartsAt:null,initialEndsAt:null,method:'upi',reason:null,
   idempotencyKey}`. Assert `{ok:true,data}` identifies one order and one
   arrived INR `12500`-paise manual payment; the order freezes the selected
-  quote/disclosure, is `paid` or `active` as returned by the command, and
+  quote/disclosure, is terminal `completed` in the atomic sale, and
   reduces the marked product stock from one to zero exactly once. Replay that
   exact body and require `replayed:true` with the same ids and no extra payment,
-  order, stock effect, or financial audit. Complete only that returned order
-  through `POST /api/add-on-orders/{orderId}/complete` with `{}` and assert
-  `replayed:false` plus terminal `completed`; replay `{}` and require
-  `replayed:true` with no further state or audit. This is a product fulfilment,
-  not a PT session, discount, refund, coupon, or Razorpay journey.
+  order, stock effect, or financial audit. Call
+  `POST /api/add-on-orders/{orderId}/complete` with `{}` only as a read-only
+  replay of the stored completed product, requiring `replayed:true`,
+  `orderStatus:'completed'`, and no further state or audit; repeat it with the
+  same result. This is product fulfilment at sale, not a PT session, discount,
+  refund, coupon, or Razorpay journey.
 
   **Evidence, retirement, and recovery.** A final caller-scoped QA read SHALL
   enumerate exactly the marked member's single membership, case, follow-up,
