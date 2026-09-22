@@ -18,8 +18,9 @@ for `42ef6d4`, but DB workflow `35633578490` failed at `supabase db push`
 before a connection was established. It did not apply a migration. A local
 read-only CLI attempt failed with the same connection message; the Gymloop
 project reported `ACTIVE_HEALTHY`, the pooler TCP port was reachable, network
-restrictions allowed traffic and the ban list was empty. The stored database
-credential needs protected rotation/re-entry, followed by a successful DB run.
+restrictions allowed traffic and the ban list was empty. A 2026-09-22 local
+retry timed out without a specific password-authentication code; diagnose
+pooler/CLI connectivity and credential consistency before the next DB run.
 This is not a manual-payment defect, but it blocks migration-based Phase 8 work.
 The owner deferred exact Play-installed Android acceptance to the final
 prelaunch step, not to Passed.
@@ -555,6 +556,14 @@ was written. This demonstrates live intra-tenant member-payment isolation for
 that row, not a provider-signed payment, refund completion or all money tables.
 
 ## 2026-09-21 reversible 10 × 50 database simulation
+
+**2026-09-22 owner direction:** continue bounded Phase 8 functional testing on
+this same multi-tenant project, not a new per-gym database. The owner proposes
+10 gyms × 50 members as a small-scale rehearsal. This section's completed
+rollback run already covers the database insert/tenant-read part; it is not a
+live API stress result. The full HARD-004 100 × 500 p95/cross-tenant load
+claim remains unmeasured. A fresh read-only CLI connection attempt timed out
+on 2026-09-22, so no durable bulk fixture or stress traffic was launched.
 
 At the owner's request, the linked project ran a **single-transaction,
 rollback-only** smaller-scale scenario, not the HARD-004 k6 workload. A

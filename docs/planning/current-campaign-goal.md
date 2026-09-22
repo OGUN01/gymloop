@@ -1,5 +1,26 @@
 # Current owner-authorized campaign goal
 
+## 2026-09-22 same-project test directive
+
+The owner directs Phase 8 development and bounded synthetic testing on the
+existing linked Gymloop Supabase project, which is the intended multi-tenant
+database for every gym. Do not propose a database per gym or create another
+project as a routine answer. The completed 10-gym × 50-member rollback-only
+simulation is valid evidence of that narrow database/tenant boundary. Pursue
+small, exact-ID, recoverable functional and concurrency tests here once the
+database connection is healthy; never assume their traffic can be undone by
+deleting the resulting attendance, money, receipt or audit history.
+
+This owner directive does not make 10 × 50 equivalent to the frozen HARD-004
+100 × 500 API spike or prove public capacity for hundreds or thousands of
+gyms. Record the smaller result as a pilot-scale rehearsal and keep full-load
+capacity unverified until a safe execution/restore method and scale-matched
+evidence exist. A future plan upgrade is not itself a measured load result.
+The 2026-09-22 CLI read-only connection timed out even though the project
+reported healthy and the pooler TCP port was reachable; diagnose before any
+durable bulk fixture creation. No new migration or destructive reset is
+authorized by this testing directive.
+
 ## 2026-09-21 non-visual closeout sequencing override
 
 The owner asks for every safely completable Phase 8 non-visual row to be closed,
@@ -15,10 +36,11 @@ or absent monitoring receipt remains visibly unpassed rather than simulated.
 The 2026-09-21 database workflow failed before applying migrations when its
 stored database credential could not connect. A local read-only CLI connection
 also failed, while the project health, network restriction and ban checks were
-normal. The owner must verify or reset the password in Supabase's dashboard and
-update protected local/GitHub secret stores without posting the value in chat;
-then rerun the DB workflow before any migration slice. No migration is to be
-applied by hand.
+normal. A 2026-09-22 local retry timed out rather than returning a specific
+password-authentication code, so investigate pooler/CLI connectivity as well
+as protected local/GitHub credential consistency; do not assume a reset is the
+only remedy or post any value in chat. Rerun the DB workflow before any
+migration slice. No migration is to be applied by hand.
 
 ## Phase 8 GO campaign — owner continuation (2026-09-21)
 
