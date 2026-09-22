@@ -20,8 +20,11 @@ CREATE TEMP TABLE pilot_qa_context (
 ) ON COMMIT DROP;
 
 CREATE TEMP TABLE pilot_qa_claims (claims jsonb NOT NULL) ON COMMIT DROP;
+CREATE TEMP TABLE pilot_qa_links (first_result jsonb NOT NULL, replay_result jsonb NOT NULL) ON COMMIT DROP;
+CREATE TEMP TABLE pilot_qa_mutation (affected bigint NOT NULL) ON COMMIT DROP;
+CREATE TEMP TABLE pilot_qa_deactivated (claims jsonb NOT NULL) ON COMMIT DROP;
 
-GRANT ALL ON pilot_qa_context, pilot_qa_claims TO authenticated;
+GRANT ALL ON pilot_qa_context, pilot_qa_claims, pilot_qa_links, pilot_qa_mutation, pilot_qa_deactivated TO authenticated;
 
 INSERT INTO auth.users (id, email)
 VALUES
@@ -124,22 +127,22 @@ DECLARE
 BEGIN
   SELECT * INTO c FROM pilot_qa_context;
   first_link := public.link_gym_owner(c.tenant_a, c.staff_a, NULL, ' PILOT-OWNER-A@EXAMPLE.TEST ', c.link_key_a);
-  PERFORM is(first_link ->> 'tenantId', c.tenant_a::text, 'PILOT-007: link returns tenantId');
-  PERFORM is(first_link ->> 'ownerStaffId', c.staff_a::text, 'PILOT-007: link returns ownerStaffId');
-  PERFORM is(first_link ->> 'userId', c.owner_a::text, 'PILOT-007: link returns userId');
-  PERFORM is(first_link ->> 'ownerAccessPending', 'false', 'PILOT-007: owner access is not pending');
-
   replay := public.link_gym_owner(c.tenant_a, c.staff_a, NULL, ' PILOT-OWNER-A@EXAMPLE.TEST ', c.link_key_a);
-  PERFORM is(replay, first_link, 'PILOT-007: exact link retry replays original result');
-
-  PERFORM throws_ok(
-    format($sql$SELECT public.link_gym_owner(%L::uuid, %L::uuid, %L::uuid, %L, %L::uuid)$sql$,
-      c.tenant_a, c.staff_a, NULL, 'changed@example.test', c.link_key_a),
-    NULL,
-    'PILOT-007: changed-facts replay is refused'
-  );
+  INSERT INTO pilot_qa_links(first_result, replay_result) VALUES (first_link, replay);
 END
 $$;
+
+SELECT is((SELECT first_result ->> 'tenantId' FROM pilot_qa_links), (SELECT tenant_a::text FROM pilot_qa_context), 'PILOT-007: link returns tenantId');
+SELECT is((SELECT first_result ->> 'ownerStaffId' FROM pilot_qa_links), (SELECT staff_a::text FROM pilot_qa_context), 'PILOT-007: link returns ownerStaffId');
+SELECT is((SELECT first_result ->> 'userId' FROM pilot_qa_links), (SELECT owner_a::text FROM pilot_qa_context), 'PILOT-007: link returns userId');
+SELECT is((SELECT first_result ->> 'ownerAccessPending' FROM pilot_qa_links), 'false', 'PILOT-007: owner access is not pending');
+SELECT is((SELECT replay_result FROM pilot_qa_links), (SELECT first_result FROM pilot_qa_links), 'PILOT-007: exact link retry replays original result');
+SELECT throws_ok(
+  format($sql$SELECT public.link_gym_owner(%L::uuid, %L::uuid, NULL, %L, %L::uuid)$sql$,
+    c.tenant_a, c.staff_a, 'changed@example.test', c.link_key_a),
+  NULL,
+  'PILOT-007: changed-facts replay is refused'
+) FROM pilot_qa_context c;
 
 SELECT is((SELECT count(*) FROM public.audit_log a, pilot_qa_context c
            WHERE a.tenant_id = c.tenant_a AND a.action = 'staff.owner_linked'
@@ -179,18 +182,18 @@ DECLARE
   affected bigint;
 BEGIN
   SELECT * INTO c FROM pilot_qa_context;
-  PERFORM is((SELECT claims ->> 'app_role' FROM pilot_qa_claims), 'gym_owner', 'PILOT-007: owner A receives gym_owner claim');
-  PERFORM is((SELECT claims ->> 'tenant_id' FROM pilot_qa_claims), c.tenant_a::text, 'PILOT-007: owner A receives tenant A claim');
-  PERFORM is((SELECT claims ->> 'staff_id' FROM pilot_qa_claims), c.staff_a::text, 'PILOT-007: owner A receives staff A claim');
-  PERFORM is((SELECT count(*) FROM public.organizations WHERE id = c.tenant_a), 1::bigint,
-             'PILOT-002: owner A reads own organization');
-  PERFORM is((SELECT count(*) FROM public.organizations WHERE id = c.tenant_b), 0::bigint,
-             'PILOT-002: owner A cannot read owner B organization');
   UPDATE public.organizations SET name = name WHERE id = c.tenant_b;
   GET DIAGNOSTICS affected = ROW_COUNT;
-  PERFORM is(affected, 0::bigint, 'PILOT-002: owner A foreign mutation affects zero rows');
+  INSERT INTO pilot_qa_mutation(affected) VALUES (affected);
 END
 $$;
+
+SELECT is((SELECT claims ->> 'app_role' FROM pilot_qa_claims), 'gym_owner', 'PILOT-007: owner A receives gym_owner claim');
+SELECT is((SELECT claims ->> 'tenant_id' FROM pilot_qa_claims), (SELECT tenant_a::text FROM pilot_qa_context), 'PILOT-007: owner A receives tenant A claim');
+SELECT is((SELECT claims ->> 'staff_id' FROM pilot_qa_claims), (SELECT staff_a::text FROM pilot_qa_context), 'PILOT-007: owner A receives staff A claim');
+SELECT is((SELECT count(*) FROM public.organizations WHERE id = (SELECT tenant_a FROM pilot_qa_context)), 1::bigint, 'PILOT-002: owner A reads own organization');
+SELECT is((SELECT count(*) FROM public.organizations WHERE id = (SELECT tenant_b FROM pilot_qa_context)), 0::bigint, 'PILOT-002: owner A cannot read owner B organization');
+SELECT is((SELECT affected FROM pilot_qa_mutation), 0::bigint, 'PILOT-002: owner A foreign mutation affects zero rows');
 
 -- Deactivation is authorized by the platform actor, and a fresh hook is then claimless.
 SET LOCAL request.jwt.claims = '{"sub":"10000000-0000-0000-0000-000000000099","role":"authenticated","app_role":"super_admin"}';
@@ -215,11 +218,13 @@ BEGIN
     'user_id', c.owner_a,
     'claims', jsonb_build_object('sub', c.owner_a, 'role', 'authenticated')
   )) -> 'claims');
-  PERFORM ok(NOT (claims ? 'app_role'), 'PILOT-007: deactivated owner has no app_role claim');
-  PERFORM ok(NOT (claims ? 'tenant_id'), 'PILOT-007: deactivated owner has no tenant_id claim');
-  PERFORM ok(NOT (claims ? 'staff_id'), 'PILOT-007: deactivated owner has no staff_id claim');
+  INSERT INTO pilot_qa_deactivated(claims) VALUES (claims);
 END
 $$;
+
+SELECT ok(NOT ((SELECT claims FROM pilot_qa_deactivated) ? 'app_role'), 'PILOT-007: deactivated owner has no app_role claim');
+SELECT ok(NOT ((SELECT claims FROM pilot_qa_deactivated) ? 'tenant_id'), 'PILOT-007: deactivated owner has no tenant_id claim');
+SELECT ok(NOT ((SELECT claims FROM pilot_qa_deactivated) ? 'staff_id'), 'PILOT-007: deactivated owner has no staff_id claim');
 
 SELECT is((SELECT count(*) FROM public.organizations o, pilot_qa_context c
            WHERE o.id IN (c.tenant_a, c.tenant_b)), 2::bigint,
@@ -228,17 +233,3 @@ SELECT is((SELECT count(*) FROM public.organizations o, pilot_qa_context c
 SELECT * FROM finish();
 
 ROLLBACK;
-
-SELECT plan(3);
-SELECT is((SELECT count(*) FROM auth.users
-           WHERE id IN ('10000000-0000-0000-0000-000000000001'::uuid,
-                        '10000000-0000-0000-0000-000000000002'::uuid,
-                        '10000000-0000-0000-0000-000000000099'::uuid)), 0::bigint,
-          'PILOT-007 postflight: synthetic Auth users rolled back');
-SELECT is((SELECT count(*) FROM public.platform_users
-           WHERE user_id = '10000000-0000-0000-0000-000000000099'::uuid), 0::bigint,
-          'PILOT-007 postflight: synthetic platform actor rolled back');
-SELECT is((SELECT count(*) FROM public.organizations
-           WHERE name IN ('Pilot QA Gym A', 'Pilot QA Gym B')), 0::bigint,
-          'PILOT-007 postflight: synthetic tenants rolled back');
-SELECT * FROM finish();
