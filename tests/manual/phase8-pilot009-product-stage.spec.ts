@@ -47,7 +47,7 @@ test.describe('PILOT-009 manual pre-scan product stage only', () => {
   test('creates exactly the marked QA product before either scheduled observation', async ({ browser }, testInfo) => {
     const pilot = pilotAcceptanceEnv(); const client = clientEnv(); const server = serverEnv(); const { DEMO_ACCOUNT_PASSWORD: demoPassword, PLAYWRIGHT_BASE_URL: baseURL } = playwrightEnv();
     expect(pilot.PILOT_SHARED_PROJECT_ACCEPTANCE).toBe('ONE_SHARED_PRELAUNCH_PROJECT'); expect(server.SUPABASE_PROJECT_REF).toBe(projectRef); expect(client.NEXT_PUBLIC_SUPABASE_URL).toBe(`https://${projectRef}.supabase.co`); expect(baseURL).toBe('https://gymloop-phi.vercel.app'); expect(demoPassword).toBeTruthy();
-    expect(qaToday()).toBeLessThan(firstObservationDay);
+    expect(qaToday() < firstObservationDay).toBe(true);
     expect(readFileSync('supabase/.temp/project-ref', 'utf8').trim()).toBe(projectRef);
     expect(existsSync(manifestPath())).toBe(true); expect(existsSync(escrowPath())).toBe(true); expect(existsSync(resultPath())).toBe(false); expect(existsSync(observerPath('2026-09-30'))).toBe(false); expect(existsSync(observerPath('2026-10-01'))).toBe(false);
     const manifest = JSON.parse(readFileSync(manifestPath(), 'utf8')) as Manifest;
