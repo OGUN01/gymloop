@@ -88,6 +88,7 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
     let platformContext: import('@playwright/test').BrowserContext | undefined;
     let qaContext: import('@playwright/test').BrowserContext | undefined;
     let ironContext: import('@playwright/test').BrowserContext | undefined;
+    let cleanupFailure: Error | undefined;
 
     try {
       // All target, identity and fixture preflights happen before any Auth write.
@@ -207,7 +208,8 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
         contentType: 'application/json',
       });
     } finally {
-      if (staffId) {
+      try {
+        if (staffId) {
         assertUuid(userId, 'synthetic Auth user id for retirement');
         const deactivationKey = crypto.randomUUID();
         const currentStaff = await superAdmin.from('staff').select('id,user_id,is_active').eq('tenant_id', qaTenantId).eq('id', staffId).maybeSingle();
@@ -215,10 +217,9 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
         expect(currentStaff.data?.id).toBe(staffId);
         expect(currentStaff.data?.is_active).toBe(true);
         if (currentStaff.data?.user_id === null) {
-          const directRetirement = await superAdmin.from('staff').update({ is_active: false })
-            .eq('tenant_id', qaTenantId).eq('id', staffId).is('user_id', null).select('id').single();
-          expect(directRetirement.error).toBeNull();
-          expect(directRetirement.data?.id).toBe(staffId);
+          cleanupFailure = new Error(
+            `Owner-link did not complete for staff ${staffId}; use the exact IDs in ${testInfo.outputPath('pilot-recovery-manifest.json')} for guarded operator recovery.`,
+          );
         } else {
           expect(currentStaff.data?.user_id).toBe(userId);
           const retirement = await platformContext?.pages()[0]?.request.post(`/api/platform/gyms/${qaTenantId}/owner-deactivation`, {
@@ -236,28 +237,33 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
           expect(deactivationAudit.error).toBeNull();
           expect(deactivationAudit.count).toBe(1);
         }
-        const retiredStaff = await superAdmin.from('staff').select('id,is_active').eq('tenant_id', qaTenantId).eq('id', staffId).single();
-        expect(retiredStaff.error).toBeNull();
-        expect(retiredStaff.data).toEqual({ id: staffId, is_active: false });
-        expect(userId).toBeTruthy();
-        expect(readSessionCount(userId ?? '')).toBe(0);
-        const retiredContext = await browser.newContext({ baseURL });
-        const retiredPage = await retiredContext.newPage();
-        await signIn(retiredPage, email, password);
-        await expect(retiredPage).not.toHaveURL(/\/(?:dashboard|console|member)(?:[/?#]|$)/);
-        const retiredSession = await createClient(client.NEXT_PUBLIC_SUPABASE_URL, client.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
-          auth: { autoRefreshToken: false, persistSession: false },
-        }).auth.signInWithPassword({ email, password });
-        expect(retiredSession.error).toBeNull();
-        const retiredClaims = jwtClaims(retiredSession.data.session?.access_token ?? '');
-        expect(retiredClaims.app_role).toBeUndefined();
-        expect(retiredClaims.tenant_id).toBeUndefined();
-        expect(retiredClaims.staff_id).toBeUndefined();
-        await retiredContext.close();
+          if (currentStaff.data?.user_id !== null) {
+            const retiredStaff = await superAdmin.from('staff').select('id,is_active').eq('tenant_id', qaTenantId).eq('id', staffId).single();
+            expect(retiredStaff.error).toBeNull();
+            expect(retiredStaff.data).toEqual({ id: staffId, is_active: false });
+            expect(userId).toBeTruthy();
+            expect(readSessionCount(userId ?? '')).toBe(0);
+            const retiredContext = await browser.newContext({ baseURL });
+            const retiredPage = await retiredContext.newPage();
+            await signIn(retiredPage, email, password);
+            await expect(retiredPage).not.toHaveURL(/\/(?:dashboard|console|member)(?:[/?#]|$)/);
+            const retiredSession = await createClient(client.NEXT_PUBLIC_SUPABASE_URL, client.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+              auth: { autoRefreshToken: false, persistSession: false },
+            }).auth.signInWithPassword({ email, password });
+            expect(retiredSession.error).toBeNull();
+            const retiredClaims = jwtClaims(retiredSession.data.session?.access_token ?? '');
+            expect(retiredClaims.app_role).toBeUndefined();
+            expect(retiredClaims.tenant_id).toBeUndefined();
+            expect(retiredClaims.staff_id).toBeUndefined();
+            await retiredContext.close();
+          }
+        }
+      } finally {
+        await platformContext?.close();
+        await qaContext?.close();
+        await ironContext?.close();
       }
-      await platformContext?.close();
-      await qaContext?.close();
-      await ironContext?.close();
+      expect(cleanupFailure, cleanupFailure?.message).toBeUndefined();
     }
   });
 });
