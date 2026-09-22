@@ -36,8 +36,8 @@ insert into pilot64_result(name, result) values
     'pilot64-foreign@gymloop.test'));
 
 select is((select result #>> '{organization,tenantId}' from pilot64_result where name = 'qa'),
-  (select result #>> '{organization,tenantId}' from pilot64_result where name = 'qa'),
-  'PILOT-007: QA onboarding supplies the tenant identity used by owner link');
+  '64000000-0000-4000-8000-000000000001',
+  'PILOT-007: QA onboarding derives the requested tenant identity');
 select ok((select user_id is null and is_active and role = 'gym_owner'::public.app_role
   from public.staff where id = (select (result ->> 'ownerStaffId')::uuid from pilot64_result where name = 'qa')),
   'PILOT-007: the QA owner profile is active and unlinked before owner link');
@@ -99,41 +99,33 @@ select throws_ok($$select public.link_gym_owner(
   '64000000-0000-4000-8000-000000000010')$$,
   'GL068', null, 'PILOT-007: a changed owner-link replay is refused');
 
-select set_config('request.jwt.claims',
-  (select jsonb_build_object('sub', '64000000-0000-4000-8000-000000000902',
-    'role', 'authenticated', 'app_role', 'gym_owner',
-    'tenant_id', result ->> 'tenantId', 'staff_id', result ->> 'ownerStaffId')::text from pilot64_link), true);
+set local role postgres;
+create temporary table pilot64_fresh_hook as
+select app.custom_access_token_hook(jsonb_build_object(
+  'user_id', '64000000-0000-4000-8000-000000000902',
+  'claims', jsonb_build_object('sub', '64000000-0000-4000-8000-000000000902', 'role', 'authenticated'))) as result;
+select is((select result #>> '{claims,app_role}' from pilot64_fresh_hook), 'gym_owner',
+  'PILOT-007: fresh hook claims name the linked gym-owner role');
+select is((select result #>> '{claims,tenant_id}' from pilot64_fresh_hook), (select result ->> 'tenantId' from pilot64_link),
+  'PILOT-007: fresh hook claims name the linked QA tenant');
+select is((select result #>> '{claims,staff_id}' from pilot64_fresh_hook), (select result ->> 'ownerStaffId' from pilot64_link),
+  'PILOT-007: fresh hook claims name the linked owner staff id');
+
+select set_config('request.jwt.claims', (select result -> 'claims' from pilot64_fresh_hook)::text, true);
+set local role authenticated;
 select is((select count(*) from public.organizations), 1::bigint,
-  'PILOT-007: the linked QA owner sees one organization through RLS');
+  'PILOT-007: hook-issued owner claims see one organization through RLS');
 select is((select count(*) from public.organizations
   where id = (select (result #>> '{organization,tenantId}')::uuid from pilot64_result where name = 'foreign')),
-  0::bigint, 'PILOT-007: the linked QA owner cannot read the foreign gym by id');
+  0::bigint, 'PILOT-007: hook-issued owner claims cannot read the foreign gym by id');
 with changed as (
   update public.organizations set name = 'PILOT 64 FOREIGN MUST NOT CHANGE'
   where id = (select (result #>> '{organization,tenantId}')::uuid from pilot64_result where name = 'foreign')
   returning id
 )
 select is((select count(*) from changed), 0::bigint,
-  'PILOT-007: the linked QA owner cannot mutate the foreign gym');
+  'PILOT-007: hook-issued owner claims cannot mutate the foreign gym');
 
-set local role postgres;
-select is((app.custom_access_token_hook(jsonb_build_object(
-  'user_id', '64000000-0000-4000-8000-000000000902',
-  'claims', jsonb_build_object('sub', '64000000-0000-4000-8000-000000000902', 'role', 'authenticated')))
-  #>> '{claims,app_role}'), 'gym_owner',
-  'PILOT-007: fresh hook claims name the linked gym-owner role');
-select is((app.custom_access_token_hook(jsonb_build_object(
-  'user_id', '64000000-0000-4000-8000-000000000902',
-  'claims', jsonb_build_object('sub', '64000000-0000-4000-8000-000000000902', 'role', 'authenticated')))
-  #>> '{claims,tenant_id}'), (select result ->> 'tenantId' from pilot64_link),
-  'PILOT-007: fresh hook claims name the linked QA tenant');
-select is((app.custom_access_token_hook(jsonb_build_object(
-  'user_id', '64000000-0000-4000-8000-000000000902',
-  'claims', jsonb_build_object('sub', '64000000-0000-4000-8000-000000000902', 'role', 'authenticated')))
-  #>> '{claims,staff_id}'), (select result ->> 'ownerStaffId' from pilot64_link),
-  'PILOT-007: fresh hook claims name the linked owner staff id');
-
-set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"64000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"super_admin"}', true);
 update public.staff set is_active = false
