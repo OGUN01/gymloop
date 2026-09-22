@@ -159,4 +159,55 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
       });
     }
   }
+
+  for (const theme of ['light', 'dark'] as const) {
+    test(`owner detail and form routes load accessibly in ${theme} mode`, async ({ browser }) => {
+      const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, colorScheme: theme });
+      const page = await context.newPage();
+      await signIn(page, accounts.owner.email);
+      await expect(page).toHaveURL(new RegExp(`${accounts.owner.home.replace('/', '\\/')}(?:[?#]|$)`));
+
+      for (const route of [
+        '/memberships',
+        '/members/new',
+        '/members/00000005-0000-4000-8000-000000000001',
+        '/members/00000005-0000-4000-8000-000000000001/edit',
+        '/memberships/00000006-0000-4000-8000-000000000001',
+        '/payments/00000007-0000-4000-8000-000000000001',
+        '/add-ons/orders/00000010-0000-4000-8000-000000000001',
+      ] as const) {
+        await test.step(route, async () => {
+          const response = await page.goto(route);
+          expect(response?.status(), `${route} navigation status`).toBe(200);
+          await page.emulateMedia({ colorScheme: theme });
+          await expect(page).toHaveURL(new RegExp(`${route}(?:[?#]|$)`));
+          await expect(page.locator('body')).not.toContainText(/sign in|not linked|page not found/i);
+          const results = await new AxeBuilder({ page }).analyze();
+          expect(results.violations, `${route} ${theme}`).toEqual([]);
+          await assertEnglishAndResponsive(page, 390, 844);
+          await assertEnglishAndResponsive(page, 1440, 900);
+        });
+      }
+
+      await context.close();
+    });
+
+    test(`super admin gym detail loads accessibly in ${theme} mode`, async ({ browser }) => {
+      const route = '/platform/00000001-0000-4000-8000-000000000001';
+      const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, colorScheme: theme });
+      const page = await context.newPage();
+      await signIn(page, accounts.superAdmin.email);
+      await expect(page).toHaveURL(new RegExp(`${accounts.superAdmin.home.replace('/', '\\/')}(?:[?#]|$)`));
+      const response = await page.goto(route);
+      expect(response?.status(), `${route} navigation status`).toBe(200);
+      await page.emulateMedia({ colorScheme: theme });
+      await expect(page).toHaveURL(new RegExp(`${route}(?:[?#]|$)`));
+      await expect(page.locator('body')).not.toContainText(/sign in|not linked|page not found/i);
+      const results = await new AxeBuilder({ page }).analyze();
+      expect(results.violations, `${route} ${theme}`).toEqual([]);
+      await assertEnglishAndResponsive(page, 390, 844);
+      await assertEnglishAndResponsive(page, 1440, 900);
+      await context.close();
+    });
+  }
 });
