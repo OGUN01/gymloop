@@ -424,7 +424,14 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   use the correctly linked Supabase CLI Management API to verify zero sessions,
   and perform a fresh password sign-in proving no Gymloop role, tenant, or
   staff claims. Remove the credential escrow only after those three facts
-  pass; otherwise preserve it for exact-ID recovery. Retain every marked
+  pass; otherwise preserve it for exact-ID recovery. Before removing escrow,
+  durably record the successful deactivation, zero-session and fresh no-claim
+  checks while the manifest is still armed. Only after escrow removal succeeds
+  may the manifest become unarmed/retired. If a crash leaves an armed manifest
+  with escrow absent, the recorded cleanup proof and fresh exact-ID inactive,
+  audit and zero-session reads permit cleanup finalization only; B–D never
+  replays. Without that durable proof, keep recovery-required status and do
+  not claim cleanup complete. Retain every marked
   business, money, attendance, follow-up and audit row and inactive Auth/staff
   history. If any post-arm assertion or retirement fails, stop, mark the run
   failed, preserve the manifest and evidence, and use only its exact ids for
