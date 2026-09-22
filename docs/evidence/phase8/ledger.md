@@ -753,6 +753,46 @@ prove peak capacity, a full Phase 8 GO, privacy operations, recovery, alert
 delivery, exact-AAB Play installation, or visual acceptance. Keep those gates
 open rather than converting a 3–10-gym hypothesis into an unmeasured claim.
 
+## 2026-09-22 five-gym controlled-pilot rehearsal
+
+The owner froze a five-gym first-customer target in
+`docs/planning/five-gym-pilot-release.md` (`3e7eede`). Two independent authors
+then added visible and holdout rollback suites in the test-only commit
+`d6406e0`. Against the existing linked project, the visible five-gym suite
+passed **40/40** assertions and the independently authored holdout passed
+**29/29**, with zero failures. Each created five synthetic organizations,
+branches and owner staff identities and fifty members per organization inside
+one transaction; under five distinct owner-claim simulations, each could read
+only its own fifty members and organization. Cross-tenant member updates
+affected zero rows, deletes were refused, and foreign rows remained unchanged.
+Both suites ended in `ROLLBACK`; independent postflight counts for their
+synthetic organizations, branches, owners and members were all zero. The
+holdout author reported only the verdict; its contents were not inspected by
+the orchestrator or visible-test author. `check-pgtap-rollback` accepted all
+91 pgTAP files after the addition.
+
+Focused existing platform checks passed **33/33** structural and **43/43**
+behavioral pgTAP assertions on the linked project. The affected web platform
+route/page tests passed **17/17** from `apps/web`. These are additional
+onboarding and status-contract checks, not proof of a five-gym live onboarding
+journey. Read-only project totals remain **two gyms, two branches and fifty
+members**; both gyms have settings and linked active owners. No five real
+customers were created or claimed. A real owner still needs an independent
+identity and authorized onboarding for each pilot gym.
+
+`SUPABASE_DB_PASSWORD` is present in `.env.local`, but the current value was
+rejected by the transaction pooler in the earlier encrypted diagnostic and
+the session-pooler CLI migration path still times out. A proposed credential
+synchronization was blocked by the execution environment before it ran: no
+Supabase password or GitHub secret was changed. The test-only push triggered
+[DB workflow `35684949391`](https://github.com/OGUN01/gymloop/actions/runs/35684949391):
+rollback lint passed, but `migrate` failed at `supabase db push --linked`
+with `Failed to connect` and the CLI's explicit `SUPABASE_DB_PASSWORD`
+guidance. Schema drift, full pgTAP and seed dry-run were consequently skipped.
+No new migration was in this push, and none was applied. PILOT-001 is a
+bounded database rehearsal only.
+PILOT-002 through PILOT-004 and the frozen HARD gates remain open.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
