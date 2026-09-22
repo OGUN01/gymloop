@@ -106,6 +106,10 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   `https://pecxrpskmfeuyzngvewq.supabase.co`, and the browser base origin is
   exactly `https://gymloop-phi.vercel.app`. The opt-in is read only through
   `packages/shared/src/config/env.ts`, never `process.env` in a test file.
+  Its narrow exported `pilotAcceptanceEnv()` returns
+  `{PILOT_SHARED_PROJECT_ACCEPTANCE: 'ONE_SHARED_PRELAUNCH_PROJECT'}` after
+  literal validation; the runner combines this with existing `clientEnv()`,
+  `serverEnv()` and `playwrightEnv()` rather than duplicating secret parsing.
   The runner generates one high-entropy password in memory and one unique
   `@gymloop.test` synthetic email; neither secret nor a token is logged or
   placed in a browser URL, evidence document, screenshot, or repository file.
