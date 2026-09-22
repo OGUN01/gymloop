@@ -128,6 +128,29 @@ export async function POST(request: Request): Promise<Response> {
       ? null
       : `${idempotencyKey}:${memberId}:${amountPaise}:${method}`;
 
+  // A membership from another gym is deliberately invisible to this caller.
+  // Do not ask the payment trigger to distinguish that invisibility: its
+  // related-row lookup fails after the insert has already entered the money
+  // path, and PostgREST reports the resulting refusal as an unclassified
+  // failure. Read through the caller-scoped client first instead. Absence has
+  // the same ordinary refusal whether the UUID is foreign or does not exist;
+  // a visible membership still reaches GL042 below when it belongs to a
+  // different member in this tenant.
+  if (membershipId !== undefined) {
+    const { data: visibleMembership, error: visibleMembershipError } = await supabase
+      .from('memberships')
+      .select('id')
+      .eq('id', membershipId)
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+
+    // A failed authorization read must never be treated as permission to
+    // insert money. Keep its operational cause private and leave the generic
+    // payment failure for a genuine read fault.
+    if (visibleMembershipError !== null) return backToMember('payment_failed');
+    if (visibleMembership === null) return backToMember('not_permitted');
+  }
+
   const { error } = await supabase.from('payments').insert({
     tenant_id: tenantId,
     member_id: memberId,
