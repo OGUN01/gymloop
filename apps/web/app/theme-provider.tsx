@@ -15,9 +15,6 @@ const choices = [
 
 /** Appearance selector with an inert, equal-geometry server placeholder. */
 export function ThemeControl() {
-  if (typeof window === 'undefined') {
-    return <div aria-label="Appearance" aria-hidden="true" data-theme-placeholder className="theme-control theme-control-placeholder" />;
-  }
   return <MountedThemeControl />;
 }
 
