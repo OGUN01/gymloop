@@ -52,9 +52,8 @@ function request(): Request {
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       caseId: CASE_ID,
-      outcome: 'called',
-      channel: 'phone',
-      note: 'Left a short message',
+      outcome: 'will_return',
+      channel: 'call',
       notes: 'Left a short message',
     }),
   });
@@ -87,7 +86,9 @@ describe('foreign no-show case holdout boundary', () => {
     const response = await POST(request());
 
     expect(ordinaryRefusal(response)).toBe(false);
-    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(response.status).toBe(303);
+    expect(new URL(response.headers.get('location') ?? '').pathname).toBe('/red-list');
+    expect(new URL(response.headers.get('location') ?? '').searchParams.get('error')).toBe('follow_up_failed');
     expect(state.writes).toEqual([]);
   });
 
