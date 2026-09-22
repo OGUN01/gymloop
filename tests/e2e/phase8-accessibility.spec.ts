@@ -226,7 +226,7 @@ test.describe('HARD-010 member You hierarchy', () => {
     await expect(profile).toContainText('Iron Box Fitness');
     await expect(profile).toContainText('IRNBX1');
 
-    const email = main.getByText('aarav.deshpande@example.com', { exact: true });
+    const email = profile.getByText('aarav.deshpande@example.com', { exact: true });
     await expect(email).toBeVisible();
     const profileText = await main.innerText();
     expect(profileText.indexOf('Aarav Deshpande')).toBeLessThan(profileText.indexOf('Verified member'));
@@ -246,11 +246,11 @@ test.describe('HARD-010 member You hierarchy', () => {
       expect(summary, `${label} must expose a useful current-value summary`).toMatch(/[A-Za-z0-9]/);
     }
 
-    await email.evaluate((node) => {
-      node.textContent = 'aarav.deshpande.with.an.intentionally.long.contact.address@ironbox-fitness.example.com';
-    });
+    const longEmail = 'aarav.deshpande.with.an.intentionally.long.contact.address@ironbox-fitness.example.com';
+    await email.evaluate((node, value) => { node.textContent = value; }, longEmail);
+    const wrappedEmail = profile.getByText(longEmail, { exact: true });
     await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    expect(await email.evaluate((node) => {
+    expect(await wrappedEmail.evaluate((node) => {
       const style = window.getComputedStyle(node);
       return ['anywhere', 'break-word'].includes(style.overflowWrap) || ['break-all', 'break-word'].includes(style.wordBreak);
     })).toBe(true);

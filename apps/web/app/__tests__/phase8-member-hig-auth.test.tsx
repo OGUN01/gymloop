@@ -81,13 +81,18 @@ describe('Phase 8 member HIG/auth boundary', () => {
     expect.soft(appearanceIndex).toBeGreaterThan(gymIndex);
 
     const accountList = nativeProfile.slice(personalDetailsIndex);
-    expect.soft(/Personal details[\s\S]{0,500}(?:email|phone|member)/i.test(accountList)).toBe(true);
-    expect.soft(/Membership[\s\S]{0,500}(?:status|plan|active|expiry|expires)/i.test(accountList)).toBe(true);
-    expect.soft(/Gym[\s\S]{0,500}(?:name|code|Iron Box)/i.test(accountList)).toBe(true);
-    expect.soft(/Appearance[\s\S]{0,500}(?:theme|system|light|dark)/i.test(accountList)).toBe(true);
-    for (const label of ['Personal details', 'Membership', 'Gym', 'Appearance'] as const) {
-      const hasAccessibleName = new RegExp(`accessibilityLabel\\s*=\\s*(?:['"][^'"]*${label}[^'"]*['"]|\\{[^}]*${label}[^}]*\\})`, 'i').test(accountList);
+    for (const { label, summary } of [
+      { label: 'Personal details', summary: /(?:email|phone|member)/i },
+      { label: 'Membership', summary: /(?:status|plan|active|expiry|expires)/i },
+      { label: 'Gym', summary: /(?:name|code|Iron Box)/i },
+      { label: 'Appearance', summary: /(?:theme|modeLabel|system|light|dark|appearance)/i },
+    ] as const) {
+      const rowSpan = nativeProfile.match(new RegExp(`[\\s\\S]{0,500}>${label}<[\\s\\S]{0,500}`, 'i'))?.[0] ?? '';
+      const hasAccessibleName = new RegExp(`accessibilityLabel\\s*=\\s*(?:['"][^'"]*${label}[^'"]*['"]|\\{[^}]*${label}[^}]*\\})`, 'i').test(rowSpan);
       expect.soft(hasAccessibleName, `${label} row needs an accessible name`).toBe(true);
+      const visibleLabel = `>${label}<`;
+      const summarySource = rowSpan.slice(rowSpan.indexOf(visibleLabel) + visibleLabel.length);
+      expect.soft(summary.test(summarySource), `${label} row needs a useful current-value summary`).toBe(true);
     }
     expect.soft(/(?:Appearance[\s\S]{0,500}(?:onPress|router|settings)|(?:onPress|router|settings)[\s\S]{0,500}Appearance)/i.test(accountList)).toBe(true);
     expect.soft(/(?:flexShrink\s*:\s*1|minWidth\s*:\s*0|flexWrap\s*:\s*['"]wrap['"])/.test(nativeProfile)).toBe(true);
