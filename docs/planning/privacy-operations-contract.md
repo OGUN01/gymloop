@@ -11,6 +11,17 @@ This contract does not alter the durations in `docs/security.md`. They remain
 engineering defaults pending qualified legal review of durations, clocks,
 field-level dispositions, legal bases, DPA, and request deadlines.
 
+**Current-law timing note (checked 2026-09-22):** the Government's
+[DPDP Act commencement notification](https://www.meity.gov.in/static/uploads/2025/11/c56ceae6c383460ca69577428d36828b.pdf)
+sets sections 11–17 (including access and erasure) to commence eighteen months
+after the November 2025 Gazette publication. The
+[2025 Rules notification](https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf)
+likewise phases in most operational rules at eighteen months. This timing is
+not permission to sell, expose or ignore member data now, nor a legal opinion
+that no other obligation applies. The owner has independently promised export
+and request-based erasure for the pilot; keep this product gate until the
+workflow and qualified review are complete.
+
 ## Boundaries and authorization
 
 The gym is the Data Fiduciary and Gymloop its processor (DPD-001). A member may

@@ -858,6 +858,24 @@ open under HARD-006. The real-customer sequence is now in
 `docs/runbooks/five-gym-pilot-onboarding.md` (`d3c186d`), with a stop line
 before inviting any gym rather than fabricated permanent customers.
 
+### Bounded QA-owner identity command rehearsal
+
+The PILOT-007 SQL fixture contract was frozen in `e31e38f`, `f5200bc`,
+`d9c6936`, `f343a87` and `7e56509`. The visible rollback-only test
+`supabase/tests/64_phase8_pilot_owner_link.sql` was independently authored and
+passed **22/22** focused assertions on the linked shared project after a
+test-only hook-role and exact-replay fixture correction (`c12b970`). A separate
+holdout author, without reading the visible suite or implementation, reported
+**22/22** assertions passed from
+`supabase/tests-holdout/64_phase8_pilot_qa_owner.sql` (`362c402`). The suites
+exercise the actual onboarding/owner-link commands, the fresh claim hook,
+cross-gym RLS refusal and authorized deactivation; postflight found zero of
+their synthetic Auth users and organizations. The orchestrator did not inspect
+the holdout contents. No persistent QA owner, real Auth sign-in, browser A–D
+journey or customer identity was created by these SQL rehearsals. The later
+GitHub DB workflow still needs a valid password and a green full run before
+this can count as complete CI evidence.
+
 Read-only Android preflight found the connected OnePlus DN2101 still reporting
 Gymloop version `1.0.0` (`5`). The on-disk preview APK's signing certificate
 SHA-256 is `AA923C583E2A9DE0B25446DA1917E640198E664687EEDF2B38750DB13333C863`,
