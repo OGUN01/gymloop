@@ -1,5 +1,32 @@
 # Current owner-authorized campaign goal
 
+## 2026-09-22 owner continuation — five-gym pilot GO
+
+The active objective is a **truthful five-gym, manual-payment Android/web pilot
+GO**, not merely a passing code suite. Pursue every safe, in-scope technical and
+operational step autonomously; keep the current shared Gymloop Supabase project
+for bounded functional and tenant-isolation verification. Do not backdate the
+PILOT-009 member, manually invoke the broad no-show scan, stress the shared
+project as a substitute for HARD-004's frozen isolated load target, or mark a
+provider, legal, restore, Play or visual gate passed without its real artifact.
+The already staged member, owner, paid period and product are reserved for the
+real September 30 and October 1 scheduled observations and guarded B–D run.
+
+The immediate sequence is: (1) keep `main` and its blind/CI gates green;
+(2) close safe non-date-gated gaps and record actual evidence; (3) observe both
+real scheduled scans, run the guarded continuation and retire its exact QA
+owner only under its proof/cleanup contract; (4) reconcile every HARD gate and
+the owner-led visual decision before changing the verdict. Where a gate needs
+a future clock, independent legal judgment, a separate recovery/load target,
+account-holder certification or a real provider receipt, record that dependency
+and keep **NO-GO** rather than substituting a simulated success.
+
+The accessibility CI false positive caused by matching `404` digits inside a
+valid timestamp was corrected test-only in `9d0ee03`. Its focused browser test,
+general CI `35753967056`, Holdout `35753967408` and test immutability
+`35753967238` passed. This restores green code gates but does not close the
+five-gym evidence gaps.
+
 ## Current status — 2026-09-22 16:12 UTC
 
 The payment-fix DB workflow `35740835691` is now fully green, including
