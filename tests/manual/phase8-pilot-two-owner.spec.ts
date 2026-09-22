@@ -27,12 +27,21 @@ function jwtClaims(accessToken: string) {
   return JSON.parse(atob(accessToken.split('.')[1])) as Record<string, unknown>;
 }
 
-async function signIn(page: import('@playwright/test').Page, email: string, password: string) {
+async function signIn(page: import('@playwright/test').Page, email: string, password: string, expectedHome?: RegExp) {
   await page.goto('/sign-in');
   await page.getByText('Use email instead', { exact: true }).click();
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
+  if (expectedHome) {
+    try {
+      await page.waitForURL(expectedHome);
+    } catch (error) {
+      const passwordField = page.getByLabel('Password');
+      if (await passwordField.isVisible().catch(() => false)) await passwordField.fill('');
+      throw error;
+    }
+  }
 }
 
 function expectDeniedCheckIn(body: unknown) {
@@ -134,11 +143,11 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
 
       platformContext = await browser.newContext({ baseURL });
       const platformPage = await platformContext.newPage();
-      await signIn(platformPage, 'admin@gymloop.example.com', demoPassword ?? '');
+      await signIn(platformPage, 'admin@gymloop.example.com', demoPassword ?? '', /\/platform(?:[?#]|$)/);
       await expect(platformPage).toHaveURL(/\/platform(?:[?#]|$)/);
       ironContext = await browser.newContext({ baseURL });
       const ironPage = await ironContext.newPage();
-      await signIn(ironPage, 'owner@ironbox.example.com', demoPassword ?? '');
+      await signIn(ironPage, 'owner@ironbox.example.com', demoPassword ?? '', /\/dashboard(?:[?#]|$)/);
       await expect(ironPage).toHaveURL(/\/dashboard(?:[?#]|$)/);
       const ironSession = await createClient(client.NEXT_PUBLIC_SUPABASE_URL, client.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
         auth: { autoRefreshToken: false, persistSession: false },
@@ -180,7 +189,7 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
       });
       qaContext = await browser.newContext({ baseURL });
       const qaPage = await qaContext.newPage();
-      await signIn(qaPage, email, password);
+      await signIn(qaPage, email, password, /\/dashboard(?:[?#]|$)/);
       await expect(qaPage).toHaveURL(/\/dashboard(?:[?#]|$)/);
       const qaSession = await createClient(client.NEXT_PUBLIC_SUPABASE_URL, client.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
         auth: { autoRefreshToken: false, persistSession: false },
