@@ -263,6 +263,12 @@ five-minute window. The v1 output keys are
 `issue` only for an alert. These names are part of the contract; a test or
 implementation may not silently substitute a second wire shape.
 
+A healthy result has `severity: "NONE"`. Credible signal rows are intentionally
+collapsed to the generic ordered reason code
+`CREDIBLE_SECURITY_INTEGRITY_SIGNAL`; raw signal names are not repeated in the
+reason or issue body. The remaining reason codes are `API_5XX_THRESHOLD`,
+`HEALTHCHECK_CONSECUTIVE_FAILURES`, and test-only `TEST_DELIVERY`.
+
 ### HARD-006 — DPDP export, erasure, and retention runner
 
 When the DPDP operational runner executes, it shall produce an auditable export
