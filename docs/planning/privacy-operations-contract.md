@@ -91,6 +91,19 @@ real processing. The table above is an inventory and conservative default, not
 permission to process an unmapped field. An unresolved financial/audit field
 stays protected and blocks a complete-erasure claim pending qualified review.
 
+### Unfrozen schema decisions found in the Phase 8 field audit
+
+This is a blocker inventory, not an authorized erasure mapping:
+
+| Member-derived field/surface | Current constraint or ambiguity | Decision required before a real erasure |
+|---|---|---|
+| `members.full_name`, `members.phone` | Both are `NOT NULL`; phone also has E.164 and `(tenant_id, phone)` uniqueness. | Keep one non-PII erased label for name; make phone nullable only for erased rows without weakening the active-member format/uniqueness contract. |
+| `members.weekly_goal_visits`, `rest_days`, `motivation_push_enabled` | Habit/preferences are personal but the draft retained them as lifecycle facts; the latter two are non-null. | Decide to clear/reset or retain with a documented basis, then test the erased profile and downstream streak/contact behavior. |
+| `invoices.buyer_name`; `refunds.reason`; `membership_pauses.reason`; `attendance_corrections.reason`, `before`, `after`; `notifications.payload`; `webhook_events.payload` | Non-null text/JSON and financial/audit semantics prevent a generic blank-all-fields routine. | Approve per-field export and retain/redact rule; retain accounting facts and case-specific holds without falsely declaring those personal fields erased. |
+| `razorpay_mandates` | `member_id`, provider identifiers and `raw` JSON exist even though the online provider is disabled. | Approve the member-specific retention clock, scope and export/redaction map; the prior gym-only classification was incorrect. |
+| Converted `leads`, `member_imports`, `audit_log` JSON | A member reference may be direct, converted or embedded in free text/JSON. | Define bounded subject discovery and a versioned JSON map; unknown content refuses/escalates rather than being skipped silently. |
+| `members.photo_url`, invoice PDFs and exported artifacts | A URL alone is not proof of Storage object ownership or deletion. | Establish exact object-key ownership, access control and deletion receipt before reporting completion. |
+
 ## Retention policy and clocks
 
 The runner records policy version and evaluated clock per item. It uses existing
