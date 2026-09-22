@@ -12,7 +12,7 @@ const expectedProjectRef = 'pecxrpskmfeuyzngvewq';
 const expectedSupabaseUrl = `https://${expectedProjectRef}.supabase.co`;
 const expectedBaseUrl = 'https://gymloop-phi.vercel.app';
 
-type ApiFailure = { ok: false; error: { code: string } };
+type ApiFailure = { ok: false; error: { code: string; message: string } };
 type ApiSuccess<T> = { ok: true; data: T };
 
 function newSyntheticEmail() {
@@ -36,7 +36,10 @@ async function signIn(page: import('@playwright/test').Page, email: string, pass
 }
 
 function expectDeniedCheckIn(body: unknown) {
-  expect(body).toMatchObject<ApiFailure>({ ok: false, error: { code: 'member_unknown' } });
+  expect(body).toEqual<ApiFailure>({
+    ok: false,
+    error: { code: 'member_unknown', message: 'No member of this gym has that id.' },
+  });
 }
 
 function readSessionCount(userId: string) {
@@ -73,6 +76,7 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
     const email = newSyntheticEmail();
     const password = newHighEntropyPassword();
     const requestKey = crypto.randomUUID();
+    const deactivationKey = crypto.randomUUID();
     const qaForeignEventKey = crypto.randomUUID();
     const ironForeignEventKey = crypto.randomUUID();
     const admin = createClient(client.NEXT_PUBLIC_SUPABASE_URL, server.SUPABASE_SERVICE_ROLE_KEY, {
@@ -87,8 +91,9 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
     let platformContext: import('@playwright/test').BrowserContext | undefined;
     let qaContext: import('@playwright/test').BrowserContext | undefined;
     let ironContext: import('@playwright/test').BrowserContext | undefined;
-    let cleanupFailure: Error | undefined;
-    let ledger: Record<string, string | number | boolean | null> | undefined;
+    let baselineOwnerRows: Array<{ id: string; tenant_id: string; user_id: string | null; is_active: boolean }> = [];
+    let ledger: Record<string, unknown> | undefined;
+    let sessionsBeforeDeactivation: number | undefined;
 
     try {
       // All target, identity and fixture preflights happen before any Auth write.
@@ -103,13 +108,43 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
       expect(targetTenants.data?.map(({ id }) => id).sort()).toEqual([ironTenantId, qaTenantId].sort());
       const targetMembers = await superAdmin.from('members').select('id,tenant_id').in('id', [qaMemberId, ironMemberId]);
       expect(targetMembers.error).toBeNull();
-      expect(targetMembers.data?.map(({ id }) => id).sort()).toEqual([ironMemberId, qaMemberId].sort());
+      expect(targetMembers.data?.sort((a, b) => a.id.localeCompare(b.id))).toEqual([
+        { id: qaMemberId, tenant_id: qaTenantId },
+        { id: ironMemberId, tenant_id: ironTenantId },
+      ].sort((a, b) => a.id.localeCompare(b.id)));
+      const baselineOwners = await superAdmin.from('staff').select('id,tenant_id,user_id,is_active')
+        .in('tenant_id', [qaTenantId, ironTenantId]).eq('role', 'gym_owner');
+      expect(baselineOwners.error).toBeNull();
+      expect(baselineOwners.data?.some(({ tenant_id }) => tenant_id === qaTenantId)).toBe(true);
+      expect(baselineOwners.data?.some(({ tenant_id }) => tenant_id === ironTenantId)).toBe(true);
+      baselineOwnerRows = baselineOwners.data ?? [];
+      const attendanceBefore = await superAdmin.from('attendance').select('client_event_id')
+        .in('client_event_id', [qaForeignEventKey, ironForeignEventKey]);
+      expect(attendanceBefore.error).toBeNull();
+      expect(attendanceBefore.data).toEqual([]);
+      const linkAuditBefore = await superAdmin.from('audit_log').select('id', { count: 'exact', head: true })
+        .eq('request_key', requestKey);
+      expect(linkAuditBefore.error).toBeNull();
+      expect(linkAuditBefore.count).toBe(0);
+      const deactivationAuditBefore = await superAdmin.from('audit_log').select('id', { count: 'exact', head: true })
+        .eq('request_key', deactivationKey);
+      expect(deactivationAuditBefore.error).toBeNull();
+      expect(deactivationAuditBefore.count).toBe(0);
       expect(readFileSync('supabase/.temp/project-ref', 'utf8').trim()).toBe(expectedProjectRef);
 
       platformContext = await browser.newContext({ baseURL });
       const platformPage = await platformContext.newPage();
       await signIn(platformPage, 'admin@gymloop.example.com', demoPassword ?? '');
       await expect(platformPage).toHaveURL(/\/platform(?:[?#]|$)/);
+      ironContext = await browser.newContext({ baseURL });
+      const ironPage = await ironContext.newPage();
+      await signIn(ironPage, 'owner@ironbox.example.com', demoPassword ?? '');
+      await expect(ironPage).toHaveURL(/\/dashboard(?:[?#]|$)/);
+      const ironSession = await createClient(client.NEXT_PUBLIC_SUPABASE_URL, client.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      }).auth.signInWithPassword({ email: 'owner@ironbox.example.com', password: demoPassword ?? '' });
+      expect(ironSession.error).toBeNull();
+      expect(jwtClaims(ironSession.data.session?.access_token ?? '')).toMatchObject({ app_role: 'gym_owner', tenant_id: ironTenantId });
 
       const created = await admin.auth.admin.createUser({
         email,
@@ -138,7 +173,8 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
         data: { ownerStaffId: staffId, expectedUserId: null, ownerEmail: email, requestKey },
       });
       expect(linkResponse.status()).toBe(200);
-      await expect(linkResponse.json()).resolves.toEqual<ApiSuccess<Record<string, unknown>>>({
+      const linkBody = await linkResponse.json() as ApiSuccess<Record<string, unknown>>;
+      expect(linkBody).toEqual<ApiSuccess<Record<string, unknown>>>({
         ok: true,
         data: { tenantId: qaTenantId, ownerStaffId: staffId, userId: created.data.user?.id, ownerAccessPending: false },
       });
@@ -158,17 +194,6 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
       expect(audit.error).toBeNull();
       expect(audit.data?.id).toBeTruthy();
       auditId = audit.data?.id;
-
-      ironContext = await browser.newContext({ baseURL });
-      const ironPage = await ironContext.newPage();
-      await signIn(ironPage, 'owner@ironbox.example.com', demoPassword ?? '');
-      await expect(ironPage).toHaveURL(/\/dashboard(?:[?#]|$)/);
-
-      const ironSession = await createClient(client.NEXT_PUBLIC_SUPABASE_URL, client.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      }).auth.signInWithPassword({ email: 'owner@ironbox.example.com', password: demoPassword ?? '' });
-      expect(ironSession.error).toBeNull();
-      expect(jwtClaims(ironSession.data.session?.access_token ?? '')).toMatchObject({ app_role: 'gym_owner', tenant_id: ironTenantId });
 
       const qaRead = createClient(client.NEXT_PUBLIC_SUPABASE_URL, client.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
         global: { headers: { Authorization: `Bearer ${qaSession.data.session?.access_token}` } },
@@ -214,54 +239,67 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
         ironSessionUserId: ironSession.data.user?.id ?? null,
         ownerLinkRequestKey: requestKey,
         ownerLinkAuditId: auditId ?? null,
+        ownerLinkAuditCountBefore: linkAuditBefore.count,
+        ownerLinkAuditCountAfter: 1,
+        ownerLinkStatus: linkResponse.status(),
+        ownerLinkEnvelope: linkBody,
         qaForeignEventKey,
         ironForeignEventKey,
         qaDeniedStatus: qaDenied.status(),
         ironDeniedStatus: ironDenied.status(),
-        qaDeniedCode: qaDeniedBody.error.code,
-        ironDeniedCode: ironDeniedBody.error.code,
-        attendanceCount: attendance.data.length,
+        qaDeniedEnvelope: qaDeniedBody,
+        ironDeniedEnvelope: ironDeniedBody,
+        attendanceCountBefore: attendanceBefore.data.length,
+        attendanceCountAfter: attendance.data.length,
         reciprocalMemberReadsPassed: true,
+        ownerDeactivationAuditCountBefore: deactivationAuditBefore.count,
       };
+      const linkedOwnerBefore = await superAdmin.from('staff').select('id,user_id,is_active')
+        .eq('tenant_id', qaTenantId).eq('id', staffId).single();
+      expect(linkedOwnerBefore.error).toBeNull();
+      expect(linkedOwnerBefore.data).toEqual({ id: staffId, user_id: userId, is_active: true });
+      ledger.ownerActiveBefore = true;
+      sessionsBeforeDeactivation = readSessionCount(userId);
     } finally {
       try {
         if (staffId) {
-        assertUuid(userId, 'synthetic Auth user id for retirement');
-        const deactivationKey = crypto.randomUUID();
-        const currentStaff = await superAdmin.from('staff').select('id,user_id,is_active').eq('tenant_id', qaTenantId).eq('id', staffId).maybeSingle();
-        expect(currentStaff.error).toBeNull();
-        expect(currentStaff.data?.id).toBe(staffId);
-        expect(currentStaff.data?.is_active).toBe(true);
-        if (currentStaff.data?.user_id === null) {
-          cleanupFailure = new Error(
-            `Owner-link did not complete for staff ${staffId}; use the exact IDs in ${testInfo.outputPath('pilot-recovery-manifest.json')} for guarded operator recovery.`,
-          );
-        } else {
-          expect(currentStaff.data?.user_id).toBe(userId);
+          assertUuid(userId, 'synthetic Auth user id for retirement');
           const retirement = await platformContext?.pages()[0]?.request.post(`/api/platform/gyms/${qaTenantId}/owner-deactivation`, {
             data: { ownerStaffId: staffId, expectedUserId: userId, requestKey: deactivationKey },
           });
           expect(retirement, 'PILOT-008 deactivation response').toBeTruthy();
           expect(retirement?.status()).toBe(200);
-          await expect(retirement?.json()).resolves.toEqual<ApiSuccess<Record<string, unknown>>>({
+          const retirementBody = await retirement?.json() as ApiSuccess<Record<string, unknown>>;
+          expect(retirementBody).toEqual<ApiSuccess<Record<string, unknown>>>({
             ok: true,
             data: { tenantId: qaTenantId, ownerStaffId: staffId, userId, isActive: false },
           });
-          const deactivationAudit = await admin.from('audit_log').select('id', { count: 'exact', head: true })
+          const deactivationAudit = await admin.from('audit_log').select('id', { count: 'exact' })
             .eq('tenant_id', qaTenantId).eq('record_id', staffId)
             .eq('action', 'staff.owner_deactivated').eq('request_key', deactivationKey);
           expect(deactivationAudit.error).toBeNull();
           expect(deactivationAudit.count).toBe(1);
+          expect(deactivationAudit.data).toHaveLength(1);
           if (ledger) {
             ledger.ownerDeactivationRequestKey = deactivationKey;
             ledger.ownerDeactivationStatus = retirement?.status() ?? null;
+            ledger.ownerDeactivationEnvelope = retirementBody;
+            ledger.ownerDeactivationAuditId = deactivationAudit.data?.[0]?.id ?? null;
             ledger.ownerDeactivationAuditCount = deactivationAudit.count ?? null;
+            ledger.sessionsBeforeDeactivation = sessionsBeforeDeactivation ?? null;
           }
-        }
-          if (currentStaff.data?.user_id !== null) {
             const retiredStaff = await superAdmin.from('staff').select('id,is_active').eq('tenant_id', qaTenantId).eq('id', staffId).single();
             expect(retiredStaff.error).toBeNull();
             expect(retiredStaff.data).toEqual({ id: staffId, is_active: false });
+            const existingOwnersAfter = await superAdmin.from('staff').select('id,tenant_id,user_id,is_active')
+              .in('id', baselineOwnerRows.map(({ id }) => id));
+            expect(existingOwnersAfter.error).toBeNull();
+            expect(existingOwnersAfter.data?.sort((a, b) => a.id.localeCompare(b.id)))
+              .toEqual(baselineOwnerRows.sort((a, b) => a.id.localeCompare(b.id)));
+            if (ledger) {
+              ledger.ownerActiveAfter = retiredStaff.data.is_active;
+              ledger.existingOwnerLinksUnchanged = true;
+            }
             expect(userId).toBeTruthy();
             expect(readSessionCount(userId ?? '')).toBe(0);
             if (ledger) ledger.sessionsImmediatelyAfterDeactivation = 0;
@@ -287,14 +325,12 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
             expect(readSessionCount(userId ?? '')).toBe(0);
             if (ledger) ledger.finalSessionCount = 0;
             await retiredContext.close();
-          }
         }
       } finally {
         await platformContext?.close();
         await qaContext?.close();
         await ironContext?.close();
       }
-      expect(cleanupFailure, cleanupFailure?.message).toBeUndefined();
     }
     if (!ledger) throw new Error('PILOT-007/008 acceptance did not reach a complete evidence ledger');
     const ledgerPath = testInfo.outputPath('pilot-two-owner-ledger.json');
