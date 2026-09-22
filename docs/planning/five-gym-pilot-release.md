@@ -131,18 +131,27 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   `00000001-0000-4000-8000-000000000001`) must retain its own gym context.
   The exact existing synthetic QA member is
   `6211481a-30fc-4f7c-891b-c02d06e95c74`; one Iron member for denial is
-  `00000005-0000-4000-8000-000000000013`. Both owners must see only their
-  own member and get a not-found response for the foreign member detail. Each
+  `00000005-0000-4000-8000-000000000013`. The member-detail denial is a
+  direct caller-session Supabase PostgREST read of `members`, selecting only
+  `id,tenant_id` with an exact member-id equality filter and `maybeSingle()`:
+  each owner sees its own row and receives `null` without an error for the
+  foreign row. This checks deployed RLS without inventing a page URL. Each
   sends one cross-gym `POST /api/check-in` with a fresh `clientEventId` and
   nonempty synthetic desk reason; both must receive `404/member_unknown`, and
   a read-only postflight must find zero attendance rows for those two keys.
   The exact user/staff/tenant IDs, request/event keys, HTTP status/envelope,
   two distinct session identities, audit id and zero-side-effect counts go to
-  a redacted run ledger. If any preflight fails, do not create a fixture.
+  a redacted run ledger attached to the Playwright result as JSON; it must
+  contain no password, key or token. After a successful run, commit only a
+  human-readable redacted summary under `docs/evidence/phase8/`. If any
+  preflight fails, do not create a fixture.
 
   In a `finally` path, the authenticated super-admin marks only the newly
   created staff row inactive; the identity trigger must revoke its Auth
   sessions. A read-only postflight must count zero `auth.sessions` for that
+  exact user id through the correctly linked Supabase CLI Management API using
+  `supabase db query --linked --output-format json` and parse `rows[0].n`;
+  it must not use the DB password or interpolate unvalidated input. A
   test user and a fresh password sign-in must yield no Gymloop role, tenant or
   staff access. If retirement fails or the runner is interrupted, fail the
   run and use the manifest's exact IDs for a guarded operator recovery; never
