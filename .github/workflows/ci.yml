@@ -59,7 +59,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           DEMO_ACCOUNT_PASSWORD: ${{ secrets.DEMO_ACCOUNT_PASSWORD }}
-        run: pnpm run test:e2e -- tests/e2e/phase8-accessibility.spec.ts
+        run: pnpm run test:e2e -- --config=playwright.accessibility.config.ts
 
       - name: knip
         if: ${{ !cancelled() }}

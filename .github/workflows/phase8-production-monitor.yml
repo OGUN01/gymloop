@@ -1,0 +1,126 @@
+name: Phase 8 production monitor
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      force_test_alert:
+        description: Create a test-only alert delivery receipt
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: phase8-production-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@58.9.4
+
+      - name: Collect production evidence and evaluate thresholds
+        id: evaluate
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          FORCE_TEST_ALERT: ${{ inputs.force_test_alert || 'false' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          evaluated_at="$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')"
+          started_at="$(date -u -d '5 minutes ago' +'%Y-%m-%dT%H:%M:%S.000Z')"
+          query_id="vercel-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          probe_id="health-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          vercel inspect gymloop-phi.vercel.app --scope ogun01s-projects --json > deployment.json
+          vercel logs gymloop-phi.vercel.app --scope ogun01s-projects --environment production --since 5m --json > vercel-logs.jsonl
+
+          jq -cs --arg fallback "$evaluated_at" '
+            map(
+              . as $entry |
+              (try (($entry.message // "") | fromjson) catch {}) as $message |
+              {
+                observedAt: (
+                  if (($entry.timestamp // null) | type) == "number"
+                  then (($entry.timestamp / 1000) | todateiso8601)
+                  else ($entry.timestamp // $entry.createdAt // $fallback)
+                  end
+                ),
+                correlationId: ($entry.requestId // $entry.request_id // "[REDACTED]"),
+                httpStatus: ($entry.statusCode // $entry.responseStatusCode // $entry.status // null),
+                signal: (
+                  if ($message.level == "error" and $message.event == "security.cross_tenant_disclosure") then "cross_tenant_disclosure"
+                  elif ($message.level == "error" and $message.event == "security.payment_integrity_failure") then "payment_integrity_failure"
+                  elif ($message.level == "error" and $message.event == "security.credential_exposure") then "credential_exposure"
+                  elif ($message.level == "error" and $message.event == "security.destructive_data_loss") then "destructive_data_loss"
+                  else null end
+                ),
+                credible: ($message.level == "error" and (($message.event // "") | startswith("security.")))
+              }
+            )
+          ' vercel-logs.jsonl > events.json
+
+          : > checks.jsonl
+          for probe in 1 2 3; do
+            observed_at="$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')"
+            status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 15 https://gymloop-phi.vercel.app/sign-in || true)"
+            jq -cn --arg observedAt "$observed_at" --arg correlationId "${probe_id}-${probe}" --arg status "$status" \
+              '{observedAt:$observedAt,correlationId:$correlationId,httpStatus:($status|tonumber),ok:(($status|tonumber) >= 200 and ($status|tonumber) < 400)}' >> checks.jsonl
+          done
+          jq -cs '.' checks.jsonl > checks.json
+
+          deployment_id="$(jq -r '.id // .uid // .name // "gymloop-phi.vercel.app"' deployment.json)"
+          mode="scheduled"
+          if [[ "$FORCE_TEST_ALERT" == "true" ]]; then mode="force-test-alert"; fi
+          jq -n \
+            --arg mode "$mode" \
+            --arg evaluatedAt "$evaluated_at" \
+            --arg deploymentId "$deployment_id" \
+            --arg deploymentCommit "$GITHUB_SHA" \
+            --arg runId "$GITHUB_RUN_ID" \
+            --argjson runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg queryId "$query_id" \
+            --arg startedAt "$started_at" \
+            --arg probeId "$probe_id" \
+            --slurpfile events events.json \
+            --slurpfile checks checks.json \
+            '{mode:$mode,evaluatedAt:$evaluatedAt,evidence:{deploymentId:$deploymentId,deploymentCommit:$deploymentCommit,runId:$runId,runAttempt:$runAttempt},logQuery:{queryId:$queryId,environment:"production",startedAt:$startedAt,endedAt:$evaluatedAt,events:$events[0]},endpointProbe:{probeId:$probeId,environment:"production",checks:$checks[0]}}' > monitor-input.json
+
+          node scripts/phase8-production-monitor.mjs --input monitor-input.json > monitor-output.json
+          echo "decision=$(jq -r '.decision' monitor-output.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update alert issue
+        if: steps.evaluate.outputs.decision == 'alert'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Required output labels: phase8-monitor-test and production-alert.
+          issue_key="$(jq -r '.issue.key' monitor-output.json)"
+          issue_title="$(jq -r '.issue.title' monitor-output.json)"
+          jq -r '.issue.body' monitor-output.json > issue-body.md
+          while IFS= read -r label; do
+            gh label create "$label" --color 0E8A16 --force
+          done < <(jq -r '.issue.labels[]' monitor-output.json)
+          existing_issue="$(gh issue list --state open --label "${issue_key}" --json number --jq '.[0].number // empty')"
+          labels="$(jq -r '.issue.labels | join(",")' monitor-output.json)"
+          if [[ -n "$existing_issue" ]]; then
+            gh issue edit "$existing_issue" --title "$issue_title" --add-label "$labels" --body-file issue-body.md
+          else
+            gh issue create --title "$issue_title" --label "$labels" --body-file issue-body.md
+          fi
