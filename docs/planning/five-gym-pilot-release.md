@@ -23,6 +23,17 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   effects. The exact sessions, tenant ids and denial results SHALL be recorded.
   Existing 2026-09-21 evidence covers several read and check-in refusals, not
   a repeatable mutation-complete acceptance suite.
+- **PILOT-006** WHEN one verified super admin submits five distinct gym
+  onboarding requests through `public.onboard_gym` in a prelaunch transaction,
+  THE SYSTEM SHALL create five distinct trial organizations with unique
+  six-character codes, one settings row, one default branch, one zero-credit
+  wallet, one active unlinked owner profile and one keyed onboarding audit
+  event per gym. An exact replay of each request SHALL return its original
+  result without a second child or audit row; a reused key with changed facts
+  SHALL be refused. This rehearsal SHALL end in `ROLLBACK` and an independent
+  postflight SHALL find no synthetic gym, child, audit or Auth identity. It
+  proves the atomic database command at five-gym scale, not Google owner
+  linking, activation, a deployed browser journey or customer onboarding.
 
 ## Usable core loop
 
