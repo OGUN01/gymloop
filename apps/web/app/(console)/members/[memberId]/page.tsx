@@ -37,9 +37,9 @@ const DATE_ONLY = new Intl.DateTimeFormat('en-IN', {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="py-2">
+    <div className="min-w-0 py-2">
       <dt className="text-xs uppercase tracking-wide text-neutral-500">{label}</dt>
-      <dd className="mt-0.5 text-sm">{children}</dd>
+      <dd className="mt-0.5 break-words text-sm">{children}</dd>
     </div>
   );
 }
