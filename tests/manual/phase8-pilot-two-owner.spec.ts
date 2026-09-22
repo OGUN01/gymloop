@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { execFileSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { clientEnv, pilotAcceptanceEnv, playwrightEnv, serverEnv } from '@gymloop/shared';
 
 const qaTenantId = '7eb2f564-0c3b-49b6-8104-1902241a5955';
@@ -40,6 +40,9 @@ function expectDeniedCheckIn(body: unknown) {
 }
 
 function readSessionCount(userId: string) {
+  assertUuid(userId, 'session-count user id');
+  const linkedProjectRef = readFileSync('supabase/.temp/project-ref', 'utf8').trim();
+  expect(linkedProjectRef).toBe(expectedProjectRef);
   const query = `select count(*)::int as n from auth.sessions where user_id = '${userId}'::uuid`;
   const output = execFileSync('supabase', ['db', 'query', '--linked', '--output-format', 'json', query], { encoding: 'utf8' });
   return (JSON.parse(output) as { rows: Array<{ n: number }> }).rows[0]?.n;
@@ -203,13 +206,28 @@ test.describe('PILOT-007 manual two-owner deployed acceptance', () => {
     } finally {
       if (staffId) {
         assertUuid(userId, 'synthetic Auth user id for retirement');
-        const deactivationKey = crypto.randomUUID();
-        const retirement = await platformContext?.pages()[0]?.request.post(`/api/platform/gyms/${qaTenantId}/owner-deactivation`, {
-          data: { ownerStaffId: staffId, expectedUserId: userId, requestKey: deactivationKey },
-        });
-        expect(retirement, 'PILOT-008 deactivation response').toBeTruthy();
-        expect(retirement?.status()).toBe(200);
-        await expect(retirement?.json()).resolves.toMatchObject<ApiSuccess<Record<string, unknown>>>({ ok: true });
+        const currentStaff = await superAdmin.from('staff').select('id,user_id,is_active').eq('tenant_id', qaTenantId).eq('id', staffId).maybeSingle();
+        expect(currentStaff.error).toBeNull();
+        expect(currentStaff.data?.id).toBe(staffId);
+        expect(currentStaff.data?.is_active).toBe(true);
+        if (currentStaff.data?.user_id === null) {
+          const directRetirement = await superAdmin.from('staff').update({ is_active: false })
+            .eq('tenant_id', qaTenantId).eq('id', staffId).is('user_id', null).select('id').single();
+          expect(directRetirement.error).toBeNull();
+          expect(directRetirement.data?.id).toBe(staffId);
+        } else {
+          expect(currentStaff.data?.user_id).toBe(userId);
+          const deactivationKey = crypto.randomUUID();
+          const retirement = await platformContext?.pages()[0]?.request.post(`/api/platform/gyms/${qaTenantId}/owner-deactivation`, {
+            data: { ownerStaffId: staffId, expectedUserId: userId, requestKey: deactivationKey },
+          });
+          expect(retirement, 'PILOT-008 deactivation response').toBeTruthy();
+          expect(retirement?.status()).toBe(200);
+          await expect(retirement?.json()).resolves.toMatchObject<ApiSuccess<Record<string, unknown>>>({ ok: true });
+        }
+        const retiredStaff = await superAdmin.from('staff').select('id,is_active').eq('tenant_id', qaTenantId).eq('id', staffId).single();
+        expect(retiredStaff.error).toBeNull();
+        expect(retiredStaff.data).toEqual({ id: staffId, is_active: false });
         expect(userId).toBeTruthy();
         expect(readSessionCount(userId ?? '')).toBe(0);
         const retiredContext = await browser.newContext({ baseURL });
