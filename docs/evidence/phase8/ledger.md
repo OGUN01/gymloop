@@ -865,26 +865,26 @@ The PILOT-007 SQL fixture contract was frozen in `e31e38f`, `f5200bc`,
 `supabase/tests/64_phase8_pilot_owner_link.sql` was independently authored and
 passed **22/22** focused assertions on the linked shared project after a
 test-only hook-role and exact-replay fixture correction (`c12b970`). A separate
-holdout author, without reading the visible suite or implementation, reported
-**22/22** assertions passed from
-`supabase/tests-holdout/64_phase8_pilot_qa_owner.sql` (`362c402`). **That
-initial holdout pass is withdrawn:** a fresh Sol critic found that pgTAP
-results produced inside procedural blocks were discarded, so the count could
-hide failed assertions. The author repaired TAP emission in `f725470`, proved
-one deliberately failing probe reports a failure, and reported 19/19 on the
-focused rerun. The critic still found two underspecified holdout checks (exact
-idempotency error and keyed audit); their correction is in progress. The
-visible suite also needs to replace a self-comparison and derive RLS claims
-from the hook result. Until both narrow corrections and another critic pass,
-the PILOT-007 SQL evidence is **NO-GO**. Postflight found zero of the initial
-synthetic Auth users and organizations. The orchestrator has not inspected
+holdout author, without reading the visible suite or implementation, initially
+reported **22/22** from `supabase/tests-holdout/64_phase8_pilot_qa_owner.sql`
+(`362c402`). **That initial pass was withdrawn:** a fresh Sol critic found
+discarded pgTAP result text that could hide a failure. The author repaired TAP
+emission in `f725470`, proved one deliberately failing probe reports a failure,
+and tightened exact idempotency-error and keyed-audit assertions in `4fba3a7`:
+the corrected holdout reported **21/21** with independent zero-fixture
+postflight. The visible suite replaced its self-comparison and drove RLS from
+the actual hook claim result in `5425f97`; its corrected focused run reported
+**22/22**, with zero synthetic Auth, organization or audit rows after rollback.
+A fresh Sol critic returned **GO for this bounded SQL command/claim/RLS
+portion**, after inspecting the corrected suites and their reported runs; the
+critic did not execute another Cloud run. The orchestrator has not inspected
 the holdout contents. No persistent QA owner, real Auth sign-in, browser A–D
 journey or customer identity was created by these SQL rehearsals. GitHub DB
-run `35697955080` additionally failed rollback lint on the initial holdout
-file's trailing postflight statement and failed `migrate` on the existing
-database credential; full pgTAP, schema drift and seed dry-run were skipped.
-The corrected holdout file ends in `ROLLBACK`, but CI still needs a successful
-rerun and a valid credential before this is complete release evidence.
+run `35697955080` failed rollback lint on the initial holdout file's trailing
+postflight statement; the corrected file ends in `ROLLBACK`, and run
+`35698622141` passed rollback lint. Both runs failed `migrate` on the existing
+database credential, skipping full pgTAP, schema drift and seed dry-run. The
+valid credential and green full CI workflow remain a pre-customer stop line.
 
 Read-only Android preflight found the connected OnePlus DN2101 still reporting
 Gymloop version `1.0.0` (`5`). The on-disk preview APK's signing certificate
