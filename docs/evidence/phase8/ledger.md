@@ -741,6 +741,11 @@ and again failed at `db push --linked` before applying anything. No migration,
 password rotation, durable fixture, or destructive operation was performed.
 The password/pooler path is still not valid for CI and needs credential repair
 and a green rerun before the next migration.
+The available in-app browser session redirected the project's Database Settings
+page to Organizations with “You do not have access to this project,” so no
+dashboard credential change was attempted. The final password-change action
+requires owner handoff; do not infer that the browser's signed-in account is
+the CLI-linked project owner.
 
 The prior 10 × 50 rollback result and these focused checks support a bounded
 multi-tenant **pilot architecture** assessment on one database. They do not
