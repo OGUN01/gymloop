@@ -1377,6 +1377,30 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ## Open decisions added after the Phase 0 blind critic
 
+- **ADR-147 — retain a controlled second-owner QA fixture on the one shared
+  prelaunch project (owner-delegated, 2026-09-22).** The five-real-gym pilot
+  remains on project `pecxrpskmfeuyzngvewq`; no per-gym database or new
+  Supabase project is required for functional acceptance. The existing
+  Google-linked QA owner and Iron Box demo identities are preserved. For one
+  independently authenticated two-gym browser run, create a distinct
+  synthetic Auth user with a unique non-deliverable address and high-entropy
+  secret, then an **unlinked** QA `gym_owner` staff row through a real
+  super-admin session, and bind them only through `link_gym_owner`. Verify the
+  fresh JWT claims and link audit. Do not give this identity a service-role
+  token, use forged claims or change the existing Google owner's password.
+  Browser A–D acceptance may leave attendance, follow-up, payment, receipt,
+  add-on and audit records in the QA tenant: they are permanently labelled
+  synthetic and retained under the ordinary integrity rules, not deleted to
+  manufacture a clean postflight. This is a deliberate change from the
+  earlier exact-delete idea, which conflicts with immutable money/audit
+  history. Write/money journeys are one controlled operator run with a named
+  fixture manifest, never a scheduled CI mutation against this project.
+  After acceptance, deactivate the test staff identity through an authorized
+  path, verify session revocation and a fresh no-access sign-in, and retain
+  the Auth/staff/audit history. This decision does not waive legal/privacy,
+  backup, alert, DB-credential or Android release gates, and it never counts
+  the synthetic QA tenant as a real customer.
+
 - **ADR-146 — initial release records externally collected payments only
   (owner override, 2026-09-21).** The gym collects cash, UPI, card or bank
   transfer outside Gymloop using its own process or terminal. Gymloop records

@@ -138,7 +138,9 @@ The next execution slices and their exit evidence are:
    Add the missing checked-in Playwright A–D journey with independent visible
    and holdout authors for identity/RLS assertions. Use rollback-only database
    probes and bounded API requests in the shared project; record which layer
-   each proves, and remove only exact fixtures created by the journey.
+   each proves. Under ADR-147, the one controlled browser write run retains
+   its named synthetic QA financial/audit history and deactivates its distinct
+   test owner afterward; do not delete immutable records for cosmetic cleanup.
    A is member check-in through verified renewal, B is silent churn through
    contact/return recovery, C is add-on purchase through visible usage, and D
    is assisted check-in through confirmation and actor audit. A manual payment

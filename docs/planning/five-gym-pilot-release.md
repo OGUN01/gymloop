@@ -34,6 +34,18 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   postflight SHALL find no synthetic gym, child, audit or Auth identity. It
   proves the atomic database command at five-gym scale, not Google owner
   linking, activation, a deployed browser journey or customer onboarding.
+- **PILOT-007** WHEN the controlled two-gym browser acceptance is prepared on
+  the existing shared project, THE SYSTEM SHALL use an independently signed-in
+  synthetic QA owner whose Auth user is linked through the authenticated
+  platform owner-link command to an unlinked QA-gym owner profile. The existing
+  Google QA owner and Iron Box identities SHALL remain unchanged. The test
+  SHALL verify the new owner's fresh tenant/role/staff claims and the owner-link
+  audit event before any business write. Its named synthetic attendance,
+  follow-up, manual-payment, add-on and audit history SHALL be retained rather
+  than deleted to make the test appear clean. The test identity SHALL be
+  deactivated and its sessions revoked after the one controlled acceptance;
+  fresh sign-in SHALL have no Gymloop access. No mutation-complete A–D run
+  SHALL be scheduled in CI against this shared project (ADR-147).
 
 ## Usable core loop
 
