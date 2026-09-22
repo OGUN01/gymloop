@@ -2638,6 +2638,15 @@ export type Database = {
         }
         Returns: Json
       }
+      deactivate_gym_owner: {
+        Args: {
+          p_expected_user_id: string
+          p_owner_staff_id: string
+          p_request_key: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       end_expired_gym_preview: { Args: { p_session_id: string }; Returns: Json }
       finish_pt_session: {
         Args: {
