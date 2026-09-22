@@ -50,6 +50,24 @@ export async function POST(request: Request): Promise<Response> {
     return seeOther(request, '/red-list', 'invalid');
   }
 
+  // A case from another gym is deliberately invisible to this caller. Check
+  // the exact id through the caller-scoped client before the insert: asking
+  // the trigger to discover that mismatch would enter the follow-up write
+  // path first, and could turn a foreign id into an observable failure.
+  // Absence stays an ordinary refusal whether the id is foreign or unknown.
+  const { data: visibleCase, error: visibleCaseError } = await supabase
+    .from('no_show_cases')
+    .select('id')
+    .eq('id', caseId)
+    .eq('tenant_id', tenantId)
+    .maybeSingle();
+
+  // A real caller-scoped read failure is not evidence that the case is
+  // foreign. Keep its operational cause private and, critically, do not
+  // continue into a write on an uncertain authorization boundary.
+  if (visibleCaseError !== null) return seeOther(request, '/red-list', 'follow_up_failed');
+  if (visibleCase === null) return seeOther(request, '/red-list', 'not_permitted');
+
   const { error } = await supabase.from('follow_ups').insert({
     tenant_id: tenantId,
     case_id: caseId,
