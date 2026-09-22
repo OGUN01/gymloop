@@ -1,0 +1,52 @@
+# Five-gym controlled-pilot acceptance
+
+**Owner direction, 2026-09-22.** Prepare Gymloop for five independent gyms to
+use the existing shared Supabase project. This is a controlled first-customer
+target, not a claim that five real gyms have been onboarded or that the free
+plan has measured capacity for thousands. No gym receives its own database.
+The owner handles the separate visual redesign; this document does not waive
+any frozen Phase 8 HARD gate or enable Razorpay.
+
+## Data and identity boundary
+
+- **PILOT-001** WHEN a prelaunch five-gym database rehearsal runs, THE SYSTEM
+  SHALL create five synthetic tenant/branch/owner fixtures with fifty members
+  per tenant inside one transaction; under each distinct authenticated owner
+  claim it SHALL reveal exactly that owner's fifty members and one organization,
+  reveal no foreign member by id, and refuse cross-tenant update/delete without
+  changing the foreign row. The rehearsal SHALL end in `ROLLBACK`, and an
+  independent postflight SHALL find zero fixture rows. This proves a bounded
+  RLS/relationship property, not browser authentication or throughput.
+- **PILOT-002** WHEN two distinct gym owners use the deployed application, THE
+  SYSTEM SHALL show each only their gym's members, payments, add-ons, messages
+  and metrics; direct foreign reads and mutations SHALL fail with no side
+  effects. The exact sessions, tenant ids and denial results SHALL be recorded.
+  Existing 2026-09-21 evidence covers several read and check-in refusals, not
+  a repeatable mutation-complete acceptance suite.
+
+## Usable core loop
+
+- **PILOT-003** BEFORE first-customer access, independently authenticated
+  owner/front-desk/member journeys SHALL prove check-in, silent-churn follow-up
+  and return, external-money manual payment with receipt/renewal, and add-on
+  purchase/fulfilment in the deployed app. A–D browser automation and a final
+  Android install remain the HARD-003/HARD-008 exit evidence. No Razorpay charge
+  or provider webhook is in this initial release (PAY-012).
+
+## Operational release conditions
+
+- **PILOT-004** BEFORE inviting the first real gym, the migration workflow
+  SHALL be green with a verified current credential; a recoverable backup and
+  restore procedure, privacy export/erasure with legal review, delivered alert
+  route, and exact release-artifact Android acceptance SHALL have their actual
+  evidence. Synthetic rows, a runbook alone, or an upgrade promise do not pass
+  those gates. The owner-led visual acceptance remains separate and required.
+- **PILOT-005** The 10 × 50 and five-gym rollback rehearsals are architectural
+  evidence only. They SHALL NOT be described as a measured concurrent load or
+  as HARD-004's frozen 100 × 500/50,000-check-in result. Capacity, storage and
+  usage must be observed during the controlled rollout; an eventual paid-plan
+  upgrade adds resources but cannot repair a tenant leak or missing operation.
+
+Do not create five fictional persistent customer accounts to make the count
+look complete. Real pilot gyms need their own authorized owner identities and
+onboarding details; synthetic tests must remain identified as synthetic.

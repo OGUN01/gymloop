@@ -1,5 +1,15 @@
 # Current owner-authorized campaign goal
 
+## 2026-09-22 five-gym pilot target
+
+The owner asks for market readiness for an initial five gyms on this one
+Supabase database, not a per-gym database or an unmeasured thousands-of-gyms
+claim. `docs/planning/five-gym-pilot-release.md` freezes the bounded pilot
+acceptance and separates rollback-only tenant proof from deployed two-gym
+journeys, actual first-customer operations and the owner's visual work. Work
+toward those conditions; do not announce pilot GO while required evidence is
+missing.
+
 ## 2026-09-22 same-project test directive
 
 The owner directs Phase 8 development and bounded synthetic testing on the
