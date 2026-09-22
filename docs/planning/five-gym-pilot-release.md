@@ -47,6 +47,21 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   fresh sign-in SHALL have no Gymloop access. No mutation-complete A–D run
   SHALL be scheduled in CI against this shared project (ADR-147).
 
+  **Frozen owner-link interface for independent tests:** after a separately
+  created Auth user and an unlinked active `gym_owner` row in the QA tenant,
+  a verified `super_admin` calls
+  `public.link_gym_owner(p_tenant_id uuid, p_owner_staff_id uuid,
+  p_expected_user_id uuid, p_owner_email text, p_request_key uuid) -> jsonb`.
+  For first link, `p_expected_user_id` is null. The returned object has exact
+  `tenantId`, `ownerStaffId`, `userId`, `ownerAccessPending=false`; one
+  `staff.owner_linked` audit row is written for the request key. Exact replay
+  returns the prior result without another link/audit; changed-facts replay
+  is refused. The deployed HTTP adapter is
+  `POST /api/platform/gyms/{tenantId}/owner-link` with JSON body
+  `{ownerStaffId,expectedUserId,ownerEmail,requestKey}` and the ordinary
+  `{ok:true,data}` success envelope. The test-only Auth user is created with
+  no Gymloop claims; no role or tenant is assigned by the client.
+
 ## Usable core loop
 
 - **PILOT-003** BEFORE first-customer access, independently authenticated
