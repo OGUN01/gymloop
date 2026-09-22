@@ -17,6 +17,14 @@ be a generic `follow_up_failed` server error, and it must reveal no existence
 or details of the foreign case. Direct table writes remain independently
 protected by RLS and database constraints.
 
+For this route acceptance, submit a valid native form with `caseId` as a UUID,
+`channel='call'`, `outcome='will_return'`, optional non-empty `notes` and
+`nextAction`, and optional `nextFollowUpAt` as an offset-bearing ISO datetime
+in the future. Omit `correctsFollowUpId` for a new contact. The caller never
+supplies `tenantId`, `staffId` or case status; the verified claim supplies the
+first two and the database derives status. This form vocabulary is the same
+for the visible own-case positive and foreign-case refusal tests.
+
 This is the same rule as `attendance.assisted_by_staff_id` (`GL016`) and `membership_pauses.requested_by_staff_id` (`GL026`), for the same reason and with the same failure mode if it is left to the endpoint: `follow_ups` grants `insert` to `authenticated`, so a rule living only in a Route Handler has a supported way round it. **The three should look alike, because they are one rule about attribution appearing three times.**
 
 #### Scenario: Logging a follow-up
