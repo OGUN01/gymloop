@@ -867,14 +867,24 @@ passed **22/22** focused assertions on the linked shared project after a
 test-only hook-role and exact-replay fixture correction (`c12b970`). A separate
 holdout author, without reading the visible suite or implementation, reported
 **22/22** assertions passed from
-`supabase/tests-holdout/64_phase8_pilot_qa_owner.sql` (`362c402`). The suites
-exercise the actual onboarding/owner-link commands, the fresh claim hook,
-cross-gym RLS refusal and authorized deactivation; postflight found zero of
-their synthetic Auth users and organizations. The orchestrator did not inspect
+`supabase/tests-holdout/64_phase8_pilot_qa_owner.sql` (`362c402`). **That
+initial holdout pass is withdrawn:** a fresh Sol critic found that pgTAP
+results produced inside procedural blocks were discarded, so the count could
+hide failed assertions. The author repaired TAP emission in `f725470`, proved
+one deliberately failing probe reports a failure, and reported 19/19 on the
+focused rerun. The critic still found two underspecified holdout checks (exact
+idempotency error and keyed audit); their correction is in progress. The
+visible suite also needs to replace a self-comparison and derive RLS claims
+from the hook result. Until both narrow corrections and another critic pass,
+the PILOT-007 SQL evidence is **NO-GO**. Postflight found zero of the initial
+synthetic Auth users and organizations. The orchestrator has not inspected
 the holdout contents. No persistent QA owner, real Auth sign-in, browser A–D
-journey or customer identity was created by these SQL rehearsals. The later
-GitHub DB workflow still needs a valid password and a green full run before
-this can count as complete CI evidence.
+journey or customer identity was created by these SQL rehearsals. GitHub DB
+run `35697955080` additionally failed rollback lint on the initial holdout
+file's trailing postflight statement and failed `migrate` on the existing
+database credential; full pgTAP, schema drift and seed dry-run were skipped.
+The corrected holdout file ends in `ROLLBACK`, but CI still needs a successful
+rerun and a valid credential before this is complete release evidence.
 
 Read-only Android preflight found the connected OnePlus DN2101 still reporting
 Gymloop version `1.0.0` (`5`). The on-disk preview APK's signing certificate
