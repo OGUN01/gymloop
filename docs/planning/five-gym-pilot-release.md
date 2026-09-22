@@ -91,9 +91,13 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   and that staff id. A second synthetic gym made through `onboard_gym` supplies
   the foreign-row denial target. For an owner RLS assertion, set local
   `request.jwt.claims` to the returned `claims` and remain `authenticated`;
-  reset to the platform actor's claims before an authorized deactivation via
-  `UPDATE public.staff SET is_active=false` for the linked row. Switch to
-  `postgres` for the fresh test-only hook invocation; it must then omit
+  reset to the platform actor's claims and assert that a direct
+  `UPDATE public.staff SET is_active=false` for the linked owner is refused
+  with `GL049`. Retire that exact row only through
+  `public.deactivate_gym_owner(tenant_id, owner_staff_id,
+  expected_user_id, request_key)` as the authenticated super-admin, then
+  verify the keyed platform audit and zero sessions. Switch to `postgres`
+  for the fresh test-only hook invocation; it must then omit
   Gymloop role/tenant/staff claims. End in `ROLLBACK`
   and assert postflight absence of all synthetic IDs. This SQL fixture validates
   the command/claim/RLS contract only; the deployed acceptance must separately
