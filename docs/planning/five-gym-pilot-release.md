@@ -146,8 +146,9 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   human-readable redacted summary under `docs/evidence/phase8/`. If any
   preflight fails, do not create a fixture.
 
-  In a `finally` path, the authenticated super-admin marks only the newly
-  created staff row inactive; the identity trigger must revoke its Auth
+  In a `finally` path, the authenticated super-admin retires only the newly
+  created linked owner through the PILOT-008 command; the identity trigger
+  must revoke its Auth
   sessions. A read-only postflight must count zero `auth.sessions` for that
   exact user id through the correctly linked Supabase CLI Management API using
   `supabase db query --linked --output-format json` and parse `rows[0].n`;
@@ -159,6 +160,28 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   synthetic Auth/staff/audit history, with the account inactive. This run
   proves the deployed second-owner boundary only; A–D money/follow-up/add-on
   journeys need their own frozen fixture and assertions before they are run.
+
+- **PILOT-008** WHEN a non-preview super-admin retires one linked active gym
+  owner, THE SYSTEM SHALL expose `public.deactivate_gym_owner(tenant_id,
+  owner_staff_id, expected_user_id, request_key)` through the deployed
+  `POST /api/platform/gyms/{tenantId}/owner-deactivation` adapter. The request
+  body is exactly `{ownerStaffId,expectedUserId,requestKey}` with UUID values.
+  The command SHALL lock and verify the tenant and exact `gym_owner` staff
+  row, require that its current linked user matches the non-null expected
+  user, set only that row's `is_active=false`, preserve its Auth/staff/audit
+  history, and append one keyed `staff.owner_deactivated` audit event with
+  actor and before/after state in the same transaction. The existing identity
+  trigger SHALL revoke all sessions for that user. Exact keyed replay SHALL
+  return the original result without another write or audit; changed facts
+  under the key SHALL fail `GL068`, stale linked-user or inactive first-use
+  SHALL fail as stale state, and unknown/foreign staff SHALL be not-found.
+  Staff/gym owners, support, preview identities, anonymous and service-role
+  callers SHALL have no execution grant. No direct authenticated staff update
+  or service-role cleanup is an acceptance substitute. The deployed runner
+  SHALL preflight all read-only assumptions before creating an Auth user,
+  record exact non-secret fixture IDs immediately after each creation for
+  guarded recovery, disable screenshots/traces/video, and assert one-row
+  retirement, zero `auth.sessions`, and fresh unlinked claims.
 
 ## Usable core loop
 
