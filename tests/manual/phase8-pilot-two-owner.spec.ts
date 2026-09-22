@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { clientEnv, pilotAcceptanceEnv, playwrightEnv, serverEnv } from '@gymloop/shared';
 
 const qaTenantId = '7eb2f564-0c3b-49b6-8104-1902241a5955';
@@ -44,7 +45,8 @@ function readSessionCount(userId: string) {
   const linkedProjectRef = readFileSync('supabase/.temp/project-ref', 'utf8').trim();
   expect(linkedProjectRef).toBe(expectedProjectRef);
   const query = `select count(*)::int as n from auth.sessions where user_id = '${userId}'::uuid`;
-  const output = execFileSync('supabase', ['db', 'query', '--linked', '--output-format', 'json', query], { encoding: 'utf8' });
+  const supabaseCli = resolve('node_modules/supabase/dist/supabase.js');
+  const output = execFileSync(process.execPath, [supabaseCli, 'db', 'query', '--linked', '--output-format', 'json', query], { encoding: 'utf8' });
   return (JSON.parse(output) as { rows: Array<{ n: number }> }).rows[0]?.n;
 }
 
