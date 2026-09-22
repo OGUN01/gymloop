@@ -371,7 +371,10 @@ describe('inserting the payment', () => {
   });
 
   it('carries a membershipId through when given, and null when absent', async () => {
-    state.results = [ok(null), ok(null)];
+    // A supplied membership is now checked for caller visibility before the
+    // payment write. The first queued result is that visible membership; the
+    // following two are the respective payment inserts.
+    state.results = [ok({ id: MEMBERSHIP_ID }), ok(null), ok(null)];
 
     await recordPayment(post({ ...VALID, membershipId: MEMBERSHIP_ID }));
     expect(lastInsert()).toMatchObject({ membership_id: MEMBERSHIP_ID });
