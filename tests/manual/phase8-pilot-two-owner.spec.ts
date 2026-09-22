@@ -20,7 +20,7 @@ function newSyntheticEmail() {
 }
 
 function newHighEntropyPassword() {
-  return `${crypto.randomUUID()}${crypto.randomUUID()}${crypto.randomUUID()}`;
+  return `${crypto.randomUUID()}${crypto.randomUUID().replaceAll('-', '')}`;
 }
 
 function jwtClaims(accessToken: string) {
