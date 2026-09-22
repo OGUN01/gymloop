@@ -483,6 +483,23 @@ describe("translating the database's refusal — always back to the member's pag
     expect(pathOf(response)).toBe(MEMBER_PATH);
   });
 
+  it('refuses an RLS-invisible cross-gym membership as not_permitted before attempting a payment insert', async () => {
+    // A membership outside the caller's tenant is intentionally invisible.
+    // Treating that absence as a successful payment insert would both cross a
+    // tenant boundary and disclose whether the supplied UUID existed.  The
+    // ordinary refusal is therefore deliberately generic.
+    state.results = [ok(null)];
+
+    const response = await recordPayment(
+      post({ ...VALID, memberId: OTHER_MEMBER_ID, membershipId: MEMBERSHIP_ID }),
+    );
+
+    expect(errorOf(response)).toBe('not_permitted');
+    expect(pathOf(response)).toBe(`/memberships/${OTHER_MEMBER_ID}`);
+    expect(state.from).toContain('memberships');
+    expect(inserts()).toEqual([]);
+  });
+
   it('a 23505 against the receipt-number index is already_recorded, never success', async () => {
     const response = await submit(uniqueViolation(RECEIPT_INDEX));
 

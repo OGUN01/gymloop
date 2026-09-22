@@ -545,7 +545,7 @@ test.describe('PILOT-009 manual stage only', () => {
       const foreignPaymentDestination = new URL(foreignPayment.headers().location ?? '', expectedBaseUrl);
       expect(foreignPaymentDestination.origin).toBe(expectedBaseUrl);
       expect(foreignPaymentDestination.searchParams.has('error')).toBe(true);
-      expect(foreignPaymentDestination.searchParams.get('error')).toBe('membership_not_theirs');
+      expect(foreignPaymentDestination.searchParams.get('error')).toBe('not_permitted');
       observed.foreignPaymentCode = foreignPaymentDestination.searchParams.get('error');
       observed.foreignPaymentRedirect = `${foreignPaymentDestination.pathname}?error=${observed.foreignPaymentCode}`;
       const ironPaymentRead = await ironRead.from('payments').select('id').eq('membership_id', manifest.membershipId);
