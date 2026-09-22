@@ -404,16 +404,24 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   raw keys. Commit only its human-readable redacted summary under
   `docs/evidence/phase8/` after success.
 
-  In `finally`, the authenticated super-admin invokes the deployed PILOT-008
+  Before the first B–D command attempt, a failed read-only prerequisite
+  (including a missing or invalid cron observation) SHALL stop without a
+  business write or owner deactivation; retain the staged manifest and
+  encrypted credential for a guarded retry inside the paid-period margin,
+  and record the failed preflight separately. This is not an accepted A–D run.
+  Immediately before the first B–D request, arm an exact-ID retirement path.
+  Thereafter, on success **or any assertion/request failure**, `finally` SHALL
+  have the authenticated super-admin invoke the deployed PILOT-008
   owner-deactivation adapter only for the manifest's QA staff/user/tenant ids,
-  then uses the correctly linked Supabase CLI Management API for read-only
-  verification of zero sessions and performs a fresh password sign-in proving
-  no Gymloop role, tenant, or staff claims. Retain every marked business,
-  money, attendance, follow-up and audit row and the inactive Auth/staff
-  history. If any preflight, cron observation, assertion, or retirement fails,
-  stop immediately, mark the run failed, preserve the manifest and evidence,
-  and use only its exact ids for guarded operator recovery; never delete rows,
-  rerun a broad scan, or issue a blanket tenant cleanup.
+  use the correctly linked Supabase CLI Management API to verify zero sessions,
+  and perform a fresh password sign-in proving no Gymloop role, tenant, or
+  staff claims. Remove the credential escrow only after those three facts
+  pass; otherwise preserve it for exact-ID recovery. Retain every marked
+  business, money, attendance, follow-up and audit row and inactive Auth/staff
+  history. If any post-arm assertion or retirement fails, stop, mark the run
+  failed, preserve the manifest and evidence, and use only its exact ids for
+  guarded operator recovery; never delete rows, rerun a broad scan, or issue
+  a blanket tenant cleanup.
 
 ## Usable core loop
 
