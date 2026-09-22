@@ -1679,6 +1679,8 @@ Researched 2026-09-05, before the stack was locked. Recorded here because severa
 
 ---
 
+**ADR-150 — The multi-day PILOT-009 cron observer copies only the minimum credential helpers.** The staged acceptance harness deliberately registers a fixture-writing Playwright test at module load, so importing it from the D+8/D+9 observer would make a nominally read-only command capable of registering the write path. The observer therefore carries its own private Windows-DPAPI decryptor, manifest-path reader and browser password sign-in helper. They are intentionally unexported, have no production caller, and decrypt only the already-escrowed exact staged credential into memory. This is narrower than refactoring the stage runner into a shared module during a live multi-day acceptance, and preserves the observer's read-only boundary.
+
 ## Taken without the product owner during the Phase 1 overnight run — confirm or reverse
 
 The owner authorised the Phase 1 run end to end and was asleep for it, with a standing instruction: where a decision is genuinely the owner's, pick the safest default, record it, and carry on. Each of these is that. None is load-bearing enough that reversing it later costs more than one migration or one commit, and each names what reversing it would take.
