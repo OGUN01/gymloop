@@ -826,6 +826,16 @@ open under HARD-006. The real-customer sequence is now in
 `docs/runbooks/five-gym-pilot-onboarding.md` (`d3c186d`), with a stop line
 before inviting any gym rather than fabricated permanent customers.
 
+Read-only Android preflight found the connected OnePlus DN2101 still reporting
+Gymloop version `1.0.0` (`5`). The on-disk preview APK's signing certificate
+SHA-256 is `AA923C583E2A9DE0B25446DA1917E640198E664687EEDF2B38750DB13333C863`,
+matching the recorded production AAB upload certificate. This is useful
+signing-continuity evidence, **not** a fresh fingerprint of the installed
+package, an exact-AAB install, or proof that Play App Signing/internal-track
+delivery worked. No APK was installed,
+app data cleared or phone setting changed in this check. HARD-008 remains
+Partial until the exact-artifact device/Play journey is run.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
