@@ -8,7 +8,7 @@
   "scripts": {
     "build": "turbo run build",
     "lint": "turbo run lint && pnpm run lint:root",
-    "lint:root": "eslint scripts eslint.config.mjs .dependency-cruiser.mjs --no-error-on-unmatched-pattern supabase/functions",
+    "lint:root": "eslint scripts workers eslint.config.mjs .dependency-cruiser.mjs --no-error-on-unmatched-pattern supabase/functions",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:e2e": "node --env-file-if-exists=.env.local ./node_modules/@playwright/test/cli.js test",

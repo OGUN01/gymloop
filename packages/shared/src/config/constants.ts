@@ -58,6 +58,13 @@ export const UI_TOKENS = {
 
 export const DEFAULT_TIMEZONE = 'Asia/Kolkata';
 export const DEFAULT_CURRENCY = 'INR';
+/** HARD-005's private five-minute GitHub workflow dispatch contract. */
+export const PHASE8_MONITOR_DISPATCH = {
+  cron: '*/5 * * * *',
+  url: 'https://api.github.com/repos/OGUN01/gymloop/actions/workflows/phase8-production-monitor.yml/dispatches',
+  acceptedStatus: 204,
+  ref: 'main',
+} as const;
 /** HARD-004's finite same-Cloud prelaunch workload and Free-plan abort bounds. */
 export const PHASE8_PRELAUNCH_LOAD_LIMITS = {
   gymCount: 100,

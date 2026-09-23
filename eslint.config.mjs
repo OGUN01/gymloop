@@ -94,4 +94,13 @@ export default tseslint.config(
       },
     },
   },
+  {
+    files: ['workers/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        fetch: 'readonly',
+      },
+    },
+  },
 );
