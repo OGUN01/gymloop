@@ -191,7 +191,7 @@ describe('independent HARD-005 monitor-failure escalation holdout', () => {
     const source = workflowSource();
     const steps = stepSources(source);
     const forced = steps.filter((step) =>
-      /force_test_collection_failure/.test(step.source) && /(?:exit\s+1|\bfalse\b)/.test(step.source),
+      /force_test_collection_failure/.test(step.source) && /exit\s+1/.test(step.source),
     );
     const handlers = steps.filter((step) => /phase8-monitor-failure\.mjs/.test(step.source));
     const providerOffset = source.search(/vercel\s+logs/i);
