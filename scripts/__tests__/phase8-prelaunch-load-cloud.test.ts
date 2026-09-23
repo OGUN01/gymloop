@@ -44,10 +44,12 @@ const plannedEmail = () => {
 const AUTH_EMAIL = plannedEmail();
 const point = (metric: string, scenario: string, value: number, tags: Record<string, string> = {}) =>
   JSON.stringify({ metric, type: 'Point', data: { value, tags: { scenario, ...tags } } });
-const MORNING_REQUEST = point('http_reqs', 'morning_check_in_spike', 1, { status: '200' });
-const MORNING_DURATION = point('http_req_duration', 'morning_check_in_spike', 42.5);
-const READ_DENIAL = point('checks', 'cross_tenant_read_denial', 1, { check: 'cross-tenant member read is denied' });
-const MUTATION_DENIAL = point('http_reqs', 'cross_tenant_mutation_denial', 1, { status: '403' });
+const setupPoint = (metric: string, value: number, tags: Record<string, string> = {}) =>
+  JSON.stringify({ metric, type: 'Point', data: { value, tags: { group: '::setup', ...tags } } });
+const MORNING_REQUEST = point('http_reqs', 'morning_check_in_spike', 1, { name: 'morning_check_in', status: '200' });
+const MORNING_DURATION = point('http_req_duration', 'morning_check_in_spike', 42.5, { name: 'morning_check_in' });
+const READ_DENIAL = setupPoint('checks', 1, { check: 'cross-tenant member read is denied' });
+const MUTATION_DENIAL = setupPoint('http_reqs', 1, { name: 'cross_tenant_mutation', status: '403' });
 const RAW = [
   JSON.stringify({ metric: 'http_reqs', type: 'Metric', data: { type: 'counter' } }),
   MORNING_REQUEST,
@@ -117,10 +119,10 @@ describe('HARD-004 raw k6 result extraction', () => {
   it('counts only successful morning requests and returns measured p95 plus both isolation proofs', () => {
     const raw = [
       RAW,
-      point('http_reqs', 'morning_check_in_spike', 1, { status: '201' }),
-      point('http_req_duration', 'morning_check_in_spike', 42.5),
-      point('http_reqs', 'morning_check_in_spike', 1, { status: '500' }),
-      point('http_reqs', 'unrelated_scenario', 1, { status: '200' }),
+      point('http_reqs', 'morning_check_in_spike', 1, { name: 'morning_check_in', status: '201' }),
+      point('http_req_duration', 'morning_check_in_spike', 42.5, { name: 'morning_check_in' }),
+      point('http_reqs', 'morning_check_in_spike', 1, { name: 'morning_check_in', status: '500' }),
+      point('http_reqs', 'unrelated_scenario', 1, { name: 'morning_check_in', status: '200' }),
     ].join('\n');
     expect(parsePrelaunchK6Raw(raw)).toEqual({
       p95Ms: 42.5,
@@ -134,11 +136,11 @@ describe('HARD-004 raw k6 result extraction', () => {
     for (const raw of [
       [MORNING_REQUEST, MORNING_DURATION, MUTATION_DENIAL].join('\n'),
       [MORNING_REQUEST, MORNING_DURATION, READ_DENIAL].join('\n'),
-      [MORNING_REQUEST, MORNING_DURATION, point('checks', 'cross_tenant_read_denial', 0, { check: 'cross-tenant member read is denied' }), MUTATION_DENIAL].join('\n'),
+      [MORNING_REQUEST, MORNING_DURATION, setupPoint('checks', 0, { check: 'cross-tenant member read is denied' }), MUTATION_DENIAL].join('\n'),
       [RAW, READ_DENIAL].join('\n'),
       [RAW, MUTATION_DENIAL].join('\n'),
-      [MORNING_REQUEST, MORNING_DURATION, READ_DENIAL, point('http_reqs', 'cross_tenant_mutation_denial', 1, { status: '204' })].join('\n'),
-      [MORNING_REQUEST, MORNING_DURATION, READ_DENIAL, point('http_reqs', 'cross_tenant_mutation_denial', 1, { status: '299' })].join('\n'),
+      [MORNING_REQUEST, MORNING_DURATION, READ_DENIAL, setupPoint('http_reqs', 1, { name: 'cross_tenant_mutation', status: '204' })].join('\n'),
+      [MORNING_REQUEST, MORNING_DURATION, READ_DENIAL, setupPoint('http_reqs', 1, { name: 'cross_tenant_mutation', status: '299' })].join('\n'),
       [MORNING_REQUEST, READ_DENIAL, MUTATION_DENIAL].join('\n'),
       `${RAW}\n{broken-json`,
       '',
