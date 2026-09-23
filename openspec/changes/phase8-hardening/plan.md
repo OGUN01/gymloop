@@ -605,15 +605,17 @@ export and read-back, not a database restore; gate 29 remains unperformed.
 
 The testable entry point is `scripts/phase8-protected-backup.mjs`, exporting
 `runProtectedBackup(config, ports)`. `config` contains `expectedProjectRef`,
-`bucket`, `objectKey`, and `encryptionKey`. The async injected ports are
+`bucket`, `objectKey`, and `encryptionKey` (exactly 32 raw bytes in a Buffer).
+The async injected ports are
 `identifyLinkedProject`, `dumpRoles`, `dumpSchema`, `dumpData`,
 `dumpMigrations`, `uploadCiphertext`, `downloadCiphertext`, and `now`.
 Each dump returns a Buffer; upload receives `(bucket, objectKey, Buffer)`;
-download receives `(bucket, objectKey)` and returns a Buffer. Encryption,
+download receives `(bucket, objectKey)` and returns a Buffer; `now()` returns
+a UTC ISO timestamp. Encryption,
 decryption, and SHA-256 run inside the entry point. It returns only a safe
-receipt with source project, object key, `sourceHashes` for roles, schema,
-data, and migrations, plaintext and ciphertext hashes, verification result,
-and capture time. The manual and scheduled workflow is
+receipt fields `sourceProjectRef`, `bucket`, `objectKey`, `capturedAt`,
+`sourceHashes` (roles, schema, data, migrations), `plaintextSha256`,
+`ciphertextSha256`, `ciphertextBytes`, and `verified`. The manual and scheduled workflow is
 `.github/workflows/phase8-protected-backup.yml`.
 
 ### HARD-008 — production AAB and physical-device smoke proof
