@@ -10,6 +10,42 @@ before customer data, but it does not prove restoration. Follow ADR-159 and
 the revised PILOT-004 contract; keep the verdict NO-GO while any other required
 evidence is missing.
 
+## 2026-09-22 monitoring delivery and member-accessibility completion
+
+HARD-005's controlled-pilot GitHub Issues destination has one TEST delivery
+receipt. Commit `167c806` added the evaluator; visible checks passed 18/18 and
+an independently authored holdout passed 14/14. Workflow run `35764265002`
+queried production deployment `dpl_AU4cuvWZKZksR8xazboZsonmDN9F`, made three
+production endpoint probes and delivered closed TEST-only issue `#4` at
+18:00:31Z. Scheduled run `35785265599` completed collection and evaluation
+without an alert. Later runs `35798267364` and `35807766246` failed before
+evaluation because the stored Vercel CLI session token lacked account access.
+Commit `8244504` fixes TEST/production issue separation and bounded log
+collection; visible 20/20 and independent holdout 16/16 pass locally. The gate
+stays Partial until a persistent project-scoped token, a successful scheduled
+evaluation and fresh fixed-workflow delivery receipt exist.
+
+HARD-010's cited You hierarchy defect is implemented at `9a48c10`: explicit
+verified state and gym identity precede contact, web and Android expose the
+four grouped account destinations, long contact text wraps, and the blocked
+local development origin no longer leaves web appearance controls
+unhydrated. The fresh critic found one further web gap: Appearance described
+the choices instead of the selected value. Independent red regression
+`1d1b172` and fix `977feaa` now expose the current choice after hydration in
+both You and Settings. The full local accessibility browser matrix passed
+78/78 without a hydration error, including the independent route holdout
+across Light/Dark, 390/1440, owner detail/form routes and the platform gym
+detail; web typecheck and lint passed.
+Current-build Android visual evidence and owner acceptance remain open, so
+HARD-010 is not yet Passed.
+
+The attempt to provision a distinct Cloud Supabase load/recovery target in new
+organization `xxrvedplwoxxwqhaejad` was refused because the account already has
+its maximum two active Free projects. No project was created and neither
+Gymloop nor the unrelated active FitAi project was paused or repurposed. This
+keeps HARD-004's 100 × 500 execution external; the frozen safety contract was
+not weakened and production was not load-tested.
+
 ## 2026-09-22 recovery target correction
 
 The owner requires **Cloud Supabase only** for recovery work. No local Docker,
