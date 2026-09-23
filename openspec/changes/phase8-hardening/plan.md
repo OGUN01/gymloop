@@ -657,6 +657,41 @@ reaches the issue path. The monitor job retains its failed conclusion; the
 dependent job cannot turn a failed monitor green. A failed GitHub platform or
 issue API cannot be described as a delivered alert.
 
+When no successful production monitor run has started in the preceding 15
+minutes, an independent watchdog shall create or update one generic SEV-2
+GitHub Issue with `production-alert` and `phase8-monitor-missing` labels. It
+shall name the last successful run id and start time when available, but never
+copy log rows, probe bodies or credentials. Only completed, successful runs of
+the production monitor on `main` with the exact production run title qualify;
+manual TEST alert/failure runs cannot keep the watchdog green. Missing,
+malformed, future-dated or untrusted run data fails closed. A separate workflow
+shall run the watchdog on its own five-minute schedule, offset from the monitor,
+and on manual dispatch. The Cloudflare Cron Worker shall independently dispatch
+both workflows using the existing repository-only Actions credential, attempting
+both even if either dispatch fails. A forced TEST missing-run input shall prove
+the issue route using a disjoint TEST-only label and no `production-alert`, and
+its issue shall be closed after verification. A failed GitHub API or issue
+delivery is not a delivered alert. This dual trigger gives observed missed-run
+escalation, not an absolute timing guarantee if Cloudflare Cron and GitHub
+schedule both fail.
+
+The watchdog CLI is `node scripts/phase8-monitor-watchdog.mjs --input
+<json-file>`. Its exact input is `{mode,evaluatedAt,repository,runs}`, where
+`mode` is `scheduled` or `force-test-missing` and each run provides
+`{databaseId,createdAt,status,conclusion,event,headBranch,displayTitle}`.
+The pure export `evaluateMonitorCadence(input)` returns a JSON-safe decision
+with `decision` (`healthy` or `alert`), `testOnly`, `evaluatedAt`, and an `issue`
+only for alerts. The production title is `Gymloop production monitor`; the
+watchdog rejects extra input fields, invalid times, non-Gymloop repository,
+malformed run identities and run timestamps after evaluation. The 15-minute
+boundary is inclusive. The workflow reconciles the alert by the mode-specific
+key label, updates an existing open issue, and does not close a production
+issue automatically merely because a later monitor succeeded. The forced TEST
+mode still validates its input and then alerts regardless of run recency. A
+separate dependent failure job uses the generic monitor-failure issue handler
+when watchdog collection, evaluation or issue delivery fails; the watchdog
+run remains failed. The failure job uses TEST mode for a forced TEST run.
+
 ### HARD-006 — DPDP export, erasure, and retention runner
 
 When the DPDP operational runner executes, it shall produce an auditable export
