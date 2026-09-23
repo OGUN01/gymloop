@@ -249,6 +249,15 @@ original attendance through the existing replay response; an event reused for
 another member SHALL remain a conflict. This repair does not relax the load
 acceptance bar or presume that an unobserved HTTP 500 was `PGRST003`.
 
+**Safe failure diagnosis.** WHEN a check-in database command ends in the
+generic server-error response, THE SYSTEM SHALL emit an operational event
+containing the caller's tenant ID and only a validated SQLSTATE or PostgREST
+error code, or `unclassified` when the code is absent or malformed. It SHALL
+NOT log the database message, request body, bearer, member identity, client
+event ID or other free text. The user-facing response remains unchanged. This
+event distinguishes a pool timeout from another failure in a subsequent
+measured run; it does not itself pass HARD-004.
+
 The reviewable database boundary is
 `public.record_staff_front_desk_check_in(p_member_id uuid, p_reason text,
 p_client_event_id uuid)`, a `volatile security invoker` function granted only
