@@ -6,7 +6,9 @@ destination for `.github/workflows/phase8-production-monitor.yml` (ADR-161).
 Controlled run `35764265002` delivered closed TEST-only issue `#4` at
 2026-09-22T18:00:31Z. The replacement team-scoped Vercel CLI token then
 completed manual workflow run `35828518944` and delivered closed TEST-only
-issue `#5`. Earlier scheduled runs `35798267364` and `35807766246` failed
+issue `#5`. A second manual production evaluation, `35842057167`, passed on
+2026-09-23 after the new check-in deployment. Earlier scheduled runs
+`35798267364` and `35807766246` failed
 before evaluation with the old token. The destination and credential work in
 the controlled run, but the scheduled route has not yet shown five-minute
 continuity; HARD-005 and gate 28 remain Partial/External.
@@ -19,8 +21,9 @@ explicitly permits delayed or dropped jobs. Do not claim five-minute detection
 coverage until a scheduler with measured continuity and missing-run alerting is
 in place; a valid token alone does not close this gap.
 
-The private `gymloop-phase8-monitor-dispatch` Cloudflare Worker implements the
-second trigger. Its sole Cron is `*/5 * * * *`; it has no public HTTP handler.
+The `gymloop-phase8-monitor-dispatch` Cloudflare Worker is prepared as the
+second trigger. Its intended sole Cron is `*/5 * * * *`; it has no public HTTP
+handler.
 It dispatches `.github/workflows/phase8-production-monitor.yml` on `main` with
 `force_test_alert=false` and accepts only GitHub HTTP 204. Its GitHub fine-grained
 token must be restricted to the `OGUN01/gymloop` repository, Actions write, and
@@ -33,6 +36,13 @@ Cloudflare Cron Past Events and matching GitHub workflow runs for consecutive
 five-minute windows. Failed dispatches throw generic errors to Cloudflare logs.
 No continuous cadence or missing-run alert is claimed before those observations
 and an exercised escalation route are recorded.
+
+On 2026-09-23 the dedicated Worker was created and the reviewed handler was
+deployed as active version `55e0288a`. Its `workers.dev` production and preview
+URLs were disabled. No Cron trigger or GitHub credential is installed yet, so
+this deployment produces no scheduled monitor runs. GitHub's account
+verification step must complete before a repository-only Actions-write token
+can be created and stored as the Worker secret.
 
 ## Event boundary
 

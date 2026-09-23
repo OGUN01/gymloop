@@ -11,11 +11,14 @@ record the payment and receipt through the authenticated staff UI.
 Before inviting the first gym, the production owner checks the current Phase 8
 ledger against `PILOT-002` through `PILOT-004` and the frozen HARD gates. In
 particular: the rotated database credential and GitHub secret must authenticate
-and DB CI must be green; privacy export/erasure and legal/DPA review, recoverable
-backup/restore, delivered alert route, core-loop two-gym acceptance, final
-Android artifact and owner visual acceptance must have actual evidence. A
-rollback SQL test, local mock, preview APK or policy draft does not pass these.
+and DB CI must be green; privacy export/erasure and legal/DPA review, a verified
+encrypted off-site logical backup, delivered alert route, core-loop two-gym
+acceptance, final Android artifact and owner visual acceptance must have actual
+evidence. A rollback SQL test, local mock, preview APK or policy draft does not
+pass these.
 If any gate is red, continue internal preparation but do not invite a gym.
+ADR-159 excepts the Supabase provider restore/PITR drill for this controlled
+pilot only; it does not mark that separate recovery gate passed.
 
 ## Protected intake, one gym at a time
 

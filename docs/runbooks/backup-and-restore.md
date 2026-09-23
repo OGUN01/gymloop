@@ -8,7 +8,7 @@ is destructive. No restore is authorized by this document alone.
 provider restore/PITR drill from the five-gym pilot GO decision because the
 current Free project does not include that control. This does not pass gate 29
 or prove recoverability. Before customer data, the protected logical backup
-export described below still needs its real artifact, custody and cadence.
+export described below still needs a current verified artifact, custody and cadence.
 Any future drill uses a distinct Cloud Supabase target under ADR-158.
 
 Backup owner: production owner. Cadence: daily at 00:43 UTC and after material
@@ -186,8 +186,14 @@ makes the encrypted archive unusable; the production owner checks custody and
 rotation before onboarding and after access changes.
 
 The earlier 2026-09-21 linked-password failure was corrected on 2026-09-22.
-The protected export and read-back still require an executed receipt. This
-track cannot be described as Supabase PITR or make Gate 29 pass.
+Manual workflow run `35846608557` succeeded on 2026-09-23: the linked Cloud
+export was encrypted before upload to the private R2 bucket, then downloaded,
+decrypted and checked against the plaintext and ciphertext hashes. The redacted
+receipt is retained as a GitHub Actions artifact for 30 days and recorded in
+`docs/evidence/phase8/ledger.md`. Its capture time was 10:13:41 UTC. Review
+each new daily receipt and its age before onboarding; this one successful run
+does not prove the daily schedule or an isolated restore. This track cannot be
+described as Supabase PITR or make Gate 29 pass.
 
 **2026-09-23 archive decision:** the owner approved private R2 as the encrypted
 archive destination. Docker is used only by the official Supabase CLI for a
