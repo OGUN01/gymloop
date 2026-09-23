@@ -241,15 +241,16 @@ bar determines whether it actually works.
 
 **Bounded transient command retry.** WHEN that staff front-desk command
 returns PostgREST `PGRST003` (the pool-acquisition timeout), OR the installed
-PostgREST client reports status `0` with an empty error code after receiving
-no HTTP response, AND the request contains a client event ID, THE SYSTEM
+PostgREST client reports status `0` with an empty error code after an
+ambiguous transport or response-read failure, AND the request contains a
+client event ID, THE SYSTEM
 SHALL submit the identical command at most once more. It SHALL NOT retry a
 request without an event ID, retry after a second transient failure, or retry
 another database/security refusal. If the retry finds the same event already
 recorded for the same member, THE SYSTEM SHALL return the original attendance
 through the existing replay response; an event reused for another member
-SHALL remain a conflict. A lost response does not prove the first command
-failed before SQL, so the unchanged unique event ID and replay boundary are
+SHALL remain a conflict. Status `0` does not prove the first command failed
+before SQL, so the unchanged unique event ID and replay boundary are
 required. This repair does not relax the 50,000-acknowledgement, zero-failed-
 check and p95 < 2,000 ms Cloud bar.
 
