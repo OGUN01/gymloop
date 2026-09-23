@@ -346,6 +346,15 @@ adapter never seeds, resets, migrates, truncates or modifies existing gyms.
 points, and requires a successful cross-tenant read-denial check plus a
 non-2xx cross-tenant mutation status. It rejects missing, malformed or
 ambiguous probes. The actual k6 exit code must be zero for a passing result.
+For raw JSON points, the canonical wire examples are
+`{"metric":"http_reqs","type":"Point","data":{"value":1,"tags":{"scenario":"morning_check_in_spike","status":"200"}}}`,
+`{"metric":"http_req_duration","type":"Point","data":{"value":42.5,"tags":{"scenario":"morning_check_in_spike"}}}`,
+`{"metric":"checks","type":"Point","data":{"value":1,"tags":{"scenario":"cross_tenant_read_denial","check":"cross-tenant member read is denied"}}}`,
+and
+`{"metric":"http_reqs","type":"Point","data":{"value":1,"tags":{"scenario":"cross_tenant_mutation_denial","status":"403"}}}`.
+The real file may add k6 metric-definition lines and extra data/tags; these
+four facts are the required subset. One read-denial check and one mutation
+request must be present, each exactly once.
 
 Frozen harness interface: `scripts/phase8-load-safety.mjs` exports
 `assertSafeLoadTarget`, `buildMorningCheckInWorkload`, `summarizeRawResult`
