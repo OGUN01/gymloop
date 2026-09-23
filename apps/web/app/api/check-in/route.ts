@@ -66,12 +66,16 @@ export async function POST(request: Request): Promise<Response> {
   if (identity.kind === 'staff' && offlineRecordedAt !== undefined) return apiFail('bad_request', 'invalid_request', 'Only member device replay may carry an offline capture time.');
   if (identity.kind === 'staff' && token === undefined) {
     if (reason === undefined) return apiFail('bad_request', 'reason_required', 'Scan the gate code, or give a reason for checking this member in at the desk.');
-    const { data: recorded, error } = await (supabase as unknown as StaffFrontDeskRpc)
-      .rpc('record_staff_front_desk_check_in', {
-        p_member_id: memberId,
-        p_reason: reason,
-        p_client_event_id: clientEventId ?? null,
-      }).maybeSingle();
+    const command = { p_member_id: memberId, p_reason: reason, p_client_event_id: clientEventId ?? null };
+    let result = await (supabase as unknown as StaffFrontDeskRpc)
+      .rpc('record_staff_front_desk_check_in', command).maybeSingle();
+    // PostgREST's pool-acquisition timeout happens before the SQL command.
+    // An event ID also makes the single retry safe if a concurrent writer won.
+    if (result.error?.code === 'PGRST003' && clientEventId !== undefined) {
+      result = await (supabase as unknown as StaffFrontDeskRpc)
+        .rpc('record_staff_front_desk_check_in', command).maybeSingle();
+    }
+    const { data: recorded, error } = result;
     if (error === null && recorded !== null) return staffCheckInOk(recorded, recorded.member_name, false);
     if (error === null) return apiFail('not_found', 'member_unknown', 'No member of this gym has that id.');
     if (error.code === PG_UNIQUE_VIOLATION && clientEventId !== undefined) {
