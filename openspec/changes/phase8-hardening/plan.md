@@ -664,7 +664,12 @@ shall name the last successful run id and start time when available, but never
 copy log rows, probe bodies or credentials. Only completed, successful runs of
 the production monitor on `main` with the exact production run title qualify;
 manual TEST alert/failure runs cannot keep the watchdog green. Missing,
-malformed, future-dated or untrusted run data fails closed. A separate workflow
+malformed, future-dated or untrusted run data fails closed. The monitor workflow
+shall name ordinary scheduled and manual production runs exactly `Gymloop
+production monitor`, while forced TEST runs have distinct titles containing
+`TEST`; a manually dispatched non-TEST production run qualifies normally. The
+watchdog uses those titles because GitHub's run-list fields do not expose the
+manual dispatch inputs. A separate workflow
 shall run the watchdog on its own five-minute schedule, offset from the monitor,
 and on manual dispatch. The Cloudflare Cron Worker shall independently dispatch
 both workflows using the existing repository-only Actions credential, attempting
