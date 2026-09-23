@@ -122,6 +122,104 @@ describe('HARD-005 production monitor decision', () => {
     expect(first.output).not.toHaveProperty('issue');
   });
 
+  it('accepts benign provider rows with second-resolution UTC times and null optional status and signal', () => {
+    const input = baseInput();
+    input.logQuery.events = [
+      {
+        observedAt: '2026-09-22T10:03:00Z',
+        correlationId: 'corr-provider-benign-1',
+        httpStatus: null,
+        signal: null,
+        credible: false,
+        message: 'private provider log body',
+      },
+      {
+        observedAt: '2026-09-22T10:04:30Z',
+        correlationId: 'corr-provider-benign-2',
+        httpStatus: 200,
+        signal: null,
+      },
+    ];
+
+    const result = runMonitor(input);
+
+    expect(result.status).toBe(0);
+    expect(result.output).toMatchObject({
+      decision: 'healthy',
+      severity: 'NONE',
+      reasons: [],
+      evidence: { fiveMinute5xxCount: 0 },
+    });
+    expect(result.output).not.toHaveProperty('issue');
+    expect(JSON.stringify(result.output)).not.toContain('private provider log body');
+  });
+
+  it('counts five provider-shaped 5xx rows with second-resolution UTC times', () => {
+    const input = baseInput();
+    input.logQuery.events = Array.from({ length: 5 }, (_, index) => ({
+      observedAt: `2026-09-22T10:0${index}:00Z`,
+      correlationId: `corr-provider-5xx-${index}`,
+      httpStatus: 500,
+      signal: null,
+      credible: false,
+    }));
+
+    const result = runMonitor(input);
+
+    expect(result.status).toBe(0);
+    expect(result.output).toMatchObject({
+      decision: 'alert',
+      severity: 'SEV-2',
+      reasons: [{ code: 'API_5XX_THRESHOLD', count: 5, windowMinutes: 5 }],
+      evidence: { fiveMinute5xxCount: 5 },
+    });
+  });
+
+  it('still raises SEV-1 for a credible provider-shaped security row with null HTTP status', () => {
+    const input = baseInput();
+    input.logQuery.events = [{
+      observedAt: '2026-09-22T10:04:30Z',
+      correlationId: 'corr-provider-security',
+      httpStatus: null,
+      signal: 'cross_tenant_disclosure',
+      credible: true,
+    }];
+
+    const result = runMonitor(input);
+
+    expect(result.status).toBe(0);
+    expect(result.output).toMatchObject({
+      decision: 'alert',
+      severity: 'SEV-1',
+      reasons: [{ code: 'CREDIBLE_SECURITY_INTEGRITY_SIGNAL', count: 1 }],
+      evidence: { correlationIds: ['corr-provider-security'] },
+    });
+  });
+
+  it.each([
+    ['string HTTP status', { httpStatus: '500' }],
+    ['fractional HTTP status', { httpStatus: 500.5 }],
+    ['object signal', { signal: { name: 'cross_tenant_disclosure' } }],
+    ['string credibility', { credible: 'true' }],
+    ['invalid observed time', { observedAt: '2026-09-22T10:04:30' }],
+  ])('still fails closed on a non-null malformed %s', (_label, change) => {
+    const input = baseInput();
+    input.logQuery.events = [{
+      observedAt: '2026-09-22T10:04:30Z',
+      httpStatus: null,
+      signal: null,
+      credible: false,
+      ...change,
+      message: 'private provider log body',
+    }];
+
+    const result = runMonitor(input);
+
+    expect(result.status).not.toBe(0);
+    expect(result.output).toBeUndefined();
+    expect(result.stderr).not.toContain('private provider log body');
+  });
+
   it.each([
     'cross_tenant_disclosure',
     'payment_integrity_failure',
