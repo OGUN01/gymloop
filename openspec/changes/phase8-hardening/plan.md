@@ -649,6 +649,13 @@ only `--mode`, `--repository`, and `--run-id`, uses `gh` with argument arrays,
 and inherits the workflow's `GH_TOKEN` without reading it in application code.
 TEST and production issue identities must remain disjoint in either creation
 order, even though both receipts carry the common failure-classification label.
+The failure handler runs in a separate dependent workflow job with
+`needs: monitor` and a job-level `always()` condition whenever the monitor job
+did not succeed. It has its own checkout and Node setup, so a failed CLI
+installation, collection/evaluation failure, or monitor-job timeout still
+reaches the issue path. The monitor job retains its failed conclusion; the
+dependent job cannot turn a failed monitor green. A failed GitHub platform or
+issue API cannot be described as a delivered alert.
 
 ### HARD-006 — DPDP export, erasure, and retention runner
 
