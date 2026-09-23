@@ -1463,7 +1463,9 @@ linked Cloud preflight independently confirmed those four conditions at
 manifests remain ignored under `artifacts/phase8-load/`; no live customer
 record was used as a synthetic fixture. This passes HARD-004 only. The
 previously canceled full database suite was rerun as workflow
-`35846431096` after cleanup; its final result is pending here.
+`35846431096` after cleanup; it completed successfully with migration,
+rollback-wrapper, schema-drift, pgTAP and seed dry-run jobs all green. The
+later database run for monitor holdout files (`35864337526`) remains separate.
 
 ## 2026-09-23 protected Cloud backup
 
