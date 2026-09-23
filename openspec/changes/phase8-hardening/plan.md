@@ -214,12 +214,41 @@ users cannot displace a gym. Raw evidence SHALL identify check-in HTTP points
 separately from Auth refresh and tenant probes; only check-in responses count
 toward 50,000 and only check-in durations determine the two-second p95.
 The k6 latency threshold SHALL use the same `name=morning_check_in` filter.
+
 Setup-phase probe evidence has `group = ::setup` and no scenario tag; a missing,
 duplicated or successful cross-tenant mutation SHALL fail reconciliation.
 Validation binds every access token to the existing fixture's gym and marker,
 rejects duplicate gym/user/access/refresh identities, and exposes no secret in
 errors. Rotation requires the same returned Auth user ID, a fresh access token,
 a different nonblank refresh token, and expiry beyond the lead window.
+
+**Assisted check-in response-time repair.** WHEN a verified staff caller sends
+a new assisted front-desk check-in with a member ID and nonblank reason, THE
+SYSTEM SHALL resolve the member visible to that caller and record attendance
+in one RLS-scoped PostgREST command. The member, tenant, branch and acting staff
+MUST retain their existing database enforcement; the caller cannot supply a
+tenant or actor. A member invisible under RLS SHALL still produce the existing
+404 `member_unknown` response with no attendance. Missing or whitespace-only
+reasons, unsupported roles, cross-tenant members, duplicate-window check-ins,
+and reused client event IDs SHALL keep their existing refusal envelopes and
+zero unintended side effects. An exact same-member event retry SHALL return
+the original check-in with `replay: true`; the QR and member-mobile paths stay
+on their current commands. The successful API response retains the current
+`memberName`, `id`, `checked_in_at`, `source`, and `replay` fields. Reducing one
+network round trip is an implementation repair, not a new latency waiver: the
+unchanged 50,000-acknowledgement, zero-failed-check and p95 < 2,000 ms Cloud
+bar determines whether it actually works.
+
+The reviewable database boundary is
+`public.record_staff_front_desk_check_in(p_member_id uuid, p_reason text,
+p_client_event_id uuid)`, a `volatile security invoker` function granted only
+to `authenticated`. It accepts no tenant, branch or actor argument, uses the
+caller's RLS-visible `members` row, and returns at most one row containing
+`id`, `checked_in_at`, `source`, and `member_name`. Zero rows mean the member
+was not visible. The attendance trigger and policies remain the final write
+authority. The route uses this command only for staff front-desk requests,
+maps a rare unique `client_event_id` collision through its existing same-member
+replay lookup, and preserves the current QR/member routes.
 
 **Prelaunch-shared route (ADR-162).** WHEN the owner authorizes testing on the
 linked Cloud project, THE SYSTEM SHALL require a separate explicit
