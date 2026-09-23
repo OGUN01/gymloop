@@ -61,6 +61,9 @@ const fakeBackend = () => {
       lastCreatedId,
       hasLastCreatedId: lastCreatedId !== undefined && raw.includes(lastCreatedId),
       hasBearerToken: raw.includes('private-token-'),
+      stoppedAtSignIn: /"stoppedAt"\s*:\s*"sign-in"/.test(raw),
+      monitorFailed: /"monitorFailed"\s*:\s*(true|false)/.exec(raw)?.[1],
+      hasFailureSecret: raw.includes('private-password-marker'),
     };
   };
   const backend = {
@@ -261,6 +264,35 @@ describe('HARD-004 monitored prelaunch campaign execution', () => {
     expect(names(fake.events)).toContain('cleanupSql');
     expect(fake.events.filter((event) => event.name === 'deleteAuthUser')).toHaveLength(100);
     expect(names(fake.events)).toContain('verifyPostflight');
+  });
+
+  it('records a credential-free sign-in failure phase before cleanup after staging', async () => {
+    const fake = fakeBackend();
+    fake.backend.signIn = async (email: string) => {
+      fake.events.push({ name: 'signIn', args: [email] });
+      throw new Error('sign-in refused: private-password-marker');
+    };
+    const summary = await expectBlocked(CONFIG, fake.backend);
+    const stageIndex = firstIndex(fake.events, 'stageSql');
+    const signInIndex = firstIndex(fake.events, 'signIn');
+    const cleanupIndex = firstIndex(fake.events, 'cleanupSql');
+    expect(stageIndex).toBeGreaterThanOrEqual(0);
+    expect(signInIndex).toBeGreaterThan(stageIndex);
+    expect(cleanupIndex).toBeGreaterThan(signInIndex);
+    expect(names(fake.events)).not.toContain('writeFixture');
+    expect(names(fake.events)).not.toContain('runK6');
+
+    const recordedFailure = fake.events.findIndex((event, index) =>
+      index > signInIndex && index < cleanupIndex && event.name === 'writeManifest' &&
+      (event.args[0] as { stoppedAtSignIn: boolean; monitorFailed?: string }).stoppedAtSignIn &&
+      (event.args[0] as { monitorFailed?: string }).monitorFailed === 'false');
+    expect(recordedFailure).toBeGreaterThan(signInIndex);
+    expect(fake.events.filter((event) => event.name === 'writeManifest')
+      .every((event) => !(event.args[0] as { hasFailureSecret: boolean }).hasFailureSecret)).toBe(true);
+    expect(fake.events.filter((event) => event.name === 'deleteAuthUser')).toHaveLength(100);
+    expect(names(fake.events)).toContain('verifyPostflight');
+    const printed = JSON.stringify(summary);
+    expect(/private-password-marker|private-token-|memberId|membershipId|serviceRoleKey/i.test(printed)).toBe(false);
   });
 
   it('blocks when persisted attendance disagrees with k6, while still cleaning exact identities', async () => {
