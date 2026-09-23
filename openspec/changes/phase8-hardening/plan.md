@@ -239,6 +239,16 @@ network round trip is an implementation repair, not a new latency waiver: the
 unchanged 50,000-acknowledgement, zero-failed-check and p95 < 2,000 ms Cloud
 bar determines whether it actually works.
 
+**Bounded Cloud pool-timeout retry.** WHEN that staff front-desk command
+returns PostgREST `PGRST003` (the pool-acquisition timeout) and the request
+contains a client event ID, THE SYSTEM SHALL submit the identical command at
+most once more. It SHALL NOT retry a request without an event ID, retry a
+second timeout, or retry a database/security refusal. If the retry finds the
+same event already recorded for the same member, THE SYSTEM SHALL return the
+original attendance through the existing replay response; an event reused for
+another member SHALL remain a conflict. This repair does not relax the load
+acceptance bar or presume that an unobserved HTTP 500 was `PGRST003`.
+
 The reviewable database boundary is
 `public.record_staff_front_desk_check_in(p_member_id uuid, p_reason text,
 p_client_event_id uuid)`, a `volatile security invoker` function granted only
