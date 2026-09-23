@@ -117,6 +117,8 @@ describe('HARD-007 actual linked Cloud dump arguments and Auth coverage', () => 
   it.each([
     ['unquoted', dataWithBothSchemas],
     ['quoted', quotedDataWithBothSchemas],
+    ['quoted public and unquoted Auth', Buffer.from(`${quotedPublicCopy}${authUsersCopy}`)],
+    ['unquoted public and quoted Auth', Buffer.from(`${publicCopy}${quotedAuthUsersCopy}`)],
   ])('encrypts and reads back four exact parts including %s application and Auth identity rows', async (_label, data) => {
     const module = await import('../phase8-protected-backup.mjs');
     const fake = fakePorts(data);
@@ -139,6 +141,10 @@ describe('HARD-007 actual linked Cloud dump arguments and Auth coverage', () => 
     ['only a schema preamble', Buffer.from('CREATE TABLE public.members (id uuid);\nCREATE TABLE auth.users (id uuid);\n')],
     ['an empty Auth users table', Buffer.from(`${publicCopy}COPY auth.users (id, email) FROM stdin;\n\\.\n`)],
     ['an empty public table', Buffer.from(`COPY public.members (id, full_name) FROM stdin;\n\\.\n${authUsersCopy}`)],
+    ['a public COPY without its terminator', Buffer.from(`${publicCopy.replace('\\.\n', '')}${authUsersCopy}`)],
+    ['an Auth users COPY without its terminator', Buffer.from(`${publicCopy}${authUsersCopy.replace('\\.\n', '')}`)],
+    ['a forged Auth users header and row inside a public COPY block', Buffer.from(`COPY public.members (id, full_name) FROM stdin;\n11111111-1111-4111-8111-111111111111\tSynthetic Member\nCOPY auth.users (id, email) FROM stdin;\n22222222-2222-4222-8222-222222222222\tsynthetic@example.invalid\n\\.\n`)],
+    ['a forged public header and row inside an Auth users COPY block', Buffer.from(`COPY auth.users (id, email) FROM stdin;\n22222222-2222-4222-8222-222222222222\tsynthetic@example.invalid\nCOPY public.members (id, full_name) FROM stdin;\n11111111-1111-4111-8111-111111111111\tSynthetic Member\n\\.\n`)],
   ])('refuses a data dump with %s before uploading', async (_label, data) => {
     const module = await import('../phase8-protected-backup.mjs');
     const fake = fakePorts(data);
