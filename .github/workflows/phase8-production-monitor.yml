@@ -1,4 +1,5 @@
 name: Phase 8 production monitor
+run-name: ${{ inputs.force_test_alert && 'Gymloop production monitor TEST alert' || inputs.force_test_collection_failure && 'Gymloop production monitor TEST failure' || 'Gymloop production monitor' }}
 
 on:
   schedule:

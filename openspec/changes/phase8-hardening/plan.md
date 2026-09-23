@@ -657,10 +657,10 @@ reaches the issue path. The monitor job retains its failed conclusion; the
 dependent job cannot turn a failed monitor green. A failed GitHub platform or
 issue API cannot be described as a delivered alert.
 
-When no successful production monitor run has started in the preceding 15
+When no successful production monitor run was created in the preceding 15
 minutes, an independent watchdog shall create or update one generic SEV-2
 GitHub Issue with `production-alert` and `phase8-monitor-missing` labels. It
-shall name the last successful run id and start time when available, but never
+shall name the last successful run id and creation time when available, but never
 copy log rows, probe bodies or credentials. Only completed, successful runs of
 the production monitor on `main` with the exact production run title qualify;
 manual TEST alert/failure runs cannot keep the watchdog green. Missing,
@@ -679,6 +679,10 @@ its issue shall be closed after verification. A failed GitHub API or issue
 delivery is not a delivered alert. This dual trigger gives observed missed-run
 escalation, not an absolute timing guarantee if Cloudflare Cron and GitHub
 schedule both fail.
+
+The production run's `createdAt` is the GitHub queue creation timestamp, not a
+claim about when its job started. A completed success must be present before it
+can qualify.
 
 The watchdog CLI is `node scripts/phase8-monitor-watchdog.mjs --input
 <json-file>`. Its exact input is `{mode,evaluatedAt,repository,runs}`, where

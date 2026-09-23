@@ -62,8 +62,16 @@ export const DEFAULT_CURRENCY = 'INR';
 export const PHASE8_MONITOR_DISPATCH = {
   cron: '*/5 * * * *',
   url: 'https://api.github.com/repos/OGUN01/gymloop/actions/workflows/phase8-production-monitor.yml/dispatches',
+  watchdogUrl: 'https://api.github.com/repos/OGUN01/gymloop/actions/workflows/phase8-monitor-watchdog.yml/dispatches',
   acceptedStatus: 204,
   ref: 'main',
+} as const;
+/** HARD-005's independent completed-run freshness bound and CLI shape. */
+export const PHASE8_MONITOR_WATCHDOG = {
+  maxGapMs: 900_000,
+  cliArgCount: 2,
+  isoFractionDigits: 3,
+  productionTitle: 'Gymloop production monitor',
 } as const;
 /** HARD-005's collector-failure issue CLI bounds. */
 export const PHASE8_MONITOR_FAILURE = {

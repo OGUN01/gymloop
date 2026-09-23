@@ -1,0 +1,94 @@
+name: Phase 8 monitor watchdog
+
+on:
+  schedule:
+    - cron: '2/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      force_test_missing:
+        description: Create a TEST-only missing-run issue receipt
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+concurrency:
+  group: phase8-monitor-watchdog
+  cancel-in-progress: false
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Inspect completed production monitor cadence
+        id: evaluate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE_TEST_MISSING: ${{ inputs.force_test_missing || 'false' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          evaluated_at="$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')"
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow phase8-production-monitor.yml --limit 100 \
+            --json databaseId,createdAt,status,conclusion,event,headBranch,displayTitle > monitor-runs.json
+          mode="scheduled"
+          if [[ "$FORCE_TEST_MISSING" == "true" ]]; then mode="force-test-missing"; fi
+          jq -n --arg mode "$mode" --arg evaluatedAt "$evaluated_at" \
+            --arg repository "$GITHUB_REPOSITORY" --slurpfile runs monitor-runs.json \
+            '{mode:$mode,evaluatedAt:$evaluatedAt,repository:$repository,runs:$runs[0]}' > watchdog-input.json
+          node scripts/phase8-monitor-watchdog.mjs --input watchdog-input.json > watchdog-output.json
+          echo "decision=$(jq -r '.decision' watchdog-output.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update missing-run issue
+        if: steps.evaluate.outputs.decision == 'alert'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          issue_key="$(jq -r '.issue.key' watchdog-output.json)"
+          issue_title="$(jq -r '.issue.title' watchdog-output.json)"
+          jq -r '.issue.body' watchdog-output.json > issue-body.md
+          while IFS= read -r label; do
+            gh label create "$label" --color 0E8A16 --force
+          done < <(jq -r '.issue.labels[]' watchdog-output.json)
+          existing_issue="$(gh issue list --state open --label "$issue_key" --json number --jq '.[0].number // empty')"
+          labels="$(jq -r '.issue.labels | join(",")' watchdog-output.json)"
+          if [[ -n "$existing_issue" ]]; then
+            gh issue edit "$existing_issue" --title "$issue_title" --add-label "$labels" --body-file issue-body.md
+          else
+            gh issue create --title "$issue_title" --label "$labels" --body-file issue-body.md
+          fi
+
+  escalate_watchdog_failure:
+    needs: watchdog
+    if: ${{ always() && needs.watchdog.result != 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Create or update generic monitoring failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE_TEST_MISSING: ${{ inputs.force_test_missing || 'false' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mode="production"
+          if [[ "$FORCE_TEST_MISSING" == "true" ]]; then mode="test"; fi
+          node scripts/phase8-monitor-failure.mjs --mode "$mode" --repository "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID"
