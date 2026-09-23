@@ -199,6 +199,14 @@ returns a boolean; `rotateRefreshSession(session, AuthResponse,
 nowSeconds, leadSeconds)` returns the replacement session or throws. A refresh
 fixture has exactly `marker` and `gymSessions`; each session has exactly
 `gymId`, `userId`, `token`, `refreshToken`, and integer Unix `expiresAt`.
+`leadSeconds` is a positive integer. `refreshDue` becomes true at
+`nowSeconds >= expiresAt - leadSeconds`. `AuthResponse` is Supabase's refresh
+grant JSON `{access_token, refresh_token, expires_at, user: {id}}`; rotation
+returns the same normalized five-field session shape with the old gym and user
+IDs, new access and refresh tokens, and new integer Unix expiry. The k6
+prelaunch route reads the second private file through the absolute
+`PHASE8_LOAD_REFRESH_PATH` and the fixed lead through
+`PHASE8_LOAD_REFRESH_LEAD_SECONDS`.
 Validation binds every access token to the existing fixture's gym and marker,
 rejects duplicate gym/user/access/refresh identities, and exposes no secret in
 errors. Rotation requires the same returned Auth user ID, a fresh access token,
