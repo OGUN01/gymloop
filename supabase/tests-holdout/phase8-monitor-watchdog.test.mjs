@@ -30,12 +30,14 @@ function input(overrides = {}) {
 }
 
 function assertNoHealthyDecision(candidate) {
+  let result;
   try {
-    const result = evaluateMonitorCadence(candidate);
-    assert.equal(result.decision, 'alert');
+    result = evaluateMonitorCadence(candidate);
   } catch (error) {
     assert.ok(error instanceof Error);
+    return;
   }
+  assert.equal(result.decision, 'alert');
 }
 
 test('a completed successful production run on main is healthy', () => {
@@ -166,18 +168,20 @@ test('a valid recent run cannot mask malformed or future-dated evidence', () => 
 });
 
 test('alert issue content excludes untrusted provider text', () => {
+  let result;
   try {
-    const result = evaluateMonitorCadence(input({
+    result = evaluateMonitorCadence(input({
       runs: [productionRun({
         databaseId: 777,
         createdAt: '2026-09-23T12:30:00.000Z',
         displayTitle: 'secret-token=canary-personal-data',
       })],
     }));
-    assert.equal(result.decision, 'alert');
-    assert.doesNotMatch(JSON.stringify(result.issue), /canary-personal-data/);
   } catch (error) {
     assert.ok(error instanceof Error);
     assert.doesNotMatch(error.message, /canary-personal-data/);
+    return;
   }
+  assert.equal(result.decision, 'alert');
+  assert.doesNotMatch(JSON.stringify(result.issue), /canary-personal-data/);
 });
