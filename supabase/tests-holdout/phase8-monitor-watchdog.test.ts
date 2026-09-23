@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 
 import { evaluateMonitorCadence } from '../../scripts/phase8-monitor-watchdog.mjs';
 
 const repository = 'OGUN01/gymloop';
 const evaluatedAt = '2026-09-23T13:00:00.000Z';
 
-function productionRun(overrides = {}) {
+function productionRun(overrides: Record<string, unknown> = {}) {
   return {
     databaseId: 501,
     createdAt: '2026-09-23T12:50:00.000Z',
@@ -19,7 +19,7 @@ function productionRun(overrides = {}) {
   };
 }
 
-function input(overrides = {}) {
+function input(overrides: Record<string, unknown> = {}) {
   return {
     mode: 'scheduled',
     evaluatedAt,
@@ -29,7 +29,7 @@ function input(overrides = {}) {
   };
 }
 
-function assertNoHealthyDecision(candidate) {
+function assertNoHealthyDecision(candidate: ReturnType<typeof input>) {
   let result;
   try {
     result = evaluateMonitorCadence(candidate);
