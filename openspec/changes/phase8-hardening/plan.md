@@ -692,6 +692,14 @@ separate dependent failure job uses the generic monitor-failure issue handler
 when watchdog collection, evaluation or issue delivery fails; the watchdog
 run remains failed. The failure job uses TEST mode for a forced TEST run.
 
+The owner named themself as the pilot's primary GitHub alert responder and
+accepted a controlled-pilot exception for an unverified independent missed-run
+alert until the VPS migration. This does not mark HARD-005 Passed or prove that
+a GitHub notification arrived or was acknowledged. A real responder receipt
+and missed-run escalation are still required for general release. If the
+watchdog is deployed and verified before pilot GO, its own evidence can close
+that part without relying on the exception.
+
 ### HARD-006 — DPDP export, erasure, and retention runner
 
 When the DPDP operational runner executes, it shall produce an auditable export
@@ -703,6 +711,15 @@ and are recorded as external until actually obtained.
 
 Acceptance: focused runner checks cover export, erasure, retention, and hold;
 legal approval is never represented by a local test result.
+
+For the five-gym controlled pilot only, the owner accepted an explicit
+exception for the unresolved privacy product decisions and qualified legal/DPA
+review until the planned VPS migration. HARD-006 and DPDP gate 23 remain open;
+no export/erasure compliance or legal approval may be reported as Passed from
+this exception. The production owner is responsible for obtaining and recording
+those decisions and review before any broader release. The exception is a
+pilot-scope decision, not a change to the underlying retention, erasure or
+legal-hold implementation requirements.
 
 ### HARD-007 — backup, restore, incident, and breach evidence
 
