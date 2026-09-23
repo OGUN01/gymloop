@@ -15,8 +15,10 @@ acceptance, remain open. The legacy isolated load route stays available.
 **2026-09-23 monitoring update:** the independent watchdog is implemented and
 deployed. A TEST-only missing-run issue, a healthy watchdog evaluation and one
 Cloudflare dual dispatch to green monitor/watchdog workflows are in the Phase 8
-ledger. Actual human acknowledgement and protected roster/access review remain
-open, so HARD-005 is Partial.
+ledger. A later assignment repair sent fresh TEST missing-run, collection-
+failure and threshold issues to the owner's `OGUN01` GitHub account, with all
+three routes verified live. Actual human notification and acknowledgement plus
+protected roster/access review remain open, so HARD-005 is Partial.
 
 **Controlled-pilot scope update (ADR-168, 2026-09-23):** the owner accepted
 privacy product decisions and qualified legal/DPA review as unresolved pilot

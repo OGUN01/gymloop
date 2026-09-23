@@ -714,7 +714,8 @@ public and its GitHub Actions-created issues were unassigned. Whenever the
 production evaluator, missing-run watchdog, or either dependent failure handler
 creates **or updates** a production or TEST alert issue, it shall assign the
 exact GitHub account `OGUN01` as primary responder. A failed assignment shall
-fail the creating job so its dependent escalation can run; a TEST receipt shall
+fail that job; the dependent escalation runs when a primary monitor or watchdog
+job fails. A TEST receipt shall
 retain its disjoint labels and never gain `production-alert`. Issue titles and
 bodies remain generic and redacted because the repository is public. An issue
 assignment is a routing attempt, not proof that a notification was delivered or

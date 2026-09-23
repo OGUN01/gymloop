@@ -1562,6 +1562,27 @@ matching GitHub dispatch receipts and active Worker version are the recorded
 live evidence. This proves one real dual dispatch plus a TEST issue route, not
 a natural missed-run incident or human alert acknowledgement.
 
+**2026-09-23 assigned-alert correction:** read-only GitHub inspection found
+`OGUN01/gymloop` public, with `OGUN01` as its sole collaborator, and prior
+TEST issues unassigned. Independent visible and blind tests were committed red
+before the assignment repair `d0c7e36`; local scripts passed **600/600** across
+46 files, with root lint and registry checks green. The workflows now assign
+`OGUN01` on create and update, as does the shared dependent failure handler.
+A fresh critic returned code-level GO. Forced watchdog run
+[`35877086902`](https://github.com/OGUN01/gymloop/actions/runs/35877086902)
+created [TEST issue #8](https://github.com/OGUN01/gymloop/issues/8), assigned
+solely to `OGUN01` with no `production-alert` label. Forced collection failure
+run [`35877273090`](https://github.com/OGUN01/gymloop/actions/runs/35877273090)
+failed its monitor job as designed, passed its dependent escalation, and
+created assigned TEST issue #9; forced threshold run
+[`35877286041`](https://github.com/OGUN01/gymloop/actions/runs/35877286041)
+passed its monitor job and created assigned TEST issue #10. Issues #9 and #10
+were closed after verification; #8 remains open for the owner's own receipt
+test. The authenticated GitHub notifications API returned no inbox item for
+#8 in the immediate check, so **human delivery and acknowledgement remain
+unverified**. These public issues contain generic TEST text, not a protected
+contact roster or production log payload. HARD-005 and gate 28 remain Partial.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |

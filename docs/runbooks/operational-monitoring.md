@@ -18,6 +18,16 @@ HARD-005 and gate 28 remain Partial because actual responder acknowledgement,
 protected roster and retention/access review are incomplete. The watchdog's
 observed cadence is not a guarantee that both schedulers always run.
 
+On 2026-09-23, assignment repair `d0c7e36` made evaluator, watchdog and
+dependent failure issues assign `OGUN01` on both creation and update. Live
+forced TEST runs created [#8](https://github.com/OGUN01/gymloop/issues/8)
+(missing-run), #9 (collection failure), and #10 (threshold alert), each assigned
+only to that account and without `production-alert`; #9/#10 were closed after
+verification. #8 is left open for an owner-side notification and acknowledgement
+test. GitHub's authenticated notifications API showed no inbox item in the
+immediate check, so assignment is not a delivery receipt. The repository is
+public; issue bodies remain generic and the contact roster must stay outside it.
+
 The cron expression requests an evaluation every five minutes; GitHub does not
 guarantee that delivery interval. The first observed scheduled starts were
 2026-09-22T21:13:10Z, 23:37:00Z and 2026-09-23T01:47:49Z, leaving gaps far
