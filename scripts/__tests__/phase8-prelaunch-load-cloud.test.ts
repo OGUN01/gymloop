@@ -27,6 +27,14 @@ const TARGET = {
 const directories: string[] = [];
 let cachedPlan: ReturnType<typeof buildPrelaunchSyntheticPlan> | undefined;
 const plan = () => cachedPlan ??= buildPrelaunchSyntheticPlan(MARKER);
+const containsStringValue = (value: unknown, expected: string): boolean => {
+  if (typeof value === 'string') return value === expected;
+  if (Array.isArray(value)) return value.some((item) => containsStringValue(item, expected));
+  if (value !== null && typeof value === 'object') {
+    return Object.values(value).some((item) => containsStringValue(item, expected));
+  }
+  return false;
+};
 const plannedEmail = () => {
   const gym = plan().gyms[0] as Record<string, unknown>;
   const emails = Object.entries(gym).filter(([key, value]) => /email/i.test(key) && typeof value === 'string');
@@ -157,12 +165,13 @@ describe('HARD-004 same-cloud backend with injected ports', () => {
     const syntheticPlan = plan();
     await backend.writeManifest({ plan: syntheticPlan, target: TARGET, artifactPaths: config.campaignConfig, phase: 'planned' });
     const first = readFileSync(config.campaignConfig.cleanupManifestPath, 'utf8');
+    const firstRecord = JSON.parse(first.split(/\r?\n/, 1)[0]) as unknown;
     expect(first.includes(MARKER)).toBe(true);
     expect(first.includes(PROJECT_REF)).toBe(true);
     expect(first.includes(syntheticPlan.gyms[0].gymId)).toBe(true);
-    expect(first.includes(config.campaignConfig.fixturePath)).toBe(true);
-    expect(first.includes(config.campaignConfig.baselineManifestPath)).toBe(true);
-    expect(first.includes(config.campaignConfig.rawResultPath)).toBe(true);
+    expect(containsStringValue(firstRecord, config.campaignConfig.fixturePath)).toBe(true);
+    expect(containsStringValue(firstRecord, config.campaignConfig.baselineManifestPath)).toBe(true);
+    expect(containsStringValue(firstRecord, config.campaignConfig.rawResultPath)).toBe(true);
     if (process.platform !== 'win32') {
       expect(statSync(config.campaignConfig.cleanupManifestPath).mode & 0o077).toBe(0);
     }
@@ -302,7 +311,7 @@ describe('HARD-004 same-cloud backend with injected ports', () => {
     };
     expect(request.signal).toBe(signal);
     expect(request.rawResultPath).toBe(config.campaignConfig.rawResultPath);
-    expect(JSON.stringify(request.env).includes(config.campaignConfig.fixturePath)).toBe(true);
+    expect(request.env.PHASE8_LOAD_FIXTURE_PATH).toBe(config.campaignConfig.fixturePath);
     expect(/private-bearer-|member-0-0|password/i.test(JSON.stringify(request.env))).toBe(false);
     expect(readFileSync(config.campaignConfig.rawResultPath, 'utf8').includes(MORNING_REQUEST)).toBe(true);
   });
