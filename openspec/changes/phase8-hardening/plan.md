@@ -416,19 +416,19 @@ marker Auth users remain after cleanup. The read-only baseline is persisted
 before any Auth creation. A query error or ambiguous result blocks. The
 adapter never seeds, resets, migrates, truncates or modifies existing gyms.
 `parsePrelaunchK6Raw` accepts newline JSON k6 points, counts only successful
-`morning_check_in_spike` HTTP requests, computes p95 from measured duration
-points, and requires a successful cross-tenant read-denial check plus a
-non-2xx cross-tenant mutation status. It rejects missing, malformed or
-ambiguous probes. The actual k6 exit code must be zero for a passing result.
-For raw JSON points, the canonical wire examples are
-`{"metric":"http_reqs","type":"Point","data":{"value":1,"tags":{"scenario":"morning_check_in_spike","status":"200"}}}`,
-`{"metric":"http_req_duration","type":"Point","data":{"value":42.5,"tags":{"scenario":"morning_check_in_spike"}}}`,
-`{"metric":"checks","type":"Point","data":{"value":1,"tags":{"scenario":"cross_tenant_read_denial","check":"cross-tenant member read is denied"}}}`,
+`morning_check_in_spike` HTTP requests tagged `name=morning_check_in`, and
+computes p95 only from their duration points. Auth refresh and both probes
+are excluded from that count and latency. It requires a successful read-denial
+check and a non-2xx mutation request emitted by setup. It rejects missing,
+malformed or ambiguous probes. The actual k6 exit code must be zero for a
+passing result. For raw JSON points, the canonical wire examples are
+`{"metric":"http_reqs","type":"Point","data":{"value":1,"tags":{"scenario":"morning_check_in_spike","name":"morning_check_in","status":"200"}}}`,
+`{"metric":"http_req_duration","type":"Point","data":{"value":42.5,"tags":{"scenario":"morning_check_in_spike","name":"morning_check_in"}}}`,
+`{"metric":"checks","type":"Point","data":{"value":1,"tags":{"group":"::setup","check":"cross-tenant member read is denied"}}}`,
 and
-`{"metric":"http_reqs","type":"Point","data":{"value":1,"tags":{"scenario":"cross_tenant_mutation_denial","status":"403"}}}`.
-The real file may add k6 metric-definition lines and extra data/tags; these
-four facts are the required subset. One read-denial check and one mutation
-request must be present, each exactly once.
+`{"metric":"http_reqs","type":"Point","data":{"value":1,"tags":{"group":"::setup","name":"cross_tenant_mutation","status":"403"}}}`.
+The real file may add k6 metric-definition lines and extra data/tags. One
+read-denial check and one mutation request must be present, each exactly once.
 
 Frozen harness interface: `scripts/phase8-load-safety.mjs` exports
 `assertSafeLoadTarget`, `buildMorningCheckInWorkload`, `summarizeRawResult`
