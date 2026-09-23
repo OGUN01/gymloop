@@ -31,10 +31,12 @@ create Auth users, run SQL, monitor the Cloud size or invoke k6 on their own.
 Run the Cloud size observer at intervals no greater than 60 seconds throughout
 staging and k6. Abort if collection fails, the observer stops, or the database
 reaches 400,000,000 bytes. Do not let the Free project reach its read-only
-limit, which could also block cleanup. The current validator and k6 fixture
-transport are checked in, but the Cloud fixture staging, live observer and
-recovery runner are still being completed; no 50,000-request run has occurred.
-Do not invoke k6 until those pieces and an exact-ID cleanup rehearsal pass.
+limit, which could also block cleanup. The staging, observer and exact recovery
+runner have executed three bounded Cloud attempts. The third finished 50,000
+iterations, but 49,998 were acknowledged and p95 was 2.52 seconds against the
+frozen 2-second bar. Exact cleanup and an independent zero-remnant preflight
+passed. HARD-004 and Gates 25/27 remain NO-GO pending diagnosis and a passing
+repeat; see the ledger for markers and raw-result checksums.
 
 For this route set `PHASE8_LOAD_MODE=prelaunch-shared`,
 `PHASE8_LOAD_CREDENTIAL_KIND=prelaunch-shared`,
@@ -126,5 +128,7 @@ result in `docs/evidence/phase8/ledger.md`. Never record tokens, member data, or
 the fixture JSON. Delete the synthetic tenants and revoke fixture credentials
 after evidence capture.
 
-Until every precondition exists and the run is executed, Gate 27 remains
-**Partial / External**, not Passed.
+The owner-authorized same-Cloud route is the active pilot test. The isolated
+route remains available for future general-release testing, but the owner
+declined a second Supabase project for this pilot. Gate 27 remains unmet after
+the measured same-Cloud failures.

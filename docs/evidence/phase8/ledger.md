@@ -170,7 +170,7 @@ renewal and add-on A–D continuation has not run.
 | HARD-001 | **Partial** | Phase 7 closeout `d1888c6`; Phase 8 contract `c768dff`; repository, 2026-09-20 | Procedure: review each HARD row for status, identity, time, result, artifact and dependency. This ledger is the current artifact. | Owner: Phase 8 orchestrator. Complete only after every row links exact executed commands/procedures and results; keep skipped/blocked/external visible. |
 | HARD-002 | **Passed** | Original contract/config `cdd99fb`/`674255e`; least-permission contract/config `94f058f`/`2252bdc`; version contract/config `d894ad5`/`7a31384`; CI `35530050420`; EAS build `146221dd-dab2-4ef1-a99b-61dc14be4675`, 2026-09-20 | Focused HARD-002 checks passed 5/5 and mobile typecheck passed; CI, holdout and test immutability were green. The production `STORE` build from `7a31384` is a managed-credential signed AAB for `in.gymloop.mobile` version `1.0.0` (`2`). Artifact, certificate and merged-permission evidence: `docs/evidence/2026-09-20-phase8-production-release.md`; AAB SHA-256 `129C5339A629C3AB2BFE937C7C304D44E4A3BEBEB1ED3CFCEB393F34A674C239`. | HARD-002's reviewable configuration, unique release version, test integration, least-privilege manifest and signed-AAB readiness proof are satisfied. Physical-device install and Play publication remain separately Partial/External under HARD-008. |
 | HARD-003 | **Partial** | Earlier role/consent fixes through `e7a5883`; role/contrast/test commits `37f9c16`/`3bb641d`/`73def13`; member, desk and owner route tests `deb3e74`/`dc3e8b1`/`b24cfe3`; production auth-wait correction `6cf458b`; CI `35597428131`/`35597828557`/`35598747383`/`35599835395`; production deployment `dpl_DeQTPPHhisD8erdRe4GGg6YFCmEU`, 2026-09-21 | Five-role landings and forbidden routes passed locally and on the production alias; CI/holdout/immutability passed after the cold-runner test split. Six member, four desk and four owner secondary routes passed Light/Dark axe/English/overflow checks locally and in CI. A production-only test race was found on immediate post-sign-in navigation and repaired with explicit home waits in `6cf458b`; production reruns then passed member 12/12 and desk/owner 16/16. CI, holdout and test immutability passed for the correction. Synthetic UI journeys and distinct gym-owner sessions proved reciprocal foreign-member 404s, a foreign payment 404, an Iron-owner → QA check-in refusal, and tenant-scoped positive visit counts. A later QA-owner → Iron rollback-only database probe and Iron-front-desk → QA live API POST both refused foreign check-ins with zero side effects; exact IDs below. | Full Playwright-automated mutation-complete A–D journeys and complete two-gym browser acceptance remain open. The QA owner used Google OAuth in the in-app browser while Iron Box used a separate Playwright context, not two independently signed-in owners in the same checked-in run. Controlled second-gym credentials and disposable fixtures are needed for repeatable CI mutations. Owner: web acceptance/infrastructure owner. |
-| HARD-004 | **Partial / execution pending** | Original isolated route `ee0bc4d`; owner same-Cloud authorization ADR-162; prelaunch red suites `b697ac5`/`af91b86` and test portability correction `b346b26`, 2026-09-23 | The original 16/16 isolated checks remain green. The new prelaunch validator, fixed 100 × 500 private-file transport and gitignored recovery paths pass 28 visible and 68 independent holdout checks. k6 `inspect` accepted a full dummy fixture with the explicit linked-project mode and made no network call. The linked Cloud database was 34 MB against a 500 MB Free limit; no fixture, load or cleanup was executed. | Owner: Phase 8 operator. Finish exact-ID fixture staging, continuous size observer and recoverable cleanup; then run 50,000 real API check-ins with preapproved p95 and both isolation probes. Attach raw checksum, monitor samples and postflight. The provider restore exception is separate. |
+| HARD-004 | **NO-GO / measured p95 failure** | Owner same-Cloud authorization ADR-162; three linked Cloud attempts through 2026-09-23; exact evidence and raw checksums below | The third run completed 50,000 iterations with 49,998 acknowledged, both cross-tenant denials and zero interruptions; p95 **2.52 s** exceeded the frozen 2 s budget. Its two failed checks were one HTTP 500 and one timeout. Continuous size monitoring stayed below the abort ceiling, exact cleanup completed, and independent preflight found no synthetic DB/Auth remnants or changes to pre-existing rows. | Owner: Phase 8 operator. Diagnose the server/Cloud response wait and two failed check-ins, repair without weakening the frozen budget, and repeat the exact bounded run. Provider restore is a separate exception. |
 | HARD-005 | **Partial / External credential and scheduler** | Logger and API 500 work through `bdfc81d`; evaluator `167c806`; regression fix `8244504`; GitHub runs `35764265002`, `35785265599`, `35798267364`, `35807766246` | Visible 20/20 and independent holdout 16/16 monitor tests pass locally. Controlled workflow run `35764265002` queried Vercel deployment `dpl_AU4cuvWZKZksR8xazboZsonmDN9F`, made three endpoint probes and delivered closed TEST-only issue `#4` at 2026-09-22T18:00:31Z. Scheduled run `35785265599` completed evaluation, but later runs `35798267364` and `35807766246` failed on the expiring CLI token. Scheduled starts were over two hours apart, so a five-minute log window cannot provide continuous detection. The code fix separates TEST and production issue keys and bounds log collection with `--no-follow`; no scheduled post-fix success is yet recorded. | Install a project-scoped persistent Vercel token, prove a reliable scheduler or missing-run alert, then observe a scheduled run and repeat TEST delivery on the fixed workflow. Alert acknowledgement and retention/access review also remain. |
 | HARD-006 | **Blocked / External legal** | Read-only implementation audit completed 2026-09-20; no runner or execution evidence attached | Governing durations and broad blank/delete/hold categories are in `docs/security.md`, but the contract does not classify personal columns, define clocks for several retention rows, cover `razorpay_mandates`, define export wire content, or distinguish category-wide retention from case-specific legal holds. `members.full_name` and `phone` are also non-null today, so truthful erasure cannot be added without a schema/product decision. No destructive command was run. | Owner: product/privacy owner freezes those decisions; production owner obtains qualified legal review. Then independent visible/holdout authors specify the member-derived export/erasure RPCs and service-only retention runner before CI-only migration work starts. Local tests cannot satisfy legal sign-off. |
 | HARD-007 | **Partial / External restore** | Runbooks committed in `055e83c` on 2026-09-20; no cloud operation id | Procedures: `docs/runbooks/incident-and-breach.md` and `docs/runbooks/backup-and-restore.md`. They define roles, checkpoints, evidence, safe read-only review and the destructive approval boundary. No tabletop or Supabase cloud PITR restore was performed. | Owner: production owner/platform administrator; Privacy Lead for legal notification confirmation. Evidence: role/contact roster, tabletop record, current legal/DPA decision, backup-control capture and disposable-target cloud restore operation with validation/cleanup. Gate 29 remains external/unperformed. |
@@ -1328,12 +1328,68 @@ The staged member still had **zero** attendance and **zero** no-show cases.
 This confirms the fixture remains unconsumed for the actual scheduled scans;
 it does not predict the cron result or authorize early B–D execution.
 
+## 2026-09-23 linked Cloud 100 × 500 load attempts
+
+The owner authorized bounded synthetic testing against linked Cloud Supabase
+`pecxrpskmfeuyzngvewq` before customer onboarding (ADR-162). The immutable
+bar is 50,000 successful assisted check-ins with 100 distinct gym sessions,
+both cross-tenant denials, p95 below **2,000 ms**, continuous database-size
+observation below the 400 MB abort ceiling, and exact removal of synthetic
+database/Auth identities. The local HTTPS production-built API proxy targeted
+that linked Cloud project. No provider restore or local Supabase stack ran.
+
+The first complete run, marker
+`PHASE8-LOAD-2c49e3de-a0b7-4955-9ba6-6e6de5e29798`, failed: 4,091
+check-ins received 401 after the unchanged 900-second JWT expiry, four got
+500 and six got unintended 404. It measured 1.71-second p95, but the success
+gate failed. The raw JSON SHA-256 was
+`F425816CBA164799D4A2097F114C0C0F446205DEDC8B1C94B4F74F55FF8B598F`.
+The refresh fix was independently tested and reviewed; exact cleanup left
+zero synthetic DB/Auth rows with the pre-existing baseline unchanged.
+
+The uncontended rerun, marker
+`PHASE8-LOAD-d5462d44-8501-43e7-ae53-43bdd8744465`, completed exactly
+50,000/50,000 check-ins with HTTP 200, 50,002/50,002 checks, both foreign
+read/mutation denials, and zero interrupted iterations. Its measured p95 was
+**2,890 ms**, above the frozen limit, so HARD-004 remains **failed / NO-GO**.
+Database size rose from 75,967,635 bytes to a maximum observed 105,893,011
+bytes, below the 400,000,000-byte abort ceiling; 30-second monitoring stayed
+active. Raw JSON SHA-256:
+`A44367ABD011D0894ACF94408B5D8F9860D6473EDB6006D240B84D89D7602050`.
+The recovery manifest reports completed cleanup, unchanged pre-existing
+baseline, zero synthetic database rows and zero synthetic Auth users. A fresh
+linked Cloud preflight independently reported zero remnants and 77,859,987
+database bytes. Private raw results and fixture manifests remain ignored under
+`artifacts/phase8-load/`; no credential or member identifier is in this ledger.
+
+Per-minute p95 was generally 2.0–2.7 seconds before a 9.8–11.6-second tail
+spike during synthetic Auth refresh. The owner-approved 2-second threshold is
+unchanged.
+
+The third run, marker `PHASE8-LOAD-049ac7d2-626d-4fd8-a876-05cdcd8647f0`,
+ran after Docker and optional local tests were stopped. It completed all
+50,000 iterations with zero interrupted, but **49,998/50,000 check-ins were
+acknowledged**: one returned HTTP 500 and one timed out with status zero.
+Both cross-tenant probes passed. Overall check-in p95 was **2,520 ms**, still
+above the frozen 2,000 ms budget, so this is another NO-GO result. Response
+waiting time nearly equalled total request duration; the per-minute p95 rose
+from 1.98–2.43 seconds early to 2.56–3.85 seconds late. The operator observed
+a maximum 126,389,395 database bytes, below the 400,000,000-byte ceiling.
+Raw JSON SHA-256:
+`157150633C6B6447012932C973B7FC3F495329D0999BE39A32C90E6F57AFF92F`.
+The recovery manifest reports completed exact cleanup, unchanged pre-existing
+rows, zero synthetic database rows and zero synthetic Auth users. An
+independent linked Cloud preflight confirmed the same and reported 98,421,907
+database bytes after cleanup; PostgreSQL table space had grown, so additional
+repeat runs should follow diagnosis rather than be automatic. The 2-second
+budget is unchanged.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
 |---|---|---|---|---|
-| Frozen 100 × 500 / 50,000-check-in load gate | HARD-004 | Unperformed; owner authorizes the current prelaunch shared project for bounded synthetic tests, not a claim that the frozen scale was measured | Run only a recorded, bounded same-project preflight with exact synthetic IDs and non-destructive cleanup policy; defer or explicitly re-decide the full gate before launch | Test plan, project/ref, request mix and concurrency, raw results, resource telemetry, fixture disposition and independent tenant-isolation postflight |
-| Monitoring destination and alert route | HARD-005 | TEST delivery proved; scheduled collection fails on expired session credential | Production owner installs project-scoped persistent Vercel token and verifies a scheduled run | Successful collection/evaluation run, TEST receipt on fixed workflow, thresholds, retention and acknowledgement ownership |
+| Frozen 100 × 500 / 50,000-check-in load gate | HARD-004 | Third uncontended same-Cloud run: 49,998/50,000 acknowledged, both isolation denials and exact cleanup; p95 **2.52 s** exceeds 2 s bar, so NO-GO | Phase 8 operator diagnoses response waiting and the 500/timeout, repairs and repeats once with the same bar | Passing raw 50,000-result checksum, p95, size observer and exact-cleanup proof |
+| Monitoring destination and alert route | HARD-005 | Manual TEST issue #5 delivered on fixed workflow with team-scoped Vercel token; observed GitHub scheduled starts are hours apart | Production owner installs a reliable five-minute trigger and verifies scheduled collection | Scheduled receipt, missed-run alert, thresholds, retention and acknowledgement ownership |
 | DPDP/DPA and breach-notification legal review | HARD-006/007 | External; not approved | Production owner obtains qualified current legal/privacy review | Dated approval/decision naming durations, hold behavior, audiences, timing and channels |
 | Supabase cloud backup/PITR restore | HARD-007 | External/unperformed | Project administrator runs approved disposable-target drill | Cloud operation id, source/distinct target, timings, validation and cleanup |
 | Production API deployment and EAS environment | HARD-002/008 | **Resolved 2026-09-20**; public Vercel alias and EAS production public variables verified | Deployment owner keeps the public endpoint and environment current | Deployment and variable-name evidence in `docs/evidence/2026-09-20-phase8-production-release.md` |

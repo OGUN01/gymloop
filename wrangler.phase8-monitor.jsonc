@@ -3,6 +3,9 @@
   "main": "workers/phase8-monitor-dispatch.mjs",
   "compatibility_date": "2026-09-23",
   "workers_dev": false,
+  "secrets": {
+    "required": ["GITHUB_ACTIONS_DISPATCH_TOKEN"]
+  },
   "triggers": {
     "crons": ["*/5 * * * *"]
   }

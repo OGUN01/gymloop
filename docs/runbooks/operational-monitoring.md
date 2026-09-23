@@ -4,11 +4,12 @@ This is the HARD-005 operating contract for redacted application errors and
 security/availability events. GitHub Issues in `OGUN01/gymloop` is the selected
 destination for `.github/workflows/phase8-production-monitor.yml` (ADR-161).
 Controlled run `35764265002` delivered closed TEST-only issue `#4` at
-2026-09-22T18:00:31Z. One scheduled run, `35785265599`, completed collection
-and evaluation without an alert. Later runs `35798267364` and `35807766246`
-failed before evaluation because the stored Vercel CLI session token lacked
-account access. The destination has a TEST receipt, but the scheduled route is
-not operational; HARD-005 and gate 28 remain Partial/External.
+2026-09-22T18:00:31Z. The replacement team-scoped Vercel CLI token then
+completed manual workflow run `35828518944` and delivered closed TEST-only
+issue `#5`. Earlier scheduled runs `35798267364` and `35807766246` failed
+before evaluation with the old token. The destination and credential work in
+the controlled run, but the scheduled route has not yet shown five-minute
+continuity; HARD-005 and gate 28 remain Partial/External.
 
 The cron expression requests an evaluation every five minutes; GitHub does not
 guarantee that delivery interval. The first observed scheduled starts were
@@ -17,6 +18,21 @@ longer than the five-minute log window. [GitHub's schedule-event guidance](https
 explicitly permits delayed or dropped jobs. Do not claim five-minute detection
 coverage until a scheduler with measured continuity and missing-run alerting is
 in place; a valid token alone does not close this gap.
+
+The private `gymloop-phase8-monitor-dispatch` Cloudflare Worker implements the
+second trigger. Its sole Cron is `*/5 * * * *`; it has no public HTTP handler.
+It dispatches `.github/workflows/phase8-production-monitor.yml` on `main` with
+`force_test_alert=false` and accepts only GitHub HTTP 204. Its GitHub fine-grained
+token must be restricted to the `OGUN01/gymloop` repository, Actions write, and
+stored as the Worker secret `GITHUB_ACTIONS_DISPATCH_TOKEN`. The existing GitHub
+schedule stays enabled. Set the secret with `wrangler secret put
+GITHUB_ACTIONS_DISPATCH_TOKEN --config wrangler.phase8-monitor.jsonc`, then
+deploy with `wrangler deploy --config wrangler.phase8-monitor.jsonc`; the
+configuration requires that secret. Inspect real
+Cloudflare Cron Past Events and matching GitHub workflow runs for consecutive
+five-minute windows. Failed dispatches throw generic errors to Cloudflare logs.
+No continuous cadence or missing-run alert is claimed before those observations
+and an exercised escalation route are recorded.
 
 ## Event boundary
 
@@ -118,11 +134,13 @@ the secret itself.
 2. **Observed once:** controlled run `35764265002` queried the real production
    deployment, made three endpoint probes and delivered closed TEST-only issue
    `#4`. It did not prove sustained scheduled collection.
-3. **Open:** replace the expiring CLI session secret with a project-scoped
-   persistent Vercel token. Verify a scheduled run reaches collection,
-   evaluation and a recorded healthy/alert result after commit `8244504`.
-4. **Open:** repeat forced TEST delivery on the fixed workflow. Confirm its
-   issue labels cannot match production-alert lookup and record the receipt.
+3. **Done for manual monitoring:** the team-scoped Vercel token completed run
+   `35828518944` and delivered closed TEST-only issue `#5`. Scheduled cadence
+   still needs live proof; the unused project token awaits revocation.
+4. **Open:** install the repository-restricted GitHub dispatch token as a
+   Cloudflare Worker secret, deploy the Cron-only Worker, and record consecutive
+   real Cron events paired with completed workflow runs. Exercise a missed-run
+   or dispatch-failure escalation before claiming five-minute coverage.
 5. **Open:** record an actual responder acknowledgement, protected role roster,
    escalation path and retention/access review. Keep tokens out of logs and
    command arguments.
