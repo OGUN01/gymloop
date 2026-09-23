@@ -347,7 +347,6 @@ describe('HARD-005 production monitor decision', () => {
         key: 'phase8-production-monitor-test',
         title: '[TEST] Gymloop production monitor delivery check',
         labels: expect.arrayContaining([
-          'phase8-production-monitor',
           'phase8-production-monitor-test',
           'phase8-monitor-test',
         ]),
@@ -356,6 +355,30 @@ describe('HARD-005 production monitor decision', () => {
     expect(result.output).not.toMatchObject({
       issue: { labels: expect.arrayContaining(['production-alert']) },
     });
+  });
+
+  it('keeps TEST and production issue identities disjoint', () => {
+    const productionInput = baseInput();
+    productionInput.logQuery.events = [{
+      observedAt: '2026-09-22T10:04:30.000Z',
+      correlationId: 'corr-production-alert',
+      signal: 'cross_tenant_disclosure',
+      credible: true,
+    }];
+    const testInput = baseInput();
+    testInput.mode = 'force-test-alert';
+
+    const production = runMonitor(productionInput);
+    const deliveryTest = runMonitor(testInput);
+    expect(production.status).toBe(0);
+    expect(deliveryTest.status).toBe(0);
+    const productionIssue = production.output?.issue as { key?: string; labels?: string[] } | undefined;
+    const testIssue = deliveryTest.output?.issue as { key?: string; labels?: string[] } | undefined;
+    expect(productionIssue?.key).not.toBe(testIssue?.key);
+    expect(productionIssue?.labels).toContain(productionIssue?.key);
+    expect(testIssue?.labels).toContain(testIssue?.key);
+    expect(productionIssue?.labels).not.toContain(testIssue?.key);
+    expect(testIssue?.labels).not.toContain(productionIssue?.key);
   });
 
   it('fails closed on missing run/deployment evidence, malformed time, or a non-production source', () => {
@@ -399,6 +422,13 @@ describe('HARD-005 GitHub issue destination', () => {
     expect(workflow).toMatch(/curl[\s\S]*https:\/\/gymloop-phi\.vercel\.app/i);
     expect(workflow).toMatch(/phase8-production-monitor\.mjs\s+--input\s+[^\r\n]+/);
     expect(workflow).toMatch(/force_test_alert/);
+  });
+
+  it('bounds the Vercel log query instead of following the deployment indefinitely', () => {
+    const workflow = readFileSync(WORKFLOW, 'utf8');
+    const logCommand = /^\s*vercel\s+logs[^\r\n]*$/m.exec(workflow)?.[0] ?? '';
+    expect(logCommand).toMatch(/--since(?:=|\s+)5m(?:\s|$)/);
+    expect(logCommand).toMatch(/--no-follow(?:\s|$)/);
   });
 
   it('creates or updates a labeled GitHub issue using a body file', () => {
