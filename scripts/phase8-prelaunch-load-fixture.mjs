@@ -102,7 +102,7 @@ select f.gym_id, f.branch_id, f.plan_id, f.gym_index, n.member_index,
   ${sqlMd5Uuid(membershipHash)} as membership_id
 from phase8_load_fixture f cross join lateral generate_series(0, ${MEMBERS_PER_GYM - 1}) as n(member_index);
 insert into public.members (id, tenant_id, branch_id, full_name, phone, status)
-select member_id, gym_id, '${canonical.marker} member ' || gym_index::text || ':' || member_index::text,
+select member_id, gym_id, branch_id, '${canonical.marker} member ' || gym_index::text || ':' || member_index::text,
   '+1' || lpad((gym_index * ${MEMBERS_PER_GYM} + member_index + 1)::text, ${PHONE_DIGITS}, '0'), 'active'
 from phase8_load_members;
 insert into public.memberships (id, tenant_id, member_id, plan_id, status, starts_on, ends_on, price_paise, discount_paise, currency, activated_at)
