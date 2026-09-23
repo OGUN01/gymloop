@@ -84,6 +84,29 @@ describe('HARD-005 monitor collection/evaluation failure escalation', () => {
     expect(testIssue?.number).not.toBe(productionIssue?.number);
   });
 
+  it('does not reuse an open TEST receipt when a real production failure arrives later', async () => {
+    const store = memoryStore();
+
+    await reconcile('test', firstRunId, store.issueStore);
+    const testIssue = store.openIssues[0];
+    expect(testIssue.labels).toContain('phase8-monitor-failure');
+    expect(testIssue.labels).not.toContain('production-alert');
+
+    await reconcile('production', secondRunId, store.issueStore);
+
+    expect(store.create).toHaveBeenCalledTimes(2);
+    expect(store.update).not.toHaveBeenCalled();
+    expect(store.openIssues).toHaveLength(2);
+    const productionIssue = store.openIssues.find((issue) => issue.labels.includes('production-alert'));
+    expect(productionIssue).toBeDefined();
+    expect(productionIssue?.number).not.toBe(testIssue.number);
+    expect(productionIssue?.labels).toContain('phase8-monitor-failure');
+    expect(productionIssue?.body).toContain(`https://github.com/${repository}/actions/runs/${secondRunId}`);
+    expect(testIssue.body).toContain(`https://github.com/${repository}/actions/runs/${firstRunId}`);
+    const productionLookupLabels = store.findOpen.mock.calls[1]?.[0] ?? [];
+    expect(productionLookupLabels.some((label) => !testIssue.labels.includes(label))).toBe(true);
+  });
+
   it('builds fresh generic text instead of copying a previous issue body or extra caller fields', async () => {
     const store = memoryStore();
     store.openIssues.push({
