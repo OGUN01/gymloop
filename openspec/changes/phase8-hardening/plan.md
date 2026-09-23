@@ -709,6 +709,18 @@ and missed-run escalation are still required for general release. If the
 watchdog is deployed and verified before pilot GO, its own evidence can close
 that part without relying on the exception.
 
+**Pilot issue routing correction.** The selected `OGUN01/gymloop` repository is
+public and its GitHub Actions-created issues were unassigned. Whenever the
+production evaluator, missing-run watchdog, or either dependent failure handler
+creates **or updates** a production or TEST alert issue, it shall assign the
+exact GitHub account `OGUN01` as primary responder. A failed assignment shall
+fail the creating job so its dependent escalation can run; a TEST receipt shall
+retain its disjoint labels and never gain `production-alert`. Issue titles and
+bodies remain generic and redacted because the repository is public. An issue
+assignment is a routing attempt, not proof that a notification was delivered or
+read; the owner must acknowledge a fresh assigned TEST issue from their own
+GitHub notification or inbox before human delivery can be called verified.
+
 ### HARD-006 — DPDP export, erasure, and retention runner
 
 When the DPDP operational runner executes, it shall produce an auditable export
