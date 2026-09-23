@@ -167,6 +167,31 @@ or contradictory identity, ambiguous transport, cookie regression, and that a
 bearer request makes no `/user` call. A production-built API smoke check on the
 linked Cloud project confirms ES256 and a verified bearer before the full run.
 
+**Session continuity during the spike.** WHEN the prelaunch-shared campaign
+signs in its 100 synthetic staff identities, THE SYSTEM SHALL retain each
+session's initial access token, one-time refresh token, and expiry in a separate
+private, owner-marked fixture, bound by gym ID to the validated check-in
+fixture. The runner SHALL validate that all 100 bindings are distinct and
+complete before k6 sends any check-in. It SHALL keep the refresh fixture out of
+Git, command arguments, output, and public evidence, with the same restricted
+local permissions as the bearer fixture.
+
+WHILE a virtual gym session is within 120 seconds of access-token expiry, THE
+SYSTEM SHALL use Supabase's Cloud refresh-token grant with the project's public
+API key, then replace that virtual user's access token, refresh token and expiry
+with the returned session before its next check-in. A failed, malformed,
+replayed or cross-gym refresh SHALL fail the run, never continue check-ins with
+an expired token or silently change gym identity. The original 900-second JWT
+lifetime, 100 distinct gym sessions, 50,000 unique check-ins, two-second p95
+budget and both isolation denials SHALL remain unchanged. The isolated-project
+route may retain its existing fixture contract.
+
+Acceptance: independent visible and holdout tests cover refresh-fixture
+binding, missing/duplicate credentials, exact expiry boundary, one-time token
+rotation, failed/malformed refresh, and no secret leakage; a real linked-Cloud
+run confirms 50,000 acknowledged and persisted check-ins. The failed
+2026-09-23 run is retained as evidence, not relabelled as a pass.
+
 **Prelaunch-shared route (ADR-162).** WHEN the owner authorizes testing on the
 linked Cloud project, THE SYSTEM SHALL require a separate explicit
 `prelaunch-shared` target mode and confirmation value, matching configured,
