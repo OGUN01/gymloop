@@ -44,26 +44,37 @@ function digest(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
-function hasCopyDataRow(data, prefix) {
-  const marker = Buffer.from(prefix);
+function hasRequiredCopyBlocks(data) {
+  const publicCopy = /^COPY (?:"public"|public)\.(?:"(?:[^"]|"")+"|[a-z_][a-z_0-9]*)(?: \([^)]*\))? FROM stdin;$/;
+  const authUsersCopy = /^COPY (?:"auth"|auth)\.(?:"users"|users)(?: \([^)]*\))? FROM stdin;$/;
+  let publicRows = false;
+  let authRows = false;
+  let inCopy = false;
+  let copyKind = null;
+  let hasRow = false;
   let cursor = 0;
   while (cursor < data.length) {
-    const found = data.indexOf(marker, cursor);
-    if (found < 0) return false;
-    if (found === 0 || data.subarray(found - 1, found).toString() === '\n') {
-      const end = data.indexOf('\n', found);
-      const line = data.subarray(found, end < 0 ? data.length : end).toString('utf8').trimEnd();
-      if (line.endsWith(' FROM stdin;') && end >= 0) {
-        const nextStart = end + 1;
-        const nextEnd = data.indexOf('\n', nextStart);
-        const row = data.subarray(nextStart, nextEnd < 0 ? data.length : nextEnd);
-        const rowWithoutCr = row.length > 0 && row.subarray(-1).equals(Buffer.from('\r')) ? row.subarray(0, -1) : row;
-        if (rowWithoutCr.length > 0 && !rowWithoutCr.equals(Buffer.from('\\.'))) return true;
+    const next = data.indexOf('\n', cursor);
+    const end = next < 0 ? data.length : next;
+    const rawLine = data.subarray(cursor, end).toString('utf8');
+    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+    if (inCopy) {
+      if (line === '\\.') {
+        if (hasRow && copyKind === 'public') publicRows = true;
+        if (hasRow && copyKind === 'authUsers') authRows = true;
+        inCopy = false;
+        copyKind = null;
+        hasRow = false;
+      } else {
+        hasRow = true;
       }
+    } else if (line.startsWith('COPY ') && line.endsWith(' FROM stdin;')) {
+      inCopy = true;
+      copyKind = publicCopy.test(line) ? 'public' : authUsersCopy.test(line) ? 'authUsers' : null;
     }
-    cursor = found + marker.length;
+    cursor = end + 1;
   }
-  return false;
+  return !inCopy && publicRows && authRows;
 }
 
 function safeReceiptError() {
@@ -174,10 +185,7 @@ export async function runProtectedBackup(config, ports) {
     for (const [name, port] of PARTS) {
       const bytes = await ports[port]();
       if (!Buffer.isBuffer(bytes) || bytes.length === 0 || bytes.length > MAX_SOURCE_BYTES) throw safeReceiptError();
-      if (name === 'data' && (!(hasCopyDataRow(bytes, 'COPY public.') ||
-        hasCopyDataRow(bytes, 'COPY "public".')) ||
-        !(hasCopyDataRow(bytes, 'COPY auth.users ') ||
-        hasCopyDataRow(bytes, 'COPY "auth"."users" ')))) throw safeReceiptError();
+      if (name === 'data' && !hasRequiredCopyBlocks(bytes)) throw safeReceiptError();
       sources[name] = bytes;
       sourceHashes[name] = digest(bytes);
     }
