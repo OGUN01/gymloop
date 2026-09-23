@@ -2,11 +2,13 @@ import { checkInRequestSchema } from '@gymloop/shared';
 import { apiFail, apiOk, PG_INSUFFICIENT_PRIVILEGE, PG_UNIQUE_VIOLATION, type ApiFailStatus } from '../../../lib/api';
 import { readIdentity, readRequestIdentity } from '../../../lib/identity-session';
 import { hashGateCode } from '../../../lib/gate-code';
+import { createOperationalLogger } from '../../../lib/observability';
 
 const REFUSALS: Record<string, { status: ApiFailStatus; message: string }> = {
   GL010: { status: 'unprocessable', message: 'That gate code belongs to another gym.' }, GL011: { status: 'unprocessable', message: 'That gate code has expired. Show a new one.' }, GL012: { status: 'unprocessable', message: 'That gate code has been revoked.' }, GL013: { status: 'unprocessable', message: 'No active membership. Renew before checking in.' }, GL014: { status: 'conflict', message: 'Already checked in a moment ago.' }, GL017: { status: 'unprocessable', message: 'That offline check-in time is not valid for this gate session.' }, GL018: { status: 'conflict', message: 'That check-in id has already been used for a different member.' },
 };
 const RECORDED_COLUMNS = 'id, checked_in_at, source';
+const SAFE_DATABASE_ERROR_CODE = /^(?:[A-Z0-9]{5}|PGRST[0-9]{3})$/;
 type MemberCheckInRecord = { id: string; checked_in_at: string; source: string; replay: boolean };
 type MemberCheckInRpc = {
   rpc(name: 'member_mobile_check_in', args: { p_token_hash: string; p_client_event_id: string | null; p_offline_recorded_at: string | null }): {
@@ -34,12 +36,17 @@ function staffCheckInOk(
     source: record.source, replay });
 }
 
-function checkInFailure(error: { code: string } | null): Response {
+function checkInFailure(error: { code: string } | null, tenantId: string): Response {
   if (error?.code === PG_INSUFFICIENT_PRIVILEGE) {
     return apiFail('forbidden', 'not_permitted', 'Your role may not record attendance.');
   }
   const refusal = error && Object.hasOwn(REFUSALS, error.code) ? REFUSALS[error.code] : undefined;
   if (refusal) return apiFail(refusal.status, error?.code ?? 'check_in_failed', refusal.message);
+  createOperationalLogger({ write: (event) => console.error(event) }).error('check_in.database_error', {
+    tenantId,
+    context: { code: typeof error?.code === 'string' && SAFE_DATABASE_ERROR_CODE.test(error.code)
+      ? error.code : 'unclassified' },
+  });
   return apiFail('server_error', 'check_in_failed', 'That check-in could not be recorded.');
 }
 
@@ -86,7 +93,7 @@ export async function POST(request: Request): Promise<Response> {
       if (replay?.member) return staffCheckInOk(replay, replay.member.full_name, true);
       return apiFail('conflict', 'client_event_id_reused', 'That check-in id has already been used for a different member.');
     }
-    return checkInFailure(error);
+    return checkInFailure(error, identity.tenantId);
   }
   const { data: member } = await supabase.from('members').select('id, full_name, branch_id').eq('id', memberId).maybeSingle();
   if (!member) return apiFail('not_found', 'member_unknown', 'No member of this gym has that id.');
@@ -98,7 +105,7 @@ export async function POST(request: Request): Promise<Response> {
         p_offline_recorded_at: offlineRecordedAt ?? null,
       }).single();
     if (error === null && recorded !== null) return apiOk({ memberName: member.full_name, ...recorded });
-    return checkInFailure(error);
+    return checkInFailure(error, identity.tenantId);
   }
   let qrSessionId: string | null = null;
   let branchId = member.branch_id;
@@ -118,5 +125,5 @@ export async function POST(request: Request): Promise<Response> {
     if (already) return apiOk({ memberName: member.full_name, replay: true, ...already });
     return apiFail('conflict', 'client_event_id_reused', 'That check-in id has already been used for a different member.');
   }
-  return checkInFailure(error);
+  return checkInFailure(error, identity.tenantId);
 }
