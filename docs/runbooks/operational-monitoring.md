@@ -10,6 +10,14 @@ failed before evaluation because the stored Vercel CLI session token lacked
 account access. The destination has a TEST receipt, but the scheduled route is
 not operational; HARD-005 and gate 28 remain Partial/External.
 
+The cron expression requests an evaluation every five minutes; GitHub does not
+guarantee that delivery interval. The first observed scheduled starts were
+2026-09-22T21:13:10Z, 23:37:00Z and 2026-09-23T01:47:49Z, leaving gaps far
+longer than the five-minute log window. [GitHub's schedule-event guidance](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
+explicitly permits delayed or dropped jobs. Do not claim five-minute detection
+coverage until a scheduler with measured continuity and missing-run alerting is
+in place; a valid token alone does not close this gap.
+
 ## Event boundary
 
 - Emit only structured events through `createOperationalLogger`; pass a stable

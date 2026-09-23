@@ -22,8 +22,10 @@ without an alert. Later runs `35798267364` and `35807766246` failed before
 evaluation because the stored Vercel CLI session token lacked account access.
 Commit `8244504` fixes TEST/production issue separation and bounded log
 collection; visible 20/20 and independent holdout 16/16 pass locally. The gate
-stays Partial until a persistent project-scoped token, a successful scheduled
-evaluation and fresh fixed-workflow delivery receipt exist.
+stays Partial until a persistent project-scoped token, measured scheduling
+continuity/missing-run detection, a successful scheduled evaluation and fresh
+fixed-workflow delivery receipt exist. Observed GitHub schedule starts were
+over two hours apart, so the current five-minute log window can miss incidents.
 
 HARD-010's cited You hierarchy defect is implemented at `9a48c10`: explicit
 verified state and gym identity precede contact, web and Android expose the
