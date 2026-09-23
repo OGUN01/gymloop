@@ -594,8 +594,9 @@ linked Cloud project `pecxrpskmfeuyzngvewq`, capture roles, schema, data and
 migration history with the official Supabase CLI, and record capture time and
 source hashes. Before any SQL leaves the ephemeral runner, the archive shall
 be encrypted with integrity protection; the key and bucket-scoped writer
-credential shall live in separate GitHub Actions secrets, and only ciphertext
-may be uploaded or kept as an artifact. When upload completes, the runner
+credential shall live in separate GitHub Actions secrets. Only ciphertext may
+be uploaded as backup data; a redacted hash/identity receipt may be retained
+as a separate artifact, but no plaintext SQL may be retained. When upload completes, the runner
 shall retrieve the exact object, decrypt it, compare the restored archive hash
 and record the R2 object identity, size, ciphertext hash and verification
 result without emitting data or credentials. A missing part, failed retrieval,
@@ -617,6 +618,16 @@ receipt fields `sourceProjectRef`, `bucket`, `objectKey`, `capturedAt`,
 `sourceHashes` (roles, schema, data, migrations), `plaintextSha256`,
 `ciphertextSha256`, `ciphertextBytes`, and `verified`. The manual and scheduled workflow is
 `.github/workflows/phase8-protected-backup.yml`.
+
+The format reader is `decryptProtectedArchive(ciphertext, encryptionKey,
+expectedProjectRef)` in the same module. It shall authenticate the exact
+AES-GCM object, reject a foreign source, malformed/truncated/extra archive
+bytes, missing parts or mismatched part hashes, then return the four named
+Buffer parts plus source identity, capture time and hashes. The migration part
+shall also decode to separate `history_schema.sql` and `history_data.sql` bytes
+for a later authorized Cloud recovery. The operator runbook shall describe
+exact-object retrieval and private ephemeral extraction; no live restore is
+part of this pilot proof.
 
 ### HARD-008 — production AAB and physical-device smoke proof
 
