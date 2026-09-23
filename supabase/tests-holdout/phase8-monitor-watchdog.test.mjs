@@ -102,9 +102,17 @@ test('only the exact title and main branch qualify', () => {
   }
 });
 
-test('a manual TEST alert or failure run cannot keep the production watchdog healthy', () => {
+test('an ordinary successful manual production run qualifies', () => {
+  const result = evaluateMonitorCadence(input({
+    runs: [productionRun({ event: 'workflow_dispatch' })],
+  }));
+  assert.equal(result.decision, 'healthy');
+  assert.equal(result.testOnly, false);
+});
+
+test('manual TEST alert or failure titles cannot keep the production watchdog healthy', () => {
   for (const run of [
-    productionRun({ databaseId: 601, event: 'workflow_dispatch' }),
+    productionRun({ databaseId: 601, event: 'workflow_dispatch', displayTitle: 'Gymloop production monitor TEST alert' }),
     productionRun({ databaseId: 602, event: 'workflow_dispatch', displayTitle: 'Gymloop production monitor TEST failure' }),
   ]) {
     assertNoHealthyDecision(input({ runs: [run] }));
