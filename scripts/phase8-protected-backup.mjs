@@ -228,7 +228,9 @@ async function runCloudBackup() {
   const objectKey = `${new Date().toISOString().slice(0, PHASE8_BACKUP_LIMITS.isoDateLength)}/gymloop-cloud-${runtime.GITHUB_RUN_ID}-${runtime.GITHUB_RUN_ATTEMPT}.enc`;
   const dump = async (kind, filename) => {
     const file = join(temp, filename);
+    process.stderr.write(`Protected Cloud backup stage: ${kind} dump started.\n`);
     await runCommand(DUMP_COMMAND.binary, backupDumpArgs(kind, file));
+    process.stderr.write(`Protected Cloud backup stage: ${kind} dump completed.\n`);
     return readFile(file);
   };
   try {
@@ -247,14 +249,19 @@ async function runCloudBackup() {
         return Buffer.from(JSON.stringify({ schema: schema.toString('base64'), data: data.toString('base64') }));
       },
       uploadCiphertext: async (bucket, key, body) => {
+        process.stderr.write('Protected Cloud backup stage: encrypted upload started.\n');
         await bucketClient.send(new PutObjectCommand({
           Bucket: bucket, Key: key, Body: body, ContentType: 'application/octet-stream',
         }));
+        process.stderr.write('Protected Cloud backup stage: encrypted upload completed.\n');
       },
       downloadCiphertext: async (bucket, key) => {
+        process.stderr.write('Protected Cloud backup stage: encrypted readback started.\n');
         const object = await bucketClient.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
         if (!object.Body) throw safeReceiptError();
-        return Buffer.from(await object.Body.transformToByteArray());
+        const bytes = Buffer.from(await object.Body.transformToByteArray());
+        process.stderr.write('Protected Cloud backup stage: encrypted readback completed.\n');
+        return bytes;
       },
       now: () => new Date().toISOString(),
     });

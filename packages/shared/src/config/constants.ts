@@ -398,7 +398,7 @@ export const PHASE8_BACKUP_LIMITS = {
   maxHeaderBytes: 16_384,
   maxSourceBytes: 750_000_000,
   commandOutputBytes: 2_000_000,
-  commandTimeoutMs: 300_000,
+  commandTimeoutMs: 900_000,
   isoDateLength: 10,
   privateDirectoryMode: 0o700,
   privateFileMode: 0o600,
