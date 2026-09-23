@@ -192,6 +192,18 @@ rotation, failed/malformed refresh, and no secret leakage; a real linked-Cloud
 run confirms 50,000 acknowledged and persisted check-ins. The failed
 2026-09-23 run is retained as evidence, not relabelled as a pass.
 
+The reviewable pure interface is `scripts/phase8-load-session-refresh.mjs`:
+`validateRefreshFixture(refreshFixture, checkInFixture)` returns gym sessions in
+the check-in fixture's order; `refreshDue(session, nowSeconds, leadSeconds)`
+returns a boolean; `rotateRefreshSession(session, AuthResponse,
+nowSeconds, leadSeconds)` returns the replacement session or throws. A refresh
+fixture has exactly `marker` and `gymSessions`; each session has exactly
+`gymId`, `userId`, `token`, `refreshToken`, and integer Unix `expiresAt`.
+Validation binds every access token to the existing fixture's gym and marker,
+rejects duplicate gym/user/access/refresh identities, and exposes no secret in
+errors. Rotation requires the same returned Auth user ID, a fresh access token,
+a different nonblank refresh token, and expiry beyond the lead window.
+
 **Prelaunch-shared route (ADR-162).** WHEN the owner authorizes testing on the
 linked Cloud project, THE SYSTEM SHALL require a separate explicit
 `prelaunch-shared` target mode and confirmation value, matching configured,
