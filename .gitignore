@@ -21,6 +21,7 @@ supabase/.temp/
 # --- reports ---
 coverage/
 .jscpd/
+artifacts/phase8-load/
 
 # --- os / editor ---
 .DS_Store

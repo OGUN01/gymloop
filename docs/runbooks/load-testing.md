@@ -1,9 +1,55 @@
-# Isolated Phase 8 load test
+# Phase 8 load test
 
-This procedure is for HARD-004. It must never target the production Supabase
-project `pecxrpskmfeuyzngvewq` or reuse production credentials or member data.
-No result is a pass unless the raw k6 artifact and both tenant-isolation probes
-are retained.
+This procedure is for HARD-004. The original isolated route still refuses the
+linked project. ADR-162 adds an explicit prelaunch-shared route on the existing
+Cloud Supabase project because the owner confirms there are no live customers.
+Neither route may use a pre-existing demo or pilot identity as a load fixture.
+No result is a pass without raw k6 evidence, both isolation probes, a live size
+observer, and exact cleanup.
+
+## Owner-authorized linked-Cloud route
+
+The linked target is `pecxrpskmfeuyzngvewq`. Before a write, record the
+configured and independently observed API and Supabase project identities,
+the owner's no-live-customer assertion, and a linked CLI database-size result.
+`scripts/phase8-prelaunch-load-safety.mjs` requires
+`PRELAUNCH_SHARED_LOAD_APPROVED` and a current reading below 400,000,000 bytes
+against the recorded 500,000,000-byte Free quota. Record a p95 budget before
+the run. The fixture must have a fresh `PHASE8-LOAD-<UUID>` marker, 100 newly
+created gyms, 500 owned synthetic members and one genuine staff bearer token
+per gym. Write exact database and Auth identities to gitignored recovery
+manifests before staging; an interrupted operation must resume cleanup from
+those manifests. Keep the source's existing demo and staged pilot records out
+of the fixture and check their baseline again after cleanup.
+
+Run the Cloud size observer at intervals no greater than 60 seconds throughout
+staging and k6. Abort if collection fails, the observer stops, or the database
+reaches 400,000,000 bytes. Do not let the Free project reach its read-only
+limit, which could also block cleanup. The current validator and k6 fixture
+transport are checked in, but the Cloud fixture staging, live observer and
+recovery runner are still being completed; no 50,000-request run has occurred.
+Do not invoke k6 until those pieces and an exact-ID cleanup rehearsal pass.
+
+For this route set `PHASE8_LOAD_MODE=prelaunch-shared`,
+`PHASE8_LOAD_CREDENTIAL_KIND=prelaunch-shared`,
+`PHASE8_LOAD_CONFIRMATION=PRELAUNCH_SHARED_LOAD_APPROVED`, and
+`PHASE8_LOAD_NO_LIVE_CUSTOMERS=true`, with all four configured/observed/credential
+project references matching the linked ref. The k6 fixture is a private local
+JSON file, supplied by its **absolute** `PHASE8_LOAD_FIXTURE_PATH`; k6 resolves
+relative `open(...)` paths from the script directory. Keep that file, the
+baseline and cleanup manifests, and raw results under the ignored
+`artifacts/phase8-load/` directory. The JSON has a `gymFixtures` array of
+`{ gymId, token, memberIds, ownedMemberIds }`. No bearer token, member ID,
+password, service key or fixture contents goes into the command line, Git or
+the evidence ledger.
+
+After k6, verify exactly 50,000 persisted synthetic attendance rows, the raw
+success count and p95, foreign-read invisibility and a non-2xx foreign mutation.
+Delete only the manifest's synthetic rows and Auth identities, then prove zero
+synthetic remainder and unchanged pre-existing baseline. A green k6 report with
+missing monitoring or cleanup is blocked under `summarizePrelaunchResult`.
+
+## Original isolated-project route
 
 ## Preconditions
 
@@ -51,7 +97,7 @@ file or shell history:
 - `PHASE8_LOAD_SUPABASE_ANON_KEY`
 - `PHASE8_LOAD_P95_MS`
 - `PHASE8_LOAD_RUN_ID` (a fresh UUID)
-- `PHASE8_LOAD_TENANTS_JSON` (the 100 × 500 synthetic fixture)
+- `PHASE8_LOAD_FIXTURE_PATH` (absolute path to the gitignored 100 × 500 JSON fixture)
 
 Execute only the credential-free command returned by the preflight, equivalent
 to:

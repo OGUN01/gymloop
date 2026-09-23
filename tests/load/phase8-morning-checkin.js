@@ -1,3 +1,4 @@
+/* global __ENV, __VU, __ITER, open */
 import http from 'k6/http';
 import { check, fail } from 'k6';
 
@@ -8,6 +9,7 @@ const MORNING_SPIKE_VUS = 100;
 const DENIED_STATUS_CODES = [401, 403, 404];
 const PRODUCTION_PROJECT_REF = 'pecxrpskmfeuyzngvewq';
 const REQUIRED_CONFIRMATION = 'NON_PRODUCTION_LOAD_APPROVED';
+const PRELAUNCH_CONFIRMATION = 'PRELAUNCH_SHARED_LOAD_APPROVED';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HTTP_SUCCESS_MIN = 200;
 const HTTP_SUCCESS_MAX = 299;
@@ -24,13 +26,13 @@ function boundedIndex(iteration, size) {
 
 function requiredOrigin(name) {
   const value = required(name);
-  let url;
-  try { url = new URL(value); } catch { fail(`HARD-004 ${name} must be a valid HTTPS origin.`); }
-  if (url.protocol !== 'https:' || url.username !== '' || url.password !== '' ||
-      url.pathname !== '/' || url.search !== '' || url.hash !== '' || url.hostname.includes(PRODUCTION_PROJECT_REF)) {
-    fail(`HARD-004 ${name} must be an isolated HTTPS origin-only non-production target.`);
+  // k6 has no browser URL global. The strict origin grammar also rejects
+  // credentials, paths, queries, fragments and non-HTTPS schemes at init.
+  const match = /^https:\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)+)(?::[0-9]{1,5})?\/?$/i.exec(value);
+  if (match === null || (loadMode !== 'prelaunch-shared' && match[1].includes(PRODUCTION_PROJECT_REF))) {
+    fail(`HARD-004 ${name} must be an approved HTTPS origin-only target.`);
   }
-  return url.origin;
+  return value.endsWith('/') ? value.slice(0, -1) : value;
 }
 
 function requireNonProductionIdentity() {
@@ -38,17 +40,25 @@ function requireNonProductionIdentity() {
   const observedApiProjectRef = required('PHASE8_LOAD_OBSERVED_API_PROJECT_REF');
   const observedSupabaseProjectRef = required('PHASE8_LOAD_OBSERVED_SUPABASE_PROJECT_REF');
   const credentialProjectRef = required('PHASE8_LOAD_CREDENTIAL_PROJECT_REF');
-  if (projectRef === PRODUCTION_PROJECT_REF || observedApiProjectRef !== projectRef || observedSupabaseProjectRef !== projectRef ||
-      credentialProjectRef !== projectRef || required('PHASE8_LOAD_CREDENTIAL_KIND') !== 'non-production' ||
-      required('PHASE8_LOAD_CONFIRMATION') !== REQUIRED_CONFIRMATION) fail('HARD-004 requires matching observed non-production project identity and confirmation.');
+  const prelaunch = loadMode === 'prelaunch-shared';
+  if (observedApiProjectRef !== projectRef || observedSupabaseProjectRef !== projectRef || credentialProjectRef !== projectRef ||
+      (prelaunch ? projectRef !== PRODUCTION_PROJECT_REF : projectRef === PRODUCTION_PROJECT_REF) ||
+      required('PHASE8_LOAD_CREDENTIAL_KIND') !== (prelaunch ? 'prelaunch-shared' : 'non-production') ||
+      required('PHASE8_LOAD_CONFIRMATION') !== (prelaunch ? PRELAUNCH_CONFIRMATION : REQUIRED_CONFIRMATION) ||
+      (prelaunch && required('PHASE8_LOAD_NO_LIVE_CUSTOMERS') !== 'true')) {
+    fail('HARD-004 requires matching observed project identity and explicit approval.');
+  }
   return projectRef;
 }
 
 function tenantFixtures() {
   try {
-    return JSON.parse(required('PHASE8_LOAD_TENANTS_JSON'));
+    const fixturePath = __ENV.PHASE8_LOAD_FIXTURE_PATH;
+    if (typeof fixturePath !== 'string' || fixturePath.trim() === '') fail('HARD-004 missing private fixture file path.');
+    const file = JSON.parse(open(fixturePath));
+    return Array.isArray(file) ? file : file.gymFixtures;
   } catch {
-    fail('HARD-004 tenant fixtures must be valid JSON.');
+    fail('HARD-004 tenant fixture file must be readable, valid JSON.');
   }
 }
 
@@ -84,6 +94,7 @@ function crossTenantEventId() {
   return `${runId.slice(0, -4)}ffff`;
 }
 
+const loadMode = __ENV.PHASE8_LOAD_MODE === 'prelaunch-shared' ? 'prelaunch-shared' : 'isolated';
 const projectRef = requireNonProductionIdentity();
 const apiUrl = requiredOrigin('PHASE8_LOAD_API_URL');
 const supabaseUrl = requiredOrigin('PHASE8_LOAD_SUPABASE_URL');
@@ -92,7 +103,7 @@ const p95Ms = Number(required('PHASE8_LOAD_P95_MS'));
 const runId = required('PHASE8_LOAD_RUN_ID');
 const tenants = validatedFixtures(tenantFixtures());
 
-if (supabaseUrl !== `https://${projectRef}.supabase.co`) fail('HARD-004 Supabase origin must bind exactly to the non-production project reference.');
+if (supabaseUrl !== `https://${projectRef}.supabase.co`) fail('HARD-004 Supabase origin must bind exactly to the approved project reference.');
 if (!UUID.test(runId)) fail('HARD-004 PHASE8_LOAD_RUN_ID must be a UUID.');
 
 if (!Number.isFinite(p95Ms) || p95Ms <= 0) fail('HARD-004 requires a positive caller-approved p95 threshold.');

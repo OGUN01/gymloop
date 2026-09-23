@@ -1,5 +1,17 @@
 # Current owner-authorized campaign goal
 
+## 2026-09-23 same-Cloud prelaunch load direction
+
+The owner confirms the service has no live customers and directs the HARD-004
+synthetic load scenarios to the existing Gymloop Cloud Supabase project; a third
+Free project is not required for this load check (ADR-162). The independent
+red tests were committed first, then the target, quota, fixture, result and k6
+file-transport implementation passed 28 visible and 68 blind holdout checks.
+The standalone k6 binary accepted a private 100 × 500 file during a local
+`inspect` with no network calls. Fixture staging, continuous Cloud size
+monitoring, the actual 50,000 API calls and exact cleanup are still pending.
+This direction does not claim or perform the excluded provider restore drill.
+
 ## 2026-09-22 owner continuation — complete the pilot gates
 
 The owner directed continued work toward a truthful five-gym pilot GO rather

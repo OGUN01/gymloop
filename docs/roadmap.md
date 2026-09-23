@@ -1,5 +1,14 @@
 # Roadmap
 
+**2026-09-23 linked-Cloud load correction (ADR-162):** the owner confirms no
+live customers and authorizes the existing Gymloop Cloud Supabase project for
+the finite HARD-004 synthetic 100 × 500 run. This supersedes the earlier
+distinct-target load restriction below, while the legacy isolated route stays
+available. A fresh marked fixture, actual size observer below 400 MB, 50,000
+API check-ins, isolation probes and exact-ID cleanup are required. The provider
+restore/PITR exception and protected logical backup requirement are unchanged.
+No load run has yet occurred.
+
 **Free-plan five-gym pilot exception (ADR-159, 2026-09-22):** the owner excludes
 the provider restore/PITR drill from the controlled-pilot GO decision because
 the current Supabase Free plan does not include that control. Gate 29 remains

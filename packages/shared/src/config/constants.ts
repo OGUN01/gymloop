@@ -58,6 +58,20 @@ export const UI_TOKENS = {
 
 export const DEFAULT_TIMEZONE = 'Asia/Kolkata';
 export const DEFAULT_CURRENCY = 'INR';
+/** HARD-004's finite same-Cloud prelaunch workload and Free-plan abort bounds. */
+export const PHASE8_PRELAUNCH_LOAD_LIMITS = {
+  gymCount: 100,
+  membersPerGym: 500,
+  checkInCount: 50_000,
+  providerQuotaBytes: 500_000_000,
+  abortBytes: 400_000_000,
+  maxQuotaAgeMs: 900_000,
+  maxMonitorGapSeconds: 60,
+  httpStatusMin: 100,
+  httpSuccessMin: 200,
+  httpSuccessMax: 299,
+  httpStatusMax: 599,
+} as const;
 export const BASIS_POINTS_PER_PERCENT = 100n;
 export const RATIO_BASIS_POINT_SCALE = 10_000n;
 export const ROUND_HALF_UP_MULTIPLIER = 2n;
