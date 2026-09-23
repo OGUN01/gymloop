@@ -13,6 +13,35 @@ type MemberCheckInRpc = {
     single(): Promise<{ data: MemberCheckInRecord | null; error: { code: string } | null }>;
   };
 };
+type StaffFrontDeskRecord = { id: string; checked_in_at: string; source: string; member_name: string };
+type StaffFrontDeskRpc = {
+  rpc(name: 'record_staff_front_desk_check_in', args: {
+    p_member_id: string; p_reason: string; p_client_event_id: string | null;
+  }): {
+    maybeSingle(): Promise<{ data: StaffFrontDeskRecord | null; error: { code: string } | null }>;
+  };
+};
+type StaffReplayRecord = {
+  id: string; checked_in_at: string; source: string; member: { full_name: string } | null;
+};
+
+function staffCheckInOk(
+  record: { id: string; checked_in_at: string; source: string },
+  memberName: string,
+  replay: boolean,
+): Response {
+  return apiOk({ memberName, id: record.id, checked_in_at: record.checked_in_at,
+    source: record.source, replay });
+}
+
+function checkInFailure(error: { code: string } | null): Response {
+  if (error?.code === PG_INSUFFICIENT_PRIVILEGE) {
+    return apiFail('forbidden', 'not_permitted', 'Your role may not record attendance.');
+  }
+  const refusal = error && Object.hasOwn(REFUSALS, error.code) ? REFUSALS[error.code] : undefined;
+  if (refusal) return apiFail(refusal.status, error?.code ?? 'check_in_failed', refusal.message);
+  return apiFail('server_error', 'check_in_failed', 'That check-in could not be recorded.');
+}
 
 /** POST /api/check-in — staff assistance and verified member QR replay. */
 export async function POST(request: Request): Promise<Response> {
@@ -35,6 +64,26 @@ export async function POST(request: Request): Promise<Response> {
   if (memberId === undefined) return apiFail('bad_request', 'invalid_request', 'Choose a member before recording an assisted check-in.');
   if (identity.kind === 'member' && (token === undefined || reason !== undefined)) return apiFail('bad_request', 'member_gate_required', 'Member check-in requires a scanned gate code.');
   if (identity.kind === 'staff' && offlineRecordedAt !== undefined) return apiFail('bad_request', 'invalid_request', 'Only member device replay may carry an offline capture time.');
+  if (identity.kind === 'staff' && token === undefined) {
+    if (reason === undefined) return apiFail('bad_request', 'reason_required', 'Scan the gate code, or give a reason for checking this member in at the desk.');
+    const { data: recorded, error } = await (supabase as unknown as StaffFrontDeskRpc)
+      .rpc('record_staff_front_desk_check_in', {
+        p_member_id: memberId,
+        p_reason: reason,
+        p_client_event_id: clientEventId ?? null,
+      }).maybeSingle();
+    if (error === null && recorded !== null) return staffCheckInOk(recorded, recorded.member_name, false);
+    if (error === null) return apiFail('not_found', 'member_unknown', 'No member of this gym has that id.');
+    if (error.code === PG_UNIQUE_VIOLATION && clientEventId !== undefined) {
+      const { data: already } = await supabase.from('attendance')
+        .select('id, checked_in_at, source, member:members(full_name)')
+        .eq('client_event_id', clientEventId).eq('member_id', memberId).maybeSingle();
+      const replay = already as StaffReplayRecord | null;
+      if (replay?.member) return staffCheckInOk(replay, replay.member.full_name, true);
+      return apiFail('conflict', 'client_event_id_reused', 'That check-in id has already been used for a different member.');
+    }
+    return checkInFailure(error);
+  }
   const { data: member } = await supabase.from('members').select('id, full_name, branch_id').eq('id', memberId).maybeSingle();
   if (!member) return apiFail('not_found', 'member_unknown', 'No member of this gym has that id.');
   if (identity.kind === 'member') {
@@ -45,10 +94,7 @@ export async function POST(request: Request): Promise<Response> {
         p_offline_recorded_at: offlineRecordedAt ?? null,
       }).single();
     if (error === null && recorded !== null) return apiOk({ memberName: member.full_name, ...recorded });
-    if (error?.code === PG_INSUFFICIENT_PRIVILEGE) return apiFail('forbidden', 'not_permitted', 'Your role may not record attendance.');
-    const refusal = error && Object.hasOwn(REFUSALS, error.code) ? REFUSALS[error.code] : undefined;
-    if (refusal) return apiFail(refusal.status, error?.code ?? 'check_in_failed', refusal.message);
-    return apiFail('server_error', 'check_in_failed', 'That check-in could not be recorded.');
+    return checkInFailure(error);
   }
   let qrSessionId: string | null = null;
   let branchId = member.branch_id;
@@ -68,8 +114,5 @@ export async function POST(request: Request): Promise<Response> {
     if (already) return apiOk({ memberName: member.full_name, replay: true, ...already });
     return apiFail('conflict', 'client_event_id_reused', 'That check-in id has already been used for a different member.');
   }
-  if (error.code === PG_INSUFFICIENT_PRIVILEGE) return apiFail('forbidden', 'not_permitted', 'Your role may not record attendance.');
-  const refusal = Object.hasOwn(REFUSALS, error.code) ? REFUSALS[error.code] : undefined;
-  if (refusal) return apiFail(refusal.status, error.code, refusal.message);
-  return apiFail('server_error', 'check_in_failed', 'That check-in could not be recorded.');
+  return checkInFailure(error);
 }
