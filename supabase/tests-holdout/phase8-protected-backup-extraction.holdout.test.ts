@@ -20,7 +20,7 @@ function sourceParts() {
   return {
     roles: Buffer.from('CREATE ROLE HOLDOUT_PRIVATE_ROLE_X;\n'),
     schema: Buffer.from('CREATE TABLE public.holdout_private_x (id uuid);\n'),
-    data: Buffer.from('COPY public.holdout_private_x FROM stdin;\nHOLDOUT_PRIVATE_MEMBER_X\n\\.\n'),
+    data: Buffer.from('COPY public.holdout_private_x FROM stdin;\nHOLDOUT_PRIVATE_MEMBER_X\n\\.\nCOPY auth.users FROM stdin;\nHOLDOUT_PRIVATE_AUTH_USER_X\n\\.\n'),
     migrations: Buffer.from(JSON.stringify({
       schema: historySchema.toString('base64'),
       data: historyData.toString('base64'),

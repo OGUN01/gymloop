@@ -9,7 +9,7 @@ const capturedAt = '2026-09-23T12:34:56.000Z'
 const sourceParts = {
   roles: Buffer.from('-- roles dump HOLDOUT_PRIVATE_ROLE_X\n'),
   schema: Buffer.from('-- schema dump HOLDOUT_PRIVATE_SCHEMA_X\n'),
-  data: Buffer.from('-- data dump HOLDOUT_PRIVATE_MEMBER_X\n'),
+  data: Buffer.from('COPY public.members FROM stdin;\nHOLDOUT_PRIVATE_MEMBER_X\n\\.\nCOPY auth.users FROM stdin;\nHOLDOUT_PRIVATE_AUTH_USER_X\n\\.\n'),
   migrations: Buffer.from('-- migration history HOLDOUT_PRIVATE_HISTORY_X\n'),
 }
 
@@ -219,7 +219,7 @@ describe('HARD-007 protected R2 backup holdout', () => {
 
   it('changes source hashes when a source part changes, regardless of randomized ciphertext', async () => {
     const first = await runProtectedBackup(configuration(), fakePorts().ports)
-    const changedData = Buffer.from('-- data dump HOLDOUT_PRIVATE_MEMBER_Y\n')
+    const changedData = Buffer.from('COPY public.members FROM stdin;\nHOLDOUT_PRIVATE_MEMBER_Y\n\\.\nCOPY auth.users FROM stdin;\nHOLDOUT_PRIVATE_AUTH_USER_X\n\\.\n')
     const second = await runProtectedBackup(configuration(), fakePorts({ dumpData: () => changedData }).ports)
     expect(first.sourceHashes.data).toBe(sha256(sourceParts.data))
     expect(second.sourceHashes.data).toBe(sha256(changedData))
