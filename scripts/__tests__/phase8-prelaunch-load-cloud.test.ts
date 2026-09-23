@@ -12,7 +12,6 @@ import {
 
 const PROJECT_REF = 'pecxrpskmfeuyzngvewq';
 const MARKER = 'PHASE8-LOAD-11111111-2222-4333-8444-555555555555';
-const AUTH_EMAIL = `load-owner-${MARKER.toLowerCase()}@gymloop.invalid`;
 const AUTH_ID = '11111111-2222-4333-8444-666666666666';
 const TARGET = {
   mode: 'prelaunch-shared',
@@ -26,7 +25,15 @@ const TARGET = {
   noLiveCustomers: true,
 };
 const directories: string[] = [];
-const plan = () => buildPrelaunchSyntheticPlan(MARKER);
+let cachedPlan: ReturnType<typeof buildPrelaunchSyntheticPlan> | undefined;
+const plan = () => cachedPlan ??= buildPrelaunchSyntheticPlan(MARKER);
+const plannedEmail = () => {
+  const gym = plan().gyms[0] as Record<string, unknown>;
+  const emails = Object.entries(gym).filter(([key, value]) => /email/i.test(key) && typeof value === 'string');
+  if (emails.length !== 1) throw new Error('The planned gym must have one synthetic Auth email');
+  return emails[0][1] as string;
+};
+const AUTH_EMAIL = plannedEmail();
 const point = (metric: string, scenario: string, value: number, tags: Record<string, string> = {}) =>
   JSON.stringify({ metric, type: 'Point', data: { value, tags: { scenario, ...tags } } });
 const MORNING_REQUEST = point('http_reqs', 'morning_check_in_spike', 1, { status: '200' });
@@ -66,7 +73,7 @@ const fakePorts = () => {
       if (/pg_database_size|database_bytes/i.test(sql)) {
         return JSON.stringify({ boundary: 'linked', rows: [{ database_bytes: 34_000_000 }], warning: null });
       }
-      return JSON.stringify({ boundary: 'linked', rows: [], warning: null });
+      return JSON.stringify({ boundary: 'linked', rows: [{ ids: [], count: 0 }], warning: null });
     },
     async createAuthUser(email: string, password: string) {
       record('createAuthUser', email, password);
