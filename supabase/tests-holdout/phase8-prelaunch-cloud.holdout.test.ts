@@ -19,16 +19,26 @@ afterEach(() => {
 function rawPoints(): Array<{ metric: string; type: string; data: { value?: number; tags?: Record<string, string>; type?: string } }> {
   return [
     { metric: 'http_reqs', type: 'Metric', data: { type: 'counter' } },
-    { metric: 'http_reqs', type: 'Point', data: { value: 1, tags: { scenario: 'morning_check_in_spike', status: '200', extra: 'allowed' } } },
-    { metric: 'http_reqs', type: 'Point', data: { value: 1, tags: { scenario: 'morning_check_in_spike', status: '201' } } },
-    { metric: 'http_reqs', type: 'Point', data: { value: 1, tags: { scenario: 'morning_check_in_spike', status: '500' } } },
+    { metric: 'http_reqs', type: 'Point', data: { value: 1, tags: { scenario: 'morning_check_in_spike', name: 'morning_check_in', status: '200', extra: 'allowed' } } },
+    { metric: 'http_reqs', type: 'Point', data: { value: 1, tags: { scenario: 'morning_check_in_spike', name: 'morning_check_in', status: '201' } } },
+    { metric: 'http_reqs', type: 'Point', data: { value: 1, tags: { scenario: 'morning_check_in_spike', name: 'morning_check_in', status: '500' } } },
     { metric: 'http_reqs', type: 'Point', data: { value: 1, tags: { scenario: 'other_scenario', status: '200' } } },
-    { metric: 'http_req_duration', type: 'Point', data: { value: 42.5, tags: { scenario: 'morning_check_in_spike' } } },
-    { metric: 'http_req_duration', type: 'Point', data: { value: 42.5, tags: { scenario: 'morning_check_in_spike' } } },
+    { metric: 'http_req_duration', type: 'Point', data: { value: 42.5, tags: { scenario: 'morning_check_in_spike', name: 'morning_check_in' } } },
+    { metric: 'http_req_duration', type: 'Point', data: { value: 42.5, tags: { scenario: 'morning_check_in_spike', name: 'morning_check_in' } } },
     { metric: 'http_req_duration', type: 'Point', data: { value: 900, tags: { scenario: 'other_scenario' } } },
-    { metric: 'checks', type: 'Point', data: { value: 1, tags: { scenario: 'cross_tenant_read_denial', check: 'cross-tenant member read is denied' } } },
-    { metric: 'http_reqs', type: 'Point', data: { value: 1, tags: { scenario: 'cross_tenant_mutation_denial', status: '403' } } },
+    { metric: 'http_reqs', type: 'Point', data: { value: 1, tags: { scenario: 'morning_check_in_spike', name: 'auth_session_refresh', status: '200' } } },
+    { metric: 'http_req_duration', type: 'Point', data: { value: 5_000, tags: { scenario: 'morning_check_in_spike', name: 'auth_session_refresh' } } },
+    { metric: 'checks', type: 'Point', data: { value: 1, tags: { group: '::setup', check: 'cross-tenant member read is denied' } } },
+    { metric: 'http_reqs', type: 'Point', data: { value: 1, tags: { group: '::setup', name: 'cross_tenant_mutation', status: '403' } } },
   ]
+}
+
+function isSetupRead(point: ReturnType<typeof rawPoints>[number]) {
+  return point.metric === 'checks' && point.data.tags?.group === '::setup' && point.data.tags?.check === 'cross-tenant member read is denied'
+}
+
+function isSetupMutation(point: ReturnType<typeof rawPoints>[number]) {
+  return point.metric === 'http_reqs' && point.data.tags?.group === '::setup' && point.data.tags?.name === 'cross_tenant_mutation'
 }
 
 function asRaw(points: unknown[]) {
@@ -126,13 +136,13 @@ describe('HARD-004 k6 raw result parser holdout', () => {
   })
 
   it.each([
-    ['missing read denial', (points: ReturnType<typeof rawPoints>) => points.filter((point) => point.data.tags?.scenario !== 'cross_tenant_read_denial')],
-    ['failed read denial', (points: ReturnType<typeof rawPoints>) => points.map((point) => point.data.tags?.scenario === 'cross_tenant_read_denial' ? { ...point, data: { ...point.data, value: 0 } } : point)],
-    ['duplicate read denial', (points: ReturnType<typeof rawPoints>) => [...points, points[8]]],
-    ['missing mutation probe', (points: ReturnType<typeof rawPoints>) => points.filter((point) => point.data.tags?.scenario !== 'cross_tenant_mutation_denial')],
-    ['successful foreign mutation', (points: ReturnType<typeof rawPoints>) => points.map((point) => point.data.tags?.scenario === 'cross_tenant_mutation_denial' ? { ...point, data: { ...point.data, tags: { ...point.data.tags, status: '204' } } } : point)],
-    ['duplicate mutation probe', (points: ReturnType<typeof rawPoints>) => [...points, points[9]]],
-    ['no measured spike durations', (points: ReturnType<typeof rawPoints>) => points.filter((point) => !(point.metric === 'http_req_duration' && point.data.tags?.scenario === 'morning_check_in_spike'))],
+    ['missing read denial', (points: ReturnType<typeof rawPoints>) => points.filter((point) => !isSetupRead(point))],
+    ['failed read denial', (points: ReturnType<typeof rawPoints>) => points.map((point) => isSetupRead(point) ? { ...point, data: { ...point.data, value: 0 } } : point)],
+    ['duplicate read denial', (points: ReturnType<typeof rawPoints>) => [...points, points.find(isSetupRead)!]],
+    ['missing mutation probe', (points: ReturnType<typeof rawPoints>) => points.filter((point) => !isSetupMutation(point))],
+    ['successful foreign mutation', (points: ReturnType<typeof rawPoints>) => points.map((point) => isSetupMutation(point) ? { ...point, data: { ...point.data, tags: { ...point.data.tags, status: '204' } } } : point)],
+    ['duplicate mutation probe', (points: ReturnType<typeof rawPoints>) => [...points, points.find(isSetupMutation)!]],
+    ['no measured spike durations', (points: ReturnType<typeof rawPoints>) => points.filter((point) => !(point.metric === 'http_req_duration' && point.data.tags?.scenario === 'morning_check_in_spike' && point.data.tags?.name === 'morning_check_in'))],
   ])('refuses %s', (_case, change) => {
     expect(() => parsePrelaunchK6Raw(asRaw(change(rawPoints())))).toThrow()
   })
