@@ -1,6 +1,6 @@
 # Current owner-authorized campaign goal
 
-## 2026-09-23 same-Cloud prelaunch load direction
+## 2026-09-23 same-Cloud prelaunch load result
 
 The owner confirms the service has no live customers and directs the HARD-004
 synthetic load scenarios to the existing Gymloop Cloud Supabase project; a third
@@ -11,9 +11,23 @@ The standalone k6 binary accepted a private 100 × 500 file during a local
 `inspect` with no network calls. The follow-on deterministic fixture planner
 passed 15 visible and 31 blind holdout checks, including partial-safe exact-ID
 cleanup SQL; a linked read-only query verified its Node/Postgres member-ID
-derivation matches. Auth staging, continuous Cloud size monitoring, the actual
-50,000 API calls and exact cleanup are still pending.
-This direction does not claim or perform the excluded provider restore drill.
+derivation matches. The sixth complete Cloud run then passed 50,000/50,000
+acknowledged API check-ins at 664.5 ms p95 against the frozen 2,000 ms budget,
+both tenant denials, continuous database-size observation below the abort
+ceiling, and independently verified exact cleanup. The first five attempts and
+the successful sixth run are in the Phase 8 ledger. This does not claim the
+excluded provider restore drill or five real customer gyms.
+
+The private encrypted R2 logical export and read-back passed once. A
+repository-only Cloudflare Cron dispatch token now triggers the production
+monitor every five minutes; seven consecutive evaluations from 12:30 to
+13:00 UTC succeeded. Deliberate failure run `35864351097` delivered a closed
+TEST-only issue through the independent escalation job, and the next scheduled
+run `35864707727` passed on the repaired workflow. HARD-005 remains Partial
+until missing-run escalation and actual responder acknowledgement are proven.
+The overall controlled-pilot verdict remains **NO-GO**: date-gated A–D member
+observations, privacy/legal decisions, Play exact-artifact installation and
+owner visual acceptance still lack required evidence.
 
 ## 2026-09-22 owner continuation — complete the pilot gates
 
