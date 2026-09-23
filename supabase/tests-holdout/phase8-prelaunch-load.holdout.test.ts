@@ -218,7 +218,7 @@ describe('HARD-004 completed result holdout', () => {
     const input = completedResult()
     const result = summarizePrelaunchResult(input)
     expect(result.status).toBe('passed')
-    expect(JSON.stringify(result)).toContain(input.rawResultPath)
+    expect(result.rawResultPath).toBe(input.rawResultPath)
     expect(JSON.stringify(result)).not.toContain(secretTokenPrefix)
     expect(JSON.stringify(result)).not.toContain(syntheticId(1_000))
     expect(JSON.stringify(result)).not.toContain('credentials')
