@@ -29,18 +29,24 @@ export async function readIdentity(client?: Awaited<ReturnType<typeof createServ
 
 /**
  * Resolve one request credential transport before a route reads its body.
- * Bearers are verified by Auth, then classified from verified claims; a decoded
- * JWT is never treated as identity evidence.
+ * Bearers are signature-verified by Auth's claims verifier, then classified;
+ * a decoded JWT is never treated as identity evidence. The bearer path avoids
+ * Auth's per-request user endpoint, whose IP quota is below check-in load.
  */
 export async function readRequestIdentity(request: Request) {
   try {
     const resolved = await createRequestSupabase(request);
     if (resolved === null) return null;
     const { supabase, bearer } = resolved;
+    if (bearer !== undefined) {
+      const { data, error } = await supabase.auth.getClaims(bearer);
+      if (error || data?.claims.role !== 'authenticated') return null;
+      const identity = classifyIdentity(data.claims);
+      if (identity.kind === 'unlinked') return null;
+      return { supabase, identity, authenticatedUser: true as const };
+    }
     const [{ data: claimsData, error: claimsError }, { data: userData, error: userError }] = await Promise.all(
-      bearer === undefined
-        ? [supabase.auth.getClaims(), supabase.auth.getUser()]
-        : [supabase.auth.getClaims(bearer), supabase.auth.getUser(bearer)],
+      [supabase.auth.getClaims(), supabase.auth.getUser()],
     );
     if (claimsError || userError || claimsData?.claims.role !== 'authenticated' || userData.user === null) return null;
     const identity = classifyIdentity(claimsData.claims);
