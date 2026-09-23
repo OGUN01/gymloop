@@ -638,6 +638,15 @@ before contacting providers, produce a clearly marked TEST-only issue without
 `production-alert`, and leave the workflow run failed. The test receipt shall
 be closed after verification. This covers collector failures; an absent Cron
 execution still requires independent missed-run detection and escalation.
+The failure handler lives at `scripts/phase8-monitor-failure.mjs` and exports
+`reconcileMonitorFailure({ mode, repository, runId, issueStore })`, where `mode`
+is `production` or `test`, `repository` is an `owner/name` GitHub repository,
+`runId` is a positive decimal GitHub run id, and `issueStore` supplies
+`findOpen(labels)`, `create(issue)`, and `update(number, issue)`. The function
+validates the identifiers, builds only fixed generic issue text and labels,
+then creates or updates by the mode-specific key label. A CLI wrapper accepts
+only `--mode`, `--repository`, and `--run-id`, uses `gh` with argument arrays,
+and inherits the workflow's `GH_TOKEN` without reading it in application code.
 
 ### HARD-006 — DPDP export, erasure, and retention runner
 
