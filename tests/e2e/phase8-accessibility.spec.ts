@@ -207,6 +207,7 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
       await page.emulateMedia({ colorScheme: theme });
       await expect(page).toHaveURL(new RegExp(`${route}(?:[?#]|$)`));
       await expect(page.locator('body')).not.toContainText(/sign in|not linked|page not found/i);
+      await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
       const results = await new AxeBuilder({ page }).analyze();
       expect(results.violations, `${route} ${theme}`).toEqual([]);
       await assertEnglishAndResponsive(page, 390, 844);
