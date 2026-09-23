@@ -117,6 +117,7 @@ const MEMBER = { id: MEMBER_ID, full_name: 'Asha Rao', branch_id: 'branch-of-mem
 const GATE = { id: 'qr-session-1', branch_id: 'branch-of-gate' };
 const RECORDED = { id: 'attendance-1', checked_in_at: '2026-09-08T10:00:00Z', source: 'qr' };
 const ASSISTED_RECORDED = { ...RECORDED, source: 'front_desk', member_name: 'Asha Rao' };
+const REPLAYED_ATTENDANCE = { ...RECORDED, source: 'front_desk', member: { full_name: 'Asha Rao' } };
 
 const ok = (data: unknown): Result => ({ data, error: null });
 const fails = (code: string): Result => ({ data: null, error: { code, message: code } });
@@ -164,7 +165,7 @@ describe('the same client event submitted twice', () => {
     // The unique index raises 23505 on the second delivery of one attempt.
     // Reporting that as an error would make a client that retries look broken.
     state.rpcResults = [fails('23505')];
-    state.results = [ok(ASSISTED_RECORDED)];
+    state.results = [ok(REPLAYED_ATTENDANCE)];
 
     const response = await checkIn(post(REPLAY));
     const body = await envelope(response);
@@ -176,19 +177,22 @@ describe('the same client event submitted twice', () => {
 
   it('finds the existing row by the client event id and confirms it is this member’s', async () => {
     state.rpcResults = [fails('23505')];
-    state.results = [ok(ASSISTED_RECORDED)];
+    state.results = [ok(REPLAYED_ATTENDANCE)];
 
     await checkIn(post(REPLAY));
 
     // client_event_id alone cannot tell "the same attempt again" from "a
     // different member reusing the id" (spec: "One client event id, two
     // members") — the lookup must also confirm the row is this member's.
-    // No tenant predicate beyond that: RLS is what scopes the lookup, exactly
-    // as on the member read above it.
+    // The same SELECT must embed the member name: the normal RPC path no
+    // longer performs a separate member read before a possible replay.
     expect(callsOf('attendance', 'eq')).toEqual([
       ['client_event_id', EVENT_ID],
       ['member_id', MEMBER_ID],
     ]);
+    const selected = callsOf('attendance', 'select')[0]?.[0];
+    expect(selected).toEqual(expect.stringContaining('member:members'));
+    expect(selected).toEqual(expect.stringContaining('full_name'));
     expect(state.from).toEqual(['attendance']);
   });
 
