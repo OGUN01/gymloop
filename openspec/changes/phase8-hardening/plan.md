@@ -312,6 +312,41 @@ possible. Only full measured, monitored and cleaned evidence may return a
 credential-free Passed summary; partial or failed work returns Blocked and
 never exposes tokens, passwords or member IDs.
 
+Frozen Cloud adapter interface: `scripts/phase8-prelaunch-load-cloud.mjs`
+exports `parsePrelaunchK6Raw(raw)` and
+`createPrelaunchCloudBackend(config, ports)`. The adapter implements the
+campaign backend for the same linked project. `config` has exactly
+`{ campaignConfig, anonKey }`, where `campaignConfig` has the frozen campaign
+shape and `anonKey` is the project's public anon key;
+`ports` injects only the external calls: `queryLinked(sql)` returning CLI JSON,
+`createAuthUser(email, password)` returning an Auth UUID,
+`signIn(email, password)` returning a bearer token, `listAuthUsers()` returning
+`{id,email}` records, `deleteAuthUser(id)`, and
+`executeK6({ signal, env, rawResultPath })` returning `{exitCode, raw}`.
+The real operator binds these ports to the Supabase CLI, Supabase Auth and k6;
+the independent tests bind fakes and perform no Cloud calls. The adapter
+itself owns atomic private 0600 artifact writes and a synced append-only
+recovery journal. Its first journal record contains the deterministic plan,
+target reference and artifact paths; later intent and returned-ID records
+append without replacing the plan. Reusing an existing journal path fails.
+Password material exists in memory only, never in a journal, result or k6
+environment. On Auth deletion it lists users, matches the exact marker email,
+and verifies the expected ID when present; a missing ID uses exact email
+lookup. A mismatch fails closed.
+
+The adapter queries actual linked Cloud size, compares an independent snapshot
+of pre-existing organization, settings, branch, plan, staff, member,
+membership, attendance and Auth identities before and after, counts persisted
+synthetic attendance independently, and verifies no planned tenant rows or
+marker Auth users remain after cleanup. The read-only baseline is persisted
+before any Auth creation. A query error or ambiguous result blocks. The
+adapter never seeds, resets, migrates, truncates or modifies existing gyms.
+`parsePrelaunchK6Raw` accepts newline JSON k6 points, counts only successful
+`morning_check_in_spike` HTTP requests, computes p95 from measured duration
+points, and requires a successful cross-tenant read-denial check plus a
+non-2xx cross-tenant mutation status. It rejects missing, malformed or
+ambiguous probes. The actual k6 exit code must be zero for a passing result.
+
 Frozen harness interface: `scripts/phase8-load-safety.mjs` exports
 `assertSafeLoadTarget`, `buildMorningCheckInWorkload`, `summarizeRawResult`
 and `preflightLoadRun`. `assertSafeLoadTarget(target)` accepts exactly the
