@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Every gate CI runs, in one command, so "I ran the gates" means all of them.
+# Local repository gate sweep. CI also runs build, browser, Deno and Cloud DB
+# jobs; this command does not replace those results.
 #
 # knip was missing from the list I was running by hand, and CI found an unused
 # export I had already pushed. A checklist kept in a head is a checklist with a
@@ -14,6 +15,7 @@ run "jscpd"           pnpm run jscpd
 run "knip"            pnpm run knip
 run "web tests"       pnpm --filter @gymloop/web test --run
 run "shared tests"    pnpm --filter @gymloop/shared test --run
+run "script tests"    pnpm run test:scripts
 run "registry-lint"   pnpm run registry-lint
 run "renewal-windows" pnpm run check-renewal-reminder-windows
 run "escape-hatches"  pnpm run check-escape-hatches
