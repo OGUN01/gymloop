@@ -32,11 +32,14 @@ function claims(overrides: Record<string, unknown> = {}): Record<string, unknown
   };
 }
 
-function client(claimSet: Record<string, unknown>, bearer: string | undefined = BEARER) {
+function client(claimSet: Record<string, unknown>, bearer: string | null = BEARER) {
   const getClaims = vi.fn().mockResolvedValue({ data: { claims: claimSet }, error: null });
   const getUser = vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
   const supabase = { auth: { getClaims, getUser } };
-  requestAdapter.createRequestSupabase.mockReturnValue({ supabase, bearer });
+  requestAdapter.createRequestSupabase.mockReturnValue({
+    supabase,
+    ...(bearer === null ? {} : { bearer }),
+  });
   return { supabase, getClaims, getUser };
 }
 
@@ -92,7 +95,7 @@ describe('HARD-004 independent bearer verification', () => {
   });
 
   it('uses the existing Auth user check for a cookie request', async () => {
-    const { getClaims, getUser } = client(claims(), undefined);
+    const { getClaims, getUser } = client(claims(), null);
 
     const result = await readRequestIdentity(request(false));
 
