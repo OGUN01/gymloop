@@ -239,15 +239,19 @@ network round trip is an implementation repair, not a new latency waiver: the
 unchanged 50,000-acknowledgement, zero-failed-check and p95 < 2,000 ms Cloud
 bar determines whether it actually works.
 
-**Bounded Cloud pool-timeout retry.** WHEN that staff front-desk command
-returns PostgREST `PGRST003` (the pool-acquisition timeout) and the request
-contains a client event ID, THE SYSTEM SHALL submit the identical command at
-most once more. It SHALL NOT retry a request without an event ID, retry a
-second timeout, or retry a database/security refusal. If the retry finds the
-same event already recorded for the same member, THE SYSTEM SHALL return the
-original attendance through the existing replay response; an event reused for
-another member SHALL remain a conflict. This repair does not relax the load
-acceptance bar or presume that an unobserved HTTP 500 was `PGRST003`.
+**Bounded transient command retry.** WHEN that staff front-desk command
+returns PostgREST `PGRST003` (the pool-acquisition timeout), OR the installed
+PostgREST client reports status `0` with an empty error code after receiving
+no HTTP response, AND the request contains a client event ID, THE SYSTEM
+SHALL submit the identical command at most once more. It SHALL NOT retry a
+request without an event ID, retry after a second transient failure, or retry
+another database/security refusal. If the retry finds the same event already
+recorded for the same member, THE SYSTEM SHALL return the original attendance
+through the existing replay response; an event reused for another member
+SHALL remain a conflict. A lost response does not prove the first command
+failed before SQL, so the unchanged unique event ID and replay boundary are
+required. This repair does not relax the 50,000-acknowledgement, zero-failed-
+check and p95 < 2,000 ms Cloud bar.
 
 **Safe failure diagnosis.** WHEN a check-in database command ends in the
 generic server-error response, THE SYSTEM SHALL emit an operational event
