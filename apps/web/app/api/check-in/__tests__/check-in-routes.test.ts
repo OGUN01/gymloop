@@ -354,6 +354,22 @@ describe('safe check-in failure diagnosis', () => {
     expect(JSON.stringify(logged.mock.calls)).not.toContain(unsafe);
   });
 
+  it('does not accept an array masquerading as a valid database code', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    state.rpcResults = [{ data: null, error: {
+      code: ['PGRST003'], message: 'private database message',
+    } } as unknown as Result];
+
+    const response = await checkIn(post({ memberId: MEMBER_ID, reason: 'Helped at the desk' }));
+
+    expect(response.status).toBe(500);
+    expect(logged).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'check_in.database_error',
+      context: { code: 'unclassified' },
+    }));
+    expect(JSON.stringify(logged.mock.calls)).not.toContain('private database message');
+  });
+
   it('does not report a known database refusal as a server failure', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     state.rpcResults = [fails('GL014')];
