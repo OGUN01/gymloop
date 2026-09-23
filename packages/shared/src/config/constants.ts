@@ -65,6 +65,13 @@ export const PHASE8_MONITOR_DISPATCH = {
   acceptedStatus: 204,
   ref: 'main',
 } as const;
+/** HARD-005's collector-failure issue CLI bounds. */
+export const PHASE8_MONITOR_FAILURE = {
+  cliArgCount: 6,
+  cliArgStride: 2,
+  issueListLimit: 100,
+  issueLabelColor: '0E8A16',
+} as const;
 /** HARD-004's finite same-Cloud prelaunch workload and Free-plan abort bounds. */
 export const PHASE8_PRELAUNCH_LOAD_LIMITS = {
   gymCount: 100,

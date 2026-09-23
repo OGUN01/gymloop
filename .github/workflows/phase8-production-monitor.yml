@@ -10,6 +10,11 @@ on:
         required: true
         type: boolean
         default: false
+      force_test_collection_failure:
+        description: Create a test-only collector-failure receipt
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -29,6 +34,14 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+
+      - name: Force TEST collection failure before provider contact
+        id: forced_failure
+        if: ${{ inputs.force_test_collection_failure }}
+        shell: bash
+        run: |
+          echo "Intentional TEST collection failure before provider contact"
+          exit 1
 
       - name: Install Vercel CLI
         run: npm install --global vercel@58.9.4
@@ -124,3 +137,27 @@ jobs:
           else
             gh issue create --title "$issue_title" --label "$labels" --body-file issue-body.md
           fi
+
+  escalate_monitor_failure:
+    needs: monitor
+    if: ${{ always() && needs.monitor.result != 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Create or update generic monitor failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE_TEST_COLLECTION_FAILURE: ${{ inputs.force_test_collection_failure || 'false' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mode="production"
+          if [[ "$FORCE_TEST_COLLECTION_FAILURE" == "true" ]]; then mode="test"; fi
+          node scripts/phase8-monitor-failure.mjs --mode "$mode" --repository "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID"
