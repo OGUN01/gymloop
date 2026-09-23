@@ -649,6 +649,14 @@ hash mismatch, unexpected project, or export failure shall fail the workflow.
 The runbook shall name the backup owner and cadence. This proves a protected
 export and read-back, not a database restore; gate 29 remains unperformed.
 
+The `data` SQL part SHALL include both `public` application rows and `auth`
+identity rows, including `auth.users`, by explicitly selecting those schemas
+for the CLI data-only dump. The CLI's default managed-schema exclusions are
+insufficient for Gymloop because staff and member rows reference Auth users.
+The default schema dump and separate migration-history captures remain as
+specified; the encrypted archive keeps its four-part format. A completed
+backup receipt is incomplete if the actual data dump omits either schema.
+
 The testable entry point is `scripts/phase8-protected-backup.mjs`, exporting
 `runProtectedBackup(config, ports)`. `config` contains `expectedProjectRef`,
 `bucket`, `objectKey`, and `encryptionKey` (exactly 32 raw bytes in a Buffer).
