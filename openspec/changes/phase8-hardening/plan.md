@@ -650,21 +650,26 @@ The runbook shall name the backup owner and cadence. This proves a protected
 export and read-back, not a database restore; gate 29 remains unperformed.
 
 The `data` SQL part SHALL include both `public` application rows and `auth`
-identity rows, including `auth.users`, by explicitly selecting those schemas
-for the CLI data-only dump. The CLI's default managed-schema exclusions are
+identity rows, including `auth.users`, from two separate CLI data-only dumps
+that select exactly `public` and exactly `auth`, then concatenate the complete
+outputs in that order. The CLI's default managed-schema exclusions are
 insufficient for Gymloop because staff and member rows reference Auth users.
 The default schema dump and separate migration-history captures remain as
 specified; the encrypted archive keeps its four-part format. A completed
 backup receipt is incomplete if the actual data dump omits either schema.
 The reviewable command seam is `backupDumpArgs(kind, filePath)`, exported from
-`scripts/phase8-protected-backup.mjs` and used by the real runner for all five
-CLI captures. `kind` is exactly `roles`, `schema`, `data`, `historySchema`, or
-`historyData`; it returns a `supabase db dump` argument array using `--linked`
-and the supplied output file, never a local database or another project. For
-`data`, the array SHALL include `--data-only`, `--use-copy`, and explicit
-`--schema public,auth`; history captures SHALL select only
+`scripts/phase8-protected-backup.mjs` and used by the real runner for all six
+CLI captures. `kind` is exactly `roles`, `schema`, `publicData`, `authData`,
+`historySchema`, or `historyData`; it returns a `supabase db dump` argument
+array using `--linked` and the supplied output file, never a local database
+or another project. Each data array SHALL include `--data-only`, `--use-copy`,
+and exactly one explicit `--schema public` or `--schema auth`; history captures
+SHALL select only
 `supabase_migrations`. Tests can inspect this seam without handling credentials
-or plaintext customer data.
+or plaintext customer data. The completed combined data part SHALL contain an
+actual public `COPY` statement and an actual `auth.users` `COPY` statement;
+quoted and unquoted PostgreSQL identifier forms are accepted. A preamble,
+empty table, or successful CLI exit alone does not satisfy this evidence.
 
 The testable entry point is `scripts/phase8-protected-backup.mjs`, exporting
 `runProtectedBackup(config, ports)`. `config` contains `expectedProjectRef`,
