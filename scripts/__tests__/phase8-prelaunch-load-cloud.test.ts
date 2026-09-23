@@ -116,6 +116,16 @@ afterEach(() => {
 });
 
 describe('HARD-004 raw k6 result extraction', () => {
+  it('ignores global k6 telemetry points without a scenario or setup group', () => {
+    const globalTelemetry = JSON.stringify({ metric: 'vus', type: 'Point', data: { value: 0, tags: {} } });
+    expect(parsePrelaunchK6Raw([globalTelemetry, RAW].join('\n'))).toEqual({
+      p95Ms: 42.5,
+      completedCheckIns: 1,
+      crossTenantReadDenied: true,
+      crossTenantMutationStatus: 403,
+    });
+  });
+
   it('counts only successful morning requests and returns measured p95 plus both isolation proofs', () => {
     const raw = [
       RAW,
