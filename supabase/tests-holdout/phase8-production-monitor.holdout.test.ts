@@ -281,6 +281,27 @@ describe('independent HARD-005 production monitor holdout', () => {
     expect(issueSource).not.toMatch(/SEV-[12]|production-alert/i);
   });
 
+  it('uses different issue identities for a production incident and forced TEST delivery', () => {
+    const productionInput = baseline();
+    (productionInput.logQuery as JsonObject).events = [{
+      credible: true,
+      observedAt: EVALUATED_AT,
+      signal: 'cross_tenant_disclosure',
+    }];
+    const testInput = { ...baseline(), mode: 'force-test-alert' };
+
+    const production = runMonitor(productionInput).parsed ?? {};
+    const test = runMonitor(testInput).parsed ?? {};
+    const productionIssue = production.issue as JsonObject;
+    const testIssue = test.issue as JsonObject;
+
+    expect(production.testOnly).toBe(false);
+    expect(test.testOnly).toBe(true);
+    expect(productionIssue.key).toEqual(expect.any(String));
+    expect(testIssue.key).toEqual(expect.any(String));
+    expect(testIssue.key).not.toBe(productionIssue.key);
+  });
+
   it('schedules the frozen destination every five minutes with least privilege and a step-scoped Vercel token', () => {
     const source = workflowSource();
     const steps = stepSources(source);
@@ -305,6 +326,17 @@ describe('independent HARD-005 production monitor holdout', () => {
     expect(/(?:seq\s+1\s+3|1\.\.3|\bin\s+1\s+2\s+3\b|(?:health|probe)[^\n]*(?:count|attempts?)\s*[:=]\s*3|(?:count|attempts?)[^\n]*(?:health|probe)[^\n]*[:=]\s*3|(?:curl|Invoke-WebRequest)[\s\S]*(?:curl|Invoke-WebRequest)[\s\S]*(?:curl|Invoke-WebRequest))/i.test(source)).toBe(true);
     expect(/phase8-production-monitor\.mjs[\s\S]*--input\s+[^\s]+/i.test(source)).toBe(true);
     expect(/(?:environment[^\n]*production|production[^\n]*environment)/i.test(source)).toBe(true);
+  });
+
+  it('explicitly disables Vercel log following so a scheduled collection terminates', () => {
+    const source = workflowSource();
+    const logSteps = stepSources(source).filter((step) => /vercel\s+logs/i.test(step));
+
+    expect(logSteps.length).toBeGreaterThan(0);
+    for (const step of logSteps) {
+      expect(/(?:^|\s)--no-follow(?:\s|$)/m.test(step)).toBe(true);
+      expect(/(?:^|\s)--follow(?:\s|$)/m.test(step)).toBe(false);
+    }
   });
 
   it('creates or updates the keyed issue from its body file and keeps forced delivery test-only', () => {
