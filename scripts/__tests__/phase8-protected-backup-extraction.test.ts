@@ -11,7 +11,7 @@ const HISTORY_DATA = Buffer.from('COPY supabase_migrations.schema_migrations FRO
 const PARTS = {
   roles: Buffer.from('CREATE ROLE synthetic_restore_role;\n'),
   schema: Buffer.from('CREATE TABLE synthetic_restore_table (id uuid);\n'),
-  data: Buffer.from('COPY synthetic_restore_table FROM stdin;\n11111111-2222-4333-8444-555555555555\n\\.\n'),
+  data: Buffer.from('COPY public.synthetic_restore_table FROM stdin;\n11111111-2222-4333-8444-555555555555\n\\.\nCOPY auth.users FROM stdin;\n22222222-2222-4222-8222-222222222222\n\\.\n'),
   migrations: Buffer.from(JSON.stringify({
     schema: HISTORY_SCHEMA.toString('base64'),
     data: HISTORY_DATA.toString('base64'),

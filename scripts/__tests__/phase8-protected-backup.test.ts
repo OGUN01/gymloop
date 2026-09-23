@@ -13,7 +13,7 @@ const RUNBOOK_PATH = new URL('../../docs/runbooks/backup-and-restore.md', import
 const SQL = {
   roles: Buffer.from('CREATE ROLE synthetic_backup_role;\n'),
   schema: Buffer.from('CREATE TABLE synthetic_backup_table (id uuid);\n'),
-  data: Buffer.from('COPY synthetic_backup_table FROM stdin;\nsynthetic-member@example.invalid\n\\.\n'),
+  data: Buffer.from('COPY public.synthetic_backup_table FROM stdin;\nsynthetic-member@example.invalid\n\\.\nCOPY auth.users FROM stdin;\n22222222-2222-4222-8222-222222222222\n\\.\n'),
   migrations: Buffer.from('COPY supabase_migrations.schema_migrations FROM stdin;\n20260923120000\n\\.\n'),
 };
 const sha256 = (value: Buffer) => createHash('sha256').update(value).digest('hex');
