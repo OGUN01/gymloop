@@ -381,3 +381,19 @@ export const LEAP_YEAR_DIVISOR_400 = 400;
 /** Zero-padded render widths of an ISO date's parts (`YYYY`, `MM`, `DD`). */
 export const ISO_YEAR_DIGITS = 4;
 export const ISO_MONTH_DAY_DIGITS = 2;
+
+/** Bounds and wire widths for the Phase 8 encrypted logical Cloud export. */
+export const PHASE8_BACKUP_LIMITS = {
+  ivBytes: 12,
+  tagBytes: 16,
+  keyBytes: 32,
+  archiveHeaderBytes: 4,
+  maxHeaderBytes: 16_384,
+  maxSourceBytes: 750_000_000,
+  commandOutputBytes: 2_000_000,
+  commandTimeoutMs: 300_000,
+  isoDateLength: 10,
+  privateDirectoryMode: 0o700,
+  privateFileMode: 0o600,
+  cliArgumentStart: 2,
+} as const;

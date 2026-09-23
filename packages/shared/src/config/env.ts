@@ -32,6 +32,16 @@ const pilotAcceptanceSchema = z.object({
   PILOT_SHARED_PROJECT_ACCEPTANCE: z.literal('ONE_SHARED_PRELAUNCH_PROJECT'),
 });
 
+const backupSchema = z.object({
+  BACKUP_ENCRYPTION_KEY_B64: z.string().min(1),
+  SUPABASE_ACCESS_TOKEN: z.string().min(1),
+  SUPABASE_DB_PASSWORD: z.string().min(1),
+  GITHUB_RUN_ID: z.string().regex(/^\d+$/),
+  GITHUB_RUN_ATTEMPT: z.string().regex(/^\d+$/),
+});
+
+const backupKeySchema = backupSchema.pick({ BACKUP_ENCRYPTION_KEY_B64: true });
+
 /** A deploy-owned public origin used for OAuth redirects, never request input. */
 const publicOriginSchema = z.url().refine((value) => {
   const url = new URL(value);
@@ -60,6 +70,8 @@ type ServerEnv = z.infer<typeof serverOnlySchema>;
 type MobileClientEnv = z.infer<typeof mobileClientSchema>;
 type PlaywrightEnv = z.infer<typeof playwrightSchema>;
 type PilotAcceptanceEnv = z.infer<typeof pilotAcceptanceSchema>;
+type BackupEnv = z.infer<typeof backupSchema>;
+type BackupKeyEnv = z.infer<typeof backupKeySchema>;
 
 let cachedClient: ClientEnv | undefined;
 let cachedServer: ServerEnv | undefined;
@@ -97,6 +109,22 @@ export function pilotAcceptanceEnv(): PilotAcceptanceEnv {
   return pilotAcceptanceSchema.parse({
     PILOT_SHARED_PROJECT_ACCEPTANCE: process.env.PILOT_SHARED_PROJECT_ACCEPTANCE,
   });
+}
+
+/** Minimal runner-only environment for the protected Cloud logical export. */
+export function backupEnv(): BackupEnv {
+  return backupSchema.parse({
+    BACKUP_ENCRYPTION_KEY_B64: process.env.BACKUP_ENCRYPTION_KEY_B64,
+    SUPABASE_ACCESS_TOKEN: process.env.SUPABASE_ACCESS_TOKEN,
+    SUPABASE_DB_PASSWORD: process.env.SUPABASE_DB_PASSWORD,
+    GITHUB_RUN_ID: process.env.GITHUB_RUN_ID,
+    GITHUB_RUN_ATTEMPT: process.env.GITHUB_RUN_ATTEMPT,
+  });
+}
+
+/** Recovery-only key input, without unrelated GitHub or database credentials. */
+export function backupKeyEnv(): BackupKeyEnv {
+  return backupKeySchema.parse({ BACKUP_ENCRYPTION_KEY_B64: process.env.BACKUP_ENCRYPTION_KEY_B64 });
 }
 
 /** The deploy-owned public origin required by web OAuth, without server secrets. */

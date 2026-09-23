@@ -11,6 +11,10 @@ or prove recoverability. Before customer data, the protected logical backup
 export described below still needs its real artifact, custody and cadence.
 Any future drill uses a distinct Cloud Supabase target under ADR-158.
 
+Backup owner: production owner. Cadence: daily at 00:43 UTC and after material
+schema or Auth changes. The dedicated bucket-scoped writer reaches only the
+private `gymloop-backups` archive.
+
 ## Safe read-only review
 
 The production owner or platform operator may perform these checks without
@@ -120,6 +124,9 @@ Before the first customer record is accepted, the production owner must:
    credentials in Git. Inventory R2/Storage objects, Auth configuration,
    Edge secrets and external integrations separately: a SQL dump alone is not
    a complete application recovery point.
+   The four CLI captures are sequential, so this receipt is not a proven
+   transactionally atomic recovery point. Only an isolated restore and
+   validation can establish application recoverability.
 4. Retrieve the exact R2 object after every upload, decrypt it in the ephemeral
    runner, verify the plaintext SHA-256 and capture a redacted receipt. Never
    upload or retain the SQL as an unencrypted artifact. The production owner
@@ -137,6 +144,41 @@ Before the first customer record is accepted, the production owner must:
    application startup. Record recovery-point age and elapsed restore time,
    then securely remove the target. No such restore is claimed for the Free
    pilot under ADR-159.
+
+## Extract one encrypted object for an authorized recovery
+
+Use an access-restricted ephemeral runner and an already approved distinct
+Cloud recovery target. First download the redacted receipt artifact from the
+successful `Phase 8 protected Cloud backup` workflow. Record its run ID, exact
+R2 `objectKey`, `ciphertextSha256`, source ref and capture time. Retrieve that
+exact key from the private `gymloop-backups` bucket with the dedicated backup
+reader/writer credential, using `rclone cat backup:gymloop-backups/<objectKey>`
+to write the **ciphertext** into a private temporary file. Do not use a public
+bucket URL or the media credential.
+
+Set `BACKUP_ENCRYPTION_KEY_B64` from the owner's protected recovery copy or the
+separate GitHub Actions secret in the runner environment, not on a command
+line or in a repository file. Run:
+
+```text
+node scripts/phase8-backup-extract.mjs <encrypted-object-file> <private-output-parent> <receipt-ciphertext-sha256>
+```
+
+The reader verifies the exact ciphertext hash, AES-GCM tag, source project,
+header, every part length and SHA-256, then writes `roles.sql`, `schema.sql`,
+`data.sql`, `history_schema.sql` and `history_data.sql` into a new private
+subdirectory. Its output is only a source/time/hash receipt and the private
+path. Keep the SQL inside that ephemeral environment, do not upload it as an
+artifact, and remove the environment after the separately authorized Cloud
+rehearsal. These files follow the official Supabase CLI logical restore
+sequence; they are not evidence that an isolated restore has happened.
+
+The owner recovery copy is DPAPI-protected in the local Codex profile at
+`C:\Users\Harsh\.codex\gymloop-backup-key.dpapi`; only this Windows user
+profile can decrypt it. The same key is stored separately from the bucket
+writer as GitHub Actions secret `BACKUP_ENCRYPTION_KEY_B64`. Losing both copies
+makes the encrypted archive unusable; the production owner checks custody and
+rotation before onboarding and after access changes.
 
 The earlier 2026-09-21 linked-password failure was corrected on 2026-09-22.
 The protected export and read-back still require an executed receipt. This

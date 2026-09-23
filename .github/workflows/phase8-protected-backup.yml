@@ -1,0 +1,57 @@
+name: Phase 8 protected Cloud backup
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '43 0 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase8-protected-backup
+  cancel-in-progress: false
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      BACKUP_ENCRYPTION_KEY_B64: ${{ secrets.BACKUP_ENCRYPTION_KEY_B64 }}
+      RCLONE_CONFIG_BACKUP_TYPE: s3
+      RCLONE_CONFIG_BACKUP_PROVIDER: Cloudflare
+      RCLONE_CONFIG_BACKUP_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_BACKUP_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_BACKUP_ENDPOINT: https://03b0a2097c32f21fc6f4598e1d6b1f1e.r2.cloudflarestorage.com
+      RCLONE_CONFIG_BACKUP_REGION: auto
+      PROJECT_REF: pecxrpskmfeuyzngvewq
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v6
+      - run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.110.0
+      - name: Install bucket client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq rclone
+      - name: Verify and export linked Cloud project
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$PROJECT_REF" --yes
+          node scripts/phase8-protected-backup.mjs | tee backup-receipt.json
+          jq -e '.verified == true and .sourceProjectRef == "pecxrpskmfeuyzngvewq" and .bucket == "gymloop-backups"' backup-receipt.json >/dev/null
+      - name: Retain redacted verification receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: protected-backup-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: backup-receipt.json
+          if-no-files-found: error
+          retention-days: 30

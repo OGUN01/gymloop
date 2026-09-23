@@ -547,6 +547,10 @@ Phase 7 owns the design system. What is here is the one screen whose behaviour c
 | `SUPABASE_DB_PASSWORD` | Direct Postgres connection password | `.env.local`, CI secrets |
 | `SUPABASE_PROJECT_REF` | `pecxrpskmfeuyzngvewq` | `.env.local`, CI secrets |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase secret key — never `NEXT_PUBLIC_`-prefixed | `.env.local`, CI secrets, Vercel (server env only) |
+| `BACKUP_ENCRYPTION_KEY_B64` | Separate 32-byte AES-GCM key for the protected logical export | GitHub Actions backup secret and owner recovery custody |
+| `BACKUP_R2_ACCESS_KEY_ID` / `BACKUP_R2_SECRET_ACCESS_KEY` | Dedicated bucket-scoped R2 writer, never the media credential | GitHub Actions backup secrets only |
+| `RCLONE_CONFIG_BACKUP_*` | Ephemeral S3-compatible client configuration for the backup bucket | Protected backup workflow only |
+| `GITHUB_RUN_ID` / `GITHUB_RUN_ATTEMPT` | Unique encrypted backup object identity for each workflow attempt | GitHub Actions runner |
 
 **CI-only secrets** (not app env vars, not in `.env.example`): `SUPABASE_ACCESS_TOKEN` (Supabase CLI auth for CI), `HOLDOUT_DEPLOY_KEY` (read-only deploy key for cloning `gymloop-holdout`).
 
@@ -756,6 +760,12 @@ The shared money/credit codec, template/category placeholder vocab and request s
 | `createOperationalLogger` | `apps/web/lib/observability.ts` | Structured sink/report adapter that emits the same JSON-safe recursively redacted operational event, retaining only permitted tenant and correlation context while isolating adapter failures | Phase 8 operational logging callers |
 | `playwrightEnv` | `packages/shared/src/config/env.ts` | Lazy, minimal browser-harness credential and optional validated endpoint boundary; fails before collection when the demo password is absent and exposes no server secrets | Playwright config and HARD-003 journeys |
 | `pilotAcceptanceEnv` | `packages/shared/src/config/env.ts` | Uncached exact-literal validation of the manual shared-project acceptance opt-in; no default or deployment setting | PILOT-007 manual deployed two-owner runner |
+| `backupEnv` | `packages/shared/src/config/env.ts` | Minimal secret and run-identity validation for the protected Cloud export runner | HARD-007 backup workflow |
+| `backupKeyEnv` | `packages/shared/src/config/env.ts` | Recovery-only key input without unrelated GitHub or database credentials | HARD-007 private archive extraction |
+| `PHASE8_BACKUP_LIMITS` | `packages/shared/src/config/constants.ts` | AES-GCM wire widths and bounded source/CLI resource use | HARD-007 protected export |
+| `runProtectedBackup` | `scripts/phase8-protected-backup.mjs` | Injected Cloud source preflight, four-part logical archive, AES-GCM encryption, exact R2 read-back and secret-free receipt | HARD-007 backup workflow and independent visible/holdout tests |
+| `decryptProtectedArchive` | `scripts/phase8-protected-backup.mjs` | Authenticate and strictly unpack the versioned encrypted object, all four source hashes and split migration history for an authorized future Cloud recovery | HARD-007 archive reader and independent visible/holdout tests |
+| Protected backup extraction CLI | `scripts/phase8-backup-extract.mjs` | Receipt-hash-bound, private-directory SQL extraction from one encrypted object; refuses changed ciphertext and emits metadata only | HARD-007 future authorized Cloud recovery operator |
 | `assertSafeLoadTarget` / `buildMorningCheckInWorkload` / `summarizeRawResult` / `preflightLoadRun` | `scripts/phase8-load-safety.mjs` | HARD-004's local fail-closed preflight, fixed 100-gym × 500-member morning workload encoder and raw-result metadata guard. They never discover a target, execute k6 or log credentials. | Visible safety tests and the isolated k6 operator procedure |
 | `PHASE8_PRELAUNCH_LOAD_LIMITS` | `packages/shared/src/config/constants.ts` | Fixed 100 × 500 workload, Free-plan size/quota abort boundaries, and observer timing for the owner-authorized prelaunch Cloud run. | HARD-004 prelaunch validators and run procedure |
 | `assertSafePrelaunchTarget` / `assertSafePrelaunchQuota` / `assertSafePrelaunchFixture` / `summarizePrelaunchResult` | `scripts/phase8-prelaunch-load-safety.mjs` | Fail-closed identity, current-size, private-fixture, measured-result and exact-cleanup validation for the linked Cloud run, with credential-free outputs. | HARD-004 prelaunch operator procedure and independent tests |
