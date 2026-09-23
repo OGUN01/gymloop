@@ -56,7 +56,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * ---------------------------------------------------------------------------
  */
 
-type Result = { data: unknown; error: { code: string; message: string } | null };
+type Result = { data: unknown; error: { code: string; message: string } | null; status?: number };
 
 const CHAIN_METHODS = ['insert', 'select', 'eq', 'order', 'limit', 'single', 'maybeSingle'];
 
@@ -121,6 +121,11 @@ const REPLAYED_ATTENDANCE = { ...RECORDED, source: 'front_desk', member: { full_
 
 const ok = (data: unknown): Result => ({ data, error: null });
 const fails = (code: string): Result => ({ data: null, error: { code, message: code } });
+const transportFailure = (status: number, code = ''): Result => ({
+  data: null,
+  error: { code, message: 'private transport failure' },
+  status,
+});
 
 function post(body: unknown): Request {
   return new Request('https://gym.example/api/check-in', {
@@ -312,6 +317,98 @@ describe('a temporary Cloud Data API pool timeout', () => {
     const response = await checkIn(post(request));
     expect(response.status).toBe(409);
     expect(state.rpcCalls).toHaveLength(1);
+  });
+});
+
+describe('a staff check-in command with an ambiguous status-0 transport result', () => {
+  const request = { memberId: MEMBER_ID, reason: 'Helped at the desk', clientEventId: EVENT_ID };
+
+  it('retries one identical event after status 0 with a blank code and acknowledges the visit', async () => {
+    state.rpcResults = [transportFailure(0), ok(ASSISTED_RECORDED)];
+
+    const response = await checkIn(post(request));
+
+    expect(response.status).toBe(200);
+    expect((await envelope(response)).data).toMatchObject({ replay: false, id: RECORDED.id });
+    expect(state.rpcCalls).toHaveLength(2);
+    expect(state.rpcCalls[0]).toEqual(state.rpcCalls[1]);
+    expect(state.from).toEqual([]);
+  });
+
+  it('uses the existing same-member replay when the first write succeeded but its response was lost', async () => {
+    state.rpcResults = [transportFailure(0), fails('23505')];
+    state.results = [ok(REPLAYED_ATTENDANCE)];
+
+    const response = await checkIn(post(request));
+
+    expect(response.status).toBe(200);
+    expect((await envelope(response)).data).toMatchObject({ replay: true, id: RECORDED.id });
+    expect(state.rpcCalls).toHaveLength(2);
+    expect(state.rpcCalls[0]).toEqual(state.rpcCalls[1]);
+    expect(callsOf('attendance', 'eq')).toEqual([
+      ['client_event_id', EVENT_ID],
+      ['member_id', MEMBER_ID],
+    ]);
+  });
+
+  it('does not retry a no-response command without a client event ID', async () => {
+    state.rpcResults = [transportFailure(0), ok(ASSISTED_RECORDED)];
+
+    const response = await checkIn(post({ memberId: MEMBER_ID, reason: 'Helped at the desk' }));
+
+    expect(response.status).toBe(500);
+    expect((await envelope(response)).error?.code).toBe('check_in_failed');
+    expect(state.rpcCalls).toHaveLength(1);
+    expect(state.rpcCalls[0]?.args.p_client_event_id).toBeNull();
+  });
+
+  it('does not retry status 0 when a nonblank security refusal code is present', async () => {
+    state.rpcResults = [transportFailure(0, '42501'), ok(ASSISTED_RECORDED)];
+
+    const response = await checkIn(post(request));
+
+    expect(response.status).toBe(403);
+    expect((await envelope(response)).error?.code).toBe('not_permitted');
+    expect(state.rpcCalls).toHaveLength(1);
+  });
+
+  it('requires an exactly empty code rather than whitespace for the status-0 retry', async () => {
+    state.rpcResults = [transportFailure(0, ' '), ok(ASSISTED_RECORDED)];
+
+    const response = await checkIn(post(request));
+
+    expect(response.status).toBe(500);
+    expect(state.rpcCalls).toHaveLength(1);
+  });
+
+  it('does not retry a blank-code failure that has an HTTP status', async () => {
+    state.rpcResults = [transportFailure(503), ok(ASSISTED_RECORDED)];
+
+    const response = await checkIn(post(request));
+
+    expect(response.status).toBe(500);
+    expect((await envelope(response)).error?.code).toBe('check_in_failed');
+    expect(state.rpcCalls).toHaveLength(1);
+  });
+
+  it('does not infer a status-0 transport failure from an absent status', async () => {
+    state.rpcResults = [fails(''), ok(ASSISTED_RECORDED)];
+
+    const response = await checkIn(post(request));
+
+    expect(response.status).toBe(500);
+    expect(state.rpcCalls).toHaveLength(1);
+  });
+
+  it('stops after a second no-response failure even if a later command would succeed', async () => {
+    state.rpcResults = [transportFailure(0), transportFailure(0), ok(ASSISTED_RECORDED)];
+
+    const response = await checkIn(post(request));
+
+    expect(response.status).toBe(500);
+    expect((await envelope(response)).error?.code).toBe('check_in_failed');
+    expect(state.rpcCalls).toHaveLength(2);
+    expect(state.rpcCalls[0]).toEqual(state.rpcCalls[1]);
   });
 });
 
