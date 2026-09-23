@@ -133,15 +133,63 @@ collected and must never turn the suite green by skipping it.
 
 ### HARD-004 — isolated k6 load and tenant-safety test environment
 
-When k6 load or isolation testing runs, it shall target an explicitly separate
-non-production Supabase project with non-production credentials and test data.
-If that separation cannot be positively verified before execution, the test
-shall fail closed and no load run shall be reported. The run shall cover the
-100-gym × 500-member morning check-in spike and tenant isolation assertions.
+When k6 load or isolation testing runs, it shall use either the existing
+explicitly separate non-production target or the owner-authorized, bounded
+prelaunch-shared Cloud Supabase route in ADR-162. The latter is available only
+while Gymloop has no live customers. Both routes shall cover the 100-gym ×
+500-member morning check-in spike and real cross-tenant read and mutation
+denials. A same-project run cannot satisfy this gate by merely bypassing the
+isolated-target guard or relabelling the existing demo gym.
 
-Acceptance: the environment identity, safety preflight, workload, thresholds,
-and raw/result artifacts are recorded; production is never used as a load
-target.
+Acceptance: the selected environment's identity, safety preflight, workload,
+preapproved p95 budget, raw result, resource observations and exact fixture
+cleanup are recorded. The provider restore drill remains excluded from this
+route and receives no inferred pass.
+
+**Prelaunch-shared route (ADR-162).** WHEN the owner authorizes testing on the
+linked Cloud project, THE SYSTEM SHALL require a separate explicit
+`prelaunch-shared` target mode and confirmation value, matching configured,
+observed API, Supabase and credential project references, the exact linked
+Supabase origin, a current no-live-customer assertion, a timestamped baseline
+manifest of existing organization/member/attendance/Auth identities, a fresh
+synthetic run marker, and a durable exact-ID cleanup manifest before any
+fixture write or k6 call. It SHALL reject a project mismatch, missing manifest,
+reused marker, unverified source, or a target other than the linked Cloud
+project. The isolated-project validator below retains its existing rejection
+of the production-configured reference; it is not weakened by this alternative.
+
+WHEN a prelaunch-shared fixture is staged, THE SYSTEM SHALL use only newly
+marked synthetic gyms, owners, staff, plans, memberships and members; never
+rewrite, delete, or use an existing demo or staged pilot identity. It SHALL
+persist the exact synthetic IDs and Auth IDs to a gitignored recovery manifest
+before proceeding, and SHALL be able to resume exact-ID cleanup after an
+interrupted run. A fixture or cleanup failure is non-passing. The acceptance
+workload remains exactly 100 unique gym sessions × 500 owned members and
+50,000 unique assisted check-ins, with both cross-tenant denial probes.
+
+WHEN the prelaunch-shared run is prepared or running, THE SYSTEM SHALL check
+the actual linked database size through the Supabase CLI and refuse or abort
+if it reaches 400,000,000 bytes, if size collection fails, or if its recorded
+provider quota is not the current 500,000,000-byte Free-plan limit. It SHALL
+record the pre-run size and periodic sizes at intervals no greater than 60
+seconds without exposing member data. It SHALL stop before the Free project's
+read-only limit and never claim a pass if the observer stops. The p95 budget is
+fixed in evidence before execution, not chosen after seeing the result.
+
+WHEN a prelaunch-shared run finishes or aborts, THE SYSTEM SHALL reconcile
+the raw k6 result, exact synthetic attendance count, foreign-read denial,
+foreign-mutation status, pre-existing baseline invariants, and exact-ID
+cleanup including synthetic Auth users. The run SHALL be reported Passed only
+if the existing 50,000/p95/isolation criteria hold and a separately captured
+postflight proves no unexplained synthetic remainder or change to pre-existing
+identities. A failed or missing cleanup remains a blocker even if k6 is green.
+
+The fixture's 50,000 member IDs and 100 bearer tokens SHALL be read by k6 from
+one gitignored local fixture file at initialization; they SHALL NOT be placed
+in an environment variable, command line, raw result, tracked file or ledger.
+The caller supplies only that file path and non-secret configuration through
+bounded environment values. A missing, malformed or cross-owned fixture fails
+before any HTTP call.
 
 Frozen harness interface: `scripts/phase8-load-safety.mjs` exports
 `assertSafeLoadTarget`, `buildMorningCheckInWorkload`, `summarizeRawResult`
