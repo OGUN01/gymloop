@@ -603,6 +603,18 @@ hash mismatch, unexpected project, or export failure shall fail the workflow.
 The runbook shall name the backup owner and cadence. This proves a protected
 export and read-back, not a database restore; gate 29 remains unperformed.
 
+The testable entry point is `scripts/phase8-protected-backup.mjs`, exporting
+`runProtectedBackup(config, ports)`. `config` contains `expectedProjectRef`,
+`bucket`, `objectKey`, and `encryptionKey`. The async injected ports are
+`identifyLinkedProject`, `dumpRoles`, `dumpSchema`, `dumpData`,
+`dumpMigrations`, `uploadCiphertext`, `downloadCiphertext`, and `now`.
+Each dump returns a Buffer; upload receives `(bucket, objectKey, Buffer)`;
+download receives `(bucket, objectKey)` and returns a Buffer. Encryption,
+decryption, and SHA-256 run inside the entry point. It returns only a safe
+receipt with source project, object key, plaintext and ciphertext hashes,
+verification result, and capture time. The manual and scheduled workflow is
+`.github/workflows/phase8-protected-backup.yml`.
+
 ### HARD-008 — production AAB and physical-device smoke proof
 
 When Android production readiness is assessed, a production-configured signed
