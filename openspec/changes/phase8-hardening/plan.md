@@ -237,6 +237,45 @@ The returned summary is credential-free and references the raw/monitor/cleanup
 artifacts by path, not their private contents. A future runner may inject a
 backend for tests, but it must use this exact validator before Cloud writes.
 
+Frozen prelaunch fixture-planning interface: `scripts/phase8-prelaunch-load-fixture.mjs`
+exports exactly `buildPrelaunchSyntheticPlan`, `renderPrelaunchStageSql`,
+`renderPrelaunchCleanupSql`, and `parseLinkedDatabaseSize`. The planner is pure:
+it has no filesystem, CLI, network or secret access. Its caller supplies a
+fresh `PHASE8-LOAD-<UUID>` marker and persists the returned plan to a
+gitignored recovery manifest **before** any Cloud write.
+
+`buildPrelaunchSyntheticPlan(marker)` returns that marker and exactly 100 gyms.
+Each gym has deterministic UUID `gymId`, `branchId`, `planId`, `staffId`, a
+marker-scoped non-delivering synthetic owner/staff email, and exactly 500
+`{memberId, membershipId}` pairs. All identifiers are distinct across the
+plan; the same marker reproduces the same IDs for interrupted cleanup. The
+plan contains no password, bearer token, service key or pre-existing identity.
+
+`renderPrelaunchStageSql(plan, authBindings)` accepts exactly one distinct
+`{email,userId}` binding for each planned gym, after the caller has created
+those Auth users and written each returned Auth ID to the recovery manifest.
+It returns one transaction that inserts only the plan's new organizations,
+settings, branches, zero-price synthetic plans, front-desk staff, members and
+active synthetic membership periods. No seed, migration, trigger disabling,
+`ON CONFLICT`, pre-existing row update or broad truncate is allowed. It fails
+closed on missing/foreign/duplicate bindings and validates all 100 × 500 plan
+identities before rendering. Its final assertion checks exact staged counts.
+
+`renderPrelaunchCleanupSql(plan)` returns one transaction that verifies any
+existing planned gym IDs still carry the plan marker, deletes only rows under
+the plan's exact gym IDs in FK-safe order, and verifies zero planned database
+identities remain. It must work after partial staging or interrupted k6 and
+must never delete from a pre-existing gym. Auth deletion is a separately
+checked Admin API step using the manifest's exact user IDs and marker emails.
+
+`parseLinkedDatabaseSize(raw)` accepts the Supabase CLI's JSON query output,
+requires exactly one nonnegative safe-integer `database_bytes` value from the
+linked database, and returns the number only. A missing/error/ambiguous value
+fails closed. The orchestrator calls it for the baseline and at most 60-second
+sampling, passes snapshots through `assertSafePrelaunchQuota`, kills k6 if the
+observer fails or reaches 400,000,000 bytes, and resumes exact cleanup from
+the durable manifest. No Cloud load can pass on a planner result alone.
+
 Frozen harness interface: `scripts/phase8-load-safety.mjs` exports
 `assertSafeLoadTarget`, `buildMorningCheckInWorkload`, `summarizeRawResult`
 and `preflightLoadRun`. `assertSafeLoadTarget(target)` accepts exactly the
