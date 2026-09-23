@@ -124,11 +124,12 @@ Before the first customer record is accepted, the production owner must:
    credentials in Git. Inventory R2/Storage objects, Auth configuration,
    Edge secrets and external integrations separately: a SQL dump alone is not
    a complete application recovery point.
-   The data-only CLI capture explicitly selects `public,auth`: the default
-   managed-schema exclusion would omit `auth.users`, leaving staff and member
-   account references without recoverable identities. The runner refuses a
-   data dump lacking either public COPY records or the Auth users COPY record.
-   The four CLI captures are sequential, so this receipt is not a proven
+   Separate data-only CLI captures explicitly select `public` and `auth`: the
+   default managed-schema exclusion would omit `auth.users`, leaving staff and
+   member account references without recoverable identities. The runner
+   refuses a combined data part lacking nonempty public COPY records or a
+   nonempty Auth users COPY record. The six CLI captures are sequential, so
+   this receipt is not a proven
    transactionally atomic recovery point. Only an isolated restore and
    validation can establish application recoverability.
 4. Retrieve the exact R2 object after every upload, decrypt it in the ephemeral

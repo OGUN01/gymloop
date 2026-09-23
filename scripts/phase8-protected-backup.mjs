@@ -27,7 +27,8 @@ const DUMP_COMMAND = Object.freeze({ binary: 'supabase', args: ['db', 'dump'] })
 const DUMP_OPTIONS = Object.freeze({
   roles: ['--role-only'],
   schema: [],
-  data: ['--use-copy', '--data-only', '--schema', 'public,auth', '-x', 'storage.buckets_vectors', '-x', 'storage.vector_indexes'],
+  publicData: ['--use-copy', '--data-only', '--schema', 'public'],
+  authData: ['--use-copy', '--data-only', '--schema', 'auth'],
   historySchema: ['--schema', 'supabase_migrations'],
   historyData: ['--use-copy', '--data-only', '--schema', 'supabase_migrations'],
 });
@@ -43,7 +44,7 @@ function digest(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
-function hasCopyStatement(data, prefix) {
+function hasCopyDataRow(data, prefix) {
   const marker = Buffer.from(prefix);
   let cursor = 0;
   while (cursor < data.length) {
@@ -51,8 +52,14 @@ function hasCopyStatement(data, prefix) {
     if (found < 0) return false;
     if (found === 0 || data.subarray(found - 1, found).toString() === '\n') {
       const end = data.indexOf('\n', found);
-      const line = data.subarray(found, end < 0 ? data.length : end).toString('utf8');
-      if (line.endsWith(' FROM stdin;')) return true;
+      const line = data.subarray(found, end < 0 ? data.length : end).toString('utf8').trimEnd();
+      if (line.endsWith(' FROM stdin;') && end >= 0) {
+        const nextStart = end + 1;
+        const nextEnd = data.indexOf('\n', nextStart);
+        const row = data.subarray(nextStart, nextEnd < 0 ? data.length : nextEnd);
+        const rowWithoutCr = row.length > 0 && row.subarray(-1).equals(Buffer.from('\r')) ? row.subarray(0, -1) : row;
+        if (rowWithoutCr.length > 0 && !rowWithoutCr.equals(Buffer.from('\\.'))) return true;
+      }
     }
     cursor = found + marker.length;
   }
@@ -167,8 +174,10 @@ export async function runProtectedBackup(config, ports) {
     for (const [name, port] of PARTS) {
       const bytes = await ports[port]();
       if (!Buffer.isBuffer(bytes) || bytes.length === 0 || bytes.length > MAX_SOURCE_BYTES) throw safeReceiptError();
-      if (name === 'data' && (!hasCopyStatement(bytes, 'COPY public.') ||
-        !hasCopyStatement(bytes, 'COPY auth.users '))) throw safeReceiptError();
+      if (name === 'data' && (!(hasCopyDataRow(bytes, 'COPY public.') ||
+        hasCopyDataRow(bytes, 'COPY "public".')) ||
+        !(hasCopyDataRow(bytes, 'COPY auth.users ') ||
+        hasCopyDataRow(bytes, 'COPY "auth"."users" ')))) throw safeReceiptError();
       sources[name] = bytes;
       sourceHashes[name] = digest(bytes);
     }
@@ -242,7 +251,11 @@ async function runCloudBackup() {
       },
       dumpRoles: () => dump('roles', 'roles.sql'),
       dumpSchema: () => dump('schema', 'schema.sql'),
-      dumpData: () => dump('data', 'data.sql'),
+      async dumpData() {
+        const publicData = await dump('publicData', 'public-data.sql');
+        const authData = await dump('authData', 'auth-data.sql');
+        return Buffer.concat([publicData, Buffer.from('\n'), authData]);
+      },
       async dumpMigrations() {
         const schema = await dump('historySchema', 'history-schema.sql');
         const data = await dump('historyData', 'history-data.sql');
