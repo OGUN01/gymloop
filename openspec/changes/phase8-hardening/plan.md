@@ -276,6 +276,42 @@ sampling, passes snapshots through `assertSafePrelaunchQuota`, kills k6 if the
 observer fails or reaches 400,000,000 bytes, and resumes exact cleanup from
 the durable manifest. No Cloud load can pass on a planner result alone.
 
+Frozen prelaunch orchestration interface: `scripts/phase8-prelaunch-load-campaign.mjs`
+exports exactly `runPrelaunchLoadCampaign(config, backend)`. `config` has
+`target`, `marker`, `fixturePath`, `baselineManifestPath`,
+`cleanupManifestPath`, `rawResultPath`, `thresholds: { p95Ms }`, and optional
+positive `monitorIntervalMs` no greater than 30,000 (30,000 by default).
+The four artifact paths are distinct local paths. The runner validates the
+linked target, a fresh CLI size and the fixed quota before any Cloud mutation;
+it calls the pure fixture planner and persists the plan/intent via the backend
+before the first Auth user. The backend is injected so independent tests never
+touch Cloud. It has async methods `writeManifest(state)`, `observeSize()`,
+`captureBaseline(plan)`, `createAuthUser(email)`, `stageSql(sql)`,
+`signIn(email)`, `writeFixture(fixture)`, `runK6(request)`,
+`countAttendance(plan)`, `cleanupSql(sql)`, `deleteAuthUser(email, userId)`,
+and `verifyPostflight(plan, baseline)`. `observeSize()` returns the exact
+snapshot accepted by `assertSafePrelaunchQuota`; `createAuthUser` returns one
+UUID; `signIn` returns one bearer token; `runK6` returns the measured object
+accepted by `summarizePrelaunchResult`; `verifyPostflight` returns the cleanup
+facts accepted there. The backend owns secret storage and actual Cloud/CLI
+calls, not pass/fail judgment.
+
+The campaign writes a durable intent before each Auth creation, records each
+returned Auth ID immediately, stages only through the rendered transaction,
+signs in to all 100 gyms, validates and writes the private k6 fixture, and
+starts k6 only after a fresh size sample. It checks size initially, periodically
+through Auth staging, SQL and k6, and at the end. Observation gaps greater
+than 60 seconds, missed/failed samples, or reaching 400,000,000 bytes abort
+and make the result blocked. The k6 request receives an AbortSignal and must
+terminate promptly on abort. The campaign compares measured check-ins with an
+independent persisted-attendance count, then always attempts exact SQL cleanup,
+all marker-scoped Auth deletions (including an Auth creation that succeeded
+before its ID could be recorded), and a separate pre-existing/postflight
+comparison. If cleanup fails, its recovery manifest remains and no pass is
+possible. Only full measured, monitored and cleaned evidence may return a
+credential-free Passed summary; partial or failed work returns Blocked and
+never exposes tokens, passwords or member IDs.
+
 Frozen harness interface: `scripts/phase8-load-safety.mjs` exports
 `assertSafeLoadTarget`, `buildMorningCheckInWorkload`, `summarizeRawResult`
 and `preflightLoadRun`. `assertSafeLoadTarget(target)` accepts exactly the
