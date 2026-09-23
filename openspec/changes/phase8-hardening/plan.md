@@ -622,12 +622,22 @@ receipt fields `sourceProjectRef`, `bucket`, `objectKey`, `capturedAt`,
 The format reader is `decryptProtectedArchive(ciphertext, encryptionKey,
 expectedProjectRef)` in the same module. It shall authenticate the exact
 AES-GCM object, reject a foreign source, malformed/truncated/extra archive
-bytes, missing parts or mismatched part hashes, then return the four named
-Buffer parts plus source identity, capture time and hashes. The migration part
-shall also decode to separate `history_schema.sql` and `history_data.sql` bytes
+bytes, missing parts or mismatched part hashes, then return
+`{sourceProjectRef,capturedAt,sourceHashes,parts:{roles,schema,data,migrations},historySchema,historyData}`
+with each part and history field a Buffer. The migration part shall decode to
+separate `history_schema.sql` and `history_data.sql` bytes
 for a later authorized Cloud recovery. The operator runbook shall describe
 exact-object retrieval and private ephemeral extraction; no live restore is
 part of this pilot proof.
+
+The versioned encrypted object is ASCII `GLBKP001` (8 bytes), a 12-byte IV,
+a 16-byte GCM tag, then AES-256-GCM ciphertext authenticated with the magic
+bytes as AAD. Plaintext is a four-byte unsigned big-endian JSON-header length,
+the UTF-8 JSON header, then raw roles, schema, data, and migrations bytes in
+that order. The header has `format: "gymloop-cloud-logical-v1"`,
+`sourceProjectRef`, `capturedAt`, `sourceHashes` and `lengths` keyed by those
+four part names. The migrations bytes are UTF-8 JSON with base64 `schema` and
+`data` fields for the separate migration-history SQL captures.
 
 ### HARD-008 — production AAB and physical-device smoke proof
 
