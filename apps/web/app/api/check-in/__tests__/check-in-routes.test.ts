@@ -315,6 +315,56 @@ describe('a temporary Cloud Data API pool timeout', () => {
   });
 });
 
+describe('safe check-in failure diagnosis', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('records only the tenant and validated code after an exhausted pool timeout', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    state.rpcResults = [fails('PGRST003'), fails('PGRST003')];
+
+    const response = await checkIn(post({
+      memberId: MEMBER_ID, reason: 'Helped at the desk', clientEventId: EVENT_ID,
+    }));
+
+    expect(response.status).toBe(500);
+    expect(logged).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'check_in.database_error',
+      tenant_id: SIGNED_IN.tenant_id,
+      context: { code: 'PGRST003' },
+    }));
+    const captured = JSON.stringify(logged.mock.calls);
+    expect(captured).not.toContain(MEMBER_ID);
+    expect(captured).not.toContain(EVENT_ID);
+    expect(captured).not.toContain('Helped at the desk');
+  });
+
+  it('classifies an unsafe free-text code without logging the code or message', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const unsafe = 'private-member-Asha-Rao';
+    state.rpcResults = [{ data: null, error: { code: unsafe, message: unsafe } }];
+
+    const response = await checkIn(post({ memberId: MEMBER_ID, reason: 'Helped at the desk' }));
+
+    expect(response.status).toBe(500);
+    expect(logged).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'check_in.database_error',
+      tenant_id: SIGNED_IN.tenant_id,
+      context: { code: 'unclassified' },
+    }));
+    expect(JSON.stringify(logged.mock.calls)).not.toContain(unsafe);
+  });
+
+  it('does not report a known database refusal as a server failure', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    state.rpcResults = [fails('GL014')];
+
+    const response = await checkIn(post({ memberId: MEMBER_ID, reason: 'Helped at the desk' }));
+
+    expect(response.status).toBe(409);
+    expect(logged).not.toHaveBeenCalled();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 2. Refusal mapping — five refusals that must not collapse into one.
 // ---------------------------------------------------------------------------
