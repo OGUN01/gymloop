@@ -22,9 +22,41 @@ const PARTS = Object.freeze([
   ['data', 'dumpData'],
   ['migrations', 'dumpMigrations'],
 ]);
+const DUMP_COMMAND = Object.freeze({ binary: 'supabase', args: ['db', 'dump'] });
+
+const DUMP_OPTIONS = Object.freeze({
+  roles: ['--role-only'],
+  schema: [],
+  data: ['--use-copy', '--data-only', '--schema', 'public,auth', '-x', 'storage.buckets_vectors', '-x', 'storage.vector_indexes'],
+  historySchema: ['--schema', 'supabase_migrations'],
+  historyData: ['--use-copy', '--data-only', '--schema', 'supabase_migrations'],
+});
+
+export function backupDumpArgs(kind, filePath) {
+  if (!Object.hasOwn(DUMP_OPTIONS, kind) || typeof filePath !== 'string' || filePath.length === 0) {
+    throw safeReceiptError();
+  }
+  return [...DUMP_COMMAND.args, '--linked', '--file', filePath, ...DUMP_OPTIONS[kind]];
+}
 
 function digest(value) {
   return createHash('sha256').update(value).digest('hex');
+}
+
+function hasCopyStatement(data, prefix) {
+  const marker = Buffer.from(prefix);
+  let cursor = 0;
+  while (cursor < data.length) {
+    const found = data.indexOf(marker, cursor);
+    if (found < 0) return false;
+    if (found === 0 || data.subarray(found - 1, found).toString() === '\n') {
+      const end = data.indexOf('\n', found);
+      const line = data.subarray(found, end < 0 ? data.length : end).toString('utf8');
+      if (line.endsWith(' FROM stdin;')) return true;
+    }
+    cursor = found + marker.length;
+  }
+  return false;
 }
 
 function safeReceiptError() {
@@ -135,6 +167,8 @@ export async function runProtectedBackup(config, ports) {
     for (const [name, port] of PARTS) {
       const bytes = await ports[port]();
       if (!Buffer.isBuffer(bytes) || bytes.length === 0 || bytes.length > MAX_SOURCE_BYTES) throw safeReceiptError();
+      if (name === 'data' && (!hasCopyStatement(bytes, 'COPY public.') ||
+        !hasCopyStatement(bytes, 'COPY auth.users '))) throw safeReceiptError();
       sources[name] = bytes;
       sourceHashes[name] = digest(bytes);
     }
@@ -192,9 +226,9 @@ async function runCloudBackup() {
   const root = resolve(import.meta.dirname, '..');
   const temp = await mkdtemp(join(tmpdir(), 'gymloop-protected-backup-'));
   const objectKey = `${new Date().toISOString().slice(0, PHASE8_BACKUP_LIMITS.isoDateLength)}/gymloop-cloud-${runtime.GITHUB_RUN_ID}-${runtime.GITHUB_RUN_ATTEMPT}.enc`;
-  const dump = async (filename, args) => {
+  const dump = async (kind, filename) => {
     const file = join(temp, filename);
-    await runCommand('supabase', ['db', 'dump', '--linked', '--file', file, ...args]);
+    await runCommand(DUMP_COMMAND.binary, backupDumpArgs(kind, file));
     return readFile(file);
   };
   try {
@@ -204,12 +238,12 @@ async function runCloudBackup() {
         const linked = (await readFile(join(root, 'supabase', '.temp', 'project-ref'), 'utf8')).trim();
         return linked;
       },
-      dumpRoles: () => dump('roles.sql', ['--role-only']),
-      dumpSchema: () => dump('schema.sql', []),
-      dumpData: () => dump('data.sql', ['--use-copy', '--data-only', '-x', 'storage.buckets_vectors', '-x', 'storage.vector_indexes']),
+      dumpRoles: () => dump('roles', 'roles.sql'),
+      dumpSchema: () => dump('schema', 'schema.sql'),
+      dumpData: () => dump('data', 'data.sql'),
       async dumpMigrations() {
-        const schema = await dump('history-schema.sql', ['--schema', 'supabase_migrations']);
-        const data = await dump('history-data.sql', ['--use-copy', '--data-only', '--schema', 'supabase_migrations']);
+        const schema = await dump('historySchema', 'history-schema.sql');
+        const data = await dump('historyData', 'history-data.sql');
         return Buffer.from(JSON.stringify({ schema: schema.toString('base64'), data: data.toString('base64') }));
       },
       uploadCiphertext: async (bucket, key, body) => {
