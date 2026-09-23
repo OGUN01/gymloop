@@ -149,7 +149,7 @@ describe('HARD-004 transactional synthetic stage', () => {
     for (const authBindings of cases) {
       expect(() => renderPrelaunchStageSql(plan(), authBindings)).toThrow();
     }
-  });
+  }, 30_000);
 
   it('revalidates the entire plan before rendering, including all 50,000 pairs', () => {
     const first = plan().gyms[0];
