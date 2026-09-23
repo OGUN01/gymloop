@@ -7,7 +7,10 @@ const capturedAt = '2026-09-23T12:00:00.000Z';
 const encryptionKey = Buffer.alloc(32, 0x42);
 const publicCopy = 'COPY public.members (id, full_name) FROM stdin;\n11111111-1111-4111-8111-111111111111\tSynthetic Member\n\\.\n';
 const authUsersCopy = 'COPY auth.users (id, email) FROM stdin;\n22222222-2222-4222-8222-222222222222\tsynthetic@example.invalid\n\\.\n';
+const quotedPublicCopy = 'COPY "public"."members" (id, full_name) FROM stdin;\n11111111-1111-4111-8111-111111111111\tSynthetic Member\n\\.\n';
+const quotedAuthUsersCopy = 'COPY "auth"."users" (id, email) FROM stdin;\n22222222-2222-4222-8222-222222222222\tsynthetic@example.invalid\n\\.\n';
 const dataWithBothSchemas = Buffer.from(`${publicCopy}${authUsersCopy}`);
+const quotedDataWithBothSchemas = Buffer.from(`${quotedPublicCopy}${quotedAuthUsersCopy}`);
 const historySchema = Buffer.from('CREATE TABLE supabase_migrations.schema_migrations (version text);\n');
 const historyData = Buffer.from('COPY supabase_migrations.schema_migrations FROM stdin;\n20260923120000\n\\.\n');
 const parts = {
@@ -31,6 +34,10 @@ function optionValue(args: string[], option: string): string | undefined {
   const index = args.indexOf(option);
   if (index !== -1) return args[index + 1];
   return args.find((argument) => argument.startsWith(`${option}=`))?.slice(option.length + 1);
+}
+
+function optionCount(args: string[], option: string): number {
+  return args.filter((argument) => argument === option || argument.startsWith(`${option}=`)).length;
 }
 
 function fakePorts(data: Buffer) {
@@ -60,18 +67,22 @@ function fakePorts(data: Buffer) {
 }
 
 describe('HARD-007 actual linked Cloud dump arguments and Auth coverage', () => {
-  it('selects public and auth explicitly in the real data-only CLI command', async () => {
+  it.each([
+    ['publicData', 'public'],
+    ['authData', 'auth'],
+  ])('selects exactly %s in a separate linked data-only CLI command', async (kind, schema) => {
     const module = await import('../phase8-protected-backup.mjs');
     expect(typeof module.backupDumpArgs).toBe('function');
-    const filePath = 'private/data.sql';
-    const args = commandParts(module.backupDumpArgs('data', filePath));
+    const filePath = `private/${kind}.sql`;
+    const args = commandParts(module.backupDumpArgs(kind, filePath));
 
     expect(args.slice(0, 2)).toEqual(['db', 'dump']);
     expect(args).toContain('--linked');
     expect(optionValue(args, '--file')).toBe(filePath);
     expect(args).toContain('--data-only');
     expect(args).toContain('--use-copy');
-    expect(optionValue(args, '--schema')).toBe('public,auth');
+    expect(optionCount(args, '--schema')).toBe(1);
+    expect(optionValue(args, '--schema')).toBe(schema);
     expect(args).not.toContain('--local');
     expect(args).not.toContain('--db-url');
   });
@@ -90,21 +101,32 @@ describe('HARD-007 actual linked Cloud dump arguments and Auth coverage', () => 
       if (kind === 'roles') expect(args).toContain('--role-only');
       if (kind === 'schema') expect(args).not.toContain('--data-only');
       if (kind === 'historySchema' || kind === 'historyData') {
+        expect(optionCount(args, '--schema')).toBe(1);
         expect(optionValue(args, '--schema')).toBe('supabase_migrations');
       }
     }
   });
 
-  it('encrypts and reads back four exact parts including both application and Auth identity rows', async () => {
+  it('rejects the former combined-schema data command and unknown capture kinds', async () => {
     const module = await import('../phase8-protected-backup.mjs');
-    const fake = fakePorts(dataWithBothSchemas);
+    for (const kind of ['data', 'unknown']) {
+      expect(() => module.backupDumpArgs(kind, `private/${kind}.sql`)).toThrow();
+    }
+  });
+
+  it.each([
+    ['unquoted', dataWithBothSchemas],
+    ['quoted', quotedDataWithBothSchemas],
+  ])('encrypts and reads back four exact parts including %s application and Auth identity rows', async (_label, data) => {
+    const module = await import('../phase8-protected-backup.mjs');
+    const fake = fakePorts(data);
     const receipt = await module.runProtectedBackup({ expectedProjectRef: projectRef, bucket, objectKey, encryptionKey }, fake.ports);
 
     expect(receipt.verified).toBe(true);
     expect(fake.uploadCount()).toBe(1);
     expect(fake.uploaded()).toBeInstanceOf(Buffer);
     const recovered = module.decryptProtectedArchive(fake.uploaded(), encryptionKey, projectRef);
-    expect(recovered.parts).toEqual(parts);
+    expect(recovered.parts).toEqual({ ...parts, data });
     expect(recovered.historySchema).toEqual(historySchema);
     expect(recovered.historyData).toEqual(historyData);
   });
@@ -114,6 +136,9 @@ describe('HARD-007 actual linked Cloud dump arguments and Auth coverage', () => 
     ['missing the auth schema', Buffer.from(publicCopy)],
     ['auth table present but auth.users missing', Buffer.from(`${publicCopy}COPY auth.sessions (id) FROM stdin;\n\\.\n`)],
     ['auth.users appears only in a comment', Buffer.from(`${publicCopy}-- COPY auth.users (id) FROM stdin;\n`)],
+    ['only a schema preamble', Buffer.from('CREATE TABLE public.members (id uuid);\nCREATE TABLE auth.users (id uuid);\n')],
+    ['an empty Auth users table', Buffer.from(`${publicCopy}COPY auth.users (id, email) FROM stdin;\n\\.\n`)],
+    ['an empty public table', Buffer.from(`COPY public.members (id, full_name) FROM stdin;\n\\.\n${authUsersCopy}`)],
   ])('refuses a data dump with %s before uploading', async (_label, data) => {
     const module = await import('../phase8-protected-backup.mjs');
     const fake = fakePorts(data);
