@@ -557,6 +557,17 @@ collapsed to the generic ordered reason code
 reason or issue body. The remaining reason codes are `API_5XX_THRESHOLD`,
 `HEALTHCHECK_CONSECUTIVE_FAILURES`, and test-only `TEST_DELIVERY`.
 
+Because GitHub scheduled events may be delayed or dropped, a dedicated
+Cloudflare Worker Cron trigger shall dispatch the same monitor workflow every
+five minutes through GitHub's workflow-dispatch API. The Worker has no public
+HTTP handler or application data; its secret is a Gymloop-repository-only
+GitHub token with Actions write permission. It sends only the workflow name,
+`main` ref and `force_test_alert=false`, requires HTTP 204, and reports a
+redacted failure to Cloudflare logs. The existing GitHub schedule remains a
+fallback. HARD-005 is Passed only after consecutive real Cron dispatches,
+completed monitoring runs, issue-delivery proof and a missed-run/failure
+escalation are recorded; deploying the Worker alone is not cadence proof.
+
 ### HARD-006 — DPDP export, erasure, and retention runner
 
 When the DPDP operational runner executes, it shall produce an auditable export
