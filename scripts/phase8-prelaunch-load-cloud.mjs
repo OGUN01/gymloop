@@ -38,6 +38,11 @@ function pointOf(line) {
   if (point.type !== 'Point') return null;
   const data = requireRecord(point.data, 'k6 point data');
   const tags = requireRecord(data.tags, 'k6 point tags');
+  const relevant = point.metric === 'http_reqs' &&
+      (tags.name === 'morning_check_in' || tags.name === 'cross_tenant_mutation') ||
+    point.metric === 'http_req_duration' && tags.name === 'morning_check_in' ||
+    point.metric === 'checks' && tags.check === 'cross-tenant member read is denied';
+  if (!relevant) return null;
   if (typeof point.metric !== 'string' ||
       (typeof tags.scenario !== 'string' && tags.group !== '::setup') ||
       typeof data.value !== 'number' || !Number.isFinite(data.value)) {
