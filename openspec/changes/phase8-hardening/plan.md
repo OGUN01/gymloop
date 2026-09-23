@@ -626,6 +626,19 @@ object with async `scheduled(event, env)`; it uses global `fetch` and
 POST and throws a generic redacted error on a non-204 or network failure.
 `wrangler.phase8-monitor.jsonc` contains that exact Cron trigger.
 
+When production evidence collection or evaluation fails before it can return a
+decision, the workflow shall leave the run failed and create or update one
+open, generic GitHub Issue carrying `production-alert` and
+`phase8-monitor-failure`. The issue shall link the run and identify the
+30-minute SEV-2 acknowledgement path, without copying provider logs, exception
+text, credentials, or personal data. Repeated failures shall update that issue
+instead of creating unbounded duplicates. A manual
+`force_test_collection_failure` input shall exercise the same failure branch
+before contacting providers, produce a clearly marked TEST-only issue without
+`production-alert`, and leave the workflow run failed. The test receipt shall
+be closed after verification. This covers collector failures; an absent Cron
+execution still requires independent missed-run detection and escalation.
+
 ### HARD-006 — DPDP export, erasure, and retention runner
 
 When the DPDP operational runner executes, it shall produce an auditable export
