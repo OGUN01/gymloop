@@ -124,7 +124,7 @@ function issueFor(severity, testOnly, reasons, evidence, evaluatedAt) {
     ? '[TEST] Gymloop production monitor delivery check'
     : `[${severity}] Gymloop production monitor alert`;
   const labels = testOnly
-    ? ['phase8-production-monitor', 'phase8-production-monitor-test', 'phase8-monitor-test']
+    ? ['phase8-production-monitor-test', 'phase8-monitor-test']
     : ['phase8-production-monitor', 'production-alert', severity.toLowerCase()];
   const reasonLines = reasons.map((reason) => `- ${reason.code}: ${reason.count}`).join('\n');
   const correlations = evidence.correlationIds.length > 0 ? evidence.correlationIds.join(', ') : 'none';

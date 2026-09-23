@@ -47,7 +47,7 @@ jobs:
           probe_id="health-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
           vercel inspect gymloop-phi.vercel.app --scope ogun01s-projects --json > deployment.json
-          vercel logs gymloop-phi.vercel.app --scope ogun01s-projects --environment production --since 5m --json > vercel-logs.jsonl
+          vercel logs gymloop-phi.vercel.app --scope ogun01s-projects --environment production --since 5m --no-follow --json > vercel-logs.jsonl
 
           jq -cs --arg fallback "$evaluated_at" '
             map(
