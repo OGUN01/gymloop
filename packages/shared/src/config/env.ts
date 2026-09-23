@@ -36,6 +36,8 @@ const backupSchema = z.object({
   BACKUP_ENCRYPTION_KEY_B64: z.string().min(1),
   SUPABASE_ACCESS_TOKEN: z.string().min(1),
   SUPABASE_DB_PASSWORD: z.string().min(1),
+  BACKUP_R2_ACCESS_KEY_ID: z.string().min(1),
+  BACKUP_R2_SECRET_ACCESS_KEY: z.string().min(1),
   GITHUB_RUN_ID: z.string().regex(/^\d+$/),
   GITHUB_RUN_ATTEMPT: z.string().regex(/^\d+$/),
 });
@@ -117,6 +119,8 @@ export function backupEnv(): BackupEnv {
     BACKUP_ENCRYPTION_KEY_B64: process.env.BACKUP_ENCRYPTION_KEY_B64,
     SUPABASE_ACCESS_TOKEN: process.env.SUPABASE_ACCESS_TOKEN,
     SUPABASE_DB_PASSWORD: process.env.SUPABASE_DB_PASSWORD,
+    BACKUP_R2_ACCESS_KEY_ID: process.env.BACKUP_R2_ACCESS_KEY_ID,
+    BACKUP_R2_SECRET_ACCESS_KEY: process.env.BACKUP_R2_SECRET_ACCESS_KEY,
     GITHUB_RUN_ID: process.env.GITHUB_RUN_ID,
     GITHUB_RUN_ATTEMPT: process.env.GITHUB_RUN_ATTEMPT,
   });

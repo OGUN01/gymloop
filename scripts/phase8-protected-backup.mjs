@@ -1,11 +1,12 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Buffer } from 'node:buffer';
-import { execFile, spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { backupEnv } from '../packages/shared/src/config/env.ts';
 import { PHASE8_BACKUP_LIMITS } from '../packages/shared/src/config/constants.ts';
 
@@ -174,23 +175,16 @@ async function runCommand(binary, args) {
     timeout: PHASE8_BACKUP_LIMITS.commandTimeoutMs });
 }
 
-function rcloneTransfer(args, input) {
-  return new Promise((resolvePromise, reject) => {
-    const child = spawn('rclone', args, { stdio: ['pipe', 'pipe', 'pipe'] });
-    const chunks = [];
-    let length = 0;
-    child.stdin.on('error', () => {});
-    child.stdout.on('data', (chunk) => { chunks.push(chunk); length += chunk.length; });
-    child.stderr.resume();
-    child.on('error', () => reject(safeReceiptError()));
-    child.on('close', (code) => code === 0 ? resolvePromise(Buffer.concat(chunks, length)) : reject(safeReceiptError()));
-    if (input) child.stdin.end(input);
-    else child.stdin.end();
-  });
-}
-
 async function runCloudBackup() {
   const runtime = backupEnv();
+  const bucketClient = new S3Client({
+    region: 'auto',
+    endpoint: 'https://03b0a2097c32f21fc6f4598e1d6b1f1e.r2.cloudflarestorage.com',
+    credentials: {
+      accessKeyId: runtime.BACKUP_R2_ACCESS_KEY_ID,
+      secretAccessKey: runtime.BACKUP_R2_SECRET_ACCESS_KEY,
+    },
+  });
   const encryptionKey = Buffer.from(runtime.BACKUP_ENCRYPTION_KEY_B64, 'base64');
   if (encryptionKey.length !== HASH_BYTES || encryptionKey.toString('base64') !== runtime.BACKUP_ENCRYPTION_KEY_B64) {
     throw safeReceiptError();
@@ -219,14 +213,21 @@ async function runCloudBackup() {
         return Buffer.from(JSON.stringify({ schema: schema.toString('base64'), data: data.toString('base64') }));
       },
       uploadCiphertext: async (bucket, key, body) => {
-        await rcloneTransfer(['rcat', `backup:${bucket}/${key}`, '--s3-no-check-bucket'], body);
+        await bucketClient.send(new PutObjectCommand({
+          Bucket: bucket, Key: key, Body: body, ContentType: 'application/octet-stream',
+        }));
       },
-      downloadCiphertext: (bucket, key) => rcloneTransfer(['cat', `backup:${bucket}/${key}`]),
+      downloadCiphertext: async (bucket, key) => {
+        const object = await bucketClient.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+        if (!object.Body) throw safeReceiptError();
+        return Buffer.from(await object.Body.transformToByteArray());
+      },
       now: () => new Date().toISOString(),
     });
     process.stdout.write(`${JSON.stringify(receipt)}\n`);
   } finally {
     encryptionKey.fill(0);
+    bucketClient.destroy();
     await rm(temp, { recursive: true, force: true });
   }
 }
