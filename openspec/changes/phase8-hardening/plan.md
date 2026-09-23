@@ -647,6 +647,8 @@ validates the identifiers, builds only fixed generic issue text and labels,
 then creates or updates by the mode-specific key label. A CLI wrapper accepts
 only `--mode`, `--repository`, and `--run-id`, uses `gh` with argument arrays,
 and inherits the workflow's `GH_TOKEN` without reading it in application code.
+TEST and production issue identities must remain disjoint in either creation
+order, even though both receipts carry the common failure-classification label.
 
 ### HARD-006 — DPDP export, erasure, and retention runner
 
