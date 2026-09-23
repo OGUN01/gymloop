@@ -35,6 +35,38 @@ const bindings = () => cachedBindings ??= plan().gyms.map((gym: Record<string, u
   userId: randomUUID(),
 }));
 const stageSql = () => cachedStageSql ??= renderPrelaunchStageSql(plan(), bindings());
+const selectExpressions = (sqlAfterSelect: string) => {
+  const expressions: string[] = [];
+  let start = 0;
+  let depth = 0;
+  let quote: "'" | '"' | null = null;
+  for (let index = 0; index < sqlAfterSelect.length; index += 1) {
+    const char = sqlAfterSelect[index];
+    if (quote !== null) {
+      if (char === quote) {
+        if (sqlAfterSelect[index + 1] === quote) index += 1;
+        else quote = null;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"') { quote = char; continue; }
+    if (char === '(') { depth += 1; continue; }
+    if (char === ')') { depth -= 1; continue; }
+    if (depth !== 0) continue;
+    if (char === ',') {
+      expressions.push(sqlAfterSelect.slice(start, index).trim());
+      start = index + 1;
+      continue;
+    }
+    if ((char === 'f' || char === 'F') &&
+        /^(?:from)\b/i.test(sqlAfterSelect.slice(index)) &&
+        (index === 0 || /\W/.test(sqlAfterSelect[index - 1]))) {
+      expressions.push(sqlAfterSelect.slice(start, index).trim());
+      return expressions;
+    }
+  }
+  throw new Error('Members INSERT must have a top-level FROM after SELECT');
+};
 const changedGym = (gymIndex: number, patch: Record<string, unknown>) => ({
   ...plan(),
   gyms: plan().gyms.map((gym: Record<string, unknown>, index: number) =>
@@ -147,6 +179,20 @@ describe('HARD-004 transactional synthetic stage', () => {
     expect(/\bactive\b/i.test(sql)).toBe(true);
     expect(/\bon\s+conflict\b|\btruncate\b|\bupdate\s+(?:public\.)?\w+\b|\balter\s+table\b[^;]*\bdisable\s+trigger\b|\binsert\s+into\s+auth\.users\b/i.test(sql)).toBe(false);
     expect(/\b(?:seed\.sql|supabase\/migrations)\b/i.test(sql)).toBe(false);
+  });
+
+  it('supplies the planned branch ID in the matching position of the members INSERT SELECT', () => {
+    const sql = stageSql();
+    const membersInsert = /\binsert\s+into\s+(?:public\.)?members\s*\(([^)]*)\)\s*select\b/i.exec(sql);
+    expect(membersInsert).not.toBeNull();
+    const columns = membersInsert![1].split(',').map((column) => column.trim().replaceAll('"', '').toLowerCase());
+    const branchPosition = columns.indexOf('branch_id');
+    expect(branchPosition).toBeGreaterThanOrEqual(0);
+    const projectionStart = membersInsert!.index + membersInsert![0].length;
+    const expressions = selectExpressions(sql.slice(projectionStart));
+    expect(expressions).toHaveLength(columns.length);
+    expect(/branch_?id/i.test(expressions[branchPosition]) ||
+      expressions[branchPosition].includes(plan().gyms[0].branchId)).toBe(true);
   });
 
   it('asserts exact staged row counts inside the transaction', () => {
