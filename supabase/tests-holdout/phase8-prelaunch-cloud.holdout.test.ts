@@ -35,6 +35,13 @@ function asRaw(points: unknown[]) {
   return points.map((point) => JSON.stringify(point)).join('\n')
 }
 
+function containsString(value: unknown, expected: string): boolean {
+  if (typeof value === 'string') return value === expected
+  if (Array.isArray(value)) return value.some((item) => containsString(item, expected))
+  if (value && typeof value === 'object') return Object.values(value).some((item) => containsString(item, expected))
+  return false
+}
+
 function configuration() {
   const root = mkdtempSync(join(tmpdir(), 'gymloop-cloud-holdout-'))
   temporaryRoots.push(root)
@@ -79,7 +86,7 @@ function fakePorts() {
     async queryLinked(sql: string) {
       state.queries.push(sql)
       if (/pg_database_size/i.test(sql)) return JSON.stringify([{ database_bytes: 34_000_000 }])
-      return '[]'
+      return JSON.stringify([{ id: '00000000-0000-4000-8000-000000000001' }])
     },
     async createAuthUser(email: string, password: string) {
       const id = randomUUID()
@@ -156,10 +163,11 @@ describe('HARD-004 injected Cloud adapter holdout', () => {
     const journalPath = input.campaignConfig.cleanupManifestPath
     expect(existsSync(journalPath)).toBe(true)
     const first = readFileSync(journalPath, 'utf8')
+    const firstRecord = JSON.parse(first.split(/\r?\n/, 1)[0])
     expect(first).toContain(input.campaignConfig.marker)
     expect(first).toContain(plan.gyms[0].gymId)
     expect(first).toContain(linkedRef)
-    expect(first).toContain(input.campaignConfig.fixturePath)
+    expect(containsString(firstRecord, input.campaignConfig.fixturePath)).toBe(true)
     await backend.writeManifest({ status: 'auth-intent', email: plannedEmail(plan) })
     const after = readFileSync(journalPath, 'utf8')
     expect(after.startsWith(first)).toBe(true)
@@ -253,8 +261,8 @@ describe('HARD-004 injected Cloud adapter holdout', () => {
     const request = state.k6Requests[0]
     expect(request.signal).toBe(signal)
     expect(request.rawResultPath).toBe(input.campaignConfig.rawResultPath)
+    expect(request.env.PHASE8_LOAD_FIXTURE_PATH).toBe(input.campaignConfig.fixturePath)
     const env = JSON.stringify(request.env)
-    expect(env).toContain(input.campaignConfig.fixturePath)
     expect(env).not.toContain('HOLDOUT_PRIVATE_BEARER_')
     expect(env).not.toMatch(/password|memberIds|ownedMemberIds/i)
   }, 20_000)
