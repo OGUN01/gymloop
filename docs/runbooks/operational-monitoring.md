@@ -147,10 +147,13 @@ the secret itself.
 3. **Done for manual monitoring:** the team-scoped Vercel token completed run
    `35828518944` and delivered closed TEST-only issue `#5`. Scheduled cadence
    still needs live proof; the unused project token awaits revocation.
-4. **Open:** install the repository-restricted GitHub dispatch token as a
-   Cloudflare Worker secret, deploy the Cron-only Worker, and record consecutive
-   real Cron events paired with completed workflow runs. Exercise a missed-run
-   or dispatch-failure escalation before claiming five-minute coverage.
+4. **Open:** the Cron dispatch Worker is deployed without a credential or Cron
+   trigger. GitHub requires an email verification code before issuing the
+   repository-restricted dispatch token; the operator has not received it.
+   Install that token as a Worker secret, activate the Cron trigger, and record
+   consecutive real Cron events paired with completed workflow runs. Exercise
+   a missed-run or dispatch-failure escalation before claiming five-minute
+   coverage.
 5. **Open:** record an actual responder acknowledgement, protected role roster,
    escalation path and retention/access review. Keep tokens out of logs and
    command arguments.
