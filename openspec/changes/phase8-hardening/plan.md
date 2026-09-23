@@ -567,6 +567,11 @@ redacted failure to Cloudflare logs. The existing GitHub schedule remains a
 fallback. HARD-005 is Passed only after consecutive real Cron dispatches,
 completed monitoring runs, issue-delivery proof and a missed-run/failure
 escalation are recorded; deploying the Worker alone is not cadence proof.
+The Worker at `workers/phase8-monitor-dispatch.mjs` exports only a default
+object with async `scheduled(event, env)`; it uses global `fetch` and
+`env.GITHUB_ACTIONS_DISPATCH_TOKEN`, accepts only cron `*/5 * * * *`, sends one
+POST and throws a generic redacted error on a non-204 or network failure.
+`wrangler.phase8-monitor.jsonc` contains that exact Cron trigger.
 
 ### HARD-006 — DPDP export, erasure, and retention runner
 
