@@ -8,8 +8,11 @@ Free project is not required for this load check (ADR-162). The independent
 red tests were committed first, then the target, quota, fixture, result and k6
 file-transport implementation passed 28 visible and 68 blind holdout checks.
 The standalone k6 binary accepted a private 100 × 500 file during a local
-`inspect` with no network calls. Fixture staging, continuous Cloud size
-monitoring, the actual 50,000 API calls and exact cleanup are still pending.
+`inspect` with no network calls. The follow-on deterministic fixture planner
+passed 15 visible and 31 blind holdout checks, including partial-safe exact-ID
+cleanup SQL; a linked read-only query verified its Node/Postgres member-ID
+derivation matches. Auth staging, continuous Cloud size monitoring, the actual
+50,000 API calls and exact cleanup are still pending.
 This direction does not claim or perform the excluded provider restore drill.
 
 ## 2026-09-22 owner continuation — complete the pilot gates

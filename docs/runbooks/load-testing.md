@@ -22,6 +22,12 @@ manifests before staging; an interrupted operation must resume cleanup from
 those manifests. Keep the source's existing demo and staged pilot records out
 of the fixture and check their baseline again after cleanup.
 
+`scripts/phase8-prelaunch-load-fixture.mjs` now builds reproducible 100 × 500
+IDs, validates one distinct Auth ID per synthetic gym, renders a single
+transaction for the marked hierarchy, and renders marker-guarded exact-ID
+cleanup SQL. Save its plan before any write. These pure functions cannot
+create Auth users, run SQL, monitor the Cloud size or invoke k6 on their own.
+
 Run the Cloud size observer at intervals no greater than 60 seconds throughout
 staging and k6. Abort if collection fails, the observer stops, or the database
 reaches 400,000,000 bytes. Do not let the Free project reach its read-only

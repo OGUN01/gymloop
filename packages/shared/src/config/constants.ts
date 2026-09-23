@@ -71,6 +71,10 @@ export const PHASE8_PRELAUNCH_LOAD_LIMITS = {
   httpSuccessMin: 200,
   httpSuccessMax: 299,
   httpStatusMax: 599,
+  syntheticPlanDurationDays: 30,
+  syntheticPhoneDigits: 10,
+  syntheticGymCodeHashChars: 2,
+  syntheticGymCodeIndexWidth: 4,
 } as const;
 export const BASIS_POINTS_PER_PERCENT = 100n;
 export const RATIO_BASIS_POINT_SCALE = 10_000n;
