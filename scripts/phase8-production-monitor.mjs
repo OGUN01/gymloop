@@ -44,7 +44,9 @@ function exactKeys(value, keys) {
 function timestamp(value) {
   if (!nonBlank(value)) throw monitorError();
   const parsed = Date.parse(value);
-  if (!Number.isFinite(parsed) || new Date(parsed).toISOString() !== value) throw monitorError();
+  if (!Number.isFinite(parsed)) throw monitorError();
+  const canonical = new Date(parsed).toISOString();
+  if (canonical !== value && canonical.replace('.000Z', 'Z') !== value) throw monitorError();
   return parsed;
 }
 
@@ -85,10 +87,10 @@ function validateInput(input) {
   const events = input.logQuery.events.map((event) => {
     if (!record(event)) throw monitorError();
     const observedAtMs = timestamp(event.observedAt);
-    const httpStatus = event.httpStatus === undefined
+    const httpStatus = event.httpStatus === undefined || event.httpStatus === null
       ? undefined
       : integer(event.httpStatus, HTTP_STATUS_MIN, HTTP_STATUS_MAX);
-    const signal = event.signal === undefined ? undefined : event.signal;
+    const signal = event.signal === undefined || event.signal === null ? undefined : event.signal;
     const credible = event.credible === undefined ? false : event.credible;
     if (signal !== undefined && typeof signal !== 'string') throw monitorError();
     if (typeof credible !== 'boolean') throw monitorError();
