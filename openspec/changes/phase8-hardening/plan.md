@@ -146,6 +146,27 @@ preapproved p95 budget, raw result, resource observations and exact fixture
 cleanup are recorded. The provider restore drill remains excluded from this
 route and receives no inferred pass.
 
+**Bearer verification at load (HARD-004 identity addendum).** WHEN the check-in
+API receives one syntactically valid bearer access token, THE SYSTEM SHALL
+verify its signature and expiry through Supabase `getClaims(token)`, require
+`role = authenticated` and a complete Gymloop staff or member identity, and
+derive the subject, tenant and actor only from those verified claims before
+parsing the command body. A failed verification, malformed/contradictory claim,
+unsupported role, absent token, or mixed cookie/bearer transport SHALL fail
+closed before any command body or database mutation. The bearer path SHALL NOT
+call the per-request Auth `/user` endpoint; the approved project uses ES256,
+so `getClaims` verifies against cached public signing keys. Cookie-based
+requests retain their existing Auth user check. This retains the documented
+maximum fifteen-minute access-token revocation window; it does not promise
+instant revocation. Every admitted request remains subject to the existing
+database RLS and check-in guards.
+
+Acceptance: independent visible and holdout suites cover verified staff and
+member bearers, mismatched or missing Auth role, verification error, incomplete
+or contradictory identity, ambiguous transport, cookie regression, and that a
+bearer request makes no `/user` call. A production-built API smoke check on the
+linked Cloud project confirms ES256 and a verified bearer before the full run.
+
 **Prelaunch-shared route (ADR-162).** WHEN the owner authorizes testing on the
 linked Cloud project, THE SYSTEM SHALL require a separate explicit
 `prelaunch-shared` target mode and confirmation value, matching configured,
