@@ -22,8 +22,17 @@ before that feature can serve a gym.
 excludes gate 29's provider restore/PITR drill from the five-gym pilot GO
 decision because the current Supabase Free plan does not include that control.
 Gate 29 stays **open/unperformed**, not green. A protected logical backup export
-and all other applicable release gates still require evidence; the exception
+and all other applicable release gates still require evidence, subject to the
+later narrow ADR-168 privacy/legal and missing-run pilot exceptions; the restoration exception
 does not certify recoverability or apply to a later general release.
+
+**2026-09-23 pilot privacy and alert exceptions (ADR-168):** the owner accepted
+unresolved privacy product decisions and qualified legal/DPA review, and an
+unverified independent missed-run alert, as controlled five-gym pilot
+exceptions until the planned VPS migration. Gates 23 and 28 are **not Passed**
+by this decision. The owner is the proposed primary GitHub alert responder;
+actual notification and acknowledgement remain to be proved. The exceptions
+do not waive other security, product, device or owner-acceptance evidence.
 
 ## Spec & contract
 
@@ -76,7 +85,7 @@ does not certify recoverability or apply to a later general release.
 | 25 | p95 latency budget asserted in CI | Yes (once endpoints exist) | Load-test assertions | **PARTIALLY MET (Phase 8).** The frozen 2,000 ms p95 threshold is asserted by k6 and the fail-closed result validator. The sixth complete linked-Cloud 100 × 500 run passed with 50,000/50,000 acknowledgements and 664.5 ms p95; exact cleanup passed. The full Cloud load was an operator-run gate, not yet a routine CI job. See `docs/evidence/phase8/ledger.md`. |
 | 26 | No N+1, cursor pagination on every list endpoint | Yes (once endpoints exist) | Code review + integration test query counts | **PARTIALLY MET (Phase 6).** The member roster is keyset paginated on `(full_name, id)`, the red list on `(days_absent desc, id asc)`, and the payments ledger on `(created_at desc, id asc)`; each uses a total order and bounded page size. Add-on catalogue, order and PT-session lists use stable bounded cursors, and changing the selected member order clears only its session cursor. Receipt refunds are fetched in bounded pages ordered by `(created_at, id)` and reconciled across every page, so a large return history neither disappears nor creates an N+1 query. The gate remains partial until every Phase 6 list surface exists and the Phase 8 load test measures the completed application. |
 | 27 | Load test at 100 gyms × 500 members with a morning check-in spike | Yes (once written) | k6 | **MET for the bounded prelaunch target (Phase 8).** ADR-162 authorized the existing Cloud project. The sixth complete 100 × 500 run returned 50,000/50,000 acknowledged check-ins, zero interruptions, 664.5 ms p95 against the fixed 2 s budget, both cross-tenant denials, continuous size observation below 400 MB, and independently verified exact cleanup. Raw checksum and zero-remnant preflight are in the Phase 8 ledger. This result does not certify five real customer gyms or sustained capacity. |
-| 28 | Structured logs carrying `tenant_id`, error tracking, alert thresholds | Yes (once wired) | Structured sink + production evaluator + GitHub Issues | **PARTIALLY MET (Phase 8).** Cloudflare Cron and a repository-only dispatch credential yielded seven successive successful production evaluations from 12:30 to 13:00 UTC on 2026-09-23. Closed TEST issue `#5` proves alert-route delivery; deliberate failed run `35864351097` stayed failed while its independent escalation job delivered and closed TEST issue `#6` without a production alert label. Missing-run detection, actual responder acknowledgement, and retention/access review remain; finite observed cadence does not guarantee detection. |
+| 28 | Structured logs carrying `tenant_id`, error tracking, alert thresholds | Yes (once wired) | Structured sink + production evaluator + GitHub Issues | **PARTIALLY MET (Phase 8).** Closed TEST issues `#5`/`#6`/`#7` prove the threshold alert, collection-failure and missing-run watchdog issue routes separately. Active Cloudflare Worker version `d13d6872` dispatched both monitor and watchdog at 14:30:39 UTC; runs `35874697518`/`35874696921` passed. The owner is named as primary, but no human notification acknowledgement or protected roster/access review is verified. Observed cadence does not guarantee detection if both schedulers fail. ADR-168 excepts an unverified independent missed-run alert for the controlled pilot only; the tested implementation is recorded separately. |
 | 29 | Backup and PITR restore drill actually performed | No — operational exercise | Supabase platform backups + a manual drill | **PARTIALLY MET / OWNER-EXCEPTED FOR CONTROLLED PILOT (Phase 8).** Encrypted logical export and exact R2 read-back succeeded in workflow `35846608557`. The daily schedule has not yet produced its own receipt. No distinct-target provider restore/PITR drill has been executed, so no cloud operation id, timing or recovery result exists; ADR-159 excepts this drill from the five-gym controlled-pilot decision only. |
 
 ## Frontend & UX

@@ -12,6 +12,20 @@ logical-backup receipt passed once. Other pilot gates, including privacy,
 monitoring responder ownership, exact-AAB Play install and owner visual
 acceptance, remain open. The legacy isolated load route stays available.
 
+**2026-09-23 monitoring update:** the independent watchdog is implemented and
+deployed. A TEST-only missing-run issue, a healthy watchdog evaluation and one
+Cloudflare dual dispatch to green monitor/watchdog workflows are in the Phase 8
+ledger. Actual human acknowledgement and protected roster/access review remain
+open, so HARD-005 is Partial.
+
+**Controlled-pilot scope update (ADR-168, 2026-09-23):** the owner accepted
+privacy product decisions and qualified legal/DPA review as unresolved pilot
+exceptions until the planned VPS migration, accepted an unverified independent
+missing-run alert as a pilot exception, and named themself primary GitHub alert
+responder. The underlying HARD-005/006 and DPDP/alert gates remain open; this
+does not establish legal compliance or a human alert acknowledgement. Other
+applicable A–D, Play artifact, visual and security evidence still governs GO.
+
 **Free-plan five-gym pilot exception (ADR-159, 2026-09-22):** the owner excludes
 the provider restore/PITR drill from the controlled-pilot GO decision because
 the current Supabase Free plan does not include that control. Gate 29 remains

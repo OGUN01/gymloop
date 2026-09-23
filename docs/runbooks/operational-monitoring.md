@@ -13,21 +13,25 @@ The Cloudflare dispatch path then completed seven consecutive production
 evaluations from 12:30 through 13:00 UTC (`35860915078` through
 `35864151281`). Deliberate failure run `35864351097` left the monitor job
 failed while a separate escalation job delivered closed TEST-only issue `#6`.
-HARD-005 and gate 28 remain Partial because absent-Cron detection, responder
-acknowledgement, and retention/access review are incomplete.
+The independent missed-run watchdog reached production later on 2026-09-23.
+HARD-005 and gate 28 remain Partial because actual responder acknowledgement,
+protected roster and retention/access review are incomplete. The watchdog's
+observed cadence is not a guarantee that both schedulers always run.
 
 The cron expression requests an evaluation every five minutes; GitHub does not
 guarantee that delivery interval. The first observed scheduled starts were
 2026-09-22T21:13:10Z, 23:37:00Z and 2026-09-23T01:47:49Z, leaving gaps far
 longer than the five-minute log window. [GitHub's schedule-event guidance](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
-explicitly permits delayed or dropped jobs. Do not claim five-minute detection
-coverage until a scheduler with measured continuity and missing-run alerting is
-in place; a valid token alone does not close this gap.
+explicitly permits delayed or dropped jobs. The Cloudflare trigger and the
+independent watchdog below now provide measured dispatches and a missing-run
+issue path. Their observed interval is finite evidence, not a guaranteed
+five-minute detection service level.
 
 The `gymloop-phase8-monitor-dispatch` Cloudflare Worker is the second trigger.
 Its sole Cron is `*/5 * * * *`; it has no public HTTP handler.
-It dispatches `.github/workflows/phase8-production-monitor.yml` on `main` with
-`force_test_alert=false` and accepts only GitHub HTTP 204. Its GitHub fine-grained
+It dispatches the production monitor and independent watchdog workflows on
+`main` with both TEST inputs false, accepting only GitHub HTTP 204 for each.
+Its GitHub fine-grained
 token is restricted to the `OGUN01/gymloop` repository with Actions write and
 Metadata read, expires 2027-09-23, and is stored as the Worker production secret
 `GITHUB_ACTIONS_DISPATCH_TOKEN`. The existing GitHub schedule stays enabled.
@@ -35,7 +39,31 @@ The dashboard was used to install the secret and trigger because the local
 Wrangler CLI lacked a Cloudflare API token. Failed dispatches throw generic
 errors to Cloudflare logs. A separate dependent GitHub job creates or updates
 a generic issue after any unsuccessful monitor job, including a setup failure
-or job timeout. Missing Cron executions still need an independent alert route.
+or job timeout. The separate watchdog below now checks missing monitor runs.
+
+`.github/workflows/phase8-monitor-watchdog.yml` evaluates every five minutes
+on an offset GitHub schedule and is also dispatched by the Cloudflare Worker.
+It lists completed successful production monitor runs from GitHub, requires the
+exact `Gymloop production monitor` title on `main`, and raises or updates a
+generic SEV-2 issue when the newest qualifying run was created more than 15
+minutes ago. GitHub's `createdAt` is the run creation time, not job start. A
+manual TEST path uses a distinct issue label and cannot satisfy production
+freshness. A separate dependent job raises a generic monitoring failure issue
+if watchdog collection, evaluation or issue delivery fails. If Cloudflare
+Cron and GitHub schedule both fail, a prompt alert is not guaranteed.
+
+Worker version `d13d6872` became active with dual dispatch on 2026-09-23. At
+14:30:39 UTC, two Cloudflare-dispatched GitHub runs appeared: production
+monitor [`35874697518`](https://github.com/OGUN01/gymloop/actions/runs/35874697518)
+and watchdog [`35874696921`](https://github.com/OGUN01/gymloop/actions/runs/35874696921).
+Both completed successfully and their failure jobs skipped. Manual forced
+missing-run test [`35873628703`](https://github.com/OGUN01/gymloop/actions/runs/35873628703)
+delivered closed [TEST-only issue #7](https://github.com/OGUN01/gymloop/issues/7)
+without `production-alert`. Normal manual watchdog
+[`35874173699`](https://github.com/OGUN01/gymloop/actions/runs/35874173699)
+completed successfully against recent production runs and created no open
+production issue. These receipts prove the live issue route and one dual
+dispatch, not a naturally missed production run or a human notification.
 
 On 2026-09-23 the dedicated Worker was created and the reviewed handler was
 deployed as active version `55e0288a`. Its `workers.dev` production and preview

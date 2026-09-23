@@ -24,10 +24,19 @@ monitor every five minutes; seven consecutive evaluations from 12:30 to
 13:00 UTC succeeded. Deliberate failure run `35864351097` delivered a closed
 TEST-only issue through the independent escalation job, and the next scheduled
 run `35864707727` passed on the repaired workflow. HARD-005 remains Partial
-until missing-run escalation and actual responder acknowledgement are proven.
+until actual responder acknowledgement and protected roster/access review are
+proven. The later `b4bb7ac` watchdog deployed with active Cloudflare Worker
+version `d13d6872`: forced TEST issue `#7` was delivered and closed, a normal
+watchdog run passed, and the 14:30:39 UTC Cron dispatched both workflows to
+green runs `35874697518` and `35874696921`. One observed dispatch is not a
+sustained delivery guarantee.
 The overall controlled-pilot verdict remains **NO-GO**: date-gated A–D member
-observations, privacy/legal decisions, Play exact-artifact installation and
-owner visual acceptance still lack required evidence.
+observations, Play exact-artifact installation and owner visual acceptance
+still lack required evidence. The owner later excepted privacy product
+decisions/qualified legal review and an unverified missing-run alert for this
+controlled pilot under ADR-168; those controls remain open and are not called
+Passed. The owner named themself primary GitHub alert responder, but a human
+notification acknowledgement has not been observed.
 
 ## 2026-09-22 owner continuation — complete the pilot gates
 
