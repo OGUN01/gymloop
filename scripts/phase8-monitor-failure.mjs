@@ -5,6 +5,7 @@ import { PHASE8_MONITOR_FAILURE } from '../packages/shared/src/config/constants.
 
 const REPOSITORY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 const RUN_ID_PATTERN = /^[1-9][0-9]*$/;
+const PRIMARY_RESPONDER = 'OGUN01';
 
 export async function reconcileMonitorFailure({ mode, repository, runId, issueStore }) {
   if (mode !== 'production' && mode !== 'test') {
@@ -31,11 +32,13 @@ export async function reconcileMonitorFailure({ mode, repository, runId, issueSt
       title: '[TEST] Production monitor collection failure delivery',
       body: `TEST ONLY: a manual input intentionally stopped collection before provider contact.\n\nRun: ${runUrl}\n\nClose this receipt after verification. This does not represent a production incident.`,
       labels,
+      assignees: [PRIMARY_RESPONDER],
     }
     : {
       title: '[SEV-2] Production monitor collection failed',
       body: `Production evidence collection or evaluation failed before thresholds could be assessed.\n\nRun: ${runUrl}\n\nTechnical Lead: acknowledge this SEV-2 within 30 minutes, investigate the failed run, and escalate to the Incident Commander if customer-impacting or ongoing. Stop new onboarding if unacknowledged after 30 minutes.`,
       labels,
+      assignees: [PRIMARY_RESPONDER],
     };
 
   const identityLabels = testOnly ? [labels[0]] : [labels[0], labels[1]];
@@ -87,7 +90,7 @@ function githubIssueStore(repository) {
           '--color', PHASE8_MONITOR_FAILURE.issueLabelColor, '--force']);
       }
       const url = gh(['issue', 'create', '--repo', repository, '--title', issue.title,
-        '--body', issue.body, '--label', issue.labels.join(',')]);
+        '--body', issue.body, '--label', issue.labels.join(','), '--assignee', PRIMARY_RESPONDER]);
       const number = Number(url.split('/').at(-1));
       return { number };
     },
@@ -97,7 +100,7 @@ function githubIssueStore(repository) {
           '--color', PHASE8_MONITOR_FAILURE.issueLabelColor, '--force']);
       }
       gh(['issue', 'edit', String(number), '--repo', repository, '--title', issue.title,
-        '--body', issue.body, '--add-label', issue.labels.join(',')]);
+        '--body', issue.body, '--add-label', issue.labels.join(','), '--add-assignee', PRIMARY_RESPONDER]);
       return { number };
     },
   };

@@ -134,9 +134,9 @@ jobs:
           existing_issue="$(gh issue list --state open --label "${issue_key}" --json number --jq '.[0].number // empty')"
           labels="$(jq -r '.issue.labels | join(",")' monitor-output.json)"
           if [[ -n "$existing_issue" ]]; then
-            gh issue edit "$existing_issue" --title "$issue_title" --add-label "$labels" --body-file issue-body.md
+            gh issue edit "$existing_issue" --title "$issue_title" --add-label "$labels" --body-file issue-body.md --add-assignee OGUN01
           else
-            gh issue create --title "$issue_title" --label "$labels" --body-file issue-body.md
+            gh issue create --title "$issue_title" --label "$labels" --body-file issue-body.md --assignee OGUN01
           fi
 
   escalate_monitor_failure:
