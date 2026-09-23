@@ -59,6 +59,7 @@ export async function runPrelaunchLoadCampaign(config, backend) {
   let measured;
   let attendanceCount;
   let cleanupFacts;
+  let stoppedAt = 'preflight';
   let manifestWritten = false;
   let failed = false;
   let monitorFailed = false;
@@ -113,6 +114,7 @@ export async function runPrelaunchLoadCampaign(config, backend) {
     manifestWritten = true;
     monitorTimer = globalThis.setInterval(() => { void observe().catch(() => {}); }, interval);
 
+    stoppedAt = 'auth';
     for (const gym of plan.gyms) {
       ensureObserved();
       const binding = { email: gym.email, userId: undefined };
@@ -129,11 +131,13 @@ export async function runPrelaunchLoadCampaign(config, backend) {
 
     await observe();
     ensureObserved();
+    stoppedAt = 'stage';
     await backend.stageSql(renderPrelaunchStageSql(plan, auth));
     await observe();
     ensureObserved();
     const tokens = new Set();
     const gymFixtures = [];
+    stoppedAt = 'sign-in';
     for (const gym of plan.gyms) {
       const token = await backend.signIn(gym.email);
       if (typeof token !== 'string' || token.trim() === '' || tokens.has(token)) {
@@ -147,19 +151,26 @@ export async function runPrelaunchLoadCampaign(config, backend) {
     fixture = { marker: plan.marker, gymFixtures, fixturePath: config.fixturePath,
       baselineManifestPath: config.baselineManifestPath, cleanupManifestPath: config.cleanupManifestPath };
     assertSafePrelaunchFixture(fixture);
+    stoppedAt = 'fixture';
     await backend.writeFixture(fixture);
     await observe();
     ensureObserved();
+    stoppedAt = 'k6';
     measured = await backend.runK6({ signal: controller.signal });
     ensureObserved();
     await observe();
     ensureObserved();
+    stoppedAt = 'count-attendance';
     attendanceCount = await backend.countAttendance(plan);
     if (!Number.isSafeInteger(attendanceCount) || attendanceCount !== checkInCount ||
         measured?.completedCheckIns !== attendanceCount) failed = true;
   } catch {
     failed = true;
     controller.abort();
+    if (manifestWritten && plan) {
+      try { await backend.writeManifest({ marker: plan.marker, phase: 'failed', stoppedAt, monitorFailed }); }
+      catch { /* The existing recovery journal remains authoritative. */ }
+    }
   } finally {
     if (monitorTimer !== undefined) globalThis.clearInterval(monitorTimer);
     await pendingSample;
