@@ -153,13 +153,37 @@ describe('HARD-005 failed workflow receipt', () => {
 
     expect(/force_test_collection_failure\s*:/.test(workflow)).toBe(true);
     expect(/phase8-monitor-failure\.mjs/.test(workflow)).toBe(true);
-    expect(/if:\s*(?:\$\{\{\s*)?failure\(\)/.test(workflow)).toBe(true);
     expect(/continue-on-error:\s*true/.test(workflow)).toBe(false);
     const failureCommand = /node\s+scripts\/phase8-monitor-failure\.mjs[^\r\n]*/.exec(workflow)?.[0] ?? '';
     expect(failureCommand).toContain('--mode');
     expect(failureCommand).toContain('--repository');
     expect(failureCommand).toContain('--run-id');
     expect(/--(?:input|logs|exception|token)\b/.test(failureCommand)).toBe(false);
+  });
+
+  it('escalates any unsuccessful monitor job through an independently provisioned dependent job', () => {
+    const workflow = readFileSync(workflowPath, 'utf8');
+    const jobsStart = /^jobs:\s*$/m.exec(workflow);
+    expect(jobsStart).not.toBeNull();
+    const jobsText = workflow.slice((jobsStart?.index ?? 0) + (jobsStart?.[0].length ?? 0));
+    const heads = [...jobsText.matchAll(/^ {2}([a-z][a-z0-9_-]*):\s*$/gm)];
+    const blocks = heads.map((head, index) => ({
+      name: head[1],
+      text: jobsText.slice(head.index, heads[index + 1]?.index ?? jobsText.length),
+    }));
+    const monitor = blocks.find((block) => block.name === 'monitor');
+    const escalation = blocks.find((block) => block.name !== 'monitor' &&
+      /^ {4}needs:\s*(?:monitor|\[\s*monitor\s*\])\s*$/m.test(block.text));
+
+    expect(monitor).toBeDefined();
+    expect(escalation).toBeDefined();
+    const condition = /^ {4}if:\s*([^\r\n]+)/m.exec(escalation?.text ?? '')?.[1] ?? '';
+    expect(condition).toContain('always()');
+    expect(/needs\.monitor\.result\s*!=\s*['"]success['"]/.test(condition)).toBe(true);
+    expect(/uses:\s*actions\/checkout@/.test(escalation?.text ?? '')).toBe(true);
+    expect(/uses:\s*actions\/setup-node@/.test(escalation?.text ?? '')).toBe(true);
+    expect(/phase8-monitor-failure\.mjs/.test(escalation?.text ?? '')).toBe(true);
+    expect(/continue-on-error:\s*true/.test(monitor?.text ?? '')).toBe(false);
   });
 
   it('forces the manual TEST collection failure before any provider contact', () => {
