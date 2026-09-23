@@ -38,7 +38,8 @@ function pointOf(line) {
   if (point.type !== 'Point') return null;
   const data = requireRecord(point.data, 'k6 point data');
   const tags = requireRecord(data.tags, 'k6 point tags');
-  if (typeof point.metric !== 'string' || typeof tags.scenario !== 'string' ||
+  if (typeof point.metric !== 'string' ||
+      (typeof tags.scenario !== 'string' && tags.group !== '::setup') ||
       typeof data.value !== 'number' || !Number.isFinite(data.value)) {
     throw new Error('k6 raw evidence has an incomplete point.');
   }
@@ -59,21 +60,28 @@ export function parsePrelaunchK6Raw(raw) {
     const point = pointOf(line);
     if (!point) continue;
     const { metric, value, tags } = point;
-    if (metric === 'http_reqs' && tags.scenario === 'morning_check_in_spike') {
+    if (metric === 'http_reqs' && tags.scenario === 'morning_check_in_spike' &&
+        tags.name === 'morning_check_in') {
       const status = Number(tags.status);
       if (value !== 1 || !Number.isInteger(status)) throw new Error('Morning request has no status.');
       if (status >= httpSuccessMin && status <= httpSuccessMax) completedCheckIns += 1;
     }
-    if (metric === 'http_req_duration' && tags.scenario === 'morning_check_in_spike') {
+    if (metric === 'http_req_duration' && tags.scenario === 'morning_check_in_spike' &&
+        tags.name === 'morning_check_in') {
       if (value < 0) throw new Error('k6 latency cannot be negative.');
       durations.push(value);
     }
-    if (metric === 'checks' && tags.scenario === 'cross_tenant_read_denial' &&
-        tags.check === 'cross-tenant member read is denied') {
+    if (metric === 'checks' && tags.check === 'cross-tenant member read is denied') {
+      if (tags.group !== '::setup' || tags.scenario !== undefined) {
+        throw new Error('Tenant read probe was not executed during setup.');
+      }
       readChecks += 1;
       crossTenantReadDenied = value === 1;
     }
-    if (metric === 'http_reqs' && tags.scenario === 'cross_tenant_mutation_denial') {
+    if (metric === 'http_reqs' && tags.name === 'cross_tenant_mutation') {
+      if (tags.group !== '::setup' || tags.scenario !== undefined) {
+        throw new Error('Tenant mutation probe was not executed during setup.');
+      }
       mutationRequests += 1;
       const status = Number(tags.status);
       if (value !== 1 || !Number.isInteger(status)) throw new Error('Mutation probe has no status.');

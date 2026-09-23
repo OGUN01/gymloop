@@ -5,7 +5,6 @@ import { refreshDue, rotateRefreshSession, validateRefreshFixture } from '../../
 
 const GYM_COUNT = 100;
 const MEMBERS_PER_GYM = 500;
-const TOTAL_MEMBER_CHECK_INS = 50_000;
 const MORNING_SPIKE_VUS = 100;
 const DENIED_STATUS_CODES = [401, 403, 404];
 const PRODUCTION_PROJECT_REF = 'pecxrpskmfeuyzngvewq';
@@ -143,28 +142,36 @@ export const options = {
     morning_check_in_spike: {
       executor: 'per-vu-iterations',
       vus: MORNING_SPIKE_VUS,
-      iterations: TOTAL_MEMBER_CHECK_INS / MORNING_SPIKE_VUS,
+      iterations: MEMBERS_PER_GYM,
       maxDuration: '30m',
     },
-    cross_tenant_read_denial: { executor: 'shared-iterations', exec: 'cross_tenant_read_denial', vus: 1, iterations: 1, startTime: '0s' },
-    cross_tenant_mutation_denial: { executor: 'shared-iterations', exec: 'cross_tenant_mutation_denial', vus: 1, iterations: 1, startTime: '0s' },
   },
   thresholds: {
-    http_req_duration: [`p(95)<${p95Ms}`],
+    'http_req_duration{name:morning_check_in}': [`p(95)<${p95Ms}`],
     checks: ['rate==1'],
   },
 };
 
-function appAuth(token) {
-  return { headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' } };
+if (loadMode !== 'prelaunch-shared') {
+  options.scenarios.cross_tenant_read_denial = {
+    executor: 'shared-iterations', exec: 'cross_tenant_read_denial', vus: 1, iterations: 1, startTime: '0s',
+  };
+  options.scenarios.cross_tenant_mutation_denial = {
+    executor: 'shared-iterations', exec: 'cross_tenant_mutation_denial', vus: 1, iterations: 1, startTime: '0s',
+  };
+}
+
+function appAuth(token, name) {
+  return { headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, tags: { name } };
 }
 
 function supabaseAuth(token) {
-  return { headers: { apikey: supabaseAnonKey, authorization: `Bearer ${token}` } };
+  return { headers: { apikey: supabaseAnonKey, authorization: `Bearer ${token}` },
+    tags: { name: 'cross_tenant_read' } };
 }
 
-function checkIn(memberId, token, requestKey) {
-  return http.post(`${apiUrl}/api/check-in`, JSON.stringify({ memberId, reason: 'phase8 load check-in', clientEventId: requestKey }), appAuth(token));
+function checkIn(memberId, token, requestKey, name) {
+  return http.post(`${apiUrl}/api/check-in`, JSON.stringify({ memberId, reason: 'phase8 load check-in', clientEventId: requestKey }), appAuth(token, name));
 }
 
 function currentGymToken(gymIndex) {
@@ -184,10 +191,12 @@ function currentGymToken(gymIndex) {
 }
 
 export default function () {
+  if (__VU < 1 || __VU > GYM_COUNT) fail('HARD-004 spike VU is outside the fixed gym assignment.');
   const gymIndex = boundedIndex(__VU - 1, GYM_COUNT);
   const memberIndex = boundedIndex(__ITER, MEMBERS_PER_GYM);
   const tenant = tenants[gymIndex];
-  const response = checkIn(tenant.memberIds[memberIndex], currentGymToken(gymIndex), checkInEventId(gymIndex, memberIndex));
+  const response = checkIn(tenant.memberIds[memberIndex], currentGymToken(gymIndex),
+    checkInEventId(gymIndex, memberIndex), 'morning_check_in');
   check(response, { 'morning check-in is acknowledged': (result) => result.status >= 200 && result.status < 300 });
 }
 
@@ -197,6 +206,13 @@ export function cross_tenant_read_denial() {
 }
 
 export function cross_tenant_mutation_denial() {
-  const response = checkIn(gymB.memberIds[0], gymA.token, crossTenantEventId());
+  const response = checkIn(gymB.memberIds[0], gymA.token, crossTenantEventId(), 'cross_tenant_mutation');
   check(response, { 'cross-tenant check-in mutation is denied': (result) => result.status < HTTP_SUCCESS_MIN || result.status > HTTP_SUCCESS_MAX });
+}
+
+export function setup() {
+  if (loadMode === 'prelaunch-shared') {
+    cross_tenant_read_denial();
+    cross_tenant_mutation_denial();
+  }
 }
