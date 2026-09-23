@@ -4,7 +4,10 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const CRON = '*/5 * * * *';
 const TOKEN = 'private-gymloop-actions-token';
-const DISPATCH_URL = 'https://api.github.com/repos/OGUN01/gymloop/actions/workflows/phase8-production-monitor.yml/dispatches';
+const DISPATCH_URLS = [
+  'https://api.github.com/repos/OGUN01/gymloop/actions/workflows/phase8-production-monitor.yml/dispatches',
+  'https://api.github.com/repos/OGUN01/gymloop/actions/workflows/phase8-monitor-watchdog.yml/dispatches',
+];
 const WORKER_PATH = new URL('../../workers/phase8-monitor-dispatch.mjs', import.meta.url);
 const CONFIG_PATH = new URL('../../wrangler.phase8-monitor.jsonc', import.meta.url);
 const WORKFLOW_PATH = new URL('../../.github/workflows/phase8-production-monitor.yml', import.meta.url);
@@ -37,23 +40,27 @@ describe('HARD-005 dedicated five-minute monitor dispatch Worker', () => {
     expect('fetch' in (worker ?? {})).toBe(false);
   });
 
-  it('posts exactly one safe dispatch to the Gymloop monitor workflow on main', async () => {
+  it('posts one safe dispatch for each Gymloop monitoring workflow on main', async () => {
     const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetchMock);
     await scheduled();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [input, init] = fetchMock.mock.calls[0] as unknown as [Request | string | URL, RequestInit | undefined];
-    const request = requestFrom(input, init);
-    expect(request.url).toBe(DISPATCH_URL);
-    expect(request.method).toBe('POST');
-    expect(request.headers.get('authorization')).toBe(`Bearer ${TOKEN}`);
-    expect(request.headers.get('accept')).toContain('application/vnd.github+json');
-    expect(request.headers.get('content-type')).toContain('application/json');
-    const body = await request.json() as Record<string, unknown>;
-    expect(Object.keys(body).sort()).toEqual(['inputs', 'ref']);
-    expect(body.ref).toBe('main');
-    expect(Object.keys(body.inputs as Record<string, unknown>)).toEqual(['force_test_alert']);
-    expect([false, 'false']).toContain((body.inputs as Record<string, unknown>).force_test_alert);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const requests = (fetchMock.mock.calls as unknown as Array<[Request | string | URL, RequestInit | undefined]>)
+      .map(([input, init]) => requestFrom(input, init));
+    expect(requests.map((request) => request.url).sort()).toEqual([...DISPATCH_URLS].sort());
+    for (const request of requests) {
+      expect(request.method).toBe('POST');
+      expect(request.headers.get('authorization')).toBe(`Bearer ${TOKEN}`);
+      expect(request.headers.get('accept')).toContain('application/vnd.github+json');
+      expect(request.headers.get('content-type')).toContain('application/json');
+      const body = await request.json() as Record<string, unknown>;
+      expect(Object.keys(body).sort()).toEqual(['inputs', 'ref']);
+      expect(body.ref).toBe('main');
+      const inputs = body.inputs as Record<string, unknown>;
+      const inputKey = request.url.includes('watchdog') ? 'force_test_missing' : 'force_test_alert';
+      expect(Object.keys(inputs)).toEqual([inputKey]);
+      expect([false, 'false']).toContain(inputs[inputKey]);
+    }
   });
 
   it('refuses any other or missing Cron expression before sending a request', async () => {
@@ -75,15 +82,20 @@ describe('HARD-005 dedicated five-minute monitor dispatch Worker', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('requires HTTP 204 rather than treating another successful status as dispatch proof', async () => {
+  it('requires HTTP 204 and still attempts the other workflow when one dispatch fails', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
-    for (const status of [200, 201, 202, 403, 500]) {
-      const fetchMock = vi.fn(async () => new Response('private response body', { status }));
+    for (const status of [200, 202, 403, 500]) {
+      const fetchMock = vi.fn()
+        .mockResolvedValueOnce(new Response('private response body', { status }))
+        .mockResolvedValueOnce(new Response(null, { status: 204 }));
       vi.stubGlobal('fetch', fetchMock);
       let caught: unknown;
       try { await scheduled(); } catch (error) { caught = error; }
       expect(caught).toBeInstanceOf(Error);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const urls = (fetchMock.mock.calls as unknown as Array<[Request | string | URL, RequestInit | undefined]>)
+        .map(([input, init]) => requestFrom(input, init).url);
+      expect(urls.sort()).toEqual([...DISPATCH_URLS].sort());
       const emitted = `${String(caught)} ${JSON.stringify(log.mock.calls)}`;
       expect(emitted).not.toContain(TOKEN);
       expect(emitted).not.toContain('private response body');
@@ -92,15 +104,35 @@ describe('HARD-005 dedicated five-minute monitor dispatch Worker', () => {
     }
   });
 
-  it('reports network failures generically without leaking the token or upstream error', async () => {
+  it('attempts the monitor dispatch even when the watchdog dispatch fails', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fetchMock = vi.fn(async (input: Request | string | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init);
+      return request.url.includes('watchdog')
+        ? new Response('private watchdog diagnostic', { status: 403 })
+        : new Response(null, { status: 204 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(scheduled()).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const urls = fetchMock.mock.calls.map(([input, init]) => requestFrom(input, init).url);
+    expect(urls.sort()).toEqual([...DISPATCH_URLS].sort());
+    expect(JSON.stringify(log.mock.calls)).not.toContain('private watchdog diagnostic');
+    expect(JSON.stringify(log.mock.calls)).not.toContain(TOKEN);
+  });
+
+  it('reports network failures generically and still attempts both workflows', async () => {
     const secret = 'private upstream diagnostic';
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const fetchMock = vi.fn(async () => { throw new Error(`${secret} ${TOKEN}`); });
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new Error(`${secret} ${TOKEN}`))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetchMock);
     let caught: unknown;
     try { await scheduled(); } catch (error) { caught = error; }
     expect(caught).toBeInstanceOf(Error);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(log).toHaveBeenCalled();
     const emitted = `${String(caught)} ${JSON.stringify(log.mock.calls)}`;
     expect(emitted).not.toContain(TOKEN);
