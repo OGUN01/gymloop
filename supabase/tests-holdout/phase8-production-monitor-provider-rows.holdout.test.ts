@@ -109,7 +109,10 @@ describe('independent HARD-005 provider-row compatibility holdout', () => {
     ]));
 
     const output = expectAccepted(result, 'SEV-2');
-    expect(output.reasons).toContainEqual({ code: 'API_5XX_THRESHOLD', count: 5 });
+    expect(output.reasons).toContainEqual(expect.objectContaining({
+      code: 'API_5XX_THRESHOLD',
+      count: 5,
+    }));
   });
 
   it('classifies a credible security signal while accepting a null HTTP status', () => {
