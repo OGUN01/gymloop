@@ -191,6 +191,52 @@ The caller supplies only that file path and non-secret configuration through
 bounded environment values. A missing, malformed or cross-owned fixture fails
 before any HTTP call.
 
+Frozen prelaunch validator interface: `scripts/phase8-prelaunch-load-safety.mjs`
+exports exactly `assertSafePrelaunchTarget`, `assertSafePrelaunchQuota`,
+`assertSafePrelaunchFixture`, and `summarizePrelaunchResult` as named functions.
+The existing isolated-route exports remain unchanged.
+
+`assertSafePrelaunchTarget(target)` accepts exactly `mode`, `projectRef`,
+`observedApiProjectRef`, `observedSupabaseProjectRef`, `apiUrl`, `supabaseUrl`,
+`confirmation`, `credentials`, and `noLiveCustomers`. `mode` is exactly
+`prelaunch-shared`; all references are the linked ref
+`pecxrpskmfeuyzngvewq`; both URLs are HTTPS origin-only and the Supabase URL
+is exactly `https://pecxrpskmfeuyzngvewq.supabase.co`; `confirmation` is
+`PRELAUNCH_SHARED_LOAD_APPROVED`; `credentials` is exactly
+`{ kind: 'prelaunch-shared', present: true, projectRef }`; and
+`noLiveCustomers` is the boolean `true`. It returns only the mode, reference
+and normalized origins, never credential material.
+
+`assertSafePrelaunchQuota(snapshot)` accepts exactly `observedAt`,
+`databaseBytes`, `providerQuotaBytes`, and `maxDatabaseBytes`. The time is a
+canonical UTC ISO timestamp no older than fifteen minutes and not future;
+`providerQuotaBytes` is exactly 500,000,000; `maxDatabaseBytes` is exactly
+400,000,000; and `databaseBytes` is a nonnegative integer strictly below the
+maximum. It returns only those non-secret values.
+
+`assertSafePrelaunchFixture(fixture)` accepts exactly `marker`, `gymFixtures`,
+`fixturePath`, `baselineManifestPath`, and `cleanupManifestPath`. `marker` is
+`PHASE8-LOAD-` followed by a fresh UUID. `gymFixtures` uses the frozen
+`{ gymId, token, memberIds, ownedMemberIds }` shape and exact 100 × 500
+uniqueness/ownership rules. Each path is a nonblank local path and the three
+paths are distinct. The function returns the marker, paths and counts only;
+it never returns or prints tokens, member IDs or full fixture contents.
+
+`summarizePrelaunchResult(input)` accepts exactly `status`, `target`, `quota`,
+`fixture`, `rawResultPath`, `thresholds`, `measured`, `monitor`, and `cleanup`.
+`status` is `prepared`, `blocked`, or `passed`. A `passed` request revalidates
+the three inputs above and requires a finite positive `thresholds.p95Ms`,
+`measured: { p95Ms, completedCheckIns, crossTenantReadDenied,
+crossTenantMutationStatus }` meeting the unchanged 50,000/p95/denial criteria,
+`monitor: { completed: true, maxObservedDatabaseBytes, maxGapSeconds }` with
+size strictly below 400,000,000 and gaps no greater than 60, and
+`cleanup: { completed: true, preexistingUnchanged: true,
+syntheticRemainderCount: 0, authRemainderCount: 0 }`. Missing or false evidence
+returns `blocked` or throws; it never returns `passed` on caller status alone.
+The returned summary is credential-free and references the raw/monitor/cleanup
+artifacts by path, not their private contents. A future runner may inject a
+backend for tests, but it must use this exact validator before Cloud writes.
+
 Frozen harness interface: `scripts/phase8-load-safety.mjs` exports
 `assertSafeLoadTarget`, `buildMorningCheckInWorkload`, `summarizeRawResult`
 and `preflightLoadRun`. `assertSafeLoadTarget(target)` accepts exactly the
