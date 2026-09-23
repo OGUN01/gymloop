@@ -207,6 +207,14 @@ IDs, new access and refresh tokens, and new integer Unix expiry. The k6
 prelaunch route reads the second private file through the absolute
 `PHASE8_LOAD_REFRESH_PATH` and the fixed lead through
 `PHASE8_LOAD_REFRESH_LEAD_SECONDS`.
+The prelaunch workload SHALL allocate all 100 virtual users exclusively to the
+check-in scenario, with one fixed gym and 500 distinct members per user. It
+SHALL run both real tenant-denial probes before that scenario, so probe virtual
+users cannot displace a gym. Raw evidence SHALL identify check-in HTTP points
+separately from Auth refresh and tenant probes; only check-in responses count
+toward 50,000 and only check-in durations determine the two-second p95.
+Setup-phase probe evidence has `group = ::setup` and no scenario tag; a missing,
+duplicated or successful cross-tenant mutation SHALL fail reconciliation.
 Validation binds every access token to the existing fixture's gym and marker,
 rejects duplicate gym/user/access/refresh identities, and exposes no secret in
 errors. Rotation requires the same returned Auth user ID, a fresh access token,
