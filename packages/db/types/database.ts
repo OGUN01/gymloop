@@ -2804,6 +2804,19 @@ export type Database = {
           replayed: boolean
         }[]
       }
+      record_staff_front_desk_check_in: {
+        Args: {
+          p_client_event_id: string
+          p_member_id: string
+          p_reason: string
+        }
+        Returns: {
+          checked_in_at: string
+          id: string
+          member_name: string
+          source: Database["public"]["Enums"]["attendance_source"]
+        }[]
+      }
       run_no_show_scan_all: {
         Args: never
         Returns: {
