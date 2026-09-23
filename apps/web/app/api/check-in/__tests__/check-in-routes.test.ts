@@ -10,12 +10,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * the caller" was asserted nowhere, which is the one behaviour that makes a
  * correctly-retrying client look broken when it regresses.
  *
- * Same stub shape as `memberships/__tests__/membership-routes.test.ts`: only
- * `createServerSupabase` is replaced, and each `from()` takes the next queued
- * `{ data, error }` — the whole of what PostgREST hands these handlers back.
- * Queued in call order, so a test that queues the wrong number of results fails
- * loudly rather than silently reusing one. `staffSession()`, the zod schema,
- * `hashGateCode` and `newGateCode` all run for real.
+ * Only `createServerSupabase` is replaced. The assisted front-desk command
+ * queues an RPC result; QR and gate-code commands retain their existing
+ * `from()` results. Every queue is consumed once. Authentication, the request
+ * schema, and gate-code helpers run for real.
  *
  * ---------------------------------------------------------------------------
  * OPEN FINDINGS — behaviour pinned as it is, not as anyone decided it should
@@ -65,14 +63,27 @@ const CHAIN_METHODS = ['insert', 'select', 'eq', 'order', 'limit', 'single', 'ma
 const state: {
   claims: Record<string, unknown> | null;
   results: Result[];
+  rpcResults: Result[];
+  rpcCalls: Array<{ name: string; args: Record<string, unknown> }>;
   from: string[];
   calls: Array<{ table: string; method: string; args: unknown[] }>;
-} = { claims: null, results: [], from: [], calls: [] };
+} = { claims: null, results: [], rpcResults: [], rpcCalls: [], from: [], calls: [] };
 
 vi.mock('../../../../lib/supabase/server', () => ({
   createServerSupabase: () =>
     Promise.resolve({
       auth: { getClaims: () => Promise.resolve({ data: state.claims && { claims: state.claims } }) },
+      rpc: (name: string, args: Record<string, unknown>) => {
+        state.rpcCalls.push({ name, args });
+        const result = state.rpcResults.shift() ?? { data: null, error: null };
+        const chain: Record<string, unknown> = {
+          then: (ok: (v: unknown) => unknown, err: (e: unknown) => unknown) =>
+            Promise.resolve(result).then(ok, err),
+        };
+        chain.single = () => chain;
+        chain.maybeSingle = () => chain;
+        return chain;
+      },
       from: (table: string) => {
         state.from.push(table);
         const result = state.results.shift() ?? { data: null, error: null };
@@ -105,6 +116,7 @@ const EVENT_ID = '33333333-3333-4333-8333-333333333333';
 const MEMBER = { id: MEMBER_ID, full_name: 'Asha Rao', branch_id: 'branch-of-member' };
 const GATE = { id: 'qr-session-1', branch_id: 'branch-of-gate' };
 const RECORDED = { id: 'attendance-1', checked_in_at: '2026-09-08T10:00:00Z', source: 'qr' };
+const ASSISTED_RECORDED = { ...RECORDED, source: 'front_desk', member_name: 'Asha Rao' };
 
 const ok = (data: unknown): Result => ({ data, error: null });
 const fails = (code: string): Result => ({ data: null, error: { code, message: code } });
@@ -135,6 +147,8 @@ const inserted = (table: string): Record<string, unknown> =>
 beforeEach(() => {
   state.claims = SIGNED_IN;
   state.results = [];
+  state.rpcResults = [];
+  state.rpcCalls = [];
   state.from = [];
   state.calls = [];
 });
@@ -149,18 +163,20 @@ describe('the same client event submitted twice', () => {
   it('answers with the row that already exists, not with an error', async () => {
     // The unique index raises 23505 on the second delivery of one attempt.
     // Reporting that as an error would make a client that retries look broken.
-    state.results = [ok(MEMBER), fails('23505'), ok(RECORDED)];
+    state.rpcResults = [fails('23505')];
+    state.results = [ok(ASSISTED_RECORDED)];
 
     const response = await checkIn(post(REPLAY));
     const body = await envelope(response);
 
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
-    expect(body.data).toEqual({ memberName: 'Asha Rao', replay: true, ...RECORDED });
+    expect(body.data).toMatchObject({ memberName: 'Asha Rao', replay: true, id: RECORDED.id, source: 'front_desk' });
   });
 
   it('finds the existing row by the client event id and confirms it is this member’s', async () => {
-    state.results = [ok(MEMBER), fails('23505'), ok(RECORDED)];
+    state.rpcResults = [fails('23505')];
+    state.results = [ok(ASSISTED_RECORDED)];
 
     await checkIn(post(REPLAY));
 
@@ -173,27 +189,28 @@ describe('the same client event submitted twice', () => {
       ['client_event_id', EVENT_ID],
       ['member_id', MEMBER_ID],
     ]);
-    expect(state.from).toEqual(['members', 'attendance', 'attendance']);
+    expect(state.from).toEqual(['attendance']);
   });
 
   it('marks a first submission as replay: false', async () => {
-    state.results = [ok(MEMBER), ok(RECORDED)];
+    state.rpcResults = [ok(ASSISTED_RECORDED)];
 
     const body = await envelope(await checkIn(post(REPLAY)));
 
-    expect(body.data).toEqual({ memberName: 'Asha Rao', replay: false, ...RECORDED });
-    expect(state.from).toEqual(['members', 'attendance']);
+    expect(body.data).toEqual({ memberName: 'Asha Rao', replay: false, ...RECORDED, source: 'front_desk' });
+    expect(state.from).toEqual([]);
+    expect(state.rpcCalls).toHaveLength(1);
   });
 
   it('does not swallow 23505 when the caller sent no client event id', async () => {
     // Nothing to look the existing row up by, so there is no row to answer with.
-    state.results = [ok(MEMBER), fails('23505')];
+    state.rpcResults = [fails('23505')];
 
     const response = await checkIn(post({ memberId: MEMBER_ID, reason: 'At the desk' }));
 
     expect(response.status).toBe(500);
     expect((await envelope(response)).error?.code).toBe('check_in_failed');
-    expect(state.from).toEqual(['members', 'attendance']);
+    expect(state.from).toEqual([]);
   });
 
   it('does not invent a success when 23505 fires but no matching row is visible', async () => {
@@ -202,7 +219,8 @@ describe('the same client event submitted twice', () => {
     // two members"), a unique violation that resolves to nothing must not be
     // answered as a success. The spec fixes the failure, not which status
     // names it.
-    state.results = [ok(MEMBER), fails('23505'), ok(null)];
+    state.rpcResults = [fails('23505')];
+    state.results = [ok(null)];
 
     const response = await checkIn(post(REPLAY));
     const body = await envelope(response);
@@ -227,7 +245,8 @@ describe('the same client event submitted twice', () => {
     // alone would make only the first of these two `.eq()` calls, and this
     // test fails against it (verified by temporarily asserting that
     // single-call shape and watching it go red against the fixed handler).
-    state.results = [ok(MEMBER), fails('23505'), ok(null)];
+    state.rpcResults = [fails('23505')];
+    state.results = [ok(null)];
 
     const response = await checkIn(post(REPLAY));
     const body = await envelope(response);
@@ -251,7 +270,7 @@ describe('what the database refuses', () => {
   const SCAN = { memberId: MEMBER_ID, reason: 'Desk' };
 
   async function refuse(code: string): Promise<{ status: number; body: Envelope }> {
-    state.results = [ok(MEMBER), fails(code)];
+    state.rpcResults = [fails(code)];
     const response = await checkIn(post(SCAN));
     return { status: response.status, body: await envelope(response) };
   }
@@ -277,6 +296,7 @@ describe('what the database refuses', () => {
       messages.add((await refuse(code)).body.error?.message ?? '');
       state.calls = [];
       state.from = [];
+      state.rpcCalls = [];
     }
     expect(messages.size).toBe(5);
   });
@@ -328,20 +348,29 @@ describe('what the database refuses', () => {
 // ---------------------------------------------------------------------------
 
 describe('the row the handler proposes', () => {
-  it('records a front-desk visit with the reason and no session', async () => {
-    state.results = [ok(MEMBER), ok(RECORDED)];
+  it('accepts a verified front-desk session through the same one-RPC path', async () => {
+    state.claims = { ...SIGNED_IN, app_role: 'front_desk' };
+    state.rpcResults = [ok(ASSISTED_RECORDED)];
 
-    await checkIn(post({ memberId: MEMBER_ID, reason: '  Phone left at home  ' }));
+    const response = await checkIn(post({ memberId: MEMBER_ID, reason: 'Helped at the desk' }));
 
-    expect(inserted('attendance')).toEqual({
-      tenant_id: 'a6300000-0000-4000-8000-000000000002',
-      branch_id: 'branch-of-member',
-      member_id: MEMBER_ID,
-      source: 'front_desk',
-      qr_session_id: null,
-      assist_reason: 'Phone left at home',
-      client_event_id: null,
-    });
+    expect(response.status).toBe(200);
+    expect((await envelope(response)).data).toMatchObject({ memberName: 'Asha Rao', source: 'front_desk', replay: false });
+    expect(state.rpcCalls).toHaveLength(1);
+    expect(state.from).toEqual([]);
+  });
+
+  it('records a front-desk visit through one RPC with only member, reason and event ID', async () => {
+    state.rpcResults = [ok(ASSISTED_RECORDED)];
+
+    await checkIn(post({ memberId: MEMBER_ID, reason: '  Phone left at home  ', clientEventId: EVENT_ID }));
+
+    expect(state.rpcCalls).toEqual([{ name: 'record_staff_front_desk_check_in', args: {
+      p_member_id: MEMBER_ID,
+      p_reason: 'Phone left at home',
+      p_client_event_id: EVENT_ID,
+    } }]);
+    expect(state.from).toEqual([]);
   });
 
   it('records a scan against the session, at the session’s branch', async () => {
@@ -360,10 +389,11 @@ describe('the row the handler proposes', () => {
       assist_reason: null,
       client_event_id: EVENT_ID,
     });
+    expect(state.rpcCalls).toEqual([]);
   });
 
   it('never lets the body name a gym or an acting staff member', async () => {
-    state.results = [ok(MEMBER), ok(RECORDED)];
+    state.rpcResults = [ok(ASSISTED_RECORDED)];
 
     await checkIn(
       post({
@@ -376,9 +406,14 @@ describe('the row the handler proposes', () => {
       }),
     );
 
-    // zod strips what it does not declare; the tenant comes from the claim.
-    expect(inserted('attendance')).toMatchObject({ tenant_id: 'a6300000-0000-4000-8000-000000000002', source: 'front_desk' });
-    expect(inserted('attendance')).not.toHaveProperty('assisted_by_staff_id');
+    // The new command accepts no tenant or actor argument. RLS and the trigger
+    // resolve those from the verified session inside the database.
+    expect(state.rpcCalls).toEqual([{ name: 'record_staff_front_desk_check_in', args: {
+      p_member_id: MEMBER_ID,
+      p_reason: 'Desk',
+      p_client_event_id: null,
+    } }]);
+    expect(state.from).toEqual([]);
   });
 
   it('drops a reason sent alongside a token — FINDING 4', async () => {
@@ -452,6 +487,7 @@ describe('reading the submission', () => {
     expect(response.status).toBe(401);
     expect((await envelope(response)).error?.code).toBe('not_signed_in');
     expect(state.from).toEqual([]);
+    expect(state.rpcCalls).toEqual([]);
   });
 
   it('refuses a token that carries a tenant but no staff_id', async () => {
@@ -470,6 +506,7 @@ describe('reading the submission', () => {
 
     expect(response.status).toBe(401);
     expect(state.from).toEqual([]);
+    expect(state.rpcCalls).toEqual([]);
   });
 
   it('answers 400 for a body that is not JSON', async () => {
@@ -495,23 +532,35 @@ describe('reading the submission', () => {
     expect(response.status).toBe(400);
     expect((await envelope(response)).error?.code).toBe('invalid_request');
     expect(state.from).toEqual([]);
+    expect(state.rpcCalls).toEqual([]);
+  });
+
+  it('preserves the existing role refusal for a trainer rather than recording attendance', async () => {
+    state.claims = { ...SIGNED_IN, app_role: 'trainer' };
+    state.rpcResults = [fails('42501')];
+
+    const response = await checkIn(post({ memberId: MEMBER_ID, reason: 'Trainer attempt' }));
+
+    expect(response.status).toBe(403);
+    expect((await envelope(response)).error?.code).toBe('not_permitted');
+    expect(state.from).toEqual([]);
   });
 
   it('asks for a reason when there is neither a code nor one', async () => {
-    // Neither kind of check-in. The member is read first, so this is the one
-    // validation that costs a query.
-    state.results = [ok(MEMBER)];
+    // Neither kind of check-in reaches the new RPC.
 
     const response = await checkIn(post({ memberId: MEMBER_ID }));
 
     expect(response.status).toBe(400);
     expect((await envelope(response)).error?.code).toBe('reason_required');
-    expect(state.from).toEqual(['members']);
+    expect(state.from).toEqual([]);
+    expect(state.rpcCalls).toEqual([]);
   });
 
   it('does not leak which gym an invisible member id belongs to', async () => {
-    // RLS filters the member read, so another gym's member simply is not there.
-    state.results = [ok(null)];
+    // RLS filters the member inside the RPC, so another gym's member returns
+    // no row just like an unknown ID.
+    state.rpcResults = [ok(null)];
 
     const response = await checkIn(post({ memberId: OTHER_MEMBER_ID, reason: 'Desk' }));
     const body = await envelope(response);
@@ -519,15 +568,21 @@ describe('reading the submission', () => {
     expect(response.status).toBe(404);
     expect(body.error?.code).toBe('member_unknown');
     expect(body.error?.message).toBe('No member of this gym has that id.');
-    expect(state.from).toEqual(['members']);
+    expect(state.from).toEqual([]);
+    expect(state.rpcCalls).toHaveLength(1);
   });
 
-  it('reads the member with no application-side tenant predicate', async () => {
-    state.results = [ok(MEMBER), ok(RECORDED)];
+  it('lets the one RLS-scoped RPC resolve the member without a separate lookup', async () => {
+    state.rpcResults = [ok(ASSISTED_RECORDED)];
 
     await checkIn(post({ memberId: MEMBER_ID, reason: 'Desk' }));
 
-    expect(callsOf('members', 'eq')).toEqual([['id', MEMBER_ID]]);
+    expect(state.from).toEqual([]);
+    expect(state.rpcCalls).toEqual([{ name: 'record_staff_front_desk_check_in', args: {
+      p_member_id: MEMBER_ID,
+      p_reason: 'Desk',
+      p_client_event_id: null,
+    } }]);
   });
 });
 
