@@ -656,6 +656,15 @@ insufficient for Gymloop because staff and member rows reference Auth users.
 The default schema dump and separate migration-history captures remain as
 specified; the encrypted archive keeps its four-part format. A completed
 backup receipt is incomplete if the actual data dump omits either schema.
+The reviewable command seam is `backupDumpArgs(kind, filePath)`, exported from
+`scripts/phase8-protected-backup.mjs` and used by the real runner for all five
+CLI captures. `kind` is exactly `roles`, `schema`, `data`, `historySchema`, or
+`historyData`; it returns a `supabase db dump` argument array using `--linked`
+and the supplied output file, never a local database or another project. For
+`data`, the array SHALL include `--data-only`, `--use-copy`, and explicit
+`--schema public,auth`; history captures SHALL select only
+`supabase_migrations`. Tests can inspect this seam without handling credentials
+or plaintext customer data.
 
 The testable entry point is `scripts/phase8-protected-backup.mjs`, exporting
 `runProtectedBackup(config, ports)`. `config` contains `expectedProjectRef`,
