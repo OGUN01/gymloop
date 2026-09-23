@@ -213,6 +213,7 @@ SHALL run both real tenant-denial probes before that scenario, so probe virtual
 users cannot displace a gym. Raw evidence SHALL identify check-in HTTP points
 separately from Auth refresh and tenant probes; only check-in responses count
 toward 50,000 and only check-in durations determine the two-second p95.
+The k6 latency threshold SHALL use the same `name=morning_check_in` filter.
 Setup-phase probe evidence has `group = ::setup` and no scenario tag; a missing,
 duplicated or successful cross-tenant mutation SHALL fail reconciliation.
 Validation binds every access token to the existing fixture's gym and marker,
