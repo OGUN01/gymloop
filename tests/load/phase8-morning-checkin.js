@@ -1,6 +1,7 @@
 /* global __ENV, __VU, __ITER, open */
 import http from 'k6/http';
 import { check, fail } from 'k6';
+import { refreshDue, rotateRefreshSession, validateRefreshFixture } from '../../scripts/phase8-load-session-refresh.mjs';
 
 const GYM_COUNT = 100;
 const MEMBERS_PER_GYM = 500;
@@ -102,6 +103,26 @@ const supabaseAnonKey = required('PHASE8_LOAD_SUPABASE_ANON_KEY');
 const p95Ms = Number(required('PHASE8_LOAD_P95_MS'));
 const runId = required('PHASE8_LOAD_RUN_ID');
 const tenants = validatedFixtures(tenantFixtures());
+const refreshLeadSeconds = loadMode === 'prelaunch-shared'
+  ? Number(required('PHASE8_LOAD_REFRESH_LEAD_SECONDS')) : null;
+const millisecondsPerSecond = loadMode === 'prelaunch-shared'
+  ? Number(required('PHASE8_LOAD_MS_PER_SECOND')) : null;
+if (loadMode === 'prelaunch-shared' &&
+    (!Number.isSafeInteger(refreshLeadSeconds) || refreshLeadSeconds <= 0 ||
+     !Number.isSafeInteger(millisecondsPerSecond) || millisecondsPerSecond <= 0)) {
+  fail('HARD-004 requires fixed refresh timing.');
+}
+const refreshSessions = loadMode === 'prelaunch-shared' ? (() => {
+  const refreshPath = required('PHASE8_LOAD_REFRESH_PATH');
+  if (!/^(?:[a-z]:[\\/]|\/)/i.test(refreshPath)) fail('HARD-004 refresh fixture path must be absolute.');
+  try {
+    return validateRefreshFixture(JSON.parse(open(refreshPath)),
+      { marker: `PHASE8-LOAD-${runId}`, gymFixtures: tenants });
+  } catch {
+    fail('HARD-004 private refresh fixture is invalid.');
+  }
+})() : null;
+let vuSession;
 
 if (supabaseUrl !== `https://${projectRef}.supabase.co`) fail('HARD-004 Supabase origin must bind exactly to the approved project reference.');
 if (!UUID.test(runId)) fail('HARD-004 PHASE8_LOAD_RUN_ID must be a UUID.');
@@ -146,11 +167,27 @@ function checkIn(memberId, token, requestKey) {
   return http.post(`${apiUrl}/api/check-in`, JSON.stringify({ memberId, reason: 'phase8 load check-in', clientEventId: requestKey }), appAuth(token));
 }
 
+function currentGymToken(gymIndex) {
+  if (refreshSessions === null) return tenants[gymIndex].token;
+  if (vuSession === undefined) vuSession = refreshSessions[gymIndex];
+  if (vuSession.gymId !== tenants[gymIndex].gymId) fail('HARD-004 virtual gym session changed identity.');
+  const nowSeconds = Math.floor(Date.now() / millisecondsPerSecond);
+  if (refreshDue(vuSession, nowSeconds, refreshLeadSeconds)) {
+    const response = http.post(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`,
+      JSON.stringify({ refresh_token: vuSession.refreshToken }),
+      { headers: { apikey: supabaseAnonKey, 'content-type': 'application/json' }, tags: { name: 'auth_session_refresh' } });
+    if (response.status !== HTTP_SUCCESS_MIN) fail('HARD-004 Cloud Auth session refresh failed.');
+    try { vuSession = rotateRefreshSession(vuSession, response.json(), Math.floor(Date.now() / millisecondsPerSecond), refreshLeadSeconds); }
+    catch { fail('HARD-004 Cloud Auth returned an invalid refreshed session.'); }
+  }
+  return vuSession.token;
+}
+
 export default function () {
   const gymIndex = boundedIndex(__VU - 1, GYM_COUNT);
   const memberIndex = boundedIndex(__ITER, MEMBERS_PER_GYM);
   const tenant = tenants[gymIndex];
-  const response = checkIn(tenant.memberIds[memberIndex], tenant.token, checkInEventId(gymIndex, memberIndex));
+  const response = checkIn(tenant.memberIds[memberIndex], currentGymToken(gymIndex), checkInEventId(gymIndex, memberIndex));
   check(response, { 'morning check-in is acknowledged': (result) => result.status >= 200 && result.status < 300 });
 }
 
