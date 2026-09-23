@@ -172,8 +172,8 @@ renewal and add-on A–D continuation has not run.
 | HARD-001 | **Partial** | Phase 7 closeout `d1888c6`; Phase 8 contract `c768dff`; repository, 2026-09-20 | Procedure: review each HARD row for status, identity, time, result, artifact and dependency. This ledger is the current artifact. | Owner: Phase 8 orchestrator. Complete only after every row links exact executed commands/procedures and results; keep skipped/blocked/external visible. |
 | HARD-002 | **Passed** | Original contract/config `cdd99fb`/`674255e`; least-permission contract/config `94f058f`/`2252bdc`; version contract/config `d894ad5`/`7a31384`; CI `35530050420`; EAS build `146221dd-dab2-4ef1-a99b-61dc14be4675`, 2026-09-20 | Focused HARD-002 checks passed 5/5 and mobile typecheck passed; CI, holdout and test immutability were green. The production `STORE` build from `7a31384` is a managed-credential signed AAB for `in.gymloop.mobile` version `1.0.0` (`2`). Artifact, certificate and merged-permission evidence: `docs/evidence/2026-09-20-phase8-production-release.md`; AAB SHA-256 `129C5339A629C3AB2BFE937C7C304D44E4A3BEBEB1ED3CFCEB393F34A674C239`. | HARD-002's reviewable configuration, unique release version, test integration, least-privilege manifest and signed-AAB readiness proof are satisfied. Physical-device install and Play publication remain separately Partial/External under HARD-008. |
 | HARD-003 | **Partial** | Earlier role/consent fixes through `e7a5883`; role/contrast/test commits `37f9c16`/`3bb641d`/`73def13`; member, desk and owner route tests `deb3e74`/`dc3e8b1`/`b24cfe3`; production auth-wait correction `6cf458b`; CI `35597428131`/`35597828557`/`35598747383`/`35599835395`; production deployment `dpl_DeQTPPHhisD8erdRe4GGg6YFCmEU`, 2026-09-21 | Five-role landings and forbidden routes passed locally and on the production alias; CI/holdout/immutability passed after the cold-runner test split. Six member, four desk and four owner secondary routes passed Light/Dark axe/English/overflow checks locally and in CI. A production-only test race was found on immediate post-sign-in navigation and repaired with explicit home waits in `6cf458b`; production reruns then passed member 12/12 and desk/owner 16/16. CI, holdout and test immutability passed for the correction. Synthetic UI journeys and distinct gym-owner sessions proved reciprocal foreign-member 404s, a foreign payment 404, an Iron-owner → QA check-in refusal, and tenant-scoped positive visit counts. A later QA-owner → Iron rollback-only database probe and Iron-front-desk → QA live API POST both refused foreign check-ins with zero side effects; exact IDs below. | Full Playwright-automated mutation-complete A–D journeys and complete two-gym browser acceptance remain open. The QA owner used Google OAuth in the in-app browser while Iron Box used a separate Playwright context, not two independently signed-in owners in the same checked-in run. Controlled second-gym credentials and disposable fixtures are needed for repeatable CI mutations. Owner: web acceptance/infrastructure owner. |
-| HARD-004 | **NO-GO / 13 failed check-ins** | Owner same-Cloud authorization ADR-162; five complete linked Cloud 100 × 500 runs through 2026-09-23; exact evidence and raw checksums below | The fifth run completed 50,000 iterations with 49,987 acknowledged, both cross-tenant denials and zero interruptions; p95 **1.24 s** passed the frozen 2 s budget, but 13 requests returned HTTP 500 during the opening burst. Continuous size monitoring stayed below the abort ceiling, exact cleanup completed, and independent preflight found no synthetic DB/Auth remnants or changes to pre-existing rows. | Owner: Phase 8 operator. The short diagnostic reproduced 31 unclassified errors, consistent with an ambiguous SDK transport/response-read result. The now implemented one-retry event-keyed repair needs the exact 50,000/2 s rerun. Provider restore is a separate exception. |
-| HARD-005 | **Partial / External credential and scheduler** | Logger and API 500 work through `bdfc81d`; evaluator `167c806`; regression fix `8244504`; controlled workflow `35828518944`; Cron dispatch Worker deployed 2026-09-23 | Visible and independent monitor tests pass. The team-scoped Vercel token completed controlled workflow `35828518944` and delivered closed TEST-only issue `#5`. GitHub scheduled starts were hours apart, so they do not prove a five-minute log window. The Cloudflare Cron dispatch Worker is deployed, but its repository-scoped GitHub token and Cron trigger are absent while GitHub email verification is pending. | Complete GitHub verification, install the narrow Worker secret and Cron, observe consecutive five-minute dispatches paired with successful evaluations, and exercise missed-run/failure escalation. Alert acknowledgement and retention/access review also remain. |
+| HARD-004 | **Passed — bounded same-Cloud prelaunch load** | Owner same-Cloud authorization ADR-162; sixth complete linked Cloud 100 × 500 run `PHASE8-LOAD-38928cbe-8cb4-42a2-833b-cd65aa02f4ec`, 2026-09-23; exact evidence and raw checksum below | The sixth run completed 50,000/50,000 acknowledged check-ins with zero interruptions; p95 **664.5 ms** passed the frozen 2 s budget, both cross-tenant probes denied foreign access, and maximum observed database size was 129,748,115 bytes below the 400,000,000-byte ceiling. Exact cleanup and independent Cloud preflight confirmed zero synthetic DB/Auth remnants and unchanged pre-existing rows. | The bounded load contract is met for the authorized shared Cloud prelaunch target. This does not establish five real customer gyms, provider restore, long-term capacity, or the separate Phase 8 pilot gates. |
+| HARD-005 | **Partial / live cadence and failure issue verified** | Logger/API work through `bdfc81d`; evaluator `167c806`; provider-row repair `d673590`; failure escalation `3c689ac`; Cloudflare Cron and repository-only GitHub dispatch token active 2026-09-23 | Cloudflare's first four `*/5 * * * *` events at 12:20:33 through 12:35:33 UTC were successful. After the parser repair, seven successive GitHub production evaluations from 12:30 through 13:00 UTC completed successfully (`35860915078` through `35864151281`). Deliberate manual failure run `35864351097` kept the monitor job failed, passed its separate escalation job, and delivered closed TEST-only issue `#6` with no `production-alert` label; closed issue `#5` separately proves the controlled alert-delivery route. Local script/holdout suite passed 538/538. | Observed cadence is finite, not a guarantee. Independent missed-run detection/escalation, a named responder's acknowledgement, protected role roster and retention/access review remain. The earlier GitHub schedule alone had multi-hour gaps. |
 | HARD-006 | **Blocked / External legal** | Read-only implementation audit completed 2026-09-20; no runner or execution evidence attached | Governing durations and broad blank/delete/hold categories are in `docs/security.md`, but the contract does not classify personal columns, define clocks for several retention rows, cover `razorpay_mandates`, define export wire content, or distinguish category-wide retention from case-specific legal holds. `members.full_name` and `phone` are also non-null today, so truthful erasure cannot be added without a schema/product decision. No destructive command was run. | Owner: product/privacy owner freezes those decisions; production owner obtains qualified legal review. Then independent visible/holdout authors specify the member-derived export/erasure RPCs and service-only retention runner before CI-only migration work starts. Local tests cannot satisfy legal sign-off. |
 | HARD-007 | **Partial / verified logical backup; external restore** | Runbooks `055e83c`; protected export workflow `35846608557`, 2026-09-23 | Encrypted linked Cloud export with public and Auth data succeeded, was stored in private R2, read back, decrypted and hash-verified; redacted receipt is recorded below. No tabletop or Supabase cloud PITR restore was performed. | Owner: production owner/platform administrator; Privacy Lead for legal notification confirmation. Review daily receipts, role/contact roster, tabletop and legal/DPA decision. Gate 29 remains excepted for the controlled pilot, external/unperformed for general release. |
 | HARD-008 | **Partial / External exact-artifact device and Play** | Current-source production EAS build `7d603487-57a7-4f71-9413-3b60b6ca6302` from `acd7b44d04044db11019f2552b66a15414cbf422`, completed 2026-09-21 07:04:46 UTC; prior v2 build/evidence in `docs/evidence/2026-09-20-phase8-production-release.md` | Public HTTPS web/API and EAS production public-variable names are configured. Managed-credential `STORE` AAB for `in.gymloop.mobile` version `1.0.0` (`5`) downloaded to `dist/releases/gymloop-1.0.0-5-production-acd7b44.aab` (95,189,796 bytes), SHA-256 `46F4C1F45D3F98A29051C1F6F3C3911E5991E9CEF07DB0A1445FC1D8D12C8AB9`; `jarsigner -verify` said `jar verified`, and upload certificate SHA-256 is `AA:92:3C:58:3E:2A:9D:E0:B2:54:46:DA:19:17:E6:40:19:8E:66:46:87:EE:DF:2B:38:75:0D:B1:33:33:C8:63`. CI, holdout and immutability for source commit passed. Baseline debug-device journey remains `docs/evidence/2026-09-20-phase7-android-device.md`. | No exact-AAB physical smoke or Play upload occurred. Gymloop has no Play app record yet; account-holder policy/export declarations, Play App Signing and internal-track install precede the checklist. A matching preview APK may verify product behavior, not discharge exact-AAB/Play proof. Owner: Play account holder and release tester. |
@@ -1445,6 +1445,26 @@ zero synthetic database/Auth remnants (100,084,883 database bytes). The
 bounded ambiguous-transport retry is implemented and reviewed for an event-keyed
 request; it still needs a measured full run.
 
+The sixth complete run, marker
+`PHASE8-LOAD-38928cbe-8cb4-42a2-833b-cd65aa02f4ec`, used the reviewed
+same-event retry and **passed** the unchanged HARD-004 contract: 100 gyms ×
+500 members, 50,000/50,000 acknowledged check-ins, zero interrupted
+iterations, p95 **664.462235 ms** against 2,000 ms, and both foreign-tenant
+read and mutation denials (the latter returned 404). Continuous observation
+recorded a maximum database size of 129,748,115 bytes and maximum observation
+gap of 39.952 seconds, below the 400,000,000-byte abort ceiling. The raw k6
+JSONL SHA-256 is
+`DA6081D25F7FFFFC790EE1989C64880923778A23C61557482CDD0F5D1720EBEE`.
+The recovery manifest reports complete exact cleanup, unchanged pre-existing
+rows, zero synthetic database rows and zero synthetic Auth users. A separate
+linked Cloud preflight independently confirmed those four conditions at
+101,747,859 database bytes. The local production route emitted zero
+`check_in.database_error` events during this run. Private raw results and
+manifests remain ignored under `artifacts/phase8-load/`; no live customer
+record was used as a synthetic fixture. This passes HARD-004 only. The
+previously canceled full database suite was rerun as workflow
+`35846431096` after cleanup; its final result is pending here.
+
 ## 2026-09-23 protected Cloud backup
 
 Manual GitHub Actions run `35846608557` on `ace8320` completed successfully.
@@ -1471,12 +1491,43 @@ consistency remains unproven; the daily schedule has not yet produced its own
 successful receipt. The owner-excepted provider restore/PITR drill remains
 unperformed and gate 29 remains open.
 
+## 2026-09-23 live monitor and failure-escalation receipt
+
+The Cloudflare Worker `gymloop-phase8-monitor-dispatch` has an active UTC
+`*/5 * * * *` trigger and a one-year GitHub credential limited to
+`OGUN01/gymloop` Actions write/Metadata read. Its production secret is
+`GITHUB_ACTIONS_DISPATCH_TOKEN`; no value was copied into this ledger. The
+first four dashboard Cron events were Success at 12:20:33, 12:25:33, 12:30:35
+and 12:35:33 UTC. The 12:20 and 12:25 GitHub jobs failed because their old
+evaluator rejected valid provider timestamps and null optional fields. The
+independently tested repair `d673590` then produced seven successive successful
+production evaluations at 12:30, 12:35, 12:40, 12:45, 12:50, 12:55 and
+13:00 UTC; the first and last run ids were `35860915078` and `35864151281`.
+Each run queried production Vercel logs and probed the public sign-in endpoint.
+This shows observed five-minute collection through 13:00, not an availability
+SLA or a missing-run alarm.
+
+For collection failures, the `3c689ac` workflow puts the generic issue handler
+in a separate dependent job, so failure or timeout of the monitor job cannot
+skip it. The local full script/holdout suite passed **538/538**, lint and
+registry checks passed, and a fresh critic returned GO for the implementation.
+Manual `force_test_collection_failure=true` run `35864351097` at 13:02 UTC
+failed the monitor before provider contact while its independent escalation
+job succeeded. It created issue `#6` with only the TEST/failure labels, a
+generic run link and no `production-alert`; the issue was verified and closed.
+This deliberately failed workflow is a successful escalation drill, not a
+production incident. A real production collection failure has not been
+manufactured, and an absent Cron execution cannot be detected by that same
+Cron path. The next Cloudflare-dispatched run, `35864707727` at 13:05 UTC on
+`3c689ac`, passed its monitor job and correctly skipped escalation. CI for
+`3c689ac` was still in progress when recorded.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
 |---|---|---|---|---|
-| Frozen 100 × 500 / 50,000-check-in load gate | HARD-004 | Fifth same-Cloud run: 49,987/50,000 acknowledged, both isolation denials and exact cleanup; p95 **1.24 s** passes but 13 HTTP 500s keep NO-GO | Phase 8 operator repeats the full run with the reviewed status-zero retry and unchanged bar | Passing raw 50,000-result checksum, p95, size observer and exact-cleanup proof |
-| Monitoring destination and alert route | HARD-005 | Manual TEST issue #5 delivered on fixed workflow with team-scoped Vercel token; Cron dispatch Worker deployed but has no repository-scoped GitHub credential or Cron trigger because GitHub email verification is pending; observed GitHub scheduled starts are hours apart | Production owner completes GitHub verification, installs the narrow Worker secret and Cron, and verifies scheduled collection | Consecutive five-minute dispatch/workflow receipts, missed-run alert, thresholds, retention and acknowledgement ownership |
+| Frozen 100 × 500 / 50,000-check-in load gate | HARD-004 | **Passed** on sixth same-Cloud run: 50,000/50,000 acknowledged, p95 **0.664 s**, both isolation denials, peak 129,748,115 bytes and independently verified exact cleanup | Phase 8 operator retains the raw checksum and monitors subsequent production performance | Raw checksum, summary, size observer, recovery manifest and independent zero-remnant preflight above |
+| Monitoring destination and alert route | HARD-005 | Closed TEST issues #5 (alert route) and #6 (failure escalation) delivered; Cloudflare Cron and repository-only dispatch credential active; seven consecutive production monitor runs 12:30–13:00 UTC succeeded | Production owner adds independent missed-run detection and confirms actual responder route | Missing-run receipt, retention/access review and actual acknowledgement ownership; observed windows do not guarantee continuous detection |
 | DPDP/DPA and breach-notification legal review | HARD-006/007 | External; not approved | Production owner obtains qualified current legal/privacy review | Dated approval/decision naming durations, hold behavior, audiences, timing and channels |
 | Supabase cloud backup/PITR restore | HARD-007 | One encrypted logical export and exact read-back passed in run `35846608557`; provider restore/PITR remains excepted for the controlled pilot and unperformed | Production owner checks each daily backup receipt; project administrator runs a future approved disposable-target provider drill | Daily receipt cadence; later cloud operation id, source/distinct target, timings, validation and cleanup |
 | Production API deployment and EAS environment | HARD-002/008 | **Resolved 2026-09-20**; public Vercel alias and EAS production public variables verified | Deployment owner keeps the public endpoint and environment current | Deployment and variable-name evidence in `docs/evidence/2026-09-20-phase8-production-release.md` |
