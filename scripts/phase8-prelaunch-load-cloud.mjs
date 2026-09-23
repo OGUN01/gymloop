@@ -8,7 +8,7 @@ import { buildPrelaunchSyntheticPlan, parseLinkedDatabaseSize } from './phase8-p
 
 const { providerQuotaBytes, abortBytes, httpSuccessMin, httpSuccessMax,
   p95Percentile, p95RankOffset, authPasswordPrefixLength, privateFileMode,
-  adapterConfigFieldCount } = PHASE8_PRELAUNCH_LOAD_LIMITS;
+  adapterConfigFieldCount, authRefreshLeadSeconds, millisecondsPerSecond } = PHASE8_PRELAUNCH_LOAD_LIMITS;
 const PORTS = ['queryLinked', 'createAuthUser', 'signIn', 'listAuthUsers', 'deleteAuthUser', 'executeK6'];
 const BASELINE_TABLES = [
   ['organizations', 'id', 'id'], ['organization_settings', 'tenant_id', 'tenant_id'],
@@ -217,6 +217,8 @@ export function createPrelaunchCloudBackend(config, ports) {
         PHASE8_LOAD_P95_MS: String(campaign.thresholds.p95Ms),
         PHASE8_LOAD_RUN_ID: plan.marker.slice('PHASE8-LOAD-'.length),
         PHASE8_LOAD_FIXTURE_PATH: fixturePath,
+        PHASE8_LOAD_REFRESH_LEAD_SECONDS: String(authRefreshLeadSeconds),
+        PHASE8_LOAD_MS_PER_SECOND: String(millisecondsPerSecond),
       };
       const result = await ports.executeK6({ signal, env: k6Env, rawResultPath });
       requireRecord(result, 'k6 result');

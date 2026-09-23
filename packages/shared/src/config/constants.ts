@@ -76,6 +76,7 @@ export const PHASE8_PRELAUNCH_LOAD_LIMITS = {
   privateFileMode: 0o600,
   adapterConfigFieldCount: 2,
   authSignInGapMs: 2_500,
+  authRefreshLeadSeconds: 120,
   httpStatusMin: 100,
   httpSuccessMin: 200,
   httpSuccessMax: 299,
