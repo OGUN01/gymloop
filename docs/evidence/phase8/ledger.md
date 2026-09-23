@@ -1583,6 +1583,16 @@ test. The authenticated GitHub notifications API returned no inbox item for
 unverified**. These public issues contain generic TEST text, not a protected
 contact roster or production log payload. HARD-005 and gate 28 remain Partial.
 
+**2026-09-23 current web You capture:** the existing focused Playwright test
+`member You identifies the verified gym` passed **1/1** against
+`https://gymloop-phi.vercel.app` using the Cloud-backed demo member. It checked
+the verified member and current Iron Box gym/code in both themes and captured
+[light](../screens/2026-09-23-phase8-web-you-light.png) and
+[dark](../screens/2026-09-23-phase8-web-you-dark.png) production screenshots.
+Both show the current appearance value and grouped account rows. This is a
+reviewable current web artifact for HARD-010, not owner visual acceptance or
+the missing exact-AAB Android physical capture.
+
 ## External dependency index
 
 | Dependency | HARD IDs | Current state | Owner and action | Evidence needed |
