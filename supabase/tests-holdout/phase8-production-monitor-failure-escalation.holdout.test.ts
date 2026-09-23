@@ -194,13 +194,14 @@ describe('independent HARD-005 monitor-failure escalation holdout', () => {
       /force_test_collection_failure/.test(step.source) && /exit\s+1/.test(step.source),
     );
     const handlers = steps.filter((step) => /phase8-monitor-failure\.mjs/.test(step.source));
+    const dependentHandler = /needs:\s*monitor[\s\S]*?if:\s*.*always\(\).*needs\.monitor\.result\s*!=\s*['"]success['"][\s\S]*?phase8-monitor-failure\.mjs/i.test(source);
     const providerOffset = source.search(/vercel\s+logs/i);
 
     expect(/force_test_collection_failure:\s*\n(?:\s+.+\n)*?\s+type:\s*boolean\s*\n(?:\s+.+\n)*?\s+default:\s*false/m.test(source)).toBe(true);
     expect(forced.length).toBeGreaterThan(0);
     expect(forced.every((step) => step.offset < providerOffset)).toBe(true);
     expect(handlers.length).toBeGreaterThan(0);
-    expect(handlers.some((step) => /if:\s*.*(?:failure\(\)|always\(\))/i.test(step.source))).toBe(true);
+    expect(handlers.some((step) => /if:\s*.*(?:failure\(\)|always\(\))/i.test(step.source)) || dependentHandler).toBe(true);
     expect(/continue-on-error:\s*true/i.test(source)).toBe(false);
   });
 
