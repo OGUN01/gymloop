@@ -2,7 +2,8 @@
 
 import { ArrowLeft, ChevronRight, Settings, X } from 'lucide-react';
 import { UI_TOKENS } from '@gymloop/shared';
-import { useState } from 'react';
+import { useTheme } from 'next-themes';
+import { useEffect, useState } from 'react';
 import { ThemeControl } from '../theme-provider';
 
 type Profile = { full_name: string; email: string | null; phone: string | null; member_code: string | null; gymName: string; gymCode: string };
@@ -10,6 +11,10 @@ type Profile = { full_name: string; email: string | null; phone: string | null; 
 export default function YouSettings({ profile, membershipSummary }: { profile: Profile; membershipSummary: string }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
+  const { theme } = useTheme();
+  useEffect(() => { setHasMounted(true); }, []);
+  const appearanceSummary = !hasMounted ? 'Loading appearance' : theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System';
   const contactSummary = profile.email ?? profile.phone ?? 'Available after sign-in';
   const gymSummary = `${profile.gymName} · ${profile.gymCode}`;
   const openAppearance = () => { setAppearanceOpen(true); setSettingsOpen(true); };
@@ -19,11 +24,11 @@ export default function YouSettings({ profile, membershipSummary }: { profile: P
       <li aria-label={`Personal details, ${contactSummary}`}><strong>Personal details</strong><small>{contactSummary}</small></li>
       <li aria-label={`Membership, ${membershipSummary}`}><strong>Membership</strong><small>{membershipSummary}</small></li>
       <li aria-label={`Gym, ${gymSummary}`}><strong>Gym</strong><small>{gymSummary}</small></li>
-      <li aria-label="Appearance, System, light, or dark"><button type="button" onClick={openAppearance}><span><strong>Appearance</strong><small>System, light, or dark</small></span><ChevronRight aria-hidden="true" size={UI_TOKENS.icons.controlSize} /></button></li>
+      <li aria-label={`Appearance, ${appearanceSummary}`}><button type="button" onClick={openAppearance}><span><strong>Appearance</strong><small>{appearanceSummary}</small></span><ChevronRight aria-hidden="true" size={UI_TOKENS.icons.controlSize} /></button></li>
     </ul>
     {settingsOpen ? <div className="member-sheet-backdrop" role="presentation" onClick={() => setSettingsOpen(false)}><section className="member-settings-sheet" role="dialog" aria-modal="true" aria-labelledby="member-settings-title" onClick={(event) => event.stopPropagation()}>
       <header><button type="button" aria-label="Close settings" className="member-sheet-icon" onClick={() => setSettingsOpen(false)}><X aria-hidden="true" size={UI_TOKENS.icons.controlSize} /></button><h2 id="member-settings-title">Settings</h2><span /></header>
-      {appearanceOpen ? <><button type="button" className="member-sheet-back" onClick={() => setAppearanceOpen(false)}><ArrowLeft aria-hidden="true" size={UI_TOKENS.icons.controlSize} />Appearance</button><div className="member-sheet-section"><p>Choose how Gymloop looks on this device.</p><ThemeControl /></div></> : <div className="member-sheet-list"><button type="button" onClick={() => setAppearanceOpen(true)}><span><strong>Appearance</strong><small>System, light, or dark</small></span><ChevronRight aria-hidden="true" size={UI_TOKENS.icons.controlSize} /></button></div>}
+      {appearanceOpen ? <><button type="button" className="member-sheet-back" onClick={() => setAppearanceOpen(false)}><ArrowLeft aria-hidden="true" size={UI_TOKENS.icons.controlSize} />Appearance</button><div className="member-sheet-section"><p>Choose how Gymloop looks on this device.</p><ThemeControl /></div></> : <div className="member-sheet-list"><button type="button" onClick={() => setAppearanceOpen(true)}><span><strong>Appearance</strong><small>{appearanceSummary}</small></span><ChevronRight aria-hidden="true" size={UI_TOKENS.icons.controlSize} /></button></div>}
     </section></div> : null}
   </>;
 }
