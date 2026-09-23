@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 const approvedCron = '*/5 * * * *'
 const dispatchToken = 'HOLDOUT_PRIVATE_DISPATCH_TOKEN_X'
 const dispatchPath = '/repos/OGUN01/gymloop/actions/workflows/phase8-production-monitor.yml/dispatches'
+const watchdogPath = /^\/repos\/OGUN01\/gymloop\/actions\/workflows\/[^/]*watchdog[^/]*\/dispatches$/
 
 type ScheduledWorker = {
   scheduled: (event: { cron: string }, env: { GITHUB_ACTIONS_DISPATCH_TOKEN?: string }) => Promise<unknown>
@@ -23,12 +24,14 @@ function captureLogs() {
   return () => JSON.stringify(records)
 }
 
-function captureFetch(response: Response | Error) {
+function captureFetch(response: Response | Error | ((request: Request) => Response | Error)) {
   const requests: Request[] = []
   const fake = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    requests.push(new Request(input, init))
-    if (response instanceof Error) throw response
-    return response
+    const request = new Request(input, init)
+    requests.push(request)
+    const outcome = typeof response === 'function' ? response(request) : response
+    if (outcome instanceof Error) throw outcome
+    return outcome
   })
   vi.stubGlobal('fetch', fake)
   return { fake, requests }
@@ -84,7 +87,7 @@ describe('HARD-005 independent Cron dispatch holdout', () => {
     expect(/\bworkflow_dispatch:/.test(raw)).toBe(true)
   })
 
-  it('exports only a scheduled handler and dispatches exactly the production monitor on main', async () => {
+  it('exports only a scheduled handler and dispatches both production workflows on main', async () => {
     const worker = await loadWorker()
     expect(typeof worker.scheduled).toBe('function')
     expect(Object.hasOwn(worker, 'fetch')).toBe(false)
@@ -92,21 +95,29 @@ describe('HARD-005 independent Cron dispatch holdout', () => {
 
     await worker.scheduled({ cron: approvedCron }, { GITHUB_ACTIONS_DISPATCH_TOKEN: dispatchToken })
 
-    expect(fake).toHaveBeenCalledTimes(1)
-    expect(requests).toHaveLength(1)
-    const request = requests[0]
-    const url = new URL(request.url)
-    expect(url.origin).toBe('https://api.github.com')
-    expect(url.pathname).toBe(dispatchPath)
-    expect(url.search).toBe('')
-    expect(request.method).toBe('POST')
-    expect(request.headers.get('authorization')).toBe(`Bearer ${dispatchToken}`)
-    const body = JSON.parse(await request.text()) as { ref?: unknown; inputs?: Record<string, unknown> }
-    expect(Object.keys(body).sort()).toEqual(['inputs', 'ref'])
-    expect(body.ref).toBe('main')
-    expect(Object.keys(body.inputs ?? {})).toEqual(['force_test_alert'])
-    expect(String(body.inputs?.force_test_alert)).toBe('false')
-    expect(request.url).not.toContain(dispatchToken)
+    expect(fake).toHaveBeenCalledTimes(2)
+    expect(requests).toHaveLength(2)
+    const paths = requests.map((request) => new URL(request.url).pathname)
+    expect(paths).toContain(dispatchPath)
+    expect(paths.some((path) => watchdogPath.test(path))).toBe(true)
+    for (const request of requests) {
+      const url = new URL(request.url)
+      expect(url.origin).toBe('https://api.github.com')
+      expect(url.search).toBe('')
+      expect(request.method).toBe('POST')
+      expect(request.headers.get('authorization')).toBe(`Bearer ${dispatchToken}`)
+      const body = JSON.parse(await request.text()) as { ref?: unknown; inputs?: Record<string, unknown> }
+      expect(Object.keys(body).sort()).toEqual(['inputs', 'ref'])
+      expect(body.ref).toBe('main')
+      if (url.pathname === dispatchPath) {
+        expect(Object.keys(body.inputs ?? {})).toEqual(['force_test_alert'])
+        expect(String(body.inputs?.force_test_alert)).toBe('false')
+      } else {
+        expect(Object.keys(body.inputs ?? {})).toEqual(['force_test_missing'])
+        expect(String(body.inputs?.force_test_missing)).toBe('false')
+      }
+      expect(request.url).not.toContain(dispatchToken)
+    }
   })
 
   it.each(['* * * * *', '*/10 * * * *', '', '0 */5 * * *'])('refuses unapproved Cron event %s without dispatch', async (cron) => {
@@ -133,7 +144,7 @@ describe('HARD-005 independent Cron dispatch holdout', () => {
     } catch (caught) {
       error = caught
     }
-    expect(fake).toHaveBeenCalledTimes(1)
+    expect(fake).toHaveBeenCalledTimes(2)
     expect(error).toBeInstanceOf(Error)
     const exposed = `${String(error)} ${logs()}`
     expect(logs().length).toBeGreaterThan(2)
@@ -152,11 +163,25 @@ describe('HARD-005 independent Cron dispatch holdout', () => {
     } catch (caught) {
       error = caught
     }
-    expect(fake).toHaveBeenCalledTimes(1)
+    expect(fake).toHaveBeenCalledTimes(2)
     expect(error).toBeInstanceOf(Error)
     const exposed = `${String(error)} ${logs()}`
     expect(logs().length).toBeGreaterThan(2)
     expect(exposed).not.toContain(dispatchToken)
     expect(exposed).not.toContain('HOLDOUT_PRIVATE_NETWORK_X')
+  })
+
+  it.each(['monitor', 'watchdog'])('attempts both dispatches when the %s request fails', async (failed) => {
+    const worker = await loadWorker()
+    const { requests } = captureFetch((request) => {
+      const path = new URL(request.url).pathname
+      const isMonitor = path === dispatchPath
+      return new Response(null, { status: (failed === 'monitor') === isMonitor ? 500 : 204 })
+    })
+    await expect(worker.scheduled({ cron: approvedCron }, { GITHUB_ACTIONS_DISPATCH_TOKEN: dispatchToken })).rejects.toThrow()
+    expect(requests).toHaveLength(2)
+    const paths = requests.map((request) => new URL(request.url).pathname)
+    expect(paths).toContain(dispatchPath)
+    expect(paths.some((path) => watchdogPath.test(path))).toBe(true)
   })
 })
