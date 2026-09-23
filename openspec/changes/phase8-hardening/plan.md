@@ -587,6 +587,22 @@ protected logical backup export still require real evidence, and any later
 general release or paid-plan restoration claim requires a real Cloud Supabase
 operation and validation.
 
+The owner approved `gymloop-backups`, a private R2 bucket separate from media,
+as the encrypted off-project archive for the Free-plan pilot (ADR-164). When a
+manual or scheduled backup runs, it shall positively identify the source as
+linked Cloud project `pecxrpskmfeuyzngvewq`, capture roles, schema, data and
+migration history with the official Supabase CLI, and record capture time and
+source hashes. Before any SQL leaves the ephemeral runner, the archive shall
+be encrypted with integrity protection; the key and bucket-scoped writer
+credential shall live in separate GitHub Actions secrets, and only ciphertext
+may be uploaded or kept as an artifact. When upload completes, the runner
+shall retrieve the exact object, decrypt it, compare the restored archive hash
+and record the R2 object identity, size, ciphertext hash and verification
+result without emitting data or credentials. A missing part, failed retrieval,
+hash mismatch, unexpected project, or export failure shall fail the workflow.
+The runbook shall name the backup owner and cadence. This proves a protected
+export and read-back, not a database restore; gate 29 remains unperformed.
+
 ### HARD-008 — production AAB and physical-device smoke proof
 
 When Android production readiness is assessed, a production-configured signed
