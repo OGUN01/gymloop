@@ -9,7 +9,11 @@ provider restore/PITR drill from the five-gym pilot GO decision because the
 current Free project does not include that control. This does not pass gate 29
 or prove recoverability. Before customer data, the protected logical backup
 export described below still needs a current verified artifact, custody and cadence.
-Any future drill uses a distinct Cloud Supabase target under ADR-158.
+The owner subsequently directed the restore exercise to the later VPS
+migration (ADR-168). Do not provision a separate Cloud Supabase project or run
+a restore for this controlled pilot. The distinct Cloud target steps below are
+the historical ADR-158 procedure, not the active pilot plan; the VPS recovery
+target and restore method must be reviewed before that later exercise.
 
 Backup owner: production owner. Cadence: daily at 00:43 UTC and after material
 schema or Auth changes. The dedicated bucket-scoped writer reaches only the
