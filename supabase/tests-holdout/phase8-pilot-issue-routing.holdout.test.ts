@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { reconcileMonitorFailure } from '../../scripts/phase8-monitor-failure.mjs';
 
 const workflows = [
   '.github/workflows/phase8-production-monitor.yml',
@@ -71,7 +72,12 @@ function dependentFailureJobs(workflow: string) {
 describe.each(workflows)('%s pilot issue routing', (workflow) => {
   it('has an issue-writing monitor job and a dependent failure handler', () => {
     expect(issueJobs(workflow).length).toBeGreaterThanOrEqual(1);
-    expect(dependentFailureJobs(workflow).length).toBeGreaterThanOrEqual(1);
+    const failureHandlers = dependentFailureJobs(workflow);
+    expect(failureHandlers.length).toBeGreaterThanOrEqual(1);
+    for (const job of failureHandlers) {
+      expect(job.source, `${workflow}: ${job.id} must invoke the shared failure handler`)
+        .toContain('scripts/phase8-monitor-failure.mjs');
+    }
   });
 
   it('assigns the exact OGUN01 account on every issue create and update path', () => {
@@ -125,13 +131,64 @@ describe.each(workflows)('%s pilot issue routing', (workflow) => {
           .not.toMatch(/\|\|\s*true\b/);
       }
     }
-    const failureHandlers = dependentFailureJobs(workflow);
-    expect(failureHandlers.length).toBeGreaterThanOrEqual(1);
-    for (const job of failureHandlers) {
-      expect(job.source, `${workflow}: ${job.id} must assign its own issue to OGUN01`)
-        .toMatch(/--(?:add-)?assignee(?:=|\s+)["']?OGUN01\b|\bassignees\s*:\s*\[?\s*['"`]OGUN01['"`]/);
-      expect(job.source, `${workflow}: ${job.id} must fail when assignment fails`)
-        .not.toMatch(/continue-on-error\s*:\s*true|\|\|\s*true\b/i);
+  });
+});
+
+type StoredIssue = {
+  number?: number;
+  labels?: string[];
+  assignees?: string[];
+  assignee?: string;
+};
+
+function hasExactAssignee(issue: StoredIssue) {
+  return issue.assignee === 'OGUN01' || issue.assignees?.includes('OGUN01') === true;
+}
+
+describe.each(['production', 'test'] as const)('shared %s failure handler', (mode) => {
+  it.each(['create', 'update'] as const)('%s assigns OGUN01 and keeps TEST labels separate', async (operation) => {
+    let stored: StoredIssue | null = operation === 'update'
+      ? { number: 42, labels: [mode === 'test' ? 'phase8-monitor-test' : 'production-alert'], assignees: ['someone-else'] }
+      : null;
+    let writeCount = 0;
+    const issueStore = {
+      findOpen: async (_labels: string[]) => stored,
+      create: async (issue: StoredIssue) => {
+        writeCount += 1;
+        stored = { ...issue, number: 42 };
+        return stored;
+      },
+      update: async (number: number, issue: StoredIssue) => {
+        writeCount += 1;
+        stored = { ...stored, ...issue, number };
+        return stored;
+      },
+    };
+
+    await reconcileMonitorFailure({ mode, repository: 'OGUN01/gymloop', runId: '12345', issueStore });
+
+    expect(writeCount).toBe(1);
+    expect(stored).not.toBeNull();
+    expect(hasExactAssignee(stored!)).toBe(true);
+    if (mode === 'test') {
+      expect(stored!.labels).toContain('phase8-monitor-test');
+      expect(stored!.labels).not.toContain('production-alert');
     }
+  });
+
+  it.each(['create', 'update'] as const)('%s propagates assignment failure', async (operation) => {
+    const assignmentError = new Error('assignment refused');
+    const issueStore = {
+      findOpen: async (_labels: string[]) => operation === 'update' ? { number: 42 } : null,
+      create: async (_issue: StoredIssue) => { throw assignmentError; },
+      update: async (_number: number, _issue: StoredIssue) => { throw assignmentError; },
+    };
+
+    await expect(reconcileMonitorFailure({
+      mode,
+      repository: 'OGUN01/gymloop',
+      runId: '12345',
+      issueStore,
+    })).rejects.toThrow('assignment refused');
   });
 });
