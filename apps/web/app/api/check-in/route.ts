@@ -20,7 +20,7 @@ type StaffFrontDeskRpc = {
   rpc(name: 'record_staff_front_desk_check_in', args: {
     p_member_id: string; p_reason: string; p_client_event_id: string | null;
   }): {
-    maybeSingle(): Promise<{ data: StaffFrontDeskRecord | null; error: { code: string } | null }>;
+    maybeSingle(): Promise<{ data: StaffFrontDeskRecord | null; error: { code: string } | null; status: number }>;
   };
 };
 type StaffReplayRecord = {
@@ -76,9 +76,10 @@ export async function POST(request: Request): Promise<Response> {
     const command = { p_member_id: memberId, p_reason: reason, p_client_event_id: clientEventId ?? null };
     let result = await (supabase as unknown as StaffFrontDeskRpc)
       .rpc('record_staff_front_desk_check_in', command).maybeSingle();
-    // PostgREST's pool-acquisition timeout happens before the SQL command.
-    // An event ID also makes the single retry safe if a concurrent writer won.
-    if (result.error?.code === 'PGRST003' && clientEventId !== undefined) {
+    // Status zero can hide a committed write if its response was lost. The
+    // unchanged event ID and same-member replay guard make one retry safe.
+    if (clientEventId !== undefined && (result.error?.code === 'PGRST003' ||
+        (result.status === 0 && result.error?.code === ''))) {
       result = await (supabase as unknown as StaffFrontDeskRpc)
         .rpc('record_staff_front_desk_check_in', command).maybeSingle();
     }
