@@ -25,7 +25,10 @@ async function signIn(page: import('@playwright/test').Page, email: string) {
   await page.getByText('Use email instead', { exact: true }).click();
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(demoPassword ?? '');
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await Promise.all([
+    page.waitForURL((url) => url.pathname !== '/sign-in'),
+    page.getByRole('button', { name: 'Sign in' }).click(),
+  ]);
 }
 
 async function assertEnglishAndResponsive(page: import('@playwright/test').Page, width: number, height: number, allowMessageTemplateLocale = false) {
@@ -213,6 +216,26 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
 });
 
 test.describe('HARD-010 member You hierarchy', () => {
+  test('web You and Settings summarize the current appearance value', async ({ page }) => {
+    await signIn(page, accounts.member.email);
+    await expect(page).toHaveURL(/\/member(?:[?#]|$)/);
+    await page.goto('/member/you');
+
+    const accountAppearance = page.getByRole('list', { name: /account/i })
+      .getByRole('listitem')
+      .filter({ hasText: 'Appearance' })
+      .locator('a, button');
+    await expect.soft(accountAppearance).toHaveAccessibleName(/^Appearance,?\s+System$/i);
+    await expect.soft(accountAppearance).not.toHaveAccessibleName(/Light|Dark/i);
+
+    await page.getByRole('button', { name: 'Open settings' }).click();
+    const settings = page.getByRole('dialog', { name: /settings/i });
+    await expect(settings).toBeVisible();
+    const settingsAppearance = settings.getByRole('button', { name: /appearance/i });
+    await expect.soft(settingsAppearance).toHaveAccessibleName(/^Appearance,?\s+System$/i);
+    await expect.soft(settingsAppearance).not.toHaveAccessibleName(/Light|Dark/i);
+  });
+
   test('web presents the accepted account hierarchy without narrow contact overflow', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await signIn(page, accounts.member.email);
