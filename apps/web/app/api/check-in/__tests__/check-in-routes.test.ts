@@ -266,6 +266,55 @@ describe('the same client event submitted twice', () => {
   });
 });
 
+describe('a temporary Cloud Data API pool timeout', () => {
+  const request = { memberId: MEMBER_ID, reason: 'Helped at the desk', clientEventId: EVENT_ID };
+
+  it('retries the same event exactly once and acknowledges the recorded visit', async () => {
+    state.rpcResults = [fails('PGRST003'), ok(ASSISTED_RECORDED)];
+
+    const response = await checkIn(post(request));
+
+    expect(response.status).toBe(200);
+    expect((await envelope(response)).data).toMatchObject({ replay: false, id: RECORDED.id });
+    expect(state.rpcCalls).toHaveLength(2);
+    expect(state.rpcCalls[0]).toEqual(state.rpcCalls[1]);
+    expect(state.from).toEqual([]);
+  });
+
+  it('resolves a concurrent same-event write through the existing replay boundary', async () => {
+    state.rpcResults = [fails('PGRST003'), fails('23505')];
+    state.results = [ok(REPLAYED_ATTENDANCE)];
+
+    const response = await checkIn(post(request));
+
+    expect(response.status).toBe(200);
+    expect((await envelope(response)).data).toMatchObject({ replay: true, id: RECORDED.id });
+    expect(state.rpcCalls).toHaveLength(2);
+    expect(state.rpcCalls[0]).toEqual(state.rpcCalls[1]);
+    expect(state.from).toEqual(['attendance']);
+  });
+
+  it('does not retry without an event ID or after a second pool timeout', async () => {
+    state.rpcResults = [fails('PGRST003')];
+    const noId = await checkIn(post({ memberId: MEMBER_ID, reason: 'At the desk' }));
+    expect(noId.status).toBe(500);
+    expect(state.rpcCalls).toHaveLength(1);
+
+    state.rpcCalls = [];
+    state.rpcResults = [fails('PGRST003'), fails('PGRST003')];
+    const exhausted = await checkIn(post(request));
+    expect(exhausted.status).toBe(500);
+    expect(state.rpcCalls).toHaveLength(2);
+  });
+
+  it('never retries an ordinary duplicate-window refusal', async () => {
+    state.rpcResults = [fails('GL014')];
+    const response = await checkIn(post(request));
+    expect(response.status).toBe(409);
+    expect(state.rpcCalls).toHaveLength(1);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 2. Refusal mapping — five refusals that must not collapse into one.
 // ---------------------------------------------------------------------------
