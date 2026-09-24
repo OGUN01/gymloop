@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
  * letting it scroll its own options.
  */
 export function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <label className="block min-w-0 text-sm font-medium"><span className="mb-1 block">{label}</span>{children}</label>;
+  return <label className="cl-field"><span>{label}</span>{children}</label>;
 }
 
 /**
@@ -18,5 +18,5 @@ export function Field({ label, children }: { label: string; children: ReactNode 
  * `bg-white` matters: the select it dresses sits on a tinted card, and the
  * browser's default select background reads as a disabled control.
  */
-export const inputClass = 'min-h-11 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base';
+export const inputClass = 'cl-input';
 
