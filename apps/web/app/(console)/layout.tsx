@@ -1,3 +1,8 @@
+import '../styles/desk.css';
+import '../styles/money.css';
+import '../styles/leads.css';
+import '../styles/addons.css';
+import '../styles/comms.css';
 import type { ReactNode } from 'react';
 import { requireAudience } from '../../lib/identity-session';
 import { identityHome } from '../../lib/identity';

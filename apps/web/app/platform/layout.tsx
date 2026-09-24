@@ -1,3 +1,4 @@
+import '../styles/platform.css';
 import type { ReactNode } from 'react';
 import { requireAudience } from '../../lib/identity-session';
 import { identityHome } from '../../lib/identity';

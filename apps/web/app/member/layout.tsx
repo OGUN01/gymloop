@@ -1,3 +1,5 @@
+import '../styles/member.css';
+import '../styles/addons.css';
 import type { ReactNode } from 'react';
 import { requireAudience } from '../../lib/identity-session';
 import { MemberNavigation } from './member-navigation';
