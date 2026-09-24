@@ -796,7 +796,15 @@ Visual system: `docs/design/phase9/direction.md`. Tokens stay in `UI_TOKENS` (no
 | `memberGymName` | `apps/web/app/member/member-ui.tsx` | Gym name without its " — branch" suffix, as members say it | member Home, My gym, Check in |
 | `memberGreeting` | `apps/web/app/member/member-ui.tsx` | Morning/afternoon/evening greeting in the gym timezone using `GREETING_HOURS` | member Home |
 | `memberShortDate` | `apps/web/app/member/member-ui.tsx` | Calendar date as "12 Oct" | member Home, My gym |
-| `MembershipStatus` | `apps/web/app/member/member-ui.tsx` | Membership status as a dot-and-word (UX9-003), never the raw enum | member Home, My gym |
+| `StatusWord` | `apps/web/app/status-word.tsx` | Any status vocabulary value as a dot and sentence-case word (UX9-003), tone chosen from the value; `data-status` keeps the raw value as a styling/test hook | member Home, My gym, console rosters, payments, leads, platform |
 | `MemberWeekRhythm` | `apps/web/app/member/member-ui.tsx` | Truthful last-seven-days attendance dots, clay (Home) or ink (Activity) | member Home, Activity |
 | `GREETING_HOURS` | `packages/shared/src/config/constants.ts` | Local hours at which the member greeting turns afternoon (12) and evening (17) | `memberGreeting` |
 | `AVATAR_INITIALS_MAX` | `packages/shared/src/config/constants.ts` | Number of name initials an avatar shows (2) | member You (web, Android), desk rosters |
+| `FONT` | `apps/mobile/components/ui.tsx` | Chalkline native font roles: Archivo 400–700 and the bundled ExtraCondensed display cuts (`assets/fonts`, OFL) registered in `MobileProvider` | every native screen |
+| `Display` | `apps/mobile/components/ui.tsx` | Condensed display figure — hero week count, metric or section heading | member Home, Activity |
+| `Rule` | `apps/mobile/components/ui.tsx` | Hairline divider in the separator colour | member screens |
+| `Row` | `apps/mobile/components/ui.tsx` | Ledger row (icon, title, meta, trailing); a chevron appears only when the row navigates | member and desk screens |
+| `Status` | `apps/mobile/components/ui.tsx` | Dot-and-word status (UX9-003) | member and desk screens |
+| `Initials` | `apps/mobile/components/ui.tsx` | Up to `AVATAR_INITIALS_MAX` initials in a quiet circle for roster rows | desk Check-in, Members, Follow-ups |
+| `statusWord` | `apps/mobile/components/ui.tsx` | Vocabulary value as a sentence-case word, never the raw enum | member and desk screens |
+| `statusTone` | `apps/mobile/components/ui.tsx` | Status dot tone for membership, payment, order and member vocabularies | member and desk screens |

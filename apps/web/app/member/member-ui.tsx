@@ -20,12 +20,6 @@ export function memberShortDate(isoDate: string): string {
   return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${isoDate}T12:00:00Z`));
 }
 
-/** Membership status as a Chalkline dot-and-word (UX9-003); never the raw enum. */
-export function MembershipStatus({ status }: { status: string }) {
-  const tone = status === 'active' ? 'ok' : status === 'paused' || status === 'pending' ? 'warn' : 'risk';
-  const word = status.replaceAll('_', ' ');
-  return <span className="cl-status" data-tone={tone}>{word.charAt(0).toUpperCase()}{word.slice(1)}</span>;
-}
 
 /** The truthful last-seven-days attendance row, shared by Home and Activity. */
 export function MemberWeekRhythm({ visits, timezone, tone = 'accent' }: { visits: readonly Visit[]; timezone: string; tone?: 'accent' | 'ink' }): ReactNode {

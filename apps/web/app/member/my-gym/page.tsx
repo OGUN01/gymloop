@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { CalendarDays, ChevronRight, CreditCard, Dumbbell, MessageSquareMore, ScanLine } from 'lucide-react';
 import { UI_TOKENS } from '@gymloop/shared';
+import { StatusWord } from '../../status-word';
 import { loadMemberPortal } from '../../../lib/member-portal';
-import { MembershipStatus, memberGymName, memberShortDate } from '../member-ui';
+import { memberGymName, memberShortDate } from '../member-ui';
 
 const icon = { 'aria-hidden': true, size: UI_TOKENS.icons.navigationSize, strokeWidth: UI_TOKENS.icons.strokeWidth } as const;
 
@@ -20,7 +21,7 @@ export default async function MemberGymPage() {
     <ul className="member-destination-list" aria-label="My gym details">
       <li className="member-summary-row member-summary-row--static">
         <CreditCard {...icon} />
-        <span><strong>Membership &amp; receipts</strong><small>{portal.membership ? <>{portal.membership.planName}{portal.membership.endsOn ? ` · ends ${memberShortDate(portal.membership.endsOn)}` : ''}</> : 'No membership is visible.'}</small>{portal.membership ? <MembershipStatus status={portal.membership.status} /> : null}</span>
+        <span><strong>Membership &amp; receipts</strong><small>{portal.membership ? <>{portal.membership.planName}{portal.membership.endsOn ? ` · ends ${memberShortDate(portal.membership.endsOn)}` : ''}</> : 'No membership is visible.'}</small>{portal.membership ? <StatusWord status={portal.membership.status} /> : null}</span>
       </li>
       <li><Link className="member-summary-row" href="/member/messages">
         <MessageSquareMore {...icon} />

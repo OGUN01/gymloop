@@ -1,6 +1,8 @@
 import { createApiClient, type ApiClient, type ApiFetch } from '@gymloop/api-client';
 import { mobileClientEnv, type GymloopIdentity, UI_TOKENS } from '@gymloop/shared';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, useFonts } from '@expo-google-fonts/inter';
+import { Archivo_400Regular, Archivo_500Medium, Archivo_600SemiBold, Archivo_700Bold, useFonts } from '@expo-google-fonts/archivo';
+import archivoDisplay from '../assets/fonts/ArchivoExtraCondensed-ExtraBold.ttf';
+import archivoDisplayBold from '../assets/fonts/ArchivoExtraCondensed-Bold.ttf';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@gymloop/db';
 import * as SecureStore from 'expo-secure-store';
@@ -53,7 +55,8 @@ export function MobileProvider({ children }: { children: ReactNode }) {
   const [sessionReady, setSessionReady] = useState(false);
   const previousScope = useRef<string | null | undefined>(undefined);
   const [fontsLoaded] = useFonts({
-    Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold,
+    Archivo_400Regular, Archivo_500Medium, Archivo_600SemiBold, Archivo_700Bold,
+    ArchivoDisplay: archivoDisplay, ArchivoDisplayBold: archivoDisplayBold,
   });
 
   const resolve = useCallback(async (nextSession: Session | null) => {

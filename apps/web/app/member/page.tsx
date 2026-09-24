@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { ChevronRight, CreditCard, MessageSquareMore, ScanLine } from 'lucide-react';
 import { UI_TOKENS } from '@gymloop/shared';
+import { StatusWord } from '../status-word';
 import { loadMemberPortal } from '../../lib/member-portal';
-import { MemberWeekRhythm, MembershipStatus, memberGreeting, memberGymName, memberShortDate } from './member-ui';
+import { MemberWeekRhythm, memberGreeting, memberGymName, memberShortDate } from './member-ui';
 
 const icon = { 'aria-hidden': true, size: UI_TOKENS.icons.navigationSize, strokeWidth: UI_TOKENS.icons.strokeWidth } as const;
 
@@ -24,7 +25,7 @@ export default async function MemberHomePage() {
     </section>
     <Link className="member-summary-row" href="/member/my-gym">
       <CreditCard {...icon} />
-      <span><small>Membership</small><strong>{portal.membership ? <>{portal.membership.planName}{portal.membership.endsOn ? ` · ends ${memberShortDate(portal.membership.endsOn)}` : ''}</> : 'No membership is visible'}</strong>{portal.membership ? <MembershipStatus status={portal.membership.status} /> : null}</span>
+      <span><small>Membership</small><strong>{portal.membership ? <>{portal.membership.planName}{portal.membership.endsOn ? ` · ends ${memberShortDate(portal.membership.endsOn)}` : ''}</> : 'No membership is visible'}</strong>{portal.membership ? <StatusWord status={portal.membership.status} /> : null}</span>
       <ChevronRight {...icon} />
     </Link>
     {portal.latestMessage ? <section aria-labelledby="latest-heading">

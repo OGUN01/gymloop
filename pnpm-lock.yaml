@@ -160,7 +160,7 @@ importers:
 
   apps/mobile:
     dependencies:
-      '@expo-google-fonts/inter':
+      '@expo-google-fonts/archivo':
         specifier: 0.4.2
         version: 0.4.2
       '@gymloop/api-client':
@@ -873,8 +873,8 @@ packages:
     resolution: {integrity: sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
-  '@expo-google-fonts/inter@0.4.2':
-    resolution: {integrity: sha512-syfiImMaDmq7cFi0of+waE2M4uSCyd16zgyWxdPOY7fN2VBmSLKEzkfbZgeOjJq61kSqPBNNtXjggiQiSD6gMQ==}
+  '@expo-google-fonts/archivo@0.4.2':
+    resolution: {integrity: sha512-FLhI4/ZVIFSHHxx15Z7Rr4QX/4ZrJozEebBEFSdHSRRwULGCuSIpbb3dz56Hslux6LZEnJ1mVpZ6CyVpUzLwIg==}
 
   '@expo-google-fonts/material-symbols@0.4.48':
     resolution: {integrity: sha512-aZztj44PyA/sj3TXSwwpLJwqMlTUJ49okbZJYURzEcuERxMQB0KbX7RrLBi8WJnuWz5HFOLlTRxORrJfNnUPNQ==}
@@ -5757,7 +5757,7 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
-  '@expo-google-fonts/inter@0.4.2': {}
+  '@expo-google-fonts/archivo@0.4.2': {}
 
   '@expo-google-fonts/material-symbols@0.4.48': {}
 

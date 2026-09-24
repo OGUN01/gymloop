@@ -1,33 +1,68 @@
 import { useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
-import { UI_TOKENS } from '@gymloop/shared';
-import { Dumbbell } from 'lucide-react-native';
-import { Image, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { PRODUCT_NAME, UI_TOKENS } from '@gymloop/shared';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { Redirect } from 'expo-router';
-import { ActionButton, Body, Eyebrow, Field, StateMessage, Title } from '../components/ui';
+import { ActionButton, Body, FONT, Field, StateMessage, Title } from '../components/ui';
 import { useMobile } from '../lib/mobile-context';
 import { signInWithGoogleMobile } from '../lib/native-session';
-import authGymArrival from '../assets/auth-gym-arrival-v1.png';
+import gymMorningFloor from '../assets/gym-morning-floor.jpg';
+
+/** Google's four-colour "G", required on a Google sign-in button. */
+function GoogleGlyph() {
+  const size = UI_TOKENS.icons.navigationSize;
+  return <Svg width={size} height={size} viewBox="0 0 48 48" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <Path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.7 17.8 9.5 24 9.5z" />
+    <Path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 2.9-2.2 5.4-4.7 7.1l7.6 5.9c4.4-4.1 6.9-10.1 6.9-17.5z" />
+    <Path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z" />
+    <Path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.2 0-11.5-4.2-13.4-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z" />
+  </Svg>;
+}
+
 export default function SignIn() {
-  const { width } = useWindowDimensions();
   const { identity, ready, supabase, palette } = useMobile();
   const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false); const [message, setMessage] = useState<string | null>(null); const [emailOpen, setEmailOpen] = useState(false);
   if (ready && identity.kind !== 'unlinked') return <Redirect href="/" />;
-  const submit = async () => { setPending(true); setMessage(null); const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password }); setPending(false); if (error) setMessage('Those sign-in details did not work.'); };
+  const submit = async () => { setPending(true); setMessage(null); const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password }); setPending(false); if (error) setMessage('Those details did not match. Check the email and password and try again.'); };
   const google = async () => { setPending(true); setMessage(null); const result = await signInWithGoogleMobile({ supabase, openBrowser: WebBrowser.openAuthSessionAsync }); setPending(false); if (!result.ok) setMessage('Google sign-in could not be completed.'); };
-  return <View style={[styles.screen, { backgroundColor: palette.canvas }]}><View style={styles.boundedContent}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><View style={[styles.hero, { backgroundColor: palette.elevatedSurface }]}><Image source={authGymArrival} resizeMode="contain" style={[styles.heroImage, { width: width - UI_TOKENS.geometry.layout.mobileInset - UI_TOKENS.geometry.layout.mobileInset }]} accessibilityLabel="A member arriving at a modern gym" /></View><View style={styles.brand}><View style={[styles.brandMark, { backgroundColor: palette.elevatedSurface }]}><Dumbbell color={palette.primaryAction} size={UI_TOKENS.icons.navigationSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></View><Text style={[styles.brandName, { color: palette.primaryText }]}>Gymloop</Text></View><Title>Welcome back</Title><Body muted>Your gym, always with you.</Body><ActionButton accessibilityLabel="Continue with Google" disabled={pending} onPress={() => void google()}>G  Continue with Google</ActionButton><View style={styles.divider}><View style={[styles.line, { backgroundColor: palette.decorativeSeparator }]} /><Eyebrow>OR</Eyebrow><View style={[styles.line, { backgroundColor: palette.decorativeSeparator }]} /></View><ActionButton secondary disabled={pending} onPress={() => setEmailOpen((open) => !open)}>{emailOpen ? 'Hide email sign-in' : 'Use email instead'}</ActionButton>{message && <StateMessage tone="error">{message}</StateMessage>}{emailOpen && <><Field accessibilityLabel="Email" autoCapitalize="none" keyboardType="email-address" placeholder="Email" value={email} onChangeText={setEmail} /><Field accessibilityLabel="Password" secureTextEntry placeholder="Password" value={password} onChangeText={setPassword} /><ActionButton disabled={pending || email.trim() === '' || password === ''} onPress={() => void submit()}>{pending ? 'Signing in…' : 'Sign in'}</ActionButton></>}<Body muted>Use the account linked to your gym.</Body></ScrollView></View></View>;
+  return <View style={[styles.screen, { backgroundColor: palette.canvas }]}>
+    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <Image source={gymMorningFloor} resizeMode="cover" style={styles.hero} accessibilityIgnoresInvertColors accessible={false} />
+      <View style={styles.bounded}>
+        <Text style={[styles.wordmark, { color: palette.primaryText }]}>{PRODUCT_NAME.toUpperCase()}</Text>
+        <Title>Sign in</Title>
+        <Body muted>Use the account your gym linked to you.</Body>
+        {message && <StateMessage tone="error">{message}</StateMessage>}
+        <Pressable accessibilityRole="button" accessibilityLabel="Continue with Google" disabled={pending} onPress={() => void google()} style={({ pressed }) => [styles.provider, { backgroundColor: palette.surface, borderColor: palette.requiredControlOutline }, pressed && styles.pressed]}>
+          <GoogleGlyph /><Text style={[styles.providerText, { color: palette.primaryText }]}>Continue with Google</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: emailOpen }} disabled={pending} onPress={() => setEmailOpen((open) => !open)} style={styles.emailToggle}>
+          <Text style={[styles.emailToggleText, { color: palette.primaryAction }]}>{emailOpen ? 'Hide email sign-in' : 'Use email instead'}</Text>
+        </Pressable>
+        {emailOpen && <>
+          <Field accessibilityLabel="Email" autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder="Email" value={email} onChangeText={setEmail} />
+          <Field accessibilityLabel="Password" autoComplete="password" secureTextEntry placeholder="Password" value={password} onChangeText={setPassword} />
+          <ActionButton disabled={pending || email.trim() === '' || password === ''} onPress={() => void submit()}>{pending ? 'Signing in…' : 'Sign in'}</ActionButton>
+        </>}
+        <View style={[styles.help, { borderColor: palette.decorativeSeparator }]}><Body muted>Need access? Ask your gym&rsquo;s front desk.</Body></View>
+      </View>
+    </ScrollView>
+  </View>;
 }
 
+const space = UI_TOKENS.geometry.spacing;
 const styles = StyleSheet.create({
-  screen: { flex: 1, justifyContent: 'center', paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset },
-  boundedContent: { maxHeight: UI_TOKENS.geometry.media.mobileAuthContentMaxHeight },
-  content: { gap: UI_TOKENS.geometry.spacing[3], paddingVertical: UI_TOKENS.geometry.spacing[4] },
-  hero: { alignSelf: 'stretch', height: UI_TOKENS.geometry.media.mobileAuthHeroHeight, overflow: 'hidden', borderRadius: UI_TOKENS.geometry.radii.sheet, borderCurve: 'continuous' },
-  heroImage: { height: UI_TOKENS.geometry.media.mobileAuthHeroHeight },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: UI_TOKENS.geometry.spacing[2] },
-  brandMark: { width: UI_TOKENS.geometry.targets.touch, height: UI_TOKENS.geometry.targets.touch, alignItems: 'center', justifyContent: 'center', borderRadius: UI_TOKENS.geometry.radii.control, borderCurve: 'continuous' },
-  brandName: { fontFamily: 'Inter_600SemiBold', fontSize: UI_TOKENS.typography.mobileSection.size, lineHeight: UI_TOKENS.typography.mobileSection.lineHeight },
-  divider: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: UI_TOKENS.geometry.spacing[2] },
-  line: { height: StyleSheet.hairlineWidth, flex: 1 },
+  screen: { flex: 1 },
+  content: { paddingBottom: space[6] },
+  hero: { alignSelf: 'stretch', height: UI_TOKENS.geometry.media.mobileAuthHeroHeight },
+  bounded: { maxWidth: UI_TOKENS.geometry.media.mobileAuthContentMaxHeight, alignSelf: 'stretch', gap: space[3], paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[5] },
+  wordmark: { fontFamily: FONT.display, fontSize: UI_TOKENS.typography.sectionTitle.size, lineHeight: UI_TOKENS.typography.sectionTitle.lineHeight },
+  provider: { minHeight: UI_TOKENS.geometry.targets.touch + space[2], flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[3], borderWidth: 1, borderRadius: UI_TOKENS.geometry.radii.control, borderCurve: 'continuous', marginTop: space[2] },
+  providerText: { fontFamily: FONT.semibold, fontSize: UI_TOKENS.typography.mobileBody.size },
+  emailToggle: { minHeight: UI_TOKENS.geometry.targets.touch, alignItems: 'center', justifyContent: 'center' },
+  emailToggleText: { fontFamily: FONT.semibold, fontSize: UI_TOKENS.typography.mobileBody.size },
+  help: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: space[4], marginTop: space[3], alignItems: 'center' },
+  pressed: { opacity: UI_TOKENS.opacity.pressed },
 });

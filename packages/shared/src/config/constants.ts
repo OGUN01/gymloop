@@ -41,7 +41,7 @@ export const UI_TOKENS = {
     body: { size: 16, lineHeight: 24 }, compact: { size: 14, lineHeight: 20 },
     secondary: { size: 13, lineHeight: 18 }, eyebrow: { size: 12, lineHeight: 16 },
     mobileBody: { size: 17, lineHeight: 25 }, mobileSection: { size: 20, lineHeight: 26 },
-    sectionTitle: { size: 28, lineHeight: 30 }, pageTitle: { size: 44, lineHeight: 44 },
+    sectionTitle: { size: 28, lineHeight: 30 }, pageTitle: { size: 56, lineHeight: 56 }, displayTitle: { size: 60, lineHeight: 58 },
     largeMetric: { size: 52, lineHeight: 52 }, heroMetric: { size: 96, lineHeight: 88 },
     titleTracking: '-0.01em', eyebrowTracking: '0.14em',
     emphasisWeight: 600, displayWeight: 800, displayStretch: '62%',
@@ -51,7 +51,7 @@ export const UI_TOKENS = {
     radii: { control: 10, row: 12, section: 16, sheet: 24 },
     targets: { interactive: 44, touch: 48 },
     layout: { mobileInset: 20, desktopInset: 32, contentMaxWidth: 1440, railWidth: 232 },
-    media: { authHeroAspectRatio: 1.5, mobileAuthHeroHeight: 260, mobileAuthContentMaxHeight: 640 },
+    media: { authHeroAspectRatio: 1.5, mobileAuthHeroHeight: 260, mobileAuthContentMaxHeight: 640, avatarSize: 88 },
   },
   icons: { controlSize: 16, navigationSize: 22, strokeWidth: 1.75, statusDot: 8 },
   motion: {
