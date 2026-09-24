@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { AVATAR_INITIALS_MAX } from '@gymloop/shared';
 import { usePreviewReadOnly } from '../../../preview-context';
+import { StatusWord } from '../../../status-word';
 
 /**
  * The gate itself: hold a gate code, pick a member, confirm in type you can read
@@ -223,12 +225,14 @@ export function CheckInGate({ members }: { members: Member[] }) {
             outcome.ok ? 'check-in-outcome-success' : 'check-in-outcome-risk'
           }`}
         >
-          <span className="check-in-outcome-detail">{outcome.detail}</span>
           <span className="check-in-outcome-headline">{outcome.headline}</span>
+          <span className="check-in-outcome-detail">{outcome.detail}</span>
+          <span className="check-in-outcome-hint">{outcome.retry ? 'Send again' : 'Dismiss'}</span>
         </button>
       ) : null}
 
       <div className="check-in-gate-panel">
+        <p className="cl-eyebrow">Gate access</p>
         <h2 className="check-in-gate-title">Gate code</h2>
         <p className="check-in-gate-copy">
           {gateCode
@@ -240,17 +244,17 @@ export function CheckInGate({ members }: { members: Member[] }) {
           <input
             value={gateCode}
             onChange={(event) => rememberGateCode(event.target.value)}
-            placeholder="Type or scan the gate code"
+            placeholder="Type or scan a code"
             aria-label="Gate code"
             autoComplete="off"
             spellCheck={false}
-            className={`${FIELD_CLASS} check-in-gate-input font-mono uppercase`}
+            className={`${FIELD_CLASS} check-in-gate-input`}
           />
           {canScan ? (
             <button
               type="button"
               onClick={scanning ? stopScanning : () => void startScanning()}
-              className="check-in-primary-action"
+              className="cl-btn cl-btn--small"
             >
               {scanning ? 'Stop' : 'Scan'}
             </button>
@@ -258,7 +262,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
           <button
             type="button"
             onClick={() => void issueGateCode()}
-            className="check-in-secondary-action"
+            className="cl-btn cl-btn--small cl-btn--accent"
           >
             New code
           </button>
@@ -297,21 +301,19 @@ export function CheckInGate({ members }: { members: Member[] }) {
           <li key={member.id} className="check-in-member-row">
             <div className="check-in-member-content">
               <div className="check-in-member-identity">
-                <span aria-hidden="true" className="check-in-member-initial">{member.full_name.charAt(0)}</span>
+                <span aria-hidden="true" className="check-in-member-initial">{member.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('')}</span>
                 <div>
                 <p className="check-in-member-name">{member.full_name}</p>
-                <p className="check-in-member-phone">
-                  {member.phone}
-                  {member.status === 'active' ? null : <span className="check-in-member-status">Status: {member.status}</span>}
-                </p>
+                <p className="check-in-member-phone">{member.phone}</p>
                 </div>
               </div>
+              <StatusWord status={member.status} />
               <div className="check-in-actions">
                 <button
                   type="button"
                   disabled={gateCode === '' || busyMemberId === member.id}
                   onClick={() => void submit(member, { token: gateCode }, crypto.randomUUID())}
-                  className="check-in-primary-action"
+                  className="cl-btn cl-btn--small"
                 >
                   Check in
                 </button>
@@ -321,7 +323,8 @@ export function CheckInGate({ members }: { members: Member[] }) {
                     setAssistFor(assistFor === member.id ? '' : member.id);
                     setReason('');
                   }}
-                  className="check-in-secondary-action"
+                  aria-expanded={assistFor === member.id}
+                  className="cl-btn cl-btn--small cl-btn--quiet"
                 >
                   At the desk
                 </button>
@@ -347,7 +350,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
                 <button
                   type="submit"
                   disabled={busyMemberId === member.id}
-                  className="check-in-primary-action"
+                  className="cl-btn cl-btn--primary"
                 >
                   Record
                 </button>
@@ -358,7 +361,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
       </ul>
 
       {members.length === 0 ? (
-        <p className="check-in-empty">No member of this gym matched.</p>
+        <div className="cl-empty check-in-empty"><strong>No member matched</strong><p>No member of this gym matched. Check the number, or search with fewer digits.</p></div>
       ) : null}
     </fieldset>
   );

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { DEFAULT_TIMEZONE } from '@gymloop/shared';
 import { createServerSupabase } from '../../../../lib/supabase/server';
 import { loadMember } from '../member-data';
+import { StatusWord } from '../../../status-word';
 
 /**
  * One member, and what they have actually done — the visits, most recent first.
@@ -35,15 +36,6 @@ const DATE_ONLY = new Intl.DateTimeFormat('en-IN', {
   dateStyle: 'medium',
 });
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="min-w-0 py-2">
-      <dt className="text-xs uppercase tracking-wide text-neutral-500">{label}</dt>
-      <dd className="mt-0.5 break-words text-sm">{children}</dd>
-    </div>
-  );
-}
-
 export default async function MemberDetailPage({
   params,
 }: {
@@ -68,65 +60,64 @@ export default async function MemberDetailPage({
   ]);
 
   return (
-    <main className="route-workspace">
-      <div className="flex items-baseline justify-between gap-4">
+    <main className="cl-page">
+      <Link href="/console" className="cl-back">← All members</Link>
+      <div className="cl-page-header">
         <div>
-          <h1 className="text-xl font-semibold">{member.full_name}</h1>
-          <p className="text-sm tabular-nums text-neutral-600">{member.phone}</p>
+          <p className="cl-eyebrow">{member.member_code ?? 'Member'}</p>
+          <h1 className="cl-title">{member.full_name}</h1>
+          <p className="cl-lede tabular-nums">{member.phone}</p>
         </div>
-        <div className="flex shrink-0 gap-4 text-sm">
-          <Link href={`/members/${member.id}/edit`} className="text-neutral-600 underline">
-            Edit
-          </Link>
-          <Link href="/console" className="text-neutral-600 underline">
-            All members
-          </Link>
+        <div className="cl-actions">
+          <StatusWord status={member.status} />
+          <Link href={`/members/${member.id}/edit`} className="cl-btn">Edit</Link>
         </div>
       </div>
 
       {member.erased_at === null ? null : (
-        <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <p className="cl-alert" data-tone="warn">
           This member’s personal details were erased on {DATE_ONLY.format(new Date(member.erased_at))}.
         </p>
       )}
 
-      <dl className="mt-6 grid grid-cols-2 gap-x-6 sm:grid-cols-3">
-        <Row label="Status">
-          <span className="capitalize">{member.status}</span>
-        </Row>
-        <Row label="Joined">{DATE_ONLY.format(new Date(member.joined_on))}</Row>
-        <Row label="Branch">{branch?.name ?? '—'}</Row>
-        <Row label="Email">{member.email ?? '—'}</Row>
-        <Row label="Member code">{member.member_code ?? '—'}</Row>
-      </dl>
+      <div className="cl-split cl-section">
+        <section aria-labelledby="member-details-heading">
+          <h2 id="member-details-heading" className="cl-eyebrow member-detail-eyebrow">Details</h2>
+          <dl className="cl-dl">
+            <dt>Status</dt><dd><StatusWord status={member.status} /></dd>
+            <dt>Joined</dt><dd>{DATE_ONLY.format(new Date(member.joined_on))}</dd>
+            <dt>Branch</dt><dd>{branch?.name ?? '—'}</dd>
+            <dt>Email</dt><dd>{member.email ?? '—'}</dd>
+            <dt>Member code</dt><dd>{member.member_code ?? '—'}</dd>
+          </dl>
+        </section>
 
-      <h2 className="mt-8 text-sm font-medium text-neutral-700">
-        Recent visits{visits && visits.length > 0 ? ` (${visits.length})` : ''}
-      </h2>
-
-      {visitsError ? (
-        <p role="alert" className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-          The visit history could not be loaded. {visitsError.message}
-        </p>
-      ) : null}
-
-      {visits && visits.length > 0 ? (
-        <ul className="mt-3 divide-y divide-neutral-100">
-          {visits.map((visit) => (
-            <li key={visit.id} className="flex items-baseline justify-between gap-4 py-2">
-              <span className="text-sm tabular-nums">
-                {DATE_TIME.format(new Date(visit.checked_in_at))}
-              </span>
-              <span className="text-right text-sm text-neutral-600">
-                {visit.source === 'qr' ? 'Scanned' : visit.source.replace('_', ' ')}
-                {visit.assist_reason === null ? null : ` · ${visit.assist_reason}`}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-3 text-sm text-neutral-600">No visits recorded yet.</p>
-      )}
+        <section aria-labelledby="member-visits-heading">
+          <h2 id="member-visits-heading" className="cl-eyebrow member-detail-eyebrow">
+            Recent visits{visits && visits.length > 0 ? ` (${visits.length})` : ''}
+          </h2>
+          {visitsError ? (
+            <p role="alert" className="cl-alert">
+              The visit history could not be loaded. {visitsError.message} Reload the page to try again.
+            </p>
+          ) : null}
+          {visits && visits.length > 0 ? (
+            <ul className="cl-rows">
+              {visits.map((visit) => (
+                <li key={visit.id}>
+                  <span className="cl-row-title tabular-nums">{DATE_TIME.format(new Date(visit.checked_in_at))}</span>
+                  <span className="cl-row-meta">
+                    {visit.source === 'qr' ? 'Scanned' : visit.source.replace('_', ' ')}
+                    {visit.assist_reason === null ? null : ` · ${visit.assist_reason}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : visitsError ? null : (
+            <div className="cl-empty"><strong>No visits recorded yet</strong><p>Visits appear here after a QR scan or a desk check-in.</p></div>
+          )}
+        </section>
+      </div>
     </main>
   );
 }
