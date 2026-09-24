@@ -35,24 +35,24 @@ export default function MoreScreen() {
     <View><Eyebrow>{branch?.name ?? 'Front desk'}</Eyebrow><Title>More</Title><Body muted>Walk-in leads, appearance and your account.</Body></View>
     {frontOffice ? <View style={[styles.section, styles.leadForm, { borderColor: palette.decorativeSeparator }]}>
       <Eyebrow>New lead</Eyebrow>
-      <Body muted>Someone asking about joining? Take their name and number now; the team follows up from Leads.</Body>
+      <Body muted>Take a walk-in’s details for the team to follow up.</Body>
       {/* Both fields show an example the same way — "e.g." in secondary — so neither reads as a value already filled in. */}
       <View style={styles.field}><Text style={label}>Full name</Text><Field accessibilityLabel="Full name" autoComplete="name" placeholder="e.g. Priya Sharma" value={name} onChangeText={setName} /></View>
       <View style={styles.field}><Text style={label}>Phone</Text><Field accessibilityLabel="Phone" accessibilityHint="Include +91" placeholder="e.g. +91 98765 43210" keyboardType="phone-pad" value={phone} onChangeText={setPhone} /></View>
-      {/* Until both are filled the clay button shows dimmed, with the helper 8 under it on the gutter saying why. */}
+      {/* Disabled uses a neutral raised surface and readable label; when ready, the button is filled clay. */}
       <View style={styles.submit}>
-        <ActionButton disabled={pending || !ready} onPress={() => void capture()}>{pending ? 'Saving…' : 'Capture lead'}</ActionButton>
+        <ActionButton disabled={pending || !ready} disabledNeutral={!ready && !pending} onPress={() => void capture()}>{pending ? 'Saving…' : 'Capture lead'}</ActionButton>
         {!ready && !pending && !message ? <Text style={[styles.hint, { color: palette.secondaryText }]}>Enter a name and phone to capture.</Text> : null}
       </View>
       {message ? <StateMessage tone={message.tone}>{message.text}</StateMessage> : null}
     </View> : null}
-    {/* The same Account ledger as member You: who is signed in, Appearance behind a row and the shared sheet, then Sign out. */}
+    {/* The same Account ledger as member You: identity and Appearance, with Sign out below as a quiet footer action. */}
     <View style={frontOffice ? styles.afterRule : null}>
       <LedgerSection title="Account">
         <Row title={session?.user.email ?? role} meta={`${role}${branch ? ` · ${branch.name}` : ''}`} accessibilityLabel={`Signed in as ${session?.user.email ?? role}, ${role}${branch ? `, ${branch.name}` : ''}`} />
         <Row title="Appearance" value={appearanceLabel(appearance)} onPress={() => setAppearanceOpen(true)} accessibilityLabel={`Appearance, ${appearanceLabel(appearance)}`} accessibilityHint="Choose System, Light or Dark" />
-        <SignOutRow onPress={() => void signOut()} />
       </LedgerSection>
+      <SignOutRow onPress={() => void signOut()} />
     </View>
     <AppearanceSheet visible={appearanceOpen} onClose={() => setAppearanceOpen(false)} />
   </Screen>;

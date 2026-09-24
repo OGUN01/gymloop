@@ -16,13 +16,13 @@ export default function ActivityScreen() {
   const rhythmDays = rhythmFor(data);
   const { current, unit } = data.streak;
   const remaining = Math.max(data.member.goal - data.weekVisits, 0);
-  // The gym's configured rule decides the unit and the copy, stating the rule memberStreak counts (whole weeks that
-  // reach the goal, or visited days in a row) and what never breaks it (STK-002) — the same sentences as web Activity.
+  // The gym's configured rule decides the unit and the copy: goal-reaching weeks or visited days in a row.
+  // Rest days, holidays and approved pauses never break a consecutive-day streak (STK-002).
   const streakNote = unit === 'week'
     ? current === 0
       ? `Reach ${data.member.goal} ${data.member.goal === 1 ? 'visit' : 'visits'} in a week to start a streak.`
       : remaining === 0 ? 'This week counts. Keep the run going next week.' : `${remaining} more ${remaining === 1 ? 'visit' : 'visits'} this week keeps it going.`
-    : `${current === 0 ? 'Visit on consecutive days to build a streak.' : 'Each consecutive day you visit adds a day.'} Rest days, holidays and approved pauses never break it.`;
+    : `${current === 0 ? 'Visit on consecutive days.' : 'Each consecutive day you visit adds a day.'} Rest days, holidays and approved pauses don’t break it.`;
   const streakLine = current > 0 ? `Streak: ${current} ${current === 1 ? unit : `${unit}s`}` : 'No streak yet';
   const time = new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit', timeZone });
   const months = groupByMonth(data.visits, (visit) => visit.checkedInAt, timeZone);

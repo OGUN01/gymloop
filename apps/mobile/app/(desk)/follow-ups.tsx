@@ -87,21 +87,24 @@ export default function FollowUpsScreen() {
       {loadState === 'ready' ? <View>{shown.map((row) => {
         const status = caseLine(row, today);
         const since = row.lastAttendedOn ? day(row.lastAttendedOn) : null;
-        const away = `${row.daysAbsent === 1 ? 'day' : 'days'} ${since ? `since ${since}` : 'away'}`;
+        const away = `${row.daysAbsent === 1 ? 'day' : 'days'} away`;
         const busy = pendingId !== null;
-        // Two fact lines beside the days-away stack — the numeral on the name's line, its caption on the phone's — then
-        // the case line across the text column, then the two actions sharing that column's width.
+        // The count has its own labelled stack and a separately labelled last-visit date from the loaded field.
+        // Call is the first, clay-accented action; logging no answer remains a quieter, separate write.
         return <View key={row.id} style={[styles.row, { borderColor: palette.decorativeSeparator }]}>
           <View style={styles.identity}>
             <Initials name={row.memberName} />
             <View style={styles.copy}>
-              <View style={styles.lineOne}>
-                <Text numberOfLines={1} style={[styles.name, { color: palette.primaryText }]}>{row.memberName}</Text>
-                <Text accessibilityLabel={`${row.daysAbsent} ${away}`} style={[styles.awayNumber, { color: palette.primaryText }]}>{row.daysAbsent}</Text>
-              </View>
-              <View style={styles.lineTwo}>
-                <Text numberOfLines={1} style={[styles.meta, styles.phone, { color: palette.secondaryText }]}>{formatPhone(row.memberPhone)}</Text>
-                <Text numberOfLines={1} importantForAccessibility="no" accessibilityElementsHidden style={[styles.awayLabel, { color: palette.secondaryText }]}>{away}</Text>
+              <View style={styles.summary}>
+                <View style={styles.memberCopy}>
+                  <Text numberOfLines={1} style={[styles.name, { color: palette.primaryText }]}>{row.memberName}</Text>
+                  <Text numberOfLines={1} style={[styles.meta, { color: palette.secondaryText }]}>{formatPhone(row.memberPhone)}</Text>
+                </View>
+                <View style={styles.awayStack} accessible accessibilityLabel={`${row.daysAbsent} ${away}${since ? `, Last visit ${since}` : ''}`}>
+                  <Text style={[styles.awayNumber, { color: palette.primaryText }]}>{row.daysAbsent}</Text>
+                  <Text style={[styles.awayLabel, { color: palette.secondaryText }]}>{away}</Text>
+                  {since ? <Text style={[styles.awayDate, { color: palette.secondaryText }]}>Last visit {since}</Text> : null}
+                </View>
               </View>
               <View style={styles.caseLine} accessible accessibilityLabel={status.detail ? `${status.word}, ${status.detail}` : status.word}>
                 <Status tone={status.tone}>{status.word}</Status>
@@ -109,11 +112,9 @@ export default function FollowUpsScreen() {
               </View>
             </View>
           </View>
-          {/* The actions start on the text column and share its width: No answer neutral, then Call in clay at the
-              trailing edge, where Check in sits on the roster. */}
           <View style={styles.actions}>
-            <View style={styles.action}><RowAction accessibilityLabel={`Log no answer for ${row.memberName}`} disabled={busy} onPress={() => void log(row)}>{pendingId === row.id ? 'Recording…' : 'No answer'}</RowAction></View>
             <View style={styles.action}><RowAction accent accessibilityLabel={`Call ${row.memberName}, ${formatPhone(row.memberPhone)}`} icon={<Phone color={palette.primaryAction} size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />} disabled={busy} onPress={() => void Linking.openURL(`tel:${row.memberPhone}`)}>Call</RowAction></View>
+            <View style={styles.action}><RowAction accessibilityLabel={`Log no answer for ${row.memberName}`} disabled={busy} onPress={() => void log(row)}>{pendingId === row.id ? 'Recording…' : 'No answer'}</RowAction></View>
           </View>
         </View>;
       })}</View> : null}
@@ -128,20 +129,19 @@ const styles = StyleSheet.create({
   queue: { gap: space[0] },
   listState: { paddingTop: space[2] },
   row: { gap: space[1], paddingVertical: space[2], borderBottomWidth: StyleSheet.hairlineWidth },
-  // The avatar centres on the three-line block, as on the roster rows.
+  // The avatar centres on the summary and case-status block, as on the roster rows.
   identity: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   copy: { flex: 1, minWidth: 0 },
-  // The numeral shares the name's line: both boxes sit on one bottom edge, so the name and the figure share a baseline.
-  lineOne: { flexDirection: 'row', alignItems: 'flex-end', gap: space[2] },
-  // The caption is set in the phone's 20 line box, so the two share a baseline on the second line.
-  lineTwo: { flexDirection: 'row', alignItems: 'flex-start', gap: space[2] },
-  name: { flex: 1, minWidth: 0, fontFamily: FONT.semibold, fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight },
+  summary: { flexDirection: 'row', alignItems: 'flex-start', gap: space[1] },
+  memberCopy: { flex: 1, minWidth: 0 },
+  name: { fontFamily: FONT.semibold, fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight },
   meta: { fontFamily: FONT.regular, fontSize: type.compact.size, lineHeight: type.compact.lineHeight, fontVariant: ['tabular-nums'] },
-  phone: { flex: 1, minWidth: 0 },
+  awayStack: { alignItems: 'flex-end' },
   awayNumber: { fontFamily: FONT.display, fontSize: type.sectionTitle.size, lineHeight: type.sectionTitle.lineHeight, fontVariant: ['tabular-nums'] },
-  awayLabel: { fontFamily: FONT.medium, fontSize: type.eyebrow.size, lineHeight: type.compact.lineHeight, fontVariant: ['tabular-nums'] },
-  // Status then what the last contact found, as one line; a rare long detail wraps under itself, never under the dot.
-  caseLine: { flexDirection: 'row', alignItems: 'flex-start', gap: space[0] },
+  awayLabel: { fontFamily: FONT.medium, fontSize: type.eyebrow.size, lineHeight: type.eyebrow.lineHeight },
+  awayDate: { fontFamily: FONT.regular, fontSize: type.eyebrow.size, lineHeight: type.eyebrow.lineHeight, fontVariant: ['tabular-nums'] },
+  // Status then what the last contact found; the detail wraps under itself, never under the dot.
+  caseLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: space[0] },
   caseDetail: { flexShrink: 1 },
   // Indented by the avatar (40) and its gap (16), so the buttons start on the text column; each takes half of it.
   actions: { flexDirection: 'row', gap: space[2], paddingLeft: space[5] + space[1] + space[3] },

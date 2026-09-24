@@ -56,10 +56,10 @@ export function Eyebrow({ children }: { children: ReactNode }) {
   return <Text style={[styles.eyebrow, { color: palette.secondaryText }]}>{children}</Text>;
 }
 
-/** Page title; `fit` shrinks a data-driven title (a gym name) to keep it on one line inside the gutter instead of clipping. */
+/** Page title; `fit` caps a data-driven title one type step down and shrinks it further for very long gym names. */
 export function Title({ children, fit = false }: { children: ReactNode; fit?: boolean }) {
   const { palette } = useMobile();
-  return <Text accessibilityRole="header" numberOfLines={fit ? 1 : undefined} adjustsFontSizeToFit={fit} style={[styles.title, { color: palette.primaryText }]}>{children}</Text>;
+  return <Text accessibilityRole="header" numberOfLines={fit ? 1 : undefined} adjustsFontSizeToFit={fit} style={[styles.title, fit ? styles.titleFitted : null, { color: palette.primaryText }]}>{children}</Text>;
 }
 
 /** Condensed display text: hero (week count), metric, heading (a running streak, sheet titles) or section (a smaller stat line). */
@@ -148,9 +148,8 @@ export function dayLabel(isoDate: string, timeZone: string): string {
 
 /**
  * The counted week as seven dots with the letter below. Two states only: a visit fills clay; every other day is one
- * solid outline ring at full strength. Days still ahead are told apart only by a secondary letter, and today by a bold
- * ink letter over a 4dp ink dot — never clay (the accent stays with visits, the CTA and the current tab) and never a
- * second ring.
+ * solid outline ring at full strength. Days still ahead are told apart only by a secondary letter; today gets a bold
+ * ink letter, a short underline and an accessible name — never clay (the accent stays with visits and the CTA).
  */
 export function WeekRhythm({ days }: { days: readonly { key: string; label: string; name: string; visited: boolean; future: boolean; today: boolean }[] }) {
   const { palette } = useMobile();
@@ -213,11 +212,11 @@ export function SheetHeader({ eyebrow, title, detail, control, onControl, contro
   </View>;
 }
 
-/** The one Sign out treatment for both roles: the last ruled row of the Account list, an ink label on the rows' text edge, no icon. */
+/** A secondary Sign out action, centred and spaced clear of Account rows for either role. */
 export function SignOutRow({ onPress }: { onPress: () => void }) {
   const { palette } = useMobile();
-  return <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={onPress} style={({ pressed }) => [styles.signOut, { borderColor: palette.decorativeSeparator }, pressed && styles.pressed]}>
-    <Text style={[styles.signOutText, { color: palette.primaryText }]}>Sign out</Text>
+  return <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={onPress} style={({ pressed }) => [styles.signOut, pressed && styles.pressed]}>
+    <Text style={[styles.signOutText, { color: palette.secondaryText }]}>Sign out</Text>
   </Pressable>;
 }
 
@@ -254,7 +253,7 @@ export function appearanceLabel(mode: AppearanceMode): string {
 function AppearanceChoices() {
   const { appearance, setAppearance } = useMobile();
   const now = useColorScheme() === 'dark' ? 'Dark' : 'Light';
-  const options = APPEARANCE_OPTIONS.map((option) => option.value === 'system' ? { ...option, meta: `Follows this phone · now ${now}` } : option);
+  const options = APPEARANCE_OPTIONS.map((option) => option.value === 'system' ? { ...option, meta: `Phone setting: ${now}` } : option);
   return <ChoiceList label="Appearance" options={options} value={appearance} onChange={(mode) => void setAppearance(mode)} />;
 }
 
@@ -286,30 +285,31 @@ export function Initials({ name, size = 'row' }: { name: string; size?: 'row' | 
 }
 
 /**
- * Primary (filled clay, full dock height), `secondary` (1px neutral outline) or `quiet` (text only). Disabled, every
- * variant keeps its own look at the disabled opacity — a disabled primary is the clay button dimmed, never a heavy
- * grey slab. In-row actions use `RowAction`.
+ * Primary (filled clay, full dock height), `secondary` (1px neutral outline) or `quiet` (text only).
+ * `disabledNeutral` keeps a disabled primary legible on the raised surface without creating a second clay action.
+ * Other disabled states keep the normal opacity treatment. In-row actions use `RowAction`.
  */
-export function ActionButton({ children, secondary = false, quiet = false, icon, disabled, ...props }: PressableProps & { children: ReactNode; secondary?: boolean; quiet?: boolean; icon?: ReactNode }) {
+export function ActionButton({ children, secondary = false, quiet = false, disabledNeutral = false, icon, disabled, ...props }: PressableProps & { children: ReactNode; secondary?: boolean; quiet?: boolean; disabledNeutral?: boolean; icon?: ReactNode }) {
   const { palette } = useMobile();
   const primary = !secondary && !quiet;
-  const background = primary ? palette.primaryAction : 'transparent';
-  const border = quiet ? 'transparent' : secondary ? palette.requiredControlOutline : background;
-  const color = quiet ? palette.secondaryText : secondary ? palette.primaryText : palette.textOnPrimary;
+  const neutral = disabled && disabledNeutral && primary;
+  const background = neutral ? palette.elevatedSurface : primary ? palette.primaryAction : 'transparent';
+  const border = neutral ? palette.requiredControlOutline : quiet ? 'transparent' : secondary ? palette.requiredControlOutline : background;
+  const color = neutral ? palette.secondaryText : quiet ? palette.secondaryText : secondary ? palette.primaryText : palette.textOnPrimary;
   return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled: disabled ?? false }} {...props} style={({ pressed }) => [
-    styles.action, primary ? styles.actionPrimary : null, { backgroundColor: background, borderColor: border }, pressed && styles.pressed, disabled && styles.disabled,
+    styles.action, primary ? styles.actionPrimary : null, { backgroundColor: background, borderColor: border }, pressed && styles.pressed, disabled && !neutral && styles.disabled,
   ]}>{icon}<Text numberOfLines={1} style={[styles.actionText, primary ? styles.actionTextPrimary : null, { color, fontFamily: secondary ? FONT.medium : FONT.semibold }]}>{children}</Text></Pressable>;
 }
 
 /**
  * An in-row outline action at the 44 control height (its slop makes the touch area 52): `accent` is the row's go
- * action — clay outline and clay label, like Check in and Call — otherwise a 1px neutral outline. Never a filled slab.
+ * action — clay outline and clay label, like Check in and Call — otherwise a quiet secondary-text label and neutral outline.
  */
 export function RowAction({ children, accent = false, icon, disabled, ...props }: PressableProps & { children: ReactNode; accent?: boolean; icon?: ReactNode }) {
   const { palette } = useMobile();
   return <Pressable accessibilityRole="button" hitSlop={space[0]} disabled={disabled} accessibilityState={{ disabled: disabled ?? false }} {...props} style={({ pressed }) => [
     styles.rowAction, { borderColor: accent ? palette.primaryAction : palette.requiredControlOutline }, pressed && styles.pressed, disabled && styles.disabled,
-  ]}>{icon}<Text numberOfLines={1} style={[styles.rowActionText, { color: accent ? palette.primaryAction : palette.primaryText, fontFamily: accent ? FONT.semibold : FONT.medium }]}>{children}</Text></Pressable>;
+  ]}>{icon}<Text numberOfLines={1} style={[styles.rowActionText, { color: accent ? palette.primaryAction : palette.secondaryText, fontFamily: accent ? FONT.semibold : FONT.medium }]}>{children}</Text></Pressable>;
 }
 
 /** Search box with a leading magnifier 16 from the border and 12 from the text; the placeholder must say what the search really matches. */
@@ -365,6 +365,7 @@ const styles = StyleSheet.create({
   fadeBottom: { position: 'absolute', right: 0, bottom: 0, left: 0 },
   eyebrow: { textTransform: 'uppercase', fontFamily: FONT.semibold, fontSize: type.eyebrow.size, lineHeight: type.eyebrow.lineHeight, letterSpacing: type.eyebrow.size * Number.parseFloat(type.eyebrowTracking) },
   title: { fontFamily: FONT.display, fontSize: type.displayTitle.size, lineHeight: type.displayTitle.lineHeight },
+  titleFitted: { fontSize: type.pageTitle.size, lineHeight: type.pageTitle.lineHeight },
   hero: { fontFamily: FONT.display, fontSize: type.heroMetric.size, lineHeight: type.heroMetric.lineHeight },
   metric: { fontFamily: FONT.display, fontSize: type.largeMetric.size, lineHeight: type.largeMetric.lineHeight },
   // One heading size for a running streak, every sheet title and the You profile name.
@@ -396,8 +397,8 @@ const styles = StyleSheet.create({
   rhythmDay: { alignItems: 'center', gap: space[1], minWidth: space[5] },
   rhythmDot: { width: space[5], height: space[5], borderRadius: space[5], borderWidth: UI_TOKENS.icons.strokeWidth },
   rhythmLetter: { alignItems: 'center' },
-  // Today's mark: a 4dp ink dot under the bold letter.
-  rhythmToday: { width: space[0], height: space[0], borderRadius: space[0] },
+  // Today's mark is a short ink underline below the bold letter, distinct from the round visit dots above.
+  rhythmToday: { width: space[3], height: space[0], borderRadius: space[0] },
   rhythmLabel: { fontSize: type.compact.size, lineHeight: type.compact.lineHeight },
   backdrop: { flex: 1, justifyContent: 'flex-end' },
   backdropTap: { flex: 1 },
@@ -428,8 +429,8 @@ const styles = StyleSheet.create({
   initialsText: { fontFamily: FONT.display, fontSize: type.mobileSection.size, lineHeight: type.mobileSection.lineHeight },
   initialsQuiet: { fontFamily: FONT.display, fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight },
   initialsLarge: { fontFamily: FONT.display, fontSize: type.sectionTitle.size, lineHeight: type.sectionTitle.lineHeight },
-  signOut: { minHeight: UI_TOKENS.geometry.targets.touch + space[3], flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
-  signOutText: { fontFamily: FONT.medium, fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight },
+  signOut: { minHeight: UI_TOKENS.geometry.targets.touch, alignItems: 'center', justifyContent: 'center', marginTop: space[3] },
+  signOutText: { fontFamily: FONT.medium, fontSize: type.compact.size, lineHeight: type.compact.lineHeight },
   choiceList: { borderTopWidth: StyleSheet.hairlineWidth },
   choice: { minHeight: UI_TOKENS.geometry.targets.touch + space[3], flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[2], borderBottomWidth: StyleSheet.hairlineWidth },
   radio: { width: space[4] - space[0], height: space[4] - space[0], borderRadius: space[4], borderWidth: UI_TOKENS.icons.strokeWidth, alignItems: 'center', justifyContent: 'center' },

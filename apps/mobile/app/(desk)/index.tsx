@@ -61,7 +61,7 @@ export default function DeskCheckIn() {
   const count = `${members.length}${members.length >= MEMBER_PAGE_SIZE_DEFAULT ? '+' : ''} ${query.trim() === '' ? (members.length === 1 ? 'member' : 'members') : (members.length === 1 ? 'match' : 'matches')}`;
 
   return <Screen>
-    <View><Eyebrow>{branch ?? 'Front desk'}</Eyebrow><Title>Check-in</Title><Body muted>{loadState === 'ready' ? `${count} · For anyone who can’t scan the QR` : 'For anyone who can’t scan the QR'}</Body></View>
+    <View><Eyebrow>{branch ?? 'Front desk'}</Eyebrow><Title>Check-in</Title>{loadState === 'ready' ? <Body muted>{count}</Body> : null}<Body muted>For members who can’t scan.</Body></View>
     {feedback && !selected ? <StateMessage tone={feedback.tone}>{feedback.text}</StateMessage> : null}
     <View style={styles.roster}>
       <SearchField accessibilityLabel="Search members" placeholder="Search name or phone" value={query} onChangeText={setQuery} />
@@ -79,8 +79,8 @@ export default function DeskCheckIn() {
         <SheetHeader eyebrow="Desk check-in" title={selected.fullName} detail={formatPhone(selected.phone)} control="Cancel" onControl={close} controlDisabled={pending} controlAccessibilityLabel="Cancel desk check-in" />
         {/* The same single-choice rows as Appearance: a radio dot and a 600 label mark the choice, not colour alone. */}
         <View style={styles.reason}>
-          <Text style={[styles.label, { color: palette.primaryText }]}>Reason</Text>
-          <ChoiceList label="Reason" options={REASONS} value={choice} disabled={pending} onChange={setChoice} />
+          <Text style={[styles.label, { color: palette.primaryText }]}>Reason for desk check-in</Text>
+          <ChoiceList label="Reason for desk check-in" options={REASONS} value={choice} disabled={pending} onChange={setChoice} />
           {choice === OTHER_REASON ? <Field autoFocus accessibilityLabel="Other reason" editable={!pending} placeholder="e.g. Scanner not working" value={typed} onFocus={() => setChoice(OTHER_REASON)} onChangeText={setTyped} /> : null}
         </View>
         {feedback ? <StateMessage tone={feedback.tone}>{feedback.text}</StateMessage> : null}

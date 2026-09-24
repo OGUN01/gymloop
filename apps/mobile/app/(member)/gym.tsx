@@ -75,7 +75,7 @@ export default function GymScreen() {
       {address ? <Text style={[styles.address, { color: palette.secondaryText }]}>{address}</Text> : null}
     </View>
     <View style={[styles.list, { borderColor: palette.decorativeSeparator }]}>
-      <Row icon={<CreditCard {...icon} />} title="Membership & receipts" meta={membershipMeta} trailing={data.membership ? <Status tone={statusTone(data.membership.status)}>{membershipStatus}</Status> : undefined} expanded={openSection === 'membership'} onPress={() => toggle('membership')} accessibilityLabel={`Membership & receipts, ${membershipMeta}${membershipStatus ? `, ${membershipStatus}` : ''}`} />
+      <Row icon={<CreditCard {...icon} />} title="Membership & receipts" meta={membershipMeta} status={data.membership ? <Status tone={statusTone(data.membership.status)}>{membershipStatus}</Status> : undefined} expanded={openSection === 'membership'} onPress={() => toggle('membership')} accessibilityLabel={`Membership & receipts, ${membershipMeta}${membershipStatus ? `, ${membershipStatus}` : ''}`} />
       {openSection === 'membership' ? <View style={[styles.sectionBody, { borderColor: palette.decorativeSeparator }]}>
         <LedgerGroup title="Receipts" empty="No receipts yet.">{data.receipts.map((receipt, index) => <LedgerRow key={receipt.id} first={index === 0} amount primary={formatMoney(receipt.amountPaise, receipt.currency)} detail={receipt.paidAt ? shortDate(receipt.paidAt) : receipt.receiptNumber ?? 'Date not recorded'} status={<Status tone={statusTone(receipt.status)}>{statusWord(receipt.status)}</Status>} />)}</LedgerGroup>
       </View> : null}

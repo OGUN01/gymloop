@@ -22,17 +22,16 @@ export default function YouScreen() {
       <Text numberOfLines={1} accessibilityLabel={`${data.gym.name}, gym code ${data.gym.code}`} style={[styles.profileLine, styles.gymLine, { color: palette.secondaryText }]}>{data.gym.displayName} · {data.gym.code}</Text>
       <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.profileLine, styles.contactLine, { color: palette.secondaryText }]}>{data.member.email ?? data.member.phone ?? 'Member account'}</Text>
     </View> : null}
-    {/* One ruled Account ledger, as on desk More. Personal details is a read-only fact, so its value runs to the gutter
-        with no chevron slot (as on web); the rows that open something end on their chevrons. Sign out closes it. */}
+    {/* Four Account facts stay in the ruled ledger. Sign out sits separately below them as a quiet footer action. */}
     <LedgerSection title="Account">
       <View role="list" accessibilityLabel="Account">
         <View role="listitem" accessibilityLabel={`Personal details, ${data?.member.phone ? formatPhone(data.member.phone) : data?.member.email ?? 'Available after sign-in'}`}><Row title={<>Personal details</>} value={data?.member.phone ? formatPhone(data.member.phone) : data?.member.email ?? 'Available after sign-in'} accessibilityLabel={`Personal details, ${data?.member.phone ? formatPhone(data.member.phone) : data?.member.email ?? 'Available after sign-in'}`} /></View>
         <View role="listitem" accessibilityLabel={`Membership, ${data?.membership ? `${data.membership.planName}, ${statusWord(data.membership.status)}` : 'No membership is visible'}`}><Row title={<>Membership</>} value={data?.membership ? data.membership.planName : 'No membership is visible'} trailing={data?.membership ? <Status tone={statusTone(data.membership.status)}>{statusWord(data.membership.status)}</Status> : undefined} onPress={() => router.push('/(member)/gym')} accessibilityLabel={`Membership, ${data?.membership ? `${data.membership.planName}, ${statusWord(data.membership.status)}` : 'No membership is visible'}`} /></View>
-        <View role="listitem" accessibilityLabel={`Gym, ${data ? `${data.gym.displayName}, ${data.gym.branchName} branch` : 'Available after sign-in'}`}><Row title={<>Gym</>} value={data ? `${data.gym.displayName} · ${data.gym.branchName}` : 'Available after sign-in'} onPress={() => router.push('/(member)/gym')} accessibilityLabel={`Gym, ${data ? `${data.gym.displayName}, ${data.gym.branchName} branch` : 'Available after sign-in'}`} /></View>
+        <View role="listitem" accessibilityLabel={`Gym, ${data ? `${data.gym.displayName}, ${data.gym.branchName} branch` : 'Available after sign-in'}`}><Row title={<>Gym</>} meta={data ? `${data.gym.displayName} · ${data.gym.branchName}` : 'Available after sign-in'} onPress={() => router.push('/(member)/gym')} accessibilityLabel={`Gym, ${data ? `${data.gym.displayName}, ${data.gym.branchName} branch` : 'Available after sign-in'}`} /></View>
         <View role="listitem" accessibilityLabel={`Appearance, ${appearanceLabel(appearance)}`}><Row title={<>Appearance</>} value={appearanceLabel(appearance)} onPress={() => setAppearanceOpen(true)} accessibilityLabel={`Appearance, ${appearanceLabel(appearance)}`} accessibilityHint="Choose System, Light or Dark" /></View>
       </View>
-      <SignOutRow onPress={() => void signOut()} />
     </LedgerSection>
+    <SignOutRow onPress={() => void signOut()} />
     <AppearanceSheet visible={appearanceOpen} onClose={() => setAppearanceOpen(false)} />
   </Screen>;
 }

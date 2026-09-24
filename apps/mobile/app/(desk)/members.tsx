@@ -22,7 +22,7 @@ export default function MembersScreen() {
   // The roster read is capped at one page, so a full page is "50+" rather than a false total.
   const count = `${rows.length}${rows.length >= MEMBER_PAGE_SIZE_DEFAULT ? '+' : ''}`;
   // The roster is read-only here, and the header says so before the first tap.
-  const context = state !== 'ready' ? 'Edit details on the web console' : `${count} ${query.trim() === '' ? (rows.length === 1 ? 'member' : 'members') : (rows.length === 1 ? 'match' : 'matches')} · Edit details on the web console`;
+  const context = state !== 'ready' ? 'Edit on the web' : `${count} ${query.trim() === '' ? (rows.length === 1 ? 'member' : 'members') : (rows.length === 1 ? 'match' : 'matches')} · Edit on the web`;
 
   return <Screen>
     <View><Eyebrow>{branch ?? 'Front desk'}</Eyebrow><Title>Members</Title><Body muted>{context}</Body></View>

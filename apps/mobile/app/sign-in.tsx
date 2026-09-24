@@ -32,8 +32,8 @@ export default function SignIn() {
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.hero}>
         <Image source={gymMorningFloor} resizeMode="cover" style={StyleSheet.absoluteFill} accessibilityIgnoresInvertColors accessible={false} />
-        {/* A soft shade behind the status bar so the clock stays legible over the bright windows. */}
-        <Svg style={styles.heroShade} pointerEvents="none"><Defs><LinearGradient id="hero-shade" x1={0} y1={0} x2={0} y2={1}><Stop offset={0} stopColor={UI_TOKENS.colors.dark.canvas} stopOpacity={UI_TOKENS.opacity.disabled} /><Stop offset={1} stopColor={UI_TOKENS.colors.dark.canvas} stopOpacity={0} /></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#hero-shade)" /></Svg>
+        {/* A graduated shade behind the status bar keeps white icons legible over the bright windows without darkening the full photo. */}
+        <Svg style={styles.heroShade} pointerEvents="none"><Defs><LinearGradient id="hero-shade" x1={0} y1={0} x2={0} y2={1}><Stop offset={0} stopColor={UI_TOKENS.colors.dark.canvas} stopOpacity={UI_TOKENS.opacity.pressed} /><Stop offset={UI_TOKENS.opacity.disabled} stopColor={UI_TOKENS.colors.dark.canvas} stopOpacity={UI_TOKENS.opacity.pressed} /><Stop offset={1} stopColor={UI_TOKENS.colors.dark.canvas} stopOpacity={0} /></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#hero-shade)" /></Svg>
       </View>
       <View style={styles.bounded}>
         <Text style={[styles.wordmark, { color: palette.primaryText }]}>{PRODUCT_NAME.toUpperCase()}</Text>
@@ -60,16 +60,16 @@ export default function SignIn() {
 const space = UI_TOKENS.geometry.spacing;
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { paddingBottom: space[6] },
+  content: { flexGrow: 1, paddingBottom: space[6] },
   // The photo fills a stretched frame; the @3x crop matches the frame so Android never draws it at its raw pixel size.
   hero: { alignSelf: 'stretch', height: UI_TOKENS.geometry.media.mobileAuthHeroHeight, overflow: 'hidden' },
-  heroShade: { position: 'absolute', top: 0, left: 0, right: 0, height: space[6] + space[6] },
-  bounded: { maxWidth: UI_TOKENS.geometry.media.mobileAuthContentMaxHeight, alignSelf: 'stretch', gap: space[3], paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[5] },
+  heroShade: { position: 'absolute', top: 0, left: 0, right: 0, height: space[6] + space[6] + space[4] },
+  bounded: { flexGrow: 1, maxWidth: UI_TOKENS.geometry.media.mobileAuthContentMaxHeight, alignSelf: 'stretch', gap: space[3], paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[5] },
   wordmark: { fontFamily: FONT.display, fontSize: UI_TOKENS.typography.sectionTitle.size, lineHeight: UI_TOKENS.typography.sectionTitle.lineHeight },
   provider: { minHeight: UI_TOKENS.geometry.targets.touch + space[2], flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[3], borderWidth: 1, borderRadius: UI_TOKENS.geometry.radii.control, borderCurve: 'continuous', marginTop: space[2] },
   providerText: { fontFamily: FONT.semibold, fontSize: UI_TOKENS.typography.mobileBody.size },
   emailToggle: { minHeight: UI_TOKENS.geometry.targets.touch, alignItems: 'center', justifyContent: 'center' },
   emailToggleText: { fontFamily: FONT.semibold, fontSize: UI_TOKENS.typography.mobileBody.size },
-  help: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: space[4], marginTop: space[3], alignItems: 'center' },
+  help: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: space[4], marginTop: 'auto', alignItems: 'center' },
   pressed: { opacity: UI_TOKENS.opacity.pressed },
 });
