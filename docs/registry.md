@@ -782,3 +782,14 @@ The shared money/credit codec, template/category placeholder vocab and request s
 | `PHASE8_MONITOR_WATCHDOG` | `packages/shared/src/config/constants.ts` | Fifteen-minute completed-run freshness boundary, production run title and CLI argument count for HARD-005. | `scripts/phase8-monitor-watchdog.mjs` |
 | `evaluateMonitorCadence` / Phase 8 monitor watchdog CLI | `scripts/phase8-monitor-watchdog.mjs` | Validates GitHub run evidence, decides whether the last successful production monitor start is stale, and emits only generic production or disjoint TEST issue content. | `.github/workflows/phase8-monitor-watchdog.yml` |
 | `tests/load/phase8-morning-checkin.js` | `tests/load/phase8-morning-checkin.js` | k6 scenario for the fixed morning spike plus real cross-tenant read and mutation denial checks. It requires caller-supplied non-production identity material and writes raw JSON only through k6's caller-selected `--out json=` target. | HARD-004 isolated non-production load run |
+
+## Chalkline redesign (ADR-170)
+
+Visual system: `docs/design/phase9/direction.md`. Tokens stay in `UI_TOKENS` (now including `successText`, the Archivo display/eyebrow type roles and `railWidth`); web consumes them as `--gymloop-*` variables, semantic Tailwind colours (`bg-canvas`, `bg-surface`, `bg-sunken`, `text-ink`, `text-muted`, `text-clay`, `border-rule`, `text-ok`, `text-warn`, `text-risk`) and the `cl-*` kit classes in `apps/web/app/globals.css` (`cl-page`, `cl-page-header`, `cl-title`, `cl-eyebrow`, `cl-btn`, `cl-field`, `cl-input`, `cl-ledger`, `cl-rows`, `cl-dl`, `cl-metrics`, `cl-status`, `cl-alert`, `cl-empty`, `cl-skeleton`, `cl-disclosure`). Reach for those before writing a new class.
+
+| Name | File | Purpose | Used by |
+|---|---|---|---|
+| `RouteLoading` | `apps/web/app/route-state.tsx` | Busy skeleton for a route segment with a visually hidden "Loading …" heading; never shows invented content | `(console)/loading.tsx`, `member/loading.tsx`, `platform/loading.tsx` |
+| `RouteError` | `apps/web/app/route-state.tsx` | Recoverable failure: plain-language alert, the framework `reset` retry and a way home; the raw error never reaches the page | `(console)/error.tsx`, `member/error.tsx`, `platform/error.tsx` |
+| `RouteNotFound` | `apps/web/app/route-state.tsx` | Honest 404 / missing-record page with a real way back | `not-found.tsx`, `(console)/not-found.tsx` |
+| `scripts/capture-screens.mjs` | `scripts/capture-screens.mjs` | Signs in each demo role (read-only) and captures routes in Light/Dark at 390/1024/1440 with an overflow report, for visual review evidence | manual, redesign evidence |

@@ -595,3 +595,12 @@ textarea.cl-input { min-height: 6rem; resize: vertical; }
 .member-sheet-list small, .member-sheet-section p { color: var(--gymloop-color-secondary-text); }
 .member-sheet-section { display: grid; gap: var(--gymloop-space-16); margin-top: var(--gymloop-space-16); }
 @media (max-width: 40rem) { .member-portal { padding-bottom: 12rem; } .member-primary-action--dominant { position: fixed; z-index: 9; right: var(--gymloop-space-20); bottom: 5.75rem; left: var(--gymloop-space-20); width: auto; max-width: 30rem; margin: 0 auto; box-shadow: 0 12px 28px color-mix(in srgb, var(--gymloop-color-primary-text) 18%, transparent); } }
+
+/* ── Route states (UX9-004) ─────────────────────────────────────────────── */
+.route-state-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.route-state-eyebrow { width: 8rem; height: .75rem; margin-bottom: var(--gymloop-space-12); }
+.route-state-title { width: min(22rem, 70vw); height: 2.75rem; }
+.route-state-rows { display: grid; gap: var(--gymloop-space-16); margin-top: var(--gymloop-space-32); }
+.route-state-rows > span { height: 3.5rem; }
+.route-state-message { display: grid; justify-items: start; gap: var(--gymloop-space-16); max-width: 40rem; padding-block: clamp(var(--gymloop-space-32), 10vh, 8rem); }
+.route-state-message .cl-lede { margin: 0; }
