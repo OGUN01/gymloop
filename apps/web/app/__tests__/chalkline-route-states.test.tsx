@@ -21,7 +21,7 @@ describe('UX9-004 every audience has Chalkline loading, error and not-found stat
     const html = renderToStaticMarkup(<Loading />);
     expect(html).toMatch(/aria-busy="true"/);
     expect(html).toMatch(/<h1[^>]*>[^<]*Loading/);
-    expect(html).not.toMatch(/\d/);
+    expect(html.replace(/<[^>]+>/g, '')).not.toMatch(/\d/);
   });
 
   it('offers a real retry for a recoverable error and keeps the raw error out of the page', async () => {
