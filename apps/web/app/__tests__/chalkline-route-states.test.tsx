@@ -6,23 +6,18 @@ vi.mock('next/navigation', () => ({ usePathname: () => '/console' }));
 
 const file = (path: string) => new URL(`../${path}`, import.meta.url);
 
-describe('UX9-004 every audience has Chalkline loading, error and not-found states', () => {
-  it('ships a loading and error boundary for the console, member and platform audiences, and a not-found page', () => {
+describe('UX9-004 every audience has Chalkline error and not-found states', () => {
+  it('ships an error boundary for the console, member and platform audiences, and a not-found page', () => {
     for (const audience of ['(console)', 'member', 'platform']) {
-      expect(existsSync(file(`${audience}/loading.tsx`)), `${audience}/loading.tsx`).toBe(true);
+      // No route-level streaming fallback: it replaces the page's <main> landmark while loading
+      // (axe: no main landmark) or duplicates it during the swap. Navigation keeps the current page until the next is ready.
+      expect(existsSync(file(`${audience}/loading.tsx`)), `${audience}/loading.tsx`).toBe(false);
       expect(existsSync(file(`${audience}/error.tsx`)), `${audience}/error.tsx`).toBe(true);
     }
     expect(existsSync(file('not-found.tsx'))).toBe(true);
     expect(existsSync(file('(console)/not-found.tsx'))).toBe(true);
   });
 
-  it('announces loading as busy with a named heading and no invented content', async () => {
-    const { default: Loading } = await import('../(console)/loading');
-    const html = renderToStaticMarkup(<Loading />);
-    expect(html).toMatch(/aria-busy="true"/);
-    expect(html).toMatch(/<h1[^>]*>[^<]*Loading/);
-    expect(html.replace(/<[^>]+>/g, '')).not.toMatch(/\d/);
-  });
 
   it('offers a real retry for a recoverable error and keeps the raw error out of the page', async () => {
     const { default: ConsoleError } = await import('../(console)/error');
