@@ -171,11 +171,11 @@ export async function MemberForm({
           <Field
             label="Joined on"
             hint={
-              creating ? (
-                'Leave blank for today.'
-              ) : ISO_DAY.test(joinedOn) ? (
-                <span className="member-form-echo">{formatDay(joinedOn)}</span>
-              ) : undefined
+              creating
+                ? 'Leave blank for today.'
+                : ISO_DAY.test(joinedOn)
+                  ? `Joined ${formatDay(joinedOn)}`
+                  : undefined
             }
           >
             <input name="joined_on" type="date" defaultValue={joinedOn} className={FIELD_CLASS} />

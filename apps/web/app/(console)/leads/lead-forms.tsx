@@ -182,21 +182,17 @@ function LeadFactFields({ branches, staff, lead, emailNotes }: {
   branches: BranchChoice[]; staff: StaffChoice[]; lead?: LeadListRow; emailNotes?: { email: string; notes: string } | undefined;
 }) {
   return <>
-    {/* Rows pair fields of equal height: the two hinted fields share a row, so
-        every row's labels and inputs line up. */}
-    <div className="cl-form-row">
+    {/* One start-aligned grid: labels and inputs share a baseline across a row
+        and hints hang below their own field without pushing a neighbour. */}
+    <div className="leads-facts">
     <Field label="Full name"><input name="fullName" defaultValue={lead?.fullName} required className={inputClass} /></Field>
-    <Field label="Branch"><select name="branchId" defaultValue={lead?.branchId} required className={inputClass}>
-      {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-    </select></Field>
-    </div>
-    <div className="cl-form-row">
     {/* The pattern is byte-identical to the database's `leads_phone_format_chk`,
         so the browser refuses exactly the phones the database refuses. */}
     <label className="cl-field"><span>Phone</span><input name="phone" defaultValue={lead?.phone} required inputMode="tel" pattern="\+[1-9][0-9]{7,14}" placeholder="+919876543210" className={inputClass} /><small>Include +91, no spaces</small></label>
-    <label className="cl-field"><span>Email</span><input name="email" type="email" defaultValue={emailNotes?.email ?? ''} className={inputClass} /><small>Optional</small></label>
-    </div>
-    <div className="cl-form-row">
+    <Field label="Email (optional)"><input name="email" type="email" defaultValue={emailNotes?.email ?? ''} className={inputClass} /></Field>
+    <Field label="Branch"><select name="branchId" defaultValue={lead?.branchId} required className={inputClass}>
+      {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+    </select></Field>
     <Field label="Source"><select name="source" defaultValue={lead?.source} required className={inputClass}>
       {Constants.public.Enums.lead_source.map((source) => <option key={source} value={source}>{humanize(source)}</option>)}
     </select></Field>
@@ -204,8 +200,8 @@ function LeadFactFields({ branches, staff, lead, emailNotes }: {
       <option value="">Unassigned</option>
       {staff.map((person) => <option key={person.id} value={person.id}>{person.fullName}</option>)}
     </select></Field>
+    <div className="leads-facts-notes"><Field label="Notes (optional)"><textarea name="notes" defaultValue={emailNotes?.notes ?? ''} className={inputClass} /></Field></div>
     </div>
-    <Field label="Notes (optional)"><textarea name="notes" defaultValue={emailNotes?.notes ?? ''} className={inputClass} /></Field>
   </>;
 }
 
@@ -327,9 +323,9 @@ export function LeadEnquiryForm({ branches, staff }: { branches: BranchChoice[];
   }
 
   return <section id="record-enquiry" aria-labelledby="enquiry-heading" className="cl-section leads-enquiry">
-    <div>
+    <div className="cl-section-head">
       <h2 id="enquiry-heading" className="cl-section-title">Record an enquiry</h2>
-      <p className="cl-lede">A new lead starts at the New stage. Move it along from its row in the pipeline.</p>
+      <p className="cl-muted text-sm">A new lead starts at the New stage. Move it along from its row in the pipeline.</p>
     </div>
     <form method="post" onSubmit={submit} className="cl-form">
       {command.problem !== '' ? <Alert>{command.problem}</Alert> : null}

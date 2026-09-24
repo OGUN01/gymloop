@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { UI_TOKENS } from '@gymloop/shared';
 import { loadMemberPortal } from '../../../lib/member-portal';
 import { memberGymName } from '../member-ui';
@@ -21,6 +21,7 @@ export default async function MemberCheckInPage() {
         <li><span className="cl-display" aria-hidden="true">2</span><span><strong>Scan the QR code at the desk</strong><small>The code on the gym&rsquo;s screen changes often, so scan the live one.</small></span></li>
         <li><span className="cl-display" aria-hidden="true">3</span><span><strong>Wait for &ldquo;You&rsquo;re checked in&rdquo;</strong><small>Your visit counts once the gym&rsquo;s system confirms it.</small></span></li>
       </ol>
+      <Link href="/member/activity" className="member-quiet-link">See your visits<ArrowRight aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></Link>
     </section>
   </main>;
 }

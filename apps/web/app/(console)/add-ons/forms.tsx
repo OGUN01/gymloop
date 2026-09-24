@@ -191,7 +191,7 @@ export function AddonSaleForm({ offers, timezone, members, nextCursor, initialPr
         <fieldset disabled={command.locked} className="cl-form min-w-0">
           <legend className="cl-eyebrow addon-legend">Member</legend>
           <div className="addon-search">
-            <Field label="Search by phone"><input {...input} type="search" inputMode="tel" placeholder="98765 43210" value={phone} onChange={(event) => setPhone(event.target.value)} /></Field>
+            <Field label="Search by phone"><input {...input} type="search" inputMode="tel" placeholder="+919876543210" value={phone} onChange={(event) => setPhone(event.target.value)} /></Field>
             <button className="cl-btn" type="button" disabled={searching} onClick={() => void search()}>{searching ? 'Searching…' : 'Search members'}</button>
           </div>
           {searchError ? <p role="alert" className="cl-alert">{searchError}</p> : null}
@@ -247,7 +247,7 @@ export function AddonSaleForm({ offers, timezone, members, nextCursor, initialPr
 /** Owner/manager catalogue editing uses only the contract's kind-dependent fields. */
 export function AddonCatalogueForm({ offers, trainers, initialProductId }: { offers: AddonOffer[]; trainers: TrainerChoice[]; initialProductId?: string | undefined }) {
   const preview = usePreviewReadOnly();
-  const [selected, setSelected] = useState(initialProductId ?? '');
+  const [selected, setSelected] = useState(offers.some((row) => row.id === initialProductId) ? initialProductId ?? '' : '');
   const offer = offers.find((row) => row.id === selected);
   if (preview) return null;
   return <details id="catalogue-editor" className="cl-disclosure mt-6" open={Boolean(initialProductId)}>

@@ -6,7 +6,7 @@ import { gymTimeLabel } from '../../../../../lib/time';
 import { requireAudience } from '../../../../../lib/identity-session';
 import { UUID_PATTERN } from '../../../../../lib/keyset';
 import { StatusWord } from '../../../../status-word';
-import { ADDON_ORDER_COLUMNS, ADDON_SESSION_COLUMNS, AddonLoadError, AddonOrderFacts, type AddonOrder, type AddonSession, addonTimeLabels } from '../../display';
+import { ADDON_ORDER_COLUMNS, ADDON_SESSION_COLUMNS, ADDON_DELIVERY, AddonLoadError, AddonOrderFacts, type AddonOrder, type AddonSession, addonTimeLabels } from '../../display';
 import { AddonConfirmForm, AddonScheduleForm, AddonSessionActions } from '../../forms';
 
 type Refund = Omit<Database['public']['Tables']['refunds']['Row'], 'amount_paise'> & { amount_paise: string };
@@ -88,12 +88,12 @@ export default async function AddonOrderPage({ params, searchParams }: {
     <div className="cl-page-header">
       <div><p className="cl-eyebrow">Add-on order</p>
         <h1 className="cl-title">{order.members?.full_name ? <Link href={`/members/${order.member_id}`} className="addon-member-link">{order.members.full_name}</Link> : 'Add-on order'}</h1>
-        <p className="cl-lede addon-order-lede"><StatusWord status={order.status} /><span>{order.sale_snapshot?.name ?? order.addon_products?.name ?? 'Previous add-on'}{order.members?.phone ? <> · <span className="tabular-nums">{formatPhone(order.members.phone)}</span></> : null}</span></p></div>
+        <p className="addon-order-status"><span className="cl-status" data-tone={ADDON_DELIVERY[order.status][1]} data-status={order.status}>{ADDON_DELIVERY[order.status][0]}</span></p>
+        <p className="cl-lede addon-order-lede"><span>{order.sale_snapshot?.name ?? order.addon_products?.name ?? 'Previous add-on'}{order.members?.phone ? <> · <span className="tabular-nums">{formatPhone(order.members.phone)}</span></> : null}</span></p></div>
     </div>
     {query.saved === '1' ? <p role="status" className="cl-alert" data-tone="ok">Confirmation recorded. Current order details are shown below.</p> : null}
     <div className="addon-detail">
-      <div className="addon-detail-main">
-        <article className="cl-section addon-block">
+        <article className="cl-section addon-block addon-detail-terms">
           <AddonOrderFacts order={visibleOrder} timezone={timezone} showPayment={financeVisible} detail>
             <dt>Sold by</dt><dd>{order.seller?.full_name ?? 'Not recorded'}</dd>
             {order.trainer_staff_id && order.sale_snapshot?.kind !== 'pt_package' ? <><dt>Assigned trainer</dt><dd>{order.trainer?.full_name ?? 'Not recorded'}</dd></> : null}
@@ -104,7 +104,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
           {frontOffice && deliverable && order.sale_snapshot?.kind === 'diet_plan' ? <AddonConfirmForm path={`/api/add-on-orders/${orderId}/complete`} method="POST" body={{}} label="Mark diet plan delivered" description="Confirm that this member has received the purchased diet plan. This completion is final." /> : null}
           {today === null ? <p role="alert" className="cl-alert">Gym timezone unavailable. You cannot deliver this order until its expiry can be verified.</p> : null}
         </article>
-        {order.sale_snapshot?.kind === 'pt_package' || order.sessions_total != null ? <section className="cl-section addon-block" aria-labelledby="usage-heading">
+        {order.sale_snapshot?.kind === 'pt_package' || order.sessions_total != null ? <section className="cl-section addon-block addon-detail-sessions" aria-labelledby="usage-heading">
           <div className="cl-section-head"><h2 id="usage-heading" className="cl-section-title">PT sessions</h2></div>
           <dl className="cl-metrics addon-usage">
             <div className="cl-metric"><dt className="cl-eyebrow">Used</dt><dd className="cl-metric-value">{order.sessions_used ?? 'Not recorded'}</dd></div>
@@ -129,9 +129,9 @@ export default async function AddonOrderPage({ params, searchParams }: {
           {trainer && deliverable && availableSessions !== null && availableSessions > 0 ? <AddonScheduleForm orderId={orderId} timezone={timezone} /> :
             <p className="cl-muted text-sm addon-note">{!trainer ? `Only the assigned trainer${order.trainer?.full_name ? `, ${order.trainer.full_name},` : ''} can schedule or finish sessions.` : availableSessions === 0 ? 'All purchased sessions are used or scheduled. Cancel an unused booking before scheduling another.' : 'Scheduling unavailable because of status, expiry, returned money or unavailable reservation counts.'}</p>}
         </section> : null}
-      </div>
       {financeVisible ? <section className="addon-money" aria-labelledby="returns-heading">
         <h2 id="returns-heading" className="cl-section-title">Payment and returns</h2>
+        <p className="addon-money-hero"><span className="cl-eyebrow">Total</span><span className="addon-money-total">{order.total_paise == null ? 'Not recorded' : formatMoney(order.total_paise, order.currency)}</span></p>
         {complimentary ? <p className="cl-alert" data-tone="info">Complimentary · {order.currency} 0.00 — no payment and no receipt.</p> : <dl className="addon-facts">
           <dt>Payment</dt><dd>{payment?.status ? <StatusWord status={payment.status} /> : 'Not recorded'}</dd>
           {payment?.method ? <><dt>Method</dt><dd>{humanize(payment.method)}</dd></> : null}
@@ -143,7 +143,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
           <dl className="addon-facts">
             <dt>Returned (completed only)</dt><dd>{formatMoney(returned.toString(), order.currency)}</dd>
             <dt>Refund requests pending</dt><dd>{formatMoney(pending.toString(), order.currency)}</dd>
-            <dt>Available for another refund request</dt><dd className="addon-money-key">{formatMoney((available > 0 ? available : BigInt(0)).toString(), order.currency)}</dd>
+            <dt>Available for another refund request</dt><dd>{formatMoney((available > 0 ? available : BigInt(0)).toString(), order.currency)}</dd>
           </dl>
           {!refunds.length ? <p className="cl-muted text-sm addon-note">No refund requests or completed returns recorded.</p> : <ul className="cl-rows addon-note">{refunds.map((refund) => <li key={refund.id}><div className="addon-session">
             <p className="cl-row-title tabular-nums">{refund.currency} {rupeesFromPaise(refund.amount_paise)} · {humanize(refund.kind)}</p>

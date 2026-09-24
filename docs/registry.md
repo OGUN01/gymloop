@@ -799,6 +799,7 @@ Visual system: `docs/design/phase9/direction.md`. Tokens stay in `UI_TOKENS` (no
 | `memberShortDate` | `apps/web/app/member/member-ui.tsx` | Calendar date as "12 Oct" | member Home, My gym |
 | `StatusWord` | `apps/web/app/status-word.tsx` | Any status vocabulary value as a dot and sentence-case word (UX9-003), tone chosen from the value; `data-status` keeps the raw value as a styling/test hook | member Home, My gym, console rosters, payments, leads, platform |
 | `PrintReceiptButton` | `apps/web/app/(console)/payments/[paymentId]/print-button.tsx` | Secondary "Print receipt" control calling `window.print()`; hidden in print output | receipt page |
+| `ADDON_DELIVERY` | `apps/web/app/(console)/add-ons/display.tsx` | An add-on order's status as a delivery word and tone ("To deliver", "In progress", "Delivered"…), so an undelivered diet plan never shows "Paid" twice | add-ons page, order detail |
 | `MemberWeekRhythm` | `apps/web/app/member/member-ui.tsx` | Truthful last-seven-days attendance dots, clay (Home) or ink (Activity) | member Home, Activity |
 | `GREETING_HOURS` | `packages/shared/src/config/constants.ts` | Local hours at which the member greeting turns afternoon (12) and evening (17) | `memberGreeting` |
 | `AVATAR_INITIALS_MAX` | `packages/shared/src/config/constants.ts` | Number of name initials an avatar shows (2) | member You (web, Android), desk rosters |
@@ -815,6 +816,7 @@ Visual system: `docs/design/phase9/direction.md`. Tokens stay in `UI_TOKENS` (no
 | `statusTone` | `apps/mobile/components/ui.tsx` | Status dot tone for membership, payment, order and member vocabularies | member and desk screens |
 | `formatMoney` | `packages/shared/src/display/display.ts` | Exact paise as "₹8,000" / "₹1,500.50" (Indian grouping, no ".00" on whole rupees); other currencies as "USD 1,200.00". Built on `rupeesFromPaise`, so it keeps the exact-integer contract | web and native money display |
 | `humanize` | `packages/shared/src/display/display.ts` | Vocabulary value as sentence-case words with brand/acronym casing (UPI, SMS, WhatsApp, PT, "Follow-up due") | `StatusWord`, native `statusWord`, every page showing an enum |
+| `groupByMonth` | `packages/shared/src/display/display.ts` | Items grouped by calendar month in the gym time zone, labels "September" / "August 2025" | member Activity (web and native) |
 | `formatPhone` | `packages/shared/src/display/display.ts` | Indian mobile numbers as "+91 98765 00001"; other numbers unchanged | rosters, member detail, You |
 | `formatDay` | `packages/shared/src/display/display.ts` | Calendar date as "21 Sep 2026" | web and native dates |
 | `formatDateTime` | `packages/shared/src/display/display.ts` | Instant in the gym timezone as "21 Sep 2026, 4:36 pm" | payments, orders, messages |

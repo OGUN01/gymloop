@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CalendarDays, ChevronDown, ChevronRight, CreditCard, Dumbbell, MessageSquareMore, ScanLine } from 'lucide-react';
+import { CalendarDays, ChevronRight, CreditCard, Dumbbell, MessageSquareMore, ScanLine } from 'lucide-react';
 import { UI_TOKENS, formatMoney } from '@gymloop/shared';
 import { StatusWord } from '../../status-word';
 import { loadMemberPortal } from '../../../lib/member-portal';
@@ -33,7 +33,7 @@ export default async function MemberGymPage() {
           <CreditCard {...icon} />
           <span className="member-row-text"><strong>Membership &amp; receipts</strong><small>{membership ? `${membership.planName}${membership.endsOn ? ` · Ends ${memberShortDate(membership.endsOn)}` : ''}` : 'No membership is visible'}</small></span>
           {membership ? <StatusWord status={membership.status} /> : <span />}
-          <ChevronDown {...icon} className="member-disclosure-caret" />
+          <ChevronRight {...icon} className="member-disclosure-caret" />
         </summary>
         <div className="member-disclosure-body">
           {membership ? <dl className="member-facts">

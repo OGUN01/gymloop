@@ -1,5 +1,5 @@
 import {
-  DEFAULT_TIMEZONE, MS_PER_DAY, RENEWAL_REMINDER_WINDOWS, formatDay, formatMoney, formatPhone, membershipNetPrice,
+  AVATAR_INITIALS_MAX, DEFAULT_TIMEZONE, MS_PER_DAY, RENEWAL_REMINDER_WINDOWS, formatDay, formatMoney, formatPhone, membershipNetPrice,
 } from '@gymloop/shared';
 import Link from 'next/link';
 import { loadMemberSearch } from '../../../lib/members';
@@ -101,7 +101,7 @@ export default async function MembershipsPage({
       {count > 0 ? (
         <>
           <p className="desk-count">
-            {count === 1 ? '1 shown' : `${count} shown`}
+            {count === 1 ? '1 membership' : `${count} memberships`}
             {search.phone ? ` matching “${search.phone}”` : ''}
           </p>
           <div className="cl-ledger-wrap memberships-ledger-wrap">
@@ -122,8 +122,13 @@ export default async function MembershipsPage({
                   return (
                     <tr key={member.id}>
                       <td>
-                        <Link href={`/memberships/${member.id}`} className="memberships-member">{member.full_name}</Link>
-                        <span className="memberships-phone">{formatPhone(member.phone)}</span>
+                        <span className="memberships-identity">
+                          <span aria-hidden="true" className="check-in-member-initial">{member.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('')}</span>
+                          <span>
+                            <Link href={`/memberships/${member.id}`} className="memberships-member">{member.full_name}</Link>
+                            <span className="memberships-phone">{formatPhone(member.phone)}</span>
+                          </span>
+                        </span>
                       </td>
                       <td>{row?.plans?.name ?? <span className="cl-muted">—</span>}</td>
                       <td className="tabular-nums">

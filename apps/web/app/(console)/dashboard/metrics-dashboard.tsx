@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  formatBasisPoints,
+  BASIS_POINTS_PER_PERCENT,
   OWNER_OVERVIEW_CASE_PREVIEW_LIMIT,
   OWNER_OVERVIEW_SUPPORTING_PREVIEW_LIMIT,
   ratioBasisPoints,
@@ -45,10 +45,15 @@ function formatSnapshotInstant(value: string, timezone: string): string {
 function humanizeStatus(status: string): string {
   return humanize(status);
 }
-function ratioSummary(numerator: string, denominator: string): string {
+/** A ratio as people say it — "2 of 9 · 22%" — rounded half-up to a whole percent. */
+function ratioSummary(numerator: string, denominator: string, noun = ''): string {
   const basisPoints = ratioBasisPoints(numerator, denominator);
-  const exact = `${numerator} / ${denominator}`;
-  return basisPoints === null ? `${exact} · No cohort` : `${exact} · ${formatBasisPoints(basisPoints)}`;
+  const exact = `${numerator} of ${denominator}${noun}`;
+  if (basisPoints === null) return `${exact} · No cohort`;
+  const value = BigInt(basisPoints);
+  const rest = value % BASIS_POINTS_PER_PERCENT;
+  const whole = value / BASIS_POINTS_PER_PERCENT + (rest + rest >= BASIS_POINTS_PER_PERCENT ? BigInt(1) : BigInt(0));
+  return `${exact} · ${whole}%`;
 }
 function detailSummaries(metrics: OwnerMetrics, selected: CardKey): string[] {
   switch (selected) {
@@ -70,18 +75,18 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
   const [selected, setSelected] = useState<CardKey | null>(null);
   const primaryCards: Array<{ key: CardKey; label: string; value: string; scope: string }> = [
     { key: 'visits', label: 'Visits today', value: metrics.cards.visitsToday, scope: formatLocalDay(metrics.localToday) },
-    { key: 'followUpsDue', label: 'Open follow-ups', value: metrics.cards.followUpsDue, scope: `Due now · ${metrics.cards.openCases} open cases` },
+    // The numeral is the open-case count, so it agrees with the section's "N open" link; what is due now is the caption.
+    { key: 'cases', label: 'Open follow-ups', value: metrics.cards.openCases, scope: `${metrics.cards.followUpsDue} due now` },
     { key: 'renewals', label: 'Renewals due', value: metrics.cards.renewal.length === 0 ? 'No renewals due' : metrics.cards.renewal.map((row) => formatMoney(row.currency, row.duePaise, true)).join(' · '), scope: formatDayRange(metrics.range.from, metrics.range.through) },
     { key: 'cash', label: 'Net collected', value: metrics.cards.cash.length === 0 ? 'No cash movement' : metrics.cards.cash.map((row) => formatMoney(row.currency, row.netPaise, true)).join(' · '), scope: formatDayRange(metrics.range.from, metrics.range.through) },
   ];
   const secondaryCards: Array<{ key: CardKey; label: string; value: string }> = [
     { key: 'liveMembers', label: 'Live members', value: metrics.cards.liveMembers },
     { key: 'pausedMembers', label: 'Paused members', value: metrics.cards.pausedMembers },
-    { key: 'cases', label: 'Open cases', value: metrics.cards.openCases },
     { key: 'recoveries', label: 'Recovered', value: metrics.cards.recovered },
     { key: 'leads', label: 'Lead conversion', value: ratioSummary(metrics.cards.leads.converted, metrics.cards.leads.total) },
     { key: 'addonCash', label: 'Add-on cash', value: moneySummary(metrics.cards.addonCash) },
-    { key: 'ptOrders', label: 'PT sessions used', value: ratioSummary(metrics.cards.pt.sessionsUsed, metrics.cards.pt.sessionsTotal) },
+    { key: 'ptOrders', label: 'PT sessions used', value: ratioSummary(metrics.cards.pt.sessionsUsed, metrics.cards.pt.sessionsTotal, ' used') },
   ];
   const selectedRows = selected === null ? [] : detailSummaries(metrics, selected);
   const cases = metrics.components.cases.slice(0, OWNER_OVERVIEW_CASE_PREVIEW_LIMIT);
@@ -91,7 +96,6 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
   return <main className="dashboard-workspace">
     <header className="dashboard-header">
       <div>
-        <p className="cl-eyebrow dashboard-kicker">{formatLocalDay(metrics.localToday)}</p>
         <h1>Overview</h1>
         <p className="dashboard-subtitle">Your gym at a glance · updated {formatSnapshotInstant(metrics.asOf, metrics.timezone)}</p>
       </div>
@@ -119,12 +123,12 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
         <div className="dashboard-panel-heading"><div><h2 id="dashboard-cases-heading">People to follow up with</h2><p>Longest-open cases first.</p></div><a href="/red-list">{metrics.cards.openCases} open <ChevronRight aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></a></div>
         {cases.length === 0 ? <div className="cl-empty dashboard-empty"><strong>Nobody to chase</strong><p>No open follow-up cases in this snapshot.</p></div> : <>
           <div className="dashboard-columns dashboard-case-columns" aria-hidden="true"><span>Member</span><span>Next step</span></div>
-          <ul className="dashboard-case-list">{cases.map((item) => <li key={item.caseId}><a href={`/members/${item.memberId}`}><span className="dashboard-case-who"><strong>{item.memberName}</strong><span className="cl-status" data-tone={item.due ? 'risk' : 'warn'}>{humanizeStatus(item.status)}</span></span><p>{item.due ? <span className="cl-status" data-tone="risk">Contact now</span> : item.nextFollowUpAt === null ? <span className="dashboard-muted">Nothing scheduled</span> : `Next ${formatSnapshotInstant(item.nextFollowUpAt, metrics.timezone)}`}</p><ChevronRight className="dashboard-row-chevron" aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></a></li>)}</ul>
+          <ul className="dashboard-case-list">{cases.map((item) => <li key={item.caseId}><a href={`/members/${item.memberId}`}><span className="dashboard-case-who"><strong>{item.memberName}</strong><span className="cl-status" data-tone={item.due ? 'risk' : 'warn'}>{humanizeStatus(item.status)}{item.due ? <span className="money-dash-next-inline"> · contact now</span> : null}</span></span><p className={item.due || item.nextFollowUpAt === null ? 'money-dash-next-quiet' : undefined}>{item.due ? <span className="cl-status" data-tone="risk">Contact now</span> : item.nextFollowUpAt === null ? <span className="dashboard-muted" aria-label="Nothing scheduled">—</span> : `Next ${formatSnapshotInstant(item.nextFollowUpAt, metrics.timezone)}`}</p><ChevronRight className="dashboard-row-chevron" aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></a></li>)}</ul>
         </>}
       </section>
       <aside className="dashboard-supporting" aria-label="Renewal and recovery summary">
         <section className="dashboard-panel" aria-labelledby="dashboard-renewals-heading"><div className="dashboard-panel-heading"><div><h2 id="dashboard-renewals-heading">Renewals due</h2><p>{formatDayRange(metrics.range.from, metrics.range.through)}</p></div></div>{renewals.length === 0 ? <div className="cl-empty dashboard-empty"><strong>No renewals due</strong><p>No renewals due in this range.</p></div> : <><div className="dashboard-columns dashboard-renewal-columns" aria-hidden="true"><span>Member</span><span>Due</span><span>Amount</span></div><ul className="dashboard-renewal-list">{renewals.map((item) => <li key={item.membershipId}><a href={`/memberships/${item.memberId}`}>{item.memberName}<small><span className="cl-status" data-tone={item.endsOn < metrics.localToday ? 'risk' : 'warn'}>{item.endsOn < metrics.localToday ? 'Overdue' : 'Due'}</span></small></a><time dateTime={item.endsOn}>{formatLocalDay(item.endsOn)}</time><span>{formatDisplayMoney(item.duePaise, item.currency)}</span></li>)}</ul></>}</section>
-        <section className="dashboard-panel dashboard-recovery" aria-labelledby="dashboard-recovery-heading"><h2 id="dashboard-recovery-heading">Back in the gym</h2><p><strong>{metrics.cards.recovered}</strong> members returned</p>{recoveries.length > 0 && <ul>{recoveries.map((item) => <li key={item.caseId}><a href={`/members/${item.memberId}`}>{item.memberName}</a> · {formatSnapshotInstant(item.returnedAt, metrics.timezone)}</li>)}</ul>}</section>
+        <section className="dashboard-panel dashboard-recovery" aria-labelledby="dashboard-recovery-heading"><div className="dashboard-panel-heading"><div><h2 id="dashboard-recovery-heading">Back in the gym</h2><p>Recovered after a follow-up</p></div></div><p className="money-dash-recovered"><strong>{metrics.cards.recovered}</strong> members returned</p>{recoveries.length > 0 && <ul>{recoveries.map((item) => <li key={item.caseId}><a href={`/members/${item.memberId}`}>{item.memberName}</a> · {formatSnapshotInstant(item.returnedAt, metrics.timezone)}</li>)}</ul>}</section>
       </aside>
     </div>
     <section className="dashboard-secondary-metrics" aria-label="More snapshot details"><h2>More from this snapshot</h2><div>{secondaryCards.map((card) => <button aria-pressed={selected === card.key} key={card.key} onClick={() => setSelected(selected === card.key ? null : card.key)} type="button"><span>{card.label}</span><strong>{card.value}</strong></button>)}</div></section>

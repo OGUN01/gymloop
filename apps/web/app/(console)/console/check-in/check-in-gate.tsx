@@ -305,9 +305,12 @@ export function CheckInGate({ members }: { members: Member[] }) {
         </div>
       </section>
 
-      {gateCode ? null : (
-        <p className="check-in-desk-note">No gate code — desk check-ins need a reason.</p>
-      )}
+      <p className="check-in-roster-meta">
+        <span className="check-in-count">{members.length === 1 ? '1 member' : `${members.length} members`}</span>
+        {gateCode ? null : (
+          <span className="check-in-desk-note">No gate code, so check-ins are recorded at the desk with a reason.</span>
+        )}
+      </p>
 
       <ul className="check-in-members" aria-label="Members">
         <li className="check-in-member-headings" aria-hidden="true"><span>Member</span><span>Status</span><span>Check in</span></li>
@@ -341,14 +344,10 @@ export function CheckInGate({ members }: { members: Member[] }) {
                     setReason('');
                   }}
                   aria-expanded={assistFor === member.id}
+                  aria-label={`Check in ${member.full_name} at the desk`}
                   className={gateCode ? 'cl-btn cl-btn--quiet check-in-row-action' : 'cl-btn check-in-row-action'}
                 >
-                  {gateCode ? 'At the desk' : (
-                    <>
-                      <span className="check-in-row-long">Check in at the desk</span>
-                      <span className="check-in-row-short">At the desk</span>
-                    </>
-                  )}
+                  {gateCode ? 'Desk check-in' : 'Check in'}
                 </button>
               </div>
             </div>

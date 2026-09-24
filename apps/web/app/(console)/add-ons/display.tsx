@@ -38,6 +38,9 @@ export const ADDON_OFFER_COLUMNS = 'id,name,kind,description,price_paise::text,c
 export const ADDON_ORDER_COLUMNS = 'id,member_id,addon_product_id,status,quantity,unit_price_paise::text,total_paise::text,currency,sessions_used,sessions_total,starts_on,expires_on,sold_at,sold_by_staff_id,sale_snapshot,payment_id,trainer_staff_id,addon_products(name),members(full_name,phone),seller:staff!addon_orders_tenant_id_sold_by_staff_id_fkey(full_name),trainer:staff!addon_orders_trainer_staff_id_fkey(full_name),payments(receipt_number,status,method,amount_paise::text,currency)';
 export const ADDON_SESSION_COLUMNS = 'id,addon_order_id,member_id,trainer_staff_id,starts_at,ends_at,status,notes,members(full_name),staff(full_name)';
 
+/** An order's fulfilment as a delivery word and tone, so a paid-but-undelivered diet plan never reads "Paid" twice. */
+export const ADDON_DELIVERY: Record<AddonOrder['status'], [string, 'ok' | 'warn' | 'risk']> = { pending: ['Awaiting payment', 'warn'], paid: ['To deliver', 'warn'], active: ['In progress', 'ok'], completed: ['Delivered', 'ok'], cancelled: ['Cancelled', 'risk'], refunded: ['Refunded', 'risk'] };
+
 /** Availability is explanatory UI; the database rechecks it atomically at sale. */
 export function offerUnavailable(offer: AddonOffer): string | null {
   if (!offer.is_active) return 'Inactive';

@@ -41,7 +41,7 @@ export default function YouSettings({ profile, membership }: { profile: Profile;
   const initials = profile.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('');
   const openSettings = () => { setAppearanceExpanded(true); setSettingsOpen(true); };
   return <>
-    <button type="button" className="member-settings-trigger" aria-label="Open settings" onClick={openSettings}><Settings {...large} /></button>
+    <button type="button" className="member-settings-trigger" aria-label="Open settings" title="Settings" onClick={openSettings}><Settings {...large} /></button>
     <section className="member-profile" aria-label="Your profile">
       <div className="member-avatar" aria-hidden="true">{initials}</div>
       <div>
@@ -53,7 +53,7 @@ export default function YouSettings({ profile, membership }: { profile: Profile;
     </section>
     <h2 className="cl-eyebrow member-eyebrow member-account-eyebrow">Account</h2>
     <ul className="member-account-list" aria-label="Account">
-      <li aria-label={`Personal details, ${personalSummary}`}><span className="member-account-row"><strong>Personal details</strong><small>{personalSummary}</small><span aria-hidden="true" /></span></li>
+      <li aria-label={`Personal details, ${personalSummary}`}><span className="member-account-row"><strong>Personal details</strong><small>{personalSummary}</small></span></li>
       <li aria-label={`Membership, ${membershipSummary}`}><Link className="member-account-row" href="/member/my-gym#membership"><strong>Membership</strong><span className="member-account-value">{membership ? <>{membership.planName}<StatusWord status={membership.status} /></> : 'None visible'}</span><ChevronRight {...small} /></Link></li>
       <li aria-label={`Gym, ${profile.branchName} branch`}><Link className="member-account-row" href="/member/my-gym"><strong>Gym</strong><small>{profile.branchName}</small><ChevronRight {...small} /></Link></li>
       <li aria-label={`Appearance, ${appearanceSummary}`}><button type="button" className="member-account-row" aria-label={`Appearance, ${appearanceSummary}`} onClick={openSettings}><strong>Appearance</strong><small>{appearanceSummary}</small><ChevronRight {...small} /></button></li>

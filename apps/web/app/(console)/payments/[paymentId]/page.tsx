@@ -103,22 +103,27 @@ export default async function ReceiptPage({
         </Link>
       )}
 
+      <div className="money-receipt-layout">
+      <div className="money-receipt-main">
       <article className="cl-panel money-receipt">
         <header className="money-receipt-head">
           <div>
-            <p className="cl-eyebrow">Gym code · {gym.gym_code}</p>
+            <p className="cl-eyebrow">Receipt</p>
             <h1 className="cl-title money-receipt-title">
-              Receipt{' '}
               <span className="tabular-nums">
                 {/* No receipt number means this payment is not `paid`. Saying so
                     is the point: a receipt for money not received would be the
                     one document in this product that lies. */}
-                {payment.receipt_number ?? 'not issued'}
+                {payment.receipt_number ?? 'Not issued'}
               </span>
             </h1>
-            <p className="cl-lede">{gym.name}</p>
+            <p className="cl-lede">
+              {gym.name}
+              {/* On paper the gym code identifies the issuer; on screen the rail already shows it. */}
+              <span className="money-print-only"> · Gym code {gym.gym_code}</span>
+            </p>
           </div>
-          <PrintReceiptButton />
+          <span className="money-print-top"><PrintReceiptButton /></span>
         </header>
 
         <dl className="cl-dl money-dl">
@@ -153,16 +158,23 @@ export default async function ReceiptPage({
             receipt number. The payment itself is unaffected.
           </p>
         ) : null}
+        <span className="money-print-bottom"><PrintReceiptButton /></span>
       </article>
 
-      {error === undefined ? null : (
-        <Alert>{MESSAGES[error] ?? MESSAGES.refund_failed}</Alert>
-      )}
+      <p className="cl-muted money-copy money-print-note print:hidden">
+        Print this page for the member. Receipt numbers are the gym&rsquo;s own, one series per
+        financial year.
+      </p>
+      </div>
 
-      <section className="cl-section money-refunds print:hidden" aria-labelledby="refunds-heading">
+      <section className="money-refunds print:hidden" aria-labelledby="refunds-heading">
         <div className="cl-section-head">
           <h2 className="cl-section-title" id="refunds-heading">Refunds</h2>
         </div>
+
+        {error === undefined ? null : (
+          <Alert>{MESSAGES[error] ?? MESSAGES.refund_failed}</Alert>
+        )}
 
         {refunds.length === 0 ? (
           <p className="cl-muted">Nothing has been sent back.</p>
@@ -200,17 +212,19 @@ export default async function ReceiptPage({
             <input type="hidden" name="idempotencyKey" value={crypto.randomUUID()} />
             <div className="money-refund-row">
               <label className="cl-field">
-                <span>Amount (₹)</span>
+                <span>{payment.currency === 'INR' ? 'Amount' : `Amount (${payment.currency})`}</span>
+                <span className={payment.currency === 'INR' ? 'money-rupee' : 'block'}>
                 <input
                   type="text"
                   name="amountRupees"
                   required
                   inputMode="decimal"
                   pattern="[0-9]+(\.[0-9]{1,2})?"
-                  defaultValue={rupeesFromPaise(refundablePaise)}
+                  defaultValue={rupeesFromPaise(refundablePaise).replace(/\.00$/, '')}
+                  aria-label="Refund amount"
                   className="cl-input tabular-nums"
                 />
-                <small>Up to {formatMoney(refundablePaise, payment.currency)} can go back.</small>
+                </span>
               </label>
               <label className="cl-field">
                 <span>Kind</span>
@@ -230,6 +244,7 @@ export default async function ReceiptPage({
                 Record refund
               </button>
             </div>
+            <p className="cl-hint">Up to {formatMoney(refundablePaise, payment.currency)} can go back.</p>
           </MutationForm>
         ) : null}
 
@@ -243,11 +258,7 @@ export default async function ReceiptPage({
                 : `Returned ${payment.currency} ${rupeesFromPaise(completedReturnedPaise)}. Available for another refund request ${payment.currency} ${rupeesFromPaise(refundablePaise)}. Only an owner or a manager may send money back.`}
         </p>
       </section>
-
-      <p className="cl-muted money-copy money-print-note print:hidden">
-        Print this page for the member. Receipt numbers are the gym&rsquo;s own, one series per
-        financial year.
-      </p>
+      </div>
     </main>
   );
 }

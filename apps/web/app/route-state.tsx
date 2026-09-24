@@ -14,7 +14,7 @@ export function RouteError({ reset, home, homeLabel, className = 'cl-page' }: { 
 }
 
 /** Missing route or record, with a real way back. */
-export function RouteNotFound({ home, homeLabel, title = 'Page not found', className = 'cl-page', brand }: { home: string; homeLabel: string; title?: string; className?: string; brand?: ReactNode }) {
+export function RouteNotFound({ home, homeLabel, title = 'Page not found', className = 'cl-page', brand, footer }: { home: string; homeLabel: string; title?: string; className?: string; brand?: ReactNode; footer?: ReactNode }) {
   return <main className={className}>
     {brand}
     <div className="route-state-message">
@@ -23,5 +23,6 @@ export function RouteNotFound({ home, homeLabel, title = 'Page not found', class
       <p className="cl-lede">The address may be old, or the record may belong to a different gym.</p>
       <div className="cl-actions"><Link className="cl-btn cl-btn--primary" href={home}>{homeLabel}</Link></div>
     </div>
+    {footer}
   </main>;
 }

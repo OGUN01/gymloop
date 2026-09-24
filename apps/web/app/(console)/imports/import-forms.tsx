@@ -265,10 +265,15 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
   if (step === 'upload') {
     return <form method="post" onSubmit={submitUpload} className="cl-form cl-section">
       <StepHead number={1} title="Upload the file" />
-      <Field label="Member file (.csv or .xlsx)">
-        <input type="file" accept=".csv,.xlsx" onChange={onFileChosen} className="imports-file" />
-        <small>{file === null ? 'Up to 5 MiB and 5,000 members. The first row must be the column names.' : `Selected: ${file.name}`}</small>
-      </Field>
+      <div className="cl-field">
+        <span id="imports-file-label">Member file (.csv or .xlsx)</span>
+        <label className="imports-drop" data-empty={file === null ? 'true' : 'false'}>
+          <input type="file" accept=".csv,.xlsx" onChange={onFileChosen} className="sr-only" aria-labelledby="imports-file-label imports-file-name" />
+          <span className="cl-btn imports-drop-button" aria-hidden="true">{file === null ? 'Choose file' : 'Change file'}</span>
+          <span id="imports-file-name" className="imports-drop-name">{file === null ? 'No file selected yet' : file.name}</span>
+        </label>
+        <small>Up to 5 MB and 5,000 members. The first row must be the column names.</small>
+      </div>
       <div className="cl-form-row">
         <BranchAndPhoneFields branches={branches} branchId={branchId} setBranchId={setBranchId} phoneDefaultCountry={phoneDefaultCountry} setPhoneDefaultCountry={setPhoneDefaultCountry} />
       </div>
@@ -379,6 +384,7 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
   return <div className="imports-layout">
     <StepList current={step} />
     <div className="imports-main">{stepContent()}</div>
+    {step === 'upload' ? <FileNeeds /> : null}
   </div>;
 }
 
@@ -393,7 +399,10 @@ const STEPS: ReadonlyArray<{ step: Step; label: string }> = [
 /** The ruled step list beside the form: done steps in green, the current one in clay, the rest waiting. */
 function StepList({ current }: { current: Step }) {
   const currentIndex = STEPS.findIndex((entry) => entry.step === current);
-  return <ol className="imports-steps" aria-label="Import steps">
+  const currentLabel = STEPS[currentIndex]?.label ?? '';
+  return <div className="imports-rail">
+    <p className="imports-progress" data-step={currentIndex + 1}><span>Step {currentIndex + 1} of {STEPS.length} · {currentLabel}</span></p>
+    <ol className="imports-steps" aria-label="Import steps">
     {STEPS.map((entry, index) => {
       const state = index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'next';
       return <li key={entry.step} data-state={state} aria-current={state === 'current' ? 'step' : undefined}>
@@ -404,7 +413,28 @@ function StepList({ current }: { current: Step }) {
         </span>
       </li>;
     })}
-  </ol>;
+    </ol>
+  </div>;
+}
+
+/**
+ * What the importer actually accepts, stated once beside the upload step.
+ * Every line mirrors the parser in `@gymloop/shared` (member-imports): name
+ * and phone are the only required columns, phones are bare Indian mobiles or
+ * +country numbers, dates are YYYY-MM-DD or DD/MM/YYYY, and a phone already on
+ * file is reported as a duplicate rather than overwritten.
+ */
+function FileNeeds() {
+  return <aside className="imports-needs" aria-labelledby="imports-needs-heading">
+    <h2 id="imports-needs-heading" className="cl-eyebrow">What your file needs</h2>
+    <ul className="cl-rows">
+      <li><span><span className="cl-row-title">A header row</span><span className="cl-row-meta">Column names in the first row, each one different.</span></span></li>
+      <li><span><span className="cl-row-title">Name and phone</span><span className="cl-row-meta">Required. Member code, email, gender, date of birth, joined on and notes are optional.</span></span></li>
+      <li><span><span className="cl-row-title">Phones</span><span className="cl-row-meta">10-digit Indian mobiles, or numbers with a + country code.</span></span></li>
+      <li><span><span className="cl-row-title">Dates</span><span className="cl-row-meta">2026-09-24 or 24/09/2026, or Excel date cells.</span></span></li>
+      <li><span><span className="cl-row-title">Existing members</span><span className="cl-row-meta">A phone already on file is shown as a duplicate and left unchanged.</span></span></li>
+    </ul>
+  </aside>;
 }
 
 function BranchAndPhoneFields({ branches, branchId, setBranchId, phoneDefaultCountry, setPhoneDefaultCountry }: {

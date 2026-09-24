@@ -21,7 +21,7 @@ export default async function MemberHomePage() {
     </header>
     <section className="member-hero"><h1>{memberGreeting(portal.gym.timezone)}, {firstName}</h1></section>
     <section className="member-week" aria-labelledby="member-week-heading">
-      <h2 id="member-week-heading" className="member-week-figure"><span className="cl-display">{portal.weekVisits} of {portal.weeklyGoal}</span> <span>visits this week</span></h2>
+      <h2 id="member-week-heading" className="member-week-figure"><span className="cl-display">{portal.weekVisits} <span className="member-week-of">of</span> {portal.weeklyGoal}</span> <span>visits this week</span></h2>
       <p className="member-home-goal">{remaining === 0 ? 'Weekly goal complete. Nice work.' : `${remaining} more ${remaining === 1 ? 'visit' : 'visits'} to your weekly goal.`}</p>
       <MemberWeekRhythm visits={portal.visits} timezone={portal.gym.timezone} weekStart={'weekStart' in portal ? portal.weekStart : undefined} />
     </section>
@@ -38,8 +38,8 @@ export default async function MemberHomePage() {
         {portal.latestMessage.status === 'sent' ? <span className="cl-status" data-tone="accent">New</span> : <span />}
         <ChevronRight {...icon} />
       </Link></li> : null}
+      {lastVisitLabel ? <li className="member-home-last"><span>Last visit</span><span>{lastVisitLabel}</span></li> : null}
     </ul>
-    {lastVisitLabel && !portal.latestMessage ? <p className="member-home-last">Last visit · <span>{lastVisitLabel}</span></p> : null}
     <Link className="member-primary-action member-primary-action--dominant" href="/member/check-in"><ScanLine {...icon} />Scan to check in</Link>
   </main>;
 }

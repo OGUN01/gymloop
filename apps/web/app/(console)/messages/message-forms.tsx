@@ -139,7 +139,7 @@ export function ConsentForm({ members }: { members: MemberChoice[] }) {
     <Field label="Source"><input value={source} onChange={(event) => { setSource(event.target.value); replaceRequestKey(); }} className={inputClass} /></Field>
     </div>
     {problem !== '' ? <Alert>{problem}</Alert> : null}
-    <button type="submit" disabled={pending} className="cl-btn cl-btn--primary self-start justify-self-start">
+    <button type="submit" disabled={pending} className="cl-btn">
       {pending ? 'Recording…' : 'Record consent'}
     </button>
   </MutationForm>;
@@ -157,10 +157,10 @@ export function WhatsAppOpenButton({ notificationId }: { notificationId: string 
   );
 
   return <MutationForm onSubmit={submit} className="inline-block">
-    <button type="submit" disabled={pending} className="cl-btn cl-btn--small">
+    <button type="submit" disabled={pending} className="comms-text-action">
       {pending ? 'Opening…' : 'Open in WhatsApp'}
     </button>
-    {url !== null ? <p className="mt-1"><a href={url} target="_blank" rel="noreferrer" className="cl-btn cl-btn--quiet">{url}</a></p> : null}
+    {url !== null ? <p className="comms-whatsapp-url"><a href={url} target="_blank" rel="noreferrer">{url}</a></p> : null}
     {problem !== '' ? <Alert>{problem}</Alert> : null}
   </MutationForm>;
 }
@@ -199,7 +199,7 @@ export function MessageTemplateForm({ template }: { template?: { id: string; key
   // its row already names them, so only the editable facts are controls here.
   return <MutationForm onSubmit={submit} className="cl-form comms-editor">
     {template !== undefined ? <div className="comms-editor-grid">{categoryField}</div> : <div className="comms-editor-grid">
-      <Field label="Key"><input value={keyInput} onChange={(event) => setKeyInput(event.target.value)} className={inputClass} /></Field>
+      <Field label="Key"><input value={keyInput} onChange={(event) => setKeyInput(event.target.value)} className={inputClass} /><small>Short internal name, for example renewal_due.</small></Field>
       <Field label="Channel">
         <select value={channel} onChange={(event) => setChannel(event.target.value as typeof channel)} className={inputClass}>
           {Constants.public.Enums.notification_channel.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}
@@ -217,7 +217,7 @@ export function MessageTemplateForm({ template }: { template?: { id: string; key
       <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} /> Active
     </label>
     {problem !== '' ? <Alert>{problem}</Alert> : null}
-    <button type="submit" disabled={pending} className="cl-btn self-start justify-self-start">
+    <button type="submit" disabled={pending} className="cl-btn">
       {pending ? 'Saving…' : template ? 'Save template' : 'Create template'}
     </button>
   </MutationForm>;

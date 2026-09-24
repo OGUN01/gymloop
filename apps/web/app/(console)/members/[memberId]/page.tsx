@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
-  DEFAULT_TIMEZONE, formatDateTime, formatDay, formatDayRange, formatMoney, formatPhone, humanize, membershipNetPrice, MEMBER_DETAIL_VISITS_PREVIEW, MEMBER_DETAIL_PAYMENTS_PREVIEW } from '@gymloop/shared';
+  AVATAR_INITIALS_MAX, DEFAULT_TIMEZONE, formatDateTime, formatDay, formatDayRange, formatMoney, formatPhone, humanize, membershipNetPrice, MEMBER_DETAIL_VISITS_PREVIEW, MEMBER_DETAIL_PAYMENTS_PREVIEW } from '@gymloop/shared';
 import { requireAudience } from '../../../../lib/identity-session';
 import { createServerSupabase } from '../../../../lib/supabase/server';
 import { loadMember } from '../member-data';
@@ -92,19 +92,23 @@ export default async function MemberDetailPage({
   const shownVisits = visits === null ? [] : allVisits ? visits : visits.slice(0, MEMBER_DETAIL_VISITS_PREVIEW);
 
   return (
-    <main className="cl-page">
+    <main className="cl-page member-detail-page">
       <Link href="/console" className="cl-back">← All members</Link>
-      <div className="cl-page-header">
-        <div>
-          <h1 className="cl-title">{member.full_name}</h1>
-          <p className="cl-lede member-detail-meta">
-            <span className="tabular-nums">{formatPhone(member.phone)}</span>
-            {member.member_code ? <span className="tabular-nums">{member.member_code}</span> : null}
-            <StatusWord status={member.status} />
-          </p>
+      <div className="cl-page-header member-detail-header">
+        <div className="member-detail-identity">
+          <span aria-hidden="true" className="member-detail-monogram">{member.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('')}</span>
+          <div>
+            <h1 className="cl-title">{member.full_name}</h1>
+            <p className="cl-lede member-detail-meta">
+              <span className="tabular-nums">{formatPhone(member.phone)}</span>
+              {member.member_code ? <span className="tabular-nums">{member.member_code}</span> : null}
+              <StatusWord status={member.status} />
+            </p>
+          </div>
         </div>
-        <div className="cl-actions">
+        <div className="cl-actions member-detail-actions">
           <Link href={`/members/${member.id}/edit`} className="cl-btn">Edit</Link>
+          {seesMoney ? <Link href={`/memberships/${member.id}`} className="cl-btn cl-btn--primary">Record payment</Link> : null}
         </div>
       </div>
 
@@ -122,7 +126,6 @@ export default async function MemberDetailPage({
               <dt>Joined</dt><dd>{DATE_ONLY.format(new Date(member.joined_on))}</dd>
               <dt>Branch</dt><dd>{branch?.name ?? '—'}</dd>
               <dt>Email</dt><dd>{member.email ?? '—'}</dd>
-              <dt>Member code</dt><dd>{member.member_code ?? '—'}</dd>
             </dl>
           </section>
 

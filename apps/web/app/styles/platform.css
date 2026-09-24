@@ -1,40 +1,76 @@
 /* Chalkline platform family refinements (critic loop). Loaded after globals.css. */
 
-/* ── KPI strip: the board's big condensed numerals ─────────────────────── */
+/* ── KPI strip: the board's big condensed numerals, one ruled row of four down to 45rem ── */
 .platform-kpis .cl-metric-value { font-size: clamp(3rem, 6vw, 5rem); }
-.platform-kpis .platform-kpi-date { font-size: clamp(2rem, 3.5vw, 3rem); line-height: 1.1; }
+.platform-kpis .cl-metric > small { min-height: 1.25em; }
+@media (min-width: 45rem) and (max-width: 64rem) {
+  .platform-kpis.cl-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .platform-kpis .cl-metric:nth-child(-n + 2) { border-bottom: 0; }
+  .platform-kpis .cl-metric:nth-child(3) { border-left: 1px solid var(--gymloop-color-decorative-separator); padding-left: var(--gymloop-space-24); }
+  .platform-kpis .cl-metric + .cl-metric { padding-left: var(--gymloop-space-24); }
+  .platform-kpis .cl-metric-value { font-size: 3.5rem; }
+}
 
 /* ── Fleet ledger ─────────────────────────────────────────────────────── */
 .platform-ledger th.cl-num, .platform-ledger td.cl-num { text-align: right; }
 .platform-ledger td { vertical-align: middle; }
-.platform-ledger .cl-row-meta { letter-spacing: var(--gymloop-type-eyebrow-tracking); }
+.platform-ledger tbody tr { position: relative; transition: background-color var(--gymloop-motion-press) ease; }
+.platform-ledger tbody tr:hover { background: var(--gymloop-color-elevated-surface); }
+.platform-cell-gym { min-width: 14rem; }
+.platform-cell-gym .cl-row-title { overflow-wrap: normal; word-break: keep-all; font-size: var(--gymloop-type-body-size); font-weight: 600; }
+.platform-cell-gym .cl-row-meta { letter-spacing: var(--gymloop-type-eyebrow-tracking); }
+.platform-ledger .platform-col-readiness { padding-left: var(--gymloop-space-32); }
 .platform-cell-label { display: none; }
 .platform-cell-open { width: 1%; text-align: right; white-space: nowrap; }
-.platform-cell-open .cl-btn span { font-size: 1.25em; line-height: 1; }
+/* The whole row opens the gym: the link's hit area is stretched across its row. */
+.platform-open-link { display: inline-flex; min-height: var(--gymloop-target-touch); align-items: center; gap: var(--gymloop-space-4); color: var(--gymloop-color-primary-action); font-weight: var(--gymloop-type-emphasis-weight); text-decoration: none; }
+.platform-open-link::after { content: ''; position: absolute; inset: 0; }
+.platform-open-link:hover, .platform-ledger tbody tr:hover .platform-open-link { text-decoration: underline; text-underline-offset: 3px; }
+.platform-open-link:focus-visible { outline: 2px solid var(--gymloop-color-primary-action); outline-offset: 2px; }
+.platform-open-link span { font-size: 1.25em; line-height: 1; }
+@media (max-width: 75rem) {
+  .platform-ledger .platform-col-secondary { display: none; }
+}
 
-/* ── Manage gyms: one disclosure per gym, each control a ruled row ────── */
-.platform-manage > summary { min-height: calc(var(--gymloop-target-touch) + var(--gymloop-space-8)); }
-.platform-manage-title { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--gymloop-space-8) var(--gymloop-space-16); font-size: var(--gymloop-type-body-size); }
-.platform-manage-body { display: grid; gap: 0; border-top: 1px solid var(--gymloop-color-decorative-separator); }
+/* ── Zones: Manage gyms and Add a gym read as separate admin areas ────── */
+.platform-manage-zone, .platform-onboard { margin-top: var(--gymloop-space-48); padding-top: var(--gymloop-space-32); border-top: 1px solid var(--gymloop-color-decorative-separator); }
+.platform-zone-head { display: grid; gap: var(--gymloop-space-8); margin-bottom: var(--gymloop-space-16); }
+.platform-zone-head > p { margin: 0; }
+.platform-zone-head > .cl-muted { max-width: 60ch; }
+.platform-manage { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+.platform-manage:first-of-type { border-top: 1px solid var(--gymloop-color-decorative-separator); }
+.platform-manage > summary { display: flex; min-height: 3.5rem; align-items: center; justify-content: space-between; gap: var(--gymloop-space-16); cursor: pointer; list-style: none; }
+.platform-manage > summary::-webkit-details-marker { display: none; }
+.platform-manage > summary::after { display: none; }
+.platform-manage-title { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--gymloop-space-8) var(--gymloop-space-16); font-size: var(--gymloop-type-body-size); font-weight: 600; }
+.platform-manage-toggle { display: inline-flex; min-height: var(--gymloop-target-touch); align-items: center; gap: var(--gymloop-space-8); border: 1px solid var(--gymloop-color-primary-text); border-radius: var(--gymloop-radius-control); padding: 0 var(--gymloop-space-16); font-size: var(--gymloop-type-compact-size); font-weight: var(--gymloop-type-emphasis-weight); }
+.platform-manage-toggle::after { content: '▾'; font-size: .85em; transition: transform var(--gymloop-motion-press) ease; }
+.platform-manage[open] .platform-manage-toggle::after { transform: rotate(180deg); }
+.platform-manage > summary:hover .platform-manage-toggle { background: var(--gymloop-color-elevated-surface); }
+.platform-manage-body { display: grid; margin: 0 0 var(--gymloop-space-16); border-radius: 12px; background: var(--gymloop-color-elevated-surface); padding: var(--gymloop-space-8) var(--gymloop-space-24); }
+.platform-manage-body .cl-input { background-color: var(--gymloop-color-surface); }
 .platform-control { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gymloop-space-16); align-items: end; padding: var(--gymloop-space-16) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+.platform-control:last-child { border-bottom: 0; }
 .platform-control > .cl-field { grid-column: span 4; }
 .platform-control > .cl-field.platform-control-wide { grid-column: span 8; }
 .platform-control > .cl-btn { grid-column: 10 / span 3; justify-self: end; min-width: 9rem; }
 .platform-control-hint { grid-column: 1 / -1; margin-top: calc(-1 * var(--gymloop-space-8)); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); }
 .platform-manage-body > .cl-muted, .platform-manage-body > .cl-alert { padding: var(--gymloop-space-16) 0; margin: 0; }
-
 .platform-onboard .cl-form > .cl-btn { justify-self: start; }
 
 /* ── Gym detail ───────────────────────────────────────────────────────── */
+.platform-gym .cl-page-header { align-items: flex-start; }
+.platform-gym .cl-page-header > .cl-actions { margin-top: var(--gymloop-space-24); }
+.platform-gym .cl-title { text-wrap: balance; }
 .platform-gym-lede { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gymloop-space-8) var(--gymloop-space-16); }
 .platform-gym-lede > span:not(.cl-status) { color: var(--gymloop-color-secondary-text); }
 .platform-gym-lede > span:not(.cl-status)::before { content: '·'; margin-right: var(--gymloop-space-16); }
-.platform-gym-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 var(--gymloop-space-48); }
-.platform-gym-grid .cl-dl { max-width: 45rem; }
+.platform-gym-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 var(--gymloop-space-48); border-bottom: 1px solid var(--gymloop-color-decorative-separator); padding-bottom: var(--gymloop-space-32); }
+.platform-gym .cl-dl { grid-template-columns: 10rem minmax(0, 1fr); }
 .platform-gym-owner { display: grid; gap: var(--gymloop-space-4); }
 .platform-gym-owner .cl-row-meta { margin: 0; }
 
-@media (max-width: 64rem) {
+@media (max-width: 48rem) {
   .platform-gym-grid { grid-template-columns: 1fr; }
   .platform-control > .cl-field, .platform-control > .cl-field.platform-control-wide { grid-column: span 8; }
   .platform-control > .cl-btn { grid-column: 9 / span 4; }
@@ -47,23 +83,29 @@
   .platform-kpis .cl-metric:nth-child(even) { border-left: 1px solid var(--gymloop-color-decorative-separator); padding-left: var(--gymloop-space-16); }
   .platform-kpis .cl-metric + .cl-metric { border-top: 0; }
   .platform-kpis .cl-metric:nth-child(-n + 2) { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+  .platform-gym .cl-title { font-size: clamp(2rem, 9vw, 2.75rem); }
+  .platform-gym .cl-page-header > .cl-actions { margin-top: 0; }
 
-  /* Each gym becomes a mini ledger: name and status, labelled facts, readiness, a full-width Open row. */
+  /* Each gym becomes a compact card: name and status, a two-column grid of facts, readiness, a full-width Open row. */
   .platform-ledger thead { display: none; }
-  .platform-ledger tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: var(--gymloop-space-16) 0 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+  .platform-ledger tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gymloop-space-8) var(--gymloop-space-16); padding: var(--gymloop-space-16) 0 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+  .platform-ledger tbody tr:hover { background: transparent; }
   .platform-ledger td { padding: 0; border: 0; }
-  .platform-ledger .platform-cell-gym { grid-column: 1; padding-bottom: var(--gymloop-space-12); }
-  .platform-ledger .platform-cell-status { grid-column: 2; align-self: start; }
-  .platform-ledger .platform-cell-fact { display: flex; grid-column: 1 / -1; justify-content: space-between; gap: var(--gymloop-space-12); padding: var(--gymloop-space-8) 0; border-top: 1px solid var(--gymloop-color-decorative-separator); text-align: right; font-variant-numeric: tabular-nums; }
-  .platform-cell-label { display: inline; color: var(--gymloop-color-secondary-text); text-align: left; }
-  .platform-ledger .platform-cell-readiness { grid-column: 1 / -1; padding: var(--gymloop-space-8) 0; border-top: 1px solid var(--gymloop-color-decorative-separator); }
+  .platform-ledger .platform-cell-gym { grid-column: 1; min-width: 0; }
+  .platform-ledger .platform-cell-gym .cl-row-title { overflow-wrap: anywhere; }
+  .platform-ledger .platform-cell-status { grid-column: 2; justify-self: end; align-self: start; }
+  .platform-ledger .platform-col-secondary { display: block; }
+  .platform-ledger td.platform-cell-fact { display: grid; gap: 2px; text-align: left; font-variant-numeric: tabular-nums; }
+  .platform-cell-label { display: block; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); }
+  .platform-ledger .platform-col-readiness { grid-column: 1 / -1; padding: 0; }
   .platform-ledger .platform-cell-readiness .cl-status { white-space: normal; }
   .platform-ledger .platform-cell-open { grid-column: 1 / -1; width: auto; border-top: 1px solid var(--gymloop-color-decorative-separator); }
-  .platform-ledger .platform-cell-open .cl-btn { width: 100%; justify-content: space-between; min-height: var(--gymloop-target-touch); border: 0; padding-inline: 0; }
+  .platform-open-link { display: flex; justify-content: space-between; }
 
+  .platform-manage-body { padding: var(--gymloop-space-8) var(--gymloop-space-16); }
   .platform-control { grid-template-columns: 1fr; }
   .platform-control > .cl-field, .platform-control > .cl-field.platform-control-wide, .platform-control > .cl-btn { grid-column: 1; }
   .platform-control > .cl-btn { justify-self: start; }
-  .platform-gym .cl-dl { grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr); }
+  .platform-gym .cl-dl { grid-template-columns: 8rem minmax(0, 1fr); }
   .platform-gym .cl-dl > dt { padding-bottom: var(--gymloop-space-12); border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
 }

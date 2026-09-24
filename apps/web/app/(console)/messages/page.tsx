@@ -43,8 +43,10 @@ const TOKEN = /\{\{\s*(\w+)\s*\}\}/g;
 const preview = (body: string) => body.replace(TOKEN, (whole, token: string) => SAMPLE_VALUES[token] ?? whole);
 const variables = (body: string) => [...new Set([...body.matchAll(TOKEN)].map((match) => humanize(match[1] ?? '').toLowerCase()))];
 
-/** One labelled cell value for the narrow, stacked ledger (the column head is hidden there). */
-const Cell = ({ label }: { label: string }) => <span className="comms-cell-label">{label}</span>;
+/** What each count means, in the caption slot under its number. */
+const COUNT_CAPTIONS: Partial<Record<keyof MessageStatusCounts, string>> = {
+  scheduled: 'Waiting to send', sent: 'Not yet confirmed', delivered: 'Reached the member',
+};
 
 export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ channel?: string; q?: string; memberCursor?: string; log?: string }> }) {
   const { log, ...params } = await searchParams;
@@ -75,10 +77,10 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
     </div>
 
     <nav aria-label="Messages sections" className="comms-subnav">
-      <a href="#log">Recent messages</a>
-      <a href="#consent">Consent</a>
-      {screen.isAdmin ? <a href="#templates">Templates</a> : null}
-      {screen.isAdmin ? <a href="#wallet">Wallet</a> : null}
+      <a href="#log" data-section="log">Recent</a>
+      <a href="#consent" data-section="consent">Consent</a>
+      {screen.isAdmin ? <a href="#templates" data-section="templates">Templates</a> : null}
+      {screen.isAdmin ? <a href="#wallet" data-section="wallet">Wallet</a> : null}
     </nav>
 
     {screen.errorMessage !== null ? <Alert>{screen.errorMessage}</Alert> : null}
@@ -89,7 +91,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
         {STATUS_ORDER.map((status) => <div key={status} className="cl-metric">
           <span className="cl-eyebrow">{STATUS_LABELS[status]}</span>
           <span className="cl-metric-value tabular-nums">{screen.statusCounts[status]}</span>
-          {status === 'failed' ? <small>{STATUS_LABELS.opted_out}: <span className="tabular-nums">{screen.statusCounts.opted_out}</span></small> : null}
+          <small>{status === 'failed' ? <>{STATUS_LABELS.opted_out}: <span className="tabular-nums">{screen.statusCounts.opted_out}</span></> : COUNT_CAPTIONS[status]}</small>
         </div>)}
       </div>
     </section>
@@ -98,23 +100,25 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       <div className="cl-section-head">
         <h2 id="messages-heading" className="cl-section-title">Recent messages</h2>
         {screen.rows.length > MESSAGE_LOG_PREVIEW_ROWS
-          ? <a href={logQuery(!showAll)} className="cl-btn cl-btn--quiet">{showAll ? 'Show latest 10' : `Show all ${screen.rows.length}`}</a>
+          ? <a href={logQuery(!showAll)} className="cl-btn cl-btn--quiet">{showAll ? `Show latest ${MESSAGE_LOG_PREVIEW_ROWS}` : `Show all ${screen.rows.length}`}</a>
           : null}
       </div>
       {screen.rows.length === 0 && screen.errorMessage === null
         ? <div className="cl-empty"><strong>No messages match these filters.</strong><p>Change the channel filter or check back after the next renewal run.</p></div>
         : null}
       {screen.rows.length === 0 ? null : <div className="cl-ledger-wrap">
-        <table className="cl-ledger comms-log">
+        <table className={`cl-ledger comms-log${showAll ? '' : ' comms-log--preview'}`}>
           <thead><tr>
-            <th scope="col">Member</th><th scope="col">Channel</th><th scope="col">Type</th><th scope="col">Sent</th><th scope="col">Status</th><th scope="col"><span className="sr-only">Action</span></th>
+            <th scope="col">Member</th><th scope="col">Channel</th><th scope="col">Type</th><th scope="col">When</th><th scope="col">Status</th><th scope="col"><span className="sr-only">Action</span></th>
           </tr></thead>
           <tbody>
             {visibleRows.map((row) => <tr key={row.id}>
-              <td className="comms-log-member"><span className="cl-row-title">{row.memberName}</span></td>
-              <td><Cell label="Channel" />{say(row.channel)}</td>
-              <td><Cell label="Type" />{say(row.category) || '—'}</td>
-              <td className="tabular-nums"><Cell label="Sent" />{row.sentAt === null ? <span className="cl-muted">Not sent</span> : <time dateTime={row.sentAt}>{formatDateTime(row.sentAt, DEFAULT_TIMEZONE)}</time>}</td>
+              <td className="comms-log-member">{row.memberName}</td>
+              <td className="comms-log-fact">{say(row.channel)}</td>
+              <td className="comms-log-fact">{say(row.category)}</td>
+              <td className="comms-log-fact tabular-nums">{row.sentAt !== null
+                ? <time dateTime={row.sentAt}>{formatDateTime(row.sentAt, DEFAULT_TIMEZONE)}</time>
+                : <>Due <time dateTime={row.scheduledFor}>{formatDateTime(row.scheduledFor, DEFAULT_TIMEZONE)}</time></>}</td>
               <td className="comms-log-status">
                 <StatusWord status={row.status} label={rowLabel(row)} />
                 {row.failedReason !== null ? <span className="cl-row-meta">Failed: {say(row.failedReason)}</span> : null}
@@ -127,11 +131,13 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       </div>}
     </section>
 
-    <section id="consent" aria-labelledby="consent-heading" className="cl-section comms-anchor">
-      <div className="cl-section-head"><h2 id="consent-heading" className="cl-section-title">Consent</h2></div>
-      <p className="cl-muted">Record a member's marketing or service consent decision.</p>
-      <div className="comms-narrow">
-        {!screen.isPreview ? <form action="/messages" method="get" className="cl-form mt-4">
+    <section id="consent" aria-labelledby="consent-heading" className="cl-section comms-anchor comms-band">
+      <div className="comms-band-intro">
+        <h2 id="consent-heading" className="cl-section-title">Consent</h2>
+        <p className="cl-muted">Record a member's marketing or service consent decision. Find them by phone, then record what they agreed to.</p>
+      </div>
+      <div className="comms-band-body">
+        {!screen.isPreview ? <form action="/messages" method="get" className="cl-form">
           {params.channel ? <input type="hidden" name="channel" value={params.channel} /> : null}
           <div className="comms-search">
             <label className="cl-field"><span>Find member by phone</span>
@@ -149,32 +155,39 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
     {screen.isAdmin ? <section id="templates" aria-labelledby="templates-heading" className="cl-section comms-anchor">
       <div className="cl-section-head"><h2 id="templates-heading" className="cl-section-title">Message templates</h2></div>
       {screen.templates.length === 0 ? <div className="cl-empty"><strong>No templates yet.</strong><p>Create the first one below.</p></div> : <div className="comms-templates">
-        <div className="comms-template-head" aria-hidden="true"><span>Template</span><span>Channel</span><span>Language</span><span>Type</span><span>State</span></div>
-        {screen.templates.map((template, index) => <details key={template.id} className="cl-disclosure comms-template" open={index === 0}>
+        <div className="comms-template-head" aria-hidden="true"><span>Template</span><span>Channel</span><span>Locale</span><span>State</span><span /></div>
+        {screen.templates.map((template, index) => <details key={template.id} className="comms-template" open={index === 0}>
           <summary>
-            <span className="cl-row-title">{say(template.key)}</span>
-            <span><Cell label="Channel" />{say(template.channel)}</span>
-            <span><Cell label="Language" />{language(template.locale)}</span>
-            <span><Cell label="Type" />{say(template.category) || '—'}</span>
+            <span className="comms-template-name">{say(template.key)}</span>
+            <span className="comms-template-fact">{say(template.channel)}</span>
+            <span className="comms-template-fact">{language(template.locale)}</span>
             <StatusWord status={template.isActive ? 'active' : 'inactive'} label={template.isActive ? 'Active' : 'Off'} />
+            <span className="comms-template-toggle" aria-hidden="true">Edit</span>
           </summary>
-          <div className="comms-template-body">
+          <div className="comms-template-panel">
             <p className="comms-preview">{preview(template.body)}</p>
             {variables(template.body).length > 0 ? <p className="cl-hint">Variables: {variables(template.body).join(', ')}. The preview uses sample values.</p> : null}
             <MessageTemplateForm template={template} />
           </div>
         </details>)}
       </div>}
-      <h3 className="cl-eyebrow comms-new-template">New template</h3>
-      <MessageTemplateForm />
+      <div className="comms-band comms-new-template">
+        <div className="comms-band-intro">
+          <h3 className="cl-eyebrow">New template</h3>
+          <p className="cl-muted">Write the message once; the variables fill in for each member when it is sent.</p>
+        </div>
+        <div className="comms-band-body"><MessageTemplateForm /></div>
+      </div>
     </section> : null}
 
-    {screen.isAdmin ? <section id="wallet" aria-labelledby="wallet-heading" className="cl-section comms-anchor">
-      <div className="cl-section-head"><h2 id="wallet-heading" className="cl-section-title">Wallet</h2></div>
-      <dl className="cl-dl comms-narrow">
+    {screen.isAdmin ? <section id="wallet" aria-labelledby="wallet-heading" className="cl-section comms-anchor comms-band">
+      <div className="comms-band-intro">
+        <h2 id="wallet-heading" className="cl-section-title">Wallet</h2>
+        <p className="cl-muted">Only a platform administrator can adjust this balance.</p>
+      </div>
+      <dl className="cl-dl comms-band-body">
         <dt>Balance</dt><dd><span className="tabular-nums">{screen.walletBalanceCredits ?? 'Unavailable'}</span> credits</dd>
       </dl>
-      <p className="cl-hint mt-2">Only a platform administrator can adjust this balance.</p>
     </section> : null}
   </main>;
 }

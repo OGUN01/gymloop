@@ -75,9 +75,9 @@ export default async function MemberAddOnsPage({ searchParams = Promise.resolve(
   };
   return <main className="member-route member-portal member-addons">
     <header><Link href="/member/my-gym" className="cl-back"><ArrowLeft aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />My gym</Link><h1 className="member-title">Add-ons</h1>
-    <p className="cl-lede">Optional offers at your gym, and the terms and usage of what you bought.</p></header>
-    <section id="offers" aria-labelledby="offers-heading">
-      <h2 id="offers-heading" className="cl-section-title addon-member-heading">Available at your gym</h2>
+    <p className="cl-lede member-lede">Optional offers at your gym, and the terms and usage of what you bought.</p></header>
+    <section id="offers" className="member-section" aria-labelledby="offers-heading">
+      <h2 id="offers-heading" className="cl-eyebrow member-eyebrow">Available at your gym</h2>
       {selectedOffer ? <aside className="cl-alert member-selected-offer" data-tone="info"><h3 className="cl-row-title">Your selected offer: {selectedOffer.name}</h3><p>Show this offer to the front desk. Selecting it has created no order or payment. The desk will review the current price and availability with you.</p><Link href="/member/add-ons#offers" className="cl-btn cl-btn--quiet">Clear selection</Link></aside> : null}
       {offerResult.error ? <AddonLoadError label="offers" href="/member/add-ons#offers" /> : !onSale.length ? <div className="cl-empty addon-member-empty"><strong>No active offers are available yet</strong><p>When your gym adds personal training or other offers, they appear here.</p></div> :
         <ul className="addon-catalogue addon-catalogue--member">{onSale.map((offer) => <li key={offer.id}>
@@ -85,11 +85,17 @@ export default async function MemberAddOnsPage({ searchParams = Promise.resolve(
             <Link href={`?${new URLSearchParams({ ...params, offer: offer.id })}#offers`} className="cl-btn addon-offer-action">Show at the desk</Link>
           </AddonOfferDetails>
         </li>)}</ul>}
-      {!offerResult.error && offSale.length ? <p className="cl-muted text-sm addon-note">Not on sale right now: {offSale.map((offer) => `${offer.name} (${offerUnavailable(offer) === 'Out of stock' ? 'out of stock' : 'unavailable'})`).join(', ')}.</p> : null}
+      {!offerResult.error && offSale.length ? <>
+        <h3 className="cl-eyebrow member-eyebrow member-offsale-heading">Not on sale right now</h3>
+        <ul className="cl-rows member-offsale">{offSale.map((offer) => <li key={offer.id}>
+          <span className="cl-row-title">{offer.name}</span>
+          {offerUnavailable(offer) === 'Out of stock' ? <StatusWord status="out_of_stock" label="Out of stock" /> : <StatusWord status="unavailable" label="Unavailable" />}
+        </li>)}</ul>
+      </> : null}
       {offers.length > MEMBER_PAGE_SIZE_DEFAULT ? <Link href={next('offerAfter', pageOffers.at(-1)?.id ?? '')} className="cl-btn cl-btn--quiet">More offers</Link> : null}
     </section>
-    <section id="orders" aria-labelledby="orders-heading">
-      <h2 id="orders-heading" className="cl-section-title addon-member-heading">Your orders</h2>
+    <section id="orders" className="member-section" aria-labelledby="orders-heading">
+      <h2 id="orders-heading" className="cl-eyebrow member-eyebrow">Your orders</h2>
       {orderResult.error ? <AddonLoadError label="your orders" href="/member/add-ons#orders" /> : !pageOrders.length ? <div className="cl-empty addon-member-empty"><strong>No add-on orders yet</strong><p>Anything you buy at the desk shows here with its terms and usage.</p></div> :
         <ul className="member-order-list">{pageOrders.map((order) => <li key={order.id} className="member-offer">
           <AddonOrderFacts order={order} timezone={timezone} />

@@ -42,7 +42,7 @@ export default async function RedListPage({
           <p className="follow-up-intro">
             {errorMessage !== null || cases.length === 0
               ? 'Members who have stopped coming, longest away first.'
-              : `${cases.length === 1 ? '1 member' : `${cases.length} members`}${nextCursor === null ? '' : ' on this page'}, longest away first.`}
+              : `${cases.length === 1 ? '1 member' : `${cases.length} members`}, longest away first.`}
           </p>
         </div>
         <Link href="/console" className="cl-btn follow-up-route-link"><Users aria-hidden="true" className="follow-up-route-icon" />All members</Link>
@@ -77,7 +77,7 @@ export default async function RedListPage({
                   <span>{row.last_attended_on === null ? 'Never visited' : <>Last visit <time dateTime={row.last_attended_on}>{dayMonth(row.last_attended_on)}</time></>}</span>
                 </div>
                 <div className="follow-up-history">
-                  {row.last_follow_up_at === null ? 'Nobody has contacted them yet.' : (
+                  {row.last_follow_up_at === null ? <span className="cl-status follow-up-not-contacted" data-tone="neutral">Nobody has contacted them yet.</span> : (
                     <>
                       <span>{humanize(row.last_follow_up_channel ?? '')} · {row.last_follow_up_by ?? 'Someone'}</span>
                       <span className="cl-status" data-tone={OUTCOME_TONE[row.last_follow_up_outcome ?? ''] ?? 'neutral'} data-status={row.last_follow_up_outcome ?? ''}>{humanize(row.last_follow_up_outcome ?? '')}</span>

@@ -18,6 +18,9 @@ import { LeadConvertDialog, LeadEditForm, LeadEnquiryForm, LeadStageForm } from 
 
 type SearchParams = Promise<Record<string, string | undefined>>;
 
+/** The select filters a desk can narrow by; their count labels the phone disclosure. */
+const FILTER_KEYS = ['stage', 'source', 'assignee', 'branch'] as const;
+
 /**
  * The next action a row's stage implies, in the desk's words. The labels are
  * the contract's, verbatim — they are what the front desk is trained on, and
@@ -97,6 +100,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
   const [params, screen] = await Promise.all([searchParams, loadLeads(searchParams)]);
   const now = Date.now();
 
+  const activeFilters = FILTER_KEYS.filter((key) => Boolean(params[key])).length;
   const countsMatch = screen.pageResultCount === screen.totalMatchingCount;
 
   return <main className="cl-page">
@@ -107,17 +111,22 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
         <p className="cl-lede">Every enquiry from first contact to a converted member or a recorded loss.</p>
       </div>
       <div className="cl-actions">
-        <a href="#record-enquiry" className="cl-btn cl-btn--primary"><Plus aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />Record enquiry</a>
+        <a href="#record-enquiry" className="cl-btn"><Plus aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />Record enquiry</a>
       </div>
     </div>
 
     <form method="get" action="/leads" className="leads-filters cl-section">
-      {filterSpecs(screen).map((spec) => <Field key={spec.name} label={spec.label}>
-        <select name={spec.name} defaultValue={params[spec.name] ?? ''} className={inputClass}>
-          <option value="">{spec.allLabel}</option>
-          {spec.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-      </Field>)}
+      {/* On a phone the four selects fold behind one disclosure so the first lead
+          is on screen; wider layouts show them inline (leads.css). */}
+      <details className="leads-filter-more" open={activeFilters > 0 ? true : undefined}>
+        <summary className="cl-btn">Filters{activeFilters > 0 ? ` (${activeFilters})` : ''}<ChevronDown aria-hidden="true" className="leads-chevron" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></summary>
+        {filterSpecs(screen).map((spec) => <Field key={spec.name} label={spec.label}>
+          <select name={spec.name} defaultValue={params[spec.name] ?? ''} className={inputClass}>
+            <option value="">{spec.allLabel}</option>
+            {spec.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </Field>)}
+      </details>
       <Field label="Search">
         <input name="q" defaultValue={params.q ?? ''} type="search" placeholder="Name or phone" className={inputClass} />
       </Field>
@@ -174,6 +183,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               <span className="leads-cell-action">
                 {row.stage === 'converted' && row.convertedMemberId !== null
                   ? <Link className="cl-btn cl-btn--small" href={`/members/${row.convertedMemberId}`}>Open member</Link>
+                  : null}
+                {!open && !(row.stage === 'converted' && row.convertedMemberId !== null)
+                  ? <span className="leads-slot-empty" aria-hidden="true">—</span>
                   : null}
                 {open ? <details className="leads-toggle leads-toggle--act">
                   <summary className="cl-btn cl-btn--small">{row.stage === 'trial_done' ? 'Convert' : 'Change stage'}</summary>

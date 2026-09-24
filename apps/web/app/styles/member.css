@@ -5,7 +5,7 @@
 .member-portal > header > .cl-eyebrow + .member-title { margin-top: var(--gymloop-space-8); }
 .member-portal > header > .cl-back + .cl-eyebrow { margin-top: var(--gymloop-space-8); }
 .member-portal > header > .cl-back { margin-left: calc(var(--gymloop-space-4) * -1); margin-bottom: 0; }
-.member-lede { max-width: 34ch; text-wrap: pretty; }
+.member-lede { max-width: 60ch; text-wrap: pretty; }
 .member-portal header .member-lede { margin-top: var(--gymloop-space-12); }
 .member-eyebrow { margin-bottom: var(--gymloop-space-12); }
 .member-section { padding-top: var(--gymloop-space-8); }
@@ -39,8 +39,9 @@ a.member-row:hover > svg:last-child { transform: translateX(2px); }
 .member-home .member-home-goal { margin: var(--gymloop-space-8) 0 0; color: var(--gymloop-color-secondary-text); }
 .member-home-rows { margin: var(--gymloop-space-24) 0 0; padding: 0; list-style: none; border-top: 1px solid var(--gymloop-color-decorative-separator); }
 .member-home-rows > li { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
-.member-home-last { margin: var(--gymloop-space-16) 0 0; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); }
-.member-home-last span { color: var(--gymloop-color-primary-text); font-variant-numeric: tabular-nums; }
+.member-home-rows > li.member-home-last { display: flex; align-items: center; justify-content: space-between; gap: var(--gymloop-space-16); min-height: 56px; font-size: var(--gymloop-type-compact-size); }
+.member-home-last > span:first-child { color: var(--gymloop-color-secondary-text); }
+.member-home-last > span:last-child { color: var(--gymloop-color-primary-text); font-variant-numeric: tabular-nums; text-align: right; }
 @media (min-width: 48rem) { .member-week-figure .cl-display { font-size: clamp(88px, 12vw, 128px); } }
 
 /* ---------- Activity ---------- */
@@ -120,3 +121,31 @@ span.member-account-row { grid-template-columns: auto minmax(0, 1fr) var(--gymlo
 .member-section .cl-empty { padding: var(--gymloop-space-16) 0 var(--gymloop-space-24); border-top: 1px solid var(--gymloop-color-decorative-separator); }
 .member-activity .member-activity-count { line-height: .88; }
 .member-portal > .member-sheet-backdrop { margin: 0; }
+
+/* ---------- Round-2 pass ---------- */
+.member-title { text-wrap: balance; }
+.member-title--long { font-size: clamp(2.5rem, 11vw, 4rem); }
+.member-home .member-initial { border-color: var(--gymloop-color-required-control-outline); color: var(--gymloop-color-primary-text); }
+.member-week-of { font-size: .6em; font-weight: 700; }
+@media (max-width: 47.99rem) { .member-home .member-week-figure .cl-display { font-size: clamp(96px, 30vw, 140px); } }
+.member-activity .member-week--activity { padding-top: var(--gymloop-space-24); border-top: 1px solid var(--gymloop-color-decorative-separator); }
+.member-streak-note[data-empty='true'] { margin-top: 0; color: var(--gymloop-color-primary-text); }
+.member-activity-older > summary { display: flex; width: 100%; min-height: 56px; justify-content: space-between; border-bottom: 1px solid var(--gymloop-color-decorative-separator); text-decoration: none; }
+.member-activity-older > summary > svg { color: var(--gymloop-color-secondary-text); }
+.member-activity-older > summary:hover > svg { color: var(--gymloop-color-primary-text); }
+.member-activity-older > summary:focus-visible { outline: 2px solid var(--gymloop-color-primary-text); outline-offset: 2px; }
+.member-activity-older { margin-top: 0; }
+.member-disclosure[open] .member-disclosure-caret { transform: rotate(90deg); }
+.member-gym .member-gym-code { color: var(--gymloop-color-primary-text); font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.member-you span.member-account-row { grid-template-columns: auto minmax(0, 1fr); }
+.member-sign-out { display: inline-flex; min-height: var(--gymloop-target-touch); align-items: center; text-underline-offset: 4px; }
+.member-sign-out:hover, .member-sign-out:focus-visible { text-decoration: underline; }
+.member-steps--numbered li { align-items: first baseline; }
+.member-steps--numbered li > span:last-child { display: block; }
+.member-steps--numbered li > span:last-child > strong { display: block; }
+.member-steps--numbered li > span:last-child > small { display: block; margin-top: var(--gymloop-space-4); }
+.member-quiet-link { display: inline-flex; min-height: var(--gymloop-target-touch); align-items: center; gap: var(--gymloop-space-8); margin-top: var(--gymloop-space-8); color: var(--gymloop-color-primary-text); font-weight: 600; text-decoration: underline; text-decoration-color: var(--gymloop-color-required-control-outline); text-underline-offset: 4px; }
+.member-quiet-link:hover { text-decoration-color: currentColor; }
+.member-addons .member-offsale-heading { margin-top: var(--gymloop-space-24); }
+.member-offsale .cl-row-title { color: var(--gymloop-color-secondary-text); font-weight: 500; }
+.member-steps--numbered li > span:last-child > small { text-wrap: balance; }

@@ -52,25 +52,24 @@ export default async function PaymentsPage({
         }).toString()}`;
 
   const takings = paidTotals(payments);
+  const paidCount = payments.filter((row) => row.status === 'paid').length;
 
   return (
     <main className="cl-page">
-      <div className="cl-page-header">
+      <div className="cl-page-header money-pay-header">
         <div>
           <p className="cl-eyebrow">Money</p>
           <h1 className="cl-title">Payments</h1>
           <p className="cl-lede money-lede">
-            Money taken at the desk, most recently recorded first. Take a payment from a
+            Money taken at the desk, latest entries first. Take a payment from a
             member&rsquo;s page.
           </p>
         </div>
         {takings.length === 0 ? null : (
           <div className="cl-metric money-summary">
-            <span className="cl-eyebrow">Paid, this page</span>
+            <span className="cl-eyebrow">Total shown</span>
             <span className="cl-metric-value">{takings.join(' · ')}</span>
-            <small className="cl-muted">
-              {payments.length} {payments.length === 1 ? 'payment' : 'payments'} shown
-            </small>
+            <small className="cl-muted">{paidCount} paid {paidCount === 1 ? 'payment' : 'payments'}</small>
           </div>
         )}
       </div>
@@ -97,7 +96,7 @@ export default async function PaymentsPage({
                   <th scope="col" className="cl-num">Amount</th>
                   <th scope="col">Method</th>
                   <th scope="col" className="money-takenby">Taken by</th>
-                  <th scope="col">Recorded</th>
+                  <th scope="col">Paid on</th>
                 </tr>
               </thead>
               <tbody>
@@ -122,10 +121,7 @@ export default async function PaymentsPage({
                     <td>{humanize(row.method)}</td>
                     <td className="money-takenby">{row.staff?.full_name ?? '—'}</td>
                     <td className="tabular-nums">
-                      <When row={row} timezone={timezone} />
-                      {row.staff === null ? null : (
-                        <span className="money-by cl-muted text-sm">by {row.staff.full_name}</span>
-                      )}
+                      {paidOn(row, timezone)}
                     </td>
                   </tr>
                 ))}
@@ -138,14 +134,17 @@ export default async function PaymentsPage({
           <ul className="cl-rows money-narrow">
             {payments.map((row) => (
               <li key={row.id} className="money-row">
+                {/* The whole row opens the receipt (the link stretches over
+                    it in money.css); the member's name stays its own link on
+                    top, so the way back to the member is kept. */}
                 <Link href={`/memberships/${row.member_id}`} className="money-row-member">
                   {row.members.full_name}
                 </Link>
                 <span className="money-row-amount">{formatMoney(row.amount_paise, row.currency)}</span>
                 <span className="money-row-meta">
-                  {humanize(row.method)} · {formatDateTime(row.created_at, timezone)}
+                  {humanize(row.method)} · {paidOn(row, timezone)}
                 </span>
-                <Link href={`/payments/${row.id}`} className={`money-row-receipt ${receiptClass(row)}`}>
+                <Link href={`/payments/${row.id}`} className="money-row-receipt" aria-label={`Receipt ${receiptLabel(row)}`}>
                   {receiptLabel(row)}
                 </Link>
               </li>
@@ -172,11 +171,17 @@ type Row = {
   created_at: string;
   amount_paise: string;
   currency: string;
+  method: string;
 };
 
-/** The receipt number, or why there is none. */
-function receiptLabel(row: Pick<Row, 'receipt_number' | 'status'>): string {
-  return row.receipt_number ?? `${humanize(row.status)} — no receipt`;
+/**
+ * The receipt number, or why there is none: an online payment's receipt is
+ * the provider's, and anything else unnumbered says its state (PAY-008).
+ */
+function receiptLabel(row: Pick<Row, 'receipt_number' | 'status' | 'method'>): string {
+  if (row.receipt_number !== null) return row.receipt_number;
+  if (row.status === 'paid' && row.method === 'razorpay') return 'Online';
+  return `${humanize(row.status)} — no receipt`;
 }
 
 /** A real receipt number reads as a link; the "no receipt" note reads as a note. */
@@ -184,19 +189,9 @@ function receiptClass(row: Pick<Row, 'receipt_number'>): string {
   return row.receipt_number === null ? 'money-noreceipt' : 'money-receipt-link';
 }
 
-/**
- * When the payment was recorded — the order this ledger is sorted by — with
- * the paid time underneath only when it says something different.
- */
-function When({ row, timezone }: { row: Row; timezone: string }) {
-  const recorded = formatDateTime(row.created_at, timezone);
-  const paid = row.paid_at === null ? recorded : formatDateTime(row.paid_at, timezone);
-  return (
-    <>
-      <span className="block">{recorded}</span>
-      {paid === recorded ? null : <span className="block cl-muted text-sm">Paid {paid}</span>}
-    </>
-  );
+/** When the money was paid — or, for a payment with no paid time yet, when it was recorded. */
+function paidOn(row: Pick<Row, 'paid_at' | 'created_at'>, timezone: string): string {
+  return formatDateTime(row.paid_at ?? row.created_at, timezone);
 }
 
 /** What the paid rows on this page add up to, per currency — display only, exact in BigInt. */

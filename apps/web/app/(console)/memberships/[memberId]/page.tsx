@@ -117,7 +117,7 @@ export default async function MemberMembershipsPage({
   const supabase = await createServerSupabase();
 
   const [member, memberships, plans, settings, organization, history] = await Promise.all([
-    supabase.from('members').select('id, full_name, phone').eq('id', memberId).maybeSingle(),
+    supabase.from('members').select('id, full_name, phone, member_code').eq('id', memberId).maybeSingle(),
     supabase
       .from('memberships')
       .select(MEMBERSHIP_COLUMNS)
@@ -206,6 +206,9 @@ export default async function MemberMembershipsPage({
           <p className="cl-eyebrow">Membership</p>
           <h1 className="cl-title">{member.data.full_name}</h1>
           <p className="cl-lede money-member-facts">
+            {member.data.member_code === null ? null : (
+              <span>Member code <span className="tabular-nums">{member.data.member_code}</span></span>
+            )}
             <span className="tabular-nums">{formatPhone(member.data.phone)}</span>
             {live !== undefined ? (
               <StatusWord status={live.status} />
@@ -215,6 +218,11 @@ export default async function MemberMembershipsPage({
               <StatusWord status="none" label="No live membership" />
             )}
           </p>
+        </div>
+        <div className="cl-actions">
+          <Link href={`/members/${memberId}`} className="cl-btn">
+            Member profile
+          </Link>
         </div>
       </div>
 
@@ -231,7 +239,7 @@ export default async function MemberMembershipsPage({
           {live === undefined ? (
             lapsed === undefined ? (
               <p className="cl-muted">
-                No live membership. Sell one below, then record the payment that starts it.
+                No live membership. Sell one, then record the payment that starts it.
               </p>
             ) : (
               <>
@@ -259,6 +267,76 @@ export default async function MemberMembershipsPage({
               <dd>{formatMoney(membershipNetPrice(live.price_paise, live.discount_paise), live.currency)}</dd>
             </dl>
           )}
+
+          {/* The two things a desk does to this membership besides taking
+              money. Each opens its own form in place; the forms and their
+              handlers are unchanged. */}
+          <div className="money-member-actions">
+            <details className="money-action" open={live === undefined}>
+              <summary className="cl-btn">{live === undefined ? 'Sell a membership' : 'Sell another membership'}</summary>
+              <MutationForm method="post" action="/api/memberships" className="cl-form money-form money-disclosure-body">
+                <input type="hidden" name="memberId" value={memberId} />
+                <div className="cl-form-row">
+                  <label className="cl-field">
+                    <span>Plan</span>
+                    <select name="planId" required className="cl-input">
+                      {(plans.data ?? []).map((plan) => (
+                        <option key={plan.id} value={plan.id}>
+                          {plan.name} — {formatMoney(plan.price_paise, plan.currency)} / {plan.duration_days} days
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="cl-field">
+                    <span>Starts on</span>
+                    <input type="date" name="startsOn" required defaultValue={today} className="cl-input" />
+                  </label>
+                </div>
+                <p className="cl-muted money-copy">
+                  Price comes from the plan. <strong>The first fully paid period sets the membership dates.</strong>
+                  {' '}Record the payment to start the membership.
+                </p>
+                <button type="submit" className="cl-btn">
+                  Create membership
+                </button>
+              </MutationForm>
+            </details>
+            {live === undefined ? null : (
+              <details className="money-action">
+                <summary className="cl-btn">Pause membership</summary>
+                <MutationForm method="post" action="/api/memberships/pauses" className="cl-form money-form money-disclosure-body">
+                  <input type="hidden" name="memberId" value={memberId} />
+                  <input type="hidden" name="membershipId" value={live.id} />
+                  <div className="cl-form-row">
+                    <label className="cl-field">
+                      <span>From</span>
+                      <input type="date" name="startsOn" required defaultValue={today} className="cl-input" />
+                    </label>
+                    <label className="cl-field">
+                      <span>To</span>
+                      <input type="date" name="endsOn" required defaultValue={today} className="cl-input" />
+                    </label>
+                  </div>
+                  <label className="cl-field">
+                    <span>Reason</span>
+                    {/* A datalist rather than a select: `pause_reasons` defaults to
+                        empty, and a select with no options is a dead control. This
+                        offers the gym's configured reasons and still accepts a new
+                        one. */}
+                    <input type="text" name="reason" required list="pause-reasons" className="cl-input" />
+                    <datalist id="pause-reasons">
+                      {(settings.data?.pause_reasons ?? []).map((reason) => (
+                        <option key={reason} value={reason} />
+                      ))}
+                    </datalist>
+                  </label>
+                  <button type="submit" className="cl-btn">
+                    Request pause
+                  </button>
+                </MutationForm>
+              </details>
+            )}
+          </div>
         </section>
 
         <section className="money-member-pay" aria-labelledby="payment-heading" id="record-payment">
@@ -293,12 +371,12 @@ export default async function MemberMembershipsPage({
                      typed, not nudged. Two decimal places at most, refused rather
                      than rounded. */
                   pattern="\d{1,9}(\.\d{1,2})?"
-                  defaultValue={renewablePrice === undefined ? undefined : rupeesFromPaise(renewablePrice)}
+                  defaultValue={renewablePrice === undefined ? undefined : rupeesFromPaise(renewablePrice).replace(/\.00$/, '')}
                   aria-label="Amount in rupees"
                   className="cl-input tabular-nums"
                 />
               </span>
-              <small>Rupees, up to two paise digits — 1500 or 1500.50.</small>
+              <small>Digits only, paise optional — 1500 or 1500.50.</small>
             </label>
             <label className="cl-field">
               <span>Method</span>
@@ -334,55 +412,26 @@ export default async function MemberMembershipsPage({
                   A full {formatMoney(renewablePrice ?? 0, renewable.currency)} extends the membership by{' '}
                   {renewable.duration_days} days. Part-payments are receipted but don&rsquo;t extend it.
                 </p>
-                <details className="cl-disclosure money-disclosure">
-                  <summary>How dates work</summary>
-                  <p className="cl-muted money-copy">
-                    The first fully paid period starts from today or a future agreed start date.
-                    Later paid periods extend the membership from its expiry or today, whichever is later.{' '}
-                    A full {formatMoney(renewablePrice ?? 0, renewable.currency)} buys one period of{' '}
-                    {renewable.duration_days} days; part of it is recorded and receipted and buys none
-                    until the balance is paid.
-                  </p>
-                </details>
               </div>
             )}
             <button type="submit" className="cl-btn cl-btn--primary cl-btn--block">
               Record payment
             </button>
+            {renewable === undefined || renewablePrice === 0 ? null : (
+            <details className="cl-disclosure money-disclosure">
+              <summary>How dates work</summary>
+              <p className="cl-muted money-copy">
+                The first fully paid period starts from today or a future agreed start date.
+                Later paid periods extend the membership from its expiry or today, whichever is later.{' '}
+                A full {formatMoney(renewablePrice ?? 0, renewable.currency)} buys one period of{' '}
+                {renewable.duration_days} days; part of it is recorded and receipted and buys none
+                until the balance is paid.
+              </p>
+            </details>
+            )}
           </MutationForm>
         </section>
 
-        <section className="money-member-sell" aria-labelledby="sell-heading">
-          <details className="cl-disclosure money-disclosure" open={live === undefined}>
-            <summary id="sell-heading">{live === undefined ? 'Sell a membership' : 'Sell another membership'}</summary>
-            <MutationForm method="post" action="/api/memberships" className="cl-form money-form money-disclosure-body">
-              <input type="hidden" name="memberId" value={memberId} />
-              <div className="cl-form-row">
-                <label className="cl-field">
-                  <span>Plan</span>
-                  <select name="planId" required className="cl-input">
-                    {(plans.data ?? []).map((plan) => (
-                      <option key={plan.id} value={plan.id}>
-                        {plan.name} — {formatMoney(plan.price_paise, plan.currency)} / {plan.duration_days} days
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="cl-field">
-                  <span>Starts on</span>
-                  <input type="date" name="startsOn" required defaultValue={today} className="cl-input" />
-                </label>
-              </div>
-              <p className="cl-muted money-copy">
-                Price comes from the plan. <strong>The first fully paid period sets the membership dates.</strong>
-                {' '}Record the payment to start the membership.
-              </p>
-              <button type="submit" className="cl-btn">
-                Create membership
-              </button>
-            </MutationForm>
-          </details>
-        </section>
 
         <section className="money-member-history" aria-labelledby="history-heading">
           <div className="cl-section-head">
@@ -441,41 +490,7 @@ export default async function MemberMembershipsPage({
             <p className="cl-muted money-copy">
               A pause attaches to a live membership. This member has none.
             </p>
-          ) : (
-            <details className="cl-disclosure money-disclosure">
-              <summary>Request a pause</summary>
-              <MutationForm method="post" action="/api/memberships/pauses" className="cl-form money-form money-disclosure-body">
-                <input type="hidden" name="memberId" value={memberId} />
-                <input type="hidden" name="membershipId" value={live.id} />
-                <div className="cl-form-row">
-                  <label className="cl-field">
-                    <span>From</span>
-                    <input type="date" name="startsOn" required defaultValue={today} className="cl-input" />
-                  </label>
-                  <label className="cl-field">
-                    <span>To</span>
-                    <input type="date" name="endsOn" required defaultValue={today} className="cl-input" />
-                  </label>
-                </div>
-                <label className="cl-field">
-                  <span>Reason</span>
-                  {/* A datalist rather than a select: `pause_reasons` defaults to
-                      empty, and a select with no options is a dead control. This
-                      offers the gym's configured reasons and still accepts a new
-                      one. */}
-                  <input type="text" name="reason" required list="pause-reasons" className="cl-input" />
-                  <datalist id="pause-reasons">
-                    {(settings.data?.pause_reasons ?? []).map((reason) => (
-                      <option key={reason} value={reason} />
-                    ))}
-                  </datalist>
-                </label>
-                <button type="submit" className="cl-btn">
-                  Request pause
-                </button>
-              </MutationForm>
-            </details>
-          )}
+          ) : null}
         </section>
       </div>
     </main>

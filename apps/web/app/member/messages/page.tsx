@@ -22,7 +22,7 @@ export default async function MemberMessagesPage(_props: object = {}) {
   return <main className="member-route member-portal">
     <header>
       <Link href="/member/my-gym" className="cl-back"><ArrowLeft aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />My gym</Link>
-      <h1 className="member-title">Messages &amp; consent</h1>
+      <h1 className="member-title member-title--long">Messages &amp; consent</h1>
       <p className="cl-lede member-lede">Notes from your gym, and the choices you have made about hearing from them.</p>
     </header>
 

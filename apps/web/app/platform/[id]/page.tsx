@@ -44,7 +44,7 @@ export default async function PlatformGymPage({ params }: { params: Promise<{ id
     <a href="/platform" className="cl-back">← All gyms</a>
     <div className="cl-page-header">
       <div>
-        <p className="cl-eyebrow">{gym.gymCode}</p>
+        <p className="cl-eyebrow">Gym code · {gym.gymCode}</p>
         <h1 className="cl-title">{gym.name}</h1>
         <p className="cl-lede platform-gym-lede">
           <StatusWord status={gym.status} />
@@ -56,10 +56,12 @@ export default async function PlatformGymPage({ params }: { params: Promise<{ id
     </div>
 
     <div className="cl-metrics platform-kpis">
-      <div className="cl-metric"><span className="cl-eyebrow">Active members</span><span className="cl-metric-value tabular-nums">{gym.activeMembers ?? '—'}</span>{gym.activeMembers === null ? <small>Unavailable</small> : null}</div>
-      <div className="cl-metric"><span className="cl-eyebrow">Open cases</span><span className="cl-metric-value tabular-nums">{gym.openCases}</span></div>
-      <div className="cl-metric"><span className="cl-eyebrow">Failed sends</span><span className="cl-metric-value tabular-nums">{gym.failedNotifications}</span></div>
-      <div className="cl-metric"><span className="cl-eyebrow">Trial ends</span><span className="cl-metric-value platform-kpi-date">{trialDay === null ? 'No trial' : <time dateTime={gym.trialEndsAt ?? ''}>{trialDay}</time>}</span></div>
+      <div className="cl-metric"><span className="cl-eyebrow">Active members</span><span className="cl-metric-value tabular-nums">{gym.activeMembers ?? '—'}</span><small>{gym.activeMembers === null ? 'Unavailable' : 'With a live membership'}</small></div>
+      <div className="cl-metric"><span className="cl-eyebrow">Open cases</span><span className="cl-metric-value tabular-nums">{gym.openCases}</span><small>Members to bring back</small></div>
+      <div className="cl-metric"><span className="cl-eyebrow">Failed sends</span><span className="cl-metric-value tabular-nums">{gym.failedNotifications}</span><small>Messages that did not go out</small></div>
+      <div className="cl-metric"><span className="cl-eyebrow">Trial ends</span>{trialDay === null
+        ? <><span className="cl-metric-value" aria-hidden="true">—</span><small>No trial</small></>
+        : <><span className="cl-metric-value tabular-nums"><time dateTime={gym.trialEndsAt ?? ''}>{trialDay.split(' ').slice(0, -1).join(' ')}</time></span><small>{trialDay}</small></>}</div>
     </div>
 
     <div className="platform-gym-grid">

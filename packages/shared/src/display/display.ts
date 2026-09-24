@@ -71,3 +71,17 @@ export function formatDayRange(from: string, through: string): string {
   if (start.month !== end.month) return `${start.day} ${start.month} – ${formatDay(through)}`;
   return `${start.day}–${formatDay(through)}`;
 }
+
+/** Items grouped by calendar month in `timeZone`, newest-first order preserved; the label drops the year for the current year ("September", "August 2025"). */
+export function groupByMonth<T>(items: readonly T[], instantOf: (item: T) => string, timeZone: string, now: Date = new Date()): { key: string; label: string; items: T[] }[] {
+  const currentYear = now.toLocaleDateString('en-CA', { year: 'numeric', timeZone });
+  const months: { key: string; label: string; items: T[] }[] = [];
+  for (const item of items) {
+    const at = new Date(instantOf(item));
+    const key = at.toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', timeZone });
+    const month = months.at(-1);
+    if (month?.key === key) month.items.push(item);
+    else months.push({ key, label: at.toLocaleDateString('en-GB', { month: 'long', timeZone }) + (key.startsWith(currentYear) ? '' : ` ${key.slice(0, 'YYYY'.length)}`), items: [item] });
+  }
+  return months;
+}
