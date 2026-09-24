@@ -19,6 +19,7 @@
   --color-risk: var(--gymloop-color-error-risk-text);
 }
 
+@layer base {
 :root { color-scheme: light dark; font-family: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif; background: var(--gymloop-color-canvas); }
 * { box-sizing: border-box; }
 html { background: var(--gymloop-color-canvas); -webkit-text-size-adjust: 100%; }
@@ -28,6 +29,7 @@ button, a, input, select, textarea, summary { -webkit-tap-highlight-color: trans
 :is(button, a, input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid var(--gymloop-color-primary-action); outline-offset: 3px; }
 ::selection { background: var(--gymloop-color-primary-action); color: var(--gymloop-color-text-on-primary); }
 .tabular-nums, table, time { font-variant-numeric: tabular-nums; }
+}
 
 @layer components {
 /* ── Type roles ─────────────────────────────────────────────────────────── */
@@ -285,11 +287,6 @@ input[type='date'].cl-input, input[type='date'] { color-scheme: inherit; }
 /* Member surfaces retain the same information density as native member
    screens: opaque content, calm grouping and controls sized for a thumb. */
 /* ── Route states (UX9-004) ─────────────────────────────────────────────── */
-.route-state-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.route-state-eyebrow { width: 8rem; height: .75rem; margin-bottom: var(--gymloop-space-12); }
-.route-state-title { width: min(22rem, 70vw); height: 2.75rem; }
-.route-state-rows { display: grid; gap: var(--gymloop-space-16); margin-top: var(--gymloop-space-32); }
-.route-state-rows > span { height: 3.5rem; }
 .route-state-message { display: grid; justify-items: start; gap: var(--gymloop-space-16); max-width: 40rem; padding-block: clamp(var(--gymloop-space-32), 10vh, 8rem); }
 .route-state-message .cl-lede { margin: 0; }
 /* ── Member (web) — phone-first single column, Chalkline boards ─────────── */

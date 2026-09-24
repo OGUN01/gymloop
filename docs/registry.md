@@ -789,7 +789,6 @@ Visual system: `docs/design/phase9/direction.md`. Tokens stay in `UI_TOKENS` (no
 
 | Name | File | Purpose | Used by |
 |---|---|---|---|
-| `RouteLoading` | `apps/web/app/route-state.tsx` | Busy skeleton for a route segment with a visually hidden "Loading …" heading; never shows invented content | `(console)/loading.tsx`, `member/loading.tsx`, `platform/loading.tsx` |
 | `RouteError` | `apps/web/app/route-state.tsx` | Recoverable failure: plain-language alert, the framework `reset` retry and a way home; the raw error never reaches the page | `(console)/error.tsx`, `member/error.tsx`, `platform/error.tsx` |
 | `RouteNotFound` | `apps/web/app/route-state.tsx` | Honest 404 / missing-record page with a real way back | `not-found.tsx`, `(console)/not-found.tsx` |
 | `memberGymName` | `apps/web/app/member/member-ui.tsx` | Gym name without its " — branch" suffix, as members say it | member Home, My gym, Check in |
