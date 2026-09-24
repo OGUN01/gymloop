@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { main, provisionIdentity } from '../../scripts/provision-identity.mjs'
+import { createSupabaseProvisionPort, main, provisionIdentity } from '../../scripts/provision-identity.mjs'
 
 const tenantId = '11111111-1111-4111-8111-111111111111'
 const otherTenantId = '22222222-2222-4222-8222-222222222222'
@@ -46,8 +46,8 @@ type Options = {
   member?: Member | null
   staff?: Staff | null
   authUser?: AuthUser | null
-  bindings?: BindingCount
-  postBindings?: BindingCount
+  bindings?: BindingCount | Record<string, unknown>
+  postBindings?: BindingCount | Record<string, unknown>
   memberAtBind?: Member
   staffAtBind?: Staff
   memberBindRows?: number
@@ -511,6 +511,45 @@ describe('PROV-007a, PROV-008 and PROV-011 concurrent mutation', () => {
     expect(methodCalls(w, 'deleteAuthUser')).toEqual([])
   })
 
+  it.each([
+    ['new identity', undefined, createdId],
+    ['reused identity', verifiedAuth, authId],
+  ] as const)('unwinds a post-bind zero for %s without reporting linked', async (_label, authUser, id) => {
+    const w = witness({ authUser, postBindings: { members: 0, staff: 0, platform: 0 } })
+    expect(await provisionIdentity(w.port, request({ apply: true }))).toMatchObject({
+      ok: false, code: 'bind_conflict',
+    })
+    expect(methodCalls(w, 'unbindMember').map((call) => call.args)).toEqual([[tenantId, memberId, id]])
+    expect(methodCalls(w, 'deleteAuthUser').map((call) => call.args))
+      .toEqual(id === createdId ? [[createdId]] : [])
+  })
+
+  it.each([
+    ['missing field', { members: 1, staff: 0 }],
+    ['null field', { members: 1, staff: null, platform: 0 }],
+    ['numeric string', { members: '1', staff: 0, platform: 0 }],
+    ['non-numeric field', { members: 1, staff: 'unknown', platform: 0 }],
+  ])('fails closed on %s in an initial count without writes', async (_label, bindings) => {
+    const w = witness({ authUser: verifiedAuth, bindings })
+    expect(await provisionIdentity(w.port, request({ apply: true }))).toMatchObject({
+      ok: false, code: 'lookup_failed',
+    })
+    expectNoWrites(w)
+  })
+
+  it.each([
+    ['missing field', { members: 1, staff: 0 }],
+    ['null field', { members: 1, staff: null, platform: 0 }],
+    ['numeric string', { members: '1', staff: 0, platform: 0 }],
+  ])('unwinds a %s in the post-bind count', async (_label, postBindings) => {
+    const w = witness({ postBindings })
+    expect(await provisionIdentity(w.port, request({ apply: true }))).toMatchObject({
+      ok: false, code: 'bind_conflict',
+    })
+    expect(methodCalls(w, 'unbindMember').map((call) => call.args)).toEqual([[tenantId, memberId, createdId]])
+    expect(methodCalls(w, 'deleteAuthUser').map((call) => call.args)).toEqual([[createdId]])
+  })
+
   it('unwinds the binding and deletes only the identity created in this run', async () => {
     const w = witness({ postBindings: { members: 2, staff: 0, platform: 0 } })
     expect(await provisionIdentity(w.port, request({ apply: true }))).toMatchObject({
@@ -570,5 +609,369 @@ describe('PROV-002, PROV-009–010 CLI guardrails', () => {
     expect(output.join('')).not.toContain(email)
     expect(output.join('')).not.toContain(poison)
     expect(network).not.toHaveBeenCalled()
+  })
+})
+
+type TableRow = Record<string, unknown>
+type FilterStep = { method: string; column: string; values: unknown[] }
+type QueryTrace = {
+  table: string
+  action: 'select' | 'update' | 'delete'
+  filters: FilterStep[]
+  options: { count?: string; head?: boolean }
+  patch?: TableRow
+  returnRows: boolean
+}
+type AdapterFixture = {
+  rows?: Record<string, TableRow[]>
+  users?: TableRow[]
+  dbErrorTable?: string
+  missingCountTable?: string
+  authErrorPage?: number
+}
+
+function sqlPattern(pattern: string): RegExp {
+  let source = '^'
+  const escapeRegex = (char: string) => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  for (let index = 0; index < pattern.length; index += 1) {
+    const char = pattern[index]
+    if (char === '\\' && index + 1 < pattern.length) {
+      source += escapeRegex(pattern[++index]!)
+    } else if (char === '%') {
+      source += '.*'
+    } else if (char === '_') {
+      source += '.'
+    } else {
+      source += escapeRegex(char)
+    }
+  }
+  return new RegExp(`${source}$`, 'i')
+}
+
+function strictSupabase(fixture: AdapterFixture = {}) {
+  const rows: Record<string, TableRow[]> = {
+    organizations: [{ id: tenantId, gym_code: gymCode }],
+    members: [{ id: memberId, tenant_id: tenantId, email, user_id: null, status: 'active', erased_at: null }],
+    staff: [{ id: staffId, tenant_id: tenantId, email, user_id: null, role: 'front_desk', is_active: true }],
+    platform_users: [],
+    ...fixture.rows,
+  }
+  const queries: QueryTrace[] = []
+  const users = fixture.users ?? []
+  const listUsers = vi.fn(async ({ page, perPage }: { page: number; perPage: number }) => ({
+    data: { users: users.slice((page - 1) * perPage, page * perPage) },
+    error: page === fixture.authErrorPage ? { message: `directory failed ${email} ${poison}` } : null,
+  }))
+  const createUser = vi.fn(async (attributes: TableRow) => ({
+    data: { user: { id: createdId, email: attributes.email } }, error: null,
+  }))
+  const deleteUser = vi.fn(async (userId: string) => ({ data: { user: { id: userId } }, error: null }))
+
+  function matches(row: TableRow, step: FilterStep): boolean {
+    const [value, extra] = step.values
+    const found = row[step.column]
+    if (step.method === 'eq') return found === value
+    if (step.method === 'neq') return found !== value
+    if (step.method === 'is') return found === value
+    if (step.method === 'ilike') return sqlPattern(String(value)).test(String(found ?? ''))
+    if (step.method === 'in') return (value as unknown[]).includes(found)
+    if (step.method === 'not' && value === 'in') {
+      return !String(extra).replace(/^\(|\)$/g, '').split(',').includes(String(found))
+    }
+    if (step.method === 'not' && value === 'is') return found !== extra
+    if (step.method === 'filter' && value === 'not.in') {
+      return !String(extra).replace(/^\(|\)$/g, '').split(',').includes(String(found))
+    }
+    throw new Error(`unsupported query filter: ${step.method}`)
+  }
+
+  function build(table: string, action: QueryTrace['action'], patch?: TableRow, options: QueryTrace['options'] = {}) {
+    const event: QueryTrace = { table, action, filters: [], options, patch, returnRows: action === 'select' }
+    queries.push(event)
+    let mode: 'array' | 'single' | 'maybeSingle' = 'array'
+    const add = (method: string, column: string, ...values: unknown[]) => {
+      event.filters.push({ method, column, values })
+      return builder
+    }
+    const builder = {
+      eq: (column: string, value: unknown) => add('eq', column, value),
+      neq: (column: string, value: unknown) => add('neq', column, value),
+      is: (column: string, value: unknown) => add('is', column, value),
+      ilike: (column: string, value: unknown) => add('ilike', column, value),
+      in: (column: string, values: unknown[]) => add('in', column, values),
+      not: (column: string, operator: string, value: unknown) => add('not', column, operator, value),
+      filter: (column: string, operator: string, value: unknown) => add('filter', column, operator, value),
+      match: (attributes: TableRow) => {
+        for (const [column, value] of Object.entries(attributes)) add('eq', column, value)
+        return builder
+      },
+      select: (_columns: string, returnOptions: QueryTrace['options'] = {}) => {
+        event.returnRows = true
+        event.options = { ...event.options, ...returnOptions }
+        return builder
+      },
+      maybeSingle: () => { mode = 'maybeSingle'; return builder },
+      single: () => { mode = 'single'; return builder },
+      then: (resolve: (outcome: unknown) => unknown, reject?: (reason: unknown) => unknown) => {
+        const result = (() => {
+          if (fixture.dbErrorTable === table) {
+            return { data: null, error: { message: `database failed ${email} ${poison}` }, count: null }
+          }
+          const matched = (rows[table] ?? []).filter((row) => event.filters.every((step) => matches(row, step)))
+          if (action === 'update' && patch) matched.forEach((row) => Object.assign(row, patch))
+          if (action === 'delete') rows[table] = (rows[table] ?? []).filter((row) => !matched.includes(row))
+          const data = event.options.head || !event.returnRows ? null
+            : mode === 'array' ? matched : matched[0] ?? null
+          const count = fixture.missingCountTable === table ? null : matched.length
+          return { data, error: null, count }
+        })()
+        return Promise.resolve(result).then(resolve, reject)
+      },
+    }
+    return builder
+  }
+
+  const client = {
+    from(table: string) {
+      if (!Object.hasOwn(rows, table)) throw new Error(`unknown table: ${table}`)
+      // The pre-filter relation intentionally has NO eq/is/not/ilike methods.
+      return {
+        select: (_columns: string, options?: QueryTrace['options']) => build(table, 'select', undefined, options),
+        update: (patch: TableRow, options?: QueryTrace['options']) => build(table, 'update', patch, options),
+        delete: (options?: QueryTrace['options']) => build(table, 'delete', undefined, options),
+      }
+    },
+    auth: { admin: { listUsers, createUser, deleteUser } },
+  }
+  return { client, rows, queries, listUsers, createUser, deleteUser }
+}
+
+describe('PROV-003, PROV-006a, PROV-007a, PROV-009, PROV-011–012 strict adapter', () => {
+  it('reads a tenant and row through a strict v2 post-select filter builder', async () => {
+    const f = strictSupabase()
+    const port = createSupabaseProvisionPort(f.client)
+    expect(await port.findGymByCode(gymCode)).toMatchObject({ id: tenantId, gymCode })
+    expect(await port.findMember(tenantId, memberId)).toMatchObject({ id: memberId, tenantId, email })
+    expect(await port.findStaff(tenantId, staffId)).toMatchObject({ id: staffId, tenantId, email })
+    const targetReads = f.queries.filter((query) => ['members', 'staff'].includes(query.table))
+    expect(targetReads).toHaveLength(2)
+    for (const read of targetReads) {
+      expect(read.action).toBe('select')
+      expect(read.filters).toEqual(expect.arrayContaining([
+        { method: 'eq', column: 'tenant_id', values: [tenantId] },
+      ]))
+    }
+  })
+
+  it('counts every binding, including platform users by user_id rather than an id column', async () => {
+    const f = strictSupabase({ rows: {
+      members: [{ id: memberId, user_id: authId }],
+      staff: [{ id: staffId, user_id: authId }],
+      platform_users: [{ user_id: authId, role: 'super_admin' }],
+    } })
+    const port = createSupabaseProvisionPort(f.client)
+    expect(await port.countBindings(authId)).toEqual({ members: 1, staff: 1, platform: 1 })
+    expect(f.queries.filter((query) => query.table === 'platform_users')).toHaveLength(1)
+    for (const query of f.queries) {
+      expect(query.filters).toContainEqual({ method: 'eq', column: 'user_id', values: [authId] })
+      expect(query.options.count).toBe('exact')
+    }
+  })
+
+  it('refuses an unavailable count rather than treating missing count as zero', async () => {
+    const f = strictSupabase({ missingCountTable: 'staff' })
+    const port = createSupabaseProvisionPort(f.client)
+    await expect(port.countBindings(authId)).rejects.toThrow()
+    const exposed = await exposedOutcome(() => port.countBindings(authId))
+    expect(exposed).not.toContain(email)
+    expect(exposed).not.toContain(poison)
+    expect(f.queries.some((query) => query.table === 'staff')).toBe(true)
+  })
+
+  it('marks only a confirmed no-password service-provisioned Auth identity', async () => {
+    const f = strictSupabase()
+    const port = createSupabaseProvisionPort(f.client)
+    expect(await port.createConfirmedAuthUser(email)).toEqual({ id: createdId })
+    expect(f.createUser).toHaveBeenCalledTimes(1)
+    expect(f.createUser).toHaveBeenCalledWith(expect.objectContaining({
+      email, email_confirm: true, app_metadata: { gymloop_provisioned: true },
+    }))
+    expect(f.createUser.mock.calls[0]?.[0]).not.toHaveProperty('password')
+  })
+
+  it.each([
+    ['member', 'members', 'bindMember', 'unbindMember', memberId],
+    ['staff', 'staff', 'bindStaff', 'unbindStaff', staffId],
+  ] as const)('guards %s UPDATE and undo with exact tenant, row, identity and email filters', async (_label, table, bind, unbind, id) => {
+    const f = strictSupabase()
+    const port = createSupabaseProvisionPort(f.client)
+    expect(await port[bind](tenantId, id, authId, email)).toBe(1)
+    const update = f.queries.at(-1)!
+    expect(update.table).toBe(table)
+    expect(update.action).toBe('update')
+    expect(update.patch).toEqual({ user_id: authId })
+    expect(update.filters).toEqual(expect.arrayContaining([
+      { method: 'eq', column: 'tenant_id', values: [tenantId] },
+      { method: 'eq', column: 'id', values: [id] },
+      { method: 'is', column: 'user_id', values: [null] },
+    ]))
+    const emailGuards = update.filters.filter((step) => step.column === 'email')
+    expect(emailGuards.length).toBeGreaterThan(0)
+    expect(await port[unbind](tenantId, id, authId)).toBe(1)
+    const reverse = f.queries.at(-1)!
+    expect(reverse.action).toBe('update')
+    expect(reverse.patch).toEqual({ user_id: null })
+    expect(reverse.filters).toEqual(expect.arrayContaining([
+      { method: 'eq', column: 'tenant_id', values: [tenantId] },
+      { method: 'eq', column: 'id', values: [id] },
+      { method: 'eq', column: 'user_id', values: [authId] },
+    ]))
+  })
+
+  it('escapes SQL LIKE wildcards in the exact email predicate', async () => {
+    const requested = 'alice%_pilot@example.test'
+    const decoy = 'aliceXXpilot@example.test'
+    const f = strictSupabase({ rows: {
+      members: [{ id: memberId, tenant_id: tenantId, email: decoy, user_id: null,
+        status: 'active', erased_at: null }],
+    } })
+    const port = createSupabaseProvisionPort(f.client)
+    expect(await port.bindMember(tenantId, memberId, authId, requested)).toBe(0)
+    expect(f.rows.members[0]?.user_id).toBeNull()
+    const emailFilters = f.queries.at(-1)?.filters.filter((step) => step.column === 'email') ?? []
+    expect(emailFilters).not.toEqual([])
+    expect(emailFilters.some((step) => String(step.values[0]).includes('\\%') &&
+      String(step.values[0]).includes('\\_'))).toBe(true)
+  })
+
+  it('requires stored email to be exact after trimming only the request', async () => {
+    const f = strictSupabase({ rows: {
+      staff: [{ id: staffId, tenant_id: tenantId, email: ` ${email} `, user_id: null,
+        role: 'front_desk', is_active: true }],
+    } })
+    const port = createSupabaseProvisionPort(f.client)
+    expect(await port.bindStaff(tenantId, staffId, authId, ` ${email} `)).toBe(0)
+    expect(f.rows.staff[0]?.user_id).toBeNull()
+  })
+
+  it.each([
+    ['cancelled', { status: 'cancelled' }],
+    ['blocked', { status: 'blocked' }],
+    ['erased', { erased_at: '2026-09-24T12:00:00Z' }],
+  ])('reasserts member %s eligibility on the UPDATE itself', async (_label, changes) => {
+    const f = strictSupabase({ rows: {
+      members: [{ id: memberId, tenant_id: tenantId, email, user_id: null,
+        status: 'active', erased_at: null, ...changes }],
+    } })
+    const port = createSupabaseProvisionPort(f.client)
+    expect(await port.bindMember(tenantId, memberId, authId, email)).toBe(0)
+    expect(f.rows.members[0]?.user_id).toBeNull()
+    const update = f.queries.at(-1)
+    expect(update?.filters.some((filter) => filter.column === 'status')).toBe(true)
+    expect(update?.filters.some((filter) => filter.column === 'erased_at')).toBe(true)
+  })
+
+  it.each([
+    ['owner', { role: 'gym_owner' }],
+    ['inactive', { is_active: false }],
+  ])('reasserts staff %s eligibility on the UPDATE itself', async (_label, changes) => {
+    const f = strictSupabase({ rows: {
+      staff: [{ id: staffId, tenant_id: tenantId, email, user_id: null,
+        role: 'front_desk', is_active: true, ...changes }],
+    } })
+    const port = createSupabaseProvisionPort(f.client)
+    expect(await port.bindStaff(tenantId, staffId, authId, email)).toBe(0)
+    expect(f.rows.staff[0]?.user_id).toBeNull()
+    const update = f.queries.at(-1)
+    expect(update?.filters.some((filter) => filter.column === 'role')).toBe(true)
+    expect(update?.filters.some((filter) => filter.column === 'is_active')).toBe(true)
+  })
+
+  it.each([
+    ['member', 'members', 'bindMember', memberId],
+    ['staff', 'staff', 'bindStaff', staffId],
+  ] as const)('refuses a changed %s email despite a valid identity', async (_label, table, bind, id) => {
+    const row = table === 'members'
+      ? { id, tenant_id: tenantId, email: 'another@example.test', user_id: null, status: 'active', erased_at: null }
+      : { id, tenant_id: tenantId, email: 'another@example.test', user_id: null, role: 'front_desk', is_active: true }
+    const f = strictSupabase({ rows: { [table]: [row] } })
+    const port = createSupabaseProvisionPort(f.client)
+    expect(await port[bind](tenantId, id, authId, email)).toBe(0)
+    expect(f.rows[table][0]?.user_id).toBeNull()
+  })
+
+  it('reports Auth identity flags from app metadata and provider identities', async () => {
+    const f = strictSupabase({ users: [
+      { id: authId, email, app_metadata: { gymloop_provisioned: true }, identities: [
+        { provider: 'google', identity_data: { email: email.toUpperCase() } },
+        { provider: 'email', identity_data: { email } },
+      ] },
+    ] })
+    const port = createSupabaseProvisionPort(f.client)
+    expect(await port.findAuthUserByEmail(email)).toEqual({
+      id: authId, email, provisioned: true, googleVerified: true, hasEmailIdentity: true,
+    })
+  })
+
+  it('does not confuse a different Google email with verification of this address', async () => {
+    const f = strictSupabase({ users: [
+      { id: authId, email, app_metadata: {}, identities: [
+        { provider: 'google', identity_data: { email: 'lookalike@example.tests' } },
+      ] },
+    ] })
+    const port = createSupabaseProvisionPort(f.client)
+    expect(await port.findAuthUserByEmail(email)).toMatchObject({ googleVerified: false })
+  })
+
+  it('searches beyond the first Auth directory page for an exact email match', async () => {
+    const users = Array.from({ length: 201 }, (_, index) => ({
+      id: `${index}`, email: `other-${index}@example.test`, app_metadata: {}, identities: [],
+    }))
+    users[200] = { ...users[200], id: authId, email }
+    const f = strictSupabase({ users })
+    const port = createSupabaseProvisionPort(f.client)
+    expect(await port.findAuthUserByEmail(email)).toMatchObject({ id: authId })
+    expect(f.listUsers.mock.calls.length).toBeGreaterThan(1)
+  })
+
+  it('does not mistake an exactly full final directory page for a truncated search', async () => {
+    const users = Array.from({ length: 10_000 }, (_, index) => ({
+      id: String(index), email: `other-${index}@example.test`, app_metadata: {}, identities: [],
+    }))
+    const f = strictSupabase({ users })
+    const port = createSupabaseProvisionPort(f.client)
+    expect(await port.findAuthUserByEmail(email)).toBeNull()
+    expect(f.listUsers.mock.calls.length).toBeGreaterThanOrEqual(50)
+  })
+
+  it('rejects a directory that still has users after the hard page cap', async () => {
+    const users = Array.from({ length: 10_001 }, (_, index) => ({
+      id: String(index), email: `other-${index}@example.test`, app_metadata: {}, identities: [],
+    }))
+    const f = strictSupabase({ users })
+    const port = createSupabaseProvisionPort(f.client)
+    const exposed = await exposedOutcome(() => port.findAuthUserByEmail(email))
+    expect(exposed).not.toBe('null')
+    expect(exposed).not.toContain(email)
+    expect(exposed).not.toContain(poison)
+    expect(f.listUsers.mock.calls.length).toBeGreaterThanOrEqual(50)
+  })
+
+  it('does not echo an Auth API error containing a raw address or forged key', async () => {
+    const f = strictSupabase({ authErrorPage: 1 })
+    const port = createSupabaseProvisionPort(f.client)
+    const exposed = await exposedOutcome(() => port.findAuthUserByEmail(email))
+    expect(exposed).not.toBe('null')
+    expect(exposed).not.toContain(email)
+    expect(exposed).not.toContain(poison)
+  })
+
+  it('does not echo a database error containing a raw address or forged key', async () => {
+    const f = strictSupabase({ dbErrorTable: 'members' })
+    const port = createSupabaseProvisionPort(f.client)
+    const exposed = await exposedOutcome(() => port.findMember(tenantId, memberId))
+    expect(exposed).not.toBe('null')
+    expect(exposed).not.toContain(email)
+    expect(exposed).not.toContain(poison)
   })
 })

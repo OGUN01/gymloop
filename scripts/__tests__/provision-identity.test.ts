@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { main, provisionIdentity } from '../provision-identity.mjs';
+import { PROVISION_IDENTITY_LIMITS } from '../../packages/shared/src/config/constants';
+import { createSupabaseProvisionPort, main, provisionIdentity } from '../provision-identity.mjs';
 
 const GYM_CODE = 'ABC123';
 const TENANT_ID = '00000000-0000-4000-8000-000000000001';
@@ -49,7 +50,7 @@ type FakeOptions = {
   staff?: Staff[];
   authUsers?: AuthUser[];
   bindings?: Record<string, Bindings>;
-  countBindingsResponses?: Array<Bindings | Error>;
+  countBindingsResponses?: Array<Partial<Bindings> | Error | null>;
   lookupErrors?: Partial<Record<Lookup, Error>>;
   beforeBindMember?: (row: Member | undefined) => void;
   beforeBindStaff?: (row: Staff | undefined) => void;
@@ -136,7 +137,7 @@ function fakePort(options: FakeOptions = {}) {
       if (options.bindMemberError) throw options.bindMemberError;
       const row = members.get(`${tenantId}:${id}`);
       options.beforeBindMember?.(row);
-      const eligible = row && row.userId === null && row.email?.trim().toLowerCase() === expectedEmail.trim().toLowerCase()
+      const eligible = row && row.userId === null && row.email?.toLowerCase() === expectedEmail.trim().toLowerCase()
         && row.status !== 'cancelled' && row.status !== 'blocked' && row.erasedAt === null;
       const changed = options.bindMemberRows ?? (eligible ? 1 : 0);
       if (changed === 1 && row) row.userId = userId;
@@ -147,7 +148,7 @@ function fakePort(options: FakeOptions = {}) {
       if (options.bindStaffError) throw options.bindStaffError;
       const row = staffRows.get(`${tenantId}:${id}`);
       options.beforeBindStaff?.(row);
-      const eligible = row && row.userId === null && row.email?.trim().toLowerCase() === expectedEmail.trim().toLowerCase()
+      const eligible = row && row.userId === null && row.email?.toLowerCase() === expectedEmail.trim().toLowerCase()
         && row.isActive && row.role !== 'gym_owner';
       const changed = options.bindStaffRows ?? (eligible ? 1 : 0);
       if (changed === 1 && row) row.userId = userId;
@@ -196,6 +197,91 @@ const assertSafeFailure = async (operation: Promise<unknown>) => {
   if (!(outcome instanceof Error)) expect(outcome).toMatchObject({ ok: false });
   const printed = outcome instanceof Error ? `${outcome.name}: ${outcome.message}` : JSON.stringify(outcome);
   for (const secret of SECRET_MARKERS) expect(printed).not.toContain(secret);
+};
+
+// Unlike a permissive chain mock, from(table) itself has no .eq/.is/.ilike: filters are
+// available only after a query action. This mirrors supabase-js and detects illegal chains.
+function strictSupabaseClient(options: {
+  replies?: Array<{ data?: unknown; error?: unknown; count?: number | null }>;
+  listPages?: Array<Array<Record<string, unknown>>>;
+  adminErrors?: Partial<Record<'listUsers' | 'createUser' | 'deleteUser', unknown>>;
+} = {}) {
+  const calls: Call[] = [];
+  const replies = [...(options.replies ?? [])];
+  let pageIndex = 0;
+  const record = (method: string, ...args: unknown[]) => { calls.push({ method, args }); };
+  const result = (method: string, ...args: unknown[]) => {
+    record(method, ...args);
+    return replies.shift() ?? { data: [], error: null, count: 0 };
+  };
+  const filtered = () => {
+    const builder = {
+      eq(column: string, value: unknown) { record('eq', column, value); return builder; },
+      neq(column: string, value: unknown) { record('neq', column, value); return builder; },
+      is(column: string, value: unknown) { record('is', column, value); return builder; },
+      not(column: string, operator: string, value: unknown) { record('not', column, operator, value); return builder; },
+      in(column: string, values: unknown[]) { record('in', column, values); return builder; },
+      ilike(column: string, pattern: string) { record('ilike', column, pattern); return builder; },
+      match(values: Record<string, unknown>) { record('match', values); return builder; },
+      limit(value: number) { record('limit', value); return builder; },
+      select(...args: unknown[]) { record('select', ...args); return builder; },
+      async maybeSingle() { return result('maybeSingle'); },
+      async single() { return result('single'); },
+      then(resolve: (value: unknown) => unknown, reject?: (error: unknown) => unknown) {
+        return Promise.resolve(result('await')).then(resolve, reject);
+      },
+    };
+    return builder;
+  };
+  const client = {
+    from(table: string) {
+      record('from', table);
+      return {
+        select(...args: unknown[]) { record('select', ...args); return filtered(); },
+        insert(...args: unknown[]) { record('insert', ...args); return filtered(); },
+        update(...args: unknown[]) { record('update', ...args); return filtered(); },
+        upsert(...args: unknown[]) { record('upsert', ...args); return filtered(); },
+        delete(...args: unknown[]) { record('delete', ...args); return filtered(); },
+      };
+    },
+    auth: {
+      admin: {
+        async listUsers(args: { page: number; perPage: number }) {
+          record('listUsers', args);
+          const error = options.adminErrors?.listUsers ?? null;
+          const users = options.listPages?.[pageIndex++] ?? [];
+          return { data: { users }, error };
+        },
+        async createUser(args: unknown) {
+          record('createUser', args);
+          return { data: { user: { id: CREATED_AUTH_ID } }, error: options.adminErrors?.createUser ?? null };
+        },
+        async deleteUser(id: string) {
+          record('deleteUser', id);
+          return { data: { user: null }, error: options.adminErrors?.deleteUser ?? null };
+        },
+      },
+    },
+  };
+  return { client, calls };
+}
+
+const fakeAdapter = (options: Parameters<typeof strictSupabaseClient>[0] = {}) => {
+  const fake = strictSupabaseClient(options);
+  // The port consumes this fake supabase-js client; TypeScript may not know its
+  // dynamic query return type, but the runtime deliberately enforces that shape.
+  const port = createSupabaseProvisionPort(fake.client as never);
+  return { ...fake, port };
+};
+const assertAdapterCalls = (actual: Call[], required: Call[]) => {
+  for (const call of required) expect(actual).toContainEqual(call);
+};
+const assertGenericError = async (operation: Promise<unknown>) => {
+  let error: unknown;
+  try { await operation; } catch (caught) { error = caught; }
+  expect(error).toBeInstanceOf(Error);
+  const message = String(error);
+  for (const secret of SECRET_MARKERS) expect(message).not.toContain(secret);
 };
 
 describe('PROV-001 dry run', () => {
@@ -466,9 +552,20 @@ describe('PROV-007 apply exactly one binding', () => {
 describe('PROV-007a bind re-asserts the target checks', () => {
   it('passes the requested email, not the target row email, to the member bind', async () => {
     const variant = EMAIL.toUpperCase();
-    const fake = fakePort({ members: [member({ email: `  ${EMAIL}  ` })], authUsers: [authUser()] });
+    const fake = fakePort({ members: [member({ email: EMAIL })], authUsers: [authUser()] });
     expect(await provisionIdentity(fake.port, request({ email: variant, apply: true }))).toMatchObject({ ok: true, code: 'linked' });
     expect(writes(fake.calls)).toEqual([{ method: 'bindMember', args: [TENANT_ID, MEMBER_ID, AUTH_ID, variant] }]);
+  });
+
+  it('fails closed when the target row email has surrounding whitespace at bind time', async () => {
+    const fake = fakePort({ members: [member({ email: `  ${EMAIL}  ` })] });
+    const result = await provisionIdentity(fake.port, request({ apply: true }));
+    expect(result).toMatchObject({ ok: false, code: 'bind_conflict' });
+    expect(writes(fake.calls)).toEqual([
+      { method: 'createConfirmedAuthUser', args: [EMAIL] },
+      { method: 'bindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID, EMAIL] },
+      { method: 'deleteAuthUser', args: [CREATED_AUTH_ID] },
+    ]);
   });
 
   it.each([
@@ -596,6 +693,22 @@ describe('PROV-011 verify unique binding after the write', () => {
     ]);
   });
 
+  it('treats zero post-bind bindings as a conflict even when reusing an Auth user', async () => {
+    const fake = fakePort({ authUsers: [authUser()], countBindingsResponses: [
+      { members: 0, staff: 0, platform: 0 }, { members: 0, staff: 0, platform: 0 },
+    ] });
+    const result = await provisionIdentity(fake.port, request({ apply: true }));
+    expect(result).toMatchObject({ ok: false, code: 'bind_conflict' });
+    expect(fake.calls.filter((call) => call.method === 'countBindings')).toEqual([
+      { method: 'countBindings', args: [AUTH_ID] }, { method: 'countBindings', args: [AUTH_ID] },
+    ]);
+    expect(writes(fake.calls)).toEqual([
+      { method: 'bindMember', args: [TENANT_ID, MEMBER_ID, AUTH_ID, EMAIL] },
+      { method: 'unbindMember', args: [TENANT_ID, MEMBER_ID, AUTH_ID] },
+    ]);
+    assertRedacted(result);
+  });
+
   it('never returns linked if post-bind counting throws and still compensates the newly created identity', async () => {
     const fake = fakePort({ countBindingsResponses: [new Error(`count failed: ${SECRET_MARKERS.join(' ')}`)] });
     const result = await provisionIdentity(fake.port, request({ apply: true }));
@@ -635,6 +748,24 @@ describe('PROV-011 verify unique binding after the write', () => {
       { method: 'createConfirmedAuthUser', args: [EMAIL] },
       { method: 'bindStaff', args: [TENANT_ID, STAFF_ID, CREATED_AUTH_ID, EMAIL] },
       { method: 'unbindStaff', args: [TENANT_ID, STAFF_ID, CREATED_AUTH_ID] },
+      { method: 'deleteAuthUser', args: [CREATED_AUTH_ID] },
+    ]);
+    assertRedacted(result);
+  });
+
+  it.each([
+    ['missing staff', { members: 1, platform: 0 }],
+    ['null platform', { members: 1, staff: 0, platform: null }],
+    ['non-numeric members', { members: '1', staff: 0, platform: 0 }],
+  ])('unwinds a created member binding on %s after the bind', async (_label, badCount) => {
+    const fake = fakePort({ countBindingsResponses: [badCount as Bindings] });
+    const result = await provisionIdentity(fake.port, request({ apply: true }));
+    expect(result).toMatchObject({ ok: false, code: 'bind_conflict' });
+    expect(fake.calls).toContainEqual({ method: 'countBindings', args: [CREATED_AUTH_ID] });
+    expect(writes(fake.calls)).toEqual([
+      { method: 'createConfirmedAuthUser', args: [EMAIL] },
+      { method: 'bindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID, EMAIL] },
+      { method: 'unbindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID] },
       { method: 'deleteAuthUser', args: [CREATED_AUTH_ID] },
     ]);
     assertRedacted(result);
@@ -715,6 +846,19 @@ describe('PROV-012 fail closed on lookup errors', () => {
     assertReadOnly(fake.calls);
     assertRedacted(result);
   });
+
+  it.each([
+    ['missing members', { staff: 0, platform: 0 }],
+    ['null staff', { members: 0, staff: null, platform: 0 }],
+    ['non-numeric platform', { members: 0, staff: 0, platform: '0' }],
+  ])('refuses a %s count during pre-bind checks without any writes', async (_label, badCount) => {
+    const fake = fakePort({ authUsers: [authUser()], countBindingsResponses: [badCount as Bindings] });
+    const result = await provisionIdentity(fake.port, request({ apply: true }));
+    expect(result).toMatchObject({ ok: false, code: 'lookup_failed' });
+    expect(fake.calls).toContainEqual({ method: 'countBindings', args: [AUTH_ID] });
+    assertReadOnly(fake.calls);
+    assertRedacted(result);
+  });
 });
 
 afterEach(() => { vi.restoreAllMocks(); });
@@ -761,5 +905,197 @@ describe('PROV-010 CLI invalid flags: JSON only, no network', () => {
     ['neither kind', ['--email', EMAIL, '--gym', GYM_CODE]],
   ])('refuses %s and emits exactly one redacted JSON line', async (_label, argv) => {
     await assertInvalidCli(argv);
+  });
+});
+
+describe('PROV-007a supabase-js adapter: conditional bind and unbind', () => {
+  it('binds member through UPDATE before filtering by tenant, id, null user, escaped email and still-eligible status', async () => {
+    const fake = fakeAdapter({ replies: [{ data: [{ id: MEMBER_ID }], error: null, count: 1 }] });
+    const wildcardEmail = '  Alice_%\\+play@example.com  ';
+    const rows = await fake.port.bindMember(TENANT_ID, MEMBER_ID, AUTH_ID, wildcardEmail);
+    expect(rows).toBe(1);
+    expect(fake.calls.slice(0, 2)).toEqual([
+      { method: 'from', args: ['members'] },
+      { method: 'update', args: [{ user_id: AUTH_ID }] },
+    ]);
+    assertAdapterCalls(fake.calls, [
+      { method: 'eq', args: ['tenant_id', TENANT_ID] },
+      { method: 'eq', args: ['id', MEMBER_ID] },
+      { method: 'is', args: ['user_id', null] },
+      { method: 'ilike', args: ['email', 'Alice\\_\\%\\\\+play@example.com'] },
+      { method: 'is', args: ['erased_at', null] },
+    ]);
+    const statusCalls = fake.calls.filter((call) => call.args[0] === 'status');
+    expect(statusCalls.some((call) => call.method === 'not' && call.args[1] === 'in'
+      && String(call.args[2]).includes('cancelled') && String(call.args[2]).includes('blocked'))
+      || statusCalls.some((call) => call.method === 'neq' && call.args[1] === 'cancelled')
+      && statusCalls.some((call) => call.method === 'neq' && call.args[1] === 'blocked')).toBe(true);
+    expect(fake.calls.some((call) => call.method === 'await' || call.method === 'single' || call.method === 'maybeSingle')).toBe(true);
+  });
+
+  it('binds staff only if active and not a gym owner, with an email predicate and exact count', async () => {
+    const fake = fakeAdapter({ replies: [{ data: [], error: null, count: 0 }] });
+    expect(await fake.port.bindStaff(TENANT_ID, STAFF_ID, AUTH_ID, EMAIL)).toBe(0);
+    expect(fake.calls.slice(0, 2)).toEqual([
+      { method: 'from', args: ['staff'] }, { method: 'update', args: [{ user_id: AUTH_ID }] },
+    ]);
+    assertAdapterCalls(fake.calls, [
+      { method: 'eq', args: ['tenant_id', TENANT_ID] }, { method: 'eq', args: ['id', STAFF_ID] },
+      { method: 'is', args: ['user_id', null] }, { method: 'ilike', args: ['email', EMAIL] },
+      { method: 'eq', args: ['is_active', true] }, { method: 'neq', args: ['role', 'gym_owner'] },
+    ]);
+  });
+
+  it.each([
+    ['member', 'members', MEMBER_ID], ['staff', 'staff', STAFF_ID],
+  ] as const)('unbinds a %s only where tenant, row and current user all agree', async (kind, table, id) => {
+    const fake = fakeAdapter({ replies: [{ data: [{ id }], error: null, count: 1 }] });
+    const affected = kind === 'member'
+      ? await fake.port.unbindMember(TENANT_ID, id, AUTH_ID)
+      : await fake.port.unbindStaff(TENANT_ID, id, AUTH_ID);
+    expect(affected).toBe(1);
+    expect(fake.calls.slice(0, 2)).toEqual([
+      { method: 'from', args: [table] }, { method: 'update', args: [{ user_id: null }] },
+    ]);
+    assertAdapterCalls(fake.calls, [
+      { method: 'eq', args: ['tenant_id', TENANT_ID] },
+      { method: 'eq', args: ['id', id] },
+      { method: 'eq', args: ['user_id', AUTH_ID] },
+    ]);
+  });
+
+  it('keeps the bind email predicate and fails closed when the update affects no rows', async () => {
+    const fake = fakeAdapter({ replies: [{ data: [], error: null, count: 0 }] });
+    expect(await fake.port.bindMember(TENANT_ID, MEMBER_ID, AUTH_ID, EMAIL)).toBe(0);
+    expect(fake.calls).toContainEqual({ method: 'ilike', args: ['email', EMAIL] });
+  });
+});
+
+describe('PROV-006 supabase-js adapter: complete binding counts', () => {
+  it('counts user_id in all three tables with exact count, not row count or missing-count coercion', async () => {
+    const fake = fakeAdapter({ replies: [
+      { data: null, error: null, count: 1 }, { data: null, error: null, count: 2 },
+      { data: null, error: null, count: 0 },
+    ] });
+    expect(await fake.port.countBindings(AUTH_ID)).toEqual({ members: 1, staff: 2, platform: 0 });
+    expect(fake.calls.filter((call) => call.method === 'from')).toEqual([
+      { method: 'from', args: ['members'] }, { method: 'from', args: ['staff'] },
+      { method: 'from', args: ['platform_users'] },
+    ]);
+    expect(fake.calls.filter((call) => call.method === 'select')).toEqual([
+      { method: 'select', args: ['user_id', { count: 'exact', head: true }] },
+      { method: 'select', args: ['user_id', { count: 'exact', head: true }] },
+      { method: 'select', args: ['user_id', { count: 'exact', head: true }] },
+    ]);
+    expect(fake.calls.filter((call) => call.method === 'eq')).toEqual([
+      { method: 'eq', args: ['user_id', AUTH_ID] },
+      { method: 'eq', args: ['user_id', AUTH_ID] },
+      { method: 'eq', args: ['user_id', AUTH_ID] },
+    ]);
+  });
+
+  it.each(['error', 'null-count'] as const)('throws generically for an %s from countBindings', async (failure) => {
+    const fake = fakeAdapter({ replies: [{
+      data: null,
+      error: failure === 'error' ? { message: `private ${SECRET_MARKERS.join(' ')}` } : null,
+      count: failure === 'error' ? 0 : null,
+    }] });
+    await assertGenericError(fake.port.countBindings(AUTH_ID));
+  });
+});
+
+describe('PROV-006a supabase-js adapter: bounded Auth directory and verification flags', () => {
+  it('pages until matching the address, maps only trusted metadata and matching Google identity', async () => {
+    const otherUsers = Array.from({ length: PROVISION_IDENTITY_LIMITS.authListUsersPerPage }, (_, index) => ({
+      id: `other-${index}`, email: `other${index}@example.com`,
+    }));
+    const fake = fakeAdapter({ listPages: [otherUsers, [{
+      id: AUTH_ID, email: EMAIL.toUpperCase(), app_metadata: { gymloop_provisioned: true },
+      identities: [
+        { provider: 'google', identity_data: { email: `  ${EMAIL.toUpperCase()}  ` } },
+        { provider: 'email', identity_data: { email: EMAIL } },
+      ],
+    }]] });
+    expect(await fake.port.findAuthUserByEmail(EMAIL)).toMatchObject({
+      id: AUTH_ID, provisioned: true, googleVerified: true, hasEmailIdentity: true,
+    });
+    expect(fake.calls.filter((call) => call.method === 'listUsers')).toEqual([
+      { method: 'listUsers', args: [{ page: 1, perPage: PROVISION_IDENTITY_LIMITS.authListUsersPerPage }] },
+      { method: 'listUsers', args: [{ page: 2, perPage: PROVISION_IDENTITY_LIMITS.authListUsersPerPage }] },
+    ]);
+  });
+
+  it('maps false flags for a directory match with no metadata or identities', async () => {
+    const fake = fakeAdapter({ listPages: [[{ id: AUTH_ID, email: EMAIL }]] });
+    expect(await fake.port.findAuthUserByEmail(EMAIL)).toMatchObject({
+      id: AUTH_ID, provisioned: false, googleVerified: false, hasEmailIdentity: false,
+    });
+  });
+
+  it('does not mark a Google identity verified when its email differs', async () => {
+    const fake = fakeAdapter({ listPages: [[{
+      id: AUTH_ID, email: EMAIL, app_metadata: { gymloop_provisioned: 'true' },
+      identities: [{ provider: 'google', identity_data: { email: 'other@example.com' } }],
+    }]] });
+    expect(await fake.port.findAuthUserByEmail(EMAIL)).toMatchObject({
+      provisioned: false, googleVerified: false, hasEmailIdentity: false,
+    });
+  });
+
+  it('treats an exactly full final directory page as exhausted, not an error', async () => {
+    const full = Array.from({ length: PROVISION_IDENTITY_LIMITS.authListUsersPerPage }, (_, index) => ({
+      id: `other-${index}`, email: `other${index}@example.com`,
+    }));
+    const pages = Array.from({ length: PROVISION_IDENTITY_LIMITS.authListUsersMaxPages }, () => full);
+    const fake = fakeAdapter({ listPages: [...pages, []] });
+    expect(await fake.port.findAuthUserByEmail(EMAIL)).toBeNull();
+    expect(fake.calls.filter((call) => call.method === 'listUsers')).toHaveLength(PROVISION_IDENTITY_LIMITS.authListUsersMaxPages + 1);
+  });
+
+  it('fails closed if an additional page is present beyond the directory cap', async () => {
+    const full = Array.from({ length: PROVISION_IDENTITY_LIMITS.authListUsersPerPage }, (_, index) => ({
+      id: `other-${index}`, email: `other${index}@example.com`,
+    }));
+    const pages = Array.from({ length: PROVISION_IDENTITY_LIMITS.authListUsersMaxPages + 1 }, () => full);
+    const fake = fakeAdapter({ listPages: pages });
+    await assertGenericError(fake.port.findAuthUserByEmail(EMAIL));
+  });
+
+  it('throws generically rather than treating a listUsers API error as an absent Auth user', async () => {
+    const fake = fakeAdapter({ adminErrors: { listUsers: { message: `private ${SECRET_MARKERS.join(' ')}` } } });
+    await assertGenericError(fake.port.findAuthUserByEmail(EMAIL));
+  });
+});
+
+describe('PROV-007 supabase-js adapter: create confirmed, provisioned Auth users', () => {
+  it('creates with provisioned metadata, confirmed email and no password field', async () => {
+    const fake = fakeAdapter();
+    expect(await fake.port.createConfirmedAuthUser(EMAIL)).toEqual({ id: CREATED_AUTH_ID });
+    expect(fake.calls).toEqual([{ method: 'createUser', args: [{
+      email: EMAIL, email_confirm: true, app_metadata: { gymloop_provisioned: true },
+    }] }]);
+    expect(JSON.stringify(fake.calls)).not.toContain('password');
+  });
+
+  it.each(['createUser', 'deleteUser'] as const)('throws a secret-safe error on %s failure', async (method) => {
+    const fake = fakeAdapter({ adminErrors: { [method]: { message: `private ${SECRET_MARKERS.join(' ')}` } } });
+    const operation = method === 'createUser' ? fake.port.createConfirmedAuthUser(EMAIL) : fake.port.deleteAuthUser(AUTH_ID);
+    await assertGenericError(operation);
+  });
+
+  it.each([
+    'findGymByCode', 'findMember', 'findStaff', 'bindMember', 'bindStaff', 'unbindMember', 'unbindStaff',
+  ] as const)('throws a secret-safe error on %s query failure', async (method) => {
+    const fake = fakeAdapter({ replies: [{ data: null, error: { message: `private ${SECRET_MARKERS.join(' ')}` }, count: 0 }] });
+    const operation = {
+      findGymByCode: () => fake.port.findGymByCode(GYM_CODE),
+      findMember: () => fake.port.findMember(TENANT_ID, MEMBER_ID),
+      findStaff: () => fake.port.findStaff(TENANT_ID, STAFF_ID),
+      bindMember: () => fake.port.bindMember(TENANT_ID, MEMBER_ID, AUTH_ID, EMAIL),
+      bindStaff: () => fake.port.bindStaff(TENANT_ID, STAFF_ID, AUTH_ID, EMAIL),
+      unbindMember: () => fake.port.unbindMember(TENANT_ID, MEMBER_ID, AUTH_ID),
+      unbindStaff: () => fake.port.unbindStaff(TENANT_ID, STAFF_ID, AUTH_ID),
+    }[method]();
+    await assertGenericError(operation);
   });
 });
