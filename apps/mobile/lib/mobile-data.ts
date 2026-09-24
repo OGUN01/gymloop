@@ -11,6 +11,7 @@ export type MemberSnapshot = {
   membership: { status: string; startsOn: string | null; endsOn: string | null; planName: string } | null;
   visits: { id: string; checkedInAt: string; source: string }[];
   weekVisits: number;
+  weekStart: string;
   streak: { current: number; unit: 'day' | 'week'; missed: readonly string[] };
   receipts: { id: string; amountPaise: string; currency: string; paidAt: string | null; receiptNumber: string | null; status: string }[];
   messages: { id: string; body: string; sentAt: string | null; status: string }[];
@@ -97,6 +98,7 @@ export async function loadMemberSnapshot(client: DbClient, identity: MemberIdent
     membership: membership ? { status: membership.status, startsOn: membership.starts_on, endsOn: membership.ends_on, planName: text(planRelation?.name, 'Membership') } : null,
     visits: (attendanceRead.data ?? []).map((row) => ({ id: row.id, checkedInAt: row.checked_in_at, source: row.source })),
     weekVisits,
+    weekStart: new Date(weekStartNumber * MS_PER_DAY).toISOString().slice(0, 'YYYY-MM-DD'.length),
     streak: { current: streak.current, unit: streak.unit, missed: streak.missed },
     receipts: (moneyRead.data?.receipts ?? []).map((row) => ({ id: text(row.id), amountPaise: text(row.amountPaise), currency: text(row.currency), paidAt: typeof row.paidAt === 'string' ? row.paidAt : null, receiptNumber: typeof row.receiptNumber === 'string' ? row.receiptNumber : null, status: text(row.status) })),
     messages: (messagesRead.data ?? []).map((row) => ({ id: row.id, body: payloadBody(row.payload), sentAt: row.sent_at, status: row.status })),
@@ -125,4 +127,16 @@ export async function loadDefaultBranch(client: DbClient): Promise<{ id: string;
   const { data, error } = await client.from('branches').select('id,name').order('is_default', { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(error.message);
   return data;
+}
+
+/** The seven days of the week the "N of goal" count uses, with visited, future and today flags. */
+export function rhythmFor(snapshot: Pick<MemberSnapshot, 'visits' | 'weekStart'> & { gym: { timezone: string } }) {
+  const today = toLocalDate(new Date(), snapshot.gym.timezone);
+  const visited = new Set(snapshot.visits.map((visit) => toLocalDate(visit.checkedInAt, snapshot.gym.timezone)));
+  return Array.from({ length: DAYS_PER_WEEK }, (_, index) => {
+    const day = new Date(`${snapshot.weekStart}T12:00:00Z`);
+    day.setUTCDate(day.getUTCDate() + index);
+    const key = day.toISOString().slice(0, 'YYYY-MM-DD'.length);
+    return { key, label: day.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' }).slice(0, 1), name: day.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' }), visited: visited.has(key), future: key > today };
+  });
 }

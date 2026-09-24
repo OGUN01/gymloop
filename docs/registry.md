@@ -814,3 +814,4 @@ Visual system: `docs/design/phase9/direction.md`. Tokens stay in `UI_TOKENS` (no
 | `formatDay` | `packages/shared/src/display/display.ts` | Calendar date as "21 Sep 2026" | web and native dates |
 | `formatDateTime` | `packages/shared/src/display/display.ts` | Instant in the gym timezone as "21 Sep 2026, 4:36 pm" | payments, orders, messages |
 | `formatDayRange` | `packages/shared/src/display/display.ts` | Shortest unambiguous range ("1–24 Sep 2026") | owner overview, platform |
+| `rhythmFor` | `apps/mobile/lib/mobile-data.ts` | The seven days of the counted week (from `weekStart`) with visited, future and today flags, so the rhythm dots agree with "N of goal" | native Home, Activity |

@@ -5,11 +5,12 @@ import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { DAYS_PER_WEEK, GREETING_HOURS, UI_TOKENS } from '@gymloop/shared';
+import { GREETING_HOURS, UI_TOKENS, formatDay } from '@gymloop/shared';
 import { CircleAlert, CircleCheck, Clock3, CreditCard, MessageSquareMore, ScanLine } from 'lucide-react-native';
 import { ActionButton, Body, Display, Eyebrow, FONT, LoadingState, Row, Rule, Screen, StateMessage, Status, Title, statusTone, statusWord } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
 import { drainOfflineCheckIns, loadOfflineCheckIns, saveOfflineCheckIn } from '../../lib/offline-check-in';
+import { rhythmFor } from '../../lib/mobile-data';
 import { useMemberSnapshot } from '../../lib/use-member-snapshot';
 
 function tokenFromScan(value: string): string {
@@ -45,8 +46,7 @@ export default function MemberHome() {
   const firstName = data.member.fullName.split(' ')[0] ?? data.member.fullName;
   const hour = Number(new Intl.DateTimeFormat('en-IN', { hour: 'numeric', hourCycle: 'h23', timeZone: data.gym.timezone }).format(new Date()));
   const greeting = hour < GREETING_HOURS.afternoon ? 'Good morning' : hour < GREETING_HOURS.evening ? 'Good afternoon' : 'Good evening';
-  const localToday = new Date().toLocaleDateString('en-CA', { timeZone: data.gym.timezone });
-  const rhythmDays = Array.from({ length: DAYS_PER_WEEK }, (_, index) => { const day = new Date(`${localToday}T12:00:00Z`); day.setUTCDate(day.getUTCDate() - (DAYS_PER_WEEK - 1 - index)); const dayKey = day.toLocaleDateString('en-CA', { timeZone: 'UTC' }); return { key: dayKey, label: day.toLocaleDateString('en-IN', { weekday: 'narrow', timeZone: 'UTC' }), name: day.toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'UTC' }), visited: data.visits.some((visit) => new Date(visit.checkedInAt).toLocaleDateString('en-CA', { timeZone: data.gym.timezone }) === dayKey) }; });
+  const rhythmDays = rhythmFor(data);
   const remaining = Math.max(data.member.goal - data.weekVisits, 0);
   const gymName = data.gym.name.endsWith(` — ${data.gym.branchName}`) ? data.gym.name.slice(0, -` — ${data.gym.branchName}`.length) : data.gym.name;
   const icon = { size: UI_TOKENS.icons.navigationSize, strokeWidth: UI_TOKENS.icons.strokeWidth } as const;
@@ -91,11 +91,11 @@ export default function MemberHome() {
       <Display size="hero">{data.weekVisits} of {data.member.goal}</Display>
       <Text style={[styles.weekCaption, { color: palette.primaryText }]}>visits this week</Text>
     </View>
-    <View style={styles.rhythm}>{rhythmDays.map((day) => <View key={day.key} style={styles.rhythmDay} accessible accessibilityLabel={`${day.name}: ${day.visited ? 'visited' : 'no visit'}`}><View style={[styles.rhythmDot, { backgroundColor: day.visited ? palette.primaryAction : 'transparent', borderColor: day.visited ? palette.primaryAction : palette.requiredControlOutline }]} /><Text style={[styles.rhythmLabel, { color: palette.secondaryText }]}>{day.label}</Text></View>)}</View>
+    <View style={styles.rhythm}>{rhythmDays.map((day) => <View key={day.key} style={styles.rhythmDay} accessible accessibilityLabel={`${day.name}: ${day.visited ? 'visited' : day.future ? 'still ahead' : 'no visit'}`}><View style={[styles.rhythmDot, day.future ? styles.futureDot : null, { backgroundColor: day.visited ? palette.primaryAction : 'transparent', borderColor: day.visited ? palette.primaryAction : palette.requiredControlOutline }]} /><Text style={[styles.rhythmLabel, { color: palette.secondaryText }]}>{day.label}</Text></View>)}</View>
     <Body muted>{remaining === 0 ? 'Weekly goal complete. Nice work.' : `${remaining} more ${remaining === 1 ? 'visit' : 'visits'} to your weekly goal.`}</Body>
     <Rule />
     <View style={[styles.box, { borderColor: palette.decorativeSeparator, backgroundColor: palette.surface }]}>
-      <Row icon={<CreditCard color={palette.primaryText} {...icon} />} title={data.membership ? data.membership.planName : 'No membership is visible'} meta={data.membership?.endsOn ? `Ends ${new Date(`${data.membership.endsOn}T12:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' })}` : undefined} trailing={data.membership ? <Status tone={statusTone(data.membership.status)}>{statusWord(data.membership.status)}</Status> : undefined} onPress={() => router.push('/(member)/gym')} accessibilityLabel="Membership details" />
+      <Row icon={<CreditCard color={palette.primaryText} {...icon} />} title={data.membership ? data.membership.planName : 'No membership is visible'} meta={data.membership?.endsOn ? `Ends ${formatDay(data.membership.endsOn)}` : undefined} trailing={data.membership ? <Status tone={statusTone(data.membership.status)}>{statusWord(data.membership.status)}</Status> : undefined} onPress={() => router.push('/(member)/gym')} accessibilityLabel="Membership details" />
     </View>
     {data.messages[0] ? <>
       <Eyebrow>Latest from your gym</Eyebrow>
@@ -118,6 +118,7 @@ const styles = StyleSheet.create({
   rhythmDay: { alignItems: 'center', gap: space[2], minWidth: UI_TOKENS.geometry.targets.interactive },
   rhythmDot: { width: UI_TOKENS.geometry.targets.interactive - space[1], height: UI_TOKENS.geometry.targets.interactive - space[1], borderRadius: UI_TOKENS.geometry.targets.interactive, borderWidth: UI_TOKENS.icons.strokeWidth },
   rhythmLabel: { fontFamily: FONT.medium, fontSize: UI_TOKENS.typography.compact.size },
+  futureDot: { borderStyle: 'dashed', opacity: UI_TOKENS.opacity.disabled },
   box: { borderWidth: StyleSheet.hairlineWidth, borderRadius: UI_TOKENS.geometry.radii.row, borderCurve: 'continuous', paddingHorizontal: space[3] },
   scanner: { overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderRadius: UI_TOKENS.geometry.radii.section, borderCurve: 'continuous' },
   camera: { aspectRatio: 1 },

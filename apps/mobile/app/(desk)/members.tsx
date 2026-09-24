@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { UI_TOKENS } from '@gymloop/shared';
+import { formatPhone, UI_TOKENS } from '@gymloop/shared';
 import { Search } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 import { ActionButton, Body, Eyebrow, Field, Initials, LoadingState, Row, Screen, StateMessage, Status, Title, statusTone, statusWord } from '../../components/ui';
@@ -27,7 +27,7 @@ export default function MembersScreen() {
     {state === 'loading' ? <LoadingState /> : null}
     {state === 'error' ? <View style={styles.stack}><StateMessage tone="error">Members could not be loaded.</StateMessage><ActionButton secondary onPress={() => setAttempt((value) => value + 1)}>Try again</ActionButton></View> : null}
     {state === 'ready' && rows.length === 0 ? <View style={styles.empty}><Body strong>No matching members</Body><Body muted>Check the spelling, or search by phone number.</Body></View> : null}
-    {state === 'ready' ? <View>{rows.map((member) => <Row key={member.id} icon={<Initials name={member.fullName} />} title={member.fullName} meta={`${member.phone}${member.memberCode ? ` · ${member.memberCode}` : ''}`} trailing={<Status tone={statusTone(member.status)}>{statusWord(member.status)}</Status>} accessibilityLabel={`${member.fullName}, ${statusWord(member.status)}, ${member.phone}`} />)}</View> : null}
+    {state === 'ready' ? <View>{rows.map((member) => <Row key={member.id} icon={<Initials name={member.fullName} />} title={member.fullName} meta={`${formatPhone(member.phone)}${member.memberCode ? ` · ${member.memberCode}` : ''}`} trailing={<Status tone={statusTone(member.status)}>{statusWord(member.status)}</Status>} accessibilityLabel={`${member.fullName}, ${statusWord(member.status)}, ${member.phone}`} />)}</View> : null}
   </Screen>;
 }
 

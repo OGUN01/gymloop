@@ -19,7 +19,7 @@ export function Screen({ children, footer }: { children: ReactNode; footer?: Rea
   const insets = useSafeAreaInsets();
   return <View style={[styles.screenFrame, { backgroundColor: palette.canvas, paddingTop: insets.top }]}>
     <ScrollView contentContainerStyle={[styles.screen, footer ? styles.screenWithFooter : null]} keyboardShouldPersistTaps="handled">{children}</ScrollView>
-    {footer ? <View style={[styles.footer, { backgroundColor: palette.canvas }]}>{footer}</View> : null}
+    {footer ? <View style={[styles.footer, { backgroundColor: palette.canvas, borderColor: palette.decorativeSeparator }]}>{footer}</View> : null}
   </View>;
 }
 
@@ -101,11 +101,12 @@ export function Initials({ name }: { name: string }) {
 
 export function ActionButton({ children, secondary = false, quiet = false, icon, disabled, ...props }: PressableProps & { children: ReactNode; secondary?: boolean; quiet?: boolean; icon?: ReactNode }) {
   const { palette } = useMobile();
-  const background = quiet || secondary ? 'transparent' : palette.primaryAction;
-  const border = quiet ? 'transparent' : secondary ? palette.primaryText : palette.primaryAction;
-  const color = quiet ? palette.secondaryText : secondary ? palette.primaryText : palette.textOnPrimary;
+  const primary = !secondary && !quiet;
+  const background = primary ? (disabled ? palette.elevatedSurface : palette.primaryAction) : 'transparent';
+  const border = quiet ? 'transparent' : secondary ? palette.primaryText : disabled ? palette.decorativeSeparator : palette.primaryAction;
+  const color = quiet ? palette.secondaryText : secondary ? palette.primaryText : disabled ? palette.secondaryText : palette.textOnPrimary;
   return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled: disabled ?? false }} {...props} style={({ pressed }) => [
-    styles.action, !secondary && !quiet ? styles.actionPrimary : null, { backgroundColor: background, borderColor: border }, pressed && styles.pressed, disabled && styles.disabled,
+    styles.action, !secondary && !quiet ? styles.actionPrimary : null, { backgroundColor: background, borderColor: border }, pressed && styles.pressed, disabled && !primary && styles.disabled,
   ]}>{icon}<Text style={[styles.actionText, !secondary && !quiet ? styles.actionTextPrimary : null, { color }]}>{children}</Text></Pressable>;
 }
 
@@ -130,7 +131,7 @@ const styles = StyleSheet.create({
   screenFrame: { flex: 1 },
   screen: { flexGrow: 1, paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[3], paddingBottom: space[6], gap: space[4] },
   screenWithFooter: { paddingBottom: UI_TOKENS.geometry.targets.touch + space[6] + space[4] },
-  footer: { position: 'absolute', right: 0, bottom: 0, left: 0, paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[2], paddingBottom: space[3] },
+  footer: { position: 'absolute', right: 0, bottom: 0, left: 0, borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[2], paddingBottom: space[3] },
   eyebrow: { textTransform: 'uppercase', fontFamily: FONT.semibold, fontSize: type.eyebrow.size, lineHeight: type.eyebrow.lineHeight, letterSpacing: type.eyebrow.size * Number.parseFloat(type.eyebrowTracking) },
   title: { fontFamily: FONT.display, fontSize: type.displayTitle.size, lineHeight: type.displayTitle.lineHeight },
   hero: { fontFamily: FONT.display, fontSize: type.heroMetric.size, lineHeight: type.heroMetric.lineHeight },
@@ -143,7 +144,7 @@ const styles = StyleSheet.create({
   statusDot: { width: UI_TOKENS.icons.statusDot, height: UI_TOKENS.icons.statusDot, borderRadius: UI_TOKENS.icons.statusDot },
   statusText: { fontFamily: FONT.medium, fontSize: type.compact.size, lineHeight: type.compact.lineHeight },
   row: { minHeight: UI_TOKENS.geometry.targets.touch + space[3], flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3], borderBottomWidth: StyleSheet.hairlineWidth },
-  rowIcon: { width: UI_TOKENS.icons.navigationSize + space[1], alignItems: 'center' },
+  rowIcon: { minWidth: UI_TOKENS.icons.navigationSize + space[1], alignItems: 'center' },
   rowCopy: { flex: 1, minWidth: 0, gap: space[0] },
   rowTitle: { fontFamily: FONT.semibold, fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight },
   rowMeta: { fontFamily: FONT.regular, fontSize: type.compact.size, lineHeight: type.compact.lineHeight },

@@ -1,7 +1,8 @@
-import { DAYS_PER_WEEK, UI_TOKENS } from '@gymloop/shared';
+import { UI_TOKENS, formatDay } from '@gymloop/shared';
 import { StyleSheet, Text, View } from 'react-native';
 import { ActionButton, Body, Display, Eyebrow, FONT, LoadingState, Row, Rule, Screen, StateMessage, Status, Title } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
+import { rhythmFor } from '../../lib/mobile-data';
 import { useMemberSnapshot } from '../../lib/use-member-snapshot';
 
 export default function ActivityScreen() {
@@ -9,10 +10,9 @@ export default function ActivityScreen() {
   const { data, error, loading, reload } = useMemberSnapshot();
   if (loading) return <Screen><LoadingState /></Screen>;
   if (error || !data) return <Screen><Title>Activity</Title><StateMessage tone="error">{error ?? 'Your activity is unavailable.'}</StateMessage><ActionButton secondary onPress={() => void reload()}>Try again</ActionButton></Screen>;
-  const localToday = new Date().toLocaleDateString('en-CA', { timeZone: data.gym.timezone });
-  const rhythmDays = Array.from({ length: DAYS_PER_WEEK }, (_, index) => { const day = new Date(`${localToday}T12:00:00Z`); day.setUTCDate(day.getUTCDate() - (DAYS_PER_WEEK - 1 - index)); const dayKey = day.toLocaleDateString('en-CA', { timeZone: 'UTC' }); return { label: day.toLocaleDateString('en-IN', { weekday: 'narrow', timeZone: 'UTC' }), fullLabel: day.toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'UTC' }), visited: data.visits.some((visit) => new Date(visit.checkedInAt).toLocaleDateString('en-CA', { timeZone: data.gym.timezone }) === dayKey) }; });
+  const rhythmDays = rhythmFor(data);
   const unit = data.streak.unit === 'week' ? 'week' : 'day';
-  const dayFormat = new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: data.gym.timezone });
+  const dayFormat = { format: (date: Date) => `${date.toLocaleDateString('en-GB', { weekday: 'short', timeZone: data.gym.timezone })}, ${formatDay(date.toLocaleDateString('en-CA', { timeZone: data.gym.timezone })).replace(/ \d{4}$/, '')}` };
   const timeFormat = new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: data.gym.timezone });
   return <Screen>
     <View><Eyebrow>Your progress</Eyebrow><Title>Activity</Title></View>
@@ -21,12 +21,12 @@ export default function ActivityScreen() {
       <Text style={[styles.figureCaption, { color: palette.primaryText }]}>{data.weekVisits === 1 ? 'visit' : 'visits'} this week</Text>
     </View>
     <Rule />
-    <View style={styles.rhythm}>{rhythmDays.map((day) => <View accessible accessibilityLabel={`${day.fullLabel}: ${day.visited ? 'visited' : 'rest day'}`} key={day.fullLabel} style={styles.rhythmDay}><Text style={[styles.rhythmLabel, { color: palette.secondaryText }]}>{day.label}</Text><View style={[styles.rhythmDot, { backgroundColor: day.visited ? palette.primaryText : 'transparent', borderColor: day.visited ? palette.primaryText : palette.requiredControlOutline }]} /></View>)}</View>
+    <View style={styles.rhythm}>{rhythmDays.map((day) => <View accessible accessibilityLabel={`${day.name}: ${day.visited ? 'visited' : day.future ? 'still ahead' : 'no visit'}`} key={day.key} style={styles.rhythmDay}><Text style={[styles.rhythmLabel, { color: palette.secondaryText }]}>{day.label}</Text><View style={[styles.rhythmDot, { backgroundColor: day.visited ? palette.primaryText : 'transparent', borderColor: day.visited ? palette.primaryText : palette.requiredControlOutline }, day.future ? { borderStyle: 'dashed', opacity: UI_TOKENS.opacity.disabled } : null]} /></View>)}</View>
     <Rule />
-    <View accessible accessibilityLabel={`${data.streak.current} ${unit} streak`}>
+    {data.streak.current > 0 ? <View accessible accessibilityLabel={`${data.streak.current} ${unit} streak`}>
       <Display size="section">Streak: {data.streak.current} {data.streak.current === 1 ? unit : `${unit}s`}</Display>
       <Body muted>{data.streak.missed[0] ? `One missed ${unit} does not erase your work.` : 'Keep your rhythm going.'}</Body>
-    </View>
+    </View> : <Body muted>Your next visit starts a new streak.</Body>}
     <Rule />
     <Eyebrow>Recent visits</Eyebrow>
     {data.visits.length === 0

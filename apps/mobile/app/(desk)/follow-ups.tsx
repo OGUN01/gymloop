@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { UI_TOKENS } from '@gymloop/shared';
+import { formatPhone, UI_TOKENS } from '@gymloop/shared';
 import { Phone } from 'lucide-react-native';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import { ActionButton, Body, Eyebrow, FONT, Initials, LoadingState, Screen, StateMessage, Title } from '../../components/ui';
@@ -52,8 +52,8 @@ export default function FollowUpsScreen() {
     {loadState === 'ready' ? <View style={[styles.list, { borderColor: palette.decorativeSeparator }]}>{rows.map((row) => <View key={row.id} style={[styles.row, { borderColor: palette.decorativeSeparator }]}>
       <View style={styles.identity}>
         <Initials name={row.memberName} />
-        <View style={styles.identityCopy}><Body strong>{row.memberName}</Body><Body muted>{row.memberPhone}</Body></View>
-        <View style={styles.away} accessible accessibilityLabel={`${row.daysAbsent} days away`}><Text style={[styles.awayNumber, { color: palette.errorRiskText }]}>{row.daysAbsent}</Text><Text style={[styles.awayLabel, { color: palette.secondaryText }]}>days away</Text></View>
+        <View style={styles.identityCopy}><Body strong>{row.memberName}</Body><Body muted>{formatPhone(row.memberPhone)}</Body></View>
+        <View style={styles.away} accessible accessibilityLabel={`${row.daysAbsent} days away`}><Text style={[styles.awayNumber, { color: palette.primaryText }]}>{row.daysAbsent}</Text><Text style={[styles.awayLabel, { color: palette.secondaryText }]}>days away</Text></View>
       </View>
       <View style={styles.actions}>
         <View style={styles.actionSlot}><ActionButton secondary accessibilityLabel={`Call ${row.memberName}`} icon={<Phone color={palette.primaryText} size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />} disabled={pendingId !== null} onPress={() => void Linking.openURL(`tel:${row.memberPhone}`)}>Call</ActionButton></View>

@@ -1,4 +1,4 @@
-import { rupeesFromPaise, UI_TOKENS } from '@gymloop/shared';
+import { formatDay, formatMoney, UI_TOKENS } from '@gymloop/shared';
 import { useRouter } from 'expo-router';
 import { ChevronDown, ChevronUp, CreditCard, Dumbbell, MessageSquareMore, ScanLine } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -35,7 +35,7 @@ export default function GymScreen() {
   const toggle = (id: string) => setOpenSection((section) => section === id ? null : id);
   const icon = { color: palette.primaryText, size: UI_TOKENS.icons.navigationSize, strokeWidth: UI_TOKENS.icons.strokeWidth } as const;
   const gymName = data.gym.name.endsWith(` — ${data.gym.branchName}`) ? data.gym.name.slice(0, -` — ${data.gym.branchName}`.length) : data.gym.name;
-  const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: data.gym.timezone });
+  const shortDate = (iso: string) => formatDay(new Date(iso).toLocaleDateString('en-CA', { timeZone: data.gym.timezone }));
   return <Screen footer={<ActionButton accessibilityHint="Opens the member check-in scanner" icon={<ScanLine color={palette.textOnPrimary} size={UI_TOKENS.icons.navigationSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />} onPress={() => router.push({ pathname: '/(member)', params: { scan: '1' } })}>Scan to check in</ActionButton>}>
     <View>
       <Eyebrow>My gym</Eyebrow>
@@ -44,11 +44,11 @@ export default function GymScreen() {
       {data.gym.branchAddress ? <Body muted>{data.gym.branchAddress}</Body> : null}
     </View>
     <View style={[styles.list, { borderColor: palette.decorativeSeparator }]}>
-      <Section id="membership" open={openSection === 'membership'} onToggle={toggle} icon={<CreditCard {...icon} />} title="Membership & receipts" summary={data.membership ? `${data.membership.planName}${data.membership.endsOn ? ` · ends ${new Date(`${data.membership.endsOn}T12:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' })}` : ''}` : 'No membership is visible.'}>
+      <Section id="membership" open={openSection === 'membership'} onToggle={toggle} icon={<CreditCard {...icon} />} title="Membership & receipts" summary={data.membership ? `${data.membership.planName}${data.membership.endsOn ? ` · ends ${formatDay(data.membership.endsOn)}` : ''}` : 'No membership is visible.'}>
         {data.membership ? <Status tone={statusTone(data.membership.status)}>{statusWord(data.membership.status)}</Status> : null}
         <Eyebrow>Receipts</Eyebrow>
         {data.receipts.length === 0 ? <Body muted>No receipts yet.</Body> : data.receipts.map((receipt) => <View key={receipt.id} style={[styles.ledgerRow, { borderColor: palette.decorativeSeparator }]}>
-          <View style={styles.ledgerCopy}><Text style={[styles.amount, { color: palette.primaryText }]}>{receipt.currency === 'INR' ? '₹' : `${receipt.currency} `}{rupeesFromPaise(receipt.amountPaise)}</Text><Body muted>{receipt.paidAt ? shortDate(receipt.paidAt) : receipt.receiptNumber ?? 'Date not recorded'}</Body></View>
+          <View style={styles.ledgerCopy}><Text style={[styles.amount, { color: palette.primaryText }]}>{formatMoney(receipt.amountPaise, receipt.currency)}</Text><Body muted>{receipt.paidAt ? shortDate(receipt.paidAt) : receipt.receiptNumber ?? 'Date not recorded'}</Body></View>
           <Status tone={statusTone(receipt.status)}>{statusWord(receipt.status)}</Status>
         </View>)}
       </Section>

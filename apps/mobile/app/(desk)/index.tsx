@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as Crypto from 'expo-crypto';
-import { UI_TOKENS } from '@gymloop/shared';
+import { formatPhone, UI_TOKENS } from '@gymloop/shared';
 import { Search } from 'lucide-react-native';
 import { AccessibilityInfo, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ActionButton, Body, Eyebrow, FONT, Field, Initials, LoadingState, Row, Screen, StateMessage, Status, Title, statusTone, statusWord } from '../../components/ui';
@@ -59,7 +59,7 @@ export default function DeskCheckIn() {
     {loadState === 'loading' ? <LoadingState /> : null}
     {loadState === 'error' ? <View style={styles.stack}><StateMessage tone="error">Members could not be loaded.</StateMessage><ActionButton secondary onPress={() => void load()}>Try again</ActionButton></View> : null}
     {loadState === 'ready' && members.length === 0 ? <View style={styles.empty}><Body strong>No matching members</Body><Body muted>Check the spelling, or search by phone number.</Body></View> : null}
-    {loadState === 'ready' ? <View>{members.map((member) => <Row key={member.id} icon={<Initials name={member.fullName} />} title={member.fullName} meta={<><Text>{member.phone}</Text></>} trailing={<View style={styles.rowEnd}><Status tone={statusTone(member.status)}>{statusWord(member.status)}</Status><Pressable accessibilityRole="button" accessibilityLabel={`Check in ${member.fullName}`} disabled={pending} onPress={() => { setSelected(member); setFeedback(null); }} style={({ pressed }) => [styles.rowButton, { borderColor: palette.primaryText }, pressed && styles.pressed]}><Text style={[styles.rowButtonText, { color: palette.primaryText }]}>Check in</Text></Pressable></View>} />)}</View> : null}
+    {loadState === 'ready' ? <View>{members.map((member) => <Row key={member.id} icon={<Initials name={member.fullName} />} title={member.fullName} meta={formatPhone(member.phone)} trailing={<View style={styles.rowEnd}><Status tone={statusTone(member.status)}>{statusWord(member.status)}</Status><Pressable accessibilityRole="button" accessibilityLabel={`Check in ${member.fullName}`} disabled={pending} onPress={() => { setSelected(member); setFeedback(null); }} style={({ pressed }) => [styles.rowButton, { borderColor: palette.primaryText }, pressed && styles.pressed]}><Text style={[styles.rowButtonText, { color: palette.primaryText }]}>Check in</Text></Pressable></View>} />)}</View> : null}
     <Modal visible={selected !== null} transparent animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={() => setSelected(null)} accessibilityViewIsModal>
       <View style={[styles.backdrop, { backgroundColor: palette.scrim }]}><View style={[styles.sheet, { backgroundColor: palette.canvas }]}>
         <View style={[styles.grabber, { backgroundColor: palette.requiredControlOutline }]} />
