@@ -36,9 +36,10 @@ export default function MoreScreen() {
     {frontOffice ? <View style={[styles.section, styles.leadForm, { borderColor: palette.decorativeSeparator }]}>
       <Eyebrow>New lead</Eyebrow>
       <Body muted>Someone asking about joining? Take their name and number now; the team follows up from Leads.</Body>
-      <View style={styles.field}><Text style={label}>Full name</Text><Field accessibilityLabel="Full name" autoComplete="name" value={name} onChangeText={setName} /></View>
-      <View style={styles.field}><Text style={label}>Phone</Text><Field accessibilityLabel="Phone" accessibilityHint="Include +91" placeholder="+91 98765 43210" keyboardType="phone-pad" value={phone} onChangeText={setPhone} /></View>
-      {/* The helper sits on the gutter, 8 under the button it explains, like every other line on this tab. */}
+      {/* Both fields show an example the same way — "e.g." in secondary — so neither reads as a value already filled in. */}
+      <View style={styles.field}><Text style={label}>Full name</Text><Field accessibilityLabel="Full name" autoComplete="name" placeholder="e.g. Priya Sharma" value={name} onChangeText={setName} /></View>
+      <View style={styles.field}><Text style={label}>Phone</Text><Field accessibilityLabel="Phone" accessibilityHint="Include +91" placeholder="e.g. +91 98765 43210" keyboardType="phone-pad" value={phone} onChangeText={setPhone} /></View>
+      {/* Until both are filled the clay button shows dimmed, with the helper 8 under it on the gutter saying why. */}
       <View style={styles.submit}>
         <ActionButton disabled={pending || !ready} onPress={() => void capture()}>{pending ? 'Saving…' : 'Capture lead'}</ActionButton>
         {!ready && !pending && !message ? <Text style={[styles.hint, { color: palette.secondaryText }]}>Enter a name and phone to capture.</Text> : null}

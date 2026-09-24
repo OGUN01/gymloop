@@ -6,7 +6,7 @@ import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { GREETING_HOURS, toLocalDate, UI_TOKENS } from '@gymloop/shared';
-import { CircleAlert, CircleCheck, Clock3, CreditCard, MessageSquareMore, ScanLine } from 'lucide-react-native';
+import { CalendarCheck, CircleAlert, CircleCheck, Clock3, CreditCard, MessageSquareMore, ScanLine } from 'lucide-react-native';
 import { ActionButton, Body, Display, Eyebrow, FONT, Initials, LoadingState, Row, Rule, Screen, StateMessage, Status, Title, WeekRhythm, dayLabel, statusTone, statusWord } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
 import { drainOfflineCheckIns, loadOfflineCheckIns, saveOfflineCheckIn } from '../../lib/offline-check-in';
@@ -48,11 +48,11 @@ export default function MemberHome() {
   const greeting = hour < GREETING_HOURS.afternoon ? 'Good morning' : hour < GREETING_HOURS.evening ? 'Good afternoon' : 'Good evening';
   const rhythmDays = rhythmFor(data);
   const remaining = Math.max(data.member.goal - data.weekVisits, 0);
-  const gymName = data.gym.name.endsWith(` — ${data.gym.branchName}`) ? data.gym.name.slice(0, -` — ${data.gym.branchName}`.length) : data.gym.name;
+  const gymName = data.gym.displayName;
   const lastVisit = data.visits[0] ? new Date(data.visits[0].checkedInAt) : null;
   const lastVisitText = lastVisit ? `${lastVisit.toLocaleDateString('en-GB', { weekday: 'short', timeZone: data.gym.timezone })}, ${dayLabel(toLocalDate(lastVisit, data.gym.timezone), data.gym.timezone)} · ${new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: data.gym.timezone }).format(lastVisit)}` : null;
   const icon = { size: UI_TOKENS.icons.navigationSize, strokeWidth: UI_TOKENS.icons.strokeWidth } as const;
-  // A disabled primary is a flat raised block, so the on-clay icon is dropped while a check-in is confirming.
+  // While scanning or confirming the label says what is happening, so the scan icon (which names the action) is dropped.
   const checkInAction = <ActionButton accessibilityHint="Opens the camera to scan your gym QR code" disabled={pending} icon={scanning || pending ? undefined : <ScanLine color={palette.textOnPrimary} {...icon} />} onPress={() => { setOutcome(null); setScanning((value) => !value); }}>{pending ? 'Confirming check-in…' : scanning ? 'Cancel scanning' : 'Scan to check in'}</ActionButton>;
 
   if (outcome && outcome.kind !== 'confirming') {
@@ -84,7 +84,7 @@ export default function MemberHome() {
     <View style={styles.header}>
       <View style={styles.gymLine}>
         <Text style={[styles.gymText, { color: palette.secondaryText }]} numberOfLines={1}><Text style={{ color: palette.primaryText, fontFamily: FONT.semibold }}>{gymName}</Text> · {data.gym.branchName}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${data.member.fullName}, open You`} onPress={() => router.push('/(member)/you')} style={({ pressed }) => pressed && styles.pressed}><Initials name={data.member.fullName} size="header" /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${data.member.fullName}, open You`} onPress={() => router.push('/(member)/you')} style={({ pressed }) => [styles.avatarTarget, pressed && styles.pressed]}><Initials name={data.member.fullName} size="header" /></Pressable>
       </View>
       <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit style={[styles.greeting, { color: palette.primaryText }]}>{greeting}, {firstName}</Text>
     </View>
@@ -92,23 +92,25 @@ export default function MemberHome() {
     {scanning ? <View style={[styles.scanner, { borderColor: palette.decorativeSeparator, backgroundColor: palette.surface }]}>{permission?.granted ? <CameraView style={styles.camera} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data: value }) => void checkIn(value)} /> : <View style={styles.permission}><Body>Camera access is needed only while you scan the gym QR.</Body><ActionButton secondary onPress={() => void requestPermission()}>Allow camera</ActionButton></View>}</View> : null}
     {outcome?.kind === 'confirming' ? <StateMessage>Confirming your check-in…</StateMessage> : null}
     {queued > 0 ? <StateMessage tone="warning">{queued} check-in {queued === 1 ? 'is' : 'are'} awaiting confirmation.</StateMessage> : null}
-    <View style={styles.week}>
-      <View accessible accessibilityLabel={`${data.weekVisits} of ${data.member.goal} visits this week`}>
-        <Display size="hero">{data.weekVisits}<Text style={styles.of}> of </Text>{data.member.goal}</Display>
-        <Text style={[styles.weekCaption, { color: palette.primaryText }]}>visits this week</Text>
+    {/* The week and the ledger sit together at the foot of the page: a short page ends 24 above the Scan button and any
+        spare height opens above the week figure, never as a dead band over the dock. */}
+    <View style={styles.lower}>
+      <View style={styles.week}>
+        <View accessible accessibilityLabel={`${data.weekVisits} of ${data.member.goal} visits this week`}>
+          <Display size="hero">{data.weekVisits}<Text style={styles.of}> of </Text>{data.member.goal}</Display>
+          <Text style={[styles.weekCaption, { color: palette.primaryText }]}>visits this week</Text>
+        </View>
+        <WeekRhythm days={rhythmDays} />
+        <Body muted>{remaining === 0 ? 'Weekly goal complete. Nice work.' : `${remaining} more ${remaining === 1 ? 'visit' : 'visits'} to your weekly goal.`}</Body>
       </View>
-      <WeekRhythm days={rhythmDays} />
-      <Body muted>{remaining === 0 ? 'Weekly goal complete. Nice work.' : `${remaining} more ${remaining === 1 ? 'visit' : 'visits'} to your weekly goal.`}</Body>
-    </View>
-    {/* One ruled ledger, as on web: membership, the latest message when there is one, and the last visit. */}
-    <View>
-      <Rule />
-      <Row icon={<CreditCard color={palette.primaryText} {...icon} />} title={data.membership ? data.membership.planName : 'No membership is visible'} meta={data.membership?.endsOn ? `Ends ${dayLabel(data.membership.endsOn, data.gym.timezone)}` : undefined} trailing={data.membership ? <Status tone={statusTone(data.membership.status)}>{statusWord(data.membership.status)}</Status> : undefined} onPress={() => router.push('/(member)/gym')} accessibilityLabel={data.membership ? `Membership, ${data.membership.planName}, ${statusWord(data.membership.status)}${data.membership.endsOn ? `, ends ${dayLabel(data.membership.endsOn, data.gym.timezone)}` : ''}` : 'Membership details'} />
-      {data.messages[0] ? <Row icon={<MessageSquareMore color={palette.primaryText} {...icon} />} title="Latest from your gym" meta={data.messages[0].body} trailing={data.messages[0].status === 'sent' ? <Status tone="accent">New</Status> : undefined} onPress={() => router.push('/(member)/gym')} accessibilityLabel={`Latest from your gym: ${data.messages[0].body}`} /> : null}
-      {lastVisitText ? <View accessible accessibilityLabel={`Last visit, ${lastVisitText}`} style={[styles.lastVisit, { borderColor: palette.decorativeSeparator }]}>
-        <Text style={[styles.lastVisitLabel, { color: palette.secondaryText }]}>Last visit</Text>
-        <Text numberOfLines={1} style={[styles.lastVisitValue, { color: palette.primaryText }]}>{lastVisitText}</Text>
-      </View> : null}
+      {/* One ruled ledger, as on web: membership, the latest message when there is one, and the last visit — every row
+          the same anatomy (icon, text, trailing status, chevron). */}
+      <View>
+        <Rule />
+        <Row icon={<CreditCard color={palette.primaryText} {...icon} />} title={data.membership ? data.membership.planName : 'No membership is visible'} meta={data.membership?.endsOn ? `Ends ${dayLabel(data.membership.endsOn, data.gym.timezone)}` : undefined} trailing={data.membership ? <Status tone={statusTone(data.membership.status)}>{statusWord(data.membership.status)}</Status> : undefined} onPress={() => router.push('/(member)/gym')} accessibilityLabel={data.membership ? `Membership, ${data.membership.planName}, ${statusWord(data.membership.status)}${data.membership.endsOn ? `, ends ${dayLabel(data.membership.endsOn, data.gym.timezone)}` : ''}` : 'Membership details'} />
+        {data.messages[0] ? <Row icon={<MessageSquareMore color={palette.primaryText} {...icon} />} title="Latest from your gym" meta={data.messages[0].body} trailing={data.messages[0].status === 'sent' ? <Status tone="accent">New</Status> : undefined} onPress={() => router.push('/(member)/gym')} accessibilityLabel={`Latest from your gym: ${data.messages[0].body}`} /> : null}
+        {lastVisitText ? <Row icon={<CalendarCheck color={palette.primaryText} {...icon} />} title="Last visit" meta={lastVisitText} onPress={() => router.push('/(member)/activity')} accessibilityLabel={`Last visit, ${lastVisitText}`} accessibilityHint="Opens Activity" /> : null}
+      </View>
     </View>
   </Screen>;
 }
@@ -119,16 +121,15 @@ const styles = StyleSheet.create({
   header: { gap: space[4] },
   gymLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[3] },
   gymText: { flex: 1, minWidth: 0, fontFamily: FONT.regular, fontSize: UI_TOKENS.typography.mobileBody.size, lineHeight: UI_TOKENS.typography.mobileBody.lineHeight },
+  // A 48 target around the 36 ring, the ring on the right gutter.
+  avatarTarget: { width: UI_TOKENS.geometry.targets.touch, height: UI_TOKENS.geometry.targets.touch, alignItems: 'flex-end', justifyContent: 'center' },
   pressed: { opacity: UI_TOKENS.opacity.pressed },
   greeting: { fontFamily: FONT.medium, fontSize: UI_TOKENS.typography.sectionTitle.size, lineHeight: UI_TOKENS.typography.sectionTitle.lineHeight + space[0] },
+  lower: { marginTop: 'auto', gap: space[4] },
   week: { gap: space[3] },
   // "of" steps down to the display-title size (about 0.6 of the numeral) in the bold condensed cut; its two spaces are
   // set at that size too, so the word gaps tighten to about 10 instead of a full hero-size space.
   of: { fontFamily: FONT.displayBold, fontSize: UI_TOKENS.typography.displayTitle.size },
-  // A plain ruled fact row (56 like web): label left in secondary ink, the time right on tabular figures.
-  lastVisit: { minHeight: UI_TOKENS.geometry.targets.touch + space[1], flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[3], borderBottomWidth: StyleSheet.hairlineWidth },
-  lastVisitLabel: { fontFamily: FONT.regular, fontSize: UI_TOKENS.typography.compact.size, lineHeight: UI_TOKENS.typography.compact.lineHeight },
-  lastVisitValue: { flexShrink: 1, textAlign: 'right', fontFamily: FONT.medium, fontSize: UI_TOKENS.typography.compact.size, lineHeight: UI_TOKENS.typography.compact.lineHeight, fontVariant: ['tabular-nums'] },
   weekCaption: { fontFamily: FONT.regular, fontSize: UI_TOKENS.typography.sectionTitle.size, lineHeight: UI_TOKENS.typography.sectionTitle.lineHeight },
   scanner: { overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderRadius: UI_TOKENS.geometry.radii.section, borderCurve: 'continuous' },
   camera: { aspectRatio: 1 },

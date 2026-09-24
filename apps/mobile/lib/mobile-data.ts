@@ -7,7 +7,8 @@ type MemberIdentity = { memberId: string; tenantId: string };
 
 export type MemberSnapshot = {
   member: { fullName: string; memberCode: string | null; email: string | null; phone: string; goal: number; restDays: number[] };
-  gym: { name: string; code: string; timezone: string; city: string | null; state: string | null; branchName: string; branchAddress: string | null };
+  /** `displayName` is the organisation name without its " — {branch}" suffix, for lines that name the branch beside it. */
+  gym: { name: string; displayName: string; code: string; timezone: string; city: string | null; state: string | null; branchName: string; branchAddress: string | null };
   membership: { status: string; startsOn: string | null; endsOn: string | null; planName: string } | null;
   visits: { id: string; checkedInAt: string; source: string }[];
   weekVisits: number;
@@ -83,11 +84,13 @@ export async function loadMemberSnapshot(client: DbClient, identity: MemberIdent
     pauses: pausesRead.data ?? [], holidays: holidaysRead.data ?? [], goal, weekStartDay: settings.week_start_day,
   });
 
+  const branchName = branchRead.data?.name ?? 'Main branch';
+  const branchSuffix = ` — ${branchName}`;
   const membership = membershipRead.data;
   const planRelation = membership && 'plans' in membership ? membership.plans as { name?: unknown } | null : null;
   return {
     member: { fullName: memberRead.data.full_name, memberCode: memberRead.data.member_code, email: memberRead.data.email, phone: memberRead.data.phone, goal, restDays: memberRead.data.rest_days },
-    gym: { name: gymRead.data.name, code: gymRead.data.gym_code, timezone, city: settings.city, state: settings.state, branchName: branchRead.data?.name ?? 'Main branch', branchAddress: branchRead.data?.address ?? null },
+    gym: { name: gymRead.data.name, displayName: gymRead.data.name.endsWith(branchSuffix) ? gymRead.data.name.slice(0, -branchSuffix.length) : gymRead.data.name, code: gymRead.data.gym_code, timezone, city: settings.city, state: settings.state, branchName, branchAddress: branchRead.data?.address ?? null },
     membership: membership ? { status: membership.status, startsOn: membership.starts_on, endsOn: membership.ends_on, planName: text(planRelation?.name, 'Membership') } : null,
     visits: (attendanceRead.data ?? []).map((row) => ({ id: row.id, checkedInAt: row.checked_in_at, source: row.source })),
     weekVisits,

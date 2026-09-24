@@ -1,7 +1,7 @@
 import { AVATAR_INITIALS_MAX, formatDay, humanize, PRODUCT_NAME, toLocalDate, UI_TOKENS } from '@gymloop/shared';
-import { ChevronRight, LogOut, Search } from 'lucide-react-native';
-import { AccessibilityInfo, ActivityIndicator, Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View, useColorScheme, type PressableProps, type TextInputProps } from 'react-native';
-import { useEffect, useState, type ReactNode } from 'react';
+import { ChevronRight, Search } from 'lucide-react-native';
+import { AccessibilityInfo, ActivityIndicator, Animated, Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View, useColorScheme, type PressableProps, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Defs, LinearGradient, Rect, Stop, Svg } from 'react-native-svg';
 import { useMobile, type AppearanceMode } from '../lib/mobile-context';
@@ -15,23 +15,39 @@ export const FONT = {
   display: 'ArchivoDisplay', displayBold: 'ArchivoDisplayBold',
 } as const;
 
-/** Transparent-to-canvas gradient drawn with SVG, so rows scrolling under the dock or tab bar fade instead of being sliced. */
-function CanvasFade({ aboveFooter }: { aboveFooter: boolean }) {
+/**
+ * A 24dp canvas gradient drawn with SVG, so content scrolling under an edge fades instead of being sliced: `bottom`
+ * runs transparent to canvas (above the tab bar or the dock), `top` canvas to transparent (under the status bar).
+ */
+function CanvasFade({ edge, style, opacity }: { edge: 'top' | 'bottom'; style?: StyleProp<ViewStyle>; opacity?: Animated.AnimatedInterpolation<number> }) {
   const { palette } = useMobile();
-  return <View pointerEvents="none" style={[styles.fade, aboveFooter ? styles.fadeAboveFooter : styles.fadeAtBottom]}>
+  const id = `canvasFade-${edge}`;
+  return <Animated.View pointerEvents="none" style={[styles.fade, style, opacity === undefined ? null : { opacity }]}>
     <Svg width="100%" height="100%">
-      <Defs><LinearGradient id="canvasFade" x1={0} y1={0} x2={0} y2={1}><Stop offset={0} stopColor={palette.canvas} stopOpacity={0} /><Stop offset={1} stopColor={palette.canvas} stopOpacity={1} /></LinearGradient></Defs>
-      <Rect width="100%" height="100%" fill="url(#canvasFade)" />
+      <Defs><LinearGradient id={id} x1={0} y1={0} x2={0} y2={1}><Stop offset={0} stopColor={palette.canvas} stopOpacity={edge === 'top' ? 1 : 0} /><Stop offset={1} stopColor={palette.canvas} stopOpacity={edge === 'top' ? 0 : 1} /></LinearGradient></Defs>
+      <Rect width="100%" height="100%" fill={`url(#${id})`} />
     </Svg>
-  </View>;
+  </Animated.View>;
 }
 
+/**
+ * Every screen: a scrolling column on canvas. Both scroll edges fade: the top fade grows in over the first 24dp of
+ * scroll (so nothing is faded at rest), the bottom one sits on the tab bar. A `footer` (the Scan dock) is a canvas strip
+ * with the same 24dp fade above it, all inside its own bounds; the column's bottom padding clears the fade and the strip.
+ */
 export function Screen({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   const { palette } = useMobile();
   const insets = useSafeAreaInsets();
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const topFade = scrollY.interpolate({ inputRange: [0, space[4]], outputRange: [0, 1], extrapolate: 'clamp' });
   return <View style={[styles.screenFrame, { backgroundColor: palette.canvas, paddingTop: insets.top }]}>
-    <ScrollView contentContainerStyle={[styles.screen, footer ? styles.screenWithFooter : null]} keyboardShouldPersistTaps="handled">{children}</ScrollView>
-    {footer ? <View style={[styles.footer, { backgroundColor: palette.canvas }]}><CanvasFade aboveFooter />{footer}</View> : <CanvasFade aboveFooter={false} />}
+    <View style={styles.screenBody}>
+      <Animated.ScrollView contentContainerStyle={[styles.screen, footer ? styles.screenWithFooter : null]} keyboardShouldPersistTaps="handled" onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}>{children}</Animated.ScrollView>
+      <CanvasFade edge="top" style={styles.fadeTop} opacity={topFade} />
+      {footer
+        ? <View pointerEvents="box-none" style={styles.footer}><CanvasFade edge="bottom" /><View style={[styles.dock, { backgroundColor: palette.canvas }]}>{footer}</View></View>
+        : <CanvasFade edge="bottom" style={styles.fadeBottom} />}
+    </View>
   </View>;
 }
 
@@ -83,24 +99,23 @@ export function Status({ children, tone = 'neutral' }: { children: ReactNode; to
 }
 
 /**
- * Ledger row: optional icon, title, a supporting line with an optional dot-and-word status (inline, or on a line of
- * its own with `statusBelow` — the one roster layout), an optional right-aligned `value`, a trailing element, and a
- * 16dp chevron only when it goes somewhere. `reserveChevron` keeps that slot on a still row, so its value ends on the
- * same edge as the rows that navigate. When it discloses (`expanded`) the chevron turns 90° to point down.
+ * The one ledger row anatomy: leading icon slot, text column (title over a supporting line that can carry an inline
+ * dot-and-word `status` after a "·"), an optional right-aligned `value`, the trailing slot (a status or an action), then
+ * a 16dp chevron when the row goes somewhere. `reserveChevron` keeps that slot on a still row, so its trailing status
+ * ends on the same edge as the rows that navigate. When it discloses (`expanded`) the chevron turns 90° to point down.
  */
-export function Row({ icon, title, meta, status, statusBelow = false, value, trailing, onPress, expanded, reserveChevron = false, accessibilityLabel, accessibilityHint, accessibilityState }: {
-  icon?: ReactNode; title: ReactNode; meta?: ReactNode; status?: ReactNode; statusBelow?: boolean; value?: string; trailing?: ReactNode; onPress?: () => void; expanded?: boolean;
+export function Row({ icon, title, meta, status, value, trailing, onPress, expanded, reserveChevron = false, accessibilityLabel, accessibilityHint, accessibilityState }: {
+  icon?: ReactNode; title: ReactNode; meta?: ReactNode; status?: ReactNode; value?: string; trailing?: ReactNode; onPress?: () => void; expanded?: boolean;
   reserveChevron?: boolean; accessibilityLabel?: string; accessibilityHint?: string; accessibilityState?: PressableProps['accessibilityState'];
 }) {
   const { palette } = useMobile();
-  const inlineStatus = statusBelow ? null : status;
+  const metaStyle = [styles.rowMeta, { color: palette.secondaryText }];
   const content = <>
     {icon ? <View style={styles.rowIcon}>{icon}</View> : null}
     {/* With a value the title keeps its width and the value takes the rest, ellipsizing from the right edge. */}
     <View style={value === undefined ? styles.rowCopy : styles.rowLabel}>
       <Text style={[styles.rowTitle, { color: palette.primaryText }]}>{title}</Text>
-      {meta || inlineStatus ? <View style={styles.rowMetaLine}>{meta ? <Text numberOfLines={1} style={[styles.rowMeta, { color: palette.secondaryText }]}>{meta}</Text> : null}{inlineStatus}</View> : null}
-      {statusBelow ? status : null}
+      {meta || status ? <View style={styles.rowMetaLine}>{meta ? <Text numberOfLines={1} style={metaStyle}>{meta}</Text> : null}{meta && status ? <Text style={metaStyle}> · </Text> : null}{status}</View> : null}
     </View>
     {value === undefined ? null : <Text numberOfLines={1} style={[styles.rowValue, { color: palette.secondaryText }]}>{value}</Text>}
     {trailing}
@@ -113,12 +128,14 @@ export function Row({ icon, title, meta, status, statusBelow = false, value, tra
     : <View accessible accessibilityLabel={accessibilityLabel} style={rowStyle}>{content}</View>;
 }
 
-/** A titled ruled list: the eyebrow, 12, then the list's own top hairline with its rows beneath (member You, desk More). */
+/**
+ * A titled ruled list (member You, desk More): the eyebrow sits directly on its first row, whose own 12 of padding is
+ * the gap, and the rows carry only their bottom rules — never a hairline under the eyebrow (as Activity's months).
+ */
 export function LedgerSection({ title, children }: { title: string; children: ReactNode }) {
-  const { palette } = useMobile();
-  return <View style={styles.ledgerSection}>
+  return <View>
     <Eyebrow>{title}</Eyebrow>
-    <View style={[styles.ledgerList, { borderColor: palette.decorativeSeparator }]}>{children}</View>
+    {children}
   </View>;
 }
 
@@ -132,7 +149,8 @@ export function dayLabel(isoDate: string, timeZone: string): string {
 /**
  * The counted week as seven dots with the letter below. Two states only: a visit fills clay; every other day is one
  * solid outline ring at full strength. Days still ahead are told apart only by a secondary letter, and today by a bold
- * ink letter over a short clay underline — never a second ring.
+ * ink letter over a 4dp ink dot — never clay (the accent stays with visits, the CTA and the current tab) and never a
+ * second ring.
  */
 export function WeekRhythm({ days }: { days: readonly { key: string; label: string; name: string; visited: boolean; future: boolean; today: boolean }[] }) {
   const { palette } = useMobile();
@@ -140,14 +158,15 @@ export function WeekRhythm({ days }: { days: readonly { key: string; label: stri
     <View style={[styles.rhythmDot, { backgroundColor: day.visited ? palette.primaryAction : 'transparent', borderColor: day.visited ? palette.primaryAction : palette.requiredControlOutline }]} />
     <View style={styles.rhythmLetter}>
       <Text style={[styles.rhythmLabel, { color: day.future ? palette.secondaryText : palette.primaryText, fontFamily: day.today ? FONT.bold : FONT.medium }]}>{day.label}</Text>
-      <View style={[styles.rhythmUnderline, { backgroundColor: day.today ? palette.primaryAction : 'transparent' }]} />
+      <View style={[styles.rhythmToday, { backgroundColor: day.today ? palette.primaryText : 'transparent' }]} />
     </View>
   </View>)}</View>;
 }
 
 /**
- * Bottom sheet on the raised surface with a visible top edge, sized to its content (scrolling once the keyboard or a
- * short screen caps it), reduced-motion aware; tapping the scrim closes it.
+ * Bottom sheet on the raised surface, sized to its content (scrolling once the keyboard or a short screen caps it),
+ * reduced-motion aware; tapping the scrim closes it. In dark the sheet keeps a hairline outline to part its surface from
+ * the scrim; in light the warm scrim does that alone.
  */
 export function Sheet({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: ReactNode }) {
   const { palette } = useMobile();
@@ -160,11 +179,12 @@ export function Sheet({ visible, onClose, children }: { visible: boolean; onClos
   }, []);
   // The sheet is its own Android window; once it shows, re-assert the theme's status-bar content on it so the clock and
   // battery stay legible over the scrim (dark icons in light, light icons in dark).
-  const statusContent = palette === UI_TOKENS.colors.dark ? 'light-content' : 'dark-content';
+  const dark = palette === UI_TOKENS.colors.dark;
+  const statusContent = dark ? 'light-content' : 'dark-content';
   return <Modal visible={visible} transparent animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose} onShow={() => StatusBar.setBarStyle(statusContent)} accessibilityViewIsModal statusBarTranslucent navigationBarTranslucent>
     <View style={[styles.backdrop, { backgroundColor: palette.scrim }]}>
       <Pressable accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.backdropTap} onPress={onClose} />
-      <View style={[styles.sheet, { backgroundColor: palette.surface, borderColor: palette.decorativeSeparator, paddingBottom: insets.bottom + space[4] }]}>
+      <View style={[styles.sheet, dark ? [styles.sheetOutline, { borderColor: palette.decorativeSeparator }] : null, { backgroundColor: palette.surface, paddingBottom: insets.bottom + space[4] }]}>
         <View style={[styles.grabber, { backgroundColor: palette.requiredControlOutline }]} />
         <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetContent}>{children}</ScrollView>
       </View>
@@ -172,24 +192,31 @@ export function Sheet({ visible, onClose, children }: { visible: boolean; onClos
   </Modal>;
 }
 
-/** The one sheet heading: an optional eyebrow, the condensed title at one size, an optional detail line and an optional trailing action. */
-export function SheetHeader({ eyebrow, title, detail, action }: { eyebrow?: string; title: string; detail?: string; action?: ReactNode }) {
+/**
+ * The one sheet header: an optional eyebrow, then the condensed title with a 48dp text control at the right edge —
+ * "Done" closes a picker, "Cancel" dismisses an action sheet — then an optional detail line. Bottom buttons are only
+ * ever the committing action.
+ */
+export function SheetHeader({ eyebrow, title, detail, control, onControl, controlDisabled = false, controlAccessibilityLabel }: {
+  eyebrow?: string; title: string; detail?: string; control: 'Done' | 'Cancel'; onControl: () => void; controlDisabled?: boolean; controlAccessibilityLabel?: string;
+}) {
   const { palette } = useMobile();
-  return <View style={styles.sheetHeader}>
-    <View style={styles.sheetHeading}>
-      {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
-      <Text accessibilityRole="header" style={[styles.heading, { color: palette.primaryText }]}>{title}</Text>
-      {detail ? <Text style={[styles.sheetDetail, { color: palette.secondaryText }]}>{detail}</Text> : null}
+  return <View>
+    {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
+    <View style={styles.sheetTitleRow}>
+      <Text accessibilityRole="header" style={[styles.heading, styles.sheetTitle, { color: palette.primaryText }]}>{title}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={controlAccessibilityLabel ?? control} accessibilityState={{ disabled: controlDisabled }} disabled={controlDisabled} onPress={onControl} style={({ pressed }) => [styles.sheetControl, pressed && styles.pressed, controlDisabled && styles.disabled]}>
+        <Text style={[styles.sheetControlText, { color: palette.primaryText }]}>{control}</Text>
+      </Pressable>
     </View>
-    {action}
+    {detail ? <Text style={[styles.sheetDetail, { color: palette.secondaryText }]}>{detail}</Text> : null}
   </View>;
 }
 
-/** The one Sign out treatment for both roles: the last ruled row of the Account list, left-aligned in ink with its icon. */
+/** The one Sign out treatment for both roles: the last ruled row of the Account list, an ink label on the rows' text edge, no icon. */
 export function SignOutRow({ onPress }: { onPress: () => void }) {
   const { palette } = useMobile();
   return <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={onPress} style={({ pressed }) => [styles.signOut, { borderColor: palette.decorativeSeparator }, pressed && styles.pressed]}>
-    <LogOut color={palette.primaryText} size={UI_TOKENS.icons.navigationSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />
     <Text style={[styles.signOutText, { color: palette.primaryText }]}>Sign out</Text>
   </Pressable>;
 }
@@ -231,43 +258,46 @@ function AppearanceChoices() {
   return <ChoiceList label="Appearance" options={options} value={appearance} onChange={(mode) => void setAppearance(mode)} />;
 }
 
-/** The one Appearance setting for both roles: a row opens this sheet (heading, a neutral Done, one line of context, the choices). */
+/** The one Appearance setting for both roles: a row opens this picker sheet (the shared header with Done, one line of context, the choices). */
 export function AppearanceSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const { palette } = useMobile();
   return <Sheet visible={visible} onClose={onClose}>
-    <SheetHeader title="Appearance" action={<Pressable accessibilityRole="button" accessibilityLabel="Close appearance" onPress={onClose} style={({ pressed }) => [styles.sheetDone, pressed && styles.pressed]}>
-      <Text style={[styles.sheetDoneText, { color: palette.primaryText }]}>Done</Text>
-    </Pressable>} />
+    <SheetHeader title="Appearance" control="Done" onControl={onClose} controlAccessibilityLabel="Close appearance" />
     <Body muted>How {PRODUCT_NAME} looks on this phone.</Body>
     <AppearanceChoices />
   </Sheet>;
 }
 
 /**
- * Up to two initials, condensed, in ink on a filled raised disc: the one avatar treatment — roster rows (`row`), the
- * Home header (`header`) and the You profile (`profile`). Never a photo we do not have.
+ * Up to two initials, condensed. Lists (`row`) and the You profile (`profile`) set them in ink on a filled raised disc;
+ * the Home header (`header`) is the quiet mark — a 36dp ring in the control outline with secondary initials — so it
+ * shows who is signed in without outweighing the gym name. Never a photo we do not have.
  */
 export function Initials({ name, size = 'row' }: { name: string; size?: 'row' | 'header' | 'profile' }) {
   const { palette } = useMobile();
   const initials = name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0).toUpperCase()).join('');
-  const disc = { row: styles.initialsRow, header: styles.initialsHeader, profile: styles.initialsProfile }[size];
-  return <View style={[styles.initials, disc, { backgroundColor: palette.elevatedSurface }]} accessible={false}>
+  if (size === 'header') {
+    return <View style={[styles.initials, styles.initialsRing, { borderColor: palette.requiredControlOutline }]} accessible={false}>
+      <Text style={[styles.initialsQuiet, { color: palette.secondaryText }]}>{initials}</Text>
+    </View>;
+  }
+  return <View style={[styles.initials, size === 'profile' ? styles.initialsProfile : styles.initialsRow, { backgroundColor: palette.elevatedSurface }]} accessible={false}>
     <Text style={[size === 'profile' ? styles.initialsLarge : styles.initialsText, { color: palette.primaryText }]}>{initials}</Text>
   </View>;
 }
 
 /**
- * Primary (filled clay, full dock height), `secondary` (1px neutral outline) or `quiet` (text only). A disabled primary
- * is a flat raised-surface block with secondary text — never clay. In-row actions use `RowAction`.
+ * Primary (filled clay, full dock height), `secondary` (1px neutral outline) or `quiet` (text only). Disabled, every
+ * variant keeps its own look at the disabled opacity — a disabled primary is the clay button dimmed, never a heavy
+ * grey slab. In-row actions use `RowAction`.
  */
 export function ActionButton({ children, secondary = false, quiet = false, icon, disabled, ...props }: PressableProps & { children: ReactNode; secondary?: boolean; quiet?: boolean; icon?: ReactNode }) {
   const { palette } = useMobile();
   const primary = !secondary && !quiet;
-  const background = primary ? (disabled ? palette.elevatedSurface : palette.primaryAction) : 'transparent';
+  const background = primary ? palette.primaryAction : 'transparent';
   const border = quiet ? 'transparent' : secondary ? palette.requiredControlOutline : background;
-  const color = quiet || (primary && disabled) ? palette.secondaryText : secondary ? palette.primaryText : palette.textOnPrimary;
+  const color = quiet ? palette.secondaryText : secondary ? palette.primaryText : palette.textOnPrimary;
   return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled: disabled ?? false }} {...props} style={({ pressed }) => [
-    styles.action, primary ? styles.actionPrimary : null, { backgroundColor: background, borderColor: border }, pressed && styles.pressed, disabled && !primary && styles.disabled,
+    styles.action, primary ? styles.actionPrimary : null, { backgroundColor: background, borderColor: border }, pressed && styles.pressed, disabled && styles.disabled,
   ]}>{icon}<Text numberOfLines={1} style={[styles.actionText, primary ? styles.actionTextPrimary : null, { color, fontFamily: secondary ? FONT.medium : FONT.semibold }]}>{children}</Text></Pressable>;
 }
 
@@ -320,14 +350,19 @@ export function LoadingState() {
 
 const styles = StyleSheet.create({
   screenFrame: { flex: 1 },
+  // The body starts under the status-bar inset, so the top fade's `top: 0` is the scroll view's own top edge.
+  screenBody: { flex: 1 },
   screen: { flexGrow: 1, paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[3], paddingBottom: space[6], gap: space[4] },
-  // Dock height (primary button 48 + 12, on a strip with 12 above and below) plus 24, so the last row scrolls fully clear of the dock and its fade.
-  screenWithFooter: { paddingBottom: UI_TOKENS.geometry.targets.touch + space[2] + space[2] + space[2] + space[4] },
-  // The dock is a canvas strip sitting directly on the tab bar: 12 above and below the button, no shadow.
-  footer: { position: 'absolute', right: 0, bottom: 0, left: 0, paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingVertical: space[2] },
-  fade: { position: 'absolute', right: 0, left: 0, height: space[4] },
-  fadeAboveFooter: { bottom: '100%' },
-  fadeAtBottom: { bottom: 0 },
+  // The whole dock — its 24 fade, the primary button (48 + 12) and the 20 below it — so the last row scrolls fully clear
+  // of both the strip and its fade, and a short page ends 24 above the button.
+  screenWithFooter: { paddingBottom: space[4] + UI_TOKENS.geometry.targets.touch + space[2] + UI_TOKENS.geometry.layout.mobileInset },
+  // The dock sits on the tab bar: the 24 fade, then a canvas strip holding the button 20 clear of the tab bar's rule
+  // (the gutter's width, as on web), no shadow. The fade is inside the dock's bounds, so Android never clips it.
+  footer: { position: 'absolute', right: 0, bottom: 0, left: 0 },
+  dock: { paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingBottom: UI_TOKENS.geometry.layout.mobileInset },
+  fade: { height: space[4] },
+  fadeTop: { position: 'absolute', top: 0, right: 0, left: 0 },
+  fadeBottom: { position: 'absolute', right: 0, bottom: 0, left: 0 },
   eyebrow: { textTransform: 'uppercase', fontFamily: FONT.semibold, fontSize: type.eyebrow.size, lineHeight: type.eyebrow.lineHeight, letterSpacing: type.eyebrow.size * Number.parseFloat(type.eyebrowTracking) },
   title: { fontFamily: FONT.display, fontSize: type.displayTitle.size, lineHeight: type.displayTitle.lineHeight },
   hero: { fontFamily: FONT.display, fontSize: type.heroMetric.size, lineHeight: type.heroMetric.lineHeight },
@@ -351,30 +386,31 @@ const styles = StyleSheet.create({
   rowCopy: { flex: 1, minWidth: 0 },
   rowLabel: { flexShrink: 0 },
   rowTitle: { fontFamily: FONT.semibold, fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight },
-  rowMetaLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: space[2] },
+  // The supporting line and an inline status, joined by a spaced "·" ("+91 98765 00001 · ● Active").
+  rowMetaLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   // Supporting lines sit a step below the title, at the same size as the dot-and-word status beside them; figures are tabular.
   rowMeta: { flexShrink: 1, fontFamily: FONT.regular, fontSize: type.compact.size, lineHeight: type.compact.lineHeight, fontVariant: ['tabular-nums'] },
   rowValue: { flex: 1, minWidth: 0, textAlign: 'right', fontFamily: FONT.regular, fontSize: type.compact.size, lineHeight: type.compact.lineHeight, fontVariant: ['tabular-nums'] },
-  ledgerSection: { gap: space[2] },
-  ledgerList: { borderTopWidth: StyleSheet.hairlineWidth },
   // 32 dots spread edge to edge inside the gutters, so the gaps stay at 16 or more on a 360 phone.
   rhythm: { flexDirection: 'row', justifyContent: 'space-between' },
   rhythmDay: { alignItems: 'center', gap: space[1], minWidth: space[5] },
   rhythmDot: { width: space[5], height: space[5], borderRadius: space[5], borderWidth: UI_TOKENS.icons.strokeWidth },
   rhythmLetter: { alignItems: 'center' },
-  // Today's mark: a 12-wide clay underline one icon stroke thick, under the bold letter.
-  rhythmUnderline: { width: space[2], height: UI_TOKENS.icons.strokeWidth, borderRadius: UI_TOKENS.icons.strokeWidth },
+  // Today's mark: a 4dp ink dot under the bold letter.
+  rhythmToday: { width: space[0], height: space[0], borderRadius: space[0] },
   rhythmLabel: { fontSize: type.compact.size, lineHeight: type.compact.lineHeight },
   backdrop: { flex: 1, justifyContent: 'flex-end' },
   backdropTap: { flex: 1 },
-  sheet: { maxHeight: '88%', borderTopLeftRadius: UI_TOKENS.geometry.radii.sheet, borderTopRightRadius: UI_TOKENS.geometry.radii.sheet, borderCurve: 'continuous', borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[1] },
+  sheet: { maxHeight: '88%', borderTopLeftRadius: UI_TOKENS.geometry.radii.sheet, borderTopRightRadius: UI_TOKENS.geometry.radii.sheet, borderCurve: 'continuous', paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[1] },
+  sheetOutline: { borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1 },
   sheetContent: { gap: space[3] },
   grabber: { alignSelf: 'center', width: UI_TOKENS.geometry.targets.touch, height: space[0], borderRadius: UI_TOKENS.geometry.radii.control, marginBottom: space[3] },
-  sheetHeader: { minHeight: UI_TOKENS.geometry.targets.touch, flexDirection: 'row', alignItems: 'center', gap: space[3] },
-  sheetHeading: { flex: 1, minWidth: 0 },
+  // The title shares one 48 row with its text control, so "Done" / "Cancel" sits on the title's line.
+  sheetTitleRow: { minHeight: UI_TOKENS.geometry.targets.touch, flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  sheetTitle: { flex: 1, minWidth: 0 },
   sheetDetail: { fontFamily: FONT.regular, fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight, fontVariant: ['tabular-nums'] },
-  sheetDone: { minWidth: UI_TOKENS.geometry.targets.touch, minHeight: UI_TOKENS.geometry.targets.touch, alignItems: 'flex-end', justifyContent: 'center' },
-  sheetDoneText: { fontFamily: FONT.semibold, fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight },
+  sheetControl: { minWidth: UI_TOKENS.geometry.targets.touch, minHeight: UI_TOKENS.geometry.targets.touch, alignItems: 'flex-end', justifyContent: 'center' },
+  sheetControlText: { fontFamily: FONT.semibold, fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight },
   action: { minHeight: UI_TOKENS.geometry.targets.touch, flexDirection: 'row', gap: space[2], borderRadius: UI_TOKENS.geometry.radii.control, borderCurve: 'continuous', borderWidth: 1, paddingHorizontal: space[3], alignItems: 'center', justifyContent: 'center' },
   actionPrimary: { minHeight: UI_TOKENS.geometry.targets.touch + space[2], borderRadius: UI_TOKENS.geometry.radii.row },
   actionText: { flexShrink: 1, textAlign: 'center', fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight },
@@ -386,11 +422,13 @@ const styles = StyleSheet.create({
   state: { fontFamily: FONT.medium, fontSize: type.compact.size, lineHeight: type.compact.lineHeight },
   initials: { alignItems: 'center', justifyContent: 'center' },
   initialsRow: { width: space[5] + space[1], height: space[5] + space[1], borderRadius: space[5] + space[1] },
-  initialsHeader: { width: UI_TOKENS.geometry.targets.touch, height: UI_TOKENS.geometry.targets.touch, borderRadius: UI_TOKENS.geometry.targets.touch },
+  // The Home header mark: a 36 ring in a 1dp control outline (the same weight as a field or button), nothing filled.
+  initialsRing: { width: space[5] + space[0], height: space[5] + space[0], borderRadius: space[5] + space[0], borderWidth: 1 },
   initialsProfile: { width: UI_TOKENS.geometry.targets.touch + space[4], height: UI_TOKENS.geometry.targets.touch + space[4], borderRadius: UI_TOKENS.geometry.targets.touch + space[4] },
   initialsText: { fontFamily: FONT.display, fontSize: type.mobileSection.size, lineHeight: type.mobileSection.lineHeight },
+  initialsQuiet: { fontFamily: FONT.display, fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight },
   initialsLarge: { fontFamily: FONT.display, fontSize: type.sectionTitle.size, lineHeight: type.sectionTitle.lineHeight },
-  signOut: { minHeight: UI_TOKENS.geometry.targets.touch + space[3], flexDirection: 'row', alignItems: 'center', gap: space[3], borderBottomWidth: StyleSheet.hairlineWidth },
+  signOut: { minHeight: UI_TOKENS.geometry.targets.touch + space[3], flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
   signOutText: { fontFamily: FONT.medium, fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight },
   choiceList: { borderTopWidth: StyleSheet.hairlineWidth },
   choice: { minHeight: UI_TOKENS.geometry.targets.touch + space[3], flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[2], borderBottomWidth: StyleSheet.hairlineWidth },

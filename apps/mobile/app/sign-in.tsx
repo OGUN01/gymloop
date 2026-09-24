@@ -2,12 +2,12 @@ import { useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import { PRODUCT_NAME, UI_TOKENS } from '@gymloop/shared';
 import { Image, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { Redirect } from 'expo-router';
 import { ActionButton, Body, FONT, Field, StateMessage, Title } from '../components/ui';
 import { useMobile } from '../lib/mobile-context';
 import { signInWithGoogleMobile } from '../lib/native-session';
-import gymMorningFloor from '../assets/gym-morning-floor.jpg';
+import gymMorningFloor from '../assets/gym-morning-floor-hero.jpg';
 
 /** Google's four-colour "G", required on a Google sign-in button. */
 function GoogleGlyph() {
@@ -30,7 +30,11 @@ export default function SignIn() {
   return <View style={[styles.screen, { backgroundColor: palette.canvas }]}>
     <StatusBar barStyle="light-content" />
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Image source={gymMorningFloor} resizeMode="cover" style={styles.hero} accessibilityIgnoresInvertColors accessible={false} />
+      <View style={styles.hero}>
+        <Image source={gymMorningFloor} resizeMode="cover" style={StyleSheet.absoluteFill} accessibilityIgnoresInvertColors accessible={false} />
+        {/* A soft shade behind the status bar so the clock stays legible over the bright windows. */}
+        <Svg style={styles.heroShade} pointerEvents="none"><Defs><LinearGradient id="hero-shade" x1={0} y1={0} x2={0} y2={1}><Stop offset={0} stopColor={UI_TOKENS.colors.dark.canvas} stopOpacity={UI_TOKENS.opacity.disabled} /><Stop offset={1} stopColor={UI_TOKENS.colors.dark.canvas} stopOpacity={0} /></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#hero-shade)" /></Svg>
+      </View>
       <View style={styles.bounded}>
         <Text style={[styles.wordmark, { color: palette.primaryText }]}>{PRODUCT_NAME.toUpperCase()}</Text>
         <Title>Sign in</Title>
@@ -57,7 +61,9 @@ const space = UI_TOKENS.geometry.spacing;
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingBottom: space[6] },
-  hero: { alignSelf: 'stretch', height: UI_TOKENS.geometry.media.mobileAuthHeroHeight },
+  // The photo fills a stretched frame; the @3x crop matches the frame so Android never draws it at its raw pixel size.
+  hero: { alignSelf: 'stretch', height: UI_TOKENS.geometry.media.mobileAuthHeroHeight, overflow: 'hidden' },
+  heroShade: { position: 'absolute', top: 0, left: 0, right: 0, height: space[6] + space[6] },
   bounded: { maxWidth: UI_TOKENS.geometry.media.mobileAuthContentMaxHeight, alignSelf: 'stretch', gap: space[3], paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[5] },
   wordmark: { fontFamily: FONT.display, fontSize: UI_TOKENS.typography.sectionTitle.size, lineHeight: UI_TOKENS.typography.sectionTitle.lineHeight },
   provider: { minHeight: UI_TOKENS.geometry.targets.touch + space[2], flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[3], borderWidth: 1, borderRadius: UI_TOKENS.geometry.radii.control, borderCurve: 'continuous', marginTop: space[2] },

@@ -8,12 +8,28 @@ import { loadDefaultBranch, loadDeskFollowUps, type DeskFollowUp } from '../../l
 
 type Feedback = { text: string; tone: 'neutral' | 'error' | 'success' };
 
-const day = (instant: string) => dayLabel(toLocalDate(instant, DEFAULT_TIMEZONE), DEFAULT_TIMEZONE);
-/** Case status as dot and word: nobody has called yet or a follow-up is due = risk, contacted = warning. */
-const CASE_STATUS: Record<string, { word: string; tone: 'risk' | 'warn' | 'ok' | 'neutral' }> = {
-  open: { word: 'Not contacted', tone: 'risk' }, follow_up_due: { word: 'Follow-up due', tone: 'risk' },
-  contacted: { word: 'Contacted', tone: 'warn' }, returned: { word: 'Returned', tone: 'ok' }, closed: { word: 'Closed', tone: 'neutral' },
-};
+const day = (isoDate: string) => dayLabel(isoDate, DEFAULT_TIMEZONE);
+const localDay = (instant: string) => toLocalDate(instant, DEFAULT_TIMEZONE);
+type CaseLine = { word: string; tone: 'risk' | 'warn' | 'ok' | 'neutral'; detail: string | null };
+
+/**
+ * The case as dot and word, every date labelled by its verb: "Contacted 8 Sep", "Due 26 Sep", "Overdue since 7 Sep",
+ * "Not contacted · on the list since 2 Sep"; then what the last contact found, in the words staff logged. Crimson only
+ * when a scheduled follow-up is past due; every other open state is ochre (pending).
+ */
+function caseLine(row: DeskFollowUp, today: string): CaseLine {
+  const outcome = row.lastFollowUpOutcome ? humanize(row.lastFollowUpOutcome).toLowerCase() : null;
+  const contacted = row.lastFollowUpAt ? day(localDay(row.lastFollowUpAt)) : null;
+  if (row.status === 'follow_up_due' && row.nextFollowUpAt) {
+    const due = localDay(row.nextFollowUpAt);
+    if (due < today) return { word: `Overdue since ${day(due)}`, tone: 'risk', detail: outcome };
+    return { word: due === today ? 'Due today' : `Due ${day(due)}`, tone: 'warn', detail: outcome };
+  }
+  if (row.status === 'open') return { word: 'Not contacted', tone: 'warn', detail: row.openedOn ? `on the list since ${day(row.openedOn)}` : null };
+  if (row.status === 'contacted') return { word: contacted ? `Contacted ${contacted}` : 'Contacted', tone: 'warn', detail: outcome };
+  const tone = row.status === 'returned' ? 'ok' : row.status === 'follow_up_due' ? 'warn' : 'neutral';
+  return { word: humanize(row.status), tone, detail: [contacted ? `contacted ${contacted}` : null, outcome].filter(Boolean).join(' · ') || null };
+}
 
 export default function FollowUpsScreen() {
   const { identity, palette, supabase } = useMobile();
@@ -55,10 +71,12 @@ export default function FollowUpsScreen() {
 
   // The same name-or-phone match as the Check-in and Members rosters, over the loaded queue.
   const needle = query.trim().toLocaleLowerCase();
+  const today = toLocalDate(new Date(), DEFAULT_TIMEZONE);
   const shown = needle === '' ? rows : rows.filter((row) => row.memberName.toLocaleLowerCase().includes(needle) || row.memberPhone.includes(needle));
 
+  // Every desk header reads the same way: the count, then a sentence-case phrase ("49 members · Edit details…").
   return <Screen>
-    <View><Eyebrow>{branch ?? 'Front desk'}</Eyebrow><Title>Follow-ups</Title><Body muted>{loadState === 'ready' && rows.length > 0 ? `${rows.length} to bring back · longest away first` : 'Longest away first'}</Body></View>
+    <View><Eyebrow>{branch ?? 'Front desk'}</Eyebrow><Title>Follow-ups</Title><Body muted>{loadState === 'ready' && rows.length > 0 ? `${rows.length} to bring back · Longest away first` : 'Longest away first'}</Body></View>
     {feedback ? <StateMessage tone={feedback.tone}>{feedback.text}</StateMessage> : null}
     <View style={styles.queue}>
       <SearchField accessibilityLabel="Search follow-ups" placeholder="Search name or phone" value={query} onChangeText={setQuery} />
@@ -67,39 +85,35 @@ export default function FollowUpsScreen() {
       {loadState === 'ready' && rows.length === 0 ? <EmptyState title="No open follow-ups">Everyone on the list has been contacted or is back in the gym.</EmptyState> : null}
       {loadState === 'ready' && rows.length > 0 && shown.length === 0 ? <EmptyState title="No matching members">Check the spelling, or search by phone number.</EmptyState> : null}
       {loadState === 'ready' ? <View>{shown.map((row) => {
-        const status = CASE_STATUS[row.status] ?? { word: humanize(row.status), tone: 'neutral' as const };
-        // The last visit is the days-away figure's own caption, so it is never a second line saying the same thing.
-        const since = row.lastAttendedOn ? dayLabel(row.lastAttendedOn, DEFAULT_TIMEZONE) : null;
-        // After the status word: what the last call found, or, never contacted, how long the case has waited.
-        const lastContact = row.lastFollowUpAt
-          ? `${row.lastFollowUpOutcome ? humanize(row.lastFollowUpOutcome) : 'Logged'} · ${day(row.lastFollowUpAt)}`
-          : row.openedOn ? `On the list since ${dayLabel(row.openedOn, DEFAULT_TIMEZONE)}` : 'No contact logged yet';
+        const status = caseLine(row, today);
+        const since = row.lastAttendedOn ? day(row.lastAttendedOn) : null;
+        const away = `${row.daysAbsent === 1 ? 'day' : 'days'} ${since ? `since ${since}` : 'away'}`;
         const busy = pendingId !== null;
+        // Two fact lines beside the days-away stack — the numeral on the name's line, its caption on the phone's — then
+        // the case line across the text column, then the two actions sharing that column's width.
         return <View key={row.id} style={[styles.row, { borderColor: palette.decorativeSeparator }]}>
           <View style={styles.identity}>
             <Initials name={row.memberName} />
             <View style={styles.copy}>
-              <View style={styles.facts}>
-                <View style={styles.factsText}>
-                  <Text style={[styles.name, { color: palette.primaryText }]}>{row.memberName}</Text>
-                  <Text numberOfLines={1} style={[styles.meta, { color: palette.secondaryText }]}>{formatPhone(row.memberPhone)}</Text>
-                </View>
-                <View style={styles.away} accessible accessibilityLabel={`${row.daysAbsent} ${row.daysAbsent === 1 ? 'day' : 'days'} away${since ? `, last visit ${since}` : ''}`}>
-                  <Text style={[styles.awayNumber, { color: palette.primaryText }]}>{row.daysAbsent}</Text>
-                  <Text numberOfLines={1} style={[styles.awayLabel, { color: palette.secondaryText }]}>{row.daysAbsent === 1 ? 'day' : 'days'} {since ? `since ${since}` : 'away'}</Text>
-                </View>
+              <View style={styles.lineOne}>
+                <Text numberOfLines={1} style={[styles.name, { color: palette.primaryText }]}>{row.memberName}</Text>
+                <Text accessibilityLabel={`${row.daysAbsent} ${away}`} style={[styles.awayNumber, { color: palette.primaryText }]}>{row.daysAbsent}</Text>
               </View>
-              <View style={styles.caseLine} accessible accessibilityLabel={`${status.word}, ${lastContact}`}>
+              <View style={styles.lineTwo}>
+                <Text numberOfLines={1} style={[styles.meta, styles.phone, { color: palette.secondaryText }]}>{formatPhone(row.memberPhone)}</Text>
+                <Text numberOfLines={1} importantForAccessibility="no" accessibilityElementsHidden style={[styles.awayLabel, { color: palette.secondaryText }]}>{away}</Text>
+              </View>
+              <View style={styles.caseLine} accessible accessibilityLabel={status.detail ? `${status.word}, ${status.detail}` : status.word}>
                 <Status tone={status.tone}>{status.word}</Status>
-                <Text style={[styles.meta, styles.caseDetail, { color: palette.secondaryText }]}>· {lastContact}</Text>
+                {status.detail ? <Text style={[styles.meta, styles.caseDetail, { color: palette.secondaryText }]}>· {status.detail}</Text> : null}
               </View>
             </View>
           </View>
-          {/* Two quiet outline actions, equal height, at the trailing edge: No answer neutral, then Call in clay at the edge,
-              where Check in sits on the roster. */}
+          {/* The actions start on the text column and share its width: No answer neutral, then Call in clay at the
+              trailing edge, where Check in sits on the roster. */}
           <View style={styles.actions}>
-            <RowAction accessibilityLabel={`Log no answer for ${row.memberName}`} disabled={busy} onPress={() => void log(row)}>{pendingId === row.id ? 'Recording…' : 'No answer'}</RowAction>
-            <RowAction accent accessibilityLabel={`Call ${row.memberName}, ${formatPhone(row.memberPhone)}`} icon={<Phone color={palette.primaryAction} size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />} disabled={busy} onPress={() => void Linking.openURL(`tel:${row.memberPhone}`)}>Call</RowAction>
+            <View style={styles.action}><RowAction accessibilityLabel={`Log no answer for ${row.memberName}`} disabled={busy} onPress={() => void log(row)}>{pendingId === row.id ? 'Recording…' : 'No answer'}</RowAction></View>
+            <View style={styles.action}><RowAction accent accessibilityLabel={`Call ${row.memberName}, ${formatPhone(row.memberPhone)}`} icon={<Phone color={palette.primaryAction} size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />} disabled={busy} onPress={() => void Linking.openURL(`tel:${row.memberPhone}`)}>Call</RowAction></View>
           </View>
         </View>;
       })}</View> : null}
@@ -117,16 +131,19 @@ const styles = StyleSheet.create({
   // The avatar centres on the three-line block, as on the roster rows.
   identity: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   copy: { flex: 1, minWidth: 0 },
-  // Name and phone beside the days-away figure and its caption; the status line then runs the full text column.
-  facts: { flexDirection: 'row', alignItems: 'flex-start', gap: space[2] },
-  factsText: { flex: 1, minWidth: 0 },
-  name: { fontFamily: FONT.semibold, fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight },
+  // The numeral shares the name's line: both boxes sit on one bottom edge, so the name and the figure share a baseline.
+  lineOne: { flexDirection: 'row', alignItems: 'flex-end', gap: space[2] },
+  // The caption is set in the phone's 20 line box, so the two share a baseline on the second line.
+  lineTwo: { flexDirection: 'row', alignItems: 'flex-start', gap: space[2] },
+  name: { flex: 1, minWidth: 0, fontFamily: FONT.semibold, fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight },
   meta: { fontFamily: FONT.regular, fontSize: type.compact.size, lineHeight: type.compact.lineHeight, fontVariant: ['tabular-nums'] },
-  away: { alignItems: 'flex-end' },
+  phone: { flex: 1, minWidth: 0 },
   awayNumber: { fontFamily: FONT.display, fontSize: type.sectionTitle.size, lineHeight: type.sectionTitle.lineHeight, fontVariant: ['tabular-nums'] },
-  awayLabel: { fontFamily: FONT.medium, fontSize: type.eyebrow.size, lineHeight: type.eyebrow.lineHeight, fontVariant: ['tabular-nums'] },
-  // Status then what the last call found, as one line; a rare long detail wraps under itself, never under the dot.
+  awayLabel: { fontFamily: FONT.medium, fontSize: type.eyebrow.size, lineHeight: type.compact.lineHeight, fontVariant: ['tabular-nums'] },
+  // Status then what the last contact found, as one line; a rare long detail wraps under itself, never under the dot.
   caseLine: { flexDirection: 'row', alignItems: 'flex-start', gap: space[0] },
   caseDetail: { flexShrink: 1 },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space[2] },
+  // Indented by the avatar (40) and its gap (16), so the buttons start on the text column; each takes half of it.
+  actions: { flexDirection: 'row', gap: space[2], paddingLeft: space[5] + space[1] + space[3] },
+  action: { flex: 1 },
 });
