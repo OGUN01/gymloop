@@ -1,4 +1,4 @@
-# Android Data safety — Play Console answer sheet
+# Fitcrux Android Data safety — Play Console answer sheet
 
 **Scope:** Current Android source in `apps/mobile` and its `@gymloop/api-client` dependency, checked 24 September 2026. This is an answer sheet, not a submission. Play defines **collected** as data transmitted from the app off the user's device; simply receiving data from our server and displaying it is not an outbound collection. Data processed ephemerally must still be answered in the form even if it is not displayed in the public section ([Google Play Data safety guidance](https://support.google.com/googleplay/android-developer/answer/10787469)). A field stored on our server because the **web app or gym** entered it is not automatically collected *by this Android app*. Recheck the exact AAB before submitting: the recorded 1.0.0 production bundle predates some current source changes (`docs/evidence/2026-09-20-phase8-production-release.md:69-75`).
 

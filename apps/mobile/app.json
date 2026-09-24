@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Gymloop",
+    "name": "Fitcrux",
     "slug": "gymloop",
     "version": "1.0.0",
     "scheme": "gymloop",
@@ -15,7 +15,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Gymloop to scan the current QR code at your gym.",
+          "cameraPermission": "Allow Fitcrux to scan the current QR code at your gym.",
           "recordAudioAndroid": false
         }
       ],
@@ -35,10 +35,10 @@
       "expo-web-browser"
     ],
     "ios": {
-      "bundleIdentifier": "in.gymloop.mobile"
+      "bundleIdentifier": "app.fitcrux"
     },
     "android": {
-      "package": "in.gymloop.mobile",
+      "package": "app.fitcrux",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon-foreground.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",

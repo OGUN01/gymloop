@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ChevronDown } from 'lucide-react';
-import { AVATAR_INITIALS_MAX, formatPhone } from '@gymloop/shared';
+import { AVATAR_INITIALS_MAX, formatPhone, PRODUCT_NAME } from '@gymloop/shared';
 import { usePreviewReadOnly } from '../../../preview-context';
 import { StatusWord } from '../../../status-word';
 
@@ -278,7 +278,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
                   value={issuedCode}
                   level="M"
                   marginSize={1}
-                  title="Scan this QR in the Gymloop member app"
+                  title={`Scan this QR in the ${PRODUCT_NAME} member app`}
                 />
               </div>
               <p className="check-in-issued-code">{issuedCode}</p>

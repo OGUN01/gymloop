@@ -13,7 +13,7 @@ import type { Database } from '@gymloop/db';
  */
 
 /** The one place the product name lives — renaming the product is one edit. */
-export const PRODUCT_NAME = 'Gymloop';
+export const PRODUCT_NAME = 'Fitcrux';
 
 /** The publisher named on the Google Play listing and in the public legal pages. */
 export const PUBLISHER_NAME = 'Ductx';

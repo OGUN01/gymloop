@@ -1,5 +1,5 @@
 import * as WebBrowser from 'expo-web-browser';
-import { PUBLIC_PAGE_PATHS } from '@gymloop/shared';
+import { PRODUCT_NAME, PUBLIC_PAGE_PATHS } from '@gymloop/shared';
 import { LedgerSection, Row } from './ui';
 import { publicPageUrl } from '../lib/public-page';
 import { useMobile } from '../lib/mobile-context';
@@ -22,7 +22,7 @@ export function LegalLinks() {
         key={page.key}
         title={page.label}
         accessibilityLabel={`${page.label}, opens in your browser`}
-        accessibilityHint="Opens the Gymloop website"
+        accessibilityHint={`Opens the ${PRODUCT_NAME} website`}
         onPress={() => { void WebBrowser.openBrowserAsync(publicPageUrl(webOrigin, page.path)); }}
       />
     ))}
