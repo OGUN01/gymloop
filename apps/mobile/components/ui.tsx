@@ -25,7 +25,7 @@ export function Screen({ children, footer }: { children: ReactNode; footer?: Rea
 
 export function Eyebrow({ children }: { children: ReactNode }) {
   const { palette } = useMobile();
-  return <Text style={[styles.eyebrow, { color: palette.secondaryText }]}>{typeof children === 'string' ? children.toUpperCase() : children}</Text>;
+  return <Text style={[styles.eyebrow, { color: palette.secondaryText }]}>{children}</Text>;
 }
 
 export function Title({ children }: { children: ReactNode }) {
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   screen: { flexGrow: 1, paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[3], paddingBottom: space[6], gap: space[4] },
   screenWithFooter: { paddingBottom: UI_TOKENS.geometry.targets.touch + space[6] + space[4] },
   footer: { position: 'absolute', right: 0, bottom: 0, left: 0, paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[2], paddingBottom: space[3] },
-  eyebrow: { fontFamily: FONT.semibold, fontSize: type.eyebrow.size, lineHeight: type.eyebrow.lineHeight, letterSpacing: type.eyebrow.size * Number.parseFloat(type.eyebrowTracking) },
+  eyebrow: { textTransform: 'uppercase', fontFamily: FONT.semibold, fontSize: type.eyebrow.size, lineHeight: type.eyebrow.lineHeight, letterSpacing: type.eyebrow.size * Number.parseFloat(type.eyebrowTracking) },
   title: { fontFamily: FONT.display, fontSize: type.displayTitle.size, lineHeight: type.displayTitle.lineHeight },
   hero: { fontFamily: FONT.display, fontSize: type.heroMetric.size, lineHeight: type.heroMetric.lineHeight },
   metric: { fontFamily: FONT.display, fontSize: type.largeMetric.size, lineHeight: type.largeMetric.lineHeight },
