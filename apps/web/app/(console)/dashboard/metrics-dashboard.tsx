@@ -8,6 +8,9 @@ import {
   rupeesFromPaise,
   type OwnerMetrics,
   UI_TOKENS,
+  formatDayRange,
+  formatMoney as formatDisplayMoney,
+  humanize,
 } from '@gymloop/shared';
 import { useState } from 'react';
 import { ChevronRight, CreditCard, UserPlus } from 'lucide-react';
@@ -51,15 +54,12 @@ function formatSnapshotInstant(value: string, timezone: string): string {
   }).format(new Date(value));
 }
 function humanizeStatus(status: string): string {
-  return status.split('_').map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(' ');
+  return humanize(status);
 }
 function ratioSummary(numerator: string, denominator: string): string {
   const basisPoints = ratioBasisPoints(numerator, denominator);
   const exact = `${numerator} / ${denominator}`;
   return basisPoints === null ? `${exact} · No cohort` : `${exact} · ${formatBasisPoints(basisPoints)}`;
-}
-function formatCurrencyScope(rows: ReadonlyArray<{ currency: string }>): string {
-  return rows.length === 0 ? 'No currency recorded' : [...new Set(rows.map((row) => row.currency))].join(' · ');
 }
 function detailSummaries(metrics: OwnerMetrics, selected: CardKey): string[] {
   switch (selected) {
@@ -80,10 +80,10 @@ function detailSummaries(metrics: OwnerMetrics, selected: CardKey): string[] {
 export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
   const [selected, setSelected] = useState<CardKey | null>(null);
   const primaryCards: Array<{ key: CardKey; label: string; value: string; scope: string }> = [
-    { key: 'visits', label: 'Visits today', value: metrics.cards.visitsToday, scope: `Current state · ${formatLocalDay(metrics.localToday)}` },
-    { key: 'followUpsDue', label: 'Open follow-ups', value: metrics.cards.followUpsDue, scope: 'Current state' },
-    { key: 'renewals', label: 'Renewals due', value: metrics.cards.renewal.length === 0 ? 'No renewals due' : metrics.cards.renewal.map((row) => formatMoney(row.currency, row.duePaise, true)).join(' · '), scope: `${formatCurrencyScope(metrics.cards.renewal)} · ${metrics.range.from} to ${metrics.range.through}` },
-    { key: 'cash', label: 'Net collected', value: metrics.cards.cash.length === 0 ? 'No cash movement' : metrics.cards.cash.map((row) => formatMoney(row.currency, row.netPaise, true)).join(' · '), scope: `${formatCurrencyScope(metrics.cards.cash)} · ${metrics.range.from} to ${metrics.range.through}` },
+    { key: 'visits', label: 'Visits today', value: metrics.cards.visitsToday, scope: formatLocalDay(metrics.localToday) },
+    { key: 'followUpsDue', label: 'Open follow-ups', value: metrics.cards.followUpsDue, scope: 'Members to contact now' },
+    { key: 'renewals', label: 'Renewals due', value: metrics.cards.renewal.length === 0 ? 'No renewals due' : metrics.cards.renewal.map((row) => formatMoney(row.currency, row.duePaise, true)).join(' · '), scope: formatDayRange(metrics.range.from, metrics.range.through) },
+    { key: 'cash', label: 'Net collected', value: metrics.cards.cash.length === 0 ? 'No cash movement' : metrics.cards.cash.map((row) => formatMoney(row.currency, row.netPaise, true)).join(' · '), scope: formatDayRange(metrics.range.from, metrics.range.through) },
   ];
   const secondaryCards: Array<{ key: CardKey; label: string; value: string }> = [
     { key: 'liveMembers', label: 'Live members', value: metrics.cards.liveMembers },
@@ -102,13 +102,13 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
   return <main className="dashboard-workspace">
     <header className="dashboard-header">
       <div>
-        <p className="cl-eyebrow dashboard-kicker">{formatLocalDay(metrics.localToday)} · {metrics.timezone}</p>
+        <p className="cl-eyebrow dashboard-kicker">{formatLocalDay(metrics.localToday)}</p>
         <h1>Overview</h1>
         <p className="dashboard-subtitle">Your gym at a glance · updated {formatSnapshotInstant(metrics.asOf, metrics.timezone)}</p>
       </div>
       <div className="dashboard-controls">
         <details className="dashboard-period">
-          <summary>{metrics.range.from} to {metrics.range.through}</summary>
+          <summary aria-label={`Period ${metrics.range.from} to ${metrics.range.through}`}>{formatDayRange(metrics.range.from, metrics.range.through)}</summary>
           <form className="dashboard-range" method="get">
             <label>From <input name="from" type="date" defaultValue={metrics.range.from} /></label>
             <label>Through <input name="through" type="date" defaultValue={metrics.range.through} /></label>
@@ -131,7 +131,7 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
         {cases.length === 0 ? <div className="cl-empty dashboard-empty"><strong>Nobody to chase</strong><p>No open follow-up cases in this snapshot.</p></div> : <ul className="dashboard-case-list">{cases.map((item) => <li key={item.caseId}><a href={`/members/${item.memberId}`}><strong>{item.memberName}</strong><span className="cl-status" data-tone={item.due ? 'risk' : 'warn'}>{humanizeStatus(item.status)}</span></a><p>{item.due ? 'Follow-up due' : 'No follow-up due'}{item.nextFollowUpAt === null ? ' · No next follow-up scheduled' : ` · Next ${formatSnapshotInstant(item.nextFollowUpAt, metrics.timezone)}`}</p></li>)}</ul>}
       </section>
       <aside className="dashboard-supporting" aria-label="Renewal and recovery summary">
-        <section className="dashboard-panel" aria-labelledby="dashboard-renewals-heading"><div className="dashboard-panel-heading"><div><h2 id="dashboard-renewals-heading">Renewals due</h2><p>{metrics.range.from} to {metrics.range.through}</p></div></div>{renewals.length === 0 ? <div className="cl-empty dashboard-empty"><strong>No renewals due</strong><p>No renewals due in this range.</p></div> : <ul className="dashboard-renewal-list">{renewals.map((item) => <li key={item.membershipId}><a href={`/memberships/${item.memberId}`}>{item.memberName}<small>Due by {formatLocalDay(item.endsOn)}</small></a><span>{formatMoney(item.currency, item.duePaise)}</span></li>)}</ul>}</section>
+        <section className="dashboard-panel" aria-labelledby="dashboard-renewals-heading"><div className="dashboard-panel-heading"><div><h2 id="dashboard-renewals-heading">Renewals due</h2><p>{formatDayRange(metrics.range.from, metrics.range.through)}</p></div></div>{renewals.length === 0 ? <div className="cl-empty dashboard-empty"><strong>No renewals due</strong><p>No renewals due in this range.</p></div> : <ul className="dashboard-renewal-list">{renewals.map((item) => <li key={item.membershipId}><a href={`/memberships/${item.memberId}`}>{item.memberName}<small>Due by {formatLocalDay(item.endsOn)}</small></a><span>{formatDisplayMoney(item.duePaise, item.currency)}</span></li>)}</ul>}</section>
         <section className="dashboard-panel dashboard-recovery" aria-labelledby="dashboard-recovery-heading"><h2 id="dashboard-recovery-heading">Back in the gym</h2><p><strong>{metrics.cards.recovered}</strong> members returned</p>{recoveries.length > 0 && <ul>{recoveries.map((item) => <li key={item.caseId}><a href={`/members/${item.memberId}`}>{item.memberName}</a> · {formatSnapshotInstant(item.returnedAt, metrics.timezone)}</li>)}</ul>}</section>
       </aside>
     </div>

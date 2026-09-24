@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { AVATAR_INITIALS_MAX } from '@gymloop/shared';
+import { AVATAR_INITIALS_MAX, formatPhone } from '@gymloop/shared';
 import { usePreviewReadOnly } from '../../../preview-context';
 import { StatusWord } from '../../../status-word';
 
@@ -296,7 +296,8 @@ export function CheckInGate({ members }: { members: Member[] }) {
         ) : null}
       </div>
 
-      <ul className="check-in-members">
+      <ul className="check-in-members" aria-label="Members">
+        <li className="check-in-member-headings" aria-hidden="true"><span>Member</span><span>Status</span><span>Check in</span></li>
         {members.map((member) => (
           <li key={member.id} className="check-in-member-row">
             <div className="check-in-member-content">
@@ -304,7 +305,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
                 <span aria-hidden="true" className="check-in-member-initial">{member.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('')}</span>
                 <div>
                 <p className="check-in-member-name">{member.full_name}</p>
-                <p className="check-in-member-phone">{member.phone}</p>
+                <p className="check-in-member-phone">{formatPhone(member.phone)}</p>
                 </div>
               </div>
               <StatusWord status={member.status} />
@@ -324,7 +325,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
                     setReason('');
                   }}
                   aria-expanded={assistFor === member.id}
-                  className="cl-btn cl-btn--small cl-btn--quiet"
+                  className="cl-btn cl-btn--small"
                 >
                   At the desk
                 </button>

@@ -1,6 +1,8 @@
 import { loadMessages, type MessageListRow, type MessageStatusCounts } from '../../../lib/messages';
 import { ConsentForm, MessageTemplateForm, WhatsAppOpenButton } from './message-forms';
+import { DEFAULT_TIMEZONE, formatDateTime, humanize } from '@gymloop/shared';
 import { Alert } from '../alert';
+import { StatusWord } from '../../status-word';
 
 /**
  * The staff `/messages` screen (contract §4): scheduled/sent/delivered/
@@ -11,24 +13,22 @@ import { Alert } from '../alert';
  * component renders only what a verified caller can see.
  */
 
-const STATUS_ORDER: (keyof MessageStatusCounts)[] = ['scheduled', 'sent', 'delivered', 'failed', 'opted_out'];
+/** The four counts in the strip; opted out is a muted line under it so the strip never wraps a lone fifth metric. */
+const STATUS_ORDER: (keyof MessageStatusCounts)[] = ['scheduled', 'sent', 'delivered', 'failed'];
 const STATUS_LABELS: Record<keyof MessageStatusCounts, string> = {
   scheduled: 'Scheduled', sent: 'Sent', delivered: 'Delivered', failed: 'Failed', opted_out: 'Opted out',
 };
 
-/** A vocabulary value as people say it: "in_app" → "In app", "whatsapp_link" → "WhatsApp link". Live rows can carry a null despite the row type, so null reads as nothing. */
-const say = (raw: string | null) => { const value = raw ?? ''; return value.startsWith('whatsapp') ? `WhatsApp${value.slice('whatsapp'.length).replaceAll('_', ' ')}` : value === 'sms' ? 'SMS' : `${value.charAt(0).toUpperCase()}${value.slice(1).replaceAll('_', ' ')}`; };
+/** A vocabulary value as people say it ("in_app" → "In app"). Live rows can carry a null despite the row type, so null reads as nothing. */
+const say = (value: string | null) => value ? humanize(value) : '';
+/** A template locale code as its language name in English ("hi" → "Hindi"). */
+const LANGUAGES = new Intl.DisplayNames(['en'], { type: 'language' });
+const language = (code: string) => LANGUAGES.of(code) ?? code;
 
 /** A row's status, in the desk's words — a WhatsApp child is always "Opened in WhatsApp" (contract §5), never its own status label. */
 function rowLabel(row: MessageListRow): string {
   if (row.channel === 'whatsapp_link') return 'Opened in WhatsApp';
-  return STATUS_LABELS[row.status as keyof MessageStatusCounts] ?? row.status.replaceAll('_', ' ');
-}
-
-/** A row's dot colour: delivered is done, scheduled/sent are in flight, failed/opted out need a person. */
-function rowTone(row: MessageListRow): string {
-  if (row.channel === 'whatsapp_link' || row.status === 'delivered') return 'ok';
-  return row.status === 'scheduled' || row.status === 'sent' ? 'warn' : 'risk';
+  return STATUS_LABELS[row.status as keyof MessageStatusCounts] ?? humanize(row.status);
 }
 
 /** Only an already-sent or delivered in-app message has a source to open in WhatsApp (contract §5). */
@@ -58,7 +58,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
     <section aria-labelledby="counts-heading" className="cl-section">
       <div className="cl-section-head">
         <h2 id="counts-heading" className="cl-section-title">Counts</h2>
-        {screen.asOf !== null ? <p className="cl-muted">Snapshot as of {screen.asOf}.</p> : null}
+        {screen.asOf !== null ? <p className="cl-muted">Updated <time dateTime={screen.asOf}>{formatDateTime(screen.asOf, DEFAULT_TIMEZONE)}</time></p> : null}
       </div>
       <div className="cl-metrics">
         {STATUS_ORDER.map((status) => <div key={status} className="cl-metric">
@@ -66,6 +66,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
           <span className="cl-metric-value tabular-nums">{screen.statusCounts[status]}</span>
         </div>)}
       </div>
+      <p className="cl-muted mt-2">{STATUS_LABELS.opted_out}: <span className="tabular-nums">{screen.statusCounts.opted_out}</span></p>
     </section>
 
     <section aria-labelledby="messages-heading" className="cl-section">
@@ -77,12 +78,12 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
         {screen.rows.map((row) => <li key={row.id}>
           <span>
             <span className="cl-row-title">{row.memberName}</span>
-            <span className="cl-row-meta">{[say(row.channel), say(row.category)].filter(Boolean).join(' · ')}</span>
-            {row.failedReason !== null ? <span className="cl-row-meta">Failed: {row.failedReason}</span> : null}
-            {row.optedOutReason !== null ? <span className="cl-row-meta">Opted out: {row.optedOutReason}</span> : null}
+            <span className="cl-row-meta">{[say(row.channel), say(row.category)].filter(Boolean).join(' · ')}{row.sentAt === null ? null : <> · Sent <time dateTime={row.sentAt}>{formatDateTime(row.sentAt, DEFAULT_TIMEZONE)}</time></>}</span>
+            {row.failedReason !== null ? <span className="cl-row-meta">Failed: {say(row.failedReason)}</span> : null}
+            {row.optedOutReason !== null ? <span className="cl-row-meta">Opted out: {say(row.optedOutReason)}</span> : null}
           </span>
           <span className="flex flex-wrap items-center justify-end gap-3">
-            <span className="cl-status" data-tone={rowTone(row)} data-status={row.status}>{rowLabel(row)}</span>
+            <StatusWord status={row.status} label={rowLabel(row)} />
             {canOpenWhatsApp(row) ? <WhatsAppOpenButton notificationId={row.id} /> : null}
           </span>
         </li>)}
@@ -111,8 +112,8 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       <ul className="cl-rows">
         {screen.templates.map((template) => <li key={template.id}>
           <div className="w-full">
-            <span className="cl-row-title">{template.key}</span>
-            <span className="cl-row-meta">{[say(template.channel), template.locale, say(template.category)].filter(Boolean).join(' · ')}</span>
+            <span className="cl-row-title">{say(template.key)}</span>
+            <span className="cl-row-meta">{[say(template.channel), language(template.locale), say(template.category)].filter(Boolean).join(' · ')}</span>
             <p className="mt-2">{template.body}</p>
             <MessageTemplateForm template={template} />
           </div>

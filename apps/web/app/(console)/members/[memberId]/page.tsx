@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { DEFAULT_TIMEZONE } from '@gymloop/shared';
+import { DEFAULT_TIMEZONE, formatPhone } from '@gymloop/shared';
+import { requireAudience } from '../../../../lib/identity-session';
 import { createServerSupabase } from '../../../../lib/supabase/server';
 import { loadMember } from '../member-data';
 import { StatusWord } from '../../../status-word';
@@ -48,6 +49,8 @@ export default async function MemberDetailPage({
   // gym — the same answer either way, which is the answer RLS already gives.
   if (!member) notFound();
 
+  const { identity } = await requireAudience('console');
+  const seesMoney = !(identity.kind === 'staff' && identity.role === 'trainer');
   const supabase = await createServerSupabase();
   const [{ data: branch }, { data: visits, error: visitsError }] = await Promise.all([
     supabase.from('branches').select('name').eq('id', member.branch_id).maybeSingle(),
@@ -64,12 +67,13 @@ export default async function MemberDetailPage({
       <Link href="/console" className="cl-back">← All members</Link>
       <div className="cl-page-header">
         <div>
-          <p className="cl-eyebrow">{member.member_code ?? 'Member'}</p>
+          <p className="cl-eyebrow">Member</p>
           <h1 className="cl-title">{member.full_name}</h1>
-          <p className="cl-lede tabular-nums">{member.phone}</p>
+          <p className="cl-lede tabular-nums">{formatPhone(member.phone)}{member.member_code ? ` · ${member.member_code}` : ''}</p>
         </div>
         <div className="cl-actions">
           <StatusWord status={member.status} />
+          {seesMoney ? <Link href={`/memberships/${member.id}`} className="cl-btn cl-btn--accent">Membership and payments</Link> : null}
           <Link href={`/members/${member.id}/edit`} className="cl-btn">Edit</Link>
         </div>
       </div>
@@ -84,7 +88,6 @@ export default async function MemberDetailPage({
         <section aria-labelledby="member-details-heading">
           <h2 id="member-details-heading" className="cl-eyebrow member-detail-eyebrow">Details</h2>
           <dl className="cl-dl">
-            <dt>Status</dt><dd><StatusWord status={member.status} /></dd>
             <dt>Joined</dt><dd>{DATE_ONLY.format(new Date(member.joined_on))}</dd>
             <dt>Branch</dt><dd>{branch?.name ?? '—'}</dd>
             <dt>Email</dt><dd>{member.email ?? '—'}</dd>
@@ -107,7 +110,7 @@ export default async function MemberDetailPage({
                 <li key={visit.id}>
                   <span className="cl-row-title tabular-nums">{DATE_TIME.format(new Date(visit.checked_in_at))}</span>
                   <span className="cl-row-meta">
-                    {visit.source === 'qr' ? 'Scanned' : visit.source.replace('_', ' ')}
+                    {visit.source === 'qr' ? 'Gym QR' : 'Desk assisted'}
                     {visit.assist_reason === null ? null : ` · ${visit.assist_reason}`}
                   </span>
                 </li>

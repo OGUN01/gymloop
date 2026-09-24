@@ -1,6 +1,7 @@
 import { MutationForm } from '../../preview-context';
 import Link from 'next/link';
 import { Constants } from '@gymloop/db';
+import { humanize } from '@gymloop/shared';
 import { Alert } from '../alert';
 import { createServerSupabase } from '../../../lib/supabase/server';
 
@@ -37,12 +38,6 @@ type MemberDefaults = {
 };
 
 const FIELD_CLASS = 'cl-input';
-
-/** A vocabulary value as a sentence-case word: `paused` → "Paused". */
-function say(value: string): string {
-  const words = value.replaceAll('_', ' ');
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -96,43 +91,41 @@ export async function MemberForm({
         </div>
       )}
 
-      <MutationForm method="post" action={action} className="cl-form cl-section">
+      <MutationForm method="post" action={action} className="cl-form cl-section max-w-xl">
+        <Field label="Full name">
+          <input
+            name="full_name"
+            required
+            defaultValue={value('full_name')}
+            autoComplete="name"
+            className={FIELD_CLASS}
+          />
+        </Field>
+
+        <Field label="Phone" hint="Include +91, no spaces.">
+          <input
+            name="phone"
+            type="tel"
+            inputMode="tel"
+            required
+            defaultValue={value('phone')}
+            placeholder="+919876543210"
+            autoComplete="tel"
+            className={FIELD_CLASS}
+          />
+        </Field>
+
+        <Field label="Email" hint="Optional.">
+          <input
+            name="email"
+            type="email"
+            defaultValue={value('email')}
+            autoComplete="email"
+            className={FIELD_CLASS}
+          />
+        </Field>
+
         <div className="cl-form-row">
-          <Field label="Full name">
-            <input
-              name="full_name"
-              required
-              defaultValue={value('full_name')}
-              autoComplete="name"
-              className={FIELD_CLASS}
-            />
-          </Field>
-
-          <Field label="Phone" hint="International form — country code first, as in +919876543210.">
-            <input
-              name="phone"
-              type="tel"
-              inputMode="tel"
-              required
-              defaultValue={value('phone')}
-              placeholder="+919876543210"
-              autoComplete="tel"
-              className={FIELD_CLASS}
-            />
-          </Field>
-        </div>
-
-        <div className="cl-form-row">
-          <Field label="Email" hint="Optional.">
-            <input
-              name="email"
-              type="email"
-              defaultValue={value('email')}
-              autoComplete="email"
-              className={FIELD_CLASS}
-            />
-          </Field>
-
           <Field label="Branch">
             <select name="branch_id" required defaultValue={value('branch_id')} className={FIELD_CLASS}>
               <option value="">Choose a branch</option>
@@ -143,9 +136,7 @@ export async function MemberForm({
               ))}
             </select>
           </Field>
-        </div>
 
-        <div className="cl-form-row">
           <Field label="Status">
             {/* The vocabulary comes from the generated types, so it is the
               `member_status` Postgres enum and not a copy of it (AGENTS.md
@@ -158,16 +149,16 @@ export async function MemberForm({
             >
               {Constants.public.Enums.member_status.map((status) => (
                 <option key={status} value={status}>
-                  {say(status)}
+                  {humanize(status)}
                 </option>
               ))}
             </select>
           </Field>
-
-          <Field label="Joined on" hint="Leave blank for today.">
-            <input name="joined_on" type="date" defaultValue={value('joined_on')} className={FIELD_CLASS} />
-          </Field>
         </div>
+
+        <Field label="Joined on" hint="Leave blank for today.">
+          <input name="joined_on" type="date" defaultValue={value('joined_on')} className={FIELD_CLASS} />
+        </Field>
 
         <div className="cl-actions">
           <button type="submit" className="cl-btn cl-btn--primary">

@@ -22,7 +22,8 @@ export function AccountFrame({ children, home, label, navigation, context }: {
         <aside className="owner-sidebar">
           <Link href={home} className="brand-link">{PRODUCT_NAME}</Link>
           <div className="owner-context">
-            <strong>{context.primary}</strong>
+            <strong>{context.primary.split(' — ')[0]}</strong>
+            {context.primary.includes(' — ') ? <em>{context.primary.split(' — ').slice(1).join(' — ')}</em> : null}
             <span>{context.secondary}</span>
           </div>
           {navigation}

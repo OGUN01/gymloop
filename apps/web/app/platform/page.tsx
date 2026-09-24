@@ -4,7 +4,10 @@ import {
   ORGANIZATION_STATUSES,
   PLAN_TIERS,
   PLAN_TIER_PRICES_PAISE,
-  rupeesFromPaise,
+  formatDay,
+  formatDateTime,
+  formatMoney,
+  humanize,
 } from '@gymloop/shared';
 import { Fragment } from 'react';
 import { requireAudience } from '../../lib/identity-session';
@@ -22,13 +25,19 @@ type OwnerRow = {
   is_active: boolean;
 };
 
-const label = (value: string) => value.replaceAll('_', ' ');
-/** A vocabulary value as people say it: "pending_approval" → "Pending approval". */
-const say = (value: string) => `${value.charAt(0).toUpperCase()}${label(value.slice(1))}`;
-/** A camelCase provider key as words: "whatsappBusiness" → "Whatsapp business". */
-const sayProvider = (key: string) => say(key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`));
-const DATE = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: DEFAULT_TIMEZONE });
-const when = (iso: string) => <time dateTime={iso}>{DATE.format(new Date(iso))}</time>;
+/** Why a provider is not ready, in words an operator can act on (the contract's codes stay out of the UI). */
+const PROVIDER_REASONS: Record<string, string> = {
+  provider_unconfigured: 'Not set up yet',
+  outside_v1: 'Not offered yet',
+};
+const reasonText = (reason: string) => PROVIDER_REASONS[reason] ?? humanize(reason);
+/** The gym's own timezone, unless the loader flagged it as invalid. */
+const zoneOf = (gym: { timezone: string; metricsError: unknown }) => gym.metricsError === null ? gym.timezone : DEFAULT_TIMEZONE;
+/** An instant as that gym's calendar day, "5 Oct 2026". */
+const dayOf = (instant: string, timeZone: string) => <time dateTime={instant}>{formatDay(new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone }).format(new Date(instant)))}</time>;
+const tierPrice = (tier: (typeof PLAN_TIERS)[number]) => formatMoney(PLAN_TIER_PRICES_PAISE[tier]);
+/** A column label shown only where the ledger stacks into cards (under 40rem). */
+const Cell = ({ label }: { label: string }) => <span className="cl-muted sm:hidden">{label} </span>;
 
 export default async function PlatformPage() {
   const { supabase, identity } = await requireAudience('platform');
@@ -57,10 +66,10 @@ export default async function PlatformPage() {
         <p className="cl-eyebrow">{isAdmin ? 'Your platform’s gym directory' : 'Support access · read only'}</p>
         <h1 className="cl-title">Gyms</h1>
         <p className="cl-lede">
-          {PLAN_TIERS.map((tier) => `${say(tier)} ₹${rupeesFromPaise(String(PLAN_TIER_PRICES_PAISE[tier]))}`).join(' · ')} per month
+          {PLAN_TIERS.map((tier) => `${humanize(tier)} ${tierPrice(tier)}`).join(' · ')} per month
         </p>
       </div>
-      {isAdmin ? <div className="cl-actions"><a href="#onboard" className="cl-btn cl-btn--accent">Add gym</a></div> : null}
+      {isAdmin ? <div className="cl-actions"><a href="#onboard" className="cl-btn">Add gym</a></div> : null}
     </div>
 
     <div className="cl-metrics">
@@ -78,57 +87,62 @@ export default async function PlatformPage() {
             <thead><tr>
               <th scope="col">Gym</th><th scope="col">Status</th><th scope="col">Tier</th><th scope="col">Trial ends</th>
               <th scope="col" className="cl-num">Active members</th><th scope="col" className="cl-num">Open cases</th><th scope="col" className="cl-num">Failed notifications</th>
-              <th scope="col">Readiness</th>
+              <th scope="col">Readiness</th><th scope="col"><span className="sr-only">Open</span></th>
             </tr></thead>
             <tbody>
               {gyms.map((gym) => <tr key={gym.tenantId}>
-                <td><a href={`/platform/${gym.tenantId}`} className="cl-row-title">{gym.name}</a> <span className="cl-row-meta">{gym.gymCode}</span></td>
+                <td><span className="cl-row-title">{gym.name}</span> <span className="cl-row-meta">{gym.gymCode}</span></td>
                 <td><StatusWord status={gym.status} /></td>
-                <td>{gym.tier === null ? 'Unassigned' : say(gym.tier)}</td>
-                <td>{gym.trialEndsAt === null ? 'Not set' : when(gym.trialEndsAt)}</td>
-                <td className="cl-num">{gym.activeMembers ?? 'Unavailable'}</td>
-                <td className="cl-num">{gym.openCases}</td>
-                <td className="cl-num">{gym.failedNotifications}</td>
-                <td>{gym.settingsComplete ? <StatusWord status="active" label="Activation ready" /> : <span className="cl-status" data-tone="warn">{`Readiness incomplete: ${gym.missingSettings.join(', ') || 'unknown'}`}</span>}</td>
+                <td><Cell label="Tier" />{gym.tier === null ? 'Unassigned' : humanize(gym.tier)}</td>
+                <td><Cell label="Trial ends" />{gym.trialEndsAt === null ? 'Not set' : dayOf(gym.trialEndsAt, zoneOf(gym))}</td>
+                <td className="cl-num"><Cell label="Active members" />{gym.activeMembers ?? 'Unavailable'}</td>
+                <td className="cl-num"><Cell label="Open cases" />{gym.openCases}</td>
+                <td className="cl-num"><Cell label="Failed notifications" />{gym.failedNotifications}</td>
+                <td>{gym.settingsComplete ? <StatusWord status="ready" label="Activation ready" /> : <StatusWord status="pending" label={`Readiness incomplete: ${gym.missingSettings.map(humanize).join(', ') || 'unknown'}`} />}</td>
+                <td><a href={`/platform/${gym.tenantId}`} className="cl-btn cl-btn--quiet" aria-label={`Open ${gym.name}`}>Open</a></td>
               </tr>)}
             </tbody>
           </table>
         </div>
       </section>
 
-      <section className="cl-section" aria-labelledby="gym-detail-heading">
-        <div className="cl-section-head"><h2 id="gym-detail-heading" className="cl-section-title">{isAdmin ? 'Providers and controls' : 'Providers'}</h2></div>
-        {gyms.map((gym) => {
-          const gymOwners = owners.filter((owner) => owner.tenant_id === gym.tenantId);
-          return <article key={gym.tenantId} className="cl-section" aria-label={gym.name}>
-            <h3 className="cl-eyebrow">{gym.name} · {gym.gymCode}</h3>
-            <dl className="cl-dl">{Object.entries(gym.providerReadiness).map(([provider, readiness]) =>
-              <Fragment key={provider}><dt>{sayProvider(provider)}</dt><dd>{readiness.ready ? 'Ready' : say(readiness.reason)}</dd></Fragment>)}</dl>
-            {gym.components.failedNotifications.length ? <details className="cl-disclosure"><summary>Failed notification evidence</summary><ul className="cl-rows">{gym.components.failedNotifications.map((failure) =>
-              <li key={failure.notificationId}><span><span className="cl-row-title">{say(failure.channel)}</span><span className="cl-row-meta">{failure.failedReason ?? 'reason unavailable'}</span></span><span className="cl-muted">{failure.failedAt === null ? 'time unavailable' : when(failure.failedAt)}</span></li>)}</ul></details> : null}
+      {gyms.map((gym) => {
+        const gymOwners = owners.filter((owner) => owner.tenant_id === gym.tenantId);
+        const headingId = `gym-${gym.tenantId}`;
+        return <section key={gym.tenantId} className="cl-section" aria-labelledby={headingId}>
+          <div className="cl-section-head">
+            <div><p className="cl-eyebrow">{gym.gymCode}</p><h3 id={headingId} className="cl-section-title">{gym.name}</h3></div>
+            <StatusWord status={gym.status} />
+          </div>
+          <h4 className="cl-eyebrow">Messaging providers</h4>
+          <dl className="cl-dl">{Object.entries(gym.providerReadiness).map(([provider, readiness]) =>
+            <Fragment key={provider}><dt>{humanize(provider)}</dt><dd>{readiness.ready ? 'Ready' : reasonText(readiness.reason)}</dd></Fragment>)}</dl>
+          {gym.components.failedNotifications.length ? <details className="cl-disclosure"><summary>Failed notification evidence</summary><ul className="cl-rows">{gym.components.failedNotifications.map((failure) =>
+            <li key={failure.notificationId}><span><span className="cl-row-title">{humanize(failure.channel)}</span><span className="cl-row-meta">{failure.failedReason === null ? 'Reason unavailable' : humanize(failure.failedReason)}</span></span><span className="cl-muted">{failure.failedAt === null ? 'Time unavailable' : <time dateTime={failure.failedAt}>{formatDateTime(failure.failedAt, zoneOf(gym))}</time>}</span></li>)}</ul></details> : null}
 
-            {isAdmin ? <div className="mt-4 grid gap-8 md:grid-cols-2">
-              <form action={`/api/platform/gyms/${gym.tenantId}/status`} method="post" className="cl-form">
-                <input type="hidden" name="requestKey" value={crypto.randomUUID()} />
-                <input type="hidden" name="expectedStatus" value={gym.status} />
-                <div className="cl-form-row">
-                  <label className="cl-field"><span>Status</span><select name="status" defaultValue={gym.status} className="cl-input">{ORGANIZATION_STATUSES.map((status) => <option key={status} value={status}>{say(status)}</option>)}</select></label>
-                  <label className="cl-field"><span>Reason</span><input name="reason" className="cl-input" /></label>
-                </div>
-                <button type="submit" className="cl-btn self-start justify-self-start">Save status</button>
-              </form>
-              <form action={`/api/platform/gyms/${gym.tenantId}/tier`} method="post" className="cl-form">
-                <input type="hidden" name="requestKey" value={crypto.randomUUID()} />
-                <input type="hidden" name="expectedTier" value={gym.tier ?? ''} />
-                <label className="cl-field"><span>Tier</span><select name="tier" defaultValue={gym.tier ?? ''} className="cl-input"><option value="">Unassigned</option>{PLAN_TIERS.map((tier) => <option key={tier} value={tier}>{say(tier)} · ₹{rupeesFromPaise(String(PLAN_TIER_PRICES_PAISE[tier]))}/month</option>)}</select></label>
-                <button type="submit" className="cl-btn self-start justify-self-start">Save tier</button>
-              </form>
-              <form action="/api/platform/impersonations" method="post" className="cl-form">
-                <input type="hidden" name="requestKey" value={crypto.randomUUID()} />
-                <input type="hidden" name="tenantId" value={gym.tenantId} />
-                <label className="cl-field"><span>Preview reason</span><input name="reason" required defaultValue="Support review" className="cl-input" /></label>
-                <button type="submit" className="cl-btn self-start justify-self-start">Start preview</button>
-              </form>
+          {isAdmin ? <div className="mt-6 grid gap-8 md:grid-cols-2">
+            <form action={`/api/platform/gyms/${gym.tenantId}/status`} method="post" className="cl-form">
+              <input type="hidden" name="requestKey" value={crypto.randomUUID()} />
+              <input type="hidden" name="expectedStatus" value={gym.status} />
+              <div className="cl-form-row">
+                <label className="cl-field"><span>Status</span><select name="status" defaultValue={gym.status} className="cl-input">{ORGANIZATION_STATUSES.map((status) => <option key={status} value={status}>{humanize(status)}</option>)}</select></label>
+                <label className="cl-field"><span>Reason</span><input name="reason" className="cl-input" /></label>
+              </div>
+              <button type="submit" className="cl-btn self-start justify-self-start">Save status</button>
+            </form>
+            <form action={`/api/platform/gyms/${gym.tenantId}/tier`} method="post" className="cl-form">
+              <input type="hidden" name="requestKey" value={crypto.randomUUID()} />
+              <input type="hidden" name="expectedTier" value={gym.tier ?? ''} />
+              <label className="cl-field"><span>Tier</span><select name="tier" defaultValue={gym.tier ?? ''} className="cl-input"><option value="">Unassigned</option>{PLAN_TIERS.map((tier) => <option key={tier} value={tier}>{humanize(tier)} · {tierPrice(tier)}/month</option>)}</select></label>
+              <button type="submit" className="cl-btn self-start justify-self-start">Save tier</button>
+            </form>
+            <form action="/api/platform/impersonations" method="post" className="cl-form">
+              <input type="hidden" name="requestKey" value={crypto.randomUUID()} />
+              <input type="hidden" name="tenantId" value={gym.tenantId} />
+              <label className="cl-field"><span>Preview reason</span><input name="reason" required defaultValue="Support review" className="cl-input" /></label>
+              <button type="submit" className="cl-btn self-start justify-self-start">Start preview</button>
+            </form>
+            <div className="grid gap-8">
               {ownerLoadFailed ? <Alert>Owner-link details are temporarily unavailable.</Alert> : gymOwners.length ? gymOwners.map((owner) =>
                 <form key={owner.id} action={`/api/platform/gyms/${gym.tenantId}/owner-link`} method="post" className="cl-form">
                   <input type="hidden" name="requestKey" value={crypto.randomUUID()} />
@@ -138,10 +152,10 @@ export default async function PlatformPage() {
                   <label className="cl-field"><span>Exact Auth email</span><input name="ownerEmail" type="email" required defaultValue={owner.email ?? ''} className="cl-input" /><small>Sign in again after this gym is activated.</small></label>
                   <button type="submit" className="cl-btn self-start justify-self-start">Link owner</button>
                 </form>) : <p className="cl-muted">No active owner profile is available to link.</p>}
-            </div> : null}
-          </article>;
-        })}
-      </section>
+            </div>
+          </div> : null}
+        </section>;
+      })}
     </>}
 
     {isAdmin ? <section className="cl-section" aria-labelledby="onboard-heading" id="onboard">
@@ -152,7 +166,7 @@ export default async function PlatformPage() {
         <div className="cl-form-row">
           <label className="cl-field"><span>Gym name</span><input name="name" required className="cl-input" /></label>
           <label className="cl-field"><span>Timezone</span><input name="timezone" required defaultValue="Asia/Kolkata" className="cl-input" /></label>
-          <label className="cl-field"><span>Preset</span><select name="preset" required className="cl-input">{GYM_PRESETS.map((preset) => <option key={preset} value={preset}>{say(preset)}</option>)}</select></label>
+          <label className="cl-field"><span>Preset</span><select name="preset" required className="cl-input">{GYM_PRESETS.map((preset) => <option key={preset} value={preset}>{humanize(preset)}</option>)}</select></label>
         </div>
         <div className="cl-form-row">
           <label className="cl-field"><span>Default branch</span><input name="branchName" required className="cl-input" /></label>

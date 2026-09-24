@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AVATAR_INITIALS_MAX } from '@gymloop/shared';
+import { AVATAR_INITIALS_MAX, formatPhone } from '@gymloop/shared';
 import { StatusWord } from '../../status-word';
 import { FRONT_OFFICE_ROLES } from '../../../lib/leads';
 import { loadMemberSearch } from '../../../lib/members';
@@ -33,12 +33,12 @@ export default async function MembersPage({
     >
       <nav className="console-shortcuts" aria-label="Member tools">
         <Link href="/members/new" className="cl-btn cl-btn--primary">Add a member</Link>
-        <Link href="/add-ons" className="cl-btn">Add-ons, orders and PT sessions</Link>
-        {frontOffice ? <Link href="/leads" className="cl-btn">Leads pipeline</Link> : null}
+        <Link href="/add-ons" className="cl-btn cl-btn--quiet">Add-ons and PT</Link>
+        {frontOffice ? <Link href="/leads" className="cl-btn cl-btn--quiet">Leads</Link> : null}
         {/* The import screen is owner/manager only — imports create members — so
             the link applies through the same helper the loader's refusal reads. */}
-        {canImportMembers(identity) ? <Link href="/imports" className="cl-btn">Import members from a file</Link> : null}
-        {canViewMessages(identity) ? <Link href="/messages" className="cl-btn">Messages</Link> : null}
+        {canImportMembers(identity) ? <Link href="/imports" className="cl-btn cl-btn--quiet">Import members</Link> : null}
+        {canViewMessages(identity) ? <Link href="/messages" className="cl-btn cl-btn--quiet">Messages</Link> : null}
       </nav>
       {search.members.length > 0 ? (
         <div className="cl-ledger-wrap console-roster">
@@ -59,7 +59,7 @@ export default async function MembersPage({
                       <Link href={`/members/${member.id}`}>{member.full_name}</Link>
                     </span>
                   </td>
-                  <td className="tabular-nums">{member.phone}</td>
+                  <td className="tabular-nums">{formatPhone(member.phone)}</td>
                   <td><StatusWord status={member.status} /></td>
                 </tr>
               ))}

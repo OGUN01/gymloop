@@ -1,7 +1,7 @@
 'use client';
 
 import { Constants } from '@gymloop/db';
-import { MESSAGE_TEMPLATE_LOCALES, type MessageTemplateLocale } from '@gymloop/shared';
+import { MESSAGE_TEMPLATE_LOCALES, humanize, type MessageTemplateLocale } from '@gymloop/shared';
 import { useState, type FormEvent } from 'react';
 import { Alert } from '../alert';
 import { Field, inputClass } from '../field';
@@ -38,8 +38,8 @@ const COMMS_ERRORS: Record<string, string> = {
   operation_failed: 'The change could not be saved. Nothing was written.',
 };
 
-/** A vocabulary value as people say it: "in_app" → "In app", "whatsapp_link" → "WhatsApp link". */
-const say = (value: string) => value.startsWith('whatsapp') ? `WhatsApp${value.slice('whatsapp'.length).replaceAll('_', ' ')}` : value === 'sms' ? 'SMS' : `${value.charAt(0).toUpperCase()}${value.slice(1).replaceAll('_', ' ')}`;
+/** A template locale code as its language name in English ("hi" → "Hindi"). */
+const LANGUAGES = new Intl.DisplayNames(['en'], { type: 'language' });
 
 function commsProblemText(code: string): string {
   return Object.hasOwn(COMMS_ERRORS, code) ? COMMS_ERRORS[code] ?? 'Review the details and try again.' : 'The outcome is uncertain. Retry, or reload this screen.';
@@ -127,7 +127,7 @@ export function ConsentForm({ members }: { members: MemberChoice[] }) {
     </Field>
     <Field label="Purpose">
       <select value={purpose} onChange={(event) => { setPurpose(event.target.value as typeof purpose); replaceRequestKey(); }} className={inputClass}>
-        {Constants.public.Enums.consent_purpose.map((value) => <option key={value} value={value}>{say(value)}</option>)}
+        {Constants.public.Enums.consent_purpose.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}
       </select>
     </Field>
     </div>
@@ -194,17 +194,17 @@ export function MessageTemplateForm({ template }: { template?: { id: string; key
     <Field label="Key"><input value={keyInput} onChange={(event) => setKeyInput(event.target.value)} disabled={template !== undefined} className={inputClass} /></Field>
     <Field label="Channel">
       <select value={channel} onChange={(event) => setChannel(event.target.value as typeof channel)} disabled={template !== undefined} className={inputClass}>
-        {Constants.public.Enums.notification_channel.map((value) => <option key={value} value={value}>{say(value)}</option>)}
+        {Constants.public.Enums.notification_channel.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}
       </select>
     </Field>
     <Field label="Locale">
       <select value={locale} onChange={(event) => setLocale(event.target.value as MessageTemplateLocale)} disabled={template !== undefined} className={inputClass}>
-        {MESSAGE_TEMPLATE_LOCALES.map((value) => <option key={value} value={value}>{value}</option>)}
+        {MESSAGE_TEMPLATE_LOCALES.map((value) => <option key={value} value={value}>{LANGUAGES.of(value) ?? value}</option>)}
       </select>
     </Field>
     <Field label="Category">
       <select value={category} onChange={(event) => setCategory(event.target.value as typeof category)} className={inputClass}>
-        {Constants.public.Enums.message_category.map((value) => <option key={value} value={value}>{say(value)}</option>)}
+        {Constants.public.Enums.message_category.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}
       </select>
     </Field>
     </div>
@@ -213,7 +213,7 @@ export function MessageTemplateForm({ template }: { template?: { id: string; key
       <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} /> Active
     </label>
     {problem !== '' ? <Alert>{problem}</Alert> : null}
-    <button type="submit" disabled={pending} className="cl-btn cl-btn--primary self-start justify-self-start">
+    <button type="submit" disabled={pending} className="cl-btn self-start justify-self-start">
       {pending ? 'Saving…' : template ? 'Save template' : 'Create template'}
     </button>
   </MutationForm>;

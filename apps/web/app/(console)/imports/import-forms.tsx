@@ -264,7 +264,7 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
     return <form method="post" onSubmit={submitUpload} className="cl-form cl-section">
       <StepHead number={1} title="Upload the file" />
       <Field label="Member file (.csv or .xlsx)">
-        <input type="file" accept=".csv,.xlsx" onChange={onFileChosen} className={inputClass} />
+        <input type="file" accept=".csv,.xlsx" onChange={onFileChosen} />
       </Field>
       <div className="cl-form-row">
         <Field label="Branch">

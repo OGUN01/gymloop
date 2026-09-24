@@ -60,16 +60,17 @@ export function MemberSearchPage({
               gym is supposed to open each morning was one the owner had to
               type the URL for. ADR-059's rule for phases 3-6 is that each ends
               with something the owner can click. */}
-          <Link href="/red-list" className="check-in-route-link">
+          <Link href="/red-list" className="cl-btn cl-btn--quiet cl-btn--small">
             Follow-ups
           </Link>
-          <Link href={linkHref} className="check-in-route-link">
+          <Link href={linkHref} className="cl-btn cl-btn--quiet cl-btn--small">
             {linkLabel}
           </Link>
         </div>
       </div>
 
       <form method="get" className="check-in-search">
+        <span className="check-in-search-field">
         <Search aria-hidden="true" className="check-in-search-icon" />
         <input
           type="search"
@@ -79,6 +80,7 @@ export function MemberSearchPage({
           aria-label="Search by phone number"
           className="check-in-search-input"
         />
+        </span>
         <button type="submit" className="cl-btn">
           Search
         </button>

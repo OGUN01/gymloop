@@ -2,7 +2,9 @@ import { MutationForm } from '../../../preview-context';
 import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { DEFAULT_TIMEZONE, PAISE_PER_RUPEE, membershipNetPrice, rupeesFromPaise } from '@gymloop/shared';
+import {
+  DEFAULT_TIMEZONE, formatDay, formatMoney, formatPhone, humanize, membershipNetPrice, rupeesFromPaise,
+} from '@gymloop/shared';
 import { createServerSupabase } from '../../../../lib/supabase/server';
 import { StatusWord } from '../../../status-word';
 import { Alert } from '../../alert';
@@ -63,9 +65,6 @@ const ERRORS: Record<string, string> = {
 };
 
 const LIVE_STATUSES = ['active', 'frozen'];
-
-/** Date-only columns are calendar days, so they are formatted in UTC to stay the day they say. */
-const DAY = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
 /**
  * Live means the status AND the dates, on the same terms the gate uses.
@@ -196,7 +195,7 @@ export default async function MemberMembershipsPage({
           <p className="cl-eyebrow">Member</p>
           <h1 className="cl-title">{member.data.full_name}</h1>
           <p className="cl-lede flex flex-wrap items-center gap-4">
-            <span className="tabular-nums">{member.data.phone}</span>
+            <span className="tabular-nums">{formatPhone(member.data.phone)}</span>
             {live !== undefined ? (
               <StatusWord status={live.status} />
             ) : lapsed !== undefined ? (
@@ -230,7 +229,7 @@ export default async function MemberMembershipsPage({
                       <Day value={lapsed.starts_on} /> to <Day value={lapsed.ends_on} />
                     </dd>
                     <dt>Per period</dt>
-                    <dd>{money(membershipNetPrice(lapsed.price_paise, lapsed.discount_paise), lapsed.currency)}</dd>
+                    <dd>{formatMoney(membershipNetPrice(lapsed.price_paise, lapsed.discount_paise), lapsed.currency)}</dd>
                     <dt>Status</dt>
                     <dd>
                       <span className="cl-status" data-tone="risk">Lapsed</span>
@@ -251,7 +250,7 @@ export default async function MemberMembershipsPage({
                   <Day value={live.starts_on} /> to <Day value={live.ends_on} />
                 </dd>
                 <dt>Per period</dt>
-                <dd>{money(membershipNetPrice(live.price_paise, live.discount_paise), live.currency)}</dd>
+                <dd>{formatMoney(membershipNetPrice(live.price_paise, live.discount_paise), live.currency)}</dd>
                 <dt>Status</dt>
                 <dd>
                   <StatusWord status={live.status} />
@@ -259,35 +258,37 @@ export default async function MemberMembershipsPage({
               </dl>
             )}
 
-            <h3 className="cl-eyebrow mt-8">Sell a membership</h3>
-            <MutationForm method="post" action="/api/memberships" className="cl-form mt-4">
-              <input type="hidden" name="memberId" value={memberId} />
-              <div className="cl-form-row">
-                <label className="cl-field">
-                  <span>Plan</span>
-                  <select name="planId" required className="cl-input">
-                    {(plans.data ?? []).map((plan) => (
-                      <option key={plan.id} value={plan.id}>
-                        {plan.name} — {money(plan.price_paise, plan.currency)} / {plan.duration_days} days
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="cl-field">
-                  <span>Starts on</span>
-                  <input type="date" name="startsOn" required defaultValue={today} className="cl-input" />
-                </label>
-              </div>
-              <p className="cl-muted text-sm">
-                Price comes from the plan. <strong>The first fully paid period sets the membership dates.</strong>
-                {' '}Record the payment below to start the membership.
-              </p>
-              <div>
-                <button type="submit" className="cl-btn">
-                  Create membership
-                </button>
-              </div>
-            </MutationForm>
+            <details className="cl-disclosure cl-section" open={live === undefined}>
+              <summary>{live === undefined ? 'Sell a membership' : 'Sell another membership'}</summary>
+              <MutationForm method="post" action="/api/memberships" className="cl-form mt-4 pb-6">
+                <input type="hidden" name="memberId" value={memberId} />
+                <div className="cl-form-row">
+                  <label className="cl-field">
+                    <span>Plan</span>
+                    <select name="planId" required className="cl-input">
+                      {(plans.data ?? []).map((plan) => (
+                        <option key={plan.id} value={plan.id}>
+                          {plan.name} — {formatMoney(plan.price_paise, plan.currency)} / {plan.duration_days} days
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="cl-field">
+                    <span>Starts on</span>
+                    <input type="date" name="startsOn" required defaultValue={today} className="cl-input" />
+                  </label>
+                </div>
+                <p className="cl-muted text-sm">
+                  Price comes from the plan. <strong>The first fully paid period sets the membership dates.</strong>
+                  {' '}Record the payment below to start the membership.
+                </p>
+                <div>
+                  <button type="submit" className="cl-btn">
+                    Create membership
+                  </button>
+                </div>
+              </MutationForm>
+            </details>
           </section>
 
           <section className="cl-section" aria-labelledby="pauses-heading">
@@ -297,7 +298,7 @@ export default async function MemberMembershipsPage({
             <p className="cl-muted text-sm">
               {settings.data === null
                 ? 'This gym has no settings row, so no approver and no allowance are configured.'
-                : `Up to ${settings.data.max_freeze_days_per_year} days a year, approved by ${settings.data.pause_approver_role.replace('_', ' ')}.`}
+                : `Up to ${settings.data.max_freeze_days_per_year} days a year, approved by ${humanize(settings.data.pause_approver_role).toLowerCase()}.`}
             </p>
 
             {live === undefined ? (
@@ -383,7 +384,7 @@ export default async function MemberMembershipsPage({
               <select name="method" required className="cl-input">
                 {DESK_METHODS.map((desk) => (
                   <option key={desk} value={desk}>
-                    {desk.replace('_', ' ')}
+                    {humanize(desk)}
                   </option>
                 ))}
               </select>
@@ -407,7 +408,7 @@ export default async function MemberMembershipsPage({
                 <>
                   The first fully paid period starts from today or a future agreed start date.
                   Later paid periods extend the membership from its expiry or today, whichever is later.{' '}
-                  A full {money(renewablePrice ?? 0, renewable.currency)} buys one period of{' '}
+                  A full {formatMoney(renewablePrice ?? 0, renewable.currency)} buys one period of{' '}
                   {renewable.duration_days} days; part of it is recorded and receipted and buys none
                   until the balance is paid.
                 </>
@@ -426,7 +427,7 @@ export default async function MemberMembershipsPage({
 /** A `YYYY-MM-DD` calendar day as people read it ("12 Oct 2026"), with the ISO day kept machine-readable. */
 function Day({ value }: { value: string | null }) {
   if (value === null) return <>—</>;
-  return <time dateTime={value}>{DAY.format(new Date(value))}</time>;
+  return <time dateTime={value}>{formatDay(value)}</time>;
 }
 
 type MembershipRow = {
@@ -456,9 +457,7 @@ function PauseHistory({ memberId, memberships }: { memberId: string; memberships
 
   if (pauses.length === 0) {
     return (
-      <div className="cl-empty mt-6">
-        <strong>No pauses recorded.</strong>
-      </div>
+      <p className="cl-muted mt-6">No pauses recorded.</p>
     );
   }
 
@@ -481,9 +480,9 @@ function PauseHistory({ memberId, memberships }: { memberId: string; memberships
               <td>{pause.reason}</td>
               <td>
                 {pause.approved_at !== null ? (
-                  <span className="cl-status" data-tone="ok">Approved</span>
+                  <StatusWord status="approved" />
                 ) : pause.rejected_at !== null ? (
-                  <span className="cl-status" data-tone="risk">Rejected</span>
+                  <StatusWord status="rejected" />
                 ) : (
                   <MutationForm method="post" action="/api/memberships/pauses" className="flex flex-wrap gap-2">
                     <input type="hidden" name="memberId" value={memberId} />
@@ -502,26 +501,6 @@ function PauseHistory({ memberId, memberships }: { memberId: string; memberships
         </tbody>
       </table>
     </div>
-  );
-}
-
-/**
- * An integer paise amount as rupees, in the gym's own currency.
- *
- * The debt this function used to carry is paid: the `100` lived here as a local
- * `PAISE.perRupee` with a comment saying it belonged in `packages/shared`. It
- * now does, as `PAISE_PER_RUPEE`, and the conversion with it.
- *
- * The division is display only, once, at the edge — which is exactly what
- * MNY-001 permits and where it says to do it. `Intl` needs a number and this
- * runtime's `format()` types will not take the exact decimal string, so the
- * grouped `₹1,50,000.00` a gym reads is worth the float that never leaves this
- * line. Where exactness matters more than grouping — the receipt, which is the
- * audited document — `rupeesFromPaise` is used instead and no float exists.
- */
-function money(paise: number, currency: string): string {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency }).format(
-    paise / PAISE_PER_RUPEE,
   );
 }
 

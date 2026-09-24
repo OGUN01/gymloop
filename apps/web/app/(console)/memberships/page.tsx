@@ -1,3 +1,4 @@
+import { formatPhone } from '@gymloop/shared';
 import Link from 'next/link';
 import { loadMemberSearch } from '../../../lib/members';
 import { MemberSearchPage } from '../console/member-search-page';
@@ -28,21 +29,28 @@ export default async function MembershipsPage({
       pageSize={search.pageSize}
     >
       {search.members.length > 0 ? (
-        <ul className="cl-rows">
-          {search.members.map((member) => (
-            <li key={member.id}>
-              <Link
-                href={`/memberships/${member.id}`}
-                className="flex w-full items-baseline justify-between gap-4 text-ink no-underline"
-              >
-                <span className="cl-row-title">{member.full_name}</span>
-                <span className="cl-row-meta tabular-nums">{member.phone}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <div className="cl-ledger-wrap cl-section">
+          <table className="cl-ledger">
+            <thead>
+              <tr>
+                <th scope="col">Member</th>
+                <th scope="col" className="cl-num">Phone</th>
+              </tr>
+            </thead>
+            <tbody>
+              {search.members.map((member) => (
+                <tr key={member.id}>
+                  <td>
+                    <Link href={`/memberships/${member.id}`}>{member.full_name}</Link>
+                  </td>
+                  <td className="cl-num">{formatPhone(member.phone)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
-        <div className="cl-empty">
+        <div className="cl-empty cl-section">
           <strong>{search.phone ? 'No member of this gym has that phone number.' : 'No members yet.'}</strong>
         </div>
       )}

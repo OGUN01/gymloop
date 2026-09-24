@@ -1,7 +1,7 @@
 'use client';
 
 import { Constants } from '@gymloop/db';
-import { paiseTextFromRupees, rupeesFromPaise } from '@gymloop/shared';
+import { formatMoney, paiseTextFromRupees, rupeesFromPaise } from '@gymloop/shared';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Field, inputClass } from '../field';
 import { usePreviewReadOnly } from '../../preview-context';
@@ -200,7 +200,7 @@ export function AddonSaleForm({ offers, timezone, members, nextCursor }: {
           <legend className="cl-eyebrow mb-3">Select offer and fulfilment</legend>
           <Field label="Offer"><select {...input} required value={productId} onChange={(event) => { setProductId(event.target.value); setQuantity('1'); setMethod(''); }}>
             <option value="">Choose an offer</option>
-            {available.map((row) => <option key={row.id} value={row.id} disabled={offerUnavailable(row) !== null}>{row.name} · {row.currency} {rupeesFromPaise(row.price_paise)}{offerUnavailable(row) ? ` · ${offerUnavailable(row)}` : ''}</option>)}
+            {available.map((row) => <option key={row.id} value={row.id} disabled={offerUnavailable(row) !== null}>{row.name} · {formatMoney(row.price_paise, row.currency)}{offerUnavailable(row) ? ` · ${offerUnavailable(row)}` : ''}</option>)}
           </select></Field>
           {offer?.kind === 'product' ? <Field label="Quantity"><input {...input} type="number" min="1" step="1" required value={quantity} onChange={(event) => setQuantity(event.target.value)} /></Field> : <p className="cl-muted text-sm">Diet and PT quantity: 1</p>}
           {offer?.kind === 'pt_package' ? <>
@@ -215,7 +215,7 @@ export function AddonSaleForm({ offers, timezone, members, nextCursor }: {
         <legend className="cl-eyebrow px-2">Review and confirm</legend>
         {member ? <p className="cl-row-title">For {member.full_name} · {member.phone}</p> : <p className="cl-muted">Select a member to review the sale.</p>}
         {offer ? <AddonOfferDetails offer={offer} /> : <p className="cl-muted">Select an offer to review its price and terms.</p>}
-        {total ? <p className="cl-display border-t border-rule pt-3 text-2xl tabular-nums">Total: {offer?.currency} {rupeesFromPaise(total)} · Quantity {count}</p> : null}
+        {total ? <p className="cl-display border-t border-rule pt-3 text-2xl tabular-nums">Total: {formatMoney(total, offer?.currency)} · Quantity {count}</p> : null}
         {offer?.kind === 'product' ? <p className="cl-muted text-sm">Confirm the product is being handed over with this sale.</p> : null}
         {!complimentary ? <Field label="Manual payment method"><select {...input} required value={method} onChange={(event) => setMethod(event.target.value)}>
           <option value="">Choose how money was received</option>
@@ -226,7 +226,7 @@ export function AddonSaleForm({ offers, timezone, members, nextCursor }: {
       </fieldset>
       <div className="grid gap-2 md:col-span-2">
         <button type="submit" disabled={command.pending || (!command.uncertain && (!offer || !member || !total))} className="cl-btn cl-btn--primary cl-btn--block w-full disabled:opacity-50">
-          {command.pending ? 'Saving…' : command.uncertain ? 'Retry the same sale' : complimentary ? 'Accept complimentary offer' : `Record ${offer?.currency ?? 'INR'} ${total ? rupeesFromPaise(total) : '—'} received`}
+          {command.pending ? 'Saving…' : command.uncertain ? 'Retry the same sale' : complimentary ? 'Accept complimentary offer' : `Record ${total ? formatMoney(total, offer?.currency) : '—'} received`}
         </button>
         {offer && !command.locked ? <button type="button" onClick={() => void refreshOffer()} className="cl-btn cl-btn--quiet justify-self-start">Refresh selected offer for review</button> : null}
       </div>

@@ -1,5 +1,5 @@
 import type { Database } from '@gymloop/db';
-import { rupeesFromPaise } from '@gymloop/shared';
+import { formatDateTime, formatDay, formatMoney, humanize } from '@gymloop/shared';
 import { gymTimeLabel } from '../../../lib/time';
 import { StatusWord } from '../../status-word';
 
@@ -48,29 +48,39 @@ export function offerUnavailable(offer: AddonOffer): string | null {
   return null;
 }
 
-const KIND_WORD: Record<Tables['addon_products']['Row']['kind'], string> = { pt_package: 'PT package', diet_plan: 'Diet plan', product: 'Product' };
+/** One fixed label column, so values line up from one offer or order to the next. */
+const FACTS = 'grid grid-cols-[9rem_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm';
+
+/** An instant for a person; falls back to the raw gym-time label when the timezone is unusable. */
+function when(iso: string, timezone: string) {
+  try { return formatDateTime(iso, timezone); } catch { return gymTimeLabel(iso, timezone); }
+}
+
+function Day({ iso }: { iso: string | null }) {
+  return iso ? <time dateTime={iso}>{formatDay(iso)}</time> : <>Not recorded</>;
+}
 
 /** Missing historical facts are not replaced with today's catalogue terms. */
 export function AddonOfferDetails({ offer }: { offer: AddonOffer }) {
   const unavailable = offerUnavailable(offer);
   return <div className="grid gap-3 break-words">
-    <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+    <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div className="min-w-0">
-        <p className="cl-eyebrow" data-kind={offer.kind}>{KIND_WORD[offer.kind] ?? offer.kind.replaceAll('_', ' ')}</p>
+        <p className="cl-eyebrow" data-kind={offer.kind}>{humanize(offer.kind)}</p>
         <h3 className="cl-row-title text-lg">{offer.name}</h3>
       </div>
-      <p className="cl-display text-2xl tabular-nums">{offer.currency} {rupeesFromPaise(offer.price_paise)}</p>
+      <p className="cl-display text-2xl tabular-nums">{formatMoney(offer.price_paise, offer.currency)}</p>
     </div>
     <p>{offer.description?.trim() || 'Description unavailable'}</p>
-    <dl className="cl-dl">
-      <dt>Validity</dt><dd>{offer.validity_days ? `Valid for ${offer.validity_days} days, including the acceptance date.` : 'Validity unavailable'}</dd>
-      {offer.kind === 'product' ? <><dt>Stock</dt><dd>{offer.stock_quantity ?? 'Not recorded'}</dd></> : null}
+    <dl className={FACTS}>
+      <dt className="cl-muted">Validity</dt><dd>{offer.validity_days ? `Valid for ${offer.validity_days} days, including the acceptance date.` : 'Validity unavailable'}</dd>
+      {offer.kind === 'product' ? <><dt className="cl-muted">Stock</dt><dd className="tabular-nums">{offer.stock_quantity ?? 'Not recorded'}</dd></> : null}
       {offer.kind === 'pt_package' ? <>
-        <dt>Trainer</dt><dd>{offer.staff?.full_name ?? (offer.trainer_staff_id ? 'Assigned by the gym' : 'Not recorded')}</dd>
-        <dt>Gym-stated qualification</dt><dd>{offer.trainer_qualification?.trim() || 'Not recorded'}</dd>
-        <dt>Purchased sessions</dt><dd>{offer.session_count ?? 'Not recorded'}</dd>
+        <dt className="cl-muted">Trainer</dt><dd>{offer.staff?.full_name ?? (offer.trainer_staff_id ? 'Assigned by the gym' : 'Not recorded')}</dd>
+        <dt className="cl-muted">Gym-stated qualification</dt><dd>{offer.trainer_qualification?.trim() || 'Not recorded'}</dd>
+        <dt className="cl-muted">Purchased sessions</dt><dd className="tabular-nums">{offer.session_count ?? 'Not recorded'}</dd>
       </> : null}
-      <dt>Cancellation terms</dt><dd className="cl-muted">{offer.cancellation_terms?.trim() || 'Unavailable · details incomplete'}</dd>
+      <dt className="cl-muted">Cancellation terms</dt><dd className="cl-muted">{offer.cancellation_terms?.trim() || 'Unavailable · details incomplete'}</dd>
     </dl>
     <p><span className="cl-status" data-tone={unavailable ? 'warn' : 'ok'}>{unavailable ?? 'Available'}</span></p>
   </div>;
@@ -83,30 +93,33 @@ export function AddonOrderFacts({ order, timezone, showPayment = true }: {
   const localTime = gymTimeLabel(new Date().toISOString(), timezone);
   const today = localTime === 'Gym timezone unavailable' ? null : localTime.split(' ')[0];
   const expired = order.expires_on && today && today > order.expires_on;
+  const complimentary = order.total_paise === '0' && !order.payment_id;
   return <div className="grid gap-3 break-words">
     <div>
-      {snapshot ? <p className="cl-eyebrow" data-kind={snapshot.kind}>{KIND_WORD[snapshot.kind] ?? snapshot.kind}</p> : null}
+      {snapshot ? <p className="cl-eyebrow" data-kind={snapshot.kind}>{humanize(snapshot.kind)}</p> : null}
       <h2 className="cl-section-title">{snapshot?.name || order.addon_products?.name || 'Previous add-on'}</h2>
     </div>
-    {snapshot ? <>
-      <p>{snapshot.description || 'Historical description unavailable'}</p>
-      <dl className="cl-dl">
-        <dt>Cancellation terms</dt><dd className="cl-muted">{snapshot.cancellationTerms || 'Historical terms unavailable'}</dd>
-        {snapshot.trainerQualification ? <><dt>Gym-stated qualification at sale</dt><dd>{snapshot.trainerQualification}</dd></> : null}
-        {snapshot.kind === 'pt_package' ? <><dt>Trainer</dt><dd>{order.trainer?.full_name ?? (order.trainer_staff_id ? 'Assigned by the gym' : 'Not recorded')}</dd></> : null}
-      </dl>
-    </> : <p className="cl-muted">Historical terms unavailable{order.addon_products?.name ? ' · the name shown is the current catalogue label.' : ''}</p>}
-    <dl className="cl-dl">
-      <dt>Fulfilment</dt><dd><StatusWord status={order.status} /></dd>
-      <dt>Quantity</dt><dd>{order.quantity ?? 'Not recorded'}</dd>
-      <dt>Unit price</dt><dd>{order.unit_price_paise == null ? 'Not recorded' : `${order.currency} ${rupeesFromPaise(order.unit_price_paise)}`}</dd>
-      <dt>Total</dt><dd className="font-semibold">{order.total_paise == null ? 'Not recorded' : `${order.currency} ${rupeesFromPaise(order.total_paise)}`}</dd>
-      <dt>Accepted</dt><dd>{order.sold_at ? gymTimeLabel(order.sold_at, timezone) : 'Not recorded'}</dd>
-      <dt>Inclusive validity</dt><dd>{order.starts_on ?? 'Not recorded'} through {order.expires_on ?? 'Not recorded'}</dd>
+    {snapshot ? <p>{snapshot.description || 'Historical description unavailable'}</p> :
+      <p className="cl-muted">Historical terms unavailable{order.addon_products?.name ? ' · the name shown is the current catalogue label.' : ''}</p>}
+    <dl className={FACTS}>
+      <dt className="cl-muted">Fulfilment</dt><dd><StatusWord status={order.status} /></dd>
+      <dt className="cl-muted">Quantity</dt><dd className="tabular-nums">{order.quantity ?? 'Not recorded'}</dd>
+      <dt className="cl-muted">Unit price</dt><dd className="tabular-nums">{order.unit_price_paise == null ? 'Not recorded' : formatMoney(order.unit_price_paise, order.currency)}</dd>
+      <dt className="cl-muted">Total</dt><dd className="font-semibold tabular-nums">{order.total_paise == null ? 'Not recorded' : formatMoney(order.total_paise, order.currency)}</dd>
+      <dt className="cl-muted">Accepted</dt><dd>{order.sold_at ? when(order.sold_at, timezone) : 'Not recorded'}</dd>
+      <dt className="cl-muted">Inclusive validity</dt><dd><Day iso={order.starts_on} /> – <Day iso={order.expires_on} /></dd>
+      {snapshot ? <>
+        {snapshot.kind === 'pt_package' ? <><dt className="cl-muted">Trainer</dt><dd>{order.trainer?.full_name ?? (order.trainer_staff_id ? 'Assigned by the gym' : 'Not recorded')}</dd></> : null}
+        {snapshot.trainerQualification ? <><dt className="cl-muted">Gym-stated qualification at sale</dt><dd>{snapshot.trainerQualification}</dd></> : null}
+        <dt className="cl-muted">Cancellation terms</dt><dd className="cl-muted">{snapshot.cancellationTerms || 'Historical terms unavailable'}</dd>
+      </> : null}
+      {showPayment && !complimentary ? <>
+        <dt className="cl-muted">Payment</dt><dd>{order.payments?.status ? <StatusWord status={order.payments.status} /> : 'Not recorded'}</dd>
+        <dt className="cl-muted">Receipt</dt><dd className="tabular-nums">{order.payments?.receipt_number ?? 'Not recorded'}</dd>
+      </> : null}
     </dl>
-    {showPayment ? order.total_paise === '0' && !order.payment_id ? <p className="cl-alert" data-tone="info">Complimentary · {order.currency} 0.00 — no payment and no receipt.</p> :
-      <p className="cl-muted">Payment: {order.payments?.status ? <StatusWord status={order.payments.status} /> : 'Not recorded'} · Receipt: <span className="tabular-nums">{order.payments?.receipt_number ?? 'Not recorded'}</span></p> :
-      <p className="cl-muted">Payment and receipt details are available to front-office staff.</p>}
+    {showPayment ? complimentary ? <p className="cl-alert" data-tone="info">Complimentary · {order.currency} 0.00 — no payment and no receipt.</p> : null :
+      <p className="cl-muted text-sm">Payment and receipt details are available to front-office staff.</p>}
     {expired ? <p className="cl-alert" data-tone="warn">Expired · the inclusive validity has ended. Recorded purchase and usage history remain visible.</p> : null}
   </div>;
 }

@@ -26,15 +26,16 @@ export function ConsoleNavigation({ items }: { items: readonly NavigationItem[] 
     media.addEventListener('change', sync);
     return () => media.removeEventListener('change', sync);
   }, []);
+  const path = /^\/(?:members|memberships)(?:\/|$)/.test(pathname) ? '/console' : pathname;
   const current = items.reduce<NavigationItem | undefined>((longest, item) => (
-    pathname === item.href || pathname.startsWith(`${item.href}/`)
+    path === item.href || path.startsWith(`${item.href}/`)
       ? (longest === undefined || item.href.length > longest.href.length ? item : longest)
       : longest
   ), undefined);
 
   return (
     <details className="owner-navigation-disclosure" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>{current?.label ?? 'Console navigation'}</summary>
+      <summary>{current?.label ?? 'Menu'}</summary>
       <nav className="owner-navigation" aria-label="Console navigation">
         {items.map((item) => {
           const Icon = ICONS[item.href];

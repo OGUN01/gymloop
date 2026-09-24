@@ -1,16 +1,17 @@
+import { formatDay } from '@gymloop/shared';
 import { loadMemberPortal } from '../../../lib/member-portal';
 import { MemberWeekRhythm } from '../member-ui';
 
 export default async function MemberActivityPage() {
   const portal = await loadMemberPortal();
   if (portal.errorMessage) return <main className="member-route member-portal"><h1 className="member-title">Activity</h1><p className="cl-alert" role="alert">{portal.errorMessage}</p></main>;
-  const day = new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: portal.gym.timezone });
+  const day = { format: (date: Date) => `${date.toLocaleDateString('en-GB', { weekday: 'short', timeZone: portal.gym.timezone })}, ${formatDay(date.toLocaleDateString('en-CA', { timeZone: portal.gym.timezone })).replace(/ \d{4}$/, '')}` };
   const time = new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: portal.gym.timezone });
   return <main className="member-route member-portal">
     <header><p className="cl-eyebrow">Your progress</p><h1 className="member-title">Activity</h1></header>
     <section className="member-week member-week--activity" aria-label="This week">
       <p className="member-activity-figure"><span className="cl-display member-activity-count">{portal.weekVisits}</span> <span className="cl-display">{portal.weekVisits === 1 ? 'visit' : 'visits'} this week</span></p>
-      <MemberWeekRhythm visits={portal.visits} timezone={portal.gym.timezone} tone="ink" />
+      <MemberWeekRhythm visits={portal.visits} timezone={portal.gym.timezone} weekStart={'weekStart' in portal ? portal.weekStart : undefined} tone="ink" />
     </section>
     <section className="member-list-section" aria-labelledby="visits-heading">
       <h2 id="visits-heading" className="cl-eyebrow member-eyebrow">Recent visits</h2>

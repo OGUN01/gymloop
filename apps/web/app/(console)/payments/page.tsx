@@ -1,8 +1,7 @@
-import { PAYMENT_PAGE_SIZE_DEFAULT, rupeesFromPaise } from '@gymloop/shared';
+import { PAYMENT_PAGE_SIZE_DEFAULT, formatDateTime, formatMoney, humanize } from '@gymloop/shared';
 import Link from 'next/link';
 import { Alert } from '../alert';
 import { loadPayments } from '../../../lib/payments';
-import { deskTime } from '../../../lib/time';
 
 /**
  * The day's takings — what a front desk reconciles the cash drawer against at
@@ -59,13 +58,9 @@ export default async function PaymentsPage({
           <p className="cl-eyebrow">Front desk</p>
           <h1 className="cl-title">Payments</h1>
           <p className="cl-lede">
-            Money taken at the desk, newest first. Take a payment from a member&rsquo;s page.
+            Money taken at the desk, most recently recorded first. Take a payment from a
+            member&rsquo;s page.
           </p>
-        </div>
-        <div className="cl-actions">
-          <Link href="/console" className="cl-btn">
-            Members
-          </Link>
         </div>
       </div>
 
@@ -81,50 +76,71 @@ export default async function PaymentsPage({
           <p>Take a payment from a member&rsquo;s page and it appears here.</p>
         </div>
       ) : (
-        <div className="cl-ledger-wrap cl-section">
-          <table className="cl-ledger cl-ledger-stack">
-            <thead>
-              <tr>
-                <th scope="col">Receipt</th>
-                <th scope="col">Member</th>
-                <th scope="col" className="cl-num">Amount</th>
-                <th scope="col">Method</th>
-                <th scope="col">Taken by</th>
-                <th scope="col">When</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payments.map((row) => (
-                <tr key={row.id}>
-                  <td className="tabular-nums">
-                    <Link href={`/payments/${row.id}`} className="text-clay">
-                      {/* A payment that is not paid has no receipt number, and
-                          saying so is more useful than an empty cell: it is the
-                          difference between money received and an intention to
-                          pay (PAY-008). */}
-                      {row.receipt_number ?? `${row.status} — no receipt`}
-                    </Link>
-                  </td>
-                  <td>
-                    {/* A way back to the member. Its absence is why a critic
-                        reached for the browser's Back button, which restored a
-                        stale form and silently dropped a second payment. */}
-                    <Link href={`/memberships/${row.member_id}`} className="text-ink">
-                      {row.members.full_name}
-                    </Link>
-                  </td>
-                  <td className="cl-num">
-                    {row.currency} {rupeesFromPaise(row.amount_paise)}
-                  </td>
-                  <td>{row.method.replace('_', ' ')}</td>
-                  <td>{row.staff?.full_name ?? '—'}</td>
-                  <td className="cl-muted tabular-nums">
-                    {deskTime(row.paid_at ?? row.created_at, timezone)}
-                  </td>
+        <div className="cl-section">
+          <div className="cl-ledger-wrap hidden sm:block">
+            <table className="cl-ledger">
+              <thead>
+                <tr>
+                  <th scope="col">Receipt</th>
+                  <th scope="col">Member</th>
+                  <th scope="col" className="cl-num">Amount</th>
+                  <th scope="col">Method</th>
+                  <th scope="col">Taken by</th>
+                  <th scope="col">When</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {payments.map((row) => (
+                  <tr key={row.id}>
+                    <td className="tabular-nums">
+                      <Link href={`/payments/${row.id}`}>
+                        {/* A payment that is not paid has no receipt number, and
+                            saying so is more useful than an empty cell: it is the
+                            difference between money received and an intention to
+                            pay (PAY-008). */}
+                        {receiptLabel(row)}
+                      </Link>
+                    </td>
+                    <td>
+                      {/* A way back to the member. Its absence is why a critic
+                          reached for the browser's Back button, which restored a
+                          stale form and silently dropped a second payment. */}
+                      <Link href={`/memberships/${row.member_id}`}>{row.members.full_name}</Link>
+                    </td>
+                    <td className="cl-num">{formatMoney(row.amount_paise, row.currency)}</td>
+                    <td>{humanize(row.method)}</td>
+                    <td>{row.staff?.full_name ?? '—'}</td>
+                    <td className="cl-muted tabular-nums">
+                      {formatDateTime(row.paid_at ?? row.created_at, timezone)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* The same payments as ruled rows for a phone: member and amount on
+              the first line, how, when and the receipt on the second. */}
+          <ul className="cl-rows sm:hidden">
+            {payments.map((row) => (
+              <li key={row.id} className="flex-nowrap">
+                <span>
+                  <Link href={`/memberships/${row.member_id}`} className="cl-row-title text-ink">
+                    {row.members.full_name}
+                  </Link>
+                  <span className="cl-row-meta tabular-nums">
+                    {humanize(row.method)} · {formatDateTime(row.paid_at ?? row.created_at, timezone)} ·{' '}
+                    <Link href={`/payments/${row.id}`} className="text-clay">
+                      {receiptLabel(row)}
+                    </Link>
+                  </span>
+                </span>
+                <span className="font-semibold tabular-nums">
+                  {formatMoney(row.amount_paise, row.currency)}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -137,4 +153,9 @@ export default async function PaymentsPage({
       )}
     </main>
   );
+}
+
+/** The receipt number, or why there is none. */
+function receiptLabel(row: { receipt_number: string | null; status: string }): string {
+  return row.receipt_number ?? `${humanize(row.status)} — no receipt`;
 }

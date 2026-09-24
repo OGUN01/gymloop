@@ -20,7 +20,7 @@ export default async function MemberHomePage() {
     <section className="member-hero"><h1>{memberGreeting(portal.gym.timezone)}, {firstName}</h1></section>
     <section className="member-week" aria-labelledby="member-week-heading">
       <h2 id="member-week-heading" className="member-week-figure"><span className="cl-display">{portal.weekVisits} of {portal.weeklyGoal}</span> <span>visits this week</span></h2>
-      <MemberWeekRhythm visits={portal.visits} timezone={portal.gym.timezone} />
+      <MemberWeekRhythm visits={portal.visits} timezone={portal.gym.timezone} weekStart={'weekStart' in portal ? portal.weekStart : undefined} />
       <p>{remaining === 0 ? 'Weekly goal complete. Nice work.' : `${remaining} more ${remaining === 1 ? 'visit' : 'visits'} to your weekly goal.`}</p>
     </section>
     <Link className="member-summary-row" href="/member/my-gym">

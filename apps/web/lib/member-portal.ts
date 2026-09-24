@@ -56,6 +56,7 @@ export async function loadMemberPortal() {
     membership: membership ? { status: membership.status, startsOn: membership.starts_on, endsOn: membership.ends_on, planName: typeof plan?.name === 'string' ? plan.name : 'Membership' } : null,
     visits,
     weekVisits,
+    weekStart: new Date(weekStart * MS_PER_DAY).toISOString().slice(0, 'YYYY-MM-DD'.length),
     weeklyGoal: memberRead.data.weekly_goal_visits ?? settings.weekly_goal_default,
     latestMessage: messageRead.data ? { id: messageRead.data.id, body: messageBody(messageRead.data.payload), sentAt: messageRead.data.sent_at, status: messageRead.data.status } : null,
   } as const;

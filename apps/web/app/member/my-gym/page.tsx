@@ -10,7 +10,7 @@ const icon = { 'aria-hidden': true, size: UI_TOKENS.icons.navigationSize, stroke
 export default async function MemberGymPage() {
   const portal = await loadMemberPortal();
   if (portal.errorMessage) return <main className="member-route member-portal"><h1 className="member-title">My gym</h1><p className="cl-alert" role="alert">{portal.errorMessage}</p></main>;
-  const address = [portal.gym.branchAddress, portal.gym.city, portal.gym.state].filter(Boolean).join(', ');
+  const address = [portal.gym.branchAddress, ...[portal.gym.city, portal.gym.state].filter((part) => part && !(portal.gym.branchAddress ?? '').includes(part))].filter(Boolean).join(', ');
   return <main className="member-route member-portal">
     <header>
       <p className="cl-eyebrow">My gym</p>
@@ -21,7 +21,7 @@ export default async function MemberGymPage() {
     <ul className="member-destination-list" aria-label="My gym details">
       <li className="member-summary-row member-summary-row--static">
         <CreditCard {...icon} />
-        <span><strong>Membership &amp; receipts</strong><small>{portal.membership ? <>{portal.membership.planName}{portal.membership.endsOn ? ` · ends ${memberShortDate(portal.membership.endsOn)}` : ''}</> : 'No membership is visible.'}</small>{portal.membership ? <StatusWord status={portal.membership.status} /> : null}</span>
+        <span><strong>Membership &amp; receipts</strong><small>{portal.membership ? <>{portal.membership.planName}{portal.membership.endsOn ? ` · ends ${memberShortDate(portal.membership.endsOn)}` : ''} · <StatusWord status={portal.membership.status} /></> : 'No membership is visible.'}</small></span>
       </li>
       <li><Link className="member-summary-row" href="/member/messages">
         <MessageSquareMore {...icon} />

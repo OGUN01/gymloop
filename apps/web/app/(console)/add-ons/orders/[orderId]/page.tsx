@@ -1,5 +1,5 @@
 import type { Database } from '@gymloop/db';
-import { PAYMENT_PAGE_SIZE_DEFAULT, rupeesFromPaise } from '@gymloop/shared';
+import { formatDateTime, formatMoney, PAYMENT_PAGE_SIZE_DEFAULT, rupeesFromPaise } from '@gymloop/shared';
 import Link from 'next/link';
 import { requireAudience } from '../../../../../lib/identity-session';
 import { UUID_PATTERN } from '../../../../../lib/keyset';
@@ -26,6 +26,9 @@ export default async function AddonOrderPage({ params, searchParams }: {
   if (!orderResult.data) return <main className="cl-page"><Link href="/add-ons" className="cl-back">← Back to add-ons</Link><div className="cl-page-header"><div><p className="cl-eyebrow">Add-on order</p><h1 className="cl-title">Order unavailable</h1><p className="cl-lede">This order was not found.</p></div></div></main>;
   const order = orderResult.data as unknown as AddonOrder;
   const timezone = gym.error ? 'Unavailable' : gym.data?.timezone ?? 'Unavailable';
+  // People read "10 Sep 2026, 2:30 pm"; an unusable timezone falls back to the raw gym-time label. A same-day slot names its day once.
+  const when = (iso: string) => { try { return formatDateTime(iso, timezone); } catch { return gymTimeLabel(iso, timezone); } };
+  const slot = (start: string, end: string) => { const [day, time] = when(end).split(', '); return when(start).startsWith(`${day},`) ? `${when(start)} – ${time}` : `${when(start)} – ${when(end)}`; };
   const localTime = gymTimeLabel(new Date().toISOString(), timezone);
   const today = localTime === 'Gym timezone unavailable' ? null : localTime.split(' ')[0] ?? null;
   const expired = Boolean(order.expires_on && today && today > order.expires_on);
@@ -81,7 +84,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
         <p className="cl-lede tabular-nums">{order.sale_snapshot?.name ?? order.addon_products?.name ?? 'Previous add-on'}{order.members?.phone ? ` · ${order.members.phone}` : ''}</p></div>
       <div className="cl-actions">
         <StatusWord status={order.status} />
-        {financeVisible && order.payment_id ? <Link href={`/payments/${order.payment_id}`} className="cl-btn">Open receipt {payment?.receipt_number ?? '(number not recorded)'}</Link> : null}
+        {financeVisible && order.payment_id ? <Link href={`/payments/${order.payment_id}`} className="cl-btn">Open receipt</Link> : null}
       </div>
     </div>
     {query.saved === '1' ? <p role="status" className="cl-alert" data-tone="ok">Confirmation recorded. Current order details are shown below.</p> : null}
@@ -107,11 +110,10 @@ export default async function AddonOrderPage({ params, searchParams }: {
         <div className="cl-metric"><dt className="cl-eyebrow">Available to book</dt><dd className="cl-metric-value">{availableSessions ?? 'Unavailable'}</dd></div>
         <div className="cl-metric"><dt className="cl-eyebrow">Purchased</dt><dd className="cl-metric-value">{order.sessions_total ?? 'Not recorded'}</dd></div>
       </dl>
-      {sessionResult.error || scheduledResult.error ? <AddonLoadError label="PT sessions and reservations" href={detailHref} /> : shownSessions.length === 0 ? <div className="cl-empty mt-4"><strong>No PT sessions recorded.</strong><p>Booked sessions for this order appear here.</p></div> :
+      {sessionResult.error || scheduledResult.error ? <AddonLoadError label="PT sessions and reservations" href={detailHref} /> : shownSessions.length === 0 ? <p className="cl-muted mt-4">No PT sessions recorded.</p> :
         <ul className="cl-rows mt-4">{shownSessions.map((session) => <li key={session.id}><div className="grid w-full min-w-0 gap-1">
-          <StatusWord status={session.status} />
-          <p className="cl-row-title">{session.members?.full_name ?? order.members?.full_name ?? 'Member not recorded'} · Trainer: {session.staff?.full_name ?? order.trainer?.full_name ?? 'Not recorded'}</p>
-          <p className="cl-row-meta tabular-nums">{gymTimeLabel(session.starts_at, timezone)} through {gymTimeLabel(session.ends_at, timezone)}</p>
+          <p className="cl-row-title tabular-nums">{slot(session.starts_at, session.ends_at)}</p>
+          <p className="flex flex-wrap items-center gap-x-3"><StatusWord status={session.status} /><span className="cl-row-meta">Trainer: {session.staff?.full_name ?? order.trainer?.full_name ?? 'Not recorded'}</span></p>
           {session.notes ? <p className="cl-row-meta break-words">{session.notes}</p> : null}
           {trainer && session.status === 'scheduled' ? <>
             <AddonSessionActions session={session} canComplete={deliverable && new Date(session.ends_at).getTime() <= Date.now()} />
@@ -127,17 +129,17 @@ export default async function AddonOrderPage({ params, searchParams }: {
       <p className="cl-muted text-sm">Completed returns record the money staff confirm was returned. Confirmation does not initiate a transfer.</p>
       {refundResult.error ? <AddonLoadError label="returns" href={detailHref} /> : <>
         <dl className="cl-dl mt-4">
-          <dt>Returned (completed only)</dt><dd className="font-semibold">{order.currency} {rupeesFromPaise(returned.toString())}</dd>
-          <dt>Refund requests pending</dt><dd>{order.currency} {rupeesFromPaise(pending.toString())}</dd>
-          <dt>Available for another refund request</dt><dd>{order.currency} {rupeesFromPaise((available > 0 ? available : BigInt(0)).toString())}</dd>
+          <dt>Returned (completed only)</dt><dd className="font-semibold">{formatMoney(returned.toString(), order.currency)}</dd>
+          <dt>Refund requests pending</dt><dd>{formatMoney(pending.toString(), order.currency)}</dd>
+          <dt>Available for another refund request</dt><dd>{formatMoney((available > 0 ? available : BigInt(0)).toString(), order.currency)}</dd>
         </dl>
         {!refunds.length ? <p className="cl-muted mt-3 text-sm">No refund requests or completed returns recorded.</p> : <ul className="cl-rows mt-4">{refunds.map((refund) => <li key={refund.id}><div className="grid w-full min-w-0 gap-1">
           <p className="cl-row-title tabular-nums">{refund.currency} {rupeesFromPaise(refund.amount_paise)} · {refund.kind} · {refund.status === 'completed' ? 'Returned · completed' : refund.status === 'requested' || refund.status === 'processing' ? 'Refund request pending' : 'Failed request · no returned money'}</p>
           <p className="cl-row-meta break-words">Reason: {refund.reason}</p>
-          {refund.status === 'completed' ? <p className="cl-row-meta">Recorded completion: {refund.processed_at ? gymTimeLabel(refund.processed_at, timezone) : 'Not recorded'}</p> : null}
+          {refund.status === 'completed' ? <p className="cl-row-meta">Recorded completion: {refund.processed_at ? when(refund.processed_at) : 'Not recorded'}</p> : null}
           {admin && (refund.status === 'requested' || refund.status === 'processing') && payment?.method && payment.method !== 'razorpay' && !refund.provider_refund_id ?
             <AddonConfirmForm path={`/api/refunds/${refund.id}/complete-addon`} method="POST" body={{ expectedAmountPaise: refund.amount_paise, expectedCurrency: refund.currency, expectedReason: refund.reason }}
-              danger label="Confirm money returned" description={`Confirm ${refund.currency} ${rupeesFromPaise(refund.amount_paise)} was actually returned for “${refund.reason}”. This records staff confirmation and does not initiate a transfer.`} /> : null}
+              danger label="Confirm money returned" description={`Confirm ${formatMoney(refund.amount_paise, refund.currency)} was actually returned for “${refund.reason}”. This records staff confirmation and does not initiate a transfer.`} /> : null}
         </div></li>)}</ul>}
         {admin && order.payment_id && available > 0 ? <Link href={`/payments/${order.payment_id}`} className="cl-btn mt-4">Open receipt to request a refund</Link> : null}
       </>}

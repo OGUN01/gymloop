@@ -1,5 +1,6 @@
 import { MutationForm } from '../../../preview-context';
-import { rupeesFromPaise } from '@gymloop/shared';
+import { formatDateTime, formatMoney, formatPhone, humanize, rupeesFromPaise } from '@gymloop/shared';
+import { StatusWord } from '../../../status-word';
 import { Constants } from '@gymloop/db';
 import Link from 'next/link';
 import { Alert } from '../../alert';
@@ -89,16 +90,17 @@ export default async function ReceiptPage({
 
   return (
     <main className="cl-page">
-      <div className="flex flex-wrap gap-6 print:hidden">
-        <Link href="/payments" className="cl-back">
+      {/* One way back: to the add-on order this payment settled, when there
+          is one, otherwise to the payments ledger. */}
+      {addonOrderId ? (
+        <Link href={`/add-ons/orders/${addonOrderId}`} className="cl-back print:hidden">
+          ← Back to add-on order
+        </Link>
+      ) : (
+        <Link href="/payments" className="cl-back print:hidden">
           ← All payments
         </Link>
-        {addonOrderId ? (
-          <Link href={`/add-ons/orders/${addonOrderId}`} className="cl-back">
-            ← Back to add-on order
-          </Link>
-        ) : null}
-      </div>
+      )}
 
       <article className="cl-panel">
         <header className="flex flex-wrap items-end justify-between gap-6 border-b border-rule pb-6">
@@ -106,7 +108,7 @@ export default async function ReceiptPage({
             <p className="cl-eyebrow">{gym.gym_code}</p>
             <h1 className="cl-title">{gym.name}</h1>
           </div>
-          <div className="text-right">
+          <div className="sm:text-right">
             <p className="cl-eyebrow">Receipt</p>
             <p className="text-lg font-semibold tabular-nums">
               {/* No receipt number means this payment is not `paid`. Saying so
@@ -120,22 +122,22 @@ export default async function ReceiptPage({
         <dl className="cl-dl mt-6">
           <Row label="Amount">
             <span className="cl-metric-value">
-              {payment.currency} {rupeesFromPaise(payment.amount_paise)}
+              {formatMoney(payment.amount_paise, payment.currency)}
             </span>
           </Row>
           <Row label="Member">
             {payment.members.full_name}
-            <span className="cl-muted ml-2 tabular-nums">{payment.members.phone}</span>
+            <span className="cl-muted ml-2 tabular-nums">{formatPhone(payment.members.phone)}</span>
           </Row>
-          <Row label="Method">{payment.method.replace('_', ' ')}</Row>
-          <Row label="Date">{deskTime(takenAt, gym.timezone)}</Row>
+          <Row label="Method">{humanize(payment.method)}</Row>
+          <Row label="Date">{formatDateTime(takenAt, gym.timezone)}</Row>
           <Row label="Taken by">{payment.staff?.full_name ?? '—'}</Row>
           {payment.notes === null ? null : <Row label="Note">{payment.notes}</Row>}
         </dl>
 
         {ARRIVED.has(payment.status) ? null : (
           <p className="cl-alert mt-6" data-tone="warn">
-            This payment is <strong>{payment.status}</strong>. It is not a record of money received.
+            This payment is <strong>{humanize(payment.status).toLowerCase()}</strong>. It is not a record of money received.
           </p>
         )}
 
@@ -161,9 +163,7 @@ export default async function ReceiptPage({
         </div>
 
         {refunds.length === 0 ? (
-          <div className="cl-empty">
-            <strong>Nothing has been sent back.</strong>
-          </div>
+          <p className="cl-muted">Nothing has been sent back.</p>
         ) : (
           <ul className="cl-rows">
             {refunds.map((row) => {
@@ -172,16 +172,16 @@ export default async function ReceiptPage({
               return <li key={row.id}>
                 <span>
                   <span className="cl-row-title tabular-nums">
-                    {row.currency} {rupeesFromPaise(row.amount_paise)}
+                    {formatMoney(row.amount_paise, row.currency)}
                   </span>
                   <span className="cl-row-meta">
-                    {row.kind} — {row.reason}
+                    {humanize(row.kind)} — {row.reason}
                   </span>
                 </span>
                 <span className="cl-row-meta text-right">
                   {row.staff?.full_name ?? '—'}
                   <br />
-                  {completed ? 'Completed at' : 'Requested at'} {recordedAt ? deskTime(recordedAt, gym.timezone) : 'not recorded'} · {row.status}
+                  {completed ? 'Completed at' : 'Requested at'} {recordedAt ? deskTime(recordedAt, gym.timezone) : 'not recorded'} · <StatusWord status={row.status} />
                 </span>
               </li>;
             })}
@@ -214,7 +214,7 @@ export default async function ReceiptPage({
                 <select name="kind" required className="cl-input">
                   {Constants.public.Enums.refund_kind.map((kind) => (
                     <option key={kind} value={kind}>
-                      {kind}
+                      {humanize(kind)}
                     </option>
                   ))}
                 </select>

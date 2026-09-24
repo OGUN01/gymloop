@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { ArrowLeft, BadgeCheck, ChevronRight, Settings, X } from 'lucide-react';
-import { AVATAR_INITIALS_MAX, UI_TOKENS } from '@gymloop/shared';
+import { AVATAR_INITIALS_MAX, formatPhone, UI_TOKENS } from '@gymloop/shared';
 import { useTheme } from 'next-themes';
 import { useEffect, useRef, useState } from 'react';
 import { ThemeControl } from '../theme-provider';
@@ -29,6 +29,7 @@ export default function YouSettings({ profile, membershipSummary }: { profile: P
   const appearanceSummary = !hasMounted ? 'Loading appearance' : theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System';
   const contactSummary = profile.email ?? profile.phone ?? 'Available after sign-in';
   const gymSummary = `${profile.gymName} · ${profile.gymCode}`;
+  const personalSummary = profile.phone ? formatPhone(profile.phone) : profile.email ?? 'Available after sign-in';
   const initials = profile.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('');
   const openAppearance = () => { setAppearanceOpen(true); setSettingsOpen(true); };
   return <>
@@ -44,9 +45,9 @@ export default function YouSettings({ profile, membershipSummary }: { profile: P
     </section>
     <h2 className="cl-eyebrow member-eyebrow">Account</h2>
     <ul className="member-account-list" aria-label="Account">
-      <li aria-label={`Personal details, ${contactSummary}`}><span className="member-account-row"><strong>Personal details</strong><small>{contactSummary}</small></span></li>
+      <li aria-label={`Personal details, ${personalSummary}`}><span className="member-account-row"><strong>Personal details</strong><small>{personalSummary}</small></span></li>
       <li aria-label={`Membership, ${membershipSummary}`}><Link className="member-account-row" href="/member/my-gym"><strong>Membership</strong><small>{membershipSummary}</small><ChevronRight {...small} /></Link></li>
-      <li aria-label={`Gym, ${gymSummary}`}><Link className="member-account-row" href="/member/my-gym"><strong>Gym</strong><small>{gymSummary}</small><ChevronRight {...small} /></Link></li>
+      <li aria-label={`Gym, ${gymSummary}`}><Link className="member-account-row" href="/member/my-gym"><strong>Gym</strong><small>Code {profile.gymCode}</small><ChevronRight {...small} /></Link></li>
       <li aria-label={`Appearance, ${appearanceSummary}`}><button type="button" className="member-account-row" onClick={openAppearance}><strong>Appearance</strong><small>{appearanceSummary}</small><ChevronRight {...small} /></button></li>
     </ul>
     {settingsOpen ? <div className="member-sheet-backdrop" role="presentation" onClick={() => setSettingsOpen(false)}><section className="member-settings-sheet" role="dialog" aria-modal="true" aria-labelledby="member-settings-title" onClick={(event) => event.stopPropagation()}>

@@ -1,7 +1,7 @@
 'use client';
 
 import { Constants } from '@gymloop/db';
-import { gymWallClockFormatter } from '@gymloop/shared';
+import { gymWallClockFormatter, humanize } from '@gymloop/shared';
 import { useState, useRef, type FormEvent } from 'react';
 import Link from 'next/link';
 import { Field, inputClass } from '../field';
@@ -46,12 +46,6 @@ const LEAD_ERRORS: Record<string, string> = {
   link_required: 'An existing member already owns this phone. Link the lead to that member explicitly.',
   operation_failed: 'The change could not be saved. Nothing was written.',
 };
-
-/** A vocabulary value as a sentence-case word: `trial_scheduled` → "Trial scheduled". */
-function say(value: string): string {
-  const words = value.replaceAll('_', ' ');
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
 
 function leadProblemText(code: string): string {
   return Object.hasOwn(LEAD_ERRORS, code)
@@ -128,7 +122,7 @@ function useLeadCommand() {
       onRefused?.(payload.error ?? null);
     } catch {
       setUncertain(true);
-      setProblem('The connection was interrupted. The outcome is uncertain. Retry the same change — the same request key is reused.');
+      setProblem('The connection was interrupted. The outcome is uncertain. Retry the same change — it won’t be saved twice.');
     } finally {
       setPending(false);
     }
@@ -188,21 +182,29 @@ function LeadFactFields({ branches, staff, lead, emailNotes }: {
   branches: BranchChoice[]; staff: StaffChoice[]; lead?: LeadListRow; emailNotes?: { email: string; notes: string } | undefined;
 }) {
   return <>
+    {/* Rows pair fields of equal height: the two hinted fields share a row, so
+        every row's labels and inputs line up. */}
+    <div className="cl-form-row">
+    <Field label="Full name"><input name="fullName" defaultValue={lead?.fullName} required className={inputClass} /></Field>
     <Field label="Branch"><select name="branchId" defaultValue={lead?.branchId} required className={inputClass}>
       {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
     </select></Field>
-    <Field label="Full name"><input name="fullName" defaultValue={lead?.fullName} required className={inputClass} /></Field>
+    </div>
+    <div className="cl-form-row">
     {/* The pattern is byte-identical to the database's `leads_phone_format_chk`,
         so the browser refuses exactly the phones the database refuses. */}
-    <Field label="Phone (E.164, e.g. +919876543210)"><input name="phone" defaultValue={lead?.phone} required inputMode="tel" pattern="\+[1-9][0-9]{7,14}" className={inputClass} /></Field>
-    <Field label="Email (optional)"><input name="email" type="email" defaultValue={emailNotes?.email ?? ''} className={inputClass} /></Field>
+    <label className="cl-field"><span>Phone</span><input name="phone" defaultValue={lead?.phone} required inputMode="tel" pattern="\+[1-9][0-9]{7,14}" placeholder="+919876543210" className={inputClass} /><small>Include +91, no spaces</small></label>
+    <label className="cl-field"><span>Email</span><input name="email" type="email" defaultValue={emailNotes?.email ?? ''} className={inputClass} /><small>Optional</small></label>
+    </div>
+    <div className="cl-form-row">
     <Field label="Source"><select name="source" defaultValue={lead?.source} required className={inputClass}>
-      {Constants.public.Enums.lead_source.map((source) => <option key={source} value={source}>{say(source)}</option>)}
+      {Constants.public.Enums.lead_source.map((source) => <option key={source} value={source}>{humanize(source)}</option>)}
     </select></Field>
     <Field label="Assigned staff (optional)"><select name="assignedToStaffId" defaultValue={lead?.assignedToStaffId ?? ''} className={inputClass}>
       <option value="">Unassigned</option>
       {staff.map((person) => <option key={person.id} value={person.id}>{person.fullName}</option>)}
     </select></Field>
+    </div>
     <Field label="Notes (optional)"><textarea name="notes" defaultValue={emailNotes?.notes ?? ''} className={inputClass} /></Field>
   </>;
 }
@@ -288,14 +290,13 @@ export function LeadConvertDialog({ leadId, revision, fullName }: { leadId: stri
       if (Object.hasOwn(LEAD_ERRORS, code)) keys.current[effective] = null;
       setProblem(leadProblemText(code));
     } catch {
-      setProblem('The connection was interrupted. The outcome is uncertain. Retry the conversion — the same request key is reused.');
+      setProblem('The connection was interrupted. The outcome is uncertain. Retry the conversion — it won’t create a second member.');
     } finally {
       setPending(false);
     }
   }
 
   return <form method="post" onSubmit={submit} className="cl-form mt-2 mb-2">
-    <p className="cl-muted text-sm">Convert {fullName} to a member. One request key per decision — an uncertain retry replays the original conversion, never a second member.</p>
     {notice !== '' ? <p role="status" className="cl-alert" data-tone="warn">{notice}</p> : null}
     {member !== null ? <p className="text-sm font-medium">Existing member: {member.fullName} · <span className="tabular-nums">{member.phone}</span> · <StatusWord status={member.status} /></p> : null}
     {problem !== '' ? <Alert>{problem}</Alert> : null}
@@ -332,9 +333,7 @@ export function LeadEnquiryForm({ branches, staff }: { branches: BranchChoice[];
     <p className="cl-muted text-sm">A new lead starts at the New stage with you as the acting staff member.</p>
     {command.problem !== '' ? <div className="mt-4"><Alert>{command.problem}</Alert></div> : null}
     <form method="post" onSubmit={submit} className="cl-form mt-4">
-      <div className="cl-form-row">
-        <LeadFactFields branches={branches} staff={staff} />
-      </div>
+      <LeadFactFields branches={branches} staff={staff} />
       <div>
         <button type="submit" disabled={command.pending} className="cl-btn cl-btn--primary">
           {command.pending ? 'Recording…' : 'Record enquiry'}
@@ -400,7 +399,7 @@ export function LeadStageForm({ leadId, revision, stage, timezone, trialAt }: {
   return <form method="post" onSubmit={submit} className="cl-form">
     <div className="cl-form-row">
       <Field label="Move to"><select name="toStage" value={toStage} onChange={(event) => setToStage(event.target.value as LeadStage)} className={inputClass}>
-        {options.map((option) => <option key={option} value={option}>{say(option)}</option>)}
+        {options.map((option) => <option key={option} value={option}>{humanize(option)}</option>)}
       </select></Field>
       {needsTrial
         ? <Field label="Trial time (gym-local)"><input name="trialLocal" type="datetime-local" required defaultValue={prefill} className={inputClass} /></Field>
@@ -408,9 +407,9 @@ export function LeadStageForm({ leadId, revision, stage, timezone, trialAt }: {
       {toStage === 'lost' ? <Field label="Loss reason"><input name="lostReason" required className={inputClass} /></Field> : null}
     </div>
     {needsTrial && trialAt !== null
-      ? <p className="cl-hint">Currently scheduled: {deskTime(trialAt, timezone)} ({timezone}). The field holds that same time — correct it only if the plan changed.</p>
+      ? <p className="cl-hint">Currently scheduled: {deskTime(trialAt, timezone)}. Change the time only if the plan changed.</p>
       : null}
-    <p className="cl-hint">Gym timezone: {timezone}. A trial time that does not exist or is ambiguous in that zone is refused, never shifted.</p>
+    <p className="cl-hint">Times are the gym's local time.</p>
     {command.problem !== '' ? <Alert>{command.problem}</Alert> : null}
     <div>
       <button type="submit" disabled={command.pending} className="cl-btn">
@@ -449,10 +448,8 @@ export function LeadEditForm({ leadId, revision, lead, branches, staff, emailNot
   }
 
   return <form method="post" onSubmit={submit} className="cl-form">
-    <div className="cl-form-row">
-      <LeadFactFields branches={branches} staff={staff} lead={lead} emailNotes={emailNotes} />
-    </div>
-    <p className="cl-hint">The lead's current email and notes are shown as they stand. A blank email or notes field sets it to none — submitting clears it. Everything is saved against the revision you loaded; a change made meanwhile is refused as a conflict, and the form then adopts the latest revision for one more submission.</p>
+    <LeadFactFields branches={branches} staff={staff} lead={lead} emailNotes={emailNotes} />
+    <p className="cl-hint">Clearing email or notes removes them when you save.</p>
     {command.problem !== '' ? <Alert>{command.problem}</Alert> : null}
     <div>
       <button type="submit" disabled={command.pending} className="cl-btn">

@@ -1,9 +1,11 @@
 import type { Database } from '@gymloop/db';
-import { MEMBER_PAGE_SIZE_DEFAULT, rupeesFromPaise } from '@gymloop/shared';
+import { formatDateTime, formatMoney, humanize, MEMBER_PAGE_SIZE_DEFAULT, UI_TOKENS } from '@gymloop/shared';
+import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { requireAudience } from '../../../lib/identity-session';
 import { UUID_PATTERN } from '../../../lib/keyset';
 import { gymTimeLabel } from '../../../lib/time';
+import { StatusWord } from '../../status-word';
 import { ADDON_OFFER_COLUMNS, ADDON_ORDER_COLUMNS, ADDON_SESSION_COLUMNS, AddonLoadError, AddonOfferDetails, AddonOrderFacts,
   offerUnavailable, type AddonOffer, type AddonOrder, type AddonSession } from '../../(console)/add-ons/display';
 
@@ -39,6 +41,7 @@ export default async function MemberAddOnsPage({ searchParams = Promise.resolve(
   const offers = ((offerResult.data ?? []) as unknown as AddonOffer[]).map(withTrainerName);
   const orders = (orderResult.data ?? []) as unknown as AddonOrder[];
   const timezone = gym.error ? 'Unavailable' : gym.data?.timezone ?? 'Unavailable';
+  const when = (iso: string) => { try { return formatDateTime(iso, timezone); } catch { return gymTimeLabel(iso, timezone); } };
   let selectedOrder = orders.find((order) => order.id === params.order);
   let selectedOffer = offers.find((offer) => offer.id === params.offer);
   if (!selectedOrder && params.order && UUID_PATTERN.test(params.order)) {
@@ -69,9 +72,9 @@ export default async function MemberAddOnsPage({ searchParams = Promise.resolve(
     return `?${nextParams}#order-history`;
   };
   return <main className="member-route member-portal member-addons">
-    <header><Link href="/member/my-gym" className="cl-back">← My gym</Link><h1 className="member-title">Add-ons</h1>
+    <header><Link href="/member/my-gym" className="cl-back"><ArrowLeft aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />My gym</Link><h1 className="member-title">Add-ons</h1>
     <p className="cl-lede">Optional offers at your gym, and the terms and usage of what you bought.</p></header>
-    <nav className="member-jump" aria-label="Your add-ons"><a href="#offers" className="cl-btn cl-btn--small">Available offers</a><a href="#orders" className="cl-btn cl-btn--small">Your orders</a></nav>
+    <nav className="member-jump" aria-label="Your add-ons"><a href="#offers" className="cl-btn cl-btn--small cl-btn--quiet">Available offers</a><a href="#orders" className="cl-btn cl-btn--small cl-btn--quiet">Your orders</a></nav>
     <section id="offers" aria-labelledby="offers-heading">
       <h2 id="offers-heading" className="cl-eyebrow member-eyebrow">Available at your gym</h2>
       {selectedOffer ? <aside className="cl-alert member-selected-offer" data-tone="info"><h3 className="cl-row-title">Your selected offer: {selectedOffer.name}</h3><p>Show this offer to the front desk. Selecting it has created no order or payment. The desk will review the current price and availability with you.</p><Link href="/member/add-ons#offers" className="cl-btn cl-btn--quiet">Clear selection</Link></aside> : null}
@@ -98,16 +101,16 @@ export default async function MemberAddOnsPage({ searchParams = Promise.resolve(
       {selectedOrder.sessions_total != null ? <p className="member-usage">Used: {selectedOrder.sessions_used} · Scheduled: {reserved ?? 'Unavailable'} · Available to book: {reserved == null ? 'Unavailable' : selectedOrder.sessions_total - selectedOrder.sessions_used - reserved} · Purchased: {selectedOrder.sessions_total}</p> : null}
       {sessions?.error || reservations?.error ? <AddonLoadError label="your sessions" href={`?order=${selectedOrder.id}#order-history`} /> : !sessions?.data?.length ? <p className="cl-muted">No sessions recorded for this order.</p> :
         <ul className="cl-rows">{shownSessions.map((session) => <li key={session.id}>
-          <p className="cl-row-title">{session.status.replaceAll('_', ' ')} · {session.staff?.full_name ?? 'Trainer assigned by the gym'}</p>
-          <p>{gymTimeLabel(session.starts_at, timezone)} through {gymTimeLabel(session.ends_at, timezone)}</p>
+          <p className="cl-row-title tabular-nums">{when(session.starts_at)} – {when(session.ends_at)}</p>
+          <p className="flex flex-wrap items-center gap-x-3"><StatusWord status={session.status} /><span className="cl-muted">{session.staff?.full_name ?? 'Trainer assigned by the gym'}</span></p>
         </li>)}</ul>}
       {(sessions?.data?.length ?? 0) > MEMBER_PAGE_SIZE_DEFAULT ? <Link href={`?${new URLSearchParams({ ...params, sessionAfter: shownSessions.at(-1)?.id ?? '' })}#order-history`} className="cl-btn cl-btn--quiet">More session history</Link> : null}
       <h3 className="cl-eyebrow member-eyebrow">Recorded completed returns</h3>
       <p className="cl-muted">These are recorded completed refunds and reversals for this order.</p>
       {returns?.error || !returns?.data || returns.data.orderId !== selectedOrder.id ? <AddonLoadError label="completed returns" href={`?order=${selectedOrder.id}#order-history`} /> : !returns.data.returns.length ? <p className="cl-muted">No completed returns recorded.</p> :
         <ul className="cl-rows">{returns.data.returns.map((row) => <li key={row.refundId}>
-          <p className="cl-row-title tabular-nums">{row.currency} {rupeesFromPaise(row.amountPaise)} · {row.kind} completed</p>
-          <p>Recorded completion: {row.processedAt ? gymTimeLabel(row.processedAt, timezone) : 'Not recorded'}</p>
+          <p className="cl-row-title tabular-nums">{formatMoney(row.amountPaise, row.currency)} · {humanize(row.kind)} completed</p>
+          <p>Recorded completion: {row.processedAt ? when(row.processedAt) : 'Not recorded'}</p>
         </li>)}</ul>}
     </section> : params.order ? <p role="alert" className="cl-alert">That order is unavailable on this page. Choose one of your orders above.</p> : null}
   </main>;

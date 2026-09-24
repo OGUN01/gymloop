@@ -8,11 +8,11 @@ const icon = { 'aria-hidden': true, size: UI_TOKENS.icons.navigationSize, stroke
 
 export default async function MemberCheckInPage() {
   const portal = await loadMemberPortal();
-  if (portal.errorMessage) return <main className="member-route member-portal"><h1 className="member-title">Check in</h1><p className="cl-alert" role="alert">{portal.errorMessage}</p></main>;
+  if (portal.errorMessage) return <main className="member-route member-portal"><h1 className="member-title">Check-in</h1><p className="cl-alert" role="alert">{portal.errorMessage}</p></main>;
   return <main className="member-route member-portal">
     <header>
       <p className="cl-eyebrow">{memberGymName(portal.gym)} · {portal.gym.gym_code}</p>
-      <h1 className="member-title">Check in</h1>
+      <h1 className="member-title">Check-in</h1>
       <p className="cl-lede">Check-in happens in the Gymloop app on your phone. This page does not record attendance.</p>
     </header>
     <section aria-labelledby="how-heading">

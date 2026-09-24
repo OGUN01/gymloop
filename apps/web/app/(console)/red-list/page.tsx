@@ -3,7 +3,7 @@ import { Constants } from '@gymloop/db';
 import { RED_LIST_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
 import Link from 'next/link';
 import { Alert } from '../alert';
-import { AVATAR_INITIALS_MAX } from '@gymloop/shared';
+import { AVATAR_INITIALS_MAX, formatPhone } from '@gymloop/shared';
 import { loadRedList } from '../../../lib/red-list';
 
 /** A vocabulary value as people say it: "no_response" → "No response", "whatsapp" → "WhatsApp". */
@@ -62,7 +62,7 @@ export default async function RedListPage({
                   <span className="follow-up-initial" aria-hidden="true">{(row.member_name ?? '').split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('')}</span>
                   <div className="follow-up-member-details">
                     <Link href={`/memberships/${row.member_id}`} className="follow-up-member-name">{row.member_name}</Link>
-                    <span className="follow-up-member-phone">{row.member_phone}</span>
+                    <a className="follow-up-member-phone" href={`tel:${row.member_phone ?? ''}`}>{formatPhone(row.member_phone ?? '')}</a>
                   </div>
                 </div>
                 <div className="follow-up-attendance follow-up-absence">
@@ -79,7 +79,8 @@ export default async function RedListPage({
                   <label className="follow-up-field"><span>Channel</span><select name="channel" required className="follow-up-control">
                     {Constants.public.Enums.contact_channel.map((channel) => <option key={channel} value={channel}>{say(channel)}</option>)}
                   </select></label>
-                  <label className="follow-up-field"><span>Outcome</span><select name="outcome" required className="follow-up-control">
+                  <label className="follow-up-field"><span>Outcome</span><select name="outcome" required defaultValue="" className="follow-up-control">
+                    <option value="" disabled>Select outcome</option>
                     {Constants.public.Enums.follow_up_outcome.map((outcome) => <option key={outcome} value={outcome}>{say(outcome)}</option>)}
                   </select></label>
                   <label className="follow-up-field follow-up-note-field"><span>Note</span><input type="text" name="notes" placeholder="What they said" className="follow-up-control" /></label>

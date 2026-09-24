@@ -1,4 +1,4 @@
-import { MEMBER_PAGE_SIZE_DEFAULT, PAYMENT_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
+import { formatDateTime, MEMBER_PAGE_SIZE_DEFAULT, PAYMENT_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
 import Link from 'next/link';
 import { requireAudience } from '../../../lib/identity-session';
 import { UUID_PATTERN } from '../../../lib/keyset';
@@ -33,6 +33,9 @@ export default async function AddOnsPage({ searchParams }: {
   const orders = (orderResult.data ?? []) as unknown as AddonOrder[];
   const sessions = (sessionResult.data ?? []) as unknown as AddonSession[];
   const timezone = gym.error ? 'Unavailable' : gym.data?.timezone ?? 'Unavailable';
+  // People read "10 Sep 2026, 2:30 pm"; an unusable timezone falls back to the raw gym-time label. A same-day slot names its day once.
+  const when = (iso: string) => { try { return formatDateTime(iso, timezone); } catch { return gymTimeLabel(iso, timezone); } };
+  const slot = (start: string, end: string) => { const [day, time] = when(end).split(', '); return when(start).startsWith(`${day},`) ? `${when(start)} – ${time}` : `${when(start)} – ${when(end)}`; };
   const pageOffers = offers.slice(0, MEMBER_PAGE_SIZE_DEFAULT);
   const pageOrders = orders.slice(0, PAYMENT_PAGE_SIZE_DEFAULT);
   const pageSessions = sessions.slice(0, PAYMENT_PAGE_SIZE_DEFAULT);
@@ -41,12 +44,9 @@ export default async function AddOnsPage({ searchParams }: {
   return <main className="cl-page">
     <div className="cl-page-header">
       <div><p className="cl-eyebrow">Sell and deliver</p><h1 className="cl-title">Add-ons</h1><p className="cl-lede">Sell an optional offer, deliver it and follow the same order through to returned money.</p></div>
-      <div className="cl-actions">
-        {frontOffice ? <a href="#sale" className="cl-btn cl-btn--accent">New sale</a> : null}
-        <Link href="/console" className="cl-btn">Members</Link>
-      </div>
+      {frontOffice ? <div className="cl-actions"><a href="#sale" className="cl-btn cl-btn--primary">New sale</a></div> : null}
     </div>
-    <nav aria-label="Add-on workspace" className="mt-4 flex flex-wrap gap-2">
+    <nav aria-label="Add-on workspace" className="mt-2 flex flex-wrap gap-x-4">
       <a href="#catalogue" className="cl-btn cl-btn--small cl-btn--quiet">Catalogue</a>
       <a href="#orders" className="cl-btn cl-btn--small cl-btn--quiet">Orders</a>
       <a href="#sessions" className="cl-btn cl-btn--small cl-btn--quiet">PT sessions</a>
@@ -55,7 +55,7 @@ export default async function AddOnsPage({ searchParams }: {
     {gym.error ? <AddonLoadError label="gym timezone" href="/add-ons" /> : null}
     <section id="catalogue" aria-labelledby="catalogue-heading" className="cl-section">
       <div className="cl-section-head"><h2 id="catalogue-heading" className="cl-section-title">Catalogue</h2></div>
-      {offerResult.error ? <AddonLoadError label="offers" href="/add-ons#catalogue" /> : !pageOffers.length ? <div className="cl-empty"><strong>No offers yet.</strong><p>{admin ? 'Create a PT package, diet plan or product below.' : 'An owner or manager adds offers to the catalogue.'}</p></div> :
+      {offerResult.error ? <AddonLoadError label="offers" href="/add-ons#catalogue" /> : !pageOffers.length ? <p className="cl-muted">No offers yet. {admin ? 'Create a PT package, diet plan or product below.' : 'An owner or manager adds offers to the catalogue.'}</p> :
         <ul className="cl-rows">{pageOffers.map((offer) => <li key={offer.id}><article className="min-w-0 w-full"><AddonOfferDetails offer={offer} /></article></li>)}</ul>}
       {offers.length > MEMBER_PAGE_SIZE_DEFAULT ? <Link className="cl-btn cl-btn--quiet mt-2" href={next('offerAfter', pageOffers.at(-1)?.id ?? '', 'catalogue')}>More offers</Link> : null}
       {admin && !offerResult.error ? trainers.error ? <AddonLoadError label="trainers for catalogue editing" href="/add-ons#catalogue" /> :
@@ -65,14 +65,14 @@ export default async function AddOnsPage({ searchParams }: {
       <AddonSaleForm offers={pageOffers} timezone={timezone} members={roster?.members ?? []} nextCursor={roster?.nextCursor ?? null} /> : null}
     <section id="orders" aria-labelledby="orders-heading" className="cl-section">
       <div className="cl-section-head"><h2 id="orders-heading" className="cl-section-title">Orders</h2></div>
-      {orderResult.error ? <AddonLoadError label="orders" href="/add-ons#orders" /> : !pageOrders.length ? <div className="cl-empty"><strong>No add-on orders recorded yet.</strong><p>Sales recorded at the desk appear here.</p></div> :
+      {orderResult.error ? <AddonLoadError label="orders" href="/add-ons#orders" /> : !pageOrders.length ? <p className="cl-muted">No add-on orders recorded yet.</p> :
         <div className="cl-ledger-wrap"><table className="cl-ledger cl-ledger-stack">
           <thead><tr><th scope="col">Add-on</th><th scope="col">Member</th><th scope="col">Fulfilment</th><th scope="col">Accepted</th></tr></thead>
           <tbody>{pageOrders.map((order) => <tr key={order.id}>
             <td><Link href={`/add-ons/orders/${order.id}`} className="cl-row-title inline-flex min-h-11 items-center underline">{order.sale_snapshot?.name ?? 'Historical add-on order'}</Link></td>
             <td>{order.members?.full_name ?? 'Member not recorded'}</td>
             <td><StatusWord status={order.status} /></td>
-            <td className="cl-muted tabular-nums">{order.sold_at ? gymTimeLabel(order.sold_at, timezone) : 'Acceptance date not recorded'}</td>
+            <td className="cl-muted tabular-nums">{order.sold_at ? when(order.sold_at) : 'Acceptance date not recorded'}</td>
           </tr>)}</tbody>
         </table></div>}
       {orders.length > PAYMENT_PAGE_SIZE_DEFAULT ? <Link href={next('orderAfter', pageOrders.at(-1)?.id ?? '', 'orders')} className="cl-btn cl-btn--quiet mt-2">More orders</Link> : null}
@@ -80,12 +80,11 @@ export default async function AddOnsPage({ searchParams }: {
     <section id="sessions" aria-labelledby="sessions-heading" className="cl-section">
       <div className="cl-section-head"><h2 id="sessions-heading" className="cl-section-title">PT sessions</h2></div>
       <p className="cl-muted mb-3">Open an order to book or finish a session. Only its assigned trainer can manage later sessions.</p>
-      {sessionResult.error ? <AddonLoadError label="PT sessions" href="/add-ons#sessions" /> : !pageSessions.length ? <div className="cl-empty"><strong>No PT sessions recorded yet.</strong><p>Sessions booked on a PT package order appear here.</p></div> :
+      {sessionResult.error ? <AddonLoadError label="PT sessions" href="/add-ons#sessions" /> : !pageSessions.length ? <p className="cl-muted">No PT sessions recorded yet.</p> :
         <ul className="cl-rows">{pageSessions.map((session) => <li key={session.id}>
           <span>
-            <span className="cl-row-title">{session.members?.full_name ?? 'Member not recorded'}</span>
-            <span className="cl-row-meta">Trainer: {session.staff?.full_name ?? 'Not recorded'}</span>
-            <span className="cl-row-meta tabular-nums">{gymTimeLabel(session.starts_at, timezone)} through {gymTimeLabel(session.ends_at, timezone)}</span>
+            <span className="cl-row-title tabular-nums">{slot(session.starts_at, session.ends_at)}</span>
+            <span className="cl-row-meta">{session.members?.full_name ?? 'Member not recorded'} · Trainer: {session.staff?.full_name ?? 'Not recorded'}</span>
           </span>
           <span className="flex flex-wrap items-center gap-4">
             <StatusWord status={session.status} />

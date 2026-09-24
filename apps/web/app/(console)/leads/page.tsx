@@ -1,7 +1,7 @@
 import { Constants } from '@gymloop/db';
 import Link from 'next/link';
 import { loadLeads, type LeadListRow } from '../../../lib/leads';
-import { deskTime } from '../../../lib/time';
+import { formatDateTime, humanize } from '@gymloop/shared';
 import { Field, inputClass } from '../field';
 import { Alert } from '../alert';
 import { StatusWord } from '../../status-word';
@@ -17,12 +17,6 @@ import { LeadConvertDialog, LeadEditForm, LeadEnquiryForm, LeadStageForm } from 
 
 type SearchParams = Promise<Record<string, string | undefined>>;
 
-/** A vocabulary value as a sentence-case word: `walk_in` → "Walk in". */
-function say(value: string): string {
-  const words = value.replaceAll('_', ' ');
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
 /**
  * The next action a row's stage implies, in the desk's words. The labels are
  * the contract's, verbatim — they are what the front desk is trained on, and
@@ -34,7 +28,7 @@ function nextActionText(row: LeadListRow, timezone: string, now: number): string
     case 'contacted': return 'Schedule trial';
     case 'trial_scheduled':
       if (row.trialAt !== null && !Number.isNaN(Date.parse(row.trialAt)) && Date.parse(row.trialAt) > now) {
-        return `Trial at ${deskTime(row.trialAt, timezone)}`;
+        return `Trial at ${formatDateTime(row.trialAt, timezone)}`;
       }
       return 'Record trial outcome';
     case 'trial_done': return 'Convert or mark lost';
@@ -61,13 +55,13 @@ function filterSpecs(screen: Awaited<ReturnType<typeof loadLeads>>): FilterSpec[
       name: 'stage',
       label: 'Stage',
       allLabel: 'All stages',
-      options: Constants.public.Enums.lead_stage.map((stage) => ({ value: stage, label: say(stage) })),
+      options: Constants.public.Enums.lead_stage.map((stage) => ({ value: stage, label: humanize(stage) })),
     },
     {
       name: 'source',
       label: 'Source',
       allLabel: 'All sources',
-      options: Constants.public.Enums.lead_source.map((source) => ({ value: source, label: say(source) })),
+      options: Constants.public.Enums.lead_source.map((source) => ({ value: source, label: humanize(source) })),
     },
     {
       name: 'assignee',
@@ -109,9 +103,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
         <h1 className="cl-title">Leads</h1>
         <p className="cl-lede">Every enquiry from first contact to a converted member or a recorded loss.</p>
       </div>
-      <div className="cl-actions">
-        <Link href="/console" className="cl-btn">Members</Link>
-      </div>
     </div>
 
     <form method="get" action="/leads" className="cl-form cl-section">
@@ -131,21 +122,19 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
 
     {screen.errorMessage === null ? <section aria-labelledby="counts-heading" className="cl-section">
       <div className="cl-section-head">
-        <h2 id="counts-heading" className="cl-section-title">Counts</h2>
+        <h2 id="counts-heading" className="cl-eyebrow">Within current filters</h2>
         {screen.asOf !== null
-          ? <p className="cl-muted text-sm">Snapshot as of {deskTime(screen.asOf, screen.timezone)} ({screen.timezone}).</p>
+          ? <p className="cl-muted text-sm">Updated {formatDateTime(screen.asOf, screen.timezone)}</p>
           : null}
       </div>
-      <div className="cl-metrics">
-        <div className="cl-metric"><span className="cl-eyebrow">Showing on this page</span><span className="cl-metric-value">{screen.pageResultCount}</span></div>
-        <div className="cl-metric"><span className="cl-eyebrow">Matching leads</span><span className="cl-metric-value">{screen.totalMatchingCount}</span></div>
-      </div>
-      <h3 className="cl-eyebrow mt-6">Within current filters</h3>
-      <ul className="mt-2 flex flex-wrap gap-x-6 gap-y-2">
+      <ul className="flex flex-wrap gap-x-6 gap-y-2">
         {Constants.public.Enums.lead_stage.map((stage) => <li key={stage} className="flex items-baseline gap-2">
           <StatusWord status={stage} /> <strong className="tabular-nums">{screen.stageCounts[stage]}</strong>
         </li>)}
       </ul>
+      <p className="cl-muted mt-2 text-sm">
+        Showing on this page: <span className="tabular-nums">{screen.pageResultCount}</span> · Matching leads: <span className="tabular-nums">{screen.totalMatchingCount}</span>
+      </p>
     </section> : null}
 
     {screen.errorMessage !== null ? <div className="cl-section"><Alert>{screen.errorMessage}</Alert></div> : null}
@@ -165,7 +154,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
             <span>
               <span className="cl-row-title">{row.fullName} · <span className="tabular-nums">{row.phone}</span></span>
               <span className="cl-row-meta">
-                {say(row.source)} · {row.branchName} · {row.assignedToName ?? 'Unassigned'}
+                {humanize(row.source)} · {row.branchName} · {row.assignedToName ?? 'Unassigned'}
               </span>
               {row.stage === 'lost' && row.lostReason !== null
                 ? <span className="cl-row-meta">Lost: {row.lostReason}</span>
@@ -173,7 +162,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
             </span>
             <span className="flex flex-wrap items-center gap-4">
               <StatusWord status={row.stage} />
-              {action !== null ? <strong>{action}</strong> : null}
+              {action !== null ? <span className="cl-muted text-sm">Next: {action}</span> : null}
               {row.stage === 'converted' && row.convertedMemberId !== null
                 ? <Link className="cl-btn cl-btn--small" href={`/members/${row.convertedMemberId}`}>Open member</Link>
                 : null}
@@ -181,11 +170,11 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
             {row.stage === 'trial_done'
               ? <div className="w-full"><LeadConvertDialog leadId={row.id} revision={row.revision} fullName={row.fullName} /></div>
               : null}
-            {open ? <div className="w-full">
-              <details className="cl-disclosure"><summary>Change stage</summary>
+            {open ? <div className="flex w-full flex-wrap gap-x-6">
+              <details className="group min-w-0 open:basis-full"><summary className="cl-muted cursor-pointer py-1 text-sm underline-offset-2 hover:underline">Change stage</summary>
                 <LeadStageForm leadId={row.id} revision={row.revision} stage={row.stage} timezone={screen.timezone} trialAt={row.trialAt} />
               </details>
-              <details className="cl-disclosure"><summary>Edit details</summary>
+              <details className="group min-w-0 open:basis-full"><summary className="cl-muted cursor-pointer py-1 text-sm underline-offset-2 hover:underline">Edit details</summary>
                 <LeadEditForm leadId={row.id} revision={row.revision} lead={row} branches={screen.branchChoices} staff={screen.staffChoices} emailNotes={screen.editableText[row.id]} />
               </details>
             </div> : null}
