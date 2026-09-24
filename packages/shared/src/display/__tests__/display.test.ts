@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDateTime, formatDay, formatDayRange, formatMoney, formatPhone, humanize } from '../display';
+import { formatDateTime, formatDay, formatDayRange, formatMoney, formatPhone, groupByMonth, humanize } from '../display';
 
 // UX9-003/005 (ADR-170): people see money, vocabularies, phones and dates as words, never raw values.
 describe('formatMoney', () => {
@@ -56,5 +56,14 @@ describe('dates', () => {
     ['2026-09-24', '2026-09-24', '24 Sep 2026'],
   ])('formats the range %s to %s', (from, through, expected) => {
     expect(formatDayRange(from, through)).toBe(expected);
+  });
+});
+
+describe('groupByMonth', () => {
+  it('groups consecutive items by month in the gym time zone and names past years', () => {
+    const at = ['2026-09-21T18:40:00Z', '2026-09-01T03:00:00Z', '2026-08-31T19:00:00Z', '2025-12-31T20:00:00Z'];
+    const groups = groupByMonth(at, (item) => item, 'Asia/Kolkata', new Date('2026-09-24T00:00:00Z'));
+    // 2026-08-31T19:00Z is 1 Sep in IST; 2025-12-31T20:00Z is 1 Jan 2026 in IST.
+    expect(groups.map((group) => [group.label, group.items.length])).toEqual([['September', 3], ['January', 1]]);
   });
 });
