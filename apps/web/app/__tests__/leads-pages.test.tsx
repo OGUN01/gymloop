@@ -229,12 +229,12 @@ describe('leads list screen', () => {
 
     for (const text of [
       'Alpha One', 'Beta Two', 'Gamma Three', 'Delta Four', 'Epsilon Five', 'Zeta Six', 'Eta Seven',
-      '+919876543210', 'Showing on this page', 'Matching leads', 'Within current filters',
+      '+91 98765 43210', 'Showing on this page', 'Matching leads', 'Within current filters',
       'Contact lead', 'Schedule trial', 'Record trial outcome', 'Convert or mark lost', 'Open member',
       'Chose a rival gym', String(stageRows.length), '9',
     ]) expect(view.text).toContain(text);
     expect(view.text).toMatch(/Currently scheduled:/i);
-    expect(view.text).toContain('2026-09-20');
+    expect(view.text).toContain('20 Sep 2026, 10:00 am');
     expect(view.text).toContain('10:00');
     expect(view.hrefs.some((href) => href.includes(`/members/${MEMBER_ID}`))).toBe(true);
   });
@@ -307,6 +307,7 @@ describe('leads list screen', () => {
     if (view !== null) {
       expect(view.text).not.toContain('Alpha One');
       expect(view.text).not.toContain('+919876543210');
+      expect(view.text).not.toContain('+91 98765 43210');
     }
   });
 });
@@ -335,7 +336,7 @@ describe('lead convert dialog wire', () => {
     controls = renderClient(component);
     const conflicted = controls.map((node) => textOf(node)).join(' ');
     expect(conflicted).toContain('Member One');
-    expect(conflicted).toContain('+919999999999');
+    expect(conflicted).toContain('+91 99999 99999');
 
     const linkChoice = controls.find((node) => node.type === 'button' && /link/i.test(textOf(node)));
     if (linkChoice) await event(linkChoice, 'onClick');

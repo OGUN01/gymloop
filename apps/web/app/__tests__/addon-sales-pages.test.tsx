@@ -138,7 +138,7 @@ describe('order detail and receipt truthfulness', () => {
     const markup = html(<PreviewProvider readOnly>{await Page({ params: Promise.resolve({ orderId: ORDER_ID }), searchParams: Promise.resolve({}) })}</PreviewProvider>);
     expect(markup).toContain('PREVIEW/0001');
     expect(markup).toContain(`href="/payments/${PRODUCT_ID}"`);
-    expect(markup).toContain('25.00');
+    expect(markup).toContain('₹25');
     expect(state.selections.some(({ table }) => table === 'refunds')).toBe(true);
     expect(markup).not.toMatch(/<form[^>]*method="post|mark diet plan delivered|confirm money returned/i);
   });
@@ -187,7 +187,7 @@ describe('order detail and receipt truthfulness', () => {
     const { default: Page } = await import('../(console)/add-ons/orders/[orderId]/page');
     const markup = html(await Page({ params: Promise.resolve({ orderId: ORDER_ID }), searchParams: Promise.resolve({}) }));
 
-    expect(markup).toMatch(/complimentary.*INR 0\.00.*no payment.*no receipt/i);
+    expect(markup).toMatch(/complimentary.*₹0.*no payment.*no receipt/i);
     expect(markup).toMatch(/refund request.*pending|requested/i);
     expect(markup).not.toMatch(/returned.*100/i);
   });

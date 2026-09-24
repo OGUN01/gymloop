@@ -70,8 +70,8 @@ describe('add-on receipt money and return journey', () => {
 
     expect(text).not.toMatch(/fully (?:refunded|returned)|(?:refunded|returned) in full/i);
     expect(text).toMatch(/refund requests? pending|pending refund requests?/i);
-    expect(text).toMatch(/returned\s*(?:₹|INR\s*)?0\.00/i);
-    expect(text).toMatch(/available for another refund request\s*(?:₹|INR\s*)?0\.00/i);
+    expect(text).toMatch(/returned\s*₹0/i);
+    expect(text).toMatch(/available for another refund request\s*₹0/i);
   });
 
   it('preserves the add-on fulfilment-order link when opening the receipt', async () => {
@@ -130,8 +130,8 @@ describe('add-on receipt money and return journey', () => {
     const text = markup.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
 
     expect(state.selections.some(({ table, columns }) => table === 'refunds' && columns.includes('processed_at'))).toBe(true);
-    expect(text).toMatch(/(?:completed at|completion time|returned at)[^\d]*2026-02-18 19:10/i);
-    expect(text).not.toMatch(/(?:completed at|completion time|returned at)[^\d]*2026-01-02 08:34/i);
+    expect(text).toMatch(/(?:completed at|completion time|returned at)[^\d]*18 Feb 2026, 7:10 pm/i);
+    expect(text).not.toMatch(/(?:completed at|completion time|returned at)[^\d]*2 Jan 2026, 8:34 am/i);
   });
 
   it.each(['requested', 'processing'])('ADD-009/ADD-011: %s returns label request time and never claim a completion time', async (status) => {

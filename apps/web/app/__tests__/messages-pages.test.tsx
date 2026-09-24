@@ -314,7 +314,7 @@ describe('staff /messages — role-gated sections', () => {
 
     expect(view.text).toContain('Message templates');
     expect(view.text).toContain('Wallet');
-    expect(view.text).toContain('4500');
+    expect(view.text).toContain('4,500');
     expect(state.reads).not.toContain('messaging_wallets');
     expect(findComponent(page, 'MessageTemplateForm')).toBeDefined();
     expect(findComponent(page, 'WalletAdjustForm')).toBeUndefined();

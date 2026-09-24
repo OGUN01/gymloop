@@ -43,7 +43,7 @@ describe('owner dashboard metrics', () => {
     state.cursor = 0;
     const text = inspect(view);
     expect(text).toContain('2'); expect(text).toContain('No cohort'); expect(text).toContain('No cash movement');
-    expect(text).toMatch(/undated payment|data quality/i); expect(text).toContain('100'); expect(text).not.toContain('Asha');
+    expect(text).toMatch(/undated payment|data quality/i); expect(text).toContain('₹1'); expect(text).not.toContain('Asha');
     const { MetricsDashboard } = await import('../(console)/dashboard/metrics-dashboard');
     state.hooks = []; state.cursor = 0;
     const dashboard = (MetricsDashboard as unknown as (props: Record<string, unknown>) => ReactNode)({ metrics: response });
