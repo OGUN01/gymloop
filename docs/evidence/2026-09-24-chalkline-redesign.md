@@ -27,7 +27,7 @@ Every screen now scores at least 8.1. It is not 10 everywhere: the remaining not
 
 ## Screens
 `docs/evidence/screens/2026-09-24-chalkline/web/` — production build (`next build && next start`) against the Cloud project's demo gym, Light and Dark, mostly 1440 and 390 (the full sweep at 390/1024/1440 reported no horizontal overflow on any route).
-`docs/evidence/screens/2026-09-24-chalkline/android/` — release APK on a physical OnePlus DN2101 (Android 13) over USB, member and front-desk accounts, Light and Dark, plus the sign-in. Installed side by side as `in.gymloop.mobile.chalkline` (a throwaway application id in an uncommitted short-path build worktree) so the Play-signed pilot app and its data were not touched. Screenshots are stored as 256-colour PNGs to keep the repository small.
+`docs/evidence/screens/2026-09-24-chalkline/android/` — release APK on a physical OnePlus DN2101 (Android 13) over USB, member and front-desk accounts, Light and Dark, plus the sign-in. Installed side by side as `in.gymloop.mobile.chalkline` (a throwaway application id in an uncommitted short-path build worktree) so the existing EAS-signed, sideloaded pilot build (`in.gymloop.mobile`) and its data were not touched; nothing had been uploaded to Google Play. Screenshots are stored as 256-colour PNGs to keep the repository small.
 
 ## Checks (final)
 | Check | Result |

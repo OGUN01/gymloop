@@ -453,11 +453,15 @@ any frozen Phase 8 HARD gate or enable Razorpay.
   SHALL be green with a verified current credential. A protected logical
   backup export with source identity, scope, integrity digest, encrypted
   off-project receipt, access owner and cadence SHALL be evidenced; it SHALL
-  NOT be called recoverable without a restore. Privacy export/erasure with
-  qualified legal review, a delivered alert route, and exact release-artifact
-  Android acceptance SHALL have their actual evidence. The owner excepts the
-  provider restore/PITR drill from this **Free-plan controlled pilot** under
-  ADR-159; gate 29 remains unperformed, not Passed. No other gate is waived.
+  NOT be called recoverable without a restore. For this **Free-plan controlled
+  five-gym pilot only**, ADR-159 excepts the unperformed provider restore/PITR
+  drill (gate 29); ADR-168 separately excepts unresolved privacy product
+  decisions and qualified legal/DPA review (HARD-006 / gate 23), and an
+  unverified independent missing-run alert (HARD-005 / gate 28). Those gates
+  stay open, not Passed; the exceptions neither certify compliance or
+  recoverability nor apply to general release. The delivered alert route,
+  other applicable privacy/security and product evidence, and exact
+  release-artifact Android acceptance still require their actual proof.
   Synthetic rows, a runbook alone, or an upgrade promise do not pass the
   remaining gates. Owner-led visual acceptance remains required.
 - **PILOT-005** The 10 × 50 and five-gym rollback rehearsals are architectural

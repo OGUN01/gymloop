@@ -25,9 +25,9 @@ recorded as such rather than represented by a synthetic success.
 ### HARD-010 — reference-matched member experience
 
 When a member uses authentication, Home, Activity, My gym, or You on web or
-Android, the system shall use the approved minimalist v2 hierarchy and shared
-light/dark tokens: immediate verified gym identity, dominant check-in, compact
-truthful summaries, readable seven-day rhythm, a real profile/account surface,
+Android, the system shall follow the owner-selected Chalkline direction (ADR-170;
+`docs/design/phase9/direction.md`) and its shared light/dark tokens: immediate
+verified gym identity, dominant check-in, compact truthful summaries, readable seven-day rhythm, a real profile/account surface,
 and four labelled destinations. Both appearances shall be intentionally
 composed, English-only, accessible at enlarged text, and usable with reduced
 motion/transparency. Raw internal UUIDs shall not be presented as profile
@@ -36,9 +36,11 @@ profile entry surfaces; it shall not obscure controls, invent member facts, or
 replace operational content.
 
 Acceptance: representative web and physical-Android crops for auth, Home, My
-gym and You in light and dark are compared with the approved boards; focused
-interaction/accessibility checks cover labels, targets, enlarged text and
-reduced effects.
+gym and You in light and dark are compared with the selected Chalkline
+boards in `docs/design/phase9/concepts/`; focused interaction/accessibility
+checks cover labels, targets, enlarged text and reduced effects. Captures and
+critic results (`docs/evidence/2026-09-24-chalkline-redesign.md`) support
+review, but owner acceptance of the implemented screens is still required.
 
 On the You surface, verified membership state and the current gym name/code
 shall appear with the member name before any wrapping email or phone value.
@@ -49,11 +51,13 @@ the other rows may remain truthful read-only destinations for the pilot. The
 layout shall wrap long contact values without horizontal overflow or pushing
 the verified gym identity below the primary profile facts.
 
-Review artifact: `docs/design/phase8/member-hig-auth-core-v4.png`. The main
-surface uses one accessible settings icon; appearance lives behind the settings
-hierarchy rather than as persistent page content. On iPhone, Apple precedes
-Google; Android remains Google-first. The artifact is not implementation
-approval until the owner accepts it.
+Review artifacts: `docs/design/phase9/direction.md` and the selected
+Chalkline boards in `docs/design/phase9/concepts/`, with implemented captures
+in `docs/evidence/2026-09-24-chalkline-redesign.md`. The main surface uses
+one accessible settings icon; appearance lives behind the settings hierarchy
+rather than as persistent page content. On iPhone, Apple precedes Google;
+Android remains Google-first. Direction selection and critic scores are not
+implementation approval; HARD-010 remains open until the owner accepts it.
 
 ### HARD-011 — Google sign-in grants no Gymloop identity
 
