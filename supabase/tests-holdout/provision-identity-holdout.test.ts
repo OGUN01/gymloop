@@ -109,13 +109,17 @@ function witness(options: Options = {}) {
         record('countBindings', requestedId)
         failLookup('countBindings')
         if (options.postCountError && methodCalls({ calls }, 'countBindings').length > 1) throw options.postCountError
-        if (options.postBindings && methodCalls({ calls }, 'bindMember').length + methodCalls({ calls }, 'bindStaff').length > 0) {
-          return options.postBindings
-        }
-        if (requestedId === authId) return options.bindings ?? emptyBindings
-        return options.postBindings ?? (
-          methodCalls({ calls }, 'bindStaff').length > 0 ? singleStaffBinding : singleMemberBinding
+        const attemptedBind = calls.some((call) =>
+          (call.method === 'bindMember' || call.method === 'bindStaff') && call.args[2] === requestedId,
         )
+        if (attemptedBind && options.postBindings) return options.postBindings
+        const boundMember = calls.some((call) => call.method === 'bindMember' &&
+          call.args[2] === requestedId && options.memberBindRows === undefined && !options.memberAtBind)
+        const boundStaff = calls.some((call) => call.method === 'bindStaff' &&
+          call.args[2] === requestedId && options.staffBindRows === undefined && !options.staffAtBind)
+        if (boundMember || boundStaff) return boundMember ? singleMemberBinding : singleStaffBinding
+        if (requestedId === authId) return options.bindings ?? emptyBindings
+        return emptyBindings
       },
       async createConfirmedAuthUser(requestedEmail: string) {
         record('createConfirmedAuthUser', requestedEmail)
