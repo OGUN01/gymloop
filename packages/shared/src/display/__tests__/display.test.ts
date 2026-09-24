@@ -9,7 +9,7 @@ describe('formatMoney', () => {
     ['0', 'INR', '₹0'],
     ['-150000', 'INR', '-₹1,500'],
     ['4330000', 'INR', '₹43,300'],
-    ['9007199254740993', 'INR', '₹90,07,19,92,54,74,09.93'],
+    ['9007199254740993', 'INR', '₹9,00,71,99,25,47,409.93'],
     ['120000', 'USD', 'USD 1,200.00'],
   ])('formats %s %s as %s', (paise, currency, expected) => {
     expect(formatMoney(paise, currency)).toBe(expected);
