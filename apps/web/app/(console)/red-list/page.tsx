@@ -3,12 +3,12 @@ import { Constants } from '@gymloop/db';
 import { RED_LIST_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
 import Link from 'next/link';
 import { Alert } from '../alert';
-import { AVATAR_INITIALS_MAX, formatPhone } from '@gymloop/shared';
+import { AVATAR_INITIALS_MAX, formatDay, formatPhone } from '@gymloop/shared';
 import { loadRedList } from '../../../lib/red-list';
 
 /** A vocabulary value as people say it: "no_response" → "No response", "whatsapp" → "WhatsApp". */
 const say = (value: string) => value === 'whatsapp' ? 'WhatsApp' : value === 'sms' ? 'SMS' : `${value.charAt(0).toUpperCase()}${value.slice(1).replaceAll('_', ' ')}`;
-const dayMonth = (isoDate: string) => new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${isoDate}T12:00:00Z`));
+const dayMonth = (isoDate: string) => formatDay(isoDate).replace(/ \d{4}$/, '');
 
 /** The red list is the daily operational queue, rendered without client JavaScript. */
 const MESSAGES: Record<string, string> = {

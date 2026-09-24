@@ -75,16 +75,62 @@ product data or a permission.
 - **THEN** the shared shell adopts the selected appearance
 - **AND** its route destination, data authority and response remain unchanged
 
-### Requirement: Approved boards are route-level conformance references
-UX7-013 SHALL apply the approved v2 typography, whitespace, continuous geometry,
-quiet chrome, action hierarchy and complete light/dark treatment to each user,
-owner and desk route; sharing colours or fonts over an unchanged utility layout
-does not satisfy the visual system.
+### Requirement: Routes conform to the Chalkline boards (ADR-170)
+UX9-005 SHALL render each member, desk, owner and platform route in the Chalkline
+direction (`docs/design/phase9/direction.md`, boards in `docs/design/phase9/concepts/`):
+condensed display titles and figures, hairline ledger rows instead of boxed cards,
+one clay primary action per view and generous spacing, using only truthful loaded
+data. Board content is illustrative and never becomes product data.
 
-#### Scenario: A core-loop route receives the visual system
-- **WHEN** rendered desktop and narrow crops are compared with the approved boards
-- **THEN** the route has a deliberate composition for its actual job in both themes
-- **AND** it uses only truthful existing content rather than illustrative board data
+#### Scenario: A route is rendered at the owner breakpoints
+- **WHEN** it renders at 390, 1024 and 1440px in Light and Dark
+- **THEN** its composition follows the Chalkline boards with no page-level horizontal overflow
+- **AND** no slogan, trend delta, sparkline or photo appears without a data source
+
+### Requirement: Chalkline tokens and local Archivo
+UX9-001/002 SHALL carry the Chalkline light/dark semantic palette (including a
+success role), Archivo text/display/eyebrow roles and Chalkline radii in the shared
+token contract. The web bundles Archivo (width and weight axes) locally; native
+bundles static Archivo instances including an ExtraCondensed display cut. Every
+text pair meets 4.5:1 and every control outline 3:1 in both appearances.
+
+#### Scenario: Either platform renders text
+- **WHEN** web or Android renders any Gymloop surface
+- **THEN** its fonts load from the app bundle, never a runtime font CDN
+- **AND** its colours come from the shared tokens
+
+### Requirement: People see words, not stored values
+UX9-003 SHALL show statuses as a dot plus a human word (never colour alone, never
+the raw vocabulary value), money as rupees with Indian digit grouping via the
+shared `formatMoney`, and dates, times and phone numbers through the shared
+display formatters, on web and native alike. Raw values may remain in form
+values and machine attributes.
+
+#### Scenario: A payment, membership or follow-up status is shown
+- **WHEN** a status vocabulary value reaches a screen
+- **THEN** it renders as a toned dot and a sentence-case word
+- **AND** amounts read as "₹8,000" or "₹1,500.50", never floating-point or unformatted paise
+
+### Requirement: Recoverable and missing routes are designed states
+UX9-004 SHALL render a Chalkline recoverable error with a real retry for the
+console, member and platform audiences, and an honest not-found page with a way
+back. Route-level streaming fallbacks are not used, because they replace or
+duplicate the page's `main` landmark; navigation keeps the current page until the
+next is ready.
+
+#### Scenario: A route fails or addresses a missing record
+- **WHEN** a server read throws or a record is absent
+- **THEN** the user sees a Chalkline error with "Try again" or a not-found page with a link home
+- **AND** the raw error text never reaches the page
+
+### Requirement: Native parity
+UX9-006 SHALL render the Android member and desk apps with the same tokens, type
+roles, status language and formatters as the web, respecting safe-area insets.
+
+#### Scenario: The member opens any tab on Android
+- **WHEN** Home, Activity, My gym or You renders in Light or Dark
+- **THEN** it follows the same Chalkline composition as the web boards
+- **AND** its week rhythm marks the same calendar week the "N of goal" count uses
 
 ### Requirement: Staff check-in keeps visual and attendance truth together
 UX7-006/007/013/014 SHALL present staff check-in on the shared token-backed
@@ -104,7 +150,7 @@ staff identity, gate-code, assisted-reason, event-key or retry contracts.
 
 ### Requirement: The gym console uses the approved owner workspace shell
 UX7-006/013/014 SHALL present authenticated gym-console routes inside the
-approved owner-board frame: a truthful gym identity, permission-filtered
+Chalkline console rail: a truthful gym identity, permission-filtered
 navigation, one exact current-route state and locally available appearance and
 sign-out controls. The shell is presentation only; server loaders remain the
 authority for route access.
@@ -124,7 +170,7 @@ authority for route access.
 - **THEN** its existing horizontal account-header semantics remain unchanged
 
 ### Requirement: Follow-up is a truthful owner-board work queue
-UX7-006/007/013/014 SHALL present `/red-list` as the board-conformant “People to
+UX7-006/007/013/014 SHALL present `/red-list` as the Chalkline “People to
 follow up” queue, with real member identity, current absence evidence, latest-
 contact truth and the exact existing follow-up mutation contract in each row.
 
@@ -139,8 +185,8 @@ contact truth and the exact existing follow-up mutation contract in each row.
 - **AND** honest empty, explicit error and cursor pagination states remain distinct
 
 ### Requirement: Owner overview reconciles one truthful snapshot
-UX7-002–007/012–014 and MET-001–008 SHALL present `/dashboard` as the approved
-owner-board workspace while keeping the existing single `OwnerMetrics` request
+UX7-002–007/012–014 and MET-001–008 SHALL present `/dashboard` as the Chalkline
+owner overview while keeping the existing single `OwnerMetrics` request
 and response as its only data authority.
 
 #### Scenario: An owner opens the operational overview

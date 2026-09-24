@@ -1,6 +1,7 @@
 import type { Database } from '@gymloop/db';
 import { formatMoney, PAYMENT_PAGE_SIZE_DEFAULT, rupeesFromPaise } from '@gymloop/shared';
 import Link from 'next/link';
+import { formatPhone } from '@gymloop/shared';
 import { gymTimeLabel } from '../../../../../lib/time';
 import { requireAudience } from '../../../../../lib/identity-session';
 import { UUID_PATTERN } from '../../../../../lib/keyset';
@@ -79,7 +80,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
     <Link href="/add-ons#orders" className="cl-back">← All add-on orders</Link>
     <div className="cl-page-header">
       <div><p className="cl-eyebrow">Add-on order</p><h1 className="cl-title">{order.members?.full_name ?? 'Add-on order'}</h1>
-        <p className="cl-lede tabular-nums">{order.sale_snapshot?.name ?? order.addon_products?.name ?? 'Previous add-on'}{order.members?.phone ? ` · ${order.members.phone}` : ''}</p></div>
+        <p className="cl-lede tabular-nums">{order.sale_snapshot?.name ?? order.addon_products?.name ?? 'Previous add-on'}{order.members?.phone ? ` · ${formatPhone(order.members.phone)}` : ''}</p></div>
       <div className="cl-actions">
         <StatusWord status={order.status} />
         {financeVisible && order.payment_id ? <Link href={`/payments/${order.payment_id}`} className="cl-btn">Open receipt</Link> : null}
@@ -89,7 +90,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
     <article className="cl-section grid gap-4">
       <AddonOrderFacts order={visibleOrder} timezone={timezone} showPayment={financeVisible} />
       <dl className="cl-dl">
-        <dt>Member</dt><dd>{order.members?.full_name ?? 'Not recorded'}{order.members?.phone ? ` · ${order.members.phone}` : ''}</dd>
+        <dt>Member</dt><dd>{order.members?.full_name ?? 'Not recorded'}{order.members?.phone ? ` · ${formatPhone(order.members.phone)}` : ''}</dd>
         <dt>Sold by</dt><dd>{order.seller?.full_name ?? 'Not recorded'}</dd>
         {order.trainer_staff_id ? <><dt>Assigned trainer</dt><dd>{order.trainer?.full_name ?? 'Not recorded'}</dd></> : null}
       </dl>

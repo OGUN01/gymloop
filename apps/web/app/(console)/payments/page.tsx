@@ -130,7 +130,7 @@ export default async function PaymentsPage({
                   </Link>
                   <span className="cl-row-meta tabular-nums">
                     {humanize(row.method)} · {formatDateTime(row.paid_at ?? row.created_at, timezone)} ·{' '}
-                    <Link href={`/payments/${row.id}`} className="text-clay">
+                    <Link href={`/payments/${row.id}`} className="text-clay whitespace-nowrap">
                       {receiptLabel(row)}
                     </Link>
                   </span>

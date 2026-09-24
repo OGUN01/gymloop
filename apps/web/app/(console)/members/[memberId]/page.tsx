@@ -100,7 +100,7 @@ export default async function MemberDetailPage({
           {visits && visits.length > 0 ? (
             <ul className="cl-rows">
               {visits.map((visit) => (
-                <li key={visit.id}>
+                <li key={visit.id} className="flex-nowrap">
                   <span><span className="cl-row-title tabular-nums">{DATE_TIME.format(new Date(visit.checked_in_at))}</span>
                     {visit.assist_reason === null ? null : <span className="cl-row-meta">{visit.assist_reason}</span>}</span>
                   <span className="cl-muted text-sm">{visit.source === 'qr' ? 'Gym QR' : 'Desk assisted'}</span>
