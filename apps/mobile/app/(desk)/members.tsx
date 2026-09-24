@@ -22,7 +22,7 @@ export default function MembersScreen() {
     <View><Eyebrow>Roster</Eyebrow><Title>Members</Title></View>
     <View style={[styles.search, { borderColor: palette.requiredControlOutline, backgroundColor: palette.surface }]}>
       <Search color={palette.secondaryText} size={UI_TOKENS.icons.navigationSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />
-      <Field accessibilityLabel="Search members" placeholder="Search name, phone or member code" value={query} onChangeText={setQuery} style={styles.searchField} />
+      <Field accessibilityLabel="Search members" placeholder="Search name or phone" value={query} onChangeText={setQuery} style={styles.searchField} />
     </View>
     {state === 'loading' ? <LoadingState /> : null}
     {state === 'error' ? <View style={styles.stack}><StateMessage tone="error">Members could not be loaded.</StateMessage><ActionButton secondary onPress={() => setAttempt((value) => value + 1)}>Try again</ActionButton></View> : null}

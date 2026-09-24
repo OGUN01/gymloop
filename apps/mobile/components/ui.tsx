@@ -128,7 +128,7 @@ export function LoadingState() {
 
 const styles = StyleSheet.create({
   screenFrame: { flex: 1 },
-  screen: { flexGrow: 1, paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[6], paddingBottom: space[6], gap: space[4] },
+  screen: { flexGrow: 1, paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[3], paddingBottom: space[6], gap: space[4] },
   screenWithFooter: { paddingBottom: UI_TOKENS.geometry.targets.touch + space[6] + space[4] },
   footer: { position: 'absolute', right: 0, bottom: 0, left: 0, paddingHorizontal: UI_TOKENS.geometry.layout.mobileInset, paddingTop: space[2], paddingBottom: space[3] },
   eyebrow: { fontFamily: FONT.semibold, fontSize: type.eyebrow.size, lineHeight: type.eyebrow.lineHeight, letterSpacing: type.eyebrow.size * Number.parseFloat(type.eyebrowTracking) },
