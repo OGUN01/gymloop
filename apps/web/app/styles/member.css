@@ -15,8 +15,10 @@
 /* ---------- Week rhythm: 36px dots, letters below. Two states only: a filled clay visit, one ring for
    everything else (days still ahead are that ring at half strength). Today is the bold letter with a
    short clay underline, never a second ring. Android mirrors this. ---------- */
-.member-week-days { gap: var(--gymloop-space-4); margin-top: var(--gymloop-space-24); padding-bottom: 0; border-bottom: 0; }
-.member-week-day { gap: var(--gymloop-space-8); }
+/* Each day is exactly one dot wide and the row spreads them, so M and S sit flush on the column edges
+   the greeting, hairlines and row text share, at every width. */
+.member-week-days { display: flex; justify-content: space-between; gap: var(--gymloop-space-4); margin-top: var(--gymloop-space-24); padding-bottom: 0; border-bottom: 0; }
+.member-week-day { flex: none; width: 36px; gap: var(--gymloop-space-8); }
 .member-week-day i { width: 36px; height: 36px; aspect-ratio: auto; border: 1.5px solid var(--gymloop-color-required-control-outline); }
 .member-week-day[data-visited='true'] i { border-color: var(--gymloop-color-primary-action); background: var(--gymloop-color-primary-action); }
 .member-week-day[data-future='true'] i { border-style: solid; border-color: var(--gymloop-color-required-control-outline); }
@@ -44,9 +46,6 @@ a.member-row:hover > svg:last-child { transform: translateX(2px); }
 .member-home .member-home-goal { margin: var(--gymloop-space-8) 0 0; color: var(--gymloop-color-secondary-text); }
 .member-home-rows { margin: var(--gymloop-space-24) 0 0; padding: 0; list-style: none; border-top: 1px solid var(--gymloop-color-decorative-separator); }
 .member-home-rows > li { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
-.member-home-rows > li.member-home-last { display: flex; align-items: center; justify-content: space-between; gap: var(--gymloop-space-16); min-height: 56px; font-size: var(--gymloop-type-compact-size); }
-.member-home-last > span:first-child { color: var(--gymloop-color-secondary-text); }
-.member-home-last > span:last-child { color: var(--gymloop-color-primary-text); font-variant-numeric: tabular-nums; text-align: right; }
 @media (min-width: 48rem) { .member-week-figure .cl-display { font-size: clamp(88px, 12vw, 128px); } }
 
 /* ---------- Activity ---------- */
@@ -132,9 +131,9 @@ span.member-account-row { grid-template-columns: auto minmax(0, 1fr) var(--gymlo
 .member-title { text-wrap: balance; }
 .member-title--long { font-size: clamp(2.5rem, 11vw, 4rem); }
 .member-home .member-initial { border-color: var(--gymloop-color-required-control-outline); color: var(--gymloop-color-primary-text); }
-.member-week-of { font-size: .6em; font-weight: 700; }
+.member-week-of { margin-inline: 0.12em; font-size: .6em; font-weight: 700; }
 /* "1 of 4" is one figure. The kit adds +0.08em to every display space; taking 0.12em off that (net -0.04em)
-   leaves about 10px between groups at 1440, as on the board. A literal -0.12em deletes Archivo's condensed space. */
+   keeps the groups tight, and the smaller "of" carries 0.12em either side so it never reads "1of4". */
 .member-home .member-week-figure > .cl-display { word-spacing: -0.04em; }
 @media (max-width: 47.99rem) { .member-home .member-week-figure .cl-display { font-size: clamp(96px, 30vw, 140px); } }
 .member-activity .member-week--activity { padding-top: var(--gymloop-space-24); border-top: 1px solid var(--gymloop-color-decorative-separator); }
@@ -153,16 +152,19 @@ span.member-account-row { grid-template-columns: auto minmax(0, 1fr) var(--gymlo
 .member-steps--numbered li > span:last-child { display: block; }
 .member-steps--numbered li > span:last-child > strong { display: block; }
 .member-steps--numbered li > span:last-child > small { display: block; margin-top: var(--gymloop-space-4); }
-.member-quiet-link { display: inline-flex; min-height: var(--gymloop-target-touch); align-items: center; gap: var(--gymloop-space-8); margin-top: var(--gymloop-space-8); color: var(--gymloop-color-primary-text); font-weight: 600; text-decoration: underline; text-decoration-color: var(--gymloop-color-required-control-outline); text-underline-offset: 4px; }
-.member-quiet-link:hover { text-decoration-color: currentColor; }
+/* A text link is ink words and one trailing arrow, never an underline as well. */
+.member-quiet-link { display: inline-flex; min-height: var(--gymloop-target-touch); align-items: center; gap: var(--gymloop-space-8); margin-top: var(--gymloop-space-8); color: var(--gymloop-color-primary-text); font-weight: 600; text-decoration: none; }
+.member-quiet-link > svg { transition: transform var(--gymloop-motion-press) ease; }
+.member-quiet-link:hover > svg { transform: translateX(2px); }
 .member-addons .member-offsale-heading { margin-top: var(--gymloop-space-24); }
 .member-offsale .cl-row-title { color: var(--gymloop-color-secondary-text); font-weight: 500; }
-.member-steps--numbered li > span:last-child > small { text-wrap: balance; }
+/* Step bodies share one 52ch measure and wrap "pretty", so no step stops short of the others. */
+.member-steps--numbered li > span:last-child > small { max-width: 52ch; text-wrap: pretty; }
 
 /* ---------- Round-3 pass ---------- */
 /* Bottom reserve: the tab bar, plus the pinned Scan strip only on the pages that have one, so no page
    scrolls onto blank canvas. The shell's own reserve is replaced by the page's. */
-.member-shell { --member-tab-bar-height: calc(var(--gymloop-target-touch) + var(--gymloop-space-16) + env(safe-area-inset-bottom)); --member-scan-strip-height: calc(var(--gymloop-target-touch) + var(--gymloop-space-12) + var(--gymloop-space-24)); padding-bottom: 0; }
+.member-shell { --member-tab-bar-height: calc(var(--gymloop-target-touch) + var(--gymloop-space-16) + env(safe-area-inset-bottom)); --member-scan-gap: calc(var(--gymloop-space-16) + var(--gymloop-space-4)); --member-scan-strip-height: calc(var(--gymloop-target-touch) + var(--gymloop-space-24) + var(--member-scan-gap)); padding-bottom: 0; }
 .member-portal { padding-bottom: calc(var(--member-tab-bar-height) + var(--gymloop-space-48)); }
 
 /* Tab bar: the current glyph is the one filled icon; the dumbbell sits level; line bars carry their fill as weight. */
@@ -174,8 +176,9 @@ span.member-account-row { grid-template-columns: auto minmax(0, 1fr) var(--gymlo
   .member-portal { padding-bottom: calc(var(--member-tab-bar-height) + var(--gymloop-space-24)); }
   .member-portal:has(.member-scan-sticky) { padding-bottom: calc(var(--member-tab-bar-height) + var(--member-scan-strip-height) + var(--gymloop-space-24)); }
   /* Scan to check in: flat, on a canvas strip docked to the tab bar, so rows scroll away beneath it. Its inline
-     padding follows the 36rem column, so the button lines up with the rows at every phone width. */
-  .member-scan-sticky { position: fixed; z-index: 25; right: 0; bottom: var(--member-tab-bar-height); left: 0; margin: 0; padding: var(--gymloop-space-12) max(var(--gymloop-layout-mobile-inset), calc((100% - 36rem) / 2 + var(--gymloop-layout-mobile-inset))); border-top: 1px solid transparent; background: var(--gymloop-color-canvas); }
+     padding follows the 36rem column, so the button lines up with the rows at every phone width; it stands
+     20px clear of the tab bar's rule so the page's loudest control is never cramped against it. */
+  .member-scan-sticky { position: fixed; z-index: 25; right: 0; bottom: var(--member-tab-bar-height); left: 0; margin: 0; padding: var(--gymloop-space-12) max(var(--gymloop-layout-mobile-inset), calc((100% - 36rem) / 2 + var(--gymloop-layout-mobile-inset))) var(--member-scan-gap); border-top: 1px solid transparent; background: var(--gymloop-color-canvas); }
   .member-scan-sticky > .member-primary-action--dominant { position: static; width: 100%; box-shadow: none; }
   /* The strip's top rule appears only once rows have scrolled under it. */
   @supports (animation-timeline: scroll()) {
@@ -184,16 +187,40 @@ span.member-account-row { grid-template-columns: auto minmax(0, 1fr) var(--gymlo
 }
 @keyframes member-dock-rule { to { border-top-color: var(--gymloop-color-decorative-separator); } }
 
-/* My gym: the address wraps between parts, never between a city and its PIN. */
-.member-gym .member-gym-address { text-wrap: pretty; }
+/* My gym: the address wraps between parts, never between a city and its PIN, and is set close as a caption
+   under the gym line, not double-spaced. */
+.member-gym .member-gym-address { line-height: 1.45; text-wrap: pretty; }
 
 /* Add-ons (the offer row itself is the add-ons family's; these only place it on the member page).
-   The in-row category is a quiet tag, a rank below the section labels. Prices end on the row's right
-   edge like the status words below them; under 480px the row stacks so the name keeps the full width
-   and the price takes its own line. */
+   The in-row category is a quiet tag, a rank below the section labels. At every width the price ends on
+   the row's right edge on the title's line, in tabular figures, like the status words below it. */
 .member-addons .addon-offer-kind { font-size: 0.6875rem; font-weight: 500; letter-spacing: .06em; }
-.member-addons .addon-catalogue--member .addon-offer-price { justify-self: end; }
-@media (max-width: 29.99rem) {
-  .member-addons .addon-catalogue--member .addon-offer > summary { grid-template-areas: 'kind more' 'title title' 'meta meta' 'price price'; }
-  .member-addons .addon-catalogue--member .addon-offer-price { justify-self: start; margin-top: var(--gymloop-space-8); }
-}
+.member-addons .addon-catalogue--member .addon-offer-price { justify-self: end; text-align: right; }
+/* One disclosure pattern with Activity's "Show older visits": words and a trailing chevron, no underline,
+   here set 14px secondary so it ranks below the name and the price. The whole row is the toggle. */
+.member-addons .addon-offer-more { gap: var(--gymloop-space-4); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); font-weight: 500; text-decoration: none; }
+/* Not on sale: the name and its status word recede together, so the word is never louder than the thing. */
+.member-offsale .cl-status { color: var(--gymloop-color-secondary-text); }
+
+/* ---------- Round-4 pass ---------- */
+/* Visit titles in the condensed cut: the middle dot gets real side space, and the meridiem stands at cap
+   height ("10:10 PM"), as on the Activity board. Display context only; body copy keeps "pm". */
+.member-visit-time .member-visit-sep { margin-inline: 0.12em; }
+/* Intl joins the time and meridiem with a narrow no-break space, which the condensed cut all but closes. */
+.member-visit-time .member-visit-meridiem { margin-left: 0.12em; text-transform: uppercase; }
+
+/* You: Personal details is a read-only fact, so it has no chevron slot; its value ends on the column edge
+   where the other rows' chevrons end, which is how a settings list shows a value you cannot open. */
+.member-you span.member-account-row.member-account-row--fact { grid-template-columns: auto minmax(0, 1fr); }
+
+/* Messages: how to change a consent choice, under the history it belongs to. */
+.member-consent-note { margin: var(--gymloop-space-12) 0 0; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); }
+
+/* Check-in explainer: the check-in board's centred block, then the steps as the hairline ledger. The
+   clay ring is the one accent on the page, reserved for the check-in moment. */
+.member-check-in-hero { display: grid; justify-items: center; margin-top: var(--gymloop-space-8); text-align: center; }
+.member-check-in-ring { display: grid; width: 96px; height: 96px; place-items: center; margin-top: var(--gymloop-space-24); border: 3px solid var(--gymloop-color-primary-action); border-radius: 50%; color: var(--gymloop-color-primary-action); }
+.member-check-in-ring > svg { width: 48px; height: 48px; }
+.member-check-in-hero > .member-title { margin-top: var(--gymloop-space-24); }
+.member-check-in .member-section { padding-top: var(--gymloop-space-16); }
+@media (prefers-reduced-motion: reduce) { .member-quiet-link > svg { transition: none; } .member-quiet-link:hover > svg { transform: none; } }

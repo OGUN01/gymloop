@@ -297,7 +297,7 @@ export function LeadConvertDialog({ leadId, revision, fullName }: { leadId: stri
     {member !== null ? <p className="text-sm font-medium">Existing member: {member.fullName} · <span className="tabular-nums">{member.phone}</span> · <StatusWord status={member.status} /></p> : null}
     {problem !== '' ? <Alert>{problem}</Alert> : null}
     <div className="cl-actions">
-      <button type="submit" disabled={pending} className="cl-btn cl-btn--accent">
+      <button type="submit" disabled={pending} className="cl-btn cl-btn--primary">
         {pending ? 'Converting…' : member !== null
           ? `Connect ${member.fullName} to this lead explicitly`
           : `Convert ${fullName} to a member`}
@@ -323,9 +323,9 @@ export function LeadEnquiryForm({ branches, staff }: { branches: BranchChoice[];
   }
 
   return <section id="record-enquiry" aria-labelledby="enquiry-heading" className="cl-section leads-enquiry">
-    <div className="cl-section-head">
+    <div className="cl-section-head leads-section-head leads-enquiry-head">
       <h2 id="enquiry-heading" className="cl-section-title">Record an enquiry</h2>
-      <p className="cl-muted text-sm">A new lead starts at the New stage. Move it along from its row in the pipeline.</p>
+      <p className="leads-section-lede">A new lead starts at the New stage. Move it along from its row in the pipeline.</p>
     </div>
     <form method="post" onSubmit={submit} className="cl-form">
       {command.problem !== '' ? <Alert>{command.problem}</Alert> : null}
@@ -408,7 +408,7 @@ export function LeadStageForm({ leadId, revision, stage, timezone, trialAt }: {
     {needsTrial ? <p className="cl-hint">Times are the gym's local time.</p> : null}
     {command.problem !== '' ? <Alert>{command.problem}</Alert> : null}
     <div>
-      <button type="submit" disabled={command.pending} className="cl-btn">
+      <button type="submit" disabled={command.pending} className={stage === 'trial_done' ? 'cl-btn' : 'cl-btn cl-btn--primary'}>
         {command.pending ? 'Saving…' : 'Save stage change'}
       </button>
     </div>
@@ -448,7 +448,7 @@ export function LeadEditForm({ leadId, revision, lead, branches, staff, emailNot
     <p className="cl-hint">Clearing email or notes removes them when you save.</p>
     {command.problem !== '' ? <Alert>{command.problem}</Alert> : null}
     <div>
-      <button type="submit" disabled={command.pending} className="cl-btn">
+      <button type="submit" disabled={command.pending} className="cl-btn cl-btn--primary">
         {command.pending ? 'Saving…' : 'Save lead details'}
       </button>
     </div>

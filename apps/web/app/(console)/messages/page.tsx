@@ -14,8 +14,8 @@ import { StatusWord } from '../../status-word';
  * component renders only what a verified caller can see.
  */
 
-/** The four counts in the strip; opted out is the Failed caption so the strip never wraps a lone fifth metric. */
-const STATUS_ORDER: (keyof MessageStatusCounts)[] = ['scheduled', 'sent', 'delivered', 'failed'];
+/** The four counts in the strip; opted out is said beside the consent form, so the strip never wraps a lone fifth metric. */
+const STATUS_ORDER = ['scheduled', 'sent', 'delivered', 'failed'] as const satisfies readonly (keyof MessageStatusCounts)[];
 const STATUS_LABELS: Record<keyof MessageStatusCounts, string> = {
   scheduled: 'Scheduled', sent: 'Sent', delivered: 'Delivered', failed: 'Failed', opted_out: 'Opted out',
 };
@@ -37,19 +37,14 @@ function canOpenWhatsApp(row: MessageListRow): boolean {
   return row.channel === 'in_app' && (row.status === 'sent' || row.status === 'delivered');
 }
 
-
-/** Sample values a template preview is read with, so the owner sees a message, not `{{tokens}}`. */
-const SAMPLE_VALUES: Record<string, string> = { name: 'Riya', plan: 'Monthly plan', ends_on: '13 Oct', streak: '12', amount: '₹2,999', gym: 'Iron Box' };
-const TOKEN = /\{\{\s*(\w+)\s*\}\}/g;
-const preview = (body: string) => body.replace(TOKEN, (whole, token: string) => SAMPLE_VALUES[token] ?? whole);
-const variables = (body: string) => [...new Set([...body.matchAll(TOKEN)].map((match) => humanize(match[1] ?? '').toLowerCase()))];
-
-/** What each count means, in the caption slot under its number. */
-const COUNT_CAPTIONS: Partial<Record<keyof MessageStatusCounts, string>> = {
-  scheduled: 'Waiting to send', sent: 'Not yet confirmed', delivered: 'Reached the member',
+/** What each count means, in the caption slot under its number ("Did not go out" is the platform gym page's Failed caption too). */
+const COUNT_CAPTIONS: Record<(typeof STATUS_ORDER)[number], string> = {
+  scheduled: 'Waiting to send', sent: 'Not yet confirmed', delivered: 'Reached the member', failed: 'Did not go out',
 };
-/** The Failed caption: how many members opted out, said as a sentence rather than a key and value. */
-const optedOutCaption = (count: string) => count === '0' ? 'None opted out' : <><span className="tabular-nums">{count}</span> opted out</>;
+/** Opted-out messages were held back by a consent decision, so they are counted where consent is recorded. */
+const optedOutNote = (count: string) => count === '0'
+  ? 'No messages held back by an opt-out.'
+  : <><span className="tabular-nums">{count}</span> {count === '1' ? 'message' : 'messages'} held back because the member opted out.</>;
 
 /** The calendar year an instant falls in, in the gym's timezone. */
 const yearOf = (instant: string | Date) => new Intl.DateTimeFormat('en-CA', { year: 'numeric', timeZone: DEFAULT_TIMEZONE }).format(new Date(instant));
@@ -90,11 +85,12 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       {screen.asOf !== null ? <p className="cl-muted comms-updated">Updated <time dateTime={screen.asOf}>{formatDateTime(screen.asOf, DEFAULT_TIMEZONE)}</time></p> : null}
     </div>
 
-    <nav aria-label="Messages sections" className="comms-subnav">
-      <a href="#log">Recent</a>
-      <a href="#consent">Consent</a>
-      {screen.isAdmin ? <a href="#templates">Templates</a> : null}
-      {screen.isAdmin ? <a href="#wallet">Wallet</a> : null}
+    <nav aria-labelledby="comms-jump-label" className="comms-subnav">
+      <span id="comms-jump-label" className="cl-eyebrow comms-subnav-label">On this page</span>
+      <a href="#log">Recent<ChevronDown {...iconProps} /></a>
+      <a href="#consent">Consent<ChevronDown {...iconProps} /></a>
+      {screen.isAdmin ? <a href="#templates">Templates<ChevronDown {...iconProps} /></a> : null}
+      {screen.isAdmin ? <a href="#wallet">Wallet<ChevronDown {...iconProps} /></a> : null}
     </nav>
 
     {screen.errorMessage !== null ? <Alert>{screen.errorMessage}</Alert> : null}
@@ -105,7 +101,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
         {STATUS_ORDER.map((status) => <div key={status} className="cl-metric">
           <span className="cl-eyebrow">{STATUS_LABELS[status]}</span>
           <span className="cl-metric-value tabular-nums">{screen.statusCounts[status]}</span>
-          <small>{status === 'failed' ? optedOutCaption(screen.statusCounts.opted_out) : COUNT_CAPTIONS[status]}</small>
+          <small>{COUNT_CAPTIONS[status]}</small>
         </div>)}
       </div>
     </section>
@@ -148,7 +144,10 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
     <section id="consent" aria-labelledby="consent-heading" className="comms-section comms-anchor">
       <div className="comms-section-head"><h2 id="consent-heading" className="cl-section-title">Consent</h2></div>
       <div className="comms-band">
-        <p className="comms-band-intro">Record a member's marketing or service consent decision. Find them by phone, then record what they agreed to.</p>
+        <div className="comms-band-intro">
+          <p>Record a member's marketing or service consent decision. Find them by phone, then record what they agreed to.</p>
+          <p className="comms-band-note">{optedOutNote(screen.statusCounts.opted_out)}</p>
+        </div>
         <div className="comms-band-body">
           {!screen.isPreview ? <form action="/messages" method="get" className="cl-form">
             {params.channel ? <input type="hidden" name="channel" value={params.channel} /> : null}
@@ -178,9 +177,8 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
             <StatusWord status={template.isActive ? 'active' : 'inactive'} label={template.isActive ? 'Active' : 'Off'} />
             <span className="comms-template-toggle" aria-hidden="true">Edit<ChevronDown {...iconProps} /></span>
           </summary>
+          {/* Template bodies are literal plain text in v1 (comms contract §2), so the editor's Body is the message exactly as sent: no sample-value preview. */}
           <div className="comms-template-panel">
-            <p className="comms-preview">{preview(template.body)}</p>
-            {variables(template.body).length > 0 ? <p className="cl-hint">Variables: {variables(template.body).join(', ')}. The preview uses sample values.</p> : null}
             <MessageTemplateForm template={template} />
           </div>
         </details>)}
@@ -189,7 +187,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       {!screen.isPreview ? <div className="comms-subsection">
         <div className="comms-subsection-head"><h3 className="comms-subsection-title">New template</h3></div>
         <div className="comms-band">
-          <p className="comms-band-intro">Write the message once; the variables fill in for each member when it is sent.</p>
+          <p className="comms-band-intro">Write a message once and reuse it. Templates are plain text: the member reads exactly what you type here.</p>
           <div className="comms-band-body"><MessageTemplateForm /></div>
         </div>
       </div> : null}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { ChevronDown } from 'lucide-react';
 import { AVATAR_INITIALS_MAX, formatPhone } from '@gymloop/shared';
 import { usePreviewReadOnly } from '../../../preview-context';
 import { StatusWord } from '../../../status-word';
@@ -247,14 +248,16 @@ export function CheckInGate({ members }: { members: Member[] }) {
 
       <section className="check-in-gate-panel" aria-labelledby="check-in-gate-title">
         <div className="check-in-gate-inner">
-          <p className="cl-eyebrow">Today&rsquo;s gate code</p>
+          <p className="cl-eyebrow check-in-gate-eyebrow">Today&rsquo;s gate code</p>
+          {/* The gate's state is said here and only here: a display title beside the
+              roster on a wide screen, one ruled status row above it on anything smaller. */}
           <h2 id="check-in-gate-title" className="check-in-gate-title">
             {gateCode ? 'Gate open' : 'No gate code'}
           </h2>
           <p className="check-in-gate-copy">
             {gateCode
               ? 'Scans are recorded against this code until it expires.'
-              : 'Generate one for members to scan, or enter the code you were given.'}
+              : 'Generate one for members to scan. Until then, check-ins are recorded at the desk with a reason.'}
           </p>
 
           {/* Two actions, two controls: making today's code stands alone, and a code
@@ -282,36 +285,44 @@ export function CheckInGate({ members }: { members: Member[] }) {
             </div>
           ) : null}
 
-          <form
-            className="check-in-gate-entry"
-            onSubmit={(event) => {
-              event.preventDefault();
-              rememberGateCode(codeDraft);
-            }}
-          >
-            <label htmlFor="check-in-gate-code" className="check-in-gate-label">Have a code? Enter it</label>
-            <div className="check-in-gate-controls">
-              <input
-                id="check-in-gate-code"
-                value={codeDraft}
-                onChange={(event) => setCodeDraft(event.target.value)}
-                placeholder="Gate code"
-                autoComplete="off"
-                spellCheck={false}
-                className={`${FIELD_CLASS} check-in-gate-input`}
-              />
-              {canScan ? (
-                <button
-                  type="button"
-                  onClick={scanning ? stopScanning : () => void startScanning()}
-                  className="cl-btn"
-                >
-                  {scanning ? 'Stop' : 'Scan'}
-                </button>
-              ) : null}
-              <button type="submit" disabled={!hydrated} className="cl-btn check-in-gate-use">Use code</button>
-            </div>
-          </form>
+          {/* A code someone handed you is the rare path, so below the wide layout it
+              waits behind "Have a code?" instead of pushing the roster down. */}
+          <details className="check-in-gate-disclosure">
+            <summary className="check-in-gate-summary">
+              Have a code?
+              <ChevronDown aria-hidden="true" className="check-in-gate-chevron" />
+            </summary>
+            <form
+              className="check-in-gate-entry"
+              onSubmit={(event) => {
+                event.preventDefault();
+                rememberGateCode(codeDraft);
+              }}
+            >
+              <label htmlFor="check-in-gate-code" className="check-in-gate-label">Have a code? Enter it</label>
+              <div className="check-in-gate-controls">
+                <input
+                  id="check-in-gate-code"
+                  value={codeDraft}
+                  onChange={(event) => setCodeDraft(event.target.value)}
+                  placeholder="Gate code"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className={`${FIELD_CLASS} check-in-gate-input`}
+                />
+                {canScan ? (
+                  <button
+                    type="button"
+                    onClick={scanning ? stopScanning : () => void startScanning()}
+                    className="cl-btn"
+                  >
+                    {scanning ? 'Stop' : 'Scan'}
+                  </button>
+                ) : null}
+                <button type="submit" disabled={!hydrated} className="cl-btn check-in-gate-use">Use code</button>
+              </div>
+            </form>
+          </details>
 
           <video
             ref={videoRef}
@@ -330,9 +341,6 @@ export function CheckInGate({ members }: { members: Member[] }) {
 
       <p className="check-in-roster-meta">
         <span className="check-in-count">{members.length === 1 ? '1 member' : `${members.length} members`}</span>
-        {gateCode ? null : (
-          <span className="check-in-desk-note">No gate code, so check-ins are recorded at the desk with a reason.</span>
-        )}
       </p>
 
       <ul className="check-in-members" aria-label="Members">
@@ -370,7 +378,8 @@ export function CheckInGate({ members }: { members: Member[] }) {
                     }}
                     aria-expanded={assistFor === member.id}
                     aria-label={`Check in ${member.full_name} at the desk`}
-                    className={gateCode || barred ? 'cl-btn cl-btn--quiet check-in-row-action' : 'cl-btn check-in-row-action'}
+                    // One row button at every width; a barred account's reads quieter, in the risk colour.
+                    className={barred ? 'cl-btn check-in-row-action check-in-row-action--anyway' : gateCode ? 'cl-btn check-in-row-action check-in-row-action--quiet' : 'cl-btn check-in-row-action'}
                   >
                     {barred ? 'Check in anyway' : gateCode ? 'Desk check-in' : 'Check in'}
                   </button>

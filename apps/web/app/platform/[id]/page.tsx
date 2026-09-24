@@ -12,7 +12,7 @@ const PROVIDER_STATES: Record<string, { status: string; label: string }> = {
   provider_unconfigured: { status: 'pending', label: 'Not set up yet' },
   outside_v1: { status: 'unavailable', label: 'Not offered yet' },
 };
-/** Timezones as an operator says them; anything else shows its IANA name. */
+/** Time zones as an operator says them; anything else shows its IANA name. */
 const TIMEZONE_NAMES: Record<string, string> = { 'Asia/Kolkata': 'India (IST)' };
 
 /**
@@ -40,17 +40,19 @@ export default async function PlatformGymPage({ params }: { params: Promise<{ id
     .map((row) => row.full_name);
   const zone = gym.metricsError === null ? gym.timezone : DEFAULT_TIMEZONE;
   const trialDay = gym.trialEndsAt === null ? null : formatDay(new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: zone }).format(new Date(gym.trialEndsAt)));
+  // "Iron Box Fitness — Vijay Nagar": the title keeps the gym, the branch part moves to the line beneath (never a wrapped line that opens on a dash).
+  const [title = gym.name, ...branchParts] = gym.name.split(' — ');
+  const branch = branchParts.join(' — ');
 
   return <main className="cl-page platform-gym">
     <a href="/platform" className="cl-back"><ArrowLeft aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />All gyms</a>
     <div className="cl-page-header">
       <div>
         <p className="cl-eyebrow">Gym code · {gym.gymCode}</p>
-        <h1 className="cl-title">{gym.name}</h1>
-        <p className="cl-lede platform-gym-lede">
+        <h1 className="cl-title">{title}{branch === '' ? null : <span className="sr-only"> — {branch}</span>}</h1>
+        <p className="cl-lede platform-gym-meta">
+          {branch === '' ? null : <><span aria-hidden="true">{branch}</span><span aria-hidden="true">·</span></>}
           <StatusWord status={gym.status} />
-          <span>{gym.tier === null ? 'No tier' : `${humanize(gym.tier)} tier`}</span>
-          <span>{TIMEZONE_NAMES[gym.timezone] ?? gym.timezone}</span>
         </p>
       </div>
       {isAdmin ? <div className="cl-actions"><a href={`/platform?manage=${gym.tenantId}#manage-${gym.tenantId}`} className="cl-btn cl-btn--primary">Manage gym</a></div> : null}
@@ -61,7 +63,7 @@ export default async function PlatformGymPage({ params }: { params: Promise<{ id
       <div className="cl-metric"><span className="cl-eyebrow">Open cases</span><span className="cl-metric-value tabular-nums">{gym.openCases}</span><small>Members to bring back</small></div>
       <div className="cl-metric"><span className="cl-eyebrow">Failed sends</span><span className="cl-metric-value tabular-nums">{gym.failedNotifications}</span><small>Did not go out</small></div>
       <div className="cl-metric"><span className="cl-eyebrow">Trial ends</span>{trialDay === null
-        ? <><span className="cl-metric-value platform-metric-none">None</span><small>No trial</small></>
+        ? <><span className="cl-metric-value platform-metric-none" aria-hidden="true">—</span><small>No trial</small></>
         : <><span className="cl-metric-value tabular-nums"><time dateTime={gym.trialEndsAt ?? ''}>{trialDay.split(' ').slice(0, -1).join(' ')}</time></span><small>{trialDay}</small></>}</div>
     </div>
 
@@ -76,6 +78,10 @@ export default async function PlatformGymPage({ params }: { params: Promise<{ id
             {gym.ownerAccessPending ? <StatusWord status="pending" label="Access pending" /> : <StatusWord status="ready" label="Access linked" />}
             {ownerNames.length > 0 ? <span className="cl-row-meta">{ownerNames.join(', ')}</span> : null}
           </dd>
+          <dt>Tier</dt>
+          <dd>{gym.tier === null ? <span className="cl-muted">No plan yet</span> : humanize(gym.tier)}</dd>
+          <dt>Time zone</dt>
+          <dd>{gym.metricsError === null ? TIMEZONE_NAMES[gym.timezone] ?? gym.timezone : <StatusWord status="failed" label={`Not a valid time zone: ${gym.timezone}`} />}</dd>
         </dl>
       </section>
 

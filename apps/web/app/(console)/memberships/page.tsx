@@ -1,4 +1,4 @@
-import { AVATAR_INITIALS_MAX, formatDay, formatMoney, formatPhone } from '@gymloop/shared';
+import { AVATAR_INITIALS_MAX, formatMoney, formatPhone } from '@gymloop/shared';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { loadMemberSearch } from '../../../lib/members';
@@ -27,6 +27,10 @@ export default async function MembershipsPage({
   const search = await loadMemberSearch(searchParams);
   const standing = await loadMembershipStanding(search.members, { money: true });
   const count = search.members.length;
+  // Someone with no membership yet is listed apart, after the ledger, instead of as a
+  // row of dashes inside it — and the count says which number is which.
+  const held = search.members.filter((member) => standing.get(member.id)?.membership.status !== 'none');
+  const unheld = search.members.filter((member) => standing.get(member.id)?.membership.status === 'none');
 
   return (
     <MemberSearchPage
@@ -42,51 +46,75 @@ export default async function MembershipsPage({
       {count > 0 ? (
         <>
           <p className="desk-count">
-            {count === 1 ? '1 membership' : `${count} memberships`}
+            {count === 1 ? '1 member' : `${count} members`}
             {search.phone ? ` matching “${search.phone}”` : ''}
+            {` · ${held.length} with a membership`}
           </p>
-          <div className="cl-ledger-wrap memberships-ledger-wrap">
-            <table className="cl-ledger memberships-ledger">
-              <thead>
-                <tr>
-                  <th scope="col">Member</th>
-                  <th scope="col">Plan</th>
-                  <th scope="col">Ends</th>
-                  <th scope="col" className="cl-num">Per period</th>
-                  <th scope="col">Status</th>
-                  <th aria-hidden="true" className="memberships-chevron-cell" />
-                </tr>
-              </thead>
-              <tbody>
-                {search.members.map((member) => {
+          {held.length > 0 ? (
+            <div className="cl-ledger-wrap memberships-ledger-wrap">
+              <table className="cl-ledger memberships-ledger">
+                <thead>
+                  <tr>
+                    <th scope="col">Member</th>
+                    <th scope="col">Plan</th>
+                    <th scope="col">Ends</th>
+                    <th scope="col" className="cl-num memberships-price">Price</th>
+                    <th scope="col">Status</th>
+                    <th aria-hidden="true" className="memberships-chevron-cell" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {held.map((member) => {
+                    const state = standing.get(member.id);
+                    if (state === undefined) return null;
+                    const price = state.price ? formatMoney(state.price.paise, state.price.currency) : null;
+                    return (
+                      <tr key={member.id}>
+                        <td className="memberships-person-cell">
+                          <span className="desk-person">
+                            <span aria-hidden="true" className="check-in-member-initial desk-person-avatar">{member.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('')}</span>
+                            {/* The whole row is this link (its ::after covers the row), as on the Members roster. */}
+                            <span className="desk-person-text"><Link href={`/memberships/${member.id}`} className="desk-person-name memberships-member">{member.full_name}</Link><span className="desk-person-phone">{formatPhone(member.phone)}</span></span>
+                          </span>
+                        </td>
+                        {/* Below the wide ledger the price rides with the plan instead of taking a column. */}
+                        <td className="memberships-plan">{state.plan ?? <span className="cl-muted">—</span>}{price ? <span className="memberships-plan-price"> · {price}</span> : null}</td>
+                        <td className="memberships-ends">
+                          {state.endsOn && state.endsDay ? <time dateTime={state.endsOn} className="desk-ends" data-ended={state.ended} data-tone={state.membership.status === 'overdue' ? 'risk' : undefined}><span className="desk-ends-word">{state.ended ? 'Ended' : 'Ends'} </span>{state.endsDay}</time> : <span className="cl-muted desk-ends">No end date</span>}
+                        </td>
+                        <td className="cl-num memberships-price">{price ?? <span className="cl-muted">—</span>}</td>
+                        <td className="memberships-status"><StatusWord status={state.status} label={state.label} /></td>
+                        <td aria-hidden="true" className="memberships-chevron-cell"><ChevronRight className="console-roster-chevron memberships-chevron" /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+          {unheld.length > 0 ? (
+            <section className="memberships-none" aria-labelledby="memberships-none-heading">
+              <h2 id="memberships-none-heading" className="cl-section-title memberships-none-title">No membership yet</h2>
+              <ul className="memberships-none-list">
+                {unheld.map((member) => {
                   const state = standing.get(member.id);
                   return (
-                    <tr key={member.id}>
-                      <td>
-                        <span className="memberships-identity">
-                          <span aria-hidden="true" className="check-in-member-initial">{member.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('')}</span>
-                          <span>
-                            {/* The whole row is this link (its ::after covers the row), as on the Members roster. */}
-                            <Link href={`/memberships/${member.id}`} className="memberships-member">{member.full_name}</Link>
-                            <span className="memberships-phone">{formatPhone(member.phone)}</span>
-                          </span>
+                    <li key={member.id}>
+                      <Link href={`/memberships/${member.id}`} className="memberships-none-row">
+                        <span className="desk-person">
+                          <span aria-hidden="true" className="check-in-member-initial desk-person-avatar">{member.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('')}</span>
+                          <span className="desk-person-text"><span className="desk-person-name">{member.full_name}</span><span className="desk-person-phone">{formatPhone(member.phone)}</span></span>
                         </span>
-                      </td>
-                      <td className="memberships-plan">{state?.plan ?? <span className="cl-muted">—</span>}</td>
-                      <td className="memberships-ends tabular-nums">
-                        {state?.endsOn ? <time dateTime={state.endsOn} className="desk-ends" data-ended={state.ended} data-tone={state.membership.status === 'overdue' ? 'risk' : undefined}><span className="desk-ends-word">{state.ended ? 'Ended' : 'Ends'} </span>{formatDay(state.endsOn)}</time> : <span className="cl-muted desk-ends-none">—</span>}
-                      </td>
-                      <td className="cl-num memberships-price">
-                        {state?.price ? formatMoney(state.price.paise, state.price.currency) : <span className="cl-muted">—</span>}
-                      </td>
-                      <td className="memberships-status">{state ? <StatusWord status={state.status} label={state.label} /> : <StatusWord status="none" label="No membership" />}</td>
-                      <td aria-hidden="true" className="memberships-chevron-cell"><ChevronRight className="console-roster-chevron memberships-chevron" /></td>
-                    </tr>
+                        {/* A blocked or cancelled account still says so; otherwise the heading already has. */}
+                        {state && state.status !== 'none' ? <StatusWord status={state.status} label={state.label} /> : null}
+                        <ChevronRight aria-hidden="true" className="console-roster-chevron" />
+                      </Link>
+                    </li>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+              </ul>
+            </section>
+          ) : null}
         </>
       ) : (
         <div className="cl-empty cl-section">

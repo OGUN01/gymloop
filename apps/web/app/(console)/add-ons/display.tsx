@@ -39,23 +39,43 @@ export const ADDON_OFFER_COLUMNS = 'id,name,kind,description,price_paise::text,c
 export const ADDON_ORDER_COLUMNS = 'id,member_id,addon_product_id,status,quantity,unit_price_paise::text,total_paise::text,currency,sessions_used,sessions_total,starts_on,expires_on,sold_at,sold_by_staff_id,sale_snapshot,payment_id,trainer_staff_id,addon_products(name),members(full_name,phone),seller:staff!addon_orders_tenant_id_sold_by_staff_id_fkey(full_name),trainer:staff!addon_orders_trainer_staff_id_fkey(full_name),payments(receipt_number,status,method,amount_paise::text,currency)';
 export const ADDON_SESSION_COLUMNS = 'id,addon_order_id,member_id,trainer_staff_id,starts_at,ends_at,status,notes,members(full_name),staff(full_name)';
 
-/** An order's fulfilment as a delivery word and tone, so a paid-but-undelivered diet plan never reads "Paid" twice. */
-export const ADDON_DELIVERY: Record<AddonOrder['status'], [string, 'ok' | 'warn' | 'risk']> = { pending: ['Awaiting payment', 'warn'], paid: ['To deliver', 'warn'], active: ['In progress', 'ok'], completed: ['Delivered', 'ok'], cancelled: ['Cancelled', 'risk'], refunded: ['Refunded', 'risk'] };
+/**
+ * An order's fulfilment as a delivery word and tone, so a paid-but-undelivered
+ * diet plan never reads "Paid" twice. Moss is kept for finished work: ongoing
+ * delivery is neutral, work still to start is ochre.
+ */
+export const ADDON_DELIVERY: Record<AddonOrder['status'], [string, 'ok' | 'warn' | 'risk' | 'neutral']> = { pending: ['Awaiting payment', 'warn'], paid: ['To deliver', 'warn'], active: ['In progress', 'neutral'], completed: ['Delivered', 'ok'], cancelled: ['Cancelled', 'risk'], refunded: ['Refunded', 'risk'] };
 
-/** Why an offer cannot be sold — a short status word and, when a disclosure is missing, which one. */
-function offerAvailability(offer: AddonOffer): { word: string; reason: string | null } | null {
-  if (!offer.is_active) return { word: 'Inactive', reason: null };
-  if (offer.currency !== 'INR') return { word: 'Unsupported currency', reason: offer.currency };
-  const missing = [
-    offer.description?.trim() ? null : 'description',
-    offer.cancellation_terms?.trim() ? null : 'cancellation terms',
-    offer.validity_days ? null : 'validity period',
-    ...(offer.kind === 'pt_package' ? [offer.trainer_staff_id ? null : 'assigned trainer',
-      offer.trainer_qualification?.trim() ? null : 'trainer qualification', offer.session_count ? null : 'session count'] : []),
-    offer.kind === 'product' && offer.stock_quantity == null ? 'stock count' : null,
-  ].filter((item): item is string => item !== null);
-  if (missing.length) return { word: 'Unavailable', reason: `no ${missing.length === 1 ? missing[0] : `${missing.slice(0, -1).join(', ')} or ${missing.at(-1)}`}` };
-  if (offer.kind === 'product' && offer.stock_quantity === 0) return { word: 'Out of stock', reason: null };
+/** "a", "a and b", "a, b and c" — the way a person lists things. */
+const listed = (items: string[], word: string) => items.length > 1 ? `${items.slice(0, -1).join(', ')} ${word} ${items.at(-1)}` : items[0] ?? '';
+
+/**
+ * Why an offer cannot be sold: a short status word, which disclosure is
+ * missing (for the sale picker), and one sentence naming the fix (for the
+ * catalogue row). Nothing is invented — a missing qualification is "not
+ * recorded", never "not qualified".
+ */
+function offerAvailability(offer: AddonOffer): { word: string; reason: string | null; fix: string } | null {
+  if (!offer.is_active) return { word: 'Inactive', reason: null, fix: 'Inactive — mark it active to sell it.' };
+  if (offer.currency !== 'INR') return { word: 'Unsupported currency', reason: offer.currency, fix: `Priced in ${offer.currency} — create an INR offer to sell it.` };
+  const trainer = offer.staff?.full_name;
+  const gaps: Array<[boolean, string, string]> = [
+    [Boolean(offer.description?.trim()), 'description', 'add a description'],
+    [Boolean(offer.cancellation_terms?.trim()), 'cancellation terms', 'add cancellation terms'],
+    [Boolean(offer.validity_days), 'validity period', 'set how long it stays valid'],
+    ...(offer.kind === 'pt_package' ? [
+      [Boolean(offer.trainer_staff_id), 'assigned trainer', 'assign a trainer'],
+      [Boolean(offer.trainer_qualification?.trim()), 'trainer qualification', `add ${trainer ? `${trainer}’s` : 'the trainer’s'} qualification`],
+      [Boolean(offer.session_count), 'session count', 'set the number of sessions'],
+    ] satisfies Array<[boolean, string, string]> : []),
+    ...(offer.kind === 'product' ? [[offer.stock_quantity != null, 'stock count', 'set the stock count']] satisfies Array<[boolean, string, string]> : []),
+  ];
+  const missing = gaps.filter(([present]) => !present);
+  if (missing.length) {
+    const fix = listed(missing.map(([, , step]) => step), 'and');
+    return { word: 'Unavailable', reason: `no ${listed(missing.map(([, item]) => item), 'or')}`, fix: `${fix.charAt(0).toUpperCase()}${fix.slice(1)} to sell it.` };
+  }
+  if (offer.kind === 'product' && offer.stock_quantity === 0) return { word: 'Out of stock', reason: null, fix: 'Out of stock — add stock to sell it.' };
   return null;
 }
 
@@ -92,12 +112,14 @@ function offerSummary(offer: AddonOffer) {
  * them expanded without the toggle (the sale review); children render inside
  * the opened terms (a member's "Show at the desk"). The summary's parts are
  * direct grid items so each width can lay the same row out as a ledger line or
- * a stacked card. Missing historical facts are not replaced with today's terms.
+ * a stacked card. An offer that cannot be sold says so once ("Not for sale")
+ * and gives one sentence naming the fix. Missing historical facts are not
+ * replaced with today's terms.
  */
 export function AddonOfferDetails({ offer, open = false, children }: { offer: AddonOffer; open?: boolean; children?: ReactNode }) {
   const state = offerAvailability(offer);
   const summary = offerSummary(offer);
-  const reason = state?.reason ? state.word === 'Unsupported currency' ? `Priced in ${state.reason}` : `${state.reason.charAt(0).toUpperCase()}${state.reason.slice(1)}` : null;
+  const reason = state?.fix ?? null;
   return <details className="addon-offer" open={open}>
     <summary className="addon-offer-summary">
       <span className="cl-eyebrow addon-offer-kind" data-kind={offer.kind}>{humanize(offer.kind)}</span>
@@ -105,8 +127,8 @@ export function AddonOfferDetails({ offer, open = false, children }: { offer: Ad
       {summary ? <span className="addon-offer-meta">{summary}</span> : null}
       {reason ? <span className="addon-offer-reason">{reason}</span> : null}
       <span className="addon-offer-price">{formatMoney(offer.price_paise, offer.currency)}</span>
-      <span className="cl-status addon-offer-state" data-tone={state ? 'warn' : 'ok'}>{state?.word ?? 'Available'}</span>
-      {open ? null : <span className="addon-offer-more">Details<ChevronDown aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></span>}
+      <span className="cl-status addon-offer-state" data-tone={state ? 'warn' : 'ok'}>{state ? 'Not for sale' : 'Available'}</span>
+      {open ? null : <span className="addon-offer-more">Details<ChevronDown aria-hidden="true" className="addon-chevron" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></span>}
     </summary>
     <div className="addon-offer-body">
       <p>{offer.description?.trim() || 'Description unavailable'}</p>
@@ -146,20 +168,20 @@ export function AddonOrderFacts({ order, timezone, showPayment = true, detail = 
   const unit = order.unit_price_paise == null ? null : formatMoney(order.unit_price_paise, order.currency);
   const total = order.total_paise == null ? 'Not recorded' : formatMoney(order.total_paise, order.currency);
   return <div className="addon-order-facts">
-    <div>
-      {snapshot && !detail ? <p className="cl-eyebrow" data-kind={snapshot.kind}>{humanize(snapshot.kind)}</p> : null}
-      <h2 className={detail ? 'cl-section-title' : 'addon-order-title'}>{detail ? snapshot ? TERMS_HEADING[snapshot.kind] : 'Order terms' : name}</h2>
-    </div>
+    {detail ? <div className="cl-section-head addon-head"><h2 className="cl-section-title">{snapshot ? TERMS_HEADING[snapshot.kind] : 'Order terms'}</h2></div> : <div>
+      {snapshot ? <p className="cl-eyebrow" data-kind={snapshot.kind}>{humanize(snapshot.kind)}</p> : null}
+      <h2 className="addon-order-title">{name}</h2>
+    </div>}
     {snapshot ? <p>{snapshot.description || 'Historical description unavailable'}</p> : null}
     <dl className="addon-facts">
       {detail ? <>
-        <dt>Unit price</dt><dd>{unit ? <>{unit} <span className="cl-muted">× {order.quantity ?? 'Not recorded'}</span></> : 'Not recorded'}</dd>
-        {showPayment ? null : <><dt>Total</dt><dd className="font-semibold">{total}</dd></>}
+        <dt>Unit price</dt><dd>{unit ? <><span className="addon-amount">{unit}</span> <span className="cl-muted">× {order.quantity ?? 'Not recorded'}</span></> : 'Not recorded'}</dd>
+        {showPayment ? null : <><dt>Total</dt><dd className="font-semibold"><span className="addon-amount">{total}</span></dd></>}
       </> : <>
         <dt>Fulfilment</dt><dd><StatusWord status={order.status} /></dd>
         <dt>Quantity</dt><dd>{order.quantity ?? 'Not recorded'}</dd>
-        <dt>Unit price</dt><dd>{unit ?? 'Not recorded'}</dd>
-        <dt>Total</dt><dd className="font-semibold">{total}</dd>
+        <dt>Unit price</dt><dd>{unit ? <span className="addon-amount">{unit}</span> : 'Not recorded'}</dd>
+        <dt>Total</dt><dd className="font-semibold"><span className="addon-amount">{total}</span></dd>
       </>}
       <dt>{detail ? 'Sold on' : 'Bought on'}</dt><dd>{order.sold_at ? when(order.sold_at) : 'Not recorded'}</dd>
       <dt>Valid</dt><dd><ValidDays from={order.starts_on} through={order.expires_on} /></dd>
@@ -176,7 +198,7 @@ export function AddonOrderFacts({ order, timezone, showPayment = true, detail = 
     </dl>
     {detail ? null : showPayment ? complimentary ? <p className="cl-alert" data-tone="info">Complimentary · {order.currency} 0.00 — no payment and no receipt.</p> : null :
       <p className="cl-muted text-sm">Payment and receipt details are available to front-office staff.</p>}
-    {snapshot ? null : <p><span className="cl-status addon-wrap" data-tone="warn">{order.addon_products?.name ? 'Original terms weren’t saved — showing today’s catalogue name.' : 'Original terms weren’t saved.'}</span></p>}
+    {snapshot ? null : <p className="cl-muted addon-terms-note">{order.addon_products?.name ? 'Shows the current catalogue name; the name and terms at the time of sale weren’t recorded.' : 'The name and terms at the time of sale weren’t recorded.'}</p>}
     {expired ? <p className="cl-alert" data-tone="warn">Expired · the inclusive validity has ended. Recorded purchase and usage history remain visible.</p> : null}
   </div>;
 }

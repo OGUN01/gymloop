@@ -1,6 +1,6 @@
 import { MEMBER_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
 import Link from 'next/link';
-import { ArrowRight, Search } from 'lucide-react';
+import { ArrowRight, ChevronRight, Search } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 /**
@@ -103,13 +103,13 @@ export function MemberSearchPage({
       {children}
 
       {nextHref === null ? null : (
-        <Link
-          href={nextHref}
-          rel="next"
-          className="cl-btn check-in-next-page"
-        >
-          Next page
-        </Link>
+        // A ruled pager row under the list, its one move on the right.
+        <nav aria-label="More members" className="desk-pager check-in-next-page">
+          <Link href={nextHref} rel="next" className="cl-btn desk-pager-link">
+            Next page
+            <ChevronRight aria-hidden="true" className="desk-icon" />
+          </Link>
+        </nav>
       )}
     </main>
   );

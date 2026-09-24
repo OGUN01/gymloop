@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { ChevronRight, CreditCard, MessageSquareMore, ScanLine } from 'lucide-react';
-import { UI_TOKENS } from '@gymloop/shared';
+import { CalendarCheck, ChevronRight, CreditCard, MessageSquareMore, ScanLine } from 'lucide-react';
+import { AVATAR_INITIALS_MAX, UI_TOKENS } from '@gymloop/shared';
 import { StatusWord } from '../status-word';
 import { loadMemberPortal } from '../../lib/member-portal';
 import { MemberWeekRhythm, memberGreeting, memberGymName, memberShortDate } from './member-ui';
@@ -11,13 +11,14 @@ export default async function MemberHomePage() {
   const portal = await loadMemberPortal();
   if (portal.errorMessage) return <main className="member-route member-portal"><h1 className="member-title">Home</h1><p className="cl-alert" role="alert">{portal.errorMessage}</p></main>;
   const firstName = portal.member.full_name.split(' ')[0] ?? portal.member.full_name;
+  const initials = portal.member.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('');
   const remaining = Math.max(portal.weeklyGoal - portal.weekVisits, 0);
   const lastVisit = portal.visits[0];
   const lastVisitLabel = lastVisit ? `${new Date(lastVisit.checked_in_at).toLocaleDateString('en-GB', { weekday: 'short', timeZone: portal.gym.timezone })}, ${memberShortDate(new Date(lastVisit.checked_in_at).toLocaleDateString('en-CA', { timeZone: portal.gym.timezone }))} · ${new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: portal.gym.timezone }).format(new Date(lastVisit.checked_in_at))}` : null;
   return <main className="member-route member-portal member-home">
     <header className="member-portal-header">
       <p><strong>{memberGymName(portal.gym)}</strong> · {portal.gym.branchName}</p>
-      <Link href="/member/you" className="member-initial" aria-label={`${portal.member.full_name}, open You`}>{firstName.slice(0, 1)}</Link>
+      <Link href="/member/you" className="member-initial" aria-label={`${portal.member.full_name}, open You`}>{initials}</Link>
     </header>
     <section className="member-hero"><h1>{memberGreeting(portal.gym.timezone)}, {firstName}</h1></section>
     <section className="member-week" aria-labelledby="member-week-heading">
@@ -38,7 +39,12 @@ export default async function MemberHomePage() {
         {portal.latestMessage.status === 'sent' ? <span className="cl-status" data-tone="accent">New</span> : <span />}
         <ChevronRight {...icon} size={UI_TOKENS.icons.controlSize} />
       </Link></li> : null}
-      {lastVisitLabel ? <li className="member-home-last"><span>Last visit</span><span>{lastVisitLabel}</span></li> : null}
+      {lastVisitLabel ? <li><Link className="member-row" href="/member/activity">
+        <CalendarCheck {...icon} />
+        <span className="member-row-text"><strong>Last visit</strong><small className="tabular-nums">{lastVisitLabel}</small></span>
+        <span />
+        <ChevronRight {...icon} size={UI_TOKENS.icons.controlSize} />
+      </Link></li> : null}
     </ul>
     <div className="member-scan-sticky"><Link className="member-primary-action member-primary-action--dominant" href="/member/check-in"><ScanLine {...icon} />Scan to check in</Link></div>
   </main>;

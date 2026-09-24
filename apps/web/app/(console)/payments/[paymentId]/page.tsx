@@ -102,6 +102,18 @@ export default async function ReceiptPage({
           ? `${formatMoney(completedReturnedPaise, payment.currency)} returned so far; ${formatMoney(refundablePaise, payment.currency)} can still go back.${deskNote}`
           : canRefund ? null : `Up to ${formatMoney(refundablePaise, payment.currency)} can go back.${deskNote}`;
 
+  // The document's own state, as a dot and a word under the amount: what the
+  // money did, including what has gone back since (the Refunds list has the rows).
+  const moneyState = payment.status !== 'paid'
+    ? <StatusWord status={payment.status} />
+    : completedReturnedPaise === payment.amount_paise
+      ? <StatusWord status="refunded" />
+      : completedReturnedPaise !== '0'
+        ? <span className="cl-status" data-tone="warn" data-status="part_refunded">Part-refunded</span>
+        : pendingRefundPaise !== '0'
+          ? <span className="cl-status" data-tone="warn" data-status="refund_pending">Refund pending</span>
+          : <StatusWord status="paid" />;
+
   return (
     <main className="cl-page money-receipt-page">
       {/* Where this is: a receipt in the payments ledger, which is also the
@@ -144,6 +156,7 @@ export default async function ReceiptPage({
               <span className="cl-metric-value">
                 {formatMoney(payment.amount_paise, payment.currency)}
               </span>
+              <span className="money-amount-state">{moneyState}</span>
             </dd>
           </div>
           <Row label="Member">
@@ -252,7 +265,7 @@ export default async function ReceiptPage({
                 <small id="refund-amount-hint">Up to {formatMoney(refundablePaise, payment.currency)} can go back.</small>
               </label>
               <label className="cl-field">
-                <span>Type</span>
+                <span>Refund type</span>
                 <select name="kind" required className="cl-input">
                   {Constants.public.Enums.refund_kind.map((kind) => (
                     <option key={kind} value={kind}>

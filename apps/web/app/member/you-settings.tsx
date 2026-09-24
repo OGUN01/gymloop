@@ -35,7 +35,7 @@ export default function YouSettings({ profile, membership }: { profile: Profile;
   }, [settingsOpen]);
   const appearanceSummary = !hasMounted ? 'Loading appearance' : theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System';
   const contactSummary = profile.email ?? profile.phone ?? 'Available after sign-in';
-  const gymSummary = `${memberGymName({ name: profile.gymName, branchName: profile.branchName })} · ${profile.gymCode}`;
+  const gymName = memberGymName({ name: profile.gymName, branchName: profile.branchName }), gymSummary = `${gymName} · ${profile.gymCode}`;
   const personalSummary = profile.phone ? formatPhone(profile.phone) : profile.email ?? 'Available after sign-in';
   const membershipSummary = membership ? `${membership.planName} · ${membership.status.replaceAll('_', ' ')}` : 'No membership is visible';
   const initials = profile.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('');
@@ -53,9 +53,9 @@ export default function YouSettings({ profile, membership }: { profile: Profile;
     </section>
     <h2 className="cl-eyebrow member-eyebrow member-account-eyebrow">Account</h2>
     <ul className="member-account-list" aria-label="Account">
-      <li aria-label={`Personal details, ${personalSummary}`}><span className="member-account-row"><strong>Personal details</strong><small>{personalSummary}</small></span></li>
+      <li aria-label={`Personal details, ${personalSummary}`}><span className="member-account-row member-account-row--fact"><strong>Personal details</strong><small>{personalSummary}</small></span></li>
       <li aria-label={`Membership, ${membershipSummary}`}><Link className="member-account-row" href="/member/my-gym#membership"><strong>Membership</strong><span className="member-account-value">{membership ? <>{membership.planName}<StatusWord status={membership.status} /></> : 'None visible'}</span><ChevronRight {...small} /></Link></li>
-      <li aria-label={`Gym, ${profile.branchName} branch`}><Link className="member-account-row" href="/member/my-gym"><strong>Gym</strong><small>{profile.branchName}</small><ChevronRight {...small} /></Link></li>
+      <li aria-label={`Gym, ${gymName}, ${profile.branchName} branch`}><Link className="member-account-row" href="/member/my-gym"><strong>Gym</strong><small>{gymName} · {profile.branchName}</small><ChevronRight {...small} /></Link></li>
       <li aria-label={`Appearance, ${appearanceSummary}`}><button type="button" className="member-account-row" aria-label={`Appearance, ${appearanceSummary}`} onClick={openSettings}><strong>Appearance</strong><small>{appearanceSummary}</small><ChevronRight {...small} /></button></li>
     </ul>
     {settingsOpen ? <div className="member-sheet-backdrop" role="presentation" onClick={() => setSettingsOpen(false)}><section className="member-settings-sheet" role="dialog" aria-modal="true" aria-labelledby="member-settings-title" onClick={(event) => event.stopPropagation()}>

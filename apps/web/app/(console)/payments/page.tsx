@@ -53,7 +53,15 @@ export default async function PaymentsPage({
 
   const takings = paidTotals(payments);
   const paidCount = payments.filter((row) => row.status === 'paid').length;
-  const shownCaption = `${paidCount === payments.length ? `${paidCount} ${paidCount === 1 ? 'payment' : 'payments'}` : `${paidCount} paid of ${payments.length}`}${nextHref === null ? '' : ' · older ones below'}`;
+  // What this list is, said plainly: a page of entries in entry order, and what
+  // its paid rows add up to. Not a headline — the figure is only this page's.
+  const entries = `${payments.length} ${payments.length === 1 ? 'entry' : 'entries'}`;
+  const scope = params.cursor !== undefined
+    ? `${payments.length} earlier ${payments.length === 1 ? 'entry' : 'entries'}`
+    : nextHref === null ? entries : `Latest ${entries}`;
+  const pageSummary = takings.length === 0
+    ? scope
+    : `${scope} · ${takings.join(' · ')}${paidCount === payments.length ? '' : ` from ${paidCount} paid`}`;
 
   return (
     <main className="cl-page">
@@ -62,17 +70,10 @@ export default async function PaymentsPage({
           <p className="cl-eyebrow">Money</p>
           <h1 className="cl-title money-page-title">Payments</h1>
           <p className="cl-lede money-lede">
-            Money taken at the desk, latest entries first. Take a payment from a
+            Desk and online payments, newest entries first. Take a payment from a
             member&rsquo;s page.
           </p>
         </div>
-        {takings.length === 0 ? null : (
-          <div className="cl-metric money-summary">
-            <span className="cl-eyebrow">This page</span>
-            <span className="cl-metric-value">{takings.join(' · ')}</span>
-            <small className="cl-muted">{shownCaption}</small>
-          </div>
-        )}
       </div>
 
       {problem === null ? null : <Alert>{problem}</Alert>}
@@ -88,6 +89,7 @@ export default async function PaymentsPage({
         </div>
       ) : (
         <div className="cl-section money-pay-list">
+          <p className="money-pay-summary">{pageSummary}</p>
           <div className="cl-ledger-wrap money-wide">
             <table className="cl-ledger money-ledger">
               <thead>
@@ -95,7 +97,7 @@ export default async function PaymentsPage({
                   <th scope="col">Receipt</th>
                   <th scope="col">Member</th>
                   <th scope="col" className="cl-num">Amount</th>
-                  <th scope="col">Method</th>
+                  <th scope="col" className="money-method">Method</th>
                   <th scope="col" className="money-takenby">Taken by</th>
                   {/* The sort key is the column: rows are in entry order, so the
                       date shown first is the entry date. A payment dated to
@@ -109,7 +111,7 @@ export default async function PaymentsPage({
                   return (
                     <tr key={row.id}>
                       <td className="tabular-nums">
-                        <Link href={`/payments/${row.id}`} className={receiptClass(row)}>
+                        <Link href={`/payments/${row.id}`} className={receiptClass(row)} aria-label={receiptName(row)}>
                           {/* A payment that is not paid has no receipt number, and
                               saying so is more useful than an empty cell: it is the
                               difference between money received and an intention to
@@ -124,7 +126,7 @@ export default async function PaymentsPage({
                         <Link href={`/memberships/${row.member_id}`} title={row.members.full_name}>{row.members.full_name}</Link>
                       </td>
                       <td className="cl-num money-amount">{formatMoney(row.amount_paise, row.currency)}</td>
-                      <td>{humanize(row.method)}</td>
+                      <td className="money-method">{humanize(row.method)}</td>
                       <td className="money-takenby">{row.staff?.full_name ?? '—'}</td>
                       <td className="tabular-nums money-when">
                         <span title={`Recorded ${when.recordedDay}, ${when.recordedTime}`}>
@@ -153,13 +155,15 @@ export default async function PaymentsPage({
                     {row.members.full_name}
                   </Link>
                   <span className="money-row-amount">{formatMoney(row.amount_paise, row.currency)}</span>
+                  {/* How, and the day the money was paid; the entry day only
+                      when it is a different day. */}
                   <span className="money-row-meta">
-                    {humanize(row.method)} · {when.recordedDay}
+                    {humanize(row.method)} · Paid {when.paidDay ?? when.recordedDay}
                   </span>
-                  <Link href={`/payments/${row.id}`} className={`money-row-receipt ${receiptClass(row)}`} aria-label={`Receipt ${receiptLabel(row)}`}>
+                  <Link href={`/payments/${row.id}`} className={`money-row-receipt ${receiptClass(row)}`} aria-label={receiptName(row)}>
                     {receiptLabel(row)}
                   </Link>
-                  {when.paidDay === null ? null : <span className="money-row-paid">Paid {when.paidDay}</span>}
+                  {when.paidDay === null ? null : <span className="money-row-recorded">Recorded {when.recordedDay}</span>}
                 </li>
               );
             })}
@@ -190,12 +194,20 @@ type Row = {
 
 /**
  * The receipt number, or why there is none: an online payment's receipt is
- * the provider's, and anything else unnumbered says its state (PAY-008).
+ * the provider's, so the desk column shows a dash (METHOD already says
+ * Razorpay), and anything else unnumbered says its state (PAY-008).
  */
 function receiptLabel(row: Pick<Row, 'receipt_number' | 'status' | 'method'>): string {
   if (row.receipt_number !== null) return row.receipt_number;
-  if (row.status === 'paid' && row.method === 'razorpay') return 'Online';
+  if (row.status === 'paid' && row.method === 'razorpay') return '—';
   return `${humanize(row.status)} — no receipt`;
+}
+
+/** What the receipt link is called to a screen reader: the dash is "No desk receipt". */
+function receiptName(row: Pick<Row, 'receipt_number' | 'status' | 'method'>): string {
+  if (row.receipt_number !== null) return `Receipt ${row.receipt_number}`;
+  const label = receiptLabel(row);
+  return label === '—' ? 'No desk receipt — open the payment' : label;
 }
 
 /** A real receipt number reads as a link; the "no receipt" note reads as a note. */

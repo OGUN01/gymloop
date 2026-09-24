@@ -27,7 +27,7 @@
 .platform-open-link::after { content: ''; position: absolute; inset: 0; }
 .platform-open-link:hover, .platform-ledger tbody tr:hover .platform-open-link { text-decoration: underline; text-underline-offset: 3px; }
 .platform-open-link:focus-visible { outline: 2px solid var(--gymloop-color-primary-action); outline-offset: 2px; }
-/* Failed sends leaves first (under 75rem); trial end and open cases stay down to 56.25rem (900px). */
+/* Tier leaves first (under 75rem; the gym page carries it), so failed sends, the operational signal, stays; trial end and open cases stay down to 56.25rem (900px). */
 @media (max-width: 75rem) {
   .platform-ledger .platform-col-wide { display: none; }
   .platform-cell-gym { min-width: 0; max-width: 16.25rem; }
@@ -37,14 +37,13 @@
   .platform-ledger .platform-col-mid { display: none; }
 }
 
-/* ── Zones: Manage gyms and Add a gym, 48px apart; the ruled row above each already closes the zone before it ── */
-.platform-manage-zone, .platform-onboard { margin-top: var(--gymloop-space-48); }
+/* ── Sections: Fleet, Manage gyms and Add a gym share one opening — the condensed title, an optional one-line description, 12px, then the hairline the gym page's ledgers open on. ── */
+.platform-zone { margin-top: var(--gymloop-space-48); }
 .platform-onboard { scroll-margin-top: var(--gymloop-space-24); }
-.platform-zone-head { display: grid; gap: var(--gymloop-space-8); margin-bottom: var(--gymloop-space-16); }
-.platform-zone-head > p { margin: 0; }
-.platform-zone-head > .cl-muted { max-width: 60ch; }
+.platform-zone-head { display: grid; gap: var(--gymloop-space-4); padding-bottom: var(--gymloop-space-12); border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+.platform-zone-head > p { margin: 0; max-width: 60ch; font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); }
+.platform-onboard > .cl-form { margin-top: var(--gymloop-space-24); }
 .platform-manage { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
-.platform-manage:first-of-type { border-top: 1px solid var(--gymloop-color-decorative-separator); }
 .platform-manage > summary { display: flex; min-height: calc(var(--gymloop-target-touch) + var(--gymloop-space-8)); align-items: center; justify-content: space-between; gap: var(--gymloop-space-16); cursor: pointer; list-style: none; }
 .platform-manage > summary::-webkit-details-marker { display: none; }
 .platform-manage > summary::after { display: none; }
@@ -63,21 +62,28 @@
 .platform-control > .cl-btn { grid-column: 10 / span 3; justify-self: end; min-width: 9rem; }
 .platform-control-hint { grid-column: 1 / -1; margin-top: calc(-1 * var(--gymloop-space-8)); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); line-height: var(--gymloop-type-secondary-line-height); }
 .platform-manage-body > .cl-muted, .platform-manage-body > .cl-alert { padding: var(--gymloop-space-16) 0; margin: 0; }
-.platform-onboard .cl-form > .cl-btn { justify-self: start; }
+.platform-onboard .cl-form > .cl-btn { justify-self: start; margin-top: var(--gymloop-space-8); }
+
+/* The page closes on 48px of air below its last control. */
+.platform-fleet, .platform-gym { padding-bottom: var(--gymloop-space-48); }
 
 /* ── Gym detail ───────────────────────────────────────────────────────── */
 .platform-gym .cl-title { text-wrap: balance; }
-.platform-gym-lede { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gymloop-space-8) var(--gymloop-space-16); }
-.platform-gym-lede > span:not(.cl-status) { color: var(--gymloop-color-secondary-text); }
-.platform-gym-lede > span:not(.cl-status)::before { content: '·'; margin-right: var(--gymloop-space-16); }
+/* The inline meta list: branch · status, 8px either side of each separator. */
+.platform-gym-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gymloop-space-4) var(--gymloop-space-8); }
+.platform-gym-meta > .cl-status { font-size: var(--gymloop-type-body-size); }
 .platform-gym-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 var(--gymloop-space-48); }
 .platform-gym .cl-dl { grid-template-columns: 10rem minmax(0, 1fr); }
+/* Plain values ("Growth", "India (IST)") at the status words' size, so every ledger row has one height. */
+.platform-gym .cl-dl > :is(dt, dd) { line-height: var(--gymloop-type-compact-line-height); }
+.platform-gym .cl-dl > dd { font-size: var(--gymloop-type-compact-size); font-weight: 500; }
 .platform-gym-owner { display: grid; gap: var(--gymloop-space-4); }
 .platform-gym-owner .cl-row-meta { margin: 0; }
 
+/* One header action slot: top-aligned with the title's cap line, on both platform pages. */
 @media (min-width: 40.0625rem) {
-  .platform-gym .cl-page-header { align-items: flex-start; }
-  .platform-gym .cl-page-header > .cl-actions { margin-top: var(--gymloop-space-24); }
+  :is(.platform-fleet, .platform-gym) .cl-page-header { align-items: flex-start; }
+  :is(.platform-fleet, .platform-gym) .cl-page-header > .cl-actions { margin-top: var(--gymloop-space-24); }
 }
 
 @media (max-width: 48rem) {
@@ -92,26 +98,28 @@
   .platform-kpis .cl-metric:nth-child(even) { border-left: 1px solid var(--gymloop-color-decorative-separator); padding-left: var(--gymloop-space-16); }
   .platform-kpis .cl-metric + .cl-metric { border-top: 0; }
   .platform-kpis .cl-metric:nth-child(-n + 2) { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
-  /* Two-line labels ("Settings incomplete") sit beside one-line ones: every label reserves two lines so the numerals share a baseline. */
-  .platform-fleet .platform-kpis .cl-eyebrow { min-height: calc(2 * var(--gymloop-type-eyebrow-line-height)); }
   .platform-gym .cl-title { font-size: clamp(2rem, 9vw, 2.75rem); }
 
-  /* Each gym becomes a compact card: name and status, a three-up count row, tier and trial, then readiness with Open on the right. */
+  /* Each gym becomes a compact card on a three-column grid whose last column is as wide as its longest label ("Failed sends"):
+     name and status; members, open cases and failed sends; tier and trial end under the first two; then readiness with Open on the right. */
   .platform-ledger thead { display: none; }
-  .platform-ledger tbody tr { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--gymloop-space-12) 0; padding: var(--gymloop-space-16) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+  .platform-ledger tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) max-content; align-items: start; gap: var(--gymloop-space-12); padding: var(--gymloop-space-16) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
   .platform-ledger tbody tr:hover { background: transparent; }
   .platform-ledger td { padding: 0; border: 0; }
-  .platform-ledger .platform-cell-gym { flex: 1 1 calc(100% - 9rem); min-width: 0; max-width: none; padding-right: var(--gymloop-space-12); }
+  .platform-ledger .platform-cell-gym { grid-column: 1 / 3; grid-row: 1; min-width: 0; max-width: none; }
   .platform-ledger .platform-cell-gym .cl-row-title { overflow-wrap: anywhere; word-break: normal; }
-  .platform-ledger .platform-cell-status { flex: none; margin-left: auto; }
+  .platform-ledger .platform-cell-status { grid-column: 3; grid-row: 1; justify-self: end; }
   .platform-ledger .platform-col-mid, .platform-ledger .platform-col-wide { display: grid; }
-  .platform-ledger td.platform-cell-fact { display: grid; flex: 0 0 calc(100% / 3); gap: 2px; min-width: 0; padding-right: var(--gymloop-space-12); text-align: left; font-variant-numeric: tabular-nums; }
-  .platform-ledger td.platform-cell-count { order: 1; }
-  .platform-ledger td.platform-cell-plan { order: 2; }
-  .platform-cell-label { display: block; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); line-height: var(--gymloop-type-secondary-line-height); }
-  .platform-ledger .platform-col-readiness { order: 3; flex: 1 1 calc(100% - 5rem); min-width: 0; padding: 0; align-self: center; }
+  .platform-ledger td.platform-cell-fact { display: grid; gap: 2px; min-width: 0; text-align: left; font-variant-numeric: tabular-nums; }
+  .platform-ledger td.platform-cell-count { grid-row: 2; }
+  .platform-ledger td.platform-cell-plan { grid-row: 3; }
+  .platform-ledger td:nth-child(3), .platform-ledger td:nth-child(5) { grid-column: 1; }
+  .platform-ledger td:nth-child(4), .platform-ledger td:nth-child(6) { grid-column: 2; }
+  .platform-ledger td:nth-child(7) { grid-column: 3; }
+  .platform-cell-label { display: block; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-eyebrow-size); font-weight: var(--gymloop-type-emphasis-weight); letter-spacing: var(--gymloop-type-eyebrow-tracking); line-height: var(--gymloop-type-eyebrow-line-height); text-transform: uppercase; white-space: nowrap; }
+  .platform-ledger .platform-col-readiness { grid-column: 1 / 3; grid-row: 4; min-width: 0; padding: 0; align-self: center; }
   .platform-ledger .platform-cell-readiness .cl-status { white-space: normal; }
-  .platform-ledger .platform-cell-open { order: 3; flex: none; width: auto; margin-block: calc((var(--gymloop-type-compact-line-height) - var(--gymloop-target-interactive)) / 2); padding-left: var(--gymloop-space-12); }
+  .platform-ledger .platform-cell-open { grid-column: 3; grid-row: 4; justify-self: end; width: auto; margin-block: calc((var(--gymloop-type-compact-line-height) - var(--gymloop-target-interactive)) / 2); }
 
   .platform-manage-body { padding: var(--gymloop-space-8) var(--gymloop-space-16); }
   .platform-control { grid-template-columns: 1fr; }

@@ -18,9 +18,9 @@ export default async function MemberGymPage() {
   const receipts = 'receipts' in portal ? portal.receipts : null;
   const addOns = 'addOns' in portal ? portal.addOns : null;
   const activeAddOn = addOns?.find((addOn) => addOn.sessionsTotal !== null && addOn.sessionsUsed < addOn.sessionsTotal);
-  const addOnSummary = addOns === null ? 'Offers and your purchases'
+  const addOnSummary = addOns === null ? 'Offers and your orders'
     : activeAddOn ? `${activeAddOn.name} · ${activeAddOn.sessionsUsed} of ${activeAddOn.sessionsTotal} sessions used`
-      : addOns.length === 0 ? 'No add-on purchases yet' : `${addOns.length} ${addOns.length === 1 ? 'purchase' : 'purchases'}`;
+      : addOns.length === 0 ? 'No add-on orders yet' : `${addOns.length} ${addOns.length === 1 ? 'order' : 'orders'}`;
   const messageSummary = portal.latestMessage === null ? 'No messages yet' : portal.latestMessage.status === 'sent' ? 'A new message from your gym' : 'No new messages';
   const localDay = (instant: string) => memberShortDate(new Date(instant).toLocaleDateString('en-CA', { timeZone: portal.gym.timezone }));
   return <main className="member-route member-portal member-gym">
@@ -62,7 +62,7 @@ export default async function MemberGymPage() {
       </Link></li>
       <li><Link className="member-row" href="/member/add-ons">
         <Package {...icon} />
-        <span className="member-row-text"><strong>My add-ons</strong><small>{addOnSummary}</small></span>
+        <span className="member-row-text"><strong>Add-ons</strong><small>{addOnSummary}</small></span>
         <span />
         <ChevronRight {...chevron} />
       </Link></li>

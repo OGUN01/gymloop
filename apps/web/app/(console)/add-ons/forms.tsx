@@ -175,6 +175,7 @@ export function AddonSaleForm({ offers, timezone, members, nextCursor, initialPr
   }
 
   const ready = Boolean(offer && member && total);
+  const waiting = !ready && !command.uncertain;
   const helperId = `${command.errorId}-next`;
   const memberLegend = `${command.errorId}-member`;
   const offerLegend = `${command.errorId}-offer`;
@@ -225,7 +226,6 @@ export function AddonSaleForm({ offers, timezone, members, nextCursor, initialPr
         <h3 className="cl-eyebrow">Review and confirm</h3>
         <fieldset disabled={command.locked} className="cl-form min-w-0">
           <legend className="sr-only">Review and confirm</legend>
-          {!ready && !command.uncertain ? <p id={helperId} className="cl-muted">{helper}</p> : null}
           {member ? <p className="cl-row-title">For {member.full_name} · <span className="tabular-nums">{formatPhone(member.phone)}</span></p> : null}
           {offer ? <AddonOfferDetails offer={offer} open /> : null}
           {offer && !command.locked ? <button type="button" onClick={() => void refreshOffer()} className="cl-btn cl-btn--quiet cl-btn--small addon-refresh">Refresh offer</button> : null}
@@ -238,7 +238,13 @@ export function AddonSaleForm({ offers, timezone, members, nextCursor, initialPr
           <Field label={complimentary ? 'Reason for complimentary offer' : 'Sale note (optional)'}><input {...input} type="text" required={complimentary} value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
           {complimentary ? <p className="cl-muted text-sm">No payment or receipt will be created.</p> : null}
         </fieldset>
-        <button type="submit" disabled={command.pending || (!command.uncertain && !ready)} aria-describedby={!ready && !command.uncertain ? helperId : undefined} className="cl-btn cl-btn--primary cl-btn--block addon-record">{recordLabel}</button>
+        {/* The one clay action on the page. Until a member and an offer are chosen it
+            stays focusable but inert (aria-disabled), with the reason directly above it. */}
+        <div className="addon-commit">
+          {waiting ? <p id={helperId} className="cl-muted addon-commit-helper">{helper}</p> : null}
+          <button type="submit" disabled={command.pending} aria-disabled={waiting ? true : undefined} aria-describedby={waiting ? helperId : undefined}
+            onClick={(event) => { if (waiting) event.preventDefault(); }} className="cl-btn cl-btn--primary cl-btn--block addon-record">{recordLabel}</button>
+        </div>
       </div>
     </form>
   </section>;

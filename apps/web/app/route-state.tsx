@@ -18,7 +18,7 @@ export function RouteNotFound({ home, homeLabel, title = 'Page not found', class
   return <main className={className}>
     {brand}
     <div className="route-state-message">
-      <p className="cl-eyebrow">404</p>
+      <p className="cl-eyebrow">Error 404</p>
       <h1 className="cl-title">{title}</h1>
       <p className="cl-lede">The address may be old, or the record may belong to a different gym.</p>
       <div className="cl-actions"><Link className="cl-btn cl-btn--primary" href={home}>{homeLabel}</Link></div>

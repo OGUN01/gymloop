@@ -16,7 +16,8 @@
 
 /* Record pages: where you are, and the way back to the ledger. */
 .money-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gymloop-space-8); color: var(--gymloop-color-secondary-text); }
-.money-crumbs a { color: inherit; text-decoration: none; }
+.money-crumbs a { display: inline-flex; min-height: var(--gymloop-target-interactive); align-items: center; color: inherit; text-decoration: none; }
+.money-crumbs [aria-current='page'] { min-width: 0; overflow-wrap: anywhere; }
 .money-crumbs a:hover { color: var(--gymloop-color-primary-text); text-decoration: underline; text-underline-offset: 3px; }
 .money-crumbs [aria-current='page'] { color: var(--gymloop-color-primary-text); font-variant-numeric: tabular-nums; }
 
@@ -25,10 +26,14 @@
 .money-empty .cl-muted { font-size: var(--gymloop-type-compact-size); }
 .money-note { margin-top: var(--gymloop-space-16); }
 .money-dl > dd { font-weight: var(--gymloop-type-emphasis-weight); }
-.money-disclosure > summary { min-height: var(--gymloop-target-touch); }
+/* The console's one disclosure: ink label, no underline, a 16px chevron that turns
+   on open; the whole 48px row is the control and fills on hover. */
+.money-disclosure > summary { min-height: var(--gymloop-target-touch); margin-inline: calc(var(--gymloop-space-12) * -1); padding-inline: var(--gymloop-space-12); border-radius: var(--gymloop-radius-control); color: var(--gymloop-color-primary-text); text-decoration: none; transition: background-color var(--gymloop-motion-press) ease; }
 .money-disclosure > summary::-webkit-details-marker { display: none; }
-.money-disclosure > summary::after { content: '+'; color: var(--gymloop-color-secondary-text); font-weight: 400; font-size: var(--gymloop-type-body-size); }
-.money-disclosure[open] > summary::after { content: '−'; }
+.money-disclosure > summary::after { content: none; }
+.money-disclosure > summary:hover { background: var(--gymloop-color-elevated-surface); }
+.money-disclosure-icon { flex: none; color: var(--gymloop-color-primary-text); transition: transform var(--gymloop-motion-press) ease; }
+.money-disclosure[open] .money-disclosure-icon { transform: rotate(180deg); }
 .money-disclosure-body { padding-bottom: var(--gymloop-space-24); }
 .money-form { gap: var(--gymloop-space-24); }
 
@@ -40,60 +45,70 @@
 .money-noreceipt, .cl-ledger a.money-noreceipt { color: var(--gymloop-color-secondary-text); font-weight: 400; text-decoration: none; }
 .money-noreceipt:hover { color: var(--gymloop-color-primary-text); text-decoration: underline; text-underline-offset: 3px; }
 
+/* ── Money ledgers: one set of column tokens ─────────────────────────── */
+/* Payments and a member's receipts share the same tracks: an amount right-aligned
+   in its own track, then a clear 40px run before METHOD, so a figure never reads
+   as part of the word beside it. */
+.money-ledger, .money-history { --money-col-amount: 8rem; --money-col-method: 9.5rem; --money-col-date: 10rem; --money-method-inset: 2.5rem; }
+.money-ledger :is(th, td).cl-num { padding-right: 0; }
+.money-ledger :is(th, td).money-method { padding-left: var(--money-method-inset); }
+@media (min-width: 40.01rem) {
+  .money-history :is(th, td).cl-num { padding-right: 0; }
+  .money-history :is(th, td):nth-child(3) { padding-left: var(--money-method-inset); }
+}
+
 /* ── Payments ledger ─────────────────────────────────────────────────── */
-.money-lede { max-width: 68ch; text-wrap: pretty; }
-/* Title block and page total top-aligned on their eyebrows, at every width. */
-.money-pay-header { align-items: flex-start; }
-.money-pay-header > div:first-child { flex: 1 1 auto; }
-.cl-metric.money-summary { flex: none; padding: 0; border: 0; text-align: right; }
-.money-summary :is(.cl-metric-value, small) { white-space: nowrap; }
-.money-ledger { min-width: 45.5rem; table-layout: fixed; }
+.money-lede { max-width: 68ch; text-wrap: balance; }
+/* What this page of entries is, at caption size: never a headline. */
+.money-pay-summary { margin: 0 0 var(--gymloop-space-4); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); line-height: var(--gymloop-type-secondary-line-height); font-variant-numeric: tabular-nums; }
+.money-ledger { min-width: 43rem; table-layout: fixed; }
 /* Cell text sits on the page gutters, like the membership ledger. */
 .money-ledger :is(th, td):first-child { padding-left: 0; }
-.money-ledger td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Every cell starts on the same line, so a row's first lines share one baseline. */
+.money-ledger td { padding-block: var(--gymloop-space-16); overflow: hidden; text-overflow: ellipsis; vertical-align: top; white-space: nowrap; }
 .money-ledger .money-member a { font-weight: 600; }
-/* Content-sized columns: receipt, member (takes the room), amount, method, taken by, recorded. */
-.money-ledger th:nth-child(1) { width: 11.5rem; }
-.money-ledger th:nth-child(3) { width: 8rem; }
-.money-ledger th:nth-child(4) { width: 7.5rem; }
-.money-ledger th:nth-child(5) { width: 9.5rem; }
-.money-ledger th:nth-child(6) { width: 12.5rem; }
-.money-ledger th.cl-num, .money-ledger td.money-amount { padding-right: var(--gymloop-space-32); }
 .money-ledger td.money-amount { font-weight: 600; }
-.money-ledger tbody td { height: 3.5rem; padding-block: 0; }
+/* Tablet: the tracks share the width in proportion; the time is on hover. */
+.money-ledger { --money-method-inset: var(--gymloop-space-24); }
+.money-ledger th:nth-child(1) { width: 21%; }
+.money-ledger th:nth-child(2) { width: 21%; }
+.money-ledger th:nth-child(3) { width: 10%; }
+.money-ledger th:nth-child(4) { width: 16%; }
+.money-ledger th:nth-child(5) { width: 15%; }
+.money-ledger th:nth-child(6) { width: 17%; }
+.money-when-time { display: none; }
+/* Wide: content-sized tracks, the member capped at 280px; the entry column takes what is left. */
+@media (min-width: 85rem) {
+  .money-ledger { --money-method-inset: 2.5rem; }
+  .money-ledger th:nth-child(1) { width: 11.5rem; }
+  .money-ledger th:nth-child(2) { width: 17.5rem; }
+  .money-ledger th:nth-child(3) { width: var(--money-col-amount); }
+  .money-ledger th:nth-child(4) { width: var(--money-col-method); }
+  .money-ledger th:nth-child(5) { width: 10rem; }
+  .money-ledger th:nth-child(6) { width: auto; }
+  .money-when-time { display: inline; }
+}
 /* Recorded — the sort key — then, only when it differs, the day the money was paid. */
 .money-when > span { display: block; overflow: hidden; text-overflow: ellipsis; }
 .money-when-paid { color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); line-height: var(--gymloop-type-secondary-line-height); }
-@media (max-width: 72rem) {
-  /* Tablet: who took it is on the receipt, the time is on hover; the member name keeps its room. */
-  .money-ledger .money-takenby, .money-when-time { display: none; }
-  .money-ledger th:nth-child(1) { width: 9.5rem; }
-  .money-ledger th:nth-child(3) { width: 6.5rem; }
-  .money-ledger th:nth-child(4) { width: 7rem; }
-  .money-ledger th:nth-child(6) { width: 8.5rem; }
-  .money-ledger th.cl-num, .money-ledger td.money-amount { padding-right: var(--gymloop-space-24); }
-}
-/* The total stays on the right of the header down to tablet width. */
-@media (min-width: 56rem) {
-  .money-pay-header { flex-wrap: nowrap; }
-}
 
+/* Phone and small tablet: the same payments as ruled rows. */
 .money-narrow { display: none; }
-@media (max-width: 40rem) {
+@media (max-width: 47.99rem) {
   .money-wide { display: none; }
   .money-narrow { display: block; }
-  .cl-metric.money-summary { text-align: left; }
-  /* The first row sits under the header's rule: one rule, not two. */
-  .money-pay-list { margin-top: var(--gymloop-space-8); }
-  .money-narrow.cl-rows { border-top: 0; }
+  .money-pay-summary { margin-bottom: var(--gymloop-space-12); }
+}
+@media (max-width: 40rem) {
+  .money-pay-list { margin-top: var(--gymloop-space-16); }
 }
 .money-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--gymloop-space-4) var(--gymloop-space-16); align-items: baseline; min-height: 3.5rem; }
 .money-row:hover { background: var(--gymloop-color-elevated-surface); }
 /* The member name sits above the row-wide receipt link. */
 .money-row-member { position: relative; z-index: 1; color: var(--gymloop-color-primary-text); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
 .money-row-amount { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-.money-row-meta { color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); }
-.money-row-paid { grid-column: 1 / -1; margin-top: calc(var(--gymloop-space-4) * -1); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); line-height: var(--gymloop-type-secondary-line-height); }
+.money-row-meta { color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); font-variant-numeric: tabular-nums; }
+.money-row-recorded { grid-column: 1 / -1; margin-top: calc(var(--gymloop-space-4) * -1); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); line-height: var(--gymloop-type-secondary-line-height); font-variant-numeric: tabular-nums; }
 /* A numbered receipt keeps its clay link on a phone, so the row reads as tappable. */
 .money-row-receipt { justify-self: end; font-size: var(--gymloop-type-compact-size); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .money-row-receipt::after { content: ''; position: absolute; inset: 0; }
@@ -111,6 +126,8 @@
 .money-receipt { padding: var(--gymloop-space-32); }
 .money-receipt-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--gymloop-space-16) var(--gymloop-space-24); padding-bottom: var(--gymloop-space-24); }
 .money-receipt-head > div { min-width: 0; }
+/* The header action is top-aligned with the title, below the eyebrow and its 8px. */
+.money-print-top { margin-top: calc(var(--gymloop-type-eyebrow-line-height) + var(--gymloop-space-8)); }
 .money-receipt-title { margin-top: var(--gymloop-space-8); text-wrap: balance; }
 .money-receipt .money-dl > :is(dt, dd):nth-last-child(-n + 2) { border-bottom: 0; }
 .money-receipt .money-dl dd { text-align: right; }
@@ -119,10 +136,12 @@
 .money-amount-row > :is(dt, dd) { margin: 0; padding: var(--gymloop-space-12) 0; }
 .money-amount-row > dt { padding-right: var(--gymloop-space-24); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); }
 .money-amount-row .cl-metric-value { line-height: 1; }
+/* The document's state under its amount: a dot and a word, like every ledger. */
+.money-amount-state { display: flex; justify-content: flex-end; margin-top: var(--gymloop-space-8); }
 .money-dl .money-phone { font-weight: 400; }
 .money-for-link { display: inline-flex; align-items: center; gap: var(--gymloop-space-4); color: var(--gymloop-color-primary-action); text-decoration: none; }
 .money-for-link:hover { text-decoration: underline; text-underline-offset: 3px; }
-.money-print-note { margin-top: var(--gymloop-space-24); }
+.money-print-note { max-width: 45rem; margin-top: var(--gymloop-space-24); }
 .money-refunds > .money-copy { margin-top: var(--gymloop-space-16); }
 .money-refund-form { margin-top: var(--gymloop-space-24); gap: var(--gymloop-space-8); }
 /* Stacked, the refund button is full width like Record payment; inline, the reason takes the room. */
@@ -139,8 +158,10 @@
   .money-print-top { display: none; }
   .money-print-bottom { display: block; margin-top: var(--gymloop-space-24); }
   .money-print-bottom .cl-btn { width: 100%; }
-  .money-receipt { padding: var(--gymloop-space-24); }
+  /* On a phone the receipt is the page: no card, its rows on the page gutter. */
+  .money-receipt { padding: 0; border: 0; border-radius: 0; background: transparent; }
   .money-amount-row { display: block; }
+  .money-amount-state { justify-content: flex-start; }
   .money-receipt .money-dl > dt, .money-amount-row > dt { padding-top: var(--gymloop-space-16); padding-bottom: 0; }
   .money-receipt .money-dl dd { padding-top: var(--gymloop-space-4); text-align: left; }
 }
@@ -161,7 +182,11 @@
 .money-member-identity > div { min-width: 0; }
 .money-member-disc { display: grid; width: 6rem; height: 6rem; flex: 0 0 auto; place-items: center; border-radius: 50%; background: var(--gymloop-color-elevated-surface); color: var(--gymloop-color-primary-text); font-size: 2.25rem; line-height: 1; font-stretch: var(--gymloop-type-display-stretch); font-weight: var(--gymloop-type-display-weight); }
 .money-member-title { font-size: clamp(3.25rem, 5vw, var(--gymloop-type-page-title-size)); overflow-wrap: anywhere; }
-@media (min-width: 40.01rem) { .money-member-header { align-items: center; } }
+/* The header action is top-aligned with the title, one eyebrow line below the block's top. */
+@media (min-width: 40.01rem) {
+  .money-member-header { align-items: flex-start; }
+  .money-member-profile-action { margin-top: var(--gymloop-type-eyebrow-line-height); }
+}
 @media (max-width: 40rem) {
   .money-member-identity { align-items: flex-start; gap: var(--gymloop-space-16); }
   .money-member-disc { width: 4rem; height: 4rem; margin-top: var(--gymloop-space-4); font-size: 1.5rem; }
@@ -186,7 +211,18 @@
 .money-member-pauses .cl-ledger-wrap + p { margin-top: var(--gymloop-space-12); }
 .money-history :is(th, td) { white-space: nowrap; }
 .money-history td:last-child { width: 1%; }
-.money-history .cl-num { padding-right: var(--gymloop-space-32); }
+/* The Payments ledger's tracks: fixed from 1360px, content-sized (with a 24px run before METHOD) below. */
+.money-history { --money-method-inset: var(--gymloop-space-24); }
+@media (min-width: 85rem) {
+  .money-history { --money-method-inset: 2.5rem; table-layout: fixed; }
+  .money-history th:nth-child(1) { width: var(--money-col-date); }
+  .money-history th:nth-child(2) { width: var(--money-col-amount); }
+  .money-history th:nth-child(3) { width: var(--money-col-method); }
+  .money-history td:last-child { width: auto; }
+}
+.money-price-period { color: var(--gymloop-color-secondary-text); font-weight: 400; }
+/* The profile is the header's action from tablet up, a text link under the facts on a phone. */
+.money-member-profile-link { display: none; }
 
 /* ₹ adornment inside the amount input; the input still submits bare rupees. */
 .money-rupee { position: relative; display: block; }
@@ -214,8 +250,12 @@
   /* Current membership keeps label and value on one line on a phone. */
   .money-member-current .money-dl { grid-template-columns: 6rem minmax(0, 1fr); }
   .money-member-current .money-dl > dt { padding-bottom: var(--gymloop-space-12); border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
-  .money-member-actions > .money-action:not([open]) { flex: 1 1 10rem; }
+  /* Sell and Pause share one row, each half the width. */
+  .money-member-actions > .money-action:not([open]) { flex: 1 1 0; min-width: 0; }
   .money-member-actions .money-action > summary { width: 100%; }
+  .money-long { display: none; }
+  .money-member-profile-action { display: none; }
+  .money-member-profile-link { display: inline-flex; min-height: var(--gymloop-target-interactive); margin-top: var(--gymloop-space-4); font-weight: var(--gymloop-type-emphasis-weight); }
   /* Stacked history row: date + amount, then method + receipt. */
   .money-history td:nth-child(even) { text-align: right; }
   .money-history td.cl-num { padding-right: 0; }
@@ -225,8 +265,9 @@
 /* ── Owner overview (dashboard) — overrides after globals.css ─────────── */
 .dashboard-workspace { container-type: inline-size; }
 @media (min-width: 40.01rem) {
-  .dashboard-header { align-items: flex-end; }
-  .dashboard-controls { align-items: flex-end; }
+  /* The header actions are top-aligned with the title. */
+  .dashboard-header { align-items: flex-start; }
+  .dashboard-controls { align-items: flex-start; margin-top: var(--gymloop-space-4); }
 }
 /* The timestamp never splits from its "pm". */
 .money-dash-updated { white-space: nowrap; }
@@ -245,6 +286,13 @@
   .dashboard-primary-metric + .dashboard-primary-metric { border-left: 1px solid var(--gymloop-color-decorative-separator); }
 }
 
+/* A KPI caption's count and range never split mid-phrase: in a narrow four-up row the range takes its own line. */
+.money-dash-count, .money-dash-scope { white-space: nowrap; }
+@container (min-width: 45rem) and (max-width: 60rem) {
+  .money-dash-count-sep { display: none; }
+  .money-dash-count { display: block; }
+}
+
 /* Follow-ups beside Renewals, half and half, from ~700px of content; one column below. */
 .dashboard-main-grid { grid-template-columns: minmax(0, 1fr); gap: var(--gymloop-space-48); }
 .dashboard-supporting { grid-template-columns: minmax(0, 1fr); gap: var(--gymloop-space-48); padding-left: 0; border-left: 0; }
@@ -258,47 +306,67 @@
   .dashboard-supporting { padding-left: var(--gymloop-space-32); }
 }
 
-/* One section heading on every money page: title, 12px, one hairline. */
-.dashboard-panel-heading { border-bottom-color: var(--gymloop-color-decorative-separator); }
+/* One section heading on every money page: title, 12px, one hairline.
+   The panel's link sits on the title's baseline; the subtitle takes its own line below. */
+.dashboard-panel-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 0 var(--gymloop-space-16); border-bottom-color: var(--gymloop-color-decorative-separator); }
+.dashboard-panel-heading > h2 { grid-column: 1; grid-row: 1; }
+.dashboard-panel-heading > p { grid-column: 1 / -1; grid-row: 2; }
+/* The link keeps its 44px target without making the title row taller. */
+.dashboard-panel-heading > a { grid-column: 2; grid-row: 1; margin-block: calc((var(--gymloop-target-interactive) - var(--gymloop-type-section-title-line-height)) / -2); }
 .dashboard-secondary-metrics, .dashboard-quality { padding-top: 0; border-top: 0; }
 .dashboard-secondary-metrics > h2, .dashboard-quality > h2 { padding-bottom: var(--gymloop-space-12); border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
 .dashboard-recovery { padding-top: 0; border-top: 0; }
-/* "Back in the gym": numeral on the caption's baseline. */
-.dashboard-recovery > p.money-dash-recovered { display: flex; align-items: baseline; gap: var(--gymloop-space-8); margin: var(--gymloop-space-16) 0 var(--gymloop-space-8); color: var(--gymloop-color-secondary-text); }
+/* "Back in the gym": an ink count at the snapshot's figure size, on its caption's baseline. */
+.dashboard-recovery > p.money-dash-recovered { display: flex; align-items: baseline; gap: var(--gymloop-space-8); margin: 0; padding: var(--gymloop-space-16) 0 var(--gymloop-space-12); border-bottom: 1px solid var(--gymloop-color-decorative-separator); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); }
+.dashboard-recovery > p.money-dash-recovered strong, .dashboard-secondary-metrics button > strong { color: var(--gymloop-color-primary-text); font-size: 1.75rem; line-height: 1; font-stretch: var(--gymloop-type-display-stretch); font-weight: var(--gymloop-type-display-weight); letter-spacing: var(--gymloop-type-title-tracking); font-variant-numeric: tabular-nums; }
+/* Who came back, and when: a ruled row, name left and time right. */
+.dashboard-recovery li { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--gymloop-space-4) var(--gymloop-space-16); padding: var(--gymloop-space-12) 0; }
+.dashboard-recovery li > span { color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); font-variant-numeric: tabular-nums; }
 
-/* Follow-up rows: name, then status and next step on one line, then the chevron. */
-.dashboard-case-list a { grid-template-columns: minmax(0, 1fr) var(--gymloop-icon-control-size); gap: var(--gymloop-space-16); }
-.dashboard-case-list .dashboard-row-chevron { grid-column: auto; grid-row: auto; }
+/* Follow-ups and Renewals are one ledger: 12px uppercase column labels, the same
+   64px rows, the name over its dot-and-word status, fixed tracks on the right. */
+.dashboard-main-grid .dashboard-case-columns { display: grid; }
+.dashboard-case-columns, .dashboard-case-list a { grid-template-columns: minmax(0, 1fr) 8.5rem var(--gymloop-icon-control-size); gap: var(--gymloop-space-12); }
+.dashboard-case-list a { min-height: calc(var(--gymloop-target-touch) + var(--gymloop-space-16)); padding-block: var(--gymloop-space-8); }
+.dashboard-case-list .dashboard-row-chevron { grid-column: auto; grid-row: auto; justify-self: end; }
+.dashboard-case-who strong, .dashboard-renewal-list a { font-size: var(--gymloop-type-body-size); font-weight: var(--gymloop-type-emphasis-weight); }
+.dashboard-case-list p, .dashboard-renewal-list small { font-size: var(--gymloop-type-secondary-size); line-height: var(--gymloop-type-secondary-line-height); }
+.dashboard-case-list p .cl-status, .dashboard-renewal-list .cl-status { font-size: inherit; font-weight: 500; }
+.money-dash-next { min-width: 0; overflow: hidden; font-size: var(--gymloop-type-compact-size); text-overflow: ellipsis; white-space: nowrap; }
+.money-dash-next time { display: grid; font-variant-numeric: tabular-nums; }
+.money-dash-next small { color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); line-height: var(--gymloop-type-secondary-line-height); }
 .money-dash-now { font-weight: var(--gymloop-type-emphasis-weight); }
 
 /* Renewals: fixed tracks, so every date sits under DUE and every amount on the right edge. */
 .dashboard-renewal-columns, .dashboard-renewal-list li { grid-template-columns: minmax(0, 1fr) 6rem 5.5rem; gap: var(--gymloop-space-12); }
-.dashboard-renewal-list .cl-status { font-weight: 500; }
+.dashboard-renewal-list li { min-height: calc(var(--gymloop-target-touch) + var(--gymloop-space-16)); }
 .dashboard-renewal-list .money-dash-amount { text-align: right; }
 
 /* The closing row of a truncated preview: what is shown against the whole. */
 .money-dash-more { margin: 0; padding: var(--gymloop-space-12) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); line-height: var(--gymloop-type-secondary-line-height); font-variant-numeric: tabular-nums; }
 
-/* Snapshot: the KPI row's language one size down: eyebrow labels, display numerals, ruled cells.
-   Five in one row when there is room; otherwise pairs, the odd one out across the width. */
-.dashboard-secondary-metrics > div { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 0; border-top: 0; }
-.dashboard-secondary-metrics button { gap: var(--gymloop-space-8); padding: var(--gymloop-space-16) var(--gymloop-space-12) var(--gymloop-space-16) 0; }
-.dashboard-secondary-metrics button:nth-child(even) { padding-left: var(--gymloop-space-16); border-left: 1px solid var(--gymloop-color-decorative-separator); }
-.dashboard-secondary-metrics button:last-child:nth-child(odd) { grid-column: 1 / -1; }
-@container (min-width: 40rem) {
-  .dashboard-secondary-metrics button:nth-child(even) { padding-left: var(--gymloop-space-24); }
+/* Snapshot: five figures that can never orphan. Below 768px, a one-column ledger:
+   eyebrow label left, figure right with its caption under it, a hairline between rows. */
+.dashboard-secondary-metrics > div { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: 0; border-top: 0; }
+.dashboard-secondary-metrics button { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "label value" ". caption"; align-items: baseline; gap: var(--gymloop-space-4) var(--gymloop-space-16); min-height: calc(var(--gymloop-target-touch) + var(--gymloop-space-16)); padding: var(--gymloop-space-12) 0; border-left: 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+.dashboard-secondary-metrics button > span { grid-area: label; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-eyebrow-size); line-height: var(--gymloop-type-eyebrow-line-height); font-weight: var(--gymloop-type-emphasis-weight); letter-spacing: var(--gymloop-type-eyebrow-tracking); text-transform: uppercase; }
+.dashboard-secondary-metrics button > strong { grid-area: value; text-align: right; }
+.dashboard-secondary-metrics button > small { grid-area: caption; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); line-height: var(--gymloop-type-secondary-line-height); text-align: right; }
+.dashboard-secondary-metrics button:hover { background: color-mix(in srgb, var(--gymloop-color-elevated-surface) 50%, transparent); }
+/* From 768px, one ruled row of five; labels, figures and captions each share a line across it. */
+@media (min-width: 48rem) {
+  .dashboard-secondary-metrics > div { grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: auto auto auto; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+  .dashboard-secondary-metrics button { grid-row: span 3; grid-template-columns: minmax(0, 1fr); grid-template-rows: subgrid; grid-template-areas: none; align-items: start; row-gap: var(--gymloop-space-8); padding: var(--gymloop-space-16) var(--gymloop-space-12) var(--gymloop-space-16) var(--gymloop-space-16); border-bottom: 0; }
+  .dashboard-secondary-metrics button + button { border-left: 1px solid var(--gymloop-color-decorative-separator); }
+  .dashboard-secondary-metrics button:first-child { padding-left: 0; }
+  .dashboard-secondary-metrics button > :is(span, strong, small) { grid-area: auto; text-align: left; }
+  .dashboard-secondary-metrics button > strong, .dashboard-recovery > p.money-dash-recovered strong { font-size: 1.5rem; }
 }
 @container (min-width: 60rem) {
-  .dashboard-secondary-metrics > div { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .dashboard-secondary-metrics button:nth-child(n) { padding: var(--gymloop-space-16) var(--gymloop-space-16) var(--gymloop-space-16) var(--gymloop-space-24); }
+  .dashboard-secondary-metrics button { padding: var(--gymloop-space-16) var(--gymloop-space-16) var(--gymloop-space-16) var(--gymloop-space-24); }
   .dashboard-secondary-metrics button:first-child { padding-left: 0; }
-  .dashboard-secondary-metrics button + button { border-left: 1px solid var(--gymloop-color-decorative-separator); }
-  .dashboard-secondary-metrics button:last-child:nth-child(odd) { grid-column: auto; }
+  .dashboard-secondary-metrics button > strong, .dashboard-recovery > p.money-dash-recovered strong { font-size: 1.75rem; }
 }
-.dashboard-secondary-metrics button > span { color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-eyebrow-size); line-height: var(--gymloop-type-eyebrow-line-height); font-weight: var(--gymloop-type-emphasis-weight); letter-spacing: var(--gymloop-type-eyebrow-tracking); text-transform: uppercase; }
-.dashboard-secondary-metrics button > strong { font-size: var(--gymloop-type-section-title-size); line-height: 1; font-stretch: var(--gymloop-type-display-stretch); font-weight: var(--gymloop-type-display-weight); letter-spacing: var(--gymloop-type-title-tracking); }
-.dashboard-secondary-metrics button:hover { background: color-mix(in srgb, var(--gymloop-color-elevated-surface) 50%, transparent); }
-.money-dash-complete { margin: var(--gymloop-space-12) 0 0; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); line-height: var(--gymloop-type-secondary-line-height); }
 
 @media (max-width: 40rem) {
   /* Phone header: range beside Check in, Record payment full width beneath. */
@@ -308,5 +376,8 @@
   .dashboard-period > summary, .dashboard-secondary-action { padding-inline: var(--gymloop-space-12); }
   .dashboard-primary-action { grid-column: 1 / -1; }
   .dashboard-period[open] .dashboard-range { position: absolute; top: calc(var(--gymloop-target-touch) + var(--gymloop-space-8)); left: 0; right: 0; width: auto; margin-top: 0; box-shadow: 0 18px 40px color-mix(in srgb, var(--gymloop-color-primary-text) 14%, transparent); }
-  .dashboard-case-list a { gap: var(--gymloop-space-4) var(--gymloop-space-12); }
+  .dashboard-case-columns, .dashboard-case-list a { grid-template-columns: minmax(0, 1fr) 7rem var(--gymloop-icon-control-size); gap: var(--gymloop-space-12); }
+  .dashboard-case-list a { padding-block: var(--gymloop-space-8); }
+  .dashboard-case-list p { grid-column: auto; }
+  .dashboard-renewal-columns, .dashboard-renewal-list li { grid-template-columns: minmax(0, 1fr) 5.5rem auto; }
 }

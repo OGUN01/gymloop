@@ -1,4 +1,4 @@
-import { DEFAULT_TIMEZONE, MS_PER_DAY, RENEWAL_REMINDER_WINDOWS, membershipNetPrice } from '@gymloop/shared';
+import { DEFAULT_TIMEZONE, MS_PER_DAY, RENEWAL_REMINDER_WINDOWS, formatDay, membershipNetPrice } from '@gymloop/shared';
 import { createServerSupabase } from './supabase/server';
 
 /**
@@ -23,6 +23,18 @@ const DUE_WITHIN_DAYS = -RENEWAL_REMINDER_WINDOWS[0].daysFromExpiry;
 const RUNNING = ['active', 'frozen'];
 /** Account states that outrank whatever the membership says. */
 const ACCOUNT_OVERRIDES = new Set(['blocked', 'cancelled']);
+
+/** A plan name as a ledger shows it: "Half-Yearly" reads like an enum label beside "Monthly", so a word after a hyphen is sentence case. Display only. */
+const planLabel = (name: string) => name.replace(/-([A-Z])(?=[a-z])/g, (_, letter: string) => `-${letter.toLowerCase()}`);
+
+/** The year part of an ISO date, named rather than counted. */
+const YEAR = 'YYYY';
+
+/** An end date as a ledger reads it: "20 Sep" in the gym's current year, "14 Feb 2027" otherwise. */
+function ledgerDay(isoDate: string, today: string): string {
+  const day = formatDay(isoDate);
+  return isoDate.slice(0, YEAR.length) === today.slice(0, YEAR.length) ? day.slice(0, day.lastIndexOf(' ')) : day;
+}
 
 type Row = {
   id: string;
@@ -112,9 +124,10 @@ export async function loadMembershipStanding(
     return [member.id, {
       ...(account ?? membership),
       membership,
-      plan: row?.plans?.name ?? null,
+      plan: row?.plans?.name ? planLabel(row.plans.name) : null,
       startsOn: row?.starts_on ?? null,
       endsOn,
+      endsDay: endsOn === null ? null : ledgerDay(endsOn, today),
       ended: endsOn !== null && endsOn < today,
       running: row !== undefined && RUNNING.includes(row.status),
       live: row !== undefined && isLive(row),

@@ -11,17 +11,19 @@ export default async function MemberActivityPage() {
   const months = groupByMonth(portal.visits, (visit) => visit.checked_in_at, timeZone);
   const { current, unit, rule } = portal.streak;
   const remaining = Math.max(portal.weeklyGoal - portal.weekVisits, 0);
+  // The rule as memberStreak counts it: whole weeks that reach the goal, or visited days in a row.
+  // Rest days, gym holidays and approved pauses never break either (STK-002).
   const streakNote = rule === 'weekly_goal'
     ? current === 0
-      ? `Reach ${portal.weeklyGoal} visits this week to start one.`
+      ? `Reach ${portal.weeklyGoal} ${portal.weeklyGoal === 1 ? 'visit' : 'visits'} in a week to start a streak.`
       : remaining === 0 ? 'This week counts. Keep the run going next week.' : `${remaining} more ${remaining === 1 ? 'visit' : 'visits'} this week keeps it going.`
-    : current === 0 ? 'Visit again to start one.' : 'Visit again to extend it.';
+    : `${current === 0 ? 'Visit on consecutive days to build a streak.' : 'Each consecutive day you visit adds a day.'} Rest days, holidays and approved pauses never break it.`;
   const renderMonth = (month: (typeof months)[number]) => <section key={month.key} className="member-activity-month" aria-labelledby={`month-${month.key}`}>
     <h3 id={`month-${month.key}`} className="cl-eyebrow member-eyebrow">{month.label}</h3>
     <ul className="cl-rows">{month.items.map((visit) => {
       const at = new Date(visit.checked_in_at);
       return <li key={visit.id}>
-        <span><strong className="cl-row-title member-visit-time">{at.toLocaleDateString('en-GB', { weekday: 'short', timeZone })}, {memberShortDate(at.toLocaleDateString('en-CA', { timeZone }))} · {time.format(at)}</strong><small className="cl-row-meta">{visit.source === 'qr' ? 'Gym QR' : 'Desk assisted'}</small></span>
+        <span><strong className="cl-row-title member-visit-time">{at.toLocaleDateString('en-GB', { weekday: 'short', timeZone })}, {memberShortDate(at.toLocaleDateString('en-CA', { timeZone }))} <span className="member-visit-sep">·</span> {time.formatToParts(at).map((part) => part.type === 'dayPeriod' ? <span key={part.type} className="member-visit-meridiem">{part.value}</span> : part.value)}</strong><small className="cl-row-meta">{visit.source === 'qr' ? 'Gym QR' : 'Desk assisted'}</small></span>
         <span className="cl-status" data-tone="ok">Confirmed</span>
       </li>;
     })}</ul>

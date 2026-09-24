@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Pencil } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Pencil, Plus } from 'lucide-react';
 import {
   AVATAR_INITIALS_MAX, DEFAULT_TIMEZONE, formatDateTime, formatDay, formatDayRange, formatMoney, formatPhone, humanize, MEMBER_DETAIL_VISITS_PREVIEW, MEMBER_DETAIL_PAYMENTS_PREVIEW } from '@gymloop/shared';
 import { requireAudience } from '../../../../lib/identity-session';
@@ -86,7 +86,7 @@ export default async function MemberDetailPage({
 
   return (
     <main className="cl-page member-detail-page">
-      <Link href="/console" className="cl-back">← All members</Link>
+      <Link href="/console" className="cl-back"><ArrowLeft aria-hidden="true" className="desk-icon" />All members</Link>
       <div className="cl-page-header member-detail-header">
         <div className="member-detail-identity">
           <span aria-hidden="true" className="member-detail-monogram">{member.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('')}</span>
@@ -100,8 +100,8 @@ export default async function MemberDetailPage({
           </div>
         </div>
         <div className="cl-actions member-detail-actions">
-          <Link href={`/members/${member.id}/edit`} className="cl-btn"><Pencil aria-hidden="true" className="member-detail-icon" />Edit member</Link>
-          {seesMoney ? <Link href={`/memberships/${member.id}`} className="cl-btn cl-btn--primary">Record payment</Link> : null}
+          <Link href={`/members/${member.id}/edit`} className="cl-btn"><Pencil aria-hidden="true" className="desk-icon" />Edit member</Link>
+          {seesMoney ? <Link href={`/memberships/${member.id}`} className="cl-btn cl-btn--primary"><Plus aria-hidden="true" className="desk-icon" />Record payment</Link> : null}
         </div>
       </div>
 
@@ -114,20 +114,21 @@ export default async function MemberDetailPage({
       <div className="cl-split cl-section member-detail-split">
         <div className="member-detail-column">
           <section aria-labelledby="member-details-heading">
-            <h2 id="member-details-heading" className="cl-eyebrow member-detail-eyebrow">Details</h2>
+            {/* All four sections share one heading level: a condensed title over its ruled rows. */}
+            <h2 id="member-details-heading" className="cl-section-title member-detail-heading">Details</h2>
             <dl className="cl-dl">
               <dt>Joined</dt><dd>{DATE_ONLY.format(new Date(member.joined_on))}</dd>
               <dt>Branch</dt><dd>{branch?.name ?? '—'}</dd>
-              <dt>Email</dt><dd>{member.email ?? '—'}</dd>
+              <dt>Email</dt><dd>{member.email ?? <span className="cl-muted">Not recorded</span>}</dd>
             </dl>
           </section>
 
           {seesMoney ? (
             <>
               <section aria-labelledby="member-membership-heading">
-                <div className="member-detail-section-head member-detail-anchor">
+                <div className="member-detail-section-head">
                   <h2 id="member-membership-heading" className="cl-section-title">Current membership</h2>
-                  <Link href={`/memberships/${member.id}`} className="member-detail-link">Membership and payments →</Link>
+                  <Link href={`/memberships/${member.id}`} className="member-detail-link">Membership and payments<ChevronRight aria-hidden="true" className="desk-icon" /></Link>
                 </div>
                 {current === undefined ? (
                   <p className="member-detail-none">No live membership.</p>
@@ -140,7 +141,7 @@ export default async function MemberDetailPage({
                         ? <time dateTime={`${current.startsOn}/${current.endsOn}`}>{formatDayRange(current.startsOn, current.endsOn)}</time>
                         : '—'}
                     </dd>
-                    <dt>Per period</dt>
+                    <dt>Price</dt>
                     <dd>{current.price ? formatMoney(current.price.paise, current.price.currency) : '—'}</dd>
                     <dt>Status</dt>
                     <dd><StatusWord status={current.membership.status} label={current.membership.label} /></dd>
@@ -149,16 +150,20 @@ export default async function MemberDetailPage({
               </section>
 
               <section aria-labelledby="member-payments-heading">
-                <h2 id="member-payments-heading" className="cl-section-title member-detail-anchor">Recent payments</h2>
+                <h2 id="member-payments-heading" className="cl-section-title member-detail-heading">Recent payments</h2>
                 {payments.data && payments.data.length > 0 ? (
-                  <ul className="cl-rows">
+                  <ul className="cl-rows member-detail-payments">
                     {payments.data.map((payment) => (
                       <li key={payment.id}>
-                        <span>
-                          <span className="cl-row-title tabular-nums">{formatMoney(payment.amount_paise, payment.currency)}</span>
-                          <span className="cl-row-meta">{DATE_ONLY.format(new Date(payment.paid_at ?? payment.created_at))} · {humanize(payment.method)}</span>
-                        </span>
-                        <StatusWord status={payment.status} />
+                        {/* Each payment opens its receipt. */}
+                        <Link href={`/payments/${payment.id}`} className="member-detail-payment">
+                          <span>
+                            <span className="cl-row-title tabular-nums">{formatMoney(payment.amount_paise, payment.currency)}</span>
+                            <span className="cl-row-meta">{DATE_ONLY.format(new Date(payment.paid_at ?? payment.created_at))} · {humanize(payment.method)}</span>
+                          </span>
+                          <StatusWord status={payment.status} />
+                          <ChevronRight aria-hidden="true" className="member-detail-chevron" />
+                        </Link>
                       </li>
                     ))}
                   </ul>
@@ -171,7 +176,7 @@ export default async function MemberDetailPage({
         </div>
 
         <section aria-labelledby="member-visits-heading">
-          <h2 id="member-visits-heading" className="cl-eyebrow member-detail-eyebrow">Recent visits</h2>
+          <h2 id="member-visits-heading" className="cl-section-title member-detail-heading">Recent visits</h2>
           {visitsError ? (
             <p role="alert" className="cl-alert">
               The visit history could not be loaded. {visitsError.message} Reload the page to try again.

@@ -9,7 +9,7 @@ import {
   formatMoney,
   humanize,
 } from '@gymloop/shared';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { requireAudience } from '../../lib/identity-session';
 import { fleetMetrics } from '../../lib/platform';
 import { Alert } from '../(console)/alert';
@@ -30,7 +30,7 @@ const zoneOf = (gym: { timezone: string; metricsError: unknown }) => gym.metrics
 /** An instant as that gym's calendar day, "5 Oct 2026". */
 const dayOf = (instant: string, timeZone: string) => <time dateTime={instant}>{formatDay(new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone }).format(new Date(instant)))}</time>;
 const tierPrice = (tier: (typeof PLAN_TIERS)[number]) => formatMoney(PLAN_TIER_PRICES_PAISE[tier]);
-/** Timezones offered when adding a gym: human labels, IANA ids stored (the database accepts any `pg_timezone_names` entry). */
+/** Time zones offered when adding a gym: human labels, IANA ids stored (the database accepts any `pg_timezone_names` entry). */
 const TIMEZONE_CHOICES = [
   { id: 'Asia/Kolkata', label: 'India (IST)' },
   { id: 'Asia/Kathmandu', label: 'Nepal (NPT)' },
@@ -38,6 +38,8 @@ const TIMEZONE_CHOICES = [
   { id: 'Asia/Dhaka', label: 'Bangladesh (BST)' },
   { id: 'Asia/Dubai', label: 'United Arab Emirates (GST)' },
 ] as const;
+/** A gym with no tier yet, said as a state rather than as missing data. */
+const NO_TIER = 'No plan yet';
 /** A column label shown only where the ledger stacks into cards (under 40rem). */
 const Cell = ({ label }: { label: string }) => <span className="platform-cell-label">{label}</span>;
 /** Non-breaking space: keeps "Pro ₹4,999 a month" and each "·" with its plan when the plans line wraps. */
@@ -76,35 +78,39 @@ export default async function PlatformPage(props?: { searchParams?: Promise<{ ma
           Plans: {PLAN_TIERS.map((tier) => `${humanize(tier)}${NBSP}${tierPrice(tier)}`).join(`${NBSP}· `)}{NBSP}a{NBSP}month
         </p>
       </div>
-      {isAdmin ? <div className="cl-actions"><a href="#onboard" className="cl-btn cl-btn--primary">Add gym</a></div> : null}
+      {/* The header only jumps to the form below; "Create gym" is the clay commit, so this is the outline anchor. */}
+      {isAdmin ? <div className="cl-actions"><a href="#onboard" className="cl-btn"><Plus {...iconProps} />Add gym</a></div> : null}
     </div>
 
     <div className="cl-metrics platform-kpis">
-      <div className="cl-metric"><span className="cl-eyebrow">Gyms</span><span className="cl-metric-value tabular-nums">{gyms.length}</span></div>
-      <div className="cl-metric"><span className="cl-eyebrow">Settings incomplete</span><span className="cl-metric-value tabular-nums">{exceptions.settingsIncomplete.length}</span></div>
-      <div className="cl-metric"><span className="cl-eyebrow">Owner access pending</span><span className="cl-metric-value tabular-nums">{exceptions.ownerAccessPending.length}</span></div>
-      <div className="cl-metric"><span className="cl-eyebrow">Trial expired</span><span className="cl-metric-value tabular-nums">{exceptions.trialExpired.length}</span></div>
+      <div className="cl-metric"><span className="cl-eyebrow">Gyms</span><span className="cl-metric-value tabular-nums">{gyms.length}</span><small>In every status</small></div>
+      <div className="cl-metric"><span className="cl-eyebrow">Needs setup</span><span className="cl-metric-value tabular-nums">{exceptions.settingsIncomplete.length}</span><small>Not ready to go live</small></div>
+      <div className="cl-metric"><span className="cl-eyebrow">Owner pending</span><span className="cl-metric-value tabular-nums">{exceptions.ownerAccessPending.length}</span><small>Owner can’t sign in yet</small></div>
+      <div className="cl-metric"><span className="cl-eyebrow">Trial expired</span><span className="cl-metric-value tabular-nums">{exceptions.trialExpired.length}</span><small>Past the trial end date</small></div>
     </div>
 
     {!gyms.length ? <div className="cl-empty"><strong>No gyms yet.</strong><p>{isAdmin ? 'Onboard the first gym below.' : 'Gyms appear here once a platform admin onboards them.'}</p></div> : <>
-      <section className="cl-section" aria-labelledby="fleet-heading">
-        <div className="cl-section-head"><h2 id="fleet-heading" className="cl-section-title">Fleet</h2></div>
+      <section className="cl-section platform-zone" aria-labelledby="fleet-heading">
+        <div className="platform-zone-head">
+          <h2 id="fleet-heading" className="cl-section-title">Fleet</h2>
+          <p className="cl-muted">Every gym on the platform. Open one for its readiness and failed sends.</p>
+        </div>
         <div className="cl-ledger-wrap">
           <table className="cl-ledger platform-ledger">
             <thead><tr>
-              <th scope="col">Gym</th><th scope="col">Status</th><th scope="col">Tier</th><th scope="col" className="platform-col-mid">Trial ends</th>
-              <th scope="col" className="cl-num">Members</th><th scope="col" className="cl-num platform-col-mid">Open cases</th><th scope="col" className="cl-num platform-col-wide">Failed sends</th>
+              <th scope="col">Gym</th><th scope="col">Status</th><th scope="col" className="platform-col-wide">Tier</th><th scope="col" className="platform-col-mid">Trial ends</th>
+              <th scope="col" className="cl-num">Members</th><th scope="col" className="cl-num platform-col-mid">Open cases</th><th scope="col" className="cl-num">Failed sends</th>
               <th scope="col" className="platform-col-readiness">Readiness</th><th scope="col"><span className="sr-only">Open</span></th>
             </tr></thead>
             <tbody>
               {gyms.map((gym) => <tr key={gym.tenantId}>
                 <td className="platform-cell-gym"><span className="cl-row-title">{gym.name}</span><span className="cl-row-meta">{gym.gymCode}</span></td>
                 <td className="platform-cell-status"><StatusWord status={gym.status} /></td>
-                <td className="platform-cell-fact platform-cell-plan"><Cell label="Tier" /><span>{gym.tier === null ? 'Unassigned' : humanize(gym.tier)}</span></td>
+                <td className="platform-cell-fact platform-cell-plan platform-col-wide"><Cell label="Tier" /><span>{gym.tier === null ? NO_TIER : humanize(gym.tier)}</span></td>
                 <td className="platform-cell-fact platform-cell-plan platform-col-mid"><Cell label="Trial ends" /><span>{gym.trialEndsAt === null ? 'No trial' : dayOf(gym.trialEndsAt, zoneOf(gym))}</span></td>
                 <td className="cl-num platform-cell-fact platform-cell-count"><Cell label="Members" /><span>{gym.activeMembers ?? 'Unavailable'}</span></td>
                 <td className="cl-num platform-cell-fact platform-cell-count platform-col-mid"><Cell label="Open cases" /><span>{gym.openCases}</span></td>
-                <td className="cl-num platform-cell-fact platform-cell-count platform-col-wide"><Cell label="Failed sends" /><span>{gym.failedNotifications}</span></td>
+                <td className="cl-num platform-cell-fact platform-cell-count"><Cell label="Failed sends" /><span>{gym.failedNotifications}</span></td>
                 <td className="platform-cell-readiness platform-col-readiness">{gym.settingsComplete ? <StatusWord status="ready" label="Activation ready" /> : <StatusWord status="pending" label={`Readiness incomplete: ${gym.missingSettings.map(humanize).join(', ') || 'unknown'}`} />}</td>
                 <td className="platform-cell-open"><a href={`/platform/${gym.tenantId}`} className="platform-open-link" aria-label={`Open ${gym.name}`}>Open<ChevronRight {...iconProps} /></a></td>
               </tr>)}
@@ -113,9 +119,8 @@ export default async function PlatformPage(props?: { searchParams?: Promise<{ ma
         </div>
       </section>
 
-      {isAdmin ? <section className="cl-section platform-manage-zone" aria-labelledby="manage-heading">
+      {isAdmin ? <section className="cl-section platform-zone" aria-labelledby="manage-heading">
         <div className="platform-zone-head">
-          <p className="cl-eyebrow">Admin controls</p>
           <h2 id="manage-heading" className="cl-section-title">Manage gyms</h2>
           <p className="cl-muted">Status, tier, support preview and owner sign-in for each gym. Open one to change it.</p>
         </div>
@@ -138,7 +143,7 @@ export default async function PlatformPage(props?: { searchParams?: Promise<{ ma
               <form action={`/api/platform/gyms/${gym.tenantId}/tier`} method="post" className="platform-control">
                 <input type="hidden" name="requestKey" value={crypto.randomUUID()} />
                 <input type="hidden" name="expectedTier" value={gym.tier ?? ''} />
-                <label className="cl-field platform-control-wide"><span>Tier</span><select name="tier" defaultValue={gym.tier ?? ''} className="cl-input"><option value="">Unassigned</option>{PLAN_TIERS.map((tier) => <option key={tier} value={tier}>{humanize(tier)} · {tierPrice(tier)}/month</option>)}</select></label>
+                <label className="cl-field platform-control-wide"><span>Tier</span><select name="tier" defaultValue={gym.tier ?? ''} className="cl-input"><option value="">{NO_TIER}</option>{PLAN_TIERS.map((tier) => <option key={tier} value={tier}>{humanize(tier)} · {tierPrice(tier)}/month</option>)}</select></label>
                 <button type="submit" className="cl-btn">Save tier</button>
               </form>
               <form action="/api/platform/impersonations" method="post" className="platform-control">
@@ -162,7 +167,7 @@ export default async function PlatformPage(props?: { searchParams?: Promise<{ ma
       </section> : null}
     </>}
 
-    {isAdmin ? <section className="cl-section platform-onboard" aria-labelledby="onboard-heading" id="onboard">
+    {isAdmin ? <section className="cl-section platform-zone platform-onboard" aria-labelledby="onboard-heading" id="onboard">
       <div className="platform-zone-head">
         <h2 id="onboard-heading" className="cl-section-title">Add a gym</h2>
         <p className="cl-muted">Creates the gym, its first branch and its owner, and starts the trial.</p>
@@ -172,7 +177,7 @@ export default async function PlatformPage(props?: { searchParams?: Promise<{ ma
         <input type="hidden" name="currency" value="INR" />
         <div className="cl-form-row">
           <label className="cl-field"><span>Gym name</span><input name="name" required className="cl-input" /></label>
-          <label className="cl-field"><span>Timezone</span><select name="timezone" required defaultValue="Asia/Kolkata" className="cl-input">{TIMEZONE_CHOICES.map((zone) => <option key={zone.id} value={zone.id}>{zone.label}</option>)}</select></label>
+          <label className="cl-field"><span>Time zone</span><select name="timezone" required defaultValue="Asia/Kolkata" className="cl-input">{TIMEZONE_CHOICES.map((zone) => <option key={zone.id} value={zone.id}>{zone.label}</option>)}</select></label>
           <label className="cl-field"><span>Preset</span><select name="preset" required className="cl-input">{GYM_PRESETS.map((preset) => <option key={preset} value={preset}>{humanize(preset)}</option>)}</select></label>
         </div>
         <div className="cl-form-row">
@@ -180,7 +185,7 @@ export default async function PlatformPage(props?: { searchParams?: Promise<{ ma
           <label className="cl-field"><span>Owner name</span><input name="ownerName" required className="cl-input" /></label>
           <label className="cl-field"><span>Owner email</span><input name="ownerEmail" type="email" className="cl-input" /></label>
         </div>
-        <button type="submit" className="cl-btn">Create gym</button>
+        <button type="submit" className="cl-btn cl-btn--primary">Create gym</button>
       </form>
     </section> : null}
   </main>;

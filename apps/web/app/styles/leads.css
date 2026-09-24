@@ -1,139 +1,181 @@
 /* Chalkline leads family refinements (critic loop). Loaded after globals.css. */
 
-/* ── Leads: filter bar — five controls and the button on one row ───────── */
-.leads-filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) auto; align-items: end; gap: var(--gymloop-space-16); }
-/* Wide: the disclosure dissolves so its four selects are ordinary grid cells. */
-.leads-filter-more { display: contents; }
-.leads-filter-more::details-content { display: contents; content-visibility: visible; }
-.leads-filter-more > summary { display: none; }
-@media (max-width: 64rem) { .leads-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 40rem) {
-  .leads-filters { grid-template-columns: minmax(0, 1fr); }
-  .leads-filter-more { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gymloop-space-16); }
-  .leads-filter-more::details-content { display: contents; }
-  .leads-filter-more:not([open])::details-content { display: none; }
-  .leads-filter-more > summary { display: flex; grid-column: 1 / -1; justify-content: space-between; list-style: none; }
-  .leads-filter-more > summary::-webkit-details-marker { display: none; }
-}
+/* ── Leads: one track system ──────────────────────────────────────────────
+   The page measures its own content width (the rail comes and goes) and every
+   block lays out on the same twelve tracks with one 24px gutter. Phone: one
+   column. Medium (40rem+): filters, counts and the enquiry form three across,
+   four tracks each. Wide (64rem+): filters and counts six across, two tracks
+   each; the form stays three across, so its lines are filter lines too; and
+   the pipeline's five columns start on those same lines. Blocks of equal
+   cells use repeat(N) with the shared gutter, which lands exactly on them. */
+.leads-page { container: leads-page / inline-size; --leads-gap: var(--gymloop-space-24); }
 
-/* ── Leads: header — the one action sits on the title's row ───────────── */
-.leads-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 var(--gymloop-space-24); }
+/* ── Leads: header — the one action on the title's row, top-aligned ────── */
+.leads-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0 var(--gymloop-space-16); }
 .leads-header > div:first-child { display: contents; }
 .leads-header .cl-eyebrow { grid-column: 1 / -1; grid-row: 1; }
 .leads-header .cl-title { grid-column: 1; grid-row: 2; }
 .leads-header > .cl-actions { grid-column: 2; grid-row: 2; }
+.leads-header > .cl-actions > .cl-btn { width: auto; flex: none; }
 .leads-header .cl-lede { grid-column: 1 / -1; grid-row: 3; }
-@media (max-width: 40rem) {
-  .leads-header { grid-template-columns: minmax(0, 1fr); }
-  .leads-header > .cl-actions { grid-column: 1; grid-row: 4; margin-top: var(--gymloop-space-16); }
+
+/* ── Leads: filter bar ─────────────────────────────────────────────────── */
+.leads-filters { display: grid; grid-template-columns: minmax(0, 1fr); align-items: end; gap: var(--gymloop-space-16) var(--leads-gap); }
+/* Medium and wide: the disclosure dissolves, so its controls are ordinary cells. */
+.leads-filter-more { display: contents; }
+.leads-filter-more::details-content { display: contents; content-visibility: visible; }
+.leads-filter-more > summary { display: none; }
+.leads-filters .cl-btn { width: 100%; }
+.leads-filter-count { color: var(--gymloop-color-secondary-text); font-weight: 400; }
+@container leads-page (width >= 40rem) { .leads-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container leads-page (width >= 64rem) { .leads-filters { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+/* Phone: one disclosure row — ink label, 16px chevron, hairline, no box — holding the whole bar. */
+@container leads-page (width < 40rem) {
+  .leads-filters { display: block; margin-top: 0; }
+  .leads-filter-more { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gymloop-space-16); border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+  .leads-filter-more[open] { padding-bottom: var(--gymloop-space-24); }
+  .leads-filter-more::details-content { display: contents; }
+  .leads-filter-more:not([open])::details-content { display: none; }
+  .leads-filter-more > summary { display: flex; grid-column: 1 / -1; min-height: var(--gymloop-target-touch); align-items: center; justify-content: space-between; gap: var(--gymloop-space-12); color: var(--gymloop-color-primary-text); font-weight: var(--gymloop-type-emphasis-weight); cursor: pointer; list-style: none; }
+  .leads-filter-more > summary::-webkit-details-marker { display: none; }
+  .leads-filter-span { grid-column: 1 / -1; }
 }
 
-/* ── Leads: stage count strip — hairline-divided cells, display numerals ─ */
-.leads-counts-block { container: leads-counts / inline-size; }
-.leads-counts-meta { margin: 0; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); }
+/* ── Leads: stage counts — display numerals on the shared lines ───────── */
+.leads-counts-meta { margin: 0; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); }
 .leads-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; border-block: 1px solid var(--gymloop-color-decorative-separator); }
-.leads-counts > li { display: grid; align-content: start; gap: var(--gymloop-space-8); min-width: 0; padding: var(--gymloop-space-16) var(--gymloop-space-16) var(--gymloop-space-16) var(--gymloop-space-24); border-left: 1px solid var(--gymloop-color-decorative-separator); }
+.leads-counts > li { position: relative; display: grid; align-content: start; gap: var(--gymloop-space-8); min-width: 0; padding: var(--gymloop-space-16) var(--gymloop-space-16) var(--gymloop-space-16) var(--gymloop-space-24); border-left: 1px solid var(--gymloop-color-decorative-separator); }
 .leads-counts > li:nth-child(2n + 1) { padding-left: 0; border-left: 0; }
 .leads-counts > li:nth-child(-n + 4) { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
 .leads-counts .cl-status { white-space: nowrap; }
 .leads-count-value { font-size: clamp(2.5rem, 4.4vw, var(--gymloop-type-display-title-size)); line-height: 1; font-stretch: var(--gymloop-type-display-stretch); font-weight: var(--gymloop-type-display-weight); font-variant-numeric: tabular-nums; }
-@container leads-counts (width >= 36rem) {
-  .leads-counts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .leads-counts > li { padding-block: var(--gymloop-space-24); }
-  .leads-counts > li:nth-child(-n + 4) { border-bottom: 0; }
-  .leads-counts > li:nth-child(2n + 1) { padding-left: var(--gymloop-space-24); border-left: 1px solid var(--gymloop-color-decorative-separator); }
-  .leads-counts > li:nth-child(3n + 1) { padding-left: 0; border-left: 0; }
-  .leads-counts > li:nth-child(-n + 3) { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+/* Medium and wide: cells on the tracks, hairlines centred in the gutters, so
+   each numeral starts on the line of the filter above it. */
+@container leads-page (width >= 40rem) {
+  .leads-counts { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--leads-gap); }
+  .leads-counts > li, .leads-counts > li:nth-child(2n + 1), .leads-counts > li:nth-child(-n + 4) { padding: var(--gymloop-space-24) 0; border: 0; }
+  .leads-counts > li::before { content: ''; position: absolute; inset-block: 0; left: calc(var(--leads-gap) / -2); border-left: 1px solid var(--gymloop-color-decorative-separator); }
+  .leads-counts > li:nth-child(3n + 1)::before { content: none; }
+  .leads-counts > li:nth-child(-n + 3)::after { content: ''; position: absolute; bottom: 0; left: calc(var(--leads-gap) / -2); right: calc(var(--leads-gap) / -2); border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+  .leads-counts > li:first-child::after { left: 0; }
+  .leads-counts > li:nth-child(3)::after { right: 0; }
 }
-@container leads-counts (width >= 60rem) {
+@container leads-page (width >= 64rem) {
   .leads-counts { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .leads-counts > li:nth-child(3n + 1) { padding-left: var(--gymloop-space-24); border-left: 1px solid var(--gymloop-color-decorative-separator); }
-  .leads-counts > li:first-child { padding-left: 0; border-left: 0; }
-  .leads-counts > li:nth-child(-n + 3) { border-bottom: 0; }
+  .leads-counts > li:nth-child(3n + 1)::before { content: ''; }
+  .leads-counts > li:first-child::before { content: none; }
+  .leads-counts > li:nth-child(-n + 3)::after { content: none; }
 }
+
+/* ── Leads: section heads — condensed H2, 12px, one hairline ──────────── */
+.leads-section-head { margin-bottom: 0; padding-bottom: var(--gymloop-space-12); border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+.leads-section-note { margin: 0; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); }
 
 /* ── Leads: pipeline ledger ───────────────────────────────────────────────
-   The ledger sizes itself from its own width, not the viewport's (the rail
-   comes and goes): cards below 35rem, three tracks to 44rem, then the four
-   labelled tracks LEAD | SOURCE · ASSIGNEE | STAGE (next step beneath) | ACTION. */
-.leads-ledger { container: leads-ledger / inline-size; --leads-action-slot: 8.5rem; --leads-edit-slot: 4.5rem; --leads-action-width: calc(var(--leads-action-slot) + var(--leads-edit-slot) + var(--gymloop-space-8)); }
+   Cards below 44rem. From 44rem, three columns on the medium lines: the lead
+   (source, branch and owner beneath) · stage · action. From 64rem, five
+   columns on the wide lines: LEAD 1–2 · SOURCE · BRANCH 3–4 · ASSIGNEE 5–6 ·
+   STAGE 7–9 · ACTION 10–12. The action is two fixed slots, the primary
+   button and Edit, so a row without Edit keeps its button where the others are. */
+.leads-ledger { --leads-edit-slot: 4.5rem; }
 .leads-ledger > ul { margin: 0; padding: 0; list-style: none; }
-.leads-ledger-head { display: none; padding: var(--gymloop-space-12) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-eyebrow-size); line-height: var(--gymloop-type-eyebrow-line-height); font-weight: var(--gymloop-type-emphasis-weight); letter-spacing: var(--gymloop-type-eyebrow-tracking); text-transform: uppercase; }
-.leads-row { display: grid; align-items: first baseline; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+.leads-ledger-head { display: none; padding: var(--gymloop-space-12) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-eyebrow-size); line-height: var(--gymloop-type-eyebrow-line-height); font-weight: var(--gymloop-type-emphasis-weight); letter-spacing: var(--gymloop-type-eyebrow-tracking); text-transform: uppercase; white-space: nowrap; }
+.leads-row { display: grid; align-items: first baseline; padding: var(--gymloop-space-16) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
 .leads-row > * { min-width: 0; }
-.leads-cell-lead, .leads-cell-meta, .leads-cell-stage { display: grid; align-content: start; gap: 2px; }
-.leads-phone, .leads-cell-meta, .leads-cell-next { color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); font-weight: 400; overflow-wrap: anywhere; text-wrap: pretty; }
+.leads-cell-lead, .leads-cell-stage { display: grid; align-content: start; gap: 2px; }
+.leads-row .cl-row-title { font-size: var(--gymloop-type-body-size); line-height: var(--gymloop-type-body-line-height); font-weight: var(--gymloop-type-emphasis-weight); }
+.leads-sub, .leads-cell-source, .leads-cell-assignee { color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); font-weight: 400; overflow-wrap: anywhere; text-wrap: pretty; }
+.leads-cell-assignee { position: relative; }
+.leads-updated { white-space: nowrap; }
 .leads-cell-stage > .cl-status { justify-self: start; }
-.leads-empty { color: var(--gymloop-color-secondary-text); }
 
-/* Two fixed slots on every row: the primary action, then Edit. An empty action is the same dash as an empty next step. */
-.leads-row > .leads-cell-action { display: grid; grid-template-columns: var(--leads-action-slot) var(--leads-edit-slot); justify-content: start; align-items: first baseline; gap: var(--gymloop-space-8); }
-.leads-row > .leads-cell-action > :is(a, .leads-toggle--act, .leads-empty) { grid-column: 1; }
+.leads-row > .leads-cell-action { display: grid; grid-template-columns: minmax(0, 1fr) var(--leads-edit-slot); align-items: first baseline; gap: var(--gymloop-space-8); }
+.leads-row > .leads-cell-action > :is(a, .leads-toggle--act) { grid-column: 1; }
 .leads-row > .leads-cell-action > .leads-toggle--edit { grid-column: 2; }
 .leads-cell-action .cl-btn { width: 100%; border-color: var(--gymloop-color-required-control-outline); }
 
-/* Row toggles: the summary is the button; its panel is a sibling revealed with :has(). */
+/* Row toggles: the summary is the control; its panel is a sibling revealed with :has(). */
 .leads-toggle > summary { list-style: none; }
 .leads-toggle > summary::-webkit-details-marker { display: none; }
 .leads-toggle[open] > summary.cl-btn { background: var(--gymloop-color-elevated-surface); }
-.leads-edit-summary { display: flex; width: 100%; min-height: var(--gymloop-target-interactive); align-items: center; justify-content: center; gap: var(--gymloop-space-4); padding: 0 var(--gymloop-space-8); border-radius: var(--gymloop-radius-control); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-body-size); font-weight: var(--gymloop-type-emphasis-weight); line-height: 1.2; cursor: pointer; }
-.leads-edit-summary:hover, .leads-toggle--edit[open] > .leads-edit-summary { background: var(--gymloop-color-elevated-surface); color: var(--gymloop-color-primary-text); }
+/* The console's one disclosure look: ink text, no underline, 16px chevron, 44px target. */
+.leads-edit-summary { display: flex; width: 100%; min-height: var(--gymloop-target-interactive); align-items: center; justify-content: center; gap: var(--gymloop-space-4); padding: 0 var(--gymloop-space-8); border-radius: var(--gymloop-radius-control); color: var(--gymloop-color-primary-text); font-size: var(--gymloop-type-body-size); font-weight: var(--gymloop-type-emphasis-weight); line-height: 1.2; cursor: pointer; }
+.leads-edit-summary:hover, .leads-toggle--edit[open] > .leads-edit-summary { background: var(--gymloop-color-elevated-surface); }
 .leads-chevron { flex: 0 0 auto; transition: transform var(--gymloop-motion-press) ease; }
 :is(.leads-toggle, .leads-filter-more)[open] .leads-chevron { transform: rotate(180deg); }
 .leads-panel { display: none; grid-column: 1 / -1; margin-top: var(--gymloop-space-12); padding: var(--gymloop-space-24); border-radius: var(--gymloop-radius-section); background: var(--gymloop-color-elevated-surface); }
 .leads-row:has(.leads-toggle--act[open]) .leads-panel--act, .leads-row:has(.leads-toggle--edit[open]) .leads-panel--edit { display: grid; gap: var(--gymloop-space-24); }
 .leads-convert { padding-bottom: var(--gymloop-space-24); border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+/* A stage move's fields take the same three-across measure as the edit form's, not the whole sheet. */
+.leads-panel .cl-form-row { gap: var(--gymloop-space-24) var(--leads-gap); }
+@container leads-page (width >= 40rem) { .leads-panel .cl-form-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container leads-page (width < 40rem) {
+  .leads-panel .cl-form-row { grid-template-columns: minmax(0, 1fr); }
+  .leads-panel :is(.cl-form > div:last-child, .cl-actions) .cl-btn { width: 100%; }
+  .leads-panel .cl-form > .cl-actions { justify-self: stretch; }
+}
 
 /* Phone: one card per lead — name with the stage on the right, facts beneath, then a full-width action row. */
-@container leads-ledger (width < 35rem) {
-  .leads-row { grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--gymloop-space-16); row-gap: var(--gymloop-space-4); padding: var(--gymloop-space-16) 0; }
+@container leads-page (width < 44rem) {
+  .leads-row { grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--gymloop-space-16); }
   .leads-cell-lead { grid-column: 1; grid-row: 1; }
   .leads-cell-stage { display: contents; }
   .leads-cell-stage > .cl-status { grid-column: 2; grid-row: 1; justify-self: end; }
-  .leads-cell-meta { grid-column: 1 / -1; grid-row: 2; }
-  .leads-assignee::before { content: 'Assignee: '; }
-  .leads-cell-next { grid-column: 1 / -1; grid-row: 3; }
-  .leads-cell-next.leads-empty { display: none; }
-  .leads-row > .leads-cell-action { grid-column: 1 / -1; grid-row: 4; grid-template-columns: minmax(0, 1fr) var(--leads-edit-slot); margin-top: var(--gymloop-space-8); }
+  .leads-cell-source { grid-column: 1 / -1; grid-row: 2; }
+  .leads-cell-assignee { grid-column: 1 / -1; grid-row: 3; }
+  .leads-cell-next { grid-column: 1 / -1; grid-row: 4; }
+  .leads-row > .leads-cell-action { grid-column: 1 / -1; grid-row: 5; margin-top: var(--gymloop-space-12); }
   .leads-row > .leads-cell-action > :only-child { grid-column: 1 / -1; }
-  .leads-row > .leads-cell-action:has(> .leads-empty) { display: none; }
+  .leads-row > .leads-cell-action:empty { display: none; }
   .leads-cell-action .cl-btn { min-height: var(--gymloop-target-touch); }
   .leads-panel { padding: var(--gymloop-space-16); }
 }
-@container leads-ledger (width >= 35rem) {
-  .leads-ledger-head { display: grid; white-space: nowrap; }
-  .leads-ledger-head, .leads-row { column-gap: var(--gymloop-space-16); }
-  .leads-row { padding: var(--gymloop-space-12) 0 var(--gymloop-space-16); }
+@container leads-page (width >= 44rem) {
+  .leads-ledger-head { display: grid; }
+  .leads-ledger-head, .leads-row { column-gap: var(--leads-gap); }
 }
-/* Narrow ledger: who (with source and assignee beneath) · where it stands · what to do. */
-@container leads-ledger (35rem <= width < 44rem) {
-  .leads-ledger-head, .leads-row { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) var(--leads-action-width); }
-  .leads-ledger-head > :nth-child(2) { display: none; }
+@container leads-page (44rem <= width < 64rem) {
+  .leads-ledger-head, .leads-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .leads-ledger-head > :is(:nth-child(2), :nth-child(3)) { display: none; }
+  .leads-row { row-gap: 2px; }
   .leads-cell-lead { grid-column: 1; grid-row: 1; }
-  .leads-cell-meta { grid-column: 1; grid-row: 2; margin-top: var(--gymloop-space-4); }
-  .leads-cell-stage { grid-column: 2; grid-row: 1 / span 2; }
-  .leads-row > .leads-cell-action { grid-column: 3; grid-row: 1 / span 2; }
+  .leads-cell-source { grid-column: 1; grid-row: 2; }
+  .leads-cell-assignee { grid-column: 1; grid-row: 3; }
+  .leads-cell-stage { grid-column: 2; grid-row: 1 / span 3; }
+  .leads-row > .leads-cell-action { grid-column: 3; grid-row: 1 / span 3; }
 }
-@container leads-ledger (width >= 44rem) {
-  .leads-ledger-head, .leads-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr) var(--leads-action-width); }
+@container leads-page (width >= 64rem) {
+  .leads-ledger-head, .leads-row { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .leads-ledger-head > *, .leads-row > :not(.leads-panel) { grid-row: 1; }
+  :is(.leads-ledger-head > :nth-child(1), .leads-cell-lead) { grid-column: 1 / span 2; }
+  :is(.leads-ledger-head > :nth-child(2), .leads-cell-source) { grid-column: 3 / span 2; }
+  :is(.leads-ledger-head > :nth-child(3), .leads-cell-assignee) { grid-column: 5 / span 2; }
+  :is(.leads-ledger-head > :nth-child(4), .leads-cell-stage) { grid-column: 7 / span 3; }
+  :is(.leads-ledger-head > :nth-child(5), .leads-row > .leads-cell-action) { grid-column: 10 / span 3; }
+  /* Column values, not sub-lines: ink, and the column label does the labelling. */
+  .leads-cell-source, .leads-cell-assignee { color: var(--gymloop-color-primary-text); }
+  .leads-assignee-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
-@container leads-ledger (width >= 60rem) { .leads-ledger-head, .leads-row { column-gap: var(--gymloop-space-24); } }
+.leads-assignee-label { color: var(--gymloop-color-secondary-text); }
 @media (prefers-reduced-motion: reduce) { .leads-chevron { transition: none; } }
 
-/* ── Leads: lead facts (enquiry + edit) ───────────────────────────────── */
-.leads-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: var(--gymloop-space-24) var(--gymloop-space-16); }
-.leads-facts-notes { grid-column: span 2; }
-@media (max-width: 64rem) { .leads-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .leads-facts-notes { grid-column: 1 / -1; } }
-@media (max-width: 40rem) { .leads-facts { grid-template-columns: 1fr; } }
+/* ── Leads: lead facts (enquiry + edit) — three across on the medium lines ─ */
+.leads-facts { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: var(--gymloop-space-24) var(--leads-gap); }
+@container leads-page (width >= 40rem) {
+  .leads-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .leads-facts-notes { grid-column: span 2; }
+}
 
 /* ── Leads: record an enquiry ─────────────────────────────────────────── */
 .leads-enquiry { scroll-margin-top: var(--gymloop-space-24); margin-top: var(--gymloop-space-48); }
-/* The member form's rhythm: 24px from the heading to the first label and between groups, 32px before the submit. */
-.leads-enquiry .cl-section-head { margin-bottom: var(--gymloop-space-24); }
+/* The helper sits under the title at every width, then the section's one hairline. */
+.leads-enquiry-head { display: grid; justify-content: stretch; gap: var(--gymloop-space-4); margin-bottom: var(--gymloop-space-24); }
+.leads-section-lede { margin: 0; max-width: 60ch; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-body-size); line-height: var(--gymloop-type-body-line-height); }
+/* The member form's rhythm: 24px between groups, 32px before the submit. */
 .leads-enquiry .cl-form { row-gap: var(--gymloop-space-24); }
 .leads-enquiry .cl-form > div:last-child { padding-top: var(--gymloop-space-8); }
 .leads-enquiry .cl-form > div:last-child .cl-btn { min-width: 12rem; }
-@media (max-width: 40rem) { .leads-enquiry .cl-form > div:last-child .cl-btn { width: 100%; } }
+@container leads-page (width < 40rem) { .leads-enquiry .cl-form > div:last-child .cl-btn { width: 100%; } }
 
 /* Helpers: a touch larger than the kit default, tucked 4px under their field. */
 :is(.leads-facts, .member-form-layout) .cl-field > small { margin-top: calc(var(--gymloop-space-4) * -1); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); }
@@ -152,16 +194,18 @@
 /* The label's 20px line box, so the eyebrow and "Full name" share a baseline. */
 .member-form-note h2 { margin: 0 0 var(--gymloop-space-16); line-height: var(--gymloop-type-compact-line-height); }
 .member-form-note :is(ol, ul) { display: grid; gap: var(--gymloop-space-12); margin: 0; padding: 0; list-style: none; }
-.member-form-note li { color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); }
+.member-form-note :is(li, p) { margin: 0; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); }
 .member-form-note ol { counter-reset: member-form-step; }
 .member-form-note ol > li { display: grid; grid-template-columns: var(--gymloop-space-24) minmax(0, 1fr); counter-increment: member-form-step; }
 .member-form-note ol > li::before { content: counter(member-form-step); font-weight: var(--gymloop-type-emphasis-weight); font-variant-numeric: tabular-nums; }
 .member-form-actions { display: flex; flex-wrap: wrap; gap: var(--gymloop-space-12); padding-top: var(--gymloop-space-8); }
 .member-form-actions .cl-btn { min-width: 10rem; }
-/* Stacked: the note follows the form, so one rule divides the two. */
+/* Stacked: the note follows the form, divided by one rule drawn at the same
+   content width as the header's, while the text keeps the form's measure. */
 @media (max-width: 64rem) {
-  .member-form-layout > form, .member-form-note { grid-column: 1 / -1; max-width: 40rem; }
-  .member-form-note { padding-top: var(--gymloop-space-24); border-top: 1px solid var(--gymloop-color-decorative-separator); }
+  .member-form-layout > form { grid-column: 1 / -1; max-width: 40rem; }
+  .member-form-note { grid-column: 1 / -1; padding-top: var(--gymloop-space-24); border-top: 1px solid var(--gymloop-color-decorative-separator); }
+  .member-form-note > * { max-width: 40rem; }
 }
 @media (max-width: 40rem) {
   .member-form-pair { grid-template-columns: minmax(0, 1fr); }

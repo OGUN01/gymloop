@@ -4,7 +4,7 @@ import { RED_LIST_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
 import Link from 'next/link';
 import { Alert } from '../alert';
 import { AVATAR_INITIALS_MAX, DEFAULT_TIMEZONE, MS_PER_DAY, formatDay, formatPhone, humanize } from '@gymloop/shared';
-import { Users } from 'lucide-react';
+import { ChevronRight, Users } from 'lucide-react';
 import { loadRedList } from '../../../lib/red-list';
 
 /** How each outcome reads for bringing the member back: coming, deferred, or not. */
@@ -44,7 +44,16 @@ export default async function RedListPage({
   const now = new Date();
   const { cases, pageSize, nextCursor, errorMessage } = await loadRedList(searchParams);
   const problem = params.error === undefined ? null : (MESSAGES[params.error] ?? MESSAGES.follow_up_failed);
-  const nextHref = nextCursor === null ? null : `?${new URLSearchParams({ ...(pageSize === RED_LIST_PAGE_SIZE_DEFAULT ? {} : { limit: String(pageSize) }), cursor: nextCursor }).toString()}`;
+  const sized = pageSize === RED_LIST_PAGE_SIZE_DEFAULT ? {} : { limit: String(pageSize) };
+  const nextHref = nextCursor === null ? null : `?${new URLSearchParams({ ...sized, cursor: nextCursor }).toString()}`;
+  // The loader pages by cursor and counts nothing, so a total is claimed only when
+  // this page is the whole list; otherwise the line says what is on this page.
+  const paged = params.cursor !== undefined || nextCursor !== null;
+  const longest = cases[0]?.days_absent;
+  const shortest = cases.at(-1)?.days_absent;
+  const pageSpan = typeof longest !== 'number' || typeof shortest !== 'number' ? null
+    : longest === shortest ? `${shortest} days away` : `${longest}–${shortest} days away`;
+  const firstHref = pageSize === RED_LIST_PAGE_SIZE_DEFAULT ? '/red-list' : `/red-list?${new URLSearchParams(sized).toString()}`;
 
   return (
     <main className="follow-up-workspace">
@@ -54,10 +63,12 @@ export default async function RedListPage({
           <p className="follow-up-intro">
             {errorMessage !== null || cases.length === 0
               ? 'Members who have stopped coming, longest away first.'
-              : `${cases.length === 1 ? '1 member' : `${cases.length} members`}, longest away first.`}
+              : paged
+                ? `${cases.length} on this page · longest away first.`
+                : `${cases.length === 1 ? '1 member' : `${cases.length} members`}, longest away first.`}
           </p>
         </div>
-        <Link href="/console" className="cl-btn follow-up-route-link"><Users aria-hidden="true" className="follow-up-route-icon" />All members</Link>
+        <Link href="/console" className="cl-btn follow-up-route-link"><Users aria-hidden="true" className="desk-icon" />All members</Link>
       </div>
 
       {problem === null ? null : <Alert>{problem}</Alert>}
@@ -91,16 +102,21 @@ export default async function RedListPage({
                 <div className="follow-up-history">
                   {row.last_follow_up_at === null ? <span className="cl-status follow-up-not-contacted" data-tone="neutral">Nobody has contacted them yet.</span> : (
                     <>
+                      {/* Who, then when: one line where the column is wide, two tidy lines where it is not. */}
                       <span className="follow-up-contact-by">
-                        {CONTACTED_BY[row.last_follow_up_channel ?? ''] ?? `${humanize(row.last_follow_up_channel ?? 'Contact')} by`} {row.last_follow_up_by ?? 'someone'},{' '}
+                        {CONTACTED_BY[row.last_follow_up_channel ?? ''] ?? `${humanize(row.last_follow_up_channel ?? 'Contact')} by`} {row.last_follow_up_by ?? 'someone'}<span className="follow-up-contact-sep">, </span>
                         <time dateTime={row.last_follow_up_at} className="follow-up-contact-when">{daysAgo(row.last_follow_up_at, now)}</time>
                       </span>
                       <span className="cl-status" data-tone={OUTCOME_TONE[row.last_follow_up_outcome ?? ''] ?? 'neutral'} data-status={row.last_follow_up_outcome ?? ''}>{humanize(row.last_follow_up_outcome ?? '')}</span>
                     </>
                   )}
                 </div>
+                {/* One "Log follow-up" per row at every width; it opens this row's controls under it. */}
                 <details className="follow-up-log">
-                  <summary className="cl-btn follow-up-log-toggle">Log follow-up</summary>
+                  <summary className="cl-btn follow-up-log-toggle">
+                    <span className="follow-up-log-open">Log follow-up</span>
+                    <span className="follow-up-log-close">Close</span>
+                  </summary>
                   <MutationForm method="post" action="/api/follow-ups" className="follow-up-form">
                     {/* View columns are nullable in generated types, so the id is coalesced rather than asserted. */}
                     <input type="hidden" name="caseId" value={row.id ?? ''} />
@@ -121,7 +137,16 @@ export default async function RedListPage({
         </section>
       )}
 
-      {nextHref === null ? null : <Link href={nextHref} rel="next" className="cl-btn follow-up-next-page">Next page</Link>}
+      {!paged || errorMessage !== null || cases.length === 0 ? null : (
+        // A ruled pager row: the stretch of absence this page covers, and the way on or back.
+        <nav aria-label="Pages" className="desk-pager follow-up-pager">
+          <span className="desk-pager-note">{pageSpan}</span>
+          <span className="desk-pager-links">
+            {params.cursor === undefined ? null : <Link href={firstHref} className="cl-btn desk-pager-link">First page</Link>}
+            {nextHref === null ? null : <Link href={nextHref} rel="next" className="cl-btn desk-pager-link follow-up-next-page">Next page<ChevronRight aria-hidden="true" className="desk-icon" /></Link>}
+          </span>
+        </nav>
+      )}
     </main>
   );
 }

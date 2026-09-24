@@ -2,7 +2,7 @@ import { Constants } from '@gymloop/db';
 import Link from 'next/link';
 import { ChevronDown, Plus } from 'lucide-react';
 import { loadLeads, type LeadListRow } from '../../../lib/leads';
-import { UI_TOKENS, formatDateTime, humanize } from '@gymloop/shared';
+import { UI_TOKENS, formatDateTime, formatDay, humanize, toLocalDate } from '@gymloop/shared';
 import { Field, inputClass } from '../field';
 import { Alert } from '../alert';
 import { StatusWord } from '../../status-word';
@@ -18,7 +18,7 @@ import { LeadConvertDialog, LeadEditForm, LeadEnquiryForm, LeadStageForm } from 
 
 type SearchParams = Promise<Record<string, string | undefined>>;
 
-/** The select filters a desk can narrow by; their count labels the phone disclosure. */
+/** The select filters a desk can narrow by; with the search they count into the phone disclosure's label. */
 const FILTER_KEYS = ['stage', 'source', 'assignee', 'branch'] as const;
 
 /**
@@ -37,6 +37,23 @@ function nextActionText(row: LeadListRow, timezone: string, now: number): string
       return 'Record trial outcome';
     case 'trial_done': return 'Convert or mark lost';
     default: return null;
+  }
+}
+
+/**
+ * The gym-local day a lead last changed — the list's own order (`list_leads`
+ * pages by `updated_at` descending) — as "21 Sep", with the year only when it
+ * is not this one. Null when the instant or the zone cannot be read, so a bad
+ * value drops the date instead of the row.
+ */
+function updatedDay(updatedAt: string, timezone: string, now: number): string | null {
+  if (Number.isNaN(Date.parse(updatedAt))) return null;
+  try {
+    const day = formatDay(toLocalDate(updatedAt, timezone));
+    const thisYear = ` ${toLocalDate(new Date(now), timezone).slice(0, 'YYYY'.length)}`;
+    return day.endsWith(thisYear) ? day.slice(0, -thisYear.length) : day;
+  } catch {
+    return null;
   }
 }
 
@@ -100,12 +117,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
   const [params, screen] = await Promise.all([searchParams, loadLeads(searchParams)]);
   const now = Date.now();
 
-  const activeFilters = FILTER_KEYS.filter((key) => Boolean(params[key])).length;
+  const searching = (params.q?.trim() ?? '') !== '';
+  const activeFilters = FILTER_KEYS.filter((key) => Boolean(params[key])).length + (searching ? 1 : 0);
   const countsMatch = screen.pageResultCount === screen.totalMatchingCount;
 
-  return <main className="cl-page">
+  return <main className="cl-page leads-page">
     {/* The header is a grid (leads.css) so the one action sits on the title's
-        row instead of drifting down to the subtitle. */}
+        row, top-aligned with it, at every width — on a phone too. */}
     <div className="cl-page-header leads-header">
       <div>
         <p className="cl-eyebrow">Front office</p>
@@ -118,21 +136,27 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
     </div>
 
     <form method="get" action="/leads" className="leads-filters cl-section">
-      {/* On a phone the four selects fold behind one disclosure so the first lead
-          is on screen; wider layouts show them inline (leads.css). */}
+      {/* On a phone the whole bar — four selects, the search and its button —
+          folds behind one disclosure row so the first number is on screen;
+          wider layouts dissolve the disclosure into the bar (leads.css). */}
       <details className="leads-filter-more" open={activeFilters > 0 ? true : undefined}>
-        <summary className="cl-btn">Filters{activeFilters > 0 ? ` (${activeFilters})` : ''}<ChevronDown aria-hidden="true" className="leads-chevron" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></summary>
+        <summary>
+          <span>Search and filters{activeFilters > 0 ? <span className="leads-filter-count"> ({activeFilters})</span> : null}</span>
+          <ChevronDown aria-hidden="true" className="leads-chevron" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />
+        </summary>
         {filterSpecs(screen).map((spec) => <Field key={spec.name} label={spec.label}>
           <select name={spec.name} defaultValue={params[spec.name] ?? ''} className={inputClass}>
             <option value="">{spec.allLabel}</option>
             {spec.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </Field>)}
+        <div className="leads-filter-span">
+          <Field label="Search">
+            <input name="q" defaultValue={params.q ?? ''} type="search" placeholder="Name or phone" className={inputClass} />
+          </Field>
+        </div>
+        <button type="submit" className="cl-btn leads-filter-span">Apply filters</button>
       </details>
-      <Field label="Search">
-        <input name="q" defaultValue={params.q ?? ''} type="search" placeholder="Name or phone" className={inputClass} />
-      </Field>
-      <button type="submit" className="cl-btn">Apply filters</button>
     </form>
 
     {screen.errorMessage === null ? <section aria-labelledby="counts-heading" className="cl-section leads-counts-block">
@@ -156,48 +180,50 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
     {screen.errorMessage !== null ? <div className="cl-section"><Alert>{screen.errorMessage}</Alert></div> : null}
 
     <section aria-labelledby="pipeline-heading" className="cl-section">
-      <div className="cl-section-head">
+      <div className="cl-section-head leads-section-head">
         <h2 id="pipeline-heading" className="cl-section-title">Pipeline</h2>
+        {screen.rows.length > 1 ? <p className="leads-section-note">Recently updated first</p> : null}
       </div>
       {screen.rows.length === 0 && screen.errorMessage === null
         ? <div className="cl-empty"><strong>No leads here</strong><p>No leads match these filters. Record an enquiry below or clear the filters.</p></div>
         : null}
       {screen.rows.length > 0 ? <div className="leads-ledger">
-        {/* Four labelled tracks wherever the ledger has room (leads.css): who the
-            lead is, where they came from and who owns them, where they stand
-            with the step that follows, and the one thing to do. */}
+        {/* Five labelled columns when the page is wide, starting on the filter
+            and count lines above (leads.css): who the lead is, where they came
+            from, who owns them, where they stand with the step that follows,
+            and the one thing to do. Narrower, source and owner fold under the
+            lead, with the owner labelled in words. */}
         <div className="leads-ledger-head" aria-hidden="true">
-          <span>Lead</span><span>Source · Assignee</span><span>Stage</span><span>Action</span>
+          <span>Lead</span><span>Source · Branch</span><span>Assignee</span><span>Stage</span><span>Action</span>
         </div>
         <ul>
           {screen.rows.map((row) => {
             const action = nextActionText(row, screen.timezone, now);
             const open = row.stage !== 'converted' && row.stage !== 'lost';
             const member = row.stage === 'converted' && row.convertedMemberId !== null ? row.convertedMemberId : null;
+            const updated = updatedDay(row.updatedAt, screen.timezone, now);
+            // A terminal stage says only what is true of it — the loss reason
+            // when one was recorded — and otherwise nothing, never a dash.
+            const detail = row.stage === 'lost'
+              ? (row.lostReason !== null ? `Reason: ${row.lostReason}` : null)
+              : action !== null ? `Next: ${action}` : null;
             return <li key={row.id} className="leads-row" data-stage={row.stage}>
               <span className="leads-cell-lead">
                 <span className="cl-row-title">{row.fullName}</span>
-                <span className="leads-phone tabular-nums">{row.phone}</span>
+                <span className="leads-sub">
+                  <span className="tabular-nums">{row.phone}</span>
+                  {updated !== null ? <> · <time className="leads-updated" dateTime={row.updatedAt}><span className="sr-only">updated </span>{updated}</time></> : null}
+                </span>
               </span>
-              <span className="leads-cell-meta">
-                <span>{humanize(row.source)} · {row.branchName}</span>
-                <span className="leads-assignee">{row.assignedToName ?? 'Unassigned'}</span>
-              </span>
+              <span className="leads-cell-source">{humanize(row.source)} · {row.branchName}</span>
+              <span className="leads-cell-assignee"><span className="leads-assignee-label">Assignee: </span>{row.assignedToName ?? 'Unassigned'}</span>
               <span className="leads-cell-stage">
                 <StatusWord status={row.stage} />
-                {/* One empty-value treatment: a secondary dash wherever a row has nothing to say. */}
-                {row.stage === 'lost' && row.lostReason !== null
-                  ? <span className="leads-cell-next">Reason: {row.lostReason}</span>
-                  : action !== null
-                    ? <span className="leads-cell-next">Next: {action}</span>
-                    : <span className="leads-cell-next leads-empty"><span aria-hidden="true">—</span><span className="sr-only">No next step</span></span>}
+                {detail !== null ? <span className="leads-sub leads-cell-next">{detail}</span> : null}
               </span>
               <span className="leads-cell-action">
                 {member !== null
                   ? <Link className="cl-btn cl-btn--small" href={`/members/${member}`}>Open member</Link>
-                  : null}
-                {!open && member === null
-                  ? <span className="leads-empty"><span aria-hidden="true">—</span><span className="sr-only">No action</span></span>
                   : null}
                 {open ? <details className="leads-toggle leads-toggle--act">
                   <summary className="cl-btn cl-btn--small">{row.stage === 'trial_done' ? 'Convert' : 'Change stage'}</summary>

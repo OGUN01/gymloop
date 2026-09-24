@@ -1,7 +1,8 @@
 'use client';
 
 import { useRef, useState, type ChangeEvent, type ReactNode } from 'react';
-import { humanize } from '@gymloop/shared';
+import { humanize, UI_TOKENS } from '@gymloop/shared';
+import { ChevronDown } from 'lucide-react';
 import { Alert } from '../alert';
 import { Field, inputClass } from '../field';
 import type { BranchChoice, MemberImportRunRow } from '../../../lib/member-imports';
@@ -269,6 +270,10 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
   if (step === 'upload') {
     return <form method="post" onSubmit={submitUpload} className="cl-form cl-section">
       <StepHead number={1} title="Upload the file" />
+      <details className="cl-disclosure imports-disclosure imports-needs-disclosure">
+        <summary>What your file needs<ChevronDown {...iconProps} /></summary>
+        <NeedsList />
+      </details>
       <div className="cl-field">
         <span id="imports-file-label">Member file (.csv or .xlsx)</span>
         <label className="imports-drop" data-empty={file === null ? 'true' : 'false'}>
@@ -276,7 +281,7 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
           <span className="cl-btn imports-drop-button" aria-hidden="true">{file === null ? 'Choose file' : 'Change file'}</span>
           <span id="imports-file-name" className="imports-drop-name">{file === null ? 'No file selected yet' : file.name}</span>
         </label>
-        <small>Up to 5 MB and 5,000 members. The first row must be the column names.</small>
+        <small>Up to 5 MB and 5,000 members.</small>
       </div>
       <div className="cl-form-row">
         <BranchAndPhoneFields branches={branches} branchId={branchId} setBranchId={setBranchId} phoneDefaultCountry={phoneDefaultCountry} setPhoneDefaultCountry={setPhoneDefaultCountry} />
@@ -303,8 +308,8 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
         </Field>)}
         <BranchAndPhoneFields branches={branches} branchId={branchId} setBranchId={setBranchId} phoneDefaultCountry={phoneDefaultCountry} setPhoneDefaultCountry={setPhoneDefaultCountry} />
       </div>
-      <details className="cl-disclosure">
-        <summary>First rows of the file</summary>
+      <details className="cl-disclosure imports-disclosure">
+        <summary>First rows of the file<ChevronDown {...iconProps} /></summary>
         <div className="cl-ledger-wrap">
           <table className="cl-ledger">
             <thead><tr>
@@ -400,10 +405,15 @@ const STEPS: ReadonlyArray<{ step: Step; label: string }> = [
   { step: 'report', label: 'Import' },
 ];
 
-/** Where a step stands against the current one: its word and its status tone (clay stays on the number and the bar). */
+/**
+ * Where a step stands against the current one. Done and current say so with a
+ * dot and a word (the current dot in the badge's clay); a waiting step says
+ * nothing visible, its dimmed number is enough, and its word is for screen
+ * readers only.
+ */
 const STEP_STATES = {
   done: { word: 'Done', tone: 'ok' },
-  current: { word: 'In progress', tone: 'warn' },
+  current: { word: 'In progress', tone: 'accent' },
   next: { word: 'Waiting', tone: 'neutral' },
 } as const;
 
@@ -425,7 +435,9 @@ function StepList({ current }: { current: Step }) {
         <span className="imports-step-number tabular-nums">{index + 1}</span>
         <span className="imports-step-text">
           <span className="imports-step-label">{entry.label}</span>
-          <span className="cl-status" data-tone={STEP_STATES[state].tone}>{STEP_STATES[state].word}</span>
+          {state === 'next'
+            ? <span className="sr-only">{STEP_STATES[state].word}</span>
+            : <span className="cl-status" data-tone={STEP_STATES[state].tone}>{STEP_STATES[state].word}</span>}
         </span>
       </li>;
     })}
@@ -433,23 +445,40 @@ function StepList({ current }: { current: Step }) {
   </div>;
 }
 
+/** A 16px Lucide glyph at the kit's stroke, for the disclosure toggles. */
+const iconProps = { 'aria-hidden': true, size: UI_TOKENS.icons.controlSize, strokeWidth: UI_TOKENS.icons.strokeWidth } as const;
+
 /**
- * What the importer actually accepts, stated once beside the upload step.
- * Every line mirrors the parser in `@gymloop/shared` (member-imports): name
- * and phone are the only required columns, phones are bare Indian mobiles or
- * +country numbers, dates are YYYY-MM-DD or DD/MM/YYYY, and a phone already on
- * file is reported as a duplicate rather than overwritten.
+ * What the importer actually accepts. Every line mirrors the parser in
+ * `@gymloop/shared` (member-imports): name and phone are the only required
+ * columns, phones are bare Indian mobiles or +country numbers, dates are
+ * YYYY-MM-DD or DD/MM/YYYY, and a phone already on file is reported as a
+ * duplicate rather than overwritten.
+ */
+const FILE_NEEDS: ReadonlyArray<{ title: string; detail: string }> = [
+  { title: 'A header row', detail: 'Column names in the first row, each one different.' },
+  { title: 'Name and phone', detail: 'Required. Member code, email, gender, date of birth, joined on and notes are optional.' },
+  { title: 'Phones', detail: '10-digit Indian mobiles, or international numbers written with their country code, such as +971.' },
+  { title: 'Dates', detail: '2026-09-24 or 24/09/2026, or Excel date cells.' },
+  { title: 'Existing members', detail: 'A phone already on file is shown as a duplicate and left unchanged.' },
+];
+
+function NeedsList() {
+  return <ul className="cl-rows">
+    {FILE_NEEDS.map((need) => <li key={need.title}><span><span className="cl-row-title">{need.title}</span><span className="cl-row-meta">{need.detail}</span></span></li>)}
+  </ul>;
+}
+
+/**
+ * The requirements, stated before the file is chosen: under the step list at
+ * tablet width, a third column beside the form on wide screens, and on a
+ * phone a collapsed disclosure above the file picker (rendered inside the
+ * upload form, so only one of the two is ever displayed).
  */
 function FileNeeds() {
   return <aside className="imports-needs" aria-labelledby="imports-needs-heading">
     <h2 id="imports-needs-heading" className="cl-eyebrow">What your file needs</h2>
-    <ul className="cl-rows">
-      <li><span><span className="cl-row-title">A header row</span><span className="cl-row-meta">Column names in the first row, each one different.</span></span></li>
-      <li><span><span className="cl-row-title">Name and phone</span><span className="cl-row-meta">Required. Member code, email, gender, date of birth, joined on and notes are optional.</span></span></li>
-      <li><span><span className="cl-row-title">Phones</span><span className="cl-row-meta">10-digit Indian mobiles, or numbers with a + country code.</span></span></li>
-      <li><span><span className="cl-row-title">Dates</span><span className="cl-row-meta">2026-09-24 or 24/09/2026, or Excel date cells.</span></span></li>
-      <li><span><span className="cl-row-title">Existing members</span><span className="cl-row-meta">A phone already on file is shown as a duplicate and left unchanged.</span></span></li>
-    </ul>
+    <NeedsList />
   </aside>;
 }
 

@@ -99,9 +99,14 @@ function useMutationSubmit(
   return { pending, problem, submit };
 }
 
-/** Record a consent grant or withdrawal for a named member (contract §3, front office). */
+/**
+ * Record a consent grant or withdrawal for a named member (contract §3, front
+ * office). A member is chosen for the desk only when the search left exactly
+ * one; with a longer list the select starts on a prompt, so a decision is
+ * never recorded against whoever happened to sort first.
+ */
 export function ConsentForm({ members }: { members: MemberChoice[] }) {
-  const [memberId, setMemberId] = useState(members[0]?.id ?? '');
+  const [memberId, setMemberId] = useState(members.length === 1 ? members[0]?.id ?? '' : '');
   const [purpose, setPurpose] = useState<(typeof Constants.public.Enums.consent_purpose)[number]>('marketing');
   const [granted, setGranted] = useState(true);
   const [version, setVersion] = useState('2026-09-01');
@@ -109,22 +114,23 @@ export function ConsentForm({ members }: { members: MemberChoice[] }) {
   const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
   const replaceRequestKey = () => setRequestKey(crypto.randomUUID());
   const { pending, problem, submit } = useMutationSubmit(
-    () => (memberId === '' || version.trim() === '' || source.trim() === '')
-      ? 'Enter the member, version and source, then try again.' : null,
+    () => memberId === '' ? 'Choose the member first. Search by phone to find them.'
+      : (version.trim() === '' || source.trim() === '') ? 'Enter the version and source, then try again.' : null,
     () => postJson('/api/consents', { memberId, purpose, granted, version, source, requestKey }),
     () => {},
     replaceRequestKey,
     'The connection was interrupted. The outcome is uncertain. Retry recording this consent.',
   );
 
-  return <MutationForm onSubmit={submit} className="cl-form mt-4">
+  const decide = (next: boolean) => { setGranted(next); replaceRequestKey(); };
+
+  return <MutationForm onSubmit={submit} className="cl-form comms-consent">
     <div className="cl-form-row">
     <Field label="Member">
-      {members.length > 0
-        ? <select value={memberId} onChange={(event) => { setMemberId(event.target.value); replaceRequestKey(); }} className={inputClass}>
-          {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
-        </select>
-        : <input value={memberId} onChange={(event) => { setMemberId(event.target.value); replaceRequestKey(); }} placeholder="Member id" className={inputClass} />}
+      <select value={memberId} disabled={members.length === 0} onChange={(event) => { setMemberId(event.target.value); replaceRequestKey(); }} className={inputClass}>
+        {members.length === 1 ? null : <option value="" disabled>{members.length === 0 ? 'No member matches that search' : 'Search to choose a member'}</option>}
+        {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+      </select>
     </Field>
     <Field label="Purpose">
       <select value={purpose} onChange={(event) => { setPurpose(event.target.value as typeof purpose); replaceRequestKey(); }} className={inputClass}>
@@ -132,15 +138,17 @@ export function ConsentForm({ members }: { members: MemberChoice[] }) {
       </select>
     </Field>
     </div>
-    <label className="cl-check">
-      <input type="checkbox" checked={granted} onChange={(event) => { setGranted(event.target.checked); replaceRequestKey(); }} /> Granted
-    </label>
+    <fieldset className="comms-decision">
+      <legend>Decision</legend>
+      <label className="cl-check"><input type="radio" name="consent-decision" checked={granted} onChange={() => decide(true)} /> Granted</label>
+      <label className="cl-check"><input type="radio" name="consent-decision" checked={!granted} onChange={() => decide(false)} /> Withdrawn</label>
+    </fieldset>
     <div className="cl-form-row">
     <Field label="Version"><input value={version} onChange={(event) => { setVersion(event.target.value); replaceRequestKey(); }} className={inputClass} /></Field>
     <Field label="Source"><input value={source} onChange={(event) => { setSource(event.target.value); replaceRequestKey(); }} className={inputClass} /></Field>
     </div>
     {problem !== '' ? <Alert>{problem}</Alert> : null}
-    <button type="submit" disabled={pending} className="cl-btn">
+    <button type="submit" disabled={pending} className="cl-btn cl-btn--primary">
       {pending ? 'Recording…' : 'Record consent'}
     </button>
   </MutationForm>;
@@ -200,7 +208,7 @@ export function MessageTemplateForm({ template }: { template?: { id: string; key
   // its row already names them, so only the editable facts are controls here.
   return <MutationForm onSubmit={submit} className="cl-form comms-editor">
     {template !== undefined ? <div className="comms-editor-grid">{categoryField}</div> : <div className="comms-editor-grid">
-      <Field label="Internal name"><input value={keyInput} onChange={(event) => setKeyInput(event.target.value)} className={inputClass} /><small>How it appears in your template list, for example Birthday wish.</small></Field>
+      <Field label="Internal name"><input value={keyInput} onChange={(event) => setKeyInput(event.target.value)} className={inputClass} /><small>How it appears in your template list, for example “Birthday wish”.</small></Field>
       <Field label="Channel">
         <select value={channel} onChange={(event) => setChannel(event.target.value as typeof channel)} className={inputClass}>
           {Constants.public.Enums.notification_channel.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}
@@ -213,12 +221,12 @@ export function MessageTemplateForm({ template }: { template?: { id: string; key
       </Field>
       {categoryField}
     </div>}
-    <Field label="Body"><textarea value={body} onChange={(event) => setBody(event.target.value)} className={inputClass} /></Field>
+    <Field label="Body"><textarea value={body} onChange={(event) => setBody(event.target.value)} className={`${inputClass} comms-body`} /><small>Plain text, sent exactly as written. Placeholders such as {'{{name}}'} are not filled in.</small></Field>
     <label className="cl-check">
       <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} /> Active
     </label>
     {problem !== '' ? <Alert>{problem}</Alert> : null}
-    <button type="submit" disabled={pending} className="cl-btn">
+    <button type="submit" disabled={pending} className="cl-btn cl-btn--primary">
       {pending ? 'Saving…' : template ? 'Save template' : 'Create template'}
     </button>
   </MutationForm>;

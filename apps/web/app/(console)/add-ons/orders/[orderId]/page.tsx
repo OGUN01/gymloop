@@ -12,6 +12,11 @@ import { AddonConfirmForm, AddonScheduleForm, AddonSessionActions } from '../../
 type Refund = Omit<Database['public']['Tables']['refunds']['Row'], 'amount_paise'> & { amount_paise: string };
 type Payment = NonNullable<AddonOrder['payments']>;
 
+/** The header names the order's state in words that stand on their own beside a Paid payment. */
+const HEADER_STATE: Record<AddonOrder['status'], string> = {
+  pending: 'Awaiting payment', paid: 'To deliver', active: 'Delivery in progress', completed: 'Delivered', cancelled: 'Order cancelled', refunded: 'Order refunded',
+};
+
 function back(href: string, label: string) {
   return <Link href={href} className="cl-back"><ArrowLeft aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />{label}</Link>;
 }
@@ -27,7 +32,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
     supabase.from('addon_orders').select(ADDON_ORDER_COLUMNS).eq('id', orderId).maybeSingle(),
     supabase.from('organizations').select('timezone').eq('id', identity.tenantId).maybeSingle(),
   ]);
-  if (orderResult.error) return <main className="cl-page">{back('/add-ons#orders', 'All add-on orders')}<div className="cl-page-header"><div><h1 className="cl-title">Add-on order</h1></div></div><AddonLoadError label="this order" href={`/add-ons/orders/${orderId}`} /></main>;
+  if (orderResult.error) return <main className="cl-page">{back('/add-ons#orders', 'Add-ons')}<div className="cl-page-header"><div><h1 className="cl-title">Add-on order</h1></div></div><AddonLoadError label="this order" href={`/add-ons/orders/${orderId}`} /></main>;
   if (!orderResult.data) return <main className="cl-page">{back('/add-ons', 'Add-ons')}<div className="cl-page-header"><div><p className="cl-eyebrow">Add-on order</p><h1 className="cl-title">Order unavailable</h1><p className="cl-lede">This order was not found.</p></div></div></main>;
   const order = orderResult.data as unknown as AddonOrder;
   const timezone = gym.error ? 'Unavailable' : gym.data?.timezone ?? 'Unavailable';
@@ -84,14 +89,14 @@ export default async function AddonOrderPage({ params, searchParams }: {
   const refundable = admin && Boolean(order.payment_id) && available > 0;
 
   return <main className="cl-page addon-page">
-    {back('/add-ons#orders', 'All add-on orders')}
+    {back('/add-ons#orders', 'Add-ons')}
     <div className="cl-page-header">
       <div><p className="cl-eyebrow">Add-on order</p>
         <h1 className="cl-title">{order.members?.full_name ? <Link href={`/members/${order.member_id}`} className="addon-member-link">{order.members.full_name}</Link> : 'Add-on order'}</h1>
         <p className="cl-lede addon-order-meta">
           <span className="addon-order-name">{order.sale_snapshot?.name ?? order.addon_products?.name ?? 'Previous add-on'}</span>
           {order.members?.phone ? <span className="tabular-nums">{formatPhone(order.members.phone)}</span> : null}
-          <span className="cl-status" data-tone={ADDON_DELIVERY[order.status][1]} data-status={order.status}>{ADDON_DELIVERY[order.status][0]}</span>
+          <span className="cl-status" data-tone={ADDON_DELIVERY[order.status][1]} data-status={order.status}>{HEADER_STATE[order.status]}</span>
         </p></div>
     </div>
     {query.saved === '1' ? <p role="status" className="cl-alert" data-tone="ok">Confirmation recorded. Current order details are shown below.</p> : null}
@@ -108,7 +113,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
           {today === null ? <p role="alert" className="cl-alert">Gym timezone unavailable. You cannot deliver this order until its expiry can be verified.</p> : null}
         </article>
         {order.sale_snapshot?.kind === 'pt_package' || order.sessions_total != null ? <section className="cl-section addon-block addon-detail-sessions" aria-labelledby="usage-heading">
-          <div className="cl-section-head"><h2 id="usage-heading" className="cl-section-title">PT sessions</h2></div>
+          <div className="cl-section-head addon-head"><h2 id="usage-heading" className="cl-section-title">PT sessions</h2></div>
           <dl className="cl-metrics addon-usage">
             <div className="cl-metric"><dt className="cl-eyebrow">Used</dt><dd className="cl-metric-value">{order.sessions_used ?? 'Not recorded'}</dd></div>
             <div className="cl-metric"><dt className="cl-eyebrow">Scheduled</dt><dd className="cl-metric-value">{scheduled ?? 'Unavailable'}</dd></div>
@@ -133,7 +138,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
             <p className="cl-muted text-sm addon-note">{!trainer ? `Only the assigned trainer${order.trainer?.full_name ? `, ${order.trainer.full_name},` : ''} can schedule or finish sessions.` : availableSessions === 0 ? 'All purchased sessions are used or scheduled. Cancel an unused booking before scheduling another.' : 'Scheduling unavailable because of status, expiry, returned money or unavailable reservation counts.'}</p>}
         </section> : null}
       {financeVisible ? <section className="addon-money" aria-labelledby="returns-heading">
-        <h2 id="returns-heading" className="cl-section-title">Payment and refunds</h2>
+        <div className="cl-section-head addon-head"><h2 id="returns-heading" className="cl-section-title">Payment and refunds</h2></div>
         <p className="addon-money-hero"><span className="cl-eyebrow">Total</span><span className="addon-money-total">{order.total_paise == null ? 'Not recorded' : formatMoney(order.total_paise, order.currency)}</span></p>
         {complimentary ? <p className="cl-alert" data-tone="info">Complimentary · {order.currency} 0.00 — no payment and no receipt.</p> : <dl className="addon-facts">
           <dt>Payment</dt><dd>{payment?.status ? <StatusWord status={payment.status} /> : 'Not recorded'}</dd>
@@ -144,11 +149,11 @@ export default async function AddonOrderPage({ params, searchParams }: {
         <h3 className="cl-eyebrow addon-money-sub">Refunds</h3>
         {complimentary ? <p className="cl-muted text-sm addon-note">Nothing was paid, so no refund can be requested.</p> : refundResult.error ? <AddonLoadError label="refunds" href={detailHref} /> : <>
           <dl className="addon-facts">
-            <dt>Refunded</dt><dd>{formatMoney(returned.toString(), order.currency)}</dd>
-            <dt>Refunds in progress</dt><dd>{formatMoney(pending.toString(), order.currency)}</dd>
-            <dt>Can still be refunded</dt><dd>{formatMoney((available > 0 ? available : BigInt(0)).toString(), order.currency)}</dd>
+            <dt>Refunded</dt><dd><span className="addon-amount">{formatMoney(returned.toString(), order.currency)}</span></dd>
+            <dt>Refunds in progress</dt><dd><span className="addon-amount">{formatMoney(pending.toString(), order.currency)}</span></dd>
+            <dt>Can still be refunded</dt><dd><span className="addon-amount">{formatMoney((available > 0 ? available : BigInt(0)).toString(), order.currency)}</span></dd>
           </dl>
-          {!refunds.length ? <p className="cl-muted text-sm addon-note">No refunds yet.</p> : <ul className="cl-rows addon-session-rows addon-refunds">{refunds.map((refund) => <li key={refund.id}>
+          {refunds.length ? <ul className="cl-rows addon-session-rows addon-refunds">{refunds.map((refund) => <li key={refund.id}>
             <span>
               <span className="cl-row-title tabular-nums">{refund.currency} {rupeesFromPaise(refund.amount_paise)} · {humanize(refund.kind)}</span>
               <span className="cl-row-meta">Reason: {refund.reason}{refund.status === 'completed' ? ` · Refunded ${refund.processed_at ? when(refund.processed_at) : 'on a date not recorded'}` : ''}</span>
@@ -157,12 +162,12 @@ export default async function AddonOrderPage({ params, searchParams }: {
             {admin && (refund.status === 'requested' || refund.status === 'processing') && payment?.method && payment.method !== 'razorpay' && !refund.provider_refund_id ?
               <div className="addon-session-actions"><AddonConfirmForm path={`/api/refunds/${refund.id}/complete-addon`} method="POST" body={{ expectedAmountPaise: refund.amount_paise, expectedCurrency: refund.currency, expectedReason: refund.reason }}
                 danger label="Confirm money returned" description={`Confirm ${formatMoney(refund.amount_paise, refund.currency)} was actually returned for “${refund.reason}”. This records staff confirmation and does not initiate a transfer.`} /></div> : null}
-          </li>)}</ul>}
+          </li>)}</ul> : null}
           <p className="cl-muted text-sm addon-note">A refund is marked complete once staff confirm the money was returned. Confirming it does not send money.</p>
         </>}
         {order.payment_id ? <Link href={`/payments/${order.payment_id}`} className="cl-btn addon-money-action">{refundable ? 'Request a refund' : payment?.receipt_number ? 'Open receipt' : 'Open payment'}</Link> : null}
       </section> : <section className="addon-money" aria-labelledby="finance-heading">
-        <h2 id="finance-heading" className="cl-section-title">Payment and refunds</h2>
+        <div className="cl-section-head addon-head"><h2 id="finance-heading" className="cl-section-title">Payment and refunds</h2></div>
         <p className="cl-muted text-sm addon-note">Payment details are not visible to trainers. Front-office staff handle receipts and refunds.</p>
       </section>}
     </div>

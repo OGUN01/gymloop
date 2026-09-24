@@ -47,12 +47,15 @@ export default async function MemberMessagesPage(_props: object = {}) {
       <h2 id="consent-heading" className="cl-eyebrow member-eyebrow">Consent history</h2>
       {screen.consents.length === 0 && screen.errorMessage === null
         ? <div className="cl-empty"><strong>No consent decisions recorded yet</strong><p>Your gym records your choices here when you give or withdraw them.</p></div>
-        : <ul className="cl-rows">
-          {screen.consents.map((consent, index) => <li key={index}>
-            <span><span className="cl-row-title member-sentence">{consent.purpose.replaceAll('_', ' ')} messages</span><small className="cl-row-meta">{[CONSENT_SCOPE[consent.purpose], `Recorded ${day(consent.recordedAt)}`].filter(Boolean).join(' · ')}</small></span>
-            <StatusWord status={consent.granted ? 'granted' : 'withdrawn'} />
-          </li>)}
-        </ul>}
+        : <>
+          <ul className="cl-rows">
+            {screen.consents.map((consent, index) => <li key={index}>
+              <span><span className="cl-row-title member-sentence">{consent.purpose.replaceAll('_', ' ')} messages</span><small className="cl-row-meta">{[CONSENT_SCOPE[consent.purpose], `${consent.granted ? 'Since' : 'Withdrawn'} ${day(consent.recordedAt)}`].filter(Boolean).join(' · ')}</small></span>
+              <StatusWord status={consent.granted ? 'granted' : 'withdrawn'} />
+            </li>)}
+          </ul>
+          {screen.consents.length > 0 ? <p className="member-consent-note">To change a choice, ask your front desk.</p> : null}
+        </>}
     </section>
   </main>;
 }

@@ -2,8 +2,9 @@ import { MutationForm } from '../../../preview-context';
 import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import {
-  AVATAR_INITIALS_MAX, DEFAULT_TIMEZONE, PAYMENT_PAGE_SIZE_DEFAULT, formatDay, formatDayRange, formatMoney, formatPhone, humanize,
+  AVATAR_INITIALS_MAX, DEFAULT_TIMEZONE, PAYMENT_PAGE_SIZE_DEFAULT, UI_TOKENS, formatDay, formatDayRange, formatMoney, formatPhone, humanize,
   membershipNetPrice, rupeesFromPaise,
 } from '@gymloop/shared';
 import { createServerSupabase } from '../../../../lib/supabase/server';
@@ -198,9 +199,12 @@ export default async function MemberMembershipsPage({
 
   return (
     <main className="cl-page">
-      <Link href="/memberships" className="cl-back money-back">
-        ← All memberships
-      </Link>
+      {/* Where this is, the same way the receipt says it: the ledger, then this member. */}
+      <nav aria-label="Breadcrumb" className="cl-back money-back money-crumbs">
+        <Link href="/memberships">Memberships</Link>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page" className="money-crumb-current">{member.data.full_name}</span>
+      </nav>
       <div className="cl-page-header money-member-header">
         <div className="money-member-identity">
           <span aria-hidden="true" className="money-member-disc">{member.data.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('')}</span>
@@ -220,9 +224,14 @@ export default async function MemberMembershipsPage({
                 <StatusWord status="none" label="No live membership" />
               )}
             </p>
+            {/* On a phone the profile is a text link under the facts, not a third full-width button. */}
+            <Link href={`/members/${memberId}`} className="money-for-link money-member-profile-link">
+              Member profile
+              <ChevronRight aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />
+            </Link>
           </div>
         </div>
-        <div className="cl-actions">
+        <div className="cl-actions money-member-profile-action">
           <Link href={`/members/${memberId}`} className="cl-btn">
             Member profile
           </Link>
@@ -251,8 +260,8 @@ export default async function MemberMembershipsPage({
                   <dd>{lapsed.plans.name}</dd>
                   <dt>Ran</dt>
                   <dd><Span from={lapsed.starts_on} through={lapsed.ends_on} /></dd>
-                  <dt>Per period</dt>
-                  <dd>{formatMoney(membershipNetPrice(lapsed.price_paise, lapsed.discount_paise), lapsed.currency)}</dd>
+                  <dt>Price</dt>
+                  <dd><Price paise={membershipNetPrice(lapsed.price_paise, lapsed.discount_paise)} currency={lapsed.currency} days={lapsed.duration_days} /></dd>
                 </dl>
                 <p className="cl-alert money-note" data-tone="warn">
                   This member is refused at the gate until it is renewed — take the payment and it
@@ -266,8 +275,8 @@ export default async function MemberMembershipsPage({
               <dd>{live.plans.name}</dd>
               <dt>Runs</dt>
               <dd><Span from={live.starts_on} through={live.ends_on} /></dd>
-              <dt>Per period</dt>
-              <dd>{formatMoney(membershipNetPrice(live.price_paise, live.discount_paise), live.currency)}</dd>
+              <dt>Price</dt>
+              <dd><Price paise={membershipNetPrice(live.price_paise, live.discount_paise)} currency={live.currency} days={live.duration_days} /></dd>
             </dl>
           )}
 
@@ -276,7 +285,8 @@ export default async function MemberMembershipsPage({
               handlers are unchanged. */}
           <div className="money-member-actions">
             <details className="money-action" open={live === undefined}>
-              <summary className="cl-btn">{live === undefined ? 'Sell a membership' : 'Sell another membership'}</summary>
+              {/* The long half of each label drops on a phone, so Sell and Pause share one row. */}
+              <summary className="cl-btn">{live === undefined ? 'Sell a membership' : <span>Sell another<span className="money-long"> membership</span></span>}</summary>
               <MutationForm method="post" action="/api/memberships" className="cl-form money-form money-disclosure-body">
                 <input type="hidden" name="memberId" value={memberId} />
                 <div className="cl-form-row">
@@ -306,7 +316,7 @@ export default async function MemberMembershipsPage({
             </details>
             {live === undefined ? null : (
               <details className="money-action">
-                <summary className="cl-btn">Pause membership</summary>
+                <summary className="cl-btn"><span>Pause<span className="money-long"> membership</span></span></summary>
                 <MutationForm method="post" action="/api/memberships/pauses" className="cl-form money-form money-disclosure-body">
                   <input type="hidden" name="memberId" value={memberId} />
                   <input type="hidden" name="membershipId" value={live.id} />
@@ -423,7 +433,10 @@ export default async function MemberMembershipsPage({
             </button>
             {renewable === undefined || renewablePrice === 0 ? null : (
             <details className="cl-disclosure money-disclosure">
-              <summary>How dates work</summary>
+              <summary>
+                How dates work
+                <ChevronDown aria-hidden="true" className="money-disclosure-icon" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />
+              </summary>
               <p className="cl-muted money-copy">
                 The first fully paid period starts from today or a future agreed start date.
                 Later paid periods extend the membership from its expiry or today, whichever is later.{' '}
@@ -505,6 +518,11 @@ export default async function MemberMembershipsPage({
 function Day({ value }: { value: string | null }) {
   if (value === null) return <>—</>;
   return <time dateTime={value}>{formatDay(value)}</time>;
+}
+
+/** What a membership costs and for how long ("₹1,500 / 30 days"): the period is the membership's own, never a guessed month. */
+function Price({ paise, currency, days }: { paise: number; currency: string; days: number }) {
+  return <>{formatMoney(paise, currency)}<span className="money-price-period"> / {days} {days === 1 ? 'day' : 'days'}</span></>;
 }
 
 /** A membership's run as one readable span ("14 Sep – 13 Oct 2026"), or its known ends when one is missing. */

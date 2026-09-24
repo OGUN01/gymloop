@@ -1,7 +1,8 @@
 import { MutationForm } from '../../preview-context';
 import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import { Constants } from '@gymloop/db';
-import { humanize } from '@gymloop/shared';
+import { UI_TOKENS, formatDay, humanize } from '@gymloop/shared';
 import { Alert } from '../alert';
 import { createServerSupabase } from '../../../lib/supabase/server';
 
@@ -84,14 +85,29 @@ export async function MemberForm({
   const error = submitted.error;
   const creating = member === null;
 
+  // A gym with exactly one branch has nothing to choose: that branch is
+  // preselected, the same rule the leads enquiry form follows, and the
+  // "Choose a branch" prompt appears only when there is a real choice.
+  const branchChoices = branches ?? [];
+  const onlyBranch = branchChoices.length === 1 ? branchChoices[0] : undefined;
+  const branchValue = value('branch_id') || (onlyBranch?.id ?? '');
+
+  // The date control shows the browser's numeric pattern (04-08-2026), so an
+  // edit repeats the stored day in the product's own words beneath it.
+  const joined = value('joined_on');
+  const joinedHint = creating
+    ? 'Leave blank for today.'
+    : /^\d{4}-\d{2}-\d{2}$/.test(joined) && !Number.isNaN(Date.parse(joined)) ? `Joined ${formatDay(joined)}` : undefined;
+
   return (
     <main className="cl-page">
       <Link href={cancelHref} className="cl-back">
-        ← {backLabel}
+        <ArrowLeft aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />
+        {backLabel}
       </Link>
       <div className="cl-page-header">
         <div>
-          <p className="cl-eyebrow">{creating ? 'New member' : 'Member details'}</p>
+          <p className="cl-eyebrow">Members</p>
           <h1 className="cl-title">{title}</h1>
         </div>
       </div>
@@ -134,9 +150,9 @@ export async function MemberForm({
           </Field>
 
           <Field label="Branch">
-            <select name="branch_id" required defaultValue={value('branch_id')} className={FIELD_CLASS}>
-              <option value="">Choose a branch</option>
-              {(branches ?? []).map((branch) => (
+            <select name="branch_id" required defaultValue={branchValue} className={FIELD_CLASS}>
+              {onlyBranch === undefined ? <option value="">Choose a branch</option> : null}
+              {branchChoices.map((branch) => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
                 </option>
@@ -165,8 +181,8 @@ export async function MemberForm({
               </select>
             </Field>
 
-            <Field label="Joined on" hint={creating ? 'Leave blank for today.' : undefined}>
-              <input name="joined_on" type="date" defaultValue={value('joined_on')} className={FIELD_CLASS} />
+            <Field label="Joined on" hint={joinedHint}>
+              <input name="joined_on" type="date" defaultValue={joined} className={FIELD_CLASS} />
             </Field>
           </div>
 
@@ -180,7 +196,7 @@ export async function MemberForm({
           </div>
         </MutationForm>
 
-        {/* Adding is a sequence, so its note is numbered; editing is not, so its note is two plain facts. */}
+        {/* Adding is a sequence, so its note is numbered; editing is not, so its note is the one fact worth saying. */}
         <aside className="member-form-note" aria-labelledby="member-form-note-title">
           <h2 id="member-form-note-title" className="cl-eyebrow">
             {creating ? 'What happens next' : 'About editing'}
@@ -191,12 +207,7 @@ export async function MemberForm({
               <li>Open their page and sell a membership, so renewals and visits are tracked.</li>
             </ol>
           ) : (
-            <ul>
-              <li>Changes apply as soon as you save.</li>
-              <li>
-                Memberships, payments and visits stay on the member&apos;s page and are not changed here.
-              </li>
-            </ul>
+            <p>Memberships, payments and visits stay on the member&apos;s page and are not changed here.</p>
           )}
         </aside>
       </div>
