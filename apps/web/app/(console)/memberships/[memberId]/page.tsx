@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DEFAULT_TIMEZONE, PAISE_PER_RUPEE, membershipNetPrice, rupeesFromPaise } from '@gymloop/shared';
 import { createServerSupabase } from '../../../../lib/supabase/server';
+import { StatusWord } from '../../../status-word';
+import { Alert } from '../../alert';
 
 /**
  * One member's membership state and the whole history of their freezes, plus
@@ -61,6 +63,9 @@ const ERRORS: Record<string, string> = {
 };
 
 const LIVE_STATUSES = ['active', 'frozen'];
+
+/** Date-only columns are calendar days, so they are formatted in UTC to stay the day they say. */
+const DAY = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
 /**
  * Live means the status AND the dates, on the same terms the gate uses.
@@ -182,231 +187,246 @@ export default async function MemberMembershipsPage({
   const idempotencyKey = randomUUID();
 
   return (
-    <main className="route-workspace">
-      <div className="flex items-baseline justify-between">
-        <h1 className="text-xl font-semibold">{member.data.full_name}</h1>
-        <Link href="/memberships" className="text-sm text-neutral-600 underline">
-          All memberships
-        </Link>
+    <main className="cl-page">
+      <Link href="/memberships" className="cl-back">
+        ← All memberships
+      </Link>
+      <div className="cl-page-header">
+        <div>
+          <p className="cl-eyebrow">Member</p>
+          <h1 className="cl-title">{member.data.full_name}</h1>
+          <p className="cl-lede flex flex-wrap items-center gap-4">
+            <span className="tabular-nums">{member.data.phone}</span>
+            {live !== undefined ? (
+              <StatusWord status={live.status} />
+            ) : lapsed !== undefined ? (
+              <span className="cl-status" data-tone="risk">Lapsed</span>
+            ) : null}
+          </p>
+        </div>
       </div>
-      <p className="mt-1 text-sm tabular-nums text-neutral-600">{member.data.phone}</p>
 
-      {error === undefined ? null : (
-        <p role="alert" className="mt-6 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-          {ERRORS[error] ?? 'That did not work.'}
-        </p>
-      )}
+      {error === undefined ? null : <Alert>{ERRORS[error] ?? 'That did not work.'}</Alert>}
 
-      <section className="mt-8">
-        <h2 className="text-base font-semibold">Membership</h2>
-        {live === undefined ? (
-          lapsed === undefined ? (
-            <p className="mt-2 text-sm text-neutral-600">No live membership.</p>
-          ) : (
-            <p className="mt-2 text-sm">
-              <span className="font-medium">{lapsed.plans.name}</span> —{' '}
-              <strong>lapsed</strong>, ran {lapsed.starts_on} to {lapsed.ends_on},{' '}
-              {money(membershipNetPrice(lapsed.price_paise, lapsed.discount_paise), lapsed.currency)} per period.{' '}
-              <span className="text-neutral-600">
-                This member is refused at the gate until it is renewed — take the payment below and
-                it runs again from today.
-              </span>
+      <div className="cl-split cl-section">
+        <div>
+          <section aria-labelledby="membership-heading">
+            <div className="cl-section-head">
+              <h2 className="cl-section-title" id="membership-heading">Current membership</h2>
+            </div>
+            {live === undefined ? (
+              lapsed === undefined ? (
+                <div className="cl-empty">
+                  <strong>No live membership.</strong>
+                  <p>Create one below, then record the payment that starts it.</p>
+                </div>
+              ) : (
+                <>
+                  <dl className="cl-dl">
+                    <dt>Plan</dt>
+                    <dd>{lapsed.plans.name}</dd>
+                    <dt>Ran</dt>
+                    <dd>
+                      <Day value={lapsed.starts_on} /> to <Day value={lapsed.ends_on} />
+                    </dd>
+                    <dt>Per period</dt>
+                    <dd>{money(membershipNetPrice(lapsed.price_paise, lapsed.discount_paise), lapsed.currency)}</dd>
+                    <dt>Status</dt>
+                    <dd>
+                      <span className="cl-status" data-tone="risk">Lapsed</span>
+                    </dd>
+                  </dl>
+                  <p className="cl-alert mt-4" data-tone="warn">
+                    This member is refused at the gate until it is renewed — take the payment and it
+                    runs again from today.
+                  </p>
+                </>
+              )
+            ) : (
+              <dl className="cl-dl">
+                <dt>Plan</dt>
+                <dd>{live.plans.name}</dd>
+                <dt>Runs</dt>
+                <dd>
+                  <Day value={live.starts_on} /> to <Day value={live.ends_on} />
+                </dd>
+                <dt>Per period</dt>
+                <dd>{money(membershipNetPrice(live.price_paise, live.discount_paise), live.currency)}</dd>
+                <dt>Status</dt>
+                <dd>
+                  <StatusWord status={live.status} />
+                </dd>
+              </dl>
+            )}
+
+            <h3 className="cl-eyebrow mt-8">Sell a membership</h3>
+            <MutationForm method="post" action="/api/memberships" className="cl-form mt-4">
+              <input type="hidden" name="memberId" value={memberId} />
+              <div className="cl-form-row">
+                <label className="cl-field">
+                  <span>Plan</span>
+                  <select name="planId" required className="cl-input">
+                    {(plans.data ?? []).map((plan) => (
+                      <option key={plan.id} value={plan.id}>
+                        {plan.name} — {money(plan.price_paise, plan.currency)} / {plan.duration_days} days
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="cl-field">
+                  <span>Starts on</span>
+                  <input type="date" name="startsOn" required defaultValue={today} className="cl-input" />
+                </label>
+              </div>
+              <p className="cl-muted text-sm">
+                Price comes from the plan. <strong>The first fully paid period sets the membership dates.</strong>
+                {' '}Record the payment below to start the membership.
+              </p>
+              <div>
+                <button type="submit" className="cl-btn">
+                  Create membership
+                </button>
+              </div>
+            </MutationForm>
+          </section>
+
+          <section className="cl-section" aria-labelledby="pauses-heading">
+            <div className="cl-section-head">
+              <h2 className="cl-section-title" id="pauses-heading">Pauses</h2>
+            </div>
+            <p className="cl-muted text-sm">
+              {settings.data === null
+                ? 'This gym has no settings row, so no approver and no allowance are configured.'
+                : `Up to ${settings.data.max_freeze_days_per_year} days a year, approved by ${settings.data.pause_approver_role.replace('_', ' ')}.`}
             </p>
-          )
-        ) : (
-          <p className="mt-2 text-sm">
-            <span className="font-medium">{live.plans.name}</span> — {live.status}, {live.starts_on}{' '}
-            to {live.ends_on}, {money(membershipNetPrice(live.price_paise, live.discount_paise), live.currency)} per period
+
+            {live === undefined ? (
+              <p className="cl-muted mt-4 text-sm">
+                A pause attaches to a live membership. This member has none.
+              </p>
+            ) : (
+              <MutationForm method="post" action="/api/memberships/pauses" className="cl-form mt-4">
+                <input type="hidden" name="memberId" value={memberId} />
+                <input type="hidden" name="membershipId" value={live.id} />
+                <div className="cl-form-row">
+                  <label className="cl-field">
+                    <span>From</span>
+                    <input type="date" name="startsOn" required defaultValue={today} className="cl-input" />
+                  </label>
+                  <label className="cl-field">
+                    <span>To</span>
+                    <input type="date" name="endsOn" required defaultValue={today} className="cl-input" />
+                  </label>
+                  <label className="cl-field">
+                    <span>Reason</span>
+                    {/* A datalist rather than a select: `pause_reasons` defaults to
+                        empty, and a select with no options is a dead control. This
+                        offers the gym's configured reasons and still accepts a new
+                        one. */}
+                    <input type="text" name="reason" required list="pause-reasons" className="cl-input" />
+                    <datalist id="pause-reasons">
+                      {(settings.data?.pause_reasons ?? []).map((reason) => (
+                        <option key={reason} value={reason} />
+                      ))}
+                    </datalist>
+                  </label>
+                </div>
+                <div>
+                  <button type="submit" className="cl-btn">
+                    Request pause
+                  </button>
+                </div>
+              </MutationForm>
+            )}
+
+            <PauseHistory memberId={memberId} memberships={rows} />
+          </section>
+        </div>
+
+        <section aria-labelledby="payment-heading">
+          <div className="cl-section-head">
+            <h2 className="cl-section-title" id="payment-heading">Record payment</h2>
+          </div>
+          <p className="cl-muted text-sm">
+            Cash, UPI, card or a bank transfer, taken at the desk. The receipt number is the
+            gym&rsquo;s own, and complete paid periods determine the membership dates.
           </p>
-        )}
 
-        <MutationForm method="post" action="/api/memberships" className="mt-4 flex flex-wrap items-end gap-3">
-          <input type="hidden" name="memberId" value={memberId} />
-          <label className="text-sm">
-            <span className="block text-neutral-600">Plan</span>
-            <select
-              name="planId"
-              required
-              className="mt-1 rounded-md border border-neutral-300 px-3 py-2 text-base"
-            >
-              {(plans.data ?? []).map((plan) => (
-                <option key={plan.id} value={plan.id}>
-                  {plan.name} — {money(plan.price_paise, plan.currency)} / {plan.duration_days} days
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-sm">
-            <span className="block text-neutral-600">Starts on</span>
-            <input
-              type="date"
-              name="startsOn"
-              required
-              defaultValue={today}
-              className="mt-1 rounded-md border border-neutral-300 px-3 py-2 text-base"
-            />
-          </label>
-          <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-white">
-            Create membership
-          </button>
-        </MutationForm>
-        <p className="mt-2 text-xs text-neutral-500">
-          Price comes from the plan. <strong>The first fully paid period sets the membership dates.</strong>
-          {' '}Record the payment below to start the membership.
-        </p>
-      </section>
-
-      <section className="mt-10">
-        <h2 className="text-base font-semibold">Take a payment</h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Cash, UPI, card or a bank transfer, taken at the desk. The receipt number is the
-          gym&rsquo;s own, and complete paid periods determine the membership dates.
-        </p>
-
-        <MutationForm method="post" action="/api/payments" className="mt-4 flex flex-wrap items-end gap-3">
-          <input type="hidden" name="memberId" value={memberId} />
-          {/* An idempotency key minted with the form, so the browser's back
-              button and a double tap on a slow connection are one payment
-              rather than two. The unique index is what enforces it; this is
-              how the form gets to participate. */}
-          <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
-          {renewable === undefined ? null : (
-            <input type="hidden" name="membershipId" value={renewable.id} />
-          )}
-          <label className="text-sm">
-            <span className="block text-neutral-600">Amount (₹)</span>
-            <input
-              type="text"
-              name="amountRupees"
-              required
-              inputMode="decimal"
-              /* `text` and not `number`: a number input on a phone offers a
-                 spinner and accepts `1e3`, and money typed at a counter is
-                 typed, not nudged. Two decimal places at most, refused rather
-                 than rounded. */
-              pattern="\d{1,9}(\.\d{1,2})?"
-              defaultValue={renewablePrice === undefined ? undefined : rupeesFromPaise(renewablePrice)}
-              className="mt-1 w-32 rounded-md border border-neutral-300 px-3 py-2 text-base tabular-nums"
-            />
-          </label>
-          <label className="text-sm">
-            <span className="block text-neutral-600">Method</span>
-            <select
-              name="method"
-              required
-              className="mt-1 rounded-md border border-neutral-300 px-3 py-2 text-base"
-            >
-              {DESK_METHODS.map((desk) => (
-                <option key={desk} value={desk}>
-                  {desk.replace('_', ' ')}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-sm">
-            <span className="block text-neutral-600">Note</span>
-            <input
-              type="text"
-              name="notes"
-              className="mt-1 rounded-md border border-neutral-300 px-3 py-2 text-base"
-            />
-          </label>
-          <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-white">
-            Record payment
-          </button>
-        </MutationForm>
-        <p className="mt-2 text-xs text-neutral-500">
-          {/* Honest about what the database will actually do. The old wording
-              promised an extension unconditionally, and a part payment, a
-              zero-price membership or a payment in another currency all grant
-              nothing — a receipt number, a success redirect, and no extension.
-              A period is granted per whole multiple of the membership's own
-              price that the money against it has reached (ADR-087). */}
-          {renewable === undefined ? (
-            'This member has no membership to renew, so this records money taken for something else and extends nothing.'
-          ) : renewablePrice === 0 ? (
-            'This membership is complimentary. No membership fee is due; recording a payment does not grant extra periods.'
-          ) : (
-            <>
-              The first fully paid period starts from today or a future agreed start date.
-              Later paid periods extend the membership from its expiry or today, whichever is later.{' '}
-              A full {money(renewablePrice ?? 0, renewable.currency)} buys one period of{' '}
-              {renewable.duration_days} days; part of it is recorded and receipted and buys none
-              until the balance is paid.
-            </>
-          )}
-        </p>
-      </section>
-
-      <section className="mt-10">
-        <h2 className="text-base font-semibold">Pauses</h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          {settings.data === null
-            ? 'This gym has no settings row, so no approver and no allowance are configured.'
-            : `Up to ${settings.data.max_freeze_days_per_year} days a year, approved by ${settings.data.pause_approver_role.replace('_', ' ')}.`}
-        </p>
-
-        {live === undefined ? (
-          <p className="mt-4 text-sm text-neutral-600">
-            A pause attaches to a live membership. This member has none.
-          </p>
-        ) : (
-          <MutationForm
-            method="post"
-            action="/api/memberships/pauses"
-            className="mt-4 flex flex-wrap items-end gap-3"
-          >
+          <MutationForm method="post" action="/api/payments" className="cl-form mt-4">
             <input type="hidden" name="memberId" value={memberId} />
-            <input type="hidden" name="membershipId" value={live.id} />
-            <label className="text-sm">
-              <span className="block text-neutral-600">From</span>
-              <input
-                type="date"
-                name="startsOn"
-                required
-                defaultValue={today}
-                className="mt-1 rounded-md border border-neutral-300 px-3 py-2 text-base"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="block text-neutral-600">To</span>
-              <input
-                type="date"
-                name="endsOn"
-                required
-                defaultValue={today}
-                className="mt-1 rounded-md border border-neutral-300 px-3 py-2 text-base"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="block text-neutral-600">Reason</span>
-              {/* A datalist rather than a select: `pause_reasons` defaults to
-                  empty, and a select with no options is a dead control. This
-                  offers the gym's configured reasons and still accepts a new
-                  one. */}
+            {/* An idempotency key minted with the form, so the browser's back
+                button and a double tap on a slow connection are one payment
+                rather than two. The unique index is what enforces it; this is
+                how the form gets to participate. */}
+            <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+            {renewable === undefined ? null : (
+              <input type="hidden" name="membershipId" value={renewable.id} />
+            )}
+            <label className="cl-field">
+              <span>Amount (₹)</span>
               <input
                 type="text"
-                name="reason"
+                name="amountRupees"
                 required
-                list="pause-reasons"
-                className="mt-1 rounded-md border border-neutral-300 px-3 py-2 text-base"
+                inputMode="decimal"
+                /* `text` and not `number`: a number input on a phone offers a
+                   spinner and accepts `1e3`, and money typed at a counter is
+                   typed, not nudged. Two decimal places at most, refused rather
+                   than rounded. */
+                pattern="\d{1,9}(\.\d{1,2})?"
+                defaultValue={renewablePrice === undefined ? undefined : rupeesFromPaise(renewablePrice)}
+                className="cl-input tabular-nums"
               />
-              <datalist id="pause-reasons">
-                {(settings.data?.pause_reasons ?? []).map((reason) => (
-                  <option key={reason} value={reason} />
-                ))}
-              </datalist>
             </label>
-            <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-white">
-              Request pause
+            <label className="cl-field">
+              <span>Method</span>
+              <select name="method" required className="cl-input">
+                {DESK_METHODS.map((desk) => (
+                  <option key={desk} value={desk}>
+                    {desk.replace('_', ' ')}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="cl-field">
+              <span>Note</span>
+              <input type="text" name="notes" className="cl-input" />
+            </label>
+            <p className="cl-muted text-sm">
+              {/* Honest about what the database will actually do. The old wording
+                  promised an extension unconditionally, and a part payment, a
+                  zero-price membership or a payment in another currency all grant
+                  nothing — a receipt number, a success redirect, and no extension.
+                  A period is granted per whole multiple of the membership's own
+                  price that the money against it has reached (ADR-087). */}
+              {renewable === undefined ? (
+                'This member has no membership to renew, so this records money taken for something else and extends nothing.'
+              ) : renewablePrice === 0 ? (
+                'This membership is complimentary. No membership fee is due; recording a payment does not grant extra periods.'
+              ) : (
+                <>
+                  The first fully paid period starts from today or a future agreed start date.
+                  Later paid periods extend the membership from its expiry or today, whichever is later.{' '}
+                  A full {money(renewablePrice ?? 0, renewable.currency)} buys one period of{' '}
+                  {renewable.duration_days} days; part of it is recorded and receipted and buys none
+                  until the balance is paid.
+                </>
+              )}
+            </p>
+            <button type="submit" className="cl-btn cl-btn--primary cl-btn--block">
+              Record payment
             </button>
           </MutationForm>
-        )}
-
-        <PauseHistory memberId={memberId} memberships={rows} />
-      </section>
+        </section>
+      </div>
     </main>
   );
+}
+
+/** A `YYYY-MM-DD` calendar day as people read it ("12 Oct 2026"), with the ISO day kept machine-readable. */
+function Day({ value }: { value: string | null }) {
+  if (value === null) return <>—</>;
+  return <time dateTime={value}>{DAY.format(new Date(value))}</time>;
 }
 
 type MembershipRow = {
@@ -435,65 +455,53 @@ function PauseHistory({ memberId, memberships }: { memberId: string; memberships
     .sort((a, b) => b.starts_on.localeCompare(a.starts_on));
 
   if (pauses.length === 0) {
-    return <p className="mt-6 text-sm text-neutral-600">No pauses recorded.</p>;
+    return (
+      <div className="cl-empty mt-6">
+        <strong>No pauses recorded.</strong>
+      </div>
+    );
   }
 
   return (
-    <table className="mt-6 w-full border-collapse text-left text-sm">
-      <thead>
-        <tr className="border-b border-neutral-200 text-neutral-600">
-          <th scope="col" className="py-2 font-medium">
-            From
-          </th>
-          <th scope="col" className="py-2 font-medium">
-            To
-          </th>
-          <th scope="col" className="py-2 font-medium">
-            Reason
-          </th>
-          <th scope="col" className="py-2 font-medium">
-            State
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {pauses.map((pause) => (
-          <tr key={pause.id} className="border-b border-neutral-100 align-top">
-            <td className="py-2 tabular-nums">{pause.starts_on}</td>
-            <td className="py-2 tabular-nums">{pause.ends_on}</td>
-            <td className="py-2">{pause.reason}</td>
-            <td className="py-2">
-              {pause.approved_at !== null ? (
-                'Approved'
-              ) : pause.rejected_at !== null ? (
-                'Rejected'
-              ) : (
-                <MutationForm method="post" action="/api/memberships/pauses" className="flex gap-2">
-                  <input type="hidden" name="memberId" value={memberId} />
-                  <input type="hidden" name="pauseId" value={pause.id} />
-                  <button
-                    type="submit"
-                    name="decision"
-                    value="approve"
-                    className="rounded-md bg-neutral-900 px-3 py-1 text-white"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="submit"
-                    name="decision"
-                    value="reject"
-                    className="rounded-md border border-neutral-300 px-3 py-1"
-                  >
-                    Reject
-                  </button>
-                </MutationForm>
-              )}
-            </td>
+    <div className="cl-ledger-wrap mt-6">
+      <table className="cl-ledger cl-ledger-stack">
+        <thead>
+          <tr>
+            <th scope="col">From</th>
+            <th scope="col">To</th>
+            <th scope="col">Reason</th>
+            <th scope="col">State</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {pauses.map((pause) => (
+            <tr key={pause.id}>
+              <td className="tabular-nums"><Day value={pause.starts_on} /></td>
+              <td className="tabular-nums"><Day value={pause.ends_on} /></td>
+              <td>{pause.reason}</td>
+              <td>
+                {pause.approved_at !== null ? (
+                  <span className="cl-status" data-tone="ok">Approved</span>
+                ) : pause.rejected_at !== null ? (
+                  <span className="cl-status" data-tone="risk">Rejected</span>
+                ) : (
+                  <MutationForm method="post" action="/api/memberships/pauses" className="flex flex-wrap gap-2">
+                    <input type="hidden" name="memberId" value={memberId} />
+                    <input type="hidden" name="pauseId" value={pause.id} />
+                    <button type="submit" name="decision" value="approve" className="cl-btn cl-btn--small">
+                      Approve
+                    </button>
+                    <button type="submit" name="decision" value="reject" className="cl-btn cl-btn--quiet cl-btn--small">
+                      Reject
+                    </button>
+                  </MutationForm>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

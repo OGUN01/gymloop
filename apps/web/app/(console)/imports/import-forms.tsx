@@ -108,6 +108,19 @@ const MAPPABLE_FIELDS = [
 
 type Step = 'upload' | 'mapping' | 'preview' | 'report';
 
+/** The numbered eyebrow and heading over each step of the journey. */
+function StepHead({ number, title }: { number: number; title: string }) {
+  return <div>
+    <p className="cl-eyebrow">Step {number} of 4</p>
+    <h2 className="cl-section-title">{title}</h2>
+  </div>;
+}
+
+/** One labelled count in a `cl-metrics` row. */
+function Metric({ label, value }: { label: string; value: number }) {
+  return <div className="cl-metric"><span className="cl-eyebrow">{label}</span><span className="cl-metric-value tabular-nums">{value}</span></div>;
+}
+
 export function MemberImportForm({ branches, runs: _runs, timezone }: {
   branches: BranchChoice[];
   runs: MemberImportRunRow[];
@@ -248,34 +261,38 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
   }
 
   if (step === 'upload') {
-    return <form method="post" onSubmit={submitUpload} className="mt-6 space-y-3 rounded-xl border border-neutral-200 p-4">
+    return <form method="post" onSubmit={submitUpload} className="cl-form cl-section">
+      <StepHead number={1} title="Upload the file" />
       <Field label="Member file (.csv or .xlsx)">
         <input type="file" accept=".csv,.xlsx" onChange={onFileChosen} className={inputClass} />
       </Field>
-      <Field label="Branch">
-        <select name="branchId" value={branchId} onChange={(event) => setBranchId(event.target.value)} className={inputClass}>
-          {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-        </select>
-      </Field>
-      <Field label="Phone numbers">
-        <select name="phoneDefaultCountry" value={phoneDefaultCountry} onChange={(event) => setPhoneDefaultCountry(event.target.value === 'E164' ? 'E164' : 'IN')} className={inputClass}>
-          <option value="IN">Indian numbers (+91 added to bare 10-digit mobiles)</option>
-          <option value="E164">All numbers already international (+country code)</option>
-        </select>
-      </Field>
+      <div className="cl-form-row">
+        <Field label="Branch">
+          <select name="branchId" value={branchId} onChange={(event) => setBranchId(event.target.value)} className={inputClass}>
+            {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Phone numbers">
+          <select name="phoneDefaultCountry" value={phoneDefaultCountry} onChange={(event) => setPhoneDefaultCountry(event.target.value === 'E164' ? 'E164' : 'IN')} className={inputClass}>
+            <option value="IN">Indian numbers (+91 added to bare 10-digit mobiles)</option>
+            <option value="E164">All numbers already international (+country code)</option>
+          </select>
+        </Field>
+      </div>
       {problem !== '' ? <Alert>{problem}</Alert> : null}
-      <button type="submit" disabled={pending} className="min-h-11 rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-white disabled:opacity-50">
+      <button type="submit" disabled={pending} className="cl-btn cl-btn--primary self-start justify-self-start">
         {pending ? 'Inspecting…' : 'Inspect file'}
       </button>
     </form>;
   }
 
   if (step === 'mapping' && inspection !== null) {
-    return <form method="post" onSubmit={submitPreview} className="mt-6 space-y-4 rounded-xl border border-neutral-200 p-4">
-      <p className="text-sm text-neutral-600">
+    return <form method="post" onSubmit={submitPreview} className="cl-form cl-section">
+      <StepHead number={2} title="Match the columns" />
+      <p className="cl-muted tabular-nums">
         {inspection.fileName} · {inspection.rowCount} data row{inspection.rowCount === 1 ? '' : 's'} · {inspection.format.toUpperCase()}
       </p>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="cl-form-row">
         {MAPPABLE_FIELDS.map((field) => <Field key={field} label={field.replaceAll('_', ' ')}>
           <select name={field} value={mapping[field] ?? ''} onChange={(event) => setMapping((current) => ({ ...current, [field]: event.target.value }))} className={inputClass}>
             <option value="">Not mapped</option>
@@ -294,21 +311,23 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
           </select>
         </Field>
       </div>
-      <details className="rounded-lg border border-neutral-200 p-3">
-        <summary className="min-h-11 cursor-pointer font-medium">First rows of the file</summary>
-        <table className="mt-2 w-full border-collapse text-left text-sm">
-          <thead><tr className="border-b border-neutral-200 text-neutral-600">
-            {inspection.headers.map((header) => <th key={header.index} scope="col" className="py-1 pr-3 font-medium">{header.label}</th>)}
-          </tr></thead>
-          <tbody>
-            {inspection.sampleRows.map((row) => <tr key={row.rowNumber} className="border-b border-neutral-100">
-              {row.cells.map((cell, index) => <td key={index} className="py-1 pr-3">{cell ?? ''}</td>)}
-            </tr>)}
-          </tbody>
-        </table>
+      <details className="cl-disclosure">
+        <summary>First rows of the file</summary>
+        <div className="cl-ledger-wrap">
+          <table className="cl-ledger">
+            <thead><tr>
+              {inspection.headers.map((header) => <th key={header.index} scope="col">{header.label}</th>)}
+            </tr></thead>
+            <tbody>
+              {inspection.sampleRows.map((row) => <tr key={row.rowNumber}>
+                {row.cells.map((cell, index) => <td key={index}>{cell ?? ''}</td>)}
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
       </details>
       {problem !== '' ? <Alert>{problem}</Alert> : null}
-      <button type="submit" disabled={pending} className="min-h-11 rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-white disabled:opacity-50">
+      <button type="submit" disabled={pending} className="cl-btn cl-btn--primary self-start justify-self-start">
         {pending ? 'Previewing…' : 'Preview import'}
       </button>
     </form>;
@@ -316,48 +335,59 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
 
   if (step === 'preview' && preview !== null) {
     const dispositions = { would_import: 'Would import', duplicate: 'Duplicate', invalid: 'Invalid' } as const;
-    return <form method="post" onSubmit={submitCommit} className="mt-6 space-y-4 rounded-xl border border-neutral-200 p-4">
-      <p className="text-sm text-neutral-600">{preview.fileName}</p>
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
-        <div><dt className="text-neutral-600">Rows</dt><dd className="tabular-nums">{preview.counts.rows}</dd></div>
-        <div><dt className="text-neutral-600">Would import</dt><dd className="tabular-nums">{preview.counts.wouldImport}</dd></div>
-        <div><dt className="text-neutral-600">Duplicates</dt><dd className="tabular-nums">{preview.counts.duplicates}</dd></div>
-        <div><dt className="text-neutral-600">Invalid</dt><dd className="tabular-nums">{preview.counts.invalid}</dd></div>
-      </dl>
-      <p className="text-sm">Effective on <strong>{preview.effectiveOn}</strong>{timezone !== null ? <span> ({timezone})</span> : null}</p>
-      <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+    const tones = { would_import: 'ok', duplicate: 'warn', invalid: 'risk' } as const;
+    return <form method="post" onSubmit={submitCommit} className="cl-form cl-section">
+      <StepHead number={3} title="Check the preview" />
+      <p className="cl-muted">{preview.fileName}</p>
+      <div className="cl-metrics">
+        <Metric label="Rows" value={preview.counts.rows} />
+        <Metric label="Would import" value={preview.counts.wouldImport} />
+        <Metric label="Duplicates" value={preview.counts.duplicates} />
+        <Metric label="Invalid" value={preview.counts.invalid} />
+      </div>
+      <p>Effective on <strong className="tabular-nums">{preview.effectiveOn}</strong>{timezone !== null ? <span className="cl-muted"> ({timezone})</span> : null}</p>
+      <p className="cl-alert" data-tone="warn" role="status">
         Final imports may be fewer than this preview when a member appears after preview.
       </p>
-      <ul className="space-y-2">
-        {preview.sampleRows.map((row) => <li key={row.rowNumber} className="rounded-lg border border-neutral-200 p-3 text-sm">
-          <p className="font-medium">{`Row ${row.rowNumber} · ${dispositions[row.disposition]}`}</p>
-          <p className="text-neutral-700">
-            {Object.entries(row.normalized).filter(([, value]) => value !== null && value !== undefined)
-              .map(([field, value]) => `${field.replaceAll('_', ' ')}: ${String(value)}`).join(' · ')}
-          </p>
-          {row.reasonCodes.length > 0 ? <p className="text-neutral-700">{row.reasonCodes.join(', ')}</p> : null}
-        </li>)}
-      </ul>
-      {preview.hasMoreRows ? <p className="text-sm text-neutral-600">Showing the first 100 rows</p> : null}
+      <div className="cl-ledger-wrap">
+        <table className="cl-ledger cl-ledger-stack">
+          <thead><tr><th scope="col">Row</th><th scope="col">Result</th><th scope="col">Details</th><th scope="col">Reasons</th></tr></thead>
+          <tbody>
+            {preview.sampleRows.map((row) => <tr key={row.rowNumber}>
+              <td className="tabular-nums">{`Row ${row.rowNumber}`}</td>
+              <td><span className="cl-status" data-tone={tones[row.disposition]} data-status={row.disposition}>{dispositions[row.disposition]}</span></td>
+              <td>
+                {Object.entries(row.normalized).filter(([, value]) => value !== null && value !== undefined)
+                  .map(([field, value]) => `${field.replaceAll('_', ' ')}: ${String(value)}`).join(' · ')}
+              </td>
+              <td className="cl-muted">{row.reasonCodes.join(', ')}</td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
+      {preview.hasMoreRows ? <p className="cl-muted">Showing the first 100 rows</p> : null}
       {problem !== '' ? <Alert>{problem}</Alert> : null}
-      <button type="submit" disabled={pending} className="min-h-11 rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-white disabled:opacity-50">
+      <button type="submit" disabled={pending} className="cl-btn cl-btn--primary self-start justify-self-start">
         {pending ? 'Importing…' : `Import ${preview.counts.wouldImport} members`}
       </button>
     </form>;
   }
 
   if (step === 'report' && result !== null) {
-    return <div className="mt-6 space-y-3 rounded-xl border border-neutral-200 p-4">
-      <h2 className="text-lg font-semibold">{result.status === 'completed' ? 'Import complete' : 'Import failed'}</h2>
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
-        <div><dt className="text-neutral-600">Imported</dt><dd className="tabular-nums">{result.counts.imported}</dd></div>
-        <div><dt className="text-neutral-600">Rows</dt><dd className="tabular-nums">{result.counts.rows}</dd></div>
-        <div><dt className="text-neutral-600">Duplicates</dt><dd className="tabular-nums">{result.counts.duplicates}</dd></div>
-        <div><dt className="text-neutral-600">Invalid</dt><dd className="tabular-nums">{result.counts.invalid}</dd></div>
-      </dl>
-      {result.failure !== null ? <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{result.failure.code}</p> : null}
-      <a href={result.errorReportUrl} className="inline-flex min-h-11 items-center underline">Download the error report</a>
-    </div>;
+    return <section className="cl-section" aria-labelledby="import-report-heading">
+      <p className="cl-eyebrow">Step 4 of 4</p>
+      <div className="cl-section-head">
+        <h2 id="import-report-heading" className="cl-section-title">{result.status === 'completed' ? 'Import complete' : 'Import failed'}</h2>
+        <a href={result.errorReportUrl} className="cl-btn">Download the error report</a>
+      </div>
+      {result.failure !== null ? <Alert>{result.failure.code}</Alert> : null}
+      <div className="cl-metrics">
+        <Metric label="Imported" value={result.counts.imported} />
+        <Metric label="Rows" value={result.counts.rows} />
+        <Metric label="Duplicates" value={result.counts.duplicates} />
+        <Metric label="Invalid" value={result.counts.invalid} />
+      </div>
+    </section>;
   }
 
   return null;

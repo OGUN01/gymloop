@@ -6,6 +6,7 @@ import { useState, useRef, type FormEvent } from 'react';
 import Link from 'next/link';
 import { Field, inputClass } from '../field';
 import { Alert } from '../alert';
+import { StatusWord } from '../../status-word';
 import { deskTime } from '../../../lib/time';
 import { UUID_PATTERN } from '../../../lib/keyset';
 import type { BranchChoice, LeadListRow, LeadStage, StaffChoice } from '../../../lib/leads';
@@ -45,6 +46,12 @@ const LEAD_ERRORS: Record<string, string> = {
   link_required: 'An existing member already owns this phone. Link the lead to that member explicitly.',
   operation_failed: 'The change could not be saved. Nothing was written.',
 };
+
+/** A vocabulary value as a sentence-case word: `trial_scheduled` → "Trial scheduled". */
+function say(value: string): string {
+  const words = value.replaceAll('_', ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 
 function leadProblemText(code: string): string {
   return Object.hasOwn(LEAD_ERRORS, code)
@@ -190,7 +197,7 @@ function LeadFactFields({ branches, staff, lead, emailNotes }: {
     <Field label="Phone (E.164, e.g. +919876543210)"><input name="phone" defaultValue={lead?.phone} required inputMode="tel" pattern="\+[1-9][0-9]{7,14}" className={inputClass} /></Field>
     <Field label="Email (optional)"><input name="email" type="email" defaultValue={emailNotes?.email ?? ''} className={inputClass} /></Field>
     <Field label="Source"><select name="source" defaultValue={lead?.source} required className={inputClass}>
-      {Constants.public.Enums.lead_source.map((source) => <option key={source} value={source}>{source.replaceAll('_', ' ')}</option>)}
+      {Constants.public.Enums.lead_source.map((source) => <option key={source} value={source}>{say(source)}</option>)}
     </select></Field>
     <Field label="Assigned staff (optional)"><select name="assignedToStaffId" defaultValue={lead?.assignedToStaffId ?? ''} className={inputClass}>
       <option value="">Unassigned</option>
@@ -287,18 +294,18 @@ export function LeadConvertDialog({ leadId, revision, fullName }: { leadId: stri
     }
   }
 
-  return <form method="post" onSubmit={submit} className="mt-3 space-y-3 rounded-lg border border-neutral-200 p-3">
-    <p className="text-sm">Convert {fullName} to a member. One request key per decision — an uncertain retry replays the original conversion, never a second member.</p>
-    {notice !== '' ? <p role="status" className="text-sm text-amber-900">{notice}</p> : null}
-    {member !== null ? <p className="text-sm font-medium">Existing member: {member.fullName} · {member.phone} · {member.status}</p> : null}
+  return <form method="post" onSubmit={submit} className="cl-form mt-2 mb-2">
+    <p className="cl-muted text-sm">Convert {fullName} to a member. One request key per decision — an uncertain retry replays the original conversion, never a second member.</p>
+    {notice !== '' ? <p role="status" className="cl-alert" data-tone="warn">{notice}</p> : null}
+    {member !== null ? <p className="text-sm font-medium">Existing member: {member.fullName} · <span className="tabular-nums">{member.phone}</span> · <StatusWord status={member.status} /></p> : null}
     {problem !== '' ? <Alert>{problem}</Alert> : null}
-    <div className="flex flex-wrap items-center gap-2">
-      <button type="submit" disabled={pending} className="min-h-11 rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-white disabled:opacity-50">
+    <div className="cl-actions justify-start">
+      <button type="submit" disabled={pending} className="cl-btn cl-btn--accent">
         {pending ? 'Converting…' : member !== null
           ? `Connect ${member.fullName} to this lead explicitly`
           : `Convert ${fullName} to a member`}
       </button>
-      {member !== null ? <Link href="/leads" className="inline-flex min-h-11 items-center underline">Leave without converting</Link> : null}
+      {member !== null ? <Link href="/leads" className="cl-btn cl-btn--quiet">Leave without converting</Link> : null}
     </div>
   </form>;
 }
@@ -318,15 +325,21 @@ export function LeadEnquiryForm({ branches, staff }: { branches: BranchChoice[];
     }, () => { window.location.reload(); });
   }
 
-  return <section aria-labelledby="enquiry-heading" className="mt-8 rounded-xl border border-neutral-200 p-4">
-    <h2 id="enquiry-heading" className="text-xl font-semibold">Record an enquiry</h2>
-    <p className="mt-1 text-sm text-neutral-600">A new lead starts at the New stage with you as the acting staff member.</p>
-    {command.problem !== '' ? <div className="mt-2"><Alert>{command.problem}</Alert></div> : null}
-    <form method="post" onSubmit={submit} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-      <LeadFactFields branches={branches} staff={staff} />
-      <button type="submit" disabled={command.pending} className="min-h-11 rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-white disabled:opacity-50 md:col-span-2">
-        {command.pending ? 'Recording…' : 'Record enquiry'}
-      </button>
+  return <section aria-labelledby="enquiry-heading" className="cl-section">
+    <div className="cl-section-head">
+      <h2 id="enquiry-heading" className="cl-section-title">Record an enquiry</h2>
+    </div>
+    <p className="cl-muted text-sm">A new lead starts at the New stage with you as the acting staff member.</p>
+    {command.problem !== '' ? <div className="mt-4"><Alert>{command.problem}</Alert></div> : null}
+    <form method="post" onSubmit={submit} className="cl-form mt-4">
+      <div className="cl-form-row">
+        <LeadFactFields branches={branches} staff={staff} />
+      </div>
+      <div>
+        <button type="submit" disabled={command.pending} className="cl-btn cl-btn--primary">
+          {command.pending ? 'Recording…' : 'Record enquiry'}
+        </button>
+      </div>
     </form>
   </section>;
 }
@@ -384,10 +397,10 @@ export function LeadStageForm({ leadId, revision, stage, timezone, trialAt }: {
     }, () => { window.location.reload(); }, (error) => { adoptStaleRevision(error, setRev); });
   }
 
-  return <form method="post" onSubmit={submit} className="mt-3 space-y-3 rounded-lg border border-neutral-200 p-3">
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+  return <form method="post" onSubmit={submit} className="cl-form">
+    <div className="cl-form-row">
       <Field label="Move to"><select name="toStage" value={toStage} onChange={(event) => setToStage(event.target.value as LeadStage)} className={inputClass}>
-        {options.map((option) => <option key={option} value={option}>{option.replaceAll('_', ' ')}</option>)}
+        {options.map((option) => <option key={option} value={option}>{say(option)}</option>)}
       </select></Field>
       {needsTrial
         ? <Field label="Trial time (gym-local)"><input name="trialLocal" type="datetime-local" required defaultValue={prefill} className={inputClass} /></Field>
@@ -395,13 +408,15 @@ export function LeadStageForm({ leadId, revision, stage, timezone, trialAt }: {
       {toStage === 'lost' ? <Field label="Loss reason"><input name="lostReason" required className={inputClass} /></Field> : null}
     </div>
     {needsTrial && trialAt !== null
-      ? <p className="text-xs text-neutral-600">Currently scheduled: {deskTime(trialAt, timezone)} ({timezone}). The field holds that same time — correct it only if the plan changed.</p>
+      ? <p className="cl-hint">Currently scheduled: {deskTime(trialAt, timezone)} ({timezone}). The field holds that same time — correct it only if the plan changed.</p>
       : null}
-    <p className="text-xs text-neutral-600">Gym timezone: {timezone}. A trial time that does not exist or is ambiguous in that zone is refused, never shifted.</p>
+    <p className="cl-hint">Gym timezone: {timezone}. A trial time that does not exist or is ambiguous in that zone is refused, never shifted.</p>
     {command.problem !== '' ? <Alert>{command.problem}</Alert> : null}
-    <button type="submit" disabled={command.pending} className="min-h-11 rounded-lg border border-neutral-500 px-4 py-2 font-medium disabled:opacity-50">
-      {command.pending ? 'Saving…' : 'Save stage change'}
-    </button>
+    <div>
+      <button type="submit" disabled={command.pending} className="cl-btn">
+        {command.pending ? 'Saving…' : 'Save stage change'}
+      </button>
+    </div>
   </form>;
 }
 
@@ -428,19 +443,21 @@ export function LeadEditForm({ leadId, revision, lead, branches, staff, emailNot
   // saw. The loader leaves an entry out only when the read failed, and this
   // form refuses instead of guessing.
   if (emailNotes === undefined) {
-    return <div className="mt-3 rounded-lg border border-neutral-200 p-3">
+    return <div>
       <Alert>The lead's current email and notes could not be read, so editing is closed — a save here could clear them. Reload the screen and open the edit again.</Alert>
     </div>;
   }
 
-  return <form method="post" onSubmit={submit} className="mt-3 space-y-3 rounded-lg border border-neutral-200 p-3">
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+  return <form method="post" onSubmit={submit} className="cl-form">
+    <div className="cl-form-row">
       <LeadFactFields branches={branches} staff={staff} lead={lead} emailNotes={emailNotes} />
     </div>
-    <p className="text-xs text-neutral-600">The lead's current email and notes are shown as they stand. A blank email or notes field sets it to none — submitting clears it. Everything is saved against the revision you loaded; a change made meanwhile is refused as a conflict, and the form then adopts the latest revision for one more submission.</p>
+    <p className="cl-hint">The lead's current email and notes are shown as they stand. A blank email or notes field sets it to none — submitting clears it. Everything is saved against the revision you loaded; a change made meanwhile is refused as a conflict, and the form then adopts the latest revision for one more submission.</p>
     {command.problem !== '' ? <Alert>{command.problem}</Alert> : null}
-    <button type="submit" disabled={command.pending} className="min-h-11 rounded-lg border border-neutral-500 px-4 py-2 font-medium disabled:opacity-50">
-      {command.pending ? 'Saving…' : 'Save lead details'}
-    </button>
+    <div>
+      <button type="submit" disabled={command.pending} className="cl-btn">
+        {command.pending ? 'Saving…' : 'Save lead details'}
+      </button>
+    </div>
   </form>;
 }

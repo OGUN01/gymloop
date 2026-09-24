@@ -1,5 +1,6 @@
 import { loadMessages, type MessageListRow, type MessageStatusCounts } from '../../../lib/messages';
 import { ConsentForm, MessageTemplateForm, WhatsAppOpenButton } from './message-forms';
+import { Alert } from '../alert';
 
 /**
  * The staff `/messages` screen (contract §4): scheduled/sent/delivered/
@@ -15,10 +16,19 @@ const STATUS_LABELS: Record<keyof MessageStatusCounts, string> = {
   scheduled: 'Scheduled', sent: 'Sent', delivered: 'Delivered', failed: 'Failed', opted_out: 'Opted out',
 };
 
+/** A vocabulary value as people say it: "in_app" → "In app", "whatsapp_link" → "WhatsApp link". Live rows can carry a null despite the row type, so null reads as nothing. */
+const say = (raw: string | null) => { const value = raw ?? ''; return value.startsWith('whatsapp') ? `WhatsApp${value.slice('whatsapp'.length).replaceAll('_', ' ')}` : value === 'sms' ? 'SMS' : `${value.charAt(0).toUpperCase()}${value.slice(1).replaceAll('_', ' ')}`; };
+
 /** A row's status, in the desk's words — a WhatsApp child is always "Opened in WhatsApp" (contract §5), never its own status label. */
 function rowLabel(row: MessageListRow): string {
   if (row.channel === 'whatsapp_link') return 'Opened in WhatsApp';
   return STATUS_LABELS[row.status as keyof MessageStatusCounts] ?? row.status.replaceAll('_', ' ');
+}
+
+/** A row's dot colour: delivered is done, scheduled/sent are in flight, failed/opted out need a person. */
+function rowTone(row: MessageListRow): string {
+  if (row.channel === 'whatsapp_link' || row.status === 'delivered') return 'ok';
+  return row.status === 'scheduled' || row.status === 'sent' ? 'warn' : 'risk';
 }
 
 /** Only an already-sent or delivered in-app message has a source to open in WhatsApp (contract §5). */
@@ -34,70 +44,94 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
   if (params.q) nextMemberQuery.set('q', params.q);
   if (screen.memberNextCursor) nextMemberQuery.set('memberCursor', screen.memberNextCursor);
 
-  return <main className="route-workspace">
-    <header>
-      <h1 className="text-2xl font-semibold">Messages</h1>
-      <p className="mt-1 text-sm text-neutral-600">Every renewal, payment, fulfilment, promotion and motivation message this gym has queued or sent.</p>
-    </header>
+  return <main className="cl-page">
+    <div className="cl-page-header">
+      <div>
+        <p className="cl-eyebrow">Reach members</p>
+        <h1 className="cl-title">Messages</h1>
+        <p className="cl-lede">Every renewal, payment, fulfilment, promotion and motivation message this gym has queued or sent.</p>
+      </div>
+    </div>
 
-    {screen.errorMessage !== null
-      ? <p role="alert" className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{screen.errorMessage}</p>
-      : null}
+    {screen.errorMessage !== null ? <Alert>{screen.errorMessage}</Alert> : null}
 
-    <section aria-labelledby="counts-heading" className="mt-6">
-      <h2 id="counts-heading" className="text-lg font-semibold">Counts</h2>
-      {screen.asOf !== null ? <p className="mt-1 text-sm text-neutral-600">Snapshot as of {screen.asOf}.</p> : null}
-      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        {STATUS_ORDER.map((status) => <li key={status}>{STATUS_LABELS[status]}: <span className="tabular-nums">{screen.statusCounts[status]}</span></li>)}
-      </ul>
+    <section aria-labelledby="counts-heading" className="cl-section">
+      <div className="cl-section-head">
+        <h2 id="counts-heading" className="cl-section-title">Counts</h2>
+        {screen.asOf !== null ? <p className="cl-muted">Snapshot as of {screen.asOf}.</p> : null}
+      </div>
+      <div className="cl-metrics">
+        {STATUS_ORDER.map((status) => <div key={status} className="cl-metric">
+          <span className="cl-eyebrow">{STATUS_LABELS[status]}</span>
+          <span className="cl-metric-value tabular-nums">{screen.statusCounts[status]}</span>
+        </div>)}
+      </div>
     </section>
 
-    <section aria-labelledby="messages-heading" className="mt-6">
-      <h2 id="messages-heading" className="text-lg font-semibold">Messages</h2>
-      {screen.rows.length === 0 && screen.errorMessage === null ? <p className="mt-2 text-sm text-neutral-600">No messages match these filters.</p> : null}
-      <ul className="mt-3 space-y-3">
-        {screen.rows.map((row) => <li key={row.id} className="rounded-lg border border-neutral-200 p-3 text-sm">
-          <p className="font-medium">{row.memberName} · {row.channel} · {row.category}</p>
-          <p className="mt-1 text-neutral-700">{rowLabel(row)}</p>
-          {row.failedReason !== null ? <p className="text-neutral-700">Failed: {row.failedReason}</p> : null}
-          {row.optedOutReason !== null ? <p className="text-neutral-700">Opted out: {row.optedOutReason}</p> : null}
-          {canOpenWhatsApp(row) ? <WhatsAppOpenButton notificationId={row.id} /> : null}
+    <section aria-labelledby="messages-heading" className="cl-section">
+      <div className="cl-section-head"><h2 id="messages-heading" className="cl-section-title">Messages</h2></div>
+      {screen.rows.length === 0 && screen.errorMessage === null
+        ? <div className="cl-empty"><strong>No messages match these filters.</strong><p>Change the channel filter or check back after the next renewal run.</p></div>
+        : null}
+      {screen.rows.length === 0 ? null : <ul className="cl-rows">
+        {screen.rows.map((row) => <li key={row.id}>
+          <span>
+            <span className="cl-row-title">{row.memberName}</span>
+            <span className="cl-row-meta">{[say(row.channel), say(row.category)].filter(Boolean).join(' · ')}</span>
+            {row.failedReason !== null ? <span className="cl-row-meta">Failed: {row.failedReason}</span> : null}
+            {row.optedOutReason !== null ? <span className="cl-row-meta">Opted out: {row.optedOutReason}</span> : null}
+          </span>
+          <span className="flex flex-wrap items-center justify-end gap-3">
+            <span className="cl-status" data-tone={rowTone(row)} data-status={row.status}>{rowLabel(row)}</span>
+            {canOpenWhatsApp(row) ? <WhatsAppOpenButton notificationId={row.id} /> : null}
+          </span>
         </li>)}
-      </ul>
+      </ul>}
     </section>
 
-    <section aria-labelledby="consent-heading" className="mt-8">
-      <h2 id="consent-heading" className="text-lg font-semibold">Consent</h2>
-      <p className="mt-1 text-sm text-neutral-600">Record a member's marketing or service consent decision.</p>
-      {!screen.isPreview ? <form action="/messages" method="get" className="mt-3 flex flex-wrap items-end gap-2">
+    <section aria-labelledby="consent-heading" className="cl-section">
+      <div className="cl-section-head"><h2 id="consent-heading" className="cl-section-title">Consent</h2></div>
+      <p className="cl-muted">Record a member's marketing or service consent decision.</p>
+      {!screen.isPreview ? <form action="/messages" method="get" className="cl-form mt-4">
         {params.channel ? <input type="hidden" name="channel" value={params.channel} /> : null}
-        <label className="grid gap-1 text-sm">Find member by phone
-          <input type="search" name="q" defaultValue={params.q ?? ''} placeholder="Last four digits or full phone" className="min-h-11 rounded-lg border border-neutral-400 px-3" />
-        </label>
-        <button type="submit" className="min-h-11 rounded-lg border border-neutral-400 px-4">Search members</button>
+        <div className="cl-form-row items-end">
+          <label className="cl-field"><span>Find member by phone</span>
+            <input type="search" name="q" defaultValue={params.q ?? ''} placeholder="Last four digits or full phone" className="cl-input" />
+          </label>
+          <div><button type="submit" className="cl-btn">Search members</button></div>
+        </div>
       </form> : null}
-      {screen.memberSearchError ? <p role="alert" className="mt-2 text-sm text-red-700">Member search could not be loaded.</p> : null}
+      {screen.memberSearchError ? <Alert>Member search could not be loaded.</Alert> : null}
       <ConsentForm key={`${params.q ?? ''}:${params.memberCursor ?? ''}`} members={screen.members} />
-      {screen.memberNextCursor ? <a className="mt-3 inline-block text-sm underline" href={`/messages?${nextMemberQuery.toString()}`}>More members</a> : null}
+      {screen.memberNextCursor ? <a className="cl-btn cl-btn--quiet mt-3" href={`/messages?${nextMemberQuery.toString()}`}>More members</a> : null}
     </section>
 
-    {screen.isAdmin ? <section aria-labelledby="templates-heading" className="mt-8">
-      <h2 id="templates-heading" className="text-lg font-semibold">Message templates</h2>
-      <ul className="mt-2 space-y-2 text-sm">
-        {screen.templates.map((template) => <li key={template.id} className="rounded-lg border border-neutral-200 p-3">
-          <p className="font-medium">{template.key} · {template.channel} · {template.locale} · {template.category}</p>
-          <p className="mt-1 text-neutral-700">{template.body}</p>
-          <MessageTemplateForm template={template} />
+    {screen.isAdmin ? <section aria-labelledby="templates-heading" className="cl-section">
+      <div className="cl-section-head"><h2 id="templates-heading" className="cl-section-title">Message templates</h2></div>
+      <ul className="cl-rows">
+        {screen.templates.map((template) => <li key={template.id}>
+          <div className="w-full">
+            <span className="cl-row-title">{template.key}</span>
+            <span className="cl-row-meta">{[say(template.channel), template.locale, say(template.category)].filter(Boolean).join(' · ')}</span>
+            <p className="mt-2">{template.body}</p>
+            <MessageTemplateForm template={template} />
+          </div>
         </li>)}
       </ul>
-      <h3 className="mt-4 font-semibold">New template</h3>
+      <h3 className="cl-eyebrow mt-6">New template</h3>
       <MessageTemplateForm />
     </section> : null}
 
-    {screen.isAdmin ? <section aria-labelledby="wallet-heading" className="mt-8">
-      <h2 id="wallet-heading" className="text-lg font-semibold">Wallet</h2>
-      <p className="mt-1 text-sm">Balance: <span className="tabular-nums">{screen.walletBalanceCredits ?? 'Unavailable'}</span> credits</p>
-      <p className="mt-1 text-sm text-neutral-600">Only a platform administrator can adjust this balance.</p>
+    {screen.isAdmin ? <section aria-labelledby="wallet-heading" className="cl-section">
+      <div className="cl-section-head"><h2 id="wallet-heading" className="cl-section-title">Wallet</h2></div>
+      <div className="cl-metrics">
+        <div className="cl-metric">
+          <span className="cl-eyebrow">Balance</span>
+          <span className="cl-metric-value tabular-nums">{screen.walletBalanceCredits ?? 'Unavailable'}</span>
+          <small>credits</small>
+        </div>
+      </div>
+      <p className="cl-muted mt-2">Only a platform administrator can adjust this balance.</p>
     </section> : null}
   </main>;
 }

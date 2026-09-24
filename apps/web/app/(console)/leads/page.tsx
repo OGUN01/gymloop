@@ -4,6 +4,7 @@ import { loadLeads, type LeadListRow } from '../../../lib/leads';
 import { deskTime } from '../../../lib/time';
 import { Field, inputClass } from '../field';
 import { Alert } from '../alert';
+import { StatusWord } from '../../status-word';
 import { LeadConvertDialog, LeadEditForm, LeadEnquiryForm, LeadStageForm } from './lead-forms';
 
 /**
@@ -15,6 +16,12 @@ import { LeadConvertDialog, LeadEditForm, LeadEnquiryForm, LeadStageForm } from 
  */
 
 type SearchParams = Promise<Record<string, string | undefined>>;
+
+/** A vocabulary value as a sentence-case word: `walk_in` → "Walk in". */
+function say(value: string): string {
+  const words = value.replaceAll('_', ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 
 /**
  * The next action a row's stage implies, in the desk's words. The labels are
@@ -54,13 +61,13 @@ function filterSpecs(screen: Awaited<ReturnType<typeof loadLeads>>): FilterSpec[
       name: 'stage',
       label: 'Stage',
       allLabel: 'All stages',
-      options: Constants.public.Enums.lead_stage.map((stage) => ({ value: stage, label: stage.replaceAll('_', ' ') })),
+      options: Constants.public.Enums.lead_stage.map((stage) => ({ value: stage, label: say(stage) })),
     },
     {
       name: 'source',
       label: 'Source',
       allLabel: 'All sources',
-      options: Constants.public.Enums.lead_source.map((source) => ({ value: source, label: source.replaceAll('_', ' ') })),
+      options: Constants.public.Enums.lead_source.map((source) => ({ value: source, label: say(source) })),
     },
     {
       name: 'assignee',
@@ -95,78 +102,98 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
   const [params, screen] = await Promise.all([searchParams, loadLeads(searchParams)]);
   const now = Date.now();
 
-  return <main className="route-workspace">
-    <header className="flex flex-wrap items-baseline justify-between gap-3">
+  return <main className="cl-page">
+    <div className="cl-page-header">
       <div>
-        <h1 className="text-2xl font-semibold">Leads</h1>
-        <p className="mt-1 text-sm text-neutral-600">Every enquiry from first contact to a converted member or a recorded loss.</p>
+        <p className="cl-eyebrow">Front office</p>
+        <h1 className="cl-title">Leads</h1>
+        <p className="cl-lede">Every enquiry from first contact to a converted member or a recorded loss.</p>
       </div>
-      <Link href="/console" className="inline-flex min-h-11 items-center underline">Members</Link>
-    </header>
+      <div className="cl-actions">
+        <Link href="/console" className="cl-btn">Members</Link>
+      </div>
+    </div>
 
-    <form method="get" action="/leads" className="mt-6 grid grid-cols-2 gap-3 rounded-xl border border-neutral-200 p-4 sm:grid-cols-3">
-      {filterSpecs(screen).map((spec) => <Field key={spec.name} label={spec.label}>
-        <select name={spec.name} defaultValue={params[spec.name] ?? ''} className={inputClass}>
-          <option value="">{spec.allLabel}</option>
-          {spec.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-      </Field>)}
-      <div className="col-span-2 sm:col-span-1"><Field label="Search">
-        <input name="q" defaultValue={params.q ?? ''} type="search" className={inputClass} />
-      </Field></div>
-      <button type="submit" className="min-h-11 rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-white sm:col-span-3">Apply filters</button>
+    <form method="get" action="/leads" className="cl-form cl-section">
+      <div className="cl-form-row">
+        {filterSpecs(screen).map((spec) => <Field key={spec.name} label={spec.label}>
+          <select name={spec.name} defaultValue={params[spec.name] ?? ''} className={inputClass}>
+            <option value="">{spec.allLabel}</option>
+            {spec.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </Field>)}
+        <Field label="Search">
+          <input name="q" defaultValue={params.q ?? ''} type="search" className={inputClass} />
+        </Field>
+        <button type="submit" className="cl-btn">Apply filters</button>
+      </div>
     </form>
 
-    {screen.errorMessage === null ? <section aria-labelledby="counts-heading" className="mt-6">
-      <h2 id="counts-heading" className="text-lg font-semibold">Counts</h2>
-      {screen.asOf !== null
-        ? <p className="mt-1 text-sm text-neutral-600">Snapshot as of {deskTime(screen.asOf, screen.timezone)} ({screen.timezone}).</p>
-        : null}
-      <p className="mt-1 text-sm">Showing on this page: <strong className="tabular-nums">{screen.pageResultCount}</strong></p>
-      <p className="text-sm">Matching leads: <strong className="tabular-nums">{screen.totalMatchingCount}</strong></p>
-      <h3 className="mt-3 text-sm font-semibold">Within current filters</h3>
-      <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        {Constants.public.Enums.lead_stage.map((stage) => <li key={stage}>{stage.replaceAll('_', ' ')}: <span className="tabular-nums">{screen.stageCounts[stage]}</span></li>)}
+    {screen.errorMessage === null ? <section aria-labelledby="counts-heading" className="cl-section">
+      <div className="cl-section-head">
+        <h2 id="counts-heading" className="cl-section-title">Counts</h2>
+        {screen.asOf !== null
+          ? <p className="cl-muted text-sm">Snapshot as of {deskTime(screen.asOf, screen.timezone)} ({screen.timezone}).</p>
+          : null}
+      </div>
+      <div className="cl-metrics">
+        <div className="cl-metric"><span className="cl-eyebrow">Showing on this page</span><span className="cl-metric-value">{screen.pageResultCount}</span></div>
+        <div className="cl-metric"><span className="cl-eyebrow">Matching leads</span><span className="cl-metric-value">{screen.totalMatchingCount}</span></div>
+      </div>
+      <h3 className="cl-eyebrow mt-6">Within current filters</h3>
+      <ul className="mt-2 flex flex-wrap gap-x-6 gap-y-2">
+        {Constants.public.Enums.lead_stage.map((stage) => <li key={stage} className="flex items-baseline gap-2">
+          <StatusWord status={stage} /> <strong className="tabular-nums">{screen.stageCounts[stage]}</strong>
+        </li>)}
       </ul>
     </section> : null}
 
-    {screen.errorMessage !== null ? <div className="mt-6"><Alert>{screen.errorMessage}</Alert></div> : null}
+    {screen.errorMessage !== null ? <div className="cl-section"><Alert>{screen.errorMessage}</Alert></div> : null}
 
-    <section aria-labelledby="pipeline-heading" className="mt-6">
-      <h2 id="pipeline-heading" className="text-lg font-semibold">Pipeline</h2>
+    <section aria-labelledby="pipeline-heading" className="cl-section">
+      <div className="cl-section-head">
+        <h2 id="pipeline-heading" className="cl-section-title">Pipeline</h2>
+      </div>
       {screen.rows.length === 0 && screen.errorMessage === null
-        ? <p className="mt-2 text-sm text-neutral-600">No leads match these filters. Record an enquiry below or clear the filters.</p>
+        ? <div className="cl-empty"><strong>No leads here</strong><p>No leads match these filters. Record an enquiry below or clear the filters.</p></div>
         : null}
-      <ul className="mt-3 space-y-4">
+      {screen.rows.length > 0 ? <ul className="cl-rows">
         {screen.rows.map((row) => {
           const action = nextActionText(row, screen.timezone, now);
           const open = row.stage !== 'converted' && row.stage !== 'lost';
-          return <li key={row.id} className="rounded-xl border border-neutral-200 p-4">
-            <p className="font-semibold">{row.fullName} · {row.phone}</p>
-            <p className="mt-1 text-sm text-neutral-700">
-              {row.stage.replaceAll('_', ' ')} · {row.source.replaceAll('_', ' ')} · {row.branchName} · {row.assignedToName ?? 'Unassigned'}
-            </p>
-            {action !== null ? <p className="mt-1 text-sm font-medium">{action}</p> : null}
-            {row.stage === 'converted' && row.convertedMemberId !== null
-              ? <Link className="mt-2 inline-flex min-h-11 items-center underline" href={`/members/${row.convertedMemberId}`}>Open member</Link>
-              : null}
-            {row.stage === 'lost' && row.lostReason !== null
-              ? <p className="mt-1 text-sm text-neutral-700">Lost: {row.lostReason}</p>
-              : null}
+          return <li key={row.id}>
+            <span>
+              <span className="cl-row-title">{row.fullName} · <span className="tabular-nums">{row.phone}</span></span>
+              <span className="cl-row-meta">
+                {say(row.source)} · {row.branchName} · {row.assignedToName ?? 'Unassigned'}
+              </span>
+              {row.stage === 'lost' && row.lostReason !== null
+                ? <span className="cl-row-meta">Lost: {row.lostReason}</span>
+                : null}
+            </span>
+            <span className="flex flex-wrap items-center gap-4">
+              <StatusWord status={row.stage} />
+              {action !== null ? <strong>{action}</strong> : null}
+              {row.stage === 'converted' && row.convertedMemberId !== null
+                ? <Link className="cl-btn cl-btn--small" href={`/members/${row.convertedMemberId}`}>Open member</Link>
+                : null}
+            </span>
             {row.stage === 'trial_done'
-              ? <LeadConvertDialog leadId={row.id} revision={row.revision} fullName={row.fullName} />
+              ? <div className="w-full"><LeadConvertDialog leadId={row.id} revision={row.revision} fullName={row.fullName} /></div>
               : null}
-            {open ? <details className="mt-3"><summary className="min-h-11 cursor-pointer font-medium">Change stage</summary>
-              <LeadStageForm leadId={row.id} revision={row.revision} stage={row.stage} timezone={screen.timezone} trialAt={row.trialAt} />
-            </details> : null}
-            {open ? <details className="mt-2"><summary className="min-h-11 cursor-pointer font-medium">Edit details</summary>
-              <LeadEditForm leadId={row.id} revision={row.revision} lead={row} branches={screen.branchChoices} staff={screen.staffChoices} emailNotes={screen.editableText[row.id]} />
-            </details> : null}
+            {open ? <div className="w-full">
+              <details className="cl-disclosure"><summary>Change stage</summary>
+                <LeadStageForm leadId={row.id} revision={row.revision} stage={row.stage} timezone={screen.timezone} trialAt={row.trialAt} />
+              </details>
+              <details className="cl-disclosure"><summary>Edit details</summary>
+                <LeadEditForm leadId={row.id} revision={row.revision} lead={row} branches={screen.branchChoices} staff={screen.staffChoices} emailNotes={screen.editableText[row.id]} />
+              </details>
+            </div> : null}
           </li>;
         })}
-      </ul>
+      </ul> : null}
       {screen.nextCursor !== null
-        ? <Link className="mt-4 inline-flex min-h-11 items-center underline" href={nextPageHref(params, screen.nextCursor)}>Next page</Link>
+        ? <div className="cl-pager"><Link className="cl-btn" href={nextPageHref(params, screen.nextCursor)}>Next page</Link></div>
         : null}
     </section>
 

@@ -53,16 +53,21 @@ export default async function PaymentsPage({
         }).toString()}`;
 
   return (
-    <main className="route-workspace">
-      <div className="flex items-baseline justify-between">
-        <h1 className="text-xl font-semibold">Payments</h1>
-        <Link href="/console" className="text-sm text-neutral-600 underline">
-          Members
-        </Link>
+    <main className="cl-page">
+      <div className="cl-page-header">
+        <div>
+          <p className="cl-eyebrow">Front desk</p>
+          <h1 className="cl-title">Payments</h1>
+          <p className="cl-lede">
+            Money taken at the desk, newest first. Take a payment from a member&rsquo;s page.
+          </p>
+        </div>
+        <div className="cl-actions">
+          <Link href="/console" className="cl-btn">
+            Members
+          </Link>
+        </div>
       </div>
-      <p className="mt-1 text-sm text-neutral-600">
-        Money taken at the desk, newest first. Take a payment from a member&rsquo;s page.
-      </p>
 
       {problem === null ? null : <Alert>{problem}</Alert>}
 
@@ -71,57 +76,64 @@ export default async function PaymentsPage({
       )}
 
       {payments.length === 0 ? (
-        <p className="mt-8 text-sm text-neutral-600">No payments recorded yet.</p>
+        <div className="cl-empty cl-section">
+          <strong>No payments recorded yet.</strong>
+          <p>Take a payment from a member&rsquo;s page and it appears here.</p>
+        </div>
       ) : (
-        <table className="mt-6 w-full text-sm">
-          <thead className="text-left text-neutral-600">
-            <tr className="border-b border-neutral-200">
-              <th className="py-2 font-medium">Receipt</th>
-              <th className="py-2 font-medium">Member</th>
-              <th className="py-2 text-right font-medium">Amount</th>
-              <th className="py-2 font-medium">Method</th>
-              <th className="py-2 font-medium">Taken by</th>
-              <th className="py-2 font-medium">When</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-200">
-            {payments.map((row) => (
-              <tr key={row.id}>
-                <td className="py-2 tabular-nums">
-                  <Link href={`/payments/${row.id}`} className="underline">
-                    {/* A payment that is not paid has no receipt number, and
-                        saying so is more useful than an empty cell: it is the
-                        difference between money received and an intention to
-                        pay (PAY-008). */}
-                    {row.receipt_number ?? `${row.status} — no receipt`}
-                  </Link>
-                </td>
-                <td className="py-2">
-                  {/* A way back to the member. Its absence is why a critic
-                      reached for the browser's Back button, which restored a
-                      stale form and silently dropped a second payment. */}
-                  <Link href={`/memberships/${row.member_id}`} className="underline">
-                    {row.members.full_name}
-                  </Link>
-                </td>
-                <td className="py-2 text-right tabular-nums">
-                  {row.currency} {rupeesFromPaise(row.amount_paise)}
-                </td>
-                <td className="py-2">{row.method.replace('_', ' ')}</td>
-                <td className="py-2">{row.staff?.full_name ?? '—'}</td>
-                <td className="py-2 tabular-nums text-neutral-600">
-                  {deskTime(row.paid_at ?? row.created_at, timezone)}
-                </td>
+        <div className="cl-ledger-wrap cl-section">
+          <table className="cl-ledger cl-ledger-stack">
+            <thead>
+              <tr>
+                <th scope="col">Receipt</th>
+                <th scope="col">Member</th>
+                <th scope="col" className="cl-num">Amount</th>
+                <th scope="col">Method</th>
+                <th scope="col">Taken by</th>
+                <th scope="col">When</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {payments.map((row) => (
+                <tr key={row.id}>
+                  <td className="tabular-nums">
+                    <Link href={`/payments/${row.id}`} className="text-clay">
+                      {/* A payment that is not paid has no receipt number, and
+                          saying so is more useful than an empty cell: it is the
+                          difference between money received and an intention to
+                          pay (PAY-008). */}
+                      {row.receipt_number ?? `${row.status} — no receipt`}
+                    </Link>
+                  </td>
+                  <td>
+                    {/* A way back to the member. Its absence is why a critic
+                        reached for the browser's Back button, which restored a
+                        stale form and silently dropped a second payment. */}
+                    <Link href={`/memberships/${row.member_id}`} className="text-ink">
+                      {row.members.full_name}
+                    </Link>
+                  </td>
+                  <td className="cl-num">
+                    {row.currency} {rupeesFromPaise(row.amount_paise)}
+                  </td>
+                  <td>{row.method.replace('_', ' ')}</td>
+                  <td>{row.staff?.full_name ?? '—'}</td>
+                  <td className="cl-muted tabular-nums">
+                    {deskTime(row.paid_at ?? row.created_at, timezone)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {nextHref === null ? null : (
-        <Link href={nextHref} className="mt-6 inline-block text-sm underline">
-          Older payments
-        </Link>
+        <div className="mt-6">
+          <Link href={nextHref} className="cl-btn">
+            Older payments
+          </Link>
+        </div>
       )}
     </main>
   );

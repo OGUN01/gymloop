@@ -1,5 +1,6 @@
 import { loadMemberImportsScreen } from '../../../lib/member-imports';
 import { MemberImportForm } from './import-forms';
+import { Alert } from '../alert';
 
 /**
  * The member-import screen: one client form that owns the whole journey —
@@ -12,17 +13,20 @@ export default async function ImportsPage({ searchParams: _searchParams }: { sea
   void _searchParams;
   const screen = await loadMemberImportsScreen();
 
-  return <main className="route-workspace">
-    <header>
-      <h1 className="text-2xl font-semibold">Import members</h1>
-      <p className="mt-1 text-sm text-neutral-600">
-        Import members from a .csv or .xlsx file into one branch. Every row is
-        previewed before anything is created.
-      </p>
-    </header>
+  return <main className="cl-page">
+    <div className="cl-page-header">
+      <div>
+        <p className="cl-eyebrow">Members</p>
+        <h1 className="cl-title">Import members</h1>
+        <p className="cl-lede">
+          Import members from a .csv or .xlsx file into one branch. Every row is
+          previewed before anything is created.
+        </p>
+      </div>
+    </div>
 
     {screen.errorMessage !== null
-      ? <p role="alert" className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{screen.errorMessage}</p>
+      ? <Alert>{screen.errorMessage}</Alert>
       : <MemberImportForm branches={screen.branches} runs={screen.runs} timezone={screen.timezone} />}
   </main>;
 }

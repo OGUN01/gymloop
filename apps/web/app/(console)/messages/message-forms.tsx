@@ -38,6 +38,9 @@ const COMMS_ERRORS: Record<string, string> = {
   operation_failed: 'The change could not be saved. Nothing was written.',
 };
 
+/** A vocabulary value as people say it: "in_app" → "In app", "whatsapp_link" → "WhatsApp link". */
+const say = (value: string) => value.startsWith('whatsapp') ? `WhatsApp${value.slice('whatsapp'.length).replaceAll('_', ' ')}` : value === 'sms' ? 'SMS' : `${value.charAt(0).toUpperCase()}${value.slice(1).replaceAll('_', ' ')}`;
+
 function commsProblemText(code: string): string {
   return Object.hasOwn(COMMS_ERRORS, code) ? COMMS_ERRORS[code] ?? 'Review the details and try again.' : 'The outcome is uncertain. Retry, or reload this screen.';
 }
@@ -113,7 +116,8 @@ export function ConsentForm({ members }: { members: MemberChoice[] }) {
     'The connection was interrupted. The outcome is uncertain. Retry recording this consent.',
   );
 
-  return <MutationForm onSubmit={submit} className="mt-3 space-y-3 rounded-lg border border-neutral-200 p-3">
+  return <MutationForm onSubmit={submit} className="cl-form mt-4">
+    <div className="cl-form-row">
     <Field label="Member">
       {members.length > 0
         ? <select value={memberId} onChange={(event) => { setMemberId(event.target.value); replaceRequestKey(); }} className={inputClass}>
@@ -123,16 +127,19 @@ export function ConsentForm({ members }: { members: MemberChoice[] }) {
     </Field>
     <Field label="Purpose">
       <select value={purpose} onChange={(event) => { setPurpose(event.target.value as typeof purpose); replaceRequestKey(); }} className={inputClass}>
-        {Constants.public.Enums.consent_purpose.map((value) => <option key={value} value={value}>{value}</option>)}
+        {Constants.public.Enums.consent_purpose.map((value) => <option key={value} value={value}>{say(value)}</option>)}
       </select>
     </Field>
-    <label className="flex items-center gap-2 text-sm">
+    </div>
+    <label className="cl-check">
       <input type="checkbox" checked={granted} onChange={(event) => { setGranted(event.target.checked); replaceRequestKey(); }} /> Granted
     </label>
+    <div className="cl-form-row">
     <Field label="Version"><input value={version} onChange={(event) => { setVersion(event.target.value); replaceRequestKey(); }} className={inputClass} /></Field>
     <Field label="Source"><input value={source} onChange={(event) => { setSource(event.target.value); replaceRequestKey(); }} className={inputClass} /></Field>
+    </div>
     {problem !== '' ? <Alert>{problem}</Alert> : null}
-    <button type="submit" disabled={pending} className="min-h-11 rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-white disabled:opacity-50">
+    <button type="submit" disabled={pending} className="cl-btn cl-btn--primary self-start justify-self-start">
       {pending ? 'Recording…' : 'Record consent'}
     </button>
   </MutationForm>;
@@ -149,11 +156,11 @@ export function WhatsAppOpenButton({ notificationId }: { notificationId: string 
     'The connection was interrupted. The outcome is uncertain. Retry opening WhatsApp.',
   );
 
-  return <MutationForm onSubmit={submit} className="mt-2 inline-block">
-    <button type="submit" disabled={pending} className="min-h-11 rounded-lg border border-neutral-400 px-3 py-2 text-sm font-medium disabled:opacity-50">
+  return <MutationForm onSubmit={submit} className="inline-block">
+    <button type="submit" disabled={pending} className="cl-btn cl-btn--small">
       {pending ? 'Opening…' : 'Open in WhatsApp'}
     </button>
-    {url !== null ? <p className="mt-1 text-sm"><a href={url} target="_blank" rel="noreferrer" className="underline">{url}</a></p> : null}
+    {url !== null ? <p className="mt-1"><a href={url} target="_blank" rel="noreferrer" className="cl-btn cl-btn--quiet">{url}</a></p> : null}
     {problem !== '' ? <Alert>{problem}</Alert> : null}
   </MutationForm>;
 }
@@ -182,11 +189,12 @@ export function MessageTemplateForm({ template }: { template?: { id: string; key
     'The connection was interrupted. The outcome is uncertain. Retry saving this template.',
   );
 
-  return <MutationForm onSubmit={submit} className="mt-3 space-y-3 rounded-lg border border-neutral-200 p-3">
+  return <MutationForm onSubmit={submit} className="cl-form mt-4">
+    <div className="cl-form-row">
     <Field label="Key"><input value={keyInput} onChange={(event) => setKeyInput(event.target.value)} disabled={template !== undefined} className={inputClass} /></Field>
     <Field label="Channel">
       <select value={channel} onChange={(event) => setChannel(event.target.value as typeof channel)} disabled={template !== undefined} className={inputClass}>
-        {Constants.public.Enums.notification_channel.map((value) => <option key={value} value={value}>{value}</option>)}
+        {Constants.public.Enums.notification_channel.map((value) => <option key={value} value={value}>{say(value)}</option>)}
       </select>
     </Field>
     <Field label="Locale">
@@ -196,15 +204,16 @@ export function MessageTemplateForm({ template }: { template?: { id: string; key
     </Field>
     <Field label="Category">
       <select value={category} onChange={(event) => setCategory(event.target.value as typeof category)} className={inputClass}>
-        {Constants.public.Enums.message_category.map((value) => <option key={value} value={value}>{value}</option>)}
+        {Constants.public.Enums.message_category.map((value) => <option key={value} value={value}>{say(value)}</option>)}
       </select>
     </Field>
+    </div>
     <Field label="Body"><textarea value={body} onChange={(event) => setBody(event.target.value)} className={inputClass} /></Field>
-    <label className="flex items-center gap-2 text-sm">
+    <label className="cl-check">
       <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} /> Active
     </label>
     {problem !== '' ? <Alert>{problem}</Alert> : null}
-    <button type="submit" disabled={pending} className="min-h-11 rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-white disabled:opacity-50">
+    <button type="submit" disabled={pending} className="cl-btn cl-btn--primary self-start justify-self-start">
       {pending ? 'Saving…' : template ? 'Save template' : 'Create template'}
     </button>
   </MutationForm>;

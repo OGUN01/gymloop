@@ -75,6 +75,7 @@ textarea.cl-input { min-height: 6rem; resize: vertical; }
 .cl-input[aria-invalid='true'] { border-color: var(--gymloop-color-error-risk-text); }
 .cl-input:disabled { background: var(--gymloop-color-elevated-surface); color: var(--gymloop-color-secondary-text); }
 .cl-form { display: grid; gap: var(--gymloop-space-16); }
+.cl-form > :is(button, .cl-btn), .cl-form > .cl-actions { justify-self: start; }
 .cl-form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: var(--gymloop-space-16); align-items: end; }
 .cl-check { display: flex; min-height: var(--gymloop-target-interactive); align-items: center; gap: var(--gymloop-space-8); font-size: var(--gymloop-type-compact-size); font-weight: 400; }
 .cl-check input { width: 1.125rem; height: 1.125rem; accent-color: var(--gymloop-color-primary-action); }

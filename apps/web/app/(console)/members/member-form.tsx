@@ -1,6 +1,7 @@
 import { MutationForm } from '../../preview-context';
 import Link from 'next/link';
 import { Constants } from '@gymloop/db';
+import { Alert } from '../alert';
 import { createServerSupabase } from '../../../lib/supabase/server';
 
 /**
@@ -35,23 +36,20 @@ type MemberDefaults = {
   joined_on: string;
 };
 
-const FIELD_CLASS =
-  'mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-base outline-none focus:border-neutral-900';
+const FIELD_CLASS = 'cl-input';
 
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
+/** A vocabulary value as a sentence-case word: `paused` → "Paused". */
+function say(value: string): string {
+  const words = value.replaceAll('_', ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <label className="block">
-      <span className="text-sm font-medium text-neutral-700">{label}</span>
+    <label className="cl-field">
+      <span>{label}</span>
       {children}
-      {hint === undefined ? null : <span className="mt-1 block text-xs text-neutral-500">{hint}</span>}
+      {hint === undefined ? null : <small>{hint}</small>}
     </label>
   );
 }
@@ -81,90 +79,104 @@ export async function MemberForm({
   const error = submitted.error;
 
   return (
-    <main className="route-workspace">
-      <div className="flex items-baseline justify-between">
-        <h1 className="text-xl font-semibold">{title}</h1>
-        <Link href={cancelHref} className="text-sm text-neutral-600 underline">
-          Cancel
-        </Link>
+    <main className="cl-page">
+      <Link href={cancelHref} className="cl-back">
+        ← Back
+      </Link>
+      <div className="cl-page-header">
+        <div>
+          <p className="cl-eyebrow">{member === null ? 'New member' : 'Member'}</p>
+          <h1 className="cl-title">{title}</h1>
+        </div>
       </div>
 
       {error === undefined ? null : (
-        <p role="alert" className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
+        <div className="cl-section">
+          <Alert>{error}</Alert>
+        </div>
       )}
 
-      <MutationForm method="post" action={action} className="mt-6 space-y-4">
-        <Field label="Full name">
-          <input
-            name="full_name"
-            required
-            defaultValue={value('full_name')}
-            autoComplete="name"
-            className={FIELD_CLASS}
-          />
-        </Field>
+      <MutationForm method="post" action={action} className="cl-form cl-section">
+        <div className="cl-form-row">
+          <Field label="Full name">
+            <input
+              name="full_name"
+              required
+              defaultValue={value('full_name')}
+              autoComplete="name"
+              className={FIELD_CLASS}
+            />
+          </Field>
 
-        <Field label="Phone" hint="International form — country code first, as in +919876543210.">
-          <input
-            name="phone"
-            type="tel"
-            inputMode="tel"
-            required
-            defaultValue={value('phone')}
-            placeholder="+919876543210"
-            autoComplete="tel"
-            className={FIELD_CLASS}
-          />
-        </Field>
+          <Field label="Phone" hint="International form — country code first, as in +919876543210.">
+            <input
+              name="phone"
+              type="tel"
+              inputMode="tel"
+              required
+              defaultValue={value('phone')}
+              placeholder="+919876543210"
+              autoComplete="tel"
+              className={FIELD_CLASS}
+            />
+          </Field>
+        </div>
 
-        <Field label="Email" hint="Optional.">
-          <input
-            name="email"
-            type="email"
-            defaultValue={value('email')}
-            autoComplete="email"
-            className={FIELD_CLASS}
-          />
-        </Field>
+        <div className="cl-form-row">
+          <Field label="Email" hint="Optional.">
+            <input
+              name="email"
+              type="email"
+              defaultValue={value('email')}
+              autoComplete="email"
+              className={FIELD_CLASS}
+            />
+          </Field>
 
-        <Field label="Branch">
-          <select name="branch_id" required defaultValue={value('branch_id')} className={FIELD_CLASS}>
-            <option value="">Choose a branch</option>
-            {(branches ?? []).map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
-        </Field>
+          <Field label="Branch">
+            <select name="branch_id" required defaultValue={value('branch_id')} className={FIELD_CLASS}>
+              <option value="">Choose a branch</option>
+              {(branches ?? []).map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
 
-        <Field label="Status">
-          {/* The vocabulary comes from the generated types, so it is the
+        <div className="cl-form-row">
+          <Field label="Status">
+            {/* The vocabulary comes from the generated types, so it is the
               `member_status` Postgres enum and not a copy of it (AGENTS.md
               rule 5). A new value in the migration appears here on the next
               `supabase gen types`. */}
-          <select
-            name="status"
-            defaultValue={value('status') || Constants.public.Enums.member_status[0]}
-            className={`${FIELD_CLASS} capitalize`}
-          >
-            {Constants.public.Enums.member_status.map((status) => (
-              <option key={status} value={status} className="capitalize">
-                {status}
-              </option>
-            ))}
-          </select>
-        </Field>
+            <select
+              name="status"
+              defaultValue={value('status') || Constants.public.Enums.member_status[0]}
+              className={FIELD_CLASS}
+            >
+              {Constants.public.Enums.member_status.map((status) => (
+                <option key={status} value={status}>
+                  {say(status)}
+                </option>
+              ))}
+            </select>
+          </Field>
 
-        <Field label="Joined on" hint="Leave blank for today.">
-          <input name="joined_on" type="date" defaultValue={value('joined_on')} className={FIELD_CLASS} />
-        </Field>
+          <Field label="Joined on" hint="Leave blank for today.">
+            <input name="joined_on" type="date" defaultValue={value('joined_on')} className={FIELD_CLASS} />
+          </Field>
+        </div>
 
-        <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-white">
-          Save
-        </button>
+        <div className="cl-actions">
+          <button type="submit" className="cl-btn cl-btn--primary">
+            Save
+          </button>
+          <Link href={cancelHref} className="cl-btn cl-btn--quiet">
+            Cancel
+          </Link>
+        </div>
       </MutationForm>
     </main>
   );

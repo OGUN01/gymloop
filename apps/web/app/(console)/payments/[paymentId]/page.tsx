@@ -77,7 +77,7 @@ export default async function ReceiptPage({
 
   if (errorMessage !== null) {
     return (
-      <main className="route-workspace">
+      <main className="cl-page">
         <Alert>That receipt could not be loaded. {errorMessage}</Alert>
       </main>
     );
@@ -88,25 +88,27 @@ export default async function ReceiptPage({
   const takenAt = payment.paid_at ?? payment.created_at;
 
   return (
-    <main className="route-workspace">
-      <Link href="/payments" className="text-sm text-neutral-600 underline print:hidden">
-        All payments
-      </Link>
-      {addonOrderId ? (
-        <Link href={`/add-ons/orders/${addonOrderId}`} className="ml-4 text-sm text-neutral-600 underline print:hidden">
-          Back to add-on order
+    <main className="cl-page">
+      <div className="flex flex-wrap gap-6 print:hidden">
+        <Link href="/payments" className="cl-back">
+          ← All payments
         </Link>
-      ) : null}
+        {addonOrderId ? (
+          <Link href={`/add-ons/orders/${addonOrderId}`} className="cl-back">
+            ← Back to add-on order
+          </Link>
+        ) : null}
+      </div>
 
-      <article className="mt-4 rounded-lg border border-neutral-300 p-6">
-        <header className="flex items-baseline justify-between border-b border-neutral-200 pb-4">
+      <article className="cl-panel">
+        <header className="flex flex-wrap items-end justify-between gap-6 border-b border-rule pb-6">
           <div>
-            <h1 className="text-lg font-semibold">{gym.name}</h1>
-            <p className="text-xs text-neutral-600">{gym.gym_code}</p>
+            <p className="cl-eyebrow">{gym.gym_code}</p>
+            <h1 className="cl-title">{gym.name}</h1>
           </div>
           <div className="text-right">
-            <p className="text-xs uppercase tracking-wide text-neutral-600">Receipt</p>
-            <p className="font-semibold tabular-nums">
+            <p className="cl-eyebrow">Receipt</p>
+            <p className="text-lg font-semibold tabular-nums">
               {/* No receipt number means this payment is not `paid`. Saying so
                   is the point: a receipt for money not received would be the
                   one document in this product that lies. */}
@@ -115,15 +117,15 @@ export default async function ReceiptPage({
           </div>
         </header>
 
-        <dl className="mt-4 space-y-3 text-sm">
-          <Row label="Member">
-            {payment.members.full_name}
-            <span className="ml-2 tabular-nums text-neutral-600">{payment.members.phone}</span>
-          </Row>
+        <dl className="cl-dl mt-6">
           <Row label="Amount">
-            <span className="text-base font-semibold tabular-nums">
+            <span className="cl-metric-value">
               {payment.currency} {rupeesFromPaise(payment.amount_paise)}
             </span>
+          </Row>
+          <Row label="Member">
+            {payment.members.full_name}
+            <span className="cl-muted ml-2 tabular-nums">{payment.members.phone}</span>
           </Row>
           <Row label="Method">{payment.method.replace('_', ' ')}</Row>
           <Row label="Date">{deskTime(takenAt, gym.timezone)}</Row>
@@ -132,7 +134,7 @@ export default async function ReceiptPage({
         </dl>
 
         {ARRIVED.has(payment.status) ? null : (
-          <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <p className="cl-alert mt-6" data-tone="warn">
             This payment is <strong>{payment.status}</strong>. It is not a record of money received.
           </p>
         )}
@@ -142,7 +144,7 @@ export default async function ReceiptPage({
             appeared for exactly the case that needs it — a payment recorded
             before the gym's book started numbering. */}
         {payment.status === 'paid' && payment.receipt_number === null ? (
-          <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <p className="cl-alert mt-6" data-tone="warn">
             This payment was recorded before this gym&rsquo;s receipt book was numbered, so it has no
             receipt number. The payment itself is unaffected.
           </p>
@@ -153,24 +155,30 @@ export default async function ReceiptPage({
         <Alert>{MESSAGES[error] ?? MESSAGES.refund_failed}</Alert>
       )}
 
-      <section className="mt-8 print:hidden">
-        <h2 className="text-base font-semibold">Refunds</h2>
+      <section className="cl-section print:hidden" aria-labelledby="refunds-heading">
+        <div className="cl-section-head">
+          <h2 className="cl-section-title" id="refunds-heading">Refunds</h2>
+        </div>
 
         {refunds.length === 0 ? (
-          <p className="mt-1 text-sm text-neutral-600">Nothing has been sent back.</p>
+          <div className="cl-empty">
+            <strong>Nothing has been sent back.</strong>
+          </div>
         ) : (
-          <ul className="mt-2 divide-y divide-neutral-200 text-sm">
+          <ul className="cl-rows">
             {refunds.map((row) => {
               const completed = row.status === 'completed';
               const recordedAt = completed ? row.processed_at : row.created_at;
-              return <li key={row.id} className="flex justify-between gap-4 py-2">
+              return <li key={row.id}>
                 <span>
-                  <span className="font-medium tabular-nums">
+                  <span className="cl-row-title tabular-nums">
                     {row.currency} {rupeesFromPaise(row.amount_paise)}
-                  </span>{' '}
-                  {row.kind} — {row.reason}
+                  </span>
+                  <span className="cl-row-meta">
+                    {row.kind} — {row.reason}
+                  </span>
                 </span>
-                <span className="text-right text-neutral-600">
+                <span className="cl-row-meta text-right">
                   {row.staff?.full_name ?? '—'}
                   <br />
                   {completed ? 'Completed at' : 'Requested at'} {recordedAt ? deskTime(recordedAt, gym.timezone) : 'not recorded'} · {row.status}
@@ -185,51 +193,46 @@ export default async function ReceiptPage({
             database refuses both (`GL036`); offering the form anyway would be a
             button whose only outcome is an error. */}
         {canRefund && ARRIVED.has(payment.status) && refundablePaise !== '0' ? (
-          <MutationForm method="post" action="/api/refunds" className="mt-4 flex flex-wrap items-end gap-3">
+          <MutationForm method="post" action="/api/refunds" className="cl-form mt-6">
             <input type="hidden" name="paymentId" value={payment.id} />
             <input type="hidden" name="idempotencyKey" value={crypto.randomUUID()} />
-            <label className="text-sm">
-              <span className="block text-neutral-600">Amount (₹)</span>
-              <input
-                type="text"
-                name="amountRupees"
-                required
-                inputMode="decimal"
-                pattern="[0-9]+(\.[0-9]{1,2})?"
-                defaultValue={rupeesFromPaise(refundablePaise)}
-                className="mt-1 w-32 rounded-md border border-neutral-300 px-3 py-2 text-base tabular-nums"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="block text-neutral-600">Kind</span>
-              <select
-                name="kind"
-                required
-                className="mt-1 rounded-md border border-neutral-300 px-3 py-2 text-base"
-              >
-                {Constants.public.Enums.refund_kind.map((kind) => (
-                  <option key={kind} value={kind}>
-                    {kind}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm">
-              <span className="block text-neutral-600">Reason</span>
-              <input
-                type="text"
-                name="reason"
-                required
-                className="mt-1 rounded-md border border-neutral-300 px-3 py-2 text-base"
-              />
-            </label>
-            <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-white">
-              Record refund
-            </button>
+            <div className="cl-form-row">
+              <label className="cl-field">
+                <span>Amount (₹)</span>
+                <input
+                  type="text"
+                  name="amountRupees"
+                  required
+                  inputMode="decimal"
+                  pattern="[0-9]+(\.[0-9]{1,2})?"
+                  defaultValue={rupeesFromPaise(refundablePaise)}
+                  className="cl-input tabular-nums"
+                />
+              </label>
+              <label className="cl-field">
+                <span>Kind</span>
+                <select name="kind" required className="cl-input">
+                  {Constants.public.Enums.refund_kind.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {kind}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="cl-field">
+                <span>Reason</span>
+                <input type="text" name="reason" required className="cl-input" />
+              </label>
+            </div>
+            <div>
+              <button type="submit" className="cl-btn cl-btn--danger">
+                Record refund
+              </button>
+            </div>
           </MutationForm>
         ) : null}
 
-        <p className="mt-2 text-xs text-neutral-500">
+        <p className="cl-muted mt-4 text-sm">
           {!ARRIVED.has(payment.status)
             ? 'This payment took nothing, so there is nothing to send back.'
             : completedReturnedPaise === payment.amount_paise
@@ -240,7 +243,7 @@ export default async function ReceiptPage({
         </p>
       </section>
 
-      <p className="mt-4 text-xs text-neutral-500 print:hidden">
+      <p className="cl-muted mt-6 text-sm print:hidden">
         Print this page for the member. Receipt numbers are the gym&rsquo;s own, one series per
         financial year.
       </p>
@@ -251,9 +254,9 @@ export default async function ReceiptPage({
 /** One labelled fact. Seven of these are the whole document. */
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-4">
-      <dt className="text-neutral-600">{label}</dt>
-      <dd className="text-right">{children}</dd>
-    </div>
+    <>
+      <dt>{label}</dt>
+      <dd>{children}</dd>
+    </>
   );
 }

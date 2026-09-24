@@ -28,23 +28,23 @@ export default async function MembershipsPage({
       pageSize={search.pageSize}
     >
       {search.members.length > 0 ? (
-        <ul className="mt-6 divide-y divide-neutral-100 border-y border-neutral-200">
+        <ul className="cl-rows">
           {search.members.map((member) => (
             <li key={member.id}>
               <Link
                 href={`/memberships/${member.id}`}
-                className="flex items-baseline justify-between py-3 hover:bg-neutral-50"
+                className="flex w-full items-baseline justify-between gap-4 text-ink no-underline"
               >
-                <span>{member.full_name}</span>
-                <span className="text-sm tabular-nums text-neutral-600">{member.phone}</span>
+                <span className="cl-row-title">{member.full_name}</span>
+                <span className="cl-row-meta tabular-nums">{member.phone}</span>
               </Link>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="mt-6 text-sm text-neutral-600">
-          {search.phone ? 'No member of this gym has that phone number.' : 'No members yet.'}
-        </p>
+        <div className="cl-empty">
+          <strong>{search.phone ? 'No member of this gym has that phone number.' : 'No members yet.'}</strong>
+        </div>
       )}
     </MemberSearchPage>
   );
