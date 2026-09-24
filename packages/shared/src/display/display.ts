@@ -10,7 +10,8 @@ export function formatMoney(paise: number | string, currency = 'INR'): string {
   const exact = rupeesFromPaise(paise);
   const negative = exact.startsWith('-');
   const [whole = '0', fraction = '00'] = exact.replace('-', '').split('.');
-  const grouped = new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US').format(BigInt(whole));
+  // String grouping, not Intl on BigInt: Hermes (Android) cannot format BigInt, and money must stay exact.
+  const grouped = currency === 'INR' ? whole.replace(/(\d)(?=(\d\d)+\d$)/g, '$1,') : whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const sign = negative ? '-' : '';
   if (currency !== 'INR') return `${sign}${currency} ${grouped}.${fraction}`;
   return `${sign}₹${grouped}${/^0+$/.test(fraction) ? '' : `.${fraction}`}`;
