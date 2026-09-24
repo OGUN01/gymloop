@@ -62,11 +62,22 @@ function failure(code, target, email, extra = {}) {
   });
 }
 
-/** Sum of member/staff/platform bindings; missing fields count as zero. */
+/**
+ * Sum of member/staff/platform bindings. All three fields must be finite
+ * numbers (Amendment 2): a missing, null or non-numeric field is a lookup
+ * failure, never coerced to zero.
+ */
 function totalBindings(bindings) {
-  return Number(bindings?.members ?? 0)
-    + Number(bindings?.staff ?? 0)
-    + Number(bindings?.platform ?? 0);
+  if (bindings === null || typeof bindings !== 'object') {
+    throw new Error(FAILURE_MESSAGE);
+  }
+  const fields = [bindings.members, bindings.staff, bindings.platform];
+  for (const value of fields) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new Error(FAILURE_MESSAGE);
+    }
+  }
+  return fields[0] + fields[1] + fields[2];
 }
 
 /** Coerce a port bind result to rows changed (number | boolean | row array | { count }). */
@@ -89,7 +100,7 @@ function isEligibleMember(row) {
 }
 
 function isEligibleStaff(row) {
-  return row.isActive !== false && row.role !== 'gym_owner';
+  return row.isActive === true && row.role !== 'gym_owner';
 }
 
 function isEligible(kind, row) {
@@ -141,16 +152,13 @@ async function applyProvision(port, { tenantId, target, requestEmail, email, aut
     return failure('bind_conflict', target, email, { authUser: plan, authUserId: userId });
   }
 
-  // PROV-011: re-assert uniqueness after the write. Exactly one binding is the
-  // success signal. A created identity that shows zero still means the write did
-  // not stick — conflict. A reused identity showing zero is not proof of a
-  // concurrent second row (that case is total > 1); the bind already reported
-  // exactly one row changed, so only extra bindings force the unwind.
+  // PROV-011 (Amendment 2): symmetric. Post-bind total must be exactly 1 on
+  // both the create and the reuse path. 0 or >1, or a non-strict count shape,
+  // unwinds this row and reports bind_conflict.
   let unique;
   try {
-    const post = await port.countBindings(userId);
-    const total = totalBindings(post);
-    unique = plan === 'created' ? total === 1 : total <= 1;
+    const total = totalBindings(await port.countBindings(userId));
+    unique = total === 1;
   } catch {
     unique = false;
   }
@@ -321,8 +329,8 @@ function mapAuthUser(user, email) {
 
 function bindRow(adminClient, table, eligibility) {
   return async (tenantId, rowId, userId, expectedEmail) => {
-    const result = await eligibility(adminClient.from(table))
-      .update({ user_id: userId })
+    // supabase-js v2: filters exist only after update()/select().
+    const result = await eligibility(adminClient.from(table).update({ user_id: userId }))
       .eq('tenant_id', tenantId)
       .eq('id', rowId)
       .is('user_id', null)
@@ -408,7 +416,10 @@ export function createSupabaseProvisionPort(adminClient) {
     async findAuthUserByEmail(email) {
       const needle = normalizeEmail(email);
       const { authListUsersPerPage: perPage, authListUsersMaxPages: maxPages } = PROVISION_IDENTITY_LIMITS;
-      for (let page = 1; page <= maxPages; page += 1) {
+      // One probe page past the cap (Amendment 2): an exactly full final page is
+      // exhausted, but a full probe page means more users may exist unsearched.
+      const lastPage = maxPages + 1;
+      for (let page = 1; page <= lastPage; page += 1) {
         const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
         if (error) throw portFailure();
         const users = Array.isArray(data?.users) ? data.users : [];
@@ -417,9 +428,15 @@ export function createSupabaseProvisionPort(adminClient) {
             return mapAuthUser(user, email);
           }
         }
-        if (users.length < perPage) return null;
+        // Exhausted only when this page is empty or short and nothing sits
+        // past the cap. A non-empty probe page means users exist beyond the
+        // hard cap and were not matched — fail closed (Amendment 2).
+        if (users.length < perPage) {
+          if (page > maxPages && users.length > 0) throw portFailure();
+          return null;
+        }
+        if (page === lastPage) throw portFailure();
       }
-      // Page cap reached with a full last page: the directory may not be fully searched.
       throw portFailure();
     },
 
