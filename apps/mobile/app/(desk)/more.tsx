@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { humanize, UI_TOKENS } from '@gymloop/shared';
 import * as Crypto from 'expo-crypto';
 import { StyleSheet, Text, View } from 'react-native';
+import { LegalLinks } from '../../components/legal-links';
 import { ActionButton, AppearanceSheet, Body, Eyebrow, FONT, Field, LedgerSection, Row, Screen, SignOutRow, StateMessage, Title, appearanceLabel } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
 import { loadDefaultBranch } from '../../lib/mobile-data';
@@ -52,6 +53,7 @@ export default function MoreScreen() {
         <Row title={session?.user.email ?? role} meta={`${role}${branch ? ` · ${branch.name}` : ''}`} accessibilityLabel={`Signed in as ${session?.user.email ?? role}, ${role}${branch ? `, ${branch.name}` : ''}`} />
         <Row title="Appearance" value={appearanceLabel(appearance)} onPress={() => setAppearanceOpen(true)} accessibilityLabel={`Appearance, ${appearanceLabel(appearance)}`} accessibilityHint="Choose System, Light or Dark" />
       </LedgerSection>
+      <LegalLinks />
       <SignOutRow onPress={() => void signOut()} />
     </View>
     <AppearanceSheet visible={appearanceOpen} onClose={() => setAppearanceOpen(false)} />

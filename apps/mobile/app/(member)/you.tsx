@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { BadgeCheck } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 import { useState } from 'react';
+import { LegalLinks } from '../../components/legal-links';
 import { AppearanceSheet, FONT, Initials, LedgerSection, Row, Screen, SignOutRow, Status, appearanceLabel, statusTone, statusWord } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
 import { useMemberSnapshot } from '../../lib/use-member-snapshot';
@@ -31,6 +32,7 @@ export default function YouScreen() {
         <View role="listitem" accessibilityLabel={`Appearance, ${appearanceLabel(appearance)}`}><Row title={<>Appearance</>} value={appearanceLabel(appearance)} onPress={() => setAppearanceOpen(true)} accessibilityLabel={`Appearance, ${appearanceLabel(appearance)}`} accessibilityHint="Choose System, Light or Dark" /></View>
       </View>
     </LedgerSection>
+    <LegalLinks />
     <SignOutRow onPress={() => void signOut()} />
     <AppearanceSheet visible={appearanceOpen} onClose={() => setAppearanceOpen(false)} />
   </Screen>;

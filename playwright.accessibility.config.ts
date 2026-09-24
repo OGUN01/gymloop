@@ -7,6 +7,7 @@ export default defineConfig({
   testDir: './tests',
   testMatch: [
     'e2e/phase8-accessibility.spec.ts',
+    'e2e/public-pages-accessibility.spec.ts',
     'e2e-holdout/phase8-accessibility-holdout.spec.ts',
   ],
   use: {

@@ -4,6 +4,7 @@
     "slug": "gymloop",
     "version": "1.0.0",
     "scheme": "gymloop",
+    "icon": "./assets/icon.png",
     "platforms": [
       "ios",
       "android"
@@ -19,7 +20,18 @@
         }
       ],
       "expo-font",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "backgroundColor": "#F3F0EA",
+          "dark": {
+            "image": "./assets/splash-icon-dark.png",
+            "backgroundColor": "#141311"
+          }
+        }
+      ],
       "expo-web-browser"
     ],
     "ios": {
@@ -27,6 +39,11 @@
     },
     "android": {
       "package": "in.gymloop.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon-foreground.png",
+        "monochromeImage": "./assets/adaptive-icon-monochrome.png",
+        "backgroundColor": "#F3F0EA"
+      },
       "permissions": [
         "android.permission.CAMERA"
       ],

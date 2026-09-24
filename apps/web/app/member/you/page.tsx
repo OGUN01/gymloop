@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { PUBLIC_PAGE_PATHS } from '@gymloop/shared';
 import { loadMemberPortal } from '../../../lib/member-portal';
 import { signOut } from '../../../lib/auth-actions';
 import YouSettings from '../you-settings';
@@ -10,6 +12,10 @@ export default async function MemberYouPage() {
   return <main className="member-route member-portal member-you">
     <YouSettings profile={memberProfile} membership={membership} />
     <form action={signOut} className="member-sign-out-form"><button className="member-sign-out">Sign out</button></form>
+    <nav className="member-legal" aria-label="Legal">
+      <Link href={PUBLIC_PAGE_PATHS.privacy}>Privacy policy</Link>
+      <Link href={`${PUBLIC_PAGE_PATHS.deleteAccount}#request`}>Delete my account</Link>
+    </nav>
     <span className="sr-only">Settings close with Done, a tap outside, or Escape.</span>
   </main>;
 }

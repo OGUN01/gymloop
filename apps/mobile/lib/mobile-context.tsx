@@ -26,6 +26,8 @@ type MobileContextValue = {
   supabase: SupabaseClient<Database>;
   setAppearance(mode: AppearanceMode): Promise<void>;
   signOut(): Promise<void>;
+  /** Configured web/API origin — legal rows open public pages here. */
+  webOrigin: string;
 };
 
 const MobileContext = createContext<MobileContextValue | null>(null);
@@ -69,7 +71,11 @@ export function MobileProvider({ children }: { children: ReactNode }) {
       if (previousScope.current !== undefined && previousScope.current !== nextScope) await clearOfflineCheckIns();
       previousScope.current = nextScope;
     }
-    setSession(nextIdentity.kind === 'unlinked' ? null : nextSession);
+    // Keep the live Supabase session even when the identity is unlinked: the
+    // not-linked screen names the signed-in email, and root routing must tell
+    // "session without identity" apart from "no session". Linked identities and
+    // offline-queue scope clearing are unchanged.
+    setSession(nextSession);
     setIdentity(nextIdentity);
     setSessionReady(true);
   }, []);
@@ -97,6 +103,7 @@ export function MobileProvider({ children }: { children: ReactNode }) {
   const value = useMemo<MobileContextValue>(() => ({
     api, appearance, identity, palette, ready,
     session, supabase, setAppearance, signOut,
+    webOrigin: config.EXPO_PUBLIC_API_BASE_URL,
   }), [appearance, identity, palette, ready, session, setAppearance, signOut]);
   if (!ready) return null;
   return <MobileContext.Provider value={value}>

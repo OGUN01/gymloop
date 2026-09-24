@@ -102,3 +102,22 @@ export function resolveMobileStartup(input: {
     replay: input.refresh.kind === 'network_error' ? 'deferred' : 'blocked',
   };
 }
+
+/** Where the native root should send a ready session. `platform` is an in-place message, not a tab. */
+export type RootDestination = '/(member)' | '/(desk)' | '/not-linked' | '/sign-in' | 'platform';
+
+/**
+ * Root routing for a resolved identity. A live Supabase session whose identity
+ * is `unlinked` is the supported not-linked state (HARD-011); a missing session
+ * is sign-in. Member, staff and platform homes are unchanged.
+ */
+export function resolveRootDestination(input: {
+  identity: GymloopIdentity;
+  hasSession: boolean;
+}): RootDestination {
+  if (input.identity.kind === 'member') return '/(member)';
+  if (input.identity.kind === 'staff') return '/(desk)';
+  if (input.identity.kind === 'platform') return 'platform';
+  if (input.identity.kind === 'unlinked' && input.hasSession) return '/not-linked';
+  return '/sign-in';
+}

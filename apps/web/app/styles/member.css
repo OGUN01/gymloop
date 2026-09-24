@@ -148,6 +148,9 @@ span.member-account-row { grid-template-columns: auto minmax(0, 1fr) var(--gymlo
 .member-you span.member-account-row { grid-template-columns: auto minmax(0, 1fr) var(--gymloop-space-24); }
 .member-sign-out { display: inline-flex; min-height: var(--gymloop-target-touch); align-items: center; text-underline-offset: 4px; }
 .member-sign-out:hover, .member-sign-out:focus-visible { text-decoration: underline; }
+.member-legal { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0 var(--gymloop-space-16); margin-top: var(--gymloop-space-8); color: var(--gymloop-color-secondary-text); }
+.member-legal a { display: inline-flex; min-height: var(--gymloop-target-touch); align-items: center; color: inherit; font-size: var(--gymloop-type-compact-size); text-decoration-color: var(--gymloop-color-required-control-outline); text-underline-offset: var(--gymloop-space-4); }
+.member-legal a:hover { color: var(--gymloop-color-primary-text); }
 .member-steps--numbered li { align-items: first baseline; }
 .member-steps--numbered li > span:last-child { display: block; }
 .member-steps--numbered li > span:last-child > strong { display: block; }

@@ -21,10 +21,11 @@ function GoogleGlyph() {
 }
 
 export default function SignIn() {
-  const { identity, ready, supabase, palette } = useMobile();
+  const { identity, ready, session, supabase, palette } = useMobile();
   const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false); const [message, setMessage] = useState<string | null>(null); const [emailOpen, setEmailOpen] = useState(false);
   if (ready && identity.kind !== 'unlinked') return <Redirect href="/" />;
+  if (ready && session !== null) return <Redirect href="/not-linked" />;
   const submit = async () => { setPending(true); setMessage(null); const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password }); setPending(false); if (error) setMessage('Those details did not match. Check the email and password and try again.'); };
   const google = async () => { setPending(true); setMessage(null); const result = await signInWithGoogleMobile({ supabase, openBrowser: WebBrowser.openAuthSessionAsync }); setPending(false); if (!result.ok) setMessage('Google sign-in could not be completed.'); };
   return <View style={[styles.screen, { backgroundColor: palette.canvas }]}>

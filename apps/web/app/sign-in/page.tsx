@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Image from 'next/image';
-import { PRODUCT_NAME } from '@gymloop/shared';
+import { PRODUCT_NAME, PUBLIC_PAGE_PATHS } from '@gymloop/shared';
 import { signIn } from '../../lib/auth-actions';
 import { startGoogleSignIn } from '../../lib/auth-actions';
 import { readIdentity } from '../../lib/identity-session';
@@ -91,9 +91,13 @@ export default async function SignInPage({
         </form>
       </details>
 
-      <p className="sign-in-help">
-        Need access? Ask your gym&rsquo;s front desk.
-      </p>
+      <footer className="sign-in-help">
+        <p>Need access? Ask your gym&rsquo;s front desk.</p>
+        <nav className="sign-in-legal" aria-label="Legal information">
+          <a href={PUBLIC_PAGE_PATHS.privacy}>Privacy</a>
+          <a href={PUBLIC_PAGE_PATHS.terms}>Terms</a>
+        </nav>
+      </footer>
       </div>
     </main>
   );

@@ -15,6 +15,23 @@ import type { Database } from '@gymloop/db';
 /** The one place the product name lives — renaming the product is one edit. */
 export const PRODUCT_NAME = 'Gymloop';
 
+/** The publisher named on the Google Play listing and in the public legal pages. */
+export const PUBLISHER_NAME = 'Ductx';
+
+/** The public contact address on the Play listing, legal pages and deletion requests. */
+export const SUPPORT_EMAIL = 'support@gymloop.example.com';
+
+/**
+ * Sign-in-free pages on the web app's origin. The Play listing, the OAuth
+ * consent screen and both apps link to these paths.
+ */
+export const PUBLIC_PAGE_PATHS = {
+  privacy: '/privacy',
+  terms: '/terms',
+  deleteAccount: '/delete-account',
+  support: '/support',
+} as const;
+
 /**
  * The platform-neutral visual language shared by the web and native clients.
  * Web maps these values to CSS custom properties; this module deliberately has
