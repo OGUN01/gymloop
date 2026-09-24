@@ -259,3 +259,34 @@ export function weeklyGoalStreak(input: WeeklyGoalStreakInput): StreakResult {
   }
   return { current: run, longest: Math.max(longest, run), unit: 'week', missed };
 }
+
+/** Database rows for a member's streak, as the member surfaces read them. */
+export interface MemberStreakRows {
+  rule: string;
+  visits: readonly (string | Date)[];
+  asOf: string | Date;
+  timeZone: string;
+  restDays?: readonly number[] | undefined;
+  pauses: readonly { starts_on: LocalDate; ends_on: LocalDate; approved_at: string | null; rejected_at: string | null }[];
+  holidays: readonly { holiday_on: LocalDate }[];
+  goal: number;
+  weekStartDay: number;
+}
+
+/**
+ * The member's current streak under the gym's `streak_rule_type`: weekly goal,
+ * otherwise consecutive visits. One place so web and native cannot disagree.
+ */
+export function memberStreak(rows: MemberStreakRows): StreakResult {
+  const base: StreakInput = {
+    visits: rows.visits,
+    asOf: rows.asOf,
+    timeZone: rows.timeZone,
+    restDays: rows.restDays,
+    pauses: rows.pauses.map((pause) => ({ startsOn: pause.starts_on, endsOn: pause.ends_on, approvedAt: pause.approved_at, rejectedAt: pause.rejected_at })),
+    holidays: rows.holidays.map((holiday) => holiday.holiday_on),
+  };
+  return rows.rule === 'weekly_goal'
+    ? weeklyGoalStreak({ ...base, goal: rows.goal, weekStartDay: rows.weekStartDay })
+    : visitStreak(base);
+}

@@ -5,9 +5,9 @@ import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { GREETING_HOURS, UI_TOKENS, formatDay } from '@gymloop/shared';
+import { GREETING_HOURS, UI_TOKENS } from '@gymloop/shared';
 import { CircleAlert, CircleCheck, Clock3, CreditCard, MessageSquareMore, ScanLine } from 'lucide-react-native';
-import { ActionButton, Body, Display, Eyebrow, FONT, LoadingState, Row, Rule, Screen, StateMessage, Status, Title, statusTone, statusWord } from '../../components/ui';
+import { ActionButton, Body, Display, Eyebrow, FONT, LoadingState, Row, Rule, Screen, StateMessage, Status, Title, WeekRhythm, dayLabel, statusTone, statusWord } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
 import { drainOfflineCheckIns, loadOfflineCheckIns, saveOfflineCheckIn } from '../../lib/offline-check-in';
 import { rhythmFor } from '../../lib/mobile-data';
@@ -78,48 +78,49 @@ export default function MemberHome() {
   }
 
   return <Screen footer={checkInAction}>
-    <View style={styles.gymLine}>
-      <Text style={[styles.gymText, { color: palette.secondaryText }]} numberOfLines={2}><Text style={{ color: palette.primaryText, fontFamily: FONT.semibold }}>{gymName}</Text> · {data.gym.branchName}</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${data.member.fullName}, open You`} onPress={() => router.push('/(member)/you')} style={[styles.initial, { borderColor: palette.primaryAction }]}><Text style={[styles.initialText, { color: palette.primaryAction }]}>{firstName.slice(0, 1)}</Text></Pressable>
+    <View style={styles.header}>
+      <View style={styles.gymLine}>
+        <Text style={[styles.gymText, { color: palette.secondaryText }]} numberOfLines={1}><Text style={{ color: palette.primaryText, fontFamily: FONT.semibold }}>{gymName}</Text> · {data.gym.branchName}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${data.member.fullName}, open You`} onPress={() => router.push('/(member)/you')} style={[styles.initial, { borderColor: palette.primaryAction }]}><Text style={[styles.initialText, { color: palette.primaryAction }]}>{firstName.slice(0, 1)}</Text></Pressable>
+      </View>
+      <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit style={[styles.greeting, { color: palette.primaryText }]}>{greeting}, {firstName}</Text>
     </View>
-    <Text accessibilityRole="header" style={[styles.greeting, { color: palette.primaryText }]}>{greeting}, {firstName}</Text>
-    <Rule />
     {scanning ? <View style={[styles.scanner, { borderColor: palette.decorativeSeparator, backgroundColor: palette.surface }]}>{permission?.granted ? <CameraView style={styles.camera} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data: value }) => void checkIn(value)} /> : <View style={styles.permission}><Body>Camera access is needed only while you scan the gym QR.</Body><ActionButton secondary onPress={() => void requestPermission()}>Allow camera</ActionButton></View>}</View> : null}
     {outcome?.kind === 'confirming' ? <StateMessage>Confirming your check-in…</StateMessage> : null}
     {queued > 0 ? <StateMessage tone="warning">{queued} check-in {queued === 1 ? 'is' : 'are'} awaiting confirmation.</StateMessage> : null}
-    <View accessible accessibilityLabel={`${data.weekVisits} of ${data.member.goal} visits this week`}>
-      <Display size="hero">{data.weekVisits} of {data.member.goal}</Display>
-      <Text style={[styles.weekCaption, { color: palette.primaryText }]}>visits this week</Text>
+    <View style={styles.week}>
+      <View accessible accessibilityLabel={`${data.weekVisits} of ${data.member.goal} visits this week`}>
+        <Display size="hero">{data.weekVisits} of {data.member.goal}</Display>
+        <Text style={[styles.weekCaption, { color: palette.primaryText }]}>visits this week</Text>
+      </View>
+      <WeekRhythm days={rhythmDays} />
+      <Body muted>{remaining === 0 ? 'Weekly goal complete. Nice work.' : `${remaining} more ${remaining === 1 ? 'visit' : 'visits'} to your weekly goal.`}</Body>
     </View>
-    <View style={styles.rhythm}>{rhythmDays.map((day) => <View key={day.key} style={styles.rhythmDay} accessible accessibilityLabel={`${day.name}: ${day.visited ? 'visited' : day.future ? 'still ahead' : 'no visit'}`}><View style={[styles.rhythmDot, day.future ? styles.futureDot : null, { backgroundColor: day.visited ? palette.primaryAction : 'transparent', borderColor: day.visited ? palette.primaryAction : palette.requiredControlOutline }]} /><Text style={[styles.rhythmLabel, { color: palette.secondaryText }]}>{day.label}</Text></View>)}</View>
-    <Body muted>{remaining === 0 ? 'Weekly goal complete. Nice work.' : `${remaining} more ${remaining === 1 ? 'visit' : 'visits'} to your weekly goal.`}</Body>
-    <Rule />
-    <View style={[styles.box, { borderColor: palette.decorativeSeparator, backgroundColor: palette.surface }]}>
-      <Row icon={<CreditCard color={palette.primaryText} {...icon} />} title={data.membership ? data.membership.planName : 'No membership is visible'} meta={data.membership?.endsOn ? `Ends ${formatDay(data.membership.endsOn)}` : undefined} trailing={data.membership ? <Status tone={statusTone(data.membership.status)}>{statusWord(data.membership.status)}</Status> : undefined} onPress={() => router.push('/(member)/gym')} accessibilityLabel="Membership details" />
+    <View>
+      <Rule />
+      <Row icon={<CreditCard color={palette.primaryText} {...icon} />} title={data.membership ? data.membership.planName : 'No membership is visible'} meta={data.membership?.endsOn ? `Ends ${dayLabel(data.membership.endsOn, data.gym.timezone)}` : undefined} trailing={data.membership ? <Status tone={statusTone(data.membership.status)}>{statusWord(data.membership.status)}</Status> : undefined} onPress={() => router.push('/(member)/gym')} accessibilityLabel={data.membership ? `Membership, ${data.membership.planName}, ${statusWord(data.membership.status)}${data.membership.endsOn ? `, ends ${dayLabel(data.membership.endsOn, data.gym.timezone)}` : ''}` : 'Membership details'} />
     </View>
-    {data.messages[0] ? <>
+    {data.messages[0] ? <View style={styles.section}>
       <Eyebrow>Latest from your gym</Eyebrow>
-      <View style={[styles.box, { borderColor: palette.decorativeSeparator, backgroundColor: palette.surface }]}>
+      <View>
+        <Rule />
         <Row icon={<MessageSquareMore color={palette.primaryText} {...icon} />} title={data.messages[0].body} trailing={data.messages[0].status === 'sent' ? <Status tone="accent">New</Status> : undefined} onPress={() => router.push('/(member)/gym')} accessibilityLabel="Latest message from your gym" />
       </View>
-    </> : null}
+    </View> : null}
   </Screen>;
 }
 
 const space = UI_TOKENS.geometry.spacing;
 const styles = StyleSheet.create({
+  header: { gap: space[3] },
   gymLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[3] },
   gymText: { flex: 1, minWidth: 0, fontFamily: FONT.regular, fontSize: UI_TOKENS.typography.mobileBody.size, lineHeight: UI_TOKENS.typography.mobileBody.lineHeight },
   initial: { width: UI_TOKENS.geometry.targets.touch, height: UI_TOKENS.geometry.targets.touch, alignItems: 'center', justifyContent: 'center', borderRadius: UI_TOKENS.geometry.targets.touch, borderWidth: UI_TOKENS.icons.strokeWidth },
   initialText: { fontFamily: FONT.display, fontSize: UI_TOKENS.typography.mobileSection.size },
-  greeting: { fontFamily: FONT.bold, fontSize: UI_TOKENS.typography.sectionTitle.size + space[1], lineHeight: UI_TOKENS.typography.sectionTitle.lineHeight + space[1] },
+  greeting: { fontFamily: FONT.semibold, fontSize: UI_TOKENS.typography.sectionTitle.size, lineHeight: UI_TOKENS.typography.sectionTitle.lineHeight + space[0] },
+  week: { gap: space[3] },
+  section: { gap: space[2] },
   weekCaption: { fontFamily: FONT.regular, fontSize: UI_TOKENS.typography.sectionTitle.size, lineHeight: UI_TOKENS.typography.sectionTitle.lineHeight },
-  rhythm: { flexDirection: 'row', justifyContent: 'space-between' },
-  rhythmDay: { alignItems: 'center', gap: space[2], minWidth: UI_TOKENS.geometry.targets.interactive },
-  rhythmDot: { width: UI_TOKENS.geometry.targets.interactive - space[1], height: UI_TOKENS.geometry.targets.interactive - space[1], borderRadius: UI_TOKENS.geometry.targets.interactive, borderWidth: UI_TOKENS.icons.strokeWidth },
-  rhythmLabel: { fontFamily: FONT.medium, fontSize: UI_TOKENS.typography.compact.size },
-  futureDot: { borderStyle: 'dashed', opacity: UI_TOKENS.opacity.disabled },
-  box: { borderWidth: StyleSheet.hairlineWidth, borderRadius: UI_TOKENS.geometry.radii.row, borderCurve: 'continuous', paddingHorizontal: space[3] },
   scanner: { overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderRadius: UI_TOKENS.geometry.radii.section, borderCurve: 'continuous' },
   camera: { aspectRatio: 1 },
   permission: { gap: space[3], padding: space[4] },

@@ -34,6 +34,8 @@ Update this file in the same commit that adds the export. One row per symbol, ke
 | `PAYMENT_PAGE_SIZE_DEFAULT` | `packages/shared/src/config/constants.ts` | 25 — a day's takings, not a month's. The screen answers "what did we take today, and does the drawer agree", and a longer page is a longer scroll past yesterday | `apps/web/lib/payments.ts` |
 | `PAYMENT_PAGE_SIZE_MAX` | `packages/shared/src/config/constants.ts` | The clamp for {@link PAYMENT_PAGE_SIZE_DEFAULT} — 100 | `apps/web/lib/payments.ts` |
 | `OWNER_OVERVIEW_CASE_PREVIEW_LIMIT` | `packages/shared/src/config/constants.ts` | Six real retention cases in the compact owner-overview preview; the full queue remains `/red-list` | Owner dashboard |
+| `MEMBER_DETAIL_VISITS_PREVIEW` / `MEMBER_DETAIL_PAYMENTS_PREVIEW` | `packages/shared/src/config/constants.ts` | Eight recent visits (then "Show all N visits") and three latest payments on the console member detail | `members/[memberId]` |
+| `MESSAGE_LOG_PREVIEW_ROWS` | `packages/shared/src/config/constants.ts` | Ten recent message-log rows before "Show all" (`?log=all`) | owner Messages |
 | `OWNER_OVERVIEW_SUPPORTING_PREVIEW_LIMIT` | `packages/shared/src/config/constants.ts` | Three rows in each compact owner-overview renewal/recovery summary | Owner dashboard |
 | `membershipNetPrice` | `packages/shared/src/api/membership-price.ts` | Exact nonnegative integer net period price; rejects unsafe, fractional and out-of-bound inputs with RangeError (OPEN-028, ADR-111) | Membership detail and payment default; Phase 6 money consumers |
 | `PAISE_PER_RUPEE` | `packages/shared/src/config/constants.ts` | 100, named because `* 100` on money is exactly the literal AGENTS.md rule 4 exists for. **Paid a debt**: it lived as a local `PAISE.perRupee` in `app/(console)/memberships/[memberId]/page.tsx` with a comment saying it belonged in `packages/shared`, and now does | `paiseFromRupees`, `rupeesFromPaise` |
@@ -341,6 +343,7 @@ ONB-001–005, NAV-006/008).
 | `StreakPause` | `packages/shared/src/streaks/streaks.ts` | A raw `membership_pauses` row shape. Takes the row unfiltered, so the "approved" test (`approved_at` set, `rejected_at` null) happens inside the module and no caller can forget the qualifier (STK-002) | Streak callers |
 | `StreakInput` | `packages/shared/src/streaks/streaks.ts` | Everything `visitStreak` needs, supplied by the caller — no I/O in the module | `visitStreak` |
 | `WeeklyGoalStreakInput` | `packages/shared/src/streaks/streaks.ts` | As above, plus the weekly goal and week start day | `weeklyGoalStreak` |
+| `memberStreak` / `MemberStreakRows` | `packages/shared/src/streaks/streaks.ts` | The member's current streak from raw database rows under the gym's `streak_rule_type` (weekly goal, else visits) — one derivation for web and native | `apps/web/lib/member-portal.ts`, `apps/mobile/lib/mobile-data.ts` |
 | `CalendarStreakInput` | `packages/shared/src/streaks/streaks.ts` | As above, plus an explicit window. The window is a parameter because **no challenges table exists** — see OPEN-017 | `calendarStreak` |
 | `StreakResult` | `packages/shared/src/streaks/streaks.ts` | Current streak, longest streak, missed days, and a `unit` of `'day'` or `'week'` so a screen cannot label a weekly-goal streak in days | Streak callers |
 | `LeadStage` | `apps/web/lib/leads.ts` | The generated `lead_stage` enum as a type — the pipeline vocabulary straight from `packages/db`, never a hand-written union (ADR-021) | The leads loader, routes, forms and page |
@@ -795,11 +798,15 @@ Visual system: `docs/design/phase9/direction.md`. Tokens stay in `UI_TOKENS` (no
 | `memberGreeting` | `apps/web/app/member/member-ui.tsx` | Morning/afternoon/evening greeting in the gym timezone using `GREETING_HOURS` | member Home |
 | `memberShortDate` | `apps/web/app/member/member-ui.tsx` | Calendar date as "12 Oct" | member Home, My gym |
 | `StatusWord` | `apps/web/app/status-word.tsx` | Any status vocabulary value as a dot and sentence-case word (UX9-003), tone chosen from the value; `data-status` keeps the raw value as a styling/test hook | member Home, My gym, console rosters, payments, leads, platform |
+| `PrintReceiptButton` | `apps/web/app/(console)/payments/[paymentId]/print-button.tsx` | Secondary "Print receipt" control calling `window.print()`; hidden in print output | receipt page |
 | `MemberWeekRhythm` | `apps/web/app/member/member-ui.tsx` | Truthful last-seven-days attendance dots, clay (Home) or ink (Activity) | member Home, Activity |
 | `GREETING_HOURS` | `packages/shared/src/config/constants.ts` | Local hours at which the member greeting turns afternoon (12) and evening (17) | `memberGreeting` |
 | `AVATAR_INITIALS_MAX` | `packages/shared/src/config/constants.ts` | Number of name initials an avatar shows (2) | member You (web, Android), desk rosters |
 | `FONT` | `apps/mobile/components/ui.tsx` | Chalkline native font roles: Archivo 400–700 and the bundled ExtraCondensed display cuts (`assets/fonts`, OFL) registered in `MobileProvider` | every native screen |
 | `Display` | `apps/mobile/components/ui.tsx` | Condensed display figure — hero week count, metric or section heading | member Home, Activity |
+| `dayLabel` | `apps/mobile/components/ui.tsx` | Calendar date as "10 Oct", adding the year only when it is not the current year, in the given time zone | member Activity, My gym, desk Follow-ups |
+| `WeekRhythm` | `apps/mobile/components/ui.tsx` | Native truthful seven-day attendance dots (visited clay, today ringed, future dashed) | member Home, Activity |
+| `Sheet` | `apps/mobile/components/ui.tsx` | Native bottom sheet on the raised surface with a top hairline, content-sized, safe-area and reduced-motion aware | member Settings, desk check-in reason |
 | `Rule` | `apps/mobile/components/ui.tsx` | Hairline divider in the separator colour | member screens |
 | `Row` | `apps/mobile/components/ui.tsx` | Ledger row (icon, title, meta, trailing); a chevron appears only when the row navigates | member and desk screens |
 | `Status` | `apps/mobile/components/ui.tsx` | Dot-and-word status (UX9-003) | member and desk screens |

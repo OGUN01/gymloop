@@ -23,6 +23,7 @@ export default async function EditMemberPage({ params }: { params: Promise<{ mem
       title={`Edit ${member.full_name}`}
       action={`/api/members/${member.id}`}
       cancelHref={`/members/${member.id}`}
+      backLabel={member.full_name}
       member={member}
       submitted={await takeMemberEcho()}
     />

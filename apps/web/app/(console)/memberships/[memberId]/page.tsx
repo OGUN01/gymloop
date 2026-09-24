@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
-  DEFAULT_TIMEZONE, formatDay, formatMoney, formatPhone, humanize, membershipNetPrice, rupeesFromPaise,
+  DEFAULT_TIMEZONE, PAYMENT_PAGE_SIZE_DEFAULT, formatDay, formatDayRange, formatMoney, formatPhone, humanize,
+  membershipNetPrice, rupeesFromPaise,
 } from '@gymloop/shared';
 import { createServerSupabase } from '../../../../lib/supabase/server';
 import { StatusWord } from '../../../status-word';
@@ -115,7 +116,7 @@ export default async function MemberMembershipsPage({
   const { error } = await searchParams;
   const supabase = await createServerSupabase();
 
-  const [member, memberships, plans, settings, organization] = await Promise.all([
+  const [member, memberships, plans, settings, organization, history] = await Promise.all([
     supabase.from('members').select('id, full_name, phone').eq('id', memberId).maybeSingle(),
     supabase
       .from('memberships')
@@ -132,6 +133,15 @@ export default async function MemberMembershipsPage({
       .select('pause_approver_role, max_freeze_days_per_year, pause_reasons')
       .maybeSingle(),
     supabase.from('organizations').select('timezone').maybeSingle(),
+    // This member's most recent payments, for the receipts ledger. Read-only
+    // and, like every read above, filtered by `payments_tenant_select` alone.
+    supabase
+      .from('payments')
+      .select('id, amount_paise::text, currency, method, status, receipt_number, paid_at, created_at')
+      .eq('member_id', memberId)
+      .order('created_at', { ascending: false })
+      .order('id')
+      .limit(PAYMENT_PAGE_SIZE_DEFAULT),
   ]);
 
   // RLS returns nothing rather than refusing, so "not this gym's member" and
@@ -149,7 +159,8 @@ export default async function MemberMembershipsPage({
   // before initialization" at runtime — and `tsc` cannot see it, because it
   // cannot know when a closure runs. Caught by reading the file, which is the
   // only thing that would have.
-  const today = todayIn(organization.data?.timezone ?? DEFAULT_TIMEZONE);
+  const timezone = organization.data?.timezone ?? DEFAULT_TIMEZONE;
+  const today = todayIn(timezone);
   const live = rows.find((row) => isLive(row, today));
   // A membership the STATUS calls live but the dates do not — the shape that
   // was being shown as `active` while the gate refused the member.
@@ -187,173 +198,79 @@ export default async function MemberMembershipsPage({
 
   return (
     <main className="cl-page">
-      <Link href="/memberships" className="cl-back">
+      <Link href="/memberships" className="cl-back money-back">
         ← All memberships
       </Link>
       <div className="cl-page-header">
         <div>
-          <p className="cl-eyebrow">Member</p>
+          <p className="cl-eyebrow">Membership</p>
           <h1 className="cl-title">{member.data.full_name}</h1>
-          <p className="cl-lede flex flex-wrap items-center gap-4">
+          <p className="cl-lede money-member-facts">
             <span className="tabular-nums">{formatPhone(member.data.phone)}</span>
             {live !== undefined ? (
               <StatusWord status={live.status} />
             ) : lapsed !== undefined ? (
-              <span className="cl-status" data-tone="risk">Lapsed</span>
-            ) : null}
+              <StatusWord status="expired" label="Lapsed" />
+            ) : (
+              <StatusWord status="none" label="No live membership" />
+            )}
           </p>
         </div>
       </div>
 
       {error === undefined ? null : <Alert>{ERRORS[error] ?? 'That did not work.'}</Alert>}
 
-      <div className="cl-split cl-section">
-        <div>
-          <section aria-labelledby="membership-heading">
-            <div className="cl-section-head">
-              <h2 className="cl-section-title" id="membership-heading">Current membership</h2>
-            </div>
-            {live === undefined ? (
-              lapsed === undefined ? (
-                <div className="cl-empty">
-                  <strong>No live membership.</strong>
-                  <p>Create one below, then record the payment that starts it.</p>
-                </div>
-              ) : (
-                <>
-                  <dl className="cl-dl">
-                    <dt>Plan</dt>
-                    <dd>{lapsed.plans.name}</dd>
-                    <dt>Ran</dt>
-                    <dd>
-                      <Day value={lapsed.starts_on} /> to <Day value={lapsed.ends_on} />
-                    </dd>
-                    <dt>Per period</dt>
-                    <dd>{formatMoney(membershipNetPrice(lapsed.price_paise, lapsed.discount_paise), lapsed.currency)}</dd>
-                    <dt>Status</dt>
-                    <dd>
-                      <span className="cl-status" data-tone="risk">Lapsed</span>
-                    </dd>
-                  </dl>
-                  <p className="cl-alert mt-4" data-tone="warn">
-                    This member is refused at the gate until it is renewed — take the payment and it
-                    runs again from today.
-                  </p>
-                </>
-              )
-            ) : (
-              <dl className="cl-dl">
-                <dt>Plan</dt>
-                <dd>{live.plans.name}</dd>
-                <dt>Runs</dt>
-                <dd>
-                  <Day value={live.starts_on} /> to <Day value={live.ends_on} />
-                </dd>
-                <dt>Per period</dt>
-                <dd>{formatMoney(membershipNetPrice(live.price_paise, live.discount_paise), live.currency)}</dd>
-                <dt>Status</dt>
-                <dd>
-                  <StatusWord status={live.status} />
-                </dd>
-              </dl>
-            )}
-
-            <details className="cl-disclosure cl-section" open={live === undefined}>
-              <summary>{live === undefined ? 'Sell a membership' : 'Sell another membership'}</summary>
-              <MutationForm method="post" action="/api/memberships" className="cl-form mt-4 pb-6">
-                <input type="hidden" name="memberId" value={memberId} />
-                <div className="cl-form-row">
-                  <label className="cl-field">
-                    <span>Plan</span>
-                    <select name="planId" required className="cl-input">
-                      {(plans.data ?? []).map((plan) => (
-                        <option key={plan.id} value={plan.id}>
-                          {plan.name} — {formatMoney(plan.price_paise, plan.currency)} / {plan.duration_days} days
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="cl-field">
-                    <span>Starts on</span>
-                    <input type="date" name="startsOn" required defaultValue={today} className="cl-input" />
-                  </label>
-                </div>
-                <p className="cl-muted text-sm">
-                  Price comes from the plan. <strong>The first fully paid period sets the membership dates.</strong>
-                  {' '}Record the payment below to start the membership.
-                </p>
-                <div>
-                  <button type="submit" className="cl-btn">
-                    Create membership
-                  </button>
-                </div>
-              </MutationForm>
-            </details>
-          </section>
-
-          <section className="cl-section" aria-labelledby="pauses-heading">
-            <div className="cl-section-head">
-              <h2 className="cl-section-title" id="pauses-heading">Pauses</h2>
-            </div>
-            <p className="cl-muted text-sm">
-              {settings.data === null
-                ? 'This gym has no settings row, so no approver and no allowance are configured.'
-                : `Up to ${settings.data.max_freeze_days_per_year} days a year, approved by ${humanize(settings.data.pause_approver_role).toLowerCase()}.`}
-            </p>
-
-            {live === undefined ? (
-              <p className="cl-muted mt-4 text-sm">
-                A pause attaches to a live membership. This member has none.
+      {/* DOM order is the phone order — current state, then the money, then
+          selling, history and pauses. From 60rem the payment form takes the
+          right-hand column beside all of it (money.css). */}
+      <div className="money-member-grid">
+        <section className="money-member-current" aria-labelledby="membership-heading">
+          <div className="cl-section-head">
+            <h2 className="cl-section-title" id="membership-heading">Current membership</h2>
+          </div>
+          {live === undefined ? (
+            lapsed === undefined ? (
+              <p className="cl-muted">
+                No live membership. Sell one below, then record the payment that starts it.
               </p>
             ) : (
-              <MutationForm method="post" action="/api/memberships/pauses" className="cl-form mt-4">
-                <input type="hidden" name="memberId" value={memberId} />
-                <input type="hidden" name="membershipId" value={live.id} />
-                <div className="cl-form-row">
-                  <label className="cl-field">
-                    <span>From</span>
-                    <input type="date" name="startsOn" required defaultValue={today} className="cl-input" />
-                  </label>
-                  <label className="cl-field">
-                    <span>To</span>
-                    <input type="date" name="endsOn" required defaultValue={today} className="cl-input" />
-                  </label>
-                  <label className="cl-field">
-                    <span>Reason</span>
-                    {/* A datalist rather than a select: `pause_reasons` defaults to
-                        empty, and a select with no options is a dead control. This
-                        offers the gym's configured reasons and still accepts a new
-                        one. */}
-                    <input type="text" name="reason" required list="pause-reasons" className="cl-input" />
-                    <datalist id="pause-reasons">
-                      {(settings.data?.pause_reasons ?? []).map((reason) => (
-                        <option key={reason} value={reason} />
-                      ))}
-                    </datalist>
-                  </label>
-                </div>
-                <div>
-                  <button type="submit" className="cl-btn">
-                    Request pause
-                  </button>
-                </div>
-              </MutationForm>
-            )}
+              <>
+                <dl className="cl-dl money-dl">
+                  <dt>Plan</dt>
+                  <dd>{lapsed.plans.name}</dd>
+                  <dt>Ran</dt>
+                  <dd><Span from={lapsed.starts_on} through={lapsed.ends_on} /></dd>
+                  <dt>Per period</dt>
+                  <dd>{formatMoney(membershipNetPrice(lapsed.price_paise, lapsed.discount_paise), lapsed.currency)}</dd>
+                </dl>
+                <p className="cl-alert money-note" data-tone="warn">
+                  This member is refused at the gate until it is renewed — take the payment and it
+                  runs again from today.
+                </p>
+              </>
+            )
+          ) : (
+            <dl className="cl-dl money-dl">
+              <dt>Plan</dt>
+              <dd>{live.plans.name}</dd>
+              <dt>Runs</dt>
+              <dd><Span from={live.starts_on} through={live.ends_on} /></dd>
+              <dt>Per period</dt>
+              <dd>{formatMoney(membershipNetPrice(live.price_paise, live.discount_paise), live.currency)}</dd>
+            </dl>
+          )}
+        </section>
 
-            <PauseHistory memberId={memberId} memberships={rows} />
-          </section>
-        </div>
-
-        <section aria-labelledby="payment-heading">
+        <section className="money-member-pay" aria-labelledby="payment-heading" id="record-payment">
           <div className="cl-section-head">
             <h2 className="cl-section-title" id="payment-heading">Record payment</h2>
           </div>
-          <p className="cl-muted text-sm">
+          <p className="cl-muted money-copy">
             Cash, UPI, card or a bank transfer, taken at the desk. The receipt number is the
-            gym&rsquo;s own, and complete paid periods determine the membership dates.
+            gym&rsquo;s own.
           </p>
 
-          <MutationForm method="post" action="/api/payments" className="cl-form mt-4">
+          <MutationForm method="post" action="/api/payments" className="cl-form money-form">
             <input type="hidden" name="memberId" value={memberId} />
             {/* An idempotency key minted with the form, so the browser's back
                 button and a double tap on a slow connection are one payment
@@ -364,20 +281,24 @@ export default async function MemberMembershipsPage({
               <input type="hidden" name="membershipId" value={renewable.id} />
             )}
             <label className="cl-field">
-              <span>Amount (₹)</span>
-              <input
-                type="text"
-                name="amountRupees"
-                required
-                inputMode="decimal"
-                /* `text` and not `number`: a number input on a phone offers a
-                   spinner and accepts `1e3`, and money typed at a counter is
-                   typed, not nudged. Two decimal places at most, refused rather
-                   than rounded. */
-                pattern="\d{1,9}(\.\d{1,2})?"
-                defaultValue={renewablePrice === undefined ? undefined : rupeesFromPaise(renewablePrice)}
-                className="cl-input tabular-nums"
-              />
+              <span>Amount</span>
+              <span className="money-rupee">
+                <input
+                  type="text"
+                  name="amountRupees"
+                  required
+                  inputMode="decimal"
+                  /* `text` and not `number`: a number input on a phone offers a
+                     spinner and accepts `1e3`, and money typed at a counter is
+                     typed, not nudged. Two decimal places at most, refused rather
+                     than rounded. */
+                  pattern="\d{1,9}(\.\d{1,2})?"
+                  defaultValue={renewablePrice === undefined ? undefined : rupeesFromPaise(renewablePrice)}
+                  aria-label="Amount in rupees"
+                  className="cl-input tabular-nums"
+                />
+              </span>
+              <small>Rupees, up to two paise digits — 1500 or 1500.50.</small>
             </label>
             <label className="cl-field">
               <span>Method</span>
@@ -390,34 +311,171 @@ export default async function MemberMembershipsPage({
               </select>
             </label>
             <label className="cl-field">
-              <span>Note</span>
+              <span>Note (optional)</span>
               <input type="text" name="notes" className="cl-input" />
             </label>
-            <p className="cl-muted text-sm">
-              {/* Honest about what the database will actually do. The old wording
-                  promised an extension unconditionally, and a part payment, a
-                  zero-price membership or a payment in another currency all grant
-                  nothing — a receipt number, a success redirect, and no extension.
-                  A period is granted per whole multiple of the membership's own
-                  price that the money against it has reached (ADR-087). */}
-              {renewable === undefined ? (
-                'This member has no membership to renew, so this records money taken for something else and extends nothing.'
-              ) : renewablePrice === 0 ? (
-                'This membership is complimentary. No membership fee is due; recording a payment does not grant extra periods.'
-              ) : (
-                <>
-                  The first fully paid period starts from today or a future agreed start date.
-                  Later paid periods extend the membership from its expiry or today, whichever is later.{' '}
-                  A full {formatMoney(renewablePrice ?? 0, renewable.currency)} buys one period of{' '}
-                  {renewable.duration_days} days; part of it is recorded and receipted and buys none
-                  until the balance is paid.
-                </>
-              )}
-            </p>
+            {/* Honest about what the database will actually do. The old wording
+                promised an extension unconditionally, and a part payment, a
+                zero-price membership or a payment in another currency all grant
+                nothing — a receipt number, a success redirect, and no extension.
+                A period is granted per whole multiple of the membership's own
+                price that the money against it has reached (ADR-087). */}
+            {renewable === undefined ? (
+              <p className="cl-muted money-copy">
+                This member has no membership to renew, so this records money taken for something else and extends nothing.
+              </p>
+            ) : renewablePrice === 0 ? (
+              <p className="cl-muted money-copy">
+                This membership is complimentary. No membership fee is due; recording a payment does not grant extra periods.
+              </p>
+            ) : (
+              <div>
+                <p className="cl-muted money-copy">
+                  A full {formatMoney(renewablePrice ?? 0, renewable.currency)} extends the membership by{' '}
+                  {renewable.duration_days} days. Part-payments are receipted but don&rsquo;t extend it.
+                </p>
+                <details className="cl-disclosure money-disclosure">
+                  <summary>How dates work</summary>
+                  <p className="cl-muted money-copy">
+                    The first fully paid period starts from today or a future agreed start date.
+                    Later paid periods extend the membership from its expiry or today, whichever is later.{' '}
+                    A full {formatMoney(renewablePrice ?? 0, renewable.currency)} buys one period of{' '}
+                    {renewable.duration_days} days; part of it is recorded and receipted and buys none
+                    until the balance is paid.
+                  </p>
+                </details>
+              </div>
+            )}
             <button type="submit" className="cl-btn cl-btn--primary cl-btn--block">
               Record payment
             </button>
           </MutationForm>
+        </section>
+
+        <section className="money-member-sell" aria-labelledby="sell-heading">
+          <details className="cl-disclosure money-disclosure" open={live === undefined}>
+            <summary id="sell-heading">{live === undefined ? 'Sell a membership' : 'Sell another membership'}</summary>
+            <MutationForm method="post" action="/api/memberships" className="cl-form money-form money-disclosure-body">
+              <input type="hidden" name="memberId" value={memberId} />
+              <div className="cl-form-row">
+                <label className="cl-field">
+                  <span>Plan</span>
+                  <select name="planId" required className="cl-input">
+                    {(plans.data ?? []).map((plan) => (
+                      <option key={plan.id} value={plan.id}>
+                        {plan.name} — {formatMoney(plan.price_paise, plan.currency)} / {plan.duration_days} days
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="cl-field">
+                  <span>Starts on</span>
+                  <input type="date" name="startsOn" required defaultValue={today} className="cl-input" />
+                </label>
+              </div>
+              <p className="cl-muted money-copy">
+                Price comes from the plan. <strong>The first fully paid period sets the membership dates.</strong>
+                {' '}Record the payment to start the membership.
+              </p>
+              <button type="submit" className="cl-btn">
+                Create membership
+              </button>
+            </MutationForm>
+          </details>
+        </section>
+
+        <section className="money-member-history" aria-labelledby="history-heading">
+          <div className="cl-section-head">
+            <h2 className="cl-section-title" id="history-heading">Payments &amp; receipts</h2>
+          </div>
+          {history.error ? (
+            <Alert>The payments could not be loaded. {history.error.message}</Alert>
+          ) : (history.data ?? []).length === 0 ? (
+            <p className="cl-muted">No payments recorded yet.</p>
+          ) : (
+            <div className="cl-ledger-wrap">
+              <table className="cl-ledger cl-ledger-stack money-history">
+                <thead>
+                  <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col" className="cl-num">Amount</th>
+                    <th scope="col">Method</th>
+                    <th scope="col">Receipt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(history.data ?? []).map((row) => (
+                    <tr key={row.id}>
+                      <td className="tabular-nums">{formatDay(dayIn(timezone, row.paid_at ?? row.created_at))}</td>
+                      <td className="cl-num">{formatMoney(row.amount_paise, row.currency)}</td>
+                      <td>{humanize(row.method)}</td>
+                      <td>
+                        <Link
+                          href={`/payments/${row.id}`}
+                          className={row.receipt_number === null ? 'money-noreceipt' : 'money-receipt-link'}
+                        >
+                          {row.receipt_number ?? `${humanize(row.status)} — no receipt`}
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <section className="money-member-pauses" aria-labelledby="pauses-heading">
+          <div className="cl-section-head">
+            <h2 className="cl-section-title" id="pauses-heading">Pauses</h2>
+          </div>
+          <p className="cl-muted money-copy">
+            {settings.data === null
+              ? 'This gym has no settings row, so no approver and no allowance are configured.'
+              : `Up to ${settings.data.max_freeze_days_per_year} days a year, approved by ${humanize(settings.data.pause_approver_role).toLowerCase()}.`}
+          </p>
+
+          <PauseHistory memberId={memberId} memberships={rows} />
+
+          {live === undefined ? (
+            <p className="cl-muted money-copy">
+              A pause attaches to a live membership. This member has none.
+            </p>
+          ) : (
+            <details className="cl-disclosure money-disclosure">
+              <summary>Request a pause</summary>
+              <MutationForm method="post" action="/api/memberships/pauses" className="cl-form money-form money-disclosure-body">
+                <input type="hidden" name="memberId" value={memberId} />
+                <input type="hidden" name="membershipId" value={live.id} />
+                <div className="cl-form-row">
+                  <label className="cl-field">
+                    <span>From</span>
+                    <input type="date" name="startsOn" required defaultValue={today} className="cl-input" />
+                  </label>
+                  <label className="cl-field">
+                    <span>To</span>
+                    <input type="date" name="endsOn" required defaultValue={today} className="cl-input" />
+                  </label>
+                </div>
+                <label className="cl-field">
+                  <span>Reason</span>
+                  {/* A datalist rather than a select: `pause_reasons` defaults to
+                      empty, and a select with no options is a dead control. This
+                      offers the gym's configured reasons and still accepts a new
+                      one. */}
+                  <input type="text" name="reason" required list="pause-reasons" className="cl-input" />
+                  <datalist id="pause-reasons">
+                    {(settings.data?.pause_reasons ?? []).map((reason) => (
+                      <option key={reason} value={reason} />
+                    ))}
+                  </datalist>
+                </label>
+                <button type="submit" className="cl-btn">
+                  Request pause
+                </button>
+              </MutationForm>
+            </details>
+          )}
         </section>
       </div>
     </main>
@@ -428,6 +486,12 @@ export default async function MemberMembershipsPage({
 function Day({ value }: { value: string | null }) {
   if (value === null) return <>—</>;
   return <time dateTime={value}>{formatDay(value)}</time>;
+}
+
+/** A membership's run as one readable span ("14 Sep – 13 Oct 2026"), or its known ends when one is missing. */
+function Span({ from, through }: { from: string | null; through: string | null }) {
+  if (from === null || through === null) return <><Day value={from} /> to <Day value={through} /></>;
+  return <time dateTime={`${from}/${through}`}>{formatDayRange(from, through)}</time>;
 }
 
 type MembershipRow = {
@@ -456,18 +520,15 @@ function PauseHistory({ memberId, memberships }: { memberId: string; memberships
     .sort((a, b) => b.starts_on.localeCompare(a.starts_on));
 
   if (pauses.length === 0) {
-    return (
-      <p className="cl-muted mt-6">No pauses recorded.</p>
-    );
+    return <p className="cl-muted money-copy">No pauses recorded.</p>;
   }
 
   return (
-    <div className="cl-ledger-wrap mt-6">
+    <div className="cl-ledger-wrap">
       <table className="cl-ledger cl-ledger-stack">
         <thead>
           <tr>
-            <th scope="col">From</th>
-            <th scope="col">To</th>
+            <th scope="col">Dates</th>
             <th scope="col">Reason</th>
             <th scope="col">State</th>
           </tr>
@@ -475,8 +536,7 @@ function PauseHistory({ memberId, memberships }: { memberId: string; memberships
         <tbody>
           {pauses.map((pause) => (
             <tr key={pause.id}>
-              <td className="tabular-nums"><Day value={pause.starts_on} /></td>
-              <td className="tabular-nums"><Day value={pause.ends_on} /></td>
+              <td className="tabular-nums"><Span from={pause.starts_on} through={pause.ends_on} /></td>
               <td>{pause.reason}</td>
               <td>
                 {pause.approved_at !== null ? (
@@ -487,10 +547,10 @@ function PauseHistory({ memberId, memberships }: { memberId: string; memberships
                   <MutationForm method="post" action="/api/memberships/pauses" className="flex flex-wrap gap-2">
                     <input type="hidden" name="memberId" value={memberId} />
                     <input type="hidden" name="pauseId" value={pause.id} />
-                    <button type="submit" name="decision" value="approve" className="cl-btn cl-btn--small">
+                    <button type="submit" name="decision" value="approve" className="cl-btn">
                       Approve
                     </button>
-                    <button type="submit" name="decision" value="reject" className="cl-btn cl-btn--quiet cl-btn--small">
+                    <button type="submit" name="decision" value="reject" className="cl-btn cl-btn--danger">
                       Reject
                     </button>
                   </MutationForm>
@@ -506,12 +566,17 @@ function PauseHistory({ memberId, memberships }: { memberId: string; memberships
 
 /** Today's calendar day where the gym is, as `YYYY-MM-DD` (MNY-004). */
 function todayIn(timezone: string): string {
+  return dayIn(timezone, new Date());
+}
+
+/** The calendar day an instant falls on where the gym is, as `YYYY-MM-DD`. */
+function dayIn(timezone: string, instant: string | Date): string {
   try {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date());
+    return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date(instant));
   } catch {
     // `organizations.timezone` is free text, so a gym can hold a name Intl does
     // not know. A screen that 500s is worse than one that offers the platform
     // default and lets the front desk change the date.
-    return new Intl.DateTimeFormat('en-CA', { timeZone: DEFAULT_TIMEZONE }).format(new Date());
+    return new Intl.DateTimeFormat('en-CA', { timeZone: DEFAULT_TIMEZONE }).format(new Date(instant));
   }
 }

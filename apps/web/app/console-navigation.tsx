@@ -4,14 +4,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
-  Boxes, CalendarCheck, CreditCard, House, LogIn, MessageSquare, Target, Upload, Users, type LucideIcon,
+  Boxes, CalendarCheck, CreditCard, IdCard, House, LogIn, MessageSquare, Target, Upload, Users, type LucideIcon,
 } from 'lucide-react';
 import { UI_TOKENS } from '@gymloop/shared';
 
 type NavigationItem = { href: string; label: string };
 
 const ICONS: Record<string, LucideIcon> = {
-  '/dashboard': House, '/console/check-in': LogIn, '/red-list': CalendarCheck, '/console': Users,
+  '/dashboard': House, '/console/check-in': LogIn, '/red-list': CalendarCheck, '/console': Users, '/memberships': IdCard,
   '/payments': CreditCard, '/messages': MessageSquare, '/add-ons': Boxes, '/leads': Target, '/imports': Upload,
 };
 
@@ -26,7 +26,7 @@ export function ConsoleNavigation({ items }: { items: readonly NavigationItem[] 
     media.addEventListener('change', sync);
     return () => media.removeEventListener('change', sync);
   }, []);
-  const path = /^\/(?:members|memberships)(?:\/|$)/.test(pathname) ? '/console' : pathname;
+  const path = /^\/members(?:\/|$)/.test(pathname) ? '/console' : pathname;
   const current = items.reduce<NavigationItem | undefined>((longest, item) => (
     path === item.href || path.startsWith(`${item.href}/`)
       ? (longest === undefined || item.href.length > longest.href.length ? item : longest)

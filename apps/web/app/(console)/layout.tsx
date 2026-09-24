@@ -41,6 +41,7 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
           ? [{ href: '/dashboard', label: 'Overview' }] : []),
         { href: '/console/check-in', label: 'Check-in' }, { href: '/red-list', label: 'Follow-ups' },
         { href: '/console', label: 'Members' },
+        ...(frontOffice ? [{ href: '/memberships', label: 'Memberships' }] : []),
         ...(identity.kind === 'staff' && (identity.role === 'gym_owner' || identity.role === 'gym_manager')
           ? [{ href: '/payments', label: 'Payments' }] : []),
         ...(canViewMessages(identity) ? [{ href: '/messages', label: 'Messages' }] : []),

@@ -75,11 +75,15 @@ export function CheckInGate({ members }: { members: Member[] }) {
   const [busyMemberId, setBusyMemberId] = useState('');
   const [assistFor, setAssistFor] = useState('');
   const [reason, setReason] = useState('');
+  // Nothing on this screen works before hydration — no handler is attached yet —
+  // so the row actions say so instead of looking live and doing nothing.
+  const [hydrated, setHydrated] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
+    setHydrated(true);
     setCanScan(barcodeDetector() !== undefined);
     try {
       setGateCode(window.sessionStorage.getItem(GATE_CODE_KEY) ?? '');
@@ -231,70 +235,79 @@ export function CheckInGate({ members }: { members: Member[] }) {
         </button>
       ) : null}
 
-      <div className="check-in-gate-panel">
-        <p className="cl-eyebrow">Gate access</p>
-        <h2 className="check-in-gate-title">Gate code</h2>
-        <p className="check-in-gate-copy">
-          {gateCode
-            ? 'Scans will be recorded against this code until it expires.'
-            : 'Without a gate code, a visit can only be recorded at the desk, with a reason.'}
-        </p>
+      <section className="check-in-gate-panel" aria-labelledby="check-in-gate-title">
+        <div className="check-in-gate-inner">
+          <p className="cl-eyebrow">Today&rsquo;s gate code</p>
+          <h2 id="check-in-gate-title" className="check-in-gate-title">
+            {gateCode ? 'Gate open' : 'No gate code'}
+          </h2>
+          <p className="check-in-gate-copy">
+            {gateCode
+              ? 'Scans are recorded against this code until it expires.'
+              : 'Generate one for members to scan, or type the code you were given.'}
+          </p>
 
-        <div className="check-in-gate-controls">
-          <input
-            value={gateCode}
-            onChange={(event) => rememberGateCode(event.target.value)}
-            placeholder="Type or scan a code"
-            aria-label="Gate code"
-            autoComplete="off"
-            spellCheck={false}
-            className={`${FIELD_CLASS} check-in-gate-input`}
-          />
-          {canScan ? (
+          <div className="check-in-gate-controls">
+            <input
+              value={gateCode}
+              onChange={(event) => rememberGateCode(event.target.value)}
+              placeholder="Type or scan a code"
+              aria-label="Gate code"
+              autoComplete="off"
+              spellCheck={false}
+              className={`${FIELD_CLASS} check-in-gate-input`}
+            />
+            {canScan ? (
+              <button
+                type="button"
+                onClick={scanning ? stopScanning : () => void startScanning()}
+                className="cl-btn"
+              >
+                {scanning ? 'Stop' : 'Scan'}
+              </button>
+            ) : null}
             <button
               type="button"
-              onClick={scanning ? stopScanning : () => void startScanning()}
-              className="cl-btn cl-btn--small"
+              onClick={() => void issueGateCode()}
+              // One clay action at a time: the desk reason form's Record takes it while open.
+              className={gateCode || assistFor ? 'cl-btn' : 'cl-btn cl-btn--primary'}
             >
-              {scanning ? 'Stop' : 'Scan'}
+              {gateCode ? 'New code' : 'Generate code'}
             </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => void issueGateCode()}
-            className="cl-btn cl-btn--small cl-btn--accent"
-          >
-            New code
-          </button>
-        </div>
-
-        <video
-          ref={videoRef}
-          muted
-          playsInline
-          className={scanning ? 'check-in-camera' : 'hidden'}
-        />
-
-        {issuedCode ? (
-          <div className="check-in-issued-gate">
-            <div className="check-in-issued-qr" aria-label="Member check-in QR code">
-              <QRCodeSVG
-                value={issuedCode}
-                level="M"
-                marginSize={1}
-                title="Scan this QR in the Gymloop member app"
-              />
-            </div>
-            <p className="check-in-issued-code">{issuedCode}</p>
           </div>
-        ) : null}
 
-        {notice ? (
-          <p role="alert" className="check-in-notice">
-            {notice}
-          </p>
-        ) : null}
-      </div>
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            className={scanning ? 'check-in-camera' : 'hidden'}
+          />
+
+          {issuedCode ? (
+            <div className="check-in-issued-gate">
+              <div className="check-in-issued-qr" aria-label="Member check-in QR code">
+                <QRCodeSVG
+                  value={issuedCode}
+                  level="M"
+                  marginSize={1}
+                  title="Scan this QR in the Gymloop member app"
+                />
+              </div>
+              <p className="check-in-issued-code">{issuedCode}</p>
+            </div>
+          ) : null}
+
+          {notice ? (
+            <p role="alert" className="check-in-notice">
+              {notice}
+            </p>
+          ) : null}
+        </div>
+      </section>
+
+      {gateCode ? null : (
+        <p className="check-in-desk-note">No gate code — desk check-ins need a reason.</p>
+      )}
 
       <ul className="check-in-members" aria-label="Members">
         <li className="check-in-member-headings" aria-hidden="true"><span>Member</span><span>Status</span><span>Check in</span></li>
@@ -304,30 +317,38 @@ export function CheckInGate({ members }: { members: Member[] }) {
               <div className="check-in-member-identity">
                 <span aria-hidden="true" className="check-in-member-initial">{member.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('')}</span>
                 <div>
-                <p className="check-in-member-name">{member.full_name}</p>
-                <p className="check-in-member-phone">{formatPhone(member.phone)}</p>
+                  <p className="check-in-member-name">{member.full_name}</p>
+                  <p className="check-in-member-phone">{formatPhone(member.phone)}</p>
                 </div>
               </div>
               <StatusWord status={member.status} />
               <div className="check-in-actions">
+                {gateCode ? (
+                  <button
+                    type="button"
+                    disabled={busyMemberId === member.id}
+                    onClick={() => void submit(member, { token: gateCode }, crypto.randomUUID())}
+                    className="cl-btn check-in-row-action"
+                  >
+                    Check in
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  disabled={gateCode === '' || busyMemberId === member.id}
-                  onClick={() => void submit(member, { token: gateCode }, crypto.randomUUID())}
-                  className="cl-btn cl-btn--small"
-                >
-                  Check in
-                </button>
-                <button
-                  type="button"
+                  disabled={!hydrated}
                   onClick={() => {
                     setAssistFor(assistFor === member.id ? '' : member.id);
                     setReason('');
                   }}
                   aria-expanded={assistFor === member.id}
-                  className="cl-btn cl-btn--small"
+                  className={gateCode ? 'cl-btn cl-btn--quiet check-in-row-action' : 'cl-btn check-in-row-action'}
                 >
-                  At the desk
+                  {gateCode ? 'At the desk' : (
+                    <>
+                      <span className="check-in-row-long">Check in at the desk</span>
+                      <span className="check-in-row-short">At the desk</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>

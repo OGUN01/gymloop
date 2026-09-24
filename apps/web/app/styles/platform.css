@@ -1,1 +1,69 @@
 /* Chalkline platform family refinements (critic loop). Loaded after globals.css. */
+
+/* ── KPI strip: the board's big condensed numerals ─────────────────────── */
+.platform-kpis .cl-metric-value { font-size: clamp(3rem, 6vw, 5rem); }
+.platform-kpis .platform-kpi-date { font-size: clamp(2rem, 3.5vw, 3rem); line-height: 1.1; }
+
+/* ── Fleet ledger ─────────────────────────────────────────────────────── */
+.platform-ledger th.cl-num, .platform-ledger td.cl-num { text-align: right; }
+.platform-ledger td { vertical-align: middle; }
+.platform-ledger .cl-row-meta { letter-spacing: var(--gymloop-type-eyebrow-tracking); }
+.platform-cell-label { display: none; }
+.platform-cell-open { width: 1%; text-align: right; white-space: nowrap; }
+.platform-cell-open .cl-btn span { font-size: 1.25em; line-height: 1; }
+
+/* ── Manage gyms: one disclosure per gym, each control a ruled row ────── */
+.platform-manage > summary { min-height: calc(var(--gymloop-target-touch) + var(--gymloop-space-8)); }
+.platform-manage-title { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--gymloop-space-8) var(--gymloop-space-16); font-size: var(--gymloop-type-body-size); }
+.platform-manage-body { display: grid; gap: 0; border-top: 1px solid var(--gymloop-color-decorative-separator); }
+.platform-control { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gymloop-space-16); align-items: end; padding: var(--gymloop-space-16) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+.platform-control > .cl-field { grid-column: span 4; }
+.platform-control > .cl-field.platform-control-wide { grid-column: span 8; }
+.platform-control > .cl-btn { grid-column: 10 / span 3; justify-self: end; min-width: 9rem; }
+.platform-control-hint { grid-column: 1 / -1; margin-top: calc(-1 * var(--gymloop-space-8)); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); }
+.platform-manage-body > .cl-muted, .platform-manage-body > .cl-alert { padding: var(--gymloop-space-16) 0; margin: 0; }
+
+.platform-onboard .cl-form > .cl-btn { justify-self: start; }
+
+/* ── Gym detail ───────────────────────────────────────────────────────── */
+.platform-gym-lede { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gymloop-space-8) var(--gymloop-space-16); }
+.platform-gym-lede > span:not(.cl-status) { color: var(--gymloop-color-secondary-text); }
+.platform-gym-lede > span:not(.cl-status)::before { content: '·'; margin-right: var(--gymloop-space-16); }
+.platform-gym-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 var(--gymloop-space-48); }
+.platform-gym-grid .cl-dl { max-width: 45rem; }
+.platform-gym-owner { display: grid; gap: var(--gymloop-space-4); }
+.platform-gym-owner .cl-row-meta { margin: 0; }
+
+@media (max-width: 64rem) {
+  .platform-gym-grid { grid-template-columns: 1fr; }
+  .platform-control > .cl-field, .platform-control > .cl-field.platform-control-wide { grid-column: span 8; }
+  .platform-control > .cl-btn { grid-column: 9 / span 4; }
+}
+
+@media (max-width: 40rem) {
+  .platform-kpis .cl-metric-value { font-size: 3rem; }
+  .platform-kpis.cl-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .platform-kpis .cl-metric:nth-child(odd) { border-left: 0; padding-left: 0; }
+  .platform-kpis .cl-metric:nth-child(even) { border-left: 1px solid var(--gymloop-color-decorative-separator); padding-left: var(--gymloop-space-16); }
+  .platform-kpis .cl-metric + .cl-metric { border-top: 0; }
+  .platform-kpis .cl-metric:nth-child(-n + 2) { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+
+  /* Each gym becomes a mini ledger: name and status, labelled facts, readiness, a full-width Open row. */
+  .platform-ledger thead { display: none; }
+  .platform-ledger tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: var(--gymloop-space-16) 0 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+  .platform-ledger td { padding: 0; border: 0; }
+  .platform-ledger .platform-cell-gym { grid-column: 1; padding-bottom: var(--gymloop-space-12); }
+  .platform-ledger .platform-cell-status { grid-column: 2; align-self: start; }
+  .platform-ledger .platform-cell-fact { display: flex; grid-column: 1 / -1; justify-content: space-between; gap: var(--gymloop-space-12); padding: var(--gymloop-space-8) 0; border-top: 1px solid var(--gymloop-color-decorative-separator); text-align: right; font-variant-numeric: tabular-nums; }
+  .platform-cell-label { display: inline; color: var(--gymloop-color-secondary-text); text-align: left; }
+  .platform-ledger .platform-cell-readiness { grid-column: 1 / -1; padding: var(--gymloop-space-8) 0; border-top: 1px solid var(--gymloop-color-decorative-separator); }
+  .platform-ledger .platform-cell-readiness .cl-status { white-space: normal; }
+  .platform-ledger .platform-cell-open { grid-column: 1 / -1; width: auto; border-top: 1px solid var(--gymloop-color-decorative-separator); }
+  .platform-ledger .platform-cell-open .cl-btn { width: 100%; justify-content: space-between; min-height: var(--gymloop-target-touch); border: 0; padding-inline: 0; }
+
+  .platform-control { grid-template-columns: 1fr; }
+  .platform-control > .cl-field, .platform-control > .cl-field.platform-control-wide, .platform-control > .cl-btn { grid-column: 1; }
+  .platform-control > .cl-btn { justify-self: start; }
+  .platform-gym .cl-dl { grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr); }
+  .platform-gym .cl-dl > dt { padding-bottom: var(--gymloop-space-12); border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+}

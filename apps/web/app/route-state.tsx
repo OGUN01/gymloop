@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 
 /** Recoverable route failure: says what happened in plain words and offers the framework retry. */
 export function RouteError({ reset, home, homeLabel, className = 'cl-page' }: { reset: () => void; home: string; homeLabel: string; className?: string }) {
@@ -13,8 +14,9 @@ export function RouteError({ reset, home, homeLabel, className = 'cl-page' }: { 
 }
 
 /** Missing route or record, with a real way back. */
-export function RouteNotFound({ home, homeLabel, title = 'Page not found', className = 'cl-page' }: { home: string; homeLabel: string; title?: string; className?: string }) {
+export function RouteNotFound({ home, homeLabel, title = 'Page not found', className = 'cl-page', brand }: { home: string; homeLabel: string; title?: string; className?: string; brand?: ReactNode }) {
   return <main className={className}>
+    {brand}
     <div className="route-state-message">
       <p className="cl-eyebrow">404</p>
       <h1 className="cl-title">{title}</h1>

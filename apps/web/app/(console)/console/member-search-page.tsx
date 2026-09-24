@@ -1,6 +1,6 @@
 import { MEMBER_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
 import Link from 'next/link';
-import { Search } from 'lucide-react';
+import { ArrowRight, Search } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 /**
@@ -24,6 +24,7 @@ export function MemberSearchPage({
   errorMessage,
   nextCursor,
   pageSize,
+  actions,
   children,
 }: {
   title: string;
@@ -33,6 +34,8 @@ export function MemberSearchPage({
   errorMessage: string | null;
   nextCursor: string | null;
   pageSize: number;
+  /** The header's own actions (`null` for none). Omitted, the header carries the two route links. */
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   // **Everything that shaped this page travels with the cursor.** Without the
@@ -54,35 +57,40 @@ export function MemberSearchPage({
   return (
     <main className="check-in-workspace">
       <div className="check-in-header">
-        <div><p className="cl-eyebrow">Front desk</p><h1 className="check-in-title">{title}</h1></div>
+        <h1 className="check-in-title">{title}</h1>
         <div className="check-in-route-actions">
-          {/* The red list had no way in: nothing linked to it, so the screen a
-              gym is supposed to open each morning was one the owner had to
-              type the URL for. ADR-059's rule for phases 3-6 is that each ends
-              with something the owner can click. */}
-          <Link href="/red-list" className="cl-btn cl-btn--quiet cl-btn--small">
-            Follow-ups
-          </Link>
-          <Link href={linkHref} className="cl-btn cl-btn--quiet cl-btn--small">
-            {linkLabel}
-          </Link>
+          {actions !== undefined ? actions : (
+            <>
+              {/* The red list had no way in: nothing linked to it, so the screen a
+                  gym is supposed to open each morning was one the owner had to
+                  type the URL for. ADR-059's rule for phases 3-6 is that each ends
+                  with something the owner can click. */}
+              <Link href="/red-list" className="cl-btn check-in-route-link">
+                Follow-ups
+              </Link>
+              <Link href={linkHref} className="cl-btn check-in-route-link">
+                {linkLabel}
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
       <form method="get" className="check-in-search">
         <span className="check-in-search-field">
-        <Search aria-hidden="true" className="check-in-search-icon" />
-        <input
-          type="search"
-          name="q"
-          defaultValue={phone}
-          placeholder="Search by phone number"
-          aria-label="Search by phone number"
-          className="check-in-search-input"
-        />
+          <Search aria-hidden="true" className="check-in-search-icon" />
+          <input
+            type="search"
+            name="q"
+            defaultValue={phone}
+            placeholder="Search by phone number"
+            aria-label="Search by phone number"
+            className="check-in-search-input"
+          />
         </span>
-        <button type="submit" className="cl-btn">
-          Search
+        <button type="submit" className="cl-btn check-in-search-submit" aria-label="Search">
+          <span className="check-in-search-submit-label">Search</span>
+          <ArrowRight aria-hidden="true" className="check-in-search-submit-icon" />
         </button>
       </form>
 

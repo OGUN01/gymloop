@@ -1,6 +1,7 @@
 'use client';
 
-import { useRef, useState, type ChangeEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { humanize } from '@gymloop/shared';
 import { Alert } from '../alert';
 import { Field, inputClass } from '../field';
 import type { BranchChoice, MemberImportRunRow } from '../../../lib/member-imports';
@@ -260,17 +261,19 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
     setFile(chosen);
   }
 
+  function stepContent(): ReactNode {
   if (step === 'upload') {
     return <form method="post" onSubmit={submitUpload} className="cl-form cl-section">
       <StepHead number={1} title="Upload the file" />
       <Field label="Member file (.csv or .xlsx)">
-        <input type="file" accept=".csv,.xlsx" onChange={onFileChosen} />
+        <input type="file" accept=".csv,.xlsx" onChange={onFileChosen} className="imports-file" />
+        <small>{file === null ? 'Up to 5 MiB and 5,000 members. The first row must be the column names.' : `Selected: ${file.name}`}</small>
       </Field>
       <div className="cl-form-row">
         <BranchAndPhoneFields branches={branches} branchId={branchId} setBranchId={setBranchId} phoneDefaultCountry={phoneDefaultCountry} setPhoneDefaultCountry={setPhoneDefaultCountry} />
       </div>
       {problem !== '' ? <Alert>{problem}</Alert> : null}
-      <button type="submit" disabled={pending} className="cl-btn cl-btn--primary self-start justify-self-start">
+      <button type="submit" disabled={pending} className="cl-btn cl-btn--primary">
         {pending ? 'Inspecting…' : 'Inspect file'}
       </button>
     </form>;
@@ -283,7 +286,7 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
         {inspection.fileName} · {inspection.rowCount} data row{inspection.rowCount === 1 ? '' : 's'} · {inspection.format.toUpperCase()}
       </p>
       <div className="cl-form-row">
-        {MAPPABLE_FIELDS.map((field) => <Field key={field} label={field.replaceAll('_', ' ')}>
+        {MAPPABLE_FIELDS.map((field) => <Field key={field} label={humanize(field)}>
           <select name={field} value={mapping[field] ?? ''} onChange={(event) => setMapping((current) => ({ ...current, [field]: event.target.value }))} className={inputClass}>
             <option value="">Not mapped</option>
             {inspection.headers.map((header) => <option key={header.index} value={String(header.index)}>{header.label}</option>)}
@@ -307,7 +310,7 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
         </div>
       </details>
       {problem !== '' ? <Alert>{problem}</Alert> : null}
-      <button type="submit" disabled={pending} className="cl-btn cl-btn--primary self-start justify-self-start">
+      <button type="submit" disabled={pending} className="cl-btn cl-btn--primary">
         {pending ? 'Previewing…' : 'Preview import'}
       </button>
     </form>;
@@ -347,7 +350,7 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
       </div>
       {preview.hasMoreRows ? <p className="cl-muted">Showing the first 100 rows</p> : null}
       {problem !== '' ? <Alert>{problem}</Alert> : null}
-      <button type="submit" disabled={pending} className="cl-btn cl-btn--primary self-start justify-self-start">
+      <button type="submit" disabled={pending} className="cl-btn cl-btn--primary">
         {pending ? 'Importing…' : `Import ${preview.counts.wouldImport} members`}
       </button>
     </form>;
@@ -371,6 +374,37 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
   }
 
   return null;
+  }
+
+  return <div className="imports-layout">
+    <StepList current={step} />
+    <div className="imports-main">{stepContent()}</div>
+  </div>;
+}
+
+/** The four steps of the journey, in order, with the words the step list shows. */
+const STEPS: ReadonlyArray<{ step: Step; label: string }> = [
+  { step: 'upload', label: 'Upload' },
+  { step: 'mapping', label: 'Match columns' },
+  { step: 'preview', label: 'Preview' },
+  { step: 'report', label: 'Import' },
+];
+
+/** The ruled step list beside the form: done steps in green, the current one in clay, the rest waiting. */
+function StepList({ current }: { current: Step }) {
+  const currentIndex = STEPS.findIndex((entry) => entry.step === current);
+  return <ol className="imports-steps" aria-label="Import steps">
+    {STEPS.map((entry, index) => {
+      const state = index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'next';
+      return <li key={entry.step} data-state={state} aria-current={state === 'current' ? 'step' : undefined}>
+        <span className="imports-step-number tabular-nums">{index + 1}</span>
+        <span className="imports-step-text">
+          <span className="imports-step-label">{entry.label}</span>
+          <span className="cl-status" data-tone={state === 'done' ? 'ok' : state === 'current' ? 'accent' : 'neutral'}>{state === 'done' ? 'Done' : state === 'current' ? 'Now' : 'Waiting'}</span>
+        </span>
+      </li>;
+    })}
+  </ol>;
 }
 
 function BranchAndPhoneFields({ branches, branchId, setBranchId, phoneDefaultCountry, setPhoneDefaultCountry }: {
@@ -385,9 +419,10 @@ function BranchAndPhoneFields({ branches, branchId, setBranchId, phoneDefaultCou
     </Field>
     <Field label="Phone numbers">
       <select name="phoneDefaultCountry" value={phoneDefaultCountry} onChange={(event) => setPhoneDefaultCountry(event.target.value === 'E164' ? 'E164' : 'IN')} className={inputClass}>
-        <option value="IN">Indian numbers (+91 added to bare 10-digit mobiles)</option>
-        <option value="E164">All numbers already international (+country code)</option>
+        <option value="IN">Indian (+91 added to 10-digit numbers)</option>
+        <option value="E164">International (already has +code)</option>
       </select>
+      <small>How to read numbers that have no country code.</small>
     </Field>
   </>;
 }

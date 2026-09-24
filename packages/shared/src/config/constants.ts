@@ -277,6 +277,13 @@ export const PAYMENT_PAGE_SIZE_MAX = 100;
 /** Cases shown in the compact owner-overview preview before the full queue. */
 export const OWNER_OVERVIEW_CASE_PREVIEW_LIMIT = 6;
 
+/** Member-detail preview sizes: recent visits before "Show all", and latest payments beside the membership. */
+export const MEMBER_DETAIL_VISITS_PREVIEW = 8;
+export const MEMBER_DETAIL_PAYMENTS_PREVIEW = 3;
+
+/** Recent message-log rows shown before "Show all" on the owner Messages page. */
+export const MESSAGE_LOG_PREVIEW_ROWS = 10;
+
 /** Rows shown in each compact owner-overview supporting summary. */
 export const OWNER_OVERVIEW_SUPPORTING_PREVIEW_LIMIT = 3;
 

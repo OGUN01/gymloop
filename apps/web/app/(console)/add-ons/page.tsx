@@ -1,15 +1,15 @@
-import { MEMBER_PAGE_SIZE_DEFAULT, PAYMENT_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
+import { formatMoney, MEMBER_PAGE_SIZE_DEFAULT, PAYMENT_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
 import Link from 'next/link';
 import { requireAudience } from '../../../lib/identity-session';
 import { UUID_PATTERN } from '../../../lib/keyset';
 import { loadMemberSearch } from '../../../lib/members';
 import { StatusWord } from '../../status-word';
-import { ADDON_OFFER_COLUMNS, ADDON_ORDER_COLUMNS, ADDON_SESSION_COLUMNS, AddonLoadError, AddonOfferDetails,
+import { ADDON_OFFER_COLUMNS, ADDON_ORDER_COLUMNS, ADDON_SESSION_COLUMNS, AddonLoadError, AddonOfferDetails, offerUnavailable,
   type AddonOffer, type AddonOrder, type AddonSession, addonTimeLabels } from './display';
 import { AddonCatalogueForm, AddonSaleForm } from './forms';
 
 export default async function AddOnsPage({ searchParams }: {
-  searchParams: Promise<{ offerAfter?: string; orderAfter?: string; sessionAfter?: string; edit?: string; saved?: string }>;
+  searchParams: Promise<{ offerAfter?: string; orderAfter?: string; sessionAfter?: string; edit?: string; saved?: string; sell?: string }>;
 }) {
   const params = await searchParams;
   const { identity, supabase } = await requireAudience('console');
@@ -38,57 +38,61 @@ export default async function AddOnsPage({ searchParams }: {
   const pageSessions = sessions.slice(0, PAYMENT_PAGE_SIZE_DEFAULT);
   const next = (name: string, id: string, anchor: string) => `?${new URLSearchParams({ ...params, [name]: id })}#${anchor}`;
 
-  return <main className="cl-page">
+  const sellId = params.sell && UUID_PATTERN.test(params.sell) ? params.sell : undefined;
+  const saleHref = (id: string) => `?${new URLSearchParams({ ...params, sell: id })}#sale`;
+  const orderLabel = (order: AddonOrder) => order.sale_snapshot?.name ?? order.addon_products?.name ??
+    (order.total_paise == null ? 'Add-on order' : `Add-on order · ${formatMoney(order.total_paise, order.currency)}`);
+
+  return <main className="cl-page addon-page" aria-label="Add-on workspace">
     <div className="cl-page-header">
-      <div><p className="cl-eyebrow">Sell and deliver</p><h1 className="cl-title">Add-ons</h1><p className="cl-lede">Sell an optional offer, deliver it and follow the same order through to returned money.</p></div>
-      {frontOffice ? <div className="cl-actions"><a href="#sale" className="cl-btn cl-btn--primary">New sale</a></div> : null}
+      <div><p className="cl-eyebrow">Sell and deliver</p><h1 className="cl-title">Add-ons</h1><p className="cl-lede addon-lede">PT packages, diet plans and products — sold at the desk, delivered and followed through to any refund.</p></div>
     </div>
-    <nav aria-label="Add-on workspace" className="mt-2 flex flex-wrap gap-x-4">
-      <a href="#catalogue" className="cl-btn cl-btn--small cl-btn--quiet">Catalogue</a>
-      <a href="#orders" className="cl-btn cl-btn--small cl-btn--quiet">Orders</a>
-      <a href="#sessions" className="cl-btn cl-btn--small cl-btn--quiet">PT sessions</a>
-    </nav>
     {params.saved === '1' ? <p role="status" className="cl-alert" data-tone="ok">Offer saved. Review the current catalogue below.</p> : null}
     {gym.error ? <AddonLoadError label="gym timezone" href="/add-ons" /> : null}
-    <section id="catalogue" aria-labelledby="catalogue-heading" className="cl-section">
+    {frontOffice ? roster?.errorMessage ? <AddonLoadError label="members for the sale" href="/add-ons#sale" /> :
+      <AddonSaleForm key={sellId ?? 'new'} offers={pageOffers} timezone={timezone} members={roster?.members ?? []} nextCursor={roster?.nextCursor ?? null} initialProductId={sellId} /> : null}
+    <section id="orders" aria-labelledby="orders-heading" className="cl-section addon-block">
+      <div className="cl-section-head"><h2 id="orders-heading" className="cl-section-title">Orders</h2></div>
+      {orderResult.error ? <AddonLoadError label="orders" href="/add-ons#orders" /> : !pageOrders.length ? <p className="cl-muted">No add-on orders recorded yet.</p> :
+        <div className="cl-ledger-wrap"><table className="cl-ledger cl-ledger-stack addon-orders">
+          <thead><tr><th scope="col">Add-on</th><th scope="col">Member</th><th scope="col">Fulfilment</th>{frontOffice ? <th scope="col">Payment</th> : null}<th scope="col">Accepted</th><th scope="col" className="cl-num">Amount</th></tr></thead>
+          <tbody>{pageOrders.map((order) => <tr key={order.id}>
+            <td className="addon-orders-name"><Link href={`/add-ons/orders/${order.id}`} className="cl-row-title">{orderLabel(order)}</Link></td>
+            <td>{order.members?.full_name ?? 'Member not recorded'}</td>
+            <td><StatusWord status={order.status} /></td>
+            {frontOffice ? <td>{order.payments?.status ? <StatusWord status={order.payments.status} /> : order.total_paise === '0' ? <span className="cl-muted">Complimentary</span> : <span className="cl-muted">Not recorded</span>}</td> : null}
+            <td className="cl-muted">{order.sold_at ? when(order.sold_at) : 'Acceptance date not recorded'}</td>
+            <td className="cl-num">{order.total_paise == null ? '—' : formatMoney(order.total_paise, order.currency)}</td>
+          </tr>)}</tbody>
+        </table></div>}
+      {orders.length > PAYMENT_PAGE_SIZE_DEFAULT ? <Link href={next('orderAfter', pageOrders.at(-1)?.id ?? '', 'orders')} className="cl-btn cl-btn--quiet">More orders</Link> : null}
+    </section>
+    <section id="catalogue" aria-labelledby="catalogue-heading" className="cl-section addon-block">
       <div className="cl-section-head"><h2 id="catalogue-heading" className="cl-section-title">Catalogue</h2></div>
       {offerResult.error ? <AddonLoadError label="offers" href="/add-ons#catalogue" /> : !pageOffers.length ? <p className="cl-muted">No offers yet. {admin ? 'Create a PT package, diet plan or product below.' : 'An owner or manager adds offers to the catalogue.'}</p> :
-        <ul className="cl-rows">{pageOffers.map((offer) => <li key={offer.id}><article className="min-w-0 w-full"><AddonOfferDetails offer={offer} /></article></li>)}</ul>}
-      {offers.length > MEMBER_PAGE_SIZE_DEFAULT ? <Link className="cl-btn cl-btn--quiet mt-2" href={next('offerAfter', pageOffers.at(-1)?.id ?? '', 'catalogue')}>More offers</Link> : null}
+        <ul className="addon-catalogue">{pageOffers.map((offer) => <li key={offer.id}>
+          <AddonOfferDetails offer={offer} />
+          {frontOffice && offerUnavailable(offer) === null ? <Link href={saleHref(offer.id)} className="cl-btn cl-btn--small cl-btn--quiet addon-sell" aria-label={`Sell ${offer.name}`}>Sell</Link> : <span className="addon-sell" aria-hidden="true" />}
+        </li>)}</ul>}
+      {offers.length > MEMBER_PAGE_SIZE_DEFAULT ? <Link className="cl-btn cl-btn--quiet" href={next('offerAfter', pageOffers.at(-1)?.id ?? '', 'catalogue')}>More offers</Link> : null}
       {admin && !offerResult.error ? trainers.error ? <AddonLoadError label="trainers for catalogue editing" href="/add-ons#catalogue" /> :
         <AddonCatalogueForm offers={pageOffers} trainers={trainers.data ?? []} initialProductId={params.edit} /> : null}
     </section>
-    {frontOffice ? roster?.errorMessage ? <AddonLoadError label="members for the sale" href="/add-ons#sale" /> :
-      <AddonSaleForm offers={pageOffers} timezone={timezone} members={roster?.members ?? []} nextCursor={roster?.nextCursor ?? null} /> : null}
-    <section id="orders" aria-labelledby="orders-heading" className="cl-section">
-      <div className="cl-section-head"><h2 id="orders-heading" className="cl-section-title">Orders</h2></div>
-      {orderResult.error ? <AddonLoadError label="orders" href="/add-ons#orders" /> : !pageOrders.length ? <p className="cl-muted">No add-on orders recorded yet.</p> :
-        <div className="cl-ledger-wrap"><table className="cl-ledger cl-ledger-stack">
-          <thead><tr><th scope="col">Add-on</th><th scope="col">Member</th><th scope="col">Fulfilment</th><th scope="col">Accepted</th></tr></thead>
-          <tbody>{pageOrders.map((order) => <tr key={order.id}>
-            <td><Link href={`/add-ons/orders/${order.id}`} className="cl-row-title inline-flex min-h-11 items-center underline">{order.sale_snapshot?.name ?? 'Historical add-on order'}</Link></td>
-            <td>{order.members?.full_name ?? 'Member not recorded'}</td>
-            <td><StatusWord status={order.status} /></td>
-            <td className="cl-muted tabular-nums">{order.sold_at ? when(order.sold_at) : 'Acceptance date not recorded'}</td>
-          </tr>)}</tbody>
-        </table></div>}
-      {orders.length > PAYMENT_PAGE_SIZE_DEFAULT ? <Link href={next('orderAfter', pageOrders.at(-1)?.id ?? '', 'orders')} className="cl-btn cl-btn--quiet mt-2">More orders</Link> : null}
-    </section>
-    <section id="sessions" aria-labelledby="sessions-heading" className="cl-section">
+    <section id="sessions" aria-labelledby="sessions-heading" className="cl-section addon-block">
       <div className="cl-section-head"><h2 id="sessions-heading" className="cl-section-title">PT sessions</h2></div>
-      <p className="cl-muted mb-3">Open an order to book or finish a session. Only its assigned trainer can manage later sessions.</p>
+      <p className="cl-muted addon-section-note">Open an order to book or finish a session. Only its assigned trainer can manage later sessions.</p>
       {sessionResult.error ? <AddonLoadError label="PT sessions" href="/add-ons#sessions" /> : !pageSessions.length ? <p className="cl-muted">No PT sessions recorded yet.</p> :
         <ul className="cl-rows">{pageSessions.map((session) => <li key={session.id}>
           <span>
             <span className="cl-row-title tabular-nums">{slot(session.starts_at, session.ends_at)}</span>
-            <span className="cl-row-meta">{session.members?.full_name ?? 'Member not recorded'} · Trainer: {session.staff?.full_name ?? 'Not recorded'}</span>
+            <span className="cl-row-meta">{session.members?.full_name ?? 'Member not recorded'} · with {session.staff?.full_name ?? 'trainer not recorded'}</span>
           </span>
-          <span className="flex flex-wrap items-center gap-4">
+          <span className="addon-row-end">
             <StatusWord status={session.status} />
             <Link href={`/add-ons/orders/${session.addon_order_id}`} className="cl-btn cl-btn--small">Open order</Link>
           </span>
         </li>)}</ul>}
-      {sessions.length > PAYMENT_PAGE_SIZE_DEFAULT ? <Link href={next('sessionAfter', pageSessions.at(-1)?.id ?? '', 'sessions')} className="cl-btn cl-btn--quiet mt-2">More sessions</Link> : null}
+      {sessions.length > PAYMENT_PAGE_SIZE_DEFAULT ? <Link href={next('sessionAfter', pageSessions.at(-1)?.id ?? '', 'sessions')} className="cl-btn cl-btn--quiet">More sessions</Link> : null}
     </section>
   </main>;
 }

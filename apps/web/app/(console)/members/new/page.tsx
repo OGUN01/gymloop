@@ -8,6 +8,7 @@ export default async function NewMemberPage() {
       title="Add a member"
       action="/api/members"
       cancelHref="/console"
+      backLabel="All members"
       member={null}
       submitted={await takeMemberEcho()}
     />

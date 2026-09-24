@@ -3,11 +3,14 @@ import { Constants } from '@gymloop/db';
 import { RED_LIST_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
 import Link from 'next/link';
 import { Alert } from '../alert';
-import { AVATAR_INITIALS_MAX, formatDay, formatPhone } from '@gymloop/shared';
+import { AVATAR_INITIALS_MAX, formatDay, formatPhone, humanize } from '@gymloop/shared';
+import { Users } from 'lucide-react';
 import { loadRedList } from '../../../lib/red-list';
 
-/** A vocabulary value as people say it: "no_response" → "No response", "whatsapp" → "WhatsApp". */
-const say = (value: string) => value === 'whatsapp' ? 'WhatsApp' : value === 'sms' ? 'SMS' : `${value.charAt(0).toUpperCase()}${value.slice(1).replaceAll('_', ' ')}`;
+/** How each outcome reads for bringing the member back: coming, deferred, or not. */
+const OUTCOME_TONE: Record<string, string> = {
+  will_return: 'ok', injured: 'warn', travelling: 'warn', timing_issue: 'warn', unhappy: 'risk', no_response: 'risk', cancelled: 'risk',
+};
 const dayMonth = (isoDate: string) => formatDay(isoDate).replace(/ \d{4}$/, '');
 
 /** The red list is the daily operational queue, rendered without client JavaScript. */
@@ -35,11 +38,14 @@ export default async function RedListPage({
     <main className="follow-up-workspace">
       <div className="follow-up-header">
         <div>
-          <p className="cl-eyebrow">Bring them back</p>
           <h1 className="follow-up-title">People to follow up</h1>
-          <p className="follow-up-intro">Members who have stopped coming. Longest away first.</p>
+          <p className="follow-up-intro">
+            {errorMessage !== null || cases.length === 0
+              ? 'Members who have stopped coming, longest away first.'
+              : `${cases.length === 1 ? '1 member' : `${cases.length} members`}${nextCursor === null ? '' : ' on this page'}, longest away first.`}
+          </p>
         </div>
-        <Link href="/console" className="follow-up-route-link">Members</Link>
+        <Link href="/console" className="cl-btn follow-up-route-link"><Users aria-hidden="true" className="follow-up-route-icon" />All members</Link>
       </div>
 
       {problem === null ? null : <Alert>{problem}</Alert>}
@@ -53,7 +59,7 @@ export default async function RedListPage({
       ) : (
         <section className="follow-up-queue" aria-label="Members needing follow-up">
           <div className="follow-up-column-headings" aria-hidden="true">
-            <span>Member</span><span>Attendance</span><span>Latest contact</span><span>Log follow-up</span>
+            <span>Member</span><span>Attendance</span><span>Last contact</span><span>Follow up</span>
           </div>
           <ul className="follow-up-rows">
             {cases.map((row) => (
@@ -70,22 +76,30 @@ export default async function RedListPage({
                   <strong><span className="follow-up-days">{row.days_absent}</span> days away</strong>
                   <span>{row.last_attended_on === null ? 'Never visited' : <>Last visit <time dateTime={row.last_attended_on}>{dayMonth(row.last_attended_on)}</time></>}</span>
                 </div>
-                <p className="follow-up-history">
-                  {row.last_follow_up_at === null ? 'Nobody has contacted them yet.' : <>{row.last_follow_up_by ?? 'Someone'} tried {say(row.last_follow_up_channel ?? '')} <span className="cl-status" data-tone="warn" data-status={row.last_follow_up_outcome ?? ''}>{say(row.last_follow_up_outcome ?? '')}</span></>}
-                </p>
-                <MutationForm method="post" action="/api/follow-ups" className="follow-up-form">
-                  {/* View columns are nullable in generated types, so the id is coalesced rather than asserted. */}
-                  <input type="hidden" name="caseId" value={row.id ?? ''} />
-                  <label className="follow-up-field"><span>Channel</span><select name="channel" required className="follow-up-control">
-                    {Constants.public.Enums.contact_channel.map((channel) => <option key={channel} value={channel}>{say(channel)}</option>)}
-                  </select></label>
-                  <label className="follow-up-field"><span>Outcome</span><select name="outcome" required defaultValue="" className="follow-up-control">
-                    <option value="" disabled>Select outcome</option>
-                    {Constants.public.Enums.follow_up_outcome.map((outcome) => <option key={outcome} value={outcome}>{say(outcome)}</option>)}
-                  </select></label>
-                  <label className="follow-up-field follow-up-note-field"><span>Note</span><input type="text" name="notes" placeholder="What they said" className="follow-up-control" /></label>
-                  <button type="submit" className="follow-up-submit">Log follow-up</button>
-                </MutationForm>
+                <div className="follow-up-history">
+                  {row.last_follow_up_at === null ? 'Nobody has contacted them yet.' : (
+                    <>
+                      <span>{humanize(row.last_follow_up_channel ?? '')} · {row.last_follow_up_by ?? 'Someone'}</span>
+                      <span className="cl-status" data-tone={OUTCOME_TONE[row.last_follow_up_outcome ?? ''] ?? 'neutral'} data-status={row.last_follow_up_outcome ?? ''}>{humanize(row.last_follow_up_outcome ?? '')}</span>
+                    </>
+                  )}
+                </div>
+                <details className="follow-up-log">
+                  <summary className="cl-btn follow-up-log-toggle">Log follow-up</summary>
+                  <MutationForm method="post" action="/api/follow-ups" className="follow-up-form">
+                    {/* View columns are nullable in generated types, so the id is coalesced rather than asserted. */}
+                    <input type="hidden" name="caseId" value={row.id ?? ''} />
+                    <label className="follow-up-field follow-up-channel-field"><span>Channel</span><select name="channel" required className="follow-up-control">
+                      {Constants.public.Enums.contact_channel.map((channel) => <option key={channel} value={channel}>{humanize(channel)}</option>)}
+                    </select></label>
+                    <label className="follow-up-field follow-up-outcome-field"><span>Outcome</span><select name="outcome" required defaultValue="" className="follow-up-control">
+                      <option value="" disabled>Select outcome</option>
+                      {Constants.public.Enums.follow_up_outcome.map((outcome) => <option key={outcome} value={outcome}>{humanize(outcome)}</option>)}
+                    </select></label>
+                    <label className="follow-up-field follow-up-note-field"><span>Note</span><input type="text" name="notes" placeholder="What they said" className="follow-up-control" /></label>
+                    <button type="submit" className="follow-up-submit">Log follow-up</button>
+                  </MutationForm>
+                </details>
               </li>
             ))}
           </ul>

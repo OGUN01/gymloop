@@ -296,11 +296,11 @@ export function LeadConvertDialog({ leadId, revision, fullName }: { leadId: stri
     }
   }
 
-  return <form method="post" onSubmit={submit} className="cl-form mt-2 mb-2">
+  return <form method="post" onSubmit={submit} className="cl-form leads-convert">
     {notice !== '' ? <p role="status" className="cl-alert" data-tone="warn">{notice}</p> : null}
     {member !== null ? <p className="text-sm font-medium">Existing member: {member.fullName} · <span className="tabular-nums">{member.phone}</span> · <StatusWord status={member.status} /></p> : null}
     {problem !== '' ? <Alert>{problem}</Alert> : null}
-    <div className="cl-actions justify-start">
+    <div className="cl-actions">
       <button type="submit" disabled={pending} className="cl-btn cl-btn--accent">
         {pending ? 'Converting…' : member !== null
           ? `Connect ${member.fullName} to this lead explicitly`
@@ -326,13 +326,13 @@ export function LeadEnquiryForm({ branches, staff }: { branches: BranchChoice[];
     }, () => { window.location.reload(); });
   }
 
-  return <section aria-labelledby="enquiry-heading" className="cl-section">
-    <div className="cl-section-head">
+  return <section id="record-enquiry" aria-labelledby="enquiry-heading" className="cl-section leads-enquiry">
+    <div>
       <h2 id="enquiry-heading" className="cl-section-title">Record an enquiry</h2>
+      <p className="cl-lede">A new lead starts at the New stage. Move it along from its row in the pipeline.</p>
     </div>
-    <p className="cl-muted text-sm">A new lead starts at the New stage with you as the acting staff member.</p>
-    {command.problem !== '' ? <div className="mt-4"><Alert>{command.problem}</Alert></div> : null}
-    <form method="post" onSubmit={submit} className="cl-form mt-4">
+    <form method="post" onSubmit={submit} className="cl-form">
+      {command.problem !== '' ? <Alert>{command.problem}</Alert> : null}
       <LeadFactFields branches={branches} staff={staff} />
       <div>
         <button type="submit" disabled={command.pending} className="cl-btn cl-btn--primary">
@@ -409,7 +409,7 @@ export function LeadStageForm({ leadId, revision, stage, timezone, trialAt }: {
     {needsTrial && trialAt !== null
       ? <p className="cl-hint">Currently scheduled: {deskTime(trialAt, timezone)}. Change the time only if the plan changed.</p>
       : null}
-    <p className="cl-hint">Times are the gym's local time.</p>
+    {needsTrial ? <p className="cl-hint">Times are the gym's local time.</p> : null}
     {command.problem !== '' ? <Alert>{command.problem}</Alert> : null}
     <div>
       <button type="submit" disabled={command.pending} className="cl-btn">

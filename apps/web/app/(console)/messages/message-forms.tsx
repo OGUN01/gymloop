@@ -189,25 +189,29 @@ export function MessageTemplateForm({ template }: { template?: { id: string; key
     'The connection was interrupted. The outcome is uncertain. Retry saving this template.',
   );
 
-  return <MutationForm onSubmit={submit} className="cl-form mt-4">
-    <div className="cl-form-row">
-    <Field label="Key"><input value={keyInput} onChange={(event) => setKeyInput(event.target.value)} disabled={template !== undefined} className={inputClass} /></Field>
-    <Field label="Channel">
-      <select value={channel} onChange={(event) => setChannel(event.target.value as typeof channel)} disabled={template !== undefined} className={inputClass}>
-        {Constants.public.Enums.notification_channel.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}
-      </select>
-    </Field>
-    <Field label="Locale">
-      <select value={locale} onChange={(event) => setLocale(event.target.value as MessageTemplateLocale)} disabled={template !== undefined} className={inputClass}>
-        {MESSAGE_TEMPLATE_LOCALES.map((value) => <option key={value} value={value}>{LANGUAGES.of(value) ?? value}</option>)}
-      </select>
-    </Field>
-    <Field label="Category">
-      <select value={category} onChange={(event) => setCategory(event.target.value as typeof category)} className={inputClass}>
-        {Constants.public.Enums.message_category.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}
-      </select>
-    </Field>
-    </div>
+  const categoryField = <Field label="Category">
+    <select value={category} onChange={(event) => setCategory(event.target.value as typeof category)} className={inputClass}>
+      {Constants.public.Enums.message_category.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}
+    </select>
+  </Field>;
+
+  // An existing template's key, channel and language are fixed (contract §8):
+  // its row already names them, so only the editable facts are controls here.
+  return <MutationForm onSubmit={submit} className="cl-form comms-editor">
+    {template !== undefined ? <div className="comms-editor-grid">{categoryField}</div> : <div className="comms-editor-grid">
+      <Field label="Key"><input value={keyInput} onChange={(event) => setKeyInput(event.target.value)} className={inputClass} /></Field>
+      <Field label="Channel">
+        <select value={channel} onChange={(event) => setChannel(event.target.value as typeof channel)} className={inputClass}>
+          {Constants.public.Enums.notification_channel.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}
+        </select>
+      </Field>
+      <Field label="Locale">
+        <select value={locale} onChange={(event) => setLocale(event.target.value as MessageTemplateLocale)} className={inputClass}>
+          {MESSAGE_TEMPLATE_LOCALES.map((value) => <option key={value} value={value}>{LANGUAGES.of(value) ?? value}</option>)}
+        </select>
+      </Field>
+      {categoryField}
+    </div>}
     <Field label="Body"><textarea value={body} onChange={(event) => setBody(event.target.value)} className={inputClass} /></Field>
     <label className="cl-check">
       <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} /> Active

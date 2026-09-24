@@ -1,7 +1,8 @@
 import { Constants } from '@gymloop/db';
 import Link from 'next/link';
+import { ChevronDown, Plus } from 'lucide-react';
 import { loadLeads, type LeadListRow } from '../../../lib/leads';
-import { formatDateTime, humanize } from '@gymloop/shared';
+import { UI_TOKENS, formatDateTime, humanize } from '@gymloop/shared';
 import { Field, inputClass } from '../field';
 import { Alert } from '../alert';
 import { StatusWord } from '../../status-word';
@@ -96,6 +97,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
   const [params, screen] = await Promise.all([searchParams, loadLeads(searchParams)]);
   const now = Date.now();
 
+  const countsMatch = screen.pageResultCount === screen.totalMatchingCount;
+
   return <main className="cl-page">
     <div className="cl-page-header">
       <div>
@@ -103,38 +106,40 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
         <h1 className="cl-title">Leads</h1>
         <p className="cl-lede">Every enquiry from first contact to a converted member or a recorded loss.</p>
       </div>
+      <div className="cl-actions">
+        <a href="#record-enquiry" className="cl-btn cl-btn--primary"><Plus aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />Record enquiry</a>
+      </div>
     </div>
 
-    <form method="get" action="/leads" className="cl-form cl-section">
-      <div className="cl-form-row">
-        {filterSpecs(screen).map((spec) => <Field key={spec.name} label={spec.label}>
-          <select name={spec.name} defaultValue={params[spec.name] ?? ''} className={inputClass}>
-            <option value="">{spec.allLabel}</option>
-            {spec.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </Field>)}
-        <Field label="Search">
-          <input name="q" defaultValue={params.q ?? ''} type="search" className={inputClass} />
-        </Field>
-        <button type="submit" className="cl-btn">Apply filters</button>
-      </div>
+    <form method="get" action="/leads" className="leads-filters cl-section">
+      {filterSpecs(screen).map((spec) => <Field key={spec.name} label={spec.label}>
+        <select name={spec.name} defaultValue={params[spec.name] ?? ''} className={inputClass}>
+          <option value="">{spec.allLabel}</option>
+          {spec.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </Field>)}
+      <Field label="Search">
+        <input name="q" defaultValue={params.q ?? ''} type="search" placeholder="Name or phone" className={inputClass} />
+      </Field>
+      <button type="submit" className="cl-btn">Apply filters</button>
     </form>
 
     {screen.errorMessage === null ? <section aria-labelledby="counts-heading" className="cl-section">
       <div className="cl-section-head">
         <h2 id="counts-heading" className="cl-eyebrow">Within current filters</h2>
-        {screen.asOf !== null
-          ? <p className="cl-muted text-sm">Updated {formatDateTime(screen.asOf, screen.timezone)}</p>
-          : null}
+        <p className="leads-counts-meta">
+          {countsMatch
+            ? <><span className="tabular-nums">{screen.totalMatchingCount}</span> leads</>
+            : <>Showing on this page: <span className="tabular-nums">{screen.pageResultCount}</span> · Matching leads: <span className="tabular-nums">{screen.totalMatchingCount}</span></>}
+          {screen.asOf !== null ? <> · Updated {formatDateTime(screen.asOf, screen.timezone)}</> : null}
+        </p>
       </div>
-      <ul className="flex flex-wrap gap-x-6 gap-y-2">
-        {Constants.public.Enums.lead_stage.map((stage) => <li key={stage} className="flex items-baseline gap-2">
-          <StatusWord status={stage} /> <strong className="tabular-nums">{screen.stageCounts[stage]}</strong>
+      <ul className="leads-counts">
+        {Constants.public.Enums.lead_stage.map((stage) => <li key={stage}>
+          <strong className="leads-count-value">{screen.stageCounts[stage]}</strong>
+          <StatusWord status={stage} />
         </li>)}
       </ul>
-      <p className="cl-muted mt-2 text-sm">
-        Showing on this page: <span className="tabular-nums">{screen.pageResultCount}</span> · Matching leads: <span className="tabular-nums">{screen.totalMatchingCount}</span>
-      </p>
     </section> : null}
 
     {screen.errorMessage !== null ? <div className="cl-section"><Alert>{screen.errorMessage}</Alert></div> : null}
@@ -146,41 +151,50 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
       {screen.rows.length === 0 && screen.errorMessage === null
         ? <div className="cl-empty"><strong>No leads here</strong><p>No leads match these filters. Record an enquiry below or clear the filters.</p></div>
         : null}
-      {screen.rows.length > 0 ? <ul className="cl-rows">
-        {screen.rows.map((row) => {
-          const action = nextActionText(row, screen.timezone, now);
-          const open = row.stage !== 'converted' && row.stage !== 'lost';
-          return <li key={row.id}>
-            <span>
-              <span className="cl-row-title">{row.fullName} · <span className="tabular-nums">{row.phone}</span></span>
-              <span className="cl-row-meta">
-                {humanize(row.source)} · {row.branchName} · {row.assignedToName ?? 'Unassigned'}
+      {screen.rows.length > 0 ? <div className="leads-ledger">
+        <div className="leads-ledger-head" aria-hidden="true">
+          <span>Lead</span><span>Source · Branch</span><span>Assignee</span><span>Stage</span><span>Next step</span><span className="leads-cell-action">Action</span>
+        </div>
+        <ul>
+          {screen.rows.map((row) => {
+            const action = nextActionText(row, screen.timezone, now);
+            const open = row.stage !== 'converted' && row.stage !== 'lost';
+            return <li key={row.id} className="leads-row" data-stage={row.stage}>
+              <span className="leads-cell-lead">
+                <span className="cl-row-title">{row.fullName}</span>
+                <span className="leads-phone tabular-nums">{row.phone}</span>
               </span>
-              {row.stage === 'lost' && row.lostReason !== null
-                ? <span className="cl-row-meta">Lost: {row.lostReason}</span>
-                : null}
-            </span>
-            <span className="flex flex-wrap items-center gap-4">
-              <StatusWord status={row.stage} />
-              {action !== null ? <span className="cl-muted text-sm">Next: {action}</span> : null}
-              {row.stage === 'converted' && row.convertedMemberId !== null
-                ? <Link className="cl-btn cl-btn--small" href={`/members/${row.convertedMemberId}`}>Open member</Link>
-                : null}
-            </span>
-            {row.stage === 'trial_done'
-              ? <div className="w-full"><LeadConvertDialog leadId={row.id} revision={row.revision} fullName={row.fullName} /></div>
-              : null}
-            {open ? <div className="flex w-full flex-wrap gap-x-6">
-              <details className="group min-w-0 open:basis-full"><summary className="cl-muted cursor-pointer py-1 text-sm underline-offset-2 hover:underline">Change stage</summary>
+              <span className="leads-cell-meta">{humanize(row.source)} · {row.branchName}</span>
+              <span className="leads-cell-meta">{row.assignedToName ?? 'Unassigned'}</span>
+              <span><StatusWord status={row.stage} /></span>
+              <span className="leads-cell-next">
+                {action !== null ? action : null}
+                {row.stage === 'lost' && row.lostReason !== null ? <>Lost: {row.lostReason}</> : null}
+              </span>
+              <span className="leads-cell-action">
+                {row.stage === 'converted' && row.convertedMemberId !== null
+                  ? <Link className="cl-btn cl-btn--small" href={`/members/${row.convertedMemberId}`}>Open member</Link>
+                  : null}
+                {open ? <details className="leads-toggle leads-toggle--act">
+                  <summary className="cl-btn cl-btn--small">{row.stage === 'trial_done' ? 'Convert' : 'Change stage'}</summary>
+                </details> : null}
+                {open ? <details className="leads-toggle leads-toggle--edit">
+                  <summary className="leads-edit-summary">Edit<ChevronDown aria-hidden="true" className="leads-chevron" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></summary>
+                </details> : null}
+              </span>
+              {open ? <div className="leads-panel leads-panel--act">
+                {row.stage === 'trial_done'
+                  ? <LeadConvertDialog leadId={row.id} revision={row.revision} fullName={row.fullName} />
+                  : null}
                 <LeadStageForm leadId={row.id} revision={row.revision} stage={row.stage} timezone={screen.timezone} trialAt={row.trialAt} />
-              </details>
-              <details className="group min-w-0 open:basis-full"><summary className="cl-muted cursor-pointer py-1 text-sm underline-offset-2 hover:underline">Edit details</summary>
+              </div> : null}
+              {open ? <div className="leads-panel leads-panel--edit">
                 <LeadEditForm leadId={row.id} revision={row.revision} lead={row} branches={screen.branchChoices} staff={screen.staffChoices} emailNotes={screen.editableText[row.id]} />
-              </details>
-            </div> : null}
-          </li>;
-        })}
-      </ul> : null}
+              </div> : null}
+            </li>;
+          })}
+        </ul>
+      </div> : null}
       {screen.nextCursor !== null
         ? <div className="cl-pager"><Link className="cl-btn" href={nextPageHref(params, screen.nextCursor)}>Next page</Link></div>
         : null}

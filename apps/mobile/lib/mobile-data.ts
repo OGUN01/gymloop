@@ -1,5 +1,5 @@
 import type { Database } from '@gymloop/db';
-import { DAYS_PER_WEEK, DEFAULT_TIMEZONE, MEMBER_PAGE_SIZE_DEFAULT, MS_PER_DAY, toLocalDate, weeklyGoalStreak, visitStreak } from '@gymloop/shared';
+import { DAYS_PER_WEEK, DEFAULT_TIMEZONE, MEMBER_PAGE_SIZE_DEFAULT, MS_PER_DAY, memberStreak, toLocalDate } from '@gymloop/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 type DbClient = SupabaseClient<Database>;
@@ -78,17 +78,10 @@ export async function loadMemberSnapshot(client: DbClient, identity: MemberIdent
     const value = Date.parse(`${day}T00:00:00Z`) / MS_PER_DAY;
     return value >= weekStartNumber && value < weekStartNumber + DAYS_PER_WEEK;
   })).size;
-  const base = {
-    visits: visitInstants,
-    asOf: new Date(),
-    timeZone: timezone,
-    restDays: memberRead.data.rest_days,
-    pauses: (pausesRead.data ?? []).map((pause) => ({ startsOn: pause.starts_on, endsOn: pause.ends_on, approvedAt: pause.approved_at, rejectedAt: pause.rejected_at })),
-    holidays: (holidaysRead.data ?? []).map((holiday) => holiday.holiday_on),
-  };
-  const streak = settings.streak_rule_type === 'weekly_goal'
-    ? weeklyGoalStreak({ ...base, goal, weekStartDay: settings.week_start_day })
-    : visitStreak(base);
+  const streak = memberStreak({
+    rule: settings.streak_rule_type, visits: visitInstants, asOf: new Date(), timeZone: timezone, restDays: memberRead.data.rest_days,
+    pauses: pausesRead.data ?? [], holidays: holidaysRead.data ?? [], goal, weekStartDay: settings.week_start_day,
+  });
 
   const membership = membershipRead.data;
   const planRelation = membership && 'plans' in membership ? membership.plans as { name?: unknown } | null : null;
@@ -116,11 +109,11 @@ export async function loadDeskMembers(client: DbClient, query: string): Promise<
   return (data ?? []).filter((row) => normalized === '' || row.full_name.toLocaleLowerCase().includes(normalized.toLocaleLowerCase()) || row.phone.includes(normalized)).map((row) => ({ id: row.id, fullName: row.full_name, phone: row.phone, status: row.status, memberCode: row.member_code }));
 }
 
-export type DeskFollowUp = { id: string; memberId: string; memberName: string; memberPhone: string; daysAbsent: number; nextFollowUpAt: string | null; status: string };
+export type DeskFollowUp = { id: string; memberId: string; memberName: string; memberPhone: string; daysAbsent: number; nextFollowUpAt: string | null; status: string; lastAttendedOn: string | null; lastFollowUpAt: string | null; lastFollowUpOutcome: string | null };
 export async function loadDeskFollowUps(client: DbClient): Promise<DeskFollowUp[]> {
-  const { data, error } = await client.from('red_list_cases').select('id,member_id,member_name,member_phone,days_absent,next_follow_up_at,status').order('days_absent', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT);
+  const { data, error } = await client.from('red_list_cases').select('id,member_id,member_name,member_phone,days_absent,next_follow_up_at,status,last_attended_on,last_follow_up_at,last_follow_up_outcome').order('days_absent', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT);
   if (error) throw new Error(error.message);
-  return (data ?? []).flatMap((row) => row.id && row.member_id && row.member_name && row.member_phone && row.status ? [{ id: row.id, memberId: row.member_id, memberName: row.member_name, memberPhone: row.member_phone, daysAbsent: row.days_absent ?? 0, nextFollowUpAt: row.next_follow_up_at, status: row.status }] : []);
+  return (data ?? []).flatMap((row) => row.id && row.member_id && row.member_name && row.member_phone && row.status ? [{ id: row.id, memberId: row.member_id, memberName: row.member_name, memberPhone: row.member_phone, daysAbsent: row.days_absent ?? 0, nextFollowUpAt: row.next_follow_up_at, status: row.status, lastAttendedOn: row.last_attended_on, lastFollowUpAt: row.last_follow_up_at, lastFollowUpOutcome: row.last_follow_up_outcome }] : []);
 }
 
 export async function loadDefaultBranch(client: DbClient): Promise<{ id: string; name: string } | null> {
@@ -137,6 +130,6 @@ export function rhythmFor(snapshot: Pick<MemberSnapshot, 'visits' | 'weekStart'>
     const day = new Date(`${snapshot.weekStart}T12:00:00Z`);
     day.setUTCDate(day.getUTCDate() + index);
     const key = day.toISOString().slice(0, 'YYYY-MM-DD'.length);
-    return { key, label: day.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' }).slice(0, 1), name: day.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' }), visited: visited.has(key), future: key > today };
+    return { key, label: day.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' }).slice(0, 1), name: day.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' }), visited: visited.has(key), future: key > today, today: key === today };
   });
 }

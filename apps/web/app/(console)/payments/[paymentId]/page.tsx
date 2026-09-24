@@ -8,6 +8,7 @@ import { notFound } from 'next/navigation';
 import { loadReceipt } from '../../../../lib/payments';
 import { deskTime } from '../../../../lib/time';
 import { requireAudience } from '../../../../lib/identity-session';
+import { PrintReceiptButton } from './print-button';
 
 /**
  * A receipt — the piece of paper a member takes away, and the line an auditor
@@ -89,37 +90,38 @@ export default async function ReceiptPage({
   const takenAt = payment.paid_at ?? payment.created_at;
 
   return (
-    <main className="cl-page">
+    <main className="cl-page money-receipt-page">
       {/* One way back: to the add-on order this payment settled, when there
           is one, otherwise to the payments ledger. */}
       {addonOrderId ? (
-        <Link href={`/add-ons/orders/${addonOrderId}`} className="cl-back print:hidden">
+        <Link href={`/add-ons/orders/${addonOrderId}`} className="cl-back money-back print:hidden">
           ← Back to add-on order
         </Link>
       ) : (
-        <Link href="/payments" className="cl-back print:hidden">
+        <Link href="/payments" className="cl-back money-back print:hidden">
           ← All payments
         </Link>
       )}
 
-      <article className="cl-panel">
-        <header className="flex flex-wrap items-end justify-between gap-6 border-b border-rule pb-6">
+      <article className="cl-panel money-receipt">
+        <header className="money-receipt-head">
           <div>
-            <p className="cl-eyebrow">{gym.gym_code}</p>
-            <h1 className="cl-title">{gym.name}</h1>
+            <p className="cl-eyebrow">Gym code · {gym.gym_code}</p>
+            <h1 className="cl-title money-receipt-title">
+              Receipt{' '}
+              <span className="tabular-nums">
+                {/* No receipt number means this payment is not `paid`. Saying so
+                    is the point: a receipt for money not received would be the
+                    one document in this product that lies. */}
+                {payment.receipt_number ?? 'not issued'}
+              </span>
+            </h1>
+            <p className="cl-lede">{gym.name}</p>
           </div>
-          <div className="sm:text-right">
-            <p className="cl-eyebrow">Receipt</p>
-            <p className="text-lg font-semibold tabular-nums">
-              {/* No receipt number means this payment is not `paid`. Saying so
-                  is the point: a receipt for money not received would be the
-                  one document in this product that lies. */}
-              {payment.receipt_number ?? 'not issued'}
-            </p>
-          </div>
+          <PrintReceiptButton />
         </header>
 
-        <dl className="cl-dl mt-6">
+        <dl className="cl-dl money-dl">
           <Row label="Amount">
             <span className="cl-metric-value">
               {formatMoney(payment.amount_paise, payment.currency)}
@@ -127,7 +129,7 @@ export default async function ReceiptPage({
           </Row>
           <Row label="Member">
             {payment.members.full_name}
-            <span className="cl-muted ml-2 tabular-nums">{formatPhone(payment.members.phone)}</span>
+            <span className="block cl-muted tabular-nums">{formatPhone(payment.members.phone)}</span>
           </Row>
           <Row label="Method">{humanize(payment.method)}</Row>
           <Row label="Date">{formatDateTime(takenAt, gym.timezone)}</Row>
@@ -136,7 +138,7 @@ export default async function ReceiptPage({
         </dl>
 
         {ARRIVED.has(payment.status) ? null : (
-          <p className="cl-alert mt-6" data-tone="warn">
+          <p className="cl-alert money-note" data-tone="warn">
             This payment is <strong>{humanize(payment.status).toLowerCase()}</strong>. It is not a record of money received.
           </p>
         )}
@@ -146,7 +148,7 @@ export default async function ReceiptPage({
             appeared for exactly the case that needs it — a payment recorded
             before the gym's book started numbering. */}
         {payment.status === 'paid' && payment.receipt_number === null ? (
-          <p className="cl-alert mt-6" data-tone="warn">
+          <p className="cl-alert money-note" data-tone="warn">
             This payment was recorded before this gym&rsquo;s receipt book was numbered, so it has no
             receipt number. The payment itself is unaffected.
           </p>
@@ -157,7 +159,7 @@ export default async function ReceiptPage({
         <Alert>{MESSAGES[error] ?? MESSAGES.refund_failed}</Alert>
       )}
 
-      <section className="cl-section print:hidden" aria-labelledby="refunds-heading">
+      <section className="cl-section money-refunds print:hidden" aria-labelledby="refunds-heading">
         <div className="cl-section-head">
           <h2 className="cl-section-title" id="refunds-heading">Refunds</h2>
         </div>
@@ -193,10 +195,10 @@ export default async function ReceiptPage({
             database refuses both (`GL036`); offering the form anyway would be a
             button whose only outcome is an error. */}
         {canRefund && ARRIVED.has(payment.status) && refundablePaise !== '0' ? (
-          <MutationForm method="post" action="/api/refunds" className="cl-form mt-6">
+          <MutationForm method="post" action="/api/refunds" className="cl-form money-refund-form">
             <input type="hidden" name="paymentId" value={payment.id} />
             <input type="hidden" name="idempotencyKey" value={crypto.randomUUID()} />
-            <div className="cl-form-row">
+            <div className="money-refund-row">
               <label className="cl-field">
                 <span>Amount (₹)</span>
                 <input
@@ -208,6 +210,7 @@ export default async function ReceiptPage({
                   defaultValue={rupeesFromPaise(refundablePaise)}
                   className="cl-input tabular-nums"
                 />
+                <small>Up to {formatMoney(refundablePaise, payment.currency)} can go back.</small>
               </label>
               <label className="cl-field">
                 <span>Kind</span>
@@ -220,11 +223,9 @@ export default async function ReceiptPage({
                 </select>
               </label>
               <label className="cl-field">
-                <span>Reason</span>
+                <span>Reason (required)</span>
                 <input type="text" name="reason" required className="cl-input" />
               </label>
-            </div>
-            <div>
               <button type="submit" className="cl-btn cl-btn--danger">
                 Record refund
               </button>
@@ -232,7 +233,7 @@ export default async function ReceiptPage({
           </MutationForm>
         ) : null}
 
-        <p className="cl-muted mt-4 text-sm">
+        <p className="cl-muted money-copy">
           {!ARRIVED.has(payment.status)
             ? 'This payment took nothing, so there is nothing to send back.'
             : completedReturnedPaise === payment.amount_paise
@@ -243,7 +244,7 @@ export default async function ReceiptPage({
         </p>
       </section>
 
-      <p className="cl-muted mt-6 text-sm print:hidden">
+      <p className="cl-muted money-copy money-print-note print:hidden">
         Print this page for the member. Receipt numbers are the gym&rsquo;s own, one series per
         financial year.
       </p>

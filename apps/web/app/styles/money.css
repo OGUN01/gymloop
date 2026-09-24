@@ -1,1 +1,123 @@
 /* Chalkline money family refinements (critic loop). Loaded after globals.css. */
+
+/* ── Shared ──────────────────────────────────────────────────────────── */
+.money-back { min-height: var(--gymloop-target-touch); }
+.money-copy { margin: 0; max-width: 68ch; font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-body-line-height); text-wrap: pretty; }
+.money-note { margin-top: var(--gymloop-space-16); }
+.money-dl > dd { font-weight: var(--gymloop-type-emphasis-weight); }
+.money-disclosure > summary { min-height: var(--gymloop-target-touch); }
+.money-disclosure > summary::-webkit-details-marker { display: none; }
+.money-disclosure > summary::after { content: '+'; color: var(--gymloop-color-secondary-text); font-weight: 400; font-size: var(--gymloop-type-body-size); }
+.money-disclosure[open] > summary::after { content: '−'; }
+.money-disclosure-body { padding-bottom: var(--gymloop-space-24); }
+.money-form { gap: var(--gymloop-space-20, 1.25rem); }
+
+/* Links in money ledgers: receipt numbers are the clay link, a missing
+   receipt is a quiet note, member names are ink. */
+.money-receipt-link { color: var(--gymloop-color-primary-action); font-weight: 500; font-variant-numeric: tabular-nums; text-decoration: none; }
+.money-receipt-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.cl-ledger a.money-receipt-link { color: var(--gymloop-color-primary-action); font-weight: 500; }
+.money-noreceipt, .cl-ledger a.money-noreceipt { color: var(--gymloop-color-secondary-text); font-weight: 400; text-decoration: none; }
+.money-noreceipt:hover { color: var(--gymloop-color-primary-text); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── Payments ledger ─────────────────────────────────────────────────── */
+.money-lede { max-width: 68ch; text-wrap: pretty; }
+.cl-metric.money-summary { padding: 0; border: 0; text-align: right; }
+.money-summary .cl-metric-value { font-size: clamp(2rem, 4vw, 3rem); }
+.money-ledger tbody tr { transition: background-color var(--gymloop-motion-press) ease; }
+.money-ledger tbody tr:hover { background: var(--gymloop-color-elevated-surface); }
+.money-ledger :is(th, td):first-child { padding-left: var(--gymloop-space-12); }
+.money-ledger .money-member { max-width: 16rem; }
+.money-ledger td:not(.money-member) { white-space: nowrap; }
+.money-ledger .money-member a { font-weight: 600; }
+.money-ledger .money-amount, .money-ledger th.cl-num { width: 8.5rem; padding-right: var(--gymloop-space-32); font-weight: 600; white-space: nowrap; }
+
+.money-by { display: none; }
+@media (max-width: 80rem) {
+  .cl-metric.money-summary { text-align: left; }
+  /* Tablet: "Taken by" folds under the recorded time so the member name keeps its room. */
+  .money-ledger .money-takenby { display: none; }
+  .money-by { display: block; }
+}
+
+.money-narrow { display: none; }
+@media (max-width: 40rem) {
+  .money-wide { display: none; }
+  .money-narrow { display: block; }
+  .cl-metric.money-summary { text-align: left; }
+}
+.money-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--gymloop-space-4) var(--gymloop-space-16); align-items: baseline; }
+.money-row-member { color: var(--gymloop-color-primary-text); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.money-row-amount { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.money-row-meta { color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); }
+.money-row-receipt { justify-self: end; font-size: var(--gymloop-type-compact-size); white-space: nowrap; }
+
+/* ── Receipt ─────────────────────────────────────────────────────────── */
+.money-receipt-page > :is(.money-receipt, .money-refunds, .money-print-note) { max-width: 45rem; }
+.money-receipt { padding: var(--gymloop-space-32); }
+.money-receipt-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--gymloop-space-16) var(--gymloop-space-24); padding-bottom: var(--gymloop-space-24); }
+.money-receipt-head > div { min-width: 0; }
+.money-receipt-title { margin-top: var(--gymloop-space-8); text-wrap: balance; }
+.money-receipt .money-dl > dd { text-align: right; }
+.money-receipt .money-dl .cl-metric-value { font-size: clamp(2.25rem, 6vw, 3.5rem); }
+.money-print-note { margin-top: var(--gymloop-space-24); }
+.money-refunds > .money-copy { margin-top: var(--gymloop-space-16); }
+.money-refund-form { margin-top: var(--gymloop-space-24); }
+.money-refund-row { display: grid; gap: var(--gymloop-space-16); grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); align-items: start; }
+.money-refund-row > .cl-btn { justify-self: start; }
+@media (min-width: 64rem) {
+  .money-refund-row { grid-template-columns: 11rem 11rem minmax(0, 1fr) auto; }
+  /* The button sits on the inputs' line, below their labels. */
+  .money-refund-row > .cl-btn { align-self: start; margin-top: calc(var(--gymloop-type-compact-size) * 1.5 + var(--gymloop-space-8)); }
+}
+@media (max-width: 40rem) {
+  .money-receipt { padding: var(--gymloop-space-20, 1.25rem); }
+  .money-receipt .money-dl > dt { padding-top: var(--gymloop-space-16); }
+  .money-receipt .money-dl > dd { padding-top: var(--gymloop-space-4); text-align: left; }
+}
+
+/* Printing a receipt prints the receipt: no rail, header, back link or refund controls. */
+@media print {
+  body:has(.money-receipt-page) :is(.owner-sidebar, .account-header, .preview-banner, .money-back, .money-refunds, .money-print-note, .money-print-button) { display: none !important; }
+  body:has(.money-receipt-page) .owner-account-frame { display: block; }
+  .money-receipt-page { padding: 0; }
+  .money-receipt { border: 0; padding: 0; }
+}
+
+/* ── Membership detail ───────────────────────────────────────────────── */
+.money-member-facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gymloop-space-8) var(--gymloop-space-24); }
+.money-member-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gymloop-space-40, 2.5rem); margin-top: var(--gymloop-space-32); }
+.money-member-grid > section { min-width: 0; }
+.money-member-pay .money-copy + .money-form { margin-top: var(--gymloop-space-16); }
+.money-member-sell > .money-disclosure { border-top: 1px solid var(--gymloop-color-decorative-separator); }
+.money-member-sell > .money-disclosure > summary { font-size: var(--gymloop-type-body-size); }
+.money-member-pauses > * + * { margin-top: var(--gymloop-space-16); }
+.money-member-pauses .money-disclosure { border-top: 1px solid var(--gymloop-color-decorative-separator); }
+.money-history :is(th, td) { white-space: nowrap; }
+.money-history td:last-child { width: 1%; }
+.money-history .cl-num { padding-right: var(--gymloop-space-32); }
+
+/* ₹ adornment inside the amount input; the input still submits bare rupees. */
+.money-rupee { position: relative; display: block; }
+.money-rupee::before { content: '₹'; position: absolute; top: 50%; left: var(--gymloop-space-12); transform: translateY(-50%); color: var(--gymloop-color-secondary-text); font-weight: 400; pointer-events: none; }
+.money-rupee > .cl-input { padding-left: calc(var(--gymloop-space-12) + 1.25ch); }
+
+@media (min-width: 60rem) {
+  .money-member-grid {
+    grid-template-columns: minmax(0, 1.3fr) minmax(17.5rem, 1fr);
+    grid-template-areas: 'current pay' 'sell pay' 'history pay' 'pauses pay';
+    grid-template-rows: auto auto auto 1fr;
+    column-gap: var(--gymloop-space-40);
+  }
+  .money-member-current { grid-area: current; }
+  .money-member-sell { grid-area: sell; }
+  .money-member-history { grid-area: history; }
+  .money-member-pauses { grid-area: pauses; }
+  .money-member-pay { grid-area: pay; align-self: start; padding-left: var(--gymloop-space-40); border-left: 1px solid var(--gymloop-color-decorative-separator); }
+}
+@media (max-width: 40rem) {
+  /* Stacked history row: date + amount, then method + receipt. */
+  .money-history td:nth-child(even) { text-align: right; }
+  .money-history td.cl-num { padding-right: 0; }
+  .money-history td:last-child { width: auto; }
+}
