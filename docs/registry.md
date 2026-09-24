@@ -808,3 +808,9 @@ Visual system: `docs/design/phase9/direction.md`. Tokens stay in `UI_TOKENS` (no
 | `Initials` | `apps/mobile/components/ui.tsx` | Up to `AVATAR_INITIALS_MAX` initials in a quiet circle for roster rows | desk Check-in, Members, Follow-ups |
 | `statusWord` | `apps/mobile/components/ui.tsx` | Vocabulary value as a sentence-case word, never the raw enum | member and desk screens |
 | `statusTone` | `apps/mobile/components/ui.tsx` | Status dot tone for membership, payment, order and member vocabularies | member and desk screens |
+| `formatMoney` | `packages/shared/src/display/display.ts` | Exact paise as "₹8,000" / "₹1,500.50" (Indian grouping, no ".00" on whole rupees); other currencies as "USD 1,200.00". Built on `rupeesFromPaise`, so it keeps the exact-integer contract | web and native money display |
+| `humanize` | `packages/shared/src/display/display.ts` | Vocabulary value as sentence-case words with brand/acronym casing (UPI, SMS, WhatsApp, PT, "Follow-up due") | `StatusWord`, native `statusWord`, every page showing an enum |
+| `formatPhone` | `packages/shared/src/display/display.ts` | Indian mobile numbers as "+91 98765 00001"; other numbers unchanged | rosters, member detail, You |
+| `formatDay` | `packages/shared/src/display/display.ts` | Calendar date as "21 Sep 2026" | web and native dates |
+| `formatDateTime` | `packages/shared/src/display/display.ts` | Instant in the gym timezone as "21 Sep 2026, 4:36 pm" | payments, orders, messages |
+| `formatDayRange` | `packages/shared/src/display/display.ts` | Shortest unambiguous range ("1–24 Sep 2026") | owner overview, platform |

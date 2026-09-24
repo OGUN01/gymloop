@@ -14,3 +14,4 @@ export * from './api/metrics';
 export * from './config/constants';
 export * from './config/env';
 export * from './streaks/streaks';
+export * from './display/display';

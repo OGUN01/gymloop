@@ -1,4 +1,4 @@
-import { AVATAR_INITIALS_MAX, UI_TOKENS } from '@gymloop/shared';
+import { AVATAR_INITIALS_MAX, humanize, UI_TOKENS } from '@gymloop/shared';
 import { ChevronRight } from 'lucide-react-native';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type PressableProps, type TextInputProps } from 'react-native';
 import type { ReactNode } from 'react';
@@ -56,15 +56,15 @@ export function Rule() {
 
 /** A database vocabulary value as a sentence-case word ("no_response" → "No response"). */
 export function statusWord(value: string): string {
-  const words = value.replaceAll('_', ' ').toLocaleLowerCase();
-  return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
+  return humanize(value);
 }
 
 /** Status dot tone for membership, payment, order and member vocabularies. */
-export function statusTone(status: string): 'ok' | 'warn' | 'risk' {
-  if (['active', 'captured', 'completed', 'succeeded', 'paid', 'delivered'].includes(status)) return 'ok';
-  if (['paused', 'pending', 'created', 'scheduled', 'trial'].includes(status)) return 'warn';
-  return 'risk';
+export function statusTone(status: string): 'ok' | 'warn' | 'risk' | 'neutral' {
+  if (['active', 'captured', 'completed', 'succeeded', 'paid', 'delivered', 'granted'].includes(status)) return 'ok';
+  if (['paused', 'pending', 'created', 'scheduled', 'trial', 'requested', 'processing'].includes(status)) return 'warn';
+  if (['expired', 'cancelled', 'blocked', 'failed', 'refunded', 'lost'].includes(status)) return 'risk';
+  return 'neutral';
 }
 
 /** Dot and word status (UX9-003). */

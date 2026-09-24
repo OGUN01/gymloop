@@ -18,7 +18,7 @@ export default async function MemberCheckInPage() {
     <section aria-labelledby="how-heading">
       <h2 id="how-heading" className="cl-eyebrow member-eyebrow">Use the Gymloop mobile app</h2>
       <ol className="member-steps">
-        <li><Smartphone {...icon} /><span><strong>Open Gymloop on your phone</strong><small>Sign in with this same account.</small></span></li>
+        <li><Smartphone {...icon} /><span><strong>Open Gymloop on your phone</strong><small>Use this same Gymloop account.</small></span></li>
         <li><ScanLine {...icon} /><span><strong>Scan the QR code at the desk</strong><small>The code on the gym&rsquo;s screen changes often, so scan the live one.</small></span></li>
         <li><ShieldCheck {...icon} /><span><strong>Wait for &ldquo;You&rsquo;re checked in&rdquo;</strong><small>Attendance is recorded only after the server confirms your check-in.</small></span></li>
       </ol>

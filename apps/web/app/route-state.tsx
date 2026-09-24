@@ -2,10 +2,10 @@ import Link from 'next/link';
 
 /** Chalkline loading skeleton for a route segment; no content is invented while data loads. */
 export function RouteLoading({ label, className = 'cl-page' }: { label: string; className?: string }) {
-  return <main className={className} aria-busy="true">
+  return <div className={className} aria-busy="true">
     <div className="cl-page-header"><div><span className="cl-skeleton route-state-eyebrow" aria-hidden="true" /><h1 className="route-state-hidden">Loading {label}</h1><span className="cl-skeleton route-state-title" aria-hidden="true" /></div></div>
     <div className="route-state-rows" aria-hidden="true">{['a', 'b', 'c', 'd', 'e'].map((key) => <span className="cl-skeleton" key={key} />)}</div>
-  </main>;
+  </div>;
 }
 
 /** Recoverable route failure: says what happened in plain words and offers the framework retry. */
