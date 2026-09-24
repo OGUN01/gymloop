@@ -86,7 +86,7 @@ slice. A future migration must explicitly verify Auth claims/hooks, Vault and
 secrets, Edge Functions, Cloudflare R2, backups, monitoring, capacity and
 rollback before any traffic moves. Visual redesign remains owner-deferred.
 
-**Chalkline redesign, 2026-09-24 (ADR-170, ADR-171):** every web route and Android screen is rebuilt in the owner-chosen Chalkline direction and refined through five rounds of fresh strict critics (every screen ≥ 8.1/10; evidence `docs/evidence/2026-09-24-chalkline-redesign.md`). HARD-010 is **ready for the owner's review**, not accepted: acceptance must come from the owner.
+**Chalkline redesign, 2026-09-24 (ADR-170, ADR-171):** every web route and Android screen is rebuilt in the owner-chosen Chalkline direction and refined through five rounds of fresh strict critics (every screen ≥ 8.1/10; evidence `docs/evidence/2026-09-24-chalkline-redesign.md`). The owner accepted it on 2026-09-24 (ADR-172), closing HARD-010. **Google Play closed test in progress (ADR-172/173):** app record created under Ductx; the landing page is deliberately deferred for the owner to design.
 
 **Owner Phase 8 non-visual continuation, 2026-09-21 (ADR-139):** visual redesign
 is owner-deferred; HARD-010 stays NO-GO until independently accepted. The owner
