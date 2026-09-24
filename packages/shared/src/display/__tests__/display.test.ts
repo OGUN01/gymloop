@@ -68,3 +68,21 @@ describe('groupByMonth', () => {
     expect(groups.map((group) => [group.label, group.items.length])).toEqual([['September', 3], ['January', 1]]);
   });
 });
+
+describe('groupByMonth on engines without ISO en-CA dates (Hermes)', () => {
+  it('keys and labels months from date parts, not from a locale string shape', () => {
+    const original = Date.prototype.toLocaleDateString;
+    // Hermes returns "09/2026" for en-CA { year, month: '2-digit' }; the grouping must not depend on that shape.
+    const hermesLike = function (this: Date, locale?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions) {
+      if (locale === 'en-CA') return original.call(this, 'en-US', options);
+      return original.call(this, locale, options);
+    };
+    Date.prototype.toLocaleDateString = hermesLike as typeof Date.prototype.toLocaleDateString;
+    try {
+      const groups = groupByMonth(['2026-09-21T18:40:00Z', '2025-08-10T06:00:00Z'], (item) => item, 'Asia/Kolkata', new Date('2026-09-24T00:00:00Z'));
+      expect(groups.map((group) => [group.key, group.label])).toEqual([['2026-09', 'September'], ['2025-08', 'August 2025']]);
+    } finally {
+      Date.prototype.toLocaleDateString = original;
+    }
+  });
+});
