@@ -31,31 +31,32 @@ beforeEach(() => {
   state.providerProps = null;
 });
 
-describe('Phase 7 shared visual foundation', () => {
-  it('exports the PRD semantic colours and geometry/motion tokens from the shared barrel', async () => {
+describe('Chalkline shared visual foundation (ADR-170)', () => {
+  it('exports the Chalkline semantic colours and geometry/motion tokens from the shared barrel', async () => {
     const { UI_TOKENS } = await import('@gymloop/shared');
 
     expect(UI_TOKENS.colors).toEqual({
       light: {
-        canvas: '#F7F7F5', surface: '#FFFFFF', elevatedSurface: '#F0F2F1',
-        primaryText: '#15191C', secondaryText: '#5E656B', primaryAction: '#167C65',
-        textOnPrimary: '#FFFFFF', decorativeSeparator: '#DFE3E0',
-        requiredControlOutline: '#747C78', warningText: '#8B5200', errorRiskText: '#B33F3F',
-        scrim: 'rgba(21,25,28,0.24)',
+        canvas: '#F3F0EA', surface: '#FBFAF7', elevatedSurface: '#E9E5DD',
+        primaryText: '#171512', secondaryText: '#5F5A52', primaryAction: '#AD4119',
+        textOnPrimary: '#FFFFFF', decorativeSeparator: '#DDD7CC',
+        requiredControlOutline: '#847D72', successText: '#2E6A3E', warningText: '#865300', errorRiskText: '#B1242F',
+        scrim: 'rgba(23,21,18,0.32)',
       },
       dark: {
-        canvas: '#101214', surface: '#1C1F22', elevatedSurface: '#262A2D',
-        primaryText: '#F3F4F4', secondaryText: '#AEB6BC', primaryAction: '#93DCC0',
-        textOnPrimary: '#101214', decorativeSeparator: '#353B3E',
-        requiredControlOutline: '#7D8984', warningText: '#F3C47B', errorRiskText: '#FFABA6',
-        scrim: 'rgba(0,0,0,0.48)',
+        canvas: '#141311', surface: '#1D1B18', elevatedSurface: '#282521',
+        primaryText: '#F3EFE7', secondaryText: '#B3AB9F', primaryAction: '#FF8A57',
+        textOnPrimary: '#1A0D06', decorativeSeparator: '#34302A',
+        requiredControlOutline: '#7A7368', successText: '#8FCB98', warningText: '#E8B75A', errorRiskText: '#FF9A94',
+        scrim: 'rgba(0,0,0,0.56)',
       },
     });
     expect(UI_TOKENS.geometry).toMatchObject({
       spacing: [4, 8, 12, 16, 24, 32, 48],
-      radii: { control: 12, row: 16, section: 24, sheet: 28, floatingNavigation: 32 },
+      radii: { control: 10, row: 12, section: 16, sheet: 24 },
       targets: { interactive: 44, touch: 48 },
     });
+    expect(UI_TOKENS.typography).toMatchObject({ displayWeight: 800, displayStretch: '62%', eyebrowTracking: '0.14em' });
     expect(UI_TOKENS.motion).toMatchObject({
       press: 120, tabs: 180, dialogEnter: 240, dialogExit: 180,
       checkInAcknowledgementMin: 240, checkInAcknowledgementMax: 320,
@@ -66,9 +67,9 @@ describe('Phase 7 shared visual foundation', () => {
     const { ThemeTokenStyle } = await import('../theme-token-style');
     const css = renderToStaticMarkup(ThemeTokenStyle());
 
-    expect(css).toContain('--gymloop-color-canvas-light:#F7F7F5');
-    expect(css).toContain('--gymloop-color-canvas-dark:#101214');
-    expect(css).toContain('--gymloop-radius-control:12px');
+    expect(css).toContain('--gymloop-color-canvas-light:#F3F0EA');
+    expect(css).toContain('--gymloop-color-canvas-dark:#141311');
+    expect(css).toContain('--gymloop-radius-control:10px');
     expect(css).toContain('--gymloop-motion-press:120ms');
     expect(css).toMatch(/prefers-reduced-motion/);
     expect(css).toMatch(/prefers-reduced-transparency/);
@@ -100,7 +101,7 @@ describe('Phase 7 shared visual foundation', () => {
     expect(foundationCss).toMatch(/var\(--gymloop-type-page-title-line-height\b/);
   });
 
-  it('exposes the shared 600 emphasis weight and applies it to page titles', async () => {
+  it('exposes the 600 emphasis and 800 condensed display weights and applies display to page titles', async () => {
     const { UI_TOKENS } = await import('@gymloop/shared');
     const { ThemeTokenStyle } = await import('../theme-token-style');
     const css = renderToStaticMarkup(ThemeTokenStyle());
@@ -109,7 +110,16 @@ describe('Phase 7 shared visual foundation', () => {
     expect(UI_TOKENS.typography.emphasisWeight).toBe(600);
     expect(css).toContain('--gymloop-type-emphasis-weight:600');
     expect(css).not.toContain('--gymloop-type-emphasis-weight:600px');
-    expect(foundationCss).toMatch(/\.sign-in-heading h1\s*\{[^}]*font-weight\s*:\s*var\(--gymloop-type-emphasis-weight\)/s);
+    expect(css).toContain('--gymloop-type-display-weight:800');
+    expect(css).toContain('--gymloop-type-display-stretch:62%');
+    expect(foundationCss).toMatch(/\.sign-in-heading h1\s*\{[^}]*font-weight\s*:\s*var\(--gymloop-type-display-weight\)/s);
+  });
+
+  it('bundles Archivo locally with its width axis and no runtime font CDN (ADR-127, ADR-170)', () => {
+    const foundationCss = readFileSync(new URL('../globals.css', import.meta.url), 'utf8');
+    expect(foundationCss).toContain('@fontsource-variable/archivo/wdth.css');
+    expect(foundationCss).not.toMatch(/fonts\.googleapis|@fontsource-variable\/inter/);
+    expect(foundationCss).toMatch(/font-stretch\s*:\s*var\(--gymloop-type-display-stretch\)/);
   });
 
   it('gives the authenticated shell brand link an effective 44px minimum target', async () => {
