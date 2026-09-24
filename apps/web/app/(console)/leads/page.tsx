@@ -104,14 +104,16 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
   const countsMatch = screen.pageResultCount === screen.totalMatchingCount;
 
   return <main className="cl-page">
-    <div className="cl-page-header">
+    {/* The header is a grid (leads.css) so the one action sits on the title's
+        row instead of drifting down to the subtitle. */}
+    <div className="cl-page-header leads-header">
       <div>
         <p className="cl-eyebrow">Front office</p>
         <h1 className="cl-title">Leads</h1>
         <p className="cl-lede">Every enquiry from first contact to a converted member or a recorded loss.</p>
       </div>
       <div className="cl-actions">
-        <a href="#record-enquiry" className="cl-btn"><Plus aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />Record enquiry</a>
+        <a href="#record-enquiry" className="cl-btn"><Plus aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />New enquiry</a>
       </div>
     </div>
 
@@ -133,7 +135,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
       <button type="submit" className="cl-btn">Apply filters</button>
     </form>
 
-    {screen.errorMessage === null ? <section aria-labelledby="counts-heading" className="cl-section">
+    {screen.errorMessage === null ? <section aria-labelledby="counts-heading" className="cl-section leads-counts-block">
       <div className="cl-section-head">
         <h2 id="counts-heading" className="cl-eyebrow">Within current filters</h2>
         <p className="leads-counts-meta">
@@ -161,31 +163,41 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
         ? <div className="cl-empty"><strong>No leads here</strong><p>No leads match these filters. Record an enquiry below or clear the filters.</p></div>
         : null}
       {screen.rows.length > 0 ? <div className="leads-ledger">
+        {/* Four labelled tracks wherever the ledger has room (leads.css): who the
+            lead is, where they came from and who owns them, where they stand
+            with the step that follows, and the one thing to do. */}
         <div className="leads-ledger-head" aria-hidden="true">
-          <span>Lead</span><span>Source · Branch</span><span>Assignee</span><span>Stage</span><span>Next step</span><span className="leads-cell-action">Action</span>
+          <span>Lead</span><span>Source · Assignee</span><span>Stage</span><span>Action</span>
         </div>
         <ul>
           {screen.rows.map((row) => {
             const action = nextActionText(row, screen.timezone, now);
             const open = row.stage !== 'converted' && row.stage !== 'lost';
+            const member = row.stage === 'converted' && row.convertedMemberId !== null ? row.convertedMemberId : null;
             return <li key={row.id} className="leads-row" data-stage={row.stage}>
               <span className="leads-cell-lead">
                 <span className="cl-row-title">{row.fullName}</span>
                 <span className="leads-phone tabular-nums">{row.phone}</span>
               </span>
-              <span className="leads-cell-meta">{humanize(row.source)} · {row.branchName}</span>
-              <span className="leads-cell-meta">{row.assignedToName ?? 'Unassigned'}</span>
-              <span><StatusWord status={row.stage} /></span>
-              <span className="leads-cell-next">
-                {action !== null ? action : null}
-                {row.stage === 'lost' && row.lostReason !== null ? <>Lost: {row.lostReason}</> : null}
+              <span className="leads-cell-meta">
+                <span>{humanize(row.source)} · {row.branchName}</span>
+                <span className="leads-assignee">{row.assignedToName ?? 'Unassigned'}</span>
+              </span>
+              <span className="leads-cell-stage">
+                <StatusWord status={row.stage} />
+                {/* One empty-value treatment: a secondary dash wherever a row has nothing to say. */}
+                {row.stage === 'lost' && row.lostReason !== null
+                  ? <span className="leads-cell-next">Reason: {row.lostReason}</span>
+                  : action !== null
+                    ? <span className="leads-cell-next">Next: {action}</span>
+                    : <span className="leads-cell-next leads-empty"><span aria-hidden="true">—</span><span className="sr-only">No next step</span></span>}
               </span>
               <span className="leads-cell-action">
-                {row.stage === 'converted' && row.convertedMemberId !== null
-                  ? <Link className="cl-btn cl-btn--small" href={`/members/${row.convertedMemberId}`}>Open member</Link>
+                {member !== null
+                  ? <Link className="cl-btn cl-btn--small" href={`/members/${member}`}>Open member</Link>
                   : null}
-                {!open && !(row.stage === 'converted' && row.convertedMemberId !== null)
-                  ? <span className="leads-slot-empty" aria-hidden="true">—</span>
+                {!open && member === null
+                  ? <span className="leads-empty"><span aria-hidden="true">—</span><span className="sr-only">No action</span></span>
                   : null}
                 {open ? <details className="leads-toggle leads-toggle--act">
                   <summary className="cl-btn cl-btn--small">{row.stage === 'trial_done' ? 'Convert' : 'Change stage'}</summary>

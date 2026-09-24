@@ -5,20 +5,25 @@
 .member-portal > header > .cl-eyebrow + .member-title { margin-top: var(--gymloop-space-8); }
 .member-portal > header > .cl-back + .cl-eyebrow { margin-top: var(--gymloop-space-8); }
 .member-portal > header > .cl-back { margin-left: calc(var(--gymloop-space-4) * -1); margin-bottom: 0; }
-.member-lede { max-width: 60ch; text-wrap: pretty; }
+/* Sub-page ledes use the whole 36rem column and balance their lines, so none ends on an orphan. */
+.member-lede { max-width: none; text-wrap: balance; }
 .member-portal header .member-lede { margin-top: var(--gymloop-space-12); }
 .member-eyebrow { margin-bottom: var(--gymloop-space-12); }
 .member-section { padding-top: var(--gymloop-space-8); }
 .member-quiet { margin: 0; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); }
 
-/* ---------- Week rhythm: 36px dots, letters below, clay visits, ringed today ---------- */
+/* ---------- Week rhythm: 36px dots, letters below. Two states only: a filled clay visit, one ring for
+   everything else (days still ahead are that ring at half strength). Today is the bold letter with a
+   short clay underline, never a second ring. Android mirrors this. ---------- */
 .member-week-days { gap: var(--gymloop-space-4); margin-top: var(--gymloop-space-24); padding-bottom: 0; border-bottom: 0; }
 .member-week-day { gap: var(--gymloop-space-8); }
 .member-week-day i { width: 36px; height: 36px; aspect-ratio: auto; border: 1.5px solid var(--gymloop-color-required-control-outline); }
 .member-week-day[data-visited='true'] i { border-color: var(--gymloop-color-primary-action); background: var(--gymloop-color-primary-action); }
-.member-week-day[data-future='true'] i { border-style: dashed; opacity: .5; }
-.member-week-day[data-today='true'] i { outline: 2px solid var(--gymloop-color-primary-text); outline-offset: 2px; }
+.member-week-day[data-future='true'] i { border-style: solid; border-color: var(--gymloop-color-required-control-outline); }
+.member-week-day[data-future='true'] > span { color: var(--gymloop-color-secondary-text); }
+.member-week-day > span { position: relative; }
 .member-week-day[data-today='true'] > span { color: var(--gymloop-color-primary-text); font-weight: 700; }
+.member-week-day[data-today='true'] > span::after { content: ''; position: absolute; bottom: -3px; left: 50%; width: var(--gymloop-space-12); height: 2px; border-radius: 1px; background: var(--gymloop-color-primary-action); transform: translateX(-50%); }
 
 /* ---------- Shared row: icon · title over meta · status · chevron (min 64) ---------- */
 .member-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto var(--gymloop-space-24); align-items: center; gap: var(--gymloop-space-16); min-height: 64px; padding: var(--gymloop-space-12) 0; color: var(--gymloop-color-primary-text); text-decoration: none; cursor: pointer; transition: background-color var(--gymloop-motion-press) ease; }
@@ -50,6 +55,8 @@ a.member-row:hover > svg:last-child { transform: translateX(2px); }
 .member-activity .member-week--activity .member-week-days { margin-top: var(--gymloop-space-24); }
 .member-streak { margin-top: var(--gymloop-space-24); padding: var(--gymloop-space-24) 0; border-block: 1px solid var(--gymloop-color-decorative-separator); }
 .member-streak-line { margin: 0; font-size: clamp(2rem, 9vw, 2.75rem); line-height: 1; }
+/* No streak is still a stat: a smaller condensed line over the sentence, never the display numeral. */
+.member-streak-line--empty { font-size: 1.75rem; }
 .member-streak-note { margin: var(--gymloop-space-8) 0 0; color: var(--gymloop-color-secondary-text); text-wrap: pretty; }
 .member-activity-month + .member-activity-month, .member-activity-older > .member-activity-month { margin-top: var(--gymloop-space-24); }
 .member-activity-older { margin-top: var(--gymloop-space-8); }
@@ -117,7 +124,6 @@ span.member-account-row { grid-template-columns: auto minmax(0, 1fr) var(--gymlo
 @media (prefers-reduced-motion: reduce) { .member-row, .member-row > svg:last-child, .member-sheet-toggle svg { transition: none; } a.member-row:hover > svg:last-child { transform: none; } }
 
 /* ---------- Round-1 visual pass ---------- */
-.member-week-day[data-future='true'] i { border-color: var(--gymloop-color-secondary-text); opacity: .45; }
 .member-section .cl-empty { padding: var(--gymloop-space-16) 0 var(--gymloop-space-24); border-top: 1px solid var(--gymloop-color-decorative-separator); }
 .member-activity .member-activity-count { line-height: .88; }
 .member-portal > .member-sheet-backdrop { margin: 0; }
@@ -127,9 +133,11 @@ span.member-account-row { grid-template-columns: auto minmax(0, 1fr) var(--gymlo
 .member-title--long { font-size: clamp(2.5rem, 11vw, 4rem); }
 .member-home .member-initial { border-color: var(--gymloop-color-required-control-outline); color: var(--gymloop-color-primary-text); }
 .member-week-of { font-size: .6em; font-weight: 700; }
+/* "1 of 4" is one figure. The kit adds +0.08em to every display space; taking 0.12em off that (net -0.04em)
+   leaves about 10px between groups at 1440, as on the board. A literal -0.12em deletes Archivo's condensed space. */
+.member-home .member-week-figure > .cl-display { word-spacing: -0.04em; }
 @media (max-width: 47.99rem) { .member-home .member-week-figure .cl-display { font-size: clamp(96px, 30vw, 140px); } }
 .member-activity .member-week--activity { padding-top: var(--gymloop-space-24); border-top: 1px solid var(--gymloop-color-decorative-separator); }
-.member-streak-note[data-empty='true'] { margin-top: 0; color: var(--gymloop-color-primary-text); }
 .member-activity-older > summary { display: flex; width: 100%; min-height: 56px; justify-content: space-between; border-bottom: 1px solid var(--gymloop-color-decorative-separator); text-decoration: none; }
 .member-activity-older > summary > svg { color: var(--gymloop-color-secondary-text); }
 .member-activity-older > summary:hover > svg { color: var(--gymloop-color-primary-text); }
@@ -137,7 +145,8 @@ span.member-account-row { grid-template-columns: auto minmax(0, 1fr) var(--gymlo
 .member-activity-older { margin-top: 0; }
 .member-disclosure[open] .member-disclosure-caret { transform: rotate(90deg); }
 .member-gym .member-gym-code { color: var(--gymloop-color-primary-text); font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: 0; }
-.member-you span.member-account-row { grid-template-columns: auto minmax(0, 1fr); }
+/* Every account row keeps the same trailing 24px slot, so each value ends on one right edge (Personal details leaves it empty). */
+.member-you span.member-account-row { grid-template-columns: auto minmax(0, 1fr) var(--gymloop-space-24); }
 .member-sign-out { display: inline-flex; min-height: var(--gymloop-target-touch); align-items: center; text-underline-offset: 4px; }
 .member-sign-out:hover, .member-sign-out:focus-visible { text-decoration: underline; }
 .member-steps--numbered li { align-items: first baseline; }
@@ -149,3 +158,42 @@ span.member-account-row { grid-template-columns: auto minmax(0, 1fr) var(--gymlo
 .member-addons .member-offsale-heading { margin-top: var(--gymloop-space-24); }
 .member-offsale .cl-row-title { color: var(--gymloop-color-secondary-text); font-weight: 500; }
 .member-steps--numbered li > span:last-child > small { text-wrap: balance; }
+
+/* ---------- Round-3 pass ---------- */
+/* Bottom reserve: the tab bar, plus the pinned Scan strip only on the pages that have one, so no page
+   scrolls onto blank canvas. The shell's own reserve is replaced by the page's. */
+.member-shell { --member-tab-bar-height: calc(var(--gymloop-target-touch) + var(--gymloop-space-16) + env(safe-area-inset-bottom)); --member-scan-strip-height: calc(var(--gymloop-target-touch) + var(--gymloop-space-12) + var(--gymloop-space-24)); padding-bottom: 0; }
+.member-portal { padding-bottom: calc(var(--member-tab-bar-height) + var(--gymloop-space-48)); }
+
+/* Tab bar: the current glyph is the one filled icon; the dumbbell sits level; line bars carry their fill as weight. */
+.member-tab-bar a[aria-current='page'] svg { fill: currentColor; fill-opacity: var(--gymloop-opacity-current-icon-fill); }
+.member-tab-bar a[aria-current='page'] .member-tab-bars { stroke-width: var(--gymloop-icon-current-stroke-width); }
+.member-tab-level { transform: rotate(45deg); }
+
+@media (max-width: 40rem) {
+  .member-portal { padding-bottom: calc(var(--member-tab-bar-height) + var(--gymloop-space-24)); }
+  .member-portal:has(.member-scan-sticky) { padding-bottom: calc(var(--member-tab-bar-height) + var(--member-scan-strip-height) + var(--gymloop-space-24)); }
+  /* Scan to check in: flat, on a canvas strip docked to the tab bar, so rows scroll away beneath it. Its inline
+     padding follows the 36rem column, so the button lines up with the rows at every phone width. */
+  .member-scan-sticky { position: fixed; z-index: 25; right: 0; bottom: var(--member-tab-bar-height); left: 0; margin: 0; padding: var(--gymloop-space-12) max(var(--gymloop-layout-mobile-inset), calc((100% - 36rem) / 2 + var(--gymloop-layout-mobile-inset))); border-top: 1px solid transparent; background: var(--gymloop-color-canvas); }
+  .member-scan-sticky > .member-primary-action--dominant { position: static; width: 100%; box-shadow: none; }
+  /* The strip's top rule appears only once rows have scrolled under it. */
+  @supports (animation-timeline: scroll()) {
+    .member-scan-sticky { animation: member-dock-rule auto linear both; animation-timeline: scroll(root); animation-range: 0 var(--gymloop-space-24); }
+  }
+}
+@keyframes member-dock-rule { to { border-top-color: var(--gymloop-color-decorative-separator); } }
+
+/* My gym: the address wraps between parts, never between a city and its PIN. */
+.member-gym .member-gym-address { text-wrap: pretty; }
+
+/* Add-ons (the offer row itself is the add-ons family's; these only place it on the member page).
+   The in-row category is a quiet tag, a rank below the section labels. Prices end on the row's right
+   edge like the status words below them; under 480px the row stacks so the name keeps the full width
+   and the price takes its own line. */
+.member-addons .addon-offer-kind { font-size: 0.6875rem; font-weight: 500; letter-spacing: .06em; }
+.member-addons .addon-catalogue--member .addon-offer-price { justify-self: end; }
+@media (max-width: 29.99rem) {
+  .member-addons .addon-catalogue--member .addon-offer > summary { grid-template-areas: 'kind more' 'title title' 'meta meta' 'price price'; }
+  .member-addons .addon-catalogue--member .addon-offer-price { justify-self: start; margin-top: var(--gymloop-space-8); }
+}

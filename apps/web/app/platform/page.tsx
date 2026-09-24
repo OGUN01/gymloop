@@ -4,10 +4,12 @@ import {
   ORGANIZATION_STATUSES,
   PLAN_TIERS,
   PLAN_TIER_PRICES_PAISE,
+  UI_TOKENS,
   formatDay,
   formatMoney,
   humanize,
 } from '@gymloop/shared';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { requireAudience } from '../../lib/identity-session';
 import { fleetMetrics } from '../../lib/platform';
 import { Alert } from '../(console)/alert';
@@ -38,6 +40,10 @@ const TIMEZONE_CHOICES = [
 ] as const;
 /** A column label shown only where the ledger stacks into cards (under 40rem). */
 const Cell = ({ label }: { label: string }) => <span className="platform-cell-label">{label}</span>;
+/** Non-breaking space: keeps "Pro ₹4,999 a month" and each "·" with its plan when the plans line wraps. */
+const NBSP = '\u00a0';
+/** A 16px Lucide glyph at the kit's stroke. */
+const iconProps = { 'aria-hidden': true, size: UI_TOKENS.icons.controlSize, strokeWidth: UI_TOKENS.icons.strokeWidth } as const;
 
 export default async function PlatformPage(props?: { searchParams?: Promise<{ manage?: string }> }) {
   const manage = (await props?.searchParams)?.manage;
@@ -66,11 +72,11 @@ export default async function PlatformPage(props?: { searchParams?: Promise<{ ma
       <div>
         <p className="cl-eyebrow">{isAdmin ? 'Platform' : 'Platform · support access, read only'}</p>
         <h1 className="cl-title">Gyms</h1>
-        <p className="cl-lede">
-          Plans: {PLAN_TIERS.map((tier) => `${humanize(tier)} ${tierPrice(tier)}`).join(' · ')} a month
+        <p className="cl-lede platform-plans">
+          Plans: {PLAN_TIERS.map((tier) => `${humanize(tier)}${NBSP}${tierPrice(tier)}`).join(`${NBSP}· `)}{NBSP}a{NBSP}month
         </p>
       </div>
-      {isAdmin ? <div className="cl-actions"><a href="#onboard" className="cl-btn cl-btn--accent">Add gym</a></div> : null}
+      {isAdmin ? <div className="cl-actions"><a href="#onboard" className="cl-btn cl-btn--primary">Add gym</a></div> : null}
     </div>
 
     <div className="cl-metrics platform-kpis">
@@ -86,21 +92,21 @@ export default async function PlatformPage(props?: { searchParams?: Promise<{ ma
         <div className="cl-ledger-wrap">
           <table className="cl-ledger platform-ledger">
             <thead><tr>
-              <th scope="col">Gym</th><th scope="col">Status</th><th scope="col">Tier</th><th scope="col" className="platform-col-secondary">Trial ends</th>
-              <th scope="col" className="cl-num">Active members</th><th scope="col" className="cl-num platform-col-secondary">Open cases</th><th scope="col" className="cl-num platform-col-secondary">Failed sends</th>
+              <th scope="col">Gym</th><th scope="col">Status</th><th scope="col">Tier</th><th scope="col" className="platform-col-mid">Trial ends</th>
+              <th scope="col" className="cl-num">Members</th><th scope="col" className="cl-num platform-col-mid">Open cases</th><th scope="col" className="cl-num platform-col-wide">Failed sends</th>
               <th scope="col" className="platform-col-readiness">Readiness</th><th scope="col"><span className="sr-only">Open</span></th>
             </tr></thead>
             <tbody>
               {gyms.map((gym) => <tr key={gym.tenantId}>
                 <td className="platform-cell-gym"><span className="cl-row-title">{gym.name}</span><span className="cl-row-meta">{gym.gymCode}</span></td>
                 <td className="platform-cell-status"><StatusWord status={gym.status} /></td>
-                <td className="platform-cell-fact"><Cell label="Tier" /><span>{gym.tier === null ? 'Unassigned' : humanize(gym.tier)}</span></td>
-                <td className="platform-cell-fact platform-col-secondary"><Cell label="Trial ends" /><span>{gym.trialEndsAt === null ? 'No trial' : dayOf(gym.trialEndsAt, zoneOf(gym))}</span></td>
-                <td className="cl-num platform-cell-fact"><Cell label="Active members" /><span>{gym.activeMembers ?? 'Unavailable'}</span></td>
-                <td className="cl-num platform-cell-fact platform-col-secondary"><Cell label="Open cases" /><span>{gym.openCases}</span></td>
-                <td className="cl-num platform-cell-fact platform-col-secondary"><Cell label="Failed sends" /><span>{gym.failedNotifications}</span></td>
+                <td className="platform-cell-fact platform-cell-plan"><Cell label="Tier" /><span>{gym.tier === null ? 'Unassigned' : humanize(gym.tier)}</span></td>
+                <td className="platform-cell-fact platform-cell-plan platform-col-mid"><Cell label="Trial ends" /><span>{gym.trialEndsAt === null ? 'No trial' : dayOf(gym.trialEndsAt, zoneOf(gym))}</span></td>
+                <td className="cl-num platform-cell-fact platform-cell-count"><Cell label="Members" /><span>{gym.activeMembers ?? 'Unavailable'}</span></td>
+                <td className="cl-num platform-cell-fact platform-cell-count platform-col-mid"><Cell label="Open cases" /><span>{gym.openCases}</span></td>
+                <td className="cl-num platform-cell-fact platform-cell-count platform-col-wide"><Cell label="Failed sends" /><span>{gym.failedNotifications}</span></td>
                 <td className="platform-cell-readiness platform-col-readiness">{gym.settingsComplete ? <StatusWord status="ready" label="Activation ready" /> : <StatusWord status="pending" label={`Readiness incomplete: ${gym.missingSettings.map(humanize).join(', ') || 'unknown'}`} />}</td>
-                <td className="platform-cell-open"><a href={`/platform/${gym.tenantId}`} className="platform-open-link" aria-label={`Open ${gym.name}`}>Open <span aria-hidden="true">›</span></a></td>
+                <td className="platform-cell-open"><a href={`/platform/${gym.tenantId}`} className="platform-open-link" aria-label={`Open ${gym.name}`}>Open<ChevronRight {...iconProps} /></a></td>
               </tr>)}
             </tbody>
           </table>
@@ -117,8 +123,8 @@ export default async function PlatformPage(props?: { searchParams?: Promise<{ ma
           const gymOwners = owners.filter((owner) => owner.tenant_id === gym.tenantId);
           return <details key={gym.tenantId} id={`manage-${gym.tenantId}`} className="cl-disclosure platform-manage" open={manage === gym.tenantId}>
             <summary>
-              <span className="platform-manage-title"><span>{gym.name}</span><StatusWord status={gym.status} /></span>
-              <span className="platform-manage-toggle" aria-hidden="true">Manage</span>
+              <span className="platform-manage-title"><span className="platform-manage-name">{gym.name}</span><StatusWord status={gym.status} /></span>
+              <span className="platform-manage-toggle" aria-hidden="true">Manage<ChevronDown {...iconProps} /></span>
             </summary>
             <div className="platform-manage-body">
               <form action={`/api/platform/gyms/${gym.tenantId}/status`} method="post" className="platform-control">
@@ -174,7 +180,7 @@ export default async function PlatformPage(props?: { searchParams?: Promise<{ ma
           <label className="cl-field"><span>Owner name</span><input name="ownerName" required className="cl-input" /></label>
           <label className="cl-field"><span>Owner email</span><input name="ownerEmail" type="email" className="cl-input" /></label>
         </div>
-        <button type="submit" className="cl-btn cl-btn--primary">Add gym</button>
+        <button type="submit" className="cl-btn">Create gym</button>
       </form>
     </section> : null}
   </main>;

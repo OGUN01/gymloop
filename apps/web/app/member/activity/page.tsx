@@ -13,9 +13,9 @@ export default async function MemberActivityPage() {
   const remaining = Math.max(portal.weeklyGoal - portal.weekVisits, 0);
   const streakNote = rule === 'weekly_goal'
     ? current === 0
-      ? `No streak running yet. Reach ${portal.weeklyGoal} visits this week to start one.`
+      ? `Reach ${portal.weeklyGoal} visits this week to start one.`
       : remaining === 0 ? 'This week counts. Keep the run going next week.' : `${remaining} more ${remaining === 1 ? 'visit' : 'visits'} this week keeps it going.`
-    : current === 0 ? 'No streak running yet. Visit again to start one.' : 'Visit again to extend it.';
+    : current === 0 ? 'Visit again to start one.' : 'Visit again to extend it.';
   const renderMonth = (month: (typeof months)[number]) => <section key={month.key} className="member-activity-month" aria-labelledby={`month-${month.key}`}>
     <h3 id={`month-${month.key}`} className="cl-eyebrow member-eyebrow">{month.label}</h3>
     <ul className="cl-rows">{month.items.map((visit) => {
@@ -34,8 +34,10 @@ export default async function MemberActivityPage() {
       <MemberWeekRhythm visits={portal.visits} timezone={timeZone} weekStart={portal.weekStart} />
     </section>
     <section className="member-streak" aria-label="Streak">
-      {current > 0 ? <p className="cl-display member-streak-line">Streak: {current} {current === 1 ? unit : `${unit}s`}</p> : null}
-      <p className="member-streak-note" data-empty={current === 0}>{streakNote}</p>
+      {current > 0
+        ? <p className="cl-display member-streak-line">Streak: {current} {current === 1 ? unit : `${unit}s`}</p>
+        : <p className="cl-display member-streak-line member-streak-line--empty">No streak yet</p>}
+      <p className="member-streak-note">{streakNote}</p>
     </section>
     <section aria-labelledby="visits-heading">
       <h2 id="visits-heading" className="sr-only">Visits</h2>
@@ -44,7 +46,7 @@ export default async function MemberActivityPage() {
         : <>
           {renderMonth(latest)}
           {older.length > 0 ? <details className="member-activity-older">
-            <summary>Show older visits<ChevronDown aria-hidden="true" size={UI_TOKENS.icons.navigationSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></summary>
+            <summary>Show older visits<ChevronDown aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></summary>
             {older.map(renderMonth)}
           </details> : null}
         </>}

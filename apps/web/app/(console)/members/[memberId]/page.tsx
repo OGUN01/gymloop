@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Pencil } from 'lucide-react';
 import {
-  AVATAR_INITIALS_MAX, DEFAULT_TIMEZONE, formatDateTime, formatDay, formatDayRange, formatMoney, formatPhone, humanize, membershipNetPrice, MEMBER_DETAIL_VISITS_PREVIEW, MEMBER_DETAIL_PAYMENTS_PREVIEW } from '@gymloop/shared';
+  AVATAR_INITIALS_MAX, DEFAULT_TIMEZONE, formatDateTime, formatDay, formatDayRange, formatMoney, formatPhone, humanize, MEMBER_DETAIL_VISITS_PREVIEW, MEMBER_DETAIL_PAYMENTS_PREVIEW } from '@gymloop/shared';
 import { requireAudience } from '../../../../lib/identity-session';
+import { loadMembershipStanding } from '../../../../lib/membership-state';
 import { createServerSupabase } from '../../../../lib/supabase/server';
 import { loadMember } from '../member-data';
 import { StatusWord } from '../../../status-word';
@@ -27,7 +29,6 @@ import { StatusWord } from '../../../status-word';
  */
 const ATTENDANCE_PAGE_SIZE = 60;
 
-const LIVE_STATUSES = ['active', 'frozen'];
 
 const DATE_TIME = { format: (date: Date) => formatDateTime(date, DEFAULT_TIMEZONE) };
 
@@ -53,10 +54,9 @@ export default async function MemberDetailPage({
   const { identity } = await requireAudience('console');
   const seesMoney = !(identity.kind === 'staff' && identity.role === 'trainer');
   const supabase = await createServerSupabase();
-  const today = dayOf(new Date());
   // Money is read only for a role that may see it: a trainer's request never
   // asks for it, rather than asking and hiding the answer.
-  const [{ data: branch }, { data: visits, error: visitsError }, memberships, payments] = await Promise.all([
+  const [{ data: branch }, { data: visits, error: visitsError }, standing, payments] = await Promise.all([
     supabase.from('branches').select('name').eq('id', member.branch_id).maybeSingle(),
     supabase
       .from('attendance')
@@ -64,13 +64,9 @@ export default async function MemberDetailPage({
       .eq('member_id', memberId)
       .order('checked_in_at', { ascending: false })
       .limit(ATTENDANCE_PAGE_SIZE),
-    seesMoney
-      ? supabase
-          .from('memberships')
-          .select('id, status, starts_on, ends_on, price_paise, discount_paise, currency, plans(name)')
-          .eq('member_id', memberId)
-          .order('created_at', { ascending: false })
-      : Promise.resolve({ data: null }),
+    // The same standing the roster and Memberships show, so the word in this
+    // header is the word on the row that led here.
+    loadMembershipStanding([member], { money: seesMoney }),
     seesMoney
       ? supabase
           .from('payments')
@@ -82,13 +78,10 @@ export default async function MemberDetailPage({
       : Promise.resolve({ data: null }),
   ]);
 
-  const membershipRows = memberships.data ?? [];
   // Live on the gate's terms — the status AND the dates (ADR-084) — so a
   // membership that lapsed is never shown to the desk as running.
-  const live = membershipRows.find((row) => LIVE_STATUSES.includes(row.status)
-    && (row.starts_on === null || row.starts_on <= today) && (row.ends_on === null || row.ends_on >= today));
-  const lapsed = live ? undefined : membershipRows.find((row) => LIVE_STATUSES.includes(row.status));
-  const current = live ?? lapsed;
+  const state = standing.get(member.id);
+  const current = state?.running ? state : undefined;
   const shownVisits = visits === null ? [] : allVisits ? visits : visits.slice(0, MEMBER_DETAIL_VISITS_PREVIEW);
 
   return (
@@ -100,14 +93,14 @@ export default async function MemberDetailPage({
           <div>
             <h1 className="cl-title">{member.full_name}</h1>
             <p className="cl-lede member-detail-meta">
+              {member.member_code ? <span className="member-detail-code">Member code <span className="tabular-nums">{member.member_code}</span></span> : null}
               <span className="tabular-nums">{formatPhone(member.phone)}</span>
-              {member.member_code ? <span className="tabular-nums">{member.member_code}</span> : null}
-              <StatusWord status={member.status} />
+              {state ? <StatusWord status={state.status} label={state.label} /> : <StatusWord status={member.status} />}
             </p>
           </div>
         </div>
         <div className="cl-actions member-detail-actions">
-          <Link href={`/members/${member.id}/edit`} className="cl-btn">Edit</Link>
+          <Link href={`/members/${member.id}/edit`} className="cl-btn"><Pencil aria-hidden="true" className="member-detail-icon" />Edit member</Link>
           {seesMoney ? <Link href={`/memberships/${member.id}`} className="cl-btn cl-btn--primary">Record payment</Link> : null}
         </div>
       </div>
@@ -130,46 +123,50 @@ export default async function MemberDetailPage({
           </section>
 
           {seesMoney ? (
-            <section aria-labelledby="member-membership-heading">
-              <div className="member-detail-section-head">
-                <h2 id="member-membership-heading" className="cl-eyebrow">Current membership</h2>
-                <Link href={`/memberships/${member.id}`} className="member-detail-link">Membership and payments →</Link>
-              </div>
-              {current === undefined ? (
-                <p className="member-detail-none">No live membership.</p>
-              ) : (
-                <dl className="cl-dl">
-                  <dt>Plan</dt><dd>{current.plans?.name ?? '—'}</dd>
-                  <dt>{live ? 'Runs' : 'Ran'}</dt>
-                  <dd>
-                    {current.starts_on && current.ends_on
-                      ? <time dateTime={`${current.starts_on}/${current.ends_on}`}>{formatDayRange(current.starts_on, current.ends_on)}</time>
-                      : '—'}
-                  </dd>
-                  <dt>Per period</dt>
-                  <dd>{formatMoney(membershipNetPrice(current.price_paise, current.discount_paise), current.currency)}</dd>
-                  <dt>Status</dt>
-                  <dd>{live ? <StatusWord status={live.status === 'frozen' ? 'paused' : live.status} /> : <StatusWord status="overdue" label="Lapsed" />}</dd>
-                </dl>
-              )}
+            <>
+              <section aria-labelledby="member-membership-heading">
+                <div className="member-detail-section-head member-detail-anchor">
+                  <h2 id="member-membership-heading" className="cl-section-title">Current membership</h2>
+                  <Link href={`/memberships/${member.id}`} className="member-detail-link">Membership and payments →</Link>
+                </div>
+                {current === undefined ? (
+                  <p className="member-detail-none">No live membership.</p>
+                ) : (
+                  <dl className="cl-dl">
+                    <dt>Plan</dt><dd>{current.plan ?? '—'}</dd>
+                    <dt>{current.ended ? 'Ran' : 'Runs'}</dt>
+                    <dd>
+                      {current.startsOn && current.endsOn
+                        ? <time dateTime={`${current.startsOn}/${current.endsOn}`}>{formatDayRange(current.startsOn, current.endsOn)}</time>
+                        : '—'}
+                    </dd>
+                    <dt>Per period</dt>
+                    <dd>{current.price ? formatMoney(current.price.paise, current.price.currency) : '—'}</dd>
+                    <dt>Status</dt>
+                    <dd><StatusWord status={current.membership.status} label={current.membership.label} /></dd>
+                  </dl>
+                )}
+              </section>
 
-              <h3 className="cl-eyebrow member-detail-eyebrow member-detail-subhead">Recent payments</h3>
-              {payments.data && payments.data.length > 0 ? (
-                <ul className="cl-rows">
-                  {payments.data.map((payment) => (
-                    <li key={payment.id}>
-                      <span>
-                        <span className="cl-row-title tabular-nums">{formatMoney(payment.amount_paise, payment.currency)}</span>
-                        <span className="cl-row-meta">{DATE_ONLY.format(new Date(payment.paid_at ?? payment.created_at))} · {humanize(payment.method)}</span>
-                      </span>
-                      <StatusWord status={payment.status} />
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="member-detail-none">No payments recorded yet.</p>
-              )}
-            </section>
+              <section aria-labelledby="member-payments-heading">
+                <h2 id="member-payments-heading" className="cl-section-title member-detail-anchor">Recent payments</h2>
+                {payments.data && payments.data.length > 0 ? (
+                  <ul className="cl-rows">
+                    {payments.data.map((payment) => (
+                      <li key={payment.id}>
+                        <span>
+                          <span className="cl-row-title tabular-nums">{formatMoney(payment.amount_paise, payment.currency)}</span>
+                          <span className="cl-row-meta">{DATE_ONLY.format(new Date(payment.paid_at ?? payment.created_at))} · {humanize(payment.method)}</span>
+                        </span>
+                        <StatusWord status={payment.status} />
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="member-detail-none">No payments recorded yet.</p>
+                )}
+              </section>
+            </>
           ) : null}
         </div>
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { Constants } from '@gymloop/db';
-import { formatMoney, formatPhone, paiseTextFromRupees, rupeesFromPaise } from '@gymloop/shared';
+import { formatMoney, formatPhone, humanize, paiseTextFromRupees, rupeesFromPaise } from '@gymloop/shared';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Field, inputClass } from '../field';
 import { usePreviewReadOnly } from '../../preview-context';
@@ -11,8 +11,6 @@ import { AddonOfferDetails, offerUnavailable, type AddonOffer, type AddonSession
 
 type MemberChoice = Awaited<ReturnType<typeof searchAddonMembers>>['members'][number];
 type TrainerChoice = { id: string; full_name: string };
-/** A vocabulary value as sentence-case words for a person to read; the raw value stays on the option. */
-const say = (value: string) => { const words = value.replaceAll('_', ' '); return words.charAt(0).toUpperCase() + words.slice(1); };
 
 type Command = { path: string; method: 'POST' | 'PATCH'; body?: Record<string, unknown> | undefined };
 
@@ -178,38 +176,42 @@ export function AddonSaleForm({ offers, timezone, members, nextCursor, initialPr
 
   const ready = Boolean(offer && member && total);
   const helperId = `${command.errorId}-next`;
+  const memberLegend = `${command.errorId}-member`;
+  const offerLegend = `${command.errorId}-offer`;
+  const helper = !member && !offer ? 'Choose a member and an offer.' : !member ? 'Choose a member to continue.' : !offer ? 'Choose an offer to continue.' : 'Enter a whole quantity of at least 1.';
   const recordLabel = command.pending ? 'Saving…' : command.uncertain ? 'Retry the same sale' : complimentary ? 'Accept complimentary offer'
     : total ? `Record ${formatMoney(total, offer?.currency)} received` : 'Record sale';
 
   if (preview) return null;
   return <section id="sale" aria-labelledby="sale-heading" className="cl-section addon-block addon-sale">
     <div className="cl-section-head"><h2 id="sale-heading" className="cl-section-title">New sale</h2></div>
-    <p className="cl-muted addon-section-note">Choose the member and the offer. Payment is recorded only when you confirm the money was received.</p>
+    <p className="cl-muted addon-section-note">Choose the member and the offer. Recording a sale logs money already received at the desk — it does not collect a payment.</p>
     {command.status}
     <form method="post" onSubmit={submit} className="addon-sale-grid grid grid-cols-1 gap-8 md:grid-cols-2">
-      <div className="grid min-w-0 content-start gap-8">
+      <div className="addon-sale-fields grid min-w-0 content-start gap-8">
         <fieldset disabled={command.locked} className="cl-form min-w-0">
-          <legend className="cl-eyebrow addon-legend">Member</legend>
+          <legend id={memberLegend} className="cl-eyebrow addon-legend">Member</legend>
           <div className="addon-search">
             <Field label="Search by phone"><input {...input} type="search" inputMode="tel" placeholder="+919876543210" value={phone} onChange={(event) => setPhone(event.target.value)} /></Field>
             <button className="cl-btn" type="button" disabled={searching} onClick={() => void search()}>{searching ? 'Searching…' : 'Search members'}</button>
           </div>
           {searchError ? <p role="alert" className="cl-alert">{searchError}</p> : null}
-          <Field label="Member"><select {...input} required value={member?.id ?? ''} onChange={(event) => setMember(memberRows.find((row) => row.id === event.target.value) ?? null)}>
+          <select {...input} aria-labelledby={memberLegend} required value={member?.id ?? ''} onChange={(event) => setMember(memberRows.find((row) => row.id === event.target.value) ?? null)}>
             <option value="">Choose a member</option>
             {member && !memberRows.some((row) => row.id === member.id) ? <option value={member.id}>{member.full_name} · {formatPhone(member.phone)}</option> : null}
-            {memberRows.map((row) => <option key={row.id} value={row.id} disabled={row.status === 'cancelled' || row.status === 'blocked'}>{row.full_name} · {formatPhone(row.phone)} · {say(row.status)}</option>)}
-          </select></Field>
+            {memberRows.map((row) => <option key={row.id} value={row.id} disabled={row.status === 'cancelled' || row.status === 'blocked'}>{row.full_name} · {formatPhone(row.phone)} · {humanize(row.status)}</option>)}
+          </select>
           {cursor ? <button type="button" disabled={searching} onClick={() => void search(true)} className="cl-btn cl-btn--quiet justify-self-start">More member results</button> : null}
           {memberRows.length === 0 && !searchError ? <p className="cl-muted text-sm">No members found. Search by phone or add a member from the console.</p> : null}
         </fieldset>
         <fieldset disabled={command.locked} className="cl-form min-w-0">
-          <legend className="cl-eyebrow addon-legend">Offer</legend>
-          <Field label="Offer"><select {...input} required value={productId} onChange={(event) => { setProductId(event.target.value); setQuantity('1'); setMethod(''); }}>
+          <legend id={offerLegend} className="cl-eyebrow addon-legend">Offer</legend>
+          <select {...input} aria-labelledby={offerLegend} required value={productId} onChange={(event) => { setProductId(event.target.value); setQuantity('1'); setMethod(''); }}>
             <option value="">Choose an offer</option>
             {available.map((row) => <option key={row.id} value={row.id} disabled={offerUnavailable(row) !== null}>{row.name} · {formatMoney(row.price_paise, row.currency)}{offerUnavailable(row) ? ` · ${offerUnavailable(row)}` : ''}</option>)}
-          </select></Field>
-          {offer?.kind === 'product' ? <Field label="Quantity"><input {...input} type="number" min="1" step="1" required value={quantity} onChange={(event) => setQuantity(event.target.value)} /></Field> : <p className="cl-muted text-sm">Quantity: 1 (diet plans and PT packages are sold one at a time)</p>}
+          </select>
+          {offer?.kind === 'product' ? <Field label="Quantity"><input {...input} type="number" min="1" step="1" required value={quantity} onChange={(event) => setQuantity(event.target.value)} /></Field>
+            : <p className="cl-muted text-sm">{offer ? 'Quantity 1 · sold one at a time' : 'Offers that can’t be sold are greyed out.'}</p>}
           {offer?.kind === 'pt_package' ? <>
             <p id="sale-timezone" className="cl-muted text-sm">First session with {offer.staff?.full_name ?? 'the assigned trainer'}, in gym time ({timezone}). Both times must fall inside the purchased validity.</p>
             <div className="cl-form-row">
@@ -223,42 +225,37 @@ export function AddonSaleForm({ offers, timezone, members, nextCursor, initialPr
         <h3 className="cl-eyebrow">Review and confirm</h3>
         <fieldset disabled={command.locked} className="cl-form min-w-0">
           <legend className="sr-only">Review and confirm</legend>
-          {member ? <p className="cl-row-title">For {member.full_name} · <span className="tabular-nums">{formatPhone(member.phone)}</span></p> : <p className="cl-muted">No member chosen yet.</p>}
-          {offer ? <AddonOfferDetails offer={offer} open /> : <p className="cl-muted">No offer chosen yet.</p>}
-          {total ? <p className="addon-review-total"><span className="cl-eyebrow">Total{count === '1' ? '' : ` · ${count} items`}</span><span className="addon-offer-price">{formatMoney(total, offer?.currency)}</span></p> : null}
+          {!ready && !command.uncertain ? <p id={helperId} className="cl-muted">{helper}</p> : null}
+          {member ? <p className="cl-row-title">For {member.full_name} · <span className="tabular-nums">{formatPhone(member.phone)}</span></p> : null}
+          {offer ? <AddonOfferDetails offer={offer} open /> : null}
+          {offer && !command.locked ? <button type="button" onClick={() => void refreshOffer()} className="cl-btn cl-btn--quiet cl-btn--small addon-refresh">Refresh offer</button> : null}
+          {total ? <p className="addon-review-total"><span className="cl-eyebrow">Total{count === '1' ? '' : ` · ${count} × ${formatMoney(offer?.price_paise ?? '0', offer?.currency)}`}</span><span className="addon-review-amount">{formatMoney(total, offer?.currency)}</span></p> : null}
           {offer?.kind === 'product' ? <p className="cl-muted text-sm">Confirm the product is being handed over with this sale.</p> : null}
           {!complimentary ? <Field label="Payment method"><select {...input} required value={method} onChange={(event) => setMethod(event.target.value)}>
             <option value="">Choose how money was received</option>
-            {Constants.public.Enums.payment_method.filter((value) => value !== 'razorpay').map((value) => <option key={value} value={value}>{say(value)}</option>)}
+            {Constants.public.Enums.payment_method.filter((value) => value !== 'razorpay').map((value) => <option key={value} value={value}>{humanize(value)}</option>)}
           </select></Field> : null}
-          <Field label={complimentary ? 'Reason for complimentary offer' : 'Sale note (optional)'}><textarea {...input} rows={2} required={complimentary} value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
-          <p className="cl-muted text-sm">{complimentary ? 'No payment or receipt will be created.' : 'This records money already received at the desk. It does not collect a payment.'}</p>
+          <Field label={complimentary ? 'Reason for complimentary offer' : 'Sale note (optional)'}><input {...input} type="text" required={complimentary} value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
+          {complimentary ? <p className="cl-muted text-sm">No payment or receipt will be created.</p> : null}
         </fieldset>
-        <div className="addon-review-submit">
-          {offer && !command.locked ? <button type="button" onClick={() => void refreshOffer()} className="cl-btn cl-btn--quiet">Refresh offer</button> : null}
-          {!ready && !command.uncertain ? <p id={helperId} className="cl-muted text-sm">Choose a member and an offer to continue.</p> : null}
-          <button type="submit" disabled={command.pending || (!command.uncertain && !ready)} aria-describedby={!ready && !command.uncertain ? helperId : undefined} className="cl-btn cl-btn--primary addon-record">{recordLabel}</button>
-        </div>
+        <button type="submit" disabled={command.pending || (!command.uncertain && !ready)} aria-describedby={!ready && !command.uncertain ? helperId : undefined} className="cl-btn cl-btn--primary cl-btn--block addon-record">{recordLabel}</button>
       </div>
     </form>
   </section>;
 }
 
-/** Owner/manager catalogue editing uses only the contract's kind-dependent fields. */
-export function AddonCatalogueForm({ offers, trainers, initialProductId }: { offers: AddonOffer[]; trainers: TrainerChoice[]; initialProductId?: string | undefined }) {
+/** Owner/manager catalogue editing uses only the contract's kind-dependent fields; a row's Edit (or the header's Create offer) opens it. */
+export function AddonCatalogueForm({ offers, trainers, initialProductId, closeHref }: { offers: AddonOffer[]; trainers: TrainerChoice[]; initialProductId?: string | undefined; closeHref: string }) {
   const preview = usePreviewReadOnly();
-  const [selected, setSelected] = useState(offers.some((row) => row.id === initialProductId) ? initialProductId ?? '' : '');
-  const offer = offers.find((row) => row.id === selected);
+  const offer = offers.find((row) => row.id === initialProductId);
   if (preview) return null;
-  return <details id="catalogue-editor" className="cl-disclosure mt-6" open={Boolean(initialProductId)}>
-    <summary>Create or edit an offer</summary>
-    <Field label="Offer to edit">
-      <select value={selected} onChange={(event) => setSelected(event.target.value)} className={inputClass}>
-        <option value="">Create a new offer</option>{offers.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-      </select>
-    </Field>
-    <CatalogueEditor key={selected} offer={offer} trainers={trainers} />
-  </details>;
+  return <section id="catalogue-editor" aria-labelledby="catalogue-editor-heading" className="addon-editor">
+    <div className="cl-section-head">
+      <h3 id="catalogue-editor-heading" className="addon-editor-title">{offer ? `Edit ${offer.name}` : 'New offer'}</h3>
+      <a href={closeHref} className="cl-btn cl-btn--quiet cl-btn--small">Close</a>
+    </div>
+    <CatalogueEditor key={offer?.id ?? 'new'} offer={offer} trainers={trainers} />
+  </section>;
 }
 
 function CatalogueEditor({ offer, trainers }: { offer: AddonOffer | undefined; trainers: TrainerChoice[] }) {
@@ -286,8 +283,8 @@ function CatalogueEditor({ offer, trainers }: { offer: AddonOffer | undefined; t
   return <form method="post" onSubmit={submit} className="cl-form mt-4">
     {command.status}
     <fieldset disabled={command.locked} className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
-      <legend className="cl-eyebrow mb-3">{offer ? `Edit ${offer.name}` : 'New catalogue offer'}</legend>
-      <Field label="Kind"><select {...input} value={kind} onChange={(event) => setKind(event.target.value as AddonOffer['kind'])}>{Constants.public.Enums.addon_kind.map((value) => <option key={value} value={value}>{say(value)}</option>)}</select></Field>
+      <legend className="sr-only">{offer ? `Edit ${offer.name}` : 'New catalogue offer'}</legend>
+      <Field label="Kind"><select {...input} value={kind} onChange={(event) => setKind(event.target.value as AddonOffer['kind'])}>{Constants.public.Enums.addon_kind.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}</select></Field>
       <Field label="Name"><input {...input} name="name" defaultValue={offer?.name} required /></Field>
       <Field label="Description"><textarea {...input} name="description" defaultValue={offer?.description ?? ''} required={active} /></Field>
       <Field label={`Price (${offer?.currency ?? 'INR'}${!offer || offer.currency === 'INR' ? ' rupees' : ''})`}><input {...input} name="price" inputMode="decimal" defaultValue={offer ? rupeesFromPaise(offer.price_paise) : ''} required pattern="[0-9]+(\.[0-9]{1,2})?" /></Field>

@@ -1,7 +1,7 @@
 import { MutationForm } from '../../preview-context';
 import Link from 'next/link';
 import { Constants } from '@gymloop/db';
-import { formatDay, humanize } from '@gymloop/shared';
+import { humanize } from '@gymloop/shared';
 import { Alert } from '../alert';
 import { createServerSupabase } from '../../../lib/supabase/server';
 
@@ -38,9 +38,6 @@ type MemberDefaults = {
 };
 
 const FIELD_CLASS = 'cl-input';
-
-/** A `YYYY-MM-DD` value `formatDay` can read; anything else gets no echo. */
-const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 function Field({
   label,
@@ -86,7 +83,6 @@ export async function MemberForm({
 
   const error = submitted.error;
   const creating = member === null;
-  const joinedOn = value('joined_on');
 
   return (
     <main className="cl-page">
@@ -137,18 +133,20 @@ export async function MemberForm({
             />
           </Field>
 
-          <div className="cl-form-row">
-            <Field label="Branch">
-              <select name="branch_id" required defaultValue={value('branch_id')} className={FIELD_CLASS}>
-                <option value="">Choose a branch</option>
-                {(branches ?? []).map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
+          <Field label="Branch">
+            <select name="branch_id" required defaultValue={value('branch_id')} className={FIELD_CLASS}>
+              <option value="">Choose a branch</option>
+              {(branches ?? []).map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          </Field>
 
+          {/* Status and the join date are the membership-facing facts, so they
+            share a row; the date field is sized for a date, not the column. */}
+          <div className="member-form-pair">
             <Field label="Status">
               {/* The vocabulary comes from the generated types, so it is the
                 `member_status` Postgres enum and not a copy of it (AGENTS.md
@@ -166,20 +164,11 @@ export async function MemberForm({
                 ))}
               </select>
             </Field>
-          </div>
 
-          <Field
-            label="Joined on"
-            hint={
-              creating
-                ? 'Leave blank for today.'
-                : ISO_DAY.test(joinedOn)
-                  ? `Joined ${formatDay(joinedOn)}`
-                  : undefined
-            }
-          >
-            <input name="joined_on" type="date" defaultValue={joinedOn} className={FIELD_CLASS} />
-          </Field>
+            <Field label="Joined on" hint={creating ? 'Leave blank for today.' : undefined}>
+              <input name="joined_on" type="date" defaultValue={value('joined_on')} className={FIELD_CLASS} />
+            </Field>
+          </div>
 
           <div className="member-form-actions">
             <button type="submit" className="cl-btn cl-btn--primary">
@@ -191,9 +180,10 @@ export async function MemberForm({
           </div>
         </MutationForm>
 
-        <aside className="member-form-note" aria-labelledby="member-form-next">
-          <h2 id="member-form-next" className="cl-eyebrow">
-            What happens next
+        {/* Adding is a sequence, so its note is numbered; editing is not, so its note is two plain facts. */}
+        <aside className="member-form-note" aria-labelledby="member-form-note-title">
+          <h2 id="member-form-note-title" className="cl-eyebrow">
+            {creating ? 'What happens next' : 'About editing'}
           </h2>
           {creating ? (
             <ol>
@@ -201,12 +191,12 @@ export async function MemberForm({
               <li>Open their page and sell a membership, so renewals and visits are tracked.</li>
             </ol>
           ) : (
-            <ol>
+            <ul>
               <li>Changes apply as soon as you save.</li>
               <li>
                 Memberships, payments and visits stay on the member&apos;s page and are not changed here.
               </li>
-            </ol>
+            </ul>
           )}
         </aside>
       </div>

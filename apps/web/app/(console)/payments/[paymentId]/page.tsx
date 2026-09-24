@@ -1,5 +1,6 @@
 import { MutationForm } from '../../../preview-context';
-import { formatDateTime, formatMoney, formatPhone, humanize, rupeesFromPaise } from '@gymloop/shared';
+import { UI_TOKENS, formatDateTime, formatMoney, formatPhone, humanize, rupeesFromPaise } from '@gymloop/shared';
+import { ChevronRight } from 'lucide-react';
 import { StatusWord } from '../../../status-word';
 import { Constants } from '@gymloop/db';
 import Link from 'next/link';
@@ -73,7 +74,7 @@ export default async function ReceiptPage({
   const canRefund = identity.kind === 'staff' &&
     (identity.role === 'gym_owner' || identity.role === 'gym_manager');
   const {
-    payment, gym, refunds, addonOrderId, completedReturnedPaise,
+    payment, gym, refunds, addonOrderId, addonOrderName, completedReturnedPaise,
     pendingRefundPaise, refundablePaise, errorMessage,
   } = await loadReceipt(paymentId);
 
@@ -88,20 +89,29 @@ export default async function ReceiptPage({
   if (payment === null || gym === null) notFound();
 
   const takenAt = payment.paid_at ?? payment.created_at;
+  // Where the money stands. A pending request keeps its exact figures; with the
+  // form on screen and nothing yet returned, the form's own hint says it all.
+  const deskNote = canRefund ? '' : ' Only an owner or a manager may send money back.';
+  const refundSummary = !ARRIVED.has(payment.status)
+    ? 'This payment took nothing, so there is nothing to send back.'
+    : completedReturnedPaise === payment.amount_paise
+      ? 'This payment has been refunded in full.'
+      : pendingRefundPaise !== '0'
+        ? `Returned ${payment.currency} ${rupeesFromPaise(completedReturnedPaise)}. Refund requests pending ${payment.currency} ${rupeesFromPaise(pendingRefundPaise)}. Available for another refund request ${payment.currency} ${rupeesFromPaise(refundablePaise)}.`
+        : completedReturnedPaise !== '0'
+          ? `${formatMoney(completedReturnedPaise, payment.currency)} returned so far; ${formatMoney(refundablePaise, payment.currency)} can still go back.${deskNote}`
+          : canRefund ? null : `Up to ${formatMoney(refundablePaise, payment.currency)} can go back.${deskNote}`;
 
   return (
     <main className="cl-page money-receipt-page">
-      {/* One way back: to the add-on order this payment settled, when there
-          is one, otherwise to the payments ledger. */}
-      {addonOrderId ? (
-        <Link href={`/add-ons/orders/${addonOrderId}`} className="cl-back money-back print:hidden">
-          ← Back to add-on order
-        </Link>
-      ) : (
-        <Link href="/payments" className="cl-back money-back print:hidden">
-          ← All payments
-        </Link>
-      )}
+      {/* Where this is: a receipt in the payments ledger, which is also the
+          rail's current item. The add-on order it settled, when there is one,
+          is a row on the receipt itself. */}
+      <nav aria-label="Breadcrumb" className="cl-back money-back money-crumbs print:hidden">
+        <Link href="/payments">Payments</Link>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">{payment.receipt_number ?? 'Not issued'}</span>
+      </nav>
 
       <div className="money-receipt-layout">
       <div className="money-receipt-main">
@@ -127,15 +137,28 @@ export default async function ReceiptPage({
         </header>
 
         <dl className="cl-dl money-dl">
-          <Row label="Amount">
-            <span className="cl-metric-value">
-              {formatMoney(payment.amount_paise, payment.currency)}
-            </span>
-          </Row>
+          {/* Grouped so the label and the numeral can share a baseline. */}
+          <div className="money-amount-row">
+            <dt>Amount</dt>
+            <dd>
+              <span className="cl-metric-value">
+                {formatMoney(payment.amount_paise, payment.currency)}
+              </span>
+            </dd>
+          </div>
           <Row label="Member">
             {payment.members.full_name}
-            <span className="block cl-muted tabular-nums">{formatPhone(payment.members.phone)}</span>
+            <span className="block cl-muted tabular-nums money-phone">{formatPhone(payment.members.phone)}</span>
           </Row>
+          {addonOrderId ? (
+            <Row label="For">
+              <Link href={`/add-ons/orders/${addonOrderId}`} className="money-for-link print:hidden">
+                {addonOrderName ?? 'Add-on order'}
+                <ChevronRight aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />
+              </Link>
+              <span className="money-print-only">{addonOrderName ?? 'Add-on order'}</span>
+            </Row>
+          ) : null}
           <Row label="Method">{humanize(payment.method)}</Row>
           <Row label="Date">{formatDateTime(takenAt, gym.timezone)}</Row>
           <Row label="Taken by">{payment.staff?.full_name ?? '—'}</Row>
@@ -168,7 +191,7 @@ export default async function ReceiptPage({
       </div>
 
       <section className="money-refunds print:hidden" aria-labelledby="refunds-heading">
-        <div className="cl-section-head">
+        <div className="cl-section-head money-head">
           <h2 className="cl-section-title" id="refunds-heading">Refunds</h2>
         </div>
 
@@ -177,7 +200,7 @@ export default async function ReceiptPage({
         )}
 
         {refunds.length === 0 ? (
-          <p className="cl-muted">Nothing has been sent back.</p>
+          <p className="cl-muted money-copy">Nothing has been sent back.</p>
         ) : (
           <ul className="cl-rows">
             {refunds.map((row) => {
@@ -222,12 +245,14 @@ export default async function ReceiptPage({
                   pattern="[0-9]+(\.[0-9]{1,2})?"
                   defaultValue={rupeesFromPaise(refundablePaise).replace(/\.00$/, '')}
                   aria-label="Refund amount"
+                  aria-describedby="refund-amount-hint"
                   className="cl-input tabular-nums"
                 />
                 </span>
+                <small id="refund-amount-hint">Up to {formatMoney(refundablePaise, payment.currency)} can go back.</small>
               </label>
               <label className="cl-field">
-                <span>Kind</span>
+                <span>Type</span>
                 <select name="kind" required className="cl-input">
                   {Constants.public.Enums.refund_kind.map((kind) => (
                     <option key={kind} value={kind}>
@@ -244,19 +269,10 @@ export default async function ReceiptPage({
                 Record refund
               </button>
             </div>
-            <p className="cl-hint">Up to {formatMoney(refundablePaise, payment.currency)} can go back.</p>
           </MutationForm>
         ) : null}
 
-        <p className="cl-muted money-copy">
-          {!ARRIVED.has(payment.status)
-            ? 'This payment took nothing, so there is nothing to send back.'
-            : completedReturnedPaise === payment.amount_paise
-              ? 'This payment has been refunded in full.'
-              : pendingRefundPaise !== '0'
-                ? `Returned ${payment.currency} ${rupeesFromPaise(completedReturnedPaise)}. Refund requests pending ${payment.currency} ${rupeesFromPaise(pendingRefundPaise)}. Available for another refund request ${payment.currency} ${rupeesFromPaise(refundablePaise)}.`
-                : `Returned ${payment.currency} ${rupeesFromPaise(completedReturnedPaise)}. Available for another refund request ${payment.currency} ${rupeesFromPaise(refundablePaise)}. Only an owner or a manager may send money back.`}
-        </p>
+        {refundSummary === null ? null : <p className="cl-muted money-copy">{refundSummary}</p>}
       </section>
       </div>
     </main>

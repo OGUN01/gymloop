@@ -30,16 +30,16 @@ export default async function MemberHomePage() {
         <CreditCard {...icon} />
         <span className="member-row-text"><strong>{portal.membership ? portal.membership.planName : 'Membership'}</strong><small>{portal.membership ? portal.membership.endsOn ? `Ends ${memberShortDate(portal.membership.endsOn)}` : 'No end date' : 'No membership is visible'}</small></span>
         {portal.membership ? <StatusWord status={portal.membership.status} /> : <span />}
-        <ChevronRight {...icon} />
+        <ChevronRight {...icon} size={UI_TOKENS.icons.controlSize} />
       </Link></li>
       {portal.latestMessage ? <li><Link className="member-row" href="/member/messages">
         <MessageSquareMore {...icon} />
         <span className="member-row-text"><strong>Latest from your gym</strong><small className="member-row-clamp">{portal.latestMessage.body}</small></span>
         {portal.latestMessage.status === 'sent' ? <span className="cl-status" data-tone="accent">New</span> : <span />}
-        <ChevronRight {...icon} />
+        <ChevronRight {...icon} size={UI_TOKENS.icons.controlSize} />
       </Link></li> : null}
       {lastVisitLabel ? <li className="member-home-last"><span>Last visit</span><span>{lastVisitLabel}</span></li> : null}
     </ul>
-    <Link className="member-primary-action member-primary-action--dominant" href="/member/check-in"><ScanLine {...icon} />Scan to check in</Link>
+    <div className="member-scan-sticky"><Link className="member-primary-action member-primary-action--dominant" href="/member/check-in"><ScanLine {...icon} />Scan to check in</Link></div>
   </main>;
 }

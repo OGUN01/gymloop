@@ -1,4 +1,5 @@
 import { loadMemberSearch } from '../../../../lib/members';
+import { loadMembershipStanding } from '../../../../lib/membership-state';
 import { MemberSearchPage } from '../member-search-page';
 import { CheckInGate } from './check-in-gate';
 
@@ -17,6 +18,13 @@ export default async function CheckInPage({
   searchParams: Promise<{ q?: string; cursor?: string; limit?: string }>;
 }) {
   const search = await loadMemberSearch(searchParams);
+  // The STATUS column says what the roster and Memberships say: the membership's
+  // standing, with a blocked or cancelled account outranking it.
+  const standingById = await loadMembershipStanding(search.members);
+  const members = search.members.map((member) => {
+    const word = standingById.get(member.id);
+    return word ? { ...member, standing: { status: word.status, label: word.label } } : member;
+  });
 
   return (
     <MemberSearchPage
@@ -28,7 +36,7 @@ export default async function CheckInPage({
       nextCursor={search.nextCursor}
       pageSize={search.pageSize}
     >
-      <CheckInGate members={search.members} />
+      <CheckInGate members={members} />
     </MemberSearchPage>
   );
 }

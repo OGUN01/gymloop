@@ -1,5 +1,6 @@
 import type { Database } from '@gymloop/db';
-import { formatDateTime, formatDay, formatMoney, humanize } from '@gymloop/shared';
+import { formatDateTime, formatDay, formatDayRange, formatMoney, humanize, UI_TOKENS } from '@gymloop/shared';
+import { ChevronDown } from 'lucide-react';
 import { gymTimeLabel } from '../../../lib/time';
 import type { ReactNode } from 'react';
 import { StatusWord } from '../../status-word';
@@ -41,19 +42,38 @@ export const ADDON_SESSION_COLUMNS = 'id,addon_order_id,member_id,trainer_staff_
 /** An order's fulfilment as a delivery word and tone, so a paid-but-undelivered diet plan never reads "Paid" twice. */
 export const ADDON_DELIVERY: Record<AddonOrder['status'], [string, 'ok' | 'warn' | 'risk']> = { pending: ['Awaiting payment', 'warn'], paid: ['To deliver', 'warn'], active: ['In progress', 'ok'], completed: ['Delivered', 'ok'], cancelled: ['Cancelled', 'risk'], refunded: ['Refunded', 'risk'] };
 
-/** Availability is explanatory UI; the database rechecks it atomically at sale. */
-export function offerUnavailable(offer: AddonOffer): string | null {
-  if (!offer.is_active) return 'Inactive';
-  if (offer.currency !== 'INR') return `Unsupported currency · ${offer.currency}`;
-  if (!offer.description?.trim() || !offer.cancellation_terms?.trim() || !offer.validity_days ||
-    (offer.kind === 'pt_package' && (!offer.trainer_qualification?.trim() || !offer.trainer_staff_id || !offer.session_count)) ||
-    (offer.kind === 'product' && offer.stock_quantity == null)) return 'Unavailable · details incomplete';
-  if (offer.kind === 'product' && offer.stock_quantity === 0) return 'Out of stock';
+/** Why an offer cannot be sold — a short status word and, when a disclosure is missing, which one. */
+function offerAvailability(offer: AddonOffer): { word: string; reason: string | null } | null {
+  if (!offer.is_active) return { word: 'Inactive', reason: null };
+  if (offer.currency !== 'INR') return { word: 'Unsupported currency', reason: offer.currency };
+  const missing = [
+    offer.description?.trim() ? null : 'description',
+    offer.cancellation_terms?.trim() ? null : 'cancellation terms',
+    offer.validity_days ? null : 'validity period',
+    ...(offer.kind === 'pt_package' ? [offer.trainer_staff_id ? null : 'assigned trainer',
+      offer.trainer_qualification?.trim() ? null : 'trainer qualification', offer.session_count ? null : 'session count'] : []),
+    offer.kind === 'product' && offer.stock_quantity == null ? 'stock count' : null,
+  ].filter((item): item is string => item !== null);
+  if (missing.length) return { word: 'Unavailable', reason: `no ${missing.length === 1 ? missing[0] : `${missing.slice(0, -1).join(', ')} or ${missing.at(-1)}`}` };
+  if (offer.kind === 'product' && offer.stock_quantity === 0) return { word: 'Out of stock', reason: null };
   return null;
 }
 
-function Day({ iso }: { iso: string | null }) {
-  return iso ? <time dateTime={iso}>{formatDay(iso)}</time> : <>Not recorded</>;
+/** Availability is explanatory UI; the database rechecks it atomically at sale. */
+export function offerUnavailable(offer: AddonOffer): string | null {
+  const state = offerAvailability(offer);
+  return state ? [state.word, state.reason].filter(Boolean).join(' · ') : null;
+}
+
+/** An inclusive validity window as people say it ("21 Aug – 19 Nov 2026"), each end still a machine-readable date. */
+function ValidDays({ from, through }: { from: string | null; through: string | null }) {
+  if (!from || !through) return <>{from ? <>From <time dateTime={from}>{formatDay(from)}</time></> : 'Not recorded'}</>;
+  const range = formatDayRange(from, through);
+  const end = formatDay(through);
+  if (range === end) return <time dateTime={through}>{end}</time>;
+  const head = range.slice(0, range.length - end.length);
+  const joint = /\s*–\s*$/.exec(head)?.[0] ?? ' – ';
+  return <><time dateTime={from}>{head.slice(0, head.length - joint.length)}</time>{joint}<time dateTime={through}>{end}</time></>;
 }
 
 /** The one line a person scans before opening an offer: sessions, validity, trainer or stock. */
@@ -67,35 +87,38 @@ function offerSummary(offer: AddonOffer) {
 }
 
 /**
- * One offer as a ruled row — kind, name, one-line summary, price, availability —
- * whose terms open beneath it. `open` shows them expanded (the sale review);
- * children render inside the opened terms (a member's "Show at the desk").
- * Missing historical facts are not replaced with today's catalogue terms.
+ * One offer as a ruled row — kind, name, one-line summary, price, availability
+ * and a labelled "Details" toggle — whose terms open beneath it. `open` shows
+ * them expanded without the toggle (the sale review); children render inside
+ * the opened terms (a member's "Show at the desk"). The summary's parts are
+ * direct grid items so each width can lay the same row out as a ledger line or
+ * a stacked card. Missing historical facts are not replaced with today's terms.
  */
 export function AddonOfferDetails({ offer, open = false, children }: { offer: AddonOffer; open?: boolean; children?: ReactNode }) {
-  const unavailable = offerUnavailable(offer);
+  const state = offerAvailability(offer);
   const summary = offerSummary(offer);
+  const reason = state?.reason ? state.word === 'Unsupported currency' ? `Priced in ${state.reason}` : `${state.reason.charAt(0).toUpperCase()}${state.reason.slice(1)}` : null;
   return <details className="addon-offer" open={open}>
     <summary className="addon-offer-summary">
-      <span className="addon-offer-name">
-        <span className="cl-eyebrow" data-kind={offer.kind}>{humanize(offer.kind)}</span>
-        <span className="addon-offer-title">{offer.name}</span>
-        {summary ? <span className="addon-offer-meta">{summary}</span> : null}
-      </span>
+      <span className="cl-eyebrow addon-offer-kind" data-kind={offer.kind}>{humanize(offer.kind)}</span>
+      <span className="addon-offer-title">{offer.name}</span>
+      {summary ? <span className="addon-offer-meta">{summary}</span> : null}
+      {reason ? <span className="addon-offer-reason">{reason}</span> : null}
       <span className="addon-offer-price">{formatMoney(offer.price_paise, offer.currency)}</span>
-      <span className="cl-status addon-offer-state" data-tone={unavailable ? 'warn' : 'ok'}>{unavailable ?? 'Available'}</span>
+      <span className="cl-status addon-offer-state" data-tone={state ? 'warn' : 'ok'}>{state?.word ?? 'Available'}</span>
+      {open ? null : <span className="addon-offer-more">Details<ChevronDown aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></span>}
     </summary>
     <div className="addon-offer-body">
       <p>{offer.description?.trim() || 'Description unavailable'}</p>
       <dl className="addon-facts">
-        <dt>Validity</dt><dd>{offer.validity_days ? `Valid for ${offer.validity_days} days, including the acceptance date.` : 'Validity unavailable'}</dd>
+        <dt>Validity</dt><dd>{offer.validity_days ? `Valid for ${offer.validity_days} days, including the day it is sold.` : 'Validity unavailable'}</dd>
         {offer.kind === 'product' ? <><dt>Stock</dt><dd>{offer.stock_quantity ?? 'Not recorded'}</dd></> : null}
         {offer.kind === 'pt_package' ? <>
           <dt>Trainer</dt><dd>{offer.staff?.full_name ?? (offer.trainer_staff_id ? 'Assigned by the gym' : 'Not recorded')}</dd>
           <dt>Qualification</dt><dd>{offer.trainer_qualification?.trim() || 'Not recorded'}</dd>
           <dt>Sessions</dt><dd>{offer.session_count ?? 'Not recorded'}</dd>
         </> : null}
-        <dt>Cancellation terms</dt><dd>{offer.cancellation_terms?.trim() || 'Unavailable · details incomplete'}</dd>
+        <dt>Cancellation terms</dt><dd>{offer.cancellation_terms?.trim() || 'Not recorded'}</dd>
       </dl>
       {children}
     </div>
@@ -106,8 +129,9 @@ const TERMS_HEADING: Record<Tables['addon_products']['Row']['kind'], string> = {
 
 /**
  * An order's frozen sale facts as one ledger. `detail` is the order page: the
- * page header already names the member, status and add-on, and money sits in
- * its own panel, so the block is titled by what it holds and omits those rows.
+ * page header already names the member, status and add-on, and a separate
+ * money panel carries the total when payment is visible, so the block is
+ * titled by what it holds and prices the order in one row.
  */
 export function AddonOrderFacts({ order, timezone, showPayment = true, detail = false, children }: {
   order: AddonOrder; timezone: string; showPayment?: boolean; detail?: boolean; children?: ReactNode;
@@ -119,6 +143,8 @@ export function AddonOrderFacts({ order, timezone, showPayment = true, detail = 
   const expired = order.expires_on && today && today > order.expires_on;
   const complimentary = order.total_paise === '0' && !order.payment_id;
   const name = snapshot?.name || order.addon_products?.name || 'Previous add-on';
+  const unit = order.unit_price_paise == null ? null : formatMoney(order.unit_price_paise, order.currency);
+  const total = order.total_paise == null ? 'Not recorded' : formatMoney(order.total_paise, order.currency);
   return <div className="addon-order-facts">
     <div>
       {snapshot && !detail ? <p className="cl-eyebrow" data-kind={snapshot.kind}>{humanize(snapshot.kind)}</p> : null}
@@ -126,12 +152,17 @@ export function AddonOrderFacts({ order, timezone, showPayment = true, detail = 
     </div>
     {snapshot ? <p>{snapshot.description || 'Historical description unavailable'}</p> : null}
     <dl className="addon-facts">
-      {detail ? null : <><dt>Fulfilment</dt><dd><StatusWord status={order.status} /></dd></>}
-      <dt>Quantity</dt><dd>{order.quantity ?? 'Not recorded'}</dd>
-      <dt>Unit price</dt><dd>{order.unit_price_paise == null ? 'Not recorded' : formatMoney(order.unit_price_paise, order.currency)}</dd>
-      <dt>Total</dt><dd className="font-semibold">{order.total_paise == null ? 'Not recorded' : formatMoney(order.total_paise, order.currency)}</dd>
-      <dt>Accepted</dt><dd>{order.sold_at ? when(order.sold_at) : 'Not recorded'}</dd>
-      <dt>Valid</dt><dd><Day iso={order.starts_on} /> – <Day iso={order.expires_on} /> <span className="cl-muted">(inclusive)</span></dd>
+      {detail ? <>
+        <dt>Unit price</dt><dd>{unit ? <>{unit} <span className="cl-muted">× {order.quantity ?? 'Not recorded'}</span></> : 'Not recorded'}</dd>
+        {showPayment ? null : <><dt>Total</dt><dd className="font-semibold">{total}</dd></>}
+      </> : <>
+        <dt>Fulfilment</dt><dd><StatusWord status={order.status} /></dd>
+        <dt>Quantity</dt><dd>{order.quantity ?? 'Not recorded'}</dd>
+        <dt>Unit price</dt><dd>{unit ?? 'Not recorded'}</dd>
+        <dt>Total</dt><dd className="font-semibold">{total}</dd>
+      </>}
+      <dt>{detail ? 'Sold on' : 'Bought on'}</dt><dd>{order.sold_at ? when(order.sold_at) : 'Not recorded'}</dd>
+      <dt>Valid</dt><dd><ValidDays from={order.starts_on} through={order.expires_on} /></dd>
       {snapshot ? <>
         {snapshot.kind === 'pt_package' ? <><dt>Trainer</dt><dd>{order.trainer?.full_name ?? (order.trainer_staff_id ? 'Assigned by the gym' : 'Not recorded')}</dd></> : null}
         {snapshot.trainerQualification ? <><dt>Qualification at sale</dt><dd>{snapshot.trainerQualification}</dd></> : null}

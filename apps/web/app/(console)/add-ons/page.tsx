@@ -40,6 +40,8 @@ export default async function AddOnsPage({ searchParams }: {
 
   const sellId = params.sell && UUID_PATTERN.test(params.sell) ? params.sell : undefined;
   const saleHref = (id: string) => `?${new URLSearchParams({ ...params, sell: id })}#sale`;
+  const editHref = (id: string) => `?${new URLSearchParams({ ...params, edit: id })}#catalogue-editor`;
+  const closeEditor = new URLSearchParams(Object.entries(params).filter((entry): entry is [string, string] => entry[0] !== 'edit' && entry[0] !== 'saved' && typeof entry[1] === 'string'));
   const orderLabel = (order: AddonOrder) => order.sale_snapshot?.name ?? order.addon_products?.name ??
     (order.total_paise == null ? 'Add-on order' : `Add-on order · ${formatMoney(order.total_paise, order.currency)}`);
 
@@ -56,10 +58,10 @@ export default async function AddOnsPage({ searchParams }: {
       <div className="cl-section-head"><h2 id="orders-heading" className="cl-section-title">Orders</h2></div>
       {orderResult.error ? <AddonLoadError label="orders" href="/add-ons#orders" /> : !pageOrders.length ? <p className="cl-muted">No add-on orders recorded yet.</p> :
         <div className="cl-ledger-wrap"><table className="cl-ledger cl-ledger-stack addon-orders">
-          <thead><tr><th scope="col">Add-on</th><th scope="col" className="addon-orders-member">Member</th><th scope="col">Status</th><th scope="col">Accepted</th><th scope="col" className="cl-num">Amount</th><th scope="col"><span className="sr-only">Open</span></th></tr></thead>
+          <thead><tr><th scope="col">Add-on</th><th scope="col" className="addon-orders-member">Member</th><th scope="col">Status</th><th scope="col">Sold on</th><th scope="col" className="cl-num">Amount</th><th scope="col"><span className="sr-only">Open</span></th></tr></thead>
           <tbody>{pageOrders.map((order) => {
             const [delivery, deliveryTone] = ADDON_DELIVERY[order.status];
-            const accepted = order.sold_at ? when(order.sold_at) : null;
+            const soldOn = order.sold_at ? when(order.sold_at) : null;
             return <tr key={order.id}>
               <td className="addon-orders-name"><Link href={`/add-ons/orders/${order.id}`} className="cl-row-title">{orderLabel(order)}</Link><span className="addon-orders-sub" aria-hidden="true">{order.members?.full_name ?? 'Member not recorded'}</span></td>
               <td className="addon-orders-member">{order.members?.full_name ?? 'Member not recorded'}</td>
@@ -67,7 +69,7 @@ export default async function AddOnsPage({ searchParams }: {
                 <span className="addon-status-line"><span className="addon-status-label">Delivery</span><span className="cl-status" data-tone={deliveryTone} data-status={order.status}>{delivery}</span></span>
                 {frontOffice ? <span className="addon-status-line"><span className="addon-status-label">Payment</span>{order.payments?.status ? <StatusWord status={order.payments.status} /> : <span className="cl-muted">{order.total_paise === '0' ? 'Complimentary' : 'Not recorded'}</span>}</span> : null}
               </td>
-              <td className="addon-orders-date">{accepted ? <time dateTime={order.sold_at ?? undefined} title={accepted}>{accepted.split(', ')[0]}</time> : 'Not recorded'}</td>
+              <td className="addon-orders-date">{soldOn ? <time dateTime={order.sold_at ?? undefined} title={soldOn}>{soldOn.split(', ')[0]}</time> : 'Not recorded'}</td>
               <td className="cl-num addon-orders-amount">{order.total_paise == null ? '—' : formatMoney(order.total_paise, order.currency)}</td>
               <td className="addon-orders-open"><Link href={`/add-ons/orders/${order.id}`} className="cl-btn cl-btn--small" aria-label={`Open ${orderLabel(order)} for ${order.members?.full_name ?? 'this member'}`}>Open</Link></td>
             </tr>;
@@ -77,20 +79,23 @@ export default async function AddOnsPage({ searchParams }: {
     </section>
     <section id="catalogue" aria-labelledby="catalogue-heading" className="cl-section addon-block">
       <div className="cl-section-head"><h2 id="catalogue-heading" className="cl-section-title">Catalogue</h2></div>
-      {offerResult.error ? <AddonLoadError label="offers" href="/add-ons#catalogue" /> : !pageOffers.length ? <p className="cl-muted">No offers yet. {admin ? 'Create a PT package, diet plan or product below.' : 'An owner or manager adds offers to the catalogue.'}</p> :
-        <ul className="addon-catalogue">{pageOffers.map((offer) => <li key={offer.id}>
+      {offerResult.error ? <AddonLoadError label="offers" href="/add-ons#catalogue" /> : !pageOffers.length ? <p className="cl-muted">No offers yet. {admin ? 'Use Create offer to add a PT package, diet plan or product.' : 'An owner or manager adds offers to the catalogue.'}</p> :
+        <ul className="addon-catalogue addon-catalogue--console">{pageOffers.map((offer) => <li key={offer.id}>
           <AddonOfferDetails offer={offer} />
-          {frontOffice && offerUnavailable(offer) === null ? <Link href={saleHref(offer.id)} className="cl-btn cl-btn--small addon-sell" aria-label={`Sell ${offer.name}`}>Sell</Link> : <span className="addon-sell" aria-hidden="true" />}
+          {frontOffice ? <span className="addon-offer-actions">
+            {admin ? <Link href={editHref(offer.id)} className="cl-btn cl-btn--quiet cl-btn--small addon-edit" aria-label={`Edit ${offer.name}`}>Edit</Link> : null}
+            {offerUnavailable(offer) === null ? <Link href={saleHref(offer.id)} className="cl-btn cl-btn--small addon-sell" aria-label={`Sell ${offer.name}`}>Sell</Link> : <span className="addon-sell addon-sell--off">Not for sale</span>}
+          </span> : null}
         </li>)}</ul>}
       {offers.length > MEMBER_PAGE_SIZE_DEFAULT ? <Link className="cl-btn cl-btn--quiet" href={next('offerAfter', pageOffers.at(-1)?.id ?? '', 'catalogue')}>More offers</Link> : null}
-      {admin && !offerResult.error ? trainers.error ? <AddonLoadError label="trainers for catalogue editing" href="/add-ons#catalogue" /> :
-        <AddonCatalogueForm offers={pageOffers} trainers={trainers.data ?? []} initialProductId={params.edit} /> : null}
+      {admin && params.edit && !offerResult.error ? trainers.error ? <AddonLoadError label="trainers for catalogue editing" href="/add-ons#catalogue" /> :
+        <AddonCatalogueForm key={params.edit} offers={pageOffers} trainers={trainers.data ?? []} initialProductId={params.edit} closeHref={`?${closeEditor}#catalogue`} /> : null}
     </section>
     <section id="sessions" aria-labelledby="sessions-heading" className="cl-section addon-block">
       <div className="cl-section-head"><h2 id="sessions-heading" className="cl-section-title">PT sessions</h2></div>
       <p className="cl-muted addon-section-note">Open an order to book or finish a session. Only its assigned trainer can manage later sessions.</p>
       {sessionResult.error ? <AddonLoadError label="PT sessions" href="/add-ons#sessions" /> : !pageSessions.length ? <p className="cl-muted">No PT sessions recorded yet.</p> :
-        <ul className="cl-rows">{pageSessions.map((session) => <li key={session.id}>
+        <ul className="cl-rows addon-session-rows">{pageSessions.map((session) => <li key={session.id}>
           <span>
             <span className="cl-row-title tabular-nums">{slot(session.starts_at, session.ends_at)}</span>
             <span className="cl-row-meta">{session.members?.full_name ?? 'Member not recorded'} · with {session.staff?.full_name ?? 'trainer not recorded'}</span>

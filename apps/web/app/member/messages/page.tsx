@@ -6,6 +6,9 @@ import { StatusWord } from '../../status-word';
 import { loadMemberMessages } from '../../../lib/member-messages';
 import { MemberMessageAck } from './member-message-actions';
 
+/** What each consent purpose covers, in the member's words, under its name. */
+const CONSENT_SCOPE: Record<string, string> = { service: 'Renewal and visit reminders', marketing: 'Offers and promotions' };
+
 /**
  * The member `/member/messages` screen (contract §4): the member's own
  * in-app sent/delivered messages, plus a separate consent history. The
@@ -19,11 +22,11 @@ export default async function MemberMessagesPage(_props: object = {}) {
   const screen = await loadMemberMessages();
   const day = (instant: string) => memberShortDate(new Date(instant).toLocaleDateString('en-CA', { timeZone: DEFAULT_TIMEZONE }));
 
-  return <main className="member-route member-portal">
+  return <main className="member-route member-portal member-messages">
     <header>
       <Link href="/member/my-gym" className="cl-back"><ArrowLeft aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />My gym</Link>
       <h1 className="member-title member-title--long">Messages &amp; consent</h1>
-      <p className="cl-lede member-lede">Notes from your gym, and the choices you have made about hearing from them.</p>
+      <p className="cl-lede member-lede">Notes from your gym, and your choices about hearing from them.</p>
     </header>
 
     {screen.errorMessage !== null ? <p role="alert" className="cl-alert">{screen.errorMessage}</p> : null}
@@ -46,7 +49,7 @@ export default async function MemberMessagesPage(_props: object = {}) {
         ? <div className="cl-empty"><strong>No consent decisions recorded yet</strong><p>Your gym records your choices here when you give or withdraw them.</p></div>
         : <ul className="cl-rows">
           {screen.consents.map((consent, index) => <li key={index}>
-            <span><span className="cl-row-title member-sentence">{consent.purpose.replaceAll('_', ' ')}</span><small className="cl-row-meta">Recorded {day(consent.recordedAt)}</small></span>
+            <span><span className="cl-row-title member-sentence">{consent.purpose.replaceAll('_', ' ')} messages</span><small className="cl-row-meta">{[CONSENT_SCOPE[consent.purpose], `Recorded ${day(consent.recordedAt)}`].filter(Boolean).join(' · ')}</small></span>
             <StatusWord status={consent.granted ? 'granted' : 'withdrawn'} />
           </li>)}
         </ul>}

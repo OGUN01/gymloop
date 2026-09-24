@@ -1,7 +1,8 @@
 'use client';
 
 import { Constants } from '@gymloop/db';
-import { MESSAGE_TEMPLATE_LOCALES, humanize, type MessageTemplateLocale } from '@gymloop/shared';
+import { MESSAGE_TEMPLATE_LOCALES, UI_TOKENS, humanize, type MessageTemplateLocale } from '@gymloop/shared';
+import { ChevronRight } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Alert } from '../alert';
 import { Field, inputClass } from '../field';
@@ -158,7 +159,7 @@ export function WhatsAppOpenButton({ notificationId }: { notificationId: string 
 
   return <MutationForm onSubmit={submit} className="inline-block">
     <button type="submit" disabled={pending} className="comms-text-action">
-      {pending ? 'Opening…' : 'Open in WhatsApp'}
+      {pending ? 'Opening…' : 'Open in WhatsApp'}<ChevronRight aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />
     </button>
     {url !== null ? <p className="comms-whatsapp-url"><a href={url} target="_blank" rel="noreferrer">{url}</a></p> : null}
     {problem !== '' ? <Alert>{problem}</Alert> : null}
@@ -179,7 +180,7 @@ export function MessageTemplateForm({ template }: { template?: { id: string; key
   const [isActive, setIsActive] = useState(template?.isActive ?? true);
   const [keyInput, setKeyInput] = useState(template?.key ?? '');
   const { pending, problem, submit } = useMutationSubmit(
-    () => (keyInput.trim() === '' || category.trim() === '' || body.trim() === '') ? 'Enter a key, category and body, then try again.' : null,
+    () => (keyInput.trim() === '' || category.trim() === '' || body.trim() === '') ? 'Enter an internal name, category and body, then try again.' : null,
     () => postJson('/api/message-templates', {
       ...(template ? { templateId: template.id } : {}),
       key: keyInput, channel, locale, category, body, isActive,
@@ -199,7 +200,7 @@ export function MessageTemplateForm({ template }: { template?: { id: string; key
   // its row already names them, so only the editable facts are controls here.
   return <MutationForm onSubmit={submit} className="cl-form comms-editor">
     {template !== undefined ? <div className="comms-editor-grid">{categoryField}</div> : <div className="comms-editor-grid">
-      <Field label="Key"><input value={keyInput} onChange={(event) => setKeyInput(event.target.value)} className={inputClass} /><small>Short internal name, for example renewal_due.</small></Field>
+      <Field label="Internal name"><input value={keyInput} onChange={(event) => setKeyInput(event.target.value)} className={inputClass} /><small>How it appears in your template list, for example Birthday wish.</small></Field>
       <Field label="Channel">
         <select value={channel} onChange={(event) => setChannel(event.target.value as typeof channel)} className={inputClass}>
           {Constants.public.Enums.notification_channel.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}

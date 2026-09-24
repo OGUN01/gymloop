@@ -13,6 +13,9 @@ type MemberReturns = { orderId: string; returns: { refundId: string; kind: Datab
   amountPaise: string; currency: string; processedAt: string | null }[] };
 type TrainerName = { product_id: string; trainer_name: string };
 
+/** Keeps a number with its unit ("8 Weeks", "1 kg") and a dash with the word before it, so an offer name never breaks mid-phrase. */
+const keepPhrases = (text: string) => text.replace(/(\d) (?=\S)/g, '$1 ').replaceAll(' —', ' —');
+
 export default async function MemberAddOnsPage({ searchParams = Promise.resolve({}) }: {
   searchParams?: Promise<{ offer?: string; order?: string; offerAfter?: string; orderAfter?: string; sessionAfter?: string }>;
 } = {}) {
@@ -35,8 +38,8 @@ export default async function MemberAddOnsPage({ searchParams = Promise.resolve(
   ]);
   const names = new Map((trainerNames.data ?? []).map((row) => [row.product_id, row.trainer_name]));
   const withTrainerName = (offer: AddonOffer): AddonOffer => {
-    const trainerName = names.get(offer.id);
-    return trainerName ? { ...offer, staff: { full_name: trainerName } } : offer;
+    const trainerName = names.get(offer.id) ?? offer.staff?.full_name;
+    return { ...offer, name: keepPhrases(offer.name), staff: trainerName ? { full_name: trainerName.replaceAll(' ', ' ') } : offer.staff };
   };
   const offers = ((offerResult.data ?? []) as unknown as AddonOffer[]).map(withTrainerName);
   const orders = (orderResult.data ?? []) as unknown as AddonOrder[];

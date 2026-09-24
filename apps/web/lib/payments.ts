@@ -124,6 +124,12 @@ export async function loadPayments(
   };
 }
 
+/** The product name an add-on sale froze into its snapshot, when it is readable. */
+function saleName(snapshot: unknown): string | null {
+  if (typeof snapshot !== 'object' || snapshot === null || !('name' in snapshot)) return null;
+  return typeof snapshot.name === 'string' && snapshot.name.trim() !== '' ? snapshot.name : null;
+}
+
 /**
  * One payment, for its receipt — plus the gym it was taken at.
  *
@@ -143,6 +149,7 @@ export async function loadReceipt(paymentId: string) {
       gym: null,
       refunds: [],
       addonOrderId: null,
+      addonOrderName: null,
       completedReturnedPaise: '0',
       pendingRefundPaise: '0',
       refundablePaise: '0',
@@ -184,7 +191,7 @@ export async function loadReceipt(paymentId: string) {
     // A receipt created by an add-on sale returns to the order where delivery
     // and manual-return confirmation happen. RLS keeps an unrelated order
     // indistinguishable from no order.
-    supabase.from('addon_orders').select('id').eq('payment_id', paymentId).maybeSingle(),
+    supabase.from('addon_orders').select('id, sale_snapshot').eq('payment_id', paymentId).maybeSingle(),
   ]);
 
   const paymentRow = payment.data === null
@@ -215,6 +222,8 @@ export async function loadReceipt(paymentId: string) {
     gym: gym.data,
     refunds: recorded,
     addonOrderId: addonOrder.data?.id ?? null,
+    // What the order was for, as the sale froze it, so the receipt can name it.
+    addonOrderName: saleName(addonOrder.data?.sale_snapshot),
     // Keep staff-facing receipt state honest: only `completed` represents
     // money already returned; requested and processing rows reserve the amount
     // that the database's ceiling has promised to them. Failed rows do neither.

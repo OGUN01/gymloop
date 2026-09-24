@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
-  DEFAULT_TIMEZONE, PAYMENT_PAGE_SIZE_DEFAULT, formatDay, formatDayRange, formatMoney, formatPhone, humanize,
+  AVATAR_INITIALS_MAX, DEFAULT_TIMEZONE, PAYMENT_PAGE_SIZE_DEFAULT, formatDay, formatDayRange, formatMoney, formatPhone, humanize,
   membershipNetPrice, rupeesFromPaise,
 } from '@gymloop/shared';
 import { createServerSupabase } from '../../../../lib/supabase/server';
@@ -201,23 +201,26 @@ export default async function MemberMembershipsPage({
       <Link href="/memberships" className="cl-back money-back">
         ← All memberships
       </Link>
-      <div className="cl-page-header">
-        <div>
-          <p className="cl-eyebrow">Membership</p>
-          <h1 className="cl-title">{member.data.full_name}</h1>
-          <p className="cl-lede money-member-facts">
-            {member.data.member_code === null ? null : (
-              <span>Member code <span className="tabular-nums">{member.data.member_code}</span></span>
-            )}
-            <span className="tabular-nums">{formatPhone(member.data.phone)}</span>
-            {live !== undefined ? (
-              <StatusWord status={live.status} />
-            ) : lapsed !== undefined ? (
-              <StatusWord status="expired" label="Lapsed" />
-            ) : (
-              <StatusWord status="none" label="No live membership" />
-            )}
-          </p>
+      <div className="cl-page-header money-member-header">
+        <div className="money-member-identity">
+          <span aria-hidden="true" className="money-member-disc">{member.data.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('')}</span>
+          <div>
+            <p className="cl-eyebrow">Membership</p>
+            <h1 className="cl-title money-member-title">{member.data.full_name}</h1>
+            <p className="cl-lede money-member-facts">
+              {member.data.member_code === null ? null : (
+                <span>Member code <span className="tabular-nums">{member.data.member_code}</span></span>
+              )}
+              <span className="tabular-nums">{formatPhone(member.data.phone)}</span>
+              {live !== undefined ? (
+                <StatusWord status={live.status} />
+              ) : lapsed !== undefined ? (
+                <StatusWord status="expired" label="Lapsed" />
+              ) : (
+                <StatusWord status="none" label="No live membership" />
+              )}
+            </p>
+          </div>
         </div>
         <div className="cl-actions">
           <Link href={`/members/${memberId}`} className="cl-btn">
@@ -233,7 +236,7 @@ export default async function MemberMembershipsPage({
           right-hand column beside all of it (money.css). */}
       <div className="money-member-grid">
         <section className="money-member-current" aria-labelledby="membership-heading">
-          <div className="cl-section-head">
+          <div className="cl-section-head money-head">
             <h2 className="cl-section-title" id="membership-heading">Current membership</h2>
           </div>
           {live === undefined ? (
@@ -340,12 +343,12 @@ export default async function MemberMembershipsPage({
         </section>
 
         <section className="money-member-pay" aria-labelledby="payment-heading" id="record-payment">
-          <div className="cl-section-head">
+          <div className="cl-section-head money-head">
             <h2 className="cl-section-title" id="payment-heading">Record payment</h2>
           </div>
           <p className="cl-muted money-copy">
-            Cash, UPI, card or a bank transfer, taken at the desk. The receipt number is the
-            gym&rsquo;s own.
+            Cash, UPI, card or bank transfer taken at the desk. The receipt is numbered in your
+            gym&rsquo;s own series.
           </p>
 
           <MutationForm method="post" action="/api/payments" className="cl-form money-form">
@@ -373,10 +376,11 @@ export default async function MemberMembershipsPage({
                   pattern="\d{1,9}(\.\d{1,2})?"
                   defaultValue={renewablePrice === undefined ? undefined : rupeesFromPaise(renewablePrice).replace(/\.00$/, '')}
                   aria-label="Amount in rupees"
+                  aria-describedby="payment-amount-hint"
                   className="cl-input tabular-nums"
                 />
               </span>
-              <small>Digits only, paise optional — 1500 or 1500.50.</small>
+              <small id="payment-amount-hint">Digits only, paise optional — <span className="money-nowrap">1500 or 1500.50</span>.</small>
             </label>
             <label className="cl-field">
               <span>Method</span>
@@ -434,13 +438,18 @@ export default async function MemberMembershipsPage({
 
 
         <section className="money-member-history" aria-labelledby="history-heading">
-          <div className="cl-section-head">
+          <div className="cl-section-head money-head">
             <h2 className="cl-section-title" id="history-heading">Payments &amp; receipts</h2>
           </div>
           {history.error ? (
             <Alert>The payments could not be loaded. {history.error.message}</Alert>
           ) : (history.data ?? []).length === 0 ? (
-            <p className="cl-muted">No payments recorded yet.</p>
+            <ul className="cl-rows money-empty">
+              <li>
+                <span>No payments yet</span>
+                <span className="cl-muted">Record one here and its receipt appears in this list</span>
+              </li>
+            </ul>
           ) : (
             <div className="cl-ledger-wrap">
               <table className="cl-ledger cl-ledger-stack money-history">
@@ -475,22 +484,17 @@ export default async function MemberMembershipsPage({
         </section>
 
         <section className="money-member-pauses" aria-labelledby="pauses-heading">
-          <div className="cl-section-head">
+          <div className="cl-section-head money-head">
             <h2 className="cl-section-title" id="pauses-heading">Pauses</h2>
           </div>
-          <p className="cl-muted money-copy">
-            {settings.data === null
-              ? 'This gym has no settings row, so no approver and no allowance are configured.'
-              : `Up to ${settings.data.max_freeze_days_per_year} days a year, approved by ${humanize(settings.data.pause_approver_role).toLowerCase()}.`}
-          </p>
-
-          <PauseHistory memberId={memberId} memberships={rows} />
-
-          {live === undefined ? (
-            <p className="cl-muted money-copy">
-              A pause attaches to a live membership. This member has none.
-            </p>
-          ) : null}
+          <PauseHistory
+            memberId={memberId}
+            memberships={rows}
+            hasLive={live !== undefined}
+            allowance={settings.data === null
+              ? 'No pause approver or allowance is configured for this gym'
+              : `Up to ${settings.data.max_freeze_days_per_year} days a year · approved by ${humanize(settings.data.pause_approver_role).toLowerCase()}`}
+          />
         </section>
       </div>
     </main>
@@ -529,16 +533,31 @@ type MembershipRow = {
  * period — a freeze history that reset on renewal would hide exactly the
  * pattern an owner is looking for.
  */
-function PauseHistory({ memberId, memberships }: { memberId: string; memberships: MembershipRow[] }) {
+function PauseHistory({ memberId, memberships, hasLive, allowance }: {
+  memberId: string; memberships: MembershipRow[]; hasLive: boolean; allowance: string;
+}) {
   const pauses = memberships
     .flatMap((membership) => membership.membership_pauses)
     .sort((a, b) => b.starts_on.localeCompare(a.starts_on));
+  const noLive = 'A pause attaches to a live membership. This member has none.';
 
   if (pauses.length === 0) {
-    return <p className="cl-muted money-copy">No pauses recorded.</p>;
+    // One ruled row, so an empty history reads as intentionally empty: what is absent, and the rule.
+    return (
+      <ul className="cl-rows money-empty">
+        <li>
+          <span>
+            No pauses yet
+            {hasLive ? null : <span className="cl-row-meta">{noLive}</span>}
+          </span>
+          <span className="cl-muted">{allowance}</span>
+        </li>
+      </ul>
+    );
   }
 
   return (
+    <>
     <div className="cl-ledger-wrap">
       <table className="cl-ledger cl-ledger-stack">
         <thead>
@@ -576,6 +595,8 @@ function PauseHistory({ memberId, memberships }: { memberId: string; memberships
         </tbody>
       </table>
     </div>
+    <p className="cl-muted money-copy">{allowance}.{hasLive ? null : ` ${noLive}`}</p>
+    </>
   );
 }
 

@@ -1,4 +1,5 @@
 import { rupeesFromPaise } from '../api/payments';
+import { toLocalDate } from '../streaks/streaks';
 
 /**
  * People-facing display helpers (ADR-170, UX9-003): money, vocabularies, phones and
@@ -37,6 +38,8 @@ export function humanize(value: string): string {
 
 /** Indian mobile numbers read in two groups of five ("+91 98765 00001"); anything else is shown as stored. */
 export function formatPhone(value: string): string {
+  const northAmerican = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(value);
+  if (northAmerican) return `+1 ${northAmerican[1]}-${northAmerican[2]}-${northAmerican[3]}`;
   const match = /^(\+91)?(\d{5})(\d{5})$/.exec(value);
   if (!match) return value;
   return [match[1], match[2], match[3]].filter(Boolean).join(' ');
@@ -74,11 +77,12 @@ export function formatDayRange(from: string, through: string): string {
 
 /** Items grouped by calendar month in `timeZone`, newest-first order preserved; the label drops the year for the current year ("September", "August 2025"). */
 export function groupByMonth<T>(items: readonly T[], instantOf: (item: T) => string, timeZone: string, now: Date = new Date()): { key: string; label: string; items: T[] }[] {
-  const currentYear = now.toLocaleDateString('en-CA', { year: 'numeric', timeZone });
+  // Keys come from date parts (toLocalDate uses formatToParts): Hermes formats en-CA year-month as "09/2026", not "2026-09".
+  const currentYear = toLocalDate(now, timeZone).slice(0, 'YYYY'.length);
   const months: { key: string; label: string; items: T[] }[] = [];
   for (const item of items) {
     const at = new Date(instantOf(item));
-    const key = at.toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', timeZone });
+    const key = toLocalDate(at, timeZone).slice(0, 'YYYY-MM'.length);
     const month = months.at(-1);
     if (month?.key === key) month.items.push(item);
     else months.push({ key, label: at.toLocaleDateString('en-GB', { month: 'long', timeZone }) + (key.startsWith(currentYear) ? '' : ` ${key.slice(0, 'YYYY'.length)}`), items: [item] });

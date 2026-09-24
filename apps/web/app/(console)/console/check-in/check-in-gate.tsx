@@ -33,7 +33,12 @@ type Member = {
   full_name: string;
   phone: string;
   status: string;
+  /** The STATUS column's word (`loadMembershipStanding`); absent, the account status is shown. */
+  standing?: { status: string; label: string };
 };
+
+/** Account states the desk must not check in as if nothing were wrong — they go straight to the reason step. */
+const BARRED = new Set(['blocked', 'cancelled']);
 
 type Outcome = {
   ok: boolean;
@@ -67,6 +72,8 @@ const FIELD_CLASS =
 export function CheckInGate({ members }: { members: Member[] }) {
   const readOnly = usePreviewReadOnly();
   const [gateCode, setGateCode] = useState('');
+  // What is typed into "Have a code?" — it becomes the gate code only on "Use code".
+  const [codeDraft, setCodeDraft] = useState('');
   const [issuedCode, setIssuedCode] = useState('');
   const [canScan, setCanScan] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -86,7 +93,9 @@ export function CheckInGate({ members }: { members: Member[] }) {
     setHydrated(true);
     setCanScan(barcodeDetector() !== undefined);
     try {
-      setGateCode(window.sessionStorage.getItem(GATE_CODE_KEY) ?? '');
+      const stored = window.sessionStorage.getItem(GATE_CODE_KEY) ?? '';
+      setGateCode(stored);
+      setCodeDraft(stored);
     } catch {
       // Storage can be unavailable (private mode, blocked site data). The gate
       // still works; the code just does not survive a search.
@@ -96,6 +105,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
 
   const rememberGateCode = useCallback((code: string) => {
     setGateCode(code);
+    setCodeDraft(code);
     try {
       window.sessionStorage.setItem(GATE_CODE_KEY, code);
     } catch {
@@ -219,7 +229,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
   }, [members, outcome, submit]);
 
   return (
-    <fieldset disabled={readOnly} className="check-in-gate">
+    <fieldset disabled={readOnly} className="check-in-gate" data-gate={gateCode ? 'open' : 'closed'}>
       {outcome ? (
         <button
           type="button"
@@ -244,44 +254,19 @@ export function CheckInGate({ members }: { members: Member[] }) {
           <p className="check-in-gate-copy">
             {gateCode
               ? 'Scans are recorded against this code until it expires.'
-              : 'Generate one for members to scan, or type the code you were given.'}
+              : 'Generate one for members to scan, or enter the code you were given.'}
           </p>
 
-          <div className="check-in-gate-controls">
-            <input
-              value={gateCode}
-              onChange={(event) => rememberGateCode(event.target.value)}
-              placeholder="Type or scan a code"
-              aria-label="Gate code"
-              autoComplete="off"
-              spellCheck={false}
-              className={`${FIELD_CLASS} check-in-gate-input`}
-            />
-            {canScan ? (
-              <button
-                type="button"
-                onClick={scanning ? stopScanning : () => void startScanning()}
-                className="cl-btn"
-              >
-                {scanning ? 'Stop' : 'Scan'}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => void issueGateCode()}
-              // One clay action at a time: the desk reason form's Record takes it while open.
-              className={gateCode || assistFor ? 'cl-btn' : 'cl-btn cl-btn--primary'}
-            >
-              {gateCode ? 'New code' : 'Generate code'}
-            </button>
-          </div>
-
-          <video
-            ref={videoRef}
-            muted
-            playsInline
-            className={scanning ? 'check-in-camera' : 'hidden'}
-          />
+          {/* Two actions, two controls: making today's code stands alone, and a code
+              someone handed you goes in its own labelled field with its own submit. */}
+          <button
+            type="button"
+            onClick={() => void issueGateCode()}
+            // One clay action at a time: the desk reason form's Record takes it while open.
+            className={gateCode || assistFor ? 'cl-btn check-in-gate-issue' : 'cl-btn cl-btn--primary check-in-gate-issue'}
+          >
+            {gateCode ? 'New code' : 'Generate today’s code'}
+          </button>
 
           {issuedCode ? (
             <div className="check-in-issued-gate">
@@ -296,6 +281,44 @@ export function CheckInGate({ members }: { members: Member[] }) {
               <p className="check-in-issued-code">{issuedCode}</p>
             </div>
           ) : null}
+
+          <form
+            className="check-in-gate-entry"
+            onSubmit={(event) => {
+              event.preventDefault();
+              rememberGateCode(codeDraft);
+            }}
+          >
+            <label htmlFor="check-in-gate-code" className="check-in-gate-label">Have a code? Enter it</label>
+            <div className="check-in-gate-controls">
+              <input
+                id="check-in-gate-code"
+                value={codeDraft}
+                onChange={(event) => setCodeDraft(event.target.value)}
+                placeholder="Gate code"
+                autoComplete="off"
+                spellCheck={false}
+                className={`${FIELD_CLASS} check-in-gate-input`}
+              />
+              {canScan ? (
+                <button
+                  type="button"
+                  onClick={scanning ? stopScanning : () => void startScanning()}
+                  className="cl-btn"
+                >
+                  {scanning ? 'Stop' : 'Scan'}
+                </button>
+              ) : null}
+              <button type="submit" disabled={!hydrated} className="cl-btn check-in-gate-use">Use code</button>
+            </div>
+          </form>
+
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            className={scanning ? 'check-in-camera' : 'hidden'}
+          />
 
           {notice ? (
             <p role="alert" className="check-in-notice">
@@ -313,72 +336,75 @@ export function CheckInGate({ members }: { members: Member[] }) {
       </p>
 
       <ul className="check-in-members" aria-label="Members">
-        <li className="check-in-member-headings" aria-hidden="true"><span>Member</span><span>Status</span><span>Check in</span></li>
-        {members.map((member) => (
-          <li key={member.id} className="check-in-member-row">
-            <div className="check-in-member-content">
-              <div className="check-in-member-identity">
-                <span aria-hidden="true" className="check-in-member-initial">{member.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('')}</span>
-                <div>
-                  <p className="check-in-member-name">{member.full_name}</p>
-                  <p className="check-in-member-phone">{formatPhone(member.phone)}</p>
+        <li className="check-in-member-headings" aria-hidden="true"><span>Member</span><span className="check-in-heading-phone">Phone</span><span>Status</span><span>Check in</span></li>
+        {members.map((member) => {
+          const barred = BARRED.has(member.status);
+          return (
+            <li key={member.id} className="check-in-member-row">
+              <div className="check-in-member-content">
+                <div className="check-in-member-identity">
+                  <span aria-hidden="true" className="check-in-member-initial">{member.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('')}</span>
+                  <div>
+                    <p className="check-in-member-name">{member.full_name}</p>
+                    <p className="check-in-member-phone">{formatPhone(member.phone)}</p>
+                  </div>
                 </div>
-              </div>
-              <StatusWord status={member.status} />
-              <div className="check-in-actions">
-                {gateCode ? (
+                {member.standing ? <StatusWord status={member.standing.status} label={member.standing.label} /> : <StatusWord status={member.status} />}
+                <div className="check-in-actions">
+                  {gateCode && !barred ? (
+                    <button
+                      type="button"
+                      disabled={busyMemberId === member.id}
+                      onClick={() => void submit(member, { token: gateCode }, crypto.randomUUID())}
+                      className="cl-btn check-in-row-action"
+                    >
+                      Check in
+                    </button>
+                  ) : null}
                   <button
                     type="button"
-                    disabled={busyMemberId === member.id}
-                    onClick={() => void submit(member, { token: gateCode }, crypto.randomUUID())}
-                    className="cl-btn check-in-row-action"
+                    disabled={!hydrated}
+                    onClick={() => {
+                      setAssistFor(assistFor === member.id ? '' : member.id);
+                      setReason('');
+                    }}
+                    aria-expanded={assistFor === member.id}
+                    aria-label={`Check in ${member.full_name} at the desk`}
+                    className={gateCode || barred ? 'cl-btn cl-btn--quiet check-in-row-action' : 'cl-btn check-in-row-action'}
                   >
-                    Check in
+                    {barred ? 'Check in anyway' : gateCode ? 'Desk check-in' : 'Check in'}
                   </button>
-                ) : null}
-                <button
-                  type="button"
-                  disabled={!hydrated}
-                  onClick={() => {
-                    setAssistFor(assistFor === member.id ? '' : member.id);
-                    setReason('');
-                  }}
-                  aria-expanded={assistFor === member.id}
-                  aria-label={`Check in ${member.full_name} at the desk`}
-                  className={gateCode ? 'cl-btn cl-btn--quiet check-in-row-action' : 'cl-btn check-in-row-action'}
-                >
-                  {gateCode ? 'Desk check-in' : 'Check in'}
-                </button>
+                </div>
               </div>
-            </div>
 
-            {assistFor === member.id ? (
-              <form
-                className="check-in-assist-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void submit(member, { reason }, crypto.randomUUID());
-                }}
-              >
-                <input
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                  required
-                  placeholder="Why are you checking them in? (required)"
-                  aria-label={`Reason for checking in ${member.full_name} at the desk`}
-                  className={`${FIELD_CLASS} check-in-assist-input`}
-                />
-                <button
-                  type="submit"
-                  disabled={busyMemberId === member.id}
-                  className="cl-btn cl-btn--primary"
+              {assistFor === member.id ? (
+                <form
+                  className="check-in-assist-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void submit(member, { reason }, crypto.randomUUID());
+                  }}
                 >
-                  Record
-                </button>
-              </form>
-            ) : null}
-          </li>
-        ))}
+                  <input
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    required
+                    placeholder="Why are you checking them in? (required)"
+                    aria-label={`Reason for checking in ${member.full_name} at the desk`}
+                    className={`${FIELD_CLASS} check-in-assist-input`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={busyMemberId === member.id}
+                    className="cl-btn cl-btn--primary"
+                  >
+                    Record
+                  </button>
+                </form>
+              ) : null}
+            </li>
+          );
+        })}
       </ul>
 
       {members.length === 0 ? (

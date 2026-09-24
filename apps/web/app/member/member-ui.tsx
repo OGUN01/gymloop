@@ -34,6 +34,6 @@ export function MemberWeekRhythm({ visits, timezone, weekStart }: { visits: read
     return { key, label: day.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' }).slice(0, 1), name: day.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' }), visited: visited.has(key), future: key > today, today: key === today };
   });
   return <div className="member-week-days" role="list" aria-label={weekStart ? 'This week' : 'Last seven days'}>
-    {days.map((day) => <span className="member-week-day" role="listitem" data-visited={day.visited} data-future={day.future} data-today={day.today} aria-label={`${day.name}: ${day.visited ? 'visited' : day.future ? 'still ahead' : 'no visit'}`} key={day.key}><i aria-hidden="true" /><span aria-hidden="true">{day.label}</span></span>)}
+    {days.map((day) => <span className="member-week-day" role="listitem" data-visited={day.visited} data-future={day.future} data-today={day.today} aria-label={`${day.name}${day.today ? ', today' : ''}: ${day.visited ? 'visited' : day.future ? 'still ahead' : 'no visit'}`} key={day.key}><i aria-hidden="true" /><span aria-hidden="true">{day.label}</span></span>)}
   </div>;
 }

@@ -188,7 +188,7 @@ function LeadFactFields({ branches, staff, lead, emailNotes }: {
     <Field label="Full name"><input name="fullName" defaultValue={lead?.fullName} required className={inputClass} /></Field>
     {/* The pattern is byte-identical to the database's `leads_phone_format_chk`,
         so the browser refuses exactly the phones the database refuses. */}
-    <label className="cl-field"><span>Phone</span><input name="phone" defaultValue={lead?.phone} required inputMode="tel" pattern="\+[1-9][0-9]{7,14}" placeholder="+919876543210" className={inputClass} /><small>Include +91, no spaces</small></label>
+    <label className="cl-field"><span>Phone</span><input name="phone" defaultValue={lead?.phone} required inputMode="tel" pattern="\+[1-9][0-9]{7,14}" placeholder="+919876543210" className={inputClass} /><small>Include +91, no spaces.</small></label>
     <Field label="Email (optional)"><input name="email" type="email" defaultValue={emailNotes?.email ?? ''} className={inputClass} /></Field>
     <Field label="Branch"><select name="branchId" defaultValue={lead?.branchId} required className={inputClass}>
       {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}

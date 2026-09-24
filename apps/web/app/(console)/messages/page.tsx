@@ -1,6 +1,7 @@
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { loadMessages, type MessageListRow, type MessageStatusCounts } from '../../../lib/messages';
 import { ConsentForm, MessageTemplateForm, WhatsAppOpenButton } from './message-forms';
-import { DEFAULT_TIMEZONE, formatDateTime, humanize, MESSAGE_LOG_PREVIEW_ROWS } from '@gymloop/shared';
+import { DEFAULT_TIMEZONE, formatDateTime, humanize, MESSAGE_LOG_PREVIEW_ROWS, UI_TOKENS } from '@gymloop/shared';
 import { Alert } from '../alert';
 import { StatusWord } from '../../status-word';
 
@@ -13,7 +14,7 @@ import { StatusWord } from '../../status-word';
  * component renders only what a verified caller can see.
  */
 
-/** The four counts in the strip; opted out is a muted line under it so the strip never wraps a lone fifth metric. */
+/** The four counts in the strip; opted out is the Failed caption so the strip never wraps a lone fifth metric. */
 const STATUS_ORDER: (keyof MessageStatusCounts)[] = ['scheduled', 'sent', 'delivered', 'failed'];
 const STATUS_LABELS: Record<keyof MessageStatusCounts, string> = {
   scheduled: 'Scheduled', sent: 'Sent', delivered: 'Delivered', failed: 'Failed', opted_out: 'Opted out',
@@ -47,6 +48,19 @@ const variables = (body: string) => [...new Set([...body.matchAll(TOKEN)].map((m
 const COUNT_CAPTIONS: Partial<Record<keyof MessageStatusCounts, string>> = {
   scheduled: 'Waiting to send', sent: 'Not yet confirmed', delivered: 'Reached the member',
 };
+/** The Failed caption: how many members opted out, said as a sentence rather than a key and value. */
+const optedOutCaption = (count: string) => count === '0' ? 'None opted out' : <><span className="tabular-nums">{count}</span> opted out</>;
+
+/** The calendar year an instant falls in, in the gym's timezone. */
+const yearOf = (instant: string | Date) => new Intl.DateTimeFormat('en-CA', { year: 'numeric', timeZone: DEFAULT_TIMEZONE }).format(new Date(instant));
+/** A message time as the ledger says it: "23 Sep, 12:30 am" within this year, "23 Sep 2025, 12:30 am" otherwise. */
+function when(instant: string): string {
+  const text = formatDateTime(instant, DEFAULT_TIMEZONE);
+  const year = yearOf(instant);
+  return year === yearOf(new Date()) ? text.replace(` ${year},`, ',') : text;
+}
+/** A 16px Lucide glyph at the kit's stroke, for section links and disclosure toggles. */
+const iconProps = { 'aria-hidden': true, size: UI_TOKENS.icons.controlSize, strokeWidth: UI_TOKENS.icons.strokeWidth } as const;
 
 export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ channel?: string; q?: string; memberCursor?: string; log?: string }> }) {
   const { log, ...params } = await searchParams;
@@ -77,10 +91,10 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
     </div>
 
     <nav aria-label="Messages sections" className="comms-subnav">
-      <a href="#log" data-section="log">Recent</a>
-      <a href="#consent" data-section="consent">Consent</a>
-      {screen.isAdmin ? <a href="#templates" data-section="templates">Templates</a> : null}
-      {screen.isAdmin ? <a href="#wallet" data-section="wallet">Wallet</a> : null}
+      <a href="#log">Recent</a>
+      <a href="#consent">Consent</a>
+      {screen.isAdmin ? <a href="#templates">Templates</a> : null}
+      {screen.isAdmin ? <a href="#wallet">Wallet</a> : null}
     </nav>
 
     {screen.errorMessage !== null ? <Alert>{screen.errorMessage}</Alert> : null}
@@ -91,16 +105,16 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
         {STATUS_ORDER.map((status) => <div key={status} className="cl-metric">
           <span className="cl-eyebrow">{STATUS_LABELS[status]}</span>
           <span className="cl-metric-value tabular-nums">{screen.statusCounts[status]}</span>
-          <small>{status === 'failed' ? <>{STATUS_LABELS.opted_out}: <span className="tabular-nums">{screen.statusCounts.opted_out}</span></> : COUNT_CAPTIONS[status]}</small>
+          <small>{status === 'failed' ? optedOutCaption(screen.statusCounts.opted_out) : COUNT_CAPTIONS[status]}</small>
         </div>)}
       </div>
     </section>
 
-    <section id="log" aria-labelledby="messages-heading" className="cl-section comms-anchor">
-      <div className="cl-section-head">
+    <section id="log" aria-labelledby="messages-heading" className="comms-section comms-anchor">
+      <div className="comms-section-head">
         <h2 id="messages-heading" className="cl-section-title">Recent messages</h2>
         {screen.rows.length > MESSAGE_LOG_PREVIEW_ROWS
-          ? <a href={logQuery(!showAll)} className="cl-btn cl-btn--quiet">{showAll ? `Show latest ${MESSAGE_LOG_PREVIEW_ROWS}` : `Show all ${screen.rows.length}`}</a>
+          ? <a href={logQuery(!showAll)} className="comms-section-link">{showAll ? `Show latest ${MESSAGE_LOG_PREVIEW_ROWS}` : `Show all ${screen.rows.length}`}<ChevronRight {...iconProps} /></a>
           : null}
       </div>
       {screen.rows.length === 0 && screen.errorMessage === null
@@ -115,10 +129,10 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
             {visibleRows.map((row) => <tr key={row.id}>
               <td className="comms-log-member">{row.memberName}</td>
               <td className="comms-log-fact">{say(row.channel)}</td>
-              <td className="comms-log-fact">{say(row.category)}</td>
+              <td className={`comms-log-fact${row.category ? '' : ' comms-log-fact--none'}`}>{row.category ? say(row.category) : <><span className="comms-none" aria-hidden="true">—</span><span className="sr-only">No type</span></>}</td>
               <td className="comms-log-fact tabular-nums">{row.sentAt !== null
-                ? <time dateTime={row.sentAt}>{formatDateTime(row.sentAt, DEFAULT_TIMEZONE)}</time>
-                : <>Due <time dateTime={row.scheduledFor}>{formatDateTime(row.scheduledFor, DEFAULT_TIMEZONE)}</time></>}</td>
+                ? <time dateTime={row.sentAt}>{when(row.sentAt)}</time>
+                : <>Due <time dateTime={row.scheduledFor}>{when(row.scheduledFor)}</time></>}</td>
               <td className="comms-log-status">
                 <StatusWord status={row.status} label={rowLabel(row)} />
                 {row.failedReason !== null ? <span className="cl-row-meta">Failed: {say(row.failedReason)}</span> : null}
@@ -131,38 +145,38 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       </div>}
     </section>
 
-    <section id="consent" aria-labelledby="consent-heading" className="cl-section comms-anchor comms-band">
-      <div className="comms-band-intro">
-        <h2 id="consent-heading" className="cl-section-title">Consent</h2>
-        <p className="cl-muted">Record a member's marketing or service consent decision. Find them by phone, then record what they agreed to.</p>
-      </div>
-      <div className="comms-band-body">
-        {!screen.isPreview ? <form action="/messages" method="get" className="cl-form">
-          {params.channel ? <input type="hidden" name="channel" value={params.channel} /> : null}
-          <div className="comms-search">
-            <label className="cl-field"><span>Find member by phone</span>
-              <input type="search" name="q" defaultValue={params.q ?? ''} placeholder="Last four digits or full phone" className="cl-input" />
-            </label>
-            <button type="submit" className="cl-btn">Search members</button>
-          </div>
-        </form> : null}
-        {screen.memberSearchError ? <Alert>Member search could not be loaded.</Alert> : null}
-        <ConsentForm key={`${params.q ?? ''}:${params.memberCursor ?? ''}`} members={screen.members} />
-        {screen.memberNextCursor ? <a className="cl-btn cl-btn--quiet mt-3" href={`/messages?${nextMemberQuery.toString()}`}>More members</a> : null}
+    <section id="consent" aria-labelledby="consent-heading" className="comms-section comms-anchor">
+      <div className="comms-section-head"><h2 id="consent-heading" className="cl-section-title">Consent</h2></div>
+      <div className="comms-band">
+        <p className="comms-band-intro">Record a member's marketing or service consent decision. Find them by phone, then record what they agreed to.</p>
+        <div className="comms-band-body">
+          {!screen.isPreview ? <form action="/messages" method="get" className="cl-form">
+            {params.channel ? <input type="hidden" name="channel" value={params.channel} /> : null}
+            <div className="comms-search">
+              <label className="cl-field"><span>Find member by phone</span>
+                <input type="search" name="q" defaultValue={params.q ?? ''} placeholder="Last four digits or full phone" className="cl-input" />
+              </label>
+              <button type="submit" className="cl-btn">Search members</button>
+            </div>
+          </form> : null}
+          {screen.memberSearchError ? <Alert>Member search could not be loaded.</Alert> : null}
+          <ConsentForm key={`${params.q ?? ''}:${params.memberCursor ?? ''}`} members={screen.members} />
+          {screen.memberNextCursor ? <a className="comms-section-link" href={`/messages?${nextMemberQuery.toString()}`}>More members<ChevronRight {...iconProps} /></a> : null}
+        </div>
       </div>
     </section>
 
-    {screen.isAdmin ? <section id="templates" aria-labelledby="templates-heading" className="cl-section comms-anchor">
-      <div className="cl-section-head"><h2 id="templates-heading" className="cl-section-title">Message templates</h2></div>
-      {screen.templates.length === 0 ? <div className="cl-empty"><strong>No templates yet.</strong><p>Create the first one below.</p></div> : <div className="comms-templates">
+    {screen.isAdmin ? <section id="templates" aria-labelledby="templates-heading" className="comms-section comms-anchor">
+      <div className="comms-section-head"><h2 id="templates-heading" className="cl-section-title">Message templates</h2></div>
+      {screen.templates.length === 0 ? <div className="cl-empty"><strong>No templates yet.</strong><p>{screen.isPreview ? 'Templates appear here once the gym writes one.' : 'Create the first one below.'}</p></div> : <div className="comms-templates">
         <div className="comms-template-head" aria-hidden="true"><span>Template</span><span>Channel</span><span>Locale</span><span>State</span><span /></div>
-        {screen.templates.map((template, index) => <details key={template.id} className="comms-template" open={index === 0}>
+        {screen.templates.map((template) => <details key={template.id} name="message-template" className="comms-template">
           <summary>
             <span className="comms-template-name">{say(template.key)}</span>
             <span className="comms-template-fact">{say(template.channel)}</span>
             <span className="comms-template-fact">{language(template.locale)}</span>
             <StatusWord status={template.isActive ? 'active' : 'inactive'} label={template.isActive ? 'Active' : 'Off'} />
-            <span className="comms-template-toggle" aria-hidden="true">Edit</span>
+            <span className="comms-template-toggle" aria-hidden="true">Edit<ChevronDown {...iconProps} /></span>
           </summary>
           <div className="comms-template-panel">
             <p className="comms-preview">{preview(template.body)}</p>
@@ -171,23 +185,25 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
           </div>
         </details>)}
       </div>}
-      <div className="comms-band comms-new-template">
-        <div className="comms-band-intro">
-          <h3 className="cl-eyebrow">New template</h3>
-          <p className="cl-muted">Write the message once; the variables fill in for each member when it is sent.</p>
+      {/* A support preview can read the templates but not write one, so it gets no empty "New template" form. */}
+      {!screen.isPreview ? <div className="comms-subsection">
+        <div className="comms-subsection-head"><h3 className="comms-subsection-title">New template</h3></div>
+        <div className="comms-band">
+          <p className="comms-band-intro">Write the message once; the variables fill in for each member when it is sent.</p>
+          <div className="comms-band-body"><MessageTemplateForm /></div>
         </div>
-        <div className="comms-band-body"><MessageTemplateForm /></div>
-      </div>
+      </div> : null}
     </section> : null}
 
-    {screen.isAdmin ? <section id="wallet" aria-labelledby="wallet-heading" className="cl-section comms-anchor comms-band">
-      <div className="comms-band-intro">
-        <h2 id="wallet-heading" className="cl-section-title">Wallet</h2>
-        <p className="cl-muted">Only a platform administrator can adjust this balance.</p>
+    {screen.isAdmin ? <section id="wallet" aria-labelledby="wallet-heading" className="comms-section comms-anchor">
+      <div className="comms-section-head"><h2 id="wallet-heading" className="cl-section-title">Wallet</h2></div>
+      <div className="cl-metric comms-wallet">
+        <span className="cl-eyebrow">Balance</span>
+        {screen.walletBalanceCredits !== null
+          ? <span className="cl-metric-value tabular-nums">{screen.walletBalanceCredits}<span className="comms-wallet-unit">credits</span></span>
+          : <span className="cl-metric-value comms-wallet-unavailable">Unavailable</span>}
+        <small>Only a platform administrator can adjust this balance.</small>
       </div>
-      <dl className="cl-dl comms-band-body">
-        <dt>Balance</dt><dd><span className="tabular-nums">{screen.walletBalanceCredits ?? 'Unavailable'}</span> credits</dd>
-      </dl>
     </section> : null}
   </main>;
 }

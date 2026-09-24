@@ -3,7 +3,7 @@ import { Constants } from '@gymloop/db';
 import { RED_LIST_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
 import Link from 'next/link';
 import { Alert } from '../alert';
-import { AVATAR_INITIALS_MAX, formatDay, formatPhone, humanize } from '@gymloop/shared';
+import { AVATAR_INITIALS_MAX, DEFAULT_TIMEZONE, MS_PER_DAY, formatDay, formatPhone, humanize } from '@gymloop/shared';
 import { Users } from 'lucide-react';
 import { loadRedList } from '../../../lib/red-list';
 
@@ -12,6 +12,17 @@ const OUTCOME_TONE: Record<string, string> = {
   will_return: 'ok', injured: 'warn', travelling: 'warn', timing_issue: 'warn', unhappy: 'risk', no_response: 'risk', cancelled: 'risk',
 };
 const dayMonth = (isoDate: string) => formatDay(isoDate).replace(/ \d{4}$/, '');
+
+/** Who reached the member and how, as a sentence: "Called by Kabir Shah". */
+const CONTACTED_BY: Record<string, string> = {
+  call: 'Called by', whatsapp: 'WhatsApp from', sms: 'Texted by', in_person: 'Met in person by',
+};
+const gymDay = (instant: Date) => instant.toLocaleDateString('en-CA', { timeZone: DEFAULT_TIMEZONE });
+/** How long ago, in the gym's calendar days: "today", "yesterday", "3 days ago". */
+function daysAgo(instant: string, now: Date): string {
+  const days = Math.round((Date.parse(gymDay(now)) - Date.parse(gymDay(new Date(instant)))) / MS_PER_DAY);
+  return days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+}
 
 /** The red list is the daily operational queue, rendered without client JavaScript. */
 const MESSAGES: Record<string, string> = {
@@ -30,6 +41,7 @@ export default async function RedListPage({
   searchParams: Promise<{ cursor?: string; limit?: string; error?: string }>;
 }) {
   const params = await searchParams;
+  const now = new Date();
   const { cases, pageSize, nextCursor, errorMessage } = await loadRedList(searchParams);
   const problem = params.error === undefined ? null : (MESSAGES[params.error] ?? MESSAGES.follow_up_failed);
   const nextHref = nextCursor === null ? null : `?${new URLSearchParams({ ...(pageSize === RED_LIST_PAGE_SIZE_DEFAULT ? {} : { limit: String(pageSize) }), cursor: nextCursor }).toString()}`;
@@ -79,7 +91,10 @@ export default async function RedListPage({
                 <div className="follow-up-history">
                   {row.last_follow_up_at === null ? <span className="cl-status follow-up-not-contacted" data-tone="neutral">Nobody has contacted them yet.</span> : (
                     <>
-                      <span>{humanize(row.last_follow_up_channel ?? '')} · {row.last_follow_up_by ?? 'Someone'}</span>
+                      <span className="follow-up-contact-by">
+                        {CONTACTED_BY[row.last_follow_up_channel ?? ''] ?? `${humanize(row.last_follow_up_channel ?? 'Contact')} by`} {row.last_follow_up_by ?? 'someone'},{' '}
+                        <time dateTime={row.last_follow_up_at} className="follow-up-contact-when">{daysAgo(row.last_follow_up_at, now)}</time>
+                      </span>
                       <span className="cl-status" data-tone={OUTCOME_TONE[row.last_follow_up_outcome ?? ''] ?? 'neutral'} data-status={row.last_follow_up_outcome ?? ''}>{humanize(row.last_follow_up_outcome ?? '')}</span>
                     </>
                   )}

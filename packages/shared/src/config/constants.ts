@@ -53,12 +53,12 @@ export const UI_TOKENS = {
     layout: { mobileInset: 20, desktopInset: 32, contentMaxWidth: 1440, railWidth: 232 },
     media: { authHeroAspectRatio: 1.5, mobileAuthHeroHeight: 260, mobileAuthContentMaxHeight: 640, avatarSize: 88 },
   },
-  icons: { controlSize: 16, navigationSize: 22, strokeWidth: 1.75, statusDot: 8 },
+  icons: { controlSize: 16, navigationSize: 22, strokeWidth: 1.75, currentStrokeWidth: 3, statusDot: 8 },
   motion: {
     press: 120, tabs: 180, dialogEnter: 240, dialogExit: 180,
     checkInAcknowledgementMin: 240, checkInAcknowledgementMax: 320,
   },
-  opacity: { pressed: 0.72, disabled: 0.5 },
+  opacity: { pressed: 0.72, disabled: 0.5, currentIconFill: 0.16 },
 } as const;
 
 /** How many name initials an avatar shows ("Aarav Deshpande" → "AD"). */

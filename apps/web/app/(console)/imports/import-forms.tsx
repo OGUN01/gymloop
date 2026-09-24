@@ -109,10 +109,14 @@ const MAPPABLE_FIELDS = [
 
 type Step = 'upload' | 'mapping' | 'preview' | 'report';
 
-/** The numbered eyebrow and heading over each step of the journey. */
+/**
+ * The heading over each step of the journey. Its "Step n of 4" eyebrow is
+ * shown only on a phone, where the step rail folds into a bar; beside the
+ * rail it would repeat what the rail already says.
+ */
 function StepHead({ number, title }: { number: number; title: string }) {
-  return <div>
-    <p className="cl-eyebrow">Step {number} of 4</p>
+  return <div className="imports-step-head">
+    <p className="cl-eyebrow imports-step-eyebrow">Step {number} of 4</p>
     <h2 className="cl-section-title">{title}</h2>
   </div>;
 }
@@ -363,7 +367,7 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
 
   if (step === 'report' && result !== null) {
     return <section className="cl-section" aria-labelledby="import-report-heading">
-      <p className="cl-eyebrow">Step 4 of 4</p>
+      <p className="cl-eyebrow imports-step-eyebrow">Step 4 of 4</p>
       <div className="cl-section-head">
         <h2 id="import-report-heading" className="cl-section-title">{result.status === 'completed' ? 'Import complete' : 'Import failed'}</h2>
         <a href={result.errorReportUrl} className="cl-btn">Download the error report</a>
@@ -381,7 +385,7 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
   return null;
   }
 
-  return <div className="imports-layout">
+  return <div className="imports-layout" data-step={step}>
     <StepList current={step} />
     <div className="imports-main">{stepContent()}</div>
     {step === 'upload' ? <FileNeeds /> : null}
@@ -396,20 +400,32 @@ const STEPS: ReadonlyArray<{ step: Step; label: string }> = [
   { step: 'report', label: 'Import' },
 ];
 
-/** The ruled step list beside the form: done steps in green, the current one in clay, the rest waiting. */
+/** Where a step stands against the current one: its word and its status tone (clay stays on the number and the bar). */
+const STEP_STATES = {
+  done: { word: 'Done', tone: 'ok' },
+  current: { word: 'In progress', tone: 'warn' },
+  next: { word: 'Waiting', tone: 'neutral' },
+} as const;
+
+/**
+ * The ruled step list beside the form (tablet and up), and on a phone a
+ * four-segment bar above the step heading, whose eyebrow names the step.
+ */
 function StepList({ current }: { current: Step }) {
   const currentIndex = STEPS.findIndex((entry) => entry.step === current);
-  const currentLabel = STEPS[currentIndex]?.label ?? '';
+  const stateOf = (index: number) => index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'next';
   return <div className="imports-rail">
-    <p className="imports-progress" data-step={currentIndex + 1}><span>Step {currentIndex + 1} of {STEPS.length} · {currentLabel}</span></p>
+    <div className="imports-progress" aria-hidden="true">
+      {STEPS.map((entry, index) => <span key={entry.step} data-state={stateOf(index)} />)}
+    </div>
     <ol className="imports-steps" aria-label="Import steps">
     {STEPS.map((entry, index) => {
-      const state = index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'next';
+      const state = stateOf(index);
       return <li key={entry.step} data-state={state} aria-current={state === 'current' ? 'step' : undefined}>
         <span className="imports-step-number tabular-nums">{index + 1}</span>
         <span className="imports-step-text">
           <span className="imports-step-label">{entry.label}</span>
-          <span className="cl-status" data-tone={state === 'done' ? 'ok' : state === 'current' ? 'accent' : 'neutral'}>{state === 'done' ? 'Done' : state === 'current' ? 'Now' : 'Waiting'}</span>
+          <span className="cl-status" data-tone={STEP_STATES[state].tone}>{STEP_STATES[state].word}</span>
         </span>
       </li>;
     })}

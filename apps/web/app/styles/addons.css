@@ -5,83 +5,130 @@
 @media (min-width: 40rem) { .addon-page .cl-page-header > div:first-child { flex: 1 1 32rem; } }
 .addon-lede { max-width: 60ch; text-wrap: pretty; }
 .addon-block { margin-top: var(--gymloop-space-48); }
-.addon-section-note { max-width: 60ch; margin: 0 0 var(--gymloop-space-16); }
+.addon-section-note { max-width: 60ch; margin: 0 0 var(--gymloop-space-24); text-wrap: pretty; }
 .addon-note { margin-top: var(--gymloop-space-12); }
 
+/* In-row secondary buttons use the control outline, so a column of them never
+   out-shouts the one clay action (ink outlines read as a bright wall in dark). */
+.addon-page :is(.cl-ledger, .cl-rows, .addon-catalogue) .cl-btn:not(.cl-btn--quiet, .cl-btn--primary, .cl-btn--danger) { border-color: var(--gymloop-color-required-control-outline); }
+
 /* ── One key/value ledger for every fact block ──────────────────────────── */
-.addon-facts { display: grid; grid-template-columns: 11.25rem minmax(0, 1fr); margin: 0; border-top: 1px solid var(--gymloop-color-decorative-separator); font-size: 0.9375rem; line-height: 1.375rem; }
+.addon-facts { display: grid; grid-template-columns: 11.25rem minmax(0, 1fr); margin: 0; border-top: 1px solid var(--gymloop-color-decorative-separator); font-size: var(--gymloop-type-body-size); line-height: var(--gymloop-type-body-line-height); }
 .addon-facts > :is(dt, dd) { margin: 0; padding: var(--gymloop-space-12) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
 .addon-facts > dt { padding-right: var(--gymloop-space-16); color: var(--gymloop-color-secondary-text); }
 .addon-facts > dd { color: var(--gymloop-color-primary-text); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .addon-wrap { white-space: normal; }
+.addon-facts .cl-status { font-size: inherit; }
 
-/* ── Offer rows: kind · name · summary | price | status | chevron | action ─ */
-.addon-catalogue { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--gymloop-color-decorative-separator); }
-.addon-catalogue > li { display: grid; grid-template-columns: minmax(0, 1fr) 5rem; align-items: start; column-gap: var(--gymloop-space-16); border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
-.addon-catalogue--member > li { grid-template-columns: minmax(0, 1fr); }
-.addon-sell { justify-self: stretch; margin-top: var(--gymloop-space-24); }
-.addon-catalogue--member .addon-offer-state { display: none; }
+/* ── Offer row ─────────────────────────────────────────────────────────────
+   The summary's parts are direct grid items. Default (phone, member list,
+   sale review): kind + "Details" on one line, full-width name and meta, then a
+   footer of price and status. A wide catalogue becomes one ledger line; every
+   trailing cell sits on the name's first line so a wrapped name moves nothing. */
+.addon-catalogue { container: addon-catalogue / inline-size; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--gymloop-color-decorative-separator); }
+.addon-catalogue > li { position: relative; display: flex; align-items: flex-start; gap: var(--gymloop-space-24); border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+.addon-catalogue > li > .addon-offer { flex: 1 1 auto; }
 .addon-offer { min-width: 0; }
-.addon-offer > summary { display: grid; grid-template-columns: minmax(0, 1fr) 7.5rem 13rem 1rem; align-items: center; column-gap: var(--gymloop-space-24); min-height: 4rem; padding: var(--gymloop-space-16) 0; cursor: pointer; list-style: none; }
+.addon-offer > summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'kind kind more' 'title title title' 'meta meta meta' 'reason reason reason' 'price state state'; align-items: center; gap: 2px var(--gymloop-space-16); padding: var(--gymloop-space-16) 0; cursor: pointer; list-style: none; }
 .addon-offer > summary::-webkit-details-marker { display: none; }
-.addon-offer > summary::after { content: ''; width: 0.5rem; height: 0.5rem; justify-self: center; border-right: 1.5px solid var(--gymloop-color-secondary-text); border-bottom: 1.5px solid var(--gymloop-color-secondary-text); transform: translateY(-25%) rotate(45deg); transition: transform var(--gymloop-motion-press) ease; }
-.addon-offer[open] > summary::after { transform: translateY(25%) rotate(-135deg); }
+.addon-offer-kind { grid-area: kind; }
+.addon-offer-title { grid-area: title; font-size: var(--gymloop-type-body-size); line-height: var(--gymloop-type-body-line-height); font-weight: var(--gymloop-type-emphasis-weight); overflow-wrap: anywhere; text-wrap: pretty; }
+.addon-offer-meta, .addon-offer-reason { font-size: var(--gymloop-type-secondary-size); line-height: var(--gymloop-type-secondary-line-height); overflow-wrap: anywhere; }
+.addon-offer-meta { grid-area: meta; color: var(--gymloop-color-secondary-text); }
+.addon-offer-reason { grid-area: reason; color: var(--gymloop-color-warning-text); }
+.addon-offer-price { grid-area: price; margin-top: var(--gymloop-space-8); font-size: var(--gymloop-type-body-size); line-height: var(--gymloop-type-body-line-height); font-weight: var(--gymloop-type-emphasis-weight); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.addon-offer-state { grid-area: state; margin-top: var(--gymloop-space-8); line-height: var(--gymloop-type-body-line-height); }
+.addon-offer-more { grid-area: more; justify-self: end; display: inline-flex; align-items: center; gap: var(--gymloop-space-4); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-body-size); line-height: var(--gymloop-type-body-line-height); font-weight: var(--gymloop-type-emphasis-weight); text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.addon-offer-more > svg { flex: none; transition: transform var(--gymloop-motion-press) ease; }
+.addon-offer[open] .addon-offer-more > svg { transform: rotate(180deg); }
+.addon-offer > summary:hover :is(.addon-offer-title, .addon-offer-more) { color: var(--gymloop-color-primary-text); }
 .addon-offer > summary:hover .addon-offer-title { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--gymloop-color-primary-action); }
-.addon-offer-name { display: grid; gap: 2px; min-width: 0; }
-.addon-offer-title { font-size: 1rem; line-height: 1.5rem; font-weight: var(--gymloop-type-emphasis-weight); overflow-wrap: anywhere; }
-.addon-offer-meta { color: var(--gymloop-color-secondary-text); font-size: 0.8125rem; line-height: 1.25rem; }
-.addon-offer-price { font-size: 1.5rem; line-height: 1; font-stretch: var(--gymloop-type-display-stretch); font-weight: var(--gymloop-type-display-weight); letter-spacing: var(--gymloop-type-title-tracking); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-.addon-offer-state { white-space: normal; }
 .addon-offer-body { display: grid; gap: var(--gymloop-space-16); max-width: 48rem; padding: 0 0 var(--gymloop-space-24); }
 .addon-offer-body > p { margin: 0; }
 .addon-offer-action { justify-self: start; }
 
+/* Row actions: a fixed Edit | Sell track; "Not for sale" holds Sell's slot. */
+.addon-offer-actions { display: flex; flex: none; align-items: center; gap: var(--gymloop-space-8); }
+.addon-sell { width: 5.5rem; }
+.addon-sell--off { display: inline-flex; min-height: var(--gymloop-target-interactive); align-items: center; justify-content: center; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); white-space: nowrap; }
+
+/* Phone-width catalogue: the actions finish the footer row (price | status | actions). */
+.addon-catalogue--console .addon-offer-price { display: flex; min-height: var(--gymloop-target-interactive); align-items: center; }
+.addon-catalogue > li > .addon-offer-actions { position: absolute; right: 0; bottom: var(--gymloop-space-16); }
+@container addon-catalogue (max-width: 37.49rem) {
+  .addon-catalogue > li:has(> .addon-offer[open]) { flex-direction: column; align-items: stretch; gap: 0; }
+  .addon-catalogue > li:has(> .addon-offer[open]) > .addon-offer-actions { position: static; justify-content: flex-end; padding-bottom: var(--gymloop-space-16); }
+}
+/* Tablet width: price over status in one column beside the name. */
+@container addon-catalogue (min-width: 37.5rem) {
+  .addon-catalogue > li > .addon-offer-actions { position: static; padding-top: var(--gymloop-space-24); }
+  .addon-catalogue--console .addon-offer > summary { grid-template-columns: minmax(0, 1fr) 7.5rem auto; grid-template-areas: 'kind . .' 'title price more' 'meta state .' 'reason . .'; align-items: start; column-gap: var(--gymloop-space-24); }
+  .addon-catalogue--console .addon-offer-price { display: block; min-height: 0; margin-top: 0; }
+  .addon-catalogue--console .addon-offer-state { margin-top: 0; line-height: var(--gymloop-type-secondary-line-height); }
+}
+/* Wide: one ledger line — name | price | status | Details, then Edit | Sell. */
+@container addon-catalogue (min-width: 50rem) {
+  .addon-catalogue--console .addon-offer > summary { grid-template-columns: minmax(0, 1fr) 6rem 7.5rem auto; grid-template-areas: 'kind . . .' 'title price state more' 'meta . . .' 'reason . . .'; }
+  .addon-catalogue--console .addon-offer-price { text-align: right; }
+  .addon-catalogue--console .addon-offer-state { line-height: var(--gymloop-type-body-line-height); }
+}
+
 /* ── Orders ledger ─────────────────────────────────────────────────────── */
-.addon-orders { font-size: 0.9375rem; }
 .addon-orders td { vertical-align: middle; }
-.addon-orders a.cl-row-title { display: inline-flex; min-height: var(--gymloop-target-interactive); align-items: center; color: var(--gymloop-color-primary-text); text-decoration: none; }
+.addon-orders a.cl-row-title { display: inline-flex; min-height: var(--gymloop-target-interactive); align-items: center; color: var(--gymloop-color-primary-text); font-size: var(--gymloop-type-body-size); text-decoration: none; }
 .addon-orders a.cl-row-title:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--gymloop-color-primary-action); }
 .addon-orders-member { overflow-wrap: anywhere; }
-.addon-orders-sub { display: none; color: var(--gymloop-color-secondary-text); font-size: 0.8125rem; overflow-wrap: anywhere; }
+.addon-orders-sub { display: none; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); overflow-wrap: anywhere; }
 @media (max-width: 75rem) and (min-width: 40.0625rem) {
   .addon-orders .addon-orders-member { display: none; }
   .addon-orders-sub { display: block; }
 }
 .addon-orders-status { white-space: nowrap; }
-.addon-status-line { display: flex; align-items: center; gap: var(--gymloop-space-8); min-height: 1.5rem; }
-.addon-status-label { width: 4.25rem; color: var(--gymloop-color-secondary-text); font-size: 0.8125rem; }
+.addon-status-line { display: flex; align-items: flex-start; gap: var(--gymloop-space-8); min-height: 1.5rem; }
+.addon-status-label { width: 4.25rem; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); line-height: var(--gymloop-type-compact-line-height); }
 .addon-orders-date { color: var(--gymloop-color-secondary-text); white-space: nowrap; }
 .addon-orders th.cl-num { text-align: right; }
-.addon-orders td.cl-num { font-weight: var(--gymloop-type-emphasis-weight); white-space: nowrap; }
+.addon-orders td.cl-num { font-size: var(--gymloop-type-body-size); font-weight: var(--gymloop-type-emphasis-weight); white-space: nowrap; }
 .addon-orders :is(th, td):last-child { padding-right: 0; text-align: right; }
 .addon-row-end { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gymloop-space-16); }
 
-/* ── Sale: fields left, sunken review panel right ───────────────────────── */
+/* ── Sale: fields left, a hairline review column right (membership-detail board) ── */
 .addon-sale fieldset { margin: 0; padding: 0; border: 0; }
-.addon-legend { margin-bottom: var(--gymloop-space-12); padding: 0; }
+.addon-legend { margin-bottom: var(--gymloop-space-16); padding: 0; }
 .addon-search { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--gymloop-space-12); }
-.addon-review { display: grid; align-content: start; gap: var(--gymloop-space-16); min-width: 0; border-radius: var(--gymloop-radius-section); background: var(--gymloop-color-elevated-surface); padding: var(--gymloop-space-24); }
-.addon-review .addon-offer > summary { grid-template-columns: minmax(0, 1fr) auto; row-gap: var(--gymloop-space-8); pointer-events: none; }
-.addon-review .addon-offer > summary::after { display: none; }
-.addon-review .addon-offer-state { grid-column: 1 / -1; }
+/* The confirm button closes the column on the same line as the fields column when that one is longer. */
+.addon-review { display: grid; grid-template-rows: auto auto 1fr; gap: var(--gymloop-space-16); min-width: 0; }
+.addon-review > .addon-record { align-self: end; }
+.addon-review > .cl-form > p { margin: 0; }
+.addon-review .addon-offer > summary { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'kind' 'title' 'meta' 'reason' 'state'; padding-top: 0; cursor: default; pointer-events: none; }
+.addon-review .addon-offer-price, .addon-review .addon-offer-state[data-tone='ok'] { display: none; }
 .addon-review .addon-offer-body { padding-bottom: 0; }
-.addon-review-total { display: flex; align-items: baseline; justify-content: space-between; gap: var(--gymloop-space-12); margin: 0; padding-top: var(--gymloop-space-16); border-top: 1px solid var(--gymloop-color-decorative-separator); }
-.addon-review-submit { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--gymloop-space-12); padding-top: var(--gymloop-space-16); border-top: 1px solid var(--gymloop-color-decorative-separator); }
-.addon-review-submit > :not(.addon-record) { margin: 0 auto 0 0; }
+.addon-review-total { display: grid; gap: var(--gymloop-space-4); padding-top: var(--gymloop-space-16); border-top: 1px solid var(--gymloop-color-decorative-separator); }
+.addon-review-amount { font-size: clamp(2.5rem, 4vw, var(--gymloop-type-large-metric-size)); line-height: 1; font-stretch: var(--gymloop-type-display-stretch); font-weight: var(--gymloop-type-display-weight); letter-spacing: var(--gymloop-type-title-tracking); font-variant-numeric: tabular-nums; }
+.addon-refresh { padding-inline: 0; }
+.addon-sale-fields input[type='number'] { max-width: 10rem; }
 .addon-record:disabled { border-color: var(--gymloop-color-required-control-outline); background: transparent; color: var(--gymloop-color-secondary-text); cursor: not-allowed; opacity: 1; }
+@media (min-width: 48rem) { .addon-review { padding-left: var(--gymloop-space-32); border-left: 1px solid var(--gymloop-color-decorative-separator); } }
+@media (max-width: 47.99rem) { .addon-review { padding-top: var(--gymloop-space-24); border-top: 1px solid var(--gymloop-color-decorative-separator); } }
+
+/* ── Catalogue editor (opened by Create offer or a row's Edit) ─────────── */
+.addon-editor { margin-top: var(--gymloop-space-32); }
+.addon-editor .cl-field { align-content: start; }
+.addon-editor-title { margin: 0; font-size: var(--gymloop-type-mobile-section-size); line-height: var(--gymloop-type-mobile-section-line-height); font-weight: var(--gymloop-type-emphasis-weight); }
 
 /* ── Order detail ──────────────────────────────────────────────────────── */
 .addon-member-link { color: inherit; text-decoration: none; }
 .addon-member-link:hover { text-decoration: underline; text-decoration-color: var(--gymloop-color-primary-action); text-decoration-thickness: 2px; text-underline-offset: 6px; }
-.addon-order-status { margin: var(--gymloop-space-12) 0 0; }
-.addon-order-lede { margin-top: var(--gymloop-space-4); }
+.addon-order-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gymloop-space-8) 0; max-width: none; margin-top: var(--gymloop-space-12); }
+.addon-order-meta > * + * { margin-left: var(--gymloop-space-16); padding-left: var(--gymloop-space-16); border-left: 1px solid var(--gymloop-color-decorative-separator); }
+.addon-order-name { color: var(--gymloop-color-primary-text); font-size: var(--gymloop-type-mobile-body-size); line-height: var(--gymloop-type-mobile-body-line-height); font-weight: var(--gymloop-type-emphasis-weight); }
+.addon-order-meta .cl-status { font-size: var(--gymloop-type-body-size); }
 .addon-order-facts { display: grid; gap: var(--gymloop-space-16); overflow-wrap: anywhere; }
 .addon-order-facts p { margin: 0; }
-.addon-order-title { margin: 0; font-size: 1.125rem; font-weight: var(--gymloop-type-emphasis-weight); }
+.addon-order-title { margin: 0; font-size: var(--gymloop-type-mobile-body-size); line-height: var(--gymloop-type-mobile-body-line-height); font-weight: var(--gymloop-type-emphasis-weight); }
 .addon-detail { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: var(--gymloop-space-48); }
 .addon-detail > * { min-width: 0; }
 .addon-detail-terms { order: 1; }
-.addon-detail-terms .addon-facts { max-width: 44rem; }
 .addon-money { order: 2; display: grid; align-self: start; align-content: start; gap: var(--gymloop-space-16); min-width: 0; margin-top: var(--gymloop-space-48); }
 .addon-detail-sessions { order: 3; }
 .addon-money-hero { display: grid; gap: var(--gymloop-space-4); margin: 0; }
@@ -93,10 +140,13 @@
 .addon-money .addon-note { margin-top: 0; }
 .addon-usage .cl-metric { border-top: 1px solid var(--gymloop-color-decorative-separator); border-bottom: 0; }
 .addon-usage + .addon-sessions, .addon-usage + .addon-note { border-top: 0; }
-.addon-sessions { margin-top: 0; }
-.addon-session { display: grid; gap: var(--gymloop-space-4); width: 100%; min-width: 0; }
-.addon-session p { margin: 0; }
-.addon-session-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gymloop-space-12); }
+.addon-sessions, .addon-refunds { margin-top: 0; }
+/* One session row everywhere (workspace list, order page, refunds): what and when on the left, dot + word (and any action) on the right. */
+.addon-session-rows > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--gymloop-space-8) var(--gymloop-space-16); }
+.addon-session-actions { display: grid; grid-column: 1 / -1; gap: var(--gymloop-space-8); }
+.addon-session-actions > p { margin: 0; }
+/* Confirmation forms side by side: each description takes the spare height so every button sits on one line. */
+.addon-session-actions form { grid-template-rows: 1fr; grid-auto-rows: auto; }
 @media (min-width: 75rem) {
   .addon-detail { grid-template-columns: minmax(0, 1fr) 24rem; grid-template-rows: auto 1fr; }
   .addon-detail-terms { grid-column: 1; grid-row: 1; }
@@ -111,9 +161,12 @@
 
 /* ── Member add-ons ────────────────────────────────────────────────────── */
 .member-addons section + section { margin-top: var(--gymloop-space-32); }
-.addon-member-heading { margin-bottom: var(--gymloop-space-12); font-size: 1.5rem; }
 .addon-member-empty { margin-top: 0; padding-top: var(--gymloop-space-16); }
-.addon-catalogue--member .addon-offer > summary { grid-template-columns: minmax(0, 1fr) auto 1rem; }
+/* A member's offer row: kind + Details, then the name with its price, then the meta line at full width. */
+.addon-catalogue--member .addon-offer > summary { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'kind more' 'title price' 'meta meta'; align-items: start; }
+.addon-catalogue--member .addon-offer-kind { align-self: center; }
+.addon-catalogue--member .addon-offer-price { margin-top: 0; }
+.addon-catalogue--member .addon-offer-state { display: none; }
 
 @media (max-width: 40rem) {
   .addon-usage.cl-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -122,10 +175,6 @@
   .addon-offer-body .addon-facts { grid-template-columns: minmax(0, 1fr); }
   .addon-offer-body .addon-facts > dt { padding-bottom: 0; border-bottom: 0; }
   .addon-offer-body .addon-facts > dd { padding-top: var(--gymloop-space-4); text-align: left; }
-  .addon-catalogue > li { grid-template-columns: minmax(0, 1fr) 4.25rem; column-gap: var(--gymloop-space-8); }
-  .addon-offer > summary { grid-template-columns: minmax(0, 1fr) 5.5rem 1rem; column-gap: var(--gymloop-space-12); row-gap: var(--gymloop-space-4); }
-  .addon-offer-price { font-size: 1.25rem; }
-  .addon-offer-state { grid-column: 1 / 2; grid-row: 2; }
   .addon-search { grid-template-columns: minmax(0, 1fr); }
   .addon-orders td.addon-orders-name { grid-column: 1; grid-row: 1; }
   .addon-orders td.addon-orders-amount { grid-column: 2; grid-row: 1; align-self: center; }
@@ -133,10 +182,12 @@
   .addon-orders td.addon-orders-date { grid-column: 2; grid-row: 2; text-align: right; }
   .addon-orders td.addon-orders-status { grid-column: 1; grid-row: 3; }
   .addon-orders td.addon-orders-open { grid-column: 2; grid-row: 3; align-self: end; }
-  .addon-review { padding: var(--gymloop-space-16); }
+  .addon-session-rows > li { grid-template-columns: minmax(0, 1fr); }
+  .addon-session-rows .addon-row-end { justify-content: space-between; }
+  .addon-order-name { flex-basis: 100%; }
+  .addon-order-meta > .addon-order-name + * { margin-left: 0; padding-left: 0; border-left: 0; }
 }
 @media (max-width: 30rem) {
-  .addon-search > .cl-btn, .addon-record, .addon-review-submit > * { width: 100%; }
-  .addon-review-submit > :not(.addon-record) { margin: 0; }
+  .addon-search > .cl-btn { width: 100%; }
 }
-@media (prefers-reduced-motion: reduce) { .addon-offer > summary::after { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .addon-offer-more > svg { transition: none; } }

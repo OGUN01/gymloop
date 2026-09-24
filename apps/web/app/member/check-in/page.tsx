@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { UI_TOKENS } from '@gymloop/shared';
 import { loadMemberPortal } from '../../../lib/member-portal';
-import { memberGymName } from '../member-ui';
 
 export default async function MemberCheckInPage() {
   const portal = await loadMemberPortal();
@@ -10,14 +9,13 @@ export default async function MemberCheckInPage() {
   return <main className="member-route member-portal member-check-in">
     <header>
       <Link href="/member" className="cl-back"><ArrowLeft aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />Home</Link>
-      <p className="cl-eyebrow">{memberGymName(portal.gym)} · {portal.gym.gym_code}</p>
       <h1 className="member-title">Check-in</h1>
-      <p className="cl-lede member-lede">You can&rsquo;t check in from a browser. Use the Gymloop app on your phone &mdash; it takes a few seconds at the desk.</p>
+      <p className="cl-lede member-lede">Check in with the Gymloop app on your&nbsp;phone, not from a browser.</p>
     </header>
     <section className="member-section" aria-labelledby="how-heading">
       <h2 id="how-heading" className="cl-eyebrow member-eyebrow">How it works</h2>
       <ol className="member-steps member-steps--numbered">
-        <li><span className="cl-display" aria-hidden="true">1</span><span><strong>Open Gymloop on your phone</strong><small>Sign in with this same account. No app yet? Ask the front desk for the Gymloop app link.</small></span></li>
+        <li><span className="cl-display" aria-hidden="true">1</span><span><strong>Open Gymloop on your phone</strong><small>Use this same account. No app yet? Ask the front desk for the Gymloop app link.</small></span></li>
         <li><span className="cl-display" aria-hidden="true">2</span><span><strong>Scan the QR code at the desk</strong><small>The code on the gym&rsquo;s screen changes often, so scan the live one.</small></span></li>
         <li><span className="cl-display" aria-hidden="true">3</span><span><strong>Wait for &ldquo;You&rsquo;re checked in&rdquo;</strong><small>Your visit counts once the gym&rsquo;s system confirms it.</small></span></li>
       </ol>

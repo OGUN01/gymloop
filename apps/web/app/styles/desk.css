@@ -5,71 +5,117 @@
 .check-in-title { margin: 0; font-size: clamp(48px, 5vw, 72px); line-height: 1; }
 .check-in-route-actions { align-items: center; gap: var(--gymloop-space-12); }
 .check-in-route-actions > .cl-btn { min-height: var(--gymloop-target-interactive); }
-/* The rail carries these links wherever it is visible; they stay for the phone's select-based nav. */
-@media (min-width: 56.0625rem) { .check-in-route-link { display: none; } }
+/* The rail (and the phone's nav select) already carries Follow-ups and Members at every
+   width, so the header's fallback route links would only repeat it. */
+.check-in-route-link { display: none; }
+.check-in-route-actions:not(:has(> :not(.check-in-route-link))) { display: none; }
 .desk-count { margin: var(--gymloop-space-24) 0 0; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); font-variant-numeric: tabular-nums; }
 
 /* The search submit sits inside the field on a phone, beside it elsewhere. */
 .check-in-search-submit-icon { display: none; width: var(--gymloop-icon-control-size); height: var(--gymloop-icon-control-size); }
 
-/* ── Check-in: roster column + full-height gate column ───────────────────── */
-.check-in-gate > * { min-width: 0; }
-.check-in-gate:disabled > * { opacity: .7; }
-.check-in-roster-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gymloop-space-4) var(--gymloop-space-24); margin: var(--gymloop-space-24) 0 0; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); }
-.check-in-count { font-variant-numeric: tabular-nums; }
-.check-in-desk-note::before { content: ''; display: inline-block; width: var(--gymloop-icon-status-dot); height: var(--gymloop-icon-status-dot); margin-right: var(--gymloop-space-8); border-radius: 50%; background: var(--gymloop-color-warning-text); vertical-align: middle; }
-.check-in-outcome { margin: var(--gymloop-space-24) 0 0; }
-.check-in-gate-panel { position: static; display: block; }
-.check-in-gate-inner { display: grid; gap: var(--gymloop-space-12); }
-.check-in-gate-title { font-size: clamp(2rem, 2.8vw, 2.5rem); line-height: 1; letter-spacing: var(--gymloop-type-title-tracking); }
-.check-in-gate-copy { max-width: 32ch; }
-.check-in-gate-controls { margin-top: var(--gymloop-space-4); }
-.check-in-gate-controls .cl-btn { min-height: var(--gymloop-target-touch); }
+/* An end date in a ledger: "10 Oct 2026" under ENDS, "Ended 8 Sep 2026" once it has passed. */
+.desk-ends { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.desk-ends[data-ended='true'] { color: var(--gymloop-color-secondary-text); }
+.desk-ends[data-tone='risk'] { color: var(--gymloop-color-error-risk-text); font-weight: 500; }
+@media (min-width: 40.0625rem) {
+  /* The column header already says "Ends"; the word stays for screen readers. */
+  .desk-ends:not([data-ended='true']) .desk-ends-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 
+/* ── Check-in: one order at every width — outcome, gate, search, roster ─── */
+.check-in-workspace:has(> .check-in-gate) { display: flex; flex-direction: column; }
+.check-in-workspace > .check-in-gate { display: contents; }
+.check-in-gate:disabled > * { opacity: .7; }
+.check-in-gate > .check-in-outcome { order: 1; margin: var(--gymloop-space-24) 0 0; }
+.check-in-gate > .check-in-gate-panel { order: 2; }
+.check-in-workspace > .check-in-search { order: 3; }
+.check-in-workspace > .check-in-search-error { order: 4; }
+.check-in-gate > .check-in-roster-meta { order: 5; }
+.check-in-gate > .check-in-members { order: 6; }
+.check-in-gate > .check-in-empty { order: 7; }
+.check-in-workspace > .check-in-next-page { order: 8; align-self: flex-start; }
+
+.check-in-roster-meta { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--gymloop-space-4) var(--gymloop-space-24); margin: var(--gymloop-space-24) 0 0; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); }
+.check-in-count { font-variant-numeric: tabular-nums; }
+/* The dot is its own flex item, so a wrapped second line hangs under the words, not the dot. */
+.check-in-desk-note { display: inline-flex; min-width: 0; align-items: flex-start; gap: var(--gymloop-space-8); }
+.check-in-desk-note::before { content: ''; flex: 0 0 auto; width: var(--gymloop-icon-status-dot); height: var(--gymloop-icon-status-dot); margin-top: calc((var(--gymloop-type-compact-line-height) - var(--gymloop-icon-status-dot)) / 2); border-radius: 50%; background: var(--gymloop-color-warning-text); }
+
+/* The gate block: the one action, then a labelled field for a code someone handed you. */
+.check-in-gate-panel { position: static; display: block; align-self: stretch; margin: var(--gymloop-space-24) 0 0; padding: 0 0 var(--gymloop-space-24); border-left: 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+.check-in-gate-inner { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gymloop-space-8); }
+.check-in-gate-title { font-size: clamp(2rem, 2.8vw, 2.5rem); line-height: 1; letter-spacing: var(--gymloop-type-title-tracking); }
+.check-in-gate-copy { max-width: 36ch; text-wrap: pretty; }
+.check-in-gate-issue { justify-self: start; margin-top: var(--gymloop-space-8); }
+.check-in-issued-gate { margin-top: var(--gymloop-space-8); }
+.check-in-gate-entry { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gymloop-space-8); margin-top: var(--gymloop-space-16); padding-top: var(--gymloop-space-16); border-top: 1px solid var(--gymloop-color-decorative-separator); }
+.check-in-gate-label { color: var(--gymloop-color-primary-text); font-size: var(--gymloop-type-body-size); line-height: var(--gymloop-type-body-line-height); font-weight: 500; }
+.check-in-gate-controls { display: flex; flex-wrap: nowrap; gap: var(--gymloop-space-8); margin: 0; }
+.check-in-gate-controls .cl-btn { flex: 0 0 auto; min-height: var(--gymloop-target-touch); }
+.check-in-gate-input { flex: 1 1 0; width: 0; min-width: 0; }
+.check-in-camera { margin-top: var(--gymloop-space-8); }
+
+/* Tablet: the head on the left, the one action on the right, the code field under a hairline. */
+@media (min-width: 40.0625rem) and (max-width: 64rem) {
+  .check-in-gate-inner { grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--gymloop-space-24); }
+  .check-in-gate-inner > * { grid-column: 1 / -1; }
+  .check-in-gate-inner > .cl-eyebrow { grid-column: 1; grid-row: 1; }
+  .check-in-gate-title { grid-column: 1; grid-row: 2; font-size: clamp(2rem, 4.5vw, 2.5rem); }
+  .check-in-gate-inner > .check-in-gate-copy { grid-column: 1; grid-row: 3; }
+  .check-in-gate-inner > .check-in-gate-issue { grid-column: 2; grid-row: 1 / span 3; align-self: center; margin: 0; }
+
+}
+
+/* Desktop: the roster column and a full-height gate column. */
 @media (min-width: 64.0625rem) {
-  .check-in-workspace:has(> .check-in-gate) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem); grid-template-rows: auto auto auto auto auto auto 1fr auto; column-gap: var(--gymloop-space-48); align-content: start; }
+  .check-in-workspace:has(> .check-in-gate) { display: grid; grid-template-columns: minmax(0, 1fr) clamp(17.5rem, 22vw, 21rem); grid-template-rows: auto auto auto auto auto auto 1fr auto; column-gap: var(--gymloop-space-48); align-content: start; }
   .check-in-workspace:has(> .check-in-gate) > .check-in-header { grid-column: 1 / -1; grid-row: 1; }
   .check-in-workspace:has(> .check-in-gate) > .check-in-search { grid-column: 1; grid-row: 3; }
   .check-in-workspace:has(> .check-in-gate) > .check-in-search-error { grid-column: 1; grid-row: 4; }
   .check-in-workspace:has(> .check-in-gate) > .check-in-next-page { grid-column: 1; grid-row: 8; justify-self: start; }
-  .check-in-workspace > .check-in-gate { display: contents; }
   .check-in-gate > .check-in-outcome { grid-column: 1; grid-row: 2; }
   .check-in-gate > .check-in-roster-meta { grid-column: 1; grid-row: 5; }
   .check-in-gate > .check-in-members { grid-column: 1; grid-row: 6; margin-top: var(--gymloop-space-8); }
   .check-in-gate > .check-in-empty { grid-column: 1; grid-row: 7; }
-  .check-in-gate > .check-in-gate-panel { grid-column: 2; grid-row: 2 / -1; align-self: stretch; padding: var(--gymloop-space-32) 0 0 var(--gymloop-space-32); border-left: 1px solid var(--gymloop-color-decorative-separator); }
+  .check-in-gate > .check-in-gate-panel { grid-column: 2; grid-row: 2 / -1; align-self: stretch; margin: 0; padding: var(--gymloop-space-32) 0 0 var(--gymloop-space-32); border-bottom: 0; border-left: 1px solid var(--gymloop-color-decorative-separator); }
   .check-in-gate-inner { position: sticky; top: var(--gymloop-space-24); }
-  .check-in-gate-controls { flex-direction: column; flex-wrap: nowrap; }
-  .check-in-gate-controls > * { width: 100%; flex: 0 0 auto; }
+  .check-in-gate-issue { justify-self: stretch; }
 }
 
-/* Ledger rows: one line down to ~700px wide. */
-.check-in-member-headings, .check-in-member-content { grid-template-columns: minmax(0, 1fr) 7.5rem 15rem; }
+/* ── Check-in roster ledger ─────────────────────────────────────────────── */
+/* The action column is as wide as its buttons: one without a gate code, two with one. */
+.check-in-gate { --check-in-action: 9.5rem; }
+.check-in-gate[data-gate='open'] { --check-in-action: 15.5rem; }
+.check-in-members { container: check-in-roster / inline-size; }
+.check-in-member-headings, .check-in-member-content { grid-template-columns: minmax(0, 1fr) 8.5rem var(--check-in-action); column-gap: var(--gymloop-space-16); }
+.check-in-member-headings { display: grid; }
+.check-in-heading-phone { display: none; }
 .check-in-member-row { padding: var(--gymloop-space-12) 0; }
 .check-in-member-phone { margin-top: var(--gymloop-space-4); }
 .check-in-member-name { line-height: var(--gymloop-type-compact-line-height); }
-.check-in-actions { flex-wrap: nowrap; align-items: center; }
+.check-in-member-content > .cl-status { grid-column: auto; }
+.check-in-actions { grid-column: auto; flex-wrap: nowrap; align-items: center; justify-content: flex-end; padding-left: 0; }
 .check-in-row-action { min-width: 7rem; min-height: var(--gymloop-target-interactive); }
 .check-in-row-action.cl-btn--quiet { min-width: 0; }
 .check-in-assist-form { align-items: stretch; }
 .check-in-assist-form .cl-btn { min-height: var(--gymloop-target-touch); }
 
-@media (max-width: 64rem) {
-  .check-in-gate { display: flex; flex-direction: column; gap: 0; }
-  .check-in-gate > .check-in-outcome { order: -2; }
-  .check-in-gate-panel { order: -1; align-self: stretch; margin: var(--gymloop-space-24) 0 0; padding: 0 0 var(--gymloop-space-24); border-left: 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
-  .check-in-gate-inner { grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--gymloop-space-8) var(--gymloop-space-24); }
-  .check-in-gate-inner > * { grid-column: 1 / -1; }
-  .check-in-gate-inner > .cl-eyebrow { grid-column: 1; grid-row: 1; }
-  .check-in-gate-title { grid-column: 1; grid-row: 2; font-size: clamp(2rem, 6vw, 2.75rem); }
-  .check-in-gate-copy { display: none; }
-  .check-in-gate-inner > .check-in-gate-controls { grid-column: 2; grid-row: 1 / span 2; flex-wrap: nowrap; margin: 0; }
-  .check-in-gate-input { width: 16rem; flex: 0 1 16rem; }
-  .check-in-gate-input { min-width: 0; }
-  .check-in-member-headings { display: grid; }
-  .check-in-member-content { grid-template-columns: minmax(0, 1fr) 7.5rem 15rem; }
-  .check-in-member-content > .cl-status { grid-column: auto; }
-  .check-in-actions { grid-column: auto; justify-content: flex-end; padding-left: 0; }
+/* Wide enough for the board's columns: MEMBER | PHONE | STATUS | CHECK IN. The identity
+   block dissolves into the grid so the phone takes its own column without a second copy. */
+@container check-in-roster (min-width: 40.5rem) {
+  .check-in-gate[data-gate='closed'] :is(.check-in-member-headings, .check-in-member-content) { grid-template-columns: var(--gymloop-target-touch) minmax(9rem, 1.4fr) minmax(8rem, 1fr) minmax(8rem, 1fr) var(--check-in-action); column-gap: var(--gymloop-space-12); }
+  .check-in-gate[data-gate='closed'] .check-in-member-headings > :first-child { grid-column: 1 / span 2; }
+  .check-in-gate[data-gate='closed'] .check-in-heading-phone { display: block; }
+  .check-in-gate[data-gate='closed'] :is(.check-in-member-identity, .check-in-member-identity > div) { display: contents; }
+  .check-in-gate[data-gate='closed'] .check-in-member-phone { margin: 0; }
+}
+@container check-in-roster (min-width: 46.5rem) {
+  .check-in-gate :is(.check-in-member-headings, .check-in-member-content) { grid-template-columns: var(--gymloop-target-touch) minmax(9rem, 1.4fr) minmax(8rem, 1fr) minmax(8rem, 1fr) var(--check-in-action); column-gap: var(--gymloop-space-12); }
+  .check-in-gate .check-in-member-headings > :first-child { grid-column: 1 / span 2; }
+  .check-in-gate .check-in-heading-phone { display: block; }
+  .check-in-gate :is(.check-in-member-identity, .check-in-member-identity > div) { display: contents; }
+  .check-in-gate .check-in-member-phone { margin: 0; }
 }
 
 @media (max-width: 40rem) {
@@ -82,29 +128,26 @@
   .check-in-search .check-in-search-submit { min-height: 0; }
   .check-in-search-submit-label { display: none; }
   .check-in-search-submit-icon { display: block; }
+  .check-in-gate-issue { justify-self: stretch; }
   .check-in-member-headings { display: none; }
   .check-in-member-content { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "identity actions" "status actions"; row-gap: var(--gymloop-space-4); }
   .check-in-member-identity { grid-area: identity; }
   .check-in-member-content > .cl-status { grid-area: status; padding-left: calc(var(--gymloop-target-touch) + var(--gymloop-space-16)); }
   .check-in-actions { grid-area: actions; flex-direction: column; align-items: stretch; gap: var(--gymloop-space-4); }
   .check-in-actions > button { flex: 0 0 auto; }
-  .check-in-gate-controls .cl-btn { padding-inline: var(--gymloop-space-12); }
-  .check-in-gate-inner > .check-in-gate-controls { grid-column: 1 / -1; grid-row: auto; }
-  .check-in-gate-input { width: auto; flex: 1 1 auto; }
 }
-
 
 /* ── Members roster: the check-in row, as a link ─────────────────────────── */
 .console-roster-list { margin: var(--gymloop-space-8) 0 0; padding: 0; list-style: none; }
-.console-roster-headings, .console-roster-row { display: grid; grid-template-columns: var(--gymloop-target-touch) minmax(10rem, 2fr) minmax(9rem, 1fr) minmax(7rem, 1fr) minmax(6rem, 1fr) var(--gymloop-space-24); grid-template-areas: "avatar name phone ends status chevron"; column-gap: var(--gymloop-space-16); align-items: center; }
-.console-roster-headings { padding: var(--gymloop-space-12) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-eyebrow-size); line-height: var(--gymloop-type-eyebrow-line-height); font-weight: var(--gymloop-type-emphasis-weight); letter-spacing: var(--gymloop-type-eyebrow-tracking); text-transform: uppercase; }
+.console-roster-headings, .console-roster-row { display: grid; grid-template-columns: var(--gymloop-target-touch) minmax(0, 2fr) minmax(8rem, 1fr) minmax(9rem, 1fr) minmax(8.5rem, 1fr) var(--gymloop-space-24); grid-template-areas: "avatar name phone ends status chevron"; column-gap: var(--gymloop-space-16); align-items: center; }
+.console-roster-headings { padding: var(--gymloop-space-12) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-eyebrow-size); line-height: var(--gymloop-type-eyebrow-line-height); font-weight: var(--gymloop-type-emphasis-weight); letter-spacing: var(--gymloop-type-eyebrow-tracking); text-transform: uppercase; white-space: nowrap; }
 .console-roster-headings > :first-child { grid-column: 1 / span 2; }
 .console-roster-list > li:not(.console-roster-headings) { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
 .console-roster-row { padding: var(--gymloop-space-12) 0; border-radius: var(--gymloop-radius-row); color: var(--gymloop-color-primary-text); text-decoration: none; transition: background-color var(--gymloop-motion-press) ease; }
 .console-roster-row:hover { background: var(--gymloop-color-elevated-surface); box-shadow: calc(-1 * var(--gymloop-space-12)) 0 0 var(--gymloop-color-elevated-surface), var(--gymloop-space-12) 0 0 var(--gymloop-color-elevated-surface); }
 .console-roster-initial { grid-area: avatar; }
 .console-roster-name { grid-area: name; min-width: 0; font-size: var(--gymloop-type-mobile-body-size); line-height: var(--gymloop-type-compact-line-height); font-weight: var(--gymloop-type-emphasis-weight); overflow-wrap: anywhere; }
-.console-roster-phone { grid-area: phone; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); font-variant-numeric: tabular-nums; }
+.console-roster-phone { grid-area: phone; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .console-roster-status { grid-area: status; }
 .console-roster-ends { grid-area: ends; font-size: var(--gymloop-type-compact-size); font-variant-numeric: tabular-nums; }
 .console-roster-chevron { grid-area: chevron; width: var(--gymloop-icon-control-size); height: var(--gymloop-icon-control-size); color: var(--gymloop-color-secondary-text); justify-self: end; transition: transform var(--gymloop-motion-press) ease; }
@@ -112,92 +155,131 @@
 .console-roster-empty { margin-top: var(--gymloop-space-24); }
 @media (max-width: 40rem) {
   .console-roster-headings { display: none; }
-  .console-roster-row { grid-template-columns: var(--gymloop-target-touch) minmax(0, 1fr) auto var(--gymloop-icon-control-size); grid-template-areas: "avatar name status chevron" "avatar phone status chevron"; row-gap: var(--gymloop-space-4); }
-  .console-roster-ends { display: none; }
+  /* Name, phone, then the renewal fact on a third line — the Memberships phone row. */
+  .console-roster-row { grid-template-columns: var(--gymloop-target-touch) minmax(0, 1fr) auto var(--gymloop-icon-control-size); grid-template-areas: "avatar name status chevron" "avatar phone status chevron" "avatar ends status chevron"; row-gap: 2px; }
+  .console-roster-status { align-self: start; }
+  .console-roster-ends { color: var(--gymloop-color-secondary-text); }
+  .console-roster-ends .desk-ends-none { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .console-roster-row, .console-roster-chevron { transition: none; } }
 
-/* ── Memberships list ────────────────────────────────────────────────────── */
+/* ── Memberships list: the same ledger, each row a link ─────────────────── */
 .memberships-ledger-wrap { margin-top: var(--gymloop-space-8); }
-.memberships-ledger { font-size: var(--gymloop-type-body-size); }
-.memberships-ledger td { padding-block: var(--gymloop-space-12); }
-.memberships-ledger th:first-child { width: 34%; }
-.memberships-ledger th:nth-child(4) { width: 9rem; }
-.memberships-ledger :is(th, td):nth-child(5) { width: 10rem; padding-left: var(--gymloop-space-48); }
+/* Separate borders so the hover band can round its ends like the Members row. */
+.memberships-ledger { border-collapse: separate; border-spacing: 0; }
+/* The member column takes the slack on a tablet; on a wide screen it stops at about a third so the
+   facts sit near the name they belong to instead of across a gap. */
+.memberships-ledger th:first-child { width: 100%; }
+@media (min-width: 80.0625rem) { .memberships-ledger th:first-child { width: 36%; } }
+.memberships-ledger :is(th, td) { padding-right: var(--gymloop-space-24); }
+.memberships-ledger :is(th, td):not(:first-child) { white-space: nowrap; }
+.memberships-ledger td { padding-block: var(--gymloop-space-12); background-clip: padding-box; transition: background-color var(--gymloop-motion-press) ease; }
+.memberships-ledger :is(th, td).cl-num { padding-right: var(--gymloop-space-32); }
+/* Tablet: tighter gutters so the member column keeps a name on one line. */
+@media (max-width: 80rem) {
+  .memberships-ledger :is(th, td) { padding-right: var(--gymloop-space-16); }
+  .memberships-ledger :is(th, td).cl-num { padding-right: var(--gymloop-space-24); }
+}
+.memberships-ledger .memberships-chevron-cell { width: var(--gymloop-icon-control-size); padding-right: 0; }
+.memberships-ledger tbody tr { position: relative; }
+.memberships-ledger tbody tr:hover > td { background-color: var(--gymloop-color-elevated-surface); }
+.memberships-ledger tbody tr:hover > td:first-child { border-radius: var(--gymloop-radius-row) 0 0 var(--gymloop-radius-row); box-shadow: calc(-1 * var(--gymloop-space-12)) 0 0 var(--gymloop-color-elevated-surface); }
+.memberships-ledger tbody tr:hover > td:last-child { border-radius: 0 var(--gymloop-radius-row) var(--gymloop-radius-row) 0; box-shadow: var(--gymloop-space-12) 0 0 var(--gymloop-color-elevated-surface); }
+.memberships-ledger tbody tr:hover .memberships-chevron { color: var(--gymloop-color-primary-text); transform: translateX(2px); }
+.memberships-chevron { display: block; }
 .memberships-identity { display: flex; align-items: center; gap: var(--gymloop-space-16); }
-.memberships-ledger .cl-status { font-size: var(--gymloop-type-body-size); }
-.memberships-member { display: block; line-height: var(--gymloop-type-compact-line-height); }
+.memberships-member { display: block; font-size: var(--gymloop-type-mobile-body-size); line-height: var(--gymloop-type-compact-line-height); overflow-wrap: anywhere; }
+/* The whole row is the member's link. */
+.memberships-member::after { content: ''; position: absolute; inset: 0; border-radius: var(--gymloop-radius-row); }
+.memberships-ledger a.memberships-member:hover { text-decoration: none; }
+.memberships-member:focus-visible { outline: 0; }
+.memberships-member:focus-visible::after { outline: 2px solid var(--gymloop-color-primary-action); outline-offset: 2px; }
 .memberships-phone { display: block; margin-top: var(--gymloop-space-4); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); font-variant-numeric: tabular-nums; }
 @media (max-width: 40rem) {
   .memberships-ledger thead { display: none; }
   .memberships-ledger, .memberships-ledger tbody { display: block; }
-  .memberships-ledger tr { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "member member status" "plan ends price"; gap: var(--gymloop-space-4) 0; padding: var(--gymloop-space-12) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+  .memberships-ledger tr { display: grid; grid-template-columns: auto minmax(0, 1fr) auto var(--gymloop-icon-control-size); grid-template-areas: "member member status chevron" "plan ends price chevron"; gap: var(--gymloop-space-4) 0; padding: var(--gymloop-space-12) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
   .memberships-ledger td { padding: 0; border: 0; }
   .memberships-ledger td:nth-child(1) { grid-area: member; }
-  .memberships-ledger td:nth-child(2) { grid-area: plan; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); }
-  .memberships-ledger td:nth-child(3) { grid-area: ends; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); }
-  .memberships-ledger td:nth-child(3)::before { content: '\a0\b7\a0 Ends\a0'; }
-  .memberships-ledger td:nth-child(4) { grid-area: price; font-size: var(--gymloop-type-compact-size); }
-  .memberships-ledger td:nth-child(5) { grid-area: status; justify-self: end; width: auto; padding-left: var(--gymloop-space-12); }
-  .memberships-ledger td:nth-child(4) { padding-left: var(--gymloop-space-12); }
-  .memberships-ledger td:nth-child(2), .memberships-ledger td:nth-child(3) { padding-left: calc(var(--gymloop-target-touch) + var(--gymloop-space-16)); }
-  .memberships-ledger td:nth-child(3) { padding-left: 0; }
+  .memberships-ledger .memberships-plan { grid-area: plan; padding-left: calc(var(--gymloop-target-touch) + var(--gymloop-space-16)); color: var(--gymloop-color-secondary-text); }
+  .memberships-ledger .memberships-ends { grid-area: ends; color: var(--gymloop-color-secondary-text); }
+  .memberships-ends::before { content: '\a0\b7\a0'; color: var(--gymloop-color-secondary-text); }
+  .memberships-ledger td.memberships-price { grid-area: price; padding-left: var(--gymloop-space-12); padding-right: 0; }
+  .memberships-ledger .memberships-ends .desk-ends { white-space: normal; }
+  .memberships-ledger td.memberships-status { grid-area: status; justify-self: end; padding-left: var(--gymloop-space-12); padding-right: 0; }
+  .memberships-ledger td.memberships-chevron-cell { grid-area: chevron; align-self: center; justify-self: end; padding-left: var(--gymloop-space-8); }
+  .memberships-ledger tr:has(.memberships-plan > .cl-muted) :is(.memberships-plan, .memberships-ends, .memberships-price) { display: none; }
+  .memberships-ledger tbody tr:hover > td { background-color: transparent; }
+  .memberships-ledger tbody tr:hover > td:is(:first-child, :last-child) { box-shadow: none; }
 }
+@media (prefers-reduced-motion: reduce) { .memberships-ledger td { transition: none; } }
 
 /* ── Follow-ups ──────────────────────────────────────────────────────────── */
 .follow-up-header { align-items: center; }
 .follow-up-title { margin: 0; font-size: clamp(48px, 5vw, 72px); line-height: 1; }
-.follow-up-route-link { gap: var(--gymloop-space-8); min-height: var(--gymloop-target-interactive); }
+.follow-up-route-link { gap: var(--gymloop-space-8); min-height: var(--gymloop-target-interactive); font-size: var(--gymloop-type-body-size); }
 .follow-up-route-icon { width: var(--gymloop-icon-control-size); height: var(--gymloop-icon-control-size); }
 .follow-up-row { align-items: start; padding: var(--gymloop-space-16) 0; }
 .follow-up-member-details { gap: var(--gymloop-space-4); }
-.follow-up-member-name { min-height: 0; line-height: var(--gymloop-type-compact-line-height); }
+.follow-up-member-name { min-height: 0; overflow: visible; line-height: var(--gymloop-type-compact-line-height); white-space: normal; overflow-wrap: anywhere; }
 .follow-up-member-name::after, .follow-up-member-phone::after { content: ''; position: absolute; inset: calc(-1 * var(--gymloop-space-12)) 0 0; }
 .follow-up-member-phone::after { inset: 0 0 calc(-1 * var(--gymloop-space-12)); }
 .follow-up-member-name, .follow-up-member-phone { position: relative; }
 .follow-up-member-phone { text-decoration: none; }
 .follow-up-member-phone:hover { color: var(--gymloop-color-primary-text); }
 .follow-up-attendance { gap: var(--gymloop-space-4); }
-.follow-up-history { display: grid; gap: var(--gymloop-space-4); padding-top: var(--gymloop-space-4); }
+/* Who reached them and how, then what they said and when. */
+.follow-up-history { display: grid; gap: var(--gymloop-space-4); padding-top: calc((var(--gymloop-target-touch) - var(--gymloop-target-interactive)) / 2); }
+.follow-up-contact-by { color: var(--gymloop-color-primary-text); text-wrap: pretty; }
+.follow-up-contact-when { color: var(--gymloop-color-secondary-text); white-space: nowrap; }
 .follow-up-history .cl-status { margin-left: 0; color: var(--gymloop-color-primary-text); font-size: var(--gymloop-type-compact-size); }
-.follow-up-history .follow-up-not-contacted { white-space: normal; color: var(--gymloop-color-secondary-text); }
+.follow-up-history .follow-up-not-contacted { align-items: flex-start; color: var(--gymloop-color-secondary-text); white-space: normal; text-wrap: balance; }
+.follow-up-history .follow-up-not-contacted::before { margin-top: calc((var(--gymloop-type-compact-line-height) - var(--gymloop-icon-status-dot)) / 2); }
 /* Every column's first line centres on the avatar and the first control row (48px). */
 .follow-up-member { align-items: center; padding-top: 0; }
 .follow-up-attendance { padding-top: var(--gymloop-space-8); }
-.follow-up-history { padding-top: calc((var(--gymloop-target-touch) - var(--gymloop-target-interactive)) / 2); }
 .follow-up-log > summary { display: none; }
 .follow-up-log::details-content { content-visibility: visible; display: contents; }
 .follow-up-log { display: contents; }
 .follow-up-form:has(select[name='outcome']:valid) .follow-up-submit { border-color: var(--gymloop-color-primary-action); background: var(--gymloop-color-primary-action); color: var(--gymloop-color-text-on-primary); }
-.follow-up-submit { transition: background-color var(--gymloop-motion-press) ease, color var(--gymloop-motion-press) ease; }
+.follow-up-submit { font-size: var(--gymloop-type-body-size); transition: background-color var(--gymloop-motion-press) ease, color var(--gymloop-motion-press) ease; }
 .follow-up-submit:hover { background: var(--gymloop-color-elevated-surface); }
 
-/* One grid row per person once the form fits beside them. */
-@media (min-width: 81.25rem) {
-  .follow-up-column-headings, .follow-up-row { grid-template-columns: minmax(12rem, 1.1fr) minmax(7.5rem, .6fr) minmax(10rem, .9fr) minmax(28rem, 1.7fr); gap: var(--gymloop-space-24); }
-  .follow-up-column-headings > :last-child { display: block; }
-  .follow-up-form { grid-column: auto; padding-left: 0; }
-}
-/* Above phone width the column header names the fields, so each row's labels are for screen readers only;
-   both control rows share one grid and one right edge. */
+/* Above phone width the column header names the fields, so each row's labels are for screen readers only. */
 @media (min-width: 40.0625rem) {
-  .follow-up-form { grid-template-columns: minmax(7.5rem, 1fr) minmax(10rem, 1fr) auto; grid-template-areas: "channel outcome outcome" "note note submit"; align-items: stretch; }
   .follow-up-channel-field { grid-area: channel; }
   .follow-up-outcome-field { grid-area: outcome; }
   .follow-up-note-field { grid-area: note; }
   .follow-up-submit { grid-area: submit; }
   .follow-up-field > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
-@media (min-width: 40.0625rem) and (max-width: 64rem) {
-  .follow-up-column-headings { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr) minmax(0, 1fr); }
-  .follow-up-column-headings > :last-child { display: none; }
+/* 1280 and wider: one grid row per person, the form beside them on two control rows. */
+@media (min-width: 80rem) {
+  .follow-up-column-headings, .follow-up-row { grid-template-columns: minmax(12rem, .8fr) 8.5rem minmax(16rem, 1fr) minmax(18rem, 1.4fr); gap: var(--gymloop-space-24); }
+  .follow-up-column-headings > :last-child { display: block; }
+  /* A two-by-two block: the choices on top, the note and its submit under them, one right edge. */
+  .follow-up-form { grid-column: auto; grid-template-columns: minmax(7.5rem, 1fr) minmax(10rem, 11rem); grid-template-areas: "channel outcome" "note submit"; align-items: stretch; padding-left: 0; }
+}
+/* Tablet: the row stays one line and "Log follow-up" opens the form under it, as on a phone. */
+@media (min-width: 40.0625rem) and (max-width: 79.9375rem) {
+  .follow-up-column-headings, .follow-up-row { grid-template-columns: minmax(0, 1fr) 7.5rem minmax(0, 1fr) 9.5rem; column-gap: var(--gymloop-space-16); }
+  .follow-up-column-headings { display: grid; }
+  .follow-up-column-headings > :last-child { display: block; }
+  .follow-up-log { display: block; grid-column: 4; }
+  .follow-up-log > summary { display: flex; width: 100%; list-style: none; }
+  .follow-up-log > summary::-webkit-details-marker { display: none; }
+  .follow-up-log::details-content { content-visibility: auto; display: block; }
+  .follow-up-log:not([open])::details-content { content-visibility: hidden; }
+  .follow-up-log[open] { grid-column: 1 / -1; }
+  .follow-up-log[open] > summary { display: none; }
+  .follow-up-log .follow-up-form { grid-template-columns: minmax(7.5rem, .8fr) minmax(10rem, 1fr) minmax(10rem, 1.4fr) auto; grid-template-areas: "channel outcome note submit"; align-items: stretch; padding-left: calc(var(--gymloop-target-touch) + var(--gymloop-space-16)); }
 }
 @media (max-width: 40rem) {
   .follow-up-header { align-items: stretch; }
   .follow-up-route-link { width: auto; align-self: flex-start; }
   .follow-up-row { gap: var(--gymloop-space-8); padding: var(--gymloop-space-16) 0; }
   .follow-up-attendance, .follow-up-history { padding-left: calc(var(--gymloop-target-touch) + var(--gymloop-space-16)); }
-  .follow-up-history { display: flex; flex-wrap: wrap; column-gap: var(--gymloop-space-12); padding-top: 0; }
+  .follow-up-history { padding-top: 0; }
   .follow-up-attendance { grid-template-columns: auto auto; justify-content: start; align-items: baseline; column-gap: var(--gymloop-space-12); }
   .follow-up-log { display: block; }
   .follow-up-log > summary { display: flex; width: 100%; margin-top: var(--gymloop-space-4); list-style: none; }
@@ -209,13 +291,22 @@
 }
 
 /* ── Member detail ───────────────────────────────────────────────────────── */
+/* Phone, member code and status are three facts, so hairlines keep them apart. */
 .member-detail-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gymloop-space-8) var(--gymloop-space-16); }
+.member-detail-meta > * + * { padding-left: var(--gymloop-space-16); border-left: 1px solid var(--gymloop-color-decorative-separator); }
 .member-detail-meta .cl-status { font-size: var(--gymloop-type-body-size); }
+.member-detail-code { white-space: nowrap; }
+.member-detail-code > span { color: var(--gymloop-color-primary-text); font-weight: 500; letter-spacing: .02em; }
+.member-detail-icon { width: var(--gymloop-icon-control-size); height: var(--gymloop-icon-control-size); }
 .member-detail-column { display: grid; align-content: start; gap: var(--gymloop-space-48); }
 .member-detail-section-head { --head-slack: calc((var(--gymloop-target-interactive) - var(--gymloop-type-eyebrow-line-height)) / 2); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 var(--gymloop-space-16); margin: calc(-1 * var(--head-slack)) 0 calc(var(--gymloop-space-12) - var(--head-slack)); }
+/* Current membership and Recent payments are the page's two anchors: condensed titles over their ruled rows. */
+.member-detail-anchor { margin: 0 0 var(--gymloop-space-16); }
+.member-detail-section-head.member-detail-anchor { align-items: baseline; margin: 0 0 var(--gymloop-space-16); }
+/* The link keeps its 44px target without making this title's row taller than Recent payments'. */
+.member-detail-anchor .member-detail-link { margin-block: calc((var(--gymloop-type-section-title-line-height) - var(--gymloop-target-interactive)) / 2); }
 .member-detail-link { display: inline-flex; min-height: var(--gymloop-target-interactive); align-items: center; color: var(--gymloop-color-primary-text); font-size: var(--gymloop-type-compact-size); font-weight: var(--gymloop-type-emphasis-weight); text-decoration: underline; text-decoration-color: var(--gymloop-color-required-control-outline); text-underline-offset: 4px; }
 .member-detail-link:hover { text-decoration-color: currentColor; }
-.member-detail-subhead { margin-top: var(--gymloop-space-32); }
 .member-detail-none { margin: 0; padding: var(--gymloop-space-12) 0; border-top: 1px solid var(--gymloop-color-decorative-separator); border-bottom: 1px solid var(--gymloop-color-decorative-separator); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); }
 .member-detail-more { margin-top: var(--gymloop-space-16); }
 .member-detail-header { align-items: flex-start; }
@@ -224,14 +315,25 @@
 .member-detail-monogram { display: grid; width: 5rem; height: 5rem; flex: 0 0 auto; place-items: center; border-radius: 50%; background: var(--gymloop-color-elevated-surface); color: var(--gymloop-color-primary-text); font-size: var(--gymloop-type-mobile-section-size); font-weight: var(--gymloop-type-emphasis-weight); letter-spacing: .02em; }
 /* The actions centre on the monogram row, whatever the title wraps to. */
 .member-detail-actions { align-self: center; }
+/* Tablet keeps the console's 32px gutter, so content does not jump on the way in from a list. */
+@media (min-width: 40.0625rem) and (max-width: 64rem) {
+  .member-detail-page { padding-inline: var(--gymloop-layout-desktop-inset); }
+}
 @media (max-width: 40rem) {
   .member-detail-page { padding-inline: var(--gymloop-layout-mobile-inset); }
   .member-detail-identity { gap: var(--gymloop-space-16); }
   .member-detail-monogram { width: var(--gymloop-target-touch); height: var(--gymloop-target-touch); font-size: var(--gymloop-type-compact-size); }
   .member-detail-actions { align-self: stretch; }
-  .member-detail-actions > .cl-btn { flex: 1 1 0; }
+  .member-detail-actions > .cl-btn { flex: 1 1 0; padding-inline: var(--gymloop-space-16); }
   .member-detail-page .cl-dl { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
   .member-detail-page .cl-dl > dt { padding-bottom: var(--gymloop-space-12); border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
 }
-.follow-up-history .follow-up-not-contacted { align-items: flex-start; }
-.follow-up-history .follow-up-not-contacted::before { margin-top: calc((var(--gymloop-type-compact-line-height) - var(--gymloop-icon-status-dot)) / 2); }
+/* Below 480px each fact stacks, label over value, so an email address never breaks mid-token. */
+@media (max-width: 30rem) {
+  .member-detail-meta { gap: var(--gymloop-space-4) var(--gymloop-space-12); font-size: var(--gymloop-type-compact-size); }
+  .member-detail-meta > * + * { padding-left: var(--gymloop-space-12); }
+  .member-detail-meta > .cl-status { flex-basis: 100%; padding-left: 0; border-left: 0; font-size: var(--gymloop-type-compact-size); }
+  .member-detail-page .cl-dl { grid-template-columns: minmax(0, 1fr); }
+  .member-detail-page .cl-dl > dt { padding: var(--gymloop-space-12) 0 0; border-bottom: 0; }
+  .member-detail-page .cl-dl > dd { padding: 2px 0 var(--gymloop-space-12); }
+}

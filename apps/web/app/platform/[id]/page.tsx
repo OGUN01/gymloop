@@ -1,4 +1,5 @@
-import { DEFAULT_TIMEZONE, formatDateTime, formatDay, humanize } from '@gymloop/shared';
+import { DEFAULT_TIMEZONE, UI_TOKENS, formatDateTime, formatDay, humanize } from '@gymloop/shared';
+import { ArrowLeft } from 'lucide-react';
 import { Fragment } from 'react';
 import { requireAudience } from '../../../lib/identity-session';
 import { UUID_PATTERN } from '../../../lib/keyset';
@@ -41,7 +42,7 @@ export default async function PlatformGymPage({ params }: { params: Promise<{ id
   const trialDay = gym.trialEndsAt === null ? null : formatDay(new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: zone }).format(new Date(gym.trialEndsAt)));
 
   return <main className="cl-page platform-gym">
-    <a href="/platform" className="cl-back">← All gyms</a>
+    <a href="/platform" className="cl-back"><ArrowLeft aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />All gyms</a>
     <div className="cl-page-header">
       <div>
         <p className="cl-eyebrow">Gym code · {gym.gymCode}</p>
@@ -58,9 +59,9 @@ export default async function PlatformGymPage({ params }: { params: Promise<{ id
     <div className="cl-metrics platform-kpis">
       <div className="cl-metric"><span className="cl-eyebrow">Active members</span><span className="cl-metric-value tabular-nums">{gym.activeMembers ?? '—'}</span><small>{gym.activeMembers === null ? 'Unavailable' : 'With a live membership'}</small></div>
       <div className="cl-metric"><span className="cl-eyebrow">Open cases</span><span className="cl-metric-value tabular-nums">{gym.openCases}</span><small>Members to bring back</small></div>
-      <div className="cl-metric"><span className="cl-eyebrow">Failed sends</span><span className="cl-metric-value tabular-nums">{gym.failedNotifications}</span><small>Messages that did not go out</small></div>
+      <div className="cl-metric"><span className="cl-eyebrow">Failed sends</span><span className="cl-metric-value tabular-nums">{gym.failedNotifications}</span><small>Did not go out</small></div>
       <div className="cl-metric"><span className="cl-eyebrow">Trial ends</span>{trialDay === null
-        ? <><span className="cl-metric-value" aria-hidden="true">—</span><small>No trial</small></>
+        ? <><span className="cl-metric-value platform-metric-none">None</span><small>No trial</small></>
         : <><span className="cl-metric-value tabular-nums"><time dateTime={gym.trialEndsAt ?? ''}>{trialDay.split(' ').slice(0, -1).join(' ')}</time></span><small>{trialDay}</small></>}</div>
     </div>
 
@@ -72,7 +73,7 @@ export default async function PlatformGymPage({ params }: { params: Promise<{ id
           <dd>{gym.settingsComplete ? <StatusWord status="ready" label="Activation ready" /> : <StatusWord status="pending" label={`Readiness incomplete: ${gym.missingSettings.map(humanize).join(', ') || 'unknown'}`} />}</dd>
           <dt>Owner</dt>
           <dd className="platform-gym-owner">
-            {gym.ownerAccessPending ? <StatusWord status="pending" label="Owner access pending" /> : <StatusWord status="ready" label="Owner access linked" />}
+            {gym.ownerAccessPending ? <StatusWord status="pending" label="Access pending" /> : <StatusWord status="ready" label="Access linked" />}
             {ownerNames.length > 0 ? <span className="cl-row-meta">{ownerNames.join(', ')}</span> : null}
           </dd>
         </dl>

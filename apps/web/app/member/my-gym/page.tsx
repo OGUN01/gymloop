@@ -1,16 +1,19 @@
 import Link from 'next/link';
-import { CalendarDays, ChevronRight, CreditCard, Dumbbell, MessageSquareMore, ScanLine } from 'lucide-react';
+import { CalendarDays, ChevronRight, CreditCard, MessageSquareMore, Package, ScanLine } from 'lucide-react';
 import { UI_TOKENS, formatMoney } from '@gymloop/shared';
 import { StatusWord } from '../../status-word';
 import { loadMemberPortal } from '../../../lib/member-portal';
 import { memberGymName, memberShortDate } from '../member-ui';
 
 const icon = { 'aria-hidden': true, size: UI_TOKENS.icons.navigationSize, strokeWidth: UI_TOKENS.icons.strokeWidth } as const;
+const chevron = { ...icon, size: UI_TOKENS.icons.controlSize } as const;
 
 export default async function MemberGymPage() {
   const portal = await loadMemberPortal();
   if (portal.errorMessage) return <main className="member-route member-portal"><h1 className="member-title">My gym</h1><p className="cl-alert" role="alert">{portal.errorMessage}</p></main>;
-  const address = [portal.gym.branchAddress, ...[portal.gym.city, portal.gym.state].filter((part) => part && !(portal.gym.branchAddress ?? '').includes(part))].filter(Boolean).join(', ');
+  const address = [portal.gym.branchAddress, ...[portal.gym.city, portal.gym.state].filter((part) => part && !(portal.gym.branchAddress ?? '').includes(part))].filter(Boolean).join(', ')
+    // A city and its PIN code read as one unit, so they never part across lines.
+    .replace(/ (\d{6})\b/g, '\u00A0$1');
   const membership = portal.membership;
   const receipts = 'receipts' in portal ? portal.receipts : null;
   const addOns = 'addOns' in portal ? portal.addOns : null;
@@ -33,7 +36,7 @@ export default async function MemberGymPage() {
           <CreditCard {...icon} />
           <span className="member-row-text"><strong>Membership &amp; receipts</strong><small>{membership ? `${membership.planName}${membership.endsOn ? ` · Ends ${memberShortDate(membership.endsOn)}` : ''}` : 'No membership is visible'}</small></span>
           {membership ? <StatusWord status={membership.status} /> : <span />}
-          <ChevronRight {...icon} className="member-disclosure-caret" />
+          <ChevronRight {...chevron} className="member-disclosure-caret" />
         </summary>
         <div className="member-disclosure-body">
           {membership ? <dl className="member-facts">
@@ -55,21 +58,21 @@ export default async function MemberGymPage() {
         <MessageSquareMore {...icon} />
         <span className="member-row-text"><strong>Messages &amp; consent</strong><small>{messageSummary}</small></span>
         {portal.latestMessage?.status === 'sent' ? <span className="cl-status" data-tone="accent">New</span> : <span />}
-        <ChevronRight {...icon} />
+        <ChevronRight {...chevron} />
       </Link></li>
       <li><Link className="member-row" href="/member/add-ons">
-        <Dumbbell {...icon} />
+        <Package {...icon} />
         <span className="member-row-text"><strong>My add-ons</strong><small>{addOnSummary}</small></span>
         <span />
-        <ChevronRight {...icon} />
+        <ChevronRight {...chevron} />
       </Link></li>
       <li><Link className="member-row" href="/member/activity">
         <CalendarDays {...icon} />
         <span className="member-row-text"><strong>Attendance history</strong><small>{portal.weekVisits} {portal.weekVisits === 1 ? 'visit' : 'visits'} this week</small></span>
         <span />
-        <ChevronRight {...icon} />
+        <ChevronRight {...chevron} />
       </Link></li>
     </ul>
-    <Link href="/member/check-in" className="member-primary-action member-primary-action--dominant"><ScanLine {...icon} />Scan to check in</Link>
+    <div className="member-scan-sticky"><Link href="/member/check-in" className="member-primary-action member-primary-action--dominant"><ScanLine {...icon} />Scan to check in</Link></div>
   </main>;
 }

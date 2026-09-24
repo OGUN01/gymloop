@@ -16,42 +16,67 @@
   .leads-filter-more > summary::-webkit-details-marker { display: none; }
 }
 
-/* ── Leads: stage count strip ─────────────────────────────────────────── */
-.leads-counts-meta { margin: 0; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); }
-.leads-counts { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); column-gap: var(--gymloop-space-24); margin: 0; padding: 0; list-style: none; border-block: 1px solid var(--gymloop-color-decorative-separator); }
-.leads-counts > li { display: grid; align-content: start; gap: var(--gymloop-space-8); padding: var(--gymloop-space-24) 0; }
-.leads-counts .cl-status { white-space: nowrap; }
-.leads-count-value { font-size: clamp(2.5rem, 4vw, var(--gymloop-type-large-metric-size)); line-height: 1; font-stretch: var(--gymloop-type-display-stretch); font-weight: var(--gymloop-type-display-weight); font-variant-numeric: tabular-nums; }
-@media (max-width: 64rem) { .leads-counts { grid-template-columns: repeat(3, minmax(0, 1fr)); } .leads-counts > li:nth-child(-n + 3) { border-bottom: 1px solid var(--gymloop-color-decorative-separator); } }
+/* ── Leads: header — the one action sits on the title's row ───────────── */
+.leads-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 var(--gymloop-space-24); }
+.leads-header > div:first-child { display: contents; }
+.leads-header .cl-eyebrow { grid-column: 1 / -1; grid-row: 1; }
+.leads-header .cl-title { grid-column: 1; grid-row: 2; }
+.leads-header > .cl-actions { grid-column: 2; grid-row: 2; }
+.leads-header .cl-lede { grid-column: 1 / -1; grid-row: 3; }
 @media (max-width: 40rem) {
-  .leads-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .leads-counts > li { padding: var(--gymloop-space-16) 0; border-bottom: 0; }
-  .leads-counts > li:nth-child(-n + 4) { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+  .leads-header { grid-template-columns: minmax(0, 1fr); }
+  .leads-header > .cl-actions { grid-column: 1; grid-row: 4; margin-top: var(--gymloop-space-16); }
 }
 
-/* ── Leads: pipeline ledger ───────────────────────────────────────────── */
-.leads-ledger { --leads-action-slot: 8.5rem; --leads-edit-slot: 5rem; --leads-action-width: calc(var(--leads-action-slot) + var(--leads-edit-slot) + var(--gymloop-space-8)); --leads-cols: minmax(0, 1.6fr) minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) var(--leads-action-width); }
-.leads-ledger > ul { margin: 0; padding: 0; list-style: none; }
-.leads-ledger-head, .leads-row { display: grid; grid-template-columns: var(--leads-cols); column-gap: var(--gymloop-space-16); align-items: center; }
-.leads-ledger-head { padding: var(--gymloop-space-12) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-eyebrow-size); font-weight: var(--gymloop-type-emphasis-weight); letter-spacing: var(--gymloop-type-eyebrow-tracking); text-transform: uppercase; }
-.leads-ledger-head > .leads-cell-action { text-align: right; }
-.leads-row { min-height: 4.5rem; padding: var(--gymloop-space-12) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
-.leads-row > * { min-width: 0; }
-.leads-cell-lead { display: grid; gap: 2px; }
-.leads-phone, .leads-cell-meta, .leads-cell-next { color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); font-weight: 400; overflow-wrap: anywhere; text-wrap: pretty; }
+/* ── Leads: stage count strip — hairline-divided cells, display numerals ─ */
+.leads-counts-block { container: leads-counts / inline-size; }
+.leads-counts-meta { margin: 0; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-secondary-size); }
+.leads-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; border-block: 1px solid var(--gymloop-color-decorative-separator); }
+.leads-counts > li { display: grid; align-content: start; gap: var(--gymloop-space-8); min-width: 0; padding: var(--gymloop-space-16) var(--gymloop-space-16) var(--gymloop-space-16) var(--gymloop-space-24); border-left: 1px solid var(--gymloop-color-decorative-separator); }
+.leads-counts > li:nth-child(2n + 1) { padding-left: 0; border-left: 0; }
+.leads-counts > li:nth-child(-n + 4) { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+.leads-counts .cl-status { white-space: nowrap; }
+.leads-count-value { font-size: clamp(2.5rem, 4.4vw, var(--gymloop-type-display-title-size)); line-height: 1; font-stretch: var(--gymloop-type-display-stretch); font-weight: var(--gymloop-type-display-weight); font-variant-numeric: tabular-nums; }
+@container leads-counts (width >= 36rem) {
+  .leads-counts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .leads-counts > li { padding-block: var(--gymloop-space-24); }
+  .leads-counts > li:nth-child(-n + 4) { border-bottom: 0; }
+  .leads-counts > li:nth-child(2n + 1) { padding-left: var(--gymloop-space-24); border-left: 1px solid var(--gymloop-color-decorative-separator); }
+  .leads-counts > li:nth-child(3n + 1) { padding-left: 0; border-left: 0; }
+  .leads-counts > li:nth-child(-n + 3) { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+}
+@container leads-counts (width >= 60rem) {
+  .leads-counts { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .leads-counts > li:nth-child(3n + 1) { padding-left: var(--gymloop-space-24); border-left: 1px solid var(--gymloop-color-decorative-separator); }
+  .leads-counts > li:first-child { padding-left: 0; border-left: 0; }
+  .leads-counts > li:nth-child(-n + 3) { border-bottom: 0; }
+}
 
-/* Two fixed slots on every row: the primary action, then Edit. Empty slots stay reserved. */
-.leads-row > .leads-cell-action { display: grid; grid-template-columns: var(--leads-action-slot) var(--leads-edit-slot); justify-content: end; align-items: center; gap: var(--gymloop-space-8); }
-.leads-row > .leads-cell-action > :is(a, .leads-toggle--act, .leads-slot-empty) { grid-column: 1; }
+/* ── Leads: pipeline ledger ───────────────────────────────────────────────
+   The ledger sizes itself from its own width, not the viewport's (the rail
+   comes and goes): cards below 35rem, three tracks to 44rem, then the four
+   labelled tracks LEAD | SOURCE · ASSIGNEE | STAGE (next step beneath) | ACTION. */
+.leads-ledger { container: leads-ledger / inline-size; --leads-action-slot: 8.5rem; --leads-edit-slot: 4.5rem; --leads-action-width: calc(var(--leads-action-slot) + var(--leads-edit-slot) + var(--gymloop-space-8)); }
+.leads-ledger > ul { margin: 0; padding: 0; list-style: none; }
+.leads-ledger-head { display: none; padding: var(--gymloop-space-12) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-eyebrow-size); line-height: var(--gymloop-type-eyebrow-line-height); font-weight: var(--gymloop-type-emphasis-weight); letter-spacing: var(--gymloop-type-eyebrow-tracking); text-transform: uppercase; }
+.leads-row { display: grid; align-items: first baseline; border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+.leads-row > * { min-width: 0; }
+.leads-cell-lead, .leads-cell-meta, .leads-cell-stage { display: grid; align-content: start; gap: 2px; }
+.leads-phone, .leads-cell-meta, .leads-cell-next { color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); font-weight: 400; overflow-wrap: anywhere; text-wrap: pretty; }
+.leads-cell-stage > .cl-status { justify-self: start; }
+.leads-empty { color: var(--gymloop-color-secondary-text); }
+
+/* Two fixed slots on every row: the primary action, then Edit. An empty action is the same dash as an empty next step. */
+.leads-row > .leads-cell-action { display: grid; grid-template-columns: var(--leads-action-slot) var(--leads-edit-slot); justify-content: start; align-items: first baseline; gap: var(--gymloop-space-8); }
+.leads-row > .leads-cell-action > :is(a, .leads-toggle--act, .leads-empty) { grid-column: 1; }
 .leads-row > .leads-cell-action > .leads-toggle--edit { grid-column: 2; }
-.leads-cell-action .cl-btn { width: 100%; min-height: var(--gymloop-target-touch); }
-.leads-slot-empty { color: var(--gymloop-color-secondary-text); text-align: center; }
+.leads-cell-action .cl-btn { width: 100%; border-color: var(--gymloop-color-required-control-outline); }
 
 /* Row toggles: the summary is the button; its panel is a sibling revealed with :has(). */
 .leads-toggle > summary { list-style: none; }
 .leads-toggle > summary::-webkit-details-marker { display: none; }
 .leads-toggle[open] > summary.cl-btn { background: var(--gymloop-color-elevated-surface); }
-.leads-edit-summary { display: flex; width: 100%; min-height: var(--gymloop-target-touch); align-items: center; justify-content: center; gap: var(--gymloop-space-4); padding: 0 var(--gymloop-space-8); border-radius: var(--gymloop-radius-control); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); font-weight: var(--gymloop-type-emphasis-weight); cursor: pointer; }
+.leads-edit-summary { display: flex; width: 100%; min-height: var(--gymloop-target-interactive); align-items: center; justify-content: center; gap: var(--gymloop-space-4); padding: 0 var(--gymloop-space-8); border-radius: var(--gymloop-radius-control); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-body-size); font-weight: var(--gymloop-type-emphasis-weight); line-height: 1.2; cursor: pointer; }
 .leads-edit-summary:hover, .leads-toggle--edit[open] > .leads-edit-summary { background: var(--gymloop-color-elevated-surface); color: var(--gymloop-color-primary-text); }
 .leads-chevron { flex: 0 0 auto; transition: transform var(--gymloop-motion-press) ease; }
 :is(.leads-toggle, .leads-filter-more)[open] .leads-chevron { transform: rotate(180deg); }
@@ -59,42 +84,54 @@
 .leads-row:has(.leads-toggle--act[open]) .leads-panel--act, .leads-row:has(.leads-toggle--edit[open]) .leads-panel--edit { display: grid; gap: var(--gymloop-space-24); }
 .leads-convert { padding-bottom: var(--gymloop-space-24); border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
 
-@media (max-width: 64rem) {
-  .leads-ledger-head { display: none; }
-  .leads-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: var(--gymloop-space-4); padding: var(--gymloop-space-16) 0; }
-  .leads-cell-lead { grid-column: 1; }
-  .leads-row > :nth-child(4) { grid-column: 2; grid-row: 1; justify-self: end; }
-  .leads-row > :nth-child(2), .leads-row > :nth-child(3), .leads-cell-next { grid-column: 1 / -1; }
-  .leads-row > :nth-child(3)::before { content: 'Assignee: '; }
-  .leads-cell-next:not(:empty)::before { content: 'Next: '; }
-  .leads-row[data-stage='lost'] .leads-cell-next::before { content: none; }
-  .leads-row > .leads-cell-action { grid-column: 1 / -1; justify-content: start; margin-top: var(--gymloop-space-8); }
-  .leads-row[data-stage='lost'] > .leads-cell-action { display: none; }
-}
-/* Tablet: a three-column ledger (who · where it stands · what to do) instead of the phone stack. */
-@media (min-width: 40.0625rem) and (max-width: 64rem) {
-  .leads-row { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) var(--leads-action-width); column-gap: var(--gymloop-space-24); }
-  .leads-row > :nth-child(2) { grid-column: 1; grid-row: 2; }
-  .leads-row > :nth-child(3) { grid-column: 1; grid-row: 3; }
-  .leads-row > :nth-child(4) { grid-column: 2; grid-row: 1; justify-self: start; }
-  .leads-cell-next { grid-column: 2; grid-row: 2 / span 2; align-self: start; }
-  .leads-row > .leads-cell-action { grid-column: 3; grid-row: 1 / span 3; margin-top: 0; justify-content: end; }
-  .leads-row[data-stage='lost'] > .leads-cell-action { display: grid; }
-}
-@media (max-width: 40rem) {
-  .leads-row > .leads-cell-action { grid-template-columns: minmax(0, 1fr) var(--leads-edit-slot); justify-content: stretch; }
+/* Phone: one card per lead — name with the stage on the right, facts beneath, then a full-width action row. */
+@container leads-ledger (width < 35rem) {
+  .leads-row { grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--gymloop-space-16); row-gap: var(--gymloop-space-4); padding: var(--gymloop-space-16) 0; }
+  .leads-cell-lead { grid-column: 1; grid-row: 1; }
+  .leads-cell-stage { display: contents; }
+  .leads-cell-stage > .cl-status { grid-column: 2; grid-row: 1; justify-self: end; }
+  .leads-cell-meta { grid-column: 1 / -1; grid-row: 2; }
+  .leads-assignee::before { content: 'Assignee: '; }
+  .leads-cell-next { grid-column: 1 / -1; grid-row: 3; }
+  .leads-cell-next.leads-empty { display: none; }
+  .leads-row > .leads-cell-action { grid-column: 1 / -1; grid-row: 4; grid-template-columns: minmax(0, 1fr) var(--leads-edit-slot); margin-top: var(--gymloop-space-8); }
+  .leads-row > .leads-cell-action > :only-child { grid-column: 1 / -1; }
+  .leads-row > .leads-cell-action:has(> .leads-empty) { display: none; }
+  .leads-cell-action .cl-btn { min-height: var(--gymloop-target-touch); }
   .leads-panel { padding: var(--gymloop-space-16); }
 }
+@container leads-ledger (width >= 35rem) {
+  .leads-ledger-head { display: grid; white-space: nowrap; }
+  .leads-ledger-head, .leads-row { column-gap: var(--gymloop-space-16); }
+  .leads-row { padding: var(--gymloop-space-12) 0 var(--gymloop-space-16); }
+}
+/* Narrow ledger: who (with source and assignee beneath) · where it stands · what to do. */
+@container leads-ledger (35rem <= width < 44rem) {
+  .leads-ledger-head, .leads-row { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) var(--leads-action-width); }
+  .leads-ledger-head > :nth-child(2) { display: none; }
+  .leads-cell-lead { grid-column: 1; grid-row: 1; }
+  .leads-cell-meta { grid-column: 1; grid-row: 2; margin-top: var(--gymloop-space-4); }
+  .leads-cell-stage { grid-column: 2; grid-row: 1 / span 2; }
+  .leads-row > .leads-cell-action { grid-column: 3; grid-row: 1 / span 2; }
+}
+@container leads-ledger (width >= 44rem) {
+  .leads-ledger-head, .leads-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr) var(--leads-action-width); }
+}
+@container leads-ledger (width >= 60rem) { .leads-ledger-head, .leads-row { column-gap: var(--gymloop-space-24); } }
 @media (prefers-reduced-motion: reduce) { .leads-chevron { transition: none; } }
 
 /* ── Leads: lead facts (enquiry + edit) ───────────────────────────────── */
-.leads-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: var(--gymloop-space-16); }
+.leads-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: var(--gymloop-space-24) var(--gymloop-space-16); }
 .leads-facts-notes { grid-column: span 2; }
 @media (max-width: 64rem) { .leads-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .leads-facts-notes { grid-column: 1 / -1; } }
 @media (max-width: 40rem) { .leads-facts { grid-template-columns: 1fr; } }
 
 /* ── Leads: record an enquiry ─────────────────────────────────────────── */
-.leads-enquiry { scroll-margin-top: var(--gymloop-space-24); padding-top: var(--gymloop-space-32); border-top: 1px solid var(--gymloop-color-decorative-separator); }
+.leads-enquiry { scroll-margin-top: var(--gymloop-space-24); margin-top: var(--gymloop-space-48); }
+/* The member form's rhythm: 24px from the heading to the first label and between groups, 32px before the submit. */
+.leads-enquiry .cl-section-head { margin-bottom: var(--gymloop-space-24); }
+.leads-enquiry .cl-form { row-gap: var(--gymloop-space-24); }
+.leads-enquiry .cl-form > div:last-child { padding-top: var(--gymloop-space-8); }
 .leads-enquiry .cl-form > div:last-child .cl-btn { min-width: 12rem; }
 @media (max-width: 40rem) { .leads-enquiry .cl-form > div:last-child .cl-btn { width: 100%; } }
 
@@ -102,20 +139,32 @@
 :is(.leads-facts, .member-form-layout) .cl-field > small { margin-top: calc(var(--gymloop-space-4) * -1); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); }
 
 /* ── Member add / edit form ───────────────────────────────────────────── */
+/* Rhythm: 8px from a label to its control (the kit's field gap, with the
+   label's line box trimmed to its text so the gap reads as 8, not 16) and
+   24px between one field group and the next. */
 .member-form-layout { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gymloop-space-24); row-gap: var(--gymloop-space-32); align-items: start; }
-.member-form-layout > form { grid-column: 1 / span 7; }
-.member-form-note { grid-column: 9 / span 4; margin-top: var(--gymloop-space-8); padding-top: var(--gymloop-space-16); border-top: 1px solid var(--gymloop-color-decorative-separator); }
-.member-form-note h2 { margin: 0 0 var(--gymloop-space-16); }
-.member-form-note ol { display: grid; gap: var(--gymloop-space-16); margin: 0; padding: 0; list-style: none; counter-reset: member-form-step; }
-.member-form-note li { display: grid; grid-template-columns: var(--gymloop-space-24) minmax(0, 1fr); color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); counter-increment: member-form-step; }
-.member-form-note li::before { content: counter(member-form-step); color: var(--gymloop-color-secondary-text); font-weight: var(--gymloop-type-emphasis-weight); font-variant-numeric: tabular-nums; }
+.member-form-layout > form { grid-column: 1 / span 7; row-gap: var(--gymloop-space-24); }
+:is(.leads-facts, .member-form-layout) .cl-field > span { line-height: var(--gymloop-type-compact-line-height); }
+.member-form-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 15rem); gap: var(--gymloop-space-24) var(--gymloop-space-16); align-items: start; }
+/* Wide: the note is a quiet second column — no rule of its own under the
+   header's, its eyebrow on the first label's line. */
+.member-form-note { grid-column: 9 / span 4; }
+/* The label's 20px line box, so the eyebrow and "Full name" share a baseline. */
+.member-form-note h2 { margin: 0 0 var(--gymloop-space-16); line-height: var(--gymloop-type-compact-line-height); }
+.member-form-note :is(ol, ul) { display: grid; gap: var(--gymloop-space-12); margin: 0; padding: 0; list-style: none; }
+.member-form-note li { color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); }
+.member-form-note ol { counter-reset: member-form-step; }
+.member-form-note ol > li { display: grid; grid-template-columns: var(--gymloop-space-24) minmax(0, 1fr); counter-increment: member-form-step; }
+.member-form-note ol > li::before { content: counter(member-form-step); font-weight: var(--gymloop-type-emphasis-weight); font-variant-numeric: tabular-nums; }
 .member-form-actions { display: flex; flex-wrap: wrap; gap: var(--gymloop-space-12); padding-top: var(--gymloop-space-8); }
 .member-form-actions .cl-btn { min-width: 10rem; }
-@media (max-width: 64rem) { .member-form-layout > form, .member-form-note { grid-column: 1 / -1; max-width: 40rem; } }
-@media (max-width: 40rem) { .member-form-actions { flex-direction: column; } .member-form-actions .cl-btn { width: 100%; } }
-
-/* Native controls follow the theme. globals.css puts `color-scheme: inherit` on date
-   inputs in the components layer, which outranks the base-layer dark rule and, in
-   practice, left the calendar glyph black on charcoal; restate it unlayered here. */
-[data-theme='dark'] :is(.member-form-layout, .leads-panel, .leads-enquiry) input { color-scheme: dark; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) :is(.member-form-layout, .leads-panel, .leads-enquiry) input { color-scheme: dark; } }
+/* Stacked: the note follows the form, so one rule divides the two. */
+@media (max-width: 64rem) {
+  .member-form-layout > form, .member-form-note { grid-column: 1 / -1; max-width: 40rem; }
+  .member-form-note { padding-top: var(--gymloop-space-24); border-top: 1px solid var(--gymloop-color-decorative-separator); }
+}
+@media (max-width: 40rem) {
+  .member-form-pair { grid-template-columns: minmax(0, 1fr); }
+  .member-form-actions { flex-direction: column; }
+  .member-form-actions .cl-btn { width: 100%; }
+}

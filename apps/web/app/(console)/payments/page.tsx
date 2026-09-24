@@ -53,13 +53,14 @@ export default async function PaymentsPage({
 
   const takings = paidTotals(payments);
   const paidCount = payments.filter((row) => row.status === 'paid').length;
+  const shownCaption = `${paidCount === payments.length ? `${paidCount} ${paidCount === 1 ? 'payment' : 'payments'}` : `${paidCount} paid of ${payments.length}`}${nextHref === null ? '' : ' · older ones below'}`;
 
   return (
     <main className="cl-page">
       <div className="cl-page-header money-pay-header">
         <div>
           <p className="cl-eyebrow">Money</p>
-          <h1 className="cl-title">Payments</h1>
+          <h1 className="cl-title money-page-title">Payments</h1>
           <p className="cl-lede money-lede">
             Money taken at the desk, latest entries first. Take a payment from a
             member&rsquo;s page.
@@ -67,9 +68,9 @@ export default async function PaymentsPage({
         </div>
         {takings.length === 0 ? null : (
           <div className="cl-metric money-summary">
-            <span className="cl-eyebrow">Total shown</span>
+            <span className="cl-eyebrow">This page</span>
             <span className="cl-metric-value">{takings.join(' · ')}</span>
-            <small className="cl-muted">{paidCount} paid {paidCount === 1 ? 'payment' : 'payments'}</small>
+            <small className="cl-muted">{shownCaption}</small>
           </div>
         )}
       </div>
@@ -86,7 +87,7 @@ export default async function PaymentsPage({
           <p>Take a payment from a member&rsquo;s page and it appears here.</p>
         </div>
       ) : (
-        <div className="cl-section">
+        <div className="cl-section money-pay-list">
           <div className="cl-ledger-wrap money-wide">
             <table className="cl-ledger money-ledger">
               <thead>
@@ -96,35 +97,44 @@ export default async function PaymentsPage({
                   <th scope="col" className="cl-num">Amount</th>
                   <th scope="col">Method</th>
                   <th scope="col" className="money-takenby">Taken by</th>
-                  <th scope="col">Paid on</th>
+                  {/* The sort key is the column: rows are in entry order, so the
+                      date shown first is the entry date. A payment dated to
+                      another day says so underneath. */}
+                  <th scope="col">Recorded</th>
                 </tr>
               </thead>
               <tbody>
-                {payments.map((row) => (
-                  <tr key={row.id}>
-                    <td className="tabular-nums">
-                      <Link href={`/payments/${row.id}`} className={receiptClass(row)}>
-                        {/* A payment that is not paid has no receipt number, and
-                            saying so is more useful than an empty cell: it is the
-                            difference between money received and an intention to
-                            pay (PAY-008). */}
-                        {receiptLabel(row)}
-                      </Link>
-                    </td>
-                    <td className="money-member">
-                      {/* A way back to the member. Its absence is why a critic
-                          reached for the browser's Back button, which restored a
-                          stale form and silently dropped a second payment. */}
-                      <Link href={`/memberships/${row.member_id}`}>{row.members.full_name}</Link>
-                    </td>
-                    <td className="cl-num money-amount">{formatMoney(row.amount_paise, row.currency)}</td>
-                    <td>{humanize(row.method)}</td>
-                    <td className="money-takenby">{row.staff?.full_name ?? '—'}</td>
-                    <td className="tabular-nums">
-                      {paidOn(row, timezone)}
-                    </td>
-                  </tr>
-                ))}
+                {payments.map((row) => {
+                  const when = whenOf(row, timezone);
+                  return (
+                    <tr key={row.id}>
+                      <td className="tabular-nums">
+                        <Link href={`/payments/${row.id}`} className={receiptClass(row)}>
+                          {/* A payment that is not paid has no receipt number, and
+                              saying so is more useful than an empty cell: it is the
+                              difference between money received and an intention to
+                              pay (PAY-008). */}
+                          {receiptLabel(row)}
+                        </Link>
+                      </td>
+                      <td className="money-member">
+                        {/* A way back to the member. Its absence is why a critic
+                            reached for the browser's Back button, which restored a
+                            stale form and silently dropped a second payment. */}
+                        <Link href={`/memberships/${row.member_id}`} title={row.members.full_name}>{row.members.full_name}</Link>
+                      </td>
+                      <td className="cl-num money-amount">{formatMoney(row.amount_paise, row.currency)}</td>
+                      <td>{humanize(row.method)}</td>
+                      <td className="money-takenby">{row.staff?.full_name ?? '—'}</td>
+                      <td className="tabular-nums money-when">
+                        <span title={`Recorded ${when.recordedDay}, ${when.recordedTime}`}>
+                          {when.recordedDay}<span className="money-when-time">, {when.recordedTime}</span>
+                        </span>
+                        {when.paidDay === null ? null : <span className="money-when-paid">Paid {when.paidDay}</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -132,23 +142,27 @@ export default async function PaymentsPage({
           {/* The same payments as ruled rows for a phone: member and amount on
               the first line, how, when and the receipt on the second. */}
           <ul className="cl-rows money-narrow">
-            {payments.map((row) => (
-              <li key={row.id} className="money-row">
-                {/* The whole row opens the receipt (the link stretches over
-                    it in money.css); the member's name stays its own link on
-                    top, so the way back to the member is kept. */}
-                <Link href={`/memberships/${row.member_id}`} className="money-row-member">
-                  {row.members.full_name}
-                </Link>
-                <span className="money-row-amount">{formatMoney(row.amount_paise, row.currency)}</span>
-                <span className="money-row-meta">
-                  {humanize(row.method)} · {paidOn(row, timezone)}
-                </span>
-                <Link href={`/payments/${row.id}`} className="money-row-receipt" aria-label={`Receipt ${receiptLabel(row)}`}>
-                  {receiptLabel(row)}
-                </Link>
-              </li>
-            ))}
+            {payments.map((row) => {
+              const when = whenOf(row, timezone);
+              return (
+                <li key={row.id} className="money-row">
+                  {/* The whole row opens the receipt (the link stretches over
+                      it in money.css); the member's name stays its own link on
+                      top, so the way back to the member is kept. */}
+                  <Link href={`/memberships/${row.member_id}`} className="money-row-member">
+                    {row.members.full_name}
+                  </Link>
+                  <span className="money-row-amount">{formatMoney(row.amount_paise, row.currency)}</span>
+                  <span className="money-row-meta">
+                    {humanize(row.method)} · {when.recordedDay}
+                  </span>
+                  <Link href={`/payments/${row.id}`} className={`money-row-receipt ${receiptClass(row)}`} aria-label={`Receipt ${receiptLabel(row)}`}>
+                    {receiptLabel(row)}
+                  </Link>
+                  {when.paidDay === null ? null : <span className="money-row-paid">Paid {when.paidDay}</span>}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -189,9 +203,14 @@ function receiptClass(row: Pick<Row, 'receipt_number'>): string {
   return row.receipt_number === null ? 'money-noreceipt' : 'money-receipt-link';
 }
 
-/** When the money was paid — or, for a payment with no paid time yet, when it was recorded. */
-function paidOn(row: Pick<Row, 'paid_at' | 'created_at'>, timezone: string): string {
-  return formatDateTime(row.paid_at ?? row.created_at, timezone);
+/**
+ * When the payment was entered — the ledger's sort key — in the gym's day,
+ * and the day it was paid, but only when that is a different day.
+ */
+function whenOf(row: Pick<Row, 'paid_at' | 'created_at'>, timezone: string) {
+  const [recordedDay = '', recordedTime = ''] = formatDateTime(row.created_at, timezone).split(', ');
+  const [paidDay = recordedDay] = row.paid_at === null ? [] : formatDateTime(row.paid_at, timezone).split(', ');
+  return { recordedDay, recordedTime, paidDay: paidDay === recordedDay ? null : paidDay };
 }
 
 /** What the paid rows on this page add up to, per currency — display only, exact in BigInt. */
