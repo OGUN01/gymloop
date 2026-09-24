@@ -1,0 +1,80 @@
+name: Auth signup switch
+
+# ADR-173 / gate 24: every Gymloop identity is operator-provisioned (ADR-134,
+# PROV-001..012), so public Auth signup is closed before closed-test testers
+# are provisioned — nobody can pre-register a tester's address. This workflow
+# reports the reviewed Auth abuse-control fields and flips only
+# `disable_signup`. It never touches the hook, redirects, Google provider or
+# any other field (auth-config.yml owns those), and never prints the raw
+# config, which contains provider secrets.
+#
+#   gh workflow run auth-signup.yml -R OGUN01/gymloop -f mode=report
+#   gh workflow run auth-signup.yml -R OGUN01/gymloop -f mode=disable-signup
+#   gh workflow run auth-signup.yml -R OGUN01/gymloop -f mode=enable-signup   # rollback
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: What to do
+        type: choice
+        default: report
+        options:
+          - report
+          - disable-signup
+          - enable-signup
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PROJECT_REF: pecxrpskmfeuyzngvewq
+
+jobs:
+  signup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report, and optionally switch, public Auth signup
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          api="https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth"
+          report() {
+            # Allow-listed, non-secret fields only; the response also carries provider secrets.
+            python3 - "$1" <<'PY'
+          import json, sys
+          d = json.load(open(sys.argv[1]))
+          if isinstance(d, dict) and 'message' in d and len(d) <= 2:
+              print('API said:', d['message'])
+              sys.exit(0)
+          for k in ('disable_signup', 'mailer_autoconfirm', 'external_email_enabled',
+                    'external_phone_enabled', 'external_google_enabled', 'external_anonymous_users_enabled',
+                    'security_captcha_enabled', 'password_min_length',
+                    'rate_limit_email_sent', 'rate_limit_sms_sent', 'rate_limit_verify',
+                    'rate_limit_token_refresh', 'rate_limit_otp', 'rate_limit_anonymous_users'):
+              print(f'{k} = {d.get(k, "<absent>")}')
+          PY
+          }
+          code=$(curl -sS -o /tmp/auth-before.json -w '%{http_code}' "$api" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN")
+          echo "GET HTTP $code"; [ "$code" = "200" ]
+          echo "--- before"; report /tmp/auth-before.json
+          if [ "$MODE" = "report" ]; then exit 0; fi
+          if [ "$MODE" = "disable-signup" ]; then
+            code=$(curl -sS -o /tmp/auth-after.json -w '%{http_code}' -X PATCH "$api" \
+              -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+              -d '{"disable_signup": true}')
+          elif [ "$MODE" = "enable-signup" ]; then
+            code=$(curl -sS -o /tmp/auth-after.json -w '%{http_code}' -X PATCH "$api" \
+              -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+              -d '{"disable_signup": false}')
+          else
+            echo "::error::Unknown mode"; exit 1
+          fi
+          echo "PATCH HTTP $code"
+          echo "--- after"; report /tmp/auth-after.json
+          [ "$code" = "200" ]
