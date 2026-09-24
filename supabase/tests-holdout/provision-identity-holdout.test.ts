@@ -32,20 +32,40 @@ const staff = {
 }
 type Member = typeof member
 type Staff = typeof staff
-type AuthUser = { id: string; email: string }
+type AuthUser = {
+  id: string
+  email: string
+  provisioned: boolean
+  googleVerified: boolean
+  hasEmailIdentity: boolean
+}
 type BindingCount = { members: number; staff: number; platform: number }
+type LookupMethod = 'findGymByCode' | 'findMember' | 'findStaff' | 'findAuthUserByEmail' | 'countBindings'
 type Options = {
   gym?: { id: string; gymCode: string } | null
   member?: Member | null
   staff?: Staff | null
   authUser?: AuthUser | null
   bindings?: BindingCount
+  postBindings?: BindingCount
+  memberAtBind?: Member
+  staffAtBind?: Staff
   memberBindRows?: number
   staffBindRows?: number
+  lookupErrors?: Partial<Record<LookupMethod, Error>>
+  postCountError?: Error
   createError?: Error
   bindError?: Error
+  unbindError?: Error
 }
 type Event = { method: string; args: unknown[] }
+const verifiedAuth: AuthUser = {
+  id: authId,
+  email,
+  provisioned: true,
+  googleVerified: false,
+  hasEmailIdentity: true,
+}
 
 function witness(options: Options = {}) {
   const calls: Event[] = []
@@ -55,30 +75,47 @@ function witness(options: Options = {}) {
   const targetStaff = options.staff === undefined ? staff : options.staff
   const existingUser = options.authUser === undefined ? null : options.authUser
   const emptyBindings = { members: 0, staff: 0, platform: 0 }
+  const singleMemberBinding = { members: 1, staff: 0, platform: 0 }
+  const singleStaffBinding = { members: 0, staff: 1, platform: 0 }
+  const failLookup = (method: LookupMethod) => {
+    if (options.lookupErrors?.[method]) throw options.lookupErrors[method]
+  }
 
   return {
     calls,
     port: {
       async findGymByCode(code: string) {
         record('findGymByCode', code)
+        failLookup('findGymByCode')
         return gym?.gymCode === code ? gym : null
       },
       async findMember(requestedTenant: string, requestedId: string) {
         record('findMember', requestedTenant, requestedId)
+        failLookup('findMember')
         return targetMember?.tenantId === requestedTenant && targetMember.id === requestedId ? targetMember : null
       },
       async findStaff(requestedTenant: string, requestedId: string) {
         record('findStaff', requestedTenant, requestedId)
+        failLookup('findStaff')
         return targetStaff?.tenantId === requestedTenant && targetStaff.id === requestedId ? targetStaff : null
       },
       async findAuthUserByEmail(requestedEmail: string) {
         record('findAuthUserByEmail', requestedEmail)
+        failLookup('findAuthUserByEmail')
         return existingUser?.email.trim().toLowerCase() === requestedEmail.trim().toLowerCase()
           ? existingUser : null
       },
       async countBindings(requestedId: string) {
         record('countBindings', requestedId)
-        return requestedId === authId ? (options.bindings ?? emptyBindings) : emptyBindings
+        failLookup('countBindings')
+        if (options.postCountError && methodCalls({ calls }, 'countBindings').length > 1) throw options.postCountError
+        if (options.postBindings && methodCalls({ calls }, 'bindMember').length + methodCalls({ calls }, 'bindStaff').length > 0) {
+          return options.postBindings
+        }
+        if (requestedId === authId) return options.bindings ?? emptyBindings
+        return options.postBindings ?? (
+          methodCalls({ calls }, 'bindStaff').length > 0 ? singleStaffBinding : singleMemberBinding
+        )
       },
       async createConfirmedAuthUser(requestedEmail: string) {
         record('createConfirmedAuthUser', requestedEmail)
@@ -88,15 +125,37 @@ function witness(options: Options = {}) {
       async deleteAuthUser(requestedId: string) {
         record('deleteAuthUser', requestedId)
       },
-      async bindMember(requestedTenant: string, requestedId: string, requestedUser: string) {
-        record('bindMember', requestedTenant, requestedId, requestedUser)
+      async bindMember(requestedTenant: string, requestedId: string, requestedUser: string, expectedEmail: string) {
+        record('bindMember', requestedTenant, requestedId, requestedUser, expectedEmail)
         if (options.bindError) throw options.bindError
+        if (options.memberAtBind && (
+          options.memberAtBind.tenantId !== requestedTenant || options.memberAtBind.id !== requestedId ||
+          options.memberAtBind.userId !== null || options.memberAtBind.status === 'cancelled' ||
+          options.memberAtBind.status === 'blocked' || options.memberAtBind.erasedAt !== null ||
+          options.memberAtBind.email.trim().toLowerCase() !== expectedEmail.trim().toLowerCase()
+        )) return 0
         return options.memberBindRows ?? 1
       },
-      async bindStaff(requestedTenant: string, requestedId: string, requestedUser: string) {
-        record('bindStaff', requestedTenant, requestedId, requestedUser)
+      async bindStaff(requestedTenant: string, requestedId: string, requestedUser: string, expectedEmail: string) {
+        record('bindStaff', requestedTenant, requestedId, requestedUser, expectedEmail)
         if (options.bindError) throw options.bindError
+        if (options.staffAtBind && (
+          options.staffAtBind.tenantId !== requestedTenant || options.staffAtBind.id !== requestedId ||
+          options.staffAtBind.userId !== null || options.staffAtBind.role === 'gym_owner' ||
+          !options.staffAtBind.isActive ||
+          options.staffAtBind.email.trim().toLowerCase() !== expectedEmail.trim().toLowerCase()
+        )) return 0
         return options.staffBindRows ?? 1
+      },
+      async unbindMember(requestedTenant: string, requestedId: string, requestedUser: string) {
+        record('unbindMember', requestedTenant, requestedId, requestedUser)
+        if (options.unbindError) throw options.unbindError
+        return 1
+      },
+      async unbindStaff(requestedTenant: string, requestedId: string, requestedUser: string) {
+        record('unbindStaff', requestedTenant, requestedId, requestedUser)
+        if (options.unbindError) throw options.unbindError
+        return 1
       },
     },
   }
@@ -106,8 +165,10 @@ function request(overrides: Record<string, unknown> = {}) {
   return { email, gymCode, target: { kind: 'member', id: memberId }, apply: false, ...overrides }
 }
 
-const writeMethods = new Set(['createConfirmedAuthUser', 'deleteAuthUser', 'bindMember', 'bindStaff'])
-function methodCalls(w: ReturnType<typeof witness>, method: string) {
+const writeMethods = new Set([
+  'createConfirmedAuthUser', 'deleteAuthUser', 'bindMember', 'bindStaff', 'unbindMember', 'unbindStaff',
+])
+function methodCalls(w: { calls: Event[] }, method: string) {
   return w.calls.filter((call) => call.method === method)
 }
 function expectNoWrites(w: ReturnType<typeof witness>) {
@@ -217,7 +278,7 @@ describe('PROV-001, PROV-003–006 read-only gatekeeping', () => {
   })
 
   it('does not overwrite a target already linked to a different Auth user', async () => {
-    const w = witness({ member: { ...member, userId: differentAuthId }, authUser: { id: authId, email } })
+    const w = witness({ member: { ...member, userId: differentAuthId }, authUser: verifiedAuth })
     expect(await provisionIdentity(w.port, request({ apply: true }))).toMatchObject({ ok: false, code: 'target_already_linked' })
     expectNoWrites(w)
   })
@@ -225,7 +286,7 @@ describe('PROV-001, PROV-003–006 read-only gatekeeping', () => {
   it('treats the exact existing binding as an idempotent no-write success', async () => {
     const w = witness({
       member: { ...member, userId: authId },
-      authUser: { id: authId, email },
+      authUser: verifiedAuth,
       bindings: { members: 1, staff: 0, platform: 0 },
     })
     const result = await provisionIdentity(w.port, request({ apply: true }))
@@ -235,7 +296,7 @@ describe('PROV-001, PROV-003–006 read-only gatekeeping', () => {
 
   it.each(['members', 'staff', 'platform'] as const)('refuses an Auth identity bound through %s', async (binding) => {
     const w = witness({
-      authUser: { id: authId, email },
+      authUser: verifiedAuth,
       bindings: { members: 0, staff: 0, platform: 0, [binding]: 1 },
     })
     expect(await provisionIdentity(w.port, request({ apply: true }))).toMatchObject({
@@ -258,7 +319,7 @@ describe('PROV-001, PROV-003–006 read-only gatekeeping', () => {
   it('compares surrounding whitespace and casing, reusing an unbound identity in dry run', async () => {
     const w = witness({
       member: { ...member, email: '  ALICE.PILOT@EXAMPLE.TEST ' },
-      authUser: { id: authId, email: 'Alice.Pilot@Example.Test' },
+      authUser: { ...verifiedAuth, email: 'Alice.Pilot@Example.Test' },
     })
     const result = await provisionIdentity(w.port, request({ email: ` ${email.toUpperCase()} ` }))
     expect(result).toMatchObject({
@@ -277,7 +338,8 @@ describe('PROV-007–009 effect sequence and secrecy', () => {
       ok: true, code: 'linked', authUser: 'created', authUserId: createdId, email: redactedEmail,
     })
     expect(methodCalls(w, 'createConfirmedAuthUser').map((call) => call.args)).toEqual([[email]])
-    expect(methodCalls(w, 'bindMember').map((call) => call.args)).toEqual([[tenantId, memberId, createdId]])
+    expect(methodCalls(w, 'bindMember').map((call) => call.args)).toEqual([[tenantId, memberId, createdId, email]])
+    expect(methodCalls(w, 'countBindings').map((call) => call.args)).toEqual([[createdId]])
     expect(methodCalls(w, 'bindStaff')).toEqual([])
     expect(methodCalls(w, 'deleteAuthUser')).toEqual([])
     expect(w.calls.findIndex((call) => call.method === 'createConfirmedAuthUser'))
@@ -285,10 +347,11 @@ describe('PROV-007–009 effect sequence and secrecy', () => {
   })
 
   it('reuses an unbound Auth user when binding one staff row', async () => {
-    const w = witness({ authUser: { id: authId, email } })
+    const w = witness({ authUser: verifiedAuth })
     const result = await provisionIdentity(w.port, request({ target: { kind: 'staff', id: staffId }, apply: true }))
     expect(result).toMatchObject({ ok: true, code: 'linked', authUser: 'reused', authUserId: authId })
-    expect(methodCalls(w, 'bindStaff').map((call) => call.args)).toEqual([[tenantId, staffId, authId]])
+    expect(methodCalls(w, 'bindStaff').map((call) => call.args)).toEqual([[tenantId, staffId, authId, email]])
+    expect(methodCalls(w, 'countBindings')).toHaveLength(2)
     expect(methodCalls(w, 'bindMember')).toEqual([])
     expect(methodCalls(w, 'createConfirmedAuthUser')).toEqual([])
     expect(methodCalls(w, 'deleteAuthUser')).toEqual([])
@@ -304,11 +367,11 @@ describe('PROV-007–009 effect sequence and secrecy', () => {
   })
 
   it('never deletes a reused Auth user when conditional binding loses a race', async () => {
-    const w = witness({ authUser: { id: authId, email }, memberBindRows: 0 })
+    const w = witness({ authUser: verifiedAuth, memberBindRows: 0 })
     expect(await provisionIdentity(w.port, request({ apply: true }))).toMatchObject({
       ok: false, code: 'bind_conflict',
     })
-    expect(methodCalls(w, 'bindMember').map((call) => call.args)).toEqual([[tenantId, memberId, authId]])
+    expect(methodCalls(w, 'bindMember').map((call) => call.args)).toEqual([[tenantId, memberId, authId, email]])
     expect(methodCalls(w, 'deleteAuthUser')).toEqual([])
   })
 
@@ -331,7 +394,7 @@ describe('PROV-007–009 effect sequence and secrecy', () => {
   })
 
   it('never compensates a reused user when a bind throws', async () => {
-    const w = witness({ authUser: { id: authId, email }, bindError: new Error(`binding failed ${email} ${poison}`) })
+    const w = witness({ authUser: verifiedAuth, bindError: new Error(`binding failed ${email} ${poison}`) })
     const exposed = await exposedOutcome(() => provisionIdentity(w.port, request({ apply: true })))
     expect(methodCalls(w, 'bindMember')).toHaveLength(1)
     expect(methodCalls(w, 'deleteAuthUser')).toEqual([])
@@ -347,6 +410,141 @@ describe('PROV-007–009 effect sequence and secrecy', () => {
     expect(serialized).not.toContain(email)
     expect(serialized).not.toContain('someone-else@example.test')
     expect(serialized).not.toContain(poison)
+  })
+})
+
+describe('PROV-006a, PROV-006b and PROV-012 identity proof and lookup failure', () => {
+  it.each([
+    ['self-registered password', { provisioned: false, googleVerified: false, hasEmailIdentity: true }],
+    ['unverified signup', { provisioned: false, googleVerified: false, hasEmailIdentity: false }],
+    ['Google added to password signup', { provisioned: false, googleVerified: true, hasEmailIdentity: true }],
+  ])('does not trust a %s identity even on apply', async (_label, attributes) => {
+    const w = witness({ authUser: { ...verifiedAuth, ...attributes } })
+    const result = await provisionIdentity(w.port, request({ apply: true }))
+    expect(result).toMatchObject({ ok: false, code: 'identity_unverified' })
+    expectNoWrites(w)
+  })
+
+  it('accepts a Google-only verified identity without a password identity', async () => {
+    const w = witness({
+      authUser: { ...verifiedAuth, provisioned: false, googleVerified: true, hasEmailIdentity: false },
+    })
+    expect(await provisionIdentity(w.port, request())).toMatchObject({
+      ok: true, code: 'planned', authUser: 'would_reuse', authUserId: authId,
+    })
+    expectNoWrites(w)
+  })
+
+  it.each([
+    ['extra member', { members: 2, staff: 0, platform: 0 }],
+    ['extra staff', { members: 1, staff: 1, platform: 0 }],
+    ['extra platform', { members: 1, staff: 0, platform: 1 }],
+    ['missing own binding', { members: 0, staff: 0, platform: 0 }],
+  ])('does not claim idempotence when %s appears in the binding count', async (_label, bindings) => {
+    const w = witness({ member: { ...member, userId: authId }, authUser: verifiedAuth, bindings })
+    expect(await provisionIdentity(w.port, request({ apply: true }))).toMatchObject({
+      ok: false, code: 'identity_bound_elsewhere',
+    })
+    expect(methodCalls(w, 'countBindings').map((call) => call.args)).toEqual([[authId]])
+    expectNoWrites(w)
+  })
+
+  it.each([
+    ['gym lookup', 'findGymByCode', {}],
+    ['member lookup', 'findMember', {}],
+    ['staff lookup', 'findStaff', { target: { kind: 'staff', id: staffId } }],
+    ['Auth directory lookup', 'findAuthUserByEmail', {}],
+    ['binding count lookup', 'countBindings', {}],
+  ] as const)('fails closed on throwing %s', async (_label, method, override) => {
+    const w = witness({
+      authUser: verifiedAuth,
+      lookupErrors: { [method]: new Error(`lookup unavailable ${email} ${poison}`) },
+    })
+    const result = await provisionIdentity(w.port, request({ ...override, apply: true }))
+    expect(result).toMatchObject({ ok: false, code: 'lookup_failed' })
+    expectNoWrites(w)
+    expect(JSON.stringify(result)).not.toContain(email)
+    expect(JSON.stringify(result)).not.toContain(poison)
+  })
+})
+
+describe('PROV-007a, PROV-008 and PROV-011 concurrent mutation', () => {
+  it.each([
+    ['email changed', { email: 'other.person@example.test' }],
+    ['cancelled', { status: 'cancelled' }],
+    ['erased', { erasedAt: '2026-09-24T12:00:00Z' }],
+    ['bound elsewhere', { userId: differentAuthId }],
+  ])('passes the expected email to a guarded member bind after %s', async (_label, changed) => {
+    const w = witness({ memberAtBind: { ...member, ...changed } })
+    const result = await provisionIdentity(w.port, request({ apply: true }))
+    expect(result).toMatchObject({ ok: false, code: 'bind_conflict' })
+    expect(methodCalls(w, 'bindMember').map((call) => call.args)).toEqual([[tenantId, memberId, createdId, email]])
+    expect(methodCalls(w, 'deleteAuthUser').map((call) => call.args)).toEqual([[createdId]])
+    expect(methodCalls(w, 'unbindMember')).toEqual([])
+  })
+
+  it.each([
+    ['email changed', { email: 'other.person@example.test' }],
+    ['owner promoted', { role: 'gym_owner' }],
+    ['deactivated', { isActive: false }],
+  ])('passes the expected email to a guarded staff bind after %s', async (_label, changed) => {
+    const w = witness({ staffAtBind: { ...staff, ...changed }, authUser: verifiedAuth })
+    const result = await provisionIdentity(w.port, request({ apply: true, target: { kind: 'staff', id: staffId } }))
+    expect(result).toMatchObject({ ok: false, code: 'bind_conflict' })
+    expect(methodCalls(w, 'bindStaff').map((call) => call.args)).toEqual([[tenantId, staffId, authId, email]])
+    expect(methodCalls(w, 'deleteAuthUser')).toEqual([])
+    expect(methodCalls(w, 'unbindStaff')).toEqual([])
+  })
+
+  it.each([
+    ['member', { target: { kind: 'member', id: memberId } }, 'unbindMember', memberId],
+    ['staff', { target: { kind: 'staff', id: staffId } }, 'unbindStaff', staffId],
+  ] as const)('unwinds exactly its own %s binding on concurrent reuse', async (_label, overrides, unbind, id) => {
+    const w = witness({
+      authUser: verifiedAuth,
+      postBindings: { members: 1, staff: 1, platform: 0 },
+    })
+    const result = await provisionIdentity(w.port, request({ ...overrides, apply: true }))
+    expect(result).toMatchObject({ ok: false, code: 'bind_conflict' })
+    expect(methodCalls(w, 'countBindings')).toHaveLength(2)
+    expect(methodCalls(w, unbind).map((call) => call.args)).toEqual([[tenantId, id, authId]])
+    expect(methodCalls(w, 'deleteAuthUser')).toEqual([])
+  })
+
+  it('unwinds the binding and deletes only the identity created in this run', async () => {
+    const w = witness({ postBindings: { members: 2, staff: 0, platform: 0 } })
+    expect(await provisionIdentity(w.port, request({ apply: true }))).toMatchObject({
+      ok: false, code: 'bind_conflict',
+    })
+    expect(methodCalls(w, 'unbindMember').map((call) => call.args)).toEqual([[tenantId, memberId, createdId]])
+    expect(methodCalls(w, 'deleteAuthUser').map((call) => call.args)).toEqual([[createdId]])
+    expect(w.calls.findIndex((call) => call.method === 'unbindMember'))
+      .toBeLessThan(w.calls.findIndex((call) => call.method === 'deleteAuthUser'))
+  })
+
+  it('never reports success when the post-bind count throws', async () => {
+    const w = witness({ authUser: verifiedAuth, postCountError: new Error(`count failed ${email} ${poison}`) })
+    const exposed = await exposedOutcome(() => provisionIdentity(w.port, request({ apply: true })))
+    expect(exposed).toContain('bind_conflict')
+    expect(exposed).not.toContain('"linked"')
+    expect(exposed).not.toContain(email)
+    expect(exposed).not.toContain(poison)
+    expect(methodCalls(w, 'unbindMember').map((call) => call.args)).toEqual([[tenantId, memberId, authId]])
+    expect(methodCalls(w, 'deleteAuthUser')).toEqual([])
+  })
+
+  it('does not report linked or leak when undoing a concurrent conflict itself throws', async () => {
+    const w = witness({
+      postBindings: { members: 2, staff: 0, platform: 0 },
+      unbindError: new Error(`undo failed ${email} ${poison}`),
+    })
+    const exposed = await exposedOutcome(() => provisionIdentity(w.port, request({ apply: true })))
+    expect(exposed).toContain('bind_conflict')
+    expect(exposed).not.toContain('"linked"')
+    expect(exposed).not.toContain(email)
+    expect(exposed).not.toContain(poison)
+    expect(methodCalls(w, 'unbindMember').map((call) => call.args)).toEqual([[tenantId, memberId, createdId]])
+    expect(methodCalls(w, 'deleteAuthUser').map((call) => call.args)).toEqual([[createdId]])
   })
 })
 

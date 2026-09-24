@@ -33,23 +33,33 @@ type Staff = {
 type AuthUser = {
   id: string;
   email: string;
+  provisioned: boolean;
+  googleVerified: boolean;
+  hasEmailIdentity: boolean;
   accessToken?: string;
   refreshToken?: string;
   password?: string;
 };
 type Bindings = { members: number; staff: number; platform: number };
 type Call = { method: string; args: unknown[] };
+type Lookup = 'findGymByCode' | 'findMember' | 'findStaff' | 'findAuthUserByEmail' | 'countBindings';
 type FakeOptions = {
   gym?: { id: string; gymCode: string } | null;
   members?: Member[];
   staff?: Staff[];
   authUsers?: AuthUser[];
   bindings?: Record<string, Bindings>;
+  countBindingsResponses?: Array<Bindings | Error>;
+  lookupErrors?: Partial<Record<Lookup, Error>>;
+  beforeBindMember?: (row: Member | undefined) => void;
+  beforeBindStaff?: (row: Staff | undefined) => void;
   bindMemberRows?: number;
   bindStaffRows?: number;
   createError?: Error;
   bindMemberError?: Error;
   bindStaffError?: Error;
+  unbindMemberError?: Error;
+  unbindStaffError?: Error;
   deleteError?: Error;
 };
 
@@ -61,7 +71,9 @@ const staff = (changes: Partial<Staff> = {}): Staff => ({
   id: STAFF_ID, tenantId: TENANT_ID, email: EMAIL, userId: null,
   role: 'trainer', isActive: true, ...changes,
 });
-const authUser = (changes: Partial<AuthUser> = {}): AuthUser => ({ id: AUTH_ID, email: EMAIL, ...changes });
+const authUser = (changes: Partial<AuthUser> = {}): AuthUser => ({
+  id: AUTH_ID, email: EMAIL, provisioned: true, googleVerified: false, hasEmailIdentity: false, ...changes,
+});
 const request = (changes: Record<string, unknown> = {}) => ({
   email: EMAIL, gymCode: GYM_CODE, target: { kind: 'member', id: MEMBER_ID }, apply: false, ...changes,
 });
@@ -72,30 +84,43 @@ const staffRequest = (changes: Record<string, unknown> = {}) => request({
 function fakePort(options: FakeOptions = {}) {
   const calls: Call[] = [];
   const record = (method: string, ...args: unknown[]) => { calls.push({ method, args }); };
+  const failLookup = (method: Lookup) => { if (options.lookupErrors?.[method]) throw options.lookupErrors[method]; };
   const gym = options.gym === undefined ? { id: TENANT_ID, gymCode: GYM_CODE } : options.gym;
   // Keying by BOTH tenant and row id prevents a different gym's row from being returned.
   const members = new Map((options.members ?? [member()]).map((row) => [`${row.tenantId}:${row.id}`, { ...row }]));
   const staffRows = new Map((options.staff ?? [staff()]).map((row) => [`${row.tenantId}:${row.id}`, { ...row }]));
+  let countCalls = 0;
   const port = {
     async findGymByCode(code: string) {
       record('findGymByCode', code);
+      failLookup('findGymByCode');
       return gym?.gymCode === code ? gym : null;
     },
     async findMember(tenantId: string, id: string) {
       record('findMember', tenantId, id);
+      failLookup('findMember');
       return members.get(`${tenantId}:${id}`) ?? null;
     },
     async findStaff(tenantId: string, id: string) {
       record('findStaff', tenantId, id);
+      failLookup('findStaff');
       return staffRows.get(`${tenantId}:${id}`) ?? null;
     },
     async findAuthUserByEmail(email: string) {
       record('findAuthUserByEmail', email);
+      failLookup('findAuthUserByEmail');
       return options.authUsers?.find((user) => user.email.trim().toLowerCase() === email.trim().toLowerCase()) ?? null;
     },
     async countBindings(userId: string) {
       record('countBindings', userId);
-      return options.bindings?.[userId] ?? { members: 0, staff: 0, platform: 0 };
+      failLookup('countBindings');
+      const response = options.countBindingsResponses?.[countCalls++];
+      if (response instanceof Error) throw response;
+      if (response !== undefined) return response;
+      if (options.bindings?.[userId]) return options.bindings[userId];
+      const allMembers = [...members.values()].filter((row) => row.userId === userId).length;
+      const allStaff = [...staffRows.values()].filter((row) => row.userId === userId).length;
+      return { members: allMembers, staff: allStaff, platform: 0 };
     },
     async createConfirmedAuthUser(...args: unknown[]) {
       record('createConfirmedAuthUser', ...args);
@@ -106,21 +131,43 @@ function fakePort(options: FakeOptions = {}) {
       record('deleteAuthUser', userId);
       if (options.deleteError) throw options.deleteError;
     },
-    async bindMember(tenantId: string, id: string, userId: string) {
-      record('bindMember', tenantId, id, userId);
+    async bindMember(tenantId: string, id: string, userId: string, expectedEmail: string) {
+      record('bindMember', tenantId, id, userId, expectedEmail);
       if (options.bindMemberError) throw options.bindMemberError;
       const row = members.get(`${tenantId}:${id}`);
-      const changed = options.bindMemberRows ?? (row?.userId === null ? 1 : 0);
+      options.beforeBindMember?.(row);
+      const eligible = row && row.userId === null && row.email?.trim().toLowerCase() === expectedEmail.trim().toLowerCase()
+        && row.status !== 'cancelled' && row.status !== 'blocked' && row.erasedAt === null;
+      const changed = options.bindMemberRows ?? (eligible ? 1 : 0);
       if (changed === 1 && row) row.userId = userId;
       return changed;
     },
-    async bindStaff(tenantId: string, id: string, userId: string) {
-      record('bindStaff', tenantId, id, userId);
+    async bindStaff(tenantId: string, id: string, userId: string, expectedEmail: string) {
+      record('bindStaff', tenantId, id, userId, expectedEmail);
       if (options.bindStaffError) throw options.bindStaffError;
       const row = staffRows.get(`${tenantId}:${id}`);
-      const changed = options.bindStaffRows ?? (row?.userId === null ? 1 : 0);
+      options.beforeBindStaff?.(row);
+      const eligible = row && row.userId === null && row.email?.trim().toLowerCase() === expectedEmail.trim().toLowerCase()
+        && row.isActive && row.role !== 'gym_owner';
+      const changed = options.bindStaffRows ?? (eligible ? 1 : 0);
       if (changed === 1 && row) row.userId = userId;
       return changed;
+    },
+    async unbindMember(tenantId: string, id: string, userId: string) {
+      record('unbindMember', tenantId, id, userId);
+      if (options.unbindMemberError) throw options.unbindMemberError;
+      const row = members.get(`${tenantId}:${id}`);
+      if (!row || row.userId !== userId) return 0;
+      row.userId = null;
+      return 1;
+    },
+    async unbindStaff(tenantId: string, id: string, userId: string) {
+      record('unbindStaff', tenantId, id, userId);
+      if (options.unbindStaffError) throw options.unbindStaffError;
+      const row = staffRows.get(`${tenantId}:${id}`);
+      if (!row || row.userId !== userId) return 0;
+      row.userId = null;
+      return 1;
     },
   };
   return { port, calls };
@@ -128,7 +175,7 @@ function fakePort(options: FakeOptions = {}) {
 
 const methodNames = (calls: Call[]) => calls.map((call) => call.method);
 const writes = (calls: Call[]) => calls.filter((call) => [
-  'createConfirmedAuthUser', 'deleteAuthUser', 'bindMember', 'bindStaff',
+  'createConfirmedAuthUser', 'deleteAuthUser', 'bindMember', 'bindStaff', 'unbindMember', 'unbindStaff',
 ].includes(call.method));
 const assertReadOnly = (calls: Call[]) => {
   expect(writes(calls)).toEqual([]);
@@ -303,6 +350,7 @@ describe('PROV-006 one identity, one gym row', () => {
     });
     const result = await provisionIdentity(fake.port, request({ apply: true }));
     expect(result).toMatchObject({ ok: true, code: 'already_linked', authUserId: AUTH_ID });
+    expect(fake.calls).toContainEqual({ method: 'countBindings', args: [AUTH_ID] });
     assertReadOnly(fake.calls);
   });
 
@@ -329,6 +377,51 @@ describe('PROV-006 one identity, one gym row', () => {
   });
 });
 
+describe('PROV-006a reuse only a verified identity', () => {
+  it.each([
+    ['unprovisioned password-only user', { provisioned: false, googleVerified: false, hasEmailIdentity: true }],
+    ['unprovisioned user without verified Google or email identity', { provisioned: false, googleVerified: false, hasEmailIdentity: false }],
+    ['Google-verified user with an email identity too', { provisioned: false, googleVerified: true, hasEmailIdentity: true }],
+  ])('refuses %s without ever writing, including in dry run', async (_label, identity) => {
+    for (const apply of [false, true]) {
+      const fake = fakePort({ authUsers: [authUser(identity)] });
+      const result = await provisionIdentity(fake.port, request({ apply }));
+      expect(result).toMatchObject({ ok: false, code: 'identity_unverified' });
+      assertReadOnly(fake.calls);
+      assertRedacted(result);
+    }
+  });
+
+  it.each([
+    ['operator-provisioned account, even with an email identity', { provisioned: true, googleVerified: false, hasEmailIdentity: true }],
+    ['verified Google account without an email identity', { provisioned: false, googleVerified: true, hasEmailIdentity: false }],
+  ])('allows reuse of %s in dry run and apply', async (_label, identity) => {
+    for (const apply of [false, true]) {
+      const fake = fakePort({ authUsers: [authUser(identity)] });
+      const result = await provisionIdentity(fake.port, request({ apply }));
+      expect(result).toMatchObject({ ok: true, code: apply ? 'linked' : 'planned', authUser: apply ? 'reused' : 'would_reuse' });
+      if (apply) expect(writes(fake.calls)).toEqual([{ method: 'bindMember', args: [TENANT_ID, MEMBER_ID, AUTH_ID, EMAIL] }]);
+      else assertReadOnly(fake.calls);
+      assertRedacted(result);
+    }
+  });
+});
+
+describe('PROV-006b already linked requires exactly one total binding', () => {
+  it.each([
+    ['no bindings', { members: 0, staff: 0, platform: 0 }],
+    ['two member bindings', { members: 2, staff: 0, platform: 0 }],
+    ['another staff binding', { members: 1, staff: 1, platform: 0 }],
+    ['a platform binding', { members: 1, staff: 0, platform: 1 }],
+  ])('refuses already-linked target with %s', async (_label, bindingCount) => {
+    const fake = fakePort({ members: [member({ userId: AUTH_ID })], authUsers: [authUser()], bindings: { [AUTH_ID]: bindingCount } });
+    const result = await provisionIdentity(fake.port, request({ apply: true }));
+    expect(result).toMatchObject({ ok: false, code: 'identity_bound_elsewhere' });
+    expect(fake.calls).toContainEqual({ method: 'countBindings', args: [AUTH_ID] });
+    assertReadOnly(fake.calls);
+  });
+});
+
 describe('PROV-007 apply exactly one binding', () => {
   it('creates a confirmed Auth user using ONLY the email, then binds a member once', async () => {
     const fake = fakePort();
@@ -336,8 +429,9 @@ describe('PROV-007 apply exactly one binding', () => {
     expect(result).toMatchObject({ ok: true, code: 'linked', authUser: 'created', authUserId: CREATED_AUTH_ID });
     expect(writes(fake.calls)).toEqual([
       { method: 'createConfirmedAuthUser', args: [EMAIL] },
-      { method: 'bindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID] },
+      { method: 'bindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID, EMAIL] },
     ]);
+    expect(fake.calls).toContainEqual({ method: 'countBindings', args: [CREATED_AUTH_ID] });
     assertRedacted(result);
   });
 
@@ -345,8 +439,11 @@ describe('PROV-007 apply exactly one binding', () => {
     const fake = fakePort({ authUsers: [authUser()] });
     const result = await provisionIdentity(fake.port, staffRequest({ apply: true }));
     expect(result).toMatchObject({ ok: true, code: 'linked', authUser: 'reused', authUserId: AUTH_ID });
-    expect(fake.calls).toContainEqual({ method: 'countBindings', args: [AUTH_ID] });
-    expect(writes(fake.calls)).toEqual([{ method: 'bindStaff', args: [TENANT_ID, STAFF_ID, AUTH_ID] }]);
+    expect(fake.calls.filter((call) => call.method === 'countBindings')).toEqual([
+      { method: 'countBindings', args: [AUTH_ID] },
+      { method: 'countBindings', args: [AUTH_ID] },
+    ]);
+    expect(writes(fake.calls)).toEqual([{ method: 'bindStaff', args: [TENANT_ID, STAFF_ID, AUTH_ID, EMAIL] }]);
     assertRedacted(result);
   });
 
@@ -355,14 +452,45 @@ describe('PROV-007 apply exactly one binding', () => {
     expect(await provisionIdentity(fake.port, staffRequest({ apply: true }))).toMatchObject({ ok: true, code: 'linked', authUser: 'created' });
     expect(writes(fake.calls)).toEqual([
       { method: 'createConfirmedAuthUser', args: [EMAIL] },
-      { method: 'bindStaff', args: [TENANT_ID, STAFF_ID, CREATED_AUTH_ID] },
+      { method: 'bindStaff', args: [TENANT_ID, STAFF_ID, CREATED_AUTH_ID, EMAIL] },
     ]);
   });
 
   it('binds an existing unbound user to a member, not to staff', async () => {
     const fake = fakePort({ authUsers: [authUser()] });
     expect(await provisionIdentity(fake.port, request({ apply: true }))).toMatchObject({ ok: true, code: 'linked', authUser: 'reused' });
-    expect(writes(fake.calls)).toEqual([{ method: 'bindMember', args: [TENANT_ID, MEMBER_ID, AUTH_ID] }]);
+    expect(writes(fake.calls)).toEqual([{ method: 'bindMember', args: [TENANT_ID, MEMBER_ID, AUTH_ID, EMAIL] }]);
+  });
+});
+
+describe('PROV-007a bind re-asserts the target checks', () => {
+  it('passes the requested email, not the target row email, to the member bind', async () => {
+    const variant = EMAIL.toUpperCase();
+    const fake = fakePort({ members: [member({ email: `  ${EMAIL}  ` })], authUsers: [authUser()] });
+    expect(await provisionIdentity(fake.port, request({ email: variant, apply: true }))).toMatchObject({ ok: true, code: 'linked' });
+    expect(writes(fake.calls)).toEqual([{ method: 'bindMember', args: [TENANT_ID, MEMBER_ID, AUTH_ID, variant] }]);
+  });
+
+  it.each([
+    ['email', (row: Member | undefined) => { if (row) row.email = 'other@example.com'; }],
+    ['eligibility', (row: Member | undefined) => { if (row) row.status = 'blocked'; }],
+  ])('rejects a member whose %s changed between read and conditional bind', async (_label, beforeBindMember) => {
+    const fake = fakePort({ beforeBindMember });
+    expect(await provisionIdentity(fake.port, request({ apply: true }))).toMatchObject({ ok: false, code: 'bind_conflict' });
+    expect(writes(fake.calls)).toEqual([
+      { method: 'createConfirmedAuthUser', args: [EMAIL] },
+      { method: 'bindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID, EMAIL] },
+      { method: 'deleteAuthUser', args: [CREATED_AUTH_ID] },
+    ]);
+  });
+
+  it.each([
+    ['email', (row: Staff | undefined) => { if (row) row.email = 'other@example.com'; }],
+    ['eligibility', (row: Staff | undefined) => { if (row) row.isActive = false; }],
+  ])('rejects staff whose %s changed between read and conditional bind', async (_label, beforeBindStaff) => {
+    const fake = fakePort({ authUsers: [authUser()], beforeBindStaff });
+    expect(await provisionIdentity(fake.port, staffRequest({ apply: true }))).toMatchObject({ ok: false, code: 'bind_conflict' });
+    expect(writes(fake.calls)).toEqual([{ method: 'bindStaff', args: [TENANT_ID, STAFF_ID, AUTH_ID, EMAIL] }]);
   });
 });
 
@@ -373,7 +501,7 @@ describe('PROV-008 bind races and compensation', () => {
     expect(result).toMatchObject({ ok: false, code: 'bind_conflict' });
     expect(writes(fake.calls)).toEqual([
       { method: 'createConfirmedAuthUser', args: [EMAIL] },
-      { method: 'bindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID] },
+      { method: 'bindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID, EMAIL] },
       { method: 'deleteAuthUser', args: [CREATED_AUTH_ID] },
     ]);
     assertRedacted(result);
@@ -383,7 +511,7 @@ describe('PROV-008 bind races and compensation', () => {
     const fake = fakePort({ authUsers: [authUser()], bindStaffRows: count });
     const result = await provisionIdentity(fake.port, staffRequest({ apply: true }));
     expect(result).toMatchObject({ ok: false, code: 'bind_conflict' });
-    expect(writes(fake.calls)).toEqual([{ method: 'bindStaff', args: [TENANT_ID, STAFF_ID, AUTH_ID] }]);
+    expect(writes(fake.calls)).toEqual([{ method: 'bindStaff', args: [TENANT_ID, STAFF_ID, AUTH_ID, EMAIL] }]);
     assertRedacted(result);
   });
 
@@ -392,7 +520,7 @@ describe('PROV-008 bind races and compensation', () => {
     await assertSafeFailure(provisionIdentity(fake.port, request({ apply: true })));
     expect(writes(fake.calls)).toEqual([
       { method: 'createConfirmedAuthUser', args: [EMAIL] },
-      { method: 'bindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID] },
+      { method: 'bindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID, EMAIL] },
       { method: 'deleteAuthUser', args: [CREATED_AUTH_ID] },
     ]);
   });
@@ -400,7 +528,7 @@ describe('PROV-008 bind races and compensation', () => {
   it('never deletes a reused user when bind throws', async () => {
     const fake = fakePort({ authUsers: [authUser()], bindStaffError: new Error(`bind failed: ${SECRET_MARKERS.join(' ')}`) });
     await assertSafeFailure(provisionIdentity(fake.port, staffRequest({ apply: true })));
-    expect(writes(fake.calls)).toEqual([{ method: 'bindStaff', args: [TENANT_ID, STAFF_ID, AUTH_ID] }]);
+    expect(writes(fake.calls)).toEqual([{ method: 'bindStaff', args: [TENANT_ID, STAFF_ID, AUTH_ID, EMAIL] }]);
   });
 
   it('cannot bind or delete a user when create throws before returning an id', async () => {
@@ -417,9 +545,99 @@ describe('PROV-008 bind races and compensation', () => {
     await assertSafeFailure(provisionIdentity(fake.port, staffRequest({ apply: true })));
     expect(writes(fake.calls)).toEqual([
       { method: 'createConfirmedAuthUser', args: [EMAIL] },
-      { method: 'bindStaff', args: [TENANT_ID, STAFF_ID, CREATED_AUTH_ID] },
+      { method: 'bindStaff', args: [TENANT_ID, STAFF_ID, CREATED_AUTH_ID, EMAIL] },
       { method: 'deleteAuthUser', args: [CREATED_AUTH_ID] },
     ]);
+  });
+});
+
+describe('PROV-011 verify unique binding after the write', () => {
+  it('rechecks count after a created member is bound, then rolls that row back and deletes the new Auth user on a duplicate', async () => {
+    const fake = fakePort({ countBindingsResponses: [{ members: 2, staff: 0, platform: 0 }] });
+    const result = await provisionIdentity(fake.port, request({ apply: true }));
+    expect(result).toMatchObject({ ok: false, code: 'bind_conflict' });
+    expect(fake.calls.filter((call) => call.method === 'countBindings')).toEqual([
+      { method: 'countBindings', args: [CREATED_AUTH_ID] },
+    ]);
+    expect(writes(fake.calls)).toEqual([
+      { method: 'createConfirmedAuthUser', args: [EMAIL] },
+      { method: 'bindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID, EMAIL] },
+      { method: 'unbindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID] },
+      { method: 'deleteAuthUser', args: [CREATED_AUTH_ID] },
+    ]);
+    assertRedacted(result);
+  });
+
+  it('rolls back a reused staff binding exactly once without deleting the preexisting user', async () => {
+    const fake = fakePort({ authUsers: [authUser()], countBindingsResponses: [
+      { members: 0, staff: 0, platform: 0 }, { members: 0, staff: 1, platform: 1 },
+    ] });
+    const result = await provisionIdentity(fake.port, staffRequest({ apply: true }));
+    expect(result).toMatchObject({ ok: false, code: 'bind_conflict' });
+    expect(fake.calls.filter((call) => call.method === 'countBindings')).toEqual([
+      { method: 'countBindings', args: [AUTH_ID] }, { method: 'countBindings', args: [AUTH_ID] },
+    ]);
+    expect(writes(fake.calls)).toEqual([
+      { method: 'bindStaff', args: [TENANT_ID, STAFF_ID, AUTH_ID, EMAIL] },
+      { method: 'unbindStaff', args: [TENANT_ID, STAFF_ID, AUTH_ID] },
+    ]);
+    assertRedacted(result);
+  });
+
+  it('treats zero post-bind bindings as a conflict and compensates a created user', async () => {
+    const fake = fakePort({ countBindingsResponses: [{ members: 0, staff: 0, platform: 0 }] });
+    const result = await provisionIdentity(fake.port, request({ apply: true }));
+    expect(result).toMatchObject({ ok: false, code: 'bind_conflict' });
+    expect(writes(fake.calls)).toEqual([
+      { method: 'createConfirmedAuthUser', args: [EMAIL] },
+      { method: 'bindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID, EMAIL] },
+      { method: 'unbindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID] },
+      { method: 'deleteAuthUser', args: [CREATED_AUTH_ID] },
+    ]);
+  });
+
+  it('never returns linked if post-bind counting throws and still compensates the newly created identity', async () => {
+    const fake = fakePort({ countBindingsResponses: [new Error(`count failed: ${SECRET_MARKERS.join(' ')}`)] });
+    const result = await provisionIdentity(fake.port, request({ apply: true }));
+    expect(result).toMatchObject({ ok: false, code: 'bind_conflict' });
+    expect(writes(fake.calls)).toEqual([
+      { method: 'createConfirmedAuthUser', args: [EMAIL] },
+      { method: 'bindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID, EMAIL] },
+      { method: 'unbindMember', args: [TENANT_ID, MEMBER_ID, CREATED_AUTH_ID] },
+      { method: 'deleteAuthUser', args: [CREATED_AUTH_ID] },
+    ]);
+    assertRedacted(result);
+  });
+
+  it('never returns linked or leaks secrets if unbinding throws after a duplicate binding is detected', async () => {
+    const fake = fakePort({
+      authUsers: [authUser()],
+      countBindingsResponses: [{ members: 0, staff: 0, platform: 0 }, { members: 2, staff: 0, platform: 0 }],
+      unbindMemberError: new Error(`rollback failed: ${SECRET_MARKERS.join(' ')}`),
+    });
+    const result = await provisionIdentity(fake.port, request({ apply: true }));
+    expect(result).toMatchObject({ ok: false, code: 'bind_conflict' });
+    expect(writes(fake.calls)).toEqual([
+      { method: 'bindMember', args: [TENANT_ID, MEMBER_ID, AUTH_ID, EMAIL] },
+      { method: 'unbindMember', args: [TENANT_ID, MEMBER_ID, AUTH_ID] },
+    ]);
+    assertRedacted(result);
+  });
+
+  it('compensates exactly once for a newly created identity even when unbinding fails', async () => {
+    const fake = fakePort({
+      countBindingsResponses: [{ members: 1, staff: 1, platform: 0 }],
+      unbindStaffError: new Error(`rollback failed: ${SECRET_MARKERS.join(' ')}`),
+    });
+    const result = await provisionIdentity(fake.port, staffRequest({ apply: true }));
+    expect(result).toMatchObject({ ok: false, code: 'bind_conflict' });
+    expect(writes(fake.calls)).toEqual([
+      { method: 'createConfirmedAuthUser', args: [EMAIL] },
+      { method: 'bindStaff', args: [TENANT_ID, STAFF_ID, CREATED_AUTH_ID, EMAIL] },
+      { method: 'unbindStaff', args: [TENANT_ID, STAFF_ID, CREATED_AUTH_ID] },
+      { method: 'deleteAuthUser', args: [CREATED_AUTH_ID] },
+    ]);
+    assertRedacted(result);
   });
 });
 
@@ -443,6 +661,7 @@ describe('PROV-009 redact all results', () => {
     const fake = fakePort({
       members: [member({ userId: AUTH_ID })],
       authUsers: [authUser({ accessToken: 'access-token-secret', refreshToken: 'refresh-token-secret', password: 'password-secret' })],
+      bindings: { [AUTH_ID]: { members: 1, staff: 0, platform: 0 } },
     });
     const result = await provisionIdentity(fake.port, request({ apply: true }));
     expect(result.code).toBe('already_linked');
@@ -463,6 +682,38 @@ describe('PROV-009 redact all results', () => {
     expect(result.code).toBe('planned');
     expect(result.email).toBe(REDACTED_EMAIL);
     expect(JSON.stringify(result)).not.toContain(EMAIL.toUpperCase());
+  });
+});
+
+describe('PROV-012 fail closed on lookup errors', () => {
+  it.each([
+    ['findGymByCode', request()],
+    ['findMember', request()],
+    ['findStaff', staffRequest()],
+    ['findAuthUserByEmail', request()],
+    ['countBindings', request()],
+  ] as const)('reports a generic lookup_failed when %s throws before any write', async (lookup, input) => {
+    const fake = fakePort({
+      authUsers: [authUser()],
+      lookupErrors: { [lookup]: new Error(`private lookup failed: ${SECRET_MARKERS.join(' ')}`) },
+    });
+    const result = await provisionIdentity(fake.port, { ...input, apply: true });
+    expect(result).toMatchObject({ ok: false, code: 'lookup_failed' });
+    expect(methodNames(fake.calls)).toContain(lookup);
+    assertReadOnly(fake.calls);
+    assertRedacted(result);
+  });
+
+  it('reports lookup_failed if counting bindings for an already-linked row throws', async () => {
+    const fake = fakePort({
+      members: [member({ userId: AUTH_ID })], authUsers: [authUser()],
+      lookupErrors: { countBindings: new Error(`private lookup failed: ${SECRET_MARKERS.join(' ')}`) },
+    });
+    const result = await provisionIdentity(fake.port, request({ apply: true }));
+    expect(result).toMatchObject({ ok: false, code: 'lookup_failed' });
+    expect(fake.calls).toContainEqual({ method: 'countBindings', args: [AUTH_ID] });
+    assertReadOnly(fake.calls);
+    assertRedacted(result);
   });
 });
 
