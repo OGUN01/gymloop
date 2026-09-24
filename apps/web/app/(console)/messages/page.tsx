@@ -198,7 +198,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       <div className="cl-metric comms-wallet">
         <span className="cl-eyebrow">Balance</span>
         {screen.walletBalanceCredits !== null
-          ? <span className="cl-metric-value tabular-nums">{screen.walletBalanceCredits}<span className="comms-wallet-unit">credits</span></span>
+          ? <span className="cl-metric-value tabular-nums">{screen.walletBalanceCredits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}<span className="comms-wallet-unit">credits</span></span>
           : <span className="cl-metric-value comms-wallet-unavailable">Unavailable</span>}
         <small>Only a platform administrator can adjust this balance.</small>
       </div>

@@ -388,13 +388,14 @@ select
   m.category::public.message_category,
   m.body,
   true
+-- Template bodies are sent exactly as written: v1 has no placeholder language (comms spec), so none appear here.
 from (values
   (1, 'renewal_due', 'push', 'renewal',
-      'Hi {{name}}, your {{plan}} at Iron Box ends on {{ends_on}}. Renew today and keep your streak going.'),
+      'Your Iron Box membership ends soon. Renew at the front desk or in the app to keep your streak going.'),
   (2, 'winback_absent', 'push', 'motivation',
-      'We have missed you at Iron Box, {{name}} — it has been {{absent_days}} days. Shall we book you in this week?'),
+      'We have missed you at Iron Box. Shall we book you in this week?'),
   (3, 'streak_milestone', 'push', 'motivation',
-      '{{name}}, that is {{streak}} days in a row. Outstanding.')
+      'Another milestone on your streak. Outstanding.')
 ) as m(n, key, channel, category, body)
 on conflict (id) do update set
   key       = excluded.key,

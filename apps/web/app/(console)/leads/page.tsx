@@ -2,7 +2,7 @@ import { Constants } from '@gymloop/db';
 import Link from 'next/link';
 import { ChevronDown, Plus } from 'lucide-react';
 import { loadLeads, type LeadListRow } from '../../../lib/leads';
-import { UI_TOKENS, formatDateTime, formatDay, humanize, toLocalDate } from '@gymloop/shared';
+import { UI_TOKENS, formatDateTime, formatDay, formatPhone, humanize, toLocalDate } from '@gymloop/shared';
 import { Field, inputClass } from '../field';
 import { Alert } from '../alert';
 import { StatusWord } from '../../status-word';
@@ -211,7 +211,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               <span className="leads-cell-lead">
                 <span className="cl-row-title">{row.fullName}</span>
                 <span className="leads-sub">
-                  <span className="tabular-nums">{row.phone}</span>
+                  <span className="tabular-nums">{formatPhone(row.phone)}</span>
                   {updated !== null ? <> · <time className="leads-updated" dateTime={row.updatedAt}><span className="sr-only">updated </span>{updated}</time></> : null}
                 </span>
               </span>

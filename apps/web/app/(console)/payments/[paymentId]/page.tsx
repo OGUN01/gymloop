@@ -7,7 +7,6 @@ import Link from 'next/link';
 import { Alert } from '../../alert';
 import { notFound } from 'next/navigation';
 import { loadReceipt } from '../../../../lib/payments';
-import { deskTime } from '../../../../lib/time';
 import { requireAudience } from '../../../../lib/identity-session';
 import { PrintReceiptButton } from './print-button';
 
@@ -97,7 +96,7 @@ export default async function ReceiptPage({
     : completedReturnedPaise === payment.amount_paise
       ? 'This payment has been refunded in full.'
       : pendingRefundPaise !== '0'
-        ? `Returned ${payment.currency} ${rupeesFromPaise(completedReturnedPaise)}. Refund requests pending ${payment.currency} ${rupeesFromPaise(pendingRefundPaise)}. Available for another refund request ${payment.currency} ${rupeesFromPaise(refundablePaise)}.`
+        ? `Returned ${formatMoney(completedReturnedPaise, payment.currency)}. Refund requests pending ${formatMoney(pendingRefundPaise, payment.currency)}. Available for another refund request ${formatMoney(refundablePaise, payment.currency)}.`
         : completedReturnedPaise !== '0'
           ? `${formatMoney(completedReturnedPaise, payment.currency)} returned so far; ${formatMoney(refundablePaise, payment.currency)} can still go back.${deskNote}`
           : canRefund ? null : `Up to ${formatMoney(refundablePaise, payment.currency)} can go back.${deskNote}`;
@@ -231,7 +230,7 @@ export default async function ReceiptPage({
                 <span className="cl-row-meta text-right">
                   {row.staff?.full_name ?? '—'}
                   <br />
-                  {completed ? 'Completed at' : 'Requested at'} {recordedAt ? deskTime(recordedAt, gym.timezone) : 'not recorded'} · <StatusWord status={row.status} />
+                  {completed ? 'Completed at' : 'Requested at'} {recordedAt ? formatDateTime(recordedAt, gym.timezone) : 'not recorded'} · <StatusWord status={row.status} />
                 </span>
               </li>;
             })}

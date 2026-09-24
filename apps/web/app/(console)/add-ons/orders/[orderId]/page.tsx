@@ -1,5 +1,5 @@
 import type { Database } from '@gymloop/db';
-import { formatMoney, formatPhone, humanize, PAYMENT_PAGE_SIZE_DEFAULT, rupeesFromPaise, UI_TOKENS } from '@gymloop/shared';
+import { formatMoney, formatPhone, humanize, PAYMENT_PAGE_SIZE_DEFAULT, UI_TOKENS } from '@gymloop/shared';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { gymTimeLabel } from '../../../../../lib/time';
@@ -140,7 +140,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
       {financeVisible ? <section className="addon-money" aria-labelledby="returns-heading">
         <div className="cl-section-head addon-head"><h2 id="returns-heading" className="cl-section-title">Payment and refunds</h2></div>
         <p className="addon-money-hero"><span className="cl-eyebrow">Total</span><span className="addon-money-total">{order.total_paise == null ? 'Not recorded' : formatMoney(order.total_paise, order.currency)}</span></p>
-        {complimentary ? <p className="cl-alert" data-tone="info">Complimentary · {order.currency} 0.00 — no payment and no receipt.</p> : <dl className="addon-facts">
+        {complimentary ? <p className="cl-alert" data-tone="info">Complimentary · {formatMoney(0, order.currency)} — no payment and no receipt.</p> : <dl className="addon-facts">
           <dt>Payment</dt><dd>{payment?.status ? <StatusWord status={payment.status} /> : 'Not recorded'}</dd>
           {payment?.method ? <><dt>Method</dt><dd>{humanize(payment.method)}</dd></> : null}
           <dt>Receipt</dt><dd>{payment?.receipt_number ?? 'Not issued'}</dd>
@@ -155,7 +155,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
           </dl>
           {refunds.length ? <ul className="cl-rows addon-session-rows addon-refunds">{refunds.map((refund) => <li key={refund.id}>
             <span>
-              <span className="cl-row-title tabular-nums">{refund.currency} {rupeesFromPaise(refund.amount_paise)} · {humanize(refund.kind)}</span>
+              <span className="cl-row-title tabular-nums">{formatMoney(refund.amount_paise, refund.currency)} · {humanize(refund.kind)}</span>
               <span className="cl-row-meta">Reason: {refund.reason}{refund.status === 'completed' ? ` · Refunded ${refund.processed_at ? when(refund.processed_at) : 'on a date not recorded'}` : ''}</span>
             </span>
             <StatusWord status={refund.status} label={refund.status === 'completed' ? 'Refunded' : refund.status === 'requested' || refund.status === 'processing' ? 'In progress' : 'Failed · nothing refunded'} />

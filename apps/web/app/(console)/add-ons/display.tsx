@@ -196,7 +196,7 @@ export function AddonOrderFacts({ order, timezone, showPayment = true, detail = 
       </> : null}
       {children}
     </dl>
-    {detail ? null : showPayment ? complimentary ? <p className="cl-alert" data-tone="info">Complimentary · {order.currency} 0.00 — no payment and no receipt.</p> : null :
+    {detail ? null : showPayment ? complimentary ? <p className="cl-alert" data-tone="info">Complimentary · {formatMoney(0, order.currency)} — no payment and no receipt.</p> : null :
       <p className="cl-muted text-sm">Payment and receipt details are available to front-office staff.</p>}
     {snapshot ? null : <p className="cl-muted addon-terms-note">{order.addon_products?.name ? 'Shows the current catalogue name; the name and terms at the time of sale weren’t recorded.' : 'The name and terms at the time of sale weren’t recorded.'}</p>}
     {expired ? <p className="cl-alert" data-tone="warn">Expired · the inclusive validity has ended. Recorded purchase and usage history remain visible.</p> : null}

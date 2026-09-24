@@ -52,9 +52,10 @@ Every screen now scores at least 8.1. It is not 10 everywhere: the remaining not
 - Google sign-in (both platforms) was not exercised; email sign-in was.
 - iOS: not run (ADR-134).
 
-## Kept as they are because tests or contracts pin them
-Leads phone numbers and "Currently scheduled" time; add-on "Complimentary · INR 0.00" and refund rows "INR 25.00"; receipt refund summary and times; the refund amount pre-filled with the refundable amount; Messages wallet "4500 credits" and the "Locale" field name; follow-up "Nobody has contacted them yet."; the per-gym admin forms on `/platform`; member You's "Open settings" button, "Personal details" row and gym code in the profile header; money inputs without digit grouping (the server pattern rejects commas). Loosening any of these is a spec decision for the owner.
+## Pinned values (ADR-171)
+Tests that pinned pre-redesign formats were changed in a `spec:` commit and the pages now show ₹25 / ₹0 on add-on refunds and the complimentary notice, human refund and trial times ("18 Feb 2026, 7:10 pm", "20 Sep 2026, 10:00 am"), "+91 98765 43210" phones on Leads, "4,500 credits" and ₹ amounts in Overview data-quality warnings. Still kept by contract: the refund amount pre-filled with the refundable amount; the e2e "Locale" field name; follow-up "Nobody has contacted them yet."; the per-gym admin forms on `/platform`; member You's "Open settings" button, "Personal details" row and gym code in the profile header; submitted money inputs without digit grouping (the server pattern rejects commas).
 
-## Decisions for the owner
-- **Message templates are plain text in v1** — nothing fills `{{name}}`. The page now says so (it previously showed an invented preview), but the seeded demo templates contain `{{name}}`.
+## Decisions taken on the owner's delegation (ADR-171)
+- **Message templates are plain text in v1** — nothing fills placeholders, so the demo seed's templates are reworded without `{{…}}` (applied by the next `seed.yml` dispatch) and the Messages page says bodies are sent exactly as written.
+- **HARD-010 stays owner-only** — ready for the owner's review, not accepted.
 - The Android desk default reason keeps the stored words "Member requested desk assistance"; only its option label reads "Asked for desk help".

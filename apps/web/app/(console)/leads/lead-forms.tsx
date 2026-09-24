@@ -1,13 +1,12 @@
 'use client';
 
 import { Constants } from '@gymloop/db';
-import { gymWallClockFormatter, humanize } from '@gymloop/shared';
+import { formatDateTime, formatPhone, gymWallClockFormatter, humanize } from '@gymloop/shared';
 import { useState, useRef, type FormEvent } from 'react';
 import Link from 'next/link';
 import { Field, inputClass } from '../field';
 import { Alert } from '../alert';
 import { StatusWord } from '../../status-word';
-import { deskTime } from '../../../lib/time';
 import { UUID_PATTERN } from '../../../lib/keyset';
 import type { BranchChoice, LeadListRow, LeadStage, StaffChoice } from '../../../lib/leads';
 
@@ -294,7 +293,7 @@ export function LeadConvertDialog({ leadId, revision, fullName }: { leadId: stri
 
   return <form method="post" onSubmit={submit} className="cl-form leads-convert">
     {notice !== '' ? <p role="status" className="cl-alert" data-tone="warn">{notice}</p> : null}
-    {member !== null ? <p className="text-sm font-medium">Existing member: {member.fullName} · <span className="tabular-nums">{member.phone}</span> · <StatusWord status={member.status} /></p> : null}
+    {member !== null ? <p className="text-sm font-medium">Existing member: {member.fullName} · <span className="tabular-nums">{formatPhone(member.phone)}</span> · <StatusWord status={member.status} /></p> : null}
     {problem !== '' ? <Alert>{problem}</Alert> : null}
     <div className="cl-actions">
       <button type="submit" disabled={pending} className="cl-btn cl-btn--primary">
@@ -403,7 +402,7 @@ export function LeadStageForm({ leadId, revision, stage, timezone, trialAt }: {
       {toStage === 'lost' ? <Field label="Loss reason"><input name="lostReason" required className={inputClass} /></Field> : null}
     </div>
     {needsTrial && trialAt !== null
-      ? <p className="cl-hint">Currently scheduled: {deskTime(trialAt, timezone)}. Change the time only if the plan changed.</p>
+      ? <p className="cl-hint">Currently scheduled: {formatDateTime(trialAt, timezone)}. Change the time only if the plan changed.</p>
       : null}
     {needsTrial ? <p className="cl-hint">Times are the gym's local time.</p> : null}
     {command.problem !== '' ? <Alert>{command.problem}</Alert> : null}
