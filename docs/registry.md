@@ -792,7 +792,6 @@ Visual system: `docs/design/phase9/direction.md`. Tokens stay in `UI_TOKENS` (no
 | `RouteLoading` | `apps/web/app/route-state.tsx` | Busy skeleton for a route segment with a visually hidden "Loading …" heading; never shows invented content | `(console)/loading.tsx`, `member/loading.tsx`, `platform/loading.tsx` |
 | `RouteError` | `apps/web/app/route-state.tsx` | Recoverable failure: plain-language alert, the framework `reset` retry and a way home; the raw error never reaches the page | `(console)/error.tsx`, `member/error.tsx`, `platform/error.tsx` |
 | `RouteNotFound` | `apps/web/app/route-state.tsx` | Honest 404 / missing-record page with a real way back | `not-found.tsx`, `(console)/not-found.tsx` |
-| `scripts/capture-screens.mjs` | `scripts/capture-screens.mjs` | Signs in each demo role (read-only) and captures routes in Light/Dark at 390/1024/1440 with an overflow report, for visual review evidence | manual, redesign evidence |
 | `memberGymName` | `apps/web/app/member/member-ui.tsx` | Gym name without its " — branch" suffix, as members say it | member Home, My gym, Check in |
 | `memberGreeting` | `apps/web/app/member/member-ui.tsx` | Morning/afternoon/evening greeting in the gym timezone using `GREETING_HOURS` | member Home |
 | `memberShortDate` | `apps/web/app/member/member-ui.tsx` | Calendar date as "12 Oct" | member Home, My gym |
