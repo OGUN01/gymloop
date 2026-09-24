@@ -1,12 +1,11 @@
-import { formatDateTime, MEMBER_PAGE_SIZE_DEFAULT, PAYMENT_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
+import { MEMBER_PAGE_SIZE_DEFAULT, PAYMENT_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
 import Link from 'next/link';
 import { requireAudience } from '../../../lib/identity-session';
 import { UUID_PATTERN } from '../../../lib/keyset';
 import { loadMemberSearch } from '../../../lib/members';
-import { gymTimeLabel } from '../../../lib/time';
 import { StatusWord } from '../../status-word';
 import { ADDON_OFFER_COLUMNS, ADDON_ORDER_COLUMNS, ADDON_SESSION_COLUMNS, AddonLoadError, AddonOfferDetails,
-  type AddonOffer, type AddonOrder, type AddonSession } from './display';
+  type AddonOffer, type AddonOrder, type AddonSession, addonTimeLabels } from './display';
 import { AddonCatalogueForm, AddonSaleForm } from './forms';
 
 export default async function AddOnsPage({ searchParams }: {
@@ -33,9 +32,7 @@ export default async function AddOnsPage({ searchParams }: {
   const orders = (orderResult.data ?? []) as unknown as AddonOrder[];
   const sessions = (sessionResult.data ?? []) as unknown as AddonSession[];
   const timezone = gym.error ? 'Unavailable' : gym.data?.timezone ?? 'Unavailable';
-  // People read "10 Sep 2026, 2:30 pm"; an unusable timezone falls back to the raw gym-time label. A same-day slot names its day once.
-  const when = (iso: string) => { try { return formatDateTime(iso, timezone); } catch { return gymTimeLabel(iso, timezone); } };
-  const slot = (start: string, end: string) => { const [day, time] = when(end).split(', '); return when(start).startsWith(`${day},`) ? `${when(start)} – ${time}` : `${when(start)} – ${when(end)}`; };
+  const { when, slot } = addonTimeLabels(timezone);
   const pageOffers = offers.slice(0, MEMBER_PAGE_SIZE_DEFAULT);
   const pageOrders = orders.slice(0, PAYMENT_PAGE_SIZE_DEFAULT);
   const pageSessions = sessions.slice(0, PAYMENT_PAGE_SIZE_DEFAULT);

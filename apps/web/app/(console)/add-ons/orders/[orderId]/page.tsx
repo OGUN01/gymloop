@@ -1,11 +1,11 @@
 import type { Database } from '@gymloop/db';
-import { formatDateTime, formatMoney, PAYMENT_PAGE_SIZE_DEFAULT, rupeesFromPaise } from '@gymloop/shared';
+import { formatMoney, PAYMENT_PAGE_SIZE_DEFAULT, rupeesFromPaise } from '@gymloop/shared';
 import Link from 'next/link';
+import { gymTimeLabel } from '../../../../../lib/time';
 import { requireAudience } from '../../../../../lib/identity-session';
 import { UUID_PATTERN } from '../../../../../lib/keyset';
-import { gymTimeLabel } from '../../../../../lib/time';
 import { StatusWord } from '../../../../status-word';
-import { ADDON_ORDER_COLUMNS, ADDON_SESSION_COLUMNS, AddonLoadError, AddonOrderFacts, type AddonOrder, type AddonSession } from '../../display';
+import { ADDON_ORDER_COLUMNS, ADDON_SESSION_COLUMNS, AddonLoadError, AddonOrderFacts, type AddonOrder, type AddonSession, addonTimeLabels } from '../../display';
 import { AddonConfirmForm, AddonScheduleForm, AddonSessionActions } from '../../forms';
 
 type Refund = Omit<Database['public']['Tables']['refunds']['Row'], 'amount_paise'> & { amount_paise: string };
@@ -26,9 +26,7 @@ export default async function AddonOrderPage({ params, searchParams }: {
   if (!orderResult.data) return <main className="cl-page"><Link href="/add-ons" className="cl-back">← Back to add-ons</Link><div className="cl-page-header"><div><p className="cl-eyebrow">Add-on order</p><h1 className="cl-title">Order unavailable</h1><p className="cl-lede">This order was not found.</p></div></div></main>;
   const order = orderResult.data as unknown as AddonOrder;
   const timezone = gym.error ? 'Unavailable' : gym.data?.timezone ?? 'Unavailable';
-  // People read "10 Sep 2026, 2:30 pm"; an unusable timezone falls back to the raw gym-time label. A same-day slot names its day once.
-  const when = (iso: string) => { try { return formatDateTime(iso, timezone); } catch { return gymTimeLabel(iso, timezone); } };
-  const slot = (start: string, end: string) => { const [day, time] = when(end).split(', '); return when(start).startsWith(`${day},`) ? `${when(start)} – ${time}` : `${when(start)} – ${when(end)}`; };
+  const { when, slot } = addonTimeLabels(timezone);
   const localTime = gymTimeLabel(new Date().toISOString(), timezone);
   const today = localTime === 'Gym timezone unavailable' ? null : localTime.split(' ')[0] ?? null;
   const expired = Boolean(order.expires_on && today && today > order.expires_on);

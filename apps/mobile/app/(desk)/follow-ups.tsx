@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { formatPhone, UI_TOKENS } from '@gymloop/shared';
 import { Phone } from 'lucide-react-native';
 import { Linking, StyleSheet, Text, View } from 'react-native';
-import { ActionButton, Body, Eyebrow, FONT, Initials, LoadingState, Screen, StateMessage, Title } from '../../components/ui';
+import { ActionButton, Body, Eyebrow, FONT, Initials, LoadingState, Screen, StateMessage, Title, EmptyState, ErrorRetry } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
 import { loadDeskFollowUps, type DeskFollowUp } from '../../lib/mobile-data';
 
@@ -47,8 +47,8 @@ export default function FollowUpsScreen() {
     <View><Eyebrow>Bring them back</Eyebrow><Title>Follow-ups</Title><Body muted>Longest away first.</Body></View>
     {feedback ? <StateMessage tone={feedback.tone}>{feedback.text}</StateMessage> : null}
     {loadState === 'loading' ? <LoadingState /> : null}
-    {loadState === 'error' ? <View style={styles.stack}><StateMessage tone="error">Follow-ups could not be loaded.</StateMessage><ActionButton secondary onPress={() => void reload()}>Try again</ActionButton></View> : null}
-    {loadState === 'ready' && rows.length === 0 ? <View style={styles.empty}><Body strong>No open follow-ups</Body><Body muted>Everyone on the list has been contacted or is back in the gym.</Body></View> : null}
+    {loadState === 'error' ? <ErrorRetry message="Follow-ups could not be loaded." onRetry={() => void reload()} /> : null}
+    {loadState === 'ready' && rows.length === 0 ? <EmptyState title="No open follow-ups">Everyone on the list has been contacted or is back in the gym.</EmptyState> : null}
     {loadState === 'ready' ? <View style={[styles.list, { borderColor: palette.decorativeSeparator }]}>{rows.map((row) => <View key={row.id} style={[styles.row, { borderColor: palette.decorativeSeparator }]}>
       <View style={styles.identity}>
         <Initials name={row.memberName} />
@@ -65,8 +65,6 @@ export default function FollowUpsScreen() {
 
 const space = UI_TOKENS.geometry.spacing;
 const styles = StyleSheet.create({
-  stack: { gap: space[2] },
-  empty: { gap: space[1], paddingVertical: space[5] },
   list: { borderTopWidth: StyleSheet.hairlineWidth },
   row: { gap: space[3], paddingVertical: space[4], borderBottomWidth: StyleSheet.hairlineWidth },
   identity: { flexDirection: 'row', alignItems: 'center', gap: space[3] },

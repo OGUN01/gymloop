@@ -8,6 +8,8 @@ import {
   rupeesFromPaise,
   type OwnerMetrics,
   UI_TOKENS,
+  formatDateTime,
+  formatDay,
   formatDayRange,
   formatMoney as formatDisplayMoney,
   humanize,
@@ -21,7 +23,7 @@ type CardKey =
 function moneySummary(rows: OwnerMetrics['cards']['cash']): string {
   return rows.length === 0
     ? 'No cash movement'
-    : rows.map((row) => formatMoney(row.currency, row.netPaise)).join(' · ');
+    : rows.map((row) => formatDisplayMoney(row.netPaise, row.currency)).join(' · ');
 }
 function formatMoney(currency: string, paise: string, useRupeeSymbol = false): string {
   const rendered = rupeesFromPaise(paise);
@@ -35,23 +37,10 @@ function formatMoney(currency: string, paise: string, useRupeeSymbol = false): s
     : `${sign}${currency} ${grouped}.${decimal}`;
 }
 function formatLocalDay(day: string): string {
-  return new Intl.DateTimeFormat('en-IN', {
-    day: 'numeric',
-    month: 'long',
-    timeZone: 'UTC',
-    weekday: 'long',
-  }).format(new Date(`${day}T00:00:00.000Z`));
+  return formatDay(day);
 }
 function formatSnapshotInstant(value: string, timezone: string): string {
-  return new Intl.DateTimeFormat('en-IN', {
-    day: 'numeric',
-    hour: '2-digit',
-    hourCycle: 'h23',
-    minute: '2-digit',
-    month: 'long',
-    timeZone: timezone,
-    year: 'numeric',
-  }).format(new Date(value));
+  return formatDateTime(value, timezone);
 }
 function humanizeStatus(status: string): string {
   return humanize(status);
@@ -128,7 +117,7 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
     <div className="dashboard-main-grid">
       <section className="dashboard-panel dashboard-cases" aria-labelledby="dashboard-cases-heading">
         <div className="dashboard-panel-heading"><div><h2 id="dashboard-cases-heading">People to follow up</h2><p>Current cases from this snapshot.</p></div><a href="/red-list">View all <ChevronRight aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></a></div>
-        {cases.length === 0 ? <div className="cl-empty dashboard-empty"><strong>Nobody to chase</strong><p>No open follow-up cases in this snapshot.</p></div> : <ul className="dashboard-case-list">{cases.map((item) => <li key={item.caseId}><a href={`/members/${item.memberId}`}><strong>{item.memberName}</strong><span className="cl-status" data-tone={item.due ? 'risk' : 'warn'}>{humanizeStatus(item.status)}</span></a><p>{item.due ? 'Follow-up due' : 'No follow-up due'}{item.nextFollowUpAt === null ? ' · No next follow-up scheduled' : ` · Next ${formatSnapshotInstant(item.nextFollowUpAt, metrics.timezone)}`}</p></li>)}</ul>}
+        {cases.length === 0 ? <div className="cl-empty dashboard-empty"><strong>Nobody to chase</strong><p>No open follow-up cases in this snapshot.</p></div> : <ul className="dashboard-case-list">{cases.map((item) => <li key={item.caseId}><a href={`/members/${item.memberId}`}><strong>{item.memberName}</strong><span className="cl-status" data-tone={item.due ? 'risk' : 'warn'}>{humanizeStatus(item.status)}</span></a><p>{item.due ? 'Follow-up due' : item.nextFollowUpAt === null ? 'Nothing scheduled' : 'Scheduled'}{item.nextFollowUpAt === null ? '' : ` · Next ${formatSnapshotInstant(item.nextFollowUpAt, metrics.timezone)}`}</p></li>)}</ul>}
       </section>
       <aside className="dashboard-supporting" aria-label="Renewal and recovery summary">
         <section className="dashboard-panel" aria-labelledby="dashboard-renewals-heading"><div className="dashboard-panel-heading"><div><h2 id="dashboard-renewals-heading">Renewals due</h2><p>{formatDayRange(metrics.range.from, metrics.range.through)}</p></div></div>{renewals.length === 0 ? <div className="cl-empty dashboard-empty"><strong>No renewals due</strong><p>No renewals due in this range.</p></div> : <ul className="dashboard-renewal-list">{renewals.map((item) => <li key={item.membershipId}><a href={`/memberships/${item.memberId}`}>{item.memberName}<small>Due by {formatLocalDay(item.endsOn)}</small></a><span>{formatDisplayMoney(item.duePaise, item.currency)}</span></li>)}</ul>}</section>

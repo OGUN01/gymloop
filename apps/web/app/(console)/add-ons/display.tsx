@@ -129,3 +129,10 @@ export function AddonLoadError({ label, href }: { label: string; href: string })
     <span>Could not load {label}. <a href={href} className="inline-flex min-h-11 items-center underline">Retry this section</a></span>
   </p>;
 }
+
+/** People read "10 Sep 2026, 2:30 pm"; an unusable timezone falls back to the raw gym-time label. A same-day slot names its day once. */
+export function addonTimeLabels(timezone: string) {
+  const when = (iso: string) => { try { return formatDateTime(iso, timezone); } catch { return gymTimeLabel(iso, timezone); } };
+  const slot = (start: string, end: string) => { const [day, time] = when(end).split(', '); return when(start).startsWith(`${day},`) ? `${when(start)} – ${time}` : `${when(start)} – ${when(end)}`; };
+  return { when, slot };
+}

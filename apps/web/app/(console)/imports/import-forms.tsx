@@ -267,17 +267,7 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
         <input type="file" accept=".csv,.xlsx" onChange={onFileChosen} />
       </Field>
       <div className="cl-form-row">
-        <Field label="Branch">
-          <select name="branchId" value={branchId} onChange={(event) => setBranchId(event.target.value)} className={inputClass}>
-            {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Phone numbers">
-          <select name="phoneDefaultCountry" value={phoneDefaultCountry} onChange={(event) => setPhoneDefaultCountry(event.target.value === 'E164' ? 'E164' : 'IN')} className={inputClass}>
-            <option value="IN">Indian numbers (+91 added to bare 10-digit mobiles)</option>
-            <option value="E164">All numbers already international (+country code)</option>
-          </select>
-        </Field>
+        <BranchAndPhoneFields branches={branches} branchId={branchId} setBranchId={setBranchId} phoneDefaultCountry={phoneDefaultCountry} setPhoneDefaultCountry={setPhoneDefaultCountry} />
       </div>
       {problem !== '' ? <Alert>{problem}</Alert> : null}
       <button type="submit" disabled={pending} className="cl-btn cl-btn--primary self-start justify-self-start">
@@ -299,17 +289,7 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
             {inspection.headers.map((header) => <option key={header.index} value={String(header.index)}>{header.label}</option>)}
           </select>
         </Field>)}
-        <Field label="Branch">
-          <select name="branchId" value={branchId} onChange={(event) => setBranchId(event.target.value)} className={inputClass}>
-            {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Phone numbers">
-          <select name="phoneDefaultCountry" value={phoneDefaultCountry} onChange={(event) => setPhoneDefaultCountry(event.target.value === 'E164' ? 'E164' : 'IN')} className={inputClass}>
-            <option value="IN">Indian numbers (+91 added to bare 10-digit mobiles)</option>
-            <option value="E164">All numbers already international (+country code)</option>
-          </select>
-        </Field>
+        <BranchAndPhoneFields branches={branches} branchId={branchId} setBranchId={setBranchId} phoneDefaultCountry={phoneDefaultCountry} setPhoneDefaultCountry={setPhoneDefaultCountry} />
       </div>
       <details className="cl-disclosure">
         <summary>First rows of the file</summary>
@@ -391,4 +371,23 @@ export function MemberImportForm({ branches, runs: _runs, timezone }: {
   }
 
   return null;
+}
+
+function BranchAndPhoneFields({ branches, branchId, setBranchId, phoneDefaultCountry, setPhoneDefaultCountry }: {
+  branches: readonly { id: string; name: string }[]; branchId: string; setBranchId: (value: string) => void;
+  phoneDefaultCountry: 'IN' | 'E164'; setPhoneDefaultCountry: (value: 'IN' | 'E164') => void;
+}) {
+  return <>
+    <Field label="Branch">
+      <select name="branchId" value={branchId} onChange={(event) => setBranchId(event.target.value)} className={inputClass}>
+        {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+      </select>
+    </Field>
+    <Field label="Phone numbers">
+      <select name="phoneDefaultCountry" value={phoneDefaultCountry} onChange={(event) => setPhoneDefaultCountry(event.target.value === 'E164' ? 'E164' : 'IN')} className={inputClass}>
+        <option value="IN">Indian numbers (+91 added to bare 10-digit mobiles)</option>
+        <option value="E164">All numbers already international (+country code)</option>
+      </select>
+    </Field>
+  </>;
 }

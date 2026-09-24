@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { DEFAULT_TIMEZONE, formatPhone } from '@gymloop/shared';
+import { DEFAULT_TIMEZONE, formatDateTime, formatDay, formatPhone } from '@gymloop/shared';
 import { requireAudience } from '../../../../lib/identity-session';
 import { createServerSupabase } from '../../../../lib/supabase/server';
 import { loadMember } from '../member-data';
@@ -26,16 +26,9 @@ import { StatusWord } from '../../../status-word';
  */
 const ATTENDANCE_PAGE_SIZE = 60;
 
-const DATE_TIME = new Intl.DateTimeFormat('en-IN', {
-  timeZone: DEFAULT_TIMEZONE,
-  dateStyle: 'medium',
-  timeStyle: 'short',
-});
+const DATE_TIME = { format: (date: Date) => formatDateTime(date, DEFAULT_TIMEZONE) };
 
-const DATE_ONLY = new Intl.DateTimeFormat('en-IN', {
-  timeZone: DEFAULT_TIMEZONE,
-  dateStyle: 'medium',
-});
+const DATE_ONLY = { format: (date: Date) => formatDay(date.toLocaleDateString('en-CA', { timeZone: DEFAULT_TIMEZONE })) };
 
 export default async function MemberDetailPage({
   params,
@@ -108,11 +101,9 @@ export default async function MemberDetailPage({
             <ul className="cl-rows">
               {visits.map((visit) => (
                 <li key={visit.id}>
-                  <span className="cl-row-title tabular-nums">{DATE_TIME.format(new Date(visit.checked_in_at))}</span>
-                  <span className="cl-row-meta">
-                    {visit.source === 'qr' ? 'Gym QR' : 'Desk assisted'}
-                    {visit.assist_reason === null ? null : ` · ${visit.assist_reason}`}
-                  </span>
+                  <span><span className="cl-row-title tabular-nums">{DATE_TIME.format(new Date(visit.checked_in_at))}</span>
+                    {visit.assist_reason === null ? null : <span className="cl-row-meta">{visit.assist_reason}</span>}</span>
+                  <span className="cl-muted text-sm">{visit.source === 'qr' ? 'Gym QR' : 'Desk assisted'}</span>
                 </li>
               ))}
             </ul>

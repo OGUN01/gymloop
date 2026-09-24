@@ -1,5 +1,5 @@
 import { AVATAR_INITIALS_MAX, humanize, UI_TOKENS } from '@gymloop/shared';
-import { ChevronRight } from 'lucide-react-native';
+import { ChevronRight, Search } from 'lucide-react-native';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type PressableProps, type TextInputProps } from 'react-native';
 import type { ReactNode } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -42,11 +42,6 @@ export function Display({ children, size = 'metric', muted = false }: { children
 export function Body({ children, muted = false, strong = false }: { children: ReactNode; muted?: boolean; strong?: boolean }) {
   const { palette } = useMobile();
   return <Text style={[styles.body, { color: muted ? palette.secondaryText : palette.primaryText, fontFamily: strong ? FONT.semibold : FONT.regular }]}>{children}</Text>;
-}
-
-export function Surface({ children }: { children: ReactNode }) {
-  const { palette } = useMobile();
-  return <View style={[styles.surface, { backgroundColor: palette.surface, borderColor: palette.decorativeSeparator }]}>{children}</View>;
 }
 
 export function Rule() {
@@ -110,6 +105,15 @@ export function ActionButton({ children, secondary = false, quiet = false, icon,
   ]}>{icon}<Text style={[styles.actionText, !secondary && !quiet ? styles.actionTextPrimary : null, { color }]}>{children}</Text></Pressable>;
 }
 
+/** Search box with a leading magnifier; the placeholder must say what the search really matches. */
+export function SearchField({ value, onChangeText, placeholder, accessibilityLabel }: { value: string; onChangeText: (value: string) => void; placeholder: string; accessibilityLabel: string }) {
+  const { palette } = useMobile();
+  return <View style={[styles.search, { borderColor: palette.requiredControlOutline, backgroundColor: palette.surface }]}>
+    <Search color={palette.secondaryText} size={UI_TOKENS.icons.navigationSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />
+    <Field accessibilityLabel={accessibilityLabel} placeholder={placeholder} value={value} onChangeText={onChangeText} style={styles.searchField} />
+  </View>;
+}
+
 export function Field(props: TextInputProps) {
   const { palette } = useMobile();
   return <TextInput placeholderTextColor={palette.secondaryText} {...props} style={[styles.field, { backgroundColor: palette.surface, borderColor: palette.requiredControlOutline, color: palette.primaryText }, props.style]} />;
@@ -120,6 +124,16 @@ export function StateMessage({ children, tone = 'neutral' }: { children: ReactNo
   const color = tone === 'error' ? palette.errorRiskText : tone === 'warning' ? palette.warningText : tone === 'success' ? palette.successText : palette.primaryText;
   const bar = tone === 'neutral' ? palette.primaryAction : color;
   return <View style={[styles.stateBox, { borderColor: palette.decorativeSeparator, borderLeftColor: bar, backgroundColor: palette.surface }]}><Text accessibilityLiveRegion="polite" style={[styles.state, { color }]}>{children}</Text></View>;
+}
+
+/** A calm "nothing here" state: what is empty and what to do next. */
+export function EmptyState({ title, children }: { title: string; children: ReactNode }) {
+  return <View style={styles.empty}><Body strong>{title}</Body><Body muted>{children}</Body></View>;
+}
+
+/** A failed read with a real retry. */
+export function ErrorRetry({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return <View style={styles.retry}><StateMessage tone="error">{message}</StateMessage><ActionButton secondary onPress={onRetry}>Try again</ActionButton></View>;
 }
 
 export function LoadingState() {
@@ -138,7 +152,8 @@ const styles = StyleSheet.create({
   metric: { fontFamily: FONT.display, fontSize: type.largeMetric.size, lineHeight: type.largeMetric.lineHeight },
   section: { fontFamily: FONT.displayBold, fontSize: type.sectionTitle.size, lineHeight: type.sectionTitle.lineHeight },
   body: { fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight },
-  surface: { borderWidth: StyleSheet.hairlineWidth, borderRadius: UI_TOKENS.geometry.radii.row, borderCurve: 'continuous', paddingHorizontal: space[3], paddingVertical: space[1], gap: space[1] },
+  search: { flexDirection: 'row', alignItems: 'center', gap: space[1], borderWidth: 1, borderRadius: UI_TOKENS.geometry.radii.control, borderCurve: 'continuous', paddingLeft: space[3] },
+  searchField: { flex: 1, borderWidth: 0, backgroundColor: 'transparent' },
   rule: { height: StyleSheet.hairlineWidth, alignSelf: 'stretch' },
   status: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
   statusDot: { width: UI_TOKENS.icons.statusDot, height: UI_TOKENS.icons.statusDot, borderRadius: UI_TOKENS.icons.statusDot },
@@ -157,6 +172,8 @@ const styles = StyleSheet.create({
   state: { fontFamily: FONT.medium, fontSize: type.compact.size, lineHeight: type.compact.lineHeight },
   initials: { width: UI_TOKENS.geometry.targets.touch, height: UI_TOKENS.geometry.targets.touch, borderRadius: UI_TOKENS.geometry.targets.touch, alignItems: 'center', justifyContent: 'center' },
   initialsText: { fontFamily: FONT.semibold, fontSize: type.compact.size },
+  empty: { gap: space[1], paddingVertical: space[5] },
+  retry: { gap: space[2] },
   loading: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   pressed: { opacity: UI_TOKENS.opacity.pressed },
   disabled: { opacity: UI_TOKENS.opacity.disabled },

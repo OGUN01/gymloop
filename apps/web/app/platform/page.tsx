@@ -85,8 +85,8 @@ export default async function PlatformPage() {
         <div className="cl-ledger-wrap">
           <table className="cl-ledger cl-ledger-stack">
             <thead><tr>
-              <th scope="col">Gym</th><th scope="col">Status</th><th scope="col">Tier</th><th scope="col">Trial ends</th>
-              <th scope="col" className="cl-num">Active members</th><th scope="col" className="cl-num">Open cases</th><th scope="col" className="cl-num">Failed notifications</th>
+              <th scope="col" className="min-w-56">Gym</th><th scope="col">Status</th><th scope="col">Tier</th><th scope="col">Trial ends</th>
+              <th scope="col" className="cl-num">Active members</th><th scope="col" className="cl-num">Open cases</th><th scope="col" className="cl-num sm:max-xl:hidden">Failed notifications</th>
               <th scope="col">Readiness</th><th scope="col"><span className="sr-only">Open</span></th>
             </tr></thead>
             <tbody>
@@ -97,7 +97,7 @@ export default async function PlatformPage() {
                 <td><Cell label="Trial ends" />{gym.trialEndsAt === null ? 'Not set' : dayOf(gym.trialEndsAt, zoneOf(gym))}</td>
                 <td className="cl-num"><Cell label="Active members" />{gym.activeMembers ?? 'Unavailable'}</td>
                 <td className="cl-num"><Cell label="Open cases" />{gym.openCases}</td>
-                <td className="cl-num"><Cell label="Failed notifications" />{gym.failedNotifications}</td>
+                <td className="cl-num sm:max-xl:hidden"><Cell label="Failed notifications" />{gym.failedNotifications}</td>
                 <td>{gym.settingsComplete ? <StatusWord status="ready" label="Activation ready" /> : <StatusWord status="pending" label={`Readiness incomplete: ${gym.missingSettings.map(humanize).join(', ') || 'unknown'}`} />}</td>
                 <td><a href={`/platform/${gym.tenantId}`} className="cl-btn cl-btn--quiet" aria-label={`Open ${gym.name}`}>Open</a></td>
               </tr>)}
@@ -120,7 +120,7 @@ export default async function PlatformPage() {
           {gym.components.failedNotifications.length ? <details className="cl-disclosure"><summary>Failed notification evidence</summary><ul className="cl-rows">{gym.components.failedNotifications.map((failure) =>
             <li key={failure.notificationId}><span><span className="cl-row-title">{humanize(failure.channel)}</span><span className="cl-row-meta">{failure.failedReason === null ? 'Reason unavailable' : humanize(failure.failedReason)}</span></span><span className="cl-muted">{failure.failedAt === null ? 'Time unavailable' : <time dateTime={failure.failedAt}>{formatDateTime(failure.failedAt, zoneOf(gym))}</time>}</span></li>)}</ul></details> : null}
 
-          {isAdmin ? <div className="mt-6 grid gap-8 md:grid-cols-2">
+          {isAdmin ? <div className="mt-6 grid items-start gap-8 md:grid-cols-2">
             <form action={`/api/platform/gyms/${gym.tenantId}/status`} method="post" className="cl-form">
               <input type="hidden" name="requestKey" value={crypto.randomUUID()} />
               <input type="hidden" name="expectedStatus" value={gym.status} />

@@ -814,3 +814,7 @@ Visual system: `docs/design/phase9/direction.md`. Tokens stay in `UI_TOKENS` (no
 | `formatDateTime` | `packages/shared/src/display/display.ts` | Instant in the gym timezone as "21 Sep 2026, 4:36 pm" | payments, orders, messages |
 | `formatDayRange` | `packages/shared/src/display/display.ts` | Shortest unambiguous range ("1–24 Sep 2026") | owner overview, platform |
 | `rhythmFor` | `apps/mobile/lib/mobile-data.ts` | The seven days of the counted week (from `weekStart`) with visited, future and today flags, so the rhythm dots agree with "N of goal" | native Home, Activity |
+| `SearchField` | `apps/mobile/components/ui.tsx` | Search box with a leading magnifier; the placeholder states what the search really matches | desk Check-in, Members |
+| `EmptyState` | `apps/mobile/components/ui.tsx` | Calm empty state: what is empty and what to do next | desk Check-in, Members, Follow-ups |
+| `ErrorRetry` | `apps/mobile/components/ui.tsx` | Failed read with a real "Try again" | desk Check-in, Members, Follow-ups |
+| `addonTimeLabels` | `apps/web/app/(console)/add-ons/display.tsx` | Add-on times as "10 Sep 2026, 2:30 pm" and same-day slots naming the day once; falls back to the gym-time label when the timezone is unusable | add-ons page, order detail |
