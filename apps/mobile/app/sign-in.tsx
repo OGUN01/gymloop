@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import { PRODUCT_NAME, UI_TOKENS } from '@gymloop/shared';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Redirect } from 'expo-router';
 import { ActionButton, Body, FONT, Field, StateMessage, Title } from '../components/ui';
@@ -28,6 +28,7 @@ export default function SignIn() {
   const submit = async () => { setPending(true); setMessage(null); const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password }); setPending(false); if (error) setMessage('Those details did not match. Check the email and password and try again.'); };
   const google = async () => { setPending(true); setMessage(null); const result = await signInWithGoogleMobile({ supabase, openBrowser: WebBrowser.openAuthSessionAsync }); setPending(false); if (!result.ok) setMessage('Google sign-in could not be completed.'); };
   return <View style={[styles.screen, { backgroundColor: palette.canvas }]}>
+    <StatusBar barStyle="light-content" />
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Image source={gymMorningFloor} resizeMode="cover" style={styles.hero} accessibilityIgnoresInvertColors accessible={false} />
       <View style={styles.bounded}>

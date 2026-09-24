@@ -2,6 +2,7 @@ import { AVATAR_INITIALS_MAX, UI_TOKENS } from '@gymloop/shared';
 import { ChevronRight } from 'lucide-react-native';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type PressableProps, type TextInputProps } from 'react-native';
 import type { ReactNode } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMobile } from '../lib/mobile-context';
 
 const space = UI_TOKENS.geometry.spacing;
@@ -15,7 +16,8 @@ export const FONT = {
 
 export function Screen({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   const { palette } = useMobile();
-  return <View style={[styles.screenFrame, { backgroundColor: palette.canvas }]}>
+  const insets = useSafeAreaInsets();
+  return <View style={[styles.screenFrame, { backgroundColor: palette.canvas, paddingTop: insets.top }]}>
     <ScrollView contentContainerStyle={[styles.screen, footer ? styles.screenWithFooter : null]} keyboardShouldPersistTaps="handled">{children}</ScrollView>
     {footer ? <View style={[styles.footer, { backgroundColor: palette.canvas }]}>{footer}</View> : null}
   </View>;
