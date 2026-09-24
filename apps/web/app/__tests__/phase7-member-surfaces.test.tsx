@@ -24,7 +24,8 @@ describe('Phase 7 member surfaces', () => {
     expect(html).toMatch(/class="[^"]*member-primary-action--dominant[^"]*"/);
     expect(html).toContain('Scan to check in');
     expect((html.match(/class="member-week-day"/g) ?? []).length).toBe(7);
-    expect(html).toContain('2 / 4');
+    // Chalkline (ADR-170): the week reads as a sentence, "2 of 4 visits this week".
+    expect(html.replace(/<[^>]+>/g, ' ')).toMatch(/2\s+of\s+4\s+visits this week/);
   });
 
   it('keeps the approved check-in action prominent on My gym', async () => {
