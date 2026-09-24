@@ -3,8 +3,17 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import {
+  Boxes, CalendarCheck, CreditCard, House, LogIn, MessageSquare, Target, Upload, Users, type LucideIcon,
+} from 'lucide-react';
+import { UI_TOKENS } from '@gymloop/shared';
 
 type NavigationItem = { href: string; label: string };
+
+const ICONS: Record<string, LucideIcon> = {
+  '/dashboard': House, '/console/check-in': LogIn, '/red-list': CalendarCheck, '/console': Users,
+  '/payments': CreditCard, '/messages': MessageSquare, '/add-ons': Boxes, '/leads': Target, '/imports': Upload,
+};
 
 /** Presentation-only console navigation; server loaders remain route authority. */
 export function ConsoleNavigation({ items }: { items: readonly NavigationItem[] }) {
@@ -27,9 +36,13 @@ export function ConsoleNavigation({ items }: { items: readonly NavigationItem[] 
     <details className="owner-navigation-disclosure" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>{current?.label ?? 'Console navigation'}</summary>
       <nav className="owner-navigation" aria-label="Console navigation">
-        {items.map((item) => <Link href={item.href} key={item.href} aria-current={current?.href === item.href ? 'page' : undefined}>
-          {item.label}
-        </Link>)}
+        {items.map((item) => {
+          const Icon = ICONS[item.href];
+          return <Link href={item.href} key={item.href} aria-current={current?.href === item.href ? 'page' : undefined}>
+            {Icon === undefined ? null : <Icon aria-hidden="true" size={UI_TOKENS.icons.navigationSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />}
+            {item.label}
+          </Link>;
+        })}
       </nav>
     </details>
   );

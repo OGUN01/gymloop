@@ -9,6 +9,16 @@ import { identityHome } from '../../lib/identity';
 const FIELD_CLASS =
   'sign-in-field';
 
+/** Google's four-colour "G", required on a Google sign-in button. */
+function GoogleGlyph() {
+  return <svg className="provider-glyph" viewBox="0 0 48 48" aria-hidden="true">
+    <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.7 17.8 9.5 24 9.5z" />
+    <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 2.9-2.2 5.4-4.7 7.1l7.6 5.9c4.4-4.1 6.9-10.1 6.9-17.5z" />
+    <path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z" />
+    <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.2 0-11.5-4.2-13.4-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z" />
+  </svg>;
+}
+
 export default async function SignInPage({
   searchParams,
 }: {
@@ -21,12 +31,12 @@ export default async function SignInPage({
 
   return (
     <main className="sign-in-page">
-      <div className="sign-in-visual" aria-hidden="true"><Image src="/images/auth-gym-arrival-v1.png" alt="" fill sizes="(max-width: 56rem) 100vw, 50vw" priority /></div>
+      <div className="sign-in-visual" aria-hidden="true"><Image src="/images/gym-morning-floor.jpg" alt="" fill sizes="(max-width: 56rem) 100vw, 55vw" priority /></div>
       <div className="sign-in-panel">
       <div className="sign-in-heading">
-        <div className="brand-lockup"><span className="brand-mark" aria-hidden="true"><i /><i /><i /></span><strong>{PRODUCT_NAME}</strong></div>
-        <h1>Welcome back</h1>
-        <p>Your gym, always with you.</p>
+        <span className="brand-link">{PRODUCT_NAME}</span>
+        <h1>Sign in</h1>
+        <p>Use the account your gym linked to you.</p>
       </div>
 
       {failed ? (
@@ -36,7 +46,7 @@ export default async function SignInPage({
       ) : null}
 
       <form action={startGoogleSignIn} className="sign-in-provider-form">
-        <button type="submit" className="sign-in-provider"><span className="provider-glyph" aria-hidden="true">G</span><span>Continue with Google</span></button>
+        <button type="submit" className="sign-in-provider"><GoogleGlyph /><span>Continue with Google</span></button>
       </form>
       <details className="sign-in-email-disclosure">
         <summary>Use email instead</summary>
@@ -79,7 +89,7 @@ export default async function SignInPage({
       </details>
 
       <p className="sign-in-help">
-        Use the account linked to your gym or platform access. Ask your gym if you need help signing in.
+        Need access? Ask your gym&rsquo;s front desk.
       </p>
       </div>
     </main>

@@ -1,4 +1,6 @@
+import Image from 'next/image';
 import { redirect } from 'next/navigation';
+import { PRODUCT_NAME } from '@gymloop/shared';
 import { signOut } from '../../lib/auth-actions';
 import { readIdentity } from '../../lib/identity-session';
 import { identityHome } from '../../lib/identity';
@@ -23,17 +25,19 @@ export default async function NotLinkedPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 px-6">
-      <h1 className="text-xl font-semibold">This account is not linked to a gym</h1>
-      <p className="text-sm text-neutral-600">
-        You are signed in, but this account has no complete active gym or platform identity.
-        Ask your gym or platform administrator to check your access, then sign in again.
-      </p>
-      <form action={signOut}>
-        <button type="submit" className="text-sm text-neutral-600 underline">
-          Sign out
-        </button>
-      </form>
+    <main className="not-linked-page">
+      <div className="sign-in-visual" aria-hidden="true"><Image src="/images/chalk-grip.jpg" alt="" fill sizes="(max-width: 56rem) 100vw, 45vw" priority /></div>
+      <div className="sign-in-panel">
+        <span className="brand-link">{PRODUCT_NAME}</span>
+        <h1>This account is not linked to a gym</h1>
+        <p className="cl-lede">
+          You are signed in, but this account has no complete active gym or platform identity.
+          Ask your gym or platform administrator to check your access, then sign in again.
+        </p>
+        <form action={signOut}>
+          <button type="submit" className="cl-btn">Sign out</button>
+        </form>
+      </div>
     </main>
   );
 }

@@ -23,37 +23,42 @@ export const PRODUCT_NAME = 'Gymloop';
 export const UI_TOKENS = {
   colors: {
     light: {
-      canvas: '#F7F7F5', surface: '#FFFFFF', elevatedSurface: '#F0F2F1',
-      primaryText: '#15191C', secondaryText: '#5E656B', primaryAction: '#167C65',
-      textOnPrimary: '#FFFFFF', decorativeSeparator: '#DFE3E0',
-      requiredControlOutline: '#747C78', warningText: '#8B5200', errorRiskText: '#B33F3F', scrim: 'rgba(21,25,28,0.24)',
+      canvas: '#F3F0EA', surface: '#FBFAF7', elevatedSurface: '#E9E5DD',
+      primaryText: '#171512', secondaryText: '#5F5A52', primaryAction: '#AD4119',
+      textOnPrimary: '#FFFFFF', decorativeSeparator: '#DDD7CC',
+      requiredControlOutline: '#847D72', successText: '#2E6A3E', warningText: '#865300', errorRiskText: '#B1242F',
+      scrim: 'rgba(23,21,18,0.32)',
     },
     dark: {
-      canvas: '#101214', surface: '#1C1F22', elevatedSurface: '#262A2D',
-      primaryText: '#F3F4F4', secondaryText: '#AEB6BC', primaryAction: '#93DCC0',
-      textOnPrimary: '#101214', decorativeSeparator: '#353B3E',
-      requiredControlOutline: '#7D8984', warningText: '#F3C47B', errorRiskText: '#FFABA6', scrim: 'rgba(0,0,0,0.48)',
+      canvas: '#141311', surface: '#1D1B18', elevatedSurface: '#282521',
+      primaryText: '#F3EFE7', secondaryText: '#B3AB9F', primaryAction: '#FF8A57',
+      textOnPrimary: '#1A0D06', decorativeSeparator: '#34302A',
+      requiredControlOutline: '#7A7368', successText: '#8FCB98', warningText: '#E8B75A', errorRiskText: '#FF9A94',
+      scrim: 'rgba(0,0,0,0.56)',
     },
   },
   typography: {
     body: { size: 16, lineHeight: 24 }, compact: { size: 14, lineHeight: 20 },
-    secondary: { size: 13, lineHeight: 18 }, mobileBody: { size: 17, lineHeight: 25 },
-    mobileSection: { size: 20, lineHeight: 26 }, pageTitle: { size: 32, lineHeight: 38 },
-    largeMetric: { size: 36, lineHeight: 42 }, titleTracking: '-0.02em', emphasisWeight: 600,
+    secondary: { size: 13, lineHeight: 18 }, eyebrow: { size: 12, lineHeight: 16 },
+    mobileBody: { size: 17, lineHeight: 25 }, mobileSection: { size: 20, lineHeight: 26 },
+    sectionTitle: { size: 28, lineHeight: 30 }, pageTitle: { size: 44, lineHeight: 44 },
+    largeMetric: { size: 52, lineHeight: 52 }, heroMetric: { size: 96, lineHeight: 88 },
+    titleTracking: '-0.01em', eyebrowTracking: '0.14em',
+    emphasisWeight: 600, displayWeight: 800, displayStretch: '62%',
   },
   geometry: {
     spacing: [4, 8, 12, 16, 24, 32, 48],
-    radii: { control: 12, row: 16, section: 24, sheet: 28, floatingNavigation: 32 },
+    radii: { control: 10, row: 12, section: 16, sheet: 24 },
     targets: { interactive: 44, touch: 48 },
-    layout: { mobileInset: 20, desktopInset: 32, contentMaxWidth: 1440 },
-    media: { authHeroAspectRatio: 1.8, mobileAuthHeroHeight: 260, mobileAuthContentMaxHeight: 640 },
+    layout: { mobileInset: 20, desktopInset: 32, contentMaxWidth: 1440, railWidth: 232 },
+    media: { authHeroAspectRatio: 1.5, mobileAuthHeroHeight: 260, mobileAuthContentMaxHeight: 640 },
   },
-  icons: { controlSize: 16, navigationSize: 22, strokeWidth: 1.8 },
+  icons: { controlSize: 16, navigationSize: 22, strokeWidth: 1.75, statusDot: 8 },
   motion: {
     press: 120, tabs: 180, dialogEnter: 240, dialogExit: 180,
     checkInAcknowledgementMin: 240, checkInAcknowledgementMax: 320,
   },
-  opacity: { pressed: 0.78, disabled: 0.5, glass: 0.94 },
+  opacity: { pressed: 0.72, disabled: 0.5 },
 } as const;
 
 export const DEFAULT_TIMEZONE = 'Asia/Kolkata';

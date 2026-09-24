@@ -44,10 +44,10 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
         ...(canImportMembers(identity) ? [{ href: '/imports', label: 'Imports' }] : []),
       ];
   const banner: ReactNode = preview ? (
-    <aside className="sticky top-0 z-50 flex flex-wrap items-center justify-between gap-3 bg-red-700 px-6 py-4 text-white" aria-label="Read-only support preview">
-      <div><p className="font-semibold">Read-only preview · {gym.data?.name ?? 'Gym details unavailable'}</p>
-        <p className="mt-1 text-sm">{session?.data && gym.data ? `Expires ${gymTimeLabel(session.data.expires_at, gym.data.timezone)}` : 'Preview expiry could not be loaded.'}</p></div>
-      <form method="post" action="/api/impersonation/end"><button type="submit" className="rounded-md border border-white px-4 py-2 font-medium">End preview</button></form>
+    <aside className="preview-banner" aria-label="Read-only support preview">
+      <div><p><strong>Read-only preview</strong> · {gym.data?.name ?? 'Gym details unavailable'}</p>
+        <p>{session?.data && gym.data ? `Expires ${gymTimeLabel(session.data.expires_at, gym.data.timezone)}` : 'Preview expiry could not be loaded.'}</p></div>
+      <form method="post" action="/api/impersonation/end"><button type="submit" className="cl-btn cl-btn--small">End preview</button></form>
     </aside>
   ) : null;
 
