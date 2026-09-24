@@ -1,20 +1,18 @@
 import { useEffect, useState } from 'react';
 import { humanize, UI_TOKENS } from '@gymloop/shared';
 import * as Crypto from 'expo-crypto';
-import { Check, LogOut } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { ActionButton, Body, Eyebrow, FONT, Field, Row, Screen, StateMessage, Title } from '../../components/ui';
-import { useMobile, type AppearanceMode } from '../../lib/mobile-context';
+import { StyleSheet, Text, View } from 'react-native';
+import { ActionButton, AppearanceSheet, Body, Eyebrow, FONT, Field, LedgerSection, Row, Screen, SignOutRow, StateMessage, Title, appearanceLabel } from '../../components/ui';
+import { useMobile } from '../../lib/mobile-context';
 import { loadDefaultBranch } from '../../lib/mobile-data';
 
-const APPEARANCES: { mode: AppearanceMode; label: string }[] = [{ mode: 'system', label: 'System' }, { mode: 'light', label: 'Light' }, { mode: 'dark', label: 'Dark' }];
-
 export default function MoreScreen() {
-  const { api, appearance, identity, palette, session, setAppearance, signOut, supabase } = useMobile();
+  const { api, appearance, identity, palette, session, signOut, supabase } = useMobile();
   const [branch, setBranch] = useState<{ id: string; name: string } | null>(null);
   const [name, setName] = useState(''); const [phone, setPhone] = useState('');
   const [message, setMessage] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
   const [pending, setPending] = useState(false);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
   useEffect(() => { void loadDefaultBranch(supabase).then(setBranch).catch(() => undefined); }, [supabase]);
   const frontOffice = identity.kind === 'staff' && identity.role !== 'trainer';
   const role = identity.kind === 'staff' ? humanize(identity.role) : 'Staff';
@@ -35,44 +33,39 @@ export default function MoreScreen() {
   const label = [styles.label, { color: palette.primaryText }];
   return <Screen>
     <View><Eyebrow>{branch?.name ?? 'Front desk'}</Eyebrow><Title>More</Title><Body muted>Walk-in leads, appearance and your account.</Body></View>
-    {frontOffice ? <View style={styles.section}>
+    {frontOffice ? <View style={[styles.section, styles.leadForm, { borderColor: palette.decorativeSeparator }]}>
       <Eyebrow>New lead</Eyebrow>
       <Body muted>Someone asking about joining? Take their name and number now; the team follows up from Leads.</Body>
       <View style={styles.field}><Text style={label}>Full name</Text><Field accessibilityLabel="Full name" autoComplete="name" value={name} onChangeText={setName} /></View>
       <View style={styles.field}><Text style={label}>Phone</Text><Field accessibilityLabel="Phone" accessibilityHint="Include +91" placeholder="+91 98765 43210" keyboardType="phone-pad" value={phone} onChangeText={setPhone} /></View>
-      <ActionButton disabled={pending || !ready} onPress={() => void capture()}>{pending ? 'Saving…' : 'Capture lead'}</ActionButton>
+      {/* The helper sits on the gutter, 8 under the button it explains, like every other line on this tab. */}
+      <View style={styles.submit}>
+        <ActionButton disabled={pending || !ready} onPress={() => void capture()}>{pending ? 'Saving…' : 'Capture lead'}</ActionButton>
+        {!ready && !pending && !message ? <Text style={[styles.hint, { color: palette.secondaryText }]}>Enter a name and phone to capture.</Text> : null}
+      </View>
       {message ? <StateMessage tone={message.tone}>{message.text}</StateMessage> : null}
     </View> : null}
-    <View style={styles.section}>
-      <Eyebrow>Appearance</Eyebrow>
-      <View accessibilityRole="radiogroup" accessibilityLabel="Appearance" style={[styles.list, { borderColor: palette.decorativeSeparator }]}>
-        {APPEARANCES.map(({ mode, label: modeLabel }) => <Pressable key={mode} accessibilityRole="radio" accessibilityState={{ checked: appearance === mode }} onPress={() => void setAppearance(mode)} style={({ pressed }) => [styles.row, { borderColor: palette.decorativeSeparator }, pressed && styles.pressed]}>
-          <Text style={[styles.rowText, { color: palette.primaryText }]}>{modeLabel}</Text>
-          {appearance === mode ? <Check color={palette.primaryAction} size={UI_TOKENS.icons.navigationSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /> : null}
-        </Pressable>)}
-      </View>
-    </View>
-    <View style={styles.section}>
-      <Eyebrow>Account</Eyebrow>
-      <View style={[styles.list, { borderColor: palette.decorativeSeparator }]}>
+    {/* The same Account ledger as member You: who is signed in, Appearance behind a row and the shared sheet, then Sign out. */}
+    <View style={frontOffice ? styles.afterRule : null}>
+      <LedgerSection title="Account">
         <Row title={session?.user.email ?? role} meta={`${role}${branch ? ` · ${branch.name}` : ''}`} accessibilityLabel={`Signed in as ${session?.user.email ?? role}, ${role}${branch ? `, ${branch.name}` : ''}`} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={() => void signOut()} style={({ pressed }) => [styles.row, styles.signOut, { borderColor: palette.decorativeSeparator }, pressed && styles.pressed]}>
-          <LogOut color={palette.errorRiskText} size={UI_TOKENS.icons.navigationSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />
-          <Text style={[styles.rowText, { color: palette.errorRiskText }]}>Sign out</Text>
-        </Pressable>
-      </View>
+        <Row title="Appearance" value={appearanceLabel(appearance)} onPress={() => setAppearanceOpen(true)} accessibilityLabel={`Appearance, ${appearanceLabel(appearance)}`} accessibilityHint="Choose System, Light or Dark" />
+        <SignOutRow onPress={() => void signOut()} />
+      </LedgerSection>
     </View>
+    <AppearanceSheet visible={appearanceOpen} onClose={() => setAppearanceOpen(false)} />
   </Screen>;
 }
 
 const space = UI_TOKENS.geometry.spacing;
 const styles = StyleSheet.create({
   section: { gap: space[2] },
+  // The lead form closes on a full-width hairline, 24 below its last line.
+  leadForm: { paddingBottom: space[4], borderBottomWidth: StyleSheet.hairlineWidth },
+  // Each section starts 32 below the hairline that closes the one before it (the screen's 24 plus 8).
+  afterRule: { marginTop: space[1] },
   field: { gap: space[1] },
+  submit: { gap: space[1] },
   label: { fontFamily: FONT.medium, fontSize: UI_TOKENS.typography.compact.size, lineHeight: UI_TOKENS.typography.compact.lineHeight },
-  list: { borderTopWidth: StyleSheet.hairlineWidth },
-  row: { minHeight: UI_TOKENS.geometry.targets.touch + space[2], flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth },
-  signOut: { justifyContent: 'flex-start', gap: space[3] },
-  rowText: { fontFamily: FONT.medium, fontSize: UI_TOKENS.typography.mobileBody.size },
-  pressed: { opacity: UI_TOKENS.opacity.pressed },
+  hint: { fontFamily: FONT.regular, fontSize: UI_TOKENS.typography.compact.size, lineHeight: UI_TOKENS.typography.compact.lineHeight },
 });

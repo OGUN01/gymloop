@@ -807,14 +807,19 @@ Visual system: `docs/design/phase9/direction.md`. Tokens stay in `UI_TOKENS` (no
 | `FONT` | `apps/mobile/components/ui.tsx` | Chalkline native font roles: Archivo 400–700 and the bundled ExtraCondensed display cuts (`assets/fonts`, OFL) registered in `MobileProvider` | every native screen |
 | `Display` | `apps/mobile/components/ui.tsx` | Condensed display figure — hero week count, metric or section heading | member Home, Activity |
 | `dayLabel` | `apps/mobile/components/ui.tsx` | Calendar date as "10 Oct", adding the year only when it is not the current year, in the given time zone | member Activity, My gym, desk Follow-ups |
-| `WeekRhythm` | `apps/mobile/components/ui.tsx` | Native truthful seven-day attendance dots (visited clay, today ringed, future dashed) | member Home, Activity |
-| `Sheet` | `apps/mobile/components/ui.tsx` | Native bottom sheet on the raised surface with a top hairline, content-sized, safe-area and reduced-motion aware | member Settings, desk check-in reason |
-| `SignOutRow` | `apps/mobile/components/ui.tsx` | Shared native Sign out row: left-aligned errorRiskText label with icon, the last ruled row of an Account list | member You, desk More |
-| `AppearanceChoices` | `apps/mobile/components/ui.tsx` | Native System / Light / Dark ruled radio rows (leading ring, chosen fills clay, label 600) | member You Appearance sheet, desk More |
+| `WeekRhythm` | `apps/mobile/components/ui.tsx` | Native truthful seven-day attendance dots: visited clay; other days one solid outline ring; future days' letters secondary; today bold with a clay underline | member Home, Activity |
+| `Sheet` | `apps/mobile/components/ui.tsx` | Native bottom sheet on the raised surface with a top hairline, content-sized, scrolls under the keyboard, keeps status-bar icons legible over the scrim | member Appearance, desk check-in reason |
+| `SignOutRow` | `apps/mobile/components/ui.tsx` | Shared native Sign out row (primaryText label with icon), the last ruled row of an Account list | member You, desk More |
+| `LedgerSection` | `apps/mobile/components/ui.tsx` | Eyebrow, 12dp, then a ruled list with its own top hairline | member You, desk More |
+| `SheetHeader` | `apps/mobile/components/ui.tsx` | The one sheet heading: optional eyebrow, condensed title, optional detail line and trailing action | Appearance and reason sheets |
+| `ChoiceList` | `apps/mobile/components/ui.tsx` | Single choice as ruled rows with a leading radio and optional meta line | Appearance, desk check-in reason |
+| `appearanceLabel` | `apps/mobile/components/ui.tsx` | Appearance mode as "System" / "Light" / "Dark" | member You, desk More |
+| `AppearanceSheet` | `apps/mobile/components/ui.tsx` | Shared Appearance sheet for member and desk | member You, desk More |
+| `RowAction` | `apps/mobile/components/ui.tsx` | In-row 44dp outline action, with a clay `accent` variant | desk Check-in, Follow-ups |
 | `Rule` | `apps/mobile/components/ui.tsx` | Hairline divider in the separator colour | member screens |
-| `Row` | `apps/mobile/components/ui.tsx` | Ledger row (icon, title, meta, trailing); a chevron appears only when the row navigates | member and desk screens |
+| `Row` | `apps/mobile/components/ui.tsx` | Ledger row (icon, title, meta, trailing value, status inline or below); a 16dp chevron appears only when the row navigates, or its slot is reserved so values align | member and desk screens |
 | `Status` | `apps/mobile/components/ui.tsx` | Dot-and-word status (UX9-003) | member and desk screens |
-| `Initials` | `apps/mobile/components/ui.tsx` | Up to `AVATAR_INITIALS_MAX` initials in a quiet circle for roster rows | desk Check-in, Members, Follow-ups |
+| `Initials` | `apps/mobile/components/ui.tsx` | One avatar treatment: up to `AVATAR_INITIALS_MAX` condensed ink initials on a filled elevatedSurface disc, sizes row / header / profile | desk rosters, member Home header, You |
 | `statusWord` | `apps/mobile/components/ui.tsx` | Vocabulary value as a sentence-case word, never the raw enum | member and desk screens |
 | `statusTone` | `apps/mobile/components/ui.tsx` | Status dot tone for membership, payment, order and member vocabularies | member and desk screens |
 | `formatMoney` | `packages/shared/src/display/display.ts` | Exact paise as "₹8,000" / "₹1,500.50" (Indian grouping, no ".00" on whole rupees); other currencies as "USD 1,200.00". Built on `rupeesFromPaise`, so it keeps the exact-integer contract | web and native money display |

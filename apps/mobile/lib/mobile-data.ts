@@ -109,11 +109,11 @@ export async function loadDeskMembers(client: DbClient, query: string): Promise<
   return (data ?? []).filter((row) => normalized === '' || row.full_name.toLocaleLowerCase().includes(normalized.toLocaleLowerCase()) || row.phone.includes(normalized)).map((row) => ({ id: row.id, fullName: row.full_name, phone: row.phone, status: row.status, memberCode: row.member_code }));
 }
 
-export type DeskFollowUp = { id: string; memberId: string; memberName: string; memberPhone: string; daysAbsent: number; nextFollowUpAt: string | null; status: string; lastAttendedOn: string | null; lastFollowUpAt: string | null; lastFollowUpOutcome: string | null };
+export type DeskFollowUp = { id: string; memberId: string; memberName: string; memberPhone: string; daysAbsent: number; nextFollowUpAt: string | null; status: string; openedOn: string | null; lastAttendedOn: string | null; lastFollowUpAt: string | null; lastFollowUpOutcome: string | null };
 export async function loadDeskFollowUps(client: DbClient): Promise<DeskFollowUp[]> {
-  const { data, error } = await client.from('red_list_cases').select('id,member_id,member_name,member_phone,days_absent,next_follow_up_at,status,last_attended_on,last_follow_up_at,last_follow_up_outcome').order('days_absent', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT);
+  const { data, error } = await client.from('red_list_cases').select('id,member_id,member_name,member_phone,days_absent,next_follow_up_at,status,opened_on,last_attended_on,last_follow_up_at,last_follow_up_outcome').order('days_absent', { ascending: false }).limit(MEMBER_PAGE_SIZE_DEFAULT);
   if (error) throw new Error(error.message);
-  return (data ?? []).flatMap((row) => row.id && row.member_id && row.member_name && row.member_phone && row.status ? [{ id: row.id, memberId: row.member_id, memberName: row.member_name, memberPhone: row.member_phone, daysAbsent: row.days_absent ?? 0, nextFollowUpAt: row.next_follow_up_at, status: row.status, lastAttendedOn: row.last_attended_on, lastFollowUpAt: row.last_follow_up_at, lastFollowUpOutcome: row.last_follow_up_outcome }] : []);
+  return (data ?? []).flatMap((row) => row.id && row.member_id && row.member_name && row.member_phone && row.status ? [{ id: row.id, memberId: row.member_id, memberName: row.member_name, memberPhone: row.member_phone, daysAbsent: row.days_absent ?? 0, nextFollowUpAt: row.next_follow_up_at, status: row.status, openedOn: row.opened_on, lastAttendedOn: row.last_attended_on, lastFollowUpAt: row.last_follow_up_at, lastFollowUpOutcome: row.last_follow_up_outcome }] : []);
 }
 
 export async function loadDefaultBranch(client: DbClient): Promise<{ id: string; name: string } | null> {
