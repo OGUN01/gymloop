@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   calendarStreak,
+  memberStreak,
   toLocalDate,
   visitStreak,
   weeklyGoalStreak,
@@ -287,5 +288,21 @@ describe('calendarStreak (STK-001 calendar streak)', () => {
         timeZone: IST,
       }),
     ).toEqual({ current: 0, longest: 0, unit: 'day', missed: [] });
+  });
+});
+
+describe('memberStreak (one streak for web and native)', () => {
+  const rows = { asOf: NOW, timeZone: IST, goal: 3, weekStartDay: 1, holidays: [], pauses: [] };
+  const visits = [at('2026-08-31'), at('2026-09-02'), at('2026-09-04'), at('2026-09-07')];
+
+  it('uses the weekly goal when the gym rule says so, else consecutive visits', () => {
+    expect(memberStreak({ ...rows, rule: 'weekly_goal', visits })).toEqual(weeklyGoalStreak({ ...rows, visits }));
+    expect(memberStreak({ ...rows, rule: 'visit', visits })).toEqual(visitStreak({ asOf: NOW, timeZone: IST, visits }));
+  });
+
+  it('maps database pause and holiday rows the same way the rules expect', () => {
+    const pause = { starts_on: '2026-09-05', ends_on: '2026-09-08', approved_at: at('2026-09-05', '10:00'), rejected_at: null };
+    expect(memberStreak({ ...rows, rule: 'visit', visits, pauses: [pause], holidays: [{ holiday_on: '2026-09-03' }] }))
+      .toEqual(visitStreak({ asOf: NOW, timeZone: IST, visits, pauses: [approved('2026-09-05', '2026-09-08')], holidays: ['2026-09-03'] }));
   });
 });
