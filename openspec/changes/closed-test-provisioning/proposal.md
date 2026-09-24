@@ -122,3 +122,57 @@ export async function main(argv) // → Promise<number> exit code
 Owner linking (keeps `/platform`), password issuance, invitations, a product
 UI, bulk import, any migration or policy change, disabling Auth signup (a
 separate, reversible configuration step recorded in ADR-172).
+
+## Amendment 1 (2026-09-24, after the fresh critic's NO-GO) — supersedes the conflicting text above
+
+The critic found four silent-failure paths. The contract changes as follows;
+anything not mentioned stays as written.
+
+**Port changes**
+```js
+{
+  findAuthUserByEmail(email)
+    // → { id, email, provisioned: boolean, googleVerified: boolean, hasEmailIdentity: boolean } | null
+    //   provisioned     = app_metadata.gymloop_provisioned === true (only the service role can set app_metadata)
+    //   googleVerified  = the user has an identity with provider 'google' whose email equals `email`
+    //                     (trimmed, case-insensitive)
+    //   hasEmailIdentity = the user has an identity with provider 'email' (a password/self sign-up identity)
+    //   THROWS (never returns null) if the directory could not be fully searched (page cap reached with
+    //   more pages remaining, or any API error).
+  countBindings(userId)             // unchanged shape; THROWS on any query error or a missing count (never 0 by default)
+  createConfirmedAuthUser(email)    // → { id }; email_confirm: true, NO password,
+                                    //   app_metadata: { gymloop_provisioned: true }
+  bindMember(tenantId, memberId, userId, expectedEmail)
+  bindStaff(tenantId, staffId, userId, expectedEmail)
+    // one conditional UPDATE: tenant_id, id, user_id IS NULL, AND the row's email equals expectedEmail
+    // (trimmed, case-insensitive; LIKE wildcards must be escaped if ILIKE is used), AND still eligible
+    // (member: status not cancelled/blocked and erased_at IS NULL; staff: is_active AND role <> 'gym_owner').
+    // → number of rows changed
+  unbindMember(tenantId, memberId, userId)   // user_id := NULL where tenant_id, id AND user_id = userId → rows changed
+  unbindStaff(tenantId, staffId, userId)     // same for staff
+}
+```
+
+**New and changed requirements**
+- **PROV-006a (reuse only a verified identity).** An existing Auth user found by email may be reused only if
+  `provisioned` is true, or `googleVerified` is true **and** `hasEmailIdentity` is false. Otherwise the tool
+  returns the new refusal code **`identity_unverified`** with no writes (an operator must investigate: the
+  account may have been self-registered by someone who does not own the address).
+- **PROV-006b (already linked means exactly one binding).** `already_linked` is returned only when the target
+  row's `userId` equals the found Auth user **and** `countBindings` reports exactly one binding in total
+  (members + staff + platform = 1); otherwise `identity_bound_elsewhere`.
+- **PROV-007a (bind re-asserts the checks).** Apply passes the request email as `expectedEmail` to the bind
+  method; the adapter's conditional update re-asserts email and eligibility, so a row edited between the read
+  and the write is not bound (the bind returns 0 → `bind_conflict`).
+- **PROV-011 (post-bind verification).** After a bind returns exactly 1, the tool calls `countBindings(userId)`
+  again. If the total is not exactly 1 (a concurrent run bound the same identity elsewhere), it calls the
+  matching unbind method for this row once, applies the PROV-008 compensation (delete a user created in this
+  run), and returns `bind_conflict`. If the verification or unbind itself throws, the tool reports
+  `bind_conflict` (never `linked`) and rethrows nothing secret.
+- **PROV-012 (fail closed on lookup errors).** Any thrown port error during checks yields `ok: false` with a
+  generic code (`lookup_failed`), no writes, and no secret or raw email in the result.
+
+`ProvisionResult.code` gains `identity_unverified` and `lookup_failed`.
+
+**Operational precondition (ADR-173, not enforced by the tool):** public Auth signup is disabled on the
+project before real testers are provisioned, so nobody can pre-register a tester's address.
