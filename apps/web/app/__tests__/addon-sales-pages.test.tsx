@@ -187,7 +187,7 @@ describe('order detail and receipt truthfulness', () => {
     const { default: Page } = await import('../(console)/add-ons/orders/[orderId]/page');
     const markup = html(await Page({ params: Promise.resolve({ orderId: ORDER_ID }), searchParams: Promise.resolve({}) }));
 
-    expect(markup).toMatch(/complimentary.*₹0.*no payment.*no receipt/i);
+    expect(markup).toMatch(/complimentary.*₹0\b.*no payment.*no receipt/i);
     expect(markup).toMatch(/refund request.*pending|requested/i);
     expect(markup).not.toMatch(/returned.*100/i);
   });

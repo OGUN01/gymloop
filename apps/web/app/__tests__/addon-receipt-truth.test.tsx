@@ -70,8 +70,8 @@ describe('add-on receipt money and return journey', () => {
 
     expect(text).not.toMatch(/fully (?:refunded|returned)|(?:refunded|returned) in full/i);
     expect(text).toMatch(/refund requests? pending|pending refund requests?/i);
-    expect(text).toMatch(/returned\s*₹0/i);
-    expect(text).toMatch(/available for another refund request\s*₹0/i);
+    expect(text).toMatch(/returned\s*₹0\b/i);
+    expect(text).toMatch(/available for another refund request\s*₹0\b/i);
   });
 
   it('preserves the add-on fulfilment-order link when opening the receipt', async () => {
@@ -145,7 +145,7 @@ describe('add-on receipt money and return journey', () => {
     const markup = renderToStaticMarkup(await Page({ params: Promise.resolve({ paymentId: PAYMENT_ID }), searchParams: Promise.resolve({}) }));
     const text = markup.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
 
-    expect(text).toMatch(/request(?:ed)? (?:at|time)[^\d]*2026-01-02 08:34/i);
+    expect(text).toMatch(/request(?:ed)? (?:at|time)[^\d]*2 Jan 2026, 8:34 am/i);
     expect(text).not.toMatch(/completed at|completion time|returned at/i);
   });
 
