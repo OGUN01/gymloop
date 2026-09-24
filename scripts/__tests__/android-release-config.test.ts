@@ -45,6 +45,13 @@ describe('HARD-002 Android release configuration', () => {
     expect(productionAndroid.buildType).toBe('app-bundle');
   });
 
+  it('names the store app Fitcrux and uses app.fitcrux on Android and iOS', () => {
+    expect(expo.name).toBe('Fitcrux');
+    expect(android.package).toBe('app.fitcrux');
+    expect((expo.ios as JsonObject).bundleIdentifier).toBe('app.fitcrux');
+    expect(cameraPlugin?.[1]?.cameraPermission).toBe('Allow Fitcrux to scan the current QR code at your gym.');
+  });
+
   it('uses remote EAS versioning and automatically increments production Android releases', () => {
     expect(easConfig.cli?.appVersionSource).toBe('remote');
     expect(production.autoIncrement).toBe(true);
