@@ -136,20 +136,8 @@ textarea.cl-input { min-height: 6rem; resize: vertical; }
 
 @media (max-width: 64rem) { .cl-page { padding: var(--gymloop-space-32) var(--gymloop-layout-mobile-inset); } .cl-split { grid-template-columns: 1fr; } .cl-split > * + * { border-left: 0; padding-left: 0; } .cl-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .cl-metric:nth-child(3) { border-left: 0; padding-left: 0; } .cl-metric:nth-child(-n + 2) { border-bottom: 1px solid var(--gymloop-color-decorative-separator); } }
 @media (max-width: 40rem) { .cl-page { padding: var(--gymloop-space-24) var(--gymloop-space-16) var(--gymloop-space-48); } .cl-page-header { align-items: stretch; flex-direction: column; } .cl-actions > .cl-btn { flex: 1 1 auto; } .cl-metric { padding: var(--gymloop-space-16) var(--gymloop-space-12) var(--gymloop-space-16) 0; } .cl-metric + .cl-metric { padding-left: var(--gymloop-space-16); } .cl-metric:nth-child(3) { padding-left: 0; } .cl-dl { grid-template-columns: 1fr; } .cl-dl > dt { padding-bottom: 0; border-bottom: 0; } .cl-ledger-stack thead { display: none; } .cl-ledger-stack tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--gymloop-space-4) var(--gymloop-space-12); padding: var(--gymloop-space-12) 0; border-bottom: 1px solid var(--gymloop-color-decorative-separator); } .cl-ledger-stack td { padding: 0; border: 0; } }
+@media (max-width: 30rem) { .cl-page { padding-inline: var(--gymloop-space-12); } .cl-metrics { grid-template-columns: 1fr; } .cl-metric, .cl-metric + .cl-metric, .cl-metric:nth-child(3) { border-left: 0; padding-left: 0; } .cl-metric + .cl-metric { border-top: 1px solid var(--gymloop-color-decorative-separator); } .cl-actions > .cl-btn { width: 100%; } }
 @media (prefers-reduced-motion: reduce) { .cl-btn, .cl-input { transition: none; } .cl-btn:active { transform: none; } .cl-skeleton { animation: none; } }
-
-/* ── Transitional: Tailwind neutral utilities read as Chalkline until each
-   route is rewritten onto the kit above. ─────────────────────────────────── */
-:is(.text-neutral-400, .text-neutral-500, .text-neutral-600, .text-neutral-700) { color: var(--gymloop-color-secondary-text); }
-:is(.text-neutral-800, .text-neutral-900, .text-black) { color: var(--gymloop-color-primary-text); }
-:is(.border-neutral-100, .border-neutral-200, .border-neutral-300, .border-neutral-400) { border-color: var(--gymloop-color-decorative-separator); }
-.bg-white { background: var(--gymloop-color-surface); }
-:is(.bg-neutral-50, .bg-neutral-100, .bg-amber-50, .bg-red-50) { background: var(--gymloop-color-elevated-surface); }
-:is(.text-red-600, .text-red-700, .text-red-800) { color: var(--gymloop-color-error-risk-text); }
-:is(.text-amber-700, .text-amber-800, .text-amber-900) { color: var(--gymloop-color-warning-text); }
-:is(.text-green-700, .text-green-800, .text-green-900, .text-emerald-700, .text-emerald-800, .text-emerald-900) { color: var(--gymloop-color-success-text); }
-:is(.bg-green-50, .bg-emerald-50) { background: color-mix(in srgb, var(--gymloop-color-success-text) 10%, var(--gymloop-color-surface)); }
-:is(button.bg-neutral-900, a.bg-neutral-900, button.bg-black, a.bg-black) { border: 0; background: var(--gymloop-color-primary-action); color: var(--gymloop-color-text-on-primary); }
 
 /* ── Brand ──────────────────────────────────────────────────────────────── */
 .brand-link { display: inline-flex; min-height: var(--gymloop-target-interactive); align-items: center; gap: var(--gymloop-space-8); color: inherit; font-size: 1.75rem; line-height: 1; font-stretch: var(--gymloop-type-display-stretch); font-weight: var(--gymloop-type-display-weight); letter-spacing: 0; text-decoration: none; text-transform: uppercase; }
@@ -280,111 +268,14 @@ textarea.cl-input { min-height: 6rem; resize: vertical; }
 /* ── Route families (rebuilt family by family onto the kit) ─────────── */
 /* Phase 7 private route presentation.  These selectors intentionally live in
    the web adapter: route data, forms, and response contracts stay untouched. */
-.route-workspace { width: min(100%, var(--gymloop-layout-content-max-width)); margin-inline: auto; padding: var(--gymloop-space-32); }
-.route-workspace h1 { margin: 0; font-size: var(--gymloop-type-page-title-size); line-height: var(--gymloop-type-page-title-line-height); letter-spacing: var(--gymloop-type-title-tracking); font-weight: var(--gymloop-type-emphasis-weight); }
-.route-workspace h2 { letter-spacing: -0.01em; }
-.route-workspace > p:first-of-type { color: var(--gymloop-color-secondary-text); }
-.route-workspace :is(input, select, textarea) { min-height: var(--gymloop-target-touch); border-color: var(--gymloop-color-required-control-outline); border-radius: var(--gymloop-radius-control); background: var(--gymloop-color-surface); color: var(--gymloop-color-primary-text); }
-.route-workspace :is(button, a.inline-flex) { min-height: var(--gymloop-target-touch); }
-.route-workspace table { display: block; overflow-x: auto; border-collapse: collapse; }
-.route-workspace :is(article, section.rounded, li.rounded, form.rounded) { border-color: var(--gymloop-color-decorative-separator); background: var(--gymloop-color-surface); }
-.route-workspace :is(.text-neutral-500, .text-neutral-600, .text-neutral-700) { color: var(--gymloop-color-secondary-text); }
-.route-workspace :is(.border-neutral-100, .border-neutral-200, .border-neutral-300, .border-neutral-400) { border-color: var(--gymloop-color-decorative-separator); }
-.route-workspace :is(.bg-neutral-50, .bg-amber-50, .bg-red-50) { background: var(--gymloop-color-elevated-surface); }
-.route-workspace :is(.text-red-700, .text-amber-800) { color: var(--gymloop-color-error-risk-text); }
-.route-workspace :is(button.bg-neutral-900, a.bg-neutral-900) { border: 0; background: var(--gymloop-color-primary-action); color: var(--gymloop-color-text-on-primary); }
-.route-workspace :is(a, button) { transition: background-color var(--gymloop-motion-press) ease, color var(--gymloop-motion-press) ease, opacity var(--gymloop-motion-press) ease; }
 /* Phase 7 route interiors: a quiet, operational surface shared by every
    owner and platform route. Tailwind remains responsible for layout; these
    hooks provide the same material, rhythm and state treatment when a route
    has a sparse/empty response. */
-.route-workspace,
-.platform-route {
-  color: var(--gymloop-color-primary-text);
-}
-.route-workspace > :is(section, article, form),
-.platform-route > :is(section, article, form) {
-  border-radius: var(--gymloop-radius-section);
-}
-.route-workspace h1,
-.platform-route h1{
-  color: var(--gymloop-color-primary-text);
-}
-.route-workspace h2,
-.platform-route h2{
-  color: var(--gymloop-color-primary-text);
-  font-weight: var(--gymloop-type-emphasis-weight);
-}
-.route-workspace :is(label, legend) {
-  color: var(--gymloop-color-primary-text);
-  font-weight: 500;
-}
-.route-workspace :is(input, select, textarea),
-.platform-route :is(input, select, textarea) {
-  padding-inline: var(--gymloop-space-12);
-  box-shadow: inset 0 0 0 1px transparent;
-  transition: border-color var(--gymloop-motion-press) ease, box-shadow var(--gymloop-motion-press) ease;
-}
-.route-workspace :is(input, select, textarea):focus,
-.platform-route :is(input, select, textarea):focus {
-  border-color: var(--gymloop-color-primary-action);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gymloop-color-primary-action) 22%, transparent);
-  outline: 0;
-}
-.route-workspace :is(button, a.inline-flex),
-.platform-route :is(button, a.inline-flex) {
-  border-radius: var(--gymloop-radius-control);
-  font-weight: 600;
-}
-.route-workspace :is(button.bg-neutral-900, a.bg-neutral-900):hover,
-.route-workspace :is(button.bg-neutral-900, a.bg-neutral-900):focus-visible {
-  opacity: .9;
-}
-.route-workspace table {
-  width: 100%;
-  border: 1px solid var(--gymloop-color-decorative-separator);
-  border-radius: var(--gymloop-radius-row);
-  background: var(--gymloop-color-surface);
-}
-.route-workspace table :is(th, td) {
-  min-height: 3.25rem;
-  border-bottom: 1px solid var(--gymloop-color-decorative-separator);
-  padding: var(--gymloop-space-12) var(--gymloop-space-16);
-  vertical-align: middle;
-}
-.route-workspace table tr:last-child td { border-bottom: 0; }
-.route-workspace table thead { background: var(--gymloop-color-elevated-surface); }
-.route-workspace :is(.bg-green-50, .bg-emerald-50) {
-  background: color-mix(in srgb, var(--gymloop-color-primary-action) 12%, var(--gymloop-color-surface));
-  color: var(--gymloop-color-primary-text);
-}
-.route-workspace :is(.text-green-900, .text-emerald-900) { color: var(--gymloop-color-primary-action); }
-.route-workspace :is(.text-red-800, .text-amber-900) { color: var(--gymloop-color-error-risk-text); }
-.route-workspace > :is(section, article, form) + :is(section, article, form) { margin-top: var(--gymloop-space-24); }
 /* Lists become labelled, touchable summaries at tablet widths without hiding
    any action or changing the server response. */
-.route-workspace li.rounded-xl,
-.route-workspace li.rounded-lg,
-.route-workspace article.rounded-xl,
-.route-workspace article.rounded-lg {
-  border-color: var(--gymloop-color-decorative-separator);
-  background: var(--gymloop-color-surface);
-}
-.route-workspace a:not(.bg-neutral-900) { text-underline-offset: 3px; }
-.route-workspace a:not(.bg-neutral-900):hover { color: var(--gymloop-color-primary-action); }
-.platform-route > section { box-shadow: 0 10px 28px color-mix(in srgb, var(--gymloop-color-primary-text) 5%, transparent); }
 /* Member surfaces retain the same information density as native member
    screens: opaque content, calm grouping and controls sized for a thumb. */
-@media (max-width: 64rem) {
-  .route-workspace table { border-radius: var(--gymloop-radius-control); }
-  .route-workspace table :is(th, td) { padding-inline: var(--gymloop-space-12); } }
-@media (max-width: 40rem) {
-  .route-workspace > header,
-  .platform-route > header { gap: var(--gymloop-space-12); }
-  .route-workspace table { margin-inline: calc(var(--gymloop-space-20) * -1); width: calc(100% + var(--gymloop-space-20) + var(--gymloop-space-20)); border-inline: 0; border-radius: 0; }
-  .route-workspace table :is(th, td) { white-space: nowrap; } }
-.platform-route { width: min(100%, 90rem); margin-inline: auto; padding: var(--gymloop-space-32); }
-@media (max-width: 30rem) { .route-workspace table { margin-inline: calc(var(--gymloop-space-16) * -1); width: calc(100% + var(--gymloop-space-16) + var(--gymloop-space-16)); } }
 /* ── Route states (UX9-004) ─────────────────────────────────────────────── */
 .route-state-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .route-state-eyebrow { width: 8rem; height: .75rem; margin-bottom: var(--gymloop-space-12); }
@@ -613,7 +504,6 @@ span.member-account-row { cursor: default; grid-template-columns: auto minmax(0,
 @media (max-width: 64rem) { .follow-up-column-headings { display: none; } .follow-up-form { padding-left: 0; } }
 @media (max-width: 40rem) { .follow-up-workspace { padding: var(--gymloop-space-24) var(--gymloop-layout-mobile-inset) var(--gymloop-space-48); } .follow-up-header { align-items: stretch; flex-direction: column; } .follow-up-route-link { width: 100%; } .follow-up-row, .follow-up-form { grid-template-columns: 1fr; } .follow-up-row { gap: var(--gymloop-space-12); } .follow-up-form { gap: var(--gymloop-space-12); } .follow-up-submit, .follow-up-next-page { width: 100%; } }
 .member-detail-eyebrow { margin-bottom: var(--gymloop-space-12); }
-
 /* ── Owner overview (Chalkline owner board) ─────────────────────────────── */
 .dashboard-workspace, .dashboard-error-state { width: 100%; max-width: var(--gymloop-layout-content-max-width); margin-inline: auto; padding: var(--gymloop-layout-desktop-inset); color: var(--gymloop-color-primary-text); }
 .dashboard-error-state { display: grid; gap: var(--gymloop-space-12); }

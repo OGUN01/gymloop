@@ -12,11 +12,10 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 }
 
 /**
- * The input classes every console control shares, exported from this
- * server-safe file (no 'use client' here) so a server component's filter
- * form and the client form components style a control identically. The
- * `bg-white` matters: the select it dresses sits on a tinted card, and the
- * browser's default select background reads as a disabled control.
+ * The input class every console control shares (the Chalkline `cl-input`),
+ * exported from this server-safe file (no 'use client' here) so a server
+ * component's filter form and the client form components style a control
+ * identically.
  */
 export const inputClass = 'cl-input';
 
