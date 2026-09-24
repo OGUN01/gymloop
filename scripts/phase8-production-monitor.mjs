@@ -1,5 +1,6 @@
 /** HARD-005 deterministic production alert evaluator. */
 import { readFileSync } from 'node:fs';
+import { PHASE8_MONITOR_LATENCY, PHASE8_PRELAUNCH_LOAD_LIMITS } from '../packages/shared/src/config/constants.ts';
 
 const SCHEMA_VERSION = 1;
 const ALERT_WINDOW_MINUTES = 5;
@@ -110,6 +111,9 @@ function validateInput(input) {
       correlationId: safeCorrelation(check.correlationId),
       ok: check.ok,
       httpStatus: integer(check.httpStatus, 0, HTTP_STATUS_MAX),
+      durationMs: check.durationMs === undefined || check.durationMs === null
+        ? undefined
+        : integer(check.durationMs, 0),
     };
   }).sort((left, right) => left.observedAtMs - right.observedAtMs);
 
@@ -128,7 +132,12 @@ function issueFor(severity, testOnly, reasons, evidence, evaluatedAt) {
   const labels = testOnly
     ? ['phase8-production-monitor-test', 'phase8-monitor-test']
     : ['phase8-production-monitor', 'production-alert', severity.toLowerCase()];
-  const reasonLines = reasons.map((reason) => `- ${reason.code}: ${reason.count}`).join('\n');
+  const reasonLines = reasons.map((reason) => {
+    if (reason.p95Ms !== undefined) {
+      return `- ${reason.code}: p95 ${reason.p95Ms}ms over ${reason.budgetMs}ms budget (${reason.samples} samples)`;
+    }
+    return `- ${reason.code}: ${reason.count}`;
+  }).join('\n');
   const correlations = evidence.correlationIds.length > 0 ? evidence.correlationIds.join(', ') : 'none';
   const body = [
     `Monitor result: ${severity}`,
@@ -148,6 +157,16 @@ function issueFor(severity, testOnly, reasons, evidence, evaluatedAt) {
   return { key, title, labels, body };
 }
 
+/** Interpolated percentile over already-sorted measured durations. */
+function probeP95(sortedDurations) {
+  const { p95Percentile, p95RankOffset } = PHASE8_PRELAUNCH_LOAD_LIMITS;
+  const position = p95Percentile * (sortedDurations.length - p95RankOffset);
+  const floorIndex = Math.floor(position);
+  const ceilIndex = Math.ceil(position);
+  return sortedDurations[floorIndex]
+    + (sortedDurations[ceilIndex] - sortedDurations[floorIndex]) * (position - floorIndex);
+}
+
 function evaluate(input) {
   const validated = validateInput(input);
   const windowStart = validated.evaluatedAtMs - FIVE_MINUTES_MS;
@@ -162,6 +181,15 @@ function evaluate(input) {
     ? FAILED_PROBE_THRESHOLD
     : 0;
 
+  const measuredDurations = validated.checks
+    .filter((check) => check.ok && check.durationMs !== undefined)
+    .map((check) => check.durationMs)
+    .sort((left, right) => left - right);
+  const latencySamples = measuredDurations.length;
+  const latencyP95 = latencySamples > 0 ? probeP95(measuredDurations) : 0;
+  const latencyBreached = latencySamples >= PHASE8_MONITOR_LATENCY.minSamples
+    && latencyP95 > PHASE8_MONITOR_LATENCY.p95BudgetMs;
+
   const reasons = [];
   if (securityEvents.length > 0) reasons.push({ code: 'CREDIBLE_SECURITY_INTEGRITY_SIGNAL', count: securityEvents.length });
   if (serverErrors.length >= SERVER_ERROR_THRESHOLD) {
@@ -169,6 +197,14 @@ function evaluate(input) {
   }
   if (consecutiveFailures === FAILED_PROBE_THRESHOLD) {
     reasons.push({ code: 'HEALTHCHECK_CONSECUTIVE_FAILURES', count: FAILED_PROBE_THRESHOLD });
+  }
+  if (latencyBreached) {
+    reasons.push({
+      code: 'PROBE_LATENCY_P95_BUDGET',
+      p95Ms: latencyP95,
+      budgetMs: PHASE8_MONITOR_LATENCY.p95BudgetMs,
+      samples: latencySamples,
+    });
   }
 
   const forceTest = input.mode === 'force-test-alert';

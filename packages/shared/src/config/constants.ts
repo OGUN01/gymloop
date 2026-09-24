@@ -108,6 +108,11 @@ export const PHASE8_MONITOR_FAILURE = {
   issueListLimit: 100,
   issueLabelColor: '0E8A16',
 } as const;
+/** HARD-005's probe-latency p95 budget: alert only above a minimum measured sample count. */
+export const PHASE8_MONITOR_LATENCY = {
+  p95BudgetMs: 2_000,
+  minSamples: 3,
+} as const;
 /** HARD-004's finite same-Cloud prelaunch workload and Free-plan abort bounds. */
 export const PHASE8_PRELAUNCH_LOAD_LIMITS = {
   gymCount: 100,
@@ -438,6 +443,20 @@ export const LEAP_YEAR_DIVISOR_400 = 400;
 /** Zero-padded render widths of an ISO date's parts (`YYYY`, `MM`, `DD`). */
 export const ISO_YEAR_DIGITS = 4;
 export const ISO_MONTH_DAY_DIGITS = 2;
+
+/**
+ * Bounds for the closed-test identity provisioning operator tool (PROV-001…010).
+ *
+ * `authListUsersPerPage` is the `auth.admin.listUsers` page size used to find
+ * one confirmed Auth identity by email; `authListUsersMaxPages` stops a
+ * pathological directory from paging forever.
+ */
+export const PROVISION_IDENTITY_LIMITS = {
+  authListUsersPerPage: 200,
+  authListUsersMaxPages: 50,
+  flagValueStride: 2,
+  cliArgsStart: 2,
+} as const;
 
 /** Bounds and wire widths for the Phase 8 encrypted logical Cloud export. */
 export const PHASE8_BACKUP_LIMITS = {

@@ -67,6 +67,12 @@ const webAppSchema = z.object({
   WEB_APP_URL: publicOriginSchema.default('http://127.0.0.1:3000'),
 });
 
+/** Closed-test identity provisioning (PROV-010): URL + service-role key only. */
+const provisioningSchema = z.object({
+  NEXT_PUBLIC_SUPABASE_URL: clientSchema.shape.NEXT_PUBLIC_SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY: serverOnlySchema.shape.SUPABASE_SERVICE_ROLE_KEY,
+});
+
 type ClientEnv = z.infer<typeof clientSchema>;
 type ServerEnv = z.infer<typeof serverOnlySchema>;
 type MobileClientEnv = z.infer<typeof mobileClientSchema>;
@@ -134,6 +140,22 @@ export function backupKeyEnv(): BackupKeyEnv {
 /** The deploy-owned public origin required by web OAuth, without server secrets. */
 export function webAppEnv(): { WEB_APP_URL: string } {
   return webAppSchema.parse({ WEB_APP_URL: process.env.WEB_APP_URL });
+}
+
+/**
+ * Service-role provisioning credentials for the closed-test identity tool
+ * (PROV-010). Reuses the public Supabase URL and the server-only service-role
+ * key; returns neither under a client-safe name beyond what the CLI needs.
+ */
+export function provisioningEnv(): { SUPABASE_URL: string; SUPABASE_SERVICE_ROLE_KEY: string } {
+  const parsed = provisioningSchema.parse({
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  });
+  return {
+    SUPABASE_URL: parsed.NEXT_PUBLIC_SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY: parsed.SUPABASE_SERVICE_ROLE_KEY,
+  };
 }
 
 export function serverEnv(): ServerEnv {

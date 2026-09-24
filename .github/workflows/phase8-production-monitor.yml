@@ -88,12 +88,16 @@ jobs:
             )
           ' vercel-logs.jsonl > events.json
 
+          # One untimed warm-up request, so a serverless cold start is not scored as serving latency.
+          curl --silent --output /dev/null --max-time 15 https://gymloop-phi.vercel.app/sign-in || true
           : > checks.jsonl
           for probe in 1 2 3; do
             observed_at="$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')"
-            status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 15 https://gymloop-phi.vercel.app/sign-in || true)"
-            jq -cn --arg observedAt "$observed_at" --arg correlationId "${probe_id}-${probe}" --arg status "$status" \
-              '{observedAt:$observedAt,correlationId:$correlationId,httpStatus:($status|tonumber),ok:(($status|tonumber) >= 200 and ($status|tonumber) < 400)}' >> checks.jsonl
+            # durationMs is server time: first byte minus TLS-handshake done, so the runner-to-Mumbai
+            # connection setup is not charged against the 2 s budget. A failed probe is excluded anyway.
+            probe_raw="$(curl --silent --show-error --output /dev/null --write-out '%{http_code} %{time_appconnect} %{time_starttransfer}' --max-time 15 https://gymloop-phi.vercel.app/sign-in)" || true
+            read -r status tls_done first_byte <<< "${probe_raw:-000 0 0}"
+            jq -cn --arg observedAt "$observed_at" --arg correlationId "${probe_id}-${probe}" --arg status "${status:-000}" --arg tlsDone "${tls_done:-0}" --arg firstByte "${first_byte:-0}"               '{observedAt:$observedAt,correlationId:$correlationId,httpStatus:($status|tonumber),ok:(($status|tonumber) >= 200 and ($status|tonumber) < 400),durationMs:(((($firstByte|tonumber) - ($tlsDone|tonumber)) * 1000) | round | if . < 0 then 0 else . end)}' >> checks.jsonl
           done
           jq -cs '.' checks.jsonl > checks.json
 
