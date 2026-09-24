@@ -1,3 +1,6 @@
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
+import { UI_TOKENS } from '@gymloop/shared';
 import { loadMemberMessages } from '../../../lib/member-messages';
 import { MemberMessageAck } from './member-message-actions';
 
@@ -13,31 +16,37 @@ export default async function MemberMessagesPage(_props: object = {}) {
   void _props;
   const screen = await loadMemberMessages();
 
-  return <main className="member-route route-workspace">
-    <h1 className="text-2xl font-semibold">Your messages</h1>
+  return <main className="member-route member-portal">
+    <header>
+      <Link href="/member/my-gym" className="cl-back"><ArrowLeft aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />My gym</Link>
+      <h1 className="member-title">Your messages</h1>
+      <p className="cl-lede">Notes from your gym, and the choices you have made about hearing from them.</p>
+    </header>
 
-    {screen.errorMessage !== null
-      ? <p role="alert" className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{screen.errorMessage}</p>
-      : null}
+    {screen.errorMessage !== null ? <p role="alert" className="cl-alert">{screen.errorMessage}</p> : null}
 
-    <section aria-labelledby="messages-heading" className="mt-6">
-      <h2 id="messages-heading" className="text-lg font-semibold">Messages</h2>
-      {screen.messages.length === 0 && screen.errorMessage === null ? <p className="mt-2 text-sm text-neutral-600">No messages yet.</p> : null}
-      <ul className="mt-3 space-y-3">
-        {screen.messages.map((message) => <li key={message.id} className="rounded-lg border border-neutral-200 p-3 text-sm">
-          <p>{message.body}</p>
-          <p className="mt-1 text-neutral-600">{message.status === 'delivered' ? 'Read' : 'New'}</p>
-          {message.status === 'sent' ? <MemberMessageAck notificationId={message.id} /> : null}
-        </li>)}
-      </ul>
+    <section aria-labelledby="messages-heading">
+      <h2 id="messages-heading" className="cl-eyebrow member-eyebrow">Messages</h2>
+      {screen.messages.length === 0 && screen.errorMessage === null
+        ? <div className="cl-empty"><strong>No messages yet</strong><p>When your gym sends you a note, it appears here.</p></div>
+        : <ul className="cl-rows">
+          {screen.messages.map((message) => <li key={message.id} className="member-message">
+            <span><span className="cl-row-title member-message-body">{message.body}</span></span>
+            {message.status === 'delivered' ? <span className="cl-status">Read</span> : <span className="member-message-new"><span className="cl-status" data-tone="accent">New</span><MemberMessageAck notificationId={message.id} /></span>}
+          </li>)}
+        </ul>}
     </section>
 
-    <section aria-labelledby="consent-heading" className="mt-8">
-      <h2 id="consent-heading" className="text-lg font-semibold">Consent history</h2>
-      {screen.consents.length === 0 && screen.errorMessage === null ? <p className="mt-2 text-sm text-neutral-600">No consent decisions recorded yet.</p> : null}
-      <ul className="mt-3 space-y-1 text-sm">
-        {screen.consents.map((consent, index) => <li key={index}>{consent.purpose}: {consent.granted ? 'granted' : 'withdrawn'}</li>)}
-      </ul>
+    <section aria-labelledby="consent-heading">
+      <h2 id="consent-heading" className="cl-eyebrow member-eyebrow">Consent history</h2>
+      {screen.consents.length === 0 && screen.errorMessage === null
+        ? <div className="cl-empty"><strong>No consent decisions recorded yet</strong><p>Your gym records your choices here when you give or withdraw them.</p></div>
+        : <ul className="cl-rows">
+          {screen.consents.map((consent, index) => <li key={index}>
+            <span className="cl-row-title member-sentence">{consent.purpose.replaceAll('_', ' ')}</span>
+            <span className="cl-status" data-tone={consent.granted ? 'ok' : 'risk'}>{consent.granted ? 'Granted' : 'Withdrawn'}</span>
+          </li>)}
+        </ul>}
     </section>
   </main>;
 }

@@ -793,3 +793,10 @@ Visual system: `docs/design/phase9/direction.md`. Tokens stay in `UI_TOKENS` (no
 | `RouteError` | `apps/web/app/route-state.tsx` | Recoverable failure: plain-language alert, the framework `reset` retry and a way home; the raw error never reaches the page | `(console)/error.tsx`, `member/error.tsx`, `platform/error.tsx` |
 | `RouteNotFound` | `apps/web/app/route-state.tsx` | Honest 404 / missing-record page with a real way back | `not-found.tsx`, `(console)/not-found.tsx` |
 | `scripts/capture-screens.mjs` | `scripts/capture-screens.mjs` | Signs in each demo role (read-only) and captures routes in Light/Dark at 390/1024/1440 with an overflow report, for visual review evidence | manual, redesign evidence |
+| `memberGymName` | `apps/web/app/member/member-ui.tsx` | Gym name without its " — branch" suffix, as members say it | member Home, My gym, Check in |
+| `memberGreeting` | `apps/web/app/member/member-ui.tsx` | Morning/afternoon/evening greeting in the gym timezone using `GREETING_HOURS` | member Home |
+| `memberShortDate` | `apps/web/app/member/member-ui.tsx` | Calendar date as "12 Oct" | member Home, My gym |
+| `MembershipStatus` | `apps/web/app/member/member-ui.tsx` | Membership status as a dot-and-word (UX9-003), never the raw enum | member Home, My gym |
+| `MemberWeekRhythm` | `apps/web/app/member/member-ui.tsx` | Truthful last-seven-days attendance dots, clay (Home) or ink (Activity) | member Home, Activity |
+| `GREETING_HOURS` | `packages/shared/src/config/constants.ts` | Local hours at which the member greeting turns afternoon (12) and evening (17) | `memberGreeting` |
+| `AVATAR_INITIALS_MAX` | `packages/shared/src/config/constants.ts` | Number of name initials an avatar shows (2) | member You (web, Android), desk rosters |

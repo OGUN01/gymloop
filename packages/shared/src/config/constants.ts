@@ -61,6 +61,12 @@ export const UI_TOKENS = {
   opacity: { pressed: 0.72, disabled: 0.5 },
 } as const;
 
+/** How many name initials an avatar shows ("Aarav Deshpande" → "AD"). */
+export const AVATAR_INITIALS_MAX = 2;
+
+/** Local gym hours at which the member greeting turns from morning to afternoon to evening. */
+export const GREETING_HOURS = { afternoon: 12, evening: 17 } as const;
+
 export const DEFAULT_TIMEZONE = 'Asia/Kolkata';
 export const DEFAULT_CURRENCY = 'INR';
 /** HARD-005's private five-minute GitHub workflow dispatch contract. */

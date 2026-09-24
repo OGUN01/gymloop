@@ -1,7 +1,25 @@
 import { loadMemberPortal } from '../../../lib/member-portal';
+import { MemberWeekRhythm } from '../member-ui';
 
 export default async function MemberActivityPage() {
   const portal = await loadMemberPortal();
-  if (portal.errorMessage) return <main className="member-route member-portal"><h1>Activity</h1><p role="alert">{portal.errorMessage}</p></main>;
-  return <main className="member-route member-portal"><header><span>Your progress</span><h1>Activity</h1><p>{portal.weekVisits} confirmed visits this week.</p></header><section className="member-list-section"><h2>Recent visits</h2>{portal.visits.length === 0 ? <p>No confirmed visits yet.</p> : <ul>{portal.visits.map((visit) => <li key={visit.id}><span><strong>{new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: portal.gym.timezone }).format(new Date(visit.checked_in_at))}</strong><small>{visit.source === 'qr' ? 'Gym QR' : 'Desk assisted'}</small></span><span>Confirmed</span></li>)}</ul>}</section></main>;
+  if (portal.errorMessage) return <main className="member-route member-portal"><h1 className="member-title">Activity</h1><p className="cl-alert" role="alert">{portal.errorMessage}</p></main>;
+  const day = new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: portal.gym.timezone });
+  const time = new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: portal.gym.timezone });
+  return <main className="member-route member-portal">
+    <header><p className="cl-eyebrow">Your progress</p><h1 className="member-title">Activity</h1></header>
+    <section className="member-week member-week--activity" aria-label="This week">
+      <p className="member-activity-figure"><span className="cl-display member-activity-count">{portal.weekVisits}</span> <span className="cl-display">{portal.weekVisits === 1 ? 'visit' : 'visits'} this week</span></p>
+      <MemberWeekRhythm visits={portal.visits} timezone={portal.gym.timezone} tone="ink" />
+    </section>
+    <section className="member-list-section" aria-labelledby="visits-heading">
+      <h2 id="visits-heading" className="cl-eyebrow member-eyebrow">Recent visits</h2>
+      {portal.visits.length === 0
+        ? <div className="cl-empty"><strong>No confirmed visits yet</strong><p>Your visits appear here once the gym confirms a check-in.</p></div>
+        : <ul className="cl-rows">{portal.visits.map((visit) => <li key={visit.id}>
+          <span><strong className="cl-row-title member-visit-time">{day.format(new Date(visit.checked_in_at))} · {time.format(new Date(visit.checked_in_at))}</strong><small className="cl-row-meta">{visit.source === 'qr' ? 'Gym QR' : 'Desk assisted'}</small></span>
+          <span className="cl-status" data-tone="ok">Confirmed</span>
+        </li>)}</ul>}
+    </section>
+  </main>;
 }

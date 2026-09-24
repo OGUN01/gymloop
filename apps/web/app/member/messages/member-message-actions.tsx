@@ -35,10 +35,10 @@ export function MemberMessageAck({ notificationId }: { notificationId: string })
     }
   }
 
-  return <div className="mt-2">
-    <button type="button" onClick={open} disabled={pending} className="min-h-11 rounded-lg border border-neutral-400 px-3 py-2 text-sm font-medium disabled:opacity-50">
+  return <div className="member-message-ack">
+    <button type="button" onClick={open} disabled={pending} className="cl-btn cl-btn--small">
       {pending ? 'Opening…' : 'Open message'}
     </button>
-    {problem !== '' ? <p role="alert" className="mt-1 text-sm text-red-700">{problem}</p> : null}
+    {problem !== '' ? <p role="alert" className="cl-alert">{problem}</p> : null}
   </div>;
 }

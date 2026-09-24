@@ -68,47 +68,47 @@ export default async function MemberAddOnsPage({ searchParams = Promise.resolve(
     nextParams.delete('sessionAfter');
     return `?${nextParams}#order-history`;
   };
-  return <main className="member-route route-workspace">
-    <h1 className="text-2xl font-semibold">Add-ons</h1>
-    <p className="mt-2 text-neutral-600">Explore optional offers and see the terms and usage of your purchases.</p>
-    <nav className="mt-4 flex flex-wrap gap-5" aria-label="Your add-ons"><a href="#offers" className="inline-flex min-h-11 items-center underline">Available offers</a><a href="#orders" className="inline-flex min-h-11 items-center underline">Your orders</a></nav>
-    <section id="offers" aria-labelledby="offers-heading" className="mt-6">
-      <h2 id="offers-heading" className="text-xl font-semibold">Available at your gym</h2>
-      {selectedOffer ? <aside className="mt-4 rounded-xl border border-neutral-400 bg-neutral-50 p-4"><h3 className="font-semibold">Your selected offer: {selectedOffer.name}</h3><p className="mt-2 text-sm">Show this offer to the front desk. Selecting it has created no order or payment. The desk will review the current price and availability with you.</p><Link href="/member/add-ons#offers" className="inline-flex min-h-11 items-center underline">Clear selection</Link></aside> : null}
-      {offerResult.error ? <AddonLoadError label="offers" href="/member/add-ons#offers" /> : !pageOffers.length ? <p className="mt-3 text-neutral-600">No active offers are available yet.</p> :
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">{pageOffers.map((offer) => <article key={offer.id} className="min-w-0 rounded-xl border border-neutral-200 p-4">
+  return <main className="member-route member-portal member-addons">
+    <header><Link href="/member/my-gym" className="cl-back">← My gym</Link><h1 className="member-title">Add-ons</h1>
+    <p className="cl-lede">Optional offers at your gym, and the terms and usage of what you bought.</p></header>
+    <nav className="member-jump" aria-label="Your add-ons"><a href="#offers" className="cl-btn cl-btn--small">Available offers</a><a href="#orders" className="cl-btn cl-btn--small">Your orders</a></nav>
+    <section id="offers" aria-labelledby="offers-heading">
+      <h2 id="offers-heading" className="cl-eyebrow member-eyebrow">Available at your gym</h2>
+      {selectedOffer ? <aside className="cl-alert member-selected-offer" data-tone="info"><h3 className="cl-row-title">Your selected offer: {selectedOffer.name}</h3><p>Show this offer to the front desk. Selecting it has created no order or payment. The desk will review the current price and availability with you.</p><Link href="/member/add-ons#offers" className="cl-btn cl-btn--quiet">Clear selection</Link></aside> : null}
+      {offerResult.error ? <AddonLoadError label="offers" href="/member/add-ons#offers" /> : !pageOffers.length ? <div className="cl-empty"><strong>No active offers are available yet</strong><p>When your gym adds personal training or other offers, they appear here.</p></div> :
+        <div className="member-offer-list">{pageOffers.map((offer) => <article key={offer.id} className="member-offer">
           <AddonOfferDetails offer={offer} />
-          {offerUnavailable(offer) === null ? <Link href={`?${new URLSearchParams({ ...params, offer: offer.id })}#offers`} className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-neutral-400 px-3 py-2 font-medium">Choose this offer to show the desk</Link> : null}
+          {offerUnavailable(offer) === null ? <Link href={`?${new URLSearchParams({ ...params, offer: offer.id })}#offers`} className="cl-btn cl-btn--accent cl-btn--block">Choose this offer to show the desk</Link> : null}
         </article>)}</div>}
-      {offers.length > MEMBER_PAGE_SIZE_DEFAULT ? <Link href={next('offerAfter', pageOffers.at(-1)?.id ?? '')} className="inline-flex min-h-11 items-center underline">More offers</Link> : null}
+      {offers.length > MEMBER_PAGE_SIZE_DEFAULT ? <Link href={next('offerAfter', pageOffers.at(-1)?.id ?? '')} className="cl-btn cl-btn--quiet">More offers</Link> : null}
     </section>
-    <section id="orders" aria-labelledby="orders-heading" className="mt-10">
-      <h2 id="orders-heading" className="text-xl font-semibold">Your orders</h2>
-      {orderResult.error ? <AddonLoadError label="your orders" href="/member/add-ons#orders" /> : !pageOrders.length ? <p className="mt-3 text-neutral-600">No add-on orders yet.</p> :
-        <ul className="mt-4 space-y-4">{pageOrders.map((order) => <li key={order.id} className="rounded-xl border border-neutral-200 p-4">
+    <section id="orders" aria-labelledby="orders-heading">
+      <h2 id="orders-heading" className="cl-eyebrow member-eyebrow">Your orders</h2>
+      {orderResult.error ? <AddonLoadError label="your orders" href="/member/add-ons#orders" /> : !pageOrders.length ? <div className="cl-empty"><strong>No add-on orders yet</strong><p>Anything you buy at the desk shows here with its terms and usage.</p></div> :
+        <ul className="member-order-list">{pageOrders.map((order) => <li key={order.id} className="member-offer">
           <AddonOrderFacts order={order} timezone={timezone} />
-          {order.sessions_total != null ? <p className="mt-3 text-sm">Used {order.sessions_used} of {order.sessions_total} purchased sessions.</p> : null}
-          <Link href={orderHistoryHref(order.id)} className="mt-2 inline-flex min-h-11 items-center underline">View sessions and completed returns</Link>
+          {order.sessions_total != null ? <p className="member-usage">Used {order.sessions_used} of {order.sessions_total} purchased sessions.</p> : null}
+          <Link href={orderHistoryHref(order.id)} className="cl-btn cl-btn--small">View sessions and completed returns</Link>
         </li>)}</ul>}
-      {orders.length > MEMBER_PAGE_SIZE_DEFAULT ? <Link href={next('orderAfter', pageOrders.at(-1)?.id ?? '')} className="inline-flex min-h-11 items-center underline">More orders</Link> : null}
+      {orders.length > MEMBER_PAGE_SIZE_DEFAULT ? <Link href={next('orderAfter', pageOrders.at(-1)?.id ?? '')} className="cl-btn cl-btn--quiet">More orders</Link> : null}
     </section>
-    {selectedOrder ? <section id="order-history" aria-labelledby="history-heading" className="mt-8 rounded-xl border border-neutral-300 p-4">
-      <h2 id="history-heading" className="text-xl font-semibold">{selectedOrder.sale_snapshot?.name ?? 'Previous add-on'} · usage and returns</h2>
-      <h3 className="mt-5 font-semibold">Sessions</h3>
-      {selectedOrder.sessions_total != null ? <p className="mt-2 text-sm">Used: {selectedOrder.sessions_used} · Scheduled: {reserved ?? 'Unavailable'} · Available to book: {reserved == null ? 'Unavailable' : selectedOrder.sessions_total - selectedOrder.sessions_used - reserved} · Purchased: {selectedOrder.sessions_total}</p> : null}
-      {sessions?.error || reservations?.error ? <AddonLoadError label="your sessions" href={`?order=${selectedOrder.id}#order-history`} /> : !sessions?.data?.length ? <p className="mt-2 text-sm text-neutral-600">No sessions recorded for this order.</p> :
-        <ul className="mt-3 space-y-3">{shownSessions.map((session) => <li key={session.id} className="rounded-lg bg-neutral-50 p-3 text-sm">
-          <p className="font-medium">{session.status.replaceAll('_', ' ')} · {session.staff?.full_name ?? 'Trainer assigned by the gym'}</p>
+    {selectedOrder ? <section id="order-history" aria-labelledby="history-heading" className="member-order-history">
+      <h2 id="history-heading" className="cl-section-title">{selectedOrder.sale_snapshot?.name ?? 'Previous add-on'} · usage and returns</h2>
+      <h3 className="cl-eyebrow member-eyebrow">Sessions</h3>
+      {selectedOrder.sessions_total != null ? <p className="member-usage">Used: {selectedOrder.sessions_used} · Scheduled: {reserved ?? 'Unavailable'} · Available to book: {reserved == null ? 'Unavailable' : selectedOrder.sessions_total - selectedOrder.sessions_used - reserved} · Purchased: {selectedOrder.sessions_total}</p> : null}
+      {sessions?.error || reservations?.error ? <AddonLoadError label="your sessions" href={`?order=${selectedOrder.id}#order-history`} /> : !sessions?.data?.length ? <p className="cl-muted">No sessions recorded for this order.</p> :
+        <ul className="cl-rows">{shownSessions.map((session) => <li key={session.id}>
+          <p className="cl-row-title">{session.status.replaceAll('_', ' ')} · {session.staff?.full_name ?? 'Trainer assigned by the gym'}</p>
           <p>{gymTimeLabel(session.starts_at, timezone)} through {gymTimeLabel(session.ends_at, timezone)}</p>
         </li>)}</ul>}
-      {(sessions?.data?.length ?? 0) > MEMBER_PAGE_SIZE_DEFAULT ? <Link href={`?${new URLSearchParams({ ...params, sessionAfter: shownSessions.at(-1)?.id ?? '' })}#order-history`} className="inline-flex min-h-11 items-center underline">More session history</Link> : null}
-      <h3 className="mt-5 font-semibold">Recorded completed returns</h3>
-      <p className="mt-2 text-sm text-neutral-600">These are recorded completed refunds and reversals for this order.</p>
-      {returns?.error || !returns?.data || returns.data.orderId !== selectedOrder.id ? <AddonLoadError label="completed returns" href={`?order=${selectedOrder.id}#order-history`} /> : !returns.data.returns.length ? <p className="mt-2 text-sm">No completed returns recorded.</p> :
-        <ul className="mt-3 space-y-3">{returns.data.returns.map((row) => <li key={row.refundId} className="rounded-lg bg-neutral-50 p-3 text-sm">
-          <p className="font-medium tabular-nums">{row.currency} {rupeesFromPaise(row.amountPaise)} · {row.kind} completed</p>
+      {(sessions?.data?.length ?? 0) > MEMBER_PAGE_SIZE_DEFAULT ? <Link href={`?${new URLSearchParams({ ...params, sessionAfter: shownSessions.at(-1)?.id ?? '' })}#order-history`} className="cl-btn cl-btn--quiet">More session history</Link> : null}
+      <h3 className="cl-eyebrow member-eyebrow">Recorded completed returns</h3>
+      <p className="cl-muted">These are recorded completed refunds and reversals for this order.</p>
+      {returns?.error || !returns?.data || returns.data.orderId !== selectedOrder.id ? <AddonLoadError label="completed returns" href={`?order=${selectedOrder.id}#order-history`} /> : !returns.data.returns.length ? <p className="cl-muted">No completed returns recorded.</p> :
+        <ul className="cl-rows">{returns.data.returns.map((row) => <li key={row.refundId}>
+          <p className="cl-row-title tabular-nums">{row.currency} {rupeesFromPaise(row.amountPaise)} · {row.kind} completed</p>
           <p>Recorded completion: {row.processedAt ? gymTimeLabel(row.processedAt, timezone) : 'Not recorded'}</p>
         </li>)}</ul>}
-    </section> : params.order ? <p role="alert" className="mt-5">That order is unavailable on this page. Choose one of your orders above.</p> : null}
+    </section> : params.order ? <p role="alert" className="cl-alert">That order is unavailable on this page. Choose one of your orders above.</p> : null}
   </main>;
 }
