@@ -204,7 +204,16 @@ describe('HARD-005 probe latency p95 budget', () => {
 
   it('measures each production probe with a durationMs field in the workflow', () => {
     const workflow = readFileSync(WORKFLOW, 'utf8');
-    expect(workflow).toMatch(/time_total/);
+    // Server time to first byte after the TLS handshake, not the runner-to-Mumbai network setup.
+    expect(workflow).toMatch(/time_appconnect/);
+    expect(workflow).toMatch(/time_starttransfer/);
     expect(workflow).toMatch(/durationMs/);
+  });
+
+  it('warms the deployment once before the measured probes', () => {
+    const workflow = readFileSync(WORKFLOW, 'utf8');
+    const warmUp = workflow.indexOf('warm-up');
+    expect(warmUp).toBeGreaterThan(-1);
+    expect(warmUp).toBeLessThan(workflow.indexOf('for probe in 1 2 3'));
   });
 });
