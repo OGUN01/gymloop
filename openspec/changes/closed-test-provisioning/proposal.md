@@ -181,3 +181,18 @@ is defence in depth against an accidental concurrent run — it fails closed (bo
 `bind_conflict`; re-running one of them is safe) — not a substitute for a database-level lock. A global
 one-identity-one-row invariant enforced in the database is a separate, migration-level change if the tool
 ever runs unattended or concurrently.
+
+## Amendment 2 (2026-09-24, second critic NO-GO) — clarifications, no new behaviour
+- **PROV-011 is symmetric:** for both the create and the reuse path, the post-bind total must be **exactly 1**;
+  0 or more than 1 unwinds (unbind this row once) and returns `bind_conflict`. A post-bind 0 is never a link.
+- **`countBindings` shape is strict:** it returns all three numeric fields `members`, `staff`, `platform`; a
+  missing, null or non-numeric field is a lookup failure (checks → `lookup_failed`; post-bind → `bind_conflict`
+  with unwind). Nothing is coerced to 0.
+- **Bind email predicate:** a case-insensitive exact match of the stored value against the trimmed request
+  email (LIKE wildcards escaped). A stored email with surrounding whitespace therefore fails closed as
+  `bind_conflict`; staff fix the record and re-run. Eligibility and identity filters are applied to the
+  UPDATE's filter builder (supabase-js: `from(t).update(v)` returns the builder that has `.eq/.is/.not/.ilike`).
+- **Directory cap:** `findAuthUserByEmail` throws only when more users exist beyond the page cap (it may fetch
+  one extra page to find out); an exactly full last page is not an error.
+- **The adapter is tested too:** `createSupabaseProvisionPort` must pass tests that drive it with a fake client
+  whose builder API matches supabase-js v2 (filters exist only after `select()`/`update()`/`delete()`).
