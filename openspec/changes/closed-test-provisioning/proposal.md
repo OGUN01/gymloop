@@ -176,3 +176,8 @@ anything not mentioned stays as written.
 
 **Operational precondition (ADR-173, not enforced by the tool):** public Auth signup is disabled on the
 project before real testers are provisioned, so nobody can pre-register a tester's address.
+**Operational rule (not enforced by the tool):** one operator runs the tool, one invocation at a time. PROV-011
+is defence in depth against an accidental concurrent run — it fails closed (both runs may unwind and report
+`bind_conflict`; re-running one of them is safe) — not a substitute for a database-level lock. A global
+one-identity-one-row invariant enforced in the database is a separate, migration-level change if the tool
+ever runs unattended or concurrently.
