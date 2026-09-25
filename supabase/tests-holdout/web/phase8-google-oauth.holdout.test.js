@@ -86,7 +86,8 @@ describe('HARD-011/HARD-012 independent OAuth boundary holdout', () => {
 
     expect(mobile).toMatch(/(?:export\s+)?async\s+function\s+signInWithGoogleMobile/);
     expect(mobile).toMatch(/signInWithOAuth\s*\(\s*\{\s*provider:\s*['"]google['"]/);
-    expect(mobile).toContain('gymloop://auth/callback');
+    expect(mobile).toContain('fitcruxx://auth/callback');
+    expect(mobile).not.toContain('gymloop://auth/callback');
     expect(mobile).toMatch(/flowType:\s*['"]pkce['"]/);
     expect(mobile).toMatch(/classifyIdentity\s*\(/);
     expect(mobile).not.toMatch(MUTATION);
