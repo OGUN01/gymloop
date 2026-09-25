@@ -49,8 +49,12 @@ insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,e
   ('66000000-0000-4000-8000-000000000056','66000000-0000-4000-8000-000000000001','66000000-0000-4000-8000-000000000036','66000000-0000-4000-8000-000000000041','active',(now() at time zone 'Asia/Kolkata')::date-2,(now() at time zone 'Asia/Kolkata')::date+30,200000),
   ('66000000-0000-4000-8000-000000000057','66000000-0000-4000-8000-000000000001','66000000-0000-4000-8000-000000000037','66000000-0000-4000-8000-000000000041','active',(now() at time zone 'Asia/Kolkata')::date-2,(now() at time zone 'Asia/Kolkata')::date+30,200000),
   ('66000000-0000-4000-8000-000000000058','66000000-0000-4000-8000-000000000001','66000000-0000-4000-8000-000000000038','66000000-0000-4000-8000-000000000041','active',(now() at time zone 'Asia/Kolkata')::date-2,(now() at time zone 'Asia/Kolkata')::date+30,200000);
-select is((select checkin_gate_mode::text from public.organization_settings where tenant_id='66000000-0000-4000-8000-000000000001'), 'printed_poster'::text, 'new gym starts in printed-poster mode');
-select is((select checkin_gate_mode::text from public.organization_settings where tenant_id='66000000-0000-4000-8000-000000000002'), 'printed_poster'::text, 'second new gym defaults independently');
+select is((select checkin_gate_mode::text from public.organization_settings where tenant_id='66000000-0000-4000-8000-000000000001'), 'rotating_screen'::text, 'ATT-009: a new gym starts in rotating-screen mode');
+select is((select checkin_gate_mode::text from public.organization_settings where tenant_id='66000000-0000-4000-8000-000000000002'), 'rotating_screen'::text, 'ATT-009: a second new gym defaults independently');
+-- Both gyms opt in to posters for the rest of this suite (fixture set-up as postgres,
+-- not the audited command, which is exercised further down).
+update public.organization_settings set checkin_gate_mode='printed_poster'
+ where tenant_id in ('66000000-0000-4000-8000-000000000001','66000000-0000-4000-8000-000000000002');
 select ok(exists(select 1 from pg_indexes where schemaname='public' and tablename='attendance' and indexdef like '%tenant_id, member_id, checked_in_at%'), 'once-per-day lookup uses existing tenant/member/time index');
 select set_config('request.jwt.claims','{"sub":"66000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"gym_owner","tenant_id":"66000000-0000-4000-8000-000000000001","staff_id":"66000000-0000-4000-8000-000000000021"}',true);
 set local role authenticated;
