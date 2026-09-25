@@ -1,8 +1,8 @@
-# Google Play listing — Fitcrux
+# Google Play listing — FitCruxx
 
 ## Store fields
 
-- **App name:** Fitcrux (7 characters; limit 30)
+- **App name:** FitCruxx (8 characters; limit 30)
 - **Short description:** Check in, view your visits and membership, or help at the front desk. (69 characters; limit 80)
 - **Category:** Health & Fitness
 - **Suggested tags:** Fitness; Gym; Exercise; Workout; Habit tracking. Select only tags actually offered by Play Console.
@@ -12,7 +12,7 @@
 
 ## Full description
 
-Fitcrux is for members of gyms that use Fitcrux and the staff who help them at the front desk. Your gym provides and links your account; there is no sign-up in the app. Sign in with the account your gym linked to you.
+FitCruxx is for members of gyms that use FitCruxx and the staff who help them at the front desk. Your gym provides and links your account; there is no sign-up in the app. Sign in with the account your gym linked to you.
 
 For members:
 - Scan your gym's current QR code to check in. If you are offline, the check-in is saved on your device; the app retries it after you reconnect and return to Home. It counts only after your gym confirms it.
@@ -29,7 +29,7 @@ Choose System, Light or Dark appearance. Available information and actions depen
 
 ## Release notes — 1.0.0
 
-First Android release for members and front-desk staff at gyms using Fitcrux. Scan the gym's QR code for check-in, with offline saving and later confirmation; view visits, memberships, receipts, messages and add-ons. Staff can assist with check-ins, search members, review follow-ups and capture walk-in leads. Includes System, Light and Dark appearance.
+First Android release for members and front-desk staff at gyms using FitCruxx. Scan the gym's QR code for check-in, with offline saving and later confirmation; view visits, memberships, receipts, messages and add-ons. Staff can assist with check-ins, search members, review follow-ups and capture walk-in leads. Includes System, Light and Dark appearance.
 
 ## Suggested screenshot shot-list
 
