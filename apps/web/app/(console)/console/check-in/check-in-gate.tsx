@@ -368,7 +368,7 @@ export function CheckInGate({ members, mode, canManageGate = false }: {
           {activeMode === 'rotating_screen' ? (
             <button type="button" onClick={() => void issueGateCode()}
               className={gateCode || assistFor ? 'cl-btn check-in-gate-issue' : 'cl-btn cl-btn--primary check-in-gate-issue'}>
-              {gateCode ? 'New code' : 'Generate today’s code'}
+              {gateCode ? 'New code' : 'Generate todayâ€™s code'}
             </button>
           ) : null}
           {canManageGate ? (
@@ -376,7 +376,7 @@ export function CheckInGate({ members, mode, canManageGate = false }: {
               {activeMode === 'printed_poster' ? (
                 <>
                   <button type="button" className="cl-btn" disabled={!hydrated || changingGate}
-                    onClick={() => void replacePoster()}>Replace poster · confirm</button>
+                    onClick={() => void replacePoster()}>Replace poster Â· confirm</button>
                   <a className="cl-btn" href="/console/check-in/poster" target="_blank" rel="noopener noreferrer"
                     aria-disabled={!issuedCode || posterUnavailable} onClick={(event) => {
                       if (!issuedCode || posterUnavailable) event.preventDefault();

@@ -1758,6 +1758,7 @@ export type Database = {
           address_line2: string | null
           brand_accent: string | null
           checkin_dedupe_seconds: number
+          checkin_gate_mode: Database["public"]["Enums"]["checkin_gate_mode"]
           city: string | null
           created_at: string
           financial_year_start_month: number
@@ -1787,6 +1788,7 @@ export type Database = {
           address_line2?: string | null
           brand_accent?: string | null
           checkin_dedupe_seconds?: number
+          checkin_gate_mode?: Database["public"]["Enums"]["checkin_gate_mode"]
           city?: string | null
           created_at?: string
           financial_year_start_month?: number
@@ -1816,6 +1818,7 @@ export type Database = {
           address_line2?: string | null
           brand_accent?: string | null
           checkin_dedupe_seconds?: number
+          checkin_gate_mode?: Database["public"]["Enums"]["checkin_gate_mode"]
           city?: string | null
           created_at?: string
           financial_year_start_month?: number
@@ -2169,7 +2172,8 @@ export type Database = {
           branch_id: string
           created_at: string
           created_by_staff_id: string | null
-          expires_at: string
+          expires_at: string | null
+          gate_mode: Database["public"]["Enums"]["checkin_gate_mode"]
           id: string
           issued_at: string
           revoked_at: string | null
@@ -2180,7 +2184,8 @@ export type Database = {
           branch_id: string
           created_at?: string
           created_by_staff_id?: string | null
-          expires_at: string
+          expires_at?: string | null
+          gate_mode?: Database["public"]["Enums"]["checkin_gate_mode"]
           id?: string
           issued_at?: string
           revoked_at?: string | null
@@ -2191,7 +2196,8 @@ export type Database = {
           branch_id?: string
           created_at?: string
           created_by_staff_id?: string | null
-          expires_at?: string
+          expires_at?: string | null
+          gate_mode?: Database["public"]["Enums"]["checkin_gate_mode"]
           id?: string
           issued_at?: string
           revoked_at?: string | null
@@ -2817,6 +2823,14 @@ export type Database = {
           source: Database["public"]["Enums"]["attendance_source"]
         }[]
       }
+      replace_checkin_poster: {
+        Args: {
+          p_branch_id: string
+          p_session_id: string
+          p_token_hash: string
+        }
+        Returns: string
+      }
       run_no_show_scan_all: {
         Args: never
         Returns: {
@@ -2841,6 +2855,10 @@ export type Database = {
         }[]
       }
       send_notification: { Args: { p_notification_id: string }; Returns: Json }
+      set_checkin_gate_mode: {
+        Args: { p_mode: Database["public"]["Enums"]["checkin_gate_mode"] }
+        Returns: Database["public"]["Enums"]["checkin_gate_mode"]
+      }
       set_gym_status: {
         Args: {
           p_expected_status: Database["public"]["Enums"]["organization_status"]
@@ -2907,6 +2925,7 @@ export type Database = {
         | "trainer"
         | "member"
       attendance_source: "qr" | "front_desk"
+      checkin_gate_mode: "printed_poster" | "rotating_screen"
       consent_purpose: "marketing" | "service"
       contact_channel: "call" | "whatsapp" | "in_person" | "sms"
       follow_up_outcome:
@@ -3144,6 +3163,7 @@ export const Constants = {
         "member",
       ],
       attendance_source: ["qr", "front_desk"],
+      checkin_gate_mode: ["printed_poster", "rotating_screen"],
       consent_purpose: ["marketing", "service"],
       contact_channel: ["call", "whatsapp", "in_person", "sms"],
       follow_up_outcome: [
