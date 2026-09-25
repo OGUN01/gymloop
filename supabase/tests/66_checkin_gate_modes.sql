@@ -86,7 +86,7 @@ set local role authenticated;
 select is((select count(*) from public.member_mobile_check_in(repeat('e',64),'66000000-0000-4000-8000-000000000071',null)),1::bigint,'member RPC accepts live poster with empty hours');
 select is((select replay from public.member_mobile_check_in(repeat('e',64),'66000000-0000-4000-8000-000000000071',null)),true,'same event id remains idempotent');
 select throws_ok($$select * from public.member_mobile_check_in(repeat('e',64),null,null)$$,'GL073',null,'second poster scan today is refused with zero dedupe seconds');
-select throws_ok($$select * from public.member_mobile_check_in(repeat('a',64),null,now()-interval '1 hour')$$,'GL012',null,'offline replay cannot revive a replaced poster');
+select throws_ok($$select * from public.member_mobile_check_in(repeat('a',64),gen_random_uuid(),now()-interval '1 hour')$$,'GL012',null,'offline replay cannot revive a replaced poster');
 select throws_ok($$select * from public.member_mobile_check_in(repeat('c',64),null,null)$$,'GL071',null,'member RPC refuses another branch even when the poster remains active');
 select throws_ok($$select * from public.member_mobile_check_in(repeat('b',64),null,null)$$,'GL010',null,'member RPC refuses another tenant before inserting attendance');
 select throws_ok($$select * from public.member_mobile_check_in(repeat('e',64),'66000000-0000-4000-8000-000000000072',now()-interval '2 days')$$,'GL073',null,'offline timestamp cannot backdate a second scan to evade today refusal');

@@ -864,7 +864,9 @@ select is_empty(
                          ('public.set_gym_status(uuid, public.organization_status, public.organization_status, text, uuid)', 'v'),
                          ('public.set_gym_tier(uuid, public.plan_tier, public.plan_tier, uuid)', 'v'),
                          ('public.link_gym_owner(uuid, uuid, uuid, text, uuid)', 'v'),
-                         ('public.deactivate_gym_owner(uuid, uuid, uuid, uuid)', 'v')
+                         ('public.deactivate_gym_owner(uuid, uuid, uuid, uuid)', 'v'),
+                         ('public.replace_checkin_poster(uuid, uuid, text)', 'v'),
+                         ('public.set_checkin_gate_mode(public.checkin_gate_mode)', 'v')
                        ) allowed(signature, volatility)
                        where p.oid = to_regprocedure(allowed.signature)
                          and p.provolatile = allowed.volatility))))$$,
@@ -974,6 +976,19 @@ select is_empty(
         and n.nspname = 'app' and p.proname = 'revoke_sessions_on_organization_status_change'
         and p.pronargs = 0 and p.prorettype = 'trigger'::regtype
         and p.prosecdef
+    ), gate_guard_triggers as (
+      -- Check-in gate modes (ATT-009..014): one invoker guard on each table, no elevation.
+      select t.oid, t.tgrelid from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace cn on cn.oid = c.relnamespace
+      join pg_proc p on p.oid = t.tgfoid
+      join pg_namespace n on n.oid = p.pronamespace
+      where cn.nspname = 'public' and c.relname in ('qr_sessions', 'organization_settings')
+        and t.tgname = c.relname || '_guard_checkin_gate'
+        and not t.tgisinternal and t.tgenabled = 'O'
+        and n.nspname = 'app' and p.proname = 'guard_checkin_gate_write'
+        and p.pronargs = 0 and p.prorettype = 'trigger'::regtype
+        and not p.prosecdef
     )
     select c.relname || '.' || t.tgname
       from pg_trigger t
@@ -982,6 +997,7 @@ select is_empty(
      where n.nspname = 'public' and not t.tgisinternal
        and t.tgname <> c.relname || '_touch_updated_at'
        and t.oid not in (select oid from valid_preview_triggers)
+       and t.oid not in (select oid from gate_guard_triggers)
        and c.relname not in ('staff', 'members', 'platform_users', 'impersonation_sessions', 'attendance', 'membership_pauses', 'follow_ups', 'payments', 'refunds', 'document_counters', 'memberships', 'addon_products', 'addon_orders', 'pt_sessions')
     union all
     select c.relname || '.missing_or_invalid_preview_read_only'
