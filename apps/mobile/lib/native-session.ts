@@ -14,7 +14,8 @@ const SESSION_KEY = 'gymloop.session';
 const IDENTITY_KEY = 'gymloop.authenticated-identity';
 type MobileConfig = { supabaseUrl: string; supabaseAnonKey: string; apiBaseUrl: string };
 type LinkedIdentity = Exclude<GymloopIdentity, { kind: 'unlinked' }>;
-const MOBILE_GOOGLE_CALLBACK = 'gymloop://auth/callback';
+const MOBILE_GOOGLE_CALLBACK = 'fitcruxx://auth/callback';
+const MOBILE_GOOGLE_CALLBACK_URL = new URL(MOBILE_GOOGLE_CALLBACK);
 
 type MobileGoogleSupabase = {
   auth: {
@@ -104,16 +105,68 @@ export async function signInWithGoogleMobile(input: {
     const browserResult = await input.openBrowser(data.url, MOBILE_GOOGLE_CALLBACK);
     if (browserResult.type !== 'success' || browserResult.url === undefined) return { ok: false };
 
-    const callback = new URL(browserResult.url);
-    if (callback.protocol !== 'gymloop:' || callback.hostname !== 'auth' || callback.pathname !== '/callback') return { ok: false };
-
-    const code = callback.searchParams.get('code');
-    if (code === null || code === '') return { ok: false };
-    const exchanged = await input.supabase.auth.exchangeCodeForSession(code);
-    return exchanged.error === null ? { ok: true } : { ok: false };
+    const code = mobileGoogleCallbackCode(browserResult.url);
+    if (code === null) return { ok: false };
+    return await exchangeMobileGoogleCode({ supabase: input.supabase, code });
   } catch {
     return { ok: false };
   }
+}
+
+/**
+ * The one registered native callback. A URL is accepted only if it is exactly
+ * that callback carrying a non-empty PKCE code; anything else (including the
+ * retired scheme of older test installs) fails generically.
+ */
+function mobileGoogleCallbackCode(url: string): string | null {
+  try {
+    const callback = new URL(url);
+    if (callback.protocol !== MOBILE_GOOGLE_CALLBACK_URL.protocol
+      || callback.hostname !== MOBILE_GOOGLE_CALLBACK_URL.hostname
+      || callback.pathname !== MOBILE_GOOGLE_CALLBACK_URL.pathname) return null;
+    const code = callback.searchParams.get('code');
+    return code === null || code === '' ? null : code;
+  } catch {
+    return null;
+  }
+}
+
+const googleCodeExchanges = new Map<string, Promise<{ ok: boolean }>>();
+
+/**
+ * PKCE codes are single-use, and two surfaces see the same one: the auth-session
+ * result and the `fitcruxx://auth/callback` route. Both callers share a single
+ * exchange per code, so the code is never spent twice and both observe one
+ * generic ok/fail outcome. The memo also means a duplicate delivery of the same
+ * deep link cannot re-exchange a code that is already spent.
+ */
+export function exchangeMobileGoogleCode(input: {
+  supabase: { auth: { exchangeCodeForSession: (code: string) => Promise<{ data: unknown; error: unknown }> } };
+  code: string;
+}): Promise<{ ok: boolean }> {
+  const existing = googleCodeExchanges.get(input.code);
+  if (existing !== undefined) return existing;
+  const attempt = input.supabase.auth.exchangeCodeForSession(input.code)
+    .then((exchanged) => ({ ok: exchanged.error === null }))
+    .catch(() => ({ ok: false }));
+  googleCodeExchanges.set(input.code, attempt);
+  return attempt;
+}
+
+/**
+ * What the callback route shows. The resolved values never carry the code: a
+ * live session means the exchange already happened (redirect home), a missing
+ * code or a failed exchange is the one generic failure, otherwise keep the
+ * existing loading state while the session resolves.
+ */
+export function resolveMobileGoogleCallbackState(input: {
+  code: string | null;
+  hasSession: boolean;
+  exchangeFailed: boolean;
+}): { kind: 'redirect' } | { kind: 'loading' } | { kind: 'failed' } {
+  if (input.hasSession) return { kind: 'redirect' };
+  if (input.code === null || input.exchangeFailed) return { kind: 'failed' };
+  return { kind: 'loading' };
 }
 
 /** Resolve remote claims when possible and defer, rather than erase, offline work on transient failure. */
@@ -143,6 +196,7 @@ export async function resolveNativeMobileSession(
 
 /** Sign-out clears private queued commands and local identity before removing Auth tokens. */
 export async function signOutMobile(supabase: SupabaseClient<Database>): Promise<void> {
+  googleCodeExchanges.clear();
   await clearOfflineCheckIns();
   await SecureStore.deleteItemAsync(IDENTITY_KEY);
   await supabase.auth.signOut();

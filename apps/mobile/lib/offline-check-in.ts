@@ -118,3 +118,41 @@ export async function drainOfflineCheckIns(
     return outcomes;
   });
 }
+
+/**
+ * Whether a connectivity/foreground signal means the device has just entered
+ * the ready state (online and active). Replay runs on entering ready: a
+ * reconnect that arrives while backgrounded waits for the foreground, and a
+ * foreground return while still offline waits for the network. An unknown
+ * prior signal counts as not ready, so the first ready signal does replay.
+ */
+export function shouldReplayOnSignal(
+  previous: { connected: boolean; foreground: boolean } | null,
+  next: { connected: boolean; foreground: boolean },
+): boolean {
+  const ready = next.connected && next.foreground;
+  const wasReady = previous !== null && previous.connected && previous.foreground;
+  return ready && !wasReady;
+}
+
+/**
+ * At most one replay runs at a time. A request that arrives during a run is
+ * coalesced into exactly one trailing replay, so mount, reconnect and
+ * foreground triggers can overlap without ever draining the queue twice
+ * concurrently — the per-event replay contract stays exactly-once.
+ */
+export function createReplayCoordinator(replay: () => Promise<void>): { requestReplay(): void } {
+  let running = false;
+  let queued = false;
+  const run = (): void => {
+    if (running) { queued = true; return; }
+    running = true;
+    void replay()
+      .catch(() => undefined)
+      .then(() => {
+        running = false;
+        if (queued) { queued = false; run(); }
+      });
+  };
+  return { requestReplay: run };
+}

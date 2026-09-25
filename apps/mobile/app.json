@@ -3,7 +3,7 @@
     "name": "FitCruxx",
     "slug": "gymloop",
     "version": "1.0.0",
-    "scheme": "gymloop",
+    "scheme": "fitcruxx",
     "icon": "./assets/icon.png",
     "platforms": [
       "ios",

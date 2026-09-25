@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
@@ -9,7 +9,7 @@ import { GREETING_HOURS, toLocalDate, UI_TOKENS } from '@gymloop/shared';
 import { CalendarCheck, CircleAlert, CircleCheck, Clock3, CreditCard, MessageSquareMore, ScanLine } from 'lucide-react-native';
 import { ActionButton, Body, Display, Eyebrow, FONT, Initials, LoadingState, Row, Rule, Screen, StateMessage, Status, Title, WeekRhythm, dayLabel, statusTone, statusWord } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
-import { drainOfflineCheckIns, loadOfflineCheckIns, saveOfflineCheckIn } from '../../lib/offline-check-in';
+import { createReplayCoordinator, drainOfflineCheckIns, loadOfflineCheckIns, saveOfflineCheckIn, shouldReplayOnSignal } from '../../lib/offline-check-in';
 import { rhythmFor } from '../../lib/mobile-data';
 import { useMemberSnapshot } from '../../lib/use-member-snapshot';
 
@@ -31,7 +31,45 @@ export default function MemberHome() {
   const params = useLocalSearchParams<{ scan?: string }>();
   const [permission, requestPermission] = useCameraPermissions(); const [scanning, setScanning] = useState(params.scan === '1'); const [pending, setPending] = useState(false); const [outcome, setOutcome] = useState<Outcome | null>(null); const [queued, setQueued] = useState(0);
   useEffect(() => { if (params.scan === '1') setScanning(true); }, [params.scan]);
-  useEffect(() => { if (identity.kind !== 'member') return; const scope = { tenantId: identity.tenantId, userId: identity.userId, memberId: identity.memberId }; void loadOfflineCheckIns(scope).then((rows) => setQueued(rows.length)); void drainOfflineCheckIns(scope, api).then((rows) => { if (rows.some((row) => row.result?.ok)) { setOutcome({ kind: 'replayed' }); void reload(); } return loadOfflineCheckIns(scope); }).then((rows) => setQueued(rows.length)); }, [api, identity, reload]);
+  // One replay pass: refresh the queued count, drain what the server confirms, then refresh again.
+  const runReplay = useCallback(async () => {
+    if (identity.kind !== 'member') return;
+    const scope = { tenantId: identity.tenantId, userId: identity.userId, memberId: identity.memberId };
+    setQueued((await loadOfflineCheckIns(scope)).length);
+    const rows = await drainOfflineCheckIns(scope, api);
+    if (rows.some((row) => row.result?.ok)) { setOutcome({ kind: 'replayed' }); void reload(); }
+    setQueued((await loadOfflineCheckIns(scope)).length);
+  }, [api, identity, reload]);
+  const replayRef = useRef(runReplay);
+  useEffect(() => { replayRef.current = runReplay; }, [runReplay]);
+  const coordinator = useMemo(() => createReplayCoordinator(async () => { await replayRef.current(); }), []);
+  // Mount (and identity change) replays as before; the coordinator keeps it at most once at a time.
+  useEffect(() => { coordinator.requestReplay(); }, [coordinator, identity]);
+  // Replay also runs when connectivity is regained and when the app returns to the foreground,
+  // so a saved check-in confirms without an app relaunch. Unknown reachability still counts as
+  // connected here: a drain that cannot reach the server leaves the rows queued and retries on
+  // the next ready signal.
+  useEffect(() => {
+    if (identity.kind !== 'member') return;
+    let seeded = false;
+    let previous = { connected: false, foreground: false };
+    const apply = (next: { connected: boolean; foreground: boolean }) => {
+      if (seeded && shouldReplayOnSignal(previous, next)) coordinator.requestReplay();
+      seeded = true;
+      previous = next;
+    };
+    const evaluate = () => {
+      void Network.getNetworkStateAsync()
+        .then((network) => {
+          apply({ connected: network.isConnected === true && network.isInternetReachable !== false, foreground: AppState.currentState === 'active' });
+        })
+        .catch(() => undefined);
+    };
+    const networkSubscription = Network.addNetworkStateListener(() => evaluate());
+    const appStateSubscription = AppState.addEventListener('change', () => evaluate());
+    evaluate();
+    return () => { networkSubscription.remove(); appStateSubscription.remove(); };
+  }, [coordinator, identity]);
   if (loading) return <Screen><LoadingState /></Screen>;
   if (error || !data) return <Screen><Title>Home</Title><StateMessage tone="error">{error ?? 'Your gym information is unavailable.'}</StateMessage>{queued > 0 && <StateMessage tone="warning">{queued} check-in {queued === 1 ? 'is' : 'are'} awaiting confirmation.</StateMessage>}<ActionButton secondary onPress={() => void reload()}>Try again</ActionButton></Screen>;
   const checkIn = async (raw: string) => {
