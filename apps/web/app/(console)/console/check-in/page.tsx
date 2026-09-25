@@ -1,3 +1,4 @@
+import { requireAudience } from '../../../../lib/identity-session';
 import { loadMemberSearch } from '../../../../lib/members';
 import { loadMembershipStanding } from '../../../../lib/membership-state';
 import { MemberSearchPage } from '../member-search-page';
@@ -18,6 +19,13 @@ export default async function CheckInPage({
   searchParams: Promise<{ q?: string; cursor?: string; limit?: string }>;
 }) {
   const search = await loadMemberSearch(searchParams);
+  const { supabase, identity } = await requireAudience('console');
+  const { data: settings } = await supabase.from('organization_settings')
+    .select('checkin_gate_mode').maybeSingle();
+  // Remove the narrow assertion after CI applies the migration and DB types regenerate.
+  const mode = (settings as { checkin_gate_mode: 'printed_poster' | 'rotating_screen' } | null)?.checkin_gate_mode;
+  const canManageGate = identity.kind === 'staff' &&
+    (identity.role === 'gym_owner' || identity.role === 'gym_manager');
   // The STATUS column says what the roster and Memberships say: the membership's
   // standing, with a blocked or cancelled account outranking it.
   const standingById = await loadMembershipStanding(search.members);
@@ -36,7 +44,7 @@ export default async function CheckInPage({
       nextCursor={search.nextCursor}
       pageSize={search.pageSize}
     >
-      <CheckInGate members={members} />
+      <CheckInGate members={members} mode={mode} canManageGate={canManageGate} />
     </MemberSearchPage>
   );
 }

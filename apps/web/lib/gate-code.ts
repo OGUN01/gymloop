@@ -1,5 +1,5 @@
-import { createHash, randomBytes } from 'node:crypto';
-import { GATE_CODE_BYTES } from '@gymloop/shared';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { GATE_CODE_BYTES, GATE_CODE_HEX_DIGITS_PER_BYTE, POSTER_CODE_CONTEXT, POSTER_CODE_SECRET_MIN_BYTES, posterCodeEnv } from '@gymloop/shared';
 
 /**
  * The gate code: minted here, hashed here, and stored only as its hash
@@ -36,4 +36,15 @@ export function newGateCode(): string {
  */
 export function hashGateCode(code: string): string {
   return createHash('sha256').update(code.replace(/\s+/g, '').toUpperCase()).digest('hex');
+}
+
+/** Server-only deterministic poster code. No secret or raw code enters Postgres. */
+export function posterGateCode(sessionId: string): string {
+  const encoded = posterCodeEnv().POSTER_CODE_SECRET;
+  const secret = Buffer.from(encoded, 'base64url');
+  if (secret.length < POSTER_CODE_SECRET_MIN_BYTES || secret.toString('base64url') !== encoded) {
+    throw new Error('POSTER_CODE_SECRET must be canonical base64url of at least 32 bytes');
+  }
+  return createHmac('sha256', secret).update(POSTER_CODE_CONTEXT + sessionId).digest('hex')
+    .slice(0, GATE_CODE_BYTES * GATE_CODE_HEX_DIGITS_PER_BYTE).toUpperCase();
 }

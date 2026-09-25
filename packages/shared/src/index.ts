@@ -1,4 +1,5 @@
 export * from './api/check-in';
+export * from './api/gate-mode';
 export * from './api/identity';
 export * from './api/addons';
 export * from './api/comms';

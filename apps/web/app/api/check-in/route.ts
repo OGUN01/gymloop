@@ -6,6 +6,10 @@ import { createOperationalLogger } from '../../../lib/observability';
 
 const REFUSALS: Record<string, { status: ApiFailStatus; message: string }> = {
   GL010: { status: 'unprocessable', message: 'That gate code belongs to another gym.' }, GL011: { status: 'unprocessable', message: 'That gate code has expired. Show a new one.' }, GL012: { status: 'unprocessable', message: 'That gate code has been revoked.' }, GL013: { status: 'unprocessable', message: 'No active membership. Renew before checking in.' }, GL014: { status: 'conflict', message: 'Already checked in a moment ago.' }, GL017: { status: 'unprocessable', message: 'That offline check-in time is not valid for this gate session.' }, GL018: { status: 'conflict', message: 'That check-in id has already been used for a different member.' },
+  GL070: { status: 'conflict', message: 'The gym changed gate mode. Scan the currently displayed code or poster.' },
+  GL071: { status: 'unprocessable', message: 'That poster belongs to another branch. Use the poster at this member’s branch.' },
+  GL072: { status: 'unprocessable', message: 'The gym is closed for poster check-in. Try again during opening hours.' },
+  GL073: { status: 'conflict', message: 'This member already checked in today. No second check-in was recorded.' },
 };
 const RECORDED_COLUMNS = 'id, checked_in_at, source';
 const SAFE_DATABASE_ERROR_CODE = /^(?:[A-Z0-9]{5}|PGRST[0-9]{3})$/;

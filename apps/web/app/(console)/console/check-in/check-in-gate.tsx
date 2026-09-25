@@ -51,6 +51,9 @@ type Outcome = {
 
 type CheckInBody = { token?: string; reason?: string };
 
+type GateMode = 'printed_poster' | 'rotating_screen';
+type CurrentGate = { mode: GateMode; branchId: string; code?: string | null };
+
 type CheckInResponse =
   | { ok: true; data: { replay: boolean; source: string } }
   | { ok: false; error: { code: string; message: string } };
@@ -70,12 +73,18 @@ function barcodeDetector(): BarcodeDetectorCtor | undefined {
 const FIELD_CLASS =
   'check-in-field';
 
-export function CheckInGate({ members }: { members: Member[] }) {
+export function CheckInGate({ members, mode, canManageGate = false }: {
+  members: Member[]; mode?: GateMode | undefined; canManageGate?: boolean;
+}) {
   const readOnly = usePreviewReadOnly();
   const [gateCode, setGateCode] = useState('');
   // What is typed into "Have a code?" â€” it becomes the gate code only on "Use code".
   const [codeDraft, setCodeDraft] = useState('');
   const [issuedCode, setIssuedCode] = useState('');
+  const [activeMode, setActiveMode] = useState<GateMode | undefined>(mode);
+  const [posterBranchId, setPosterBranchId] = useState('');
+  const [posterUnavailable, setPosterUnavailable] = useState(false);
+  const [changingGate, setChangingGate] = useState(false);
   const [canScan, setCanScan] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [notice, setNotice] = useState('');
@@ -93,6 +102,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
   useEffect(() => {
     setHydrated(true);
     setCanScan(barcodeDetector() !== undefined);
+    if (mode !== 'rotating_screen') return;
     try {
       const stored = window.sessionStorage.getItem(GATE_CODE_KEY) ?? '';
       setGateCode(stored);
@@ -102,18 +112,107 @@ export function CheckInGate({ members }: { members: Member[] }) {
       // still works; the code just does not survive a search.
       setGateCode('');
     }
-  }, []);
+  }, [mode]);
 
   const rememberGateCode = useCallback((code: string) => {
     setGateCode(code);
     setCodeDraft(code);
     try {
+      if (activeMode === 'printed_poster') return;
       window.sessionStorage.setItem(GATE_CODE_KEY, code);
     } catch {
       // See above â€” losing the code on reload is not worth failing a check-in for.
       setNotice('This browser will not remember the code between searches.');
     }
+  }, [activeMode]);
+
+  const loadCurrentGate = useCallback(async () => {
+    try {
+      const response = await fetch('/api/gate-code', { cache: 'no-store' });
+      const payload = await response.json() as
+        | { ok: true; data: CurrentGate }
+        | { ok: false; error: { message: string } };
+      if (!payload.ok) {
+        setGateCode('');
+        setIssuedCode('');
+        setPosterUnavailable(true);
+        setNotice(payload.error.message);
+        return;
+      }
+      setActiveMode(payload.data.mode);
+      setPosterBranchId(payload.data.branchId);
+      setPosterUnavailable(false);
+      if (payload.data.mode === 'printed_poster') {
+        setIssuedCode(payload.data.code ?? '');
+        setGateCode(payload.data.code ?? '');
+        setCodeDraft(payload.data.code ?? '');
+        try { window.sessionStorage.removeItem(GATE_CODE_KEY); } catch { /* Storage is optional. */ }
+      } else {
+        setIssuedCode('');
+        setGateCode('');
+        setCodeDraft('');
+      }
+    } catch {
+      setGateCode('');
+      setIssuedCode('');
+      setPosterUnavailable(true);
+      setNotice('Gate status could not be loaded. Reload to see the current poster.');
+    }
   }, []);
+
+  useEffect(() => { void loadCurrentGate(); }, [loadCurrentGate]);
+
+  const changeGateMode = useCallback(async (nextMode: GateMode) => {
+    if (changingGate) return;
+    setChangingGate(true);
+    setNotice('');
+    try {
+      const response = await fetch('/api/gate-code/mode', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mode: nextMode }),
+      });
+      const payload = await response.json() as
+        | { ok: true; data: { mode: GateMode } }
+        | { ok: false; error: { message: string } };
+      if (!payload.ok) { setNotice(payload.error.message); return; }
+      setActiveMode(payload.data.mode);
+      setIssuedCode('');
+      setGateCode('');
+      setCodeDraft('');
+      try { window.sessionStorage.removeItem(GATE_CODE_KEY); } catch { /* Storage is optional. */ }
+      await loadCurrentGate();
+      setNotice(payload.data.mode === 'printed_poster'
+        ? 'Printed poster mode is on. Create and print its first poster.'
+        : 'Rotating screen mode is on. Generate a new temporary code.');
+    } catch {
+      setNotice('Mode change could not be confirmed. Reload the gate before trying again.');
+    } finally { setChangingGate(false); }
+  }, [changingGate, loadCurrentGate]);
+
+  const replacePoster = useCallback(async () => {
+    if (changingGate || activeMode !== 'printed_poster') return;
+    if (!window.confirm('Replace poster? The printed code at this branch will stop working immediately. Confirm replacement.')) return;
+    setChangingGate(true);
+    setNotice('');
+    try {
+      const response = await fetch('/api/gate-code/poster', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ confirmed: true, branchId: posterBranchId || undefined }),
+      });
+      const payload = await response.json() as
+        | { ok: true; data: { code: string; branchId: string } }
+        | { ok: false; error: { message: string } };
+      if (!payload.ok) { setNotice(payload.error.message); return; }
+      setPosterBranchId(payload.data.branchId);
+      setIssuedCode(payload.data.code);
+      setGateCode(payload.data.code);
+      setCodeDraft(payload.data.code);
+      setPosterUnavailable(false);
+      setNotice('New poster is live. Remove the old printout and print this one.');
+    } catch {
+      setNotice('Replacement could not be confirmed. Reload the gate before trying again.');
+    } finally { setChangingGate(false); }
+  }, [activeMode, changingGate, posterBranchId]);
 
   const stopScanning = useCallback(() => {
     setScanning(false);
@@ -170,6 +269,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
 
   const issueGateCode = useCallback(async () => {
     setNotice('');
+    if (activeMode !== 'rotating_screen') return;
     const response = await fetch('/api/gate-code', { method: 'POST' });
     const payload = (await response.json()) as
       | { ok: true; data: { code: string } }
@@ -181,7 +281,7 @@ export function CheckInGate({ members }: { members: Member[] }) {
     }
     setIssuedCode(payload.data.code);
     rememberGateCode(payload.data.code);
-  }, [rememberGateCode]);
+  }, [activeMode, rememberGateCode]);
 
   const submit = useCallback(
     async (member: Member, body: CheckInBody, clientEventId: string) => {
@@ -248,28 +348,48 @@ export function CheckInGate({ members }: { members: Member[] }) {
 
       <section className="check-in-gate-panel" aria-labelledby="check-in-gate-title">
         <div className="check-in-gate-inner">
-          <p className="cl-eyebrow check-in-gate-eyebrow">Today&rsquo;s gate code</p>
+          <p className="cl-eyebrow check-in-gate-eyebrow">{activeMode === 'printed_poster' ? 'Printed poster' : 'Rotating screen'}</p>
           {/* The gate's state is said here and only here: a display title beside the
               roster on a wide screen, one ruled status row above it on anything smaller. */}
           <h2 id="check-in-gate-title" className="check-in-gate-title">
-            {gateCode ? 'Gate open' : 'No gate code'}
+            {activeMode === 'printed_poster'
+              ? gateCode ? 'Poster live' : 'No poster available'
+              : gateCode ? 'Gate open' : 'No gate code'}
           </h2>
           <p className="check-in-gate-copy">
-            {gateCode
-              ? 'Scans are recorded against this code until it expires.'
-              : 'Generate one for members to scan. Until then, check-ins are recorded at the desk with a reason.'}
+            {activeMode === 'printed_poster'
+              ? gateCode ? 'Permanent until replaced. A member may scan once per branch-local day during opening hours.'
+                : posterUnavailable ? 'Poster could not be displayed. Reload or ask an owner to replace it.'
+                  : 'No poster yet. Ask an owner or manager to create and print one.'
+              : gateCode ? 'Scans are recorded against this code until it expires.'
+                : 'Generate one for members to scan. Until then, check-ins are recorded at the desk with a reason.'}
           </p>
 
-          {/* Two actions, two controls: making today's code stands alone, and a code
-              someone handed you goes in its own labelled field with its own submit. */}
-          <button
-            type="button"
-            onClick={() => void issueGateCode()}
-            // One clay action at a time: the desk reason form's Record takes it while open.
-            className={gateCode || assistFor ? 'cl-btn check-in-gate-issue' : 'cl-btn cl-btn--primary check-in-gate-issue'}
-          >
-            {gateCode ? 'New code' : 'Generate todayâ€™s code'}
-          </button>
+          {activeMode === 'rotating_screen' ? (
+            <button type="button" onClick={() => void issueGateCode()}
+              className={gateCode || assistFor ? 'cl-btn check-in-gate-issue' : 'cl-btn cl-btn--primary check-in-gate-issue'}>
+              {gateCode ? 'New code' : 'Generate today’s code'}
+            </button>
+          ) : null}
+          {canManageGate ? (
+            <div className="check-in-gate-management" aria-label="Gate settings">
+              {activeMode === 'printed_poster' ? (
+                <>
+                  <button type="button" className="cl-btn" disabled={!hydrated || changingGate}
+                    onClick={() => void replacePoster()}>Replace poster · confirm</button>
+                  <a className="cl-btn" href="/console/check-in/poster" target="_blank" rel="noopener noreferrer"
+                    aria-disabled={!issuedCode || posterUnavailable} onClick={(event) => {
+                      if (!issuedCode || posterUnavailable) event.preventDefault();
+                    }}>Print poster</a>
+                  <button type="button" className="cl-btn" disabled={!hydrated || changingGate}
+                    onClick={() => void changeGateMode('rotating_screen')}>Switch to rotating screen</button>
+                </>
+              ) : (
+                <button type="button" className="cl-btn" disabled={!hydrated || changingGate}
+                  onClick={() => void changeGateMode('printed_poster')}>Switch to printed poster</button>
+              )}
+            </div>
+          ) : null}
 
           {issuedCode ? (
             <div className="check-in-issued-gate">

@@ -239,6 +239,12 @@ export const PILOT_STAGE_TIMEOUT_MS = 600_000;
  */
 export const GATE_CODE_BYTES = 8;
 export const GATE_CODE_TTL_MS = 900_000;
+/** Required decoded bytes for the HMAC secret; a code uses the existing 16-char gate format. */
+export const POSTER_CODE_SECRET_MIN_BYTES = 32;
+/** Each gate-code byte renders as two hexadecimal characters. */
+export const GATE_CODE_HEX_DIGITS_PER_BYTE = 2;
+/** Deterministic poster-code namespace for HMAC domain separation. */
+export const POSTER_CODE_CONTEXT = 'gymloop:checkin-poster:v1:';
 
 /**
  * Calendar-day arithmetic (`packages/shared/src/streaks`).

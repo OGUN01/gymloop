@@ -63,6 +63,10 @@ const serverOnlySchema = z.object({
   R2_ENDPOINT: z.url(),
 });
 
+const posterSecretSchema = z.object({
+  POSTER_CODE_SECRET: z.string().regex(/^[A-Za-z0-9_-]+$/, 'Expected base64url without padding'),
+});
+
 const webAppSchema = z.object({
   WEB_APP_URL: publicOriginSchema.default('http://127.0.0.1:3000'),
 });
@@ -156,6 +160,11 @@ export function provisioningEnv(): { SUPABASE_URL: string; SUPABASE_SERVICE_ROLE
     SUPABASE_URL: parsed.NEXT_PUBLIC_SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY: parsed.SUPABASE_SERVICE_ROLE_KEY,
   };
+}
+
+/** Only the poster-code server path may read the separate HMAC secret. */
+export function posterCodeEnv(): { POSTER_CODE_SECRET: string } {
+  return posterSecretSchema.parse({ POSTER_CODE_SECRET: process.env.POSTER_CODE_SECRET });
 }
 
 export function serverEnv(): ServerEnv {
