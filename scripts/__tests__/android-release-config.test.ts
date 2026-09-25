@@ -52,6 +52,10 @@ describe('HARD-002 Android release configuration', () => {
     expect(cameraPlugin?.[1]?.cameraPermission).toBe('Allow FitCruxx to scan the current QR code at your gym.');
   });
 
+  it('registers only the fitcruxx deep-link scheme so the OS never offers a Gymloop chooser', () => {
+    expect(expo.scheme, 'apps/mobile/app.json expo.scheme must be the FitCruxx scheme').toBe('fitcruxx');
+  });
+
   it('uses remote EAS versioning and automatically increments production Android releases', () => {
     expect(easConfig.cli?.appVersionSource).toBe('remote');
     expect(production.autoIncrement).toBe(true);

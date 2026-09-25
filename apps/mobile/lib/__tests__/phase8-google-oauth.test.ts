@@ -20,7 +20,7 @@ beforeEach(() => {
 });
 
 describe('HARD-011/HARD-012 Android Google OAuth', () => {
-  it('uses Supabase Google PKCE and only the registered Gymloop deep-link callback', async () => {
+  it('uses Supabase Google PKCE and only the registered FitCruxx deep-link callback', async () => {
     const nativeSession = await import('../native-session') as unknown as {
       signInWithGoogleMobile?: (input: {
         supabase: { auth: { signInWithOAuth: (options: unknown) => Promise<unknown>; exchangeCodeForSession: (code: string) => Promise<unknown> } };
@@ -44,26 +44,26 @@ describe('HARD-011/HARD-012 Android Google OAuth', () => {
       },
       openBrowser: async (url, callback) => {
         state.browserCalls.push({ url, callback });
-        return { type: 'success', url: 'gymloop://auth/callback?code=mobile-code' };
+        return { type: 'success', url: 'fitcruxx://auth/callback?code=mobile-code' };
       },
     });
 
     expect(result).toEqual({ ok: true });
     expect(state.oauthCalls).toEqual([{
       provider: 'google',
-      options: { redirectTo: 'gymloop://auth/callback', skipBrowserRedirect: true },
+      options: { redirectTo: 'fitcruxx://auth/callback', skipBrowserRedirect: true },
     }]);
     expect(state.browserCalls).toEqual([{
       url: 'https://project.supabase.co/auth/v1/authorize?provider=google',
-      callback: 'gymloop://auth/callback',
+      callback: 'fitcruxx://auth/callback',
     }]);
     expect(state.exchangeCalls).toEqual(['mobile-code']);
   });
 
   it.each([
     ['cancelled browser', { type: 'cancel' }],
-    ['wrong deep link', { type: 'success', url: 'gymloop://other?code=wrong' }],
-    ['missing code', { type: 'success', url: 'gymloop://auth/callback' }],
+    ['wrong deep link', { type: 'success', url: 'fitcruxx://other?code=wrong' }],
+    ['missing code', { type: 'success', url: 'fitcruxx://auth/callback' }],
   ])('fails generically for a %s callback and never exchanges a code', async (_case, browserResult) => {
     const { signInWithGoogleMobile } = await import('../native-session') as unknown as {
       signInWithGoogleMobile: (input: {
@@ -94,14 +94,105 @@ describe('HARD-011/HARD-012 Android Google OAuth', () => {
     const updateUser = vi.fn(() => { throw new Error('must not mutate Gymloop claims'); });
     const startFailure = await signInWithGoogleMobile({
       supabase: { auth: { signInWithOAuth: async () => ({ data: { url: null }, error: { message: 'account detail' } }), exchangeCodeForSession: async () => ({ data: null, error: null }), updateUser } },
-      openBrowser: async () => ({ type: 'success', url: 'gymloop://auth/callback?code=unused' }),
+      openBrowser: async () => ({ type: 'success', url: 'fitcruxx://auth/callback?code=unused' }),
     });
     const exchangeFailure = await signInWithGoogleMobile({
       supabase: { auth: { signInWithOAuth: async () => ({ data: { url: 'https://project.supabase.co/google' }, error: null }), exchangeCodeForSession: async () => ({ data: null, error: { message: 'link detail' } }), updateUser } },
-      openBrowser: async () => ({ type: 'success', url: 'gymloop://auth/callback?code=bad' }),
+      openBrowser: async () => ({ type: 'success', url: 'fitcruxx://auth/callback?code=bad' }),
     });
     expect(startFailure).toEqual({ ok: false });
     expect(exchangeFailure).toEqual({ ok: false });
     expect(updateUser).not.toHaveBeenCalled();
   });
+});
+
+describe('mobile Google callback route contract', () => {
+  it('exchanges one PKCE code exactly once even when the auth-session result and the deep-link route both see it', async () => {
+    const { exchangeMobileGoogleCode } = await import('../native-session') as unknown as {
+      exchangeMobileGoogleCode: (input: {
+        supabase: { auth: { exchangeCodeForSession: (code: string) => Promise<{ data: unknown; error: unknown }> } };
+        code: string;
+      }) => Promise<{ ok: boolean }>;
+    };
+    const exchangeCodeForSession = vi.fn(async (code: string) => {
+      state.exchangeCalls.push(code);
+      return { data: { session: {} }, error: null };
+    });
+    const supabase = { auth: { exchangeCodeForSession } };
+    const first = await exchangeMobileGoogleCode({ supabase, code: 'shared-callback-code' });
+    const second = await exchangeMobileGoogleCode({ supabase, code: 'shared-callback-code' });
+    expect(first).toEqual({ ok: true });
+    expect(second).toEqual({ ok: true });
+    expect(exchangeCodeForSession).toHaveBeenCalledTimes(1);
+    expect(state.exchangeCalls).toEqual(['shared-callback-code']);
+  });
+
+  it('gives every caller of a failed code the one generic failure without retrying the exchange', async () => {
+    const { exchangeMobileGoogleCode } = await import('../native-session') as unknown as {
+      exchangeMobileGoogleCode: (input: {
+        supabase: { auth: { exchangeCodeForSession: (code: string) => Promise<{ data: unknown; error: unknown }> } };
+        code: string;
+      }) => Promise<{ ok: boolean }>;
+    };
+    const exchangeCodeForSession = vi.fn(async () => ({ data: null, error: { message: 'link detail' } }));
+    const supabase = { auth: { exchangeCodeForSession } };
+    const first = await exchangeMobileGoogleCode({ supabase, code: 'failed-callback-code' });
+    const second = await exchangeMobileGoogleCode({ supabase, code: 'failed-callback-code' });
+    expect(first).toEqual({ ok: false });
+    expect(second).toEqual({ ok: false });
+    expect(exchangeCodeForSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('exchanges different codes independently', async () => {
+    const { exchangeMobileGoogleCode } = await import('../native-session') as unknown as {
+      exchangeMobileGoogleCode: (input: {
+        supabase: { auth: { exchangeCodeForSession: (code: string) => Promise<{ data: unknown; error: unknown }> } };
+        code: string;
+      }) => Promise<{ ok: boolean }>;
+    };
+    const exchangeCodeForSession = vi.fn(async (code: string) => {
+      state.exchangeCalls.push(code);
+      return { data: { session: {} }, error: null };
+    });
+    const supabase = { auth: { exchangeCodeForSession } };
+    await exchangeMobileGoogleCode({ supabase, code: 'callback-code-a' });
+    await exchangeMobileGoogleCode({ supabase, code: 'callback-code-b' });
+    expect(exchangeCodeForSession).toHaveBeenCalledTimes(2);
+    expect(state.exchangeCalls).toEqual(['callback-code-a', 'callback-code-b']);
+  });
+
+  it('redirects, waits or fails generically without ever exposing the code', async () => {
+    const { resolveMobileGoogleCallbackState: resolveState } = await import('../native-session') as unknown as {
+      resolveMobileGoogleCallbackState: (value: { code: string | null; hasSession: boolean; exchangeFailed: boolean }) => { kind: string };
+    };
+    expect(resolveState({ code: 'route-code', hasSession: true, exchangeFailed: false })).toEqual({ kind: 'redirect' });
+    expect(resolveState({ code: 'route-code', hasSession: true, exchangeFailed: true })).toEqual({ kind: 'redirect' });
+    expect(resolveState({ code: null, hasSession: true, exchangeFailed: false })).toEqual({ kind: 'redirect' });
+    expect(resolveState({ code: 'route-code', hasSession: false, exchangeFailed: false })).toEqual({ kind: 'loading' });
+    expect(resolveState({ code: 'route-code', hasSession: false, exchangeFailed: true })).toEqual({ kind: 'failed' });
+    expect(resolveState({ code: null, hasSession: false, exchangeFailed: false })).toEqual({ kind: 'failed' });
+    expect(resolveState({ code: null, hasSession: false, exchangeFailed: true })).toEqual({ kind: 'failed' });
+    expect(JSON.stringify(resolveState({ code: 'route-code', hasSession: false, exchangeFailed: false }))).not.toContain('route-code');
+  });
+
+  it('refuses the retired gymloop deep link so no code from an old install is ever exchanged', async () => {
+    const { signInWithGoogleMobile } = await import('../native-session') as unknown as {
+      signInWithGoogleMobile: (input: {
+        supabase: { auth: { signInWithOAuth: (options: unknown) => Promise<unknown>; exchangeCodeForSession: (code: string) => Promise<unknown> } };
+        openBrowser: (url: string, callback: string) => Promise<{ type: string; url?: string }>;
+      }) => Promise<unknown>;
+    };
+    const result = await signInWithGoogleMobile({
+      supabase: {
+        auth: {
+          signInWithOAuth: async () => ({ data: { url: 'https://project.supabase.co/google' }, error: null }),
+          exchangeCodeForSession: async (code) => { state.exchangeCalls.push(code); return { data: null, error: null }; },
+        },
+      },
+      openBrowser: async () => ({ type: 'success', url: 'gymloop://auth/callback?code=retired-scheme-code' }),
+    });
+    expect(result).toEqual({ ok: false });
+    expect(state.exchangeCalls).toEqual([]);
+  });
+
 });
