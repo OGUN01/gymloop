@@ -133,6 +133,7 @@ select results_eq(
            ('address_line2'::text, 'text'::text, false),
            ('brand_accent'::text, 'text'::text, false),
            ('checkin_dedupe_seconds'::text, 'int4'::text, true),
+           ('checkin_gate_mode'::text, 'checkin_gate_mode'::text, true),
            ('city'::text, 'text'::text, false),
            ('created_at'::text, 'timestamptz'::text, true),
            ('financial_year_start_month'::text, 'int2'::text, true),

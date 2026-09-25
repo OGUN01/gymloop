@@ -114,9 +114,9 @@ insert into public.organizations (id, name, gym_code) values
   ('16000000-0000-4000-8000-000000000001'::uuid, 'Check-in Gym A', 'CHK16A'),
   ('16000000-0000-4000-8000-000000000002'::uuid, 'Check-in Gym B', 'CHK16B');
 
-insert into public.organization_settings (tenant_id, checkin_dedupe_seconds) values
-  ('16000000-0000-4000-8000-000000000001'::uuid, 3600),
-  ('16000000-0000-4000-8000-000000000002'::uuid, 60);
+insert into public.organization_settings (tenant_id, checkin_dedupe_seconds, checkin_gate_mode) values
+  ('16000000-0000-4000-8000-000000000001'::uuid, 3600, 'rotating_screen'),
+  ('16000000-0000-4000-8000-000000000002'::uuid, 60, 'rotating_screen');
 
 insert into public.branches (id, tenant_id, name, is_default) values
   ('16000000-0000-4000-8000-000000000011'::uuid, '16000000-0000-4000-8000-000000000001'::uuid, 'A Main', true),
@@ -221,14 +221,15 @@ select results_eq(
     values ('branch_id'::text, 'uuid'::text, true),
            ('created_at'::text, 'timestamptz'::text, true),
            ('created_by_staff_id'::text, 'uuid'::text, false),
-           ('expires_at'::text, 'timestamptz'::text, true),
+           ('expires_at'::text, 'timestamptz'::text, false),
+           ('gate_mode'::text, 'checkin_gate_mode'::text, true),
            ('id'::text, 'uuid'::text, true),
            ('issued_at'::text, 'timestamptz'::text, true),
            ('revoked_at'::text, 'timestamptz'::text, false),
            ('tenant_id'::text, 'uuid'::text, true),
            ('token_hash'::text, 'text'::text, true)
   $$,
-  'ATT-003 — qr_sessions carries exactly nine columns: a hash, an issue time, an expiry, a revocation, and no place to put a token'
+  'ATT-003 — qr_sessions holds a hash and a gate mode, with no plaintext token or secret'
 );
 
 -- 4 — ADR-052. This is what makes "a check-in never crosses a tenant" a
@@ -1226,8 +1227,8 @@ select results_eq(
 insert into public.organizations (id, name, gym_code, timezone) values
   ('16000000-0000-4000-8000-000000000003'::uuid, 'Check-in Gym C', 'CHK16C', 'Etc/GMT-12');
 
-insert into public.organization_settings (tenant_id, checkin_dedupe_seconds) values
-  ('16000000-0000-4000-8000-000000000003'::uuid, 60);
+insert into public.organization_settings (tenant_id, checkin_dedupe_seconds, checkin_gate_mode) values
+  ('16000000-0000-4000-8000-000000000003'::uuid, 60, 'rotating_screen');
 
 insert into public.branches (id, tenant_id, name, is_default) values
   ('16000000-0000-4000-8000-000000000013'::uuid, '16000000-0000-4000-8000-000000000003'::uuid, 'C Main', true);

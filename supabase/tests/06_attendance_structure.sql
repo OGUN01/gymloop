@@ -16,7 +16,7 @@ set local role postgres;
 
 set local search_path = extensions, public;
 
-select plan(26);
+select plan(27);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Inserted as postgres, which owns every table the migrations create
@@ -67,8 +67,11 @@ select has_column('public', 'qr_sessions', 'token_hash',
 select hasnt_column('public', 'qr_sessions', 'token',
   'ATT-003 — qr_sessions has no plaintext token column');
 
-select col_not_null('public', 'qr_sessions', 'expires_at',
-  'ATT-003 — every QR session carries an expiry');
+select col_is_null('public', 'qr_sessions', 'expires_at',
+  'ATT-003 — poster QR sessions do not expire; rotating sessions still do');
+
+select col_not_null('public', 'qr_sessions', 'gate_mode',
+  'ATT-003 — every QR session records which kind of gate issued it');
 
 select lives_ok($$
   insert into public.qr_sessions (id, tenant_id, branch_id, token_hash, issued_at, expires_at)
