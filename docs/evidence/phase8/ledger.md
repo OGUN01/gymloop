@@ -1,5 +1,7 @@
 # Phase 8 evidence ledger
 
+**2026-09-25 Play internal test (ADR-175):** the product is FitCruxx (`in.fitcruxx.app`). Release `3 (1.0.0)` is **Available to internal testers** on Play app `4975754557722576970`; artifact hash, signing, manifest and declarations are in `docs/evidence/2026-09-25-play-internal-test.md`. Public Auth signup is closed (gate 24 signup half; Turnstile/edge still excepted until a custom domain). HARD-008 still needs the Play-installed exact-artifact device checklist.
+
 **2026-09-24 Play release checkpoint (ADR-172/173):** the owner accepted the
 Chalkline redesign (HARD-010). Play app `Gymloop` (`in.gymloop.mobile`, app id
 `4974204505589711313`) now exists in the Ductx account; ads, government,
