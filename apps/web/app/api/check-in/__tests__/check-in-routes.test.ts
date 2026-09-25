@@ -815,7 +815,7 @@ describe('POST /api/gate-code', () => {
   });
 
   it('stores only the hash, and returns the code exactly once', async () => {
-    state.results = [BRANCH, ok(null)];
+    state.results = [BRANCH, ok({ checkin_gate_mode: 'rotating_screen' }), ok(null)];
 
     const body = await envelope(await issueGateCode());
     const code = body.data?.code as string;
@@ -837,7 +837,7 @@ describe('POST /api/gate-code', () => {
     const sinks = (['log', 'info', 'warn', 'error', 'debug'] as const).map((level) =>
       vi.spyOn(console, level).mockImplementation(() => undefined),
     );
-    state.results = [BRANCH, ok(null)];
+    state.results = [BRANCH, ok({ checkin_gate_mode: 'rotating_screen' }), ok(null)];
 
     await issueGateCode();
 
@@ -847,7 +847,7 @@ describe('POST /api/gate-code', () => {
   it('mints sixteen characters of uppercase hex, different every time', async () => {
     const codes = new Set<string>();
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      state.results = [BRANCH, ok(null)];
+      state.results = [BRANCH, ok({ checkin_gate_mode: 'rotating_screen' }), ok(null)];
       codes.add((await envelope(await issueGateCode())).data?.code as string);
     }
 
@@ -858,7 +858,7 @@ describe('POST /api/gate-code', () => {
   it('tells the screen the same expiry it stored', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-08T10:00:00.000Z'));
-    state.results = [BRANCH, ok(null)];
+    state.results = [BRANCH, ok({ checkin_gate_mode: 'rotating_screen' }), ok(null)];
 
     const body = await envelope(await issueGateCode());
 
@@ -869,7 +869,7 @@ describe('POST /api/gate-code', () => {
   });
 
   it('issues against the default branch, oldest first among equals', async () => {
-    state.results = [BRANCH, ok(null)];
+    state.results = [BRANCH, ok({ checkin_gate_mode: 'rotating_screen' }), ok(null)];
 
     await issueGateCode();
 
@@ -898,12 +898,12 @@ describe('POST /api/gate-code', () => {
   });
 
   it('turns a role refusal into 403 and anything else into 500', async () => {
-    state.results = [BRANCH, fails('42501')];
+    state.results = [BRANCH, ok({ checkin_gate_mode: 'rotating_screen' }), fails('42501')];
     const forbidden = await issueGateCode();
     expect(forbidden.status).toBe(403);
     expect((await envelope(forbidden)).error?.message).toContain('may not issue a gate code');
 
-    state.results = [BRANCH, fails('23503')];
+    state.results = [BRANCH, ok({ checkin_gate_mode: 'rotating_screen' }), fails('23503')];
     const failed = await issueGateCode();
     expect(failed.status).toBe(500);
     expect((await envelope(failed)).error?.code).toBe('gate_code_failed');
@@ -911,7 +911,7 @@ describe('POST /api/gate-code', () => {
 
   it('cannot tell a refused insert from a written one by row count — FINDING 6', async () => {
     // No `.select()` on the insert, so the handler has only `error` to go on.
-    state.results = [BRANCH, ok(null)];
+    state.results = [BRANCH, ok({ checkin_gate_mode: 'rotating_screen' }), ok(null)];
 
     await issueGateCode();
 

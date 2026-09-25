@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { POSTER_CODE_SECRET_MIN_BYTES } from '@gymloop/shared';
+import { hashGateCode, posterGateCode } from '../../../../lib/gate-code';
 
 type Result = { data: unknown; error: { code: string } | null };
 const state: { role: string; results: Result[]; rpcResults: Result[]; calls: Array<{ table: string; action: string; args: unknown[] }>; rpcCalls: Array<{ name: string; args: unknown }> } = {
@@ -18,14 +20,16 @@ vi.mock('../../../../lib/supabase/server', () => ({
     from: (table: string) => {
       const result = state.results.shift() ?? ok(null);
       const chain: Record<string, unknown> = { then: (done: (v: unknown) => unknown) => Promise.resolve(result).then(done) };
-      for (const action of ['select', 'insert', 'eq', 'order', 'limit', 'maybeSingle', 'single', 'update']) {
+      for (const action of ['select', 'insert', 'eq', 'is', 'filter', 'order', 'limit', 'maybeSingle', 'single', 'update']) {
         chain[action] = (...args: unknown[]) => { state.calls.push({ table, action, args }); return chain; };
       }
       return chain;
     },
     rpc: (name: string, args: unknown) => {
       state.rpcCalls.push({ name, args });
-      const result = state.rpcResults.shift() ?? ok(null);
+      const queued = state.rpcResults.shift() ?? ok(null);
+      const result = queued.data === '<request-session-id>' && name === 'replace_checkin_poster'
+        ? ok((args as { p_session_id: string }).p_session_id) : queued;
       const chain: Record<string, unknown> = { then: (done: (v: unknown) => unknown) => Promise.resolve(result).then(done) };
       chain.single = () => chain;
       return chain;
@@ -40,7 +44,10 @@ const { POST: checkIn } = await import('../route');
 const request = (url: string, body: unknown) => new Request(`https://example.test${url}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 const body = async (response: Response) => await response.json() as { ok: boolean; data?: Record<string, unknown>; error?: { code: string; message: string } };
 
-beforeEach(() => { state.role = 'gym_owner'; state.results = []; state.rpcResults = []; state.calls = []; state.rpcCalls = []; });
+beforeEach(() => {
+  state.role = 'gym_owner'; state.results = []; state.rpcResults = []; state.calls = []; state.rpcCalls = [];
+  vi.stubEnv('POSTER_CODE_SECRET', Buffer.alloc(POSTER_CODE_SECRET_MIN_BYTES, 7).toString('base64url'));
+});
 
 describe('poster gate management', () => {
   it('refuses issuance of a rotating code when gym uses printed posters', async () => {
@@ -52,15 +59,30 @@ describe('poster gate management', () => {
   });
 
   it('returns current poster across requests, re-derived without writing a new session', async () => {
-    state.results = [ok({ checkin_gate_mode: 'printed_poster' }), ok({ id: branchId }), ok({ id: '66000000-0000-4000-8000-000000000061', token_hash: 'f'.repeat(64) })];
+    const posterId = '66000000-0000-4000-8000-000000000061';
+    state.results = [ok({ checkin_gate_mode: 'printed_poster' }), ok({ id: branchId }),
+      ok({ id: posterId, token_hash: hashGateCode(posterGateCode(posterId)) })];
     const response = await currentGate();
     expect((await body(response)).data).toMatchObject({ mode: 'printed_poster', branchId });
+    expect(state.calls.some((c) => c.table === 'qr_sessions' && c.action === 'is'
+      && c.args[0] === 'revoked_at' && c.args[1] === null)).toBe(true);
+    expect(state.calls.some((c) => c.action === 'insert')).toBe(false);
+  });
+
+  it('refuses to redisplay a poster derived under a different server secret', async () => {
+    state.results = [ok({ checkin_gate_mode: 'printed_poster' }), ok({ id: branchId }),
+      ok({ id: '66000000-0000-4000-8000-000000000061', token_hash: 'f'.repeat(64) })];
+    const response = await currentGate();
+    expect(response.status).toBe(409);
+    const payload = await body(response);
+    expect(payload.error?.code).toBe('poster_secret_changed');
+    expect(payload.error?.message).toMatch(/replace poster/i);
     expect(state.calls.some((c) => c.action === 'insert')).toBe(false);
   });
 
   it('owner replacement writes only a hash through the atomic command', async () => {
     state.results = [ok({ id: branchId })];
-    state.rpcResults = [ok('66000000-0000-4000-8000-000000000061')];
+    state.rpcResults = [ok('<request-session-id>')];
     const response = await replacePoster(request('/api/gate-code/poster', { confirmed: true }));
     expect(response.status).toBe(200);
     expect(state.rpcCalls[0]?.name).toBe('replace_checkin_poster');
