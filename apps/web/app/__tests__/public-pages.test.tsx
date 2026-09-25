@@ -52,7 +52,7 @@ describe('public legal and help pages', () => {
     expect(afterTitle).toMatch(/^\s*<section[^>]*id="request"/);
     expect(html).toContain(PRODUCT_NAME);
     expect(html).toContain(PUBLISHER_NAME);
-    expect(html).toContain('Delete my Kytros account');
+    expect(html).toContain('Delete my FitRoster account');
     expect(html).toMatch(/email[^<]*sign in|address you sign in with/i);
     expect(html).toMatch(/gym.s name/i);
     expect(html).toMatch(/gym[^<]*verif|confirm[^<]*gym/i);

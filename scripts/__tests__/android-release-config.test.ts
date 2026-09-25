@@ -45,11 +45,11 @@ describe('HARD-002 Android release configuration', () => {
     expect(productionAndroid.buildType).toBe('app-bundle');
   });
 
-  it('names the store app Kytros and uses in.kytros.app on Android and iOS', () => {
-    expect(expo.name).toBe('Kytros');
-    expect(android.package).toBe('in.kytros.app');
-    expect((expo.ios as JsonObject).bundleIdentifier).toBe('in.kytros.app');
-    expect(cameraPlugin?.[1]?.cameraPermission).toBe('Allow Kytros to scan the current QR code at your gym.');
+  it('names the store app FitRoster and uses in.fitroster.app on Android and iOS', () => {
+    expect(expo.name).toBe('FitRoster');
+    expect(android.package).toBe('in.fitroster.app');
+    expect((expo.ios as JsonObject).bundleIdentifier).toBe('in.fitroster.app');
+    expect(cameraPlugin?.[1]?.cameraPermission).toBe('Allow FitRoster to scan the current QR code at your gym.');
   });
 
   it('uses remote EAS versioning and automatically increments production Android releases', () => {
