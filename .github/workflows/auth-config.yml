@@ -48,8 +48,8 @@ env:
   # refresh executes the hook, so this is a load decision as well as a security
   # one — four refreshes per user per hour rather than one.
   JWT_EXP: 900
-  SITE_URL: https://gymloop-phi.vercel.app
-  URI_ALLOW_LIST: https://gymloop-phi.vercel.app/auth/callback,http://127.0.0.1:3000/auth/callback,gymloop://auth/callback
+  SITE_URL: https://fitcruxx.vercel.app
+  URI_ALLOW_LIST: https://fitcruxx.vercel.app/auth/callback,https://gymloop-phi.vercel.app/auth/callback,http://127.0.0.1:3000/auth/callback,gymloop://auth/callback
 
 jobs:
   apply:
