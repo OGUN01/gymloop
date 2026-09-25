@@ -32,7 +32,10 @@ describe('printed poster check-in surface', () => {
     const css = readFileSync(new URL('../styles/desk.css', import.meta.url), 'utf8');
     expect(printPage).toContain('QRCodeSVG');
     expect(printPage).toContain('PRODUCT_NAME');
-    expect(css).toMatch(/@page\s*\{[^}]*size:\s*A4/s);
+    // A named page, so A4 margins apply to the poster sheet only, never to other printed pages (receipts).
+    expect(css).toMatch(/@page\s+check-in-poster\s*\{[^}]*size:\s*A4/s);
+    expect(css).toMatch(/\.check-in-poster-sheet\s*\{[^}]*page:\s*check-in-poster/s);
+    expect(css).not.toMatch(/@page\s*\{[^}]*size:\s*A4/s);
     expect(css).toMatch(/@media print/);
   });
 });
