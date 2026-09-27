@@ -3,9 +3,10 @@
 Why this exists: a Play personal developer account needs **at least 12 testers
 opted in to a closed test for 14 consecutive days** before it may apply for
 production access (Play help 14151465). Google also asks how engaged testers
-were, so every tester gets a real, working Gymloop member login in the
-**Gymloop Test Gym** (`9FA4B1`, active, owner linked) — never the Iron Box demo
-gym, whose data CI reads. ADR-172/173.
+were, so every tester gets a real, working FitCruxx member login in the
+**FitCruxx Test Gym** (`9FA4B1`, active, owner linked) — never the Iron Box demo
+gym, whose data CI reads. ADR-172/173. (The organization row is still named
+"Gymloop Test Gym" in the database; that is internal only.)
 
 Keep the tester roster (names, Gmail addresses, phone numbers, consent) in a
 **private** place — a private sheet the owner controls — never in this public
@@ -14,7 +15,7 @@ repository, a test fixture, an issue or a commit message.
 ## 1. Recruit
 Post (adapt freely):
 
-> I'm testing **Gymloop**, an app for gym members to check in and keep their
+> I'm testing **FitCruxx**, an app for gym members to check in and keep their
 > membership on track. I need testers on Android for two weeks. You'll get your
 > own login in our test gym. Reply with the **Gmail address you use on the Play
 > Store**, your name and a phone number (only used as your member record in the
@@ -26,13 +27,13 @@ phone in E.164 (`+91…`), and their "yes" to being added. Recruit ~20 so at lea
 12 stay opted in for the whole window.
 
 ## 2. Add them to Play
-Play Console → Gymloop → Test and release → Testing → **Closed testing** →
+Play Console → FitCruxx → Test and release → Testing → **Closed testing** →
 the track → Testers → the email list (add the Gmails) → Save. Share the
 track's **opt-in link** (web) with each tester; they must open it while signed
 in to that Gmail, tap "Become a tester", then install from the Play link.
 
 ## 3. Give each tester a working login
-1. The Test Gym owner signs in on the web (`https://gymloop-phi.vercel.app`,
+1. The Test Gym owner signs in on the web (`https://fitcruxx.vercel.app`,
    Continue with Google) and adds the tester as a member in **Members → New
    member** with the tester's name, phone and **exact Gmail** in Email, plus a
    membership (a free or nominal plan; record no real money).
