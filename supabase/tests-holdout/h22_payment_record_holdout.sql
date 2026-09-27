@@ -2012,9 +2012,14 @@ select is(
     where n.nspname = 'app' and p.prosecdef
       and p.proname not in ('audit_impersonation_session', 'custom_access_token_hook', 'revoke_sessions_on_identity_change', 'audit_money_change',
         'lock_addon_product_for_order', 'apply_addon_order_effects', 'lock_addon_order_for_pt_session', 'apply_pt_session_effect', 'apply_addon_refund_effect', 'addon_order_fully_returned',
-        'write_consent_audit', 'write_notification_audit', 'record_wallet_movement', 'gym_readiness', 'require_platform_super_admin', 'organization_result', 'platform_audit', 'platform_request_replay', 'revoke_sessions_on_staff_binding_change', 'revoke_sessions_on_organization_status_change', 'member_mobile_identity', 'record_member_mobile_check_in')),
+        'write_consent_audit', 'write_notification_audit', 'record_wallet_movement', 'gym_readiness', 'require_platform_super_admin', 'organization_result', 'platform_audit', 'platform_request_replay', 'revoke_sessions_on_staff_binding_change', 'revoke_sessions_on_organization_status_change', 'member_mobile_identity', 'record_member_mobile_check_in',
+        -- Gate modes (ATT-009..014): the owner/manager gate commands revalidate
+        -- the actor inside their own transaction — definer, narrowly, so the
+        -- audited poster/mode commands cannot be satisfied by a forged or
+        -- stale claim. Same justification shape as every other entry.
+        'checkin_gate_actor')),
   0,
-  'ADR-066/AUD-001/A-012: elevation remains within the closed identity, audit and approved private add-on capability allowlist');
+  'ADR-066/AUD-001/A-012: elevation remains within the closed identity, audit and approved private add-on capability allowlist, now including the gate-mode commands'' definer actor revalidation');
 
 -- ---------------------------------------------------------------------------
 -- 16. FIFTH-SESSION EXTENSION, written blind by a separate author against
