@@ -207,13 +207,28 @@ values ('aa000016-0000-4000-8000-000000000072', 'aa000016-0000-4000-8000-0000000
 -- somebody thought of.
 -- ---------------------------------------------------------------------------
 
+-- Amended for the gate-mode contract (ATT-009..014): qr_sessions carries a
+-- `gate_mode` column recording which mode issued the session. It is a mode
+-- LABEL, not a token — the column list is still asserted whole, so a future
+-- column that could be presented as a code (`code`, `poster_text`, …) still
+-- fails here, exactly as before.
 select columns_are('public', 'qr_sessions',
-  ARRAY['id', 'tenant_id', 'branch_id', 'token_hash', 'issued_at', 'expires_at',
+  ARRAY['id', 'tenant_id', 'branch_id', 'token_hash', 'gate_mode', 'issued_at', 'expires_at',
         'revoked_at', 'created_by_staff_id', 'created_at'],
-  'ATT-003: qr_sessions holds a hash and nothing else that could be presented as a token');
+  'ATT-003: qr_sessions holds a hash and nothing else that could be presented as a token — gate_mode is the issuing mode''s label, and nothing on this table is a presentable code');
 
-select col_not_null('public', 'qr_sessions', 'expires_at',
-  'ATT-003: every QR session carries an expiry, so a screenshot stops working');
+-- The expiry rule was amended with the modes: a `printed_poster` session is
+-- ONE persistent code for the branch, so it carries NO expiry, while a
+-- `rotating_screen` session is still expiring — the expiry moved from "every
+-- row" to "required per mode". The catalogue half asserts the column is
+-- nullable; the per-mode half is exercised behaviourally by the fixture
+-- assertions below (the live/expired/revoked sessions all carry expiries and
+-- are judged on them).
+select col_is_null('public', 'qr_sessions', 'expires_at',
+  'ATT-003 (amended): a poster session is a persistent, non-expiring code — expires_at is nullable, and its being required is now the rotating mode''s business, not the column''s');
+
+select col_not_null('public', 'qr_sessions', 'gate_mode',
+  'ATT-003/009: every QR session records which mode issued it — a session''s mode is a fact about the session, never a member-supplied or per-scan value');
 
 select col_is_null('public', 'qr_sessions', 'revoked_at',
   'ATT-001: revocation is representable — a live session is one that has not been revoked, not merely one that has not expired');
@@ -377,11 +392,22 @@ select results_eq(
                   'aa000016-0000-4000-8000-000000000052',
                   'aa000016-0000-4000-8000-000000000053',
                   'aa000016-0000-4000-8000-000000000054')
+       and gate_mode = 'rotating_screen'
+       and expires_at is not null
        and expires_at > now()
        and revoked_at is null
      order by id$$,
   $$values ('aa000016-0000-4000-8000-000000000051'::uuid)$$,
-  'ATT-001/002: expired, revoked and other-gym sessions are all excluded — only the live session of this gym remains');
+  'ATT-001/002: expired, revoked and other-gym sessions are all excluded — only the live ROTATING session of this gym remains (sessions carry their issuing mode, and this gym''s fixtures are all rotating ones)');
+
+-- The mode default itself, behaviourally, at the session level: an insert that
+-- names no mode at all lands as a ROTATING session — the amended ATT-009 makes
+-- rotating_screen the default a gym (and its sessions) start on, not poster.
+select is(
+  (select gate_mode::text from public.qr_sessions
+    where id = 'aa000016-0000-4000-8000-000000000051'),
+  'rotating_screen',
+  'ATT-009 (amended): a QR session issued without naming a mode is a rotating_screen session — rotating is the default, an owner or manager opts into printed_poster, never the other way round');
 
 select throws_ok(
   $$insert into public.attendance (tenant_id, branch_id, member_id, checked_in_at, source, qr_session_id)
