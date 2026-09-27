@@ -4,6 +4,8 @@ Recording that a member turned up. The product's core loop starts here — no at
 
 The bar is a metro gate: scan to confirmation is the design, not a detail. But the requirement that actually costs something is **exactly-once** — a duplicate attendance row is silent, it corrupts a streak and a churn scan quietly, and nobody notices for weeks. That is why this capability gets the full blind treatment (ADR-059).
 
+The gate itself has two shapes (the check-in gate-modes change, archived 2026-09-27): the classic rotating screen whose QR expires, and a printed poster whose one code per branch persists until an owner replaces it. Both meet the same bar — one clear acceptance or refusal per scan, verified in the database, not in a caller.
+
 Phase 1's schema already enforces some of this and those rules are not restated below: `attendance_front_desk_has_assist_chk` makes a front-desk row impossible without a staff member and a non-empty reason (ATT-005, ATT-006); `attendance_tenant_id_client_event_id_key` makes a client event id unique per tenant; `attendance_assisted_pair_chk` and `attendance_offline_stamp_pair_chk` keep their column pairs honest.
 
 ## Requirements
@@ -58,11 +60,82 @@ So a membership is live when its status is `active` or `frozen` **and** the gym'
 **This scenario was written as "a membership with no `ends_on` is admitted" and both blind authors independently found it unreachable** — one dropped the behavioural assertion and pinned the constraint instead, the other did the same and reported the mirror case (`starts_on` null) as equally impossible. A scenario describing a state the schema forbids is not a weak test, it is a vacuous one: it would pass for ever without exercising a line. What is worth asserting is the constraint that makes it unreachable, so it cannot silently stop being true.
 
 ### Requirement: The QR token is never stored, only its hash
-THE SYSTEM SHALL store a QR session's token as a hash and SHALL NOT store the token itself, so that a reader of the database cannot mint a scan (ATT-003). A session SHALL carry an expiry, so a screenshot of a previously valid code stops working.
+THE SYSTEM SHALL store a QR session's token as a hash and SHALL NOT store the token itself, so that a reader of the database cannot mint a scan (ATT-003). A session SHALL carry an expiry in `rotating_screen` mode; in `printed_poster` mode the one active code per branch is a persistent, non-expiring poster session (see "A gym chooses its check-in gate mode").
 
 #### Scenario: The token is not recoverable from the row
 - **WHEN** a `qr_sessions` row is inspected
 - **THEN** it SHALL hold a hash and no column SHALL contain the token in a form that could be presented
+
+### Requirement: A gym chooses its check-in gate mode
+A gym's check-in runs in exactly one gate mode at a time: `rotating_screen` (the classic expiring QR) or `printed_poster` (a printable A4 poster whose QR and typeable code stay valid until replaced) (ATT-009–ATT-014). THE SYSTEM SHALL default every gym's check-in mode to `rotating_screen` — a gym with no settings row behaves as `rotating_screen` — and only an owner or manager may opt a gym into `printed_poster`. One mode belongs to the gym, never to a member-supplied or per-scan value.
+
+#### Scenario: A new gym with no settings row
+- **WHEN** a gym has no `organization_settings` row
+- **THEN** its effective mode SHALL be `rotating_screen`
+
+#### Scenario: A front desk attempting to change the mode
+- **WHEN** a caller below owner/manager requests a mode change
+- **THEN** the change SHALL be refused
+
+#### Scenario: A scan whose session mode differs from the gym's current mode
+- **WHEN** a check-in is submitted against a session issued in the other mode
+- **THEN** it SHALL be refused with the wrong-mode refusal and no attendance row SHALL be recorded
+
+### Requirement: Poster replacement revokes the previous poster atomically
+WHEN an owner or manager requests a replacement poster, THE SYSTEM SHALL atomically revoke the previous active poster for that branch, create one new hash-only poster session and append a before/after audit entry attributing the authenticated actor (ATT-010). A replacement immediately invalidates the previous poster, including for queued/offline submissions. A branch cannot have two active posters, including under concurrent requests.
+
+#### Scenario: Replacing a poster
+- **WHEN** an owner requests a poster replacement
+- **THEN** the previous active poster SHALL be revoked, one new active poster SHALL exist, and a before/after audit entry attributing the actor SHALL be appended
+
+#### Scenario: Two concurrent replacement requests
+- **WHEN** two replacement requests for the same branch race
+- **THEN** at most one SHALL create the new active poster
+
+#### Scenario: A poster scan after replacement
+- **WHEN** a member scans the previous poster after it was replaced
+- **THEN** the scan SHALL be refused (revoked) even if it was queued offline before the replacement
+
+### Requirement: A poster scan is verified like any other scan, then some
+WHEN a member or staff submits a poster QR check-in, THE SYSTEM SHALL verify the session belongs to the claimed tenant and the member's branch, is the unrevoked active poster for that branch, and the member has a live membership, before inserting attendance (ATT-012). The same database enforcement SHALL govern direct authenticated attendance inserts and `member_mobile_check_in()`. No RLS policy is weakened.
+
+#### Scenario: A poster scan from another branch
+- **WHEN** a member scans another branch's poster
+- **THEN** the scan SHALL be refused with the cross-branch refusal and no attendance row SHALL be recorded
+
+#### Scenario: A poster scan by a member of another gym
+- **WHEN** a check-in claims a session belonging to a different tenant
+- **THEN** the scan SHALL be refused and no attendance row SHALL be recorded
+
+#### Scenario: A lapsed member scans a valid poster
+- **WHEN** a member without a live membership scans the gym's current poster
+- **THEN** the scan SHALL be refused with the membership refusal and no attendance row SHALL be recorded
+
+### Requirement: Poster scans obey the gym's opening hours by trusted arrival time
+WHEN a poster scan arrives, THE SYSTEM SHALL use the trusted database arrival time in the branch timezone (falling back to the gym timezone) to enforce `organization_settings.opening_hours` (ATT-013). An empty object permits scanning at any time. A nonempty object maps `sun`–`sat` to arrays of `HH:MM-HH:MM` ranges; a missing or empty weekday closes that day. An end earlier than its start wraps past midnight and belongs to the day it starts, including its early-morning continuation on the next day. Opening is inclusive and closing exclusive.
+
+#### Scenario: A scan outside every range for that weekday
+- **WHEN** a poster scan arrives on a weekday whose ranges do not include the arrival time
+- **THEN** it SHALL be refused with the closed-hours refusal and no attendance row SHALL be recorded
+
+#### Scenario: An overnight range's early morning
+- **WHEN** the range for the previous day ends after midnight and a scan arrives in that continuation
+- **THEN** the scan SHALL be accepted, judged by the day the range starts
+
+#### Scenario: An offline timestamp cannot backdate the day
+- **WHEN** a poster scan carries an offline timestamp from a previous day
+- **THEN** the attendance day SHALL be judged by the trusted arrival time, not the offline timestamp
+
+### Requirement: A poster scan refuses a same-day repeat regardless of the seconds window
+WHEN a poster code is scanned after the member has checked in during that same branch-local calendar day, THE SYSTEM SHALL refuse the attempt without attendance even when the configurable seconds-based de-duplication window has passed (ATT-014). The per-tenant/member advisory lock serializes the day check and insert. Repeated `client_event_id` remains idempotent.
+
+#### Scenario: A second poster scan the same calendar day
+- **WHEN** a member scans the poster again later the same branch-local day, after the seconds window has elapsed
+- **THEN** it SHALL be refused with the already-today refusal and no attendance row SHALL be recorded
+
+#### Scenario: The same client event id replayed on the poster path
+- **WHEN** a poster submission repeats an existing client event id
+- **THEN** it SHALL be absorbed idempotently, as on the rotating path
 
 ### Requirement: A repeated scan inside the gym's window changes nothing
 IF a member is scanned again within the gym's configured de-duplication window, THEN THE SYSTEM SHALL reject the duplicate and SHALL leave the original attendance row intact (ATT-004). The window is `organization_settings.checkin_dedupe_seconds` and is read per gym, never hardcoded.
