@@ -28,7 +28,7 @@ begin;
 -- holds BYPASSRLS, is assumed explicitly rather than inherited.
 set local role postgres;
 
-select plan(66);
+select plan(68);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures. Two gyms whose de-duplication windows are DIFFERENT and NEITHER of
