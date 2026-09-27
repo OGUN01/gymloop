@@ -1632,3 +1632,25 @@ the missing exact-AAB Android physical capture.
 | Cloudflare edge rate-limit and Turnstile evidence | Gate 24; HARD-009 | External; no edge-control proof attached | Edge/security owner configures the actual production zone and tests the public/OTP abuse paths when provider credentials exist | Cloudflare rule/zone IDs, non-secret configuration capture, controlled allowed/blocked requests and alert/log evidence; then re-evaluate gate 24. |
 
 These pre-launch security gaps are not discharged by any Phase 8 local test.
+
+**2026-09-27 gate-modes closeout:** the check-in gate-modes change shipped and
+its OpenSpec change was archived after syncing ATT-003 (amended) and
+ATT-009–ATT-014 into `openspec/specs/check-in/spec.md` (5 requirements,
+15 scenarios). The final holdout allowlist corrections were authored by an
+independent holdout author (commits `a51a6a3`…`79d647a`) who read no
+implementation; the corrected app-schema definer allowlist was verified
+against the linked Cloud database by a read-only query returning zero unlisted
+definer functions before push. The second internal Play release
+(`4 (1.0.0)`, AAB SHA-256 `db3d0caa…5fb54`, `jar verified`) was rolled out,
+installed on the physical phone from Play, and verified on-device: assisted
+desk check-in confirmed in the database, sign-out, and the vc3 Google
+sign-in "Unmatched Route" defect closed on-device
+(`docs/evidence/screens/2026-09-27-vc4-*.png`). The closed-testing track was
+configured (India, two tester email lists) and **all 13 changes are In
+review** in Play Publishing overview as of 14:05 IST. Store listing moved from
+draft to published with category Health & Fitness, contact email (owner's
+Gmail; a dedicated support address is still owed) and website
+`https://fitcruxx.vercel.app`. The "Gymloop Test Gym" organization row has
+zero members by design; one unlinked "Test Member" row was inserted to
+exercise the desk roster. HARD-008's device checklist keeps its earlier
+findings; the vc4 on-device evidence above supplements it.
