@@ -74,9 +74,22 @@ current checkpoint below supersedes the historical session-1 snapshot.
   independent full-caller fixture repair (eef8f1d). A fresh GRD critic found
   unsafe child-address fallback on failed guardian reads, wrong email-field
   guidance and birthday binding copy; separate regression authors precede fixes.
+  These initial findings have focused fixes and regression suites. Subsequent
+  fresh reviews still require the guardian birthday-reissue note to use the
+  member's own Google email and the platform detail page to survive a rejected
+  organization read. Independent regressions precede both corrections.
   SHP/MEDIA app tests are committed red as fca9b84 after independent harness,
-  typing and executable coverage repair. The isolated MEDIA builder is active.
-  PTF/CLS/ANC app drafts still need readiness and test-first commits. Builders
+  typing and executable coverage repair. MEDIA source passes 129 visible cases;
+  separate UUID regression 56e5b12 precedes its canonical-identity repair.
+  Current MEDIA holdouts pass 57/57 after independently correcting valid HTTP
+  range and UUID fixtures. Fresh final review and live publication remain open.
+  Shared BIZ vocabulary foundation 9eb1487 unlocks PLC; full BIZ app source is
+  still uncommitted. One legacy BIZ holdout over-pins the projection to exactly
+  business_type; independent contract assessment is required before any repair.
+  PTF app/held/live suites are committed first as 6491b98: actual missing-target
+  RED, scoped lint and strict own-file typing verified. Its backend builder is
+  active; native rendered command coverage remains required before UI build.
+  CLS/ANC app drafts still need readiness and test-first commits. Builders
   must never read holdout files or the orchestrator's private failure evidence.
 - Owner approved the PT final-session exception, then clarified that ANY
   same-tenant/order-payment refund record blocks it (including pending and failed).

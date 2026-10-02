@@ -371,3 +371,38 @@ The isolated MEDIA builder is active. PTF/CLS/ANC application drafts still need
 readiness and test-first commits. Browser/media/race/native acceptance, Waves C/D
 and release remain open. No local Cloud query, permanent mutation, or
 USB/ADB/Metro operation was performed while CI's DB workflow is active.
+
+### Application regression and training handoff, 2026-10-03
+
+Independent BIZ regressions e4825de and request-lifetime tests ef88866 precede
+the refreshed-state, plural-copy, shared organization snapshot and safe sign-out
+fixes. The shared vocabulary core alone is committed as 9eb1487, unlocking PLC.
+A subsequent fresh source critic still rejects a thrown organization read in
+the platform detail page; a source-blind author is pinning that refusal first.
+One existing held assertion requires an exact one-column projection although
+the public contract allows an existing caller organization snapshot. Its
+independent contract assessment remains pending; no held win is claimed.
+
+Separate guardian visible39adeb0 and heldd0c1e49 regressions preceded fail-safe
+guardian email/read/binding changes. The next fresh critic found a pre-birthday
+invite-reissue note incorrectly describing today's redemption as guardian-bound.
+Separate visible and held birthday cases are committed RED as 8fdfa05 before
+the narrow source correction. Final static and actual screen review remain open.
+
+MEDIA visible shared/web 129/129 and the independent original Edge 56/56 passed.
+Independent accepted-uppercase UUID tests 56e5b12 precede the confirm adapter's
+canonical comparison fix. A bounded root retry using the web suite's 20-second
+test budget passes MEDIA Edge56 and UUID1 (57/57); default five-second import
+timeout is not a functional refusal. The held author independently corrected
+RFC-valid ranged responses, canonical Postgres UUID fixtures and forwarded UUID
+identity expectations without changing transport/authorization assertions.
+No actual R2 publication, Edge deployment or runtime visual win is claimed.
+
+PTF independent backend/native/browser suites are committed first as 6491b98:
+visible web39/native2 and held138 are RED on missing production targets; scoped
+lint passes and strict own-file checks have only missing-target diagnostics.
+Playwright lists eight visible cases; no browser execution is claimed. The
+backend implementer is isolated from all holds. Native command interaction
+coverage must precede UI build. CLS/ANC draft readiness and every live/end-to-end
+acceptance, Waves C/D and versionCode5 remain open. CI DB37061065081 is still
+running; local Cloud and phone operations remain deferred.
