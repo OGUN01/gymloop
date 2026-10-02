@@ -222,8 +222,8 @@ insert into public.addon_orders (id, tenant_id, member_id, addon_product_id, uni
   ('00000000-0000-4000-8000-00000070006b', '00000000-0000-4000-8000-00000070000b', '00000000-0000-4000-8000-00000070003b', '00000000-0000-4000-8000-00000070005c', 0, 0,'active','00000000-0000-4000-8000-00000070002b',10,(transaction_timestamp() at time zone 'Asia/Kolkata')::date,(transaction_timestamp() at time zone 'Asia/Kolkata')::date+365);
 
 insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at) values
-  ('00000000-0000-4000-8000-000000700071', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', '2026-10-01 10:00:00+05:30', '2026-10-01 11:00:00+05:30'),
-  ('00000000-0000-4000-8000-00000070007b', '00000000-0000-4000-8000-00000070000b', '00000000-0000-4000-8000-00000070006b', '00000000-0000-4000-8000-00000070002b', '00000000-0000-4000-8000-00000070003b', '2026-10-10 10:00:00+05:30', '2026-10-10 11:00:00+05:30');
+  ('00000000-0000-4000-8000-000000700071', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1 + time '10:00:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1 + time '11:00:00') at time zone 'Asia/Kolkata')),
+  ('00000000-0000-4000-8000-00000070007b', '00000000-0000-4000-8000-00000070000b', '00000000-0000-4000-8000-00000070006b', '00000000-0000-4000-8000-00000070002b', '00000000-0000-4000-8000-00000070003b', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 10 + time '10:00:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 10 + time '11:00:00') at time zone 'Asia/Kolkata'));
 
 -- ---------------------------------------------------------------------------
 -- C. ADD-002 - an add-on carries what a member must see before buying
@@ -404,31 +404,33 @@ select throws_ok(
 
 -- ---------------------------------------------------------------------------
 -- F. DQA-005 - a trainer cannot be double-booked
+-- Slots are anchored to Kolkata-local tomorrow, inside the sold window and
+-- safely future on every run; original overlap/adjacency geometry is retained.
 -- ---------------------------------------------------------------------------
 
 select is((select s.status::text from public.pt_sessions s where s.id = '00000000-0000-4000-8000-000000700071'), 'scheduled', 'docs/data-model.md Cluster: catalogue - pt_sessions.status defaults to scheduled');
 
 select throws_ok(
   $$ insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at)
-     values ('00000000-0000-4000-8000-000000700072', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', '2026-10-01 10:30:00+05:30', '2026-10-01 11:30:00+05:30') $$,
+     values ('00000000-0000-4000-8000-000000700072', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1 + time '10:30:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1 + time '11:30:00') at time zone 'Asia/Kolkata')) $$,
   '23P01'::char(5), null,
   'DQA-005 scenario: Two overlapping sessions for one trainer'
 );
 select lives_ok(
   $$ insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at)
-     values ('00000000-0000-4000-8000-000000700073', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', '2026-10-01 11:00:00+05:30', '2026-10-01 12:00:00+05:30') $$,
+     values ('00000000-0000-4000-8000-000000700073', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1 + time '11:00:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1 + time '12:00:00') at time zone 'Asia/Kolkata')) $$,
   'DQA-005 scenario: Two adjacent sessions for one trainer'
 );
 insert into public.addon_orders(id,tenant_id,member_id,addon_product_id,status,quantity,unit_price_paise,total_paise,trainer_staff_id,sessions_total,starts_on,expires_on)
 values ('00000000-0000-4000-8000-000000700063','00000000-0000-4000-8000-00000070000a','00000000-0000-4000-8000-000000700031','00000000-0000-4000-8000-000000700051','active',1,0,0,'00000000-0000-4000-8000-000000700022',10,(transaction_timestamp() at time zone 'Asia/Kolkata')::date,(transaction_timestamp() at time zone 'Asia/Kolkata')::date+365);
 select lives_ok(
   $$ insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at)
-     values ('00000000-0000-4000-8000-000000700074', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700063', '00000000-0000-4000-8000-000000700022', '00000000-0000-4000-8000-000000700031', '2026-10-01 10:30:00+05:30', '2026-10-01 11:30:00+05:30') $$,
+     values ('00000000-0000-4000-8000-000000700074', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700063', '00000000-0000-4000-8000-000000700022', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1 + time '10:30:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1 + time '11:30:00') at time zone 'Asia/Kolkata')) $$,
   'DQA-005 scenario: Overlapping sessions for different trainers'
 );
 select throws_ok(
   $$ insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at)
-     values ('00000000-0000-4000-8000-0000007000f1', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-00000070002b', '00000000-0000-4000-8000-000000700031', '2026-10-10 10:30:00+05:30', '2026-10-10 11:30:00+05:30') $$,
+     values ('00000000-0000-4000-8000-0000007000f1', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-00000070002b', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 10 + time '10:30:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 10 + time '11:30:00') at time zone 'Asia/Kolkata')) $$,
   '23503'::char(5), null,
   'ADR-052: gym A cannot book a session in its own tenant against gym B''s trainer - pt_sessions.trainer_staff_id is (tenant_id, trainer_staff_id) references staff (tenant_id, id). This was the write that let one gym fill another gym''s calendar; ADR-047 stopped it colliding, ADR-052 stops it existing'
 );
@@ -443,30 +445,30 @@ select ok(
 );
 
 insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at, status) values
-  ('00000000-0000-4000-8000-000000700075', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', '2026-10-02 09:00:00+05:30', '2026-10-02 10:00:00+05:30', 'cancelled'),
-  ('00000000-0000-4000-8000-000000700077', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', '2026-10-03 09:00:00+05:30', '2026-10-03 10:00:00+05:30', 'no_show'),
-  ('00000000-0000-4000-8000-000000700079', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', '2026-10-04 09:00:00+05:30', '2026-10-04 10:00:00+05:30', 'completed'),
-  ('00000000-0000-4000-8000-00000070007c', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', '2026-10-05 09:00:00+05:30', '2026-10-05 10:00:00+05:30', 'scheduled');
+  ('00000000-0000-4000-8000-000000700075', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 2 + time '09:00:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 2 + time '10:00:00') at time zone 'Asia/Kolkata'), 'cancelled'),
+  ('00000000-0000-4000-8000-000000700077', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 3 + time '09:00:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 3 + time '10:00:00') at time zone 'Asia/Kolkata'), 'no_show'),
+  ('00000000-0000-4000-8000-000000700079', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 4 + time '09:00:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 4 + time '10:00:00') at time zone 'Asia/Kolkata'), 'completed'),
+  ('00000000-0000-4000-8000-00000070007c', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 5 + time '09:00:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 5 + time '10:00:00') at time zone 'Asia/Kolkata'), 'scheduled');
 
 select lives_ok(
   $$ insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at)
-     values ('00000000-0000-4000-8000-000000700076', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', '2026-10-02 09:30:00+05:30', '2026-10-02 10:30:00+05:30') $$,
+     values ('00000000-0000-4000-8000-000000700076', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 2 + time '09:30:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 2 + time '10:30:00') at time zone 'Asia/Kolkata')) $$,
   'DQA-005 scenario: A cancelled session frees the slot'
 );
 select lives_ok(
   $$ insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at)
-     values ('00000000-0000-4000-8000-000000700078', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', '2026-10-03 09:30:00+05:30', '2026-10-03 10:30:00+05:30') $$,
+     values ('00000000-0000-4000-8000-000000700078', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 3 + time '09:30:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 3 + time '10:30:00') at time zone 'Asia/Kolkata')) $$,
   'DQA-005: a no_show session frees the slot on the same rule that frees a cancelled one'
 );
 select throws_ok(
   $$ insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at)
-     values ('00000000-0000-4000-8000-00000070007a', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', '2026-10-04 09:30:00+05:30', '2026-10-04 10:30:00+05:30') $$,
+     values ('00000000-0000-4000-8000-00000070007a', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 4 + time '09:30:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 4 + time '10:30:00') at time zone 'Asia/Kolkata')) $$,
   '23P01'::char(5), null,
   'DQA-005: the exclusion covers completed as well as scheduled, a session already delivered still occupied the trainer'
 );
 select lives_ok(
   $$ insert into public.pt_sessions (id, tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at, status)
-     values ('00000000-0000-4000-8000-00000070007d', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', '2026-10-05 09:30:00+05:30', '2026-10-05 10:30:00+05:30', 'cancelled') $$,
+     values ('00000000-0000-4000-8000-00000070007d', '00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700021', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 5 + time '09:30:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 5 + time '10:30:00') at time zone 'Asia/Kolkata'), 'cancelled') $$,
   'DQA-005: a cancelled session is outside the exclusion predicate on the way in as well as the way out'
 );
 select throws_ok(
@@ -476,19 +478,19 @@ select throws_ok(
 );
 select throws_ok(
   $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at)
-     values ('00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700022', '00000000-0000-4000-8000-000000700031', '2026-10-06 10:00:00+05:30', '2026-10-06 09:00:00+05:30') $$,
+     values ('00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700022', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 6 + time '10:00:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 6 + time '09:00:00') at time zone 'Asia/Kolkata')) $$,
   '23514'::char(5), null,
   'catalogue spec scenario: A session that ends before it starts'
 );
 select throws_ok(
   $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at)
-     values ('00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700022', '00000000-0000-4000-8000-000000700031', '2026-10-06 10:00:00+05:30', '2026-10-06 10:00:00+05:30') $$,
+     values ('00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700022', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 6 + time '10:00:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 6 + time '10:00:00') at time zone 'Asia/Kolkata')) $$,
   '23514'::char(5), null,
   'catalogue spec: a zero-length session, end equal to start, is rejected too'
 );
 select throws_ok(
   $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at, status)
-     values ('00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700022', '00000000-0000-4000-8000-000000700031', '2026-11-02 08:00:00+05:30', '2026-11-02 09:00:00+05:30', 'rescheduled') $$,
+     values ('00000000-0000-4000-8000-00000070000a', '00000000-0000-4000-8000-000000700061', '00000000-0000-4000-8000-000000700022', '00000000-0000-4000-8000-000000700031', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 33 + time '08:00:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 33 + time '09:00:00') at time zone 'Asia/Kolkata'), 'rescheduled') $$,
   '22P02'::char(5), null,
   'docs/data-model.md Enums: pt_session_status is a closed vocabulary'
 );
@@ -587,7 +589,7 @@ select throws_ok(
 );
 select throws_ok(
   $$ insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id, starts_at, ends_at)
-     values ('00000000-0000-4000-8000-00000070000b', '00000000-0000-4000-8000-00000070006b', '00000000-0000-4000-8000-00000070002b', '00000000-0000-4000-8000-00000070003b', '2026-12-01 10:00:00+05:30', '2026-12-01 11:00:00+05:30') $$,
+     values ('00000000-0000-4000-8000-00000070000b', '00000000-0000-4000-8000-00000070006b', '00000000-0000-4000-8000-00000070002b', '00000000-0000-4000-8000-00000070003b', (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 62 + time '10:00:00') at time zone 'Asia/Kolkata'), (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 62 + time '11:00:00') at time zone 'Asia/Kolkata')) $$,
   '42501'::char(5), null,
   'gate 7: Gym A cannot insert a pt_sessions row labelled with the Gym B tenant id'
 );

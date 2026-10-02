@@ -45,7 +45,7 @@ begin;
 
 set local role postgres;
 
-select plan(574);
+select plan(575);
 
 -- ===========================================================================
 -- helpers
@@ -1799,7 +1799,17 @@ select is(pg_temp.red(97, 9701), '1:invite_unavailable|~',
   'H INV-008 a gym suspended after issue stops redemption');
 select is(pg_temp.peek('anon', pg_temp.h(9701)), '0:',
   'H INV-012 peek shows nothing for an invite whose gym was suspended after issue');
-select pg_temp.go(format($q$update public.organizations set status = 'active' where id = %L$q$, pg_temp.u(110)));
+-- ADR-098 fixture import: this scenario tests invite eligibility restoration,
+-- not platform activation readiness. Restore the already-active imported gym
+-- under postgres with triggers temporarily disabled, leaving the same member,
+-- Auth identity and pending unexpired invite untouched. Return to origin before
+-- invoking redemption so all production enforcement applies to the retry.
+set local session_replication_role = replica;
+update public.organizations set status = 'active' where id = pg_temp.u(110);
+set local session_replication_role = origin;
+select is((select status::text from public.organizations where id = pg_temp.u(110)),
+  'active',
+  'H INV-008 setup: the gym eligibility fixture is actually restored before retrying the same invite');
 select is(pg_temp.red(97, 9701), '1:linked|H67 Flip Gym',
   'H INV-008 once the gym is active again the same unexpired invite redeems, so the refusal did not burn it');
 
