@@ -220,6 +220,9 @@ select throws_ok(
 -- ---------------------------------------------------------------------------
 -- pt_sessions fixtures: one live session, one cancelled, one completed,
 -- each on its own day so the tests below do not interfere.
+-- Anchor every slot to the transaction's Kolkata date, beginning tomorrow.
+-- This keeps new scheduling commands future-dated and inside the relative order
+-- validity window, independent of wall-clock date, session timezone or midnight.
 -- ---------------------------------------------------------------------------
 
 -- Keep calendar tests independent of the earlier usage-boundary write, which
@@ -243,7 +246,8 @@ values ('0a000000-0000-4000-8000-000000000008'::uuid,
         '0a000000-0000-4000-8000-00000000000e'::uuid,
         '0a000000-0000-4000-8000-000000000003'::uuid,
         '0a000000-0000-4000-8000-000000000005'::uuid,
-        timestamptz '2026-10-01 10:00:00+05:30', timestamptz '2026-10-01 11:00:00+05:30');
+        (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1) + time '10:00:00') at time zone 'Asia/Kolkata',
+        (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1) + time '11:00:00') at time zone 'Asia/Kolkata');
 
 insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
                                 starts_at, ends_at, status)
@@ -251,7 +255,8 @@ values ('0a000000-0000-4000-8000-000000000001'::uuid,
         '0a000000-0000-4000-8000-00000000000e'::uuid,
         '0a000000-0000-4000-8000-000000000003'::uuid,
         '0a000000-0000-4000-8000-000000000005'::uuid,
-        timestamptz '2026-10-02 10:00:00+05:30', timestamptz '2026-10-02 11:00:00+05:30',
+        (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 2) + time '10:00:00') at time zone 'Asia/Kolkata',
+        (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 2) + time '11:00:00') at time zone 'Asia/Kolkata',
         'cancelled');
 
 insert into public.pt_sessions (tenant_id, addon_order_id, trainer_staff_id, member_id,
@@ -260,7 +265,8 @@ values ('0a000000-0000-4000-8000-000000000001'::uuid,
         '0a000000-0000-4000-8000-00000000000e'::uuid,
         '0a000000-0000-4000-8000-000000000003'::uuid,
         '0a000000-0000-4000-8000-000000000005'::uuid,
-        timestamptz '2026-10-03 10:00:00+05:30', timestamptz '2026-10-03 11:00:00+05:30',
+        (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 3) + time '10:00:00') at time zone 'Asia/Kolkata',
+        (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 3) + time '11:00:00') at time zone 'Asia/Kolkata',
         'completed');
 
 set local session_replication_role=origin;
@@ -285,7 +291,8 @@ select throws_ok(
              '0a000000-0000-4000-8000-00000000000e'::uuid,
              '0a000000-0000-4000-8000-000000000003'::uuid,
              '0a000000-0000-4000-8000-000000000005'::uuid,
-             timestamptz '2026-10-05 10:00:00+05:30', timestamptz '2026-10-05 10:00:00+05:30') $$,
+             (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 5) + time '10:00:00') at time zone 'Asia/Kolkata',
+             (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 5) + time '10:00:00') at time zone 'Asia/Kolkata') $$,
   '23514'::char(5),
   null,
   'catalogue: a session whose ends_at equals its starts_at is rejected'
@@ -298,7 +305,8 @@ select throws_ok(
              '0a000000-0000-4000-8000-00000000000e'::uuid,
              '0a000000-0000-4000-8000-000000000003'::uuid,
              '0a000000-0000-4000-8000-000000000005'::uuid,
-             timestamptz '2026-10-05 10:00:00+05:30', timestamptz '2026-10-05 09:00:00+05:30') $$,
+             (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 5) + time '10:00:00') at time zone 'Asia/Kolkata',
+             (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 5) + time '09:00:00') at time zone 'Asia/Kolkata') $$,
   '23514'::char(5),
   null,
   'catalogue: a session whose ends_at precedes its starts_at is rejected'
@@ -315,7 +323,8 @@ select throws_ok(
              '0a000000-0000-4000-8000-00000000000e'::uuid,
              '0a000000-0000-4000-8000-000000000003'::uuid,
              '0a000000-0000-4000-8000-000000000005'::uuid,
-             timestamptz '2026-10-01 10:30:00+05:30', timestamptz '2026-10-01 11:30:00+05:30') $$,
+             (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1) + time '10:30:00') at time zone 'Asia/Kolkata',
+             (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1) + time '11:30:00') at time zone 'Asia/Kolkata') $$,
   '23P01'::char(5),
   null,
   'DQA-005: a session overlapping a scheduled session for the same trainer is rejected'
@@ -328,7 +337,8 @@ select lives_ok(
              '0a000000-0000-4000-8000-00000000000e'::uuid,
              '0a000000-0000-4000-8000-000000000003'::uuid,
              '0a000000-0000-4000-8000-000000000005'::uuid,
-             timestamptz '2026-10-01 11:00:00+05:30', timestamptz '2026-10-01 12:00:00+05:30') $$,
+             (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1) + time '11:00:00') at time zone 'Asia/Kolkata',
+             (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1) + time '12:00:00') at time zone 'Asia/Kolkata') $$,
   'DQA-005: an adjacent session, starting exactly when the previous one ends, is accepted'
 );
 
@@ -339,7 +349,8 @@ select lives_ok(
              '0a000000-0000-4000-8000-00000000000d'::uuid,
              '0a000000-0000-4000-8000-000000000004'::uuid,
              '0a000000-0000-4000-8000-000000000005'::uuid,
-             timestamptz '2026-10-01 10:30:00+05:30', timestamptz '2026-10-01 11:30:00+05:30') $$,
+             (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1) + time '10:30:00') at time zone 'Asia/Kolkata',
+             (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 1) + time '11:30:00') at time zone 'Asia/Kolkata') $$,
   'DQA-005: an overlapping session for a different trainer is accepted'
 );
 
@@ -350,7 +361,8 @@ select lives_ok(
              '0a000000-0000-4000-8000-00000000000e'::uuid,
              '0a000000-0000-4000-8000-000000000003'::uuid,
              '0a000000-0000-4000-8000-000000000005'::uuid,
-             timestamptz '2026-10-02 10:30:00+05:30', timestamptz '2026-10-02 11:30:00+05:30') $$,
+             (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 2) + time '10:30:00') at time zone 'Asia/Kolkata',
+             (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 2) + time '11:30:00') at time zone 'Asia/Kolkata') $$,
   'DQA-005: a cancelled session frees its slot'
 );
 
@@ -361,7 +373,8 @@ select throws_ok(
              '0a000000-0000-4000-8000-00000000000e'::uuid,
              '0a000000-0000-4000-8000-000000000003'::uuid,
              '0a000000-0000-4000-8000-000000000005'::uuid,
-             timestamptz '2026-10-03 10:30:00+05:30', timestamptz '2026-10-03 11:30:00+05:30') $$,
+             (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 3) + time '10:30:00') at time zone 'Asia/Kolkata',
+             (((transaction_timestamp() at time zone 'Asia/Kolkata')::date + 3) + time '11:30:00') at time zone 'Asia/Kolkata') $$,
   '23P01'::char(5),
   null,
   'DQA-005: a completed session still holds its slot, it is live history not a free hour'
