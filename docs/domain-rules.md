@@ -248,3 +248,19 @@ Frozen v2 batch-1 contract: `openspec/changes/staff-invites/proposal.md`, includ
 
 
 INV/STI lifecycle interpretation: the invite status graph is pending→redeemed, pending→revoked, pending→superseded; every closed state is terminal. Expiry is a timestamp predicate, not another enum label or persisted transition. Revoke may close an expired pending invite; resend supersedes it. Account binding is separate: unlinked→linked only through a verified redeem (or the privileged recovery/platform path); reasoned unlink clears the binding and revokes sessions, never reopening a redeemed token. The references to “no personal data” in INV-024/STI-017 mean no contact fields or plaintext token: linked identifiers are pseudonymous data, and the retention/erasure qualifications in `docs/security.md` apply.
+
+## V2 batch 2 frozen rules (implementation and acceptance pending)
+
+The authoritative GRD-001…GRD-021 EARS text is
+`openspec/changes/guardian-minors/proposal.md`, with the owner-approved
+`marker-integrity-amendment.md` completing GRD-013's provenance boundary. The
+owner's one-time legacy missing-DOB attestation is included in that contract.
+Independent SQL suites precede the local migration draft; Cloud application,
+full verification and archival into current OpenSpec truth are still pending.
+
+The authoritative BIZ-001…BIZ-022 EARS text is
+`openspec/changes/business-type/proposal.md`: canonical business type changes
+nouns only, retains existing commercial data and presets, and uses owner/platform
+audited commands. Direct guarded-column writes never replace those commands;
+ordinary hidden-row RLS behavior remains. Cross-feature precedence remains
+`openspec/changes/v2-batch2-shared/decisions.md`.

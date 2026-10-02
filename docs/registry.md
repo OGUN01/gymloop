@@ -968,3 +968,27 @@ Registered against the frozen v1.1 contracts and current implementation. This se
 | `GOOGLE_PROVIDER_METRICS` | `packages/shared/src/config/constants.ts` | INV-031 Google provider type 14/20, weight 500, mark/text padding 12/10/12 and web/native targets 44/48 | Web and native Google buttons |
 | `GoogleProviderButton` | `apps/web/app/google-provider-button.tsx` | Bundled official Google Sans Medium client readiness boundary; honest pending/failure and non-submit font retry, existing forms retain authentication | Ordinary sign-in and shared member/staff invite landing |
 | Google Sans Medium font / OFL / provenance | `packages/shared/assets/fonts/GoogleSans-Medium.ttf`, `OFL.txt`, `README.md` | Canonical exact upstream v14.000 bytes and SIL OFL 1.1; frozen INV-031 SHA-256 | Web local font and native GoogleSansMedium |
+
+### V2 batch 2 database contracts (preview and CI acceptance pending)
+
+These entries register the frozen GRD/BIZ database contracts for integration.
+They do not claim Cloud application or acceptance. Enum-backed TypeScript types
+must come from CLI generation after CI applies the migrations.
+
+| Name | File | Purpose | Used by |
+|---|---|---|---|
+| `public.guardian_relation` / `members` guardian columns / `public.guardian_consents` | `supabase/migrations/20261003090000_guardian_minors.sql` | Canonical relation enum, nullable guardian contact/provenance, append-only consent snapshots with composite tenant references | GRD commands, scoring/contact resolution and front-office readers |
+| `guardian_consents_tenant_select` / `guardian_consents_platform_select` / `guardian_consents_preview_read_only` | GRD migration above | Select-only front-office/platform pair and row preview guard; no session writes | Guardian consent history |
+| `app.member_adult_on` / `app.member_is_minor_on` / `app.gym_today` / `app.member_guardian_complete` | GRD migration above | Exact adult-date/minor predicate, gym-local day and required guardian completeness | GRD age, consent, invite and handover paths |
+| `app.member_guardian_consent_state` / `app.member_scoring_state` / `app.member_scoring_eligible` | GRD migration above | Latest versioned consent and fail-safe scoring eligibility, including the owner-attested legacy cutoff | GRD readers and canonical no-show scan |
+| `app.member_invite_email` / `app.member_invite_guardian_ok` / `app.member_contact_phone` / `app.member_contact_email` | GRD migration above | Minor guardian recipient routing while preserving ordinary adult behavior | INV issue/peek/redeem and existing communications |
+| `app.close_ineligible_cases` / `app.guardian_audit` | GRD migration above | Private case closure and allowlisted audited guardian commands; no public execution | Consent and member-change definer paths |
+| `app.members_guardian_marker` / `members_guardian_marker` | GRD migration above | Approved INSERT/marker-update integrity guard; existing INV trusted boundary, unchanged binding refusal ordering and value-based rebind clearing | Guardian-linked handover provenance |
+| `app.members_guardian_after_change` / `members_guardian_after_change` | GRD migration above | Audit changed age/contact facts and close newly ineligible cases | Members age/guardian UPDATE only |
+| `members_without_dob_attested_adult_at` / `app.guard_legacy_adult_attestation` / `organization_settings_legacy_adult_attestation_guard` | GRD migration above | Write-once owner cutoff; direct or repeated timestamp changes refused | Legacy missing-DOB scoring |
+| `public.attest_members_without_dob_adult` / `public.set_member_age_guardian` / `public.record_guardian_consent` / `public.transition_member_to_own_account` | GRD migration above | Owner attestation, invoker contact updates, append-only consent and reasoned adult handover | GRD front-office command routes |
+| `public.read_member_guardian` / `public.read_guardian_coverage` / `public.list_guardian_attention` | GRD migration above | RLS-preserving front-office projections and bounded attention lists | Guardian panel, coverage note and one-time attestation banner |
+| `app.run_no_show_scan` / INV issue/redeem/peek / `app.enforce_notification` / `public.open_notification_whatsapp` (GRD amendments) | GRD migration above | Frozen surgical scoring/guardian recipient changes; existing posture and ordinary-member behavior retained | Existing scan, identity and communications paths |
+| `public.business_type` / `organizations.business_type` | `supabase/migrations/20261003100000_business_type.sql` | Canonical gym/dance/yoga/martial_arts/studio vocabulary, default gym; existing reads and grants retained | Single-tenant vocabulary readers and BIZ commands |
+| `app.enforce_organization_commercial` (BIZ amendment) | BIZ migration above | Exactly the authorized business-only command shape and direct-write refusal; other commercial behavior retained | Existing organization commercial invariant |
+| `app.business_type_audit` / `public.set_business_type` / `public.set_gym_business_type` | BIZ migration above | Private audit writer, active-owner command and platform expected-value/request-key command | Owner Settings and platform Manage adapters after generated types land |

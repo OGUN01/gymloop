@@ -695,3 +695,37 @@ Redemption takes the shared `identity-bind:<auth uid>` transaction advisory lock
 It projects only event_id, occurred_at, action and actor_name for this exact tenant/member's persisted member_invite.issued/superseded/revoked/redeemed and member.linked/unlinked events. Invite records join by exact tenant/target invite id; member records name this exact member. Refusals, unrelated targets and unknown actions are excluded. No JSON, contact field, token/hash, Auth/staff/tenant id is returned. A recorded same-tenant staff actor, or the target member on their own member-attributed redemption/link, supplies the truthful name; unresolved actors return null, rendered as **Name unavailable**. The latest 50 rows sort by occurred_at descending then event_id descending; zero rows is empty, while failures remain errors.
 
 `audit_log_member_invite_history_idx (tenant_id, record_type, record_id, occurred_at desc)` supports this reader. `MEMBER_INVITE_HISTORY_LIMIT = 50` mirrors its cap. The existing broad audit_log RLS/read roles remain unchanged: front desk receives this narrow projection, not broad audit access. Reader/index/type regeneration and full batch acceptance are still pending evidence.
+
+## V2 batch 2 guardian and business contracts (CI application pending)
+
+The frozen contracts below register the next batch's schema. Local migration
+drafts are not Cloud state; CLI regeneration follows the complete CI apply.
+
+| Object | Contract | Access and invariants |
+|---|---|---|
+| `guardian_relation` | Enum ordered mother, father, grandparent, sibling, legal_guardian, other | Generated vocabulary; no hand-written TypeScript status list |
+| `members` guardian fields | Nullable guardian_name, guardian_relation, guardian_phone, guardian_email, guardian_linked_at; no defaults | Named format/completeness/bound-state checks. Contact fields may repeat across children; the existing single-account/member binding remains global |
+| `guardian_consents` | Direct tenant_id; composite tenant/member and tenant/recording-staff references; append-only granted/version/source and guardian name/relation snapshots | Front-office tenant-select and platform-select policy pair, authenticated SELECT only. Service-role SELECT supports explicitly granted invoker helpers; no session INSERT/UPDATE/DELETE. Tenant-leading latest-consent/recording-staff indexes and exact preview guard |
+| `organization_settings.members_without_dob_attested_adult_at` | Nullable write-once timestamp, default null | Active owner's audited command locks settings. Replay keeps timestamp and emits no audit; direct supply/change or resetting a completed attestation is refused |
+| `business_type` / `organizations.business_type` | Enum ordered gym, dance, yoga, martial_arts, studio; NOT NULL default gym | Existing organization reads/policies/grants remain. Owner and platform commands audit changed values; direct reached writes are refused by the existing commercial guard. Hidden-row updates retain ordinary RLS zero-row behavior |
+
+Guardian provenance is private command-owned state. The approved
+`members_guardian_marker` checks INSERT and UPDATE OF user_id, guardian_linked_at,
+ROW, without WHEN (tgtype 23). Outside INV's existing trusted writer boundary,
+non-null INSERT or changed marker values fail with 42501 and
+guardian_binding_command_required. Unchanged/null marker writes retain existing
+permissions. The original binding invariant retains its refusal precedence.
+Trusted rebinding clears an unchanged old marker value even when it was explicitly
+assigned; verified minor redemption is the command that stamps a guardian binding.
+
+GRD's seven public commands/readers are authenticated-only. Contact-setting and
+read projections remain invoker/RLS-scoped; consent, handover and owner attestation
+use narrowly scoped audited definers. A minor needs complete guardian contact and
+current granted consent for scoring; missing DOB fails safe except a row created
+on/before its gym's owner-attested cutoff. Invites and contact recipients use the
+guardian only for known minors. Ordinary adult/unknown-age identity semantics and
+the existing global account-binding rule remain unchanged.
+
+Exact signatures, schema constraints, legal posture and surgical replacements
+are frozen in `openspec/changes/guardian-minors/proposal.md` and its approved
+marker amendment, plus `openspec/changes/business-type/proposal.md`.
