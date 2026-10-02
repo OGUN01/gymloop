@@ -306,3 +306,24 @@ exclude it; unrelated tenant/payment rows do not. This same predicate applies to
 both PTF-016 revalidation and PTF-023's exact completed→active guard exception.
 Ordinary full-return accounting and active-pack waiver rules stay unchanged.
 Fresh review precedes resuming either author.
+
+## Explicit database posture (orchestrator clarification, 2026-10-02)
+
+The seven read RPCs are STABLE: `read_member_trainers`,
+`read_member_programmes`, `read_member_pt_packs`, `read_member_pt_sessions`,
+`read_member_pt_slots`, `read_pt_bookings`, `read_pt_packs`. The other eleven
+public PTF writers are VOLATILE. Their already fixed definer/owner/empty-path and
+execution audiences remain unchanged. This pins the previously omitted catalogue
+attributes; pure reads acquire no write/advisory locks or audits.
+
+The approved immutable `pt_cancellations.completed_order` provenance is enforced
+by `pt_cancellations_completed_order_immutable`, BEFORE UPDATE OF completed_order,
+FOR EACH ROW, no WHEN (tgtype 19), calling private
+`app.guard_pt_cancellation_completion()`. It is an invoker, VOLATILE, postgres
+owned, with empty search_path and execution revoked from PUBLIC, anon,
+authenticated and service_role. A changed OLD/NEW completed_order value raises
+22023 with detail `pt_cancellation_provenance_immutable`, for every writer,
+including privileged writers. An unchanged value passes; waiver never changes it.
+No history backfill is allowed. This adds only the named mechanism for the already
+approved immutable column, without adding a public command, grant, new SQLSTATE
+or exception to ordinary money rules. Existing preview guards remain in force.
