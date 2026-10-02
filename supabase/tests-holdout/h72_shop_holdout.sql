@@ -9,7 +9,7 @@
 begin;
 set local role postgres;
 set local search_path to public, extensions;
-select plan(273);
+select plan(275);
 
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$
 select ('72900000-0000-4000-8000-'||lpad(to_hex(n),12,'0'))::uuid
@@ -320,6 +320,10 @@ $restore_reservation_default$;
 select is((select pg_get_expr(d.adbin,d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
  where d.adrelid='public.shop_reservations'::regclass and a.attname='created_at'),
  (select v#>>'{}' from h72_state where k='reservation_created_default'),'exact reservation default restored before negative causal probe');
+select ok((select v->>'error' is null and v->'value'->>'order_id' is not null from h72_state where k='priororder'),
+ 'negative fixture genuine earlier sale succeeds: '||(select v::text from h72_state where k='priororder'));
+select ok((select v->>'error' is null and v->'value'->>'reservation_id' is not null from h72_state where k='laterreservation'),
+ 'negative fixture genuine later reservation succeeds: '||(select v::text from h72_state where k='laterreservation'));
 insert into h72_state values('causalbefore',jsonb_build_object('orders',(select count(*) from public.addon_orders),
  'payments',(select count(*) from public.payments),'reservations',(select count(*) from public.shop_reservations),
  'stock',(select stock_quantity from public.addon_products where id=pg_temp.u(410))));
