@@ -7,7 +7,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims', '', true);
-select plan(677);
+select plan(707);
 
 create function pg_temp.u(n integer) returns uuid language sql immutable as
 $$ select ('74000000-0000-4000-8000-' || lpad(to_hex(n),12,'0'))::uuid $$;
@@ -1219,6 +1219,68 @@ set local role postgres;
 select ok(exists(select 1 from pg_proc where oid=to_regprocedure('public.run_class_generation_all()') and not prosecdef and provolatile='v' and proconfig @> array['search_path=""']),'CLS-006: cron entry point invoker and volatile');
 select ok(has_function_privilege('service_role','public.run_class_generation_all()','EXECUTE') and not has_function_privilege('authenticated','public.run_class_generation_all()','EXECUTE') and not has_function_privilege('anon','public.run_class_generation_all()','EXECUTE'),'CLS-006: generation job service-only');
 select ok(exists(select 1 from cron.job where jobname='class-sessions-daily' and schedule='0 19 * * *' and command like '%public.run_class_generation_all()%' and active),'CLS-006: daily job at 19:00 UTC');
+
+-- CLS-002/027, frozen clarification 8bdb2dd: five editable service fields, activation separate.
+-- A dedicated service keeps these edit cases independent of the Zumba booking fixtures.
+set local role authenticated;
+select pg_temp.claim(21);
+select is(pg_temp.capture('serviceedit',$$select public.create_service('Editable class',null,60,2,0) as id$$),'OK','CLS-002: isolated service-edit fixture');
+set local role postgres;
+insert into public.class_rules(id,tenant_id,service_id,branch_id,weekday,start_time,duration_minutes,capacity,valid_from)
+ values(pg_temp.u(28002),pg_temp.u(1),pg_temp.id('serviceedit','id'),pg_temp.u(11),0,time '12:00',60,2,current_date);
+insert into public.class_sessions(id,tenant_id,service_id,branch_id,session_date,starts_at,ends_at,capacity)
+ values(pg_temp.u(28003),pg_temp.u(1),pg_temp.id('serviceedit','id'),pg_temp.u(11),(statement_timestamp()+interval '12 days' at time zone 'Asia/Kolkata')::date,statement_timestamp()+interval '12 days',statement_timestamp()+interval '12 days 1 hour',2);
+insert into pg_temp.saved select 'serviceedit_rule_snapshot',to_jsonb(r) from public.class_rules r where id=pg_temp.u(28002);
+insert into pg_temp.saved select 'serviceedit_session_snapshot',to_jsonb(s) from public.class_sessions s where id=pg_temp.u(28003);
+set local role authenticated;
+select pg_temp.claim(21);
+select is(pg_temp.run($$select public.update_service(pg_temp.id('serviceedit','id'),'Editable class','Yoga essentials',60,2,0)$$),'OK','CLS-002: description-only edit succeeds');
+set local role postgres;
+select is((select description from public.services where id=pg_temp.id('serviceedit','id')),'Yoga essentials','CLS-002: description-only edit is stored');
+select is((select count(*)::integer from public.audit_log where tenant_id=pg_temp.u(1) and record_id=pg_temp.id('serviceedit','id') and action='service.updated'),1,'CLS-027: description-only edit writes exactly one update audit');
+select is((select jsonb_build_object('before',before,'after',after) from public.audit_log where tenant_id=pg_temp.u(1) and record_id=pg_temp.id('serviceedit','id') and action='service.updated'),jsonb_build_object('before',jsonb_build_object('description',null),'after',jsonb_build_object('description','Yoga essentials')),'CLS-027: description-only audit contains exactly the changed description key');
+select ok(exists(select 1 from public.audit_log where tenant_id=pg_temp.u(1) and record_id=pg_temp.id('serviceedit','id') and action='service.updated' and record_type='service' and actor_user_id=pg_temp.u(921) and actor_role='gym_owner'),'CLS-027: description update audit identifies the service and real owner');
+insert into pg_temp.saved select 'serviceedit_noop_row',to_jsonb(s) from public.services s where id=pg_temp.id('serviceedit','id');
+set local role authenticated;
+select pg_temp.claim(21);
+select is(pg_temp.run($$select public.update_service(pg_temp.id('serviceedit','id'),'  Editable class  ','Yoga essentials',60,2,0)$$),'OK','CLS-002: normalized identical edit is a no-op');
+set local role postgres;
+select is((select count(*)::integer from public.audit_log where tenant_id=pg_temp.u(1) and record_id=pg_temp.id('serviceedit','id') and action='service.updated'),1,'CLS-027: normalized identical edit writes no audit');
+select is((select to_jsonb(s) from public.services s where id=pg_temp.id('serviceedit','id')),(select v from pg_temp.saved where k='serviceedit_noop_row'),'CLS-002: identical edit writes no service row or updated timestamp');
+set local role authenticated;
+select pg_temp.claim(22);
+select is(pg_temp.run($$select public.update_service(pg_temp.id('serviceedit','id'),'  Edited class  ','Complete class guide',90,7,11)$$),'OK','CLS-002: manager changes all five editable fields');
+set local role postgres;
+select is((select jsonb_build_object('name',name,'description',description,'default_duration_minutes',default_duration_minutes,'default_capacity',default_capacity,'sort_order',sort_order) from public.services where id=pg_temp.id('serviceedit','id')),jsonb_build_object('name','Edited class','description','Complete class guide','default_duration_minutes',90,'default_capacity',7,'sort_order',11),'CLS-002: all five values are stored, with normalized name');
+select ok(exists(select 1 from public.audit_log where tenant_id=pg_temp.u(1) and record_id=pg_temp.id('serviceedit','id') and action='service.updated' and record_type='service' and actor_user_id=pg_temp.u(922) and actor_role='gym_manager' and before=jsonb_build_object('name','Editable class','description','Yoga essentials','default_duration_minutes',60,'default_capacity',2,'sort_order',0) and after=jsonb_build_object('name','Edited class','description','Complete class guide','default_duration_minutes',90,'default_capacity',7,'sort_order',11)),'CLS-027: five-field audit has exact OLD/NEW edit keys, excludes is_active and identifies manager');
+select is((select count(*)::integer from public.audit_log where tenant_id=pg_temp.u(1) and record_id=pg_temp.id('serviceedit','id') and action='service.updated'),2,'CLS-027: all-five-field edit writes one additional audit');
+select is((select is_active from public.services where id=pg_temp.id('serviceedit','id')),true,'CLS-002: editing five fields preserves activation');
+set local role authenticated;
+select pg_temp.claim(22);
+select is(pg_temp.run($$select public.update_service(pg_temp.id('serviceedit','id'),'Edited class',null,90,7,11)$$),'OK','CLS-002: explicit null clears description');
+set local role postgres;
+select is((select description from public.services where id=pg_temp.id('serviceedit','id')),null::text,'CLS-002: cleared description is SQL null');
+select ok(exists(select 1 from public.audit_log where tenant_id=pg_temp.u(1) and record_id=pg_temp.id('serviceedit','id') and action='service.updated' and before=jsonb_build_object('description','Complete class guide') and after=jsonb_build_object('description',null)),'CLS-027: explicit null transition audits only description, including JSON null');
+insert into pg_temp.saved select 'serviceedit_null_noop_row',to_jsonb(s) from public.services s where id=pg_temp.id('serviceedit','id');
+set local role authenticated;
+select pg_temp.claim(22);
+select is(pg_temp.run($$select public.update_service(pg_temp.id('serviceedit','id'),'Edited class','   ',90,7,11)$$),'OK','CLS-002: blank description normalizes to existing null');
+set local role postgres;
+select is((select count(*)::integer from public.audit_log where tenant_id=pg_temp.u(1) and record_id=pg_temp.id('serviceedit','id') and action='service.updated'),3,'CLS-027: blank-to-existing-null writes no audit');
+select is((select to_jsonb(s) from public.services s where id=pg_temp.id('serviceedit','id')),(select v from pg_temp.saved where k='serviceedit_null_noop_row'),'CLS-002: blank-to-existing-null writes no service row');
+set local role authenticated;
+select pg_temp.claim(22);
+select is(public.set_service_active(pg_temp.id('serviceedit','id'),false),true,'CLS-002: activation remains a separate action');
+select is(pg_temp.run($$select public.update_service(pg_temp.id('serviceedit','id'),'Edited class','Reset for blank',90,7,11)$$),'OK','CLS-002: description may change on a disabled service');
+select is(pg_temp.run($$select public.update_service(pg_temp.id('serviceedit','id'),'Edited class','   ',90,7,11)$$),'OK','CLS-002: blank clears a populated description');
+set local role postgres;
+select is((select description from public.services where id=pg_temp.id('serviceedit','id')),null::text,'CLS-002: populated-to-blank description stores null');
+select ok(exists(select 1 from public.audit_log where tenant_id=pg_temp.u(1) and record_id=pg_temp.id('serviceedit','id') and action='service.updated' and before=jsonb_build_object('description','Reset for blank') and after=jsonb_build_object('description',null)),'CLS-027: populated-to-blank audits only normalized description change');
+select is((select count(*)::integer from public.audit_log where tenant_id=pg_temp.u(1) and record_id=pg_temp.id('serviceedit','id') and action='service.updated'),5,'CLS-027: only five real edits write service.updated');
+select is((select is_active from public.services where id=pg_temp.id('serviceedit','id')),false,'CLS-002: description edits preserve disabled state');
+select ok(exists(select 1 from public.audit_log where tenant_id=pg_temp.u(1) and record_id=pg_temp.id('serviceedit','id') and action='service.deactivated' and before=jsonb_build_object('is_active',true) and after=jsonb_build_object('is_active',false)),'CLS-027: activation audit remains separate from five-field edit audits');
+select is((select to_jsonb(r) from public.class_rules r where id=pg_temp.u(28002)),(select v from pg_temp.saved where k='serviceedit_rule_snapshot'),'CLS-002: edited defaults and activation do not rewrite existing rule snapshot');
+select is((select to_jsonb(s) from public.class_sessions s where id=pg_temp.u(28003)),(select v from pg_temp.saved where k='serviceedit_session_snapshot'),'CLS-002: edited defaults and activation do not rewrite existing session snapshot');
 
 -- END GENERATED BLOCKS
 set local role postgres;

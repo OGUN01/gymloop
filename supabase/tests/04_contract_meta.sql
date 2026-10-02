@@ -141,13 +141,14 @@ select is_empty(
       select relname, 'platform_select using',
              (select pg_get_expr(p.polqual, p.polrelid) from pg_policy p
                where p.polrelid = t.oid and p.polname::text = t.relname || '_platform_select'),
-             '^selectapp\.is_platform$'
+             case when relname = 'announcement_receipts' then null
+                  else '^selectapp\.is_platform$' end
         from t
       union all
       select relname, 'platform_select command',
              (select p.polcmd::text from pg_policy p
                where p.polrelid = t.oid and p.polname::text = t.relname || '_platform_select'),
-             '^r$'
+             case when relname = 'announcement_receipts' then null else '^r$' end
         from t
       union all
       select relname, 'platform_write using',
@@ -188,7 +189,7 @@ select is_empty(
                     '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g')), '')
                   !~ want
            end$$,
-  'design.md 8.1 / 8.4 / 6: every table carries <t>_platform_select for select on is_platform(), and carries <t>_platform_write for all on `current_app_role() = super_admin` -- on both its clauses -- exactly when authenticated holds insert or update on it. Which tables those are is read from the grant, not from a list, so the invariant survives a later phase changing one. impersonation_sessions carries one extra term, `actor_user_id = (select auth.uid())`, on both clauses: without it a super admin could open a session naming a different platform user -- including a platform_support account, which may not impersonate at all -- and the audit trail would then name the wrong person, which is the one thing an impersonation audit row exists to get right'
+  'design.md 8.1 / 8.4 / 6: every table carries <t>_platform_select for select on is_platform(), except announcement_receipts which must have no platform_select under ANC-013 receipt privacy, and carries <t>_platform_write for all on `current_app_role() = super_admin` -- on both its clauses -- exactly when authenticated holds insert or update on it. Which tables those are is read from the grant, not from a list, so the invariant survives a later phase changing one. impersonation_sessions carries one extra term, `actor_user_id = (select auth.uid())`, on both clauses: without it a super admin could open a session naming a different platform user -- including a platform_support account, which may not impersonate at all -- and the audit trail would then name the wrong person, which is the one thing an impersonation audit row exists to get right'
 );
 
 select is_empty(
@@ -303,6 +304,9 @@ select is_empty(
       ('trainer_availability',    'pt_staff',        null,              null),
       ('trainer_time_off',        'pt_staff',        null,              null),
       ('pt_cancellations',        'pt_staff',        null,              null),
+      ('announcements',          'is_front_office', null,              null),
+      ('announcement_versions',  'is_front_office', null,              null),
+      ('announcement_receipts',  null,              null,              'own'),
       ('member_imports',          'is_gym_admin',    'is_gym_admin',    null),
       ('messaging_wallets',       'is_gym_admin',    null,              null),
       ('messaging_wallet_ledger', 'is_gym_admin',    null,              null),
@@ -412,7 +416,7 @@ select is_empty(
                     '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g')), '')
                   !~ pat
            end$$,
-  'spec "Every table''s read gate matches the matrix" / "Every table''s write gate matches the matrix" / "A refused write affects zero rows; a refused insert raises" / "A member reads only their own rows" -- design.md 8.3, all thirty-six tables, seven clauses each, in both directions - plus member_invites (INV-017) and staff_invites (STI-011 v1.1), two read-only rows: front-office and owner-only tenant_select respectively; GRD-006 adds guardian_consents with front-office tenant_select, no tenant_write and no member_select, and the unchanged universal platform-pair assertion requires its canonical platform_select without a platform_write. PTF adds trainer_profiles, trainer_availability, trainer_time_off and pt_cancellations with front-office or own-trainer tenant reads, no write or member policy. SHP adds media_assets and shop_reservations with front-office SELECT-only tenant gates and no member policies, plus shop_categories with staff reads and gym-admin writes. CLS-021 adds services, class_rules, class_sessions and class_bookings with is_staff tenant_select, no tenant_write and no member_select; the universal platform-pair assertion supplies their SELECT-only platform shape. PLC-001/003 appends exactly andis_active to plans_member_select through mb_extra; every other member predicate and every staff/platform predicate is unchanged. The tenant term is first in the predicate, as for every other row, which is the order the member-invites proposal text does not use'
+  'spec "Every table''s read gate matches the matrix" / "Every table''s write gate matches the matrix" / "A refused write affects zero rows; a refused insert raises" / "A member reads only their own rows" -- design.md 8.3, all thirty-six tables, seven clauses each, in both directions - plus member_invites (INV-017) and staff_invites (STI-011 v1.1), two read-only rows: front-office and owner-only tenant_select respectively; GRD-006 adds guardian_consents with front-office tenant_select, no tenant_write and no member_select, and the unchanged universal platform-pair assertion requires its canonical platform_select without a platform_write. ANC-013/016 adds front-office SELECT-only announcements and announcement_versions, and own-member-only announcement_receipts with no tenant or platform policy. PTF adds trainer_profiles, trainer_availability, trainer_time_off and pt_cancellations with front-office or own-trainer tenant reads, no write or member policy. SHP adds media_assets and shop_reservations with front-office SELECT-only tenant gates and no member policies, plus shop_categories with staff reads and gym-admin writes. CLS-021 adds services, class_rules, class_sessions and class_bookings with is_staff tenant_select, no tenant_write and no member_select; the universal platform-pair assertion supplies their SELECT-only platform shape. PLC-001/003 appends exactly andis_active to plans_member_select through mb_extra; every other member predicate and every staff/platform predicate is unchanged. The tenant term is first in the predicate, as for every other row, which is the order the member-invites proposal text does not use'
 );
 
 -- ---------------------------------------------------------------------------
@@ -676,9 +680,10 @@ select is_empty(
      where n.nspname = 'public' and c.relkind in ('r', 'p')
        and c.relname in ('attendance_corrections', 'follow_ups', 'consents',
                          'messaging_wallet_ledger', 'webhook_events',
-                         'audit_log', 'messaging_wallets')
+                         'audit_log', 'messaging_wallets', 'announcements',
+                         'announcement_versions', 'announcement_receipts')
        and has_table_privilege('authenticated', c.oid, 'UPDATE')$$,
-  'spec "Attempting to alter an append-only row" / INT-001, NSH-007, DPD-004: the three append-only tables (attendance_corrections, follow_ups, consents) and the four read-only ones (ADR-047: audit_log, messaging_wallets; ADR-049: messaging_wallet_ledger, webhook_events) withhold update, checked for whichever of them exist yet'
+  'spec "Attempting to alter an append-only row" / INT-001, NSH-007, DPD-004: the three append-only tables (attendance_corrections, follow_ups, consents) and the four read-only ones (ADR-047: audit_log, messaging_wallets; ADR-049: messaging_wallet_ledger, webhook_events) withhold update, as do the three ANC command-only tables; checked for whichever of them exist yet'
 );
 
 select is_empty(
@@ -686,9 +691,10 @@ select is_empty(
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public' and c.relkind in ('r', 'p')
        and c.relname in ('audit_log', 'messaging_wallets',
-                         'messaging_wallet_ledger', 'webhook_events')
+                         'messaging_wallet_ledger', 'webhook_events', 'announcements',
+                         'announcement_versions', 'announcement_receipts')
        and has_table_privilege('authenticated', c.oid, 'INSERT')$$,
-  'ADR-047 / ADR-049: the four read-only tables withhold INSERT as well as UPDATE -- the balance is the sum of the ledger, so a gym that may append a ledger row mints its own messaging credits, and a gym that may insert a webhook_events row forges the record of a payment it verified itself, signature_valid included'
+  'ADR-047 / ADR-049: the four read-only tables and the three ANC command-only tables withhold INSERT as well as UPDATE -- the balance is the sum of the ledger, so a gym that may append a ledger row mints its own messaging credits, and a gym that may insert a webhook_events row forges the record of a payment it verified itself, signature_valid included'
 );
 
 -- ---------------------------------------------------------------------------
@@ -953,11 +959,21 @@ select is_empty(
                          ('public.cancel_pt_session_as_gym(uuid, text)', 'v'),
                          ('public.waive_pt_forfeit(uuid, text)', 'v'),
                          ('public.reassign_pt_packs(uuid, uuid, uuid[], text)', 'v'),
-                         ('public.set_pt_policy(integer, boolean, integer)', 'v')
+                         ('public.set_pt_policy(integer, boolean, integer)', 'v'),
+                         ('public.create_announcement_draft(public.announcement_kind, text, text, public.announcement_audience, public.member_status[], public.announcement_membership_filter, timestamptz, uuid)', 'v'),
+                         ('public.update_announcement_draft(uuid, public.announcement_kind, text, text, public.announcement_audience, public.member_status[], public.announcement_membership_filter, timestamptz, uuid)', 'v'),
+                         ('public.discard_announcement_draft(uuid)', 'v'),
+                         ('public.publish_announcement(uuid)', 'v'),
+                         ('public.edit_announcement(uuid, integer, text, text, uuid, timestamptz, text)', 'v'),
+                         ('public.unpublish_announcement(uuid)', 'v'),
+                         ('public.list_announcements(timestamptz, uuid)', 's'),
+                         ('public.read_announcement(uuid)', 's'),
+                         ('public.read_member_announcements()', 's'),
+                         ('public.mark_announcement_read(uuid, integer)', 'v')
                        ) allowed(signature, volatility)
                        where p.oid = to_regprocedure(allowed.signature)
                          and p.provolatile = allowed.volatility))))$$,
-  'ADR-032, ADR-116 and the approved Phase 6 member projections and import commands: all app/public security-definer functions have an empty search_path; only the exact postgres-owned signatures on the allowlist may be elevated in public, each at its own required volatility, with no unapproved overload or function. INV-017 (member invites) adds exactly six: the writers issue_member_invite, revoke_member_invite, redeem_member_invite and unlink_member_identity are VOLATILE, and the two readers peek_member_invite (anon may execute this reader) and read_member_app_access are STABLE as specified by INV v1.1; app.member_invite_audit is elevated too but sits in app and is held to the empty-path rule alone. STI-011 v1.1 adds exactly seven postgres-owned signatures: invite_staff_member, issue_staff_invite, revoke_staff_invite, redeem_staff_invite and unlink_staff_identity VOLATILE; peek_staff_invite and read_staff_app_access STABLE. GRD-002/006/016 adds exactly three postgres-owned VOLATILE signatures: attest_members_without_dob_adult, record_guardian_consent and transition_member_to_own_account; its four other public RPCs are invokers. BIZ-003/005 adds only the exact postgres-owned VOLATILE signatures set_business_type(public.business_type) and set_gym_business_type(uuid, public.business_type, public.business_type, uuid); the amended commercial guard keeps its existing invoker posture. CLS adds exactly its thirteen VOLATILE command signatures and the STABLE read_member_class_schedule(date, date); read_class_timetable, read_class_roster and run_class_generation_all remain invokers. The CLS-owned booking_lock and member_has_live_membership primitives are invokers in app and add no elevated public allowance. SHP adds exactly eight public definers: two STABLE member readers and six VOLATILE writers, with the exact twelve-argument finalizer restricted to service_role by the separate named posture assertion; confirm_media_asset remains a denied invoker. PTF adds exactly seven STABLE reader signatures and eleven VOLATILE writer signatures at the frozen postgres-owned definer posture'
+  'ADR-032, ADR-116 and the approved Phase 6 member projections and import commands: all app/public security-definer functions have an empty search_path; only the exact postgres-owned signatures on the allowlist may be elevated in public, each at its own required volatility, with no unapproved overload or function. INV-017 (member invites) adds exactly six: the writers issue_member_invite, revoke_member_invite, redeem_member_invite and unlink_member_identity are VOLATILE, and the two readers peek_member_invite (anon may execute this reader) and read_member_app_access are STABLE as specified by INV v1.1; app.member_invite_audit is elevated too but sits in app and is held to the empty-path rule alone. STI-011 v1.1 adds exactly seven postgres-owned signatures: invite_staff_member, issue_staff_invite, revoke_staff_invite, redeem_staff_invite and unlink_staff_identity VOLATILE; peek_staff_invite and read_staff_app_access STABLE. GRD-002/006/016 adds exactly three postgres-owned VOLATILE signatures: attest_members_without_dob_adult, record_guardian_consent and transition_member_to_own_account; its four other public RPCs are invokers. BIZ-003/005 adds only the exact postgres-owned VOLATILE signatures set_business_type(public.business_type) and set_gym_business_type(uuid, public.business_type, public.business_type, uuid); the amended commercial guard keeps its existing invoker posture. CLS adds exactly its thirteen VOLATILE command signatures and the STABLE read_member_class_schedule(date, date); read_class_timetable, read_class_roster and run_class_generation_all remain invokers. The CLS-owned booking_lock and member_has_live_membership primitives are invokers in app and add no elevated public allowance. SHP adds exactly eight public definers: two STABLE member readers and six VOLATILE writers, with the exact twelve-argument finalizer restricted to service_role by the separate named posture assertion; confirm_media_asset remains a denied invoker. PTF adds exactly seven STABLE reader signatures and eleven VOLATILE writer signatures at the frozen postgres-owned definer posture. ANC adds exactly ten postgres-owned definers: three STABLE reads and seven VOLATILE commands; each is authenticated-only as separately asserted'
 );
 
 -- Phase 4 (20260909130000_red_list_view.sql) added public.red_list_cases,
@@ -1241,7 +1257,17 @@ select is_empty(
       ('public.cancel_shop_reservation(uuid, text)', true, 'v', true, false),
       ('public.finalize_media_asset(uuid, uuid, uuid, public.app_role, uuid, text, text, integer, text, text, text, text)', true, 'v', false, true),
       ('public.confirm_media_asset(uuid)', false, 'v', false, false),
-      ('app.enforce_media_asset_verification()', false, 'v', false, false)
+      ('app.enforce_media_asset_verification()', false, 'v', false, false),
+      ('public.create_announcement_draft(public.announcement_kind, text, text, public.announcement_audience, public.member_status[], public.announcement_membership_filter, timestamptz, uuid)', true, 'v', true, false),
+      ('public.update_announcement_draft(uuid, public.announcement_kind, text, text, public.announcement_audience, public.member_status[], public.announcement_membership_filter, timestamptz, uuid)', true, 'v', true, false),
+      ('public.discard_announcement_draft(uuid)', true, 'v', true, false),
+      ('public.publish_announcement(uuid)', true, 'v', true, false),
+      ('public.edit_announcement(uuid, integer, text, text, uuid, timestamptz, text)', true, 'v', true, false),
+      ('public.unpublish_announcement(uuid)', true, 'v', true, false),
+      ('public.list_announcements(timestamptz, uuid)', true, 's', true, false),
+      ('public.read_announcement(uuid)', true, 's', true, false),
+      ('public.read_member_announcements()', true, 's', true, false),
+      ('public.mark_announcement_read(uuid, integer)', true, 'v', true, false)
     )
     select expected.signature from expected
       left join pg_proc p on p.oid = to_regprocedure(expected.signature)
@@ -1254,7 +1280,7 @@ select is_empty(
         or has_function_privilege('anon', p.oid, 'EXECUTE')
         or exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
                     where acl.grantee = 0 and acl.privilege_type = 'EXECUTE')$$,
-  'SHP/MED: exact postgres-owned public signatures keep their own volatility, empty path and audience; only the twelve-argument finalize_media_asset is service-role executable, retired confirm and the private invoker media invariant are denied to all session roles. Marker and credential checks, immutable registration/publication and privileged DELETE refusal require independent behavioral tests; catalogue shape alone cannot prove them'
+  'SHP/MED and ANC-016: exact postgres-owned public signatures keep their own volatility, empty path and audience; only the twelve-argument finalize_media_asset is service-role executable, retired confirm and the private invoker media invariant are denied to all session roles. Marker and credential checks, immutable registration/publication and privileged DELETE refusal require independent behavioral tests; catalogue shape alone cannot prove them'
 );
 
 select * from finish();
