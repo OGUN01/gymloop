@@ -292,3 +292,39 @@ Tests SHALL be implementation-blind and committed red before a separate implemen
 starts. Repeat the affected blind API/mobile/invitee reviews and required gates.
 Android runtime evidence still requires an emulator or device; HTTPS App Links and
 install continuation remain assigned to V2-R, not accepted by this amendment.
+
+## Contract amendments v1.5 (owner-approved 2026-10-02, Google provider font)
+
+The owner approved `google-brand-amendment.md`; this clarifies INV-Q4/R10 and
+applies to ordinary sign-in and both INV/STI Google controls. Authentication,
+consent, routing and token behavior are unchanged.
+
+- **INV-031 (provider font and availability).** All Google provider controls SHALL
+  use locally bundled official Google Sans Medium. The single canonical asset is
+  `packages/shared/assets/fonts/GoogleSans-Medium.ttf`, from Google Fonts release
+  v14.000, SHA-256
+  `1c87b72912ef81b48ab4852976f3d5bf75c7205e0a58a97ffca947d171c722a7`.
+  Bundle its SIL OFL 1.1 license beside it and record upstream provenance.
+  Reuse this asset on web and Android with existing font-loading mechanisms;
+  no new native dependency is added. Body/display typography remains Chalkline.
+- Provider text SHALL use an allowed action label, the official gradient mark,
+  approved light/dark/neutral colors and at least 44px web / 48dp Android targets.
+  R10 specifies type size/line-height 14/20 and Android/web padding of 12 before
+  the mark, 10 after the mark and 12 after text; support enlarged text without
+  clipping. These are provider metrics, not new body-font defaults.
+- Loading/failure SHALL not claim the required font is available. A loading state
+  SHALL be honest; failure SHALL offer retry/recovery or an unmodified pre-approved
+  Google button bitmap containing the correct type. No OAuth or token mutation
+  occurs just from loading/retrying the font. The Google action becomes available
+  when conformance can be guaranteed.
+- Reuse `GoogleGlyph` and `NativeGoogleButton`. Web MAY add a reusable client font
+  boundary `GoogleProviderButton` in `apps/web/app/google-provider-button.tsx`:
+  `{ label?: 'Continue with Google' | 'Sign in with Google'; className?: string;
+  disabled?: boolean }`, a submit control inside existing Server Action forms.
+  NativeGoogleButton's public `{ disabled?, onPress }` interface stays unchanged.
+  This boundary owns only provider rendering/font readiness, never sign-in logic.
+- Independent visible/holdout tests SHALL verify actual font bytes, provider
+  typography, use by ordinary/INV/STI entry points and honest readiness/failure
+  before separate implementation. A fresh blind critic compares the final controls
+  with https://developers.google.com/identity/branding-guidelines; runtime/visual
+  evidence and all gates remain required.
