@@ -62,15 +62,22 @@ current checkpoint below supersedes the historical session-1 snapshot.
   triggered DB 37061065081: migrate passed, full pgTAP remains running, and the
   historical pre-generation drift failed as expected. CLI-generated type-only
   follow-up 89c6cda is pushed under ADR-177; DB 37061577506 awaits the source run.
-  Its drift success is still required. CI 37061577452 passed every code gate but
-  hit two browser failures (a timeout and a missing heading); the permitted
-  one-time failed-job retry is running. Source CI also encountered a damaged
-  Playwright trace. No browser gate is cleared until a passing result exists.
+  Its drift success is still required. CI 37061577452 is now wholly green after
+  the permitted one-time failed-job retry. The historical source CI encountered
+  a damaged Playwright trace; its result is not the current types-head result.
 - Independent BIZ/PLC app acceptance tests are committed red as 64b5820,
-  before application source. BIZ's isolated builder is active. GRD and
-  SHP/MEDIA app drafts remain uncommitted while independent visible authors
-  repair harness defects and fill executable coverage gaps. Builders must never
-  read holdout files or the orchestrator's private failure evidence.
+  before application source. BIZ source is drafted; a fresh critic requires
+  refreshed Settings state, plural vocabulary, request-scoped read consolidation,
+  platform exception envelopes and cache-error-safe sign-out. Independent new
+  tests precede the fixes. GRD app tests are committed first as 07f2366; its
+  drafted source passes 347 focused visible and 114 held cases after an
+  independent full-caller fixture repair (eef8f1d). A fresh GRD critic found
+  unsafe child-address fallback on failed guardian reads, wrong email-field
+  guidance and birthday binding copy; separate regression authors precede fixes.
+  SHP/MEDIA app tests are committed red as fca9b84 after independent harness,
+  typing and executable coverage repair. The isolated MEDIA builder is active.
+  PTF/CLS/ANC app drafts still need readiness and test-first commits. Builders
+  must never read holdout files or the orchestrator's private failure evidence.
 - Owner approved the PT final-session exception, then clarified that ANY
   same-tenant/order-payment refund record blocks it (including pending and failed).
   Public boundary and immutable completed_order posture received independent GO;

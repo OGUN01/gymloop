@@ -349,15 +349,25 @@ type follow-up. CLI-generated database declarations were committed separately
 as 89c6cda and pushed after migrate success under ADR-177. Type-only DB
 37061577506 is queued behind the source run; no drift win is yet claimed.
 
-Types CI 37061577452 passed all code gates but failed two browser journeys
-(timeout/missing heading); the permitted one-time failed-job retry is running.
-Source CI's browser job separately reported a damaged trace. These are open
-browser gate results, not accepted application evidence.
+Types CI 37061577452 is wholly green after its permitted one-time failed-job
+retry. Its original two browser failures (timeout/missing heading) and source
+CI's damaged trace are historical; the types-head browser gate is now green.
 
 Independent BIZ/PLC app tests were committed red as 64b5820 before the isolated
-BIZ application builder started. A scoped orchestrator audit found GRD and
-SHP/MEDIA test harness defects and executable coverage gaps; independent visible
-authors are repairing their uncommitted tests before any corresponding builder
-is launched. Browser/media/race/native acceptance, Waves C/D and release remain
-open. No local Cloud query, permanent mutation, or USB/ADB/Metro operation was
-performed while CI's DB workflow is active.
+BIZ application builder started. GRD app tests followed as 07f2366 before its
+builder; 347 focused visible and 114 held cases now pass. The independent held
+author repaired a missing full VerifiedAudience caller fixture in eef8f1d,
+preserving expectations. Fresh source review still rejects guardian-read failure
+fallback, missing guardian-email recovery and birthday binding copy. New separate
+regression authors precede fixes. BIZ fresh source review likewise rejects
+refreshed Settings state, incomplete plural copy, duplicate same-request type
+reads, unwrapped platform failures and skipped sign-out after cache rejection;
+new source-blind regressions precede fixes. Neither review proves visual victory.
+
+SHP/MEDIA visible and held app/native/browser suites are committed red as
+fca9b84 after independent test-harness and typing repairs, executable signing and
+upload delegation coverage, and a real React-native hook-resolution control.
+The isolated MEDIA builder is active. PTF/CLS/ANC application drafts still need
+readiness and test-first commits. Browser/media/race/native acceptance, Waves C/D
+and release remain open. No local Cloud query, permanent mutation, or
+USB/ADB/Metro operation was performed while CI's DB workflow is active.
