@@ -320,39 +320,37 @@ The add-ons **section** as the member sees it goes away; its contents split:
 - Migrations via CI only; no Supabase MCP; no eslint-disable.
 - The closed-test feedback merges into this map before build order is locked.
 
-## F15. Candidates parked at the 2026-10-02 gap review
+## F15. Candidates from the 2026-10-02 gap review (triaged 2026-10-02)
 
-Found by walking the full member and owner lifecycle through this map. None
-are committed; each waits for closed-test demand to earn a build slot.
+Found by walking the full member and owner lifecycle through this map, then
+triaged by the owner against one filter: does it serve the core loop
+(attendance -> churn detection -> contact -> renewal collected -> what
+worked)? If not, it is overhead.
 
-- ~~**Hindi and regional languages (I18N).**~~ **Removed by owner decision,
-  2026-10-02: the app stays English.** Recorded here so nobody re-proposes it.
+### Recommended first-in-line when v2 starts (owner-agreed)
+
 - **Plans catalogue in the member app.** Members see what plans exist before
-  requesting a renewal, not just what they already hold.
+  requesting a renewal, not just what they already hold. Cheap (read-only
+  view of the existing plans table) and the Buy tab is incomplete without it.
+- **Staff invites.** INV's self-linking flow extended to desk staff and
+  trainers (the same token machinery, staff rows, role boundaries). Cheap, and
+  manual identity provisioning stops scaling the moment real gyms onboard.
+- **PDF reports and GST invoice export.** Payment/attendance exports for tax
+  filing; the invoices table exists with no download. Owner console only,
+  real pain, no member-app risk.
+
+### Parked - build only on real demand
+
 - **Free trial class booking.** A lead books a trial class from CLS's
-  timetable - the standard dance/yoga acquisition move. Joins the leads and
-  CLS features.
+  timetable - the standard dance/yoga acquisition move. Waits for CLS.
 - **Dues / credit ledger ("pay later").** Owner records a trusted member's
   purchase as credit; the member app shows pending dues. Real Indian small-gym
   behavior; extends the money rules rather than bypassing them (credit is a
-  recorded state, never negative money).
+  recorded state, never negative money). Builds when a real gym runs credit.
 - **Coupons, member-facing.** The `coupons` table exists owner-side; members
-  never see a discount. Surfacing valid coupons on renewal/shop requests.
-- **Birthday and anniversary auto-greetings.** Trivial once NTF exists;
-  classic retention.
-- **Referrals ("bring a friend").** Existing member shares a code/link;
-  attribution lands in the lead source for LDC metrics.
-- **PDF reports and GST invoice export.** Payment/attendance exports for tax
-  filing; the invoices table exists with no download. Owner console.
-- **Staff invites.** INV's self-linking flow extended to desk staff and
-  trainers (the same token machinery, staff rows, role boundaries).
-- **Trainer commission tracking.** PT revenue share per trainer; a view, not
-  a payout - money movement stays manual.
-- **Progress tracking.** Dance levels/exam readiness or fitness measurements.
-  Big retention value, big scope - builds only if customers ask.
+  never see a discount. Waits for marketing maturity.
 - **Class waitlists.** Full class -> waitlist with auto-notify on a freed
-  spot; requires NTF. Promote from an edge case to a feature only if small
-  gyms hit capacity walls.
+  spot; requires NTF. Only if small gyms hit capacity walls.
 
 ## Deliberately out of scope (decided 2026-10-02, revisit only on real demand)
 
@@ -363,3 +361,13 @@ are committed; each waits for closed-test demand to earn a build slot.
    loop; dilutes the churn-retention core.
 3. **Two-way WhatsApp chat.** Reminders and requests go out; replies happen
    in person at the desk. No inbound message handling.
+4. **Trainer commission tracking.** Dropped by owner decision 2026-10-02:
+   money-adjacent niche view, not worth the blind-rigor overhead. Trainers'
+   share is settled outside the app.
+5. **Referral programs.** Dropped by owner decision 2026-10-02. Lead source
+   attribution already exists; anything more is marketing overhead.
+6. **Birthday/anniversary auto-greetings.** Dropped by owner decision
+   2026-10-02. An owner who wants this sends an announcement; no feature.
+7. **Progress tracking (dance levels / fitness measurements).** Dropped by
+   owner decision 2026-10-02: scope-heavy and pulls toward a fitness-content
+   product, away from the churn-retention core.
