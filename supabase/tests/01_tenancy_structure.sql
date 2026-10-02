@@ -136,6 +136,8 @@ select results_eq(
            ('checkin_dedupe_seconds'::text, 'int4'::text, true),
            ('checkin_gate_mode'::text, 'checkin_gate_mode'::text, true),
            ('city'::text, 'text'::text, false),
+           ('class_allow_cross_branch'::text, 'bool'::text, true),
+           ('class_cancel_window_hours'::text, 'int4'::text, true),
            ('created_at'::text, 'timestamptz'::text, true),
            ('financial_year_start_month'::text, 'int2'::text, true),
            ('grace_period_days'::text, 'int2'::text, true),
@@ -280,14 +282,16 @@ select results_eq(
     select invoice_prefix, receipt_prefix, financial_year_start_month, week_start_day,
            no_show_threshold_days, checkin_dedupe_seconds, streak_rule_type::text,
            weekly_goal_default, grace_period_days, pause_approver_role::text,
-           max_freeze_days_per_year, opening_hours::text, pause_reasons
+           max_freeze_days_per_year, opening_hours::text, pause_reasons,
+           class_allow_cross_branch, class_cancel_window_hours
     from public.organization_settings where tenant_id = '00000000-0000-4000-8000-0000000000a1'::uuid
   $$,
   $$
     values ('INV'::text, 'RCPT'::text, 4::smallint, 1::smallint, 7::smallint, 120::integer, 'visit_streak'::text,
-            3::smallint, 0::smallint, 'gym_manager'::text, 30::smallint, '{}'::text, '{}'::text[])
+            3::smallint, 0::smallint, 'gym_manager'::text, 30::smallint, '{}'::text, '{}'::text[],
+            false::boolean, 2::integer)
   $$,
-  'NSH-003 / ATT-004 / STK-001 / PAY-001: the per-gym template defaults the contract fixes'
+  'NSH-003 / ATT-004 / STK-001 / PAY-001 / CLS fixed settings: the per-gym template defaults the contract fixes, including no cross-branch class booking and a two-hour cancellation window'
 );
 
 select is(

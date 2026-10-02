@@ -292,6 +292,10 @@ select is_empty(
       ('member_invites',          'is_front_office', null,              null),
       ('staff_invites',           'owner',           null,              null),
       ('guardian_consents',       'is_front_office', null,              null),
+      ('services',                'is_staff',        null,              null),
+      ('class_rules',             'is_staff',        null,              null),
+      ('class_sessions',          'is_staff',        null,              null),
+      ('class_bookings',          'is_staff',        null,              null),
       ('member_imports',          'is_gym_admin',    'is_gym_admin',    null),
       ('messaging_wallets',       'is_gym_admin',    null,              null),
       ('messaging_wallet_ledger', 'is_gym_admin',    null,              null),
@@ -396,7 +400,7 @@ select is_empty(
                     '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g')), '')
                   !~ pat
            end$$,
-  'spec "Every table''s read gate matches the matrix" / "Every table''s write gate matches the matrix" / "A refused write affects zero rows; a refused insert raises" / "A member reads only their own rows" -- design.md 8.3, all thirty-six tables, seven clauses each, in both directions - plus member_invites (INV-017) and staff_invites (STI-011 v1.1), two read-only rows: front-office and owner-only tenant_select respectively; GRD-006 adds guardian_consents with front-office tenant_select, no tenant_write and no member_select, and the unchanged universal platform-pair assertion requires its canonical platform_select without a platform_write. PLC-001/003 appends exactly andis_active to plans_member_select through mb_extra; every other member predicate and every staff/platform predicate is unchanged. The tenant term is first in the predicate, as for every other row, which is the order the member-invites proposal text does not use'
+  'spec "Every table''s read gate matches the matrix" / "Every table''s write gate matches the matrix" / "A refused write affects zero rows; a refused insert raises" / "A member reads only their own rows" -- design.md 8.3, all thirty-six tables, seven clauses each, in both directions - plus member_invites (INV-017) and staff_invites (STI-011 v1.1), two read-only rows: front-office and owner-only tenant_select respectively; GRD-006 adds guardian_consents with front-office tenant_select, no tenant_write and no member_select, and the unchanged universal platform-pair assertion requires its canonical platform_select without a platform_write. CLS-021 adds services, class_rules, class_sessions and class_bookings with is_staff tenant_select, no tenant_write and no member_select; the universal platform-pair assertion supplies their SELECT-only platform shape. PLC-001/003 appends exactly andis_active to plans_member_select through mb_extra; every other member predicate and every staff/platform predicate is unchanged. The tenant term is first in the predicate, as for every other row, which is the order the member-invites proposal text does not use'
 );
 
 -- ---------------------------------------------------------------------------
@@ -897,11 +901,25 @@ select is_empty(
                          ('public.record_guardian_consent(uuid, boolean, text, text)', 'v'),
                          ('public.transition_member_to_own_account(uuid, text)', 'v'),
                          ('public.set_business_type(public.business_type)', 'v'),
-                         ('public.set_gym_business_type(uuid, public.business_type, public.business_type, uuid)', 'v')
+                         ('public.set_gym_business_type(uuid, public.business_type, public.business_type, uuid)', 'v'),
+                         ('public.create_service(text, text, integer, integer, integer)', 'v'),
+                         ('public.update_service(uuid, text, text, integer, integer, integer)', 'v'),
+                         ('public.set_service_active(uuid, boolean)', 'v'),
+                         ('public.create_class_rules(uuid, uuid, smallint[], time, integer, integer, uuid, date, date)', 'v'),
+                         ('public.update_class_rule(uuid, integer, integer, uuid, date, boolean)', 'v'),
+                         ('public.create_class_session(uuid, uuid, date, time, integer, integer, uuid)', 'v'),
+                         ('public.update_class_session(uuid, date, time, integer, integer, uuid)', 'v'),
+                         ('public.cancel_class_session(uuid, text)', 'v'),
+                         ('public.book_class_session(uuid)', 'v'),
+                         ('public.cancel_class_booking(uuid)', 'v'),
+                         ('public.desk_book_class_session(uuid, uuid)', 'v'),
+                         ('public.desk_cancel_class_booking(uuid, text)', 'v'),
+                         ('public.mark_class_attendance(uuid, public.booking_status)', 'v'),
+                         ('public.read_member_class_schedule(date, date)', 's')
                        ) allowed(signature, volatility)
                        where p.oid = to_regprocedure(allowed.signature)
                          and p.provolatile = allowed.volatility))))$$,
-  'ADR-032, ADR-116 and the approved Phase 6 member projections and import commands: all app/public security-definer functions have an empty search_path; only the exact postgres-owned signatures on the allowlist may be elevated in public, each at its own required volatility, with no unapproved overload or function. INV-017 (member invites) adds exactly six: the writers issue_member_invite, revoke_member_invite, redeem_member_invite and unlink_member_identity are VOLATILE, and the two readers peek_member_invite (anon may execute this reader) and read_member_app_access are STABLE as specified by INV v1.1; app.member_invite_audit is elevated too but sits in app and is held to the empty-path rule alone. STI-011 v1.1 adds exactly seven postgres-owned signatures: invite_staff_member, issue_staff_invite, revoke_staff_invite, redeem_staff_invite and unlink_staff_identity VOLATILE; peek_staff_invite and read_staff_app_access STABLE. GRD-002/006/016 adds exactly three postgres-owned VOLATILE signatures: attest_members_without_dob_adult, record_guardian_consent and transition_member_to_own_account; its four other public RPCs are invokers. BIZ-003/005 adds only the exact postgres-owned VOLATILE signatures set_business_type(public.business_type) and set_gym_business_type(uuid, public.business_type, public.business_type, uuid); the amended commercial guard keeps its existing invoker posture'
+  'ADR-032, ADR-116 and the approved Phase 6 member projections and import commands: all app/public security-definer functions have an empty search_path; only the exact postgres-owned signatures on the allowlist may be elevated in public, each at its own required volatility, with no unapproved overload or function. INV-017 (member invites) adds exactly six: the writers issue_member_invite, revoke_member_invite, redeem_member_invite and unlink_member_identity are VOLATILE, and the two readers peek_member_invite (anon may execute this reader) and read_member_app_access are STABLE as specified by INV v1.1; app.member_invite_audit is elevated too but sits in app and is held to the empty-path rule alone. STI-011 v1.1 adds exactly seven postgres-owned signatures: invite_staff_member, issue_staff_invite, revoke_staff_invite, redeem_staff_invite and unlink_staff_identity VOLATILE; peek_staff_invite and read_staff_app_access STABLE. GRD-002/006/016 adds exactly three postgres-owned VOLATILE signatures: attest_members_without_dob_adult, record_guardian_consent and transition_member_to_own_account; its four other public RPCs are invokers. BIZ-003/005 adds only the exact postgres-owned VOLATILE signatures set_business_type(public.business_type) and set_gym_business_type(uuid, public.business_type, public.business_type, uuid); the amended commercial guard keeps its existing invoker posture. CLS adds exactly its thirteen VOLATILE command signatures and the STABLE read_member_class_schedule(date, date); read_class_timetable, read_class_roster and run_class_generation_all remain invokers. The CLS-owned booking_lock and member_has_live_membership primitives are invokers in app and add no elevated public allowance'
 );
 
 -- Phase 4 (20260909130000_red_list_view.sql) added public.red_list_cases,
