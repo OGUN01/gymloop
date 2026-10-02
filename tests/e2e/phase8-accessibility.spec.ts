@@ -5,15 +5,15 @@ import { playwrightEnv } from '@gymloop/shared';
 const { DEMO_ACCOUNT_PASSWORD: demoPassword } = playwrightEnv();
 
 const accounts = {
-  member: { email: 'aarav.member@ironbox.example.com', home: '/member', forbidden: ['Overview', 'Payments', 'Members', 'Team'] },
-  frontDesk: { email: 'divya@ironbox.example.com', home: '/console/check-in', forbidden: ['Overview', 'Payments', 'Imports', 'Team'] },
-  trainer: { email: 'rohit@ironbox.example.com', home: '/console', forbidden: ['Overview', 'Payments', 'Messages', 'Leads', 'Imports', 'Team'] },
+  member: { email: 'aarav.member@ironbox.example.com', home: '/member', forbidden: ['Overview', 'Payments', 'Members', 'Team', 'Settings'] },
+  frontDesk: { email: 'divya@ironbox.example.com', home: '/console/check-in', forbidden: ['Overview', 'Payments', 'Imports', 'Team', 'Settings'] },
+  trainer: { email: 'rohit@ironbox.example.com', home: '/console', forbidden: ['Overview', 'Payments', 'Messages', 'Leads', 'Imports', 'Team', 'Settings'] },
   owner: { email: 'owner@ironbox.example.com', home: '/dashboard', forbidden: [] },
-  superAdmin: { email: 'admin@gymloop.example.com', home: '/platform', forbidden: ['Overview', 'Check-in', 'Members', 'Payments', 'Team'] },
+  superAdmin: { email: 'admin@gymloop.example.com', home: '/platform', forbidden: ['Overview', 'Check-in', 'Members', 'Payments', 'Team', 'Settings'] },
 } as const;
 
 // STI-015: the Team item is the gym owner's alone. Every other role lists it as forbidden above.
-const requiredNavigation: Partial<Record<keyof typeof accounts, readonly string[]>> = { owner: ['Team'] };
+const requiredNavigation: Partial<Record<keyof typeof accounts, readonly string[]>> = { owner: ['Team', 'Settings'] };
 
 const forbiddenRoutes = {
   member: ['/dashboard', '/console'],
@@ -106,7 +106,7 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
   }
 
   for (const route of [
-    '/member/activity', '/member/my-gym', '/member/you', '/member/check-in', '/member/messages', '/member/add-ons',
+    '/member/activity', '/member/my-gym', '/member/you', '/member/check-in', '/member/messages', '/member/add-ons', '/member/plans',
   ] as const) {
     for (const theme of ['light', 'dark'] as const) {
       test(`member ${route} loads accessibly in ${theme} mode`, async ({ browser }) => {
@@ -149,7 +149,7 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
     }
   }
 
-  for (const route of ['/payments', '/messages', '/imports', '/add-ons'] as const) {
+  for (const route of ['/payments', '/messages', '/imports', '/add-ons', '/settings'] as const) {
     for (const theme of ['light', 'dark'] as const) {
       test(`owner ${route} loads accessibly in ${theme} mode`, async ({ browser }) => {
         const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, colorScheme: theme });

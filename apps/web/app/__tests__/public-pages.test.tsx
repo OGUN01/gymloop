@@ -7,6 +7,8 @@ vi.mock('../../lib/identity-session', () => ({ readIdentity: async () => ({ sign
 vi.mock('../../lib/member-portal', () => ({
   loadMemberPortal: async () => ({
     errorMessage: null,
+    businessType: 'gym',
+    nouns: { place: 'gym', session: 'session', sessions: 'sessions', class: 'class', classes: 'classes', member: 'member', members: 'members', trainer: 'trainer' },
     member: { full_name: 'Aarav Sharma', email: 'aarav@example.test', phone: null, member_code: 'GYM-42' },
     gym: { name: 'Iron Box Fitness', gym_code: 'IRNBX1', branchName: 'Main' },
     membership: { planName: 'Monthly', status: 'active' },
@@ -54,8 +56,8 @@ describe('public legal and help pages', () => {
     expect(html).toContain(PUBLISHER_NAME);
     expect(html).toContain('Delete my FitCruxx account');
     expect(html).toMatch(/email[^<]*sign in|address you sign in with/i);
-    expect(html).toMatch(/gym.s name/i);
-    expect(html).toMatch(/gym[^<]*verif|confirm[^<]*gym/i);
+    expect(html).toMatch(/name of your gym, studio or academy/i);
+    expect(html).toMatch(/confirm[^<]*business/i);
     expect(html).toMatch(/within 30 days/i);
     expect(html).toMatch(/sign-in account/i);
     expect(html).toMatch(/personal fields/i);
