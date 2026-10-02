@@ -259,3 +259,15 @@ Authoritative batch-2 decisions settle the legacy cutoff, comms exception, actor
 12. **Roster, check-in and message-list badges** for minors are not built; the badge exists on the member page only. Default: follow-on.
 13. **Consent `source` is free text.** Default: free text with a console suggestion list (paper form, in person, phone call) — a vocabulary enum is a later option once real practice is seen.
 14. **Resolved:** BIZ owns one vertical-neutral legal rewrite; the integrator adds INV/STI/GRD sentences and keeps the effective-date line unchanged.
+
+## Shared gym-day dependency reconciliation (2026-10-03)
+
+The owner-approved ANC live-membership amendment requires the existing validated
+timezone fallback in the shared `app.gym_today` dependency. For a readable gym,
+use its recognized PostgreSQL timezone, falling back to UTC only for invalid
+configuration. Valid gym timezones continue to determine GRD-001's calendar day;
+no valid local birthday is evaluated on an unrelated UTC day. An unreadable or
+missing gym still returns null. Signature, stability, RLS visibility, grants,
+claim validation and all age/consent rules remain unchanged. Independent
+invalid-timezone tests precede the isolated helper repair; the complete GRD
+visible/holdout suites remain required. See the approved ANC amendment for scope.
