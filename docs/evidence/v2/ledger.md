@@ -339,3 +339,25 @@ The durable per-suite and source-byte/Git-blob receipt is
 `docs/evidence/v2/batch2-canonical-r27.json`. No permanent local migration,
 fixture data, media publication or phone operation occurred. Business push and
 CI/types verification are next; all app/visual/live acceptance remains open.
+
+### Batch-2 CI landing and app test handoff, 2026-10-03
+
+Source/doc push b2a331f applied all eight business migrations through CI only:
+DB 37061065081's migrate job passed. Its full pgTAP/seed verification is still
+in progress; the historical source-push drift failure awaits the normal generated
+type follow-up. CLI-generated database declarations were committed separately
+as 89c6cda and pushed after migrate success under ADR-177. Type-only DB
+37061577506 is queued behind the source run; no drift win is yet claimed.
+
+Types CI 37061577452 passed all code gates but failed two browser journeys
+(timeout/missing heading); the permitted one-time failed-job retry is running.
+Source CI's browser job separately reported a damaged trace. These are open
+browser gate results, not accepted application evidence.
+
+Independent BIZ/PLC app tests were committed red as 64b5820 before the isolated
+BIZ application builder started. A scoped orchestrator audit found GRD and
+SHP/MEDIA test harness defects and executable coverage gaps; independent visible
+authors are repairing their uncommitted tests before any corresponding builder
+is launched. Browser/media/race/native acceptance, Waves C/D and release remain
+open. No local Cloud query, permanent mutation, or USB/ADB/Metro operation was
+performed while CI's DB workflow is active.

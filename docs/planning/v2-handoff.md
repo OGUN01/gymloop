@@ -1,4 +1,4 @@
-# V2 campaign handoff — 2026-10-03 (batch 1 pushed; batch 2 verification)
+# V2 campaign handoff — 2026-10-03 (batch 2 applied; application builds)
 
 Read this, then `docs/planning/v2-feature-map.md`, `docs/planning/v2-campaign-goal.md`, `AGENTS.md`, ADR-176 and ADR-177
 in `docs/decisions.md`. **Batch 1 is pushed and CI applied its migrations.** The
@@ -20,11 +20,11 @@ current checkpoint below supersedes the historical session-1 snapshot.
 - The CI-only vocabulary prelude is applied. DB 37021183243 passed migrate,
   full pgTAP and seed; its historical pre-types drift is resolved by CLI-generated
   follow-up ccc62e4 / DB **37022798758 (all jobs green)**. Related CI/held/immutability
-  runs passed. origin/main is ccc62e4; no seven-feature business migration is pushed.
+  runs passed. The later business/type pushes are recorded below.
 - Seven batch-2 contracts, separate SQL authors and central catalogue tests are
   committed first. All eight sources are committed separately as 2ef398c; ANC's
-  exact platform-policy reconciliation is complete. All business Cloud schema
-  remains unapplied. PTF's canonical preview clarification 1feffcf received fresh
+  exact platform-policy reconciliation is complete. CI has applied all eight
+  business migrations from push b2a331f. PTF's canonical preview clarification 1feffcf received fresh
   GO; separate visible356/held381 tests preceded the isolated source correction.
   Both suites now pass. Fresh blind PTF and Shop source critics returned static
   GO; those reviews do not establish real races, publication or screen quality.
@@ -40,10 +40,9 @@ current checkpoint below supersedes the historical session-1 snapshot.
   the legacy role matrix, added the exact approved table/helper inventories, and
   used actual gym-local tomorrow for the future-DOB refusal. Canonical retry r20
   pinned a5b4225: all four repaired suites green, 1,415/1,415 assertions. All eight
-  migration hashes match r18. Together these establish passing coverage across
-  the 123 files; they are not one final all-green sweep. That final sweep remains
-  mandatory after the approved boundary repairs and before the business
-  push. Cloud testing is serialized and forbidden during any DB workflow.
+  migration hashes match r18. These earlier partial receipts are superseded by
+  the final all-green r27 below. Cloud testing is serialized and forbidden
+  during any DB workflow.
 - Owner approved explicit rejection of class `24:00` and announcement audiences
   using status plus inclusive gym-local membership dates. Freeze a16ae30 preceded
   four independent new SQL suites and isolated source repairs. Canonical r23
@@ -59,9 +58,19 @@ current checkpoint below supersedes the historical session-1 snapshot.
   assertions, zero failures**. Existing seed/scenarios passed final rollback r2
   against those same eight migration bytes. Machine receipt:
   docs/evidence/v2/batch2-canonical-r27.json. Local rollback (127 files),
-  immutability (74 commits), registry and escape gates passed; business CI push
-  is the next step. Prepared BIZ/PLC app test repairs remain uncommitted until
-  the SQL/type landing; do not include those red app tests in this source push.
+  immutability (74 commits), registry and escape gates passed. Source push b2a331f
+  triggered DB 37061065081: migrate passed, full pgTAP remains running, and the
+  historical pre-generation drift failed as expected. CLI-generated type-only
+  follow-up 89c6cda is pushed under ADR-177; DB 37061577506 awaits the source run.
+  Its drift success is still required. CI 37061577452 passed every code gate but
+  hit two browser failures (a timeout and a missing heading); the permitted
+  one-time failed-job retry is running. Source CI also encountered a damaged
+  Playwright trace. No browser gate is cleared until a passing result exists.
+- Independent BIZ/PLC app acceptance tests are committed red as 64b5820,
+  before application source. BIZ's isolated builder is active. GRD and
+  SHP/MEDIA app drafts remain uncommitted while independent visible authors
+  repair harness defects and fill executable coverage gaps. Builders must never
+  read holdout files or the orchestrator's private failure evidence.
 - Owner approved the PT final-session exception, then clarified that ANY
   same-tenant/order-payment refund record blocks it (including pending and failed).
   Public boundary and immutable completed_order posture received independent GO;
@@ -96,9 +105,11 @@ current checkpoint below supersedes the historical session-1 snapshot.
   provisioned to repository secrets with independent name/timestamp receipt.
   Edge secret provisioning/deploy, verified immutable publication/current
   exposure and live upload remain pending. No media object was written for CORS.
-- Registry/ADRs and guardian privacy inventory are being integrated. After the
-  single business push, CLI-generate types and carry app red/build/critics/gates
-  forward under ADR-177, then Waves C/D and versionCode 5. Preserve ALL-v2 scope.
+- Registry/ADRs and guardian privacy inventory are being integrated. Carry app
+  red/build/critics/gates forward under ADR-177, then Waves C/D and versionCode 5.
+  Prepared Wave C/D drafts are not frozen. PAY stock/mismatch/renewal choices
+  and NTF transport/Firebase identity questions remain pending with the owner;
+  neither draft authorizes provider setup or implementation. Preserve ALL-v2 scope.
 
 Evidence and limits: `docs/evidence/v2/ledger.md`. Use GPT-6.1 Sol, narrow briefs
 and affected checks to minimize weekly usage; keep independent roles/fresh critics.
