@@ -9,7 +9,7 @@
 begin;
 set local role postgres;
 set local search_path to public, extensions;
-select plan(275);
+select plan(276);
 
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$
 select ('72900000-0000-4000-8000-'||lpad(to_hex(n),12,'0'))::uuid
@@ -301,25 +301,43 @@ insert into h72_state values('free',pg_temp.run(pg_temp.reserve(451),pg_temp.mem
 select pg_temp.refused(pg_temp.fulfil('free',820,null,null,null),'GL055','invalid_payment','free reservation still requires desk reason');
 insert into h72_state values('freefulfilled',pg_temp.run(pg_temp.fulfil('free',820,null,null,'Complimentary towel')));
 select ok((select v->>'error' is null and v->'value'->>'payment_id' is null from h72_state where k='freefulfilled'),'free reservation converts without payment');
+-- Execute the canonical deferred order guard before DDL; never disable it.
+set constraints public.addon_orders_unaccepted immediate;
+set constraints public.addon_orders_unaccepted deferred;
+alter table public.addon_orders alter column created_at set default now();
+select is((select pg_get_expr(d.adbin,d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
+ where d.adrelid='public.addon_orders'::regclass and a.attname='created_at'),
+ (select v#>>'{}' from h72_state where k='order_created_default'),'exact order default restored after bounded fulfil/replay cases');
+-- END bounded successful sale/fulfil command-transaction simulation.
+
 -- A genuine ordinary sale before a genuine reservation must remain inadmissible.
 -- This negative causal guard prevents the seam from relaxing SHP-011 semantics.
--- Frozen rollback-clock clarification: this negative fixture alone changes the
--- reservation default; positive fulfil/replay above use its canonical default.
+-- Frozen rollback-clock correction: synthetic negative-only earlier order default.
+-- The reservation default is never changed; this is not separate-transaction proof.
 insert into h72_state values('reservation_created_default',to_jsonb((select pg_get_expr(d.adbin,d.adrelid)
  from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
  where d.adrelid='public.shop_reservations'::regclass and a.attname='created_at')));
-alter table public.shop_reservations alter column created_at set default clock_timestamp();
+insert into h72_state values('negative_order_created_default',to_jsonb((select pg_get_expr(d.adbin,d.adrelid)
+ from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
+ where d.adrelid='public.addon_orders'::regclass and a.attname='created_at')));
+alter table public.addon_orders alter column created_at set default (statement_timestamp() - interval '1 microsecond');
 insert into h72_state values('priororder',pg_temp.run('select to_jsonb(x) from public.record_addon_sale(pg_temp.u(102),pg_temp.u(410),1,pg_temp.q(410),null,null,null,''cash'',null,pg_temp.u(827))x'));
-insert into h72_state values('laterreservation',pg_temp.run(pg_temp.reserve(410),pg_temp.member_claim(2)));
-do $restore_reservation_default$
+
+set constraints public.addon_orders_unaccepted immediate;
+set constraints public.addon_orders_unaccepted deferred;
+do $restore_negative_order_default$
 begin
- execute format('alter table public.shop_reservations alter column created_at set default %s',
-  (select v#>>'{}' from h72_state where k='reservation_created_default'));
+ execute format('alter table public.addon_orders alter column created_at set default %s',
+  (select v#>>'{}' from h72_state where k='negative_order_created_default'));
 end
-$restore_reservation_default$;
+$restore_negative_order_default$;
+select is((select pg_get_expr(d.adbin,d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
+ where d.adrelid='public.addon_orders'::regclass and a.attname='created_at'),
+ (select v#>>'{}' from h72_state where k='negative_order_created_default'),'exact order default restored before later member reservation');
+insert into h72_state values('laterreservation',pg_temp.run(pg_temp.reserve(410),pg_temp.member_claim(2)));
 select is((select pg_get_expr(d.adbin,d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
  where d.adrelid='public.shop_reservations'::regclass and a.attname='created_at'),
- (select v#>>'{}' from h72_state where k='reservation_created_default'),'exact reservation default restored before negative causal probe');
+ (select v#>>'{}' from h72_state where k='reservation_created_default'),'reservation default unchanged throughout negative causal fixture');
 select ok((select v->>'error' is null and v->'value'->>'order_id' is not null from h72_state where k='priororder'),
  'negative fixture genuine earlier sale succeeds: '||(select v::text from h72_state where k='priororder'));
 select ok((select v->>'error' is null and v->'value'->>'reservation_id' is not null from h72_state where k='laterreservation'),
@@ -338,14 +356,7 @@ select ok((select count(*) from public.addon_orders)=(select (v->>'orders')::big
  (select count(*) from public.shop_reservations)=(select (v->>'reservations')::bigint from h72_state where k='causalbefore') and
  (select stock_quantity from public.addon_products where id=pg_temp.u(410))=(select (v->>'stock')::integer from h72_state where k='causalbefore'),
  'earlier-order refusal creates no sale payment reservation or stock effect');
--- Execute the canonical deferred order guard before DDL; never disable it.
-set constraints public.addon_orders_unaccepted immediate;
-set constraints public.addon_orders_unaccepted deferred;
-alter table public.addon_orders alter column created_at set default now();
-select is((select pg_get_expr(d.adbin,d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
- where d.adrelid='public.addon_orders'::regclass and a.attname='created_at'),
- (select v#>>'{}' from h72_state where k='order_created_default'),'exact order default restored after bounded fulfil/replay cases');
--- END bounded successful sale/fulfil command-transaction simulation.
+
 
 -- Registration, metadata receipt protocol and invariant bypass attempts.
 insert into h72_state select kind,pg_temp.run(format('select to_jsonb(public.register_media_asset(%L,%L,%L,1234))',kind,pg_temp.key(n,'staging',kind),'image/jpeg'))

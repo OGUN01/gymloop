@@ -71,7 +71,10 @@ insert into public.branches(id,tenant_id,name,is_default,timezone) values
  (pg_temp.u(11),pg_temp.u(1),'Main',true,'Asia/Kolkata'),
  (pg_temp.u(12),pg_temp.u(1),'West',false,'Etc/GMT+12'),
  (pg_temp.u(13),pg_temp.u(2),'East',true,'Pacific/Kiritimati');
-insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name,is_active) values
+-- Bound staff configuration uses the canonical active platform identity.
+do $staff_fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name,is_active) values
  (pg_temp.u(21),pg_temp.u(1),pg_temp.u(11),pg_temp.u(921),'gym_owner','Owner',true),
  (pg_temp.u(22),pg_temp.u(1),pg_temp.u(11),pg_temp.u(922),'gym_manager','Manager',true),
  (pg_temp.u(23),pg_temp.u(1),pg_temp.u(11),pg_temp.u(923),'front_desk','Desk',true),
@@ -79,6 +82,11 @@ insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name,is_active
  (pg_temp.u(25),pg_temp.u(1),pg_temp.u(11),pg_temp.u(925),'trainer','Other Lead',true),
  (pg_temp.u(26),pg_temp.u(1),pg_temp.u(11),pg_temp.u(926),'front_desk','Inactive',false),
  (pg_temp.u(27),pg_temp.u(2),pg_temp.u(13),pg_temp.u(927),'gym_owner','B Owner',true);
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $staff_fixture$;
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone,status,erased_at)
 select pg_temp.u(n),pg_temp.u(case when n=110 then 2 else 1 end),
  pg_temp.u(case when n=110 then 13 when n=106 then 12 else 11 end),
@@ -984,7 +992,15 @@ exception when others then
  raise;
 end $fixture$;
 insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_temp.u(14),pg_temp.u(3),'Limit',true,'UTC');
-insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(31),pg_temp.u(3),pg_temp.u(14),pg_temp.u(931),'gym_owner','Limit owner');
+-- Bound staff configuration uses the canonical active platform identity.
+do $staff_fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(31),pg_temp.u(3),pg_temp.u(14),pg_temp.u(931),'gym_owner','Limit owner');
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $staff_fixture$;
 insert into public.services(id,tenant_id,name,default_duration_minutes,default_capacity) select pg_temp.u(22000+n),pg_temp.u(3),'Limit service '||n,60,2 from generate_series(1,50)n;
 insert into public.class_rules(id,tenant_id,service_id,branch_id,weekday,start_time,duration_minutes,capacity,valid_from) select pg_temp.u(23000+n),pg_temp.u(3),pg_temp.u(22001),pg_temp.u(14),0,time '00:00'+n*interval '1 minute',60,2,current_date from generate_series(1,200)n;
 set local role authenticated;
@@ -1138,7 +1154,15 @@ exception when others then
  raise;
 end $fixture$;
 insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_temp.u(54),pg_temp.u(4),'State branch',true,'UTC');
-insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(44),pg_temp.u(4),pg_temp.u(54),pg_temp.u(944),'gym_owner','State owner');
+-- Bound staff configuration uses the canonical active platform identity.
+do $staff_fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(44),pg_temp.u(4),pg_temp.u(54),pg_temp.u(944),'gym_owner','State owner');
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $staff_fixture$;
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(124),pg_temp.u(4),pg_temp.u(54),pg_temp.u(1024),'State member','+917402000124');
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values(pg_temp.u(25004),pg_temp.u(4),'State plan',30,10000);
 insert into public.memberships(tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise) values(pg_temp.u(4),pg_temp.u(124),pg_temp.u(25004),'active',current_date-1,current_date+30,10000);
@@ -1162,7 +1186,15 @@ exception when others then
  raise;
 end $fixture$;
 insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_temp.u(55),pg_temp.u(5),'State branch',true,'UTC');
-insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(45),pg_temp.u(5),pg_temp.u(55),pg_temp.u(945),'gym_owner','State owner');
+-- Bound staff configuration uses the canonical active platform identity.
+do $staff_fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(45),pg_temp.u(5),pg_temp.u(55),pg_temp.u(945),'gym_owner','State owner');
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $staff_fixture$;
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(125),pg_temp.u(5),pg_temp.u(55),pg_temp.u(1025),'State member','+917402000125');
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values(pg_temp.u(25005),pg_temp.u(5),'State plan',30,10000);
 insert into public.memberships(tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise) values(pg_temp.u(5),pg_temp.u(125),pg_temp.u(25005),'active',current_date-1,current_date+30,10000);
@@ -1186,7 +1218,15 @@ exception when others then
  raise;
 end $fixture$;
 insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_temp.u(56),pg_temp.u(6),'State branch',true,'UTC');
-insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(46),pg_temp.u(6),pg_temp.u(56),pg_temp.u(946),'gym_owner','State owner');
+-- Bound staff configuration uses the canonical active platform identity.
+do $staff_fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(46),pg_temp.u(6),pg_temp.u(56),pg_temp.u(946),'gym_owner','State owner');
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $staff_fixture$;
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(126),pg_temp.u(6),pg_temp.u(56),pg_temp.u(1026),'State member','+917402000126');
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values(pg_temp.u(25006),pg_temp.u(6),'State plan',30,10000);
 insert into public.memberships(tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise) values(pg_temp.u(6),pg_temp.u(126),pg_temp.u(25006),'active',current_date-1,current_date+30,10000);
@@ -1210,7 +1250,15 @@ exception when others then
  raise;
 end $fixture$;
 insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_temp.u(57),pg_temp.u(7),'State branch',true,'UTC');
-insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(47),pg_temp.u(7),pg_temp.u(57),pg_temp.u(947),'gym_owner','State owner');
+-- Bound staff configuration uses the canonical active platform identity.
+do $staff_fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(47),pg_temp.u(7),pg_temp.u(57),pg_temp.u(947),'gym_owner','State owner');
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $staff_fixture$;
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(127),pg_temp.u(7),pg_temp.u(57),pg_temp.u(1027),'State member','+917402000127');
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values(pg_temp.u(25007),pg_temp.u(7),'State plan',30,10000);
 insert into public.memberships(tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise) values(pg_temp.u(7),pg_temp.u(127),pg_temp.u(25007),'active',current_date-1,current_date+30,10000);
@@ -1234,7 +1282,15 @@ exception when others then
  raise;
 end $fixture$;
 insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_temp.u(58),pg_temp.u(8),'State branch',true,'UTC');
-insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(48),pg_temp.u(8),pg_temp.u(58),pg_temp.u(948),'gym_owner','State owner');
+-- Bound staff configuration uses the canonical active platform identity.
+do $staff_fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(48),pg_temp.u(8),pg_temp.u(58),pg_temp.u(948),'gym_owner','State owner');
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $staff_fixture$;
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(128),pg_temp.u(8),pg_temp.u(58),pg_temp.u(1028),'State member','+917402000128');
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values(pg_temp.u(25008),pg_temp.u(8),'State plan',30,10000);
 insert into public.memberships(tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise) values(pg_temp.u(8),pg_temp.u(128),pg_temp.u(25008),'active',current_date-1,current_date+30,10000);
@@ -1258,7 +1314,15 @@ exception when others then
  raise;
 end $fixture$;
 insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_temp.u(59),pg_temp.u(9),'State branch',true,'UTC');
-insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(49),pg_temp.u(9),pg_temp.u(59),pg_temp.u(949),'gym_owner','State owner');
+-- Bound staff configuration uses the canonical active platform identity.
+do $staff_fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(49),pg_temp.u(9),pg_temp.u(59),pg_temp.u(949),'gym_owner','State owner');
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $staff_fixture$;
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(129),pg_temp.u(9),pg_temp.u(59),pg_temp.u(1029),'State member','+917402000129');
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values(pg_temp.u(25009),pg_temp.u(9),'State plan',30,10000);
 insert into public.memberships(tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise) values(pg_temp.u(9),pg_temp.u(129),pg_temp.u(25009),'active',current_date-1,current_date+30,10000);
