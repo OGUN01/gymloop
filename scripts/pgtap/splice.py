@@ -40,6 +40,8 @@ migrations = ''.join(io.open(p, encoding='utf-8').read() + '\n' for p in sys.arg
 # marker would not match and `index` would raise a bare ValueError. Every file
 # in the suite carries a header comment, so this has never bitten -- which is
 # exactly why it is worth a line now rather than a debugging session later.
+if test.startswith('begin;\n'):
+    test = '\n' + test  # the file opens with `begin;` and has no header comment
 marker = '\nbegin;\n'
 if marker not in test:
     raise SystemExit(f'{sys.argv[1]}: no line-anchored `begin;` to splice after')

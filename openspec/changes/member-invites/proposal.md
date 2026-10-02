@@ -168,7 +168,7 @@ test already pins the stricter reading, the test and this section agree.
 
 **Database**
 - Fourth, not third, non-tenant-leading unique (`gym_code`, `qr_sessions_token_hash_key`, the impersonation key already exist).
-- Policies on `member_invites`: `member_invites_front_office_select` (tenant term first: `tenant_id = (select app.current_tenant_id())` then `app.is_front_office()`) and `member_invites_platform_select` (platform roles read all, per the `04_contract_meta` pair rule). No other policy. The preview trigger stays; `04_contract_meta` carries a named carve-out for it.
+- Policies on `member_invites`: `member_invites_tenant_select` (the name `04_contract_meta` and `docs/data-model.md` require; tenant term first: `tenant_id = (select app.current_tenant_id())` then `app.is_front_office()`) and `member_invites_platform_select` (platform roles read all, per the `04_contract_meta` pair rule). No other policy. The preview trigger stays; `04_contract_meta` carries a named carve-out for it.
 - Extra indexes required by existing meta rules: `(tenant_id, issued_by_staff_id)`, `(redeemed_user_id)`, and `closed_by_staff_id` gets composite FK `(tenant_id, closed_by_staff_id) → staff(tenant_id, id)` plus index `(tenant_id, closed_by_staff_id)`.
 - Volatility: `issue_`, `revoke_`, `redeem_`, `unlink_` volatile; `peek_member_invite` and `read_member_app_access` stable. `app.member_invite_actor` is security invoker. `service_role` and `public` have no execute on any new function or the audit helper (explicit revoke); `anon` executes only `peek_member_invite`; `authenticated` the six public functions.
 - Argument errors: a null or malformed token hash raises `22023` in issue, redeem and peek; null ids raise `22023`. Redeem with no `auth.uid()` raises `42501`.
