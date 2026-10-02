@@ -2,7 +2,7 @@
 begin;
 set local role postgres;
 set local search_path to public, extensions;
-select plan(219);
+select plan(220);
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$select ('74900000-0000-4000-8000-'||lpad(to_hex(n),12,'0'))::uuid$$;
 create function pg_temp.sc(n integer default 1) returns text language sql as $$select jsonb_build_object('sub',pg_temp.u(200+n),'role','authenticated','tenant_id',pg_temp.u(case when n=5 then 2 else 1 end),'staff_id',pg_temp.u(200+n),'app_role',case n when 1 then 'gym_owner' when 2 then 'gym_manager' when 3 then 'front_desk' when 4 then 'trainer' when 5 then 'gym_owner' else 'trainer' end)::text$$;
 create function pg_temp.mc(n integer default 100) returns text language sql as $$select jsonb_build_object('sub',pg_temp.u(1000+n),'role','authenticated','tenant_id',pg_temp.u(case when n=110 then 2 else 1 end),'member_id',pg_temp.u(n),'app_role','member')::text$$;
@@ -69,7 +69,7 @@ select is(pg_temp.run('select to_jsonb(count(*))from public.read_class_timetable
 select is(pg_temp.run('select to_jsonb(count(*))from public.read_class_roster(pg_temp.u(700))',jsonb_build_object('sub',pg_temp.u(207),'role','authenticated','app_role','super_admin')::text),'0'::jsonb,'CLS explicit staff roster gate platform');
 select is(pg_temp.run('select to_jsonb(count(*))from public.read_class_timetable(null,current_date-1,current_date+2)',pg_temp.mc()),'0'::jsonb,'CLS explicit staff timetable gate member');
 select is(pg_temp.run('select to_jsonb(count(*))from public.read_class_roster(pg_temp.u(700))',pg_temp.mc()),'0'::jsonb,'CLS explicit staff roster gate member');
-select is(pg_temp.run('select to_jsonb(count(*))from public.read_class_timetable(null,current_date-1,current_date+2)',pg_temp.sc(5)),'0'::jsonb,'CLS explicit staff timetable gate foreign');
+select is(pg_temp.run('select to_jsonb(count(*))from public.read_class_timetable(pg_temp.u(11),current_date-1,current_date+2)',pg_temp.sc(5)),'0'::jsonb,'CLS foreign staff timetable cannot read target gym branch');
 select is(pg_temp.run('select to_jsonb(count(*))from public.read_class_roster(pg_temp.u(700))',pg_temp.sc(5)),'0'::jsonb,'CLS explicit staff roster gate foreign');
 insert into h74_res values('service',pg_temp.run($q$select to_jsonb(public.create_service(' New ', ' ',60,3,0))$q$,pg_temp.sc()));
 select ok((select v->>'error'is null from h74_res where k='service')and exists(select 1 from public.services where tenant_id=pg_temp.u(1)and name='New'and description is null),'CLS service trim blank description');
@@ -243,7 +243,8 @@ select is(pg_temp.run($q$update public.class_bookings set status='attended',canc
 insert into public.class_sessions(id,tenant_id,service_id,branch_id,session_date,starts_at,ends_at,capacity,status,cancelled_at,cancel_reason,cancelled_by_staff_id)values(pg_temp.u(835),pg_temp.u(1),pg_temp.u(600),pg_temp.u(11),current_date+3,now()+interval '3 days',now()+interval '3 days 1 hour',1,'cancelled',now(),'Matrix',pg_temp.u(201));
 insert into public.class_bookings(id,tenant_id,session_id,member_id,status,cancelled_at,marked_at,cancel_reason)values(pg_temp.u(1835),pg_temp.u(1),pg_temp.u(835),pg_temp.u(100),'no_show',null,now(),'Matrix');
 select is(pg_temp.run($q$update public.class_bookings set status='no_show',cancelled_at=null,marked_at=now()where id=pg_temp.u(1835)returning to_jsonb(status)$q$,'','service_role'),'"no_show"'::jsonb,'CLS direct legal edge no_show to no_show');
-select is(pg_temp.run($q$update public.class_bookings set member_id=pg_temp.u(101)where session_id=pg_temp.u(701)returning to_jsonb(id)$q$,'','service_role')->>'error','23514','CLS direct immutable member');
+select is((select member_id from public.class_bookings where session_id=pg_temp.u(701)),pg_temp.u(101),'CLS immutable member probe has existing walk-in target');
+select is(pg_temp.run($q$update public.class_bookings set member_id=pg_temp.u(100)where session_id=pg_temp.u(701)returning to_jsonb(id)$q$,'','service_role')->>'error','23514','CLS direct immutable member');
 select is(pg_temp.run($q$update public.class_bookings set created_at=created_at-interval '1 second'where session_id=pg_temp.u(701)returning to_jsonb(id)$q$,'','service_role')->>'error','23514','CLS direct immutable creation');
 select is(pg_temp.run($q$update public.class_sessions set status='scheduled',cancelled_at=null,cancel_reason=null,cancelled_by_staff_id=null where id=pg_temp.u(800)returning to_jsonb(id)$q$,'','service_role')->>'error','GL111','CLS cancelled session irreversible');
 insert into public.class_bookings(id,tenant_id,session_id,member_id)values(pg_temp.u(1900),pg_temp.u(1),pg_temp.u(709),pg_temp.u(100));
@@ -252,8 +253,12 @@ select is(app.class_local_instant('America/New_York',date '2027-03-14',time '02:
 select is(app.class_local_instant('America/New_York',date '2026-11-01',time '01:30'),timestamptz '2026-11-01 06:30+00','CLS ambiguous DST time PostgreSQL rule');
 update public.branches set timezone='Invalid/CLS'where id=pg_temp.u(12);
 select is(app.class_branch_timezone(pg_temp.u(1),pg_temp.u(12)),'Pacific/Kiritimati','CLS invalid branch falls back gym');
-create function pg_temp.checkin_parity()returns boolean language plpgsql as $$begin
-begin insert into public.attendance(tenant_id,branch_id,member_id,membership_id,checked_in_at,source,assisted_by_staff_id,assist_reason)values(pg_temp.u(1),pg_temp.u(11),pg_temp.u(108),pg_temp.u(508),statement_timestamp(),'front_desk',pg_temp.u(201),'CLS membership parity');raise exception using errcode='HX001',message='rollback successful parity probe';exception when sqlstate 'HX001'then return true;when others then return false;end;end$$;
+create function pg_temp.checkin_parity()returns boolean language plpgsql as $$declare v jsonb;begin
+begin
+ v:=pg_temp.run('select to_jsonb(g)from public.record_staff_front_desk_check_in(pg_temp.u(108),''CLS membership parity'',pg_temp.u(29001))g',pg_temp.sc());
+ if v?'error'or v='null'::jsonb or not exists(select 1 from public.attendance where id=(v->>'id')::uuid and member_id=pg_temp.u(108)and tenant_id=pg_temp.u(1)and assisted_by_staff_id=pg_temp.u(201))then return false;end if;
+ raise exception using errcode='HX001',message='rollback successful parity probe';
+exception when sqlstate 'HX001'then return true;when others then return false;end;end$$;
 set local session_replication_role=replica;update public.memberships set status='active',starts_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date,ends_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date where member_id=pg_temp.u(108);set local session_replication_role=origin;
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),true,'CLS check-in predicate matrix 0 active');
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 0');

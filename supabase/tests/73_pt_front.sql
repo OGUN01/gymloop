@@ -383,12 +383,18 @@ set local role authenticated;
 select is(pg_temp.err($q$select public.book_pt_session(pg_temp.gid(202),pg_temp.gid(302),pg_temp.slot(1))$q$),'GL096','PTF-010: different member gets trainer-slot refusal');
 select lives_ok($q$select public.book_pt_session(pg_temp.gid(202),pg_temp.gid(302),pg_temp.slot(2))$q$,'PTF-009: frozen membership consumes canonical live-membership predicate');
 set local role postgres;
+-- Historical membership-date fixture only; command assertions retain origin.
+set local session_replication_role=replica;
 update public.memberships set ends_on=(pg_temp.slot(3) at time zone 'Asia/Kolkata')::date-1 where id=pg_temp.gid(52);
+set local session_replication_role=origin;
 select pg_temp.claim('member',null,32,908);
 set local role authenticated;
 select is(pg_temp.err($q$select public.book_pt_session(pg_temp.gid(202),pg_temp.gid(303),pg_temp.slot(3))$q$),'GL093','PTF-009: future slot after membership inclusive end refused');
 set local role postgres;
+-- Historical membership-date fixture only; command assertions retain origin.
+set local session_replication_role=replica;
 update public.memberships set ends_on=app.gym_today(pg_temp.gid(1))+90 where id=pg_temp.gid(52);
+set local session_replication_role=origin;
 
 -- Policy at cancellation time, exact cutoff, consumption and cancellation replay.
 select pg_temp.claim();
@@ -801,7 +807,10 @@ select ok(coalesce(current_setting('app.pt_reassign_command',true),'')='','PTF-0
 select set_config('request.jwt.claims','',true);
 insert into pt_probe values('branch_start',to_jsonb((((statement_timestamp() at time zone 'Pacific/Kiritimati')::date+10)+time '01:00') at time zone 'Pacific/Kiritimati'));
 update public.members set branch_id=pg_temp.gid(13) where id=pg_temp.gid(31);
+-- Historical membership-date fixture only; command assertions retain origin.
+set local session_replication_role=replica;
 update public.memberships set ends_on=((select (v#>>'{}')::timestamptz from pt_probe where label='branch_start') at time zone 'Pacific/Kiritimati')::date-1 where id=pg_temp.gid(51);
+set local session_replication_role=origin;
 select pg_temp.claim();
 set local role authenticated;
 select is(public.set_trainer_availability(pg_temp.gid(28),(select jsonb_agg(jsonb_build_object('weekday',n,'startMinute',0,'endMinute',1440)) from generate_series(0,6) n)),7,'PTF-006: branch trainer owns a full weekly grid');
@@ -810,7 +819,10 @@ select pg_temp.claim('member',null,31,907);
 set local role authenticated;
 select is(pg_temp.err($q$select public.book_pt_session(pg_temp.gid(209),pg_temp.gid(354),(select (v#>>'{}')::timestamptz from pt_probe where label='branch_start'))$q$),'GL093','PTF-009: live membership tested on trainer branch day rather than earlier gym day');
 set local role postgres;
+-- Historical membership-date fixture only; command assertions retain origin.
+set local session_replication_role=replica;
 update public.memberships set ends_on=((select (v#>>'{}')::timestamptz from pt_probe where label='branch_start') at time zone 'Pacific/Kiritimati')::date where id=pg_temp.gid(51);
+set local session_replication_role=origin;
 select pg_temp.claim('member',null,31,907);
 set local role authenticated;
 select lives_ok($q$select public.book_pt_session(pg_temp.gid(209),pg_temp.gid(354),(select (v#>>'{}')::timestamptz from pt_probe where label='branch_start'))$q$,'PTF-009: membership inclusive trainer-day endpoint accepts real booking');
@@ -818,7 +830,10 @@ select is((select timezone from public.read_member_pt_sessions('upcoming') where
 select is(pg_temp.err($q$select public.book_pt_session(pg_temp.gid(215),pg_temp.gid(355),pg_temp.slot(1))$q$,true),'GL058:session_outside_validity','PTF-009/016: restored last-day capacity never extends original sold expiry');
 set local role postgres;
 update public.members set branch_id=pg_temp.gid(11) where id=pg_temp.gid(31);
+-- Historical membership-date fixture only; command assertions retain origin.
+set local session_replication_role=replica;
 update public.memberships set ends_on=app.gym_today(pg_temp.gid(1))+90 where id=pg_temp.gid(51);
+set local session_replication_role=origin;
 select is_empty($q$select id from public.audit_log where tenant_id=pg_temp.gid(1) and action='trainer_profile.updated' and (before ?| array['bio','photo_asset_id','object_key','email','phone'] or after ?| array['bio','photo_asset_id','object_key','email','phone'])$q$,'PTF-024: profile audit summaries contain no biography, photo storage or contact data');
 select is(pg_temp.err($q$select app.pt_audit(pg_temp.gid(1),null,null,'unapproved.action','pt_session',pg_temp.gid(999),null,null,null)$q$),'22023','PTF-024: private audit allowlist refuses arbitrary action');
 

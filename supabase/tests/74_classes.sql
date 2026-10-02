@@ -148,7 +148,8 @@ select ok(exists(select 1 from public.audit_log where tenant_id=pg_temp.u(1) and
 -- Cutoff at exactly statement clock, one microsecond each side and current policy.
 insert into public.class_sessions(id,tenant_id,service_id,branch_id,session_date,starts_at,ends_at,capacity)
 select pg_temp.u(n),pg_temp.u(1),pg_temp.id('service','id'),pg_temp.u(11),current_date,
- statement_timestamp()+interval '2 hours',statement_timestamp()+interval '3 hours',2 from generate_series(321,324)n;
+ statement_timestamp()+interval '2 hours'+(n-320)*interval '1 minute',
+ statement_timestamp()+interval '3 hours'+(n-320)*interval '1 minute',2 from generate_series(321,324)n;
 insert into public.class_bookings(id,tenant_id,session_id,member_id) select pg_temp.u(n+100),pg_temp.u(1),pg_temp.u(n),pg_temp.u(101) from generate_series(321,324)n;
 set local role authenticated;
 select pg_temp.claim(101);
@@ -1025,7 +1026,7 @@ select ok(exists(select 1 from pg_constraint where conrelid=to_regclass('public.
 -- Capacity reduction preserves seats and reports zero left, without overriding the lock.
 set local role postgres;
 insert into public.class_sessions(id,tenant_id,service_id,branch_id,session_date,starts_at,ends_at,capacity,trainer_staff_id)
- values(pg_temp.u(903),pg_temp.u(1),pg_temp.id('service','id'),pg_temp.u(11),(statement_timestamp()+interval '6 days' at time zone 'Asia/Kolkata')::date,statement_timestamp()+interval '6 days',statement_timestamp()+interval '6 days 1 hour',2,pg_temp.u(24));
+ values(pg_temp.u(903),pg_temp.u(1),pg_temp.id('service','id'),pg_temp.u(11),((statement_timestamp()+interval '6 days') at time zone 'Asia/Kolkata')::date,statement_timestamp()+interval '6 days',statement_timestamp()+interval '6 days 1 hour',2,pg_temp.u(24));
 set local role authenticated;
 select pg_temp.claim(101);
 select is(pg_temp.run($$select public.book_class_session(pg_temp.u(903))$$),'OK','CLS-014: first capacity fixture seat');
@@ -1251,7 +1252,7 @@ set local role postgres;
 insert into public.class_rules(id,tenant_id,service_id,branch_id,weekday,start_time,duration_minutes,capacity,valid_from)
  values(pg_temp.u(28002),pg_temp.u(1),pg_temp.id('serviceedit','id'),pg_temp.u(11),0,time '12:00',60,2,current_date);
 insert into public.class_sessions(id,tenant_id,service_id,branch_id,session_date,starts_at,ends_at,capacity)
- values(pg_temp.u(28003),pg_temp.u(1),pg_temp.id('serviceedit','id'),pg_temp.u(11),(statement_timestamp()+interval '12 days' at time zone 'Asia/Kolkata')::date,statement_timestamp()+interval '12 days',statement_timestamp()+interval '12 days 1 hour',2);
+ values(pg_temp.u(28003),pg_temp.u(1),pg_temp.id('serviceedit','id'),pg_temp.u(11),((statement_timestamp()+interval '12 days') at time zone 'Asia/Kolkata')::date,statement_timestamp()+interval '12 days',statement_timestamp()+interval '12 days 1 hour',2);
 insert into pg_temp.saved select 'serviceedit_rule_snapshot',to_jsonb(r) from public.class_rules r where id=pg_temp.u(28002);
 insert into pg_temp.saved select 'serviceedit_session_snapshot',to_jsonb(s) from public.class_sessions s where id=pg_temp.u(28003);
 set local role authenticated;

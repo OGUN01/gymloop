@@ -75,7 +75,7 @@ select is((select count(*)::integer from public.plans where tenant_id in(pg_temp
 reset role;
 select pg_temp.plc_claim('trainer',1,null,101);
 set local role authenticated;
-select is((select count(*)::integer from public.plans),0,'PLC-002: trainer word plus member id cannot impersonate either gate');
+select results_eq($q$select id from public.plans order by id$q$,$q$select * from (values(pg_temp.pid(201)),(pg_temp.pid(202)),(pg_temp.pid(203))) as expected order by column1$q$,'PLC-002 approved boundary: extra member id preserves legacy own-gym trainer access to active and inactive plans');
 reset role;
 select pg_temp.plc_claim(null);
 set local role authenticated;

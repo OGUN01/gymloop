@@ -135,7 +135,7 @@ select is((select count(*)::integer from public.notifications where tenant_id=pg
 
 set local role postgres;
 insert into public.class_sessions(id,tenant_id,service_id,branch_id,session_date,starts_at,ends_at,capacity,trainer_staff_id)
- values(pg_temp.u(903),pg_temp.u(1),pg_temp.id('service','id'),pg_temp.u(11),(statement_timestamp()+interval '6 days' at time zone 'Asia/Kolkata')::date,statement_timestamp()+interval '6 days',statement_timestamp()+interval '6 days 1 hour',2,pg_temp.u(24));
+ values(pg_temp.u(903),pg_temp.u(1),pg_temp.id('service','id'),pg_temp.u(11),((statement_timestamp()+interval '6 days') at time zone 'Asia/Kolkata')::date,statement_timestamp()+interval '6 days',statement_timestamp()+interval '6 days 1 hour',2,pg_temp.u(24));
 insert into public.class_bookings(tenant_id,session_id,member_id) select pg_temp.u(1),pg_temp.u(903),pg_temp.u(n) from unnest(array[101,102])n;
 -- Trainer changes notify held booked members, a real no-op writes nothing.
 set local role authenticated;
