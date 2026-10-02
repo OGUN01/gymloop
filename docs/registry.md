@@ -1030,3 +1030,11 @@ must come from CLI generation after CI applies the migrations.
 | `public.create_announcement_draft` / `public.update_announcement_draft` / `public.discard_announcement_draft` / `public.publish_announcement` / `public.edit_announcement` / `public.unpublish_announcement` | ANC migration above | Authorized audited drafting and publishing with optimistic version edits | Announcement console |
 | `public.list_announcements` / `public.read_announcement` / `public.read_member_announcements` / `public.mark_announcement_read` | ANC migration above | Counts-only staff reads, currently eligible member feed and own idempotent receipt | Console and member Home |
 | announcements_tenant_created_idx / announcements_tenant_published_idx / announcements_tenant_creator_idx / announcement_versions_tenant_image_idx / announcement_versions_tenant_creator_idx / announcement_receipts_tenant_member_idx | ANC migration above | Tenant-leading policy, pagination, current-feed and image/history lookup | ANC policies/readers and shared media |
+
+## BIZ app vocabulary
+
+| Symbol | Location | Purpose | Consumers |
+|---|---|---|---|
+| `BUSINESS_TYPES` / `BusinessType` / `DEFAULT_BUSINESS_TYPE` / `isBusinessType` | `packages/shared/src/business-type.ts` | Generated business enum and safe boundary validation | Web Settings, platform, mobile provider |
+| `BusinessNouns` / `businessNouns` / `businessRoleLabel` / `BUSINESS_TYPE_LABELS` / `BUSINESS_TYPE_SUMMARIES` | `packages/shared/src/business-type.ts` | Frozen eight-noun table and role/choice presentation | Member surfaces and console chrome |
+| `businessTypeCommandSchema` / `setGymBusinessTypeRequestSchema` / `BusinessTypeChange` | `packages/shared/src/business-type.ts` | Strict owner/platform command contracts and owner result | Business-type routes and Settings form |
