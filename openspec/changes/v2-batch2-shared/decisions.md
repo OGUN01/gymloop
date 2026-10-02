@@ -36,6 +36,15 @@ standing delegation and are recorded in each feature's ADR text.
   URL authorization rechecks current feature exposure. Prune objects while retaining
   metadata tombstones required by immutable announcement history. No web admin key,
   new DB secret, manual Cloud migration or general Edge expansion is approved.
+- **[owner, additional explicit approval 2026-10-02] R2 browser uploads:** apply
+  `r2-cors-amendment.md`. The exact private-bucket production-origin PUT policy
+  is separately approved and has been installed and verified. Browser upload and
+  trusted publication proof remain required after implementation.
+- **[owner, additional explicit approval 2026-10-02] Guardian marker integrity:** apply
+  `guardian-minors/marker-integrity-amendment.md`. Direct marker forgery/tampering
+  is refused; the existing private trigger also covers INSERT and marker updates.
+  Trusted unchanged-value rebinding retains the original clearing rule. Independent
+  amended tests were committed before the separate paused implementer resumed.
 - **[owner] PLC GST wording:** show the stored GST rate; claim neither inclusive nor exclusive; copy says the gym
   confirms the final amount.
 - **[owner] CLS paused members:** `frozen` memberships are bookable, with the same live-membership predicate as check-in.

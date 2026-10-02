@@ -148,5 +148,41 @@ Deployed browser verification passed all five real demo-role landing/navigation
 checks, including owner-only Team visibility and forbidden-route redirects.
 This is not proof of a successful Google invitation redemption or Android use.
 
+Vocabulary migration/tests/contracts were pushed as `9bcbd31`; CI migrate
+succeeded in [DB 37021183243](https://github.com/OGUN01/gymloop/actions/runs/37021183243).
+CLI-generated type bytes were pushed alone as `ccc62e4` under ADR-177 (four added
+lines); [types DB 37022798758](https://github.com/OGUN01/gymloop/actions/runs/37022798758)
+queues behind the complete prelude run. All five production typecheck tasks and
+545 shared tests passed in the committed-source check. An isolated dependency
+junction conflicted with the workspace installer; the exact locked dependencies
+were restored offline without source/lockfile changes. Snapshot native checks had
+timeouts; the original ordering check and the normal committed native baseline
+subsequently passed, 143/143. The normal committed web baseline also passed:
+92 suites, 2724/2724 tests. Untracked future red suites were excluded explicitly.
+
+The owner separately approved the exact private-bucket upload policy in
+`r2-cors-amendment.md`. Existing policy absence was rechecked before one bounded
+PutBucketCors. Exact readback and production PUT / foreign-origin PUT / production
+DELETE preflights passed; initial preflights returned 403 before later verification
+matched the installed policy. No object was written. Evidence: `media/r2-cors.json`.
+Live browser upload/Edge verification/current member exposure remain unproved.
+The four existing registered media R2 values were supplied to repository secrets
+through private stdin, without values in arguments, output or files. Independent
+name/timestamp readback verified all four after the provisioning script failed to
+retain its receipt. Evidence: `media/ci-secret-provisioning.json`. Edge secret
+provisioning and verifier deployment remain pending the reviewed CI implementation.
+
+GRD independent SQL suites and shared metadata were committed first as `3b4f7d2`.
+Their schema-required red state has not been executed on Cloud during the active
+prelude DB workflow; app red runs establish absent exported modules/behavior,
+without claiming all drafted cases executed. Guardian marker-only writes were
+found to permit false handover provenance. The owner approved the precise marker
+amendment. Freeze is `0a09c3d`, insertion documentation is aligned in `38018d6`,
+and unchanged-value clearing semantics are corrected in `258fd16`. A fresh critic
+gave GO. Separate authors' amendments were committed as `91c4d52` before resuming
+the paused SQL implementer: visible plan 311, holdout plan 292. Static checks pass;
+runtime proof remains pending the complete prelude DB workflow. BIZ/PLC independent
+SQL suites and their central metadata are committed first as `dce5b2e`.
+
 Final local gates, browser/Playwright checks, Android runtime evidence, archive and
 CI run links will be recorded after completion. The owner tests after all v2 is built.

@@ -1,0 +1,44 @@
+{
+  "bucket": "gymloop-media",
+  "ownerApproved": true,
+  "priorPolicy": null,
+  "policyReadback": [
+    {
+      "AllowedMethods": [
+        "PUT"
+      ],
+      "AllowedOrigins": [
+        "https://fitcruxx.vercel.app"
+      ],
+      "AllowedHeaders": [
+        "Content-Type"
+      ],
+      "MaxAgeSeconds": 3600
+    }
+  ],
+  "objectWrites": 0,
+  "probes": [
+    {
+      "origin": "https://fitcruxx.vercel.app",
+      "method": "PUT",
+      "status": 204,
+      "admitted": true,
+      "expected": true
+    },
+    {
+      "origin": "https://unapproved.example.invalid",
+      "method": "PUT",
+      "status": 403,
+      "admitted": false,
+      "expected": false
+    },
+    {
+      "origin": "https://fitcruxx.vercel.app",
+      "method": "DELETE",
+      "status": 403,
+      "admitted": false,
+      "expected": false
+    }
+  ],
+  "green": true
+}

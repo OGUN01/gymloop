@@ -564,10 +564,10 @@ Phase 7 owns the design system. What is here is the one screen whose behaviour c
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (client-safe) | `.env.local`, CI secrets, Vercel |
 | `POSTER_CODE_SECRET` | Dedicated canonical base64url HMAC secret of at least 32 decoded bytes; server-only, reprinting an existing poster requires original secret | `.env.local`, Vercel server env |
 | `PILOT_SHARED_PROJECT_ACCEPTANCE` | Exact manual-only opt-in for a bounded shared prelaunch-project acceptance run; never set in CI or deployment defaults | Operator shell for one run |
-| `R2_ACCESS_KEY_ID` | R2 credential | `.env.local`, CI secrets, Vercel |
-| `R2_BUCKET` | R2 bucket name (`gymloop-media`) | `.env.local`, CI secrets, Vercel |
-| `R2_ENDPOINT` | R2 S3-compatible endpoint URL | `.env.local`, CI secrets, Vercel |
-| `R2_SECRET_ACCESS_KEY` | R2 credential (secret) | `.env.local`, CI secrets, Vercel |
+| `R2_ACCESS_KEY_ID` | R2 credential | `.env.local`, CI secrets (verified 2026-10-02), Vercel; owner-approved Edge provisioning pending |
+| `R2_BUCKET` | R2 bucket name (`gymloop-media`) | `.env.local`, CI secrets (verified 2026-10-02), Vercel; owner-approved Edge provisioning pending |
+| `R2_ENDPOINT` | R2 S3-compatible endpoint URL | `.env.local`, CI secrets (verified 2026-10-02), Vercel; owner-approved Edge provisioning pending |
+| `R2_SECRET_ACCESS_KEY` | R2 credential (secret) | `.env.local`, CI secrets (verified 2026-10-02), Vercel; owner-approved Edge provisioning pending |
 | `SUPABASE_DB_PASSWORD` | Direct Postgres connection password | `.env.local`, CI secrets |
 | `SUPABASE_PROJECT_REF` | `pecxrpskmfeuyzngvewq` | `.env.local`, CI secrets |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase secret key — never `NEXT_PUBLIC_`-prefixed | `.env.local`, CI secrets, Vercel (server env only) |

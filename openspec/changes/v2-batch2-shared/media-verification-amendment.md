@@ -1,6 +1,6 @@
 # MEDIA verification amendment — owner-approved contract
 
-Status: **owner-approved in chat, 2026-10-02**; contract-only. Supersedes direct authenticated confirmation and single mutable-object publication. Approval includes the scoped Edge architecture exception and protected-CI provisioning/deployment below. No implementation, tests, deployment or secret provisioning has been performed. Folded into SHP/ANC/PTF before test authors start; the approved fixed names are frozen.
+Status: **owner-approved in chat, 2026-10-02**. Supersedes direct authenticated confirmation and single mutable-object publication. Approval includes the scoped Edge architecture exception and protected-CI provisioning/deployment below. Folded into SHP/ANC/PTF before test authors started; the approved fixed names are frozen. The existing four R2 values have since been provisioned as repository CI secrets with independent name/timestamp readback; Edge provisioning and deployment remain pending the reviewed implementation. The separately approved exact bucket CORS policy is installed. Neither step proves verifier behavior.
 
 ## Approved decision and its source
 
