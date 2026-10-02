@@ -90,3 +90,64 @@ describe('INV-022 verified native claims survive optional identity-cache failure
     expect(result.queueScope).toBeNull(); expect(['deferred', 'blocked']).toContain(result.replay);
   });
 });
+
+describe('native identity-cache ordering is shared across distinct public clients', () => {
+  function gate<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>(done => { resolve = done; });
+    return { promise, resolve };
+  }
+  async function settle() { for (let step = 0; step < 20; step++) await Promise.resolve(); }
+  function raceSetup() {
+    const storage = new Map<string, string>();
+    cache.read.mockImplementation(async (key: string) => storage.get(key) ?? null);
+    cache.write.mockImplementation(async (key: string, value: string) => { storage.set(key, value); });
+    cache.remove.mockImplementation(async (key: string) => { storage.delete(key); });
+    const sessionB = { ...session, access_token: 'second-client-verified-token',
+      user: { ...session.user, id: fixture.staleUser } };
+    const identityB = { kind: 'member', userId: fixture.staleUser, tenantId: fixture.tenant, memberId: fixture.staleMember };
+    const clientA = { auth: { getClaims: vi.fn(async () => claims), signOut: vi.fn(async () => ({ error: null })) } };
+    const clientB = { auth: { getClaims: vi.fn(async () => ({ data: { claims: {
+      role: 'authenticated', sub: fixture.staleUser, app_role: 'member', tenant_id: fixture.tenant, member_id: fixture.staleMember,
+    } }, error: null })), signOut: vi.fn(async () => ({ error: null })) } };
+    return { storage, sessionB, identityB, clientA, clientB };
+  }
+  it('older claims on client A cannot recreate cache after client B signs out', async () => {
+    const { resolveNativeMobileSession, signOutMobile } = await import('../../apps/mobile/lib/native-session');
+    const { storage, clientA, clientB } = raceSetup(); const older = gate<any>();
+    clientA.auth.getClaims.mockImplementation(() => older.promise);
+    const oldResolution = resolveNativeMobileSession(clientA as any, session as any);
+    await settle(); await signOutMobile(clientB as any);
+    older.resolve(claims); await oldResolution; await settle();
+    expect(clientB.auth.signOut).toHaveBeenCalledOnce();
+    expect(storage.has(fixture.cacheKey)).toBe(false);
+    expect(cache.remove.mock.calls.some(([key]: any[]) => key !== fixture.cacheKey)).toBe(true);
+  });
+  it('older claims on client A cannot replace the newer verified identity stored by client B', async () => {
+    const { resolveNativeMobileSession } = await import('../../apps/mobile/lib/native-session');
+    const { storage, clientA, clientB, sessionB, identityB } = raceSetup(); const older = gate<any>();
+    clientA.auth.getClaims.mockImplementation(() => older.promise);
+    const oldResolution = resolveNativeMobileSession(clientA as any, session as any); await settle();
+    const current = await resolveNativeMobileSession(clientB as any, sessionB as any);
+    expect(current.identity).toEqual(identityB); expect(current.replay).toBe('ready');
+    older.resolve(claims); await oldResolution; await settle();
+    expect(JSON.parse(storage.get(fixture.cacheKey)!)).toEqual(identityB);
+  });
+  it.each(['sign-out', 'newer-identity'])('a physically deferred client A write cannot undo client B %s', async operation => {
+    const { resolveNativeMobileSession, signOutMobile } = await import('../../apps/mobile/lib/native-session');
+    const { storage, clientA, clientB, sessionB, identityB } = raceSetup(); const write = gate<void>();
+    cache.write.mockImplementation(async (key: string, value: string) => {
+      if (key === fixture.cacheKey && JSON.parse(value).userId === fixture.user) await write.promise;
+      storage.set(key, value);
+    });
+    const oldResolution = resolveNativeMobileSession(clientA as any, session as any); await settle();
+    expect(cache.write.mock.calls.some(([key]: any[]) => key === fixture.cacheKey)).toBe(true);
+    const current = operation === 'sign-out' ? signOutMobile(clientB as any)
+      : resolveNativeMobileSession(clientB as any, sessionB as any);
+    await settle(); write.resolve(); await Promise.all([oldResolution, current]); await settle();
+    if (operation === 'sign-out') {
+      expect(clientB.auth.signOut).toHaveBeenCalledOnce(); expect(storage.has(fixture.cacheKey)).toBe(false);
+      expect(cache.remove.mock.calls.some(([key]: any[]) => key !== fixture.cacheKey)).toBe(true);
+    } else expect(JSON.parse(storage.get(fixture.cacheKey)!)).toEqual(identityB);
+  });
+});
