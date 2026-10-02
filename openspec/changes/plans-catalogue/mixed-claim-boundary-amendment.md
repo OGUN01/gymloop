@@ -6,7 +6,7 @@ acceptance. No additional staff-policy hardening is authorized.
 
 PLC-002 promises two incompatible outcomes: unchanged staff catalogue access, and
 no rows for a non-member role carrying a member_id. PLC-003 permits changing only
-plans_member_select by adding is_active. The existing plans_staff_select uses the
+plans_member_select by adding is_active. The existing plans_tenant_select uses the
 tenant claim plus app.is_staff(), whose role predicate accepts trainer/desk/admin
 without consulting member_id. Appending is_active to the member policy cannot
 remove rows already admitted by that separate staff policy.
@@ -35,7 +35,7 @@ checks the exact narrowed amendment before the batch push.
 
 ## Alternative: strengthen the staff policy in this feature
 
-Amend PLC-003 to permit replacing plans_staff_select as well, adding the explicit
+Amend PLC-003 to permit replacing plans_tenant_select as well, adding the explicit
 current_member_id IS NULL predicate to its existing tenant/is_staff condition.
 Keep ordinary staff/platform behavior and every other plans grant/policy intact.
 Both independent authors commit focused mixed-claim refusal and unchanged normal
