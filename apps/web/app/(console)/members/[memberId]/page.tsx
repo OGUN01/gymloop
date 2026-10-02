@@ -3,11 +3,16 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, ChevronRight, Pencil, Plus } from 'lucide-react';
 import {
   AVATAR_INITIALS_MAX, DEFAULT_TIMEZONE, formatDateTime, formatDay, formatDayRange, formatMoney, formatPhone, humanize, MEMBER_DETAIL_VISITS_PREVIEW, MEMBER_DETAIL_PAYMENTS_PREVIEW } from '@gymloop/shared';
+import type { StaffRole } from '../../../../lib/identity';
 import { requireAudience } from '../../../../lib/identity-session';
+import { loadMemberAppAccess } from '../../../../lib/member-invites';
 import { loadMembershipStanding } from '../../../../lib/membership-state';
 import { createServerSupabase } from '../../../../lib/supabase/server';
 import { loadMember } from '../member-data';
 import { StatusWord } from '../../../status-word';
+import { loadMemberInviteActivity } from '../../../../lib/member-invite-history';
+import { InviteHistory } from './invite-history';
+import { AppAccessPanel } from './app-access-panel';
 
 /**
  * One member, and what they have actually done — the visits, most recent first.
@@ -53,10 +58,14 @@ export default async function MemberDetailPage({
 
   const { identity } = await requireAudience('console');
   const seesMoney = !(identity.kind === 'staff' && identity.role === 'trainer');
+  // "App access" belongs to the front office. A trainer neither sees it nor causes
+  // its read; a support preview sees it read-only, and the database refuses the
+  // read to an impersonation, so it is not attempted there.
+  const appAccessRole: StaffRole | null = identity.kind === 'impersonation' ? 'front_desk' : identity.role === 'trainer' ? null : identity.role;
   const supabase = await createServerSupabase();
   // Money is read only for a role that may see it: a trainer's request never
   // asks for it, rather than asking and hiding the answer.
-  const [{ data: branch }, { data: visits, error: visitsError }, standing, payments] = await Promise.all([
+  const [{ data: branch }, { data: visits, error: visitsError }, standing, payments, gym, appAccess, inviteActivity] = await Promise.all([
     supabase.from('branches').select('name').eq('id', member.branch_id).maybeSingle(),
     supabase
       .from('attendance')
@@ -76,6 +85,9 @@ export default async function MemberDetailPage({
           .order('id')
           .limit(MEMBER_DETAIL_PAYMENTS_PREVIEW)
       : Promise.resolve({ data: null }),
+    appAccessRole === null ? null : supabase.from('organizations').select('name').eq('id', identity.tenantId).maybeSingle(),
+    appAccessRole === null || identity.kind === 'impersonation' ? null : loadMemberAppAccess(supabase, memberId),
+    identity.kind === 'staff' && appAccessRole !== null ? loadMemberInviteActivity(supabase, memberId) : null,
   ]);
 
   // Live on the gate's terms — the status AND the dates (ADR-084) — so a
@@ -122,6 +134,21 @@ export default async function MemberDetailPage({
               <dt>Email</dt><dd>{member.email ?? <span className="cl-muted">Not recorded</span>}</dd>
             </dl>
           </section>
+
+          {appAccessRole === null ? null : (
+            <AppAccessPanel
+              memberId={member.id}
+              memberName={member.full_name}
+              gymName={gym?.data?.name ?? 'Your gym'}
+              email={member.email}
+              phone={member.phone}
+              role={appAccessRole}
+              access={appAccess}
+              readOnly={identity.kind === 'impersonation'}
+            />
+          )}
+
+          {identity.kind === 'staff' && appAccessRole !== null ? <InviteHistory activity={inviteActivity} /> : null}
 
           {seesMoney ? (
             <>

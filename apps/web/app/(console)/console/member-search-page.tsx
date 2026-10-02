@@ -25,6 +25,7 @@ export function MemberSearchPage({
   nextCursor,
   pageSize,
   actions,
+  filters = {},
   children,
 }: {
   title: string;
@@ -36,6 +37,7 @@ export function MemberSearchPage({
   pageSize: number;
   /** The header's own actions (`null` for none). Omitted, the header carries the two route links. */
   actions?: ReactNode;
+  filters?: Record<string, string>;
   children: ReactNode;
 }) {
   // **Everything that shaped this page travels with the cursor.** Without the
@@ -52,6 +54,7 @@ export function MemberSearchPage({
         `?${new URLSearchParams({
           ...(phone ? { q: phone } : {}),
           ...(pageSize === MEMBER_PAGE_SIZE_DEFAULT ? {} : { limit: String(pageSize) }),
+          ...filters,
           cursor: nextCursor,
         }).toString()}`;
   return (
@@ -77,6 +80,8 @@ export function MemberSearchPage({
       </div>
 
       <form method="get" className="check-in-search">
+        {Object.entries(filters).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
+        {pageSize === MEMBER_PAGE_SIZE_DEFAULT ? null : <input type="hidden" name="limit" value={pageSize} />}
         <span className="check-in-search-field">
           <Search aria-hidden="true" className="check-in-search-icon" />
           <input

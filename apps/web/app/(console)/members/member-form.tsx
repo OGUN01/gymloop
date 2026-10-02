@@ -139,7 +139,7 @@ export async function MemberForm({
             />
           </Field>
 
-          <Field label="Email (optional)">
+          <Field label="Email (optional)" hint="Needed to invite the member to the app.">
             <input
               name="email"
               type="email"
@@ -205,6 +205,7 @@ export async function MemberForm({
             <ol>
               <li>The member appears in Members straight away, searchable by phone.</li>
               <li>Open their page and sell a membership, so renewals and visits are tracked.</li>
+              <li>After you save, open their page to send an app invite. It needs an email address on file, and you share the link yourself.</li>
             </ol>
           ) : (
             <p>Memberships, payments and visits stay on the member&apos;s page and are not changed here.</p>

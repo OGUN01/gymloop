@@ -31,6 +31,7 @@ export default function PrivacyPage() {
         <li>Enquiries (leads) recorded by the gym, and staff account information.</li>
       </ul>
       <p>The camera reads your gym&rsquo;s check-in QR code on your device. No photos are uploaded from a QR scan.</p>
+      <p>When you accept an invite from your gym, {PRODUCT_NAME} links the Google account you sign in with to your member record at that gym, so you can see your own visits, payments and messages. The gym can unlink it again at any time.</p>
     </section>
 
     <section className="public-section" aria-labelledby="privacy-where">

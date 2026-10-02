@@ -34,6 +34,7 @@ export default async function NotLinkedPage() {
           You are signed in, but this account has no complete active gym or platform identity.
           Ask your gym or platform administrator to check your access, then sign in again.
         </p>
+        <p className="cl-lede">Open the invite link your gym sent you, then sign in.</p>
         <form action={signOut}>
           <button type="submit" className="cl-btn">Sign out</button>
         </form>

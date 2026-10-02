@@ -1,0 +1,46 @@
+/* Member invites (INV-019, INV-020): the public accept pages and the console "App access" panel.
+   Both arrange the existing Chalkline kit (cl-*, sign-in-*, cl-dl, cl-alert) and add no colour, type size or radius of their own. */
+
+/* ── Accept pages: the not-linked composition (hero left, one column right) ─ */
+.invite-page h1 { overflow-wrap: anywhere; text-wrap: balance; }
+.invite-heading { display: grid; gap: var(--gymloop-space-8); }
+.invite-heading .cl-eyebrow { overflow-wrap: anywhere; }
+.invite-lede { margin: 0; }
+.invite-account { margin: 0; }
+/* The consent notice is the longest text on the page and sits directly above the action it explains. */
+.invite-notice { display: grid; justify-items: start; gap: var(--gymloop-space-8); padding-block: var(--gymloop-space-16); border-block: 1px solid var(--gymloop-color-decorative-separator); }
+.invite-notice p { margin: 0; font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); overflow-wrap: anywhere; }
+.invite-link { display: inline-flex; min-height: var(--gymloop-target-interactive); align-items: center; color: var(--gymloop-color-primary-action); font-size: var(--gymloop-type-compact-size); font-weight: var(--gymloop-type-emphasis-weight); text-underline-offset: var(--gymloop-space-4); }
+.invite-link:hover { color: var(--gymloop-color-primary-text); }
+.invite-actions { display: grid; gap: var(--gymloop-space-12); }
+.invite-actions > form { display: grid; }
+.invite-page .cl-btn { white-space: normal; text-align: center; }
+.invite-page .sign-in-provider { text-align: center; }
+/* Quiet links read as text, so they sit on the column's left edge rather than stretching to its width. */
+.invite-page .cl-btn--quiet { width: auto; justify-self: start; align-self: flex-start; margin-left: calc(var(--gymloop-space-8) * -1); }
+
+/* ── Console: the "App access" section of a member page ─────────────────── */
+.app-access { display: grid; align-content: start; gap: var(--gymloop-space-16); }
+.app-access .member-detail-heading { margin-bottom: 0; }
+.app-access .cl-btn { white-space: normal; text-align: center; }
+.app-access .cl-alert { margin-top: 0; }
+.app-access-note { margin: 0; max-width: 60ch; color: var(--gymloop-color-secondary-text); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); }
+.app-access-note a { color: var(--gymloop-color-primary-action); font-weight: var(--gymloop-type-emphasis-weight); text-underline-offset: var(--gymloop-space-4); }
+.app-access-confirm { display: grid; gap: var(--gymloop-space-12); }
+.app-access-confirm h3 { margin: 0; font-size: var(--gymloop-type-mobile-body-size); line-height: var(--gymloop-type-mobile-body-line-height); font-weight: var(--gymloop-type-emphasis-weight); overflow-wrap: anywhere; }
+.app-access-issued { display: grid; gap: var(--gymloop-space-16); padding-top: var(--gymloop-space-16); border-top: 1px solid var(--gymloop-color-decorative-separator); }
+.app-access-issued h3 { margin: 0; font-size: var(--gymloop-type-mobile-body-size); line-height: var(--gymloop-type-mobile-body-line-height); font-weight: var(--gymloop-type-emphasis-weight); overflow-wrap: anywhere; }
+.app-access-link-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--gymloop-space-8); }
+.app-access-link-row .cl-input { font-size: var(--gymloop-type-compact-size); text-overflow: ellipsis; }
+/* The QR keeps the library's own white tile and quiet zone in both themes: a scanner needs dark modules on a light ground. */
+.app-access-qr { width: min(100%, 12rem); border: 1px solid var(--gymloop-color-decorative-separator); border-radius: var(--gymloop-radius-control); overflow: hidden; line-height: 0; }
+.app-access-qr svg { display: block; width: 100%; height: auto; }
+
+@media (max-width: 40rem) {
+  .app-access-link-row { grid-template-columns: minmax(0, 1fr); }
+  .app-access .cl-actions > .cl-btn { flex: 1 1 100%; }
+}
+
+/* The member ledger keeps access facts under its existing standing cell. */
+.member-invite-row { display: grid; gap: var(--gymloop-space-4); margin-top: var(--gymloop-space-8); font-size: var(--gymloop-type-compact-size); line-height: var(--gymloop-type-compact-line-height); }
+.member-invite-row time { white-space: normal; }

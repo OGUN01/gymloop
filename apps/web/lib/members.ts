@@ -1,3 +1,4 @@
+import { Constants } from '@gymloop/db';
 import { MEMBER_PAGE_SIZE_DEFAULT, MEMBER_PAGE_SIZE_MAX } from '@gymloop/shared';
 import {
   decodeCursor,
@@ -28,15 +29,18 @@ import { createServerSupabase } from './supabase/server';
  * trimming, the empty-search case and the error shape are decided once too.
  */
 export async function loadMemberSearch(
-  searchParams: Promise<{ q?: string; cursor?: string; limit?: string }>,
+  searchParams: Promise<{ q?: string; cursor?: string; limit?: string; access?: string; status?: string }>,
 ) {
-  const { q, cursor, limit } = await searchParams;
+  const { q, cursor, limit, access, status } = await searchParams;
   const phone = q?.trim() ?? '';
   const pageSize = pageSizeFrom(limit, MEMBER_PAGE_SIZE_DEFAULT, MEMBER_PAGE_SIZE_MAX);
 
   const supabase = await createServerSupabase();
-  let query = supabase.from('members').select('id, full_name, phone, status');
+  let query = supabase.from('members').select('id, full_name, phone, status, user_id, erased_at');
 
+  if (access === 'not_joined') query = query.is('user_id', null);
+  const memberStatus = Constants.public.Enums.member_status.find(value => value === status);
+  if (memberStatus !== undefined) query = query.eq('status', memberStatus);
   if (phone) query = query.ilike('phone', `%${phone}%`);
 
   const after = decodeCursor(cursor, (value) =>
@@ -76,6 +80,7 @@ export async function loadMemberSearch(
 
   return {
     phone,
+    filters: { ...(access === 'not_joined' ? { access } : {}), ...(memberStatus === undefined ? {} : { status: memberStatus }) },
     members,
     pageSize,
     nextCursor: last ? encodeCursor({ fullName: last.full_name, id: last.id }) : null,

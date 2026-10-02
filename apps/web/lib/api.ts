@@ -1,6 +1,7 @@
 import { createServerSupabase } from './supabase/server';
 import { readIdentity, readRequestIdentity } from './identity-session';
 import { createOperationalLogger } from './observability';
+import { createRequestSupabase } from './supabase/request';
 import type { StaffRole, PlatformRole } from './identity';
 
 /**
@@ -30,6 +31,8 @@ const STATUS = {
   not_found: 404,
   conflict: 409,
   unprocessable: 422,
+  /** A rate limit the caller can wait out (invite issue and redemption). */
+  too_many_requests: 429,
   /** A file or upload past a fixed limit (member imports). */
   payload_too_large: 413,
   server_error: 500,
@@ -155,6 +158,61 @@ export async function memberSession(request?: Request): Promise<{ session: Membe
   return { session: { supabase, userId, tenantId, memberId } };
 }
 
+export type SignedInSession = { supabase: StaffSession['supabase']; userId: string };
+
+/**
+ * The Auth subject a client's session proves, or `null` when it proves none.
+ *
+ * A bearer is checked by its signature alone (`getClaims(bearer)`), which keeps
+ * the mobile path off Auth's per-request user endpoint. A cookie session is
+ * checked the way `readIdentity()` checks it: verified claims whose subject is
+ * also an authenticated Auth user, so a decoded cookie is never taken at its
+ * word. Anything but the `authenticated` role - anonymous, service - proves
+ * nothing.
+ */
+async function verifiedSubject(supabase: StaffSession['supabase'], bearer: string | undefined): Promise<string | null> {
+  const { data, error } = await supabase.auth.getClaims(bearer);
+  const claims = error ? null : data?.claims;
+  const subject = claims?.role === 'authenticated' && typeof claims.sub === 'string' ? claims.sub : null;
+  if (subject === null || bearer !== undefined) return subject;
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  return userError || userData.user?.id !== subject ? null : subject;
+}
+
+const notSignedIn = () => apiFail('unauthorized', 'not_signed_in', 'Sign in first, then try again.');
+
+/**
+ * Any verified session, **including an unlinked one**: a Google account with no
+ * gym role yet. It exists for exactly one caller, invite redemption, which is
+ * the command that gives such an account its role; every other gate here
+ * refuses `unlinked`.
+ *
+ * One credential transport per request, never both: an `Authorization` header
+ * is a bearer (mobile), anything else is the web cookie session, and a request
+ * presenting both is refused before anything is verified (`createRequestSupabase`
+ * owns that rule). The cookie transport answers with the cookie-writing client
+ * `createServerSupabase()` builds, so a caller that refreshes the session
+ * (redemption does, to mint member claims) actually delivers the new cookies.
+ *
+ * The body is never read here, and any failure - an unverifiable credential or
+ * a verifier that throws - is the same 401 envelope.
+ */
+export async function signedInSession(
+  request: Request,
+): Promise<{ session: SignedInSession } | { failure: Response }> {
+  try {
+    const bearerTransport = request.headers.get('authorization') !== null;
+    const resolved = bearerTransport
+      ? createRequestSupabase(request)
+      : { supabase: await createServerSupabase(), bearer: undefined };
+    if (resolved === null || (bearerTransport && resolved.bearer === undefined)) return { failure: notSignedIn() };
+    const userId = await verifiedSubject(resolved.supabase, resolved.bearer);
+    return userId === null ? { failure: notSignedIn() } : { session: { supabase: resolved.supabase, userId } };
+  } catch {
+    return { failure: notSignedIn() };
+  }
+}
+
 /** Support can read; admin-only callers explicitly opt into the write guard. */
 export async function platformSession(options?: { requireAdmin?: boolean }): Promise<{ session: PlatformSession } | { failure: Response }> {
   const { supabase, identity } = await readIdentity();
@@ -255,6 +313,31 @@ export function seeOther(request: Request, path: string, error?: string): Respon
     status: STATUS.see_other,
     headers: { location: new URL(target, request.url).toString() },
   });
+}
+
+/**
+ * A 303 to a path on a fixed origin.
+ *
+ * `seeOther()` resolves against the incoming request URL, which is right for a
+ * console screen. A public flow whose destination must be the deploy-owned
+ * origin (`WEB_APP_URL`), never anything a forwarded header could steer, passes
+ * that origin in explicitly.
+ */
+export function seeOtherOn(origin: string, path: string): Response {
+  return new Response(null, {
+    status: STATUS.see_other,
+    headers: { location: new URL(path, origin).toString() },
+  });
+}
+
+/**
+ * Marks a response as not storable by any cache. The invite routes answer with
+ * a one-time link, a session decision or a refusal that depends on who is
+ * asking, none of which may be replayed to someone else.
+ */
+export function noStore<T extends Response>(response: T): T {
+  response.headers.set('cache-control', 'no-store');
+  return response;
 }
 
 const SUPABASE_AUTH_COOKIE = /^sb-[a-z0-9-]+-auth-token(?:\.\d+)?$/i;

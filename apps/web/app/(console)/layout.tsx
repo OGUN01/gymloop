@@ -47,6 +47,7 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
         ...(canViewMessages(identity) ? [{ href: '/messages', label: 'Messages' }] : []),
         { href: '/add-ons', label: 'Add-ons' },
         ...(frontOffice ? [{ href: '/leads', label: 'Leads' }] : []),
+        ...(identity.kind === 'staff' && identity.role === 'gym_owner' ? [{ href: '/team', label: 'Team' }] : []),
         ...(canImportMembers(identity) ? [{ href: '/imports', label: 'Imports' }] : []),
       ];
   const banner: ReactNode = preview ? (

@@ -12,7 +12,7 @@ type NavigationItem = { href: string; label: string };
 
 const ICONS: Record<string, LucideIcon> = {
   '/dashboard': House, '/console/check-in': LogIn, '/red-list': CalendarCheck, '/console': Users, '/memberships': IdCard,
-  '/payments': CreditCard, '/messages': MessageSquare, '/add-ons': Boxes, '/leads': Target, '/imports': Upload,
+  '/team': Users, '/payments': CreditCard, '/messages': MessageSquare, '/add-ons': Boxes, '/leads': Target, '/imports': Upload,
 };
 
 /** Presentation-only console navigation; server loaders remain route authority. */

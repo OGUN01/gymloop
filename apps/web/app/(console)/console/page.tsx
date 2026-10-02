@@ -6,15 +6,20 @@ import { loadMemberSearch } from '../../../lib/members';
 import { loadMembershipStanding } from '../../../lib/membership-state';
 import { requireAudience } from '../../../lib/identity-session';
 import { canImportMembers } from '../../../lib/member-imports';
+import { loadMemberInviteSummaries } from '../../../lib/member-invite-history';
+import { MemberInviteState } from './member-invite-state';
 import { MemberSearchPage } from './member-search-page';
 
 export default async function MembersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; cursor?: string; limit?: string }>;
+  searchParams: Promise<{ q?: string; cursor?: string; limit?: string; access?: string; status?: string }>;
 }) {
-  const search = await loadMemberSearch(searchParams);
-  const { identity } = await requireAudience('console');
+  const { identity, supabase } = await requireAudience('console');
+  const showInvites = identity.kind === 'staff' && identity.role !== 'trainer';
+  const { access, ...rest } = await searchParams;
+  const search = await loadMemberSearch(Promise.resolve(showInvites ? { ...rest, ...(access === undefined ? {} : { access }) } : rest));
+  const invites = showInvites ? await loadMemberInviteSummaries(supabase, identity.tenantId, search.members.map(member => member.id)) : null;
   const count = search.members.length;
   // STATUS and ENDS mean what they mean on Memberships: the membership the desk
   // means, read for exactly these ids so the loader's sort and cursor are untouched.
@@ -26,9 +31,10 @@ export default async function MembersPage({
       linkHref="/console/check-in"
       linkLabel="Check-in gate"
       phone={search.phone}
-      errorMessage={search.errorMessage}
+      errorMessage={search.errorMessage === null ? null : 'Please try again.'}
       nextCursor={search.nextCursor}
       pageSize={search.pageSize}
+      filters={search.filters}
       actions={
         <>
           {/* The import screen is owner/manager only — imports create members — so
@@ -38,7 +44,8 @@ export default async function MembersPage({
         </>
       }
     >
-      {count > 0 ? (
+      {showInvites ? <nav className="cl-actions" aria-label="App access filter"><Link href={`?${new URLSearchParams({ ...(search.phone ? { q: search.phone } : {}), limit: String(search.pageSize), ...(search.filters.status === undefined ? {} : { status: search.filters.status }) }).toString()}`} className="cl-btn cl-btn--small" aria-current={search.filters.access === undefined ? 'page' : undefined}>All members</Link><Link href={`?${new URLSearchParams({ ...search.filters, ...(search.phone ? { q: search.phone } : {}), limit: String(search.pageSize), access: 'not_joined' }).toString()}`} className="cl-btn cl-btn--small" aria-current={search.filters.access === 'not_joined' ? 'page' : undefined}>Not joined yet</Link></nav> : identity.kind === 'impersonation' ? <p className="app-access-note">App access is unavailable in support preview.</p> : null}
+      {search.errorMessage !== null ? null : count > 0 ? (
         <>
           <p className="desk-count">
             {count === 1 ? '1 member' : `${count} members`}
@@ -64,7 +71,7 @@ export default async function MembersPage({
                         <time dateTime={state.endsOn} className="desk-ends" data-ended={state.ended} data-tone={state.membership.status === 'overdue' ? 'risk' : undefined}><span className="desk-ends-word">{state.ended ? 'Ended' : 'Ends'} </span>{state.endsDay}</time>
                       ) : state && state.membership.status !== 'none' ? <span className="cl-muted">No end date</span> : null}
                     </span>
-                    <span className="console-roster-status">{state ? <StatusWord status={state.status} label={state.label} /> : <StatusWord status={member.status} />}</span>
+                    <span className="console-roster-status">{state ? <StatusWord status={state.status} label={state.label} /> : <StatusWord status={member.status} />}{showInvites ? <MemberInviteState member={member} invites={invites} /> : null}</span>
                     <ChevronRight aria-hidden="true" className="console-roster-chevron" />
                   </Link>
                 </li>
