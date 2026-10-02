@@ -22,7 +22,7 @@ current checkpoint below supersedes the historical session-1 snapshot.
   follow-up ccc62e4 / DB **37022798758 (all jobs green)**. Related CI/held/immutability
   runs passed. origin/main is ccc62e4; no seven-feature business migration is pushed.
 - Seven batch-2 contracts, separate SQL authors and central catalogue tests are
-  committed first. All eight source drafts exist but remain uncommitted; ANC's
+  committed first. All eight sources are committed separately as 2ef398c; ANC's
   exact platform-policy reconciliation is complete. All business Cloud schema
   remains unapplied. PTF's canonical preview clarification 1feffcf received fresh
   GO; separate visible356/held381 tests preceded the isolated source correction.
@@ -54,9 +54,14 @@ current checkpoint below supersedes the historical session-1 snapshot.
   Tests bf9e3fc preceded the final verification: canonical r26 passed all six
   affected suites, **1,057/1,057** assertions. Fresh blind final source review
   returned GO; bytes outside the six changed routines match their predecessors.
-  This is source/SQL proof only. The complete **127-file** canonical sweep r27
-  is running, pinned bf9e3fc and all eight migration hashes. Do not push before
-  its final exact-plan green result and the remaining local gates.
+  This is source/SQL proof only. The complete canonical sweep r27, pinned
+  bf9e3fc and all eight migration hashes, passed **127/127 files, 12,679/12,679
+  assertions, zero failures**. Existing seed/scenarios passed final rollback r2
+  against those same eight migration bytes. Machine receipt:
+  docs/evidence/v2/batch2-canonical-r27.json. Local rollback (127 files),
+  immutability (74 commits), registry and escape gates passed; business CI push
+  is the next step. Prepared BIZ/PLC app test repairs remain uncommitted until
+  the SQL/type landing; do not include those red app tests in this source push.
 - Owner approved the PT final-session exception, then clarified that ANY
   same-tenant/order-payment refund record blocks it (including pending and failed).
   Public boundary and immutable completed_order posture received independent GO;

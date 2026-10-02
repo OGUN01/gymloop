@@ -1,0 +1,948 @@
+{
+  "status": "passed",
+  "method": "Canonical linked-Cloud BEGIN/ROLLBACK sweep with all eight pending migrations spliced in each SQL file",
+  "test_snapshot": "bf9e3fca6984585640dd81f38d0c3c166adfe418",
+  "implementation_commit": "2ef398c83d3f5a6d4fbe5c55f50891bf610cc2f8",
+  "completed_at_utc": "2026-10-02T20:28:31.8099828Z",
+  "total_files": 127,
+  "planned_assertions": 12679.0,
+  "ran_assertions": 12679.0,
+  "failed_assertions": 0,
+  "migrations": [
+    {
+      "file": "supabase/migrations/20261003085000_booking_primitives.sql",
+      "executed_sha256": "602d7f7e93388af5c5b7e23999f106766eec2eb2b81199e77fee6a11230ef3db",
+      "git_blob_oid": "8a94f83bc20db2a8a9706ccf3777ee996b7693cf"
+    },
+    {
+      "file": "supabase/migrations/20261003090000_guardian_minors.sql",
+      "executed_sha256": "4d4c697df3a8fdcb8ee531d6cc0cfa385baba147699429a7e898df35be43d9ef",
+      "git_blob_oid": "7e5173923dd1746526d9fe50f7ea97677a02c167"
+    },
+    {
+      "file": "supabase/migrations/20261003100000_business_type.sql",
+      "executed_sha256": "0a9ffcd0ced66af9a562265d8b01cc3a27d224e24c9f294e2400ff189e146d5d",
+      "git_blob_oid": "d8b4d1484f3844925aadb382301ebabdde002e63"
+    },
+    {
+      "file": "supabase/migrations/20261003110000_plans_catalogue.sql",
+      "executed_sha256": "ce33439cbc1c93491c6415fe40b8a86a978c0fc6ccc868d04d90e674d229e8a3",
+      "git_blob_oid": "7db761d120b20b0e16f05f7ce7b5a268f69cba2b"
+    },
+    {
+      "file": "supabase/migrations/20261003120000_shop.sql",
+      "executed_sha256": "abbc545d87877fedd639109518ef50d84d9726b323d04a4a729304fbc7da6fe0",
+      "git_blob_oid": "9b3ee1a76cf2d9dc1efb831e2c16968aab7aebc6"
+    },
+    {
+      "file": "supabase/migrations/20261003130000_pt_front.sql",
+      "executed_sha256": "487eb1c091137e8ad3317f61c625e7ced7de5aa40f76506174d66db2cc7828b6",
+      "git_blob_oid": "66b11aee8cc52bda7350f9b83af4630e33ced01d"
+    },
+    {
+      "file": "supabase/migrations/20261003140000_classes.sql",
+      "executed_sha256": "e9a643c2839decdcb75a84d81257eb494638854e63c706dce481a3ac9c605642",
+      "git_blob_oid": "15178d1b25f7086e79e2cd2cffd2d46b79cdd020"
+    },
+    {
+      "file": "supabase/migrations/20261003150000_announcements.sql",
+      "executed_sha256": "3b18b08b9c6d5cfbed629e4dc2c526c89a9f69192635dcf14d5e7d260cb58249",
+      "git_blob_oid": "135e68d5ad629be59a69646431f3d6a6fcc403df"
+    }
+  ],
+  "suites": [
+    {
+      "file": "supabase/tests-holdout/20_addon_hardening.sql",
+      "planned": 19,
+      "ran": 19,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/21_addon_usage_origin.sql",
+      "planned": 14,
+      "ran": 14,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/22_addon_acceptance_evidence.sql",
+      "planned": 16,
+      "ran": 16,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/23_addon_trainer_identity.sql",
+      "planned": 7,
+      "ran": 7,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/24_addon_private_capabilities.sql",
+      "planned": 47,
+      "ran": 47,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/64_phase8_pilot_qa_owner.sql",
+      "planned": 24,
+      "ran": 24,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/65_phase8_owner_deactivation.sql",
+      "planned": 17,
+      "ran": 17,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h01_tenancy_isolation.sql",
+      "planned": 63,
+      "ran": 63,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h02_tenancy_structure.sql",
+      "planned": 37,
+      "ran": 37,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h05_membership_money_holdout.sql",
+      "planned": 149,
+      "ran": 149,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h06_attendance.sql",
+      "planned": 67,
+      "ran": 67,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h07_catalogue_holdout.sql",
+      "planned": 111,
+      "ran": 111,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h08_retention_holdout.sql",
+      "planned": 112,
+      "ran": 112,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h09_comms.sql",
+      "planned": 91,
+      "ran": 91,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h10_platform_holdout.sql",
+      "planned": 165,
+      "ran": 165,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h11_identity_hook_holdout.sql",
+      "planned": 46,
+      "ran": 46,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h12_role_matrix_read_holdout.sql",
+      "planned": 52,
+      "ran": 52,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h13_role_matrix_write_holdout.sql",
+      "planned": 57,
+      "ran": 57,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h14_impersonation_and_revocation_holdout.sql",
+      "planned": 65,
+      "ran": 65,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h16_checkin_holdout.sql",
+      "planned": 68,
+      "ran": 68,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h17_pause_decision_holdout.sql",
+      "planned": 58,
+      "ran": 58,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h18_no_show_scan_holdout.sql",
+      "planned": 49,
+      "ran": 49,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h21_manual_payment_holdout.sql",
+      "planned": 68,
+      "ran": 68,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h22_payment_record_holdout.sql",
+      "planned": 1002,
+      "ran": 1002,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h23_net_membership_price_holdout.sql",
+      "planned": 100,
+      "ran": 100,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h24_refund_retries_and_money_audit_holdout.sql",
+      "planned": 127,
+      "ran": 127,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h25_identity_navigation_holdout.sql",
+      "planned": 66,
+      "ran": 66,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h26_addon_sales_holdout.sql",
+      "planned": 176,
+      "ran": 176,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h27_leads_holdout.sql",
+      "planned": 276,
+      "ran": 276,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h28_member_import_holdout.sql",
+      "planned": 265,
+      "ran": 265,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h29_comms_holdout.sql",
+      "planned": 123,
+      "ran": 123,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h30_metrics_holdout.sql",
+      "planned": 42,
+      "ran": 42,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h31_platform_holdout.sql",
+      "planned": 49,
+      "ran": 49,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h58_phase7_member_self_replay.sql",
+      "planned": 11,
+      "ran": 11,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h59_phase7_security_completion_holdout.sql",
+      "planned": 19,
+      "ran": 19,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h60_member_mobile_money_holdout.sql",
+      "planned": 6,
+      "ran": 6,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h62_five_gym_pilot.sql",
+      "planned": 29,
+      "ran": 29,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h63_five_gym_onboarding.sql",
+      "planned": 20,
+      "ran": 20,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h64_pilot009_foreign_manual_payment.sql",
+      "planned": 14,
+      "ran": 14,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h67_member_invite_history_holdout.sql",
+      "planned": 39,
+      "ran": 39,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h67_member_invites_holdout.sql",
+      "planned": 575,
+      "ran": 575,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h68_staff_invites_holdout.sql",
+      "planned": 158,
+      "ran": 158,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h69_guardian_minors_holdout.sql",
+      "planned": 293,
+      "ran": 293,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h70_business_type_holdout.sql",
+      "planned": 71,
+      "ran": 71,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h71_plans_catalogue_holdout.sql",
+      "planned": 30,
+      "ran": 30,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h72_shop_holdout.sql",
+      "planned": 276,
+      "ran": 276,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h73_pt_front_holdout.sql",
+      "planned": 381,
+      "ran": 381,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h74_classes_holdout.sql",
+      "planned": 221,
+      "ran": 221,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h74_classes_notices_holdout.sql",
+      "planned": 46,
+      "ran": 46,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h74_classes_time_boundary_holdout.sql",
+      "planned": 23,
+      "ran": 23,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h75_announcements_holdout.sql",
+      "planned": 88,
+      "ran": 88,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/h75_announcements_membership_dates_holdout.sql",
+      "planned": 72,
+      "ran": 72,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/phase7_member_portal_settings_boundary.sql",
+      "planned": 9,
+      "ran": 9,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests-holdout/phase8-assisted-check-in-command.holdout.sql",
+      "planned": 30,
+      "ran": 30,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/01_tenancy_structure.sql",
+      "planned": 58,
+      "ran": 58,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/02_tenancy_rls.sql",
+      "planned": 36,
+      "ran": 36,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/03_tenancy_constraints.sql",
+      "planned": 19,
+      "ran": 19,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/04_contract_meta.sql",
+      "planned": 31,
+      "ran": 31,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/05_membership_money_rls.sql",
+      "planned": 136,
+      "ran": 136,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/05_membership_money_structure.sql",
+      "planned": 40,
+      "ran": 40,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/06_attendance_checkin.sql",
+      "planned": 26,
+      "ran": 26,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/06_attendance_rls.sql",
+      "planned": 40,
+      "ran": 40,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/06_attendance_structure.sql",
+      "planned": 27,
+      "ran": 27,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/07_catalogue_constraints.sql",
+      "planned": 19,
+      "ran": 19,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/07_catalogue_rls.sql",
+      "planned": 37,
+      "ran": 37,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/07_catalogue_structure.sql",
+      "planned": 24,
+      "ran": 24,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/08_retention_rls.sql",
+      "planned": 30,
+      "ran": 30,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/08_retention_structure.sql",
+      "planned": 74,
+      "ran": 74,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/09_comms_rls.sql",
+      "planned": 61,
+      "ran": 61,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/09_comms_structure.sql",
+      "planned": 72,
+      "ran": 72,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/10_platform_rls.sql",
+      "planned": 40,
+      "ran": 40,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/10_platform_shape.sql",
+      "planned": 32,
+      "ran": 32,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/11_identity_hook.sql",
+      "planned": 33,
+      "ran": 33,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/12_role_matrix_read.sql",
+      "planned": 13,
+      "ran": 13,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/13_role_matrix_write.sql",
+      "planned": 42,
+      "ran": 42,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/14_impersonation.sql",
+      "planned": 38,
+      "ran": 38,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/15_identity_triggers.sql",
+      "planned": 20,
+      "ran": 20,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/16_checkin.sql",
+      "planned": 53,
+      "ran": 53,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/17_pause_decision.sql",
+      "planned": 51,
+      "ran": 51,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/18_no_show_scan.sql",
+      "planned": 45,
+      "ran": 45,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/19_follow_ups.sql",
+      "planned": 32,
+      "ran": 32,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/20_red_list.sql",
+      "planned": 19,
+      "ran": 19,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/21_manual_payment.sql",
+      "planned": 44,
+      "ran": 44,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/22_payment_record.sql",
+      "planned": 809,
+      "ran": 809,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/23_net_membership_price.sql",
+      "planned": 42,
+      "ran": 42,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/24_refund_retries_and_money_audit.sql",
+      "planned": 116,
+      "ran": 116,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/25_identity_navigation.sql",
+      "planned": 25,
+      "ran": 25,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/25_leads_graph.sql",
+      "planned": 128,
+      "ran": 128,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/26_leads_conversion.sql",
+      "planned": 60,
+      "ran": 60,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/27_leads_list.sql",
+      "planned": 37,
+      "ran": 37,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/28_member_import_structure.sql",
+      "planned": 58,
+      "ran": 58,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/29_member_import_prepare.sql",
+      "planned": 62,
+      "ran": 62,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/30_member_import_commit.sql",
+      "planned": 88,
+      "ran": 88,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/31_comms_schema_consent.sql",
+      "planned": 63,
+      "ran": 63,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/32_comms_consent_serialization.sql",
+      "planned": 27,
+      "ran": 27,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/33_comms_commands.sql",
+      "planned": 82,
+      "ran": 82,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/34_phase6_metrics_structure.sql",
+      "planned": 22,
+      "ran": 22,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/35_phase6_metrics_values.sql",
+      "planned": 37,
+      "ran": 37,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/36_phase6_platform_structure.sql",
+      "planned": 33,
+      "ran": 33,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/37_phase6_platform_behaviors.sql",
+      "planned": 43,
+      "ran": 43,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/37_staff_front_desk_check_in_rpc.sql",
+      "planned": 17,
+      "ran": 17,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/54_addon_sales.sql",
+      "planned": 202,
+      "ran": 202,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/55_addon_fulfilment_boundaries.sql",
+      "planned": 15,
+      "ran": 15,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/56_addon_acceptance_evidence.sql",
+      "planned": 16,
+      "ran": 16,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/57_addon_private_capabilities.sql",
+      "planned": 77,
+      "ran": 77,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/58_phase7_member_self_replay.sql",
+      "planned": 8,
+      "ran": 8,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/59_phase7_security_boundaries.sql",
+      "planned": 17,
+      "ran": 17,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/60_phase7_member_portal_settings.sql",
+      "planned": 10,
+      "ran": 10,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/61_phase7_member_mobile_money.sql",
+      "planned": 7,
+      "ran": 7,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/62_phase8_five_gym_pilot.sql",
+      "planned": 40,
+      "ran": 40,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/63_phase8_five_gym_onboarding.sql",
+      "planned": 27,
+      "ran": 27,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/64_phase8_pilot_owner_link.sql",
+      "planned": 23,
+      "ran": 23,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/65_phase8_pilot_owner_deactivation.sql",
+      "planned": 30,
+      "ran": 30,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/66_checkin_gate_modes.sql",
+      "planned": 68,
+      "ran": 68,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/67_member_invite_history.sql",
+      "planned": 45,
+      "ran": 45,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/67_member_invites.sql",
+      "planned": 443,
+      "ran": 443,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/68_staff_invites.sql",
+      "planned": 433,
+      "ran": 433,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/69_guardian_minors.sql",
+      "planned": 311,
+      "ran": 311,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/70_business_type.sql",
+      "planned": 61,
+      "ran": 61,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/71_plans_catalogue.sql",
+      "planned": 32,
+      "ran": 32,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/72_shop.sql",
+      "planned": 211,
+      "ran": 211,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/73_pt_front.sql",
+      "planned": 356,
+      "ran": 356,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/74_classes_notices.sql",
+      "planned": 42,
+      "ran": 42,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/74_classes_time_boundary.sql",
+      "planned": 42,
+      "ran": 42,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/74_classes.sql",
+      "planned": 710,
+      "ran": 710,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/75_announcements_membership_dates.sql",
+      "planned": 316,
+      "ran": 316,
+      "failures": 0,
+      "green": true
+    },
+    {
+      "file": "supabase/tests/75_announcements.sql",
+      "planned": 157,
+      "ran": 157,
+      "failures": 0,
+      "green": true
+    }
+  ],
+  "limitations": [
+    "SQL and static source proof only; no application/visual/live race/media/Android acceptance",
+    "Executed hashes describe working-copy bytes; Git blob ids account for checkout newline normalization"
+  ]
+}

@@ -325,3 +325,17 @@ verified exact bytes outside six permitted routines. It saw no tests or runtime
 evidence. Canonical all-file r27 is running against 127 committed SQL files and
 snapshotted copies of all eight business migrations; its final result is still
 pending. No business push, application/visual win or device test is claimed.
+
+### Final canonical batch-2 SQL win, 2026-10-03
+
+The complete unmodified canonical r27 finished **127/127 files green**, with
+**12,679 planned and 12,679 executed assertions, zero failures**. It includes
+all independent holdouts and the new owner-approved date-boundary suites.
+Its eight executed migration hashes match focused r26 exactly. Separate source
+commit 2ef398c contains those eight migrations, after all spec/test commits.
+`batch2-seed-final-r2` also passed the unchanged seed plus scenarios in one
+BEGIN/ROLLBACK transaction; its first eight hashes match the final sweep.
+The durable per-suite and source-byte/Git-blob receipt is
+`docs/evidence/v2/batch2-canonical-r27.json`. No permanent local migration,
+fixture data, media publication or phone operation occurred. Business push and
+CI/types verification are next; all app/visual/live acceptance remains open.
