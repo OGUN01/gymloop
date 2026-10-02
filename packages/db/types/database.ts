@@ -173,6 +173,7 @@ export type Database = {
       addon_products: {
         Row: {
           cancellation_terms: string | null
+          category_id: string | null
           created_at: string
           currency: string
           description: string | null
@@ -194,6 +195,7 @@ export type Database = {
         }
         Insert: {
           cancellation_terms?: string | null
+          category_id?: string | null
           created_at?: string
           currency?: string
           description?: string | null
@@ -215,6 +217,7 @@ export type Database = {
         }
         Update: {
           cancellation_terms?: string | null
+          category_id?: string | null
           created_at?: string
           currency?: string
           description?: string | null
@@ -236,6 +239,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "addon_products_tenant_id_category_id_fkey"
+            columns: ["tenant_id", "category_id"]
+            isOneToOne: false
+            referencedRelation: "shop_categories"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
             foreignKeyName: "addon_products_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -248,6 +258,201 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      announcement_receipts: {
+        Row: {
+          created_at: string
+          id: string
+          member_id: string
+          read_at: string
+          tenant_id: string
+          version_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          member_id: string
+          read_at?: string
+          tenant_id: string
+          version_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          member_id?: string
+          read_at?: string
+          tenant_id?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_receipts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "announcement_receipts_tenant_id_member_id_fkey"
+            columns: ["tenant_id", "member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "announcement_receipts_tenant_id_version_id_fkey"
+            columns: ["tenant_id", "version_id"]
+            isOneToOne: false
+            referencedRelation: "announcement_versions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      announcement_versions: {
+        Row: {
+          announcement_id: string
+          body: string
+          change_note: string | null
+          created_at: string
+          created_by_staff_id: string
+          id: string
+          image_asset_id: string | null
+          tenant_id: string
+          title: string
+          version_no: number
+        }
+        Insert: {
+          announcement_id: string
+          body: string
+          change_note?: string | null
+          created_at?: string
+          created_by_staff_id: string
+          id?: string
+          image_asset_id?: string | null
+          tenant_id: string
+          title: string
+          version_no: number
+        }
+        Update: {
+          announcement_id?: string
+          body?: string
+          change_note?: string | null
+          created_at?: string
+          created_by_staff_id?: string
+          id?: string
+          image_asset_id?: string | null
+          tenant_id?: string
+          title?: string
+          version_no?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_versions_tenant_id_announcement_id_fkey"
+            columns: ["tenant_id", "announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "announcement_versions_tenant_id_created_by_staff_id_fkey"
+            columns: ["tenant_id", "created_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "announcement_versions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "announcement_versions_tenant_id_image_asset_id_fkey"
+            columns: ["tenant_id", "image_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      announcements: {
+        Row: {
+          audience: Database["public"]["Enums"]["announcement_audience"]
+          closed_at: string | null
+          created_at: string
+          created_by_staff_id: string
+          current_version: number
+          expires_at: string | null
+          id: string
+          kind: Database["public"]["Enums"]["announcement_kind"]
+          published_at: string | null
+          segment_member_statuses:
+            | Database["public"]["Enums"]["member_status"][]
+            | null
+          segment_membership:
+            | Database["public"]["Enums"]["announcement_membership_filter"]
+            | null
+          status: Database["public"]["Enums"]["announcement_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          audience?: Database["public"]["Enums"]["announcement_audience"]
+          closed_at?: string | null
+          created_at?: string
+          created_by_staff_id: string
+          current_version?: number
+          expires_at?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["announcement_kind"]
+          published_at?: string | null
+          segment_member_statuses?:
+            | Database["public"]["Enums"]["member_status"][]
+            | null
+          segment_membership?:
+            | Database["public"]["Enums"]["announcement_membership_filter"]
+            | null
+          status?: Database["public"]["Enums"]["announcement_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          audience?: Database["public"]["Enums"]["announcement_audience"]
+          closed_at?: string | null
+          created_at?: string
+          created_by_staff_id?: string
+          current_version?: number
+          expires_at?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["announcement_kind"]
+          published_at?: string | null
+          segment_member_statuses?:
+            | Database["public"]["Enums"]["member_status"][]
+            | null
+          segment_membership?:
+            | Database["public"]["Enums"]["announcement_membership_filter"]
+            | null
+          status?: Database["public"]["Enums"]["announcement_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcements_tenant_id_created_by_staff_id_fkey"
+            columns: ["tenant_id", "created_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "announcements_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -513,6 +718,263 @@ export type Database = {
           },
         ]
       }
+      class_bookings: {
+        Row: {
+          acted_by_staff_id: string | null
+          booked_at: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          created_at: string
+          id: string
+          marked_at: string | null
+          member_id: string
+          session_id: string
+          status: Database["public"]["Enums"]["booking_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          acted_by_staff_id?: string | null
+          booked_at?: string
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          id?: string
+          marked_at?: string | null
+          member_id: string
+          session_id: string
+          status?: Database["public"]["Enums"]["booking_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          acted_by_staff_id?: string | null
+          booked_at?: string
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          id?: string
+          marked_at?: string | null
+          member_id?: string
+          session_id?: string
+          status?: Database["public"]["Enums"]["booking_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_bookings_acted_by_staff_id_fkey"
+            columns: ["tenant_id", "acted_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "class_bookings_member_id_fkey"
+            columns: ["tenant_id", "member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "class_bookings_session_id_fkey"
+            columns: ["tenant_id", "session_id"]
+            isOneToOne: false
+            referencedRelation: "class_sessions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "class_bookings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      class_rules: {
+        Row: {
+          branch_id: string
+          capacity: number
+          created_at: string
+          duration_minutes: number
+          id: string
+          is_active: boolean
+          service_id: string
+          start_time: string
+          tenant_id: string
+          trainer_staff_id: string | null
+          updated_at: string
+          valid_from: string
+          valid_until: string | null
+          weekday: number
+        }
+        Insert: {
+          branch_id: string
+          capacity: number
+          created_at?: string
+          duration_minutes: number
+          id?: string
+          is_active?: boolean
+          service_id: string
+          start_time: string
+          tenant_id: string
+          trainer_staff_id?: string | null
+          updated_at?: string
+          valid_from: string
+          valid_until?: string | null
+          weekday: number
+        }
+        Update: {
+          branch_id?: string
+          capacity?: number
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          is_active?: boolean
+          service_id?: string
+          start_time?: string
+          tenant_id?: string
+          trainer_staff_id?: string | null
+          updated_at?: string
+          valid_from?: string
+          valid_until?: string | null
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_rules_branch_id_fkey"
+            columns: ["tenant_id", "branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "class_rules_service_id_fkey"
+            columns: ["tenant_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "class_rules_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_rules_trainer_staff_id_fkey"
+            columns: ["tenant_id", "trainer_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      class_sessions: {
+        Row: {
+          branch_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by_staff_id: string | null
+          capacity: number
+          created_at: string
+          customised_at: string | null
+          ends_at: string
+          id: string
+          rule_id: string | null
+          service_id: string
+          session_date: string
+          starts_at: string
+          status: Database["public"]["Enums"]["class_session_status"]
+          tenant_id: string
+          trainer_staff_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by_staff_id?: string | null
+          capacity: number
+          created_at?: string
+          customised_at?: string | null
+          ends_at: string
+          id?: string
+          rule_id?: string | null
+          service_id: string
+          session_date: string
+          starts_at: string
+          status?: Database["public"]["Enums"]["class_session_status"]
+          tenant_id: string
+          trainer_staff_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by_staff_id?: string | null
+          capacity?: number
+          created_at?: string
+          customised_at?: string | null
+          ends_at?: string
+          id?: string
+          rule_id?: string | null
+          service_id?: string
+          session_date?: string
+          starts_at?: string
+          status?: Database["public"]["Enums"]["class_session_status"]
+          tenant_id?: string
+          trainer_staff_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_sessions_branch_id_fkey"
+            columns: ["tenant_id", "branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "class_sessions_cancelled_by_staff_id_fkey"
+            columns: ["tenant_id", "cancelled_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "class_sessions_rule_id_fkey"
+            columns: ["tenant_id", "rule_id"]
+            isOneToOne: false
+            referencedRelation: "class_rules"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "class_sessions_service_id_fkey"
+            columns: ["tenant_id", "service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "class_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_sessions_trainer_staff_id_fkey"
+            columns: ["tenant_id", "trainer_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
       consents: {
         Row: {
           created_at: string
@@ -745,6 +1207,70 @@ export type Database = {
           },
           {
             foreignKeyName: "follow_ups_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guardian_consents: {
+        Row: {
+          created_at: string
+          granted: boolean
+          guardian_name: string
+          guardian_relation: Database["public"]["Enums"]["guardian_relation"]
+          id: string
+          member_id: string
+          recorded_at: string
+          recorded_by_staff_id: string
+          source: string
+          tenant_id: string
+          version: string
+        }
+        Insert: {
+          created_at?: string
+          granted: boolean
+          guardian_name: string
+          guardian_relation: Database["public"]["Enums"]["guardian_relation"]
+          id?: string
+          member_id: string
+          recorded_at?: string
+          recorded_by_staff_id: string
+          source: string
+          tenant_id: string
+          version: string
+        }
+        Update: {
+          created_at?: string
+          granted?: boolean
+          guardian_name?: string
+          guardian_relation?: Database["public"]["Enums"]["guardian_relation"]
+          id?: string
+          member_id?: string
+          recorded_at?: string
+          recorded_by_staff_id?: string
+          source?: string
+          tenant_id?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guardian_consents_member_id_fkey"
+            columns: ["tenant_id", "member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "guardian_consents_recorded_by_staff_id_fkey"
+            columns: ["tenant_id", "recorded_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "guardian_consents_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -995,6 +1521,72 @@ export type Database = {
           },
         ]
       }
+      media_assets: {
+        Row: {
+          attached_to_id: string | null
+          bytes: number
+          confirmed_at: string | null
+          created_at: string
+          created_by_staff_id: string
+          deleted_at: string | null
+          id: string
+          kind: string
+          mime: string
+          object_key: string | null
+          published_etag: string | null
+          staging_object_key: string
+          tenant_id: string
+          verified_source_etag: string | null
+        }
+        Insert: {
+          attached_to_id?: string | null
+          bytes: number
+          confirmed_at?: string | null
+          created_at?: string
+          created_by_staff_id: string
+          deleted_at?: string | null
+          id?: string
+          kind: string
+          mime: string
+          object_key?: string | null
+          published_etag?: string | null
+          staging_object_key: string
+          tenant_id: string
+          verified_source_etag?: string | null
+        }
+        Update: {
+          attached_to_id?: string | null
+          bytes?: number
+          confirmed_at?: string | null
+          created_at?: string
+          created_by_staff_id?: string
+          deleted_at?: string | null
+          id?: string
+          kind?: string
+          mime?: string
+          object_key?: string | null
+          published_etag?: string | null
+          staging_object_key?: string
+          tenant_id?: string
+          verified_source_etag?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_assets_tenant_id_created_by_staff_id_fkey"
+            columns: ["tenant_id", "created_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "media_assets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_devices: {
         Row: {
           created_at: string
@@ -1223,6 +1815,13 @@ export type Database = {
           erased_at: string | null
           full_name: string
           gender: string | null
+          guardian_email: string | null
+          guardian_linked_at: string | null
+          guardian_name: string | null
+          guardian_phone: string | null
+          guardian_relation:
+            | Database["public"]["Enums"]["guardian_relation"]
+            | null
           id: string
           joined_on: string
           member_code: string | null
@@ -1245,6 +1844,13 @@ export type Database = {
           erased_at?: string | null
           full_name: string
           gender?: string | null
+          guardian_email?: string | null
+          guardian_linked_at?: string | null
+          guardian_name?: string | null
+          guardian_phone?: string | null
+          guardian_relation?:
+            | Database["public"]["Enums"]["guardian_relation"]
+            | null
           id?: string
           joined_on?: string
           member_code?: string | null
@@ -1267,6 +1873,13 @@ export type Database = {
           erased_at?: string | null
           full_name?: string
           gender?: string | null
+          guardian_email?: string | null
+          guardian_linked_at?: string | null
+          guardian_name?: string | null
+          guardian_phone?: string | null
+          guardian_relation?:
+            | Database["public"]["Enums"]["guardian_relation"]
+            | null
           id?: string
           joined_on?: string
           member_code?: string | null
@@ -1837,6 +2450,8 @@ export type Database = {
           checkin_dedupe_seconds: number
           checkin_gate_mode: Database["public"]["Enums"]["checkin_gate_mode"]
           city: string | null
+          class_allow_cross_branch: boolean
+          class_cancel_window_hours: number
           created_at: string
           financial_year_start_month: number
           grace_period_days: number
@@ -1844,12 +2459,16 @@ export type Database = {
           invoice_prefix: string
           logo_url: string | null
           max_freeze_days_per_year: number
+          members_without_dob_attested_adult_at: string | null
           no_show_threshold_days: number
           opening_hours: Json
           pause_approver_role: Database["public"]["Enums"]["app_role"]
           pause_reasons: string[]
           pincode: string | null
           preset: Database["public"]["Enums"]["gym_preset"] | null
+          pt_cancel_window_hours: number
+          pt_late_cancel_consumes_session: boolean
+          pt_session_minutes: number
           receipt_prefix: string
           renewal_reminder_days_from_expiry: number[] | null
           state: string | null
@@ -1867,6 +2486,8 @@ export type Database = {
           checkin_dedupe_seconds?: number
           checkin_gate_mode?: Database["public"]["Enums"]["checkin_gate_mode"]
           city?: string | null
+          class_allow_cross_branch?: boolean
+          class_cancel_window_hours?: number
           created_at?: string
           financial_year_start_month?: number
           grace_period_days?: number
@@ -1874,12 +2495,16 @@ export type Database = {
           invoice_prefix?: string
           logo_url?: string | null
           max_freeze_days_per_year?: number
+          members_without_dob_attested_adult_at?: string | null
           no_show_threshold_days?: number
           opening_hours?: Json
           pause_approver_role?: Database["public"]["Enums"]["app_role"]
           pause_reasons?: string[]
           pincode?: string | null
           preset?: Database["public"]["Enums"]["gym_preset"] | null
+          pt_cancel_window_hours?: number
+          pt_late_cancel_consumes_session?: boolean
+          pt_session_minutes?: number
           receipt_prefix?: string
           renewal_reminder_days_from_expiry?: number[] | null
           state?: string | null
@@ -1897,6 +2522,8 @@ export type Database = {
           checkin_dedupe_seconds?: number
           checkin_gate_mode?: Database["public"]["Enums"]["checkin_gate_mode"]
           city?: string | null
+          class_allow_cross_branch?: boolean
+          class_cancel_window_hours?: number
           created_at?: string
           financial_year_start_month?: number
           grace_period_days?: number
@@ -1904,12 +2531,16 @@ export type Database = {
           invoice_prefix?: string
           logo_url?: string | null
           max_freeze_days_per_year?: number
+          members_without_dob_attested_adult_at?: string | null
           no_show_threshold_days?: number
           opening_hours?: Json
           pause_approver_role?: Database["public"]["Enums"]["app_role"]
           pause_reasons?: string[]
           pincode?: string | null
           preset?: Database["public"]["Enums"]["gym_preset"] | null
+          pt_cancel_window_hours?: number
+          pt_late_cancel_consumes_session?: boolean
+          pt_session_minutes?: number
           receipt_prefix?: string
           renewal_reminder_days_from_expiry?: number[] | null
           state?: string | null
@@ -1933,6 +2564,7 @@ export type Database = {
       organizations: {
         Row: {
           activated_at: string | null
+          business_type: Database["public"]["Enums"]["business_type"]
           created_at: string
           currency: string
           gym_code: string
@@ -1946,6 +2578,7 @@ export type Database = {
         }
         Insert: {
           activated_at?: string | null
+          business_type?: Database["public"]["Enums"]["business_type"]
           created_at?: string
           currency?: string
           gym_code: string
@@ -1959,6 +2592,7 @@ export type Database = {
         }
         Update: {
           activated_at?: string | null
+          business_type?: Database["public"]["Enums"]["business_type"]
           created_at?: string
           currency?: string
           gym_code?: string
@@ -2172,6 +2806,125 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      pt_cancellations: {
+        Row: {
+          addon_order_id: string
+          cancelled_at: string
+          cancelled_by_staff_id: string | null
+          completed_order: boolean
+          consumed: boolean
+          created_at: string
+          id: string
+          member_id: string
+          outcome: Database["public"]["Enums"]["booking_status"]
+          policy_consumes: boolean
+          pt_session_id: string
+          reason: string | null
+          tenant_id: string
+          trainer_staff_id: string
+          updated_at: string
+          waive_reason: string | null
+          waived_at: string | null
+          waived_by_staff_id: string | null
+          was_late: boolean
+          window_hours: number
+        }
+        Insert: {
+          addon_order_id: string
+          cancelled_at: string
+          cancelled_by_staff_id?: string | null
+          completed_order?: boolean
+          consumed: boolean
+          created_at?: string
+          id?: string
+          member_id: string
+          outcome: Database["public"]["Enums"]["booking_status"]
+          policy_consumes: boolean
+          pt_session_id: string
+          reason?: string | null
+          tenant_id: string
+          trainer_staff_id: string
+          updated_at?: string
+          waive_reason?: string | null
+          waived_at?: string | null
+          waived_by_staff_id?: string | null
+          was_late: boolean
+          window_hours: number
+        }
+        Update: {
+          addon_order_id?: string
+          cancelled_at?: string
+          cancelled_by_staff_id?: string | null
+          completed_order?: boolean
+          consumed?: boolean
+          created_at?: string
+          id?: string
+          member_id?: string
+          outcome?: Database["public"]["Enums"]["booking_status"]
+          policy_consumes?: boolean
+          pt_session_id?: string
+          reason?: string | null
+          tenant_id?: string
+          trainer_staff_id?: string
+          updated_at?: string
+          waive_reason?: string | null
+          waived_at?: string | null
+          waived_by_staff_id?: string | null
+          was_late?: boolean
+          window_hours?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pt_cancellations_tenant_id_addon_order_id_fkey"
+            columns: ["tenant_id", "addon_order_id"]
+            isOneToOne: false
+            referencedRelation: "addon_orders"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "pt_cancellations_tenant_id_cancelled_by_staff_id_fkey"
+            columns: ["tenant_id", "cancelled_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "pt_cancellations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pt_cancellations_tenant_id_member_id_fkey"
+            columns: ["tenant_id", "member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "pt_cancellations_tenant_id_pt_session_id_fkey"
+            columns: ["tenant_id", "pt_session_id"]
+            isOneToOne: true
+            referencedRelation: "pt_sessions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "pt_cancellations_tenant_id_trainer_staff_id_fkey"
+            columns: ["tenant_id", "trainer_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "pt_cancellations_tenant_id_waived_by_staff_id_fkey"
+            columns: ["tenant_id", "waived_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
       }
       pt_sessions: {
         Row: {
@@ -2491,6 +3244,203 @@ export type Database = {
           },
         ]
       }
+      services: {
+        Row: {
+          created_at: string
+          default_capacity: number
+          default_duration_minutes: number
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_capacity: number
+          default_duration_minutes: number
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_capacity?: number
+          default_duration_minutes?: number
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_categories: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_categories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_reservations: {
+        Row: {
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by_staff_id: string | null
+          created_at: string
+          currency: string
+          expires_at: string
+          fulfilled_at: string | null
+          fulfilled_by_staff_id: string | null
+          id: string
+          kind: Database["public"]["Enums"]["addon_kind"]
+          member_id: string
+          order_id: string | null
+          product_id: string
+          product_name: string
+          quantity: number
+          quote_version: string
+          status: Database["public"]["Enums"]["shop_reservation_status"]
+          tenant_id: string
+          unit_price_paise: number
+          updated_at: string
+        }
+        Insert: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by_staff_id?: string | null
+          created_at?: string
+          currency?: string
+          expires_at: string
+          fulfilled_at?: string | null
+          fulfilled_by_staff_id?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["addon_kind"]
+          member_id: string
+          order_id?: string | null
+          product_id: string
+          product_name: string
+          quantity: number
+          quote_version: string
+          status?: Database["public"]["Enums"]["shop_reservation_status"]
+          tenant_id: string
+          unit_price_paise: number
+          updated_at?: string
+        }
+        Update: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by_staff_id?: string | null
+          created_at?: string
+          currency?: string
+          expires_at?: string
+          fulfilled_at?: string | null
+          fulfilled_by_staff_id?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["addon_kind"]
+          member_id?: string
+          order_id?: string | null
+          product_id?: string
+          product_name?: string
+          quantity?: number
+          quote_version?: string
+          status?: Database["public"]["Enums"]["shop_reservation_status"]
+          tenant_id?: string
+          unit_price_paise?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_reservations_tenant_id_cancelled_by_staff_id_fkey"
+            columns: ["tenant_id", "cancelled_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "shop_reservations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_reservations_tenant_id_fulfilled_by_staff_id_fkey"
+            columns: ["tenant_id", "fulfilled_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "shop_reservations_tenant_id_member_id_fkey"
+            columns: ["tenant_id", "member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "shop_reservations_tenant_id_order_id_fkey"
+            columns: ["tenant_id", "order_id"]
+            isOneToOne: false
+            referencedRelation: "addon_orders"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "shop_reservations_tenant_id_product_id_fkey"
+            columns: ["tenant_id", "product_id"]
+            isOneToOne: false
+            referencedRelation: "addon_products"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
       staff: {
         Row: {
           branch_id: string | null
@@ -2631,6 +3581,180 @@ export type Database = {
           },
         ]
       }
+      trainer_availability: {
+        Row: {
+          created_at: string
+          end_minute: number
+          id: string
+          staff_id: string
+          start_minute: number
+          tenant_id: string
+          weekday: number
+        }
+        Insert: {
+          created_at?: string
+          end_minute: number
+          id?: string
+          staff_id: string
+          start_minute: number
+          tenant_id: string
+          weekday: number
+        }
+        Update: {
+          created_at?: string
+          end_minute?: number
+          id?: string
+          staff_id?: string
+          start_minute?: number
+          tenant_id?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trainer_availability_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trainer_availability_tenant_id_staff_id_fkey"
+            columns: ["tenant_id", "staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      trainer_profiles: {
+        Row: {
+          bio: string
+          created_at: string
+          id: string
+          is_listed: boolean
+          photo_asset_id: string | null
+          specialities: string[]
+          staff_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          bio?: string
+          created_at?: string
+          id?: string
+          is_listed?: boolean
+          photo_asset_id?: string | null
+          specialities?: string[]
+          staff_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          bio?: string
+          created_at?: string
+          id?: string
+          is_listed?: boolean
+          photo_asset_id?: string | null
+          specialities?: string[]
+          staff_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trainer_profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trainer_profiles_tenant_id_photo_asset_id_fkey"
+            columns: ["tenant_id", "photo_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "trainer_profiles_tenant_id_staff_id_fkey"
+            columns: ["tenant_id", "staff_id"]
+            isOneToOne: true
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      trainer_time_off: {
+        Row: {
+          created_at: string
+          created_by_staff_id: string
+          ends_on: string
+          id: string
+          reason: string | null
+          removed_at: string | null
+          removed_by_staff_id: string | null
+          staff_id: string
+          starts_on: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_staff_id: string
+          ends_on: string
+          id?: string
+          reason?: string | null
+          removed_at?: string | null
+          removed_by_staff_id?: string | null
+          staff_id: string
+          starts_on: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_staff_id?: string
+          ends_on?: string
+          id?: string
+          reason?: string | null
+          removed_at?: string | null
+          removed_by_staff_id?: string | null
+          staff_id?: string
+          starts_on?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trainer_time_off_tenant_id_created_by_staff_id_fkey"
+            columns: ["tenant_id", "created_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "trainer_time_off_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trainer_time_off_tenant_id_removed_by_staff_id_fkey"
+            columns: ["tenant_id", "removed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "trainer_time_off_tenant_id_staff_id_fkey"
+            columns: ["tenant_id", "staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
       webhook_events: {
         Row: {
           created_at: string
@@ -2738,6 +3862,15 @@ export type Database = {
         Args: { p_notification_id: string }
         Returns: Json
       }
+      add_trainer_time_off: {
+        Args: {
+          p_ends_on: string
+          p_reason: string
+          p_staff_id: string
+          p_starts_on: string
+        }
+        Returns: string
+      }
       adjust_messaging_wallet: {
         Args: {
           p_delta_credits: number
@@ -2746,6 +3879,72 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: Json
+      }
+      attest_members_without_dob_adult: {
+        Args: never
+        Returns: {
+          changed: boolean
+          members_without_dob_attested_adult_at: string
+        }[]
+      }
+      book_class_session: {
+        Args: { p_session_id: string }
+        Returns: {
+          booking_id: string
+          spots_left: number
+          status: Database["public"]["Enums"]["booking_status"]
+        }[]
+      }
+      book_pt_session: {
+        Args: { p_order_id: string; p_session_id: string; p_starts_at: string }
+        Returns: {
+          ends_at: string
+          in_cancel_window: boolean
+          order_id: string
+          replayed: boolean
+          session_id: string
+          starts_at: string
+          status: Database["public"]["Enums"]["booking_status"]
+        }[]
+      }
+      cancel_class_booking: {
+        Args: { p_booking_id: string }
+        Returns: {
+          booking_id: string
+          status: Database["public"]["Enums"]["booking_status"]
+        }[]
+      }
+      cancel_class_session: {
+        Args: { p_reason: string; p_session_id: string }
+        Returns: {
+          bookings_cancelled: number
+          members_without_app: number
+          notices_withheld: number
+          notices_written: number
+        }[]
+      }
+      cancel_pt_booking: {
+        Args: { p_session_id: string }
+        Returns: {
+          consumed: boolean
+          late: boolean
+          replayed: boolean
+          session_id: string
+          sessions_remaining: number
+          status: Database["public"]["Enums"]["booking_status"]
+        }[]
+      }
+      cancel_pt_session_as_gym: {
+        Args: { p_reason: string; p_session_id: string }
+        Returns: {
+          replayed: boolean
+          session_id: string
+          status: Database["public"]["Enums"]["booking_status"]
+        }[]
+      }
+      cancel_shop_reservation: {
+        Args: { p_reason: string; p_reservation_id: string }
+        Returns: undefined
       }
       commit_member_import: {
         Args: { p_file_sha256: string; p_import_id: string; p_rows: Json }
@@ -2775,6 +3974,7 @@ export type Database = {
           replayed: boolean
         }[]
       }
+      confirm_media_asset: { Args: { p_asset_id: string }; Returns: undefined }
       convert_lead: {
         Args: {
           p_expected_revision: string
@@ -2784,6 +3984,49 @@ export type Database = {
           p_request_key: string
         }
         Returns: Json
+      }
+      create_announcement_draft: {
+        Args: {
+          p_audience: Database["public"]["Enums"]["announcement_audience"]
+          p_body: string
+          p_expires_at: string
+          p_image_asset_id: string
+          p_kind: Database["public"]["Enums"]["announcement_kind"]
+          p_segment_member_statuses: Database["public"]["Enums"]["member_status"][]
+          p_segment_membership: Database["public"]["Enums"]["announcement_membership_filter"]
+          p_title: string
+        }
+        Returns: string
+      }
+      create_class_rules: {
+        Args: {
+          p_branch_id: string
+          p_capacity: number
+          p_duration_minutes: number
+          p_service_id: string
+          p_start_time: string
+          p_trainer_staff_id: string
+          p_valid_from: string
+          p_valid_until: string
+          p_weekdays: number[]
+        }
+        Returns: {
+          rule_id: string
+          sessions_created: number
+          weekday: number
+        }[]
+      }
+      create_class_session: {
+        Args: {
+          p_branch_id: string
+          p_capacity: number
+          p_duration_minutes: number
+          p_service_id: string
+          p_session_date: string
+          p_start_time: string
+          p_trainer_staff_id: string
+        }
+        Returns: string
       }
       create_lead: {
         Args: {
@@ -2798,6 +4041,23 @@ export type Database = {
         }
         Returns: Json
       }
+      create_service: {
+        Args: {
+          p_default_capacity: number
+          p_default_duration_minutes: number
+          p_description: string
+          p_name: string
+          p_sort_order: number
+        }
+        Returns: string
+      }
+      create_shop_reservation: {
+        Args: { p_item_id: string; p_quantity: number; p_quote_version: string }
+        Returns: {
+          expires_at: string
+          reservation_id: string
+        }[]
+      }
       deactivate_gym_owner: {
         Args: {
           p_expected_user_id: string
@@ -2807,7 +4067,62 @@ export type Database = {
         }
         Returns: Json
       }
+      delete_media_asset: {
+        Args: { p_asset_id: string; p_unconfirmed_only?: boolean }
+        Returns: undefined
+      }
+      desk_book_class_session: {
+        Args: { p_member_id: string; p_session_id: string }
+        Returns: {
+          booking_id: string
+          spots_left: number
+          status: Database["public"]["Enums"]["booking_status"]
+        }[]
+      }
+      desk_cancel_class_booking: {
+        Args: { p_booking_id: string; p_reason: string }
+        Returns: {
+          booking_id: string
+          status: Database["public"]["Enums"]["booking_status"]
+        }[]
+      }
+      discard_announcement_draft: {
+        Args: { p_announcement_id: string }
+        Returns: undefined
+      }
+      edit_announcement: {
+        Args: {
+          p_announcement_id: string
+          p_body: string
+          p_change_note: string
+          p_expected_version: number
+          p_expires_at: string
+          p_image_asset_id: string
+          p_title: string
+        }
+        Returns: {
+          new_version: boolean
+          version_no: number
+        }[]
+      }
       end_expired_gym_preview: { Args: { p_session_id: string }; Returns: Json }
+      finalize_media_asset: {
+        Args: {
+          p_actor_role: Database["public"]["Enums"]["app_role"]
+          p_actor_staff_id: string
+          p_actor_user_id: string
+          p_asset_id: string
+          p_bytes: number
+          p_kind: string
+          p_mime: string
+          p_published_etag: string
+          p_published_object_key: string
+          p_source_etag: string
+          p_staging_object_key: string
+          p_tenant_id: string
+        }
+        Returns: boolean
+      }
       finish_pt_session: {
         Args: {
           p_session_id: string
@@ -2822,6 +4137,21 @@ export type Database = {
         }[]
       }
       fleet_metrics: { Args: never; Returns: Json }
+      fulfil_shop_reservation: {
+        Args: {
+          p_idempotency_key: string
+          p_method: Database["public"]["Enums"]["payment_method"]
+          p_quote_version: string
+          p_reason: string
+          p_reservation_id: string
+        }
+        Returns: {
+          order_id: string
+          payment_id: string
+          replayed: boolean
+          reservation_id: string
+        }[]
+      }
       invite_staff_member: {
         Args: {
           p_branch_id: string
@@ -2863,6 +4193,36 @@ export type Database = {
         }
         Returns: Json
       }
+      list_announcements: {
+        Args: { p_before_created_at?: string; p_before_id?: string }
+        Returns: {
+          announcement_id: string
+          audience: Database["public"]["Enums"]["announcement_audience"]
+          audience_count: number
+          closed_at: string
+          created_at: string
+          current_version: number
+          display_status: string
+          expires_at: string
+          kind: Database["public"]["Enums"]["announcement_kind"]
+          published_at: string
+          read_any: number
+          read_current: number
+          segment_member_statuses: Database["public"]["Enums"]["member_status"][]
+          segment_membership: Database["public"]["Enums"]["announcement_membership_filter"]
+          status: Database["public"]["Enums"]["announcement_status"]
+          title: string
+        }[]
+      }
+      list_guardian_attention: {
+        Args: { p_reason: string }
+        Returns: {
+          member_id: string
+          member_name: string
+          member_phone: string
+          scoring_state: string
+        }[]
+      }
       list_leads: {
         Args: {
           p_after_id?: string
@@ -2881,6 +4241,17 @@ export type Database = {
           p_channel?: Database["public"]["Enums"]["notification_channel"]
         }
         Returns: Json
+      }
+      mark_announcement_read: {
+        Args: { p_announcement_id: string; p_version_no: number }
+        Returns: boolean
+      }
+      mark_class_attendance: {
+        Args: {
+          p_booking_id: string
+          p_status: Database["public"]["Enums"]["booking_status"]
+        }
+        Returns: Database["public"]["Enums"]["booking_status"]
       }
       member_mobile_check_in: {
         Args: {
@@ -2944,12 +4315,95 @@ export type Database = {
         }
         Returns: Json
       }
+      publish_announcement: {
+        Args: { p_announcement_id: string }
+        Returns: {
+          audience_count: number
+          expires_at: string
+          published_at: string
+        }[]
+      }
+      read_announcement: { Args: { p_announcement_id: string }; Returns: Json }
+      read_class_roster: {
+        Args: { p_session_id: string }
+        Returns: {
+          booked_at: string
+          booking_id: string
+          cancel_reason: string
+          cancelled_at: string
+          checked_in_at: string
+          has_app: boolean
+          marked_at: string
+          member_code: string
+          member_id: string
+          member_name: string
+          member_phone: string
+          membership_live: boolean
+          status: Database["public"]["Enums"]["booking_status"]
+        }[]
+      }
+      read_class_timetable: {
+        Args: { p_branch_id: string; p_from: string; p_to: string }
+        Returns: {
+          attended_count: number
+          booked_count: number
+          branch_id: string
+          cancel_reason: string
+          capacity: number
+          ends_at: string
+          is_customised: boolean
+          no_show_count: number
+          on_holiday: boolean
+          rule_id: string
+          service_id: string
+          service_is_active: boolean
+          service_name: string
+          session_date: string
+          session_id: string
+          session_status: Database["public"]["Enums"]["class_session_status"]
+          spots_left: number
+          starts_at: string
+          timezone: string
+          trainer_is_active: boolean
+          trainer_name: string
+          trainer_overlaps: boolean
+          trainer_staff_id: string
+        }[]
+      }
+      read_guardian_coverage: {
+        Args: never
+        Returns: {
+          handover_due: number
+          members_without_dob_attested_adult_at: string
+          minor_consent_missing: number
+          minor_no_guardian: number
+          no_birth_date: number
+          tracked: number
+        }[]
+      }
       read_member_addon_returns: { Args: { p_order_id: string }; Returns: Json }
       read_member_addon_trainer_names: {
         Args: never
         Returns: {
           product_id: string
           trainer_name: string
+        }[]
+      }
+      read_member_announcements: {
+        Args: never
+        Returns: {
+          announcement_id: string
+          body: string
+          change_note: string
+          edited_at: string
+          expires_at: string
+          image_asset_id: string
+          kind: Database["public"]["Enums"]["announcement_kind"]
+          published_at: string
+          read_at: string
+          read_state: string
+          title: string
+          version_no: number
         }[]
       }
       read_member_app_access: {
@@ -2960,6 +4414,54 @@ export type Database = {
           issued_at: string
           linked_at: string
           state: string
+        }[]
+      }
+      read_member_class_schedule: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          availability: string
+          booked_count: number
+          branch_id: string
+          branch_name: string
+          can_cancel: boolean
+          cancel_by: string
+          capacity: number
+          ends_at: string
+          my_booking_id: string
+          my_booking_status: Database["public"]["Enums"]["booking_status"]
+          service_description: string
+          service_id: string
+          service_name: string
+          session_date: string
+          session_id: string
+          session_status: Database["public"]["Enums"]["class_session_status"]
+          spots_left: number
+          starts_at: string
+          timezone: string
+          trainer_name: string
+        }[]
+      }
+      read_member_guardian: {
+        Args: { p_member_id: string }
+        Returns: {
+          adult_on: string
+          age_state: string
+          consent_recorded_at: string
+          consent_state: string
+          consent_version: string
+          date_of_birth: string
+          guardian_complete: boolean
+          guardian_email: string
+          guardian_linked_at: string
+          guardian_name: string
+          guardian_phone: string
+          guardian_relation: Database["public"]["Enums"]["guardian_relation"]
+          gym_today: string
+          handover_due: boolean
+          legacy_attested_adult: boolean
+          link_email: string
+          link_email_in_use: boolean
+          scoring_state: string
         }[]
       }
       read_member_invite_history: {
@@ -2982,6 +4484,189 @@ export type Database = {
           weekly_goal_default: number
         }[]
       }
+      read_member_programmes: {
+        Args: never
+        Returns: {
+          cancellation_terms: string
+          currency: string
+          description: string
+          gst_rate_bp: number
+          name: string
+          price_paise: string
+          programme_id: string
+          session_count: number
+          trainer_key: string
+          trainer_name: string
+          trainer_qualification: string
+          validity_days: number
+        }[]
+      }
+      read_member_pt_packs: {
+        Args: never
+        Returns: {
+          can_book: boolean
+          expires_on: string
+          order_id: string
+          programme_name: string
+          sessions_remaining: number
+          sessions_scheduled: number
+          sessions_total: number
+          sessions_used: number
+          starts_on: string
+          state: Database["public"]["Enums"]["pt_pack_state"]
+          timezone: string
+          trainer_key: string
+          trainer_name: string
+        }[]
+      }
+      read_member_pt_sessions: {
+        Args: {
+          p_after_id?: string
+          p_after_starts_at?: string
+          p_limit?: number
+          p_scope: string
+        }
+        Returns: {
+          can_cancel: boolean
+          cancel_cutoff: string
+          cancelled_at: string
+          consumed: boolean
+          consumes_now: boolean
+          ends_at: string
+          late_now: boolean
+          order_id: string
+          programme_name: string
+          session_id: string
+          starts_at: string
+          status: Database["public"]["Enums"]["booking_status"]
+          timezone: string
+          trainer_key: string
+          trainer_name: string
+        }[]
+      }
+      read_member_pt_slots: {
+        Args: { p_from: string; p_order_id: string; p_to: string }
+        Returns: {
+          ends_at: string
+          starts_at: string
+          timezone: string
+        }[]
+      }
+      read_member_shop: {
+        Args: never
+        Returns: {
+          availability: string
+          available_quantity: number
+          cancellation_terms: string
+          category_id: string
+          category_name: string
+          currency: string
+          description: string
+          gst_rate_bp: number
+          image_asset_id: string
+          item_id: string
+          name: string
+          price_paise: string
+          quote_version: string
+          section: string
+          validity_days: number
+        }[]
+      }
+      read_member_shop_reservations: {
+        Args: never
+        Returns: {
+          cancel_reason: string
+          created_at: string
+          currency: string
+          expires_at: string
+          image_asset_id: string
+          item_id: string
+          item_name: string
+          order_id: string
+          quantity: number
+          reservation_id: string
+          section: string
+          state: string
+          terms_changed: boolean
+          total_paise: string
+          unit_price_paise: string
+        }[]
+      }
+      read_member_trainers: {
+        Args: never
+        Returns: {
+          bio: string
+          branch_name: string
+          display_name: string
+          image_asset_id: string
+          is_profile_listed: boolean
+          qualification: string
+          specialities: string[]
+          trainer_key: string
+        }[]
+      }
+      read_pt_bookings: {
+        Args: {
+          p_after_id?: string
+          p_after_starts_at?: string
+          p_from: string
+          p_limit?: number
+          p_status?: Database["public"]["Enums"]["booking_status"]
+          p_to: string
+          p_trainer_staff_id?: string
+        }
+        Returns: {
+          cancelled_at: string
+          consumed: boolean
+          ends_at: string
+          member_code: string
+          member_id: string
+          member_name: string
+          order_id: string
+          session_id: string
+          sessions_remaining: number
+          sessions_total: number
+          sessions_used: number
+          starts_at: string
+          status: Database["public"]["Enums"]["booking_status"]
+          timezone: string
+          trainer_name: string
+          trainer_staff_id: string
+        }[]
+      }
+      read_pt_packs: {
+        Args: {
+          p_after_id?: string
+          p_limit?: number
+          p_state?: Database["public"]["Enums"]["pt_pack_state"]
+          p_trainer_staff_id?: string
+        }
+        Returns: {
+          expires_on: string
+          member_code: string
+          member_id: string
+          member_name: string
+          order_id: string
+          programme_name: string
+          sessions_remaining: number
+          sessions_scheduled: number
+          sessions_total: number
+          sessions_used: number
+          starts_on: string
+          state: Database["public"]["Enums"]["pt_pack_state"]
+          timezone: string
+          trainer_active: boolean
+          trainer_name: string
+          trainer_staff_id: string
+        }[]
+      }
+      read_shop_product_holds: {
+        Args: never
+        Returns: {
+          held_quantity: number
+          product_id: string
+        }[]
+      }
       read_staff_app_access: {
         Args: { p_staff_id: string }
         Returns: {
@@ -2990,6 +4675,19 @@ export type Database = {
           issued_at: string
           linked_at: string
           state: string
+        }[]
+      }
+      reassign_pt_packs: {
+        Args: {
+          p_from_staff_id: string
+          p_order_ids: string[]
+          p_reason: string
+          p_to_staff_id: string
+        }
+        Returns: {
+          cancelled_sessions: number
+          changed: boolean
+          order_id: string
         }[]
       }
       record_addon_sale: {
@@ -3022,6 +4720,19 @@ export type Database = {
           p_version: string
         }
         Returns: Json
+      }
+      record_guardian_consent: {
+        Args: {
+          p_granted: boolean
+          p_member_id: string
+          p_source: string
+          p_version: string
+        }
+        Returns: {
+          changed: boolean
+          consent_id: string
+          recorded_at: string
+        }[]
       }
       record_refund: {
         Args: {
@@ -3065,6 +4776,23 @@ export type Database = {
           staff_role: Database["public"]["Enums"]["app_role"]
         }[]
       }
+      register_media_asset: {
+        Args: {
+          p_bytes: number
+          p_kind: string
+          p_mime: string
+          p_object_key: string
+        }
+        Returns: string
+      }
+      remove_trainer_time_off: {
+        Args: { p_time_off_id: string }
+        Returns: undefined
+      }
+      reorder_shop_categories: {
+        Args: { p_ordered_ids: string[] }
+        Returns: undefined
+      }
       replace_checkin_poster: {
         Args: {
           p_branch_id: string
@@ -3075,6 +4803,7 @@ export type Database = {
       }
       revoke_member_invite: { Args: { p_invite_id: string }; Returns: string }
       revoke_staff_invite: { Args: { p_invite_id: string }; Returns: string }
+      run_class_generation_all: { Args: never; Returns: Json }
       run_no_show_scan_all: {
         Args: never
         Returns: {
@@ -3099,9 +4828,26 @@ export type Database = {
         }[]
       }
       send_notification: { Args: { p_notification_id: string }; Returns: Json }
+      set_business_type: {
+        Args: { p_business_type: Database["public"]["Enums"]["business_type"] }
+        Returns: {
+          business_type: Database["public"]["Enums"]["business_type"]
+          changed: boolean
+          previous_business_type: Database["public"]["Enums"]["business_type"]
+        }[]
+      }
       set_checkin_gate_mode: {
         Args: { p_mode: Database["public"]["Enums"]["checkin_gate_mode"] }
         Returns: Database["public"]["Enums"]["checkin_gate_mode"]
+      }
+      set_gym_business_type: {
+        Args: {
+          p_business_type: Database["public"]["Enums"]["business_type"]
+          p_expected_business_type: Database["public"]["Enums"]["business_type"]
+          p_request_key: string
+          p_tenant_id: string
+        }
+        Returns: Json
       }
       set_gym_status: {
         Args: {
@@ -3122,6 +4868,56 @@ export type Database = {
         }
         Returns: Json
       }
+      set_member_age_guardian: {
+        Args: {
+          p_date_of_birth: string
+          p_guardian_email: string
+          p_guardian_name: string
+          p_guardian_phone: string
+          p_guardian_relation: Database["public"]["Enums"]["guardian_relation"]
+          p_member_id: string
+        }
+        Returns: undefined
+      }
+      set_own_trainer_profile: {
+        Args: { p_bio: string; p_specialities: string[] }
+        Returns: string
+      }
+      set_pt_policy: {
+        Args: {
+          p_cancel_window_hours: number
+          p_late_cancel_consumes: boolean
+          p_session_minutes: number
+        }
+        Returns: undefined
+      }
+      set_service_active: {
+        Args: { p_is_active: boolean; p_service_id: string }
+        Returns: boolean
+      }
+      set_shop_product_display: {
+        Args: {
+          p_category_id: string
+          p_image_asset_id: string
+          p_product_id: string
+          p_sort_order: number
+        }
+        Returns: undefined
+      }
+      set_trainer_availability: {
+        Args: { p_staff_id: string; p_windows: Json }
+        Returns: number
+      }
+      set_trainer_profile: {
+        Args: {
+          p_bio: string
+          p_is_listed: boolean
+          p_photo_asset_id: string
+          p_specialities: string[]
+          p_staff_id: string
+        }
+        Returns: string
+      }
       start_gym_preview: {
         Args: { p_reason: string; p_request_key: string; p_tenant_id: string }
         Returns: Json
@@ -3136,12 +4932,61 @@ export type Database = {
         }
         Returns: Json
       }
+      transition_member_to_own_account: {
+        Args: { p_member_id: string; p_reason: string }
+        Returns: undefined
+      }
       unlink_member_identity: {
         Args: { p_member_id: string; p_reason: string }
         Returns: undefined
       }
       unlink_staff_identity: {
         Args: { p_reason: string; p_staff_id: string }
+        Returns: undefined
+      }
+      unpublish_announcement: {
+        Args: { p_announcement_id: string }
+        Returns: undefined
+      }
+      update_announcement_draft: {
+        Args: {
+          p_announcement_id: string
+          p_audience: Database["public"]["Enums"]["announcement_audience"]
+          p_body: string
+          p_expires_at: string
+          p_image_asset_id: string
+          p_kind: Database["public"]["Enums"]["announcement_kind"]
+          p_segment_member_statuses: Database["public"]["Enums"]["member_status"][]
+          p_segment_membership: Database["public"]["Enums"]["announcement_membership_filter"]
+          p_title: string
+        }
+        Returns: undefined
+      }
+      update_class_rule: {
+        Args: {
+          p_capacity: number
+          p_duration_minutes: number
+          p_is_active: boolean
+          p_rule_id: string
+          p_trainer_staff_id: string
+          p_valid_until: string
+        }
+        Returns: {
+          sessions_created: number
+          sessions_kept: number
+          sessions_removed: number
+          sessions_updated: number
+        }[]
+      }
+      update_class_session: {
+        Args: {
+          p_capacity: number
+          p_duration_minutes: number
+          p_session_date: string
+          p_session_id: string
+          p_start_time: string
+          p_trainer_staff_id: string
+        }
         Returns: undefined
       }
       update_lead: {
@@ -3158,6 +5003,26 @@ export type Database = {
         }
         Returns: Json
       }
+      update_service: {
+        Args: {
+          p_default_capacity: number
+          p_default_duration_minutes: number
+          p_description: string
+          p_name: string
+          p_service_id: string
+          p_sort_order: number
+        }
+        Returns: undefined
+      }
+      waive_pt_forfeit: {
+        Args: { p_reason: string; p_session_id: string }
+        Returns: {
+          order_id: string
+          replayed: boolean
+          session_id: string
+          sessions_used: number
+        }[]
+      }
     }
     Enums: {
       addon_kind: "pt_package" | "diet_plan" | "product"
@@ -3168,6 +5033,10 @@ export type Database = {
         | "completed"
         | "cancelled"
         | "refunded"
+      announcement_audience: "all_members" | "segment"
+      announcement_kind: "transactional" | "promotional"
+      announcement_membership_filter: "any" | "live" | "not_live"
+      announcement_status: "draft" | "published" | "unpublished" | "discarded"
       app_role:
         | "super_admin"
         | "platform_support"
@@ -3177,7 +5046,16 @@ export type Database = {
         | "trainer"
         | "member"
       attendance_source: "qr" | "front_desk"
+      booking_status:
+        | "booked"
+        | "cancelled_by_member"
+        | "cancelled_by_gym"
+        | "session_cancelled"
+        | "attended"
+        | "no_show"
+      business_type: "gym" | "dance" | "yoga" | "martial_arts" | "studio"
       checkin_gate_mode: "printed_poster" | "rotating_screen"
+      class_session_status: "scheduled" | "cancelled"
       consent_purpose: "marketing" | "service"
       contact_channel: "call" | "whatsapp" | "in_person" | "sms"
       follow_up_outcome:
@@ -3188,6 +5066,13 @@ export type Database = {
         | "unhappy"
         | "no_response"
         | "cancelled"
+      guardian_relation:
+        | "mother"
+        | "father"
+        | "grandparent"
+        | "sibling"
+        | "legal_guardian"
+        | "other"
       gym_preset: "neighbourhood_gym" | "premium_studio" | "functional_box"
       import_status: "pending" | "processing" | "completed" | "failed"
       lead_source:
@@ -3265,9 +5150,15 @@ export type Database = {
         | "refunded"
         | "reversed"
       plan_tier: "basic" | "growth" | "pro"
+      pt_pack_state: "live" | "fully_booked" | "spent" | "expired" | "closed"
       pt_session_status: "scheduled" | "completed" | "cancelled" | "no_show"
       refund_kind: "refund" | "reversal"
       refund_status: "requested" | "processing" | "completed" | "failed"
+      shop_reservation_status:
+        | "reserved"
+        | "fulfilled"
+        | "cancelled_by_member"
+        | "cancelled_by_gym"
       staff_invite_status: "pending" | "redeemed" | "revoked" | "superseded"
       streak_rule_type: "visit_streak" | "weekly_goal" | "calendar_streak"
     }
@@ -3409,6 +5300,10 @@ export const Constants = {
         "cancelled",
         "refunded",
       ],
+      announcement_audience: ["all_members", "segment"],
+      announcement_kind: ["transactional", "promotional"],
+      announcement_membership_filter: ["any", "live", "not_live"],
+      announcement_status: ["draft", "published", "unpublished", "discarded"],
       app_role: [
         "super_admin",
         "platform_support",
@@ -3419,7 +5314,17 @@ export const Constants = {
         "member",
       ],
       attendance_source: ["qr", "front_desk"],
+      booking_status: [
+        "booked",
+        "cancelled_by_member",
+        "cancelled_by_gym",
+        "session_cancelled",
+        "attended",
+        "no_show",
+      ],
+      business_type: ["gym", "dance", "yoga", "martial_arts", "studio"],
       checkin_gate_mode: ["printed_poster", "rotating_screen"],
+      class_session_status: ["scheduled", "cancelled"],
       consent_purpose: ["marketing", "service"],
       contact_channel: ["call", "whatsapp", "in_person", "sms"],
       follow_up_outcome: [
@@ -3430,6 +5335,14 @@ export const Constants = {
         "unhappy",
         "no_response",
         "cancelled",
+      ],
+      guardian_relation: [
+        "mother",
+        "father",
+        "grandparent",
+        "sibling",
+        "legal_guardian",
+        "other",
       ],
       gym_preset: ["neighbourhood_gym", "premium_studio", "functional_box"],
       import_status: ["pending", "processing", "completed", "failed"],
@@ -3512,9 +5425,16 @@ export const Constants = {
         "reversed",
       ],
       plan_tier: ["basic", "growth", "pro"],
+      pt_pack_state: ["live", "fully_booked", "spent", "expired", "closed"],
       pt_session_status: ["scheduled", "completed", "cancelled", "no_show"],
       refund_kind: ["refund", "reversal"],
       refund_status: ["requested", "processing", "completed", "failed"],
+      shop_reservation_status: [
+        "reserved",
+        "fulfilled",
+        "cancelled_by_member",
+        "cancelled_by_gym",
+      ],
       staff_invite_status: ["pending", "redeemed", "revoked", "superseded"],
       streak_rule_type: ["visit_streak", "weekly_goal", "calendar_streak"],
     },
