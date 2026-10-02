@@ -289,6 +289,7 @@ select is_empty(
       ('member_devices',          'is_front_office', 'is_front_office', 'own'),
       ('message_templates',       'is_staff',        'is_gym_admin',    null),
       ('leads',                   'is_front_office', 'is_front_office', null),
+      ('member_invites',          'is_front_office', null,              null),
       ('member_imports',          'is_gym_admin',    'is_gym_admin',    null),
       ('messaging_wallets',       'is_gym_admin',    null,              null),
       ('messaging_wallet_ledger', 'is_gym_admin',    null,              null),
@@ -386,7 +387,7 @@ select is_empty(
                     '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g')), '')
                   !~ pat
            end$$,
-  'spec "Every table''s read gate matches the matrix" / "Every table''s write gate matches the matrix" / "A refused write affects zero rows; a refused insert raises" / "A member reads only their own rows" -- design.md 8.3, all thirty-six tables, seven clauses each, in both directions'
+  'spec "Every table''s read gate matches the matrix" / "Every table''s write gate matches the matrix" / "A refused write affects zero rows; a refused insert raises" / "A member reads only their own rows" -- design.md 8.3, all thirty-six tables, seven clauses each, in both directions - plus member_invites (INV-017), a thirty-seventh row that is read-only: a front-office tenant_select, no tenant_write, no member_select. The tenant term is first in the predicate, as for every other row, which is the order the member-invites proposal text does not use'
 );
 
 -- ---------------------------------------------------------------------------
@@ -670,8 +671,9 @@ select is_empty(
 -- list of the five instances a human happened to find. A constraint ignores
 -- RLS, so a globally scoped unique or exclusion constraint lets one gym take a
 -- slot another gym needs, in a row that gym cannot see, update or delete
--- (Phase 1 grants delete nowhere). Two keys are global on purpose and are
--- named here; every other one, on every table this phase or a later one
+-- (Phase 1 grants delete nowhere). Two keys were global on purpose when this
+-- paragraph was written and the list has grown to four (see the assertion
+-- text below); every other one, on every table this phase or a later one
 -- creates, must lead with the tenant column.
 -- ---------------------------------------------------------------------------
 
@@ -686,11 +688,12 @@ select is_empty(
        and not i.indisprimary
        and c.relname <> 'platform_users'
        and ic.relname not in ('organizations_gym_code_key', 'qr_sessions_token_hash_key',
-                              'impersonation_sessions_actor_user_id_open_key')
+                              'impersonation_sessions_actor_user_id_open_key',
+                              'member_invites_token_hash_key')
        and coalesce((select a.attname::text from pg_attribute a
                       where a.attrelid = c.oid and a.attnum = i.indkey[0]), '')
            <> case when c.relname = 'organizations' then 'id' else 'tenant_id' end$$,
-  'ADR-047 / ADR-049: every unique and exclusion constraint in public leads with the tenant column, bar the THREE the contract makes global on purpose. organizations.gym_code identifies a gym across the platform; qr_sessions.token_hash is a secret; and impersonation_sessions_actor_user_id_open_key (design.md 6) is global because tenant-scoping it would defeat it -- a super admin could then hold an open session in fifty gyms at once and the hook would have no way to decide which tenant an impersonating token names. ADR-047''s actual danger, a gym taking a constraint slot another gym can neither see nor reclaim, cannot arise on that index because no gym-side role may insert into impersonation_sessions at all. The fifth instance of the rule, invoices (tenant_id, payment_id), was found by a human; this assertion is what makes it the last one that has to be, and it earned its keep again in Phase 2 by catching that third index before it merged'
+  'ADR-047 / ADR-049: every unique and exclusion constraint in public leads with the tenant column, bar the FOUR the contract makes global on purpose. organizations.gym_code identifies a gym across the platform; qr_sessions.token_hash is a secret; member_invites_token_hash_key (INV-001, openspec/changes/member-invites) is a secret of the same kind - an invite token carries no tenant, so the lookup by hash cannot lead with one, and the proposal that adds it counts it the third beside qr_sessions when it is in fact the fourth; and impersonation_sessions_actor_user_id_open_key (design.md 6) is global because tenant-scoping it would defeat it -- a super admin could then hold an open session in fifty gyms at once and the hook would have no way to decide which tenant an impersonating token names. ADR-047''s actual danger, a gym taking a constraint slot another gym can neither see nor reclaim, cannot arise on that index because no gym-side role may insert into impersonation_sessions at all. The fifth instance of the rule, invoices (tenant_id, payment_id), was found by a human; this assertion is what makes it the last one that has to be, and it earned its keep again in Phase 2 by catching that third index before it merged'
 );
 
 -- ---------------------------------------------------------------------------
@@ -866,11 +869,17 @@ select is_empty(
                          ('public.link_gym_owner(uuid, uuid, uuid, text, uuid)', 'v'),
                          ('public.deactivate_gym_owner(uuid, uuid, uuid, uuid)', 'v'),
                          ('public.replace_checkin_poster(uuid, uuid, text)', 'v'),
-                         ('public.set_checkin_gate_mode(public.checkin_gate_mode)', 'v')
+                         ('public.set_checkin_gate_mode(public.checkin_gate_mode)', 'v'),
+                         ('public.issue_member_invite(uuid, text)', 'v'),
+                         ('public.revoke_member_invite(uuid)', 'v'),
+                         ('public.redeem_member_invite(text)', 'v'),
+                         ('public.peek_member_invite(text)', 's'),
+                         ('public.unlink_member_identity(uuid, text)', 'v'),
+                         ('public.read_member_app_access(uuid)', 's')
                        ) allowed(signature, volatility)
                        where p.oid = to_regprocedure(allowed.signature)
                          and p.provolatile = allowed.volatility))))$$,
-  'ADR-032, ADR-116 and the approved Phase 6 member projections and import commands: all app/public security-definer functions have an empty search_path; only the exact postgres-owned signatures on the allowlist may be elevated in public, each at its own required volatility, with no unapproved overload or function'
+  'ADR-032, ADR-116 and the approved Phase 6 member projections and import commands: all app/public security-definer functions have an empty search_path; only the exact postgres-owned signatures on the allowlist may be elevated in public, each at its own required volatility, with no unapproved overload or function. INV-017 (member invites) adds exactly six: the writers issue_member_invite, revoke_member_invite, redeem_member_invite and unlink_member_identity are VOLATILE, and the two readers peek_member_invite (the only definer here that anon may execute) and read_member_app_access are STABLE - the proposal does not state a volatility, so the read-only reading is pinned here; app.member_invite_audit is elevated too but sits in app and is held to the empty-path rule alone'
 );
 
 -- Phase 4 (20260909130000_red_list_view.sql) added public.red_list_cases,
@@ -989,6 +998,22 @@ select is_empty(
         and n.nspname = 'app' and p.proname = 'guard_checkin_gate_write'
         and p.pronargs = 0 and p.prorettype = 'trigger'::regtype
         and not p.prosecdef
+    ), invite_preview_triggers as (
+      -- Member invites (INV-001/017): the proposal gives the SELECT-only table member_invites the standard
+      -- row preview_read_only trigger, which this assertion would otherwise reject because
+      -- preview_tables above is derived from INSERT/UPDATE/DELETE grants and member_invites holds none.
+      -- Named on its one table in exactly the shape the grant-derived loop creates (tgtype 31).
+      select t.oid, t.tgrelid from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace cn on cn.oid = c.relnamespace
+      join pg_proc p on p.oid = t.tgfoid
+      join pg_namespace n on n.oid = p.pronamespace
+      where cn.nspname = 'public' and c.relname = 'member_invites'
+        and t.tgname = 'member_invites_preview_read_only'
+        and not t.tgisinternal and t.tgtype = 31 and t.tgenabled = 'O'
+        and n.nspname = 'app' and p.proname = 'enforce_preview_read_only'
+        and p.pronargs = 0 and p.prorettype = 'trigger'::regtype
+        and not p.prosecdef
     )
     select c.relname || '.' || t.tgname
       from pg_trigger t
@@ -998,12 +1023,13 @@ select is_empty(
        and t.tgname <> c.relname || '_touch_updated_at'
        and t.oid not in (select oid from valid_preview_triggers)
        and t.oid not in (select oid from gate_guard_triggers)
+       and t.oid not in (select oid from invite_preview_triggers)
        and c.relname not in ('staff', 'members', 'platform_users', 'impersonation_sessions', 'attendance', 'membership_pauses', 'follow_ups', 'payments', 'refunds', 'document_counters', 'memberships', 'addon_products', 'addon_orders', 'pt_sessions')
     union all
     select c.relname || '.missing_or_invalid_preview_read_only'
       from preview_tables c
      where not exists (select 1 from valid_preview_triggers t where t.tgrelid = c.oid)$$,
-  'docs/data-model.md "What a cluster agent must not do", narrowed by design.md 6 and 7, ADR-066, NAV-003 and the frozen Phase 6 add-on and member-import contracts: every authenticated-writable public table requires its exact enabled ROW BEFORE INSERT/UPDATE/DELETE preview_read_only trigger calling private invoker app.enforce_preview_read_only(). Only that named, correctly shaped trigger and touch_updated_at are admitted universally, plus one exact sibling shape: <table>_preview_write_guard, the enabled STATEMENT BEFORE INSERT/UPDATE/DELETE trigger (tgtype 30 = BEFORE 2 + INSERT 4 + UPDATE 16 + DELETE 8, no ROW bit) calling the same private invoker. Phase 6 leads needs that sibling because a preview UPDATE matches no row through the tenant policies, so the row guard never fires for one and the statement guard answers before any row resolution (ADR-118). Member imports carries its v1 run invariant (docs/planning/phase6-import-contract.md, "Schema, generated types and test split") inside the touch_updated_at slot itself, the same fusion leads uses for app.enforce_lead_discipline() -- a table gets exactly one substantive row trigger beyond the preview guard, under one of these two universal names, never a third. Fourteen named table exemptions remain; every other unexplained trigger still fails this exact catalogue assertion, and a missing or malformed preview guard fails even on an exempt table. The original eleven exemptions retain their recorded identity, attribution, financial-integrity, monotonic-counter and membership-period reasons. Phase 6 adds exactly three table exemptions because their rules require OLD/NEW or cross-row state that a CHECK, index, policy or Route Handler cannot enforce for every writer. organizations is instead admitted only through its exact named commercial-invariant and status-session-revoke trigger shapes. addon_products owns database-stamped quote_version rotation across the complete offer-term set while preserving the version for stock and presentation edits, plus kind-specific disclosure and stock shape. addon_orders owns the ordered GL053-GL057 lifecycle and immutable sale record, validates linked member/payment/catalogue/session facts, serializes stock and returned-money effects, and invokes app.audit_money_change() for every accepted insert/update. pt_sessions owns immutable order/member/trainer/slot identity, validates BOTH trainer assignments and the parent order validity/reservation budget, serializes scheduled-to-terminal effects, and advances only the parent order usage/status. These exemptions permit those contract-required trigger families on the three named tables; they do not widen the predicate for any other table or excuse a missing preview guard.'
+  'docs/data-model.md "What a cluster agent must not do", narrowed by design.md 6 and 7, ADR-066, NAV-003 and the frozen Phase 6 add-on and member-import contracts: every authenticated-writable public table requires its exact enabled ROW BEFORE INSERT/UPDATE/DELETE preview_read_only trigger calling private invoker app.enforce_preview_read_only(). Only that named, correctly shaped trigger and touch_updated_at are admitted universally, plus one exact sibling shape: <table>_preview_write_guard, the enabled STATEMENT BEFORE INSERT/UPDATE/DELETE trigger (tgtype 30 = BEFORE 2 + INSERT 4 + UPDATE 16 + DELETE 8, no ROW bit) calling the same private invoker. Phase 6 leads needs that sibling because a preview UPDATE matches no row through the tenant policies, so the row guard never fires for one and the statement guard answers before any row resolution (ADR-118). Member imports carries its v1 run invariant (docs/planning/phase6-import-contract.md, "Schema, generated types and test split") inside the touch_updated_at slot itself, the same fusion leads uses for app.enforce_lead_discipline() -- a table gets exactly one substantive row trigger beyond the preview guard, under one of these two universal names, never a third. Fourteen named table exemptions remain; every other unexplained trigger still fails this exact catalogue assertion, and a missing or malformed preview guard fails even on an exempt table. The original eleven exemptions retain their recorded identity, attribution, financial-integrity, monotonic-counter and membership-period reasons. Phase 6 adds exactly three table exemptions because their rules require OLD/NEW or cross-row state that a CHECK, index, policy or Route Handler cannot enforce for every writer. organizations is instead admitted only through its exact named commercial-invariant and status-session-revoke trigger shapes. addon_products owns database-stamped quote_version rotation across the complete offer-term set while preserving the version for stock and presentation edits, plus kind-specific disclosure and stock shape. addon_orders owns the ordered GL053-GL057 lifecycle and immutable sale record, validates linked member/payment/catalogue/session facts, serializes stock and returned-money effects, and invokes app.audit_money_change() for every accepted insert/update. pt_sessions owns immutable order/member/trainer/slot identity, validates BOTH trainer assignments and the parent order validity/reservation budget, serializes scheduled-to-terminal effects, and advances only the parent order usage/status. These exemptions permit those contract-required trigger families on the three named tables; they do not widen the predicate for any other table or excuse a missing preview guard. Member invites (INV-001, INV-013, INV-017) adds exactly one more named shape, the row preview_read_only trigger the proposal gives the SELECT-only table member_invites (which preview_tables, being grant-derived, would not otherwise admit), and the members_auth_binding_invariant trigger rides on members, which is already on the exemption list.'
 );
 
 select is(
