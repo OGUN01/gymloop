@@ -1,4 +1,4 @@
--- GRD-001..021/026/027. Frozen proposal 769eb13 + naming bfd2690;
+-- GRD-001..021/026/027. Frozen proposal plus marker amendment 258fd16;
 -- independent visible DB author.
 -- No production source, migrations, app tests or holdouts were read.
 -- One rollback transaction cannot prove cross-backend concurrency. Sequential
@@ -8,7 +8,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims', '', true);
-select plan(284);
+select plan(311);
 
 create function pg_temp.gid(n integer) returns uuid language sql immutable as
 $$ select ('69000000-0000-4000-8000-' || lpad(n::text,12,'0'))::uuid $$;
@@ -21,15 +21,17 @@ $$ begin perform set_config('request.jwt.claims',jsonb_strip_nulls(jsonb_build_o
   'impersonation_id',case when preview then pg_temp.gid(999) end))::text,true); end $$;
 -- An unexpected successful refusal probe is rolled back too, so it cannot
 -- pollute subsequent evidence. This helper does not elevate its caller.
-create function pg_temp.refusal(q text) returns text language plpgsql as $$
+create function pg_temp.refusal(q text,with_detail boolean default false) returns text language plpgsql as $$
+declare detail text;
 begin
   begin execute q; raise exception using errcode='Z6900';
   exception when others then
     if sqlstate='Z6900' then return 'SUCCESS'; end if;
-    return sqlstate;
+    get stacked diagnostics detail=PG_EXCEPTION_DETAIL;
+    return sqlstate||case when with_detail then ':'||coalesce(detail,'') else '' end;
   end;
 end $$;
-grant execute on function pg_temp.gid(integer),pg_temp.claim(text,integer,integer,integer,boolean),pg_temp.refusal(text) to authenticated,anon,service_role;
+grant execute on function pg_temp.gid(integer),pg_temp.claim(text,integer,integer,integer,boolean),pg_temp.refusal(text,boolean) to authenticated,anon,service_role;
 
 -- Catalogue proof: presence, exact vocabulary and no personal-contact columns
 -- in the immutable decision history.
@@ -85,13 +87,13 @@ or not has_function_privilege('authenticated',p.oid,'EXECUTE')
 or has_function_privilege('anon',p.oid,'EXECUTE') or has_function_privilege('service_role',p.oid,'EXECUTE')
 $q$,'GRD-021: seven exact public signatures, posture, volatility, path and authenticated-only grants');
 select is_empty($q$
-with w(sig) as(values ('app.close_ineligible_cases(uuid,uuid,text)'),('app.guardian_audit(uuid,uuid,public.app_role,text,text,uuid,jsonb,jsonb,text)'),('app.guard_legacy_adult_attestation()'))
+with w(sig) as(values ('app.close_ineligible_cases(uuid,uuid,text)'),('app.guardian_audit(uuid,uuid,public.app_role,text,text,uuid,jsonb,jsonb,text)'),('app.guard_legacy_adult_attestation()'),('app.members_guardian_marker()'))
 select sig from w left join pg_proc p on p.oid=to_regprocedure(w.sig) where p.oid is null
 or has_function_privilege('anon',p.oid,'EXECUTE') or has_function_privilege('authenticated',p.oid,'EXECUTE') or has_function_privilege('service_role',p.oid,'EXECUTE')
 $q$,'GRD-021: closure, audit and timestamp trigger cannot be called by sessions');
 select is_empty($q$
 with w(tbl,n,fn,typ,elev) as(values
-('members','members_guardian_marker','members_guardian_marker',19,false),
+('members','members_guardian_marker','members_guardian_marker',23,false),
 ('members','members_guardian_after_change','members_guardian_after_change',17,true),
 ('guardian_consents','guardian_consents_preview_read_only','enforce_preview_read_only',31,false),
 ('organization_settings','organization_settings_legacy_adult_attestation_guard','guard_legacy_adult_attestation',23,false))
@@ -99,6 +101,11 @@ select w.n from w where not exists(select 1 from pg_trigger t join pg_proc p on 
 where t.tgrelid=to_regclass('public.'||w.tbl) and t.tgname=w.n and t.tgtype=w.typ and t.tgenabled='O'
 and not t.tgisinternal and n.nspname='app' and p.proname=w.fn and p.prosecdef=w.elev)
 $q$,'GRD-009/013/021: exact enabled trigger timing and elevation');
+select ok(exists(select 1 from pg_trigger t join pg_proc p on p.oid=t.tgfoid
+where t.tgrelid='public.members'::regclass and t.tgname='members_guardian_marker' and t.tgqual is null
+and (select array_agg(a.attname::text order by a.attname) from unnest(t.tgattr::smallint[]) k(n) join pg_attribute a on a.attrelid=t.tgrelid and a.attnum=k.n)=array['guardian_linked_at','user_id']
+and pg_get_userbyid(p.proowner)='postgres' and p.provolatile='v' and coalesce(p.proconfig @> array['search_path=""'],false)),
+'GRD-013 marker amendment: INSERT plus exact two UPDATE columns, no WHEN, private invoker posture');
 
 -- Exact frozen age boundaries, including the conservative leap-day rule.
 select is(app.member_adult_on(date '2008-03-01'),date '2026-03-01','GRD-001: ordinary eighteenth anniversary');
@@ -330,6 +337,40 @@ select is((select outcome from linked_sibling),'linked','GRD-015: guardian verif
 select is((select outcome from public.redeem_member_invite(repeat('c',64))),'already_linked_here','GRD-015/027: guardian redemption retains INV idempotent replay');
 set local role postgres;
 select ok(exists(select 1 from public.members where id=pg_temp.gid(105) and user_id=pg_temp.gid(906) and guardian_linked_at=(select linked_at from linked_sibling)),'GRD-013: guardian marker stamped at redemption statement timestamp');
+-- A real guardian-linked value cannot be erased or retimed by a session.
+-- Capture complete values and privileged side effects before refusal probes.
+insert into auth.sessions(id,user_id) values(pg_temp.gid(710),pg_temp.gid(906));
+create temp table marker_real_before as select to_jsonb(m) as member_row,
+  (select jsonb_agg(to_jsonb(s) order by s.id) from auth.sessions s where s.user_id=pg_temp.gid(906)) as sessions,
+  (select count(*) from public.audit_log where tenant_id=pg_temp.gid(1)) as audits
+from public.members m where m.id=pg_temp.gid(105);
+select pg_temp.claim('gym_owner');
+set local role authenticated;
+select is(pg_temp.refusal($q$update public.members set guardian_linked_at=null where id=pg_temp.gid(105)$q$,true),'42501:guardian_binding_command_required','GRD-013 marker integrity: real guardian provenance cannot be cleared directly');
+select is(pg_temp.refusal($q$update public.members set guardian_linked_at=guardian_linked_at+interval '1 day' where id=pg_temp.gid(105)$q$,true),'42501:guardian_binding_command_required','GRD-013 marker integrity: real guardian provenance cannot be retimed directly');
+select is(pg_temp.refusal($q$update public.members set user_id=pg_temp.gid(907),guardian_linked_at=null where id=pg_temp.gid(105)$q$),'GL074','GRD-013/INV: user-id change retains earlier INV refusal even alongside marker tampering');
+select set_config('app.guardian_binding_command','redeem:'||pg_temp.gid(105)::text,true);
+select set_config('app.member_invite_command','redeem:'||pg_temp.gid(105)::text,true);
+select is(pg_temp.refusal($q$update public.members set guardian_linked_at=null where id=pg_temp.gid(105)$q$,true),'42501:guardian_binding_command_required','GRD-013 marker integrity: forged transaction markers do not authorize a session');
+set local role postgres;
+select set_config('app.guardian_binding_command','',true);
+select set_config('app.member_invite_command','',true);
+select pg_temp.claim('gym_owner');
+set local role service_role;
+select is(pg_temp.refusal($q$update public.members set guardian_linked_at=null where id=pg_temp.gid(105)$q$,true),'42501:guardian_binding_command_required','GRD-013 marker integrity: service-role connection with Auth subject is untrusted');
+set local role postgres;
+select is((select to_jsonb(m) from public.members m where id=pg_temp.gid(105)),(select member_row from marker_real_before),'GRD-013 marker integrity: refused tampering changes no member value or timestamp');
+select is((select jsonb_agg(to_jsonb(s) order by s.id) from auth.sessions s where user_id=pg_temp.gid(906)),(select sessions from marker_real_before),'GRD-013 marker integrity: refused tampering changes no guardian session');
+select is((select count(*) from public.audit_log where tenant_id=pg_temp.gid(1)),(select audits from marker_real_before),'GRD-013 marker integrity: refused tampering writes no audit');
+select pg_temp.claim('front_desk',23,1,903);
+set local role authenticated;
+select lives_ok($q$update public.members set guardian_linked_at=guardian_linked_at where id=pg_temp.gid(105)$q$,'GRD-013 marker integrity: unchanged non-null value retains front-office permissions');
+select is(pg_temp.refusal($q$insert into public.members(id,tenant_id,branch_id,full_name,phone,guardian_linked_at) values(pg_temp.gid(112),pg_temp.gid(1),pg_temp.gid(11),'Forged marker insert','+916900000112',statement_timestamp())$q$,true),'42501:guardian_binding_command_required','GRD-013 marker integrity: non-null INSERT refused before linked-state CHECK');
+select is(pg_temp.refusal($q$insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone,guardian_linked_at) values(pg_temp.gid(112),pg_temp.gid(1),pg_temp.gid(11),pg_temp.gid(907),'Forged binding insert','+916900000112',statement_timestamp())$q$),'GL074','GRD-013/INV: non-null user INSERT retains earlier INV guard order');
+select lives_ok($q$insert into public.members(id,tenant_id,branch_id,full_name,phone,guardian_linked_at) values(pg_temp.gid(111),pg_temp.gid(1),pg_temp.gid(11),'Allowed null marker','+916900000111',null)$q$,'GRD-013 marker integrity: ordinary null-marker member insertion remains allowed');
+select lives_ok($q$update public.members set guardian_linked_at=null where id=pg_temp.gid(111)$q$,'GRD-013 marker integrity: unchanged null marker update remains allowed');
+set local role postgres;
+select is((select count(*)::integer from public.members where id=pg_temp.gid(112)),0,'GRD-013 marker integrity: refused marker/binding inserts leave no row');
 select pg_temp.claim('gym_owner');
 set local role authenticated;
 select lives_ok($q$select public.set_member_age_guardian(pg_temp.gid(103),(current_date-interval '10 years')::date,'Parent private','mother','+916900009906','PARENT69@example.test')$q$,'GRD-016: siblings may share all guardian contact fields');
@@ -598,6 +639,18 @@ set local role authenticated;
 select is((select outcome from public.redeem_member_invite(rpad('a1',64,'0'))),'linked','GRD-027: adult Google identity binds unchanged');
 set local role postgres;
 select is((select guardian_linked_at from public.members where id=pg_temp.gid(104)),null::timestamptz,'GRD-013/027: adult redemption never sets guardian-linked marker');
+create temporary table marker_adult_before as select
+  (select to_jsonb(m) from public.members m where id=pg_temp.gid(104)) as member_value,
+  (select coalesce(jsonb_agg(to_jsonb(s) order by s.id),'[]'::jsonb) from auth.sessions s where user_id=pg_temp.gid(908)) as sessions_value,
+  (select count(*) from public.audit_log where tenant_id=pg_temp.gid(1)) as audit_count;
+select pg_temp.claim('gym_owner');
+set local role authenticated;
+select is(pg_temp.refusal($q$update public.members set guardian_linked_at=statement_timestamp() where id=pg_temp.gid(104)$q$,true),'42501:guardian_binding_command_required','GRD-012/013: owner cannot forge guardian provenance on an adult own-account binding');
+select is(pg_temp.refusal($q$select public.transition_member_to_own_account(pg_temp.gid(104),'Attempt after refused forgery')$q$),'GL085','GRD-012: refused adult marker forgery does not enable handover');
+set local role postgres;
+select is((select to_jsonb(m) from public.members m where id=pg_temp.gid(104)),(select member_value from marker_adult_before),'GRD-013: adult forgery and handover refusals preserve every member value');
+select is((select coalesce(jsonb_agg(to_jsonb(s) order by s.id),'[]'::jsonb) from auth.sessions s where user_id=pg_temp.gid(908)),(select sessions_value from marker_adult_before),'GRD-013: adult forgery and handover refusals preserve sessions');
+select is((select count(*) from public.audit_log where tenant_id=pg_temp.gid(1)),(select audit_count from marker_adult_before),'GRD-013: adult forgery and handover refusals append no audit');
 select pg_temp.claim('gym_owner');
 set local role authenticated;
 select lives_ok($q$select public.set_member_age_guardian(pg_temp.gid(102),(current_date-interval '10 years')::date,'Parent private','mother','+916900009906','parent69@example.test')$q$,'GRD-011: prepare pending pre-birthday guardian invitation');
@@ -646,6 +699,16 @@ select is((select count(*)::integer from public.no_show_cases where tenant_id=pg
 insert into auth.users(id) values(pg_temp.gid(911)),(pg_temp.gid(912));
 update public.members set user_id=pg_temp.gid(911),guardian_linked_at=statement_timestamp() where id=pg_temp.gid(103);
 select ok((select guardian_linked_at is not null from public.members where id=pg_temp.gid(103)),'GRD-013: statement changing both user and marker preserves explicit marker');
+update public.members set user_id=pg_temp.gid(912),guardian_linked_at=guardian_linked_at where id=pg_temp.gid(103);
+select is((select guardian_linked_at from public.members where id=pg_temp.gid(103)),null::timestamptz,'GRD-013: trusted rebind explicitly assigning unchanged old timestamp still clears marker');
+update public.members set user_id=pg_temp.gid(911),guardian_linked_at=statement_timestamp() where id=pg_temp.gid(103);
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
+select lives_ok($q$update public.members set user_id=pg_temp.gid(912),guardian_linked_at=guardian_linked_at where id=pg_temp.gid(103)$q$,'GRD-013: subjectless service operator may rebind with unchanged explicit marker');
+set local role postgres;
+select is((select guardian_linked_at from public.members where id=pg_temp.gid(103)),null::timestamptz,'GRD-013: subjectless operator rebind clears unchanged explicit marker');
+select set_config('request.jwt.claims','',true);
+update public.members set user_id=pg_temp.gid(911),guardian_linked_at=statement_timestamp() where id=pg_temp.gid(103);
 update public.members set user_id=pg_temp.gid(912) where id=pg_temp.gid(103);
 select is((select guardian_linked_at from public.members where id=pg_temp.gid(103)),null::timestamptz,'GRD-013: direct rebind without simultaneous marker clears marker');
 update public.members set user_id=null where id=pg_temp.gid(103);
@@ -666,6 +729,19 @@ set local role authenticated;
 select is((select count(*)::integer from public.list_guardian_attention('no_birth_date')),100,'GRD-019: attention list capped at exactly 100 rows');
 select results_eq($q$select member_id from public.list_guardian_attention('no_birth_date')$q$,$q$select pg_temp.gid(n) from generate_series(2006,2105) n order by n desc$q$,'GRD-019: cap applies after full_name/id ordering rather than insertion order');
 set local role postgres;
+
+-- Trusted linked fixture isolates unlink from the attention membership counts.
+insert into auth.users(id) values(pg_temp.gid(913));
+insert into auth.sessions(id,user_id) values(pg_temp.gid(713),pg_temp.gid(913));
+insert into public.members(id,tenant_id,branch_id,full_name,phone,user_id,guardian_linked_at,date_of_birth)
+values(pg_temp.gid(113),pg_temp.gid(1),pg_temp.gid(11),'Trusted unlink guardian','+916900000113',pg_temp.gid(913),statement_timestamp(),date '1990-01-01');
+select ok((select guardian_linked_at is not null from public.members where id=pg_temp.gid(113)),'GRD-013: trusted marker-bearing INSERT retains linked provenance');
+select pg_temp.claim('gym_owner');
+set local role authenticated;
+select lives_ok($q$select public.unlink_member_identity(pg_temp.gid(113),'Guardian binding reset')$q$,'GRD-013: authorized unlink clears trusted linked provenance');
+set local role postgres;
+select ok((select user_id is null and guardian_linked_at is null from public.members where id=pg_temp.gid(113)),'GRD-013: unlink clears binding and guardian marker together');
+select is((select count(*)::integer from auth.sessions where user_id=pg_temp.gid(913)),0,'GRD-013: guardian unlink preserves INV session invalidation');
 
 select * from finish();
 rollback;

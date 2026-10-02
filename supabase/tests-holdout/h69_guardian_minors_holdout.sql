@@ -4,7 +4,7 @@
 begin;
 set local role postgres;
 set local search_path to public, extensions;
-select plan(233);
+select plan(292);
 
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$
 select ('69900000-0000-4000-8000-' || lpad(to_hex(n),12,'0'))::uuid
@@ -17,14 +17,14 @@ select jsonb_build_object('sub',pg_temp.u(200+n),'role','authenticated',
 $$;
 create function pg_temp.run(q text, c text default pg_temp.claims(), r text default 'authenticated')
 returns jsonb language plpgsql as $$
-declare v jsonb; con text;
+declare v jsonb; con text; det text;
 begin
  perform set_config('request.jwt.claims',coalesce(c,''),true);
  execute format('set local role %I',r);
  begin execute q into v;
  exception when others then
- get stacked diagnostics con=constraint_name;
- v:=jsonb_build_object('error',sqlstate,'constraint',con);
+ get stacked diagnostics con=constraint_name, det=pg_exception_detail;
+ v:=jsonb_build_object('error',sqlstate,'constraint',con,'detail',det);
  end;
  set local role postgres;
  perform set_config('request.jwt.claims','',true);
@@ -221,6 +221,36 @@ select is(pg_temp.run('select to_jsonb(g) from public.peek_member_invite(repeat(
 select is(pg_temp.run('select to_jsonb(g) from public.redeem_member_invite(repeat(''c'',64))g',jsonb_build_object('sub',pg_temp.u(602),'role','authenticated')::text)->>'outcome','email_mismatch','GRD-015 own child account refuses guardian invite');
 select is(pg_temp.run('select to_jsonb(g) from public.redeem_member_invite(repeat(''c'',64))g',jsonb_build_object('sub',pg_temp.u(601),'role','authenticated')::text)->>'outcome','linked','GRD-015 guardian Google binds child membership');
 select ok((select user_id=pg_temp.u(601) and guardian_linked_at is not null from public.members where id=pg_temp.u(108)),'GRD-013 successful minor redemption marker');
+-- Owner-approved marker-integrity regressions against the actual successful guardian redemption above.
+select is(pg_temp.run($q$update public.members set guardian_linked_at=guardian_linked_at where id=pg_temp.u(108)returning to_jsonb(id)$q$,pg_temp.claims(3))->>'error',null::text,'GRD marker unchanged trusted value remains writable by real desk');
+insert into auth.sessions(id,user_id)values(pg_temp.u(624),pg_temp.u(601));
+create temp table h69_marker_real as select to_jsonb(m)facts from public.members m where id=pg_temp.u(108);
+create temp table h69_marker_sessions as select to_jsonb(a)facts from auth.sessions a where user_id=pg_temp.u(601);
+create temp table h69_marker_audit as select count(*)n from public.audit_log where tenant_id=pg_temp.u(1);
+select is(pg_temp.run($q$update public.members set guardian_linked_at=nullwhere id=pg_temp.u(108)returning to_jsonb(id)$q$,pg_temp.claims(1),'authenticated')->>'error','42501','GRD real guardian marker clear role 1 refuses');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=nullwhere id=pg_temp.u(108)returning to_jsonb(id)$q$,pg_temp.claims(1),'authenticated')->>'detail','guardian_binding_command_required','GRD real guardian marker clear role 1 exact detail');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=guardian_linked_at+interval '1 second'where id=pg_temp.u(108)returning to_jsonb(id)$q$,pg_temp.claims(1),'authenticated')->>'error','42501','GRD real guardian marker replace role 1 refuses');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=guardian_linked_at+interval '1 second'where id=pg_temp.u(108)returning to_jsonb(id)$q$,pg_temp.claims(1),'authenticated')->>'detail','guardian_binding_command_required','GRD real guardian marker replace role 1 exact detail');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=nullwhere id=pg_temp.u(108)returning to_jsonb(id)$q$,pg_temp.claims(2),'authenticated')->>'error','42501','GRD real guardian marker clear role 2 refuses');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=nullwhere id=pg_temp.u(108)returning to_jsonb(id)$q$,pg_temp.claims(2),'authenticated')->>'detail','guardian_binding_command_required','GRD real guardian marker clear role 2 exact detail');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=guardian_linked_at+interval '1 second'where id=pg_temp.u(108)returning to_jsonb(id)$q$,pg_temp.claims(2),'authenticated')->>'error','42501','GRD real guardian marker replace role 2 refuses');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=guardian_linked_at+interval '1 second'where id=pg_temp.u(108)returning to_jsonb(id)$q$,pg_temp.claims(2),'authenticated')->>'detail','guardian_binding_command_required','GRD real guardian marker replace role 2 exact detail');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=nullwhere id=pg_temp.u(108)returning to_jsonb(id)$q$,pg_temp.claims(3),'authenticated')->>'error','42501','GRD real guardian marker clear role 3 refuses');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=nullwhere id=pg_temp.u(108)returning to_jsonb(id)$q$,pg_temp.claims(3),'authenticated')->>'detail','guardian_binding_command_required','GRD real guardian marker clear role 3 exact detail');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=guardian_linked_at+interval '1 second'where id=pg_temp.u(108)returning to_jsonb(id)$q$,pg_temp.claims(3),'authenticated')->>'error','42501','GRD real guardian marker replace role 3 refuses');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=guardian_linked_at+interval '1 second'where id=pg_temp.u(108)returning to_jsonb(id)$q$,pg_temp.claims(3),'authenticated')->>'detail','guardian_binding_command_required','GRD real guardian marker replace role 3 exact detail');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=nullwhere id=pg_temp.u(108)returning to_jsonb(id)$q$,jsonb_build_object('sub',pg_temp.u(201),'role','service_role')::text,'service_role')->>'error','42501','GRD service subject cannot clear marker refuses');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=nullwhere id=pg_temp.u(108)returning to_jsonb(id)$q$,jsonb_build_object('sub',pg_temp.u(201),'role','service_role')::text,'service_role')->>'detail','guardian_binding_command_required','GRD service subject cannot clear marker exact detail');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=guardian_linked_at+interval '1 second'where id=pg_temp.u(108)returning to_jsonb(id)$q$,jsonb_build_object('sub',pg_temp.u(201),'role','service_role')::text,'service_role')->>'error','42501','GRD service subject cannot replace marker refuses');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=guardian_linked_at+interval '1 second'where id=pg_temp.u(108)returning to_jsonb(id)$q$,jsonb_build_object('sub',pg_temp.u(201),'role','service_role')::text,'service_role')->>'detail','guardian_binding_command_required','GRD service subject cannot replace marker exact detail');
+do $$begin perform set_config('app.guardian_binding_command','true',true);perform set_config('app.member_invite_verified','true',true);end$$;
+select is(pg_temp.run($q$update public.members set guardian_linked_at=null where id=pg_temp.u(108)returning to_jsonb(id)$q$,pg_temp.claims(),'authenticated')->>'error','42501','GRD forged transaction settings cannot clear provenance refuses');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=null where id=pg_temp.u(108)returning to_jsonb(id)$q$,pg_temp.claims(),'authenticated')->>'detail','guardian_binding_command_required','GRD forged transaction settings cannot clear provenance exact detail');
+do $$begin perform set_config('app.guardian_binding_command','',true);perform set_config('app.member_invite_verified','',true);end$$;
+select is(pg_temp.run($q$update public.members set user_id=pg_temp.u(602),guardian_linked_at=null where id=pg_temp.u(108)returning to_jsonb(id)$q$)->>'error','GL074','GRD mixed user-marker change preserves INV refusal order');
+select is((select to_jsonb(m)from public.members m where id=pg_temp.u(108)),(select facts from h69_marker_real),'GRD real guardian refusals preserve every member value');
+select is((select coalesce(jsonb_agg(facts order by facts->>'id'),'[]')from h69_marker_sessions),(select coalesce(jsonb_agg(to_jsonb(a)order by a.id::text),'[]')from auth.sessions a where user_id=pg_temp.u(601)),'GRD real guardian refusals preserve session contents');
+select is((select count(*)from public.audit_log where tenant_id=pg_temp.u(1)),(select n from h69_marker_audit),'GRD real guardian refusals write no audit');
 select ok(pg_temp.run('select to_jsonb(g) from public.issue_member_invite(pg_temp.u(109),repeat(''d'',64))g')->>'invite_id' is not null,'GRD-016 sibling same guardian contact allowed');
 select is(pg_temp.run('select to_jsonb(g) from public.read_member_guardian(pg_temp.u(109))g')->>'link_email_in_use','true','GRD-016 collision boolean discloses no other member');
 select is(pg_temp.run('select to_jsonb(g) from public.redeem_member_invite(repeat(''d'',64))g',jsonb_build_object('sub',pg_temp.u(601),'role','authenticated')::text)->>'outcome','account_already_linked','GRD-016 one account never binds sibling');
@@ -408,6 +438,61 @@ select lives_ok($q$do $$declare n bigint; before_row public.members; after_row p
  if after_row.guardian_linked_at is distinct from before_row.guardian_linked_at or after_row.user_id<>pg_temp.u(601) then raise exception 'profile clear touched binding';end if;
 end $$;$q$,'GRD-005 clearing guardian retains linked marker/account');
 select ok(not exists(select 1 from public.audit_log where tenant_id=pg_temp.u(1) and action='organization.members_without_dob_attested_adult' and (actor_user_id is distinct from pg_temp.u(201) or actor_role is distinct from 'gym_owner'::public.app_role or record_type<>'organization_settings' or record_id<>pg_temp.u(1) or reason is not null or before<>'{"members_without_dob_attested_adult_at":null}'::jsonb or (after-array['members_without_dob_attested_adult_at'])<>'{}'::jsonb)),'GRD-020 attestation exact attribution and shape');
+
+-- Final marker shape, ordinary-account provenance, INSERT integrity, and trusted clearing boundaries.
+create temp table h69_marker_trigger as select t.* from pg_trigger t where t.tgrelid='public.members'::regclass and t.tgname='members_guardian_marker';
+select is((select tgtype::integer from h69_marker_trigger),23,'GRD marker trigger BEFORE INSERT OR UPDATE ROW');
+select is((select tgqual::text from h69_marker_trigger),null::text,'GRD marker trigger has no WHEN clause');
+select is((select array_agg(a.attname::text order by x.ord)from h69_marker_trigger t cross join lateral unnest(t.tgattr::smallint[])with ordinality x(num,ord)join pg_attribute a on a.attrelid=t.tgrelid and a.attnum=x.num),array['user_id','guardian_linked_at']::text[],'GRD marker UPDATE columns exact');
+select ok((select not p.prosecdef and p.proowner='postgres'::regrole and 'search_path=""'=any(p.proconfig)and not has_function_privilege('authenticated',p.oid,'EXECUTE')and not has_function_privilege('anon',p.oid,'EXECUTE')from pg_proc p where p.oid=(select tgfoid from h69_marker_trigger)),'GRD marker private invoker posture');
+insert into auth.users(id,email,email_confirmed_at,raw_app_meta_data)values(pg_temp.u(603),'adult-own@h69.test',now(),'{"provider":"google","providers":["google"]}'::jsonb);
+insert into auth.identities(provider_id,user_id,identity_data,provider)values('h69-google-603',pg_temp.u(603),'{"sub":"h69-google-603","email":"adult-own@h69.test","email_verified":true}'::jsonb,'google');
+insert into auth.users(id)select pg_temp.u(n)from generate_series(604,609)n;
+insert into public.members(id,tenant_id,branch_id,full_name,phone,email,date_of_birth)values(pg_temp.u(140),pg_temp.u(1),pg_temp.u(11),'Own adult marker probe','+919699991140','adult-own@h69.test',date '1990-01-01');
+select is(pg_temp.run($q$select to_jsonb(g)from public.issue_member_invite(pg_temp.u(140),repeat('e',64))g$q$)->>'error',null::text,'GRD ordinary adult invite remains allowed');
+select is(pg_temp.run($q$select to_jsonb(g)from public.redeem_member_invite(repeat('e',64))g$q$,jsonb_build_object('sub',pg_temp.u(603),'role','authenticated')::text)->>'outcome','linked','GRD ordinary adult redemption byte-identical linked outcome');
+select is((select guardian_linked_at from public.members where id=pg_temp.u(140)),null::timestamptz,'GRD ordinary adult redemption never stamps guardian provenance');
+insert into auth.sessions(id,user_id)values(pg_temp.u(625),pg_temp.u(603));
+create temp table h69_marker_adult as select to_jsonb(m)facts from public.members m where id=pg_temp.u(140);
+create temp table h69_marker_adult_sessions as select to_jsonb(a)facts from auth.sessions a where user_id=pg_temp.u(603);
+create temp table h69_marker_adult_audit as select count(*)n from public.audit_log where tenant_id=pg_temp.u(1);
+select is(pg_temp.run($q$update public.members set guardian_linked_at=statement_timestamp()where id=pg_temp.u(140)returning to_jsonb(id)$q$,pg_temp.claims(1),'authenticated')->>'error','42501','GRD adult own-account provenance forgery role 1 refuses');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=statement_timestamp()where id=pg_temp.u(140)returning to_jsonb(id)$q$,pg_temp.claims(1),'authenticated')->>'detail','guardian_binding_command_required','GRD adult own-account provenance forgery role 1 exact detail');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=statement_timestamp()where id=pg_temp.u(140)returning to_jsonb(id)$q$,pg_temp.claims(2),'authenticated')->>'error','42501','GRD adult own-account provenance forgery role 2 refuses');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=statement_timestamp()where id=pg_temp.u(140)returning to_jsonb(id)$q$,pg_temp.claims(2),'authenticated')->>'detail','guardian_binding_command_required','GRD adult own-account provenance forgery role 2 exact detail');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=statement_timestamp()where id=pg_temp.u(140)returning to_jsonb(id)$q$,pg_temp.claims(3),'authenticated')->>'error','42501','GRD adult own-account provenance forgery role 3 refuses');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=statement_timestamp()where id=pg_temp.u(140)returning to_jsonb(id)$q$,pg_temp.claims(3),'authenticated')->>'detail','guardian_binding_command_required','GRD adult own-account provenance forgery role 3 exact detail');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=statement_timestamp()where id=pg_temp.u(140)returning to_jsonb(id)$q$,jsonb_build_object('sub',pg_temp.u(201),'role','service_role')::text,'service_role')->>'error','42501','GRD adult provenance service subject forgery refuses');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=statement_timestamp()where id=pg_temp.u(140)returning to_jsonb(id)$q$,jsonb_build_object('sub',pg_temp.u(201),'role','service_role')::text,'service_role')->>'detail','guardian_binding_command_required','GRD adult provenance service subject forgery exact detail');
+select is(pg_temp.run($q$select to_jsonb(public.transition_member_to_own_account(pg_temp.u(140),'Own account stays'))$q$)->>'error','GL085','GRD rejected forgery cannot authorize adult own-account handover');
+select is((select to_jsonb(m)from public.members m where id=pg_temp.u(140)),(select facts from h69_marker_adult),'GRD adult forgery refusals preserve all values');
+select is((select coalesce(jsonb_agg(to_jsonb(a)order by a.id::text),'[]')from auth.sessions a where user_id=pg_temp.u(603)),(select coalesce(jsonb_agg(facts order by facts->>'id'),'[]')from h69_marker_adult_sessions),'GRD adult forgery preserves own-account sessions');
+select is((select count(*)from public.audit_log where tenant_id=pg_temp.u(1)),(select n from h69_marker_adult_audit),'GRD adult forgery and handover refusals write no audit');
+select is(pg_temp.run($q$insert into public.members(id,tenant_id,branch_id,full_name,phone,guardian_linked_at)values(pg_temp.u(141),pg_temp.u(1),pg_temp.u(11),'Insert marker probe','+919699991141',statement_timestamp())returning to_jsonb(id)$q$,pg_temp.claims(),'authenticated')->>'error','42501','GRD unbound nonnull marker INSERT command required refuses');
+select is(pg_temp.run($q$insert into public.members(id,tenant_id,branch_id,full_name,phone,guardian_linked_at)values(pg_temp.u(141),pg_temp.u(1),pg_temp.u(11),'Insert marker probe','+919699991141',statement_timestamp())returning to_jsonb(id)$q$,pg_temp.claims(),'authenticated')->>'detail','guardian_binding_command_required','GRD unbound nonnull marker INSERT command required exact detail');
+select is(pg_temp.run($q$insert into public.members(id,tenant_id,branch_id,full_name,phone,guardian_linked_at)values(pg_temp.u(141),pg_temp.u(1),pg_temp.u(11),'Insert marker probe','+919699991141',statement_timestamp())returning to_jsonb(id)$q$,jsonb_build_object('sub',pg_temp.u(201),'role','service_role')::text,'service_role')->>'error','42501','GRD service subject nonnull marker INSERT refuses');
+select is(pg_temp.run($q$insert into public.members(id,tenant_id,branch_id,full_name,phone,guardian_linked_at)values(pg_temp.u(141),pg_temp.u(1),pg_temp.u(11),'Insert marker probe','+919699991141',statement_timestamp())returning to_jsonb(id)$q$,jsonb_build_object('sub',pg_temp.u(201),'role','service_role')::text,'service_role')->>'detail','guardian_binding_command_required','GRD service subject nonnull marker INSERT exact detail');
+select is(pg_temp.run($q$insert into public.members(id,tenant_id,branch_id,full_name,phone,guardian_linked_at)values(pg_temp.u(141),pg_temp.u(1),pg_temp.u(11),'Insert marker probe','+919699991141',null)returning to_jsonb(id)$q$)->>'error',null::text,'GRD null-marker INSERT remains permitted by owner RLS');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=null where id=pg_temp.u(141)returning to_jsonb(id)$q$)->>'error',null::text,'GRD unchanged null marker update remains allowed');
+select is(pg_temp.run($q$insert into public.members(id,tenant_id,branch_id,full_name,phone,user_id,guardian_linked_at)values(pg_temp.u(142),pg_temp.u(1),pg_temp.u(11),'Insert marker probe','+919699991142',pg_temp.u(604),statement_timestamp())returning to_jsonb(id)$q$)->>'error','GL074','GRD mixed bound INSERT preserves original INV precedence');
+select is((select count(*)from public.members where id=pg_temp.u(142)),0::bigint,'GRD refused mixed INSERT leaves no member row');
+select is(pg_temp.run($q$insert into public.members(id,tenant_id,branch_id,full_name,phone,user_id,guardian_linked_at)values(pg_temp.u(142),pg_temp.u(1),pg_temp.u(11),'Insert marker probe','+919699991142',pg_temp.u(604),statement_timestamp())returning to_jsonb(id)$q$,'','service_role')->>'error',null::text,'GRD subjectless service retains trusted INSERT boundary');
+select is(pg_temp.run($q$update public.members set guardian_linked_at=guardian_linked_at+interval '1 second'where id=pg_temp.u(142)returning to_jsonb(id)$q$,'','service_role')->>'error',null::text,'GRD subjectless service retains trusted marker update boundary');
+select is(pg_temp.run($q$update public.members set user_id=pg_temp.u(605),guardian_linked_at=guardian_linked_at where id=pg_temp.u(142)returning to_jsonb(id)$q$,'','service_role')->>'error',null::text,'GRD operator rebind explicitly assigns unchanged marker');
+select is((select guardian_linked_at from public.members where id=pg_temp.u(142)),null::timestamptz,'GRD operator rebind compares values and clears unchanged old timestamp');
+update public.members set user_id=pg_temp.u(606),guardian_linked_at=statement_timestamp()where id=pg_temp.u(142);
+select is(pg_temp.run($q$select to_jsonb(public.unlink_member_identity(pg_temp.u(142),'Verified unlink'))$q$)->>'error',null::text,'GRD legitimate INV unlink remains permitted');
+select ok((select user_id is null and guardian_linked_at is null from public.members where id=pg_temp.u(142)),'GRD INV unlink clears both binding and marker');
+update public.members set user_id=pg_temp.u(607),guardian_linked_at=statement_timestamp()where id=pg_temp.u(142);update public.members set user_id=pg_temp.u(608),guardian_linked_at=guardian_linked_at where id=pg_temp.u(142);
+select is((select guardian_linked_at from public.members where id=pg_temp.u(142)),null::timestamptz,'GRD postgres rebind clears explicitly unchanged marker value');
+
+-- Unknown-age redemption also remains ordinary, with no invented guardian provenance.
+update auth.users set email='unknown-own@h69.test',email_confirmed_at=now(),raw_app_meta_data='{"provider":"google","providers":["google"]}'::jsonb where id=pg_temp.u(609);
+insert into auth.identities(provider_id,user_id,identity_data,provider)values('h69-google-609',pg_temp.u(609),'{"sub":"h69-google-609","email":"unknown-own@h69.test","email_verified":true}'::jsonb,'google');
+insert into public.members(id,tenant_id,branch_id,full_name,phone,email)values(pg_temp.u(143),pg_temp.u(1),pg_temp.u(11),'Unknown-age own account','+919699991143','unknown-own@h69.test');
+select is(pg_temp.run($q$select to_jsonb(g)from public.issue_member_invite(pg_temp.u(143),repeat('f',64))g$q$)->>'error',null::text,'GRD unknown-age ordinary invite remains allowed');
+select is(pg_temp.run($q$select to_jsonb(g)from public.redeem_member_invite(repeat('f',64))g$q$,jsonb_build_object('sub',pg_temp.u(609),'role','authenticated')::text)->>'outcome','linked','GRD unknown-age ordinary redemption linked outcome retained');
+select is((select guardian_linked_at from public.members where id=pg_temp.u(143)),null::timestamptz,'GRD unknown-age ordinary redemption stamps null marker');
 
 select * from finish();
 rollback;
