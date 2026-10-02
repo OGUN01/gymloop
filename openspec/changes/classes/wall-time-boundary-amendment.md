@@ -1,7 +1,7 @@
 # Classes wall-clock date boundary
 
-Status: proposed owner decision; affected date-boundary implementation and tests
-remain paused until the owner chooses the behavior.
+Status: owner-approved and frozen, 2026-10-03. The owner chose rejection of 24:00
+and preservation of the scheduled day. Independent tests precede the isolated fix.
 
 A fresh blind critic found that PostgreSQL accepts `time '24:00'`, resolving a
 requested day to midnight on the following day. The draft stores the requested
@@ -9,7 +9,7 @@ day unchanged, contradicting CLS-006/026 and making membership and holiday check
 use the wrong day. Weekly rule identity also fixes its session date, so silently
 moving such an occurrence to another weekday cannot satisfy both clauses.
 
-Recommended amendment: class start wall times are `00:00:00` inclusive through
+Approved amendment: class start wall times are `00:00:00` inclusive through
 `24:00:00` exclusive. Owner/manager rule creation and one-off creation/edit reject
 `24:00` with `22023`, atomically and after ordinary actor validation. Store the
 resolved branch-local start date and require it to match the requested date;
@@ -21,12 +21,12 @@ gap/overlap resolution remains PostgreSQL `AT TIME ZONE`; crossing midnight at t
 end of a session still belongs to its start date. No booking/money/permission
 change is authorized.
 
-Alternative owner decision: support `24:00` as the following day's midnight.
+Rejected alternative: support `24:00` as the following day's midnight.
 That needs a revised weekly occurrence identity, weekday, validity and holiday
 contract before separate tests and implementation; it cannot be a source-only
 date substitution.
 
-For the recommended boundary, separate visible and holdout authors add exact
+For the approved boundary, separate visible and holdout authors add exact
 midnight/end-of-day and refusal/no-effect cases before the isolated source fix.
 A fresh blind critic then reviews the frozen public wording and final source;
 the complete rollback sweep and later real browser/native timetable evidence

@@ -164,8 +164,11 @@ the actor-checked, read-only list/detail RPCs. No unrelated table policy changes
 
 "Good standing" = member status `active`, `paused` or `expired` and `erased_at is null` (a `paused` or
 `expired` member signs in normally because renewing is what they sign in to do — `docs/security.md`).
-"Live membership" = the check-in gate's predicate, a `memberships` row with status `active` or `frozen`
-(`20260908071401_check_in_exactly_once.sql`).
+"Live membership" = `app.member_has_live_membership(tenant, member, app.gym_today(tenant))`:
+a `memberships` row with status `active` or `frozen`, inclusive gym-local dates
+(`starts_on` null or on/before today; `ends_on` null or on/after today). Any qualifying
+row suffices; `not_live` is its exact inverse. The validated gym timezone fallback
+applies. See the owner-approved `live-membership-boundary-amendment.md` (2026-10-03).
 
 ### Shared (`packages/shared`, platform-free)
 

@@ -1773,6 +1773,17 @@ This changes no ledger, stored state, waiver eligibility or booking permission.
 
 Named policy-template exception, independently reviewed 2026-10-02: announcements, announcement_versions and announcement_receipts have no platform policy. The two content tables retain their exact front-office tenant SELECT policies; receipts retain only announcement_receipts_member_select. No table gains a write policy or authenticated DML. This preserves frozen ANC-013/014/016; support-preview reads remain only through the authenticated actor-checked read-only RPC path. The catalogue checks exact platform-policy absence for these three named tables; unrelated table rules are unchanged. See openspec/changes/announcements/platform-policy-clarification.md.
 
+Owner-approved batch-2 boundaries, 2026-10-03: CLS rejects start wall time 24:00
+with 22023 after actor validation and preserves the resolved branch-local scheduled
+day; generation skips an occurrence resolving onto another date rather than
+silently changing weekly identity. Normal DST resolution and sessions ending on
+the following day remain unchanged. ANC uses the registered live-membership
+predicate with inclusive gym-local dates, rather than the superseded status-only
+definition. Both amendments require separate visible/holdout tests before isolated
+source fixes, a fresh blind critic and the complete canonical rollback sweep.
+See openspec/changes/classes/wall-time-boundary-amendment.md and
+openspec/changes/announcements/live-membership-boundary-amendment.md.
+
 ## Taken without the product owner during the Phase 1 overnight run — confirm or reverse
 
 The owner authorised the Phase 1 run end to end and was asleep for it, with a standing instruction: where a decision is genuinely the owner's, pick the safest default, record it, and carry on. Each of these is that. None is load-bearing enough that reversing it later costs more than one migration or one commit, and each names what reversing it would take.
