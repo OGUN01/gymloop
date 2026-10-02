@@ -89,6 +89,7 @@ vi.mock('next/headers', () => ({ cookies: async () => ({
   get: (name: string) => name === 'fitcruxx_invite' ? { value: io.token } : undefined,
   getAll: () => [], set: vi.fn(),
 }) }));
+vi.mock('next/image', () => ({ default: 'img' }));
 
 type Host = { type: any; props: any; children: any[] };
 function expand(value: any, key = 'root'): any {
