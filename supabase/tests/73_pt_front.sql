@@ -1,5 +1,5 @@
 -- Independent visible PTF database contract, PTF-001..026/032/033.
--- Frozen a66c2cb proposal, waiver/return, expired-pack and MEDIA amendments.
+-- Frozen 1feffcf proposal, waiver/return, expired-pack and MEDIA amendments.
 -- No PTF implementation, proposed migration, app suite or holdout was read.
 -- Sequential evidence is not a cross-session race proof: see acceptance notes.
 -- Post-CI real competing backends must prove same-slot exclusivity, final-budget
@@ -11,7 +11,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims','',true);
-select plan(314);
+select plan(356);
 
 create function pg_temp.gid(n integer) returns uuid language sql immutable as
 $$ select ('73000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid $$;
@@ -600,9 +600,9 @@ insert into public.addon_products(id,tenant_id,kind,name,description,price_paise
 (pg_temp.gid(107),pg_temp.gid(1),'pt_package','Paid pair','Two sessions',10000,'INR',60,2,pg_temp.gid(25),'Paid credential','Paid terms');
 select pg_temp.claim();
 set local role authenticated;
-insert into pt_probe select 'refund_case_'||n,to_jsonb(s) from generate_series(0,5) n cross join lateral public.record_addon_sale(pg_temp.gid(31),pg_temp.gid(106),1,(select quote_version from public.addon_products where id=pg_temp.gid(106)),pg_temp.gid(25),pg_temp.slot(1,n*60),pg_temp.slot(1,(n+1)*60),'cash','Paid waiver boundary',pg_temp.gid(800+n)) s;
-insert into pt_probe select 'active_paid',to_jsonb(s) from public.record_addon_sale(pg_temp.gid(31),pg_temp.gid(107),1,(select quote_version from public.addon_products where id=pg_temp.gid(107)),pg_temp.gid(25),pg_temp.slot(1,360),pg_temp.slot(1,420),'cash','Active waiver boundary',pg_temp.gid(806)) s;
-insert into pt_probe select 'exact_money',to_jsonb(s) from public.record_addon_sale(pg_temp.gid(31),pg_temp.gid(101),1,(select quote_version from public.addon_products where id=pg_temp.gid(101)),pg_temp.gid(24),pg_temp.slot(1,1200),pg_temp.slot(1,1260),'cash','Exact paise sale',pg_temp.gid(807)) s;
+insert into pt_probe select 'refund_case_'||n,to_jsonb(s) from generate_series(0,5) n cross join lateral public.record_addon_sale(pg_temp.gid(31),pg_temp.gid(106),1,(select quote_version from public.addon_products where id=pg_temp.gid(106)),pg_temp.gid(25),pg_temp.slot(6,n*60),pg_temp.slot(6,(n+1)*60),'cash','Paid waiver boundary',pg_temp.gid(800+n)) s;
+insert into pt_probe select 'active_paid',to_jsonb(s) from public.record_addon_sale(pg_temp.gid(31),pg_temp.gid(107),1,(select quote_version from public.addon_products where id=pg_temp.gid(107)),pg_temp.gid(25),pg_temp.slot(6,360),pg_temp.slot(6,420),'cash','Active waiver boundary',pg_temp.gid(806)) s;
+insert into pt_probe select 'exact_money',to_jsonb(s) from public.record_addon_sale(pg_temp.gid(31),pg_temp.gid(101),1,(select quote_version from public.addon_products where id=pg_temp.gid(101)),pg_temp.gid(24),pg_temp.slot(6,480),pg_temp.slot(6,540),'cash','Exact paise sale',pg_temp.gid(807)) s;
 set local role postgres;
 select results_eq($q$select o.unit_price_paise,o.total_paise,o.currency,p.amount_paise,p.currency from public.addon_orders o join public.payments p on p.id=o.payment_id where o.id=(select (v->>'order_id')::uuid from pt_probe where label='exact_money')$q$,$q$select * from (values(9007199254740993::bigint,9007199254740993::bigint,'INR'::text collate "default",9007199254740993::bigint,'INR'::text collate "default")) as expected$q$,'PTF-004/023: canonical desk sale retains integer paise beyond floating-point precision');
 insert into pt_probe values('exact_money_before',(select jsonb_build_object('order',to_jsonb(o)-array['status','sessions_used','updated_at'],'payment',to_jsonb(p)) from public.addon_orders o join public.payments p on p.id=o.payment_id where o.id=(select (v->>'order_id')::uuid from pt_probe where label='exact_money')));
@@ -782,7 +782,7 @@ select is((select count(*)::integer from public.read_member_pt_sessions('history
 set local role postgres;
 select pg_temp.claim('gym_owner',21,null,901,1,true);
 set local role authenticated;
-select lives_ok($q$select public.read_pt_packs()$q$,'PTF-022: support owner preview may read pack view');
+select is(pg_temp.err($q$select public.read_pt_packs()$q$),'42501','PTF-022: forged preview with staff contamination and no live session refuses pack read');
 select is(pg_temp.err($q$select public.reassign_pt_packs(pg_temp.gid(24),pg_temp.gid(25),null,'Preview forbidden')$q$),'42501','PTF-017/022: support preview cannot reassign');
 set local role postgres;
 
@@ -849,6 +849,156 @@ set local role authenticated;
 select ok(exists(select 1 from public.pt_cancellations where tenant_id=pg_temp.gid(2)),'PTF-020: support explicit read policy sees foreign cancellation');
 select is(pg_temp.err($q$select public.waive_pt_forfeit(pg_temp.gid(309),'Platform forbidden')$q$),'42501','PTF-016: platform support cannot waive');
 set local role postgres;
+
+
+-- Canonical hook-issued support preview: real platform actor, no invented staff.
+select set_config('request.jwt.claims','',true);
+select pg_temp.claim('super_admin',null,null,910);
+set local role authenticated;
+select public.start_gym_preview(pg_temp.gid(1),'PTF independent preview',pg_temp.gid(999));
+set local role postgres;
+insert into pt_probe select 'canonical_preview',app.custom_access_token_hook(jsonb_build_object('user_id',pg_temp.gid(910),'claims',jsonb_build_object('sub',pg_temp.gid(910),'role','authenticated','staff_id',pg_temp.gid(21),'member_id',pg_temp.gid(31))))->'claims';
+select ok((select v->>'sub'=pg_temp.gid(910)::text and v->>'app_role'='gym_owner' and v->>'tenant_id'=pg_temp.gid(1)::text and v->>'impersonation_session_id'=pg_temp.gid(999)::text and not(v?'staff_id') and not(v?'member_id') from pt_probe where label='canonical_preview'),'PTF-022: actual hook preserves platform subject and issues the exact staffless/memberless preview');
+select set_config('request.jwt.claims',(select v::text from pt_probe where label='canonical_preview'),true);
+select results_eq($q$select tenant_id,staff_id,user_id,role::text collate "default" from app.pt_staff_actor(array['gym_owner'],true)$q$,$q$select pg_temp.gid(1),null::uuid,pg_temp.gid(910),'gym_owner'::text collate "default"$q$,'PTF-022: owner-only inspection proves canonical preview returns null staff id and the original platform actor');
+insert into pt_probe values('preview_org',(select jsonb_build_object('status',status,'trial_ends_at',trial_ends_at) from public.organizations where id=pg_temp.gid(1)));
+create function pg_temp.preview_refusals(c jsonb) returns text[] language plpgsql as $$
+declare saved text:=current_setting('request.jwt.claims',true); answer text[];
+begin
+ perform set_config('request.jwt.claims',c::text,true);
+ answer:=array[pg_temp.err('select * from public.read_pt_packs()'),pg_temp.err('select * from public.read_pt_bookings(pg_temp.slot(-30,0),pg_temp.slot(28,0))')];
+ perform set_config('request.jwt.claims',coalesce(saved,''),true); return answer;
+exception when others then perform set_config('request.jwt.claims',coalesce(saved,''),true); raise;
+end $$;
+grant execute on function pg_temp.preview_refusals(jsonb) to authenticated;
+set local session_replication_role=replica;
+update public.organizations set status='active',trial_ends_at=null where id=pg_temp.gid(1);
+set local session_replication_role=origin;
+select set_config('request.jwt.claims',(select v::text from pt_probe where label='canonical_preview'),true);
+set local role authenticated;
+select ok((select bool_or(order_id=pg_temp.gid(201)) and bool_and(member_id<>pg_temp.gid(33)) from public.read_pt_packs()),'PTF-022 preview: active gym packs include own rows and exclude foreign members');
+select ok((select bool_or(session_id=pg_temp.gid(301)) and bool_and(member_id<>pg_temp.gid(33)) from public.read_pt_bookings(pg_temp.slot(-30,0),pg_temp.slot(28,0))),'PTF-022 preview: active gym bookings include own rows and exclude foreign members');
+set local role postgres;
+set local session_replication_role=replica;
+update public.organizations set status='pending_approval',trial_ends_at=null where id=pg_temp.gid(1);
+set local session_replication_role=origin;
+select set_config('request.jwt.claims',(select v::text from pt_probe where label='canonical_preview'),true);
+set local role authenticated;
+select ok((select bool_or(order_id=pg_temp.gid(201)) and bool_and(member_id<>pg_temp.gid(33)) from public.read_pt_packs()),'PTF-022 preview: pending gym packs include own rows and exclude foreign members');
+select ok((select bool_or(session_id=pg_temp.gid(301)) and bool_and(member_id<>pg_temp.gid(33)) from public.read_pt_bookings(pg_temp.slot(-30,0),pg_temp.slot(28,0))),'PTF-022 preview: pending gym bookings include own rows and exclude foreign members');
+set local role postgres;
+set local session_replication_role=replica;
+update public.organizations set status='suspended',trial_ends_at=null where id=pg_temp.gid(1);
+set local session_replication_role=origin;
+select set_config('request.jwt.claims',(select v::text from pt_probe where label='canonical_preview'),true);
+set local role authenticated;
+select ok((select bool_or(order_id=pg_temp.gid(201)) and bool_and(member_id<>pg_temp.gid(33)) from public.read_pt_packs()),'PTF-022 preview: suspended gym packs include own rows and exclude foreign members');
+select ok((select bool_or(session_id=pg_temp.gid(301)) and bool_and(member_id<>pg_temp.gid(33)) from public.read_pt_bookings(pg_temp.slot(-30,0),pg_temp.slot(28,0))),'PTF-022 preview: suspended gym bookings include own rows and exclude foreign members');
+set local role postgres;
+set local session_replication_role=replica;
+update public.organizations set status='closed',trial_ends_at=null where id=pg_temp.gid(1);
+set local session_replication_role=origin;
+select set_config('request.jwt.claims',(select v::text from pt_probe where label='canonical_preview'),true);
+set local role authenticated;
+select ok((select bool_or(order_id=pg_temp.gid(201)) and bool_and(member_id<>pg_temp.gid(33)) from public.read_pt_packs()),'PTF-022 preview: closed gym packs include own rows and exclude foreign members');
+select ok((select bool_or(session_id=pg_temp.gid(301)) and bool_and(member_id<>pg_temp.gid(33)) from public.read_pt_bookings(pg_temp.slot(-30,0),pg_temp.slot(28,0))),'PTF-022 preview: closed gym bookings include own rows and exclude foreign members');
+set local role postgres;
+set local session_replication_role=replica;
+update public.organizations set status='trial',trial_ends_at=statement_timestamp()+interval '1 day' where id=pg_temp.gid(1);
+set local session_replication_role=origin;
+select set_config('request.jwt.claims',(select v::text from pt_probe where label='canonical_preview'),true);
+set local role authenticated;
+select ok((select bool_or(order_id=pg_temp.gid(201)) and bool_and(member_id<>pg_temp.gid(33)) from public.read_pt_packs()),'PTF-022 preview: live trial gym packs include own rows and exclude foreign members');
+select ok((select bool_or(session_id=pg_temp.gid(301)) and bool_and(member_id<>pg_temp.gid(33)) from public.read_pt_bookings(pg_temp.slot(-30,0),pg_temp.slot(28,0))),'PTF-022 preview: live trial gym bookings include own rows and exclude foreign members');
+set local role postgres;
+set local session_replication_role=replica;
+update public.organizations set status='trial',trial_ends_at=statement_timestamp()-interval '1 day' where id=pg_temp.gid(1);
+set local session_replication_role=origin;
+select set_config('request.jwt.claims',(select v::text from pt_probe where label='canonical_preview'),true);
+set local role authenticated;
+select ok((select bool_or(order_id=pg_temp.gid(201)) and bool_and(member_id<>pg_temp.gid(33)) from public.read_pt_packs()),'PTF-022 preview: expired trial gym packs include own rows and exclude foreign members');
+select ok((select bool_or(session_id=pg_temp.gid(301)) and bool_and(member_id<>pg_temp.gid(33)) from public.read_pt_bookings(pg_temp.slot(-30,0),pg_temp.slot(28,0))),'PTF-022 preview: expired trial gym bookings include own rows and exclude foreign members');
+set local role postgres;
+set local session_replication_role=replica;
+update public.organizations set status='trial',trial_ends_at=null where id=pg_temp.gid(1);
+set local session_replication_role=origin;
+select set_config('request.jwt.claims',(select v::text from pt_probe where label='canonical_preview'),true);
+set local role authenticated;
+select ok((select bool_or(order_id=pg_temp.gid(201)) and bool_and(member_id<>pg_temp.gid(33)) from public.read_pt_packs()),'PTF-022 preview: undated trial gym packs include own rows and exclude foreign members');
+select ok((select bool_or(session_id=pg_temp.gid(301)) and bool_and(member_id<>pg_temp.gid(33)) from public.read_pt_bookings(pg_temp.slot(-30,0),pg_temp.slot(28,0))),'PTF-022 preview: undated trial gym bookings include own rows and exclude foreign members');
+set local role postgres;
+set local session_replication_role=replica;
+update public.organizations set status=(select (v->>'status')::public.organization_status from pt_probe where label='preview_org'),trial_ends_at=(select (v->>'trial_ends_at')::timestamptz from pt_probe where label='preview_org') where id=pg_temp.gid(1);
+set local session_replication_role=origin;
+insert into pt_probe values('canonical_preview_before',pg_temp.evidence());
+set local role authenticated;
+select is(pg_temp.preview_refusals((select v-'impersonation_session_id' from pt_probe where label='canonical_preview')),array['42501','42501']::text[],'PTF-022 preview: missing session refuses both readers');
+select is(pg_temp.preview_refusals((select v||jsonb_build_object('impersonation_session_id',pg_temp.gid(998)) from pt_probe where label='canonical_preview')),array['42501','42501']::text[],'PTF-022 preview: unknown session refuses both readers');
+select is(pg_temp.preview_refusals((select v||jsonb_build_object('tenant_id',pg_temp.gid(2)) from pt_probe where label='canonical_preview')),array['42501','42501']::text[],'PTF-022 preview: foreign tenant refuses both readers');
+select is(pg_temp.preview_refusals((select v-'tenant_id' from pt_probe where label='canonical_preview')),array['42501','42501']::text[],'PTF-022 preview: missing tenant refuses both readers');
+select is(pg_temp.preview_refusals((select v-'sub' from pt_probe where label='canonical_preview')),array['42501','42501']::text[],'PTF-022 preview: missing subject refuses both readers');
+select is(pg_temp.preview_refusals((select v||jsonb_build_object('sub',pg_temp.gid(911)) from pt_probe where label='canonical_preview')),array['42501','42501']::text[],'PTF-022 preview: wrong actor refuses both readers');
+select is(pg_temp.preview_refusals((select v||jsonb_build_object('staff_id',pg_temp.gid(21)) from pt_probe where label='canonical_preview')),array['42501','42501']::text[],'PTF-022 preview: staff contamination refuses both readers');
+select is(pg_temp.preview_refusals((select v||jsonb_build_object('member_id',pg_temp.gid(31)) from pt_probe where label='canonical_preview')),array['42501','42501']::text[],'PTF-022 preview: member contamination refuses both readers');
+select is(pg_temp.preview_refusals((select v||jsonb_build_object('app_role','gym_manager') from pt_probe where label='canonical_preview')),array['42501','42501']::text[],'PTF-022 preview: nonowner role refuses both readers');
+set local role postgres;
+insert into pt_probe select 'preview_session',to_jsonb(i) from public.impersonation_sessions i where id=pg_temp.gid(999);
+set local session_replication_role=replica;
+update public.impersonation_sessions set started_at=statement_timestamp()-interval '2 hours',expires_at=statement_timestamp()-interval '1 hour' where id=pg_temp.gid(999);
+set local session_replication_role=origin;
+set local role authenticated;
+select is(pg_temp.preview_refusals((select v from pt_probe where label='canonical_preview')),array['42501','42501']::text[],'PTF-022 preview: expired session refuses both readers');
+set local role postgres;
+set local session_replication_role=replica;
+update public.impersonation_sessions set started_at=(select (v->>'started_at')::timestamptz from pt_probe where label='preview_session'),expires_at=(select (v->>'expires_at')::timestamptz from pt_probe where label='preview_session') where id=pg_temp.gid(999);
+set local session_replication_role=origin;
+set local session_replication_role=replica;
+update public.impersonation_sessions set ended_at=statement_timestamp() where id=pg_temp.gid(999);
+set local session_replication_role=origin;
+set local role authenticated;
+select is(pg_temp.preview_refusals((select v from pt_probe where label='canonical_preview')),array['42501','42501']::text[],'PTF-022 preview: ended session refuses both readers');
+set local role postgres;
+set local session_replication_role=replica;
+update public.impersonation_sessions set ended_at=null where id=pg_temp.gid(999);
+set local session_replication_role=origin;
+set local session_replication_role=replica;
+update public.platform_users set is_active=false where user_id=pg_temp.gid(910);
+set local session_replication_role=origin;
+set local role authenticated;
+select is(pg_temp.preview_refusals((select v from pt_probe where label='canonical_preview')),array['42501','42501']::text[],'PTF-022 preview: inactive platform actor refuses both readers');
+set local role postgres;
+set local session_replication_role=replica;
+update public.platform_users set is_active=true where user_id=pg_temp.gid(910);
+set local session_replication_role=origin;
+set local session_replication_role=replica;
+update public.platform_users set role='platform_support' where user_id=pg_temp.gid(910);
+set local session_replication_role=origin;
+set local role authenticated;
+select is(pg_temp.preview_refusals((select v from pt_probe where label='canonical_preview')),array['42501','42501']::text[],'PTF-022 preview: platform support actor refuses both readers');
+set local role postgres;
+set local session_replication_role=replica;
+update public.platform_users set role='super_admin' where user_id=pg_temp.gid(910);
+set local session_replication_role=origin;
+select set_config('request.jwt.claims',(select v::text from pt_probe where label='canonical_preview'),true);
+set local role authenticated;
+select is(pg_temp.err($q$select * from public.book_pt_session(pg_temp.gid(201),pg_temp.gid(498),pg_temp.slot(12))$q$),'42501','PTF-022 canonical preview refuses book_pt_session before mutation');
+select is(pg_temp.err($q$select * from public.cancel_pt_booking(pg_temp.gid(301))$q$),'42501','PTF-022 canonical preview refuses cancel_pt_booking before mutation');
+select is(pg_temp.err($q$select * from public.set_trainer_profile(pg_temp.gid(24),'Preview bio',array['Strength'],null,true)$q$),'42501','PTF-022 canonical preview refuses set_trainer_profile before mutation');
+select is(pg_temp.err($q$select * from public.set_own_trainer_profile('Preview bio',array['Strength'])$q$),'42501','PTF-022 canonical preview refuses set_own_trainer_profile before mutation');
+select is(pg_temp.err($q$select * from public.set_trainer_availability(pg_temp.gid(24),'[]'::jsonb)$q$),'42501','PTF-022 canonical preview refuses set_trainer_availability before mutation');
+select is(pg_temp.err($q$select * from public.add_trainer_time_off(pg_temp.gid(24),current_date+1,current_date+2,'Preview forbidden')$q$),'42501','PTF-022 canonical preview refuses add_trainer_time_off before mutation');
+select is(pg_temp.err($q$select * from public.remove_trainer_time_off((select (v#>>'{}')::uuid from pt_probe where label='time_off'))$q$),'42501','PTF-022 canonical preview refuses remove_trainer_time_off before mutation');
+select is(pg_temp.err($q$select * from public.cancel_pt_session_as_gym(pg_temp.gid(301),'Preview forbidden')$q$),'42501','PTF-022 canonical preview refuses cancel_pt_session_as_gym before mutation');
+select is(pg_temp.err($q$select * from public.waive_pt_forfeit(pg_temp.gid(309),'Preview forbidden')$q$),'42501','PTF-022 canonical preview refuses waive_pt_forfeit before mutation');
+select is(pg_temp.err($q$select * from public.reassign_pt_packs(pg_temp.gid(24),pg_temp.gid(25),array[pg_temp.gid(201)],'Preview forbidden')$q$),'42501','PTF-022 canonical preview refuses reassign_pt_packs before mutation');
+select is(pg_temp.err($q$select * from public.set_pt_policy(24,true,60)$q$),'42501','PTF-022 canonical preview refuses set_pt_policy before mutation');
+set local role postgres;
+select is(pg_temp.evidence(),(select v from pt_probe where label='canonical_preview_before'),'PTF-022: invalid preview reads and all eleven writer refusals leave complete money/session/audit/notice evidence unchanged');
+select pg_temp.claim('super_admin',null,null,910);
+set local role authenticated;
+select is(pg_temp.err($q$select public.read_pt_packs()$q$),'42501','PTF-022: ordinary platform claims remain refused without preview');
+set local role postgres;
+select set_config('request.jwt.claims','',true);
 
 -- Throttle counts actual booking audits plus synthetic recent history to ten;
 -- replay wins before throttle and first failure remains rate limit.

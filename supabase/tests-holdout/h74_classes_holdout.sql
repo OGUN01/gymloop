@@ -253,12 +253,13 @@ select is(app.class_local_instant('America/New_York',date '2027-03-14',time '02:
 select is(app.class_local_instant('America/New_York',date '2026-11-01',time '01:30'),timestamptz '2026-11-01 06:30+00','CLS ambiguous DST time PostgreSQL rule');
 update public.branches set timezone='Invalid/CLS'where id=pg_temp.u(12);
 select is(app.class_branch_timezone(pg_temp.u(1),pg_temp.u(12)),'Pacific/Kiritimati','CLS invalid branch falls back gym');
-create function pg_temp.checkin_parity()returns boolean language plpgsql as $$declare v jsonb;begin
+create temp table h74_parity_diagnostics(outcome jsonb);
+create function pg_temp.checkin_parity()returns boolean language plpgsql as $$declare v jsonb;d text;begin
 begin
  v:=pg_temp.run('select to_jsonb(g)from public.record_staff_front_desk_check_in(pg_temp.u(108),''CLS membership parity'',pg_temp.u(29001))g',pg_temp.sc());
- if v?'error'or v='null'::jsonb or not exists(select 1 from public.attendance where id=(v->>'id')::uuid and member_id=pg_temp.u(108)and tenant_id=pg_temp.u(1)and assisted_by_staff_id=pg_temp.u(201))then return false;end if;
+ if v?'error'or v='null'::jsonb or not exists(select 1 from public.attendance where id=(v->>'id')::uuid and member_id=pg_temp.u(108)and tenant_id=pg_temp.u(1)and assisted_by_staff_id=pg_temp.u(201))then insert into h74_parity_diagnostics values(jsonb_build_object('source','canonical_checkin','result',v));return false;end if;
  raise exception using errcode='HX001',message='rollback successful parity probe';
-exception when sqlstate 'HX001'then return true;when others then return false;end;end$$;
+exception when sqlstate 'HX001'then return true;when others then get stacked diagnostics d=pg_exception_detail;insert into h74_parity_diagnostics values(jsonb_build_object('source','parity_probe','error',sqlstate,'detail',d,'message',sqlerrm));return false;end;end$$;
 set local session_replication_role=replica;update public.memberships set status='active',starts_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date,ends_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date where member_id=pg_temp.u(108);set local session_replication_role=origin;
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),true,'CLS check-in predicate matrix 0 active');
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 0');
@@ -382,5 +383,6 @@ select is((select is_active from public.services where id=pg_temp.edited_service
 select is(pg_temp.run($q$select to_jsonb(public.update_service(pg_temp.edited_service(),'Edited New',' ',65,4,2))$q$)->>'error',null::text,'CLS blank description edit succeeds');
 select is((select description from public.services where id=pg_temp.edited_service()),null::text,'CLS blank description edit stores null');
 select is((select after from public.audit_log where tenant_id=pg_temp.u(1)and action='service.updated'and record_id=pg_temp.edited_service()and after='{"description":null}'::jsonb),jsonb_build_object('description',null),'CLS clear description audit exact changed key and null');
+select diag('CLS actual check-in refusal diagnostics: '||coalesce(jsonb_agg(outcome)::text,'[]'))from h74_parity_diagnostics;
 select * from finish();
 rollback;
