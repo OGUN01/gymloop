@@ -90,7 +90,7 @@ set local role authenticated;
 select results_eq($q$select id from public.plans$q$,$q$select pg_temp.pid(204)$q$,'PLC-020: isolation works in reverse');
 reset role;
 set local role anon;
-select is((select count(*)::integer from public.plans),0,'PLC-020: anon sees no plans');
+select throws_ok($q$select * from public.plans$q$,'42501',null,'PLC-003/020: unchanged anon SELECT denial reveals no plans');
 reset role;
 select * from finish();
 rollback;

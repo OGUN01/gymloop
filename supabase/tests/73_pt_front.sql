@@ -241,12 +241,18 @@ set local role authenticated;
 select is(pg_temp.err($q$select public.read_member_pt_packs()$q$),'42501','PTF-021: erased member refuses stale claim');
 set local role postgres;
 update public.members set erased_at=null where id=pg_temp.gid(31);
+-- Historical tenant-state fixture only; real read still runs with origin guards.
+set local session_replication_role=replica;
 update public.organizations set status='suspended' where id=pg_temp.gid(1);
+set local session_replication_role=origin;
 select pg_temp.claim('member',null,31,907);
 set local role authenticated;
 select is(pg_temp.err($q$select public.read_member_trainers()$q$),'42501','PTF-021: ineligible gym refuses member read');
 set local role postgres;
+-- Historical tenant-state fixture only; real read still runs with origin guards.
+set local session_replication_role=replica;
 update public.organizations set status='active' where id=pg_temp.gid(1);
+set local session_replication_role=origin;
 
 -- Availability replacement: adjacent windows allowed, overlap atomic, soft time off.
 select pg_temp.claim();
