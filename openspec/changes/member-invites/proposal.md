@@ -260,3 +260,35 @@ no mutation command, enum, audit shape or other permission changes.
 - Tests SHALL precede the reader: visible `supabase/tests/67_member_invite_history.sql` and
   independent holdout `supabase/tests-holdout/h67_member_invite_history_holdout.sql`, plus
   independent visible/holdout UI boundary amendments. The implementer never reads holdouts.
+
+## Contract amendments v1.4 (owner-approved 2026-10-02, invitee bar completion)
+
+The owner approved `native-bar-amendment.md` to resolve the published INV-Q1/Q3/Q8
+bar conflict. These clauses replace only the linked-entry/immediate-native-sign-in
+presentation clauses of INV-020, INV-022 and their fixed-name descriptions. All
+database binding, replay, refusal, privacy and transport requirements stay intact.
+
+- **INV-029 (native landing and consent).** A valid native invite SHALL first load
+  only the gym name through existing `peek_member_invite`, hashing the raw token
+  locally with the already-installed `expo-crypto` dependency. No raw token reaches
+  Postgres. Before its Google button the screen SHALL display that gym's name,
+  shared `inviteNotice(gymName)`, and a link to the configured web origin's `/privacy`.
+  Unavailable links and connection failures SHALL have distinct honest recovery
+  states and SHALL expose no member record. The Google action SHALL save the token
+  securely and open native Google sign-in directly, preserving the two-tap join
+  budget. Native Google sign-in SHALL request `prompt: 'select_account'`. A saved
+  invite offered after sign-in SHALL show the named gym and the full-notice link;
+  no redemption SHALL be queued offline.
+- **INV-030 (reopening and linked-account recovery).** A signed-in member opening
+  an invite SHALL use the existing POST redemption path to check INV-009's replay.
+  Only `already_linked_here` SHALL open that member's home with fresh claims;
+  failures/refusals SHALL show the viewer's own signed-in email and a one-tap account
+  switch while preserving the token. Other linked identities SHALL remain refused
+  under D1 and receive the same account-switch recovery. Web SHALL use a client POST,
+  never a mutating GET/render-time database call. Native SHALL use its live API client.
+  No picker, other gym/member fact, new binding capability or new SQL function is added.
+
+Tests SHALL be implementation-blind and committed red before a separate implementer
+starts. Repeat the affected blind API/mobile/invitee reviews and required gates.
+Android runtime evidence still requires an emulator or device; HTTPS App Links and
+install continuation remain assigned to V2-R, not accepted by this amendment.
