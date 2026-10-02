@@ -452,6 +452,33 @@ describe('a JSON call that is refused', () => {
 });
 
 describe('a form post (the browser path)', () => {
+  it.each([undefined, OTHER_TOKEN])('STI-013 successful direct form redemption clears absent/stale invite cookie %s', async (previous) => {
+    state.claims = UNLINKED; state.replies = [LINKED];
+    const response = await call(formRequest({ token: TOKEN }, previous === undefined ? [] : [`${STAFF_COOKIE}=${previous}`]));
+    expect(response.status).toBe(303); expect(pathOf(response)).toBe('/sign-in?linked=staff');
+    expect(expiredNames(response)).toContain(STAFF_COOKIE); expect(state.refreshes).toBe(0);
+  });
+  it.each(REFUSALS.flatMap(([outcome]) => [
+    [outcome, undefined], [outcome, OTHER_TOKEN],
+  ] as const))('STI-014 %s preserves the actual submitted token when prior cookie is %s', async (outcome, previous) => {
+    state.claims = UNLINKED; state.replies = [refusal(outcome)];
+    const response = await call(formRequest({ token: TOKEN }, previous === undefined ? [] : [`${STAFF_COOKIE}=${previous}`]));
+    expect(response.status).toBe(303); expect(pathOf(response)).toBe(`/staff-invite/continue?result=${outcome}`);
+    expectNoSecrets(response.headers.get('location') ?? '');
+    const cookies = setCookies(response).filter((line) => cookieName(line) === STAFF_COOKIE);
+    expect(cookies).toHaveLength(1); const cookie = cookies[0] ?? '';
+    expect(cookie.split(';')[0]).toBe(`${STAFF_COOKIE}=${TOKEN}`);
+    expect(cookie).toMatch(/;\s*HttpOnly\b/i); expect(cookie).toMatch(/;\s*Secure\b/i);
+    expect(cookie).toMatch(/;\s*SameSite=Lax\b/i); expect(cookie).toMatch(/;\s*Max-Age=1800\b/i); expect(cookie).toMatch(/;\s*Path=\/(?:;|$)/i);
+    expect(state.refreshes).toBe(0); expect(touchedNames(response).filter((name) => name.startsWith('sb-'))).toEqual([]);
+    expect(state.rpc).toEqual([{ name: 'redeem_staff_invite', args: { p_token_hash: sha256(TOKEN) } }]); expectNoStore(response);
+  });
+  it('STI-012 unknown RPC failure leaves a stale recovery cookie untouched', async () => {
+    state.claims = UNLINKED; state.replies = [{ data: null, error: { code: 'XX000', message: 'private failure' } }];
+    const response = await call(formRequest({ token: TOKEN }, [`${STAFF_COOKIE}=${OTHER_TOKEN}`]));
+    expect(response.status).toBeGreaterThanOrEqual(400); expect(touchedNames(response)).not.toContain(STAFF_COOKIE);
+    expect(state.refreshes).toBe(0);
+  });
   it('reads the hidden token field', async () => {
     state.replies = [LINKED];
 

@@ -762,6 +762,36 @@ describe('POST /api/member-invites/redeem: JSON over the web cookie session', ()
 });
 
 describe('POST /api/member-invites/redeem: form post over the web cookie session', () => {
+  it.each([undefined, TOKEN_B])('INV-021 successful direct form redemption clears absent/stale invite cookie %s', async (previous) => {
+    const response = await POST(cookieForm({ token: TOKEN_A }, previous));
+    expect(response.status).toBe(303); expect(locationOf(response).pathname).toBe('/member');
+    expect(inviteCookieCleared(response)).toBe(true);
+  });
+  it.each(REFUSALS.flatMap(([outcome]) => [
+    [outcome, undefined], [outcome, TOKEN_B],
+  ] as const))('INV-020/INV-021 %s preserves the submitted token across account recovery with cookie %s', async (outcome, previous) => {
+    h.state.rpc = row(outcome);
+    h.state.claims = { ...unlinkedClaims };
+    const response = await POST(cookieForm({ token: TOKEN_A }, previous));
+    expect(response.status).toBe(303);
+    expect(locationOf(response).pathname).toBe('/invite/continue');
+    expect(locationOf(response).search).toBe(`?result=${outcome}`);
+    expect(String(response.headers.get('location'))).not.toContain(TOKEN_A);
+    const cookies = response.headers.getSetCookie().filter((line) => line.startsWith(`${INVITE_COOKIE_NAME}=`));
+    expect(cookies).toHaveLength(1);
+    const cookie = cookies[0] ?? '';
+    expect(cookie.split(';')[0]).toBe(`${INVITE_COOKIE_NAME}=${TOKEN_A}`);
+    expect(cookie).toMatch(/;\s*HttpOnly\b/i); expect(cookie).toMatch(/;\s*Secure\b/i);
+    expect(cookie).toMatch(/;\s*SameSite=Lax\b/i); expect(cookie).toMatch(/;\s*Max-Age=1800\b/i); expect(cookie).toMatch(/;\s*Path=\/(?:;|$)/i);
+    expect(h.spies.refreshSession).not.toHaveBeenCalled(); expect(h.spies.signOut).not.toHaveBeenCalled();
+    expect(rpcCalls().map((call) => call[1])).toEqual([{ p_token_hash: HASH_A }]); expectNoStore(response);
+  });
+  it('INV-018 unknown RPC failure does not replace a stale recovery cookie', async () => {
+    h.state.rpc = dbError('XX000');
+    const response = await POST(cookieForm({ token: TOKEN_A }, TOKEN_B));
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(inviteCookieTouched(response)).toBe(false); expect(h.spies.refreshSession).not.toHaveBeenCalled();
+  });
   it('links from the hidden field: 303 to the member home, one refresh, invite cookie cleared', async () => {
     const response = await POST(cookieForm({ token: TOKEN_A }, TOKEN_A));
 
