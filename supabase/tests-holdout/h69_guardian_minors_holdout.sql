@@ -401,6 +401,9 @@ select is(pg_temp.run($q$insert into public.guardian_consents(tenant_id,member_i
 select is(pg_temp.run($q$insert into public.guardian_consents(tenant_id,member_id,granted,version,source,guardian_name,guardian_relation,recorded_by_staff_id) values(pg_temp.u(1),pg_temp.u(105),true,'v1','fixture','Guardian','mother',pg_temp.u(205)) returning to_jsonb(id)$q$,'','postgres')->>'error','23503','GRD-021 cross-tenant staff FK');
 select is(pg_temp.run($q$update public.members set user_id=pg_temp.u(602) where id=pg_temp.u(108) returning to_jsonb(id)$q$)->>'error','GL074','GRD-027 direct binding guard unchanged');
 select is(pg_temp.run($q$update public.members set user_id=pg_temp.u(601),guardian_linked_at=clock_timestamp() where id=pg_temp.u(108) returning to_jsonb(id)$q$,'','postgres')->>'error',null::text,'GRD-013 trusted simultaneous binding and marker allowed');
+-- The member-role refusal fixture has finished; release its account before
+-- reusing that same real identity for the trusted marker-clearing rebind.
+update public.members set user_id=null where id=pg_temp.u(101);
 update public.members set user_id=pg_temp.u(602) where id=pg_temp.u(108);
 select is((select guardian_linked_at from public.members where id=pg_temp.u(108)),null::timestamptz,'GRD-013 changing only user clears stale guardian marker');
 
@@ -410,7 +413,7 @@ select is(app.member_scoring_state(pg_temp.u(1),pg_temp.u(102),current_date),'of
 select is(app.member_scoring_state(pg_temp.u(1),pg_temp.u(102),current_date+1),'on_adult','GRD-001 birthday gate inclusive');
 select lives_ok($q$select app.run_no_show_scan(pg_temp.u(1),current_date+1)$q$,'GRD-008 scan evaluation date controls birthday');
 select ok(exists(select 1 from public.no_show_cases where tenant_id=pg_temp.u(1) and member_id=pg_temp.u(102) and status='open'),'GRD-008 future test hook opens newly adult');
-select ok(not exists(select 1 from public.audit_log where tenant_id=pg_temp.u(1) and action='member.age_changed' and ((before-jsonb_build_object('dob_known',before->'dob_known','minor',before->'minor'))<>'{}'::jsonb or (after-jsonb_build_object('dob_known',after->'dob_known','minor',after->'minor'))<>'{}'::jsonb)),'GRD-020 age audit excludes date facts');
+select ok(not exists(select 1 from public.audit_log where tenant_id=pg_temp.u(1) and action='member.age_changed' and (before is null or jsonb_typeof(before)<>'object' or not(before ?& array['dob_known','minor']) or before-array['dob_known','minor']<>'{}'::jsonb or after is null or jsonb_typeof(after)<>'object' or not(after ?& array['dob_known','minor']) or after-array['dob_known','minor']<>'{}'::jsonb)),'GRD-020 age audit excludes date facts');
 select ok(not exists(select 1 from public.audit_log where tenant_id=pg_temp.u(1) and action='member.guardian_changed' and ((before-array['guardian_present','relation','complete','phone_present','email_present'])<>'{}'::jsonb or (after-array['guardian_present','relation','complete','phone_present','email_present'])<>'{}'::jsonb)),'GRD-020 guardian audit exact nonpersonal keys');
 
 

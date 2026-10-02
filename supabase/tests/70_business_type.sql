@@ -83,6 +83,7 @@ select pg_temp.biz_claim('gym_owner',21,901,1,true);
 set local role authenticated;
 select is(pg_temp.biz_refuse($q$select public.set_business_type('yoga')$q$),'42501','BIZ-004: impersonating owner refused');
 set local role postgres;
+select pg_temp.biz_claim('gym_owner');
 update public.staff set is_active=false where id=pg_temp.bid(21);
 select pg_temp.biz_claim('gym_owner');
 set local role authenticated;

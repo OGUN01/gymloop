@@ -489,7 +489,7 @@ set local role authenticated;
 insert into public.follow_ups(id,tenant_id,case_id,staff_id,channel,outcome) values(pg_temp.gid(410),pg_temp.gid(1),pg_temp.gid(410),pg_temp.gid(21),'call','no_response');
 insert into public.follow_ups(id,tenant_id,case_id,staff_id,channel,outcome,next_follow_up_at) values(pg_temp.gid(411),pg_temp.gid(1),pg_temp.gid(411),pg_temp.gid(21),'call','timing_issue',clock_timestamp()+interval '1 day');
 set local role postgres;
-select results_eq($q$select status::text from public.no_show_cases where id in(pg_temp.gid(409),pg_temp.gid(410),pg_temp.gid(411)) order by id$q$,$q$values('open'::text),('contacted'::text),('follow_up_due'::text)$q$,'GRD-009: controls genuinely occupy every live status');
+select results_eq($q$select status::text from public.no_show_cases where id in(pg_temp.gid(409),pg_temp.gid(410),pg_temp.gid(411)) order by id$q$,$q$select * from (values('open'::text),('contacted'::text),('follow_up_due'::text)) as expected$q$,'GRD-009: controls genuinely occupy every live status');
 set local role authenticated;
 select lives_ok($q$select public.set_member_age_guardian(pg_temp.gid(109),(current_date-interval '10 years')::date,'Parent private','mother',null,null)$q$,'GRD-009: phone removal loses guardian completeness');
 select lives_ok($q$select public.set_member_age_guardian(pg_temp.gid(110),null,'Parent private','mother','+916900009906',null)$q$,'GRD-009: DOB removal loses eligibility beyond cutoff');
