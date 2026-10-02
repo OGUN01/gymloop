@@ -134,3 +134,21 @@ it.each(['after handover', 'new adult invite'] as const)('GRD-011/014: %s uses o
   expect(h.accessProps?.guardian ?? null).toBeNull();
   expect(html).not.toContain("This invite links the guardian");
 });
+
+it.each(['invite_pending', 'invite_expired'] as const)('GRD-011/025: pre-birthday %s recovery explains current own-email comparison', async state => {
+  Object.assign(h.guardian, {
+    age_state: 'adult', date_of_birth: '2008-10-02', adult_on: '2026-10-02', gym_today: '2026-10-03',
+    scoring_state: 'on_adult', link_email: 'child@holdout.example', guardian_linked_at: null, handover_due: false,
+  });
+  h.access = { state, inviteId: memberId, issuedAt: '2026-10-01T12:00:00Z', expiresAt: '2026-10-03T12:00:00Z', linkedAt: null };
+  const html = (await memberHtml()).replaceAll('&#x27;', "'").replaceAll('&#39;', "'");
+  const guardian = html.match(/<section[^>]*aria-labelledby="guardian-heading"[\s\S]*?<\/section>/)?.[0] ?? '';
+  const recovery = (guardian.match(/<p\b[^>]*>[\s\S]*?<\/p>/g) ?? [])
+    .map(paragraph => paragraph.replace(/<[^>]*>/g, ''))
+    .find(paragraph => /Re-issue the invite/i.test(paragraph)) ?? '';
+  expect(recovery).toContain('Re-issue the invite');
+  expect(recovery).toMatch(/(?:member|Mira)[^.]*own[^.]*(?:email|Google account)|own[^.]*(?:email|Google account)[^.]*member/i);
+  expect(recovery).not.toMatch(/(?:still|currently|now)[^.]*expects?[^.]*guardian|expects?[^.]*guardian[^.]*account/i);
+  expect(h.accessProps?.email).toBe('child@holdout.example');
+  expect(h.accessProps?.guardian ?? null).toBeNull();
+});

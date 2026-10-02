@@ -279,7 +279,14 @@ describe('GRD-011/023 actual pre-birthday invite Re-issue note', () => {
       gym_today: state === 'invite_pending' ? '2026-10-02' : '2026-10-04', scoring_state: 'on_adult', link_email: 'child@example.com' });
     h.access = { state, invite_id: MEMBER, issued_at: '2026-10-01T18:29:59Z', expires_at: '2026-10-03T18:29:59Z', linked_at: null };
     const nodes = await render(component(await detail(), 'GuardianPanel'));
-    expect(nodes.map(text).join(' ')).toContain('Re-issue the invite');
+    const visible = nodes.map(text).join(' ');
+    expect(visible).toContain('Re-issue the invite');
+    // GRD-011/025: the birthday changes redemption's comparison address too,
+    // including a token issued before the birthday. Re-issue guidance must not
+    // imply that the old token still expects the guardian's Google account.
+    expect(visible).toMatch(/(?:member|their|Asha)[^.!?]*own[^.!?]*(?:Google|email)/i);
+    expect(visible).toMatch(/own[^.!?]*Google[^.!?]*(?:email|address)|own[^.!?]*(?:email|address)[^.!?]*Google/i);
+    expect(visible).not.toMatch(/(?:old|earlier|previous|existing|this)[^.!?]*(?:invite|link|token)[^.!?]*(?:still|continues to|expects|matches|requires|bound to)[^.!?]*guardian/i);
     expect(h.requests).toEqual([]);
   });
   it.each([
