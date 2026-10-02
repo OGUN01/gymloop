@@ -1,13 +1,61 @@
-# V2 campaign handoff — 2026-10-02 (end of session 1)
+# V2 campaign handoff — 2026-10-02 (batch 1 in progress)
 
 Read this, then `docs/planning/v2-feature-map.md`, `docs/planning/v2-campaign-goal.md`, `AGENTS.md`, ADR-176 and ADR-177
-in `docs/decisions.md`. Everything below was true when the session stopped. **Nothing has been pushed. No DB run is in
-flight.** All subagents were stopped by the owner's request; none are running.
+in `docs/decisions.md`. **Nothing has been pushed or permanently migrated.** The
+current checkpoint below supersedes the historical session-1 snapshot.
+
+## Current checkpoint
+
+- Initial defects are repaired in separate `spec:` commits, including the missing
+  h68 holdout, suite-68/meta/catalogue fixtures and independent legacy holdouts.
+- Both migrations passed the full serialized Cloud rollback splice sweep:
+  **107 files / 8,934 assertions / zero failures**, with every literal plan satisfied.
+  No SQL changed after this sweep. Core SQL and the narrow INV-028 history reader
+  received independent static GO reviews.
+- Owner-approved INV v1.4 adds pre-Google consent, safe same-account reopening and
+  direct account recovery. Independent tests preceded separate implementers.
+  Web/API/Team received a fresh static GO. DB/shared implementation is committed
+  as `205a7ca`; web/Team implementation is committed as `4cf799a`.
+- Native optional-cache failure fixes are verified. Latest auth ordering/sign-out
+  repairs follow separate red checkpoints `61ab87d` and `9bfb1e6`; all **132 native
+  unit checks**, **6 new held ordering checks** and **31 held recovery/cache checks**
+  passed. Further independent reviews found cross-client shared-cache and durable
+  Auth-write ordering gaps. The shared-cache repair passes all 41 affected held
+  checks; durable Auth tests are committed red as `450d2ec` before implementation.
+  The third identity finding was escalated; the existing cleanup bar is retained.
+  The durable-write repair passed 137 native unit and 46 affected held checks.
+  A blind review then found late SDK refresh/PKCE responses restoring Auth after
+  logout. Independent actual-SDK tests were confirmed red and committed as
+  `9606490`. The focused public SDK-lock repair passed all 26 affected held checks
+  and received fresh static GO; native implementation is committed as `b01f331`.
+  Font acceptance is complete below; deployed invite journeys and final Android
+  runtime acceptance remain pending.
+- The owner approved `openspec/changes/member-invites/google-brand-amendment.md`.
+  INV v1.5 is frozen (`8d843c2`, platform I/O clarification `8c53737`). Independent
+  font tests preceded implementation `b176b06`. Fresh source and visual R10 critics
+  returned GO; all five real-browser font/theme/200% text/network-recovery cases
+  passed. Web units 2,724, shared 545, native broad sweep 141 plus two focused
+  stroke cases and script/held 2,526 checks are green. SQL remains unchanged.
+- Production invite origin is verified as `https://fitcruxx.vercel.app/`.
+  Generated invite types must follow CI migration under ADR-177; no hand edits.
+- Registry/docs are updated in the working tree. Final gates, deployed browser
+  journeys, Android runtime evidence, archive and every CI gate remain required.
+  A separate `in.fitcruxx.v2check` debug build succeeded and is installed alongside
+  the Play release. Device runtime checks are pending; this is not release evidence.
+- Owner deferred USB/device testing to the end of all v2 because another agent
+  is using the phone. Do not touch ADB/the device meanwhile; use web/mobile
+  viewport checks, preserving final Android acceptance as an open requirement.
+- Batch 2 decisions have not been applied. Resume its seven contract amendments
+  after batch 1 is pushed, then carry batch 2, Waves C/D and versionCode 5 onward.
+  Preserve the original full-v2 objective and the independent roles.
+
+Detailed evidence and limits: `docs/evidence/v2/ledger.md`. Minimize usage through
+focused briefs and affected checks; retain independent authors and fresh critics.
 
 ## Owner standing instructions (follow exactly)
 
 1. Goal: complete **all of v2** (every feature in the feature map), each through the full Gauntlet Loop, with 100% precision.
-2. **Use Sonnet 5.5 only for every subagent** (`model: "sonnet"` or omit). Never `opus`/`fable`/other aliases (the `opus` alias is broken here).
+2. **Latest owner override, 2026-10-02: use GPT-6.1 Sol for every subagent** (`model: "gpt-6.1-sol"`). This supersedes the earlier Sonnet 5.5-only instruction. The session-1 reports and Sonnet references below are historical handoff state, not the current model policy; do not use the old aliases for resumed work.
 3. **Batching approved** to go faster: migrations of several features go out in ONE push (one DB run, one types regeneration).
    Batch 1 = INV + STI. Batch 2 = GRD, BIZ, PLC, SHP, PTF, CLS, ANC (Wave A remainder and Wave B run in parallel; owner said so).
    Then Wave C (NTF, PAY, WSP) and Wave D (SLF, TRV, LDC, OCC, RPE), then the release (versionCode 5). Draft contracts early; freeze C/D bars after closed-test feedback unless the owner says go.
@@ -18,6 +66,10 @@ flight.** All subagents were stopped by the owner's request; none are running.
 8. Owner answers already given: **GRD** legacy members — each gym owner attests ONCE (audited) that members with no DOB are adults; **PTF** late cancel consumes one session (per-gym flag, owner waiver; no-show consumes nothing, recorded gap); **PLC** show the stored GST rate, claim neither inclusive nor exclusive; **CLS** frozen memberships are bookable (parity with check-in).
 
 ## Where the code is
+
+The remaining sections preserve the session-1 snapshot and its then-open items.
+For resumed work, apply the latest standing model override above and verify the
+current tree/evidence instead of treating these historical statuses as current.
 
 ### Local commits (14, unpushed) — `git log origin/main..HEAD`
 Contract + ADR-176 + bar (`f777e3e`), `ci:` ADR-177 (`9d05cf5`), INV tests (visible pgTAP 67 + meta 04 amendments; holdout h67; visible TS ×2; holdout TS), INV amendments v1.1, STI tests (visible TS, holdout TS, visible pgTAP 68), STI amendments v1.1, batch-2 contract drafts + decisions + `splice.py` fix (`9d80e75`), INV suite-67 peek fix (`5852302`).

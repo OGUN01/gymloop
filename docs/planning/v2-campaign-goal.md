@@ -29,9 +29,10 @@ whole money path (PAY), every new RLS surface (CLS, SHP, PTF read policies).
 Relaxed (one implementer + spec/tests-first + all gates) for loud-defect
 surfaces: screens, catalogue views, exports, copy.
 
-**Agent economy (owner direction):** easy tasks on the cheap model slot, hard
-reasoning on the strong slot. Screens/docs/assets → cheap slot. Spec/test
-authors and fresh critics for blind-rigor features → the strong slot.
+**Agent model policy (latest owner override, 2026-10-02):** every subagent uses
+GPT-6.1 Sol (`model: "gpt-6.1-sol"`). This supersedes the earlier cheap/strong
+slot split and the session-1 Sonnet 5.5-only instruction. Separate blind authors
+and fresh critics remain required; the model change does not relax independence.
 
 **Session hygiene:** one feature per session, `/clear` between them, work on
 `main` directly, push each coherent unit when green. Never push a migration

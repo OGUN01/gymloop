@@ -117,11 +117,13 @@ claims.
 - **THEN** the screen shows the exact actionable state
 - **AND** it does not represent local acceptance as server confirmation
 
-### Requirement: V1 has one verified gym association
-Under ADR-134, a member SHALL use one verified gym association in v1. The app
-SHALL expose no public-code join or switch control because a code is not
-authorization. Secure invitation-based multi-gym linking is post-v1 and does
-not block the Android Phase 7 boundary.
+### Requirement: One Google account has one member association
+Under ADR-176 and the owner's 2026-10-02 D1 decision, a Google account SHALL
+bind to exactly one member in the system. The app SHALL expose no public-code
+join or gym-switch control because a public gym code is not authorization.
+INV permits secure, single-use, expiring, email-bound invitation redemption;
+it does not introduce multi-gym binding or a gym picker. Existing Phase 7
+acceptance below remains historical v1 evidence, not v2 invitation acceptance.
 
 #### Scenario: A member sees their gym code
 - **WHEN** the verified member opens My gym
@@ -146,3 +148,11 @@ not block the Android Phase 7 boundary.
   `docs/evidence/2026-09-20-phase7-ios-build.md`.
 - Physical iOS runtime and airplane/reconnect acceptance remain deferred by the
   owner under ADR-134 and are not claimed complete.
+
+## V2 invitation entry (INV-022, contract acceptance pending)
+
+The frozen INV v1.4 contract permits an unlinked signed-in member to paste a member invitation link or token on the not-linked screen and accepts `fitcruxx://invite/<token>` through the dedicated deep-link route. The route SHALL handle cold start itself. Before Google it SHALL show only the named gym, the shared linking notice and the configured full privacy-notice link, using a locally hashed gym-only peek. Its Google action SHALL save the token in SecureStore and start Google directly with the account chooser. Unlinked sessions receive the named-gym consent and explicit link action; signed-in members check idempotent replay through the existing live POST path and open Home only for already_linked_here with fresh claims. Other linked identities remain refused under D1. Refusals show only the viewer's email and offer one-tap account switching that preserves the token. Staff invitation redemption has no native surface.
+
+The app SHALL offer a pending token after sign-in, post only the token through the verified bearer command boundary, refresh the native session after successful linking and resolve the fresh member claims before opening Home. Redemption SHALL never enter the offline queue or show local acceptance as success; network failure requires a truthful retry state. The fixed refusal copy and linking notice identify the action without revealing another person's contact fields or membership. A public gym code SHALL still never grant authorization.
+
+This wording records the approved contract, not Android invitation acceptance or complete batch verification. The historical v1 acceptance record above remains unchanged. INV/STI batch acceptance, CI deployment and Android invite evidence are recorded separately; HTTPS Android App Links are deferred to V2-R's signing configuration.

@@ -655,3 +655,43 @@ Flag, do not silently accept: membership without expiry date · paid order witho
 ## What Phase 1 must produce (exit criteria, see `docs/roadmap.md`)
 
 Schema, enums, RLS, indexes, `supabase gen types` output, and a seed script — pgTAP cross-tenant suite green on every table, one command seeds a complete demo gym (the exact seed shape, recorded here because Phase 0 never wrote a separate seed spec and the master prompt is disposable: one Tier-2 neighbourhood gym, 30 members, 3 trainers + 1 front-desk user, 4 plan tiers, 6 members absent 10–20 days, 5 memberships expiring within 7 days, PT/diet/supplement add-ons, a few leads at different stages).
+
+## V2 batch 1 — invitation identity boundary (INV / STI)
+
+This is the frozen INV/STI v1.1 contract inventory, not a claim that batch acceptance, CI migration or generated-type regeneration has completed. Migrations `20261002100000_member_invites.sql` and `20261002110000_staff_invites.sql` are applied by CI only.
+
+| Table | Identity / columns | Tenant and integrity path | Read roles / writes |
+|---|---|---|---|
+| `member_invites` | UUID id, direct tenant_id, member_id, SHA-256 token_hash, member_invite_status, issued_by_staff_id, issued_at, expires_at, closed_at, closed_by_staff_id, redeemed_user_id, created_at, updated_at | Composite (tenant_id, member_id)→members and (tenant_id, issuer/closer)→staff; redeemed_user_id→auth.users ON DELETE SET NULL; one pending per tenant/member; valid lowercase 64-hex hash, expiry after issue, closed-state check | Authenticated SELECT only: own-tenant front office via `member_invites_tenant_select`; platform roles via `member_invites_platform_select`. Members, trainers and other gyms cannot read. No authenticated INSERT/UPDATE/DELETE grant or write policy. |
+| `staff_invites` | Same shape, staff_id and staff_invite_status replace member_id/status type | Composite (tenant_id, target/issuer/closer)→staff; redeemed_user_id→auth.users ON DELETE SET NULL; one pending per tenant/staff; same hash/expiry/closed-state checks | Authenticated SELECT only: own-tenant gym_owner via `staff_invites_tenant_select`; platform roles via `staff_invites_platform_select`. No other gym role reads; no authenticated write grant or write policy. |
+
+Both tables have RLS, standard `<table>_touch_updated_at` and `<table>_preview_read_only` triggers, target-history `(tenant_id, target_id, issued_at desc)` and issue-throttle `(tenant_id, issued_at)` indexes, plus tenant-leading issuer/closer FK indexes and a redeemed_user_id FK index. Refusal throttles have partial audit indexes on `(actor_user_id, occurred_at)` for their respective refusal action.
+
+### Invitation vocabularies and legal state edges
+
+- `member_invite_status`: `pending`, `redeemed`, `revoked`, `superseded`.
+- `staff_invite_status`: `pending`, `redeemed`, `revoked`, `superseded`.
+- For each: pending→redeemed (successful bind), pending→revoked (explicit cancellation), pending→superseded (resend). Closed states are terminal. Expiry is derived from expires_at; it does not write an `expired` enum state. An expired pending row can still be revoked or superseded.
+- App-access responses are derived presentation facts (`linked`, `invite_pending`, `invite_expired`, `not_invited`, `unavailable`), not a stored status vocabulary. Linked takes precedence, including platform-linked owner staff rows; then ineligible, then newest invitation, then not invited.
+
+### Fourth and fifth global unique exemptions
+
+`member_invites_token_hash_key` and `staff_invites_token_hash_key` are global uniques on token_hash: a bearer link carries no tenant, so identical hashes must not resolve to two gyms. They join organizations.gym_code, qr_sessions.token_hash and the open impersonation actor key as deliberate ADR-047 exceptions. The one-pending partial indexes remain tenant-leading. The meta-contract suite records the named exemptions.
+
+### Command authorization and identity guard
+
+Six member RPCs and seven staff RPCs are SECURITY DEFINER, owned by postgres, with empty search_path. All are callable by authenticated; anon additionally calls only the two peek RPCs. Public and service_role have no EXECUTE on these functions; private audit helpers have no caller grant. Peek/read are stable; writers are volatile. Privileged CLI provisioning updates the identity row directly under its established recovery contract rather than executing invite RPCs.
+
+Member issue/revoke/read require real front office; unlink requires owner/manager. Staff create/issue/revoke/read/unlink require the real owner and refuse owner-role targets for link/unlink. Actor claims are checked against the active staff row, and impersonation is refused. Platform invite-table SELECT grants no ability to run these staff commands. Anonymous peek returns only a live eligible gym name (staff additionally exposes owner-selected role), never contact fields or target identity.
+
+Redemption takes the shared `identity-bind:<auth uid>` transaction advisory lock before target and invite locks, checks verified Google identity and normalized exact on-file email, and rejects any existing members/staff/platform_users binding, including inactive bindings. Staff additionally revalidates its issuing owner. A refusal returns an outcome row so its audit commits; unknown/expired/replaced/closed/ineligible tokens share unavailable copy. A redeemed token replays only while the same caller remains bound to the target.
+
+`members_auth_binding_invariant` rejects authenticated direct writes to members.user_id (GL074); only postgres or credential-only service_role recovery is admitted. The existing staff GL049 guard admits tightly marked postgres non-owner link/unlink commands that change only user_id plus trigger-maintained updated_at; owner platform linking remains unchanged. Staff binding changes revoke sessions via the existing trigger; successful staff redemption therefore requires a fresh Google sign-in. Member cookie redemption refreshes claims; native bearer redemption refreshes on the device.
+
+### INV v1.3 narrow recent-history reader
+
+`public.read_member_invite_history(p_member_id uuid)` adds a seventh member RPC to the pending INV migration. It is postgres-owned, SECURITY DEFINER, stable, empty search_path, and executable only by authenticated (explicitly not public, anon or service_role). `app.member_invite_actor` first revalidates real owner/manager/front-desk claims and the active same-tenant staff row; invalid actors fail 42501 before null argument validation (22023). Unknown/foreign members fail 42501. No tenant argument is accepted.
+
+It projects only event_id, occurred_at, action and actor_name for this exact tenant/member's persisted member_invite.issued/superseded/revoked/redeemed and member.linked/unlinked events. Invite records join by exact tenant/target invite id; member records name this exact member. Refusals, unrelated targets and unknown actions are excluded. No JSON, contact field, token/hash, Auth/staff/tenant id is returned. A recorded same-tenant staff actor, or the target member on their own member-attributed redemption/link, supplies the truthful name; unresolved actors return null, rendered as **Name unavailable**. The latest 50 rows sort by occurred_at descending then event_id descending; zero rows is empty, while failures remain errors.
+
+`audit_log_member_invite_history_idx (tenant_id, record_type, record_id, occurred_at desc)` supports this reader. `MEMBER_INVITE_HISTORY_LIMIT = 50` mirrors its cap. The existing broad audit_log RLS/read roles remain unchanged: front desk receives this narrow projection, not broad audit access. Reader/index/type regeneration and full batch acceptance are still pending evidence.

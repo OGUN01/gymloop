@@ -2,7 +2,7 @@
 
 Turning a signed-in `auth.users` row into a Gymloop identity: the custom access-token hook, the claims it stamps, the order it resolves identities in, what an inactive or unlinked user gets, how one human who belongs to several gyms gets a token for exactly one of them, and how a live session loses its privileges when the row behind it changes.
 
-Every requirement here is expressible as a direct call to `app.custom_access_token_hook(<event>)` returning jsonb, or as a query against the catalogue. None of them requires signing in.
+The original hook requirements are expressible as direct calls to `app.custom_access_token_hook(<event>)` returning jsonb or catalogue queries. The v2 invitation requirements below additionally exercise verified sign-in and the command/API boundary.
 
 ## Requirements
 
@@ -181,3 +181,48 @@ THE SYSTEM SHALL set the access-token lifetime explicitly in `supabase/config.to
 #### Scenario: The lifetime is configured
 - **WHEN** `supabase/config.toml` is inspected for the access-token expiry setting
 - **THEN** it SHALL be present and SHALL be less than 3600
+
+## V2 batch 1 — secure invitation identity contract
+
+Frozen owner-approved contract: INV-001…028 (v1.1/v1.2/v1.3) and STI-001…018 (v1.1), recorded in `docs/domain-rules.md` and the in-flight member/staff invite proposals. This canonical wording records the contract only: batch Gauntlet, browser/Android acceptance, complete local sweep, CI deployment and schema/type regeneration remain pending evidence. The changes are not archived here.
+
+### Requirement: Invitations bind a verified Google account to one existing record
+
+INV-001…013 and STI-001…007 SHALL issue server-generated, hash-only, 48-hour invitations to one eligible on-file member or manager/front-desk/trainer staff row. Resend atomically supersedes the previous pending invitation; revoke closes a pending invitation, including an expired one. Pending→redeemed/revoked/superseded are the only legal invitation state edges; expiry is derived from its timestamp. Raw tokens and hashes SHALL never enter audit events. Linked identifiers remain pseudonymous personal data, despite the absence of contact fields in invite rows.
+
+Redemption SHALL verify the Google identity and exact normalized current on-file email, acquire the shared per-Auth-user lock before row locks, and refuse any existing members/staff/platform_users binding, active or inactive. It SHALL never create a gym picker or second identity binding. Staff redemption SHALL revalidate the issuing active owner and preserve the row's owner-selected role and other profile fields. Unknown, expired, replaced, revoked and ineligible invites SHALL share generic unavailable copy; pre-auth peek SHALL expose only gym name, plus staff role for staff invites. Refusals SHALL return outcome rows so audit evidence commits; the accepted v1.1 refusal-count asymmetry remains explicit.
+
+### Requirement: Only authorized commands change app identity
+
+INV-014…018 and STI-008…012 SHALL deny direct authenticated binding writes. Member invitation management requires real front office; member unlink requires owner/manager. Staff creation/invitation/unlink requires the real owner and SHALL exclude owner-role targets. Platform read access SHALL not grant gym-side command authority, and impersonation SHALL not issue, redeem, unlink or read the privileged access model. Reasoned unlink SHALL clear the binding and revoke the former user's sessions; a redeemed token SHALL not reopen after unlink. The privileged operator recovery path and platform owner-link path remain available under their existing contracts.
+
+### Requirement: Browser linking carries no token into OAuth
+
+INV-020/021/027 and STI-013/014 SHALL use their audience's HttpOnly, SameSite=Lax, short-lived cookie for the OAuth round trip, with Secure on HTTPS and no token in callback/OAuth parameters. Invite sign-in SHALL request `prompt: 'select_account'`; account switching SHALL preserve the invite. Member cookie wins if both valid family cookies exist. Accept pages SHALL be noindex/no-referrer, identify the signed-in Google account and show the data-processing notice. Every invite response, refusal and redirect SHALL be no-store.
+
+A successful member cookie redemption SHALL refresh claims once; the bearer client refreshes locally. A successful staff redemption SHALL expire the local session and require fresh Google sign-in, rather than attempting to refresh the revoked session or claiming the workspace is open. Failure/unknown outcome SHALL not fabricate success or clear a retryable invite cookie.
+
+### Requirement: Console state and history reflect persisted evidence
+
+INV-019/025/026 and STI-015 SHALL show role-authorized dot-plus-word app-access states, with explicit loading/empty/error/preview states and read-only owner staff rows. Real front office SHALL see latest member invite enum status plus sent/expiry absolute IST timestamps inline and a tenant/search/status/pagination-preserving **Not joined yet** filter over unbound members. Expired pending invitations SHALL be labelled expired without adding an enum value. Trainers SHALL receive no invite/access metadata.
+
+Member history SHALL show only that member's tenant-scoped persisted issue/supersede/revoke activity with actor, action and absolute IST time, and refresh after successful resend/revoke. Failed commands SHALL fabricate no history. Missing actors SHALL have an honest fallback; no tokens, hashes, raw audit JSON or refusal identity data SHALL be rendered. Trainers, public invitees and support preview SHALL receive no invite history.
+
+### Requirement: Operational gates remain explicit
+
+INV-023/024 and STI-016…018 SHALL use fixed actionable refusal/notice copy and the one-year invitation retention policy in `docs/security.md`. Pruning is a policy, not a job built by this batch. Member erasure SHALL immediately invalidate pending member invites. Open Auth signup remains owner-gated; verified deployed WEB_APP_URL, Android App Links signing configuration and legal review are operational prerequisites with their own evidence, not implied by this spec update.
+
+### Requirement: Front desk reads only the narrow recent-history projection
+
+INV-028 SHALL provide stable postgres-owned `read_member_invite_history(member_id)` with empty search_path and authenticated-only execution. It SHALL revalidate the real owner/manager/front-desk actor before argument/target validation, accept no tenant argument and refuse inactive/incomplete/stale, trainer, member, platform and impersonation identities. Broad audit_log RLS SHALL remain unchanged.
+
+Only this exact tenant/member's persisted issue/supersede/revoke/redeem and member link/unlink events SHALL return event_id, occurred_at, action and actor_name. No refusal event, unknown action, unrelated target, audit JSON, contact field, token/hash, Auth/staff/tenant id SHALL cross this boundary. Actor names SHALL resolve truthfully to a same-tenant staff actor or this member for their own member-attributed link/redemption; unresolved names SHALL be null and render **Name unavailable**, never the viewer's name. Recent history SHALL contain at most 50 events ordered occurred_at descending, event_id descending, with empty and failure distinguished. The UI SHALL use this reader rather than broad audit table queries. Its tenant-leading history index and shared MEMBER_INVITE_HISTORY_LIMIT belong to the frozen pending batch contract; this addition establishes no acceptance evidence.
+
+### Requirement: Owner-approved native consent and safe invite reopening (acceptance pending)
+
+INV-029 SHALL name the gym and show the shared notice/full privacy link before native Google,
+using locally hashed gym-only peek and SecureStore token handoff to the account chooser.
+INV-030 SHALL check member replay only through live POST, open Home with fresh claims only for
+already_linked_here, and provide viewer-email account recovery retaining the token. Other linked
+identities remain refused under D1; web GET/render never mutates a binding. This records the
+owner-approved v1.4 contract and does not establish deployed or Android acceptance.
