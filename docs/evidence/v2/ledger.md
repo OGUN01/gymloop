@@ -186,3 +186,54 @@ SQL suites and their central metadata are committed first as `dce5b2e`.
 
 Final local gates, browser/Playwright checks, Android runtime evidence, archive and
 CI run links will be recorded after completion. The owner tests after all v2 is built.
+
+### Batch-2 local checkpoint, 2026-10-02 (business push still blocked)
+
+Prelude type-followup DB 37022798758 completed with every job green; all local
+Cloud previews below ran only after DB workflows completed, under the atomic
+rollback-run lock. Eight business migration drafts are snapshotted by SHA-256 per
+run, never permanently applied locally. New/old SQL suites remain committed first;
+production draft migrations are untracked and excluded from the existing push.
+
+Independent authors repaired invalid ordinary membership dates, fixture identity
+collisions, comparison shapes/collations, invoker temp-table grants and synthetic
+command clocks. Historical null-date parity imports suspend only the exact named
+CHECK, restore original state and its exact validated definition, and return to
+origin before ordinary command proofs. Genuine money commands retain all guards.
+Shop default seams drain the unchanged named deferred order constraint before
+DDL and restore its deferred mode/default; these do not establish real races or
+separate-transaction acceptance.
+
+Focused pass receipts currently include GRD visible311/held293, BIZ61/71,
+PLC32/30, ANC157/88, CLS notices42/46, and PTF held331. Remaining suites still
+have fixture aborts/failures, so no whole-batch green claim is made. The disposable
+diagnostic wrapper was corrected for parser character offsets and leaves any
+data-modifying CTE at top level; final acceptance still requires the unmodified
+canonical sweep with all 123 committed SQL files and exact plans.
+
+Owner-approved expired-pack freeze a66c2cb added independent actual expired
+10-total/3-used/2-scheduled cases: both readers were observed returning5 rather
+than7. Tests were committed before a separate source fix. Ordinary complimentary
+sale fixtures were corrected to NULL payment method, as the existing money guard
+requires. A private-helper expression planning regression blocked normal staff
+shop sales; the separate implementer restored lazy PLpgSQL control flow without
+new grants or a wider command admission. Held331 subsequently passed all cases.
+
+Fresh PT source review found canonical support preview blocked because its hook
+token has no staff id. Existing PTF-022/PTF-028 read-only scope is preserved in
+1feffcf, with exact live session/actor/tenant checks and any existing target gym
+per NAV-006. Public review returned GO; independent red tests and separate source
+repair are still pending. No source/visual Gauntlet win is claimed.
+
+Owner explicitly retained PLC's minimal member-policy edit when its old mixed
+claim sentence contradicted unchanged staff predicates. Freeze b6730b7 and fresh
+public GO preserve the existing staff boundary; neither docs nor tests claim mixed
+identity validation. PLC's source still changes only plans_member_select.
+
+Registry and schema/privacy documentation now include PTF/ANC and the other
+business drafts. Local registry, rollback (123 files) and escape-hatch checks
+passed; complete source/application gates remain pending. Shop visible app drafts
+and independent PTF visible/held app drafts are import-red, not evidence of
+behavioral failures. Browser/native/R2 publication and console protocols remain
+unexecuted. No USB/ADB/Metro interaction occurred; final Android remains deferred
+while another owner-authorized agent uses the phone.

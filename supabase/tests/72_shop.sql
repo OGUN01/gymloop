@@ -409,6 +409,10 @@ set local role authenticated;
 select is(pg_temp.refusal($q$select * from public.fulfil_shop_reservation(pg_temp.sid(601),(select quote_version from public.addon_products where id=pg_temp.sid(101)),'cash',null,pg_temp.sid(506))$q$),'GL086:reservation_expired','SHP-007 desk cannot fulfil expired row');
 select is(pg_temp.refusal($q$select app.shop_reservation_mark_fulfilled(pg_temp.sid(9112),(select order_id from captured where label='desk-soft'))$q$) <> 'NO ERROR',true,'SHP-010 directly callable mark helper rechecks unrelated order');
 reset role;
+-- Isolate offer eligibility from the preceding blocked-member fixture.
+create temp table shop_offer_member_state as
+select id,status from public.members where id=pg_temp.sid(32);
+update public.members set status='active' where id=pg_temp.sid(32);
 update public.addon_products set is_active=false where id=pg_temp.sid(112);
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
@@ -417,6 +421,7 @@ reset role;
 select is((select status::text from public.shop_reservations where id=pg_temp.sid(9112)),'reserved','SHP-010 sale refusal leaves reservation open');
 select is((select count(*)::integer from public.addon_orders where tenant_id=pg_temp.sid(1)),2,'SHP-010 offer refusal creates no extra order');
 update public.addon_products set is_active=true where id=pg_temp.sid(112);
+update public.members m set status=s.status from shop_offer_member_state s where m.id=s.id;
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select is(pg_temp.refusal($q$select * from public.fulfil_shop_reservation(pg_temp.sid(9112),(select quote_version from public.addon_products where id=pg_temp.sid(112)),'cash',null,pg_temp.sid(507))$q$),'GL055:member_unavailable','SHP-010 blocked member sale refusal passes through');

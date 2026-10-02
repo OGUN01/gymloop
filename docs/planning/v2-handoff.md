@@ -22,10 +22,15 @@ current checkpoint below supersedes the historical session-1 snapshot.
   follow-up ccc62e4 / DB **37022798758 (all jobs green)**. Related CI/held/immutability
   runs passed. origin/main is ccc62e4; no seven-feature business migration is pushed.
 - Seven batch-2 contracts, separate SQL authors and central catalogue tests are
-  committed first. GRD/BIZ/PLC/SHP/CLS source drafts are complete but uncommitted;
-  PTF is a separate implementer's partial draft, ANC is paused for its exact
-  platform-policy reconciliation. All business Cloud schema remains unapplied.
-- Focused runtime passes include BIZ visible61/held71 and PLC held30. Other
+  committed first. All eight source drafts exist but remain uncommitted; ANC's
+  exact platform-policy reconciliation is complete. All business Cloud schema
+  remains unapplied. PTF's fresh source critic found its canonical preview path
+  missing; public clarification 1feffcf received fresh GO and both independent
+  authors are adding tests before a separate source correction.
+- Focused runtime passes include GRD visible311/held293, BIZ visible61/held71,
+  PLC visible32/held30, ANC visible157/held88, CLS notice42/held46, and PTF held331
+  on the pre-preview draft. Remaining visible PT/Classes and held Shop fixtures
+  still abort or fail; these passes are not the complete batch sweep. Other
   affected suites are being repaired by their original independent authors for
   invalid fixture IDs, lifecycle/date/consent setup, expected-query shape and
   comparison collations. No failing requirement has been relaxed. Final combined
@@ -35,19 +40,28 @@ current checkpoint below supersedes the historical session-1 snapshot.
 - Owner approved the PT final-session exception, then clarified that ANY
   same-tenant/order-payment refund record blocks it (including pending and failed).
   Public boundary and immutable completed_order posture received independent GO;
-  visible308/held315 tests precede the separate implementation. Their actual
+  original visible308/held315 tests precede the separate implementation. Their actual
   schema-red captures are recorded; the held fixture first needed valid canonical
   membership dates. Partial source was drafted before that actual runtime capture;
-  test commits preceded all source edits. No green PT runtime claim is made.
+  test commits preceded all source edits. Owner also retained expired packs'
+  unused balance: total10-used3 with scheduled2 returns remaining7 and scheduled2
+  separately, stays unbookable and changes no ledger. Independent tests preceded
+  the separate expired-reader correction; held331 passed. No complete PT win is
+  claimed while preview, visible fixtures and real concurrency remain open.
 - ANC's narrower frozen direct-table policy lists take precedence through the
   exact ADR-184 exception, independently reviewed GO: no platform policy on any
   of its three tables; support-preview remains actor-checked read-only RPC access.
-  Resume implementation only after the corrected central test commit.
+  The corrected central test commit precedes the completed ANC source draft;
+  both ANC suites now pass, with no notification fan-out or platform policy.
 - Shop rollback-only success fixtures use a narrowly bounded order-created default
   seam to model separate command transactions without changing money functions,
   guards or successful rows. Genuine multi-transaction ordinary-RPC reserve,
   fulfil and replay evidence is still mandatory. Independent Shop app tests are
   now commissioned; other app drafts stay uncommitted until the SQL/types staging.
+- Owner resolved PLC's contradictory mixed-claim requirement in favor of the
+  exact minimal member-policy edit, retaining legacy staff predicates. Public
+  freeze b6730b7 received independent GO; visible32 and held30 pass. No mixed
+  staff identity validation is claimed or new authorization policy added.
 - Exact owner-approved private R2 production-origin PUT CORS is applied and its
   positive/negative preflights verified. Existing four registered R2 values are
   provisioned to repository secrets with independent name/timestamp receipt.
