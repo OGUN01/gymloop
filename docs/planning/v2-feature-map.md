@@ -17,7 +17,7 @@ churn detection, renewals) is vertical-free by design. Only copy varies.
 |---|---|---|
 | A | Identity foundations | INV, GRD, BIZ |
 | B | The "front" of the app | CLS, SHP, PTF, ANC |
-| C | Reach and money | NTF, WSP, PAY |
+| C | Reach and member-visible money | NTF, WSP, PAY |
 | D | Polish and retention | SLF, TRV, LDC, OCC |
 
 Wave B is the centerpiece: what a business *does* (classes, training, selling)
@@ -192,25 +192,47 @@ Pay-per-message wallet per gym.
 - Delivery and read receipts; fallback to in-app/push on failure.
 - PII minimization in templates (no balances/arrears in plain template text where avoidable).
 
-## F10. UPI payment links (PAY)
+## F10. Member-visible orders and payment requests - manual collection (PAY)
 
-**What.** Razorpay payment links for renewals and orders; member pays, the
-membership auto-extends, a receipt is recorded. Reopens the deferred online
-payment work with full money-path blind rigor (ADR-059).
+**Owner direction, 2026-10-02:** **no payment gateway.** Money is collected at
+the counter, exactly as ADR-146 decided. What is built instead is the perfect
+*offline payment track*: the member sees every rupee the gym asks of them and
+everything they buy, in the app, before and after the desk records it.
+
+**What.**
+- A **payment request** the owner/desk raises against a member: what it is for
+  (renewal of plan X, PT pack, shop order, locker rent), the amount, GST, due
+  date. The member sees it in the app, can **accept** (acknowledge) or
+  **query/reject** (tell the desk something is wrong) - accepting is not
+  paying; the text says "pay at the counter."
+- **Shop orders** name the product, quantity, price-per-unit and total; a
+  member-placed order is a **reservation with an expiry**; the member picks it
+  up at the counter, the desk records the money, the receipt appears in the
+  member app.
+- Full member-side history: paid receipts (exists today), open requests, open
+  orders - one money screen.
+- The money recording itself stays the existing desk flow: integer paise,
+  paid rows frozen, refunds with ceilings, receipts, GST. Nothing about the
+  ledger changes; the member just finally sees it.
 
 **Edge cases.**
-- Webhook signature verification with provider-produced evidence (gates 20/21 contract).
-- Idempotent webhook handling (repeat and out-of-order delivery).
-- Partial payment, failed-then-success race, overpayment (refund flow exists).
-- Link expiry and resend; wrong-amount payment (contact desk — no silent correction).
-- Gyms without a Razorpay account keep today's manual-record default (PAY-011 already pins this).
-- Reconciliation between desk-collected and link-collected money; GST invoice generation.
-- Currency: INR only at first (money rules already enforce).
-
+- Request states: `requested -> accepted | queried/rejected -> paid at desk | cancelled by desk | expired`. State transitions audited; a rejected request is never silently re-raised (desk must act visibly).
+- Acceptance is an acknowledgment with a timestamp and an audit row - it is legally "the member saw and agreed to owe this," not payment. The copy must never imply the member paid.
+- Amount or product changed after the member accepted (price correction, pack swap): the request is versioned - the member sees what changed, old acceptance does not silently carry over.
+- Duplicate request raised by the desk for the same thing: visible as duplicates; merge or refuse, never collect twice (the existing dedupe/refusal rules extend to requests).
+- Member-placed order: stock reserved then expiry releases it (the last-item race follows the existing order-lock pattern); unclaimed reservations never block stock forever.
+- Member rejects/queries a request: desk sees it in the console as a to-do, resolves in person; nothing auto-cancels.
+- Member leaves the gym with open requests/orders: status hygiene on membership end - open requests are closed as `expired`, unclaimed orders released.
+- A pending-status member cannot accept orders (consistent with every other self-service boundary).
+- The member app shows requests read-only offline (cache), but accepting/rejecting requires a connection - clear error, no fake success.
+- Notifications (NTF) later: "you have a payment request" is transactional - no marketing consent needed.
+- Money-path blind rigor (ADR-059) applies: requests, acceptances, order expiry and their state machine are money-adjacent and get the full blind arrangement.
+- **Explicitly deferred:** UPI/gateway (provider webhooks, auto-extend on verified payment, gates 20/21 evidence). If the owner later elects online charging, that is a separate change reopening all of it.
 ## F11. Member self-service (SLF)
 
 **What.** In the app: see plan, request a freeze (existing desk action,
-member-initiated as an approval request), buy a renewal (needs PAY), view
+member-initiated as an approval request), request a renewal (PAY raises the
+member-visible payment request; the desk collects and records it), view
 receipts (already there).
 
 **Edge cases.** Overlapping freeze requests; pending-status members blocked
