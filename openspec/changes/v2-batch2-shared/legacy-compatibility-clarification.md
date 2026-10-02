@@ -103,3 +103,26 @@ gym timezone, independently computed from statement_timestamp and that explicit
 zone. UTC current_date + 1 can already be today in India. Preserve the 22023
 refusal and all age/consent assertions; never derive its expected input from the
 production helper under test. Source age rules remain unchanged.
+
+## Invalid timezone legacy fixture
+
+The existing organization commercial guard correctly rejects invalid timezone
+input; no ordinary write may acquire an invalid timezone. The approved UTC
+fallback is defensive behavior for historically malformed configuration. A test
+must assert the normal rejection rather than expecting an invalid ordinary
+configuration write to succeed.
+
+To exercise that defensive read, an independent author may import only the
+fixture gym's invalid timezone through a bounded rollback-only legacy seam:
+capture the exact organization trigger invoking `app.enforce_organization_commercial`,
+its definition and enabled state; suspend only that named trigger for the one
+privileged fixture timezone update; restore its exact state immediately, before
+any application call. No money, billing, role, source helper or other row is
+changed. Never use `session_replication_role`, disable all triggers, or execute a
+normal write/permission assertion while the guard is suspended. The real day,
+audience/feed/count operations then run with every guard enabled. Roll the
+entire seam and fixture back through a sentinel exception subtransaction,
+retaining only read results for assertions outside it. Assert the exact original
+trigger definition/enabled state, original timezone and normal invalid-write
+refusal after restoration. This models legacy data, not authorization to accept
+invalid configuration or a claim that ordinary inputs bypass the guard.
