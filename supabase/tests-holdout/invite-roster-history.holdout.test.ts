@@ -1,4 +1,4 @@
-// Independent contract-derived INV-025/026/027 suite. No implementation or other tests consulted.
+// Independent contract-derived INV-025/026/027/028 suite. No implementation or other tests consulted.
 import { createRequire } from 'node:module';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -66,6 +66,7 @@ function event(id: string, action: string, record_id: string, extra: Record<stri
 // same-tenant wrong-target history still requires a genuine target-bound query/projection.
 function query(table: string) {
   reads.push(table);
+  if (table === 'audit_log') throw new Error('INV-028 forbids a broad web audit_log read');
   let data = [...(rows[table] ?? [])].filter(row => row.tenant_id == null || row.tenant_id === fixture.tenant);
   let one = false;
   const q: any = {
@@ -94,11 +95,29 @@ function query(table: string) {
 function client() {
   return {
     from: query,
-    rpc: vi.fn(async (name: string) => {
+    rpc: vi.fn(async (name: string, args: Record<string, unknown>) => {
       reads.push(name);
       if (failures.has(name)) return { data: null, error: { message: 'PRIVATE_RPC_FAILURE' } };
       if (name === 'read_member_app_access') return { data: [{ state: rpcState, invite_id: fixture.invite,
         issued_at: fixture.issued, expires_at: fixture.expiry, linked_at: null }], error: null };
+      if (name === 'read_member_invite_history') {
+        // Emulate only the frozen projection contract, never an implementation helper.
+        expect(args).toEqual({ p_member_id: fixture.target });
+        const allowed = ['member_invite.issued', 'member_invite.superseded', 'member_invite.revoked',
+          'member_invite.redeemed', 'member.linked', 'member.unlinked'];
+        const projected = rows.audit_log.filter(row => {
+          if (row.tenant_id !== fixture.tenant || !allowed.includes(row.action)) return false;
+          if (row.record_type === 'member') return row.record_id === args.p_member_id;
+          return row.record_type === 'member_invite' && rows.member_invites.some(inv =>
+            inv.id === row.record_id && inv.tenant_id === fixture.tenant && inv.member_id === args.p_member_id);
+        }).map(row => {
+          const recordedStaff = rows.staff.find(staff => staff.tenant_id === fixture.tenant && staff.user_id === row.actor_user_id);
+          const recordedMember = rows.members.find(member => member.tenant_id === fixture.tenant && member.id === args.p_member_id && member.user_id === row.actor_user_id);
+          return { event_id: row.id, occurred_at: row.occurred_at, action: row.action,
+            actor_name: recordedStaff?.full_name ?? (row.actor_role === 'member' ? recordedMember?.full_name : null) ?? null };
+        }).sort((a, b) => b.occurred_at.localeCompare(a.occurred_at) || b.event_id.localeCompare(a.event_id)).slice(0, 50);
+        return { data: projected, error: null };
+      }
       return { data: [], error: null };
     }),
     auth: {
@@ -219,12 +238,18 @@ describe('INV-025 actual member roster boundary', () => {
 });
 
 describe('INV-026 persisted member history at actual detail boundary', () => {
+  it('INV-028 exposes the separately named history bound of 50', async () => {
+    const shared = await import('@gymloop/shared');
+    expect((shared as any).MEMBER_INVITE_HISTORY_LIMIT).toBe(50);
+  });
   it('shows issue, supersede and revoke, attributed to persisted actor, with IST and no audit metadata', async () => {
     rows.member_invites.push(invite(fixture.oldInvite, fixture.target, 'superseded'));
     rows.audit_log = [event('d1111111-1111-4111-8111-111111111111', 'member_invite.issued', fixture.invite),
       event('d2222222-2222-4222-8222-222222222222', 'member_invite.superseded', fixture.oldInvite),
       event('d3333333-3333-4333-8333-333333333333', 'member_invite.revoked', fixture.invite)];
     const html = await detail(); const text = plain(html);
+    expect(h.client.rpc).toHaveBeenCalledWith('read_member_invite_history', { p_member_id: fixture.target });
+    expect(reads).not.toContain('audit_log');
     expect(text).toMatch(/invite.*history|invite.*activity|app access.*history/i);
     expect(text).toContain('Persisted Nila'); expect(text).not.toContain('VIEWER_NOT_AUTHOR');
     expect(text).toMatch(/issued|sent/i); expect(text).toMatch(/superseded|replaced/i); expect(text).toMatch(/revoked/i);
@@ -248,11 +273,11 @@ describe('INV-026 persisted member history at actual detail boundary', () => {
     rows.staff = rows.staff.filter(row => row.user_id !== fixture.author);
     rows.audit_log = [event('f1111111-1111-4111-8111-111111111111', 'member_invite.issued', fixture.invite)];
     const text = plain(await detail());
-    expect(text).toMatch(/unknown|unavailable|former|staff member|not available/i);
+    expect(text).toContain('Name unavailable');
     expect(text).not.toContain('VIEWER_NOT_AUTHOR');
   });
   it('distinguishes failed audit read from empty history and never invents an event', async () => {
-    failures.add('audit_log');
+    failures.add('read_member_invite_history');
     const html = await detail();
     expect(plain(html)).toMatch(/history.*(?:unavailable|could|unable|error)|(?:could|unable).*history|activity.*(?:unavailable|error)/i);
     expect(plain(html)).not.toMatch(/no invite history|no invite activity/i);
@@ -272,7 +297,43 @@ describe('INV-026 persisted member history at actual detail boundary', () => {
     rows.audit_log = [event('f2222222-2222-4222-8222-222222222222', 'member_invite.issued', fixture.invite)];
     const html = await detail();
     expect(reads).not.toContain('audit_log'); expect(html).not.toContain('Persisted Nila');
+    expect(reads).not.toContain('read_member_invite_history');
     assertPrivate(html);
+  });
+  it('front desk gets the same recent persisted projection without broad audit access', async () => {
+    h.identity.role = 'front_desk';
+    rows.audit_log = [event('f3333333-3333-4333-8333-333333333333', 'member_invite.revoked', fixture.invite)];
+    const html = await detail();
+    expect(h.client.rpc).toHaveBeenCalledWith('read_member_invite_history', { p_member_id: fixture.target });
+    expect(reads).not.toContain('audit_log');
+    expect(plain(html)).toMatch(/recent.*history/i);
+    expect(plain(html)).toContain('Persisted Nila');
+    expect(plain(html)).toMatch(/revoked/i);
+    assertPrivate(html);
+  });
+  it('shows member-attributed link truth from the projection rather than attributing it to staff', async () => {
+    rows.members[0].user_id = fixture.author;
+    rows.staff = rows.staff.filter(row => row.user_id !== fixture.author);
+    rows.audit_log = [event('f4444444-4444-4444-8444-444444444444', 'member.linked', fixture.target,
+      { record_type: 'member', actor_role: 'member' })];
+    const html = await detail();
+    expect(plain(html)).toMatch(/linked/i);
+    expect(plain(html).match(/Holdout Mira/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(plain(html)).not.toContain('VIEWER_NOT_AUTHOR');
+    assertPrivate(html);
+  });
+  it('renders the complete latest-50 projection in server order and labels it recent', async () => {
+    rows.audit_log = Array.from({ length: 51 }, (_, index) => event(
+      `a${String(index).padStart(7, '0')}-1111-4111-8111-111111111111`,
+      'member_invite.issued', fixture.invite, { actor_user_id: `actor-${index}` }));
+    rows.staff.push(...Array.from({ length: 51 }, (_, index) => ({ tenant_id: fixture.tenant,
+      id: `staff-${index}`, user_id: `actor-${index}`, full_name: `HistoryActor_${String(index).padStart(2, '0')}` })));
+    const html = await detail(); const text = plain(html);
+    expect(text).toMatch(/recent.*history/i);
+    expect(text).not.toContain('HistoryActor_00');
+    expect(text.match(/HistoryActor_\d\d/g)).toHaveLength(50);
+    expect(text.indexOf('HistoryActor_50')).toBeLessThan(text.indexOf('HistoryActor_01'));
+    expect(reads).not.toContain('audit_log'); assertPrivate(html);
   });
 });
 
