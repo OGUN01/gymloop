@@ -3,7 +3,7 @@ begin;
 set local role postgres;
 set local search_path=extensions,public;
 select set_config('request.jwt.claims','',true);
-select plan(280);
+select plan(299);
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$select ('75100000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.claim(r text,s integer,m integer,u integer,t integer) returns void language plpgsql as $$begin perform set_config('request.jwt.claims',jsonb_strip_nulls(jsonb_build_object('sub',pg_temp.u(u),'role','authenticated','app_role',r,'tenant_id',pg_temp.u(t),'staff_id',case when s is not null then pg_temp.u(s) end,'member_id',case when m is not null then pg_temp.u(m) end))::text,true);end$$;
 create function pg_temp.refusal(q text) returns text language plpgsql as $$begin execute q; return 'OK'; exception when others then return sqlstate; end$$;
@@ -502,5 +502,59 @@ select is((select count(*)::integer from app.announcement_audience((select id fr
 select is((select count(*)::integer from app.announcement_audience((select id from boundary_ids where t=2 and k='not_live'))),8,'ANC boundary: tenant 2 not_live shared delivery audience matches current dates');
 select is((select count(*)::integer from app.announcement_audience((select id from boundary_ids where t=2 and k='all'))),11,'ANC boundary: tenant 2 all shared delivery audience matches current dates');
 select is((select count(*)::integer from app.announcement_audience((select id from boundary_ids where t=2 and k='promo'))),0,'ANC boundary: tenant 2 promo shared delivery audience matches current dates');
+-- Invalid organization timezone is an approved validated-fallback boundary.
+-- Preserve the ordinary platform configuration guard and every normal table trigger.
+set local role postgres;
+select pg_temp.claim('super_admin',null,null,999,null);
+insert into auth.users(id,email) values(pg_temp.u(923),'anc-boundary-owner3@example.test'),(pg_temp.u(1101),'anc-boundary-utc-live@example.test'),(pg_temp.u(1102),'anc-boundary-utc-future@example.test');
+insert into public.organizations(id,name,gym_code,status,timezone)
+values(pg_temp.u(3),'ANC Boundary Invalid Zone','AB751U','active','Not/A_Timezone');
+insert into public.branches(id,tenant_id,name,is_default,timezone)
+values(pg_temp.u(13),pg_temp.u(3),'UTC fallback',true,'UTC');
+insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name,is_active)
+values(pg_temp.u(23),pg_temp.u(3),pg_temp.u(13),pg_temp.u(923),'gym_owner','UTC boundary owner',true);
+select set_config('request.jwt.claims','',true);
+insert into public.plans(id,tenant_id,name,duration_days,price_paise)
+values(pg_temp.u(43),pg_temp.u(3),'UTC boundary',30,10000);
+insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone,status) values
+(pg_temp.u(201),pg_temp.u(3),pg_temp.u(13),pg_temp.u(1101),'UTC inclusive endpoint','+917510000201','active'),
+(pg_temp.u(202),pg_temp.u(3),pg_temp.u(13),pg_temp.u(1102),'UTC starts tomorrow','+917510000202','active');
+-- Independent UTC dates: never derive this oracle from the helper being tested.
+insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise,currency) values
+(pg_temp.u(1201),pg_temp.u(3),pg_temp.u(201),pg_temp.u(43),'active',(statement_timestamp() at time zone 'UTC')::date,(statement_timestamp() at time zone 'UTC')::date,10000,'INR'),
+(pg_temp.u(1202),pg_temp.u(3),pg_temp.u(202),pg_temp.u(43),'frozen',(statement_timestamp() at time zone 'UTC')::date+1,(statement_timestamp() at time zone 'UTC')::date+30,10000,'INR');
+select is(app.gym_today(pg_temp.u(3)),(statement_timestamp() at time zone 'UTC')::date,'ANC invalid timezone: registered day helper falls back to actual UTC date');
+set local role authenticated;
+select pg_temp.claim('gym_owner',23,null,923,3);
+insert into boundary_ids values(3,'live',public.create_announcement_draft('transactional','UTC live boundary','Invalid timezone fallback','segment',array['active']::public.member_status[],'live',null,null));
+select is((select audience_count from public.publish_announcement((select id from boundary_ids where t=3 and k='live'))),1,'ANC invalid timezone: live publish counts UTC membership eligibility');
+select is((select audience_count from public.list_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='live')),1,'ANC invalid timezone: live staff list count uses UTC');
+select is((public.read_announcement((select id from boundary_ids where t=3 and k='live'))->'announcement'->>'audienceCount')::integer,1,'ANC invalid timezone: live staff detail count uses UTC');
+insert into boundary_ids values(3,'not_live',public.create_announcement_draft('transactional','UTC not_live boundary','Invalid timezone fallback','segment',array['active']::public.member_status[],'not_live',null,null));
+select is((select audience_count from public.publish_announcement((select id from boundary_ids where t=3 and k='not_live'))),1,'ANC invalid timezone: not_live publish counts UTC membership eligibility');
+select is((select audience_count from public.list_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='not_live')),1,'ANC invalid timezone: not_live staff list count uses UTC');
+select is((public.read_announcement((select id from boundary_ids where t=3 and k='not_live'))->'announcement'->>'audienceCount')::integer,1,'ANC invalid timezone: not_live staff detail count uses UTC');
+set local role postgres;
+select is((select count(*)::integer from app.announcement_audience((select id from boundary_ids where t=3 and k='live'),pg_temp.u(201))),1,'ANC invalid timezone: shared live audience uses independently dated UTC fixture');
+select is((select count(*)::integer from app.announcement_audience((select id from boundary_ids where t=3 and k='not_live'),pg_temp.u(202))),1,'ANC invalid timezone: shared not_live audience uses independently dated UTC fixture');
+set local role postgres;
+select pg_temp.claim('member',null,201,1101,3);
+set local role authenticated;
+select is((select count(*)::integer from public.read_member_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='live')),1,'ANC invalid timezone: member 201 live feed reflects UTC day');
+select is(public.mark_announcement_read((select id from boundary_ids where t=3 and k='live'),1),true,'ANC invalid timezone: member 201 live marker reflects UTC day');
+select is((select count(*)::integer from public.read_member_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='not_live')),0,'ANC invalid timezone: member 201 not_live feed reflects UTC day');
+select is(public.mark_announcement_read((select id from boundary_ids where t=3 and k='not_live'),1),false,'ANC invalid timezone: member 201 not_live marker reflects UTC day');
+set local role postgres;
+select pg_temp.claim('member',null,202,1102,3);
+set local role authenticated;
+select is((select count(*)::integer from public.read_member_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='live')),0,'ANC invalid timezone: member 202 live feed reflects UTC day');
+select is(public.mark_announcement_read((select id from boundary_ids where t=3 and k='live'),1),false,'ANC invalid timezone: member 202 live marker reflects UTC day');
+select is((select count(*)::integer from public.read_member_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='not_live')),1,'ANC invalid timezone: member 202 not_live feed reflects UTC day');
+select is(public.mark_announcement_read((select id from boundary_ids where t=3 and k='not_live'),1),true,'ANC invalid timezone: member 202 not_live marker reflects UTC day');
+set local role postgres;
+select pg_temp.claim('gym_owner',23,null,923,3);
+set local role authenticated;
+select is((select read_current from public.list_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='live')),1,'ANC invalid timezone: live eligible UTC receipt aggregate');
+select is((select read_current from public.list_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='not_live')),1,'ANC invalid timezone: not_live eligible UTC receipt aggregate');
 select * from finish();
 rollback;

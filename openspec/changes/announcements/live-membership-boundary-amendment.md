@@ -17,6 +17,14 @@ pending, expired and cancelled rows never qualify. `not_live` is the exact inver
 The existing validated gym timezone fallback applies. Reuse the registered shared
 predicate and day helper; add no new helper or permission.
 
+Shared-helper reconciliation: `app.gym_today` must validate the readable gym's
+timezone against the canonical PostgreSQL names and use UTC only when that
+timezone is invalid. Valid gym timezones keep their own calendar date; an
+unreadable or missing gym still returns null under its existing RLS contract.
+The approved fallback applies to this shared dependency, not just the audience
+call site. Independent invalid-timezone regressions precede its isolated repair;
+GRD's existing valid-zone age, consent and fail-safe assertions remain mandatory.
+
 All consumers keep the single audience function: member feed, read markers,
 publish count, staff counts and delivery. Good standing, all-member targeting,
 transactional/promotional consent, notice behavior and money records stay intact.
