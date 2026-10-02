@@ -24,3 +24,29 @@ retry preserves its quote, payment method and reason. A deliberately revised
 command after a definitive business/quote refusal is a new reviewed command;
 success links to the actual order and receipt. Independent visible and held
 authors retain separate harnesses and may not read the source or each other.
+
+Pending duplicate invocations cannot replace or clear the active original
+command. If refreshed offer props change its price or currency, reconciliation
+still reviews, validates and retries the retained command's original context;
+a newly zero-priced offer cannot require a reason on an earlier paid command.
+
+## Existing product display interface
+
+`apps/web/app/(console)/shop/product-display-panel.tsx` exports
+`ProductDisplayPanel({ product, categories })`. Public structural types from
+`apps/web/lib/shop-console.ts` are:
+
+- `ShopCategory = Pick<Database['public']['Tables']['shop_categories']['Row'],
+  'id' | 'name' | 'sort_order' | 'is_active'>`.
+- `ShopProduct = Omit<Database['public']['Tables']['addon_products']['Row'],
+  'price_paise'> & { price_paise: string; heldQuantity: number | null;
+  imageUrl: string | null; imageAssetId: string | null }`.
+
+The existing public file delegate is `uploadProductImage(file, onStage?)`;
+the asset result and stages are fixed in upload-stage-interface-clarification.
+The form uses the existing same-origin PATCH `/api/shop/products/{id}` and
+strict shared product-display request schema. Source-blind tests may double the
+delegate to control verification timing and ordinary fetch for the display save.
+Same-render repeated activation cannot create concurrent upload/save sequences.
+Invalid display fields cannot report Saving when no display mutation occurs;
+errors and retries must preserve truthful stages and confirmed-asset reuse.
