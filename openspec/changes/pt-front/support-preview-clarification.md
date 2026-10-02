@@ -24,8 +24,10 @@ claim, the helper admits a row only when all of the following are true:
   confirms it is unended and unexpired.
 - The same current platform_users actor is active and role super_admin, matching
   the unchanged hook's actual impersonation eligibility.
-- The gym retains the same current eligible active/trial predicate already
-  required by the PTF staff actor. No invented staff identity is substituted.
+- The target gym exists. Its status is not an additional preview restriction:
+  NAV-006 and the unchanged hook permit preview of any existing gym, including
+  pending, suspended, closed and expired-trial gyms. No invented staff identity
+  is substituted. Member booking eligibility remains separately unchanged.
 
 The helper returns tenant_id, staff_id=NULL, user_id=auth.uid, role=gym_owner for
 this read-only path. Missing, expired, ended, foreign, wrong-actor, inactive actor,
