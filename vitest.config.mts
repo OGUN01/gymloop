@@ -13,6 +13,7 @@ export default defineConfig({
     alias: [
       { find: /^next\/headers$/, replacement: webRequire.resolve('next/headers') },
       { find: /^next\/navigation$/, replacement: webRequire.resolve('next/navigation') },
+      { find: /^next\/image$/, replacement: webRequire.resolve('next/image') },
       { find: /^react$/, replacement: webRequire.resolve('react') },
       { find: /^react\/jsx-runtime$/, replacement: webRequire.resolve('react/jsx-runtime') },
       { find: /^react\/jsx-dev-runtime$/, replacement: webRequire.resolve('react/jsx-dev-runtime') },
