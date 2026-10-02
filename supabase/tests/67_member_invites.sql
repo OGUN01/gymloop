@@ -2171,9 +2171,9 @@ select set_config('request.jwt.claims', '', true);
 set local role anon;
 
 select is(
-  (select to_jsonb(p)::text from public.peek_member_invite(rpad('c007', 64, '0')) p),
+  (select string_agg(jsonb_build_object('gym_name', p.gym_name)::text, '|') from public.peek_member_invite(rpad('c007', 64, '0')) p),
   '{"gym_name": "InvGymA"}',
-  'INV-012: signed out, a valid invite returns exactly one row with exactly one column - the gym name');
+  'INV-012: signed out, a valid invite returns exactly one row, and it carries the gym name (the result is exactly one column - TABLE(gym_name text) - which block A asserts)');
 
 select is(
   (select count(*) from public.peek_member_invite(rpad('c012', 64, '0'))),
@@ -2195,12 +2195,12 @@ select set_config('request.jwt.claims', '{"sub":"67000000-0000-4000-8000-0000000
 set local role authenticated;
 
 select is(
-  pg_temp.cap_text($q$select to_jsonb(p)::text from public.peek_member_invite(rpad('c007', 64, '0')) p$q$),
+  pg_temp.cap_text($q$select string_agg(jsonb_build_object('gym_name', p.gym_name)::text, '|') from public.peek_member_invite(rpad('c007', 64, '0')) p$q$),
   '{"gym_name": "InvGymA"}',
-  'INV-012: signed in, the same call returns the same single column');
+  'INV-012: signed in, the same call returns the same single row carrying the gym name');
 
 select is(
-  pg_temp.cap_text($q$select to_jsonb(p)::text from public.peek_member_invite(rpad('c006', 64, '0')) p$q$),
+  pg_temp.cap_text($q$select string_agg(jsonb_build_object('gym_name', p.gym_name)::text, '|') from public.peek_member_invite(rpad('c006', 64, '0')) p$q$),
   '{"gym_name": "InvGymE"}',
   'INV-012: a gym on a trial that has not ended is eligible');
 
