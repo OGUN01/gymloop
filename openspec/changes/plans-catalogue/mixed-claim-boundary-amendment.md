@@ -1,7 +1,8 @@
 # Plans catalogue: existing staff claims boundary
 
-Status: proposed for owner decision. PLC implementation and final acceptance stay
-paused at this boundary; no policy change is authorized by this document.
+Status: owner approved on 2026-10-02 in the campaign chat: retain the exact
+minimal catalogue change. Independent tests and a fresh review precede final
+acceptance. No additional staff-policy hardening is authorized.
 
 PLC-002 promises two incompatible outcomes: unchanged staff catalogue access, and
 no rows for a non-member role carrying a member_id. PLC-003 permits changing only
