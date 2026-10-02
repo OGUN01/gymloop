@@ -137,7 +137,13 @@ async function detail() {
   const { default: Page } = await import('../../apps/web/app/(console)/members/[memberId]/page');
   return renderToStaticMarkup(await Page({ params: Promise.resolve({ memberId: fixture.target }), searchParams: Promise.resolve({}) }));
 }
-function plain(markup: string) { return markup.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '); }
+function plain(markup: string) {
+  return markup.replace(/<[^>]+>/g, ' ')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#([0-9]+);/g, (_, decimal) => String.fromCodePoint(Number.parseInt(decimal, 10)))
+    .replace(/&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&').replace(/\s+/g, ' ');
+}
 function assertPrivate(markup: string) {
   for (const secret of [fixture.hash, fixture.token, 'PRIVATE_AUDIT_JSON', 'PRIVATE_QUERY_FAILURE', 'PRIVATE_RPC_FAILURE', 'REFUSAL_IDENTITY']) {
     expect(markup).not.toContain(secret);

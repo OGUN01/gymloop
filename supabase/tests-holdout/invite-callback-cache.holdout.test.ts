@@ -27,7 +27,7 @@ beforeEach(() => {
     data: state.exchangeError ? { session: null, user: null } : { session: { user: signedInUser }, user: signedInUser },
     error: state.exchangeError ? { message: 'PRIVATE_EXCHANGE_FAILURE' } : null,
   }));
-  state.claims.mockReset().mockResolvedValue({ data: { claims: { sub: signedInUser.id, email: signedInUser.email } }, error: null });
+  state.claims.mockReset().mockResolvedValue({ data: { claims: { sub: signedInUser.id, email: signedInUser.email, role: 'authenticated' } }, error: null });
   state.user.mockReset().mockResolvedValue({ data: { user: signedInUser }, error: null });
 });
 afterEach(() => vi.unstubAllEnvs());
