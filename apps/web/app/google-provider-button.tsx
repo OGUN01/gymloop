@@ -11,6 +11,8 @@ const googleSans = localFont({
   style: 'normal',
   display: 'block',
   fallback: [],
+  // Readiness must load only the bundled face, never Next's local Arial fallback.
+  adjustFontFallback: false,
 });
 
 /** Only font availability gates submission; the enclosing form owns authentication. */
