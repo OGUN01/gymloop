@@ -6,12 +6,15 @@ import type { MemberSnapshot } from '../mobile-data';
 // Fixture fields come only from pre-existing exported MemberSnapshot and the
 // inferred public useMemberSnapshot return signature (no component bodies read).
 const { state } = vi.hoisted(() => ({ state: {
-  type: 'dance' as 'dance' | 'gym', slots: [] as unknown[], cursor: 0,
+  type: 'dance' as 'dance' | 'gym' | 'yoga' | 'martial_arts' | 'studio', slots: [] as unknown[], cursor: 0,
   effects: [] as Array<() => unknown>, error: false, loading: false,
   empty: false, desk: false, count: 1,
 } }));
 const stored = 'Stored gym member trainer message';
 const nouns = {
+  yoga: { place: 'studio', session: 'class', sessions: 'classes', class: 'class', classes: 'classes', member: 'member', members: 'members', trainer: 'teacher' },
+  martial_arts: { place: 'academy', session: 'class', sessions: 'classes', class: 'class', classes: 'classes', member: 'student', members: 'students', trainer: 'instructor' },
+  studio: { place: 'studio', session: 'session', sessions: 'sessions', class: 'class', classes: 'classes', member: 'member', members: 'members', trainer: 'trainer' },
   dance: { place: 'academy', session: 'class', sessions: 'classes', class: 'batch', classes: 'batches', member: 'student', members: 'students', trainer: 'instructor' },
   gym: { place: 'gym', session: 'session', sessions: 'sessions', class: 'class', classes: 'classes', member: 'member', members: 'members', trainer: 'trainer' },
 };
@@ -128,7 +131,7 @@ describe('BIZ-012/021 rendered native vocabulary and accessible names', () => {
   });
   it('dance Gym renders classes used and the student scanner hint', async () => {
     const tree = await render('gym'); expect(text(tree)).toContain('Academy code');
-    expect(nodes(tree).some((node) => text(node) === 'Academy'), 'primitive-4 screen title uses the capitalized place').toBe(true);
+    expect(nodes(tree).some((node) => text(node) === 'My academy'), 'the existing place eyebrow varies only its noun').toBe(true);
     const usage = nodes(tree).map(text).filter((value) => /\bused\b/i.test(value)).sort((left, right) => left.length - right.length)[0];
     expect(usage).toBeDefined();
     expect(usage).toMatch(/\b1\b/); expect(usage).toMatch(/\b3\b/); expect(usage).toMatch(/\bclasses\b/);
@@ -169,3 +172,35 @@ describe('BIZ-012/021 rendered native vocabulary and accessible names', () => {
     }
   });
 });
+
+// BIZ-012/014 and the approved pre-BIZ hierarchy: the place is the eyebrow,
+// the business name is the success heading; the error heading is My {place}.
+describe('BIZ native place screen preserves its approved heading hierarchy', () => {
+  const cases = [
+    ['gym', 'My gym'], ['dance', 'My academy'], ['yoga', 'My studio'],
+    ['martial_arts', 'My academy'], ['studio', 'My studio'],
+  ] as const;
+  it.each(cases)('%s success keeps the place eyebrow before the business heading', async (type, label) => {
+    state.type = type;
+    const tree = await render('gym');
+    const texts = nodes(tree).filter((node) => node.type === 'text');
+    const eyebrow = texts.findIndex((node) => text(node) === label);
+    const heading = texts.findIndex((node) => text(node) === 'BIZ Academy');
+    expect(eyebrow, 'the approved My {place} eyebrow must be present').toBeGreaterThanOrEqual(0);
+    expect(heading, 'the business name must remain the success heading').toBeGreaterThan(eyebrow);
+    const fontSize = (style: unknown): number => {
+      if (Array.isArray(style)) return style.reduce<number>((size, item) => fontSize(item) || size, 0);
+      if (style && typeof style === 'object' && 'fontSize' in style && typeof style.fontSize === 'number') return style.fontSize;
+      return 0;
+    };
+    expect(fontSize(texts[heading]?.props.style), 'business heading must be larger than the place eyebrow')
+      .toBeGreaterThan(fontSize(texts[eyebrow]?.props.style));
+  });
+  it.each(cases)('%s error keeps My {place} as its title', async (type, label) => {
+    state.type = type; state.error = true;
+    const tree = await render('gym');
+    expect(nodes(tree).filter((node) => node.type === 'text').map(text)).toContain(label);
+    expect(text(tree)).not.toContain('BIZ Academy');
+  });
+});
+
