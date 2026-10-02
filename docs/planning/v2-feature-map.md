@@ -192,48 +192,76 @@ Pay-per-message wallet per gym.
 - Delivery and read receipts; fallback to in-app/push on failure.
 - PII minimization in templates (no balances/arrears in plain template text where avoidable).
 
-## F10. Member-visible orders and payment requests - manual collection (PAY)
+## F10. Buy tab, member-initiated requests and payment screenshots - manual collection (PAY)
 
-**Owner direction, 2026-10-02:** **no payment gateway.** Money is collected at
-the counter, exactly as ADR-146 decided. What is built instead is the perfect
-*offline payment track*: the member sees every rupee the gym asks of them and
-everything they buy, in the app, before and after the desk records it.
+**Owner direction, 2026-10-02 (amended same day):** **no payment gateway.**
+Money is collected outside the app (cash, or UPI to the gym's own QR). What
+the app adds is the **member-initiated purchase flow with payment proof** -
+the direction is the member's, not the desk's.
 
 **What.**
-- A **payment request** the owner/desk raises against a member: what it is for
-  (renewal of plan X, PT pack, shop order, locker rent), the amount, GST, due
-  date. The member sees it in the app, can **accept** (acknowledge) or
-  **query/reject** (tell the desk something is wrong) - accepting is not
-  paying; the text says "pay at the counter."
-- **Shop orders** name the product, quantity, price-per-unit and total; a
-  member-placed order is a **reservation with an expiry**; the member picks it
-  up at the counter, the desk records the money, the receipt appears in the
+- A **Buy / Payments tab** in the member app. The member raises a request for
+  what they want: a **shop product**, a **PT pack**, or a **gym fee**
+  (renewal of their current plan; plan changes stay desk-assisted).
+- The request lands with the owner/desk for **acceptance** (stock, price
+  confirmation, eligibility - e.g. live membership for a PT pack).
+- The member pays outside the app and **uploads a payment screenshot** (UPI
+  transaction confirmation) against their request.
+- The owner/desk **verifies the screenshot** and records the payment in the
+  existing money flow - that record (not the screenshot) is what activates the
+  product, extends the membership or credits the pack. Receipt appears in the
   member app.
-- Full member-side history: paid receipts (exists today), open requests, open
-  orders - one money screen.
-- The money recording itself stays the existing desk flow: integer paise,
-  paid rows frozen, refunds with ceilings, receipts, GST. Nothing about the
-  ledger changes; the member just finally sees it.
+- The desk can still record plain counter sales as today (walk-in, no app
+  involvement); both paths feed the same ledger.
+
+**State machine.**
+`requested -> owner_accepted -> payment_proof_uploaded -> recorded (paid)`,
+with `rejected by owner`, `rejected proof` (member re-uploads), `cancelled by
+member` (before owner acceptance) and `expired` as exits. Every transition is
+audited.
 
 **Edge cases.**
-- Request states: `requested -> accepted | queried/rejected -> paid at desk | cancelled by desk | expired`. State transitions audited; a rejected request is never silently re-raised (desk must act visibly).
-- Acceptance is an acknowledgment with a timestamp and an audit row - it is legally "the member saw and agreed to owe this," not payment. The copy must never imply the member paid.
-- Amount or product changed after the member accepted (price correction, pack swap): the request is versioned - the member sees what changed, old acceptance does not silently carry over.
-- Duplicate request raised by the desk for the same thing: visible as duplicates; merge or refuse, never collect twice (the existing dedupe/refusal rules extend to requests).
-- Member-placed order: stock reserved then expiry releases it (the last-item race follows the existing order-lock pattern); unclaimed reservations never block stock forever.
-- Member rejects/queries a request: desk sees it in the console as a to-do, resolves in person; nothing auto-cancels.
-- Member leaves the gym with open requests/orders: status hygiene on membership end - open requests are closed as `expired`, unclaimed orders released.
-- A pending-status member cannot accept orders (consistent with every other self-service boundary).
-- The member app shows requests read-only offline (cache), but accepting/rejecting requires a connection - clear error, no fake success.
-- Notifications (NTF) later: "you have a payment request" is transactional - no marketing consent needed.
-- Money-path blind rigor (ADR-059) applies: requests, acceptances, order expiry and their state machine are money-adjacent and get the full blind arrangement.
-- **Explicitly deferred:** UPI/gateway (provider webhooks, auto-extend on verified payment, gates 20/21 evidence). If the owner later elects online charging, that is a separate change reopening all of it.
-## F11. Member self-service (SLF)
+- **The screenshot is evidence, never money.** No state advances on upload
+  alone; only the desk's recorded payment does. All existing money rules
+  (integer paise, frozen paid rows, receipts, GST) apply unchanged to that
+  record.
+- **A screenshot is not proof of receipt of money by the gym** - it is proof
+  the member *says* they paid. The desk's manual verification is the control;
+  the copy must say "pending verification," never "paid."
+- One active proof per request; a member can replace it before verification. A
+  rejected proof requires a reason (typed by desk, shown to member).
+- Screenshot hygiene: size cap, MIME allowlist (image/*), one per state,
+  tenant-scoped private storage in the R2 bucket. **DPDP retention rule
+  required** - screenshots carry UPI transaction ids and partial account
+  details; delete N days after the verification decision (default 90), and
+  never show one member's proof to another member or staff outside the
+  verifying path.
+- A proof file may verify exactly one request: recording a payment binds the
+  stored image to that payment row so the same screenshot cannot verify two
+  purchases.
+- Stock race: two members request the last item; the owner accepts one, the
+  other is declined with the out-of-stock reason. Acceptance reserves stock
+  with the existing order-lock pattern; request expiry releases it.
+- Amount mismatch: the member's request and the verified money may differ
+  (they paid the old price). The desk records the truth; the request shows the
+  difference rather than silently matching.
+- Member cancels after owner accepted: allowed until payment is recorded;
+  stock released, state auditable.
+- Member leaves the gym with an open request: closed as expired.
+- Offline: the Buy tab is read-only; raising a request or uploading proof
+  needs a connection - clear error, no fake success.
+- Notifications (NTF) later: "order accepted", "payment verified", "new order
+  awaiting approval" for the desk - all transactional, no marketing consent.
+- Money-path blind rigor (ADR-059) applies to the state machine, screenshot
+  binding and request expiry.
+- **Explicitly deferred:** UPI/gateway (provider webhooks, auto-verification,
+  gates 20/21 evidence). If the owner later elects online charging, that is a
+  separate change reopening all of it.
 
 **What.** In the app: see plan, request a freeze (existing desk action,
-member-initiated as an approval request), request a renewal (PAY raises the
-member-visible payment request; the desk collects and records it), view
-receipts (already there).
+member-initiated as an approval request), request a renewal (PAY's Buy tab:
+member raises the request, pays outside the app, uploads proof, the desk
+verifies and records it), view receipts (already there).
 
 **Edge cases.** Overlapping freeze requests; pending-status members blocked
 from self-service; self-purchase reuses PAY edge cases; approval workflow
