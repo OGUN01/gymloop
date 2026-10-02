@@ -9,7 +9,7 @@ select plan(61);
 create function pg_temp.bid(n integer) returns uuid language sql immutable as
 $$ select ('70000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid $$;
 create function pg_temp.biz_claim(r text,s integer default 21,u integer default 901,t integer default 1,p boolean default false) returns void language plpgsql as $$
-begin perform set_config('request.jwt.claims',jsonb_strip_nulls(jsonb_build_object('sub',pg_temp.bid(u),'role','authenticated','app_role',r,'staff_id',case when s is not null then pg_temp.bid(s) end,'tenant_id',case when t is not null then pg_temp.bid(t) end,'member_id',case when r='member' then pg_temp.bid(101) end,'impersonation_id',case when p then pg_temp.bid(999) end))::text,true); end $$;
+begin perform set_config('request.jwt.claims',jsonb_strip_nulls(jsonb_build_object('sub',pg_temp.bid(u),'role','authenticated','app_role',r,'staff_id',case when s is not null then pg_temp.bid(s) end,'tenant_id',case when t is not null then pg_temp.bid(t) end,'member_id',case when r='member' then pg_temp.bid(101) end,'impersonation_session_id',case when p then pg_temp.bid(999) end))::text,true); end $$;
 create function pg_temp.biz_refuse(q text,with_detail boolean default false) returns text language plpgsql as $$
 declare detail text;
 begin begin execute q; raise exception using errcode='Z7000'; exception when others then if sqlstate='Z7000' then return 'SUCCESS'; end if; get stacked diagnostics detail=PG_EXCEPTION_DETAIL; return sqlstate||case when with_detail then ':'||coalesce(detail,'') else '' end; end; end $$;
@@ -126,7 +126,7 @@ select is(pg_temp.biz_refuse($q$select public.set_business_type('dance')$q$),'42
 set local role postgres;
 select is(pg_temp.biz_refuse($q$select app.business_type_audit(pg_temp.bid(1),null,null,'other.action','organization',pg_temp.bid(1),null,null)$q$),'22023','BIZ-008: helper refuses other audit actions');
 set local role anon;
-select is((select count(*)::integer from public.organizations where id in(pg_temp.bid(1),pg_temp.bid(2))),0,'BIZ-002: anon reads no organization type');
+select is(pg_temp.biz_refuse($q$select business_type from public.organizations where id in(pg_temp.bid(1),pg_temp.bid(2))$q$),'42501','BIZ-002: anon organization-type read refused by canonical SELECT privilege');
 select is(pg_temp.biz_refuse($q$select public.set_business_type('dance')$q$),'42501','BIZ-004: anon cannot call owner command');
 set local role postgres;
 select * from finish();

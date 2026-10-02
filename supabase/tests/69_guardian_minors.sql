@@ -18,7 +18,7 @@ $$ begin perform set_config('request.jwt.claims',jsonb_strip_nulls(jsonb_build_o
   'sub',pg_temp.gid(u),'role','authenticated','app_role',r,'tenant_id',pg_temp.gid(t),
   'staff_id',case when s is not null then pg_temp.gid(s) end,
   'member_id',case when r='member' then pg_temp.gid(101) end,
-  'impersonation_id',case when preview then pg_temp.gid(999) end))::text,true); end $$;
+  'impersonation_session_id',case when preview then pg_temp.gid(999) end))::text,true); end $$;
 -- An unexpected successful refusal probe is rolled back too, so it cannot
 -- pollute subsequent evidence. This helper does not elevate its caller.
 create function pg_temp.refusal(q text,with_detail boolean default false) returns text language plpgsql as $$
@@ -367,8 +367,8 @@ set local role authenticated;
 select lives_ok($q$update public.members set guardian_linked_at=guardian_linked_at where id=pg_temp.gid(105)$q$,'GRD-013 marker integrity: unchanged non-null value retains front-office permissions');
 select is(pg_temp.refusal($q$insert into public.members(id,tenant_id,branch_id,full_name,phone,guardian_linked_at) values(pg_temp.gid(112),pg_temp.gid(1),pg_temp.gid(11),'Forged marker insert','+916900000112',statement_timestamp())$q$,true),'42501:guardian_binding_command_required','GRD-013 marker integrity: non-null INSERT refused before linked-state CHECK');
 select is(pg_temp.refusal($q$insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone,guardian_linked_at) values(pg_temp.gid(112),pg_temp.gid(1),pg_temp.gid(11),pg_temp.gid(907),'Forged binding insert','+916900000112',statement_timestamp())$q$),'GL074','GRD-013/INV: non-null user INSERT retains earlier INV guard order');
-select lives_ok($q$insert into public.members(id,tenant_id,branch_id,full_name,phone,guardian_linked_at) values(pg_temp.gid(111),pg_temp.gid(1),pg_temp.gid(11),'Allowed null marker','+916900000111',null)$q$,'GRD-013 marker integrity: ordinary null-marker member insertion remains allowed');
-select lives_ok($q$update public.members set guardian_linked_at=null where id=pg_temp.gid(111)$q$,'GRD-013 marker integrity: unchanged null marker update remains allowed');
+select lives_ok($q$insert into public.members(id,tenant_id,branch_id,full_name,phone,guardian_linked_at) values(pg_temp.gid(114),pg_temp.gid(1),pg_temp.gid(11),'Allowed null marker','+916900000114',null)$q$,'GRD-013 marker integrity: ordinary null-marker member insertion remains allowed');
+select lives_ok($q$update public.members set guardian_linked_at=null where id=pg_temp.gid(114)$q$,'GRD-013 marker integrity: unchanged null marker update remains allowed');
 set local role postgres;
 select is((select count(*)::integer from public.members where id=pg_temp.gid(112)),0,'GRD-013 marker integrity: refused marker/binding inserts leave no row');
 select pg_temp.claim('gym_owner');
