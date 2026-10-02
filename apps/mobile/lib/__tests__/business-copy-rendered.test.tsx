@@ -129,7 +129,10 @@ describe('BIZ-012/021 rendered native vocabulary and accessible names', () => {
   it('dance Gym renders classes used and the student scanner hint', async () => {
     const tree = await render('gym'); expect(text(tree)).toContain('Academy code');
     expect(nodes(tree).some((node) => text(node) === 'Academy'), 'primitive-4 screen title uses the capitalized place').toBe(true);
-    expect(text(tree)).toMatch(/1 classes used|Used 1 of 3 classes/); expect(accessible(tree)).toContain('Opens the student check-in scanner');
+    const usage = nodes(tree).map(text).filter((value) => /\bused\b/i.test(value)).sort((left, right) => left.length - right.length)[0];
+    expect(usage).toBeDefined();
+    expect(usage).toMatch(/\b1\b/); expect(usage).toMatch(/\b3\b/); expect(usage).toMatch(/\bclasses\b/);
+    expect(accessible(tree)).toContain('Opens the student check-in scanner');
   });
   it('dance You labels the profile and account with the correct noun', async () => {
     const tree = await render('you'); expect(text(tree)).toContain('Verified student');

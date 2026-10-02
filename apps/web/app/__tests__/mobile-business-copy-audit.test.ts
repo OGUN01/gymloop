@@ -16,13 +16,13 @@ const surfaces = {
 
 describe('BIZ-012 mobile copy consumers', () => {
   it.each(Object.entries(surfaces))('%s takes current-tenant nouns', (path, legacy) => {
-    const source = readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
+    const source = readFileSync(new URL(`../../../mobile/${path}`, import.meta.url), 'utf8');
     expect(source).toMatch(/import[\s\S]*?\buseBusinessNouns\b[\s\S]*?from\s*['"]/);
     expect(source).toMatch(/\buseBusinessNouns\s*\(/);
     for (const literal of legacy) expect(source, literal).not.toContain(literal);
   });
   it('keeps the stored desk-assist reason literal', () => {
-    const source = readFileSync(new URL('../../app/(desk)/index.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../../mobile/app/(desk)/index.tsx', import.meta.url), 'utf8');
     expect(source).toContain('Member requested desk assistance');
   });
 });

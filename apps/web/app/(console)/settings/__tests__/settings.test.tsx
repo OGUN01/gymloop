@@ -16,7 +16,7 @@ vi.mock('react', async (load) => {
     return [state.hooks.get(slot), (next: unknown) => state.hooks.set(slot, typeof next === 'function' ? (next as (old: unknown) => unknown)(state.hooks.get(slot)) : next)];
   };
   return { ...actual, useState, useRef: (value: unknown) => useState({ current: value })[0], useId: () => key(),
-    useEffect: () => undefined, useLayoutEffect: () => undefined, useMemo: (fn: () => unknown) => fn(), useCallback: (fn: unknown) => fn(),
+    useEffect: () => undefined, useLayoutEffect: () => undefined, useMemo: (fn: () => unknown) => fn(), useCallback: (fn: unknown) => fn,
     useTransition: () => [false, (fn: () => unknown) => fn()] };
 });
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }), redirect: vi.fn(), notFound: vi.fn() }));
@@ -90,7 +90,10 @@ describe('BIZ-017/020 Settings interactions', () => {
     expect(confirming).toContain('Switch to Dance academy wording?'); expect(confirming).toContain('Plans, payments, check-ins and messages already sent stay exactly as they are.');
     expect(state.requests).toEqual([]); expect(hosts.some((node) => node.type === 'button' && text(node.props.children as ReactNode) === 'Save')).toBe(false);
     await press('Confirm change'); const saved = render(element);
-    expect(state.requests).toHaveLength(1); expect(state.requests[0].url).toBe('/api/business-type'); expect(JSON.parse(String(state.requests[0].init.body))).toEqual({ businessType: 'dance' });
+    expect(state.requests).toHaveLength(1);
+    const request = state.requests[0];
+    if (!request) throw new Error('Confirm change must send its business-type request');
+    expect(request.url).toBe('/api/business-type'); expect(JSON.parse(String(request.init.body))).toEqual({ businessType: 'dance' });
     expect(saved).toContain('Saved. FitCruxx now says academy, students, instructor.'); expect(saved).toContain('To tell your students, send a message from Messages.'); expect(saved).toContain('role="status"');
   });
   it('Keep current cancels the inline panel without writing', async () => {

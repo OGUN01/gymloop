@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { businessNouns } from '@gymloop/shared';
+import { businessNouns, type BusinessType } from '@gymloop/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ type: 'gym', phone: '', preview: false }));
+const state = vi.hoisted(() => ({ type: 'gym' as BusinessType, phone: '', preview: false }));
 const db = { from: () => {
   const result = { data: { business_type: state.type, name: 'BIZ Academy' }, error: null };
   const query = { select: () => query, eq: () => query, maybeSingle: async () => result, single: async () => result };
