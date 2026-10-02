@@ -304,15 +304,18 @@ select is_empty(
       select m.tbl, m.read_gate, m.write_gate, m.member_gate,
              case when m.tbl = 'organizations' then 'id' else 'tenant_id' end as tcol,
              to_regclass('public.' || m.tbl) as rel,
-             e.frag as pol_extra
+             e.frag as pol_extra,
+             me.frag as mb_extra
         from m
         left join (values ('leads', 'andselectapp\.current_impersonation_idisnull'),
                           ('member_imports', 'andselectapp\.current_impersonation_idisnull'))
                e(tbl, frag) on e.tbl::text = m.tbl::text
+        left join (values ('plans', 'andis_active'))
+               me(tbl, frag) on me.tbl::text = m.tbl::text
     ),
-    g(tbl, tcol, read_gate, write_gate, member_gate, pol_extra,
+    g(tbl, tcol, read_gate, write_gate, member_gate, pol_extra, mb_extra,
       rd_using, rd_cmd, wr_using, wr_check, wr_cmd, mb_using, mb_cmd) as (
-      select x.tbl, x.tcol, x.read_gate, x.write_gate, x.member_gate, x.pol_extra,
+      select x.tbl, x.tcol, x.read_gate, x.write_gate, x.member_gate, x.pol_extra, x.mb_extra,
              (select pg_get_expr(p.polqual, p.polrelid) from pg_policy p
                where p.polrelid = x.rel and p.polname::text = x.tbl || '_tenant_select'),
              (select p.polcmd::text from pg_policy p
@@ -378,7 +381,7 @@ select is_empty(
                             when 'self' then 'id=selectapp\.current_member_id'
                             else             'member_id=selectapp\.current_member_id'
                           end
-                       || '$'
+                       || coalesce(mb_extra, '') || '$'
              end
         from g
       union all
@@ -393,7 +396,7 @@ select is_empty(
                     '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g')), '')
                   !~ pat
            end$$,
-  'spec "Every table''s read gate matches the matrix" / "Every table''s write gate matches the matrix" / "A refused write affects zero rows; a refused insert raises" / "A member reads only their own rows" -- design.md 8.3, all thirty-six tables, seven clauses each, in both directions - plus member_invites (INV-017) and staff_invites (STI-011 v1.1), two read-only rows: front-office and owner-only tenant_select respectively; GRD-006 adds guardian_consents with front-office tenant_select, no tenant_write and no member_select, and the unchanged universal platform-pair assertion requires its canonical platform_select without a platform_write. The tenant term is first in the predicate, as for every other row, which is the order the member-invites proposal text does not use'
+  'spec "Every table''s read gate matches the matrix" / "Every table''s write gate matches the matrix" / "A refused write affects zero rows; a refused insert raises" / "A member reads only their own rows" -- design.md 8.3, all thirty-six tables, seven clauses each, in both directions - plus member_invites (INV-017) and staff_invites (STI-011 v1.1), two read-only rows: front-office and owner-only tenant_select respectively; GRD-006 adds guardian_consents with front-office tenant_select, no tenant_write and no member_select, and the unchanged universal platform-pair assertion requires its canonical platform_select without a platform_write. PLC-001/003 appends exactly andis_active to plans_member_select through mb_extra; every other member predicate and every staff/platform predicate is unchanged. The tenant term is first in the predicate, as for every other row, which is the order the member-invites proposal text does not use'
 );
 
 -- ---------------------------------------------------------------------------
@@ -892,11 +895,13 @@ select is_empty(
                          ('public.read_staff_app_access(uuid)', 's'),
                          ('public.attest_members_without_dob_adult()', 'v'),
                          ('public.record_guardian_consent(uuid, boolean, text, text)', 'v'),
-                         ('public.transition_member_to_own_account(uuid, text)', 'v')
+                         ('public.transition_member_to_own_account(uuid, text)', 'v'),
+                         ('public.set_business_type(public.business_type)', 'v'),
+                         ('public.set_gym_business_type(uuid, public.business_type, public.business_type, uuid)', 'v')
                        ) allowed(signature, volatility)
                        where p.oid = to_regprocedure(allowed.signature)
                          and p.provolatile = allowed.volatility))))$$,
-  'ADR-032, ADR-116 and the approved Phase 6 member projections and import commands: all app/public security-definer functions have an empty search_path; only the exact postgres-owned signatures on the allowlist may be elevated in public, each at its own required volatility, with no unapproved overload or function. INV-017 (member invites) adds exactly six: the writers issue_member_invite, revoke_member_invite, redeem_member_invite and unlink_member_identity are VOLATILE, and the two readers peek_member_invite (anon may execute this reader) and read_member_app_access are STABLE as specified by INV v1.1; app.member_invite_audit is elevated too but sits in app and is held to the empty-path rule alone. STI-011 v1.1 adds exactly seven postgres-owned signatures: invite_staff_member, issue_staff_invite, revoke_staff_invite, redeem_staff_invite and unlink_staff_identity VOLATILE; peek_staff_invite and read_staff_app_access STABLE. GRD-002/006/016 adds exactly three postgres-owned VOLATILE signatures: attest_members_without_dob_adult, record_guardian_consent and transition_member_to_own_account; its four other public RPCs are invokers'
+  'ADR-032, ADR-116 and the approved Phase 6 member projections and import commands: all app/public security-definer functions have an empty search_path; only the exact postgres-owned signatures on the allowlist may be elevated in public, each at its own required volatility, with no unapproved overload or function. INV-017 (member invites) adds exactly six: the writers issue_member_invite, revoke_member_invite, redeem_member_invite and unlink_member_identity are VOLATILE, and the two readers peek_member_invite (anon may execute this reader) and read_member_app_access are STABLE as specified by INV v1.1; app.member_invite_audit is elevated too but sits in app and is held to the empty-path rule alone. STI-011 v1.1 adds exactly seven postgres-owned signatures: invite_staff_member, issue_staff_invite, revoke_staff_invite, redeem_staff_invite and unlink_staff_identity VOLATILE; peek_staff_invite and read_staff_app_access STABLE. GRD-002/006/016 adds exactly three postgres-owned VOLATILE signatures: attest_members_without_dob_adult, record_guardian_consent and transition_member_to_own_account; its four other public RPCs are invokers. BIZ-003/005 adds only the exact postgres-owned VOLATILE signatures set_business_type(public.business_type) and set_gym_business_type(uuid, public.business_type, public.business_type, uuid); the amended commercial guard keeps its existing invoker posture'
 );
 
 -- Phase 4 (20260909130000_red_list_view.sql) added public.red_list_cases,

@@ -106,6 +106,7 @@ select results_eq(
   $$,
   $$
     values ('activated_at'::text, 'timestamptz'::text, false),
+           ('business_type'::text, 'business_type'::text, true),
            ('created_at'::text, 'timestamptz'::text, true),
            ('currency'::text, 'text'::text, true),
            ('gym_code'::text, 'text'::text, true),
