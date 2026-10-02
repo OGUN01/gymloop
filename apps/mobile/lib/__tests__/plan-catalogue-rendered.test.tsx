@@ -20,6 +20,15 @@ function text(node: ReactNode): string {
   return text(node.props.children as ReactNode);
 }
 describe('PLC-009 rendered native agreed-price row', () => {
+  it('keeps the exact positive discount fact when agreed arithmetic is unsafe', () => {
+    const view: PlanCatalogueView = { plans: [], truncated: false, heldUnavailable: false, held: {
+      planId: 'p1', planName: null, status: 'active', past: false, endsOn: null, current: null, change: 'not_on_offer',
+      recorded: { listPricePaise: '9007199254740993', discountPaise: '1', agreedPricePaise: null, currency: 'INR', durationDays: 30 },
+    } };
+    const rendered = text(createElement(PlanCatalogueBody, { state: { phase: 'ready', view, loadedAt: null, staleReason: null, offline: false }, copy: planCatalogueCopy(businessNouns('gym')), timeZone: 'Asia/Kolkata', onRetry: () => undefined }));
+    expect(rendered).toContain('Price when sold'); expect(rendered).toContain('₹9,00,71,99,25,47,409.93');
+    expect(rendered).toMatch(/Discount\s+₹0\.01/); expect(rendered).not.toContain('Agreed price');
+  });
   it.each([
     ['positive', '10000', '110000', true], ['zero', '0', '120000', false],
     ['null result', '10000', null, false], ['invalid discount', 'invalid', null, false],
