@@ -618,9 +618,9 @@ insert into public.refunds(id,tenant_id,payment_id,kind,amount_paise,currency,st
 select pg_temp.gid(820+n),pg_temp.gid(1),(v->>'payment_id')::uuid,'refund',case when n=3 then 10000 else 1 end,'INR',case n when 0 then 'requested' when 1 then 'processing' when 4 then 'failed' else 'completed' end::public.refund_status,'Recorded return boundary',pg_temp.gid(21),pg_temp.gid(820+n)::text,case when n in(2,3) then statement_timestamp() end
 from generate_series(0,4) n join pt_probe x on x.label='refund_case_'||n;
 -- Same-tenant unrelated payment and foreign-tenant return rows are controls.
-insert into public.payments(id,tenant_id,member_id,amount_paise,currency,status,method,paid_at) values
-(pg_temp.gid(850),pg_temp.gid(1),pg_temp.gid(31),10000,'INR','paid','cash',statement_timestamp()),
-(pg_temp.gid(851),pg_temp.gid(2),pg_temp.gid(33),10000,'INR','paid','cash',statement_timestamp());
+insert into public.payments(id,tenant_id,member_id,amount_paise,currency,status,method,paid_at,recorded_by_staff_id) values
+(pg_temp.gid(850),pg_temp.gid(1),pg_temp.gid(31),10000,'INR','paid','cash',statement_timestamp(),pg_temp.gid(21)),
+(pg_temp.gid(851),pg_temp.gid(2),pg_temp.gid(33),10000,'INR','paid','cash',statement_timestamp(),pg_temp.gid(26));
 insert into public.refunds(id,tenant_id,payment_id,kind,amount_paise,currency,status,reason,processed_at) values
 (pg_temp.gid(852),pg_temp.gid(1),pg_temp.gid(850),'refund',1,'INR','completed','Unrelated payment',statement_timestamp()),
 (pg_temp.gid(853),pg_temp.gid(2),pg_temp.gid(851),'refund',1,'INR','completed','Unrelated tenant',statement_timestamp());

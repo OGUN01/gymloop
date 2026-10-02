@@ -1082,9 +1082,15 @@ select ok(not exists(select 1 from public.class_sessions where rule_id=pg_temp.i
 select ok(exists(select 1 from public.class_sessions where rule_id=pg_temp.id('westrule','rule_id')) and exists(select 1 from public.class_sessions where rule_id=pg_temp.id('eastrule','rule_id')),'CLS-026: extreme timezone assertions are non-vacuous');
 update public.branches set timezone='Invalid/CLS74' where id=pg_temp.u(12);
 select is(app.class_branch_timezone(pg_temp.u(1),pg_temp.u(12)),'Asia/Kolkata','CLS-026: invalid branch zone falls back to valid gym zone');
+-- Historical timezone fixture only; restore ordinary guards before the next probe.
+set local session_replication_role = replica;
 update public.organizations set timezone='Invalid/CLS74' where id=pg_temp.u(1);
+set local session_replication_role = origin;
 select is(app.class_branch_timezone(pg_temp.u(1),pg_temp.u(12)),'UTC','CLS-026: both invalid zones fall back to UTC');
+-- Historical timezone fixture only; restore ordinary guards before the next probe.
+set local session_replication_role = replica;
 update public.organizations set timezone='Asia/Kolkata' where id=pg_temp.u(1);
+set local session_replication_role = origin;
 update public.branches set timezone='Etc/GMT+12' where id=pg_temp.u(12);
 set local role authenticated;
 select pg_temp.claim(21);

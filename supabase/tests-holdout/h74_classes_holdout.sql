@@ -304,7 +304,7 @@ set local session_replication_role=replica;update public.memberships set status=
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),false,'CLS check-in predicate matrix 8 cancelled');
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 8');
 select is(app.member_has_live_membership(pg_temp.u(2),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),false,'CLS membership tenant isolation');
-insert into public.organization_holidays(tenant_id,holiday_on,name)values(pg_temp.u(1),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date+7,'CLS holiday');
+insert into public.organization_holidays(tenant_id,holiday_on,name)values(pg_temp.u(1),(statement_timestamp()at time zone 'Asia/Kolkata')::date+7,'CLS holiday');
 insert into h74_res values('rules',pg_temp.run($q$select coalesce(jsonb_agg(to_jsonb(r)),'[]')from public.create_class_rules(pg_temp.u(600),pg_temp.u(11),array[0,1,2,3,4,5,6]::smallint[],time '23:59',60,3,pg_temp.u(204),null,null)r$q$,pg_temp.sc()));
 select is((select jsonb_array_length(v)from h74_res where k='rules'),7,'CLS seven weekdays atomic create');
 create temp table h74_generated as select id,session_date,starts_at,ends_at,capacity from public.class_sessions where tenant_id=pg_temp.u(1)and rule_id is not null;
