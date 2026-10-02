@@ -1,5 +1,5 @@
 -- Independent visible PTF database contract, PTF-001..026/032/033.
--- Frozen 80d3c73 proposal, completed-pack waiver/return and MEDIA amendments only.
+-- Frozen a66c2cb proposal, waiver/return, expired-pack and MEDIA amendments.
 -- No PTF implementation, proposed migration, app suite or holdout was read.
 -- Sequential evidence is not a cross-session race proof: see acceptance notes.
 -- Post-CI real competing backends must prove same-slot exclusivity, final-budget
@@ -11,7 +11,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims','',true);
-select plan(308);
+select plan(314);
 
 create function pg_temp.gid(n integer) returns uuid language sql immutable as
 $$ select ('73000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid $$;
@@ -72,7 +72,7 @@ insert into public.staff(id,tenant_id,user_id,branch_id,role,full_name,is_active
 (pg_temp.gid(24),pg_temp.gid(1),pg_temp.gid(904),pg_temp.gid(11),'trainer','Trainer One',true,'Certified One'),
 (pg_temp.gid(25),pg_temp.gid(1),pg_temp.gid(905),null,'trainer','Trainer Two',true,'Certified Two'),
 (pg_temp.gid(26),pg_temp.gid(2),pg_temp.gid(906),pg_temp.gid(12),'trainer','Foreign Trainer',true,'Foreign credential'),
-(pg_temp.gid(27),pg_temp.gid(1),null,pg_temp.gid(11),'trainer','Inactive Trainer',false,'Old credential'),
+(pg_temp.gid(27),pg_temp.gid(1),null,pg_temp.gid(11),'trainer','Inactive Trainer',true,'Old credential'),
 (pg_temp.gid(28),pg_temp.gid(1),null,pg_temp.gid(13),'trainer','Other Branch Trainer',true,'Other credential');
 insert into public.members(id,tenant_id,user_id,branch_id,full_name,phone,status) values
 (pg_temp.gid(31),pg_temp.gid(1),pg_temp.gid(907),pg_temp.gid(11),'Member One','+917300000031','active'),
@@ -104,6 +104,18 @@ insert into public.addon_orders(id,tenant_id,member_id,addon_product_id,status,q
 (pg_temp.gid(210),pg_temp.gid(1),pg_temp.gid(31),pg_temp.gid(101),'active',1,0,0,'INR',pg_temp.gid(24),3,0,null,null),
 (pg_temp.gid(212),pg_temp.gid(1),pg_temp.gid(31),pg_temp.gid(102),'active',1,0,0,'INR',pg_temp.gid(25),2,0,app.gym_today(pg_temp.gid(1))-2,app.gym_today(pg_temp.gid(1))+60),
 (pg_temp.gid(211),pg_temp.gid(2),pg_temp.gid(33),pg_temp.gid(103),'active',1,0,0,'INR',pg_temp.gid(26),3,0,app.gym_today(pg_temp.gid(2))-2,app.gym_today(pg_temp.gid(2))+30);
+-- Normal catalogue/order fixtures precede trainer deactivation.
+update public.staff set is_active=false where id=pg_temp.gid(27);
+-- A pre-existing expired pack retains three completed uses and two unclosed
+-- scheduled rows. Historical import only; no positive command proof bypasses guards.
+insert into public.addon_orders(id,tenant_id,member_id,addon_product_id,status,quantity,unit_price_paise,total_paise,currency,trainer_staff_id,sessions_total,sessions_used,starts_on,expires_on)
+values(pg_temp.gid(290),pg_temp.gid(1),pg_temp.gid(31),pg_temp.gid(101),'active',1,0,0,'INR',pg_temp.gid(24),10,3,app.gym_today(pg_temp.gid(1))-30,app.gym_today(pg_temp.gid(1))-1);
+set local session_replication_role=replica;
+insert into public.pt_sessions(id,tenant_id,addon_order_id,trainer_staff_id,member_id,starts_at,ends_at,status)
+select pg_temp.gid(490+n),pg_temp.gid(1),pg_temp.gid(290),pg_temp.gid(24),pg_temp.gid(31),pg_temp.slot(-10+n),pg_temp.slot(-10+n)+interval '1 hour',
+case when n<3 then 'completed'::public.booking_status else 'scheduled'::public.booking_status end
+from generate_series(0,4) n;
+set local session_replication_role=origin;
 create temporary table pt_probe(label text primary key,v jsonb);
 grant select,insert,update on pt_probe to authenticated,service_role;
 create function pg_temp.evidence() returns jsonb language sql stable as $$ select jsonb_build_object(
@@ -299,6 +311,19 @@ set local role postgres;
 select ok((select removed_at is not null and removed_by_staff_id=pg_temp.gid(21) from public.trainer_time_off where id=(select (v#>>'{}')::uuid from pt_probe where label='time_off')),'PTF-007: removal records actor and keeps row');
 select is(pg_temp.evidence(),(select v from pt_probe where label='off_replay_before'),'PTF-007: removal replay writes no audit or other effect');
 
+-- Expiry exception keeps actual reservations visible without sweeping history.
+insert into pt_probe values('expired_boundary_before',pg_temp.evidence());
+select pg_temp.claim('member',null,31,907);
+set local role authenticated;
+select results_eq($q$select state::text collate "default",sessions_total,sessions_used,sessions_scheduled,sessions_remaining,can_book from public.read_member_pt_packs() where order_id=pg_temp.gid(290)$q$,$q$select 'expired'::text collate "default",10,3,2,7,false$q$,'PTF-018: expired member pack counts seven unused sessions despite two unclosed reservations');
+select is(pg_temp.err($q$select public.book_pt_session(pg_temp.gid(290),pg_temp.gid(495),pg_temp.slot(1))$q$,true),'GL058:session_outside_validity','PTF-009/018: expired pack with unused capacity refuses a future booking');
+set local role postgres;
+select pg_temp.claim();
+set local role authenticated;
+select results_eq($q$select state::text collate "default",sessions_total,sessions_used,sessions_scheduled,sessions_remaining from public.read_pt_packs(null,'expired') where order_id=pg_temp.gid(290)$q$,$q$select 'expired'::text collate "default",10,3,2,7$q$,'PTF-018/032: staff expired read reports the same unused balance and actual reservations');
+set local role postgres;
+select is(pg_temp.evidence(),(select v from pt_probe where label='expired_boundary_before'),'PTF-018: expiry reads and booking refusal change no order/session/ledger/refund/audit/notice');
+
 -- Pack states and live-membership primitive consumption, never redefinition.
 select pg_temp.claim('member',null,31,907);
 set local role authenticated;
@@ -323,6 +348,14 @@ select is(pg_temp.err($q$select public.book_pt_session(pg_temp.gid(210),pg_temp.
 select is(pg_temp.err($q$select public.book_pt_session(pg_temp.gid(201),pg_temp.gid(301),pg_temp.slot(1,601))$q$,true),'GL092:not_offered','PTF-009: write applies same grid state as read');
 select ok(exists(select 1 from public.read_member_pt_slots(pg_temp.gid(201),(pg_temp.slot(1) at time zone 'Asia/Kolkata')::date,(pg_temp.slot(1) at time zone 'Asia/Kolkata')::date) where starts_at=pg_temp.slot(1) and ends_at=pg_temp.slot(1)+interval '60 minutes' and timezone='Asia/Kolkata'),'PTF-008: selected start and server duration are actually offered by read');
 select lives_ok($q$insert into pt_probe select 'book_first',to_jsonb(b) from public.book_pt_session(pg_temp.gid(201),pg_temp.gid(301),pg_temp.slot(1)) b$q$,'PTF-008/011: slot returned by deterministic open grid is accepted');
+select results_eq($q$select state::text collate "default",sessions_total,sessions_used,sessions_scheduled,sessions_remaining,can_book from public.read_member_pt_packs() where order_id=pg_temp.gid(201)$q$,$q$select 'live'::text collate "default",8,0,1,7,true$q$,'PTF-005: live member balance still subtracts the genuine reservation');
+set local role postgres;
+select pg_temp.claim();
+set local role authenticated;
+select results_eq($q$select state::text collate "default",sessions_total,sessions_used,sessions_scheduled,sessions_remaining from public.read_pt_packs() where order_id=pg_temp.gid(201)$q$,$q$select 'live'::text collate "default",8,0,1,7$q$,'PTF-032: live staff balance still subtracts the genuine reservation');
+set local role postgres;
+select pg_temp.claim('member',null,31,907);
+set local role authenticated;
 set local role postgres;
 select results_eq($q$select tenant_id,addon_order_id,member_id,trainer_staff_id,starts_at,ends_at,status::text,notes from public.pt_sessions where id=pg_temp.gid(301)$q$,$q$select pg_temp.gid(1),pg_temp.gid(201),pg_temp.gid(31),pg_temp.gid(24),pg_temp.slot(1),pg_temp.slot(1)+interval '60 minutes','scheduled'::text,null::text$q$,'PTF-011: inserted session derives exact identities, duration, scheduled status and null notes');
 select is((select count(*)::integer from public.attendance where tenant_id=pg_temp.gid(1)),0,'PTF-011: booking creates no attendance');
