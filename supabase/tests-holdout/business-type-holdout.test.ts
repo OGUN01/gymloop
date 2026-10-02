@@ -91,6 +91,13 @@ describe('BIZ independent vocabulary and account-scoped fallback', () => {
     expect(await loadBusinessType(db as never, 'tenant-A')).toBe('gym');
     error = new Error('private thrown diagnostic');
     expect(await loadBusinessType(db as never, 'tenant-A')).toBe('gym');
-    expect(reads.every(([table, columns, key, id]) => table === 'organizations' && columns === 'business_type' && key === 'id' && id === 'tenant-A')).toBe(true);
+    // BIZ-010 permits the existing organization snapshot; Decision 1 names its safe columns.
+    expect(reads.every(([table, columns, key, id]) => {
+      if (typeof columns !== 'string') return false;
+      const projection = columns.split(',').map((column) => column.trim());
+      return table === 'organizations' && key === 'id' && id === 'tenant-A'
+        && projection.includes('business_type')
+        && projection.every((column) => ['business_type', 'name', 'gym_code', 'timezone', 'id'].includes(column));
+    })).toBe(true);
   });
 });
