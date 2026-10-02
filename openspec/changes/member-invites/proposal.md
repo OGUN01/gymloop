@@ -224,3 +224,39 @@ and accepted bar deviations remain unchanged. No database command, enum or audit
   callback redirect. The token SHALL remain exclusively in its family's HttpOnly cookie and SHALL
   never enter OAuth query parameters or the callback URL. "Use a different Google account" SHALL
   preserve the invite and reach this chooser path. Ordinary sign-in behavior remains unchanged.
+
+## Contract amendments v1.3 (2026-10-02, front-desk history projection)
+
+The existing tenant `audit_log` policy admits owners and managers, while INV-026 also requires real
+front-desk staff to see this member's invite history. Its broad policy SHALL stay unchanged. This
+amendment supersedes v1.2's "No database command" restriction only for the following read capability;
+no mutation command, enum, audit shape or other permission changes.
+
+- **INV-028 (safe invite-history reader).** `public.read_member_invite_history(p_member_id uuid)`
+  SHALL return `table (event_id uuid, occurred_at timestamptz, action text, actor_name text)` as a
+  postgres-owned `security definer`, `stable`, with `set search_path = ''`. Only `authenticated`
+  SHALL execute it; `public`, `anon` and `service_role` SHALL have no execute privilege. It SHALL
+  call the existing `app.member_invite_actor(array['gym_owner','gym_manager','front_desk'])`, so
+  incomplete, stale, inactive, trainer, member, platform and impersonating callers fail `42501`.
+  Actor validation precedes argument validation: a null member id then fails `22023`; an unknown
+  or other-tenant member fails `42501`. No caller-provided tenant is accepted.
+- The reader SHALL expose only this tenant and member's persisted `member_invite.issued`,
+  `member_invite.superseded`, `member_invite.revoked`, `member_invite.redeemed`, `member.linked`
+  and `member.unlinked` events. Invite events must join their `record_id` to an invite of this
+  exact tenant and member; member events must have this exact member `record_id`. It SHALL
+  exclude every refusal event, unrelated target, platform-level event and unknown action.
+  No audit JSON, token/hash, contact field, Auth id, staff id or tenant id is returned.
+- `actor_name` SHALL be a real same-tenant staff name resolved from the recorded actor, or this
+  member's name for their own member-attributed link/redemption event. If no truthful name can
+  be resolved it SHALL be null; the UI says "Name unavailable", never names the viewer instead.
+  Results SHALL be the latest 50 events ordered by `occurred_at desc, event_id desc`; empty
+  history returns zero rows, and failures remain distinguishable from an empty history.
+- Add the tenant-leading `audit_log_member_invite_history_idx` on
+  `(tenant_id, record_type, record_id, occurred_at desc)`. The reader belongs to the pending INV
+  migration; `04_contract_meta` gains only this exact stable public definer signature. Shared
+  `MEMBER_INVITE_HISTORY_LIMIT = 50` records the history bound separately from unrelated roster
+  page sizes. The history surface is labelled recent history and uses the reader rather than
+  querying broad `audit_log` rows in the web runtime.
+- Tests SHALL precede the reader: visible `supabase/tests/67_member_invite_history.sql` and
+  independent holdout `supabase/tests-holdout/h67_member_invite_history_holdout.sql`, plus
+  independent visible/holdout UI boundary amendments. The implementer never reads holdouts.
