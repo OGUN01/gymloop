@@ -78,7 +78,9 @@ vi.mock('@supabase/supabase-js', async () => ({ ...(await vi.importActual<any>('
   createClient: () => io.client,
 }));
 vi.mock('../../apps/web/lib/supabase/server.ts', () => ({ createServerSupabase: async () => io.client }));
-vi.mock('../../apps/web/lib/identity-session.ts', () => ({ readIdentity: async () => io.identity }));
+vi.mock('../../apps/web/lib/identity-session.ts', () => ({ readIdentity: async () => ({
+  signedIn: true, authenticatedUser: true, identity: io.identity, supabase: io.client,
+}) }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: io.replace, push: io.push, refresh: io.refresh }),
   redirect: (url: string) => { io.replace(url); return null; },
@@ -168,10 +170,11 @@ beforeEach(() => {
     getClaims: async () => ({ data: { claims: { sub: io.identity.userId } }, error: null }),
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe: vi.fn() } } }),
   } };
-  io.post.mockResolvedValue({ outcome: 'already_linked_here', gymName: io.gym });
-  io.fetch.mockResolvedValue(new Response(JSON.stringify({ data: { outcome: 'already_linked_here', gymName: io.gym } }),
+  io.post.mockResolvedValue({ ok: true, data: { outcome: 'already_linked_here', gymName: io.gym } });
+  io.fetch.mockResolvedValue(new Response(JSON.stringify({ ok: true, data: { outcome: 'already_linked_here', gymName: io.gym } }),
     { headers: { 'Content-Type': 'application/json' } }));
   vi.stubGlobal('fetch', io.fetch);
+  vi.stubGlobal('window', { location: { replace: io.replace, assign: io.push } });
   io.context = { supabase: io.client, api: { post: io.post }, identity: io.identity,
     palette: UI_TOKENS.colors.dark,
     session: { user: { email: io.email } }, webOrigin: 'https://recovery-trusted.holdout.example',
@@ -219,7 +222,7 @@ describe('INV-029 real native invite landing', () => {
 });
 
 describe('INV-030 actual web member reopen', () => {
-  it('uses client POST for same-account replay then refreshes and opens member home, never mutating during server render', async () => {
+  it('uses client POST for same-account replay and safely opens member home, never mutating during server render', async () => {
     io.identity = { kind: 'member', userId: 'd1111111-1111-4111-8111-111111111111',
       tenantId: 'e2222222-2222-4222-8222-222222222222', memberId: 'f3333333-3333-4333-8333-333333333333' };
     const { default: Page } = await import('../../apps/web/app/invite/[token]/page');
@@ -229,7 +232,10 @@ describe('INV-030 actual web member reopen', () => {
     const screen = await mount(() => element);
     expect(io.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/member-invites/redeem'),
       expect.objectContaining({ method: 'POST' }));
-    expect(io.replace.mock.calls.some(([path]: any[]) => path === '/member')).toBe(true);
+    expect(io.replace.mock.calls.some(([path]: any[]) => {
+      const home = new URL(String(path), 'https://recovery-trusted.holdout.example');
+      return home.origin === 'https://recovery-trusted.holdout.example' && home.pathname === '/member';
+    })).toBe(true);
     privateView(screen.tree());
   });
   it('other linked audience receives own-email account recovery without client binding', async () => {
