@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { UI_TOKENS } from '@gymloop/shared';
-import { ActionButton, LoadingState, Screen, StateMessage, Title } from '../../components/ui';
+import { ActionButton, Screen, StateMessage, Title } from '../../components/ui';
+import { NativePendingScreen, SavedInviteGate } from '../../components/invite-notice';
 import { useMobile } from '../../lib/mobile-context';
 import { exchangeMobileGoogleCode, resolveMobileGoogleCallbackState } from '../../lib/native-session';
 
@@ -32,7 +33,7 @@ export default function AuthCallback() {
   }, [code, session, supabase]);
 
   const state = resolveMobileGoogleCallbackState({ code, hasSession: session !== null, exchangeFailed });
-  if (state.kind === 'redirect') return <Redirect href="/" />;
+  if (state.kind === 'redirect') return <SavedInviteGate><Redirect href="/" /></SavedInviteGate>;
   if (state.kind === 'failed') {
     return <Screen footer={<ActionButton secondary onPress={() => router.replace('/sign-in')}>Back to sign in</ActionButton>}>
       <View style={styles.copy}>
@@ -41,7 +42,7 @@ export default function AuthCallback() {
       </View>
     </Screen>;
   }
-  return <Screen><LoadingState /></Screen>;
+  return <NativePendingScreen />;
 }
 
 const space = UI_TOKENS.geometry.spacing;

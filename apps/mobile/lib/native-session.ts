@@ -2,12 +2,14 @@ import * as SecureStore from 'expo-secure-store';
 import {
   createClient,
   isAuthRetryableFetchError,
+  processLock,
   type Session,
   type SupabaseClient,
 } from '@supabase/supabase-js';
 import type { Database } from '@gymloop/db';
 import { classifyIdentity, type GymloopIdentity } from '@gymloop/shared';
 import { clearOfflineCheckIns } from './offline-check-in';
+import { savePendingInvite } from './invite';
 import { resolveMobileStartup, type MobileStartupRefresh, type MobileStartupState } from './session';
 
 const SESSION_KEY = 'gymloop.session';
@@ -21,7 +23,7 @@ type MobileGoogleSupabase = {
   auth: {
     signInWithOAuth: (options: {
       provider: 'google';
-      options: { redirectTo: string; skipBrowserRedirect: true };
+      options: { redirectTo: string; skipBrowserRedirect: true; queryParams: { prompt: 'select_account' } };
     }) => Promise<{ data: { url: string | null }; error: unknown }>;
     exchangeCodeForSession: (code: string) => Promise<{ data: unknown; error: unknown }>;
   };
@@ -55,36 +57,89 @@ function claimsFromPersistedToken(token: string): unknown {
 }
 
 async function readCachedIdentity(session: Session): Promise<LinkedIdentity | null> {
-  const saved = await SecureStore.getItemAsync(IDENTITY_KEY);
-  if (saved !== null) {
-    try {
-      const cached = linkedIdentity(JSON.parse(saved), session.user.id);
+  let storageAvailable = true;
+  try {
+    const saved = await SecureStore.getItemAsync(IDENTITY_KEY);
+    if (saved !== null) {
+      let cached: LinkedIdentity | null = null;
+      try { cached = linkedIdentity(JSON.parse(saved), session.user.id); } catch { cached = null; }
       if (cached !== null) return cached;
-      await SecureStore.deleteItemAsync(IDENTITY_KEY);
-    } catch {
-      await SecureStore.deleteItemAsync(IDENTITY_KEY);
     }
+  } catch {
+    // A missing optional cache may fall back only to this authenticated session's same-user JWT.
+    storageAvailable = false;
   }
 
   // Continuity for sessions created before the dedicated identity cache. These
   // facts came inside a prior authenticated session in encrypted app storage.
   // Decoded token facts scope local offline UI only; they never authorize an
   // API request, whose bearer signature and RLS are still checked remotely.
-  const metadataIdentity = classifyIdentity({ ...session.user.app_metadata, sub: session.user.id });
-  if (metadataIdentity.kind !== 'unlinked' && metadataIdentity.userId === session.user.id) return metadataIdentity;
+  if (storageAvailable) {
+    const metadataIdentity = classifyIdentity({ ...session.user.app_metadata, sub: session.user.id });
+    if (metadataIdentity.kind !== 'unlinked' && metadataIdentity.userId === session.user.id) return metadataIdentity;
+  }
   const tokenIdentity = classifyIdentity(claimsFromPersistedToken(session.access_token));
   return tokenIdentity.kind === 'unlinked' || tokenIdentity.userId !== session.user.id ? null : tokenIdentity;
 }
 
 async function writeCachedIdentity(identity: LinkedIdentity): Promise<void> {
-  await SecureStore.setItemAsync(IDENTITY_KEY, JSON.stringify(identity));
+  try { await SecureStore.setItemAsync(IDENTITY_KEY, JSON.stringify(identity)); } catch {
+    // Optional offline continuity cannot veto an already verified online identity.
+  }
+}
+
+// Auth/PKCE bytes are privacy-critical and use a separate device queue from optional identity metadata.
+let authStorageWrites: Promise<void> = Promise.resolve();
+let authStorageRevision: object = {};
+const authStorageKeyRevisions = new Map<string, object>();
+
+function queueAuthStorage(operation: () => Promise<void>): Promise<void> {
+  const pending = authStorageWrites.then(operation);
+  // Subsequent cleanup remains usable after a failure; the caller still receives the critical rejection.
+  authStorageWrites = pending.then(() => undefined, () => undefined);
+  return pending;
+}
+
+async function readAuthStorage(key: string): Promise<string | null> {
+  while (true) {
+    const writes = authStorageWrites;
+    await writes;
+    if (writes !== authStorageWrites) continue;
+    const revision = authStorageRevision;
+    const keyRevision = authStorageKeyRevisions.get(key);
+    const stored = await SecureStore.getItemAsync(`${SESSION_KEY}.${key}`);
+    if (revision === authStorageRevision && keyRevision === authStorageKeyRevisions.get(key)
+      && writes === authStorageWrites) return stored;
+  }
+}
+
+function writeAuthStorage(key: string, value: string): Promise<void> {
+  const revision = authStorageRevision;
+  const keyRevision = {};
+  authStorageKeyRevisions.set(key, keyRevision);
+  const isCurrent = () => revision === authStorageRevision && keyRevision === authStorageKeyRevisions.get(key);
+  return queueAuthStorage(async () => {
+    if (!isCurrent()) return;
+    try { await SecureStore.setItemAsync(`${SESSION_KEY}.${key}`, value); }
+    finally {
+      // A write may physically finish after another client removed this key or began logout.
+      if (!isCurrent()) await SecureStore.deleteItemAsync(`${SESSION_KEY}.${key}`);
+    }
+  });
+}
+
+function removeAuthStorage(key: string): Promise<void> {
+  authStorageKeyRevisions.set(key, {});
+  return queueAuthStorage(() => SecureStore.deleteItemAsync(`${SESSION_KEY}.${key}`));
 }
 
 /** Native Auth client: only public credentials and encrypted device persistence. */
 export function createMobileSupabase(config: Pick<MobileConfig, 'supabaseUrl' | 'supabaseAnonKey'>) {
   return createClient<Database>(config.supabaseUrl, config.supabaseAnonKey, {
     auth: {
-      storage: { getItem: (key) => SecureStore.getItemAsync(`${SESSION_KEY}.${key}`), setItem: (key, value) => SecureStore.setItemAsync(`${SESSION_KEY}.${key}`, value), removeItem: (key) => SecureStore.deleteItemAsync(`${SESSION_KEY}.${key}`) },
+      storage: { getItem: readAuthStorage, setItem: writeAuthStorage, removeItem: removeAuthStorage },
+      // The SDK holds this device-wide lock through refresh/PKCE responses and logout cleanup.
+      lock: processLock,
       persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, flowType: 'pkce',
     },
   });
@@ -98,7 +153,7 @@ export async function signInWithGoogleMobile(input: {
   try {
     const { data, error } = await input.supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: MOBILE_GOOGLE_CALLBACK, skipBrowserRedirect: true },
+      options: { redirectTo: MOBILE_GOOGLE_CALLBACK, skipBrowserRedirect: true, queryParams: { prompt: 'select_account' } },
     });
     if (error || data.url === null) return { ok: false };
 
@@ -111,6 +166,42 @@ export async function signInWithGoogleMobile(input: {
   } catch {
     return { ok: false };
   }
+}
+
+type NativeSessionWork = { revision: object; cacheWrites: Promise<void> };
+// IDENTITY_KEY is device-wide, so every Auth client must share its ordering and write queue.
+const nativeSessionWork: NativeSessionWork = { revision: {}, cacheWrites: Promise.resolve() };
+
+/** All claims/cache work on this device shares one order, including explicit sign-out. */
+function beginNativeSessionWork() {
+  const work = nativeSessionWork;
+  const revision = {};
+  work.revision = revision;
+  return { work, revision };
+}
+
+/** Serialize optional persistence; clean a physically late obsolete write before the next write. */
+function persistNativeIdentity(work: NativeSessionWork, revision: object, identity: LinkedIdentity | null, isCurrent: () => boolean) {
+  work.cacheWrites = work.cacheWrites.then(async () => {
+    if (work.revision !== revision || !isCurrent()) return;
+    try {
+      if (identity === null) await SecureStore.deleteItemAsync(IDENTITY_KEY);
+      else await writeCachedIdentity(identity);
+      if (work.revision !== revision || !isCurrent()) await SecureStore.deleteItemAsync(IDENTITY_KEY);
+    } catch {
+      // This cache is optional. Claims resolution and authoritative sign-out remain independent of it.
+    }
+  });
+}
+
+/** One account-switch press: persist consent context, end the session, then open Google's chooser. */
+export async function switchNativeInviteAccount(input: Parameters<typeof signInWithGoogleMobile>[0] & {
+  token: string;
+  signOut: () => Promise<void>;
+}): Promise<{ ok: true } | { ok: false }> {
+  await savePendingInvite(input.token);
+  await input.signOut();
+  return signInWithGoogleMobile(input);
 }
 
 /**
@@ -172,9 +263,14 @@ export function resolveMobileGoogleCallbackState(input: {
 /** Resolve remote claims when possible and defer, rather than erase, offline work on transient failure. */
 export async function resolveNativeMobileSession(
   supabase: SupabaseClient<Database>,
-  session: Session,
+  session: Session | null,
+  isCurrent: () => boolean = () => true,
 ): Promise<MobileStartupState> {
-  const cachedIdentity = await readCachedIdentity(session);
+  const { work, revision } = beginNativeSessionWork();
+  if (session === null) {
+    persistNativeIdentity(work, revision, null, isCurrent);
+    return resolveMobileStartup({ cachedIdentity: null, refresh: { kind: 'invalid' } });
+  }
   let refresh: MobileStartupRefresh = { kind: 'invalid' };
   try {
     const verified = await supabase.auth.getClaims(session.access_token);
@@ -187,17 +283,26 @@ export async function resolveNativeMobileSession(
   } catch (error) {
     refresh = isAuthRetryableFetchError(error) ? { kind: 'network_error' } : { kind: 'invalid' };
   }
+  // Fresh claims are authoritative. Read the optional continuity cache only when verification is offline.
+  let cachedIdentity: LinkedIdentity | null = null;
+  if (refresh.kind === 'network_error') {
+    await work.cacheWrites;
+    if (work.revision === revision && isCurrent()) cachedIdentity = await readCachedIdentity(session);
+  }
   const startup = resolveMobileStartup({ cachedIdentity, refresh });
-  if (refresh.kind === 'verified' && startup.identity.kind !== 'unlinked') await writeCachedIdentity(startup.identity);
-  else if (refresh.kind === 'network_error' && cachedIdentity !== null) await writeCachedIdentity(cachedIdentity);
-  else if (refresh.kind === 'invalid') await SecureStore.deleteItemAsync(IDENTITY_KEY);
+  if (work.revision !== revision || !isCurrent()) return resolveMobileStartup({ cachedIdentity: null, refresh: { kind: 'invalid' } });
+  const cache = refresh.kind === 'verified' && startup.identity.kind !== 'unlinked' ? startup.identity : cachedIdentity;
+  persistNativeIdentity(work, revision, cache, isCurrent);
   return startup;
 }
 
 /** Sign-out clears private queued commands and local identity before removing Auth tokens. */
 export async function signOutMobile(supabase: SupabaseClient<Database>): Promise<void> {
+  const { work, revision } = beginNativeSessionWork();
+  authStorageRevision = {};
   googleCodeExchanges.clear();
   await clearOfflineCheckIns();
-  await SecureStore.deleteItemAsync(IDENTITY_KEY);
-  await supabase.auth.signOut();
+  persistNativeIdentity(work, revision, null, () => true);
+  const result = await supabase.auth.signOut();
+  if (result.error) throw result.error;
 }

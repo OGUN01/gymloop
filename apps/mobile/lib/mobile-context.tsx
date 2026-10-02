@@ -56,28 +56,38 @@ export function MobileProvider({ children }: { children: ReactNode }) {
   const [identity, setIdentity] = useState<GymloopIdentity>({ kind: 'unlinked' });
   const [sessionReady, setSessionReady] = useState(false);
   const previousScope = useRef<string | null | undefined>(undefined);
+  const authRevision = useRef<object>({});
   const [fontsLoaded] = useFonts({
     Archivo_400Regular, Archivo_500Medium, Archivo_600SemiBold, Archivo_700Bold,
     ArchivoDisplay: archivoDisplay, ArchivoDisplayBold: archivoDisplayBold,
   });
 
   const resolve = useCallback(async (nextSession: Session | null) => {
-    const startup = nextSession === null
-      ? { identity: { kind: 'unlinked' } as const, replay: 'blocked' as const }
-      : await resolveNativeMobileSession(supabase, nextSession);
-    const nextIdentity: GymloopIdentity = startup.identity;
-    const nextScope = scopeKey(nextIdentity);
-    if (startup.replay !== 'deferred' && nextScope !== null) {
-      if (previousScope.current !== undefined && previousScope.current !== nextScope) await clearOfflineCheckIns();
-      previousScope.current = nextScope;
+    const revision = {};
+    authRevision.current = revision;
+    const isCurrent = () => authRevision.current === revision;
+    try {
+      const startup = await resolveNativeMobileSession(supabase, nextSession, isCurrent);
+      if (!isCurrent()) return;
+      const nextIdentity: GymloopIdentity = startup.identity;
+      const nextScope = scopeKey(nextIdentity);
+      if (startup.replay !== 'deferred' && nextScope !== null) {
+        if (previousScope.current !== undefined && previousScope.current !== nextScope) await clearOfflineCheckIns();
+        if (!isCurrent()) return;
+        previousScope.current = nextScope;
+      }
+      // A live unlinked session still supplies the viewer's own email for honest account recovery.
+      setSession(nextSession);
+      setIdentity(nextIdentity);
+      setSessionReady(true);
+    } catch {
+      if (!isCurrent()) return;
+      // A failed privacy-critical queue cleanup cannot publish a new linked identity.
+      authRevision.current = {};
+      setSession(nextSession);
+      setIdentity({ kind: 'unlinked' });
+      setSessionReady(true);
     }
-    // Keep the live Supabase session even when the identity is unlinked: the
-    // not-linked screen names the signed-in email, and root routing must tell
-    // "session without identity" apart from "no session". Linked identities and
-    // offline-queue scope clearing are unchanged.
-    setSession(nextSession);
-    setIdentity(nextIdentity);
-    setSessionReady(true);
   }, []);
 
   useEffect(() => {
@@ -86,16 +96,28 @@ export function MobileProvider({ children }: { children: ReactNode }) {
         if (savedAppearance === 'system' || savedAppearance === 'light' || savedAppearance === 'dark') setAppearanceState(savedAppearance);
       })
       .finally(() => setAppearanceReady(true));
-    void supabase.auth.getSession().then(({ data }) => resolve(data.session)).catch(() => resolve(null));
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => { void resolve(nextSession); });
-    return () => data.subscription.unsubscribe();
+    let authEventSeen = false;
+    let mounted = true;
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      authEventSeen = true;
+      if (mounted) void resolve(nextSession);
+    });
+    void supabase.auth.getSession().then(({ data: snapshot }) => {
+      if (mounted && !authEventSeen) return resolve(snapshot.session);
+    }).catch(() => {
+      if (mounted && !authEventSeen) return resolve(null);
+    });
+    return () => { mounted = false; authRevision.current = {}; data.subscription.unsubscribe(); };
   }, [resolve]);
 
   const setAppearance = useCallback(async (mode: AppearanceMode) => {
     await SecureStore.setItemAsync(APPEARANCE_KEY, mode);
     setAppearanceState(mode);
   }, []);
-  const signOut = useCallback(async () => await signOutMobile(supabase), []);
+  const signOut = useCallback(async () => {
+    authRevision.current = {};
+    await signOutMobile(supabase);
+  }, []);
   const resolvedAppearance = appearance === 'system' ? (system === 'dark' ? 'dark' : 'light') : appearance;
   const palette = UI_TOKENS.colors[resolvedAppearance];
   const ready = appearanceReady && fontsLoaded && sessionReady;
