@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { MemberAppAccess } from '../../apps/web/lib/member-invites';
 import type { AppAccessPanel as ExistingAppAccessPanel } from '../../apps/web/app/(console)/members/[memberId]/app-access-panel';
+import type { GymloopIdentity, StaffRole } from '../../packages/shared/src/api/identity';
 type GuardianRow = {
   age_state: string; date_of_birth: string | null; adult_on: string; gym_today: string;
   guardian_name: string; guardian_relation: 'mother'; guardian_phone: string; guardian_email: string;
@@ -17,10 +18,28 @@ type Query = Promise<ReadReply> & {
   select: () => Query; eq: () => Query; order: () => Query; limit: () => Query;
   maybeSingle: () => Promise<ReadReply>;
 };
-const h = vi.hoisted(() => ({ role: 'gym_owner', guardian: {} as GuardianRow, guardianUnavailable: false, coverage: {} as CoverageRow, rpc: vi.fn(), access: null as MemberAppAccess | null, accessProps: null as { email: string | null; guardian?: { name: string; memberFirstName: string } | null } | null }));
+const h = vi.hoisted(() => {
+  const rpc = vi.fn();
+  const supabase = {
+    rpc,
+    from: (table: string) => {
+      const reply = { data: table === 'organizations' ? { name: 'Holdout Gym' } : table === 'branches' ? { name: 'Main' } : [], error: null };
+      const chain = Promise.resolve(reply) as Query;
+      for (const key of ['select', 'eq', 'order', 'limit'] as const) chain[key] = () => chain;
+      chain.maybeSingle = async () => reply;
+      return chain;
+    },
+  };
+  return { role: 'gym_owner' as StaffRole | 'preview', guardian: {} as GuardianRow, guardianUnavailable: false, coverage: {} as CoverageRow, rpc, supabase, access: null as MemberAppAccess | null, accessProps: null as { email: string | null; guardian?: { name: string; memberFirstName: string } | null } | null };
+});
 const memberId = '69910000-0000-4000-8000-000000000001';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }), notFound: () => { throw Error('not-found'); }, redirect: () => { throw Error('redirect'); } }));
-vi.mock('../../apps/web/lib/identity-session', () => ({ requireAudience: async () => ({ identity: h.role === 'preview' ? { kind: 'impersonation', tenantId: memberId } : { kind: 'staff', role: h.role, tenantId: memberId } }) }));
+vi.mock('../../apps/web/lib/identity-session', () => ({ requireAudience: async () => ({
+  identity: (h.role === 'preview'
+    ? { kind: 'impersonation', userId: memberId, tenantId: memberId, impersonationSessionId: memberId }
+    : { kind: 'staff', role: h.role, userId: memberId, tenantId: memberId, staffId: memberId }) satisfies GymloopIdentity,
+  supabase: h.supabase,
+}) }));
 vi.mock('../../apps/web/app/(console)/members/member-data', () => ({ loadMember: async () => ({ data: { id: memberId, full_name: 'Mira Rao', phone: '+919876543210', email: 'child@holdout.example', status: 'active', branch_id: memberId, joined_on: '2020-01-01', erased_at: null } }) }));
 vi.mock('../../apps/web/lib/membership-state', () => ({ loadMembershipStanding: async () => new Map() }));
 vi.mock('../../apps/web/lib/member-invites', () => ({ loadMemberAppAccess: async () => h.access }));
@@ -34,16 +53,7 @@ vi.mock('../../apps/web/app/(console)/members/[memberId]/app-access-panel', asyn
     return React.createElement(actual.AppAccessPanel, props);
   } };
 });
-vi.mock('../../apps/web/lib/supabase/server', () => ({ createServerSupabase: async () => ({
-  rpc: h.rpc,
-  from: (table: string) => {
-    const reply = { data: table === 'organizations' ? { name: 'Holdout Gym' } : table === 'branches' ? { name: 'Main' } : [], error: null };
-    const chain = Promise.resolve(reply) as Query;
-    for (const key of ['select', 'eq', 'order', 'limit'] as const) chain[key] = () => chain;
-    chain.maybeSingle = async () => reply;
-    return chain;
-  },
-}) }));
+vi.mock('../../apps/web/lib/supabase/server', () => ({ createServerSupabase: async () => h.supabase }));
 
 // Resolve actual asynchronous server children before React's static renderer. Client
 // components are evaluated by React normally, preserving hooks and native controls.
@@ -113,6 +123,7 @@ it.each(['none', 'granted', 'handover'])('support preview keeps %s mutations rea
   if (state === 'handover') Object.assign(h.guardian, { age_state: 'adult', scoring_state: 'on_adult', guardian_linked_at: '2026-01-01T00:00:00Z', handover_due: true });
   const html = await memberHtml();
   for (const control of html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)) {
+    if (control[1] === undefined || control[2] === undefined) throw Error('Incomplete button match');
     const label = control[2].replace(/<[^>]*>/g, '').trim();
     if (!/^(?:Save|Record(?: consent)?|Withdraw consent|Hand over account|Confirm(?: withdrawal| handover)?)$/i.test(label)) continue;
     // Native disabled controls and inherited disabled fieldsets both prevent mutation.
