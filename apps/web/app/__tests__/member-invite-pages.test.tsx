@@ -439,7 +439,18 @@ describe('INV-020 landing, any invalid token, one generic unavailable state', ()
 });
 
 describe('INV-020 landing, signed in as an already-linked identity (D1)', () => {
-  it.each(LINKED_IDENTITIES)('%s sees the D1 sentence and a link home, with nothing to link', async (_label, identity, home) => {
+  it('INV-030 a member initially sees an honest replay check and no premature home', async () => {
+    signInAs(LINKED_IDENTITIES[0]?.[1] ?? null);
+    const { html, text } = await showLanding(TOKEN);
+    expect(text).toMatch(/checking.*(invite|link)|loading/i);
+    expect(text).not.toContain(COPY.account_already_linked);
+    expect(html).not.toMatch(/<a\b[^>]*href="\/member"/);
+    // The client replay boundary is rendered by React SSR; do not invoke its
+    // hook-bearing function through this legacy server-form tree walker.
+    expect(html).not.toMatch(/<form\b[^>]*action="\/api\/member-invites\/redeem"/);
+    expect(headings(html, 1)).toHaveLength(1);
+  });
+  it.each(LINKED_IDENTITIES.filter(([, identity]) => identity.kind !== 'member'))('%s sees the D1 sentence and a link home, with nothing to link', async (_label, identity, home) => {
     signInAs(identity);
     const { tree, html, text } = await showLanding(TOKEN);
     expect(text).toContain(COPY.account_already_linked);

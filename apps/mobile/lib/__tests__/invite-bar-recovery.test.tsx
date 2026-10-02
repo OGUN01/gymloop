@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement, isValidElement, type ReactElement, type ReactNode } from 'react';
-import { createHash } from 'node:crypto';
 import { UI_TOKENS } from '@gymloop/shared';
 
 /** Owner-approved INV-029/030. Execute real native route/screens/effects with
@@ -16,6 +15,8 @@ const { state } = vi.hoisted(() => ({ state: {
   refreshes: 0, signOuts: 0,
 } }));
 const TOKEN = 'Q'.repeat(43);
+// Independently computed SHA-256 of the fixed UTF-8 token, using .NET SHA256.
+const TOKEN_HASH = '9cdc7469f022f9e7965d22eff1ab2c260adcd0c23b98d199c519762f3a0be959';
 const KEY = 'gymloop.pending-invite';
 const EMAIL = 'viewer.google@example.com';
 const GYM = 'Iron Box Fitness';
@@ -50,7 +51,10 @@ vi.mock('expo-secure-store', () => ({
 }));
 vi.mock('expo-crypto', () => ({
   CryptoDigestAlgorithm: { SHA256: 'SHA-256' }, CryptoEncoding: { HEX: 'hex' },
-  digestStringAsync: async (_algorithm: unknown, value: string) => { state.events.push('hash'); return createHash('sha256').update(value).digest('hex'); },
+  digestStringAsync: async (algorithm: unknown, value: string) => {
+    expect(algorithm).toBe('SHA-256'); expect(value).toBe(TOKEN);
+    state.events.push('hash'); return TOKEN_HASH;
+  },
 }));
 vi.mock('expo-web-browser', () => ({
   maybeCompleteAuthSession: () => undefined,
@@ -127,7 +131,7 @@ beforeEach(() => {
 describe('INV-029 native landing consent and direct Google', () => {
   it('first peeks gym-only using expo-crypto SHA256, shows notice/privacy before Google, never redirects to sign-in', async () => {
     const view = await screen(); const visible = text(view.tree);
-    expect(state.rpc).toEqual([{ name: 'peek_member_invite', args: { p_token_hash: createHash('sha256').update(TOKEN).digest('hex') } }]);
+    expect(state.rpc).toEqual([{ name: 'peek_member_invite', args: { p_token_hash: TOKEN_HASH } }]);
     expect(JSON.stringify(state.rpc)).not.toContain(TOKEN); expect(state.events).toContain('hash');
     expect(visible).toContain(GYM); expect(visible).toContain(NOTICE);
     expect(visible.indexOf(NOTICE)).toBeLessThan(visible.indexOf('Continue with Google'));
