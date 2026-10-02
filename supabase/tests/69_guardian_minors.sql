@@ -1,6 +1,7 @@
 -- GRD-001..021/026/027. Frozen proposal plus marker amendment 258fd16;
 -- independent visible DB author.
--- No production source, migrations, app tests or holdouts were read.
+-- No proposed GRD implementation, app tests or holdouts were read.
+-- Canonical phase-6 comms baseline was consulted for its consent prerequisite.
 -- One rollback transaction cannot prove cross-backend concurrency. Sequential
 -- replay and monotonic consent timestamps are tested; concurrency needs a
 -- separate orchestrated rollback proof, not a committed fixture here.
@@ -489,7 +490,7 @@ set local role authenticated;
 insert into public.follow_ups(id,tenant_id,case_id,staff_id,channel,outcome) values(pg_temp.gid(410),pg_temp.gid(1),pg_temp.gid(410),pg_temp.gid(21),'call','no_response');
 insert into public.follow_ups(id,tenant_id,case_id,staff_id,channel,outcome,next_follow_up_at) values(pg_temp.gid(411),pg_temp.gid(1),pg_temp.gid(411),pg_temp.gid(21),'call','timing_issue',clock_timestamp()+interval '1 day');
 set local role postgres;
-select results_eq($q$select status::text from public.no_show_cases where id in(pg_temp.gid(409),pg_temp.gid(410),pg_temp.gid(411)) order by id$q$,$q$select * from (values('open'::text),('contacted'::text),('follow_up_due'::text)) as expected$q$,'GRD-009: controls genuinely occupy every live status');
+select results_eq($q$select status::text collate "default" from public.no_show_cases where id in(pg_temp.gid(409),pg_temp.gid(410),pg_temp.gid(411)) order by id$q$,$q$select * from (values('open'::text collate "default"),('contacted'::text collate "default"),('follow_up_due'::text collate "default")) as expected$q$,'GRD-009: controls genuinely occupy every live status');
 set local role authenticated;
 select lives_ok($q$select public.set_member_age_guardian(pg_temp.gid(109),(current_date-interval '10 years')::date,'Parent private','mother',null,null)$q$,'GRD-009: phone removal loses guardian completeness');
 select lives_ok($q$select public.set_member_age_guardian(pg_temp.gid(110),null,'Parent private','mother','+916900009906',null)$q$,'GRD-009: DOB removal loses eligibility beyond cutoff');
@@ -508,8 +509,12 @@ select lives_ok($q$insert into public.attendance(id,tenant_id,branch_id,member_i
 set local role postgres;
 select is((select count(*)::integer from public.attendance where tenant_id=pg_temp.gid(1) and member_id in(pg_temp.gid(102),pg_temp.gid(106))),2,'GRD-010: unscored member visits are actually persisted');
 
--- Contact path: ordinary payment messages need no marketing consent. Send via
--- the existing lifecycle command before opening WhatsApp; no fabricated sent row.
+-- Contact path: ordinary payment messages require service consent.
+-- GRD consent independently gates scoring; these tests isolate recipient routing.
+insert into public.consents(id,tenant_id,member_id,purpose,granted,version,source,recorded_by_staff_id)
+select pg_temp.gid(660+n),pg_temp.gid(1),pg_temp.gid(n),'service',true,'v1','grd69:contact',pg_temp.gid(21)
+from generate_series(102,104) n;
+-- Send through the existing lifecycle command before opening WhatsApp.
 select pg_temp.claim('gym_owner');
 set local role authenticated;
 insert into public.notifications(id,tenant_id,member_id,channel,status,category,template_key,dedupe_key,scheduled_for,payload) values

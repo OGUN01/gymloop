@@ -5,7 +5,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims','',true);
-select plan(200);
+select plan(202);
 
 create function pg_temp.sid(n integer) returns uuid language sql immutable as $$select ('72000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.claim(r text, t integer default 1, s integer default null, m integer default null, u integer default null, extra jsonb default '{}'::jsonb) returns void language plpgsql as $$begin perform set_config('request.jwt.claims',(jsonb_strip_nulls(jsonb_build_object('role','authenticated','app_role',r,'tenant_id',pg_temp.sid(t),'staff_id',pg_temp.sid(s),'member_id',pg_temp.sid(m),'sub',pg_temp.sid(u)))||extra)::text,true); end$$;
@@ -14,13 +14,13 @@ create function pg_temp.refusal(q text) returns text language plpgsql as $$decla
 create function pg_temp.stage(n integer,k text default 'product',t integer default 1) returns text language sql immutable as $$select pg_temp.sid(t)::text||'/staging/'||k||'/'||pg_temp.sid(n)::text||'.jpg'$$;
 create function pg_temp.pub(n integer,k text default 'product',t integer default 1) returns text language sql immutable as $$select pg_temp.sid(t)::text||'/published/'||k||'/'||pg_temp.sid(n)::text||'.jpg'$$;
 grant execute on function pg_temp.sid(integer),pg_temp.claim(text,integer,integer,integer,integer,jsonb),pg_temp.refusal(text),pg_temp.stage(integer,text,integer),pg_temp.pub(integer,text,integer) to authenticated,anon,service_role;
-create temp table captured(label text primary key,id uuid,expiry timestamptz,order_id uuid,payment_id uuid,replayed boolean);
+create temp table captured(label text primary key,id uuid,expiry timestamptz,order_id uuid,payment_id uuid,replayed boolean,command_at timestamptz default statement_timestamp());
 grant all on captured to authenticated,service_role;
 
 select enum_has_labels('public','shop_reservation_status',array['reserved','fulfilled','cancelled_by_member','cancelled_by_gym'],'SHP-028 exact stored vocabulary has no expired/payment state');
 select ok((select bool_and(relrowsecurity) and count(*)=3 from pg_class where oid in ('public.media_assets'::regclass,'public.shop_categories'::regclass,'public.shop_reservations'::regclass)),'SHP-024 all three tables enable RLS');
 select ok(not has_table_privilege('authenticated','public.media_assets','SELECT'),'MED-005 no authenticated table-level SELECT');
-select results_eq($q$select attname::text from pg_attribute where attrelid='public.media_assets'::regclass and attnum>0 and not attisdropped and has_column_privilege('authenticated',attrelid,attnum,'SELECT') order by attname$q$,$q$values ('attached_to_id'),('bytes'),('confirmed_at'),('created_at'),('created_by_staff_id'),('deleted_at'),('id'),('kind'),('mime'),('tenant_id')$q$,'MED-005 exact safe-column SELECT, no keys or ETags');
+select results_eq($q$select attname::text collate "default" from pg_attribute where attrelid='public.media_assets'::regclass and attnum>0 and not attisdropped and has_column_privilege('authenticated',attrelid,attnum,'SELECT') order by attname$q$,$q$select * from (values ('attached_to_id'::text collate "default"),('bytes'::text collate "default"),('confirmed_at'::text collate "default"),('created_at'::text collate "default"),('created_by_staff_id'::text collate "default"),('deleted_at'::text collate "default"),('id'::text collate "default"),('kind'::text collate "default"),('mime'::text collate "default"),('tenant_id'::text collate "default")) as expected$q$,'MED-005 exact safe-column SELECT, no keys or ETags');
 select ok(has_table_privilege('service_role','public.media_assets','SELECT') and not has_table_privilege('service_role','public.media_assets','INSERT,UPDATE,DELETE'),'MED-005 service private read without new direct DML');
 select ok(not has_table_privilege('authenticated','public.media_assets','INSERT,UPDATE,DELETE') and not has_table_privilege('anon','public.media_assets','SELECT,INSERT,UPDATE,DELETE'),'MED-005 no client media DML or anon grant');
 select ok(has_table_privilege('authenticated','public.shop_reservations','SELECT') and not has_table_privilege('authenticated','public.shop_reservations','INSERT,UPDATE,DELETE'),'SHP-024 reservation SELECT only');
@@ -85,23 +85,23 @@ select is(pg_temp.refusal($q$insert into public.shop_categories(tenant_id,name) 
 select is(pg_temp.refusal($q$insert into public.shop_categories(tenant_id,name) values(pg_temp.sid(2),'Foreign write')$q$) like '42501%',true,'SHP-024 category cross-tenant insert refused');
 select lives_ok($q$select public.set_shop_product_display(pg_temp.sid(101),pg_temp.sid(201),2::smallint,null)$q$,'SHP-003 owner display edit');
 select is(pg_temp.refusal($q$select public.reorder_shop_categories(array[pg_temp.sid(201),pg_temp.sid(999)])$q$),'22023','SHP-018 invalid reorder refuses atomically');
-select results_eq($q$select sort_order::integer from public.shop_categories order by id$q$,$q$values(0),(1)$q$,'SHP-018 failed reorder leaves both positions');
+select results_eq($q$select sort_order::integer from public.shop_categories order by id$q$,$q$select * from (values(0),(1)) as expected$q$,'SHP-018 failed reorder leaves both positions');
 select is(pg_temp.refusal($q$select public.set_shop_product_display(pg_temp.sid(103),pg_temp.sid(201),0::smallint,null)$q$),'GL086:category_unavailable','SHP-003 service cannot use category');
 reset role;
 select is((select quote_version from public.addon_products where id=pg_temp.sid(101)),(select quote_version from quotes where id=pg_temp.sid(101)),'SHP-027 display does not rotate quote');
 select pg_temp.claim('member',1,null,31,906);
 set local role authenticated;
-select results_eq($q$select item_id from public.read_member_shop() order by item_id$q$,$q$values(pg_temp.sid(101)),(pg_temp.sid(102)),(pg_temp.sid(103)),(pg_temp.sid(104))$q$,'SHP-001 exact own complete INR list including zero stock');
-select results_eq($q$select availability,available_quantity from public.read_member_shop() where item_id=pg_temp.sid(104)$q$,$q$values('out_of_stock'::text,0)$q$,'SHP-004 zero stock is listable');
-select results_eq($q$select section,availability,available_quantity,category_id,category_name from public.read_member_shop() where item_id=pg_temp.sid(103)$q$,$q$values('services'::text,'available'::text,null::integer,null::uuid,null::text)$q$,'SHP-004 flat services have no quantity or category');
+select results_eq($q$select item_id from public.read_member_shop() order by item_id$q$,$q$select * from (values(pg_temp.sid(101)),(pg_temp.sid(102)),(pg_temp.sid(103)),(pg_temp.sid(104))) as expected$q$,'SHP-001 exact own complete INR list including zero stock');
+select results_eq($q$select availability collate "default",available_quantity from public.read_member_shop() where item_id=pg_temp.sid(104)$q$,$q$select * from (values('out_of_stock'::text collate "default",0)) as expected$q$,'SHP-004 zero stock is listable');
+select results_eq($q$select section collate "default",availability collate "default",available_quantity,category_id,category_name collate "default" from public.read_member_shop() where item_id=pg_temp.sid(103)$q$,$q$select * from (values('services'::text collate "default",'available'::text collate "default",null::integer,null::uuid,null::text collate "default")) as expected$q$,'SHP-004 flat services have no quantity or category');
 select is((select price_paise from public.read_member_shop() where item_id=pg_temp.sid(101)),'4000000000','SHP-015 bigint price decimal text');
 select is((select count(*)::integer from public.shop_categories),0,'SHP-004 member categories direct read absent');
 select is((select count(*)::integer from public.shop_reservations),0,'SHP-012 member direct reservation read absent');
 select is((select count(id)::integer from public.media_assets),0,'MED-005 member safe media read absent');
 select is(pg_temp.refusal('select object_key from public.media_assets') like '42501%',true,'MED-005 member private media column refused');
 reset role;
-select results_eq($q$select n::text from pg_proc p cross join lateral unnest(p.proargnames,p.proargmodes) a(n,m) where p.oid=to_regprocedure('public.read_member_shop()') and m='t' order by array_position(p.proargnames,n)$q$,$q$values('item_id'),('section'),('name'),('description'),('price_paise'),('currency'),('gst_rate_bp'),('validity_days'),('cancellation_terms'),('quote_version'),('category_id'),('category_name'),('image_asset_id'),('availability'),('available_quantity')$q$,'SHP-004 exact asset-id-only catalogue projection');
-select results_eq($q$select n::text from pg_proc p cross join lateral unnest(p.proargnames,p.proargmodes) a(n,m) where p.oid=to_regprocedure('public.read_member_shop_reservations()') and m='t' order by array_position(p.proargnames,n)$q$,$q$values('reservation_id'),('item_id'),('item_name'),('section'),('quantity'),('unit_price_paise'),('total_paise'),('currency'),('state'),('created_at'),('expires_at'),('cancel_reason'),('terms_changed'),('order_id'),('image_asset_id')$q$,'SHP-012 exact asset-id-only own reservation projection');
+select results_eq($q$select n::text collate "default" from pg_proc p cross join lateral unnest(p.proargnames,p.proargmodes) a(n,m) where p.oid=to_regprocedure('public.read_member_shop()') and m='t' order by array_position(p.proargnames,n)$q$,$q$select * from (values('item_id'::text collate "default"),('section'::text collate "default"),('name'::text collate "default"),('description'::text collate "default"),('price_paise'::text collate "default"),('currency'::text collate "default"),('gst_rate_bp'::text collate "default"),('validity_days'::text collate "default"),('cancellation_terms'::text collate "default"),('quote_version'::text collate "default"),('category_id'::text collate "default"),('category_name'::text collate "default"),('image_asset_id'::text collate "default"),('availability'::text collate "default"),('available_quantity'::text collate "default")) as expected$q$,'SHP-004 exact asset-id-only catalogue projection');
+select results_eq($q$select n::text collate "default" from pg_proc p cross join lateral unnest(p.proargnames,p.proargmodes) a(n,m) where p.oid=to_regprocedure('public.read_member_shop_reservations()') and m='t' order by array_position(p.proargnames,n)$q$,$q$select * from (values('reservation_id'::text collate "default"),('item_id'::text collate "default"),('item_name'::text collate "default"),('section'::text collate "default"),('quantity'::text collate "default"),('unit_price_paise'::text collate "default"),('total_paise'::text collate "default"),('currency'::text collate "default"),('state'::text collate "default"),('created_at'::text collate "default"),('expires_at'::text collate "default"),('cancel_reason'::text collate "default"),('terms_changed'::text collate "default"),('order_id'::text collate "default"),('image_asset_id'::text collate "default")) as expected$q$,'SHP-012 exact asset-id-only own reservation projection');
 
 -- Strict actor shape and database identity binding before command parsing.
 select pg_temp.claim('member',1,null,31,907);
@@ -130,20 +130,34 @@ select is(pg_temp.refusal($q$select * from public.create_shop_reservation(pg_tem
 select is(pg_temp.refusal($q$select * from public.create_shop_reservation(pg_temp.sid(103),2,(select quote_version from quotes where id=pg_temp.sid(103)))$q$),'GL086:invalid_quantity','SHP-005 service quantity exactly one');
 insert into captured(label,id,expiry) select 'big',reservation_id,expires_at from public.create_shop_reservation(pg_temp.sid(101),2,(select quote_version from quotes where id=pg_temp.sid(101)));
 select is(pg_temp.refusal($q$select * from public.create_shop_reservation(pg_temp.sid(101),1,(select quote_version from quotes where id=pg_temp.sid(101)))$q$),'GL086:reservation_exists','SHP-013 duplicate open reservation');
-select results_eq($q$select quantity,unit_price_paise,total_paise,currency,state,terms_changed from public.read_member_shop_reservations() where reservation_id=(select id from captured where label='big')$q$,$q$values(2,'4000000000'::text,'8000000000'::text,'INR'::text,'reserved'::text,false)$q$,'SHP-012 exact snapshot total beyond 32 bits');
+select results_eq($q$select quantity,unit_price_paise collate "default",total_paise collate "default",currency collate "default",state collate "default",terms_changed from public.read_member_shop_reservations() where reservation_id=(select id from captured where label='big')$q$,$q$select * from (values(2,'4000000000'::text collate "default",'8000000000'::text collate "default",'INR'::text collate "default",'reserved'::text collate "default",false)) as expected$q$,'SHP-012 exact snapshot total beyond 32 bits');
 insert into captured(label,id,expiry) select 'last',reservation_id,expires_at from public.create_shop_reservation(pg_temp.sid(102),1,(select quote_version from quotes where id=pg_temp.sid(102)));
 select is((select available_quantity from public.read_member_shop() where item_id=pg_temp.sid(102)),0,'SHP-006 hold excludes last unit immediately');
 reset role;
 select is((select stock_quantity from public.addon_products where id=pg_temp.sid(101)),10,'SHP-005 reservation does not change stock');
 select is((select count(*)::integer from public.addon_orders where tenant_id=pg_temp.sid(1)),0,'SHP-005 reservation creates no order');
 select is((select count(*)::integer from public.payments where tenant_id=pg_temp.sid(1)),0,'SHP-005 reservation creates no payment');
-select is((select expiry=created_at+interval '24 hours' from captured c join public.shop_reservations r on r.id=c.id where label='big'),true,'SHP-005 exact 24 hour hold');
+select is((select created_at=c.command_at and expiry=c.command_at+interval '24 hours' from captured c join public.shop_reservations r on r.id=c.id where label='big'),true,'SHP-005 actual command statement clock and exact 24 hour hold');
 select pg_temp.claim('member',1,null,32,907);
 set local role authenticated;
 select is(pg_temp.refusal($q$select * from public.create_shop_reservation(pg_temp.sid(102),1,(select quote_version from quotes where id=pg_temp.sid(102)))$q$),'GL087:sold_out','SHP-006 serial contender cannot oversell held last unit');
 select is(pg_temp.refusal($q$select public.cancel_shop_reservation((select id from captured where label='big'),null)$q$) like '42501%',true,'SHP-008 other member cancellation opaque');
 select is((select count(*)::integer from public.read_member_shop_reservations()),0,'SHP-012 other member sees no reservation');
 reset role;
+-- Bounded rollback-only command clock seam: real HTTP commands use separate
+-- transactions, whereas this suite's outer BEGIN gives every sale the same
+-- transaction timestamp. Preserve the exact original catalogue default, change
+-- only this fixture default for the ordinary sale/fulfil calls below, then restore
+-- it immediately. No money function, trigger or successful row is rewritten.
+-- Mandatory external evidence: reserve in transaction A, commit; fulfil by its
+-- ordinary RPC in transaction B, commit; replay in C. Use the unaltered default
+-- and prove order.created_at >= reservation.created_at, one stock/payment/audit
+-- effect and correct replay. Sequential statements in this suite are no proof.
+create temp table shop_order_clock as
+select pg_get_expr(d.adbin,d.adrelid) as original_default
+from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
+where d.adrelid='public.addon_orders'::regclass and a.attname='created_at';
+alter table public.addon_orders alter column created_at set default statement_timestamp();
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select is((select held_quantity from public.read_shop_product_holds() where product_id=pg_temp.sid(101)),2,'SHP-006 desk held quantity');
@@ -176,7 +190,13 @@ select is((select replayed from public.fulfil_shop_reservation((select id from c
 select is(pg_temp.refusal($q$select * from public.fulfil_shop_reservation((select id from captured where label='big'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),'upi',null,pg_temp.sid(503))$q$),'GL052:idempotency_conflict','SHP-010 replay changed method key conflict');
 select is(pg_temp.refusal($q$select * from public.fulfil_shop_reservation((select id from captured where label='big'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),'cash',null,pg_temp.sid(504))$q$),'GL086:reservation_not_open','SHP-010 different key cannot fulfil twice');
 reset role;
-select results_eq($q$select total_paise,currency,quantity from public.addon_orders where id=(select order_id from captured where label='fulfilled')$q$,$q$values(10000000000::bigint,'INR'::text,2)$q$,'SHP-010 charge current exact paise not reserved price');
+do $$declare original text; begin
+  select original_default into strict original from shop_order_clock;
+  execute 'alter table public.addon_orders alter column created_at set default '||original;
+end$$;
+select is((select pg_get_expr(d.adbin,d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum where d.adrelid='public.addon_orders'::regclass and a.attname='created_at'),(select original_default from shop_order_clock),'SHP-010 test clock restores exact original order default');
+select ok((select o.created_at>=r.created_at from public.shop_reservations r join public.addon_orders o on o.id=r.order_id where r.id=(select id from captured where label='big')),'SHP-011 successful ordinary fulfil preserves temporal order invariant under fixture command clock');
+select results_eq($q$select total_paise,currency collate "default",quantity from public.addon_orders where id=(select order_id from captured where label='fulfilled')$q$,$q$select * from (values(10000000000::bigint,'INR'::text collate "default",2)) as expected$q$,'SHP-010 charge current exact paise not reserved price');
 select is((select amount_paise from public.payments where id=(select payment_id from captured where label='fulfilled')),10000000000::bigint,'SHP-010 exact single payment');
 select is((select stock_quantity from public.addon_products where id=pg_temp.sid(101)),8,'SHP-010 stock decremented exactly once');
 select is((select count(*)::integer from public.audit_log where record_id=(select id from captured where label='big') and action='shop_reservation.fulfilled'),1,'SHP-025 replay creates one fulfil audit');
@@ -194,7 +214,7 @@ insert into captured(label,id,expiry) select 'service',reservation_id,expires_at
 select lives_ok($q$select public.cancel_shop_reservation((select id from captured where label='service'),'Ignored member reason')$q$,'SHP-008 member cancellation ignores reason');
 select is(pg_temp.refusal($q$select public.cancel_shop_reservation((select id from captured where label='service'),null)$q$),'GL086:reservation_not_open','SHP-008 cancellation replay refuses');
 reset role;
-select results_eq($q$select status::text,cancel_reason,cancelled_by_staff_id from public.shop_reservations where id=(select id from captured where label='service')$q$,$q$values('cancelled_by_member'::text,null::text,null::uuid)$q$,'SHP-008 no member reason or staff attribution');
+select results_eq($q$select status::text collate "default",cancel_reason collate "default",cancelled_by_staff_id from public.shop_reservations where id=(select id from captured where label='service')$q$,$q$select * from (values('cancelled_by_member'::text collate "default",null::text collate "default",null::uuid)) as expected$q$,'SHP-008 no member reason or staff attribution');
 select is((select status::text from public.shop_reservations where id=pg_temp.sid(601)),'reserved','SHP-007 no stored expired transition');
 
 -- MEDIA registration and trusted credential-only finalization.
@@ -230,8 +250,8 @@ select is(public.finalize_media_asset((select id from captured where label='imag
 select is(pg_temp.refusal($q$select public.finalize_media_asset((select id from captured where label='image'),pg_temp.sid(901),pg_temp.sid(21),'gym_owner',pg_temp.sid(1),'product','image/jpeg',101,pg_temp.stage(701),'source',pg_temp.pub(802),'published')$q$),'22023','MED-002 replay still checks immutable registration');
 select is(public.finalize_media_asset((select id from captured where label='image2'),pg_temp.sid(901),pg_temp.sid(21),'gym_owner',pg_temp.sid(1),'product','image/jpeg',100,pg_temp.stage(702),'source2',pg_temp.pub(803),'published2'),true,'MED-002 second independent publication');
 reset role;
-select results_eq($q$select object_key,verified_source_etag,published_etag from public.media_assets where id=(select id from captured where label='image')$q$,$q$select pg_temp.pub(801),'source'::text,'published'::text$q$,'MED-002 replay preserves winner publication');
-select results_eq($q$select actor_user_id,actor_role::text,"before","after" from public.audit_log where record_id=(select id from captured where label='image') and action='media_asset.confirmed'$q$,$q$values(pg_temp.sid(901),'gym_owner'::text,'{"confirmed":false}'::jsonb,'{"confirmed":true}'::jsonb)$q$,'MED-011 one exact real-actor confirmation audit');
+select results_eq($q$select object_key collate "default",verified_source_etag collate "default",published_etag collate "default" from public.media_assets where id=(select id from captured where label='image')$q$,$q$select pg_temp.pub(801) collate "default",'source'::text collate "default",'published'::text collate "default"$q$,'MED-002 replay preserves winner publication');
+select results_eq($q$select actor_user_id,actor_role::text collate "default","before","after" from public.audit_log where record_id=(select id from captured where label='image') and action='media_asset.confirmed'$q$,$q$select * from (values(pg_temp.sid(901),'gym_owner'::text collate "default",'{"confirmed":false}'::jsonb,'{"confirmed":true}'::jsonb)) as expected$q$,'MED-011 one exact real-actor confirmation audit');
 select is(pg_temp.refusal($q$update public.media_assets set published_etag='forged' where id=(select id from captured where label='image')$q$),'GL086:media_verification_invariant','MED-002 postgres cannot rewrite publication');
 select set_config('app.media_finalize_command','finalize:'||(select id::text from captured where label='trainer-image'),true);
 select set_config('request.jwt.claims','{"role":"authenticated","sub":"72000000-0000-4000-8000-000000000901"}',true);

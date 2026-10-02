@@ -121,6 +121,7 @@ The clock starts at the event named in "Retained from". "Erasable" says whether 
 | `attendance`, `attendance_corrections`, `qr_sessions` | the visit | **3 years** | `blank` | Operational history: enough for a multi-year retention narrative and a disputed-visit investigation, not indefinite behavioural tracking. `qr_sessions` holds only a token hash and is prunable at **90 days** — it has no evidential value past its own expiry. |
 | `members`, `member_devices` | last membership end | **3 years** | `blank` | The row survives because financial history references it; the personal columns do not. A device token is dead the moment the app is uninstalled and should be pruned at **1 year** of inactivity regardless. |
 | `consents` | the consent decision | **8 years** | `hold` | Proof of consent has to outlive the consent. DPD-004 is explicit that withdrawal must not delete consent history — a fiduciary that cannot show what was consented to, and when, has no defence. |
+| `guardian_consents` (GRD batch-2 contract; CI application pending) | the consent decision | **8 years** | `hold` | Versioned guardian-consent proof retains guardian name and relation; it contains no guardian phone/email. Withdrawal appends evidence rather than deleting history. |
 | `audit_log`, `impersonation_sessions` | the event | **8 years** | `hold` | INT-003's whole point. An audit log with a shorter life than the records it audits proves nothing about them. |
 | `no_show_cases`, `follow_ups` | case close | **3 years** | `blank` | Retention analytics and a dispute record about how a member was contacted. Tracks attendance, which is what the cases derive from. |
 | `notifications` | send | **1 year** | `blank` | Delivery reporting and opt-out evidence. The consent record, not this table, is the long-lived proof. |
@@ -132,6 +133,15 @@ The clock starts at the event named in "Retained from". "Erasable" says whether 
 | `organizations`, `organization_settings`, `branches`, `staff`, `platform_users`, `razorpay_accounts`, `message_templates`, `organization_holidays` | account closure | **8 years** | n/a | Gym-side configuration and staff records, not member personal data. Tied to the financial clock because the gym is the platform's own customer. |
 
 **What must be built before this is real** (Phase 8, not Phase 1): a job that applies these durations, an erasure routine implementing the `blank`/`delete`/`hold` column, and a legal review of every duration above.
+
+GRD's five nullable member guardian fields are personal data: guardian_name,
+guardian_relation, guardian_phone, guardian_email and guardian_linked_at. They join
+the member profile's `blank` disposition after the three-year member clock; the
+future reviewed erasure routine must clear them along with the other personal
+fields. The separate eight-year guardian-consent evidence remains on hold. The
+field inventory records this separation, and GRD audits omit personal values.
+These are frozen lifecycle requirements, not a claim that an erasure routine or
+automatic retention job has been implemented.
 
 ## Credential rotation — outstanding
 

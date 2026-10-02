@@ -944,7 +944,7 @@ Registered against the frozen v1.1 contracts and current implementation. This se
 | `app.enforce_staff_auth_binding` (STI amendment) | `supabase/migrations/20261002110000_staff_invites.sql` | Existing GL049 guard admits only postgres command-marked non-owner link/unlink changing only user_id plus timestamp; owner platform path remains | Existing staff binding trigger; session revoke trigger stays authoritative |
 | `member_invites_tenant_select` / `member_invites_platform_select` / `staff_invites_tenant_select` / `staff_invites_platform_select` | INV/STI migrations above | Authenticated select-only: own-tenant front office for members, owner for staff; platform read pair. No table write policy or authenticated write grant | Invite console reads; no member/trainer invite-table access |
 
-### INV v1.3 recent-history boundary (implementation integration pending)
+### INV v1.3 recent-history boundary (CI applied; final runtime acceptance pending)
 
 | Name | File | Purpose | Used by |
 |---|---|---|---|
@@ -971,7 +971,7 @@ Registered against the frozen v1.1 contracts and current implementation. This se
 
 ### V2 batch 2 database contracts (preview and CI acceptance pending)
 
-These entries register the frozen GRD/BIZ database contracts for integration.
+These entries register the frozen batch-2 database contracts for integration.
 They do not claim Cloud application or acceptance. Enum-backed TypeScript types
 must come from CLI generation after CI applies the migrations.
 
@@ -992,3 +992,24 @@ must come from CLI generation after CI applies the migrations.
 | `public.business_type` / `organizations.business_type` | `supabase/migrations/20261003100000_business_type.sql` | Canonical gym/dance/yoga/martial_arts/studio vocabulary, default gym; existing reads and grants retained | Single-tenant vocabulary readers and BIZ commands |
 | `app.enforce_organization_commercial` (BIZ amendment) | BIZ migration above | Exactly the authorized business-only command shape and direct-write refusal; other commercial behavior retained | Existing organization commercial invariant |
 | `app.business_type_audit` / `public.set_business_type` / `public.set_gym_business_type` | BIZ migration above | Private audit writer, active-owner command and platform expected-value/request-key command | Owner Settings and platform Manage adapters after generated types land |
+| `public.booking_status` / `app.booking_lock` / `app.member_has_live_membership` | `supabase/migrations/20261003085000_booking_primitives.sql` | Canonical shared booking vocabulary; namespaced resource serialization; active/frozen date-contained membership predicate | CLS and PTF commands/readers |
+| `plans_member_select` (PLC amendment) | `supabase/migrations/20261003110000_plans_catalogue.sql` | Append only is_active to the existing member read predicate; staff/platform policies unchanged | Member plan catalogue |
+| `public.shop_reservation_status` / `public.media_assets` / `public.shop_categories` / `public.shop_reservations` / addon_products.category_id / addon_products.sort_order | `supabase/migrations/20261003120000_shop.sql` | Canonical reservation vocabulary, shared immutable verified media, category presentation and soft reservations with composite tenant references | Shop, PTF trainer photos and ANC historic images |
+| `app.shop_actor` / `app.shop_offer_listable` / `app.shop_held_quantity` | SHP migration above | Feature-specific verified actor, complete-sale offer parity and unexpired soft hold count | Shop projections/commands; actual stock remains in Phase 6 |
+| `app.media_audit` / `app.shop_audit` | SHP migration above | Private allowlisted, actor-attributed audit writers without private keys/contact data | Media and shop commands |
+| `app.enforce_media_asset_verification` / `media_assets_verified_immutable` / `app.enforce_shop_reservation` / `shop_reservations_enforce` | SHP migration above | Exact private invoker guards bind every writer to immutable publication and causal reservation transitions | Named invariant triggers; central metadata pins exact shapes |
+| `public.register_media_asset` / `public.confirm_media_asset` / `public.finalize_media_asset` / `public.delete_media_asset` | SHP migration above | Staging registration, denied compatibility confirm, credential-service-only verified finalizer and reasoned soft deletion | Approved trusted Edge media boundary and caller-scoped web media routes |
+| `app.media_attach` / `app.media_release` | SHP migration above | Same-transaction feature attachment/release with one live image per parent; immutable historical metadata remains | Shop display, owner-controlled trainer profile and announcement version commands |
+| `public.set_shop_product_display` / `public.read_member_shop` / `public.read_member_shop_reservations` | SHP migration above | Administrative presentation and safe asset-id-only member projections | Web/mobile Shop |
+| `public.create_shop_reservation` / `public.cancel_shop_reservation` / `public.fulfil_shop_reservation` / `app.shop_reservation_mark_fulfilled` | SHP migration above | Soft reservation, authenticated cancellation and ordinary Phase 6 sale conversion with independently checked causal marking | Shop member actions and front-office fulfilment |
+| `public.read_shop_product_holds` / `public.reorder_shop_categories` | SHP migration above | Front-office hold quantities and gym-admin exact category reorder | Shop console |
+| `public.services` / `public.class_rules` / `public.class_sessions` / `public.class_bookings` / class_cancel_window_hours / class_allow_cross_branch | `supabase/migrations/20261003140000_classes.sql` | Materialized sessions and shared booking states; independent explicit attendance outcome; two unaudited settings under existing settings policy | Classes member and staff surfaces |
+| `app.enforce_class_rule` / `app.enforce_class_session` / `app.enforce_class_booking` | CLS migration above | Immutable identities, checked session snapshots and legal booking transitions in each exact touch_updated_at trigger slot | Rules, sessions and bookings |
+| `app.class_staff_actor` / `app.class_member_actor` / `app.class_gym_eligible` | CLS migration above | Revalidate feature callers and current eligible gym; no platform mutation authority | CLS commands and member projection |
+| `app.class_branch_timezone` / `app.class_local_instant` / `app.class_booking_holds` / `app.class_holding_count` | CLS migration above | Gym/branch local-time conversion, seat-holding states and capacity count | Session generation and serialized booking |
+| `app.class_audit` / `app.prune_class_sessions` / `app.generate_class_sessions` | CLS migration above | Private audit, removal only of derived never-booked rows, idempotent bounded generation | Class/rule commands and daily generation |
+| `app.class_book_core` | CLS migration above | Private shared core for the two separately authorized booking commands; reuses one serialized capacity/revival algorithm (ADR-183) | public.book_class_session and public.desk_book_class_session; no session EXECUTE grant |
+| `public.create_service` / `public.update_service` / `public.set_service_active` / `public.create_class_rules` / `public.update_class_rule` | CLS migration above | Services and rules; exact five-field changed-value edit audit, separate activation and freeze-and-finish | Classes console |
+| `public.create_class_session` / `public.update_class_session` / `public.cancel_class_session` | CLS migration above | Explicit session management with attendee-preserving edits and audited cancellation notices | Classes console |
+| `public.book_class_session` / `public.desk_book_class_session` / `public.cancel_class_booking` / `public.desk_cancel_class_booking` / `public.mark_class_attendance` | CLS migration above | Member and desk booking paths and explicit trainer/desk outcome marking, separate from check-in | Member Classes and staff roster |
+| `public.read_member_class_schedule` / `public.read_class_timetable` / `public.read_class_roster` / `public.run_class_generation_all` / class-sessions-daily | CLS migration above | Safe member schedule, existing-RLS staff reads and service-only daily generator | Web/mobile schedule, console timetable and approved cron |

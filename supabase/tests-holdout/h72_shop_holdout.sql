@@ -2,10 +2,14 @@
 -- No visible SHP test, feature implementation, other author output or evidence read.
 -- Trusted SQL metadata receipts are not byte/R2 verification evidence.
 -- Sequential winner/replay checks do not prove cross-session race correctness.
+-- Two explicitly bounded rollback-only default seams below simulate later command
+-- transactions inside this single BEGIN. They do not prove production clocks:
+-- mandatory separate real multi-transaction ordinary-RPC reserve/fulfil/replay
+-- evidence must run with the unmodified now() order default and SHP-011 guard.
 begin;
 set local role postgres;
 set local search_path to public, extensions;
-select plan(265);
+select plan(271);
 
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$
 select ('72900000-0000-4000-8000-'||lpad(to_hex(n),12,'0'))::uuid
@@ -180,7 +184,7 @@ select is(pg_temp.run('select to_jsonb(array(select key from jsonb_object_keys(t
 to_jsonb(array['availability','available_quantity','cancellation_terms','category_id','category_name','currency','description','gst_rate_bp','image_asset_id','item_id','name','price_paise','quote_version','section','validity_days']),'exact safe public catalogue projection');
 
 insert into h72_state values('before',jsonb_build_object('orders',(select count(*) from public.addon_orders),'payments',(select count(*) from public.payments)));
-insert into h72_state values('r1',pg_temp.run(pg_temp.reserve(401,2),pg_temp.member_claim()));
+insert into h72_state values('r1',pg_temp.run(pg_temp.reserve(401,2),pg_temp.member_claim())),('r1clock',to_jsonb(statement_timestamp()));
 select is(pg_temp.run('select to_jsonb(count(*)) from public.shop_reservations',pg_temp.member_claim())->'value','0'::jsonb,'member direct reservations hidden with a real own row');
 select is(pg_temp.run('select to_jsonb(count(*)) from public.shop_reservations where tenant_id=pg_temp.u(1)',pg_temp.staff_claim(5))->'value','0'::jsonb,'foreign front office real reservation hidden');
 select ok((select v->>'error' is null and v->'value'->>'reservation_id' is not null from h72_state where k='r1'),'reserve succeeds');
@@ -188,7 +192,8 @@ select is((select stock_quantity from public.addon_products where id=pg_temp.u(4
 select ok((select count(*) from public.addon_orders)=(select (v->>'orders')::bigint from h72_state where k='before') and
  (select count(*) from public.payments)=(select (v->>'payments')::bigint from h72_state where k='before'),'reservation no money records');
 select ok((select product_name='Holdout product 1' and quantity=2 and unit_price_paise=12001 and currency='INR' and status='reserved'
- and expires_at-created_at between interval '23 hours 59 minutes' and interval '24 hours 1 minute' from public.shop_reservations where id=pg_temp.rid('r1')),'intent snapshot');
+ and created_at=(select (v#>>'{}')::timestamptz from h72_state where k='r1clock')
+ and expires_at=created_at+interval '24 hours' from public.shop_reservations where id=pg_temp.rid('r1')),'intent snapshot uses exact command clock and 24-hour expiry');
 select is(pg_temp.run('select to_jsonb(available_quantity) from public.read_member_shop() where item_id=pg_temp.u(401)',pg_temp.member_claim(2))->'value','18'::jsonb,'other member derived availability');
 select is(pg_temp.run('select to_jsonb(held_quantity) from public.read_shop_product_holds() where product_id=pg_temp.u(401)')->'value',to_jsonb(app.shop_held_quantity(pg_temp.u(1),pg_temp.u(401))),'desk/private hold parity under live hold');
 select is(pg_temp.run('select to_jsonb(x) from public.create_shop_reservation(null,0,null)x',pg_temp.member_claim())->>'error','22023','null before product');
@@ -265,10 +270,18 @@ update public.members set status='active' where id=pg_temp.u(102);
 select pg_temp.refused(pg_temp.fulfil('sale',810,null,'razorpay'),'GL055','invalid_payment','fulfil no online charge');
 select ok((select status='reserved' and order_id is null from public.shop_reservations where id=pg_temp.rid('sale')) and
  not exists(select 1 from public.addon_orders where idempotency_key=pg_temp.u(810)),'sale refusal rollback money and intent');
+-- BEGIN bounded successful sale/fulfil command-transaction simulation.
+-- Only the column default changes; all sale functions and invariant triggers stay active.
+insert into h72_state values('order_created_default',to_jsonb((select pg_get_expr(d.adbin,d.adrelid)
+ from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
+ where d.adrelid='public.addon_orders'::regclass and a.attname='created_at')));
+select is((select v#>>'{}' from h72_state where k='order_created_default'),'now()','canonical order default is transaction timestamp before bounded seam');
+alter table public.addon_orders alter column created_at set default statement_timestamp();
 insert into h72_state values('fulfilled',pg_temp.run(pg_temp.fulfil('sale',810)));
 select ok((select v->>'error' is null and v->'value'->>'replayed'='false' from h72_state where k='fulfilled'),'first fulfil');
 select ok((select r.status='fulfilled' and r.order_id=o.id and o.quantity=2 and o.unit_price_paise=13003 and o.total_paise=26006 and
- o.sold_by_staff_id=pg_temp.u(201) from public.shop_reservations r join public.addon_orders o on o.id=r.order_id where r.id=pg_temp.rid('sale')),'conversion current integer money and actor');
+ o.sold_by_staff_id=pg_temp.u(201) and o.created_at>=r.created_at
+ from public.shop_reservations r join public.addon_orders o on o.id=r.order_id where r.id=pg_temp.rid('sale')),'conversion current integer money actor and causal order timestamp');
 select is((select stock_quantity from public.addon_products where id=pg_temp.u(411)),18,'sale decrements once');
 insert into h72_state values('replaybefore',jsonb_build_object('orders',(select count(*) from public.addon_orders),'payments',(select count(*) from public.payments),'audit',(select count(*) from public.audit_log where tenant_id=pg_temp.u(1))));
 select is(pg_temp.run(pg_temp.fulfil('sale',810))->'value'->>'replayed','true','same key replay');
@@ -287,6 +300,21 @@ insert into h72_state values('free',pg_temp.run(pg_temp.reserve(451),pg_temp.mem
 select pg_temp.refused(pg_temp.fulfil('free',820,null,null,null),'GL055','invalid_payment','free reservation still requires desk reason');
 insert into h72_state values('freefulfilled',pg_temp.run(pg_temp.fulfil('free',820,null,null,'Complimentary towel')));
 select ok((select v->>'error' is null and v->'value'->>'payment_id' is null from h72_state where k='freefulfilled'),'free reservation converts without payment');
+-- A genuine ordinary sale before a genuine reservation must remain inadmissible.
+-- This negative causal guard prevents the seam from relaxing SHP-011 semantics.
+insert into h72_state values('priororder',pg_temp.run('select to_jsonb(x) from public.record_addon_sale(pg_temp.u(102),pg_temp.u(410),1,pg_temp.q(410),null,null,null,''cash'',null,pg_temp.u(827))x'));
+insert into h72_state values('laterreservation',pg_temp.run(pg_temp.reserve(410),pg_temp.member_claim(2)));
+select ok((select o.created_at<r.created_at from public.addon_orders o cross join public.shop_reservations r
+ where o.id=(select (v->'value'->>'order_id')::uuid from h72_state where k='priororder') and r.id=pg_temp.rid('laterreservation')),
+ 'genuine earlier ordinary sale predates later reservation even inside bounded seam');
+select is(pg_temp.run(format('update public.shop_reservations set status=''fulfilled'',fulfilled_at=statement_timestamp(),fulfilled_by_staff_id=pg_temp.u(201),order_id=%L::uuid where id=pg_temp.rid(''laterreservation'')',
+ (select v->'value'->>'order_id' from h72_state where k='priororder')),'{}','postgres')->>'error','GL086','postgres cannot link genuine pre-reservation order');
+select ok((select status='reserved' and order_id is null from public.shop_reservations where id=pg_temp.rid('laterreservation')),'earlier-order refusal leaves reservation untouched');
+alter table public.addon_orders alter column created_at set default now();
+select is((select pg_get_expr(d.adbin,d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
+ where d.adrelid='public.addon_orders'::regclass and a.attname='created_at'),
+ (select v#>>'{}' from h72_state where k='order_created_default'),'exact order default restored after bounded fulfil/replay cases');
+-- END bounded successful sale/fulfil command-transaction simulation.
 
 -- Registration, metadata receipt protocol and invariant bypass attempts.
 insert into h72_state select kind,pg_temp.run(format('select to_jsonb(public.register_media_asset(%L,%L,%L,1234))',kind,pg_temp.key(n,'staging',kind),'image/jpeg'))
@@ -415,10 +443,17 @@ select ok(not exists(select 1 from public.audit_log where tenant_id=pg_temp.u(1)
 
 -- Completeness parity uses representative disclosed product/service and sold-out offers.
 -- It calls the canonical sale command, not implementation-body matching.
+-- BEGIN second bounded ordinary-sale command-transaction simulation.
+alter table public.addon_orders alter column created_at set default statement_timestamp();
 select ok(coalesce(pg_temp.run(format('select to_jsonb(x) from public.record_addon_sale(%L::uuid,%L::uuid,1,%L::uuid,null,null,null,%L::public.payment_method,%L,%L::uuid)x',
  pg_temp.u(102),pg_temp.u(n),pg_temp.q(n),case when n=451 then null else 'cash' end,case when n=451 then 'Holdout complimentary service' else null end,pg_temp.u(2000+n)))->>'error','') in ('','GL057'),
  'listed offer passes canonical sale completeness '||n)
 from unnest(array[401,402,403,404,450,451])n;
+alter table public.addon_orders alter column created_at set default now();
+select is((select pg_get_expr(d.adbin,d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
+ where d.adrelid='public.addon_orders'::regclass and a.attname='created_at'),
+ (select v#>>'{}' from h72_state where k='order_created_default'),'exact order default restored after bounded completeness parity cases');
+-- END second bounded ordinary-sale command-transaction simulation.
 
 select * from finish();
 rollback;

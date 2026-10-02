@@ -45,6 +45,19 @@ they are proposals to freeze, not permission to ship.
 
 ## Linked and indirect surfaces
 
+GRD batch-2 additions are frozen but not yet CI-applied. `members` gains nullable
+guardian_name, guardian_relation, guardian_phone, guardian_email and
+guardian_linked_at. All five are personal fields assigned the existing member
+profile `blank` disposition; a future reviewed erasure must clear them. Their
+export is blocked until the exact guardian/other-person disclosure map is approved.
+`guardian_consents` is directly keyed by tenant/member and records the versioned
+decision, source, recording staff and guardian name/relation snapshots, without
+phone/email. It retains eight-year consent proof (`hold`); no erasure may rewrite
+that evidence. Actor identifiers and guardian snapshots require an explicit
+privacy-safe export projection. This inventory does not authorize an export,
+erasure routine or retention job.
+
+
 | Surface / path | Technical member linkage and fields | Candidate export | Blocked / needs decision |
 |---|---|---|---|
 | `attendance_corrections` (`20260906115149_attendance.sql`) | No direct member FK: `(tenant_id,attendance_id)` -> attendance -> member. `id`, tenant, attendance, corrected_by_staff NOT NULL; `reason text NOT NULL` non-empty; `before jsonb NOT NULL`, `after jsonb NOT NULL`; created_at NOT NULL. Append-only correction history. | Correction id, attendance ref, created_at, and a schema-approved projection of before/after. | `reason`, `before`, `after` are explicitly unresolved free text/JSON; staff id is other-person data. Never rewrite append-only history without a frozen redaction rule. |

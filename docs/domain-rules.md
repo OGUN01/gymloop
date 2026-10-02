@@ -251,7 +251,7 @@ INV/STI lifecycle interpretation: the invite status graph is pending→redeemed,
 
 ## V2 batch 2 frozen rules (implementation and acceptance pending)
 
-The authoritative GRD-001…GRD-021 EARS text is
+The authoritative GRD-001…GRD-028 EARS text is
 `openspec/changes/guardian-minors/proposal.md`, with the owner-approved
 `marker-integrity-amendment.md` completing GRD-013's provenance boundary. The
 owner's one-time legacy missing-DOB attestation is included in that contract.
