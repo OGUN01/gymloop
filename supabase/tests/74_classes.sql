@@ -153,11 +153,11 @@ set local role authenticated;
 select pg_temp.claim(101);
 -- starts_at is set in the same outer statement as the command: no timing approximation.
 set local role postgres;
-select is(pg_temp.run($$do $b$ begin update public.class_sessions set starts_at=statement_timestamp()+interval '2 hours',ends_at=statement_timestamp()+interval '3 hours' where id=pg_temp.u(321); set local role authenticated; perform public.cancel_class_booking(pg_temp.u(421)); end $b$$$),'OK','CLS-016: exact cancel cutoff inclusive');
+select is(pg_temp.run($probe$do $b$ begin update public.class_sessions set starts_at=statement_timestamp()+interval '2 hours',ends_at=statement_timestamp()+interval '3 hours' where id=pg_temp.u(321); set local role authenticated; perform public.cancel_class_booking(pg_temp.u(421)); end; $b$;$probe$),'OK','CLS-016: exact cancel cutoff inclusive');
 set local role postgres;
-select is(pg_temp.run($$do $b$ begin update public.class_sessions set starts_at=statement_timestamp()+interval '2 hours'+interval '1 microsecond',ends_at=statement_timestamp()+interval '3 hours' where id=pg_temp.u(322); set local role authenticated; perform public.cancel_class_booking(pg_temp.u(422)); end $b$$$),'OK','CLS-016: immediately before cutoff');
+select is(pg_temp.run($probe$do $b$ begin update public.class_sessions set starts_at=statement_timestamp()+interval '2 hours'+interval '1 microsecond',ends_at=statement_timestamp()+interval '3 hours' where id=pg_temp.u(322); set local role authenticated; perform public.cancel_class_booking(pg_temp.u(422)); end; $b$;$probe$),'OK','CLS-016: immediately before cutoff');
 set local role postgres;
-select is(pg_temp.run($$do $b$ begin update public.class_sessions set starts_at=statement_timestamp()+interval '2 hours'-interval '1 microsecond',ends_at=statement_timestamp()+interval '3 hours' where id=pg_temp.u(323); set local role authenticated; perform public.cancel_class_booking(pg_temp.u(423)); end $b$$$),'GL095','CLS-016: immediately after cutoff');
+select is(pg_temp.run($probe$do $b$ begin update public.class_sessions set starts_at=statement_timestamp()+interval '2 hours'-interval '1 microsecond',ends_at=statement_timestamp()+interval '3 hours' where id=pg_temp.u(323); set local role authenticated; perform public.cancel_class_booking(pg_temp.u(423)); end; $b$;$probe$),'GL095','CLS-016: immediately after cutoff');
 set local role postgres;
 update public.organization_settings set class_cancel_window_hours=168 where tenant_id=pg_temp.u(1);
 set local role authenticated;
