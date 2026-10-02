@@ -130,6 +130,12 @@ The clock starts at the event named in "Retained from". "Erasable" says whether 
 | `leads` | last activity | **2 years** | `delete` | A non-member's personal data held on the basis of an enquiry. The only table here whose rows a DPD-006 request removes outright — nothing financial or evidential references a lead that never converted. |
 | `member_imports` | the run | **1 year** | `delete` | Its error report is a debugging artifact containing member data. It should be the shortest-lived table in the schema. |
 | `member_invites`, `staff_invites` | `closed_at`, or `expires_at` when never closed | **1 year** | `delete` after retention; erasure handling requires field-map review | Hash-only invitation evidence, with no name, email, phone or raw token. Member/staff/Auth identifiers remain linkable pseudonymous data. Member erasure immediately makes pending member invites unavailable; no invite-pruning job is built by INV/STI. Audit events follow the separate audit retention row. |
+| `shop_reservations` (batch-2 contract; CI application pending) | later closure/expiry | **1 year** | `blank` cancellation reason; retain minimum history | Intent is separate from sale evidence. No retention job is added. |
+| `shop_categories`, `media_assets` (batch-2 contract; CI application pending) | account closure, or retained FK history if later | **8 years**, and longer while a retained reference exists | metadata tombstones retained; field/object map required | Immutable publication metadata protects historical image references. Unconfirmed objects are prunable after seven days, released objects after thirty; object pruning does not authorize deleting referenced metadata. No cleanup job is built. |
+| `services`, `class_rules` (batch-2 contract; CI application pending) | account closure | **8 years** | configuration/history retained | Class definitions are gym configuration; free-text fields still require review for accidental personal content. |
+| `class_sessions`, `class_bookings` (batch-2 contract; CI application pending) | session end | **3 years** | `blank` disposition; no member free-text column currently | Explicit operational booking/outcome history, separate from check-in. No automatic attendance or retention job is added. |
+| `announcements`, `announcement_versions` (batch-2 contract; CI application pending) | account closure | **8 years** | `hold` configuration/history; content field map required | Published versions and referenced media remain immutable; plain text can contain personal content and is protected until reviewed. |
+| `announcement_receipts` (batch-2 contract; CI application pending) | announcement closure/expiry | **1 year** | `delete` on member erasure | Own-member read evidence; staff have counts only. The eventual erasure/retention routine must implement this disposition; no such job is claimed here. |
 | `organizations`, `organization_settings`, `branches`, `staff`, `platform_users`, `razorpay_accounts`, `message_templates`, `organization_holidays` | account closure | **8 years** | n/a | Gym-side configuration and staff records, not member personal data. Tied to the financial clock because the gym is the platform's own customer. |
 
 **What must be built before this is real** (Phase 8, not Phase 1): a job that applies these durations, an erasure routine implementing the `blank`/`delete`/`hold` column, and a legal review of every duration above.
@@ -142,6 +148,14 @@ fields. The separate eight-year guardian-consent evidence remains on hold. The
 field inventory records this separation, and GRD audits omit personal values.
 These are frozen lifecycle requirements, not a claim that an erasure routine or
 automatic retention job has been implemented.
+
+PTF adds staff biography/specialities, time-off reasons and member-linked
+cancellation/waiver reasons and actors. These remain protected personal or
+free-text fields. Cancellation provenance affects a sold session ledger and must
+not be erased or rewritten merely to clear text. Its exact field-level export,
+redaction and retention map remains an explicit privacy-operations decision before
+launch; the existing PT session/order clocks do not by themselves authorize a new
+eraser over this table. No PTF retention or erasure implementation is claimed.
 
 ## Credential rotation — outstanding
 

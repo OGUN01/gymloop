@@ -130,6 +130,19 @@ the privacy ledger.
 
 ## Verification references
 
+Batch-2 additions remain CI-unapplied. Shop reservation member references and
+cancellation reasons, class bookings/outcomes, announcement receipts and PT
+cancellation/waiver records are new member-linked subject paths. Trainer profile
+biography/specialities and time-off reasons are staff/other-person data. Media
+object keys and verification metadata are private and never generic export fields;
+immutable referenced tombstones must survive object pruning. Announcement content
+and class/service descriptions are free text and can contain incidental personal
+data. These additions block any claim that the earlier inventory is a complete
+eraser/export map: each needs a reviewed field allowlist and retained-FK boundary.
+Frozen lifecycle durations are recorded in docs/security.md; PT cancellation
+provenance's exact redaction/retention boundary remains unresolved before launch.
+No automatic export, erasure or retention job is introduced by this documentation.
+
 Primary sources inspected: `docs/planning/privacy-operations-contract.md`,
 `docs/security.md`, `docs/data-model.md`, `docs/registry.md`,
 `packages/db/types/database.ts`, and the migrations named beside each table (all

@@ -729,3 +729,20 @@ the existing global account-binding rule remain unchanged.
 Exact signatures, schema constraints, legal posture and surgical replacements
 are frozen in `openspec/changes/guardian-minors/proposal.md` and its approved
 marker amendment, plus `openspec/changes/business-type/proposal.md`.
+
+### Batch-2 booking, Shop, training and announcements (CI application pending)
+
+The eight business migration drafts remain unapplied until the combined rollback
+sweep, independent review and CI-only batch push. Exact columns, composite tenant
+keys, constraints and signatures are frozen in the four feature proposals.
+
+| Feature | Added schema | Authority and lifecycle |
+|---|---|---|
+| BOOKING / CLS | `booking_status`; namespaced `app.booking_lock`; `app.member_has_live_membership`; `services`, `class_rules`, `class_sessions`, `class_bookings`; settings `class_cancel_window_hours`, `class_allow_cross_branch` | Active/frozen inclusive date eligibility, canonical null-date parity; materialized sessions and serialized capacity; explicit attendance only; booked history is retained. Members use safe RPC projections, staff use the existing RLS gate. |
+| SHP / MEDIA | `shop_reservation_status`; `media_assets`, `shop_categories`, `shop_reservations`; product category and sort order | Soft intent holds do not change stock or money. Fulfilment uses the unchanged ordinary sale command. Private staging is verified and copied to immutable publication before the service-only finalizer. Public reads expose opaque asset ids. Retained version references keep metadata tombstones. |
+| PTF | `pt_pack_state`; `trainer_profiles`, `trainer_availability`, `trainer_time_off`, `pt_cancellations`; three PT policy columns | Existing `pt_sessions` stores the booking. Its storage enum differs from the derived `booking_status` read vocabulary. Availability and booking share one predicate. Late-cancel policy and immutable causal completion provenance are recorded; only the approved final-session waiver can reopen a completed pack. Any same-payment/tenant refund record blocks that exception. Expired remaining is total minus used; actual scheduled count remains separate, and expired packs stay unbookable. Other states subtract scheduled rows. |
+| ANC | `announcement_kind`, `announcement_status`, `announcement_audience`, `announcement_membership_filter`; `announcements`, `announcement_versions`, `announcement_receipts` | Current marketing consent gates promotional visibility. Published versions are immutable; receipts are member-own and staff see counts only. No platform policy on these three tables. Support preview uses actor-checked read-only RPCs. ANC creates no per-member notification fan-out. |
+
+`class_update` and `announcement` notification labels are already CI-applied by
+the separately committed category prelude. The business batch consumes them; it
+does not splice or repeat that prelude in its rollback preview.
