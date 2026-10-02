@@ -132,5 +132,21 @@ baseline after every DB workflow completed: visible 63/63 and holdout 123/123
 each failed exactly one expected new-label assertion. Rollback wrappers and
 exact plan counts were preserved. Red tests precede the separate implementer.
 
+The separate builder added only the two enum statements. A fresh blind critic
+returned GO, checking existing service-consent enforcement, category immutability
+and WhatsApp revalidation. The complete committed baseline preview passed all
+107 SQL files / 8,934 assertions, with zero failures and exact plans. A harness
+filename filter stopped after 43 passing files on an existing dotted filename;
+after correcting that disposable filter, only the remaining 64 files ran. The
+combined manifest was independently checked for 107 unique files. Registry,
+rollback, escape-hatch and test-immutability checks also passed. No new feature
+drafts were included in this prelude preview. Prior Linux application gates
+remain applicable to unchanged production source; the prelude push runs all CI
+gates again before acceptance.
+
+Deployed browser verification passed all five real demo-role landing/navigation
+checks, including owner-only Team visibility and forbidden-route redirects.
+This is not proof of a successful Google invitation redemption or Android use.
+
 Final local gates, browser/Playwright checks, Android runtime evidence, archive and
 CI run links will be recorded after completion. The owner tests after all v2 is built.
