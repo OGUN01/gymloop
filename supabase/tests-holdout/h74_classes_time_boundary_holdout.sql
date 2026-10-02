@@ -44,7 +44,8 @@ select is(app.class_local_instant('America/New_York',date '2027-03-14',time '02:
 select is(app.class_local_instant('America/New_York',date '2027-11-07',time '01:30'),timestamptz '2027-11-07 06:30:00+00','CLS normal DST overlap PostgreSQL resolution preserved');
 -- The real whole-date shift in Pacific/Apia occurred 2011-12-30, outside today's
 -- fixed generation horizon. No clock substitution or generator replacement is used.
-insert into public.class_rules(id,tenant_id,service_id,branch_id,weekday,start_time,duration_minutes,capacity,valid_from,valid_until)values(pg_temp.u(620),pg_temp.u(1),pg_temp.u(600),pg_temp.u(11),extract(dow from pg_temp.day())::smallint,time '24:00',60,5,pg_temp.day(),pg_temp.day());
+insert into public.services(id,tenant_id,name,default_duration_minutes,default_capacity)values(pg_temp.u(601),pg_temp.u(1),'Legacy generator boundary',60,5);
+insert into public.class_rules(id,tenant_id,service_id,branch_id,weekday,start_time,duration_minutes,capacity,valid_from,valid_until)values(pg_temp.u(620),pg_temp.u(1),pg_temp.u(601),pg_temp.u(11),extract(dow from pg_temp.day())::smallint,time '24:00',60,5,pg_temp.day(),pg_temp.day());
 select is(pg_temp.run($q$select to_jsonb(app.generate_class_sessions(pg_temp.u(1),pg_temp.u(620),null))$q$,'','postgres')->>'error',null::text,'CLS generator does not raise on shifted legacy wall-time date');
 select is((select count(*)from public.class_sessions where rule_id=pg_temp.u(620)),0::bigint,'CLS generator skips shifted next-day occurrence entirely');
 select * from finish();

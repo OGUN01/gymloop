@@ -3,7 +3,7 @@ begin;
 set local role postgres;
 set local search_path=extensions,public;
 select set_config('request.jwt.claims','',true);
-select plan(250);
+select plan(280);
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$select ('75100000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.claim(r text,s integer,m integer,u integer,t integer) returns void language plpgsql as $$begin perform set_config('request.jwt.claims',jsonb_strip_nulls(jsonb_build_object('sub',pg_temp.u(u),'role','authenticated','app_role',r,'tenant_id',pg_temp.u(t),'staff_id',case when s is not null then pg_temp.u(s) end,'member_id',case when m is not null then pg_temp.u(m) end))::text,true);end$$;
 create function pg_temp.refusal(q text) returns text language plpgsql as $$begin execute q; return 'OK'; exception when others then return sqlstate; end$$;
@@ -408,8 +408,91 @@ set local role authenticated;
 select is((select read_current from public.list_announcements() where announcement_id=(select id from boundary_ids where t=1 and k='live')),3,'ANC boundary: live current receipt count follows inclusive audience');
 select is((select read_current from public.list_announcements() where announcement_id=(select id from boundary_ids where t=1 and k='not_live')),8,'ANC boundary: inverse current receipt count follows audience');
 select is((select read_current from public.list_announcements() where announcement_id=(select id from boundary_ids where t=1 and k='promo')),0,'ANC boundary: withdrawn prior promotional reader excluded from aggregate');
--- Positive active/frozen null dates are legacy compatibility only: current schema
--- disallows those rows. This suite never disables guards to counterfeit eligibility.
+-- Legacy compatibility is isolated from normal commands in an exception subtransaction.
+-- Only the exact dated CHECK is suspended. The sentinel rolls back both DDL and
+-- historical fixture rows; PL/pgSQL variables retain actual audience query results.
+-- No trigger, session replication setting, source helper or eligibility rule changes.
+set local role postgres;
+create temp table boundary_original_date_check as
+select pg_get_constraintdef(oid) as definition,convalidated as validated
+from pg_constraint where conrelid='public.memberships'::regclass
+ and conname='memberships_dated_unless_pending_chk';
+create temp table boundary_legacy_results(t integer,status text,shape text,live_count integer,inverse_count integer);
+create temp table boundary_legacy_rollback(sentinel_caught boolean);
+do $legacy$
+declare
+ retained jsonb := '[]'::jsonb;
+ gym_key integer;
+ scenario integer;
+ member_key integer;
+ member_state public.membership_status;
+ start_day date;
+ end_day date;
+ shape_name text;
+ caught boolean := false;
+ live_result integer;
+ inverse_result integer;
+begin
+ -- Fail rather than relaxing another constraint if the known schema CHECK is absent.
+ if (select count(*) from boundary_original_date_check) <> 1 then
+   raise exception 'Expected exactly one canonical dated membership CHECK';
+ end if;
+ begin
+   alter table public.memberships drop constraint memberships_dated_unless_pending_chk;
+   for gym_key in 1..2 loop
+     for scenario in 1..6 loop
+       member_key := 5000+gym_key*100+scenario;
+       member_state := case when scenario<=3 then 'active'::public.membership_status else 'frozen'::public.membership_status end;
+       shape_name := case (scenario-1)%3 when 0 then 'both_open' when 1 then 'start_open' else 'end_open' end;
+       start_day := case when shape_name='end_open' then app.gym_today(pg_temp.u(gym_key)) else null end;
+       end_day := case when shape_name='start_open' then app.gym_today(pg_temp.u(gym_key)) else null end;
+       insert into public.members(id,tenant_id,branch_id,full_name,phone,status)
+       values(pg_temp.u(member_key),pg_temp.u(gym_key),pg_temp.u(gym_key+10),'Historic boundary '||member_key,'+91751'||lpad(member_key::text,7,'0'),'active');
+       insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise,currency)
+       values(pg_temp.u(member_key+1000),pg_temp.u(gym_key),pg_temp.u(member_key),pg_temp.u(gym_key+40),member_state,start_day,end_day,10000,'INR');
+       select count(*)::integer into live_result from app.announcement_audience((select id from boundary_ids where boundary_ids.t=gym_key and k='live'),pg_temp.u(member_key));
+       select count(*)::integer into inverse_result from app.announcement_audience((select id from boundary_ids where boundary_ids.t=gym_key and k='not_live'),pg_temp.u(member_key));
+       retained := retained || jsonb_build_array(jsonb_build_object('t',gym_key,'status',member_state::text,'shape',shape_name,'live_count',live_result,'inverse_count',inverse_result));
+     end loop;
+   end loop;
+   raise exception using errcode='Z7511',message='Rollback only legacy fixture sentinel';
+ exception when sqlstate 'Z7511' then
+   caught := true;
+ end;
+ insert into boundary_legacy_rollback values(caught);
+ insert into boundary_legacy_results select * from jsonb_to_recordset(retained)
+   as r(t integer,status text,shape text,live_count integer,inverse_count integer);
+end $legacy$;
+select is((select sentinel_caught from boundary_legacy_rollback),true,'ANC legacy null: deliberate exception rolled back isolated import');
+select is((select count(*)::integer from boundary_legacy_results),12,'ANC legacy null: all actual audience results survive fixture rollback');
+select is((select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.memberships'::regclass and conname='memberships_dated_unless_pending_chk'),(select definition from boundary_original_date_check),'ANC legacy null: exact original dated CHECK restored by subtransaction');
+select is((select convalidated from pg_constraint where conrelid='public.memberships'::regclass and conname='memberships_dated_unless_pending_chk'),(select validated from boundary_original_date_check),'ANC legacy null: original CHECK validation state restored');
+select is((select count(*)::integer from public.members where id in(select pg_temp.u(5000+t*100+n) from generate_series(1,2)t cross join generate_series(1,6)n)),0,'ANC legacy null: imported member rows absent after subtransaction');
+select is((select count(*)::integer from public.memberships where id in(select pg_temp.u(6000+t*100+n) from generate_series(1,2)t cross join generate_series(1,6)n)),0,'ANC legacy null: imported membership rows absent after subtransaction');
+select is((select live_count from boundary_legacy_results where t=1 and status='active' and shape='both_open'),1,'ANC legacy null: tenant 1 active both_open live_count');
+select is((select inverse_count from boundary_legacy_results where t=1 and status='active' and shape='both_open'),0,'ANC legacy null: tenant 1 active both_open inverse_count');
+select is((select live_count from boundary_legacy_results where t=1 and status='active' and shape='start_open'),1,'ANC legacy null: tenant 1 active start_open live_count');
+select is((select inverse_count from boundary_legacy_results where t=1 and status='active' and shape='start_open'),0,'ANC legacy null: tenant 1 active start_open inverse_count');
+select is((select live_count from boundary_legacy_results where t=1 and status='active' and shape='end_open'),1,'ANC legacy null: tenant 1 active end_open live_count');
+select is((select inverse_count from boundary_legacy_results where t=1 and status='active' and shape='end_open'),0,'ANC legacy null: tenant 1 active end_open inverse_count');
+select is((select live_count from boundary_legacy_results where t=1 and status='frozen' and shape='both_open'),1,'ANC legacy null: tenant 1 frozen both_open live_count');
+select is((select inverse_count from boundary_legacy_results where t=1 and status='frozen' and shape='both_open'),0,'ANC legacy null: tenant 1 frozen both_open inverse_count');
+select is((select live_count from boundary_legacy_results where t=1 and status='frozen' and shape='start_open'),1,'ANC legacy null: tenant 1 frozen start_open live_count');
+select is((select inverse_count from boundary_legacy_results where t=1 and status='frozen' and shape='start_open'),0,'ANC legacy null: tenant 1 frozen start_open inverse_count');
+select is((select live_count from boundary_legacy_results where t=1 and status='frozen' and shape='end_open'),1,'ANC legacy null: tenant 1 frozen end_open live_count');
+select is((select inverse_count from boundary_legacy_results where t=1 and status='frozen' and shape='end_open'),0,'ANC legacy null: tenant 1 frozen end_open inverse_count');
+select is((select live_count from boundary_legacy_results where t=2 and status='active' and shape='both_open'),1,'ANC legacy null: tenant 2 active both_open live_count');
+select is((select inverse_count from boundary_legacy_results where t=2 and status='active' and shape='both_open'),0,'ANC legacy null: tenant 2 active both_open inverse_count');
+select is((select live_count from boundary_legacy_results where t=2 and status='active' and shape='start_open'),1,'ANC legacy null: tenant 2 active start_open live_count');
+select is((select inverse_count from boundary_legacy_results where t=2 and status='active' and shape='start_open'),0,'ANC legacy null: tenant 2 active start_open inverse_count');
+select is((select live_count from boundary_legacy_results where t=2 and status='active' and shape='end_open'),1,'ANC legacy null: tenant 2 active end_open live_count');
+select is((select inverse_count from boundary_legacy_results where t=2 and status='active' and shape='end_open'),0,'ANC legacy null: tenant 2 active end_open inverse_count');
+select is((select live_count from boundary_legacy_results where t=2 and status='frozen' and shape='both_open'),1,'ANC legacy null: tenant 2 frozen both_open live_count');
+select is((select inverse_count from boundary_legacy_results where t=2 and status='frozen' and shape='both_open'),0,'ANC legacy null: tenant 2 frozen both_open inverse_count');
+select is((select live_count from boundary_legacy_results where t=2 and status='frozen' and shape='start_open'),1,'ANC legacy null: tenant 2 frozen start_open live_count');
+select is((select inverse_count from boundary_legacy_results where t=2 and status='frozen' and shape='start_open'),0,'ANC legacy null: tenant 2 frozen start_open inverse_count');
+select is((select live_count from boundary_legacy_results where t=2 and status='frozen' and shape='end_open'),1,'ANC legacy null: tenant 2 frozen end_open live_count');
+select is((select inverse_count from boundary_legacy_results where t=2 and status='frozen' and shape='end_open'),0,'ANC legacy null: tenant 2 frozen end_open inverse_count');
 set local role postgres;
 select is((select count(*)::integer from app.announcement_audience((select id from boundary_ids where t=1 and k='live'))),3,'ANC boundary: tenant 1 live shared delivery audience matches current dates');
 select is((select count(*)::integer from app.announcement_audience((select id from boundary_ids where t=1 and k='not_live'))),8,'ANC boundary: tenant 1 not_live shared delivery audience matches current dates');
