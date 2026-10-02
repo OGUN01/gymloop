@@ -1,4 +1,4 @@
-# V2 campaign handoff — 2026-10-02 (batch 1 pushed; batch 2 contracts)
+# V2 campaign handoff — 2026-10-03 (batch 1 pushed; batch 2 verification)
 
 Read this, then `docs/planning/v2-feature-map.md`, `docs/planning/v2-campaign-goal.md`, `AGENTS.md`, ADR-176 and ADR-177
 in `docs/decisions.md`. **Batch 1 is pushed and CI applied its migrations.** The
@@ -32,13 +32,18 @@ current checkpoint below supersedes the historical session-1 snapshot.
   PLC visible32/held30, ANC visible157/held88, CLS notice42/held46, PTF visible356/
   held381, and Shop visible211/held276. Classes held221 now passes genuine member
   check-in parity through the canonical token-proof RPC, with normal guards.
-  Classes visible710 reached its exact plan with eight wrong-arity fixture calls;
-  their original author preserved expected states and corrected the six-argument
-  invocation in 8afa142; runtime retry is in progress. Existing seed/scenarios
-  also passed a rollback preview with all eight draft migrations. These focused
-  passes are not the complete batch sweep. Final combined canonical 123-file
-  sweep remains required before the business push; Cloud testing is serialized
-  and forbidden while any DB workflow is active.
+  Classes visible710 now passes after its independent author corrected eight
+  six-argument fixture calls in 8afa142. Existing seed/scenarios also passed a
+  rollback preview with eight draft migrations. Canonical full sweep r18 pinned
+  2897658: 123 files, 119 green, three one-assertion legacy holdout failures and
+  one guardian fixture abort after India midnight. Independent repairs preserved
+  the legacy role matrix, added the exact approved table/helper inventories, and
+  used actual gym-local tomorrow for the future-DOB refusal. Canonical retry r20
+  pinned a5b4225: all four repaired suites green, 1,415/1,415 assertions. All eight
+  migration hashes match r18. Together these establish passing coverage across
+  the 123 files; they are not one final all-green sweep. That final sweep remains
+  mandatory after the two pending contract decisions and before the business
+  push. Cloud testing is serialized and forbidden during any DB workflow.
 - Two fresh source findings need owner decisions before affected work resumes:
   classes/wall-time-boundary-amendment.md (24:00 currently shifts the instant but
   leaves the wrong stored date; recommended explicit rejection preserves weekly

@@ -265,3 +265,38 @@ and independent PTF visible/held app drafts are import-red, not evidence of
 behavioral failures. Browser/native/R2 publication and console protocols remain
 unexecuted. No USB/ADB/Metro interaction occurred; final Android remains deferred
 while another owner-authorized agent uses the phone.
+
+### Batch-2 canonical sweep and held reconciliation, 2026-10-03
+
+Canonical rollback sweep `scratchpad/v2-vocabulary/batch2-all-canonical-preview-r18`
+pinned test commit 2897658 and SHA-256 copies of all eight business migrations.
+It completed all 123 files: 119 green, three one-assertion failures (h12/h21/h22),
+and h69 aborted after its UTC-relative future DOB became today in India. The
+literal plans totalled 12,224; 11,931 assertions ran. Classes visible710 and
+held221, PTF356/381, Shop211/276, and all other feature files except h69 passed.
+This run establishes neither a whole-batch green result nor runtime acceptance
+for the two pending contract amendments.
+
+Independent implementation-blind authors preserved h12's legacy role answers
+while declaring the exact fifteen approved batch-2 table identities separately;
+the inventory now rejects missing, additional and duplicate names. Its plan is 52.
+h21/h22's closed app-definer inventories gained only the sixteen public-contract
+names, preserving all money/refusal assertions. h69's future DOB now independently
+uses the actual fixture gym timezone and retains its refusal and all 293 cases.
+The public mechanical scope is `legacy-compatibility-clarification.md`; changes
+were committed as spec: 08eb065, 2d5603b and a5b4225, without feature source edits.
+
+Canonical focused retry `batch2-held-canonical-repairs-r20`, pinned a5b4225, passed
+h12 52/52, h21 68/68, h22 1002/1002 and h69 293/293: 1,415 assertions, zero failures.
+The eight migration hashes exactly match r18. Thus every canonical file now has
+passing coverage across the full run and repair retry, totalling 12,226 assertions;
+this is explicitly not one final all-green 123-file run. A complete canonical
+sweep remains required after any approved class/announcement boundary changes.
+
+Fresh independent static source reviews approve GRD/BIZ/PLC/PTF/SHP and the narrow
+legacy policy/index reconciliation. CLS's 24:00/date conflict and ANC's status-only
+versus current date-inclusive membership contract still need the owner choices
+in their committed amendment proposals. Neither affected tests nor source fixes
+were commissioned without those decisions. No business migration or application
+source was pushed; screens, live media, real races, Waves C/D and final release
+verification remain open. No Android/device interaction occurred.
