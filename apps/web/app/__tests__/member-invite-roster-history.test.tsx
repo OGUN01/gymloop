@@ -11,6 +11,7 @@ type Row = Record<string, unknown>;
 const { state } = vi.hoisted(() => ({ state: {
   role: 'gym_owner', preview: false,
   tables: {} as Record<string, Row[]>, errors: {} as Record<string, boolean>,
+  history: [] as Row[], historyError: false,
   calls: [] as Array<{ table: string; method: string; args: unknown[] }>,
 } }));
 const MEMBER = 'a8200000-0000-4000-8000-000000000001';
@@ -55,9 +56,13 @@ function client() {
       query.single = query.maybeSingle;
       return query;
     },
-    rpc: async (name: string) => {
-      state.calls.push({ table: name, method: 'rpc', args: [] });
+    rpc: async (name: string, args: unknown) => {
+      state.calls.push({ table: name, method: 'rpc', args: [args] });
       if (name === 'read_member_app_access') return { data: [{ state: 'invite_pending', invite_id: INVITE, issued_at: SENT, expires_at: EXPIRES, linked_at: null }], error: null };
+      if (name === 'read_member_invite_history') return {
+        data: state.historyError ? null : state.history,
+        error: state.historyError ? { code: 'XX000', message: 'private backend detail' } : null,
+      };
       throw new Error(`Unexpected command in a read-only page: ${name}`);
     },
   };
@@ -101,6 +106,7 @@ function audit(action: string, record_id: string, after: Row, occurred_at = SENT
 }
 beforeEach(() => {
   state.role = 'gym_owner'; state.preview = false; state.errors = {}; state.calls = [];
+  state.history = []; state.historyError = false;
   state.tables = {
     members: [member()], member_invites: [invite()], audit_log: [],
     staff: [{ id: STAFF, tenant_id: TENANT, user_id: ACTOR, full_name: 'Meera Desk', role: 'gym_owner', is_active: true }],
@@ -162,10 +168,24 @@ describe('INV-026 persisted member invite history', () => {
       audit('member_invite.issued', INVITE, { member_id: MEMBER, expires_at: EXPIRES, superseded_invite_id: OLD_INVITE }),
       audit('member_invite.revoked', INVITE, { status: 'revoked' }),
     ];
+    state.history = [
+      { event_id: 'a8200000-0000-4000-8000-000000000013', occurred_at: SENT, action: 'member_invite.revoked', actor_name: 'Meera Desk' },
+      { event_id: 'a8200000-0000-4000-8000-000000000012', occurred_at: SENT, action: 'member_invite.issued', actor_name: 'Meera Desk' },
+      { event_id: 'a8200000-0000-4000-8000-000000000011', occurred_at: SENT, action: 'member_invite.superseded', actor_name: 'Meera Desk' },
+    ];
+  });
+  it.each(['gym_owner', 'gym_manager', 'front_desk'])('%s reads this member through the safe projection, never broad audit rows', async (role) => {
+    state.role = role;
+    const html = await detail();
+    expect(text(html)).toContain('Meera Desk');
+    expect(state.calls.filter((call) => call.table === 'read_member_invite_history')).toEqual([
+      { table: 'read_member_invite_history', method: 'rpc', args: [{ p_member_id: MEMBER }] },
+    ]);
+    expect(state.calls.filter((call) => call.table === 'audit_log')).toEqual([]);
   });
   it('shows persisted resend and revoke events with actor, readable action, absolute IST', async () => {
     const html = await detail(); const visible = text(html);
-    expect(visible).toMatch(/invite history|app access history|activity/i);
+    expect(visible).toMatch(/recent.*history|recent.*activity/i);
     expect(visible).toContain('Meera Desk');
     expect(visible).toMatch(/superseded|replaced/i); expect(visible).toMatch(/issued|sent/i); expect(visible).toMatch(/revoked/i);
     expect(visible).toMatch(/3 Oct 2026,?\s+1:30\s*am\s*IST/i);
@@ -174,18 +194,21 @@ describe('INV-026 persisted member invite history', () => {
   });
   it('has an honest actor fallback when the actor name cannot be resolved', async () => {
     state.tables.staff = [];
+    state.history = state.history.map((row) => ({ ...row, actor_name: null }));
     const visible = text(await detail());
-    expect(visible).toMatch(/unknown|unavailable|former|staff member|staff account/i);
+    expect(visible).toContain('Name unavailable');
     expect(visible).not.toMatch(/by you|viewer@example.com/i);
   });
   it('empty persisted history is explicit and never inferred from current invite state', async () => {
     state.tables.audit_log = [];
+    state.history = [];
     const visible = text(await detail());
     expect(visible).toMatch(/no (invite )?(history|activity)|no .*invite.*yet/i);
     expect(visible).not.toMatch(/Meera Desk.*revoked/i);
   });
   it('history failure is explicit and exposes no backend detail or fabricated events', async () => {
     state.errors.audit_log = true;
+    state.historyError = true;
     const html = await detail();
     expect(text(html)).toMatch(/history|activity/i); expect(text(html)).toMatch(/could(n.?t| not)|unable|try again/i);
     expect(html).not.toContain('private backend detail'); expect(html).not.toContain('Meera Desk');
@@ -202,12 +225,20 @@ describe('INV-026 persisted member invite history', () => {
     state.tables.audit_log?.push(audit('member_invite.issued', foreignInvite, { member_id: foreignMember }, '2026-08-01T20:00:00Z'));
     const html = await detail();
     expect(text(html)).not.toMatch(/2 Aug 2026/i);
-    expect(state.calls.some((call) => call.table === 'audit_log' && ['in', 'eq', 'or'].includes(call.method) && JSON.stringify(call.args).includes('record_id'))).toBe(true);
+    expect(state.calls.filter((call) => call.table === 'read_member_invite_history')).toEqual([
+      { table: 'read_member_invite_history', method: 'rpc', args: [{ p_member_id: MEMBER }] },
+    ]);
+    expect(state.calls.filter((call) => call.table === 'audit_log')).toEqual([]);
   });
   it.each(['trainer', 'preview'])('%s gets no invite history or underlying history read', async (role) => {
     state.role = role === 'preview' ? 'gym_owner' : role; state.preview = role === 'preview';
     const visible = text(await detail());
     expect(visible).not.toContain('Meera Desk'); expect(visible).not.toMatch(/invite history|app access history/i);
     expect(state.calls.filter((call) => call.table === 'audit_log')).toEqual([]);
+    expect(state.calls.filter((call) => call.table === 'read_member_invite_history')).toEqual([]);
+  });
+  it('records the separate safe history bound in shared constants', async () => {
+    const shared = await import('@gymloop/shared') as unknown as { MEMBER_INVITE_HISTORY_LIMIT?: number };
+    expect(shared.MEMBER_INVITE_HISTORY_LIMIT).toBe(50);
   });
 });
