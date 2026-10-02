@@ -323,6 +323,11 @@ consent, routing and token behavior are unchanged.
   disabled?: boolean }`, a submit control inside existing Server Action forms.
   NativeGoogleButton's public `{ disabled?, onPress }` interface stays unchanged.
   This boundary owns only provider rendering/font readiness, never sign-in logic.
+- Public readiness I/O is the browser's `document.fonts.load/check` for the bundled
+  face and the existing native `expo-font` APIs (`useFonts`, `isLoaded`,
+  `loadAsync`). Native registers the face as `GoogleSansMedium`; a generated web
+  family name is permitted when it binds the same asset. Independent tests may
+  replace these platform I/O boundaries to exercise pending, failure and retry.
 - Independent visible/holdout tests SHALL verify actual font bytes, provider
   typography, use by ordinary/INV/STI entry points and honest readiness/failure
   before separate implementation. A fresh blind critic compares the final controls
