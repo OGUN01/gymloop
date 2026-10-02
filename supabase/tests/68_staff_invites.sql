@@ -478,10 +478,10 @@ select is((select count(*) from pg_trigger t
   2::bigint, 'STI structure: the standard touch and preview triggers exist under their convention names');
 
 select is((select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = 'staff_invites'),
-  1::bigint, 'STI-011: staff_invites has exactly one policy');
-select ok((select count(*) = 1 and bool_and(p.cmd = 'SELECT' and p.roles = array['authenticated']::name[] and p.qual like '%gym_owner%')
+  2::bigint, 'STI-011 v1.1: staff_invites has exactly the tenant and platform read policies');
+select ok((select count(*) = 2 and bool_and(p.cmd = 'SELECT' and p.roles = array['authenticated']::name[] and ((p.policyname = 'staff_invites_tenant_select' and p.qual like '%current_tenant_id%' and p.qual like '%gym_owner%') or (p.policyname = 'staff_invites_platform_select' and p.qual like '%is_platform%')))
      from pg_policies p where p.schemaname = 'public' and p.tablename = 'staff_invites'),
-  'STI-011: the only policy is a select policy for authenticated that names gym_owner');
+  'STI-011 v1.1: authenticated SELECT has the named own-tenant owner gate and platform read gate');
 select ok(has_table_privilege('authenticated', 'public.staff_invites', 'SELECT'),
   'STI-011: authenticated can select staff_invites (the policy filters)');
 select ok(not has_table_privilege('authenticated', 'public.staff_invites', 'INSERT,UPDATE,DELETE,TRUNCATE'),
@@ -1008,7 +1008,7 @@ select throws_ok($$select public.unlink_staff_identity('68000000-0000-4000-8000-
 select throws_ok($$select * from public.read_staff_app_access('68000000-0000-4000-8000-000000000215')$$,'42501',null,'STI-009/011: a realistic preview token cannot read staff app access');
 select set_config('request.jwt.claims','{"sub":"68000000-0000-4000-8000-000000000107","role":"authenticated","app_role":"gym_owner","tenant_id":"68000000-0000-4000-8000-000000000002","staff_id":"68000000-0000-4000-8000-000000000207"}',true);
 set local role authenticated;
-select throws_ok($$select * from public.invite_staff_member('Matrix Person','matrix.sti@example.com',null,'front_desk',null,repeat('ea',32))$$,'42501',null,'STI-001/011: the owner of another gym cannot create and invite a staff member');
+select throws_ok($$select * from public.invite_staff_member('Matrix Person','matrix.sti@example.com',null,'front_desk','68000000-0000-4000-8000-0000000000b1',repeat('ea',32))$$,'42501',null,'STI-001/011: an owner cannot create and invite staff assigned to another gym branch');
 select throws_ok($$select * from public.issue_staff_invite('68000000-0000-4000-8000-000000000215',repeat('ea',32))$$,'42501',null,'STI-002/011: the owner of another gym cannot issue a staff invite');
 select throws_ok($$select public.revoke_staff_invite('68000000-0000-4000-8000-000000000535')$$,'42501',null,'STI-002/011: the owner of another gym cannot revoke a staff invite');
 select throws_ok($$select public.unlink_staff_identity('68000000-0000-4000-8000-000000000249','matrix probe reason')$$,'42501',null,'STI-008/011: the owner of another gym cannot unlink a staff identity');
@@ -1691,8 +1691,8 @@ select is((select count(*) from public.staff_invites where tenant_id in ('680000
   'STI-011: a member reads no staff invite');
 select set_config('request.jwt.claims','{"sub":"68000000-0000-4000-8000-000000000106","role":"authenticated","app_role":"super_admin"}',true);
 set local role authenticated;
-select is((select count(*) from public.staff_invites where tenant_id in ('68000000-0000-4000-8000-000000000001', '68000000-0000-4000-8000-000000000002')), 0::bigint,
-  'STI-011: a super admin reads no staff invite through the table');
+select ok((select count(distinct tenant_id) = 2 from public.staff_invites where tenant_id in ('68000000-0000-4000-8000-000000000001', '68000000-0000-4000-8000-000000000002')),
+  'STI-011 v1.1: a super admin reads invite rows from both fixture gyms through the platform policy');
 select set_config('request.jwt.claims','{"sub":"68000000-0000-4000-8000-000000000101","role":"authenticated","app_role":"gym_owner","tenant_id":"68000000-0000-4000-8000-000000000001","staff_id":"68000000-0000-4000-8000-000000000201"}',true);
 set local role authenticated;
 select throws_ok($$insert into public.staff_invites(tenant_id, staff_id, token_hash, issued_by_staff_id, expires_at)
