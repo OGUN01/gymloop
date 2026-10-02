@@ -74,6 +74,11 @@ vi.mock('react-native', () => ({
   AppState: { currentState: 'active', addEventListener: () => ({ remove: vi.fn() }) },
   useColorScheme: () => 'light', useWindowDimensions: () => ({ width: 400, height: 800, fontScale: 1 }),
 }));
+vi.mock('react-native-svg', () => ({
+  default: 'svg', Svg: 'svg', Path: 'path', G: 'g', Circle: 'circle', Rect: 'rect',
+  Defs: 'defs', ClipPath: 'clipPath', Polygon: 'polygon', Polyline: 'polyline',
+  Line: 'line', Ellipse: 'ellipse', LinearGradient: 'linearGradient', Stop: 'stop',
+}));
 vi.mock('@supabase/supabase-js', async () => ({ ...(await vi.importActual<any>('@supabase/supabase-js')),
   createClient: () => io.client,
 }));
