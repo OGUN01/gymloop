@@ -16,6 +16,11 @@ const io = vi.hoisted(() => ({
   onPress: vi.fn(), writes: vi.fn(), removes: vi.fn(), auth: vi.fn(),
   palette: null as any, scale: 1,
 }));
+vi.doMock(webRequire.resolve('next/font/local'), () => ({ default: (face: any) => {
+  io.localFaces.push(face);
+  return { className: 'independent-google-local-face', variable: '--independent-google-font',
+    style: { fontFamily: 'IndependentBundledGoogleSansMedium', fontWeight: 500, fontStyle: 'normal' } };
+} }));
 vi.mock('react', async () => {
   const actual = await vi.importActual<any>('react');
   const useState = (initial: any) => {

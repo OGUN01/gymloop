@@ -80,6 +80,8 @@ vi.mock('lucide-react-native', () => new Proxy({}, {
   has: () => true,
 }));
 vi.mock('expo-haptics', () => ({ selectionAsync: async () => undefined, impactAsync: async () => undefined, notificationAsync: async () => undefined }));
+vi.mock('expo-font', () => ({ useFonts: () => [true, null], isLoaded: () => true, loadAsync: async () => undefined }));
+vi.mock('../../../../packages/shared/assets/fonts/GoogleSans-Medium.ttf', () => ({ default: 'canonical-GoogleSans-Medium.ttf' }));
 vi.mock('../../components/ui', async (original) => {
   const actual = await original<Record<string, unknown>>();
   return { FONT: new Proxy({}, { get: () => 'test-font' }), ...Object.fromEntries([
@@ -315,3 +317,4 @@ describe('INV-029/INV-030 full native OAuth callback invite continuity', () => {
     expect(state.homes).toEqual([]); expect(state.posts).toEqual([]);
   });
 });
+

@@ -6,6 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const webRequire = createRequire(new URL('../../apps/web/package.json', import.meta.url));
 const { createElement } = webRequire('react');
+vi.doMock(webRequire.resolve('next/font/local'), () => ({ default: () => ({
+  className: 'ready-google-font', variable: '--ready-google-font',
+  style: { fontFamily: 'GoogleSansMedium', fontWeight: 500 },
+}) }));
 
 const io = vi.hoisted(() => ({
   token: 'R'.repeat(43), gym: 'Independent Recovery Gym', email: 'viewer@recovery.example',
@@ -60,6 +64,8 @@ vi.mock('expo-secure-store', () => ({
   deleteItemAsync: async (key: string) => { io.stored.delete(key); },
 }));
 vi.mock('expo-crypto', () => ({ CryptoDigestAlgorithm: { SHA256: 'SHA-256' }, digestStringAsync: io.digest }));
+vi.mock('expo-font', () => ({ useFonts: () => [true, null], isLoaded: () => true, loadAsync: async () => undefined }));
+vi.mock('../../packages/shared/assets/fonts/GoogleSans-Medium.ttf', () => ({ default: 'ready-canonical-GoogleSans-Medium.ttf' }));
 vi.mock('expo-web-browser', () => ({
   maybeCompleteAuthSession: vi.fn(), openAuthSessionAsync: io.open, openBrowserAsync: io.open,
 }));
@@ -189,6 +195,7 @@ beforeEach(() => {
     { headers: { 'Content-Type': 'application/json' } }));
   vi.stubGlobal('fetch', io.fetch);
   vi.stubGlobal('window', { location: { replace: io.replace, assign: io.push } });
+  vi.stubGlobal('document', { fonts: { check: () => true, load: async () => [{}], ready: Promise.resolve() } });
   io.context = { supabase: io.client, api: { post: io.post }, identity: io.identity,
     palette: UI_TOKENS.colors.dark,
     session: { user: { id: 'd1111111-1111-4111-8111-111111111111', email: io.email } }, webOrigin: 'https://recovery-trusted.holdout.example',
