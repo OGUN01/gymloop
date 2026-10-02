@@ -406,3 +406,31 @@ backend implementer is isolated from all holds. Native command interaction
 coverage must precede UI build. CLS/ANC draft readiness and every live/end-to-end
 acceptance, Waves C/D and versionCode5 remain open. CI DB37061065081 is still
 running; local Cloud and phone operations remain deferred.
+
+### Batch-2 current CI win and final source-review limits, 2026-10-03
+
+DB source run37061065081 completed migrate, full pgTAP and seed successfully.
+Its sole historical schema-drift failure is resolved by CLI-generated type
+follow-up89c6cda / DB37061577506, whose complete job matrix is green.
+Types-head code CI37061577452 is green. No historical drift repair was made by
+editing generated types, and no migration was applied outside CI.
+
+Fresh MEDIA application source critic returned GO without reading tests, holds
+or prior findings. Real protected environment settings, Edge deployment/JWT
+gateway, R2 signing/conditional copy, browser upload and visual acceptance remain
+open. Fresh BIZ/GRD app critic returned NO for native place-heading hierarchy and
+linked-account provenance inferred from current age. Independent rendered BIZ
+tests03275a8 precede the hierarchy fix (32/32 now green). Guardian wording reached
+the repository's three-rejection escalation threshold; concrete recorded-marker
+clarification617c9e0 awaits the owner, preserving the original identity rules.
+
+PTF backend visible84/84, scoped ESLint/registry and strict production checks
+passed. First app-held run passed131/138: four missing UI targets and three
+ambiguous booking-helper return assumptions remain. Public interface
+clarification617c9e0 fixes the omitted scalar return annotation without changing
+cutoff or consumption behavior; independent held repair is pending. Native
+rendered author found omitted public surface seams. Those are now clarified;
+booking confirmation additionally needs current policy unavailable in the five
+safe member projections. A fresh independent contract critic confirmed no
+existing authorized reuse. The two-field read amendment617c9e0 awaits owner
+approval before SQL/app author fanout. No implementation of that read exists.

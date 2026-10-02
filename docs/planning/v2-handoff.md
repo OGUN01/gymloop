@@ -59,10 +59,11 @@ current checkpoint below supersedes the historical session-1 snapshot.
   against those same eight migration bytes. Machine receipt:
   docs/evidence/v2/batch2-canonical-r27.json. Local rollback (127 files),
   immutability (74 commits), registry and escape gates passed. Source push b2a331f
-  triggered DB 37061065081: migrate passed, full pgTAP remains running, and the
+  triggered DB 37061065081: migrate, full pgTAP and seed all passed; the
   historical pre-generation drift failed as expected. CLI-generated type-only
-  follow-up 89c6cda is pushed under ADR-177; DB 37061577506 awaits the source run.
-  Its drift success is still required. CI 37061577452 is now wholly green after
+  follow-up 89c6cda is pushed under ADR-177; DB 37061577506 is now wholly green,
+  including schema drift, resolving that expected historical failure.
+  CI 37061577452 is also wholly green after
   the permitted one-time failed-job retry. The historical source CI encountered
   a damaged Playwright trace; its result is not the current types-head result.
 - Independent BIZ/PLC app acceptance tests are committed red as 64b5820,
