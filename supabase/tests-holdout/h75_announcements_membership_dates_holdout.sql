@@ -146,7 +146,7 @@ insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,e
 select set_config('request.jwt.claims','',true);
 create temp table fallback_org_before as select to_jsonb(o)facts from public.organizations o where id=pg_temp.u(3);
 create temp table fallback_trigger_before as select tgname,pg_get_triggerdef(oid)definition,tgenabled from pg_trigger where tgrelid='public.organizations'::regclass and tgname='organizations_commercial_invariant';
-select is(pg_temp.run($q$update public.organizations set timezone='Holdout/Invalid'where id=pg_temp.u(3)returning to_jsonb(id)$q$,pg_temp.invalid_sc(),'postgres')->>'error','22023','ANC ordinary invalid timezone update refused');
+select is(pg_temp.run($q$update public.organizations set timezone='Holdout/Invalid'where id=pg_temp.u(3)returning to_jsonb(id)$q$,pg_temp.invalid_sc(),'postgres')->>'error','42501','ANC gym owner direct invalid timezone write refused before input validation');
 select is((select to_jsonb(o)from public.organizations o where id=pg_temp.u(3)),(select facts from fallback_org_before),'ANC invalid timezone refusal leaves organization untouched');
 insert into results values('fallback-live',pg_temp.run($q$select to_jsonb(public.create_announcement_draft('transactional','UTC live','Fallback dates','segment',array['active']::public.member_status[],'live',null,null))$q$,pg_temp.invalid_sc()));
 select is((select v->>'error'from results where k='fallback-live'),null::text,'ANC UTC live draft ordinary actor');
@@ -196,7 +196,7 @@ select ok((select count(*)=1 from fallback_trigger_before)and not exists(
  (select tgname,definition,tgenabled from fallback_trigger_before except select tgname,pg_get_triggerdef(oid),tgenabled from pg_trigger where tgrelid='public.organizations'::regclass and tgname='organizations_commercial_invariant')union all
  (select tgname,pg_get_triggerdef(oid),tgenabled from pg_trigger where tgrelid='public.organizations'::regclass and tgname='organizations_commercial_invariant'except select tgname,definition,tgenabled from fallback_trigger_before)
 ),'ANC sentinel restores exact commercial trigger definition and enabled state');
-select is(pg_temp.run($q$update public.organizations set timezone='Holdout/StillInvalid'where id=pg_temp.u(3)returning to_jsonb(id)$q$,pg_temp.invalid_sc(),'postgres')->>'error','22023','ANC invalid ordinary write still refused after legacy seam');
+select is(pg_temp.run($q$update public.organizations set timezone='Holdout/StillInvalid'where id=pg_temp.u(3)returning to_jsonb(id)$q$,pg_temp.invalid_sc(),'postgres')->>'error','42501','ANC gym owner direct invalid write still refused after legacy seam');
 select is((select to_jsonb(o)from public.organizations o where id=pg_temp.u(3)),(select facts from fallback_org_before),'ANC restored guard refusal remains atomic');
 select * from finish();
 rollback;
