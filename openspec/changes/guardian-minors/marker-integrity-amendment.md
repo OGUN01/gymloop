@@ -33,7 +33,10 @@ Trusted writers follow the existing INV boundary: current_user postgres, or
 current_user service_role with no Auth subject. The verified invite definer may
 stamp the gym-local known minor's successful guardian binding; ordinary
 adult/unknown-age redemption stamps null. Unlink, handover and operator rebinding
-continue to clear the marker. The provisioning tool still never sets a marker.
+continue to clear the marker. Clearing on a trusted user-id change uses value
+comparison (IS DISTINCT FROM), preserving original GRD-013: if the marker value
+did not change, clear it even if the UPDATE explicitly assigns the old timestamp.
+The provisioning tool still never sets a marker.
 This preserves the existing infrastructure trust assumption; it does not claim
 that a compromised privileged credential cannot forge database provenance.
 
