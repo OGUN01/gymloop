@@ -12,8 +12,8 @@ import { describe, expect, it } from 'vitest';
  * KNOWN COLLISION the implementer must respect: the existing pin in
  * `phase9-android-not-linked-legal.test.ts` forbids the pattern `data\.gym`
  * anywhere in `not-linked.tsx`, and `data.gymName` (the redeem response field)
- * matches it. The screen does not need the gym name: it refreshes the session
- * and the existing redirect routes the new member home.
+ * matches it. INV-029 now requires the named gym from a separate safe peek,
+ * never the redemption response's gym field; this privacy pin remains intact.
  */
 
 const repoRoot = resolve(fileURLToPath(new URL('../../../../', import.meta.url)));
@@ -51,7 +51,7 @@ describe('INV-022 the fitcruxx://invite/<token> route', () => {
     for (const action of ['invalid_link', 'save_and_sign_in', 'redeem', 'already_linked']) {
       expect(route, `handles ${action}`).toContain(action);
     }
-    expect(route, 'a signed-out link goes on to sign-in').toMatch(/\/sign-in/);
+    // INV-029 replaces the sign-in detour with direct Google after consent.
   });
 
   it('answers a bad link with the one generic unavailable sentence and a linked account with the D1 sentence', () => {

@@ -51,7 +51,7 @@ describe('HARD-011/HARD-012 Android Google OAuth', () => {
     expect(result).toEqual({ ok: true });
     expect(state.oauthCalls).toEqual([{
       provider: 'google',
-      options: { redirectTo: 'fitcruxx://auth/callback', skipBrowserRedirect: true },
+      options: { redirectTo: 'fitcruxx://auth/callback', skipBrowserRedirect: true, queryParams: { prompt: 'select_account' } },
     }]);
     expect(state.browserCalls).toEqual([{
       url: 'https://project.supabase.co/auth/v1/authorize?provider=google',
