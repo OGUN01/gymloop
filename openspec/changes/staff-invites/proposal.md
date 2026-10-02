@@ -113,3 +113,31 @@ As INV: open Auth signup is owner-gated; App Links wait for V2-R. Staff redeem h
 ## Test and deployment order
 
 Batched with INV: both migrations, both DB test sets, in one push after the local splice sweep proves them together; types regenerated once; both feature sets' TypeScript in the second push. Test file numbering: visible `supabase/tests/68_staff_invites.sql`, holdout `supabase/tests-holdout/h68_staff_invites_holdout.sql`; TS tests named `staff-*` beside their INV siblings.
+
+## Contract amendments v1.1 (2026-10-02, after reconciling the STI test authors' ambiguity reports)
+
+These settle the points the authors flagged. They also inherit **every** clarification in
+`openspec/changes/member-invites/proposal.md` "Contract amendments v1.1" (error-argument rules, check order,
+audit conventions, revoke/replay/throttle semantics, extra FK indexes, volatility, `service_role` revoke,
+no-store, status codes, form/JSON redeem rules) with `member` → `staff`, except where this section says otherwise.
+
+**Database**
+- Both admitted GL049 shapes additionally require that the statement changes **no column except `user_id`** (and the trigger-maintained `updated_at`): a link or unlink that also changes role, `is_active`, `tenant_id`, `branch_id`, name or email stays refused (GL049 for sessions; a postgres-run definer without a matching setting fails as before).
+- Policies: `staff_invites_owner_select` (tenant term first, then owner-only) and `staff_invites_platform_select` (platform roles read all); extra indexes `(tenant_id, issued_by_staff_id)`, `(redeemed_user_id)`, composite FK `(tenant_id, closed_by_staff_id)` with an index. Same grants posture as INV (`authenticated` select only, `service_role`/`public` no execute, `anon` only on `peek_staff_invite`). Volatility: writers volatile, `peek_staff_invite` and `read_staff_app_access` stable.
+- Malformed or null token hash raises `22023` in `invite_staff_member`, `issue_staff_invite`, `redeem_staff_invite` and `peek_staff_invite`; a reused hash propagates `23505`. Redeem with no `auth.uid()` raises `42501`.
+- `invite_staff_member` check order: `42501` → `22023` → `GL082` (role) → `GL075` (gym not eligible) → `GL076` (email) → `GL081` (duplicate email) → `GL078`; a foreign branch is `42501`. `issue_staff_invite` order: `42501` → `22023` → `GL075` (inactive / owner role / gym) → `GL077` → `GL076` → `GL078`.
+- Redeem returns `gym_name` and `staff_role` on `linked` and on `already_linked_here`, null on every refusal. Replay requires the invite to be `redeemed` by this caller and the staff row still bound to them; after an unlink the same token is `invite_unavailable`.
+- Audit: `record_type`/`record_id`: `staff.invited` → (`staff`, new staff id) with `before` null and `after {role, branch_id}` (`branch_id` is JSON null when none); `staff_invite.*` → (`staff_invite`, invite id); `staff.linked|unlinked` → (`staff`, staff id). `staff_invite.issued` after `{staff_id, expires_at, superseded_invite_id}`; `staff_invite.redeemed` after `{status:'redeemed', staff_id}`. `actor_role`: the owner's role for invited/issued/superseded/revoked/unlinked; **the staff row's own role** for redeemed and `staff.linked`; null for `redeem_refused`. Refusal rows carry `tenant_id` whenever the token resolved to an invite row.
+- Unlinking an owner-role row (including the caller's own) raises `42501` (only the platform path touches owner rows). `read_staff_app_access`: precedence is `linked` first (any non-null `user_id`, including a platform-linked owner row with `linked_at` null), then `unavailable` (inactive row or owner role), then the newest invite, else `not_invited`.
+- Revoking an expired-but-pending invite is allowed; impersonation raises `42501` on every command and on read.
+- The throttle asymmetry is accepted and recorded: INV's redeem counts only `member_invite.redeem_refused`; the staff redeem counts both families.
+- The advisory lock key `identity-bind:<uid>` is taken before any row lock on every redeem path and is observable in `pg_locks` within the transaction.
+
+**Shared / web** (in addition to the INV web amendments)
+- Create, issue, revoke and unlink answer 200 or 201 on success; every response (including errors and redirects) carries `Cache-Control: no-store`. SQLSTATEs a route does not map yield 500 `invite_failed` and never leak a token. `invite_staff_member` is called with all six named arguments, `null` for an omitted phone/branch.
+- Unlink is **owner-only** (a manager is refused 403), unlike INV's owner-or-manager unlink.
+- Redeem JSON `role` is the enum value (`front_desk`), not the label; a JSON call needs `{token}` and never falls back to the cookie; a form post uses a pattern-valid hidden field, else the staff cookie, and never reads the member cookie. RPC error / no row / several rows / unknown outcome → failure envelope (status ≥ 400), no cookie change. `refreshSession()` is never called on this route.
+- `parseStaffInviteToken` accepts only a bare token or `https://<host>/staff-invite/<token>`; `http://`, `fitcruxx://` and `/invite/<token>` return null.
+- `app/auth/callback/route.ts` keeps INV's branch first and adds the staff branch (member cookie wins when both are valid).
+- Team console: a non-owner is redirected / not-found before any table read; the owner's own row and other owner rows are read-only ("Owner — linked by the platform team"); the panel states the on-file email and the 48-hour expiry beside Send invite.
+- The staff share message has no expiry input; the panel states the expiry in the panel text instead.
