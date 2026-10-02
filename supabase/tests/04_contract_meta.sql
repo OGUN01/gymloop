@@ -486,7 +486,17 @@ select is_empty(
        and (n2.nspname || '.' || pr.proname) not in
            ('app.current_tenant_id', 'app.is_platform', 'app.current_app_role',
             'app.is_staff', 'app.is_gym_admin', 'app.is_front_office', 'app.current_member_id',
-            'auth.uid', 'app.current_impersonation_id')$$,
+            'auth.uid', 'app.current_impersonation_id')
+       and not (
+         pr.oid = to_regprocedure('app.current_staff_id()')
+         and p.polcmd = 'r'
+         and (c.relname::text, p.polname::text) in (
+           ('trainer_profiles', 'trainer_profiles_tenant_select'),
+           ('trainer_availability', 'trainer_availability_tenant_select'),
+           ('trainer_time_off', 'trainer_time_off_tenant_select'),
+           ('pt_cancellations', 'pt_cancellations_tenant_select')
+         )
+       )$$,
   'design.md 8.2, "the four gates, and no fifth": the set of functions any policy in public depends on is closed. Two entries on the list are not gates, and both are there for the same reason -- they identify WHICH ROW, not what the caller may do. auth.uid() is compared to impersonation_sessions.actor_user_id, and app.current_impersonation_id() to impersonation_sessions.id (design.md 6). The four that decide privilege are still four. A table needing a fifth distinct gate is a signal that the table is wrong, not that the vocabulary is too small -- and app.can_do_x() is how the per-permission matrix that v1 explicitly deferred gets built by accident'
 );
 

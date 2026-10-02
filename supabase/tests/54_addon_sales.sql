@@ -9,7 +9,7 @@ set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims', '', true);
 
-select plan(200);
+select plan(202);
 
 -- ---------------------------------------------------------------------------
 -- Exact schema, indexes, callable boundaries and private capabilities.
@@ -378,7 +378,10 @@ select throws_ok($$update public.payments set membership_id='54000000-0000-4000-
 
 set local role postgres;
 select set_config('request.jwt.claims','',true);
-select ok((select bool_and(p.prosecdef and p.proconfig @> array['search_path=""'] and not has_function_privilege('authenticated',p.oid,'EXECUTE') and not has_function_privilege('anon',p.oid,'EXECUTE')) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='app' and p.prosecdef and pg_get_functiondef(p.oid) like '%addon_%'),'every private elevated add-on helper has empty path and no user execute privilege');
+select ok((select bool_and(p.prosecdef and p.proconfig @> array['search_path=""'] and not has_function_privilege('authenticated',p.oid,'EXECUTE') and not has_function_privilege('anon',p.oid,'EXECUTE')) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='app' and p.prosecdef and pg_get_functiondef(p.oid) like '%addon_%' and p.oid is distinct from to_regprocedure('app.shop_reservation_mark_fulfilled(uuid,uuid)')),'every private elevated add-on helper has empty path and no user execute privilege');
+-- SHP's one approved authenticated capability is not a private helper.
+select ok((select prosecdef and provolatile='v' and proconfig = array['search_path=""'] and pg_get_userbyid(proowner)='postgres' and prorettype='void'::regtype from pg_proc where oid=to_regprocedure('app.shop_reservation_mark_fulfilled(uuid,uuid)')),'exact shop fulfil capability is postgres-owned volatile definer with only empty search path');
+select ok((select has_function_privilege('authenticated',p.oid,'EXECUTE') and not has_function_privilege('anon',p.oid,'EXECUTE') and not has_function_privilege('service_role',p.oid,'EXECUTE') and not exists (select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where a.privilege_type='EXECUTE' and a.grantee not in (p.proowner,(select oid from pg_roles where rolname='authenticated'))) and exists (select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where a.privilege_type='EXECUTE' and a.grantee=(select oid from pg_roles where rolname='authenticated') and not a.is_grantable) from pg_proc p where p.oid=to_regprocedure('app.shop_reservation_mark_fulfilled(uuid,uuid)')),'exact shop fulfil capability grants execute only to its owner and authenticated, without grant option or PUBLIC/anon/service access');
 select ok((select exists(select 1 from pg_trigger t where t.tgrelid='public.addon_orders'::regclass and not t.tgisinternal and pg_get_triggerdef(t.oid) like '%audit_money_change%')),'addon_orders are attached to the existing money audit writer');
 
 -- Capture SQL DETAIL because throws_ok proves SQLSTATE/message, not DETAIL.
