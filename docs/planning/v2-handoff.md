@@ -6,71 +6,59 @@ current checkpoint below supersedes the historical session-1 snapshot.
 
 ## Current checkpoint
 
-- Initial defects are repaired in separate `spec:` commits, including the missing
-  h68 holdout, suite-68/meta/catalogue fixtures and independent legacy holdouts.
-- Both migrations passed the full serialized Cloud rollback splice sweep:
-  **107 files / 8,934 assertions / zero failures**, with every literal plan satisfied.
-  No SQL changed after this sweep. Core SQL and the narrow INV-028 history reader
-  received independent static GO reviews.
-- Owner-approved INV v1.4 adds pre-Google consent, safe same-account reopening and
-  direct account recovery. Independent tests preceded separate implementers.
-  Web/API/Team received a fresh static GO. DB/shared implementation is committed
-  as `205a7ca`; web/Team implementation is committed as `4cf799a`.
-- Native optional-cache failure fixes are verified. Latest auth ordering/sign-out
-  repairs follow separate red checkpoints `61ab87d` and `9bfb1e6`; all **132 native
-  unit checks**, **6 new held ordering checks** and **31 held recovery/cache checks**
-  passed. Further independent reviews found cross-client shared-cache and durable
-  Auth-write ordering gaps. The shared-cache repair passes all 41 affected held
-  checks; durable Auth tests are committed red as `450d2ec` before implementation.
-  The third identity finding was escalated; the existing cleanup bar is retained.
-  The durable-write repair passed 137 native unit and 46 affected held checks.
-  A blind review then found late SDK refresh/PKCE responses restoring Auth after
-  logout. Independent actual-SDK tests were confirmed red and committed as
-  `9606490`. The focused public SDK-lock repair passed all 26 affected held checks
-  and received fresh static GO; native implementation is committed as `b01f331`.
-  Font acceptance is complete below; deployed invite journeys and final Android
-  runtime acceptance remain pending.
-- The owner approved `openspec/changes/member-invites/google-brand-amendment.md`.
-  INV v1.5 is frozen (`8d843c2`, platform I/O clarification `8c53737`). Independent
-  font tests preceded implementation `b176b06`. Fresh source and visual R10 critics
-  returned GO; all five real-browser font/theme/200% text/network-recovery cases
-  passed. Web units 2,724, shared 545, native broad sweep 141 plus two focused
-  stroke cases and script/held 2,526 checks are green. SQL remains unchanged.
-- Production invite origin is verified as `https://fitcruxx.vercel.app/`.
-  Batch 1 push `26ec832` migrated successfully; CLI-generated types follow-up
-  `8be0713` passed all five local typecheck tasks and all four build tasks. Holdout
-  and immutability CI passed; the original full pgTAP and queued types-only drift
-  checks remain pending. Follow-up CI found five Linux provider-font failures:
-  Next's generated local Arial fallback was incorrectly required by readiness.
-  Separate implementer/fresh critic repaired this without changing tests;
-  six visible units, five browser cases and eight held cases passed. Repair
-  `27d4191` is pushed and Linux CI `37011785563` passed gates/Deno including browser
-  font cases. Deployed public provider readiness and generic invite refusals were
-  verified at phone width. Full invitation/Team journeys remain pending.
-- Registry/docs are updated. Final gates, deployed browser
-  journeys, Android runtime evidence, archive and every CI gate remain required.
-  A separate `in.fitcruxx.v2check` debug build succeeded and is installed alongside
-  the Play release. Device runtime checks are pending; this is not release evidence.
-- Owner deferred USB/device testing to the end of all v2 because another agent
-  is using the phone. Do not touch ADB/the device meanwhile; use web/mobile
-  viewport checks, preserving final Android acceptance as an open requirement.
-- Batch 2 decisions are being applied to all seven contracts and fetchable bars.
-  Owner approved the concrete final-session PT waiver, CI-only notification
-  vocabulary prelude and MEDIA verifier/signer architecture exception. GRD/BIZ/PLC/
-  CLS contracts and bars received GO and are frozen as `769eb13`; GRD independent
-  DB suites are drafted and separate app authors are preparing tests. SHP/PTF/ANC
-  MEDIA contracts received a fresh GO after reconciliation, including trainer
-  pseudonym parity. Batch-1 full pgTAP and seed passed; generated-types DB follow-up
-  `37009955982` passed every job and resolved the historical schema drift failure.
-  Vocabulary visible/held tests each ran their exact plan and failed only the
-  expected appended-label assertion. Commit those red before the separate builder.
-  Batch-1 DB sequencing is complete; proceed with the vocabulary migration;
-  wait for the whole prelude DB run before the single seven-feature migration push.
-  Then carry batch 2, Waves C/D and versionCode 5 onward.
-  Preserve the original full-v2 objective and the independent roles.
+- Batch 1 defects, independent tests, implementations and migration/type pushes
+  are complete. Full rollback proof: **107 files / 8,934 assertions / zero failures**
+  with exact plans. CI 37011785563 is green; DB 37009955982 is wholly green and
+  resolves historical pre-types drift. Normal committed baselines pass web
+  92 suites/2,724 tests, native 14 files/143 tests and shared 545 tests.
+- Real deployed role/navigation checks passed 5/5, including owner-only Team.
+  Genuine Google invite/recovery journeys, final Android runtime acceptance and
+  archive remain open; do not present role navigation as invitation redemption.
+- Owner deferred every USB/device interaction until final v2 testing because
+  another agent uses the phone. Do not use ADB/Metro or change that agent's build;
+  continue web/mobile viewport work. The owner tests nothing until all v2 is built.
+- The CI-only vocabulary prelude is applied. DB 37021183243 passed migrate,
+  full pgTAP and seed; its historical pre-types drift is resolved by CLI-generated
+  follow-up ccc62e4 / DB **37022798758 (all jobs green)**. Related CI/held/immutability
+  runs passed. origin/main is ccc62e4; no seven-feature business migration is pushed.
+- Seven batch-2 contracts, separate SQL authors and central catalogue tests are
+  committed first. GRD/BIZ/PLC/SHP/CLS source drafts are complete but uncommitted;
+  PTF is a separate implementer's partial draft, ANC is paused for its exact
+  platform-policy reconciliation. All business Cloud schema remains unapplied.
+- Focused runtime passes include BIZ visible61/held71 and PLC held30. Other
+  affected suites are being repaired by their original independent authors for
+  invalid fixture IDs, lifecycle/date/consent setup, expected-query shape and
+  comparison collations. No failing requirement has been relaxed. Final combined
+  booking-primitives + seven-migration rollback sweep and fresh source critics
+  remain required before the business push. Local Cloud testing stays serialized
+  and forbidden while any DB workflow is active.
+- Owner approved the PT final-session exception, then clarified that ANY
+  same-tenant/order-payment refund record blocks it (including pending and failed).
+  Public boundary and immutable completed_order posture received independent GO;
+  visible308/held315 tests precede the separate implementation. Their actual
+  schema-red captures are recorded; the held fixture first needed valid canonical
+  membership dates. Partial source was drafted before that actual runtime capture;
+  test commits preceded all source edits. No green PT runtime claim is made.
+- ANC's narrower frozen direct-table policy lists take precedence through the
+  exact ADR-184 exception, independently reviewed GO: no platform policy on any
+  of its three tables; support-preview remains actor-checked read-only RPC access.
+  Resume implementation only after the corrected central test commit.
+- Shop rollback-only success fixtures use a narrowly bounded order-created default
+  seam to model separate command transactions without changing money functions,
+  guards or successful rows. Genuine multi-transaction ordinary-RPC reserve,
+  fulfil and replay evidence is still mandatory. Independent Shop app tests are
+  now commissioned; other app drafts stay uncommitted until the SQL/types staging.
+- Exact owner-approved private R2 production-origin PUT CORS is applied and its
+  positive/negative preflights verified. Existing four registered R2 values are
+  provisioned to repository secrets with independent name/timestamp receipt.
+  Edge secret provisioning/deploy, verified immutable publication/current
+  exposure and live upload remain pending. No media object was written for CORS.
+- Registry/ADRs and guardian privacy inventory are being integrated. After the
+  single business push, CLI-generate types and carry app red/build/critics/gates
+  forward under ADR-177, then Waves C/D and versionCode 5. Preserve ALL-v2 scope.
 
-Detailed evidence and limits: `docs/evidence/v2/ledger.md`. Minimize usage through
-focused briefs and affected checks; retain independent authors and fresh critics.
+Evidence and limits: `docs/evidence/v2/ledger.md`. Use GPT-6.1 Sol, narrow briefs
+and affected checks to minimize weekly usage; keep independent roles/fresh critics.
 
 ## Owner standing instructions (follow exactly)
 

@@ -1,7 +1,9 @@
 # ANC direct-table platform policy clarification
 
-Status: proposed technical reconciliation under the orchestrator's delegated
-contract authority; ANC source edits are paused for independent review.
+Status: approved technical reconciliation under the orchestrator's delegated
+contract authority, after a fresh independent contract GO on 2026-10-02. No
+additional owner permission decision is required. ANC source edits resume only
+after the exact corrected central metadata test commit.
 
 The frozen ANC-016 fixed-name table and independent visible suite specify only
 front-office tenant SELECT on announcements and announcement_versions, and only

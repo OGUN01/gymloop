@@ -156,6 +156,12 @@ beyond counts; a second-person approval step.
 | limits (mirrored in `ANNOUNCEMENT_LIMITS`) | title 1–80 characters, body 1–1500, change note 3–200 (all after trim, counted as characters); at most 10 live announcements per gym; 20 publishes per gym per rolling 24 hours (counted from `published_at`); 10 versions per announcement; expiry at most 365 days after now; list page 50 |
 | audit actions | `announcement.drafted`, `announcement.discarded`, `announcement.published`, `announcement.edited`, `announcement.unpublished` |
 
+Named ADR-184 policy-template exception: `announcements`,
+`announcement_versions` and `announcement_receipts` have **no platform policy**.
+Their exact fixed policy lists above remain front-office tenant reads for content
+and own-member reads for receipts. Support-preview access remains only through
+the actor-checked, read-only list/detail RPCs. No unrelated table policy changes.
+
 "Good standing" = member status `active`, `paused` or `expired` and `erased_at is null` (a `paused` or
 `expired` member signs in normally because renewing is what they sign in to do — `docs/security.md`).
 "Live membership" = the check-in gate's predicate, a `memberships` row with status `active` or `frozen`

@@ -141,14 +141,14 @@ select is_empty(
       select relname, 'platform_select using',
              (select pg_get_expr(p.polqual, p.polrelid) from pg_policy p
                where p.polrelid = t.oid and p.polname::text = t.relname || '_platform_select'),
-             case when relname = 'announcement_receipts' then null
+             case when relname in ('announcements', 'announcement_versions', 'announcement_receipts') then null
                   else '^selectapp\.is_platform$' end
         from t
       union all
       select relname, 'platform_select command',
              (select p.polcmd::text from pg_policy p
                where p.polrelid = t.oid and p.polname::text = t.relname || '_platform_select'),
-             case when relname = 'announcement_receipts' then null else '^r$' end
+             case when relname in ('announcements', 'announcement_versions', 'announcement_receipts') then null else '^r$' end
         from t
       union all
       select relname, 'platform_write using',
@@ -189,7 +189,7 @@ select is_empty(
                     '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g')), '')
                   !~ want
            end$$,
-  'design.md 8.1 / 8.4 / 6: every table carries <t>_platform_select for select on is_platform(), except announcement_receipts which must have no platform_select under ANC-013 receipt privacy, and carries <t>_platform_write for all on `current_app_role() = super_admin` -- on both its clauses -- exactly when authenticated holds insert or update on it. Which tables those are is read from the grant, not from a list, so the invariant survives a later phase changing one. impersonation_sessions carries one extra term, `actor_user_id = (select auth.uid())`, on both clauses: without it a super admin could open a session naming a different platform user -- including a platform_support account, which may not impersonate at all -- and the audit trail would then name the wrong person, which is the one thing an impersonation audit row exists to get right'
+  'design.md 8.1 / 8.4 / 6: every table carries <t>_platform_select for select on is_platform(), except exactly announcements, announcement_versions and announcement_receipts which must each have no platform_select under the frozen ANC-016 policy lists; this requires absence, and support preview uses only actor-checked read RPCs, and carries <t>_platform_write for all on `current_app_role() = super_admin` -- on both its clauses -- exactly when authenticated holds insert or update on it. Which tables those are is read from the grant, not from a list, so the invariant survives a later phase changing one. impersonation_sessions carries one extra term, `actor_user_id = (select auth.uid())`, on both clauses: without it a super admin could open a session naming a different platform user -- including a platform_support account, which may not impersonate at all -- and the audit trail would then name the wrong person, which is the one thing an impersonation audit row exists to get right'
 );
 
 select is_empty(
@@ -416,7 +416,7 @@ select is_empty(
                     '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g')), '')
                   !~ pat
            end$$,
-  'spec "Every table''s read gate matches the matrix" / "Every table''s write gate matches the matrix" / "A refused write affects zero rows; a refused insert raises" / "A member reads only their own rows" -- design.md 8.3, all thirty-six tables, seven clauses each, in both directions - plus member_invites (INV-017) and staff_invites (STI-011 v1.1), two read-only rows: front-office and owner-only tenant_select respectively; GRD-006 adds guardian_consents with front-office tenant_select, no tenant_write and no member_select, and the unchanged universal platform-pair assertion requires its canonical platform_select without a platform_write. ANC-013/016 adds front-office SELECT-only announcements and announcement_versions, and own-member-only announcement_receipts with no tenant or platform policy. PTF adds trainer_profiles, trainer_availability, trainer_time_off and pt_cancellations with front-office or own-trainer tenant reads, no write or member policy. SHP adds media_assets and shop_reservations with front-office SELECT-only tenant gates and no member policies, plus shop_categories with staff reads and gym-admin writes. CLS-021 adds services, class_rules, class_sessions and class_bookings with is_staff tenant_select, no tenant_write and no member_select; the universal platform-pair assertion supplies their SELECT-only platform shape. PLC-001/003 appends exactly andis_active to plans_member_select through mb_extra; every other member predicate and every staff/platform predicate is unchanged. The tenant term is first in the predicate, as for every other row, which is the order the member-invites proposal text does not use'
+  'spec "Every table''s read gate matches the matrix" / "Every table''s write gate matches the matrix" / "A refused write affects zero rows; a refused insert raises" / "A member reads only their own rows" -- design.md 8.3, all thirty-six tables, seven clauses each, in both directions - plus member_invites (INV-017) and staff_invites (STI-011 v1.1), two read-only rows: front-office and owner-only tenant_select respectively; GRD-006 adds guardian_consents with front-office tenant_select, no tenant_write and no member_select, and the unchanged universal platform-pair assertion requires its canonical platform_select without a platform_write. ANC-013/016 adds front-office SELECT-only announcements and announcement_versions, and own-member-only announcement_receipts with no tenant policy; all three have no platform policy, with support preview only through the actor-checked read RPCs. PTF adds trainer_profiles, trainer_availability, trainer_time_off and pt_cancellations with front-office or own-trainer tenant reads, no write or member policy. SHP adds media_assets and shop_reservations with front-office SELECT-only tenant gates and no member policies, plus shop_categories with staff reads and gym-admin writes. CLS-021 adds services, class_rules, class_sessions and class_bookings with is_staff tenant_select, no tenant_write and no member_select; the universal platform-pair assertion supplies their SELECT-only platform shape. PLC-001/003 appends exactly andis_active to plans_member_select through mb_extra; every other member predicate and every staff/platform predicate is unchanged. The tenant term is first in the predicate, as for every other row, which is the order the member-invites proposal text does not use'
 );
 
 -- ---------------------------------------------------------------------------
