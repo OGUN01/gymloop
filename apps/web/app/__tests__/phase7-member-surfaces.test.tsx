@@ -1,8 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { businessNouns } from '@gymloop/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 const portal = {
   errorMessage: null,
+  businessType: 'gym', nouns: businessNouns('gym'),
   member: { full_name: 'Aarav Sharma' },
   gym: { name: 'Iron Box Fitness', branchName: 'Vijay Nagar', gym_code: 'IRNBX1', branchAddress: '12 Main Road', city: 'Indore', state: 'MP', timezone: 'Asia/Kolkata' },
   membership: { status: 'active', endsOn: '2026-09-30', planName: 'Monthly' },

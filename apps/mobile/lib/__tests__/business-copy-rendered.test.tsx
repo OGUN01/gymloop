@@ -137,11 +137,15 @@ describe('BIZ-012/021 rendered native vocabulary and accessible names', () => {
   it('dance You labels the profile and account with the correct noun', async () => {
     const tree = await render('you'); expect(text(tree)).toContain('Verified student');
     expect(accessible(tree)).toMatch(/academy code BIZ70A/i);
+    expect(nodes(tree).some((node) => text(node) === 'Academy')).toBe(true);
+    expect(accessible(tree)).toMatch(/Academy,\s*BIZ Academy/);
   });
   it('gym preserves the specified Home, Gym and You legacy wording', async () => {
     state.type = 'gym'; const home = await render('home'); expect(text(home)).toContain('Latest from your gym'); expect(accessible(home)).toContain('Opens the camera to scan your gym QR code');
     state.slots = []; const gym = await render('gym'); expect(text(gym)).toContain('Gym code'); expect(accessible(gym)).toContain('Opens the member check-in scanner');
     state.slots = []; const you = await render('you'); expect(text(you)).toContain('Verified member'); expect(accessible(you)).toMatch(/gym code BIZ70A/i);
+    expect(nodes(you).some((node) => text(node) === 'Gym')).toBe(true);
+    expect(accessible(you)).toMatch(/Gym,\s*BIZ Academy/);
   });
   it.each(['desk', 'members'] as const)('dance %s counts use student for one and students for more', async (name) => {
     const one = await render(name); expect(text(one)).toMatch(/\b1 student\b/); expect(text(one)).not.toMatch(/\b1 students\b/);

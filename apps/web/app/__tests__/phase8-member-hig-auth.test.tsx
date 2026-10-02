@@ -1,11 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { businessNouns, humanize } from '@gymloop/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', () => ({ usePathname: () => '/member' }));
 vi.mock('../../lib/member-portal', () => ({
   loadMemberPortal: vi.fn(async () => ({
     errorMessage: null,
+    businessType: 'gym', nouns: businessNouns('gym'),
     member: { full_name: 'Aarav Sharma', email: 'aarav@example.test', phone: null, member_code: 'GYM-42' },
     gym: { name: 'Iron Box Fitness', branchName: 'Vijay Nagar' },
     membership: { status: 'active', endsOn: '2026-09-30', planName: 'Monthly' },
@@ -19,13 +21,15 @@ const appRoot = existsSync(resolve(process.cwd(), 'app'))
 const source = (relativePath: string) => readFileSync(resolve(appRoot, relativePath), 'utf8');
 const repoRoot = resolve(appRoot, '../../..');
 const repoSource = (relativePath: string) => readFileSync(resolve(repoRoot, relativePath), 'utf8');
+const gymNouns = businessNouns('gym');
 
 describe('Phase 8 member HIG/auth boundary', () => {
   it('gives web and native members four labelled icon destinations with a selected state', async () => {
     const web = source('member/member-navigation.tsx');
     expect(web).toMatch(/Home/);
     expect(web).toMatch(/Activity/);
-    expect(web).toMatch(/My gym/);
+    expect(web).toMatch(/My\s+\$?\{\s*nouns\.place\s*\}/);
+    expect(web.replace(/\$?\{\s*nouns\.place\s*\}/g, gymNouns.place)).toMatch(/My gym/);
     expect(web).toMatch(/You/);
     expect(web).toMatch(/aria-current/);
     expect(web).toMatch(/icon|Icon/);
@@ -55,7 +59,14 @@ describe('Phase 8 member HIG/auth boundary', () => {
   });
 
   it('gives Android You the accepted verified account hierarchy and settings destination', () => {
-    const nativeProfile = repoSource('apps/mobile/app/(member)/you.tsx');
+    const nativeSource = repoSource('apps/mobile/app/(member)/you.tsx');
+    expect(nativeSource).toMatch(/Verified\s+\$?\{\s*nouns\.member\s*\}/);
+    expect(nativeSource).toMatch(/\$?\{\s*humanize\(\s*nouns\.place\s*\)\s*\}/);
+    // BIZ changes only noun slots. Project those public slots to the gym row so
+    // the existing source-order, row-summary and accessibility checks stay exact.
+    const nativeProfile = nativeSource
+      .replace(/\$?\{\s*humanize\(\s*nouns\.place\s*\)\s*\}/g, humanize(gymNouns.place))
+      .replace(/\$?\{\s*nouns\.member\s*\}/g, gymNouns.member);
     const memberNameIndex = nativeProfile.search(/data\.member\.(?:fullName|full_name|name)/);
     const verifiedIndex = nativeProfile.search(/(?:>|['"])Verified member(?:<|['"])/);
     const gymNameIndex = nativeProfile.search(/data\.gym\.name/);
