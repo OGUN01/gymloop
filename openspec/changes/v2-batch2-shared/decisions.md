@@ -25,6 +25,11 @@ standing delegation and are recorded in each feature's ADR text.
   The owner subsequently approved `pt-front/completed-pack-return-boundary.md`:
   ANY same-tenant/order-payment refund row blocks that exception, including pending
   and failed requests; the ordinary full-return predicate remains unchanged.
+- **[owner, additional explicit approval 2026-10-02] PTF expired balance:** apply
+  `pt-front/expired-pack-remaining-amendment.md`. Expired packs show `max(total-used,0)`
+  on both member/staff reads, with actual scheduled count separate; every other
+  state retains the common equation. Expired packs remain unbookable and no ledger
+  record changes. Independent boundary tests and a fresh critic are required.
 - **[owner, additional explicit approval 2026-10-02] Notification vocabulary prelude:** apply
   `notification-vocabulary-amendment.md`. `20261003083000_notification_categories.sql`
   adds only `class_update`, then `announcement`; CI applies and verifies this unit before

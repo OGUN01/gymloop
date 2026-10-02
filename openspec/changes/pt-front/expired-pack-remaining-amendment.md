@@ -1,8 +1,10 @@
 # Expired PT pack remaining count
 
-Status: owner decision pending. No source or test expectation is approved by
-this proposal. The separate implementer's draft and current tests do not prove
-the expired-with-unclosed-scheduled boundary.
+Status: owner approved in the campaign chat on 2026-10-02: retain the explicit
+expiry exception and show seven unused sessions in the example. The separate
+implementer's draft and current tests do not yet prove the expired-with-unclosed-
+scheduled boundary. Fresh contract review and independent test updates precede
+the separate source correction.
 
 PTF-005 defines sessions_remaining as max(total - used - scheduled, 0), shared by
 member and staff reads. PTF-018 explicitly uses total - used for expired packs so
@@ -10,7 +12,7 @@ the owner can see unspent value. They differ when a pack expires while sessions
 remain scheduled. A ten-session pack with three used and two still scheduled
 would display either seven unused sessions or five unreserved sessions.
 
-## Proposed decision: retain the explicit expiry exception
+## Approved decision: retain the explicit expiry exception
 
 For state expired only, both read_member_pt_packs and read_pt_packs return
 sessions_remaining = max(sessions_total - sessions_used, 0).
@@ -29,7 +31,7 @@ evidence and unchanged live-pack counts before a separate source correction.
 Independent app authors assert the same count and expired/unbookable presentation.
 A fresh critic then checks this exact boundary and the unchanged money rules.
 
-## Alternative decision: use the common balance formula in every state
+## Rejected alternative: use the common balance formula in every state
 
 Amend PTF-018 to max(total - used - scheduled, 0), retaining the current shared
 read-model equation without an expiry exception. The example would display five.
