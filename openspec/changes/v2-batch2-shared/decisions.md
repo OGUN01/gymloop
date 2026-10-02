@@ -22,6 +22,9 @@ standing delegation and are recorded in each feature's ADR text.
   completed by that exact consumed cancellation may be restored once by owner/manager;
   immutable causal provenance, exact guard shape, locks, independent money tests,
   unchanged sold terms and no charge/refund are required. Ordinary completion remains terminal.
+  The owner subsequently approved `pt-front/completed-pack-return-boundary.md`:
+  ANY same-tenant/order-payment refund row blocks that exception, including pending
+  and failed requests; the ordinary full-return predicate remains unchanged.
 - **[owner, additional explicit approval 2026-10-02] Notification vocabulary prelude:** apply
   `notification-vocabulary-amendment.md`. `20261003083000_notification_categories.sql`
   adds only `class_update`, then `announcement`; CI applies and verifies this unit before

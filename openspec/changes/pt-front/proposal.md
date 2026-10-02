@@ -298,5 +298,11 @@ remain unchanged. Stored/audited database row fields retain `start_minute` and
 This closes an omitted interface encoding under the orchestrator's standing
 delegation; it adds no new column, function, route, permission or business rule.
 Both independent DB authors were paused before this wording was fixed. The
-separate recorded-return question in `completed-pack-return-boundary.md` still
-requires the owner decision before either author resumes.
+recorded-return boundary in `completed-pack-return-boundary.md` was subsequently
+approved by the owner: the completed-pack exception is excluded by ANY
+`public.refunds` row with the order's tenant_id and payment_id, without a status,
+amount or currency filter. Requested, processing, completed and failed rows all
+exclude it; unrelated tenant/payment rows do not. This same predicate applies to
+both PTF-016 revalidation and PTF-023's exact completed→active guard exception.
+Ordinary full-return accounting and active-pack waiver rules stay unchanged.
+Fresh review precedes resuming either author.

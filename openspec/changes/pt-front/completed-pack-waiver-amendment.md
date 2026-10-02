@@ -24,6 +24,14 @@ Approved transaction-local setting `app.pt_completed_waive_command` = `waive:<se
 
 ## Races, validity and guard limits
 
+Owner-approved recorded-return clarification (2026-10-02): for the completed-pack
+exception only, ANY `public.refunds` row with the order's tenant_id and payment_id
+excludes restoration, regardless of requested/processing/completed/failed status,
+amount or currency. No completed-only filter is allowed. Unrelated tenant/payment
+rows do not exclude it. This exact predicate applies in PTF-016 and the PTF-023
+guard exception; ordinary full-return accounting and active-pack waiver rules
+remain unchanged. See `completed-pack-return-boundary.md` for the decision.
+
 Session lock then order lock retains PTF's canonical subset ordering; no trainer lock is added by a capacity-restoring waiver. Other same-order completion/refund/expiry paths must use the existing order lock. The waiver evaluates a fresh command clock after acquiring its locks, in the order's existing gym-local validity rules; validity is never extended. If expiry or a return wins first, revalidation refuses. If waiver wins first, a later expiry applies normally; a later completion rechecks the restored counter and may complete only through the ordinary legal rule. Two concurrent waivers of the same cancellation produce one restoration and one replay; two distinct completed-order claims cannot bypass the immutable causal marker or the locked exact counter. All pre-existing identity, tenant, guard and sold-term invariants remain mandatory.
 
 ## Independent tests and approved footprint
