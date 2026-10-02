@@ -317,8 +317,13 @@ max_freeze_days_per_year and the route's day-count helper but do not state the
 precise annual boundary, inclusive accounting across year end, whether the
 limit is member- or membership-scoped, which pending/approved rows count, how
 current plan allowance interacts with gym allowance, or the exact source
-approval checks. An independent source-freeze audit must publish that behavior
-as stable PAUSE requirements and reconcile any actual gaps with the owner.
+approval checks. The orchestrator's source extraction is now recorded in
+`pause-source-boundary.md`: the current route counts whole approved intervals
+by their start calendar year across the member's memberships, while the
+database budget/plan enforcement gap in OPEN-016 remains. That extraction is
+planning evidence, not a selected commercial rule. A fresh source-freeze review
+must publish the approved behavior as stable PAUSE requirements and reconcile
+the actual allowance/direct-writer gaps with the owner.
 SLF SHALL reuse that frozen source contract; it must not silently choose a
 calendar/rolling/membership year or inflate limits from client calculations.
 Until that public boundary and the additive wrapper/source race guard are
