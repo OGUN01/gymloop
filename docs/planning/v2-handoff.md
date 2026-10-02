@@ -42,15 +42,21 @@ current checkpoint below supersedes the historical session-1 snapshot.
   pinned a5b4225: all four repaired suites green, 1,415/1,415 assertions. All eight
   migration hashes match r18. Together these establish passing coverage across
   the 123 files; they are not one final all-green sweep. That final sweep remains
-  mandatory after the two pending contract decisions and before the business
+  mandatory after the approved boundary repairs and before the business
   push. Cloud testing is serialized and forbidden during any DB workflow.
-- Two fresh source findings need owner decisions before affected work resumes:
-  classes/wall-time-boundary-amendment.md (24:00 currently shifts the instant but
-  leaves the wrong stored date; recommended explicit rejection preserves weekly
-  identity), and announcements/live-membership-boundary-amendment.md (the frozen
-  glossary cites an old status-only gate; recommended current gym-local inclusive
-  dates). Both concrete proposals are committed and approval cards are pending.
-  Neither source fix nor its new tests has been commissioned before that decision.
+- Owner approved explicit rejection of class `24:00` and announcement audiences
+  using status plus inclusive gym-local membership dates. Freeze a16ae30 preceded
+  four independent new SQL suites and isolated source repairs. Canonical r23
+  passed 398/398. A fresh source critic then found the approved malformed-timezone
+  fallback missing from shared `app.gym_today`; independent tests preserved the
+  normal invalid-write guard and used a bounded rollback-only legacy fixture,
+  with the exact commercial trigger restored before every application check.
+  Tests bf9e3fc preceded the final verification: canonical r26 passed all six
+  affected suites, **1,057/1,057** assertions. Fresh blind final source review
+  returned GO; bytes outside the six changed routines match their predecessors.
+  This is source/SQL proof only. The complete **127-file** canonical sweep r27
+  is running, pinned bf9e3fc and all eight migration hashes. Do not push before
+  its final exact-plan green result and the remaining local gates.
 - Owner approved the PT final-session exception, then clarified that ANY
   same-tenant/order-payment refund record blocks it (including pending and failed).
   Public boundary and immutable completed_order posture received independent GO;
@@ -69,7 +75,8 @@ current checkpoint below supersedes the historical session-1 snapshot.
   The corrected central test commit precedes the completed ANC source draft;
   both ANC suites pass their frozen contract, with no notification fan-out or
   platform policy. The later independent date-boundary finding is recorded above;
-  ANC is not source-approved until that targeting contract is resolved.
+  ANC targeting is now owner-resolved and independently source-approved as above;
+  complete runtime and screen acceptance remain open.
 - Shop rollback-only success fixtures use a narrowly bounded order-created default
   seam to model separate command transactions without changing money functions,
   guards or successful rows. Genuine multi-transaction ordinary-RPC reserve,

@@ -300,3 +300,28 @@ in their committed amendment proposals. Neither affected tests nor source fixes
 were commissioned without those decisions. No business migration or application
 source was pushed; screens, live media, real races, Waves C/D and final release
 verification remain open. No Android/device interaction occurred.
+
+### Approved date-boundary repairs, 2026-10-03
+
+Owner chose rejection of `24:00` and active/frozen membership status with inclusive
+gym-local dates. Public freeze a16ae30 preceded independent visible/holdout files
+74/75/h74/h75 and the separate CLS/ANC source repairs. Canonical focused r23
+passed 398 assertions. A fresh source critic found shared `app.gym_today` lacked
+the approved defensive malformed-timezone fallback; GRD/ANC public dependency
+clarifications were frozen before independent tests and a separate helper fix.
+
+Legacy null-date fixtures retain every ordinary guard. Malformed timezone
+fixtures suspend only the exact named commercial trigger inside a rollback-only
+subtransaction, restore its original definition/enabled state immediately before
+ordinary application reads/commands, and prove the sentinel restored original
+rows/guards. Ordinary gym-owner direct writes remain refused actor-first with
+42501; independent holdout correction bf9e3fc preserves that precedence.
+
+Canonical `batch2-dates-guardian-canonical-r26`, pinned bf9e3fc, passed visible
+74=42, 75=316, GRD69=311 and holdout h74=23, h75=72, h69=293: **1,057 assertions,
+zero failures**, exact plans. Final fresh blind source critic reviewed only the
+approved public boundaries and three source/predecessor pairs, returned GO, and
+verified exact bytes outside six permitted routines. It saw no tests or runtime
+evidence. Canonical all-file r27 is running against 127 committed SQL files and
+snapshotted copies of all eight business migrations; its final result is still
+pending. No business push, application/visual win or device test is claimed.
