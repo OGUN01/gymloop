@@ -1,6 +1,7 @@
 // Independent SHP auth/body and refusal boundary; existing identity transport double only.
 import { beforeEach, expect, it, vi } from 'vitest';
-const h = vi.hoisted(() => ({ identity: null as unknown, rpc: vi.fn(), reply: { data: null as unknown, error: null as unknown }, bearer: vi.fn(), cookie: vi.fn() }));
+import type { GymloopIdentity } from '../../packages/shared/src/api/identity';
+const h = vi.hoisted(() => ({ identity: null as GymloopIdentity | null, rpc: vi.fn(), reply: { data: null as unknown, error: null as unknown }, bearer: vi.fn(), cookie: vi.fn() }));
 vi.mock('../../apps/web/lib/identity-session', () => ({ readIdentity: h.cookie, readRequestIdentity: h.bearer }));
 const id = '72930000-0000-4000-8000-000000000001';
 const routes = [
@@ -15,7 +16,7 @@ const routes = [
 ];
 beforeEach(() => {
   h.identity = null; h.reply = { data: null, error: null }; h.rpc.mockReset(); h.cookie.mockReset(); h.bearer.mockReset();
-  const read = async () => h.identity === null ? null : { identity: h.identity, supabase: { rpc: h.rpc } };
+  const read = async () => ({ identity: h.identity ?? { kind: 'unlinked' }, supabase: { rpc: h.rpc }, signedIn: h.identity !== null, authenticatedUser: h.identity !== null });
   h.cookie.mockImplementation(read); h.bearer.mockImplementation(read);
   h.rpc.mockImplementation(() => Object.assign(Promise.resolve(h.reply), { single: async () => h.reply, maybeSingle: async () => h.reply }));
 });
