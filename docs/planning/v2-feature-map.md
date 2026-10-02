@@ -325,9 +325,8 @@ The add-ons **section** as the member sees it goes away; its contents split:
 Found by walking the full member and owner lifecycle through this map. None
 are committed; each waits for closed-test demand to earn a build slot.
 
-- **Hindi and regional languages (I18N).** The member app first; owner console
-  can stay English. Likely the single biggest adoption lever for Play Store
-  India after the closed test.
+- ~~**Hindi and regional languages (I18N).**~~ **Removed by owner decision,
+  2026-10-02: the app stays English.** Recorded here so nobody re-proposes it.
 - **Plans catalogue in the member app.** Members see what plans exist before
   requesting a renewal, not just what they already hold.
 - **Free trial class booking.** A lead books a trial class from CLS's
