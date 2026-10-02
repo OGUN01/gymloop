@@ -233,13 +233,21 @@ source attribution for metrics.
 **Edge cases.** Duplicate detection by phone; converting a lost lead;
 attribution preserved for the acquisition metrics gate.
 
-## F14. Occupancy analytics (OCC)
+## F14. Occupancy and revenue analytics (OCC)
 
 **What.** Peak-hours and day-of-week attendance heatmaps per branch for
-staffing decisions.
+staffing decisions, plus two owner-facing additions pinned 2026-10-02:
+**revenue trend over time** (monthly collection split by renewals vs
+new-member money, refunds netted) and — once CLS exists — **class attendance
+percent** (fill rate per class, which classes fill and which die; the number a
+dance/yoga owner checks daily).
 
 **Edge cases.** Holiday exclusion (existing calendar), timezone correctness
-per branch, low-data smoothing on new gyms, cross-branch comparison view.
+per branch, low-data smoothing on new gyms, cross-branch comparison view,
+revenue trend must derive from the same money rules (integer paise, refunds
+netted, no floats anywhere in the aggregation), class fill rate counts
+bookings against capacity only for sessions that actually ran (cancelled
+sessions excluded).
 
 ---
 
