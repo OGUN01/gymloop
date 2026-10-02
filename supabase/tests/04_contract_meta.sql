@@ -57,7 +57,7 @@ begin;
 -- the owner role is assumed explicitly, never inherited from the connection.
 set local role postgres;
 
-select plan(29);
+select plan(31);
 
 -- ---------------------------------------------------------------------------
 -- 1. Row-Level Security is on everywhere
@@ -296,6 +296,9 @@ select is_empty(
       ('class_rules',             'is_staff',        null,              null),
       ('class_sessions',          'is_staff',        null,              null),
       ('class_bookings',          'is_staff',        null,              null),
+      ('media_assets',            'is_front_office', null,              null),
+      ('shop_reservations',       'is_front_office', null,              null),
+      ('shop_categories',         'is_staff',        'is_gym_admin',    null),
       ('member_imports',          'is_gym_admin',    'is_gym_admin',    null),
       ('messaging_wallets',       'is_gym_admin',    null,              null),
       ('messaging_wallet_ledger', 'is_gym_admin',    null,              null),
@@ -400,7 +403,7 @@ select is_empty(
                     '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g')), '')
                   !~ pat
            end$$,
-  'spec "Every table''s read gate matches the matrix" / "Every table''s write gate matches the matrix" / "A refused write affects zero rows; a refused insert raises" / "A member reads only their own rows" -- design.md 8.3, all thirty-six tables, seven clauses each, in both directions - plus member_invites (INV-017) and staff_invites (STI-011 v1.1), two read-only rows: front-office and owner-only tenant_select respectively; GRD-006 adds guardian_consents with front-office tenant_select, no tenant_write and no member_select, and the unchanged universal platform-pair assertion requires its canonical platform_select without a platform_write. CLS-021 adds services, class_rules, class_sessions and class_bookings with is_staff tenant_select, no tenant_write and no member_select; the universal platform-pair assertion supplies their SELECT-only platform shape. PLC-001/003 appends exactly andis_active to plans_member_select through mb_extra; every other member predicate and every staff/platform predicate is unchanged. The tenant term is first in the predicate, as for every other row, which is the order the member-invites proposal text does not use'
+  'spec "Every table''s read gate matches the matrix" / "Every table''s write gate matches the matrix" / "A refused write affects zero rows; a refused insert raises" / "A member reads only their own rows" -- design.md 8.3, all thirty-six tables, seven clauses each, in both directions - plus member_invites (INV-017) and staff_invites (STI-011 v1.1), two read-only rows: front-office and owner-only tenant_select respectively; GRD-006 adds guardian_consents with front-office tenant_select, no tenant_write and no member_select, and the unchanged universal platform-pair assertion requires its canonical platform_select without a platform_write. SHP adds media_assets and shop_reservations with front-office SELECT-only tenant gates and no member policies, plus shop_categories with staff reads and gym-admin writes. CLS-021 adds services, class_rules, class_sessions and class_bookings with is_staff tenant_select, no tenant_write and no member_select; the universal platform-pair assertion supplies their SELECT-only platform shape. PLC-001/003 appends exactly andis_active to plans_member_select through mb_extra; every other member predicate and every staff/platform predicate is unchanged. The tenant term is first in the predicate, as for every other row, which is the order the member-invites proposal text does not use'
 );
 
 -- ---------------------------------------------------------------------------
@@ -915,11 +918,19 @@ select is_empty(
                          ('public.desk_book_class_session(uuid, uuid)', 'v'),
                          ('public.desk_cancel_class_booking(uuid, text)', 'v'),
                          ('public.mark_class_attendance(uuid, public.booking_status)', 'v'),
-                         ('public.read_member_class_schedule(date, date)', 's')
+                         ('public.read_member_class_schedule(date, date)', 's'),
+                         ('public.register_media_asset(text, text, text, integer)', 'v'),
+                         ('public.delete_media_asset(uuid, boolean)', 'v'),
+                         ('public.set_shop_product_display(uuid, uuid, smallint, uuid)', 'v'),
+                         ('public.read_member_shop()', 's'),
+                         ('public.read_member_shop_reservations()', 's'),
+                         ('public.create_shop_reservation(uuid, integer, uuid)', 'v'),
+                         ('public.cancel_shop_reservation(uuid, text)', 'v'),
+                         ('public.finalize_media_asset(uuid, uuid, uuid, public.app_role, uuid, text, text, integer, text, text, text, text)', 'v')
                        ) allowed(signature, volatility)
                        where p.oid = to_regprocedure(allowed.signature)
                          and p.provolatile = allowed.volatility))))$$,
-  'ADR-032, ADR-116 and the approved Phase 6 member projections and import commands: all app/public security-definer functions have an empty search_path; only the exact postgres-owned signatures on the allowlist may be elevated in public, each at its own required volatility, with no unapproved overload or function. INV-017 (member invites) adds exactly six: the writers issue_member_invite, revoke_member_invite, redeem_member_invite and unlink_member_identity are VOLATILE, and the two readers peek_member_invite (anon may execute this reader) and read_member_app_access are STABLE as specified by INV v1.1; app.member_invite_audit is elevated too but sits in app and is held to the empty-path rule alone. STI-011 v1.1 adds exactly seven postgres-owned signatures: invite_staff_member, issue_staff_invite, revoke_staff_invite, redeem_staff_invite and unlink_staff_identity VOLATILE; peek_staff_invite and read_staff_app_access STABLE. GRD-002/006/016 adds exactly three postgres-owned VOLATILE signatures: attest_members_without_dob_adult, record_guardian_consent and transition_member_to_own_account; its four other public RPCs are invokers. BIZ-003/005 adds only the exact postgres-owned VOLATILE signatures set_business_type(public.business_type) and set_gym_business_type(uuid, public.business_type, public.business_type, uuid); the amended commercial guard keeps its existing invoker posture. CLS adds exactly its thirteen VOLATILE command signatures and the STABLE read_member_class_schedule(date, date); read_class_timetable, read_class_roster and run_class_generation_all remain invokers. The CLS-owned booking_lock and member_has_live_membership primitives are invokers in app and add no elevated public allowance'
+  'ADR-032, ADR-116 and the approved Phase 6 member projections and import commands: all app/public security-definer functions have an empty search_path; only the exact postgres-owned signatures on the allowlist may be elevated in public, each at its own required volatility, with no unapproved overload or function. INV-017 (member invites) adds exactly six: the writers issue_member_invite, revoke_member_invite, redeem_member_invite and unlink_member_identity are VOLATILE, and the two readers peek_member_invite (anon may execute this reader) and read_member_app_access are STABLE as specified by INV v1.1; app.member_invite_audit is elevated too but sits in app and is held to the empty-path rule alone. STI-011 v1.1 adds exactly seven postgres-owned signatures: invite_staff_member, issue_staff_invite, revoke_staff_invite, redeem_staff_invite and unlink_staff_identity VOLATILE; peek_staff_invite and read_staff_app_access STABLE. GRD-002/006/016 adds exactly three postgres-owned VOLATILE signatures: attest_members_without_dob_adult, record_guardian_consent and transition_member_to_own_account; its four other public RPCs are invokers. BIZ-003/005 adds only the exact postgres-owned VOLATILE signatures set_business_type(public.business_type) and set_gym_business_type(uuid, public.business_type, public.business_type, uuid); the amended commercial guard keeps its existing invoker posture. CLS adds exactly its thirteen VOLATILE command signatures and the STABLE read_member_class_schedule(date, date); read_class_timetable, read_class_roster and run_class_generation_all remain invokers. The CLS-owned booking_lock and member_has_live_membership primitives are invokers in app and add no elevated public allowance. SHP adds exactly eight public definers: two STABLE member readers and six VOLATILE writers, with the exact twelve-argument finalizer restricted to service_role by the separate named posture assertion; confirm_media_asset remains a denied invoker'
 );
 
 -- Phase 4 (20260909130000_red_list_view.sql) added public.red_list_cases,
@@ -1042,18 +1053,39 @@ select is_empty(
       -- INV-001/017, STI-011 v1.1 and GRD-002/006 give their SELECT-only tables the standard
       -- row preview_read_only trigger, which this assertion would otherwise reject because
       -- preview_tables above is derived from INSERT/UPDATE/DELETE grants and these tables hold none.
-      -- Named only on member_invites, staff_invites and guardian_consents (tgtype 31).
+      -- Named only on member_invites, staff_invites, guardian_consents, media_assets and shop_reservations (tgtype 31).
       select t.oid, t.tgrelid from pg_trigger t
       join pg_class c on c.oid = t.tgrelid
       join pg_namespace cn on cn.oid = c.relnamespace
       join pg_proc p on p.oid = t.tgfoid
       join pg_namespace n on n.oid = p.pronamespace
-      where cn.nspname = 'public' and c.relname in ('member_invites', 'staff_invites', 'guardian_consents')
+      where cn.nspname = 'public' and c.relname in ('member_invites', 'staff_invites', 'guardian_consents', 'media_assets', 'shop_reservations')
         and t.tgname = c.relname || '_preview_read_only'
         and not t.tgisinternal and t.tgtype = 31 and t.tgenabled = 'O'
         and n.nspname = 'app' and p.proname = 'enforce_preview_read_only'
         and p.pronargs = 0 and p.prorettype = 'trigger'::regtype
         and not p.prosecdef
+    ), shop_invariant_triggers as (
+      -- SHP/MED: exact named guards only; neither table gets a blanket exemption.
+      select t.oid, t.tgrelid from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace cn on cn.oid = c.relnamespace
+      join pg_proc p on p.oid = t.tgfoid
+      join pg_namespace n on n.oid = p.pronamespace
+      join (values ('media_assets', 'media_assets_verified_immutable',
+                    'enforce_media_asset_verification', 31),
+                   ('shop_reservations', 'shop_reservations_enforce',
+                    'enforce_shop_reservation', 23))
+           expected(tbl, trigger_name, function_name, trigger_type)
+        on c.relname::text = expected.tbl
+       and t.tgname::text = expected.trigger_name
+       and p.proname::text = expected.function_name
+      where cn.nspname = 'public' and n.nspname = 'app'
+        and not t.tgisinternal and t.tgtype = expected.trigger_type
+        and t.tgenabled = 'O' and p.pronargs = 0
+        and p.prorettype = 'trigger'::regtype and not p.prosecdef
+        and p.provolatile = 'v' and pg_get_userbyid(p.proowner) = 'postgres'
+        and coalesce(p.proconfig @> array['search_path=""'], false)
     ), legacy_attestation_guard_triggers as (
       -- GRD-002: only the exact write-once setting guard is admitted here.
       select t.oid, t.tgrelid from pg_trigger t
@@ -1077,13 +1109,14 @@ select is_empty(
        and t.oid not in (select oid from valid_preview_triggers)
        and t.oid not in (select oid from gate_guard_triggers)
        and t.oid not in (select oid from invite_preview_triggers)
+       and t.oid not in (select oid from shop_invariant_triggers)
        and t.oid not in (select oid from legacy_attestation_guard_triggers)
        and c.relname not in ('staff', 'members', 'platform_users', 'impersonation_sessions', 'attendance', 'membership_pauses', 'follow_ups', 'payments', 'refunds', 'document_counters', 'memberships', 'addon_products', 'addon_orders', 'pt_sessions')
     union all
     select c.relname || '.missing_or_invalid_preview_read_only'
       from preview_tables c
      where not exists (select 1 from valid_preview_triggers t where t.tgrelid = c.oid)$$,
-  'docs/data-model.md "What a cluster agent must not do", narrowed by design.md 6 and 7, ADR-066, NAV-003 and the frozen Phase 6 add-on and member-import contracts: every authenticated-writable public table requires its exact enabled ROW BEFORE INSERT/UPDATE/DELETE preview_read_only trigger calling private invoker app.enforce_preview_read_only(). Only that named, correctly shaped trigger and touch_updated_at are admitted universally, plus one exact sibling shape: <table>_preview_write_guard, the enabled STATEMENT BEFORE INSERT/UPDATE/DELETE trigger (tgtype 30 = BEFORE 2 + INSERT 4 + UPDATE 16 + DELETE 8, no ROW bit) calling the same private invoker. Phase 6 leads needs that sibling because a preview UPDATE matches no row through the tenant policies, so the row guard never fires for one and the statement guard answers before any row resolution (ADR-118). Member imports carries its v1 run invariant (docs/planning/phase6-import-contract.md, "Schema, generated types and test split") inside the touch_updated_at slot itself, the same fusion leads uses for app.enforce_lead_discipline() -- a table gets exactly one substantive row trigger beyond the preview guard, under one of these two universal names, never a third. Fourteen named table exemptions remain; every other unexplained trigger still fails this exact catalogue assertion, and a missing or malformed preview guard fails even on an exempt table. The original eleven exemptions retain their recorded identity, attribution, financial-integrity, monotonic-counter and membership-period reasons. Phase 6 adds exactly three table exemptions because their rules require OLD/NEW or cross-row state that a CHECK, index, policy or Route Handler cannot enforce for every writer. organizations is instead admitted only through its exact named commercial-invariant and status-session-revoke trigger shapes. addon_products owns database-stamped quote_version rotation across the complete offer-term set while preserving the version for stock and presentation edits, plus kind-specific disclosure and stock shape. addon_orders owns the ordered GL053-GL057 lifecycle and immutable sale record, validates linked member/payment/catalogue/session facts, serializes stock and returned-money effects, and invokes app.audit_money_change() for every accepted insert/update. pt_sessions owns immutable order/member/trainer/slot identity, validates BOTH trainer assignments and the parent order validity/reservation budget, serializes scheduled-to-terminal effects, and advances only the parent order usage/status. These exemptions permit those contract-required trigger families on the three named tables; they do not widen the predicate for any other table or excuse a missing preview guard. GRD-002 admits only organization_settings_legacy_adult_attestation_guard: enabled ROW BEFORE INSERT/UPDATE (tgtype 23), calling the zero-argument invoker app.guard_legacy_adult_attestation trigger function. GRD-006 admits guardian_consents_preview_read_only only in the same enabled invoker tgtype 31 shape as the invite tables. Member invites (INV-001, INV-013, INV-017) and STI-011 v1.1 add exactly two named shapes, the row preview_read_only triggers the proposals give the SELECT-only tables member_invites and staff_invites (which preview_tables, being grant-derived, would not otherwise admit), and the members_auth_binding_invariant trigger rides on members, which is already on the exemption list.'
+  'docs/data-model.md "What a cluster agent must not do", narrowed by design.md 6 and 7, ADR-066, NAV-003 and the frozen Phase 6 add-on and member-import contracts: every authenticated-writable public table requires its exact enabled ROW BEFORE INSERT/UPDATE/DELETE preview_read_only trigger calling private invoker app.enforce_preview_read_only(). Only that named, correctly shaped trigger and touch_updated_at are admitted universally, plus one exact sibling shape: <table>_preview_write_guard, the enabled STATEMENT BEFORE INSERT/UPDATE/DELETE trigger (tgtype 30 = BEFORE 2 + INSERT 4 + UPDATE 16 + DELETE 8, no ROW bit) calling the same private invoker. Phase 6 leads needs that sibling because a preview UPDATE matches no row through the tenant policies, so the row guard never fires for one and the statement guard answers before any row resolution (ADR-118). Member imports carries its v1 run invariant (docs/planning/phase6-import-contract.md, "Schema, generated types and test split") inside the touch_updated_at slot itself, the same fusion leads uses for app.enforce_lead_discipline() -- a table gets exactly one substantive row trigger beyond the preview guard, under one of these two universal names, never a third. Fourteen named table exemptions remain; every other unexplained trigger still fails this exact catalogue assertion, and a missing or malformed preview guard fails even on an exempt table. The original eleven exemptions retain their recorded identity, attribution, financial-integrity, monotonic-counter and membership-period reasons. Phase 6 adds exactly three table exemptions because their rules require OLD/NEW or cross-row state that a CHECK, index, policy or Route Handler cannot enforce for every writer. organizations is instead admitted only through its exact named commercial-invariant and status-session-revoke trigger shapes. addon_products owns database-stamped quote_version rotation across the complete offer-term set while preserving the version for stock and presentation edits, plus kind-specific disclosure and stock shape. addon_orders owns the ordered GL053-GL057 lifecycle and immutable sale record, validates linked member/payment/catalogue/session facts, serializes stock and returned-money effects, and invokes app.audit_money_change() for every accepted insert/update. pt_sessions owns immutable order/member/trainer/slot identity, validates BOTH trainer assignments and the parent order validity/reservation budget, serializes scheduled-to-terminal effects, and advances only the parent order usage/status. These exemptions permit those contract-required trigger families on the three named tables; they do not widen the predicate for any other table or excuse a missing preview guard. SHP admits only media_assets_verified_immutable (tgtype 31, private invoker enforce_media_asset_verification) and shop_reservations_enforce (tgtype 23, invoker enforce_shop_reservation), each enabled, postgres-owned, VOLATILE and empty-path; media_assets and shop_reservations also carry the exact SELECT-only row preview guard. No table exemption is added. GRD-002 admits only organization_settings_legacy_adult_attestation_guard: enabled ROW BEFORE INSERT/UPDATE (tgtype 23), calling the zero-argument invoker app.guard_legacy_adult_attestation trigger function. GRD-006 admits guardian_consents_preview_read_only only in the same enabled invoker tgtype 31 shape as the invite tables. Member invites (INV-001, INV-013, INV-017) and STI-011 v1.1 add exactly two named shapes, the row preview_read_only triggers the proposals give the SELECT-only tables member_invites and staff_invites (which preview_tables, being grant-derived, would not otherwise admit), and the members_auth_binding_invariant trigger rides on members, which is already on the exemption list.'
 );
 
 select is(
@@ -1095,6 +1128,68 @@ select is(
       and t.tgname = 'membership_pauses_enforce_decision'),
   array[21::smallint],
   'the spec''s first requirement says the rule is enforced where every writer meets it, not in a caller -- and an INSERT is a writer: membership_pauses grants insert to authenticated under is_front_office(), so a front-desk session could insert a pause already carrying approved_at and approved_by_staff_id in one statement, self-requested and self-approved, and meet no rule at all if only UPDATE were governed. ROW + INSERT + UPDATE is 1 + 4 + 16, and the BEFORE bit (2) is now absent, because the trigger only ever raises -- it never modifies the row -- and a rule that only refuses does not need to run ahead of membership_pauses_tenant_write to do its job. As a BEFORE trigger it was answering for rows the policy already owned: ADR-066''s pattern, reintroduced by the migration that added the INSERT arm and named in ADR-066 itself, closed here by moving the trigger to AFTER rather than by teaching it the policy''s role or tenant terms a second time -- that copy is what goes stale. Raising in an AFTER trigger still aborts the statement, so refusing an ill-formed insert costs nothing by waiting. This is the third time this exact value has changed -- 19 (BEFORE + ROW + UPDATE) when the trigger was first written, 23 when the INSERT arm closed the self-approval hole, 21 now that BEFORE is gone -- and each change is a real correction pgTAP caught rather than churn a static assertion should be relieved of: do not delete this tripwire because it keeps moving. LIMIT, stated so this is not read as more than it is: the catalogue says only when the trigger fires and on which statements, never what its body decides -- it would not notice the body failing to reject a self-approved insert, or a rejection branch it should leave alone, or a rule reintroduced with the timing correct and the logic wrong. That behaviour needs a test written from an EARS spec by an author who has not read app.enforce_pause_decision()'
+);
+
+-- MED-005: this is a named column-grant boundary, not a table-SELECT exemption.
+select is_empty(
+  $$with safe(name) as (values
+      ('id'), ('tenant_id'), ('kind'), ('mime'), ('bytes'),
+      ('created_by_staff_id'), ('created_at'), ('confirmed_at'), ('deleted_at'), ('attached_to_id')
+    ), cols as (
+      select a.attname::text as name, a.attnum
+      from pg_attribute a
+      where a.attrelid = to_regclass('public.media_assets')
+        and a.attnum > 0 and not a.attisdropped
+    )
+    select 'media_assets.' || safe.name || '.missing_select'
+      from safe left join cols using (name)
+      where cols.attnum is null or not has_column_privilege(
+        'authenticated', to_regclass('public.media_assets'), cols.attnum, 'SELECT')
+    union all
+    select 'media_assets.' || cols.name || '.unexpected_select'
+      from cols where name not in (select name from safe)
+        and has_column_privilege('authenticated', to_regclass('public.media_assets'), attnum, 'SELECT')
+    union all
+    select 'media_assets.' || cols.name || '.forbidden_column_grant'
+      from cols cross join unnest(array['SELECT', 'INSERT', 'UPDATE', 'REFERENCES']) privilege
+      where has_column_privilege('anon', to_regclass('public.media_assets'), attnum, privilege)
+         or (privilege <> 'SELECT' and has_column_privilege(
+               'authenticated', to_regclass('public.media_assets'), attnum, privilege))
+    union all
+    select 'media_assets.forbidden_table_grant'
+      from unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) privilege
+      where has_table_privilege('authenticated', to_regclass('public.media_assets'), privilege)
+    union all
+    select 'media_assets.service_private_read_missing'
+      where not coalesce(has_table_privilege('service_role', to_regclass('public.media_assets'), 'SELECT'), false)$$,
+  'MED-005: media_assets grants authenticated SELECT on exactly ten safe columns, no table SELECT or DML or private-key/ETag reach; anon has no column grants; service_role retains full SELECT for the approved Edge verifier'
+);
+
+select is_empty(
+  $$with expected(signature, definer, volatility, auth_execute, service_execute) as (values
+      ('public.register_media_asset(text, text, text, integer)', true, 'v', true, false),
+      ('public.delete_media_asset(uuid, boolean)', true, 'v', true, false),
+      ('public.set_shop_product_display(uuid, uuid, smallint, uuid)', true, 'v', true, false),
+      ('public.read_member_shop()', true, 's', true, false),
+      ('public.read_member_shop_reservations()', true, 's', true, false),
+      ('public.create_shop_reservation(uuid, integer, uuid)', true, 'v', true, false),
+      ('public.cancel_shop_reservation(uuid, text)', true, 'v', true, false),
+      ('public.finalize_media_asset(uuid, uuid, uuid, public.app_role, uuid, text, text, integer, text, text, text, text)', true, 'v', false, true),
+      ('public.confirm_media_asset(uuid)', false, 'v', false, false),
+      ('app.enforce_media_asset_verification()', false, 'v', false, false)
+    )
+    select expected.signature from expected
+      left join pg_proc p on p.oid = to_regprocedure(expected.signature)
+      where p.oid is null or p.prosecdef <> expected.definer
+        or p.provolatile::text <> expected.volatility
+        or pg_get_userbyid(p.proowner) <> 'postgres'
+        or not coalesce(p.proconfig @> array['search_path=""'], false)
+        or has_function_privilege('authenticated', p.oid, 'EXECUTE') <> expected.auth_execute
+        or has_function_privilege('service_role', p.oid, 'EXECUTE') <> expected.service_execute
+        or has_function_privilege('anon', p.oid, 'EXECUTE')
+        or exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+                    where acl.grantee = 0 and acl.privilege_type = 'EXECUTE')$$,
+  'SHP/MED: exact postgres-owned public signatures keep their own volatility, empty path and audience; only the twelve-argument finalize_media_asset is service-role executable, retired confirm and the private invoker media invariant are denied to all session roles. Marker and credential checks, immutable registration/publication and privileged DELETE refusal require independent behavioral tests; catalogue shape alone cannot prove them'
 );
 
 select * from finish();
