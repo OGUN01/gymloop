@@ -366,6 +366,12 @@ describe('INV-019 a trainer sees nothing (permission denied is hidden, not expla
 });
 
 describe('INV-019 front-office roles get an "App access" section with dot-plus-word status', () => {
+  it('INV-015/INV-019 an unknown access state is honestly unavailable and offers no guessed action', async () => {
+    const { html, text } = await mount({ access: { ...blank, state: 'future_success' } as unknown as Access });
+    expect(text).toMatch(/unable|unavailable|could(n.?t| not)|try again/i);
+    expect(text).not.toMatch(/future_success|Invite pending|Not invited|Linked/);
+    expect(actionLabels(html)).toEqual([]);
+  });
   it.each(FRONT_OFFICE)('%s: headed "App access", one status word per state, never colour alone', async (role) => {
     for (const key of ['linked', 'invite_pending', 'invite_expired', 'not_invited'] as const) {
       state.hooks = new Map();

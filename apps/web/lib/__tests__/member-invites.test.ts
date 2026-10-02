@@ -175,6 +175,9 @@ describe('loadMemberAppAccess', () => {
 });
 
 describe('peekInvite', () => {
+  it.each(['', ' ', '\t\n'])('INV-012 returns no usable invite for a blank gym_name (%j)', async (gym_name) => {
+    expect(await peekInvite(fakeClient(rows({ gym_name })) as never, TOKEN)).toBeNull();
+  });
   it('hashes the token first and asks peek_member_invite with the hash only', async () => {
     const client = fakeClient(rows({ gym_name: 'Iron Box Fitness' }));
 

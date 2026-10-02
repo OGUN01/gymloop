@@ -278,6 +278,19 @@ describe('inviteRefusalMessage', () => {
 });
 
 describe('buildInviteLink', () => {
+  it.each(['token?query=secret', 'token#fragment', 'token/extra', '../escape', '%2e%2e/escape'])(
+    'INV-018 malformed token %j cannot inject URL structure',
+    (candidate) => {
+      let link: string;
+      try { link = buildInviteLink('https://app.example', candidate); } catch { return; }
+      const url = new URL(link);
+      expect(url.origin).toBe('https://app.example');
+      expect(url.search).toBe('');
+      expect(url.hash).toBe('');
+      expect(url.pathname.split('/')).toHaveLength(3);
+      expect(url.pathname.split('/')[1]).toBe('invite');
+    },
+  );
   it('joins origin, /invite/ and the token', () => {
     expect(buildInviteLink('https://app.example', TOKEN)).toBe(`https://app.example/invite/${TOKEN}`);
     expect(buildInviteLink('http://127.0.0.1:3000', MIXED_TOKEN)).toBe(`http://127.0.0.1:3000/invite/${MIXED_TOKEN}`);

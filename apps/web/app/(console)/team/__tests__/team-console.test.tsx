@@ -438,6 +438,37 @@ const loadNew = async () => ((await import('../new/page')).default as unknown as
 const loadDetail = async (staffId: string) =>
   ((await import('../[staffId]/page')).default as unknown as PageFunction)(props({ params: Promise.resolve({ staffId }) }));
 
+/** Drive the page's own creation form, retaining its returned access panel. */
+async function openCreation() {
+  const tree = await loadNew() as ReactNode;
+  state.hooks = [];
+  const panel = {
+    panel: tree as Element,
+    draw: () => { state.cursor = 0; return renderClient(tree); },
+    html: () => { state.cursor = 0; return renderToStaticMarkup(tree); },
+  };
+  const values: Record<string, string> = {};
+  const NativeFormData = globalThis.FormData;
+  vi.stubGlobal('FormData', class extends NativeFormData {
+    constructor() { super(); for (const [name, value] of Object.entries(values)) this.set(name, value); }
+  });
+  for (const [kind, value] of [['name', 'New Desk Staff'], ['email', 'newdesk@example.com'], ['role', 'front_desk']] as const) {
+    const field = panel.draw().find(({ el }) => ['input', 'select'].includes(String(el.type))
+      && (kind === 'name' ? /name/i.test(String(el.props.name)) : kind === 'email' ? el.props.type === 'email' || /email/i.test(String(el.props.name)) : /role/i.test(String(el.props.name))));
+    expect(field, `creation ${kind} control`).toBeDefined();
+    values[String(field?.el.props.name)] = value;
+    if (typeof field?.el.props.onChange === 'function') await typeInto(field, value);
+  }
+  const submit = async () => {
+    const form = panel.draw().find(({ el }) => el.type === 'form' && (typeof el.props.onSubmit === 'function' || typeof el.props.action === 'function'));
+    expect(form, 'creation has a wired submit').toBeDefined();
+    if (typeof form?.el.props.onSubmit === 'function') await form.el.props.onSubmit({ preventDefault: () => undefined, currentTarget: { reset: () => undefined } });
+    else await (form?.el.props.action as (data: FormData) => unknown)(new FormData());
+    await flush();
+  };
+  return { panel, submit };
+}
+
 async function attempt(render: () => Promise<unknown>): Promise<{ thrown: string | null; html: string }> {
   try {
     const node = await render();
@@ -591,6 +622,47 @@ describe('the team list (STI-015)', () => {
 // ---------------------------------------------------------------------------
 
 describe('the invite form (STI-001)', () => {
+  it('STI-001/STI-002 creation retains the returned invite id so its link can be revoked', async () => {
+    const { panel, submit } = await openCreation();
+    plan(issued({ staffId: KARAN, inviteId: INVITE }));
+    await submit();
+    expect(lastRequest()?.url.endsWith('/api/staff-members')).toBe(true);
+    expect(panel.html()).toContain(LINK);
+    plan({ status: 200, body: { ok: true, data: { revoked: true } } });
+    await press(panel, 'Revoke');
+    expect(lastRequest()?.url.endsWith('/api/staff-invites/revoke')).toBe(true);
+    expect(bodyOf(lastRequest())).toEqual({ inviteId: INVITE });
+  });
+  it('STI-002 resend from the creation result updates the revoke target to the replacement invite', async () => {
+    const { panel, submit } = await openCreation();
+    plan(issued({ staffId: KARAN, inviteId: INVITE }));
+    await submit();
+    plan(issued({ inviteId: NEW_INVITE, supersededInviteId: INVITE }));
+    await press(panel, 'Resend invite');
+    expect(bodyOf(lastRequest())).toEqual({ staffId: KARAN });
+    plan({ status: 200, body: { ok: true, data: { revoked: true } } });
+    await press(panel, 'Revoke');
+    expect(bodyOf(lastRequest())).toEqual({ inviteId: NEW_INVITE });
+  });
+  it('STI-003 creation rate limit explains the refusal and retry without fake success', async () => {
+    const { panel, submit } = await openCreation();
+    plan(failure(429, 'invite_rate_limited', 'Too many invites from this gym this hour. Try again in an hour.'));
+    await submit();
+    const markup = panel.html();
+    expect(visible(markup)).toMatch(/too many|limit/i);
+    expect(visible(markup)).toMatch(/try again|retry|wait/i);
+    expect(markup).toMatch(/role="(?:alert|status)"|aria-live=/);
+    expect(markup).not.toContain(LINK);
+    expect(buttonsLike(panel.draw(), 'Revoke')).toEqual([]);
+  });
+  it('STI-001 before sending explains the email match, 48-hour validity and manual sharing', async () => {
+    const text = visible(await html(loadNew));
+    expect(text).toMatch(/48[- ]hours?/i);
+    expect(text).toMatch(/shar(e|ing)|copy.*link|hand.*link/i);
+    expect(text).toMatch(/email.*(Google|sign in)|(Google|sign in).*email/i);
+    expect(text).not.toMatch(/automatically (send|deliver)|we.ll (send|email)/i);
+    expect(state.requests).toEqual([]);
+  });
   type Control = { tag: string; attributes: Record<string, string>; options: Array<{ value: string; label: string }>; labelText: string };
 
   /** The control a label points at: nested, or by `for`/`id`. */
@@ -687,6 +759,23 @@ describe('the invite form (STI-001)', () => {
 // ---------------------------------------------------------------------------
 
 describe('a staff member\'s page (STI-009, STI-015)', () => {
+  it('STI-009 unknown raw access state is unavailable, never a successful guessed state', async () => {
+    state.access[ROHAN] = access('future_success', { invite_id: INVITE });
+    const markup = await html(() => loadDetail(ROHAN));
+    expect(visible(markup)).toMatch(/unable|unavailable|could not|couldn.t|try again/i);
+    expect(visible(markup)).not.toMatch(/future_success|Invite pending|Not invited|Linked/);
+    expect(buttonLabels(markup).filter((label) => ACTIONS.includes(label))).toEqual([]);
+  });
+  it('STI-002 staff email recovery provides a truthful staff next step, never a member profile', async () => {
+    state.rows.staff = STAFF.map((row) => row.id === KARAN ? { ...row, email: null } : row);
+    const panel = await openPanel(KARAN);
+    const markup = panel.html();
+    expect(visible(markup)).toMatch(/email/i);
+    expect(visible(markup)).toMatch(/owner|update|add|edit|contact|ask/i);
+    expect(tags(markup, 'a').some((anchor) => /^\/members(?:\/|$)/.test(anchor.href ?? ''))).toBe(false);
+    expect(buttonsLike(panel.draw(), 'Send invite').every(({ el }) => el.props.disabled === true)).toBe(true);
+    expect(state.requests).toEqual([]);
+  });
   it('shows the person\'s name, role label and the email on file', async () => {
     const markup = await html(() => loadDetail(ROHAN));
     const text = visible(markup);

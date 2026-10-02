@@ -41,6 +41,10 @@ async function settle<T>(run: () => Promise<T>): Promise<{ value: T } | { thrown
 }
 
 describe('loadStaffAppAccess', () => {
+  it('STI-009 refuses an unknown raw RPC state rather than inventing actionable access', async () => {
+    const { supabase } = client({ data: [{ state: 'future_success', invite_id: INVITE_ID, issued_at: null, expires_at: null, linked_at: null }], error: null });
+    await expect(loadStaffAppAccess(supabase, STAFF_ID)).resolves.toBeNull();
+  });
   it('calls read_staff_app_access with exactly the staff id', async () => {
     const { rpc, supabase } = client({
       data: [{ state: 'not_invited', invite_id: null, issued_at: null, expires_at: null, linked_at: null }],
@@ -128,6 +132,10 @@ describe('loadStaffAppAccess', () => {
 });
 
 describe('peekStaffInvite', () => {
+  it.each(['', ' ', '\t\n'])('STI-007 returns no usable invite for a blank gym_name (%j)', async (gym_name) => {
+    const { supabase } = client({ data: [{ gym_name, staff_role: 'trainer' }], error: null });
+    await expect(peekStaffInvite(supabase, TOKEN)).resolves.toBeNull();
+  });
   it('asks peek_staff_invite for the SHA-256 of the token, never for the token', async () => {
     const { rpc, supabase } = client({ data: [{ gym_name: 'Iron Box Fitness', staff_role: 'front_desk' }], error: null });
 
