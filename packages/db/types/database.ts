@@ -3228,6 +3228,8 @@ export type Database = {
         | "fulfilment"
         | "promotion"
         | "motivation"
+        | "class_update"
+        | "announcement"
       no_show_case_status:
         | "open"
         | "contacted"
@@ -3473,6 +3475,8 @@ export const Constants = {
         "fulfilment",
         "promotion",
         "motivation",
+        "class_update",
+        "announcement",
       ],
       no_show_case_status: [
         "open",
