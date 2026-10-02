@@ -160,6 +160,8 @@ describe('INV-031 actual native provider font readiness and geometry', () => {
     expect(style.paddingLeft ?? style.paddingStart ?? style.paddingHorizontal ?? style.padding).toBe(12);
     expect(style.paddingRight ?? style.paddingEnd ?? style.paddingHorizontal ?? style.padding).toBe(12);
     expect(style.backgroundColor.toLowerCase()).toBe(theme === 'dark' ? '#131314' : '#ffffff');
+    expect(style.borderWidth).toBe(1);
+    expect(style.borderColor.toLowerCase()).toBe(theme === 'dark' ? '#8e918f' : '#747775');
     const label = nodes(button).find(node => node.type === 'span' && /(?:Continue|Sign in) with Google/.test(copy(node)));
     expect(label).toBeTruthy(); const type = flatten(label.props.style);
     expect(type.fontFamily).toBe('GoogleSansMedium'); expect(type.fontSize).toBe(14); expect(type.lineHeight).toBe(20);

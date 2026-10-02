@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { GoogleProviderButton } from '../google-provider-button';
 
 /**
  * INV-020 / INV-021 / INV-023: the public accept pages and the OAuth hand-off.
@@ -207,6 +208,7 @@ function walk(node: ReactNode, ancestors: Element[] = [], out: Visited[] = []): 
   if (Array.isArray(node)) { node.forEach((child) => walk(child, ancestors, out)); return out; }
   if (!isValidElement(node)) return out;
   const el = node as Element;
+  if (el.type === GoogleProviderButton) { out.push({ el, ancestors }); return out; }
   if (typeof el.type === 'function') return walk((el.type as (props: unknown) => ReactNode)(el.props), ancestors, out);
   out.push({ el, ancestors });
   walk(el.props.children as ReactNode, [...ancestors, el], out);
@@ -217,6 +219,7 @@ function nodeText(node: ReactNode): string {
   if (Array.isArray(node)) return node.map(nodeText).join('');
   if (!isValidElement(node)) return '';
   const el = node as Element;
+  if (el.type === GoogleProviderButton) return textOf(renderToStaticMarkup(el));
   return typeof el.type === 'function'
     ? nodeText((el.type as (props: unknown) => ReactNode)(el.props))
     : nodeText(el.props.children as ReactNode);
@@ -226,7 +229,9 @@ const formsWithServerAction = (tree: ReactNode) =>
 const redeemForm = (tree: ReactNode) =>
   walk(tree).find(({ el }) => el.type === 'form' && el.props.action === '/api/member-invites/redeem');
 const inside = (form: Visited, label: string) =>
-  walk(form.el.props.children as ReactNode).filter(({ el }) => el.type === 'button' && nodeText(el.props.children as ReactNode).trim() === label);
+  walk(form.el.props.children as ReactNode).filter(({ el }) => el.type === GoogleProviderButton
+    ? buttonLabels(renderToStaticMarkup(el)).includes(label)
+    : el.type === 'button' && nodeText(el.props.children as ReactNode).trim() === label);
 
 // ─── Page and action loaders ─────────────────────────────────────────────────
 
@@ -724,3 +729,7 @@ describe('INV-021 startInviteGoogleSignIn', () => {
     expect(outcome).not.toContain(TOKEN);
   });
 });
+
+vi.mock('next/font/local', () => ({ default: () => ({ className: 'bundled-google-provider-font', style: { fontFamily: 'GoogleSansMedium', fontWeight: 500 } }) }));
+
+

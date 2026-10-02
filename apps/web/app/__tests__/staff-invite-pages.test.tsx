@@ -768,3 +768,6 @@ describe('the sign-in page after a staff link', () => {
     expect(text).not.toMatch(/you(?:'|’)re in|workspace is open|signed in as/i);
   });
 });
+
+vi.mock('next/font/local', () => ({ default: () => ({ className: 'bundled-google-provider-font', style: { fontFamily: 'GoogleSansMedium', fontWeight: 500 } }) }));
+

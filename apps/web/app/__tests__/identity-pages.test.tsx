@@ -206,3 +206,6 @@ describe('NAV-003 preview console controls', () => {
     expect(fieldsets).not.toContain(true);
   });
 });
+
+vi.mock('next/font/local', () => ({ default: () => ({ className: 'bundled-google-provider-font', style: { fontFamily: 'GoogleSansMedium', fontWeight: 500 } }) }));
+

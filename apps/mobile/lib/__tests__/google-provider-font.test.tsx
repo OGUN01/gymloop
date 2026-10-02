@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement, isValidElement, type ReactNode } from 'react';
 import { UI_TOKENS } from '@gymloop/shared';
-const h = vi.hoisted(() => ({ ready: false, fail: false, fontLoads: 0, presses: vi.fn(), slots: [] as unknown[], cursor: 0, effects: [] as Array<() => unknown> }));
+const h = vi.hoisted(() => ({ theme: 'dark' as 'light' | 'dark', ready: false, fail: false, fontLoads: 0, presses: vi.fn(), slots: [] as unknown[], cursor: 0, effects: [] as Array<() => unknown> }));
 vi.mock('react', async (original) => ({ ...await original<typeof import('react')>(),
   useState: (initial: unknown) => { const i = h.cursor++; if (!(i in h.slots)) h.slots[i] = typeof initial === 'function' ? (initial as () => unknown)() : initial; return [h.slots[i], (next: unknown) => { h.slots[i] = typeof next === 'function' ? (next as (v: unknown) => unknown)(h.slots[i]) : next; }]; },
   useRef: (value: unknown) => { const i = h.cursor++; return h.slots[i] ?? (h.slots[i] = { current: value }); },
@@ -10,7 +10,7 @@ vi.mock('react', async (original) => ({ ...await original<typeof import('react')
 const host = (name: string) => (props: Record<string, unknown>) => createElement(name, props, props.children as ReactNode);
 vi.mock('react-native', () => ({ View: host('view'), Text: host('text'), Pressable: host('button'), Image: host('image'), StyleSheet: { create: (v: unknown) => v }, useWindowDimensions: () => ({ width: 320, height: 640, scale: 1, fontScale: 2 }), PixelRatio: { getFontScale: () => 2 } }));
 vi.mock('../../components/ui', () => ({ FONT: new Proxy({}, { get: () => 'body-font-fixture' }) }));
-vi.mock('../mobile-context', () => ({ useMobile: () => ({ palette: UI_TOKENS.colors.dark }) }));
+vi.mock('../mobile-context', () => ({ useMobile: () => ({ palette: UI_TOKENS.colors[h.theme] }) }));
 vi.mock('../../../../packages/shared/assets/fonts/GoogleSans-Medium.ttf', () => ({ default: 'canonical-GoogleSans-Medium.ttf' }));
 vi.mock('expo-font', () => ({
   useFonts: () => [h.ready, h.fail ? new Error('font unavailable') : null], isLoaded: () => h.ready,
@@ -33,8 +33,19 @@ async function render(disabled = false) {
   return all(expand(createElement(NativeGoogleButton, { disabled, onPress: h.presses })));
 }
 function action(nodes: Node[]) { return nodes.find((node) => node.type === 'button' && /^(Continue|Sign in) with Google$/.test(node.text)); }
-beforeEach(() => { h.ready = false; h.fail = false; h.fontLoads = 0; h.presses.mockClear(); h.slots = []; h.cursor = 0; h.effects = []; });
+beforeEach(() => { h.theme = 'dark'; h.ready = false; h.fail = false; h.fontLoads = 0; h.presses.mockClear(); h.slots = []; h.cursor = 0; h.effects = []; });
 describe('INV-031 actual Android Google provider typography and font boundary', () => {
+  it.each([
+    ['light', '#FFFFFF', '#747775'],
+    ['dark', '#131314', '#8E918F'],
+  ] as const)('INV-031 %s provider uses its official 1dp stroke instead of a body outline', async (theme, background, stroke) => {
+    h.theme = theme; h.ready = true;
+    const button = action(await render())!;
+    const rendered = style(typeof button.props.style === 'function' ? (button.props.style as (v: unknown) => unknown)({ pressed: false }) : button.props.style);
+    expect(String(rendered.backgroundColor).toUpperCase()).toBe(background);
+    expect(rendered.borderWidth).toBe(1);
+    expect(String(rendered.borderColor).toUpperCase()).toBe(stroke);
+  });
   it('ready provider uses Medium 14/20, approved palette/padding and scalable >=48dp target', async () => {
     h.ready = true; const nodes = await render(); const button = action(nodes)!; expect(button).toBeDefined();
     const buttonStyle = style(typeof button.props.style === 'function' ? (button.props.style as (v: unknown) => unknown)({ pressed: false }) : button.props.style);
@@ -62,6 +73,7 @@ describe('INV-031 actual Android Google provider typography and font boundary', 
     expect(h.fontLoads).toBeGreaterThan(0); expect(h.presses).not.toHaveBeenCalled();
   });
 });
+
 
 
 

@@ -82,6 +82,7 @@ async function switchAccount(tree: ReactNode) {
 beforeEach(() => {
   state.identity = MEMBER; state.slots = []; state.cursor = 0; state.effects = []; state.requests = []; state.homes = [];
   state.outcome = 'already_linked_here'; state.network = false; state.cookie = TOKEN; state.signOuts = 0; state.oauth = [];
+  vi.stubGlobal('document', { fonts: { check: () => true, load: async () => [{}], ready: Promise.resolve() } });
   vi.stubGlobal('window', { location: { assign: (path: string) => state.homes.push(path), replace: (path: string) => state.homes.push(path), href: '' } });
   vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
     state.requests.push({ url: String(url), init });
@@ -121,3 +122,6 @@ describe('INV-030 web landing replay and recovery', () => {
     await switchAccount(view.tree); expect(state.cookie).toBe(TOKEN);
   });
 });
+
+vi.mock('next/font/local', () => ({ default: () => ({ className: 'bundled-google-provider-font', style: { fontFamily: 'GoogleSansMedium', fontWeight: 500 } }) }));
+

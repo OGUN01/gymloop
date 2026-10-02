@@ -121,3 +121,6 @@ describe('public legal and help pages', () => {
     expect(html).toContain('Delete my account');
   });
 });
+
+vi.mock('next/font/local', () => ({ default: () => ({ className: 'bundled-google-provider-font', style: { fontFamily: 'GoogleSansMedium', fontWeight: 500 } }) }));
+
