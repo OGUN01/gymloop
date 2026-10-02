@@ -475,13 +475,17 @@ select ok((select bool_and(pg_get_functiondef(to_regprocedure(sig)) like '%shop-
 -- Negative-only prior-sale chronology seam (public rollback-clock clarification).
 -- Separate committed-transaction proof remains mandatory; no stored timestamp is rewritten.
 select set_config('request.jwt.claims','',true);
+-- Dedicated real member binding keeps the earlier abuse-limit fixtures intact.
+insert into auth.users(id) values(pg_temp.sid(909));
+insert into public.members(id,tenant_id,user_id,branch_id,full_name,phone,date_of_birth)
+values(pg_temp.sid(34),pg_temp.sid(1),pg_temp.sid(909),pg_temp.sid(11),'Prior-sale member','+917200000034','1990-01-01');
 insert into public.addon_products(id,tenant_id,kind,name,description,price_paise,currency,validity_days,stock_quantity,cancellation_terms,is_active)
 values(pg_temp.sid(190),pg_temp.sid(1),'product','Prior-sale fixture','Disclosed',10000,'INR',7,4,'Desk collection',true);
 alter table public.addon_orders alter column created_at set default statement_timestamp();
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 insert into captured(label,order_id,payment_id,replayed)
-select 'prior-sale',order_id,payment_id,replayed from public.record_addon_sale(pg_temp.sid(31),pg_temp.sid(190),1,(select quote_version from public.addon_products where id=pg_temp.sid(190)),null,null,null,'cash',null,pg_temp.sid(590));
+select 'prior-sale',order_id,payment_id,replayed from public.record_addon_sale(pg_temp.sid(34),pg_temp.sid(190),1,(select quote_version from public.addon_products where id=pg_temp.sid(190)),null,null,null,'cash',null,pg_temp.sid(590));
 reset role;
 set constraints public.addon_orders_unaccepted immediate;
 do $$declare original text; begin
@@ -494,7 +498,7 @@ select pg_get_expr(d.adbin,d.adrelid) original_default from pg_attrdef d
 join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
 where d.adrelid='public.shop_reservations'::regclass and a.attname='created_at';
 alter table public.shop_reservations alter column created_at set default clock_timestamp();
-select pg_temp.claim('member',1,null,31,906);
+select pg_temp.claim('member',1,null,34,909);
 set local role authenticated;
 insert into captured(label,id,expiry)
 select 'later-reservation',reservation_id,expires_at from public.create_shop_reservation(pg_temp.sid(190),1,(select quote_version from public.addon_products where id=pg_temp.sid(190)));

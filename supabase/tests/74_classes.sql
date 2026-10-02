@@ -53,9 +53,20 @@ select is(app.class_local_instant('America/New_York',date '2026-11-01',time '01:
 insert into auth.users(id,email) select pg_temp.u(n+900),'cls74-'||n||'@example.test'
 from generate_series(21,29) n union all
 select pg_temp.u(n+900),'cls74-'||n||'@example.test' from generate_series(101,110) n;
-insert into public.organizations(id,name,gym_code,status,timezone) values
+insert into public.platform_users(user_id,role,full_name,email,is_active) values
+ (pg_temp.u(928),'super_admin','Root','root74@example.test',true),
+ (pg_temp.u(929),'platform_support','Support','support74@example.test',true);
+-- Legitimate configuration fixture: active platform identity, normal commercial guard.
+do $fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.organizations(id,name,gym_code,status,timezone) values
  (pg_temp.u(1),'CLS A','CLS74A','active','Asia/Kolkata'),
  (pg_temp.u(2),'CLS B','CLS74B','active','Pacific/Kiritimati');
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $fixture$;
 insert into public.branches(id,tenant_id,name,is_default,timezone) values
  (pg_temp.u(11),pg_temp.u(1),'Main',true,'Asia/Kolkata'),
  (pg_temp.u(12),pg_temp.u(1),'West',false,'Etc/GMT+12'),
@@ -68,9 +79,6 @@ insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name,is_active
  (pg_temp.u(25),pg_temp.u(1),pg_temp.u(11),pg_temp.u(925),'trainer','Other Lead',true),
  (pg_temp.u(26),pg_temp.u(1),pg_temp.u(11),pg_temp.u(926),'front_desk','Inactive',false),
  (pg_temp.u(27),pg_temp.u(2),pg_temp.u(13),pg_temp.u(927),'gym_owner','B Owner',true);
-insert into public.platform_users(user_id,role,full_name,email,is_active) values
- (pg_temp.u(928),'super_admin','Root','root74@example.test',true),
- (pg_temp.u(929),'platform_support','Support','support74@example.test',true);
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone,status,erased_at)
 select pg_temp.u(n),pg_temp.u(case when n=110 then 2 else 1 end),
  pg_temp.u(case when n=110 then 13 when n=106 then 12 else 11 end),
@@ -966,7 +974,15 @@ set local role postgres;
 select is(pg_temp.run($q$update public.organization_settings set class_cancel_window_hours=-1 where tenant_id=pg_temp.u(1)$q$),'23514','CLS-028: cancel setting check rejects -1');
 select is(pg_temp.run($q$update public.organization_settings set class_cancel_window_hours=169 where tenant_id=pg_temp.u(1)$q$),'23514','CLS-028: cancel setting check rejects 169');
 insert into auth.users(id) values(pg_temp.u(931));
-insert into public.organizations(id,name,gym_code,status,timezone) values(pg_temp.u(3),'CLS limit','CLS74L','active','UTC');
+-- Legitimate configuration fixture: active platform identity, normal commercial guard.
+do $fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.organizations(id,name,gym_code,status,timezone) values(pg_temp.u(3),'CLS limit','CLS74L','active','UTC');
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $fixture$;
 insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_temp.u(14),pg_temp.u(3),'Limit',true,'UTC');
 insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(31),pg_temp.u(3),pg_temp.u(14),pg_temp.u(931),'gym_owner','Limit owner');
 insert into public.services(id,tenant_id,name,default_duration_minutes,default_capacity) select pg_temp.u(22000+n),pg_temp.u(3),'Limit service '||n,60,2 from generate_series(1,50)n;
@@ -1112,7 +1128,15 @@ select is((select count(*)::integer from public.class_sessions where rule_id=pg_
 
 set local role postgres;
 insert into auth.users(id) values(pg_temp.u(944)),(pg_temp.u(1024));
-insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(4),'CLS state 4','CLS74S4','suspended',null,'UTC');
+-- Legitimate configuration fixture: active platform identity, normal commercial guard.
+do $fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(4),'CLS state 4','CLS74S4','suspended',null,'UTC');
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $fixture$;
 insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_temp.u(54),pg_temp.u(4),'State branch',true,'UTC');
 insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(44),pg_temp.u(4),pg_temp.u(54),pg_temp.u(944),'gym_owner','State owner');
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(124),pg_temp.u(4),pg_temp.u(54),pg_temp.u(1024),'State member','+917402000124');
@@ -1128,7 +1152,15 @@ select pg_temp.claim(21,4,jsonb_build_object('sub',pg_temp.u(944),'staff_id',pg_
 select is(pg_temp.run($q$select public.create_service('Owner command',null,60,2,0)$q$),'42501','CLS-024: gym 4 non-booking eligibility');
 set local role postgres;
 insert into auth.users(id) values(pg_temp.u(945)),(pg_temp.u(1025));
-insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(5),'CLS state 5','CLS74S5','closed',null,'UTC');
+-- Legitimate configuration fixture: active platform identity, normal commercial guard.
+do $fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(5),'CLS state 5','CLS74S5','closed',null,'UTC');
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $fixture$;
 insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_temp.u(55),pg_temp.u(5),'State branch',true,'UTC');
 insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(45),pg_temp.u(5),pg_temp.u(55),pg_temp.u(945),'gym_owner','State owner');
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(125),pg_temp.u(5),pg_temp.u(55),pg_temp.u(1025),'State member','+917402000125');
@@ -1144,7 +1176,15 @@ select pg_temp.claim(21,5,jsonb_build_object('sub',pg_temp.u(945),'staff_id',pg_
 select is(pg_temp.run($q$select public.create_service('Owner command',null,60,2,0)$q$),'42501','CLS-024: gym 5 non-booking eligibility');
 set local role postgres;
 insert into auth.users(id) values(pg_temp.u(946)),(pg_temp.u(1026));
-insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(6),'CLS state 6','CLS74S6','pending_approval',null,'UTC');
+-- Legitimate configuration fixture: active platform identity, normal commercial guard.
+do $fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(6),'CLS state 6','CLS74S6','pending_approval',null,'UTC');
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $fixture$;
 insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_temp.u(56),pg_temp.u(6),'State branch',true,'UTC');
 insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(46),pg_temp.u(6),pg_temp.u(56),pg_temp.u(946),'gym_owner','State owner');
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(126),pg_temp.u(6),pg_temp.u(56),pg_temp.u(1026),'State member','+917402000126');
@@ -1160,7 +1200,15 @@ select pg_temp.claim(21,6,jsonb_build_object('sub',pg_temp.u(946),'staff_id',pg_
 select is(pg_temp.run($q$select public.create_service('Owner command',null,60,2,0)$q$),'42501','CLS-024: gym 6 non-booking eligibility');
 set local role postgres;
 insert into auth.users(id) values(pg_temp.u(947)),(pg_temp.u(1027));
-insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(7),'CLS state 7','CLS74S7','trial',statement_timestamp()-interval '1 day','UTC');
+-- Legitimate configuration fixture: active platform identity, normal commercial guard.
+do $fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(7),'CLS state 7','CLS74S7','trial',statement_timestamp()-interval '1 day','UTC');
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $fixture$;
 insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_temp.u(57),pg_temp.u(7),'State branch',true,'UTC');
 insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(47),pg_temp.u(7),pg_temp.u(57),pg_temp.u(947),'gym_owner','State owner');
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(127),pg_temp.u(7),pg_temp.u(57),pg_temp.u(1027),'State member','+917402000127');
@@ -1176,7 +1224,15 @@ select pg_temp.claim(21,7,jsonb_build_object('sub',pg_temp.u(947),'staff_id',pg_
 select is(pg_temp.run($q$select public.create_service('Owner command',null,60,2,0)$q$),'42501','CLS-024: gym 7 non-booking eligibility');
 set local role postgres;
 insert into auth.users(id) values(pg_temp.u(948)),(pg_temp.u(1028));
-insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(8),'CLS state 8','CLS74S8','trial',null,'UTC');
+-- Legitimate configuration fixture: active platform identity, normal commercial guard.
+do $fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(8),'CLS state 8','CLS74S8','trial',null,'UTC');
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $fixture$;
 insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_temp.u(58),pg_temp.u(8),'State branch',true,'UTC');
 insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(48),pg_temp.u(8),pg_temp.u(58),pg_temp.u(948),'gym_owner','State owner');
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(128),pg_temp.u(8),pg_temp.u(58),pg_temp.u(1028),'State member','+917402000128');
@@ -1192,7 +1248,15 @@ select pg_temp.claim(21,8,jsonb_build_object('sub',pg_temp.u(948),'staff_id',pg_
 select is(pg_temp.run($q$select public.create_service('Owner command',null,60,2,0)$q$),'42501','CLS-024: gym 8 non-booking eligibility');
 set local role postgres;
 insert into auth.users(id) values(pg_temp.u(949)),(pg_temp.u(1029));
-insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(9),'CLS state 9','CLS74S9','trial',statement_timestamp()+interval '1 day','UTC');
+-- Legitimate configuration fixture: active platform identity, normal commercial guard.
+do $fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
+ perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
+ insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(9),'CLS state 9','CLS74S9','trial',statement_timestamp()+interval '1 day','UTC');
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+exception when others then
+ perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+ raise;
+end $fixture$;
 insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_temp.u(59),pg_temp.u(9),'State branch',true,'UTC');
 insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(49),pg_temp.u(9),pg_temp.u(59),pg_temp.u(949),'gym_owner','State owner');
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(129),pg_temp.u(9),pg_temp.u(59),pg_temp.u(1029),'State member','+917402000129');
