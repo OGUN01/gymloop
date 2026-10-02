@@ -47,6 +47,9 @@ describe('GRD invite-route amendment', () => {
     expect(response.status).toBe(422);
     expect(await response.clone().json()).toMatchObject({ ok: false, error: { code: 'guardian_required', message: expect.any(String) } });
     expect(response.headers.get('cache-control')).toContain('no-store');
+    const envelope = await response.clone().json();
+    expect(envelope.error.message).toMatch(/guardian.*email|email.*guardian/i);
+    expect(envelope.error.message).toMatch(/name|record|details/i);
     const body = await response.text(); expect(body).not.toContain(PRIVATE); expect(body).not.toContain('GL083');
     expect(logs.flatMap((log) => log.mock.calls).flat().map(String).join(' ')).not.toContain(PRIVATE);
     expect(h.createClient).not.toHaveBeenCalled();
