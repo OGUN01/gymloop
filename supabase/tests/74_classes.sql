@@ -1147,7 +1147,7 @@ insert into auth.users(id) values(pg_temp.u(944)),(pg_temp.u(1024));
 -- Legitimate configuration fixture: active platform identity, normal commercial guard.
 do $fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
  perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
- insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(4),'CLS state 4','CLS74S4','suspended',null,'UTC');
+ insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(4),'CLS state 4','CLS7S4','suspended',null,'UTC');
  perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
 exception when others then
  perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
@@ -1179,7 +1179,7 @@ insert into auth.users(id) values(pg_temp.u(945)),(pg_temp.u(1025));
 -- Legitimate configuration fixture: active platform identity, normal commercial guard.
 do $fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
  perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
- insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(5),'CLS state 5','CLS74S5','closed',null,'UTC');
+ insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(5),'CLS state 5','CLS7S5','closed',null,'UTC');
  perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
 exception when others then
  perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
@@ -1211,7 +1211,7 @@ insert into auth.users(id) values(pg_temp.u(946)),(pg_temp.u(1026));
 -- Legitimate configuration fixture: active platform identity, normal commercial guard.
 do $fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
  perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
- insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(6),'CLS state 6','CLS74S6','pending_approval',null,'UTC');
+ insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(6),'CLS state 6','CLS7S6','pending_approval',null,'UTC');
  perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
 exception when others then
  perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
@@ -1243,7 +1243,7 @@ insert into auth.users(id) values(pg_temp.u(947)),(pg_temp.u(1027));
 -- Legitimate configuration fixture: active platform identity, normal commercial guard.
 do $fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
  perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
- insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(7),'CLS state 7','CLS74S7','trial',statement_timestamp()-interval '1 day','UTC');
+ insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(7),'CLS state 7','CLS7S7','trial',statement_timestamp()-interval '1 day','UTC');
  perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
 exception when others then
  perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
@@ -1275,7 +1275,7 @@ insert into auth.users(id) values(pg_temp.u(948)),(pg_temp.u(1028));
 -- Legitimate configuration fixture: active platform identity, normal commercial guard.
 do $fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
  perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
- insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(8),'CLS state 8','CLS74S8','trial',null,'UTC');
+ insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(8),'CLS state 8','CLS7S8','trial',null,'UTC');
  perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
 exception when others then
  perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
@@ -1307,7 +1307,7 @@ insert into auth.users(id) values(pg_temp.u(949)),(pg_temp.u(1029));
 -- Legitimate configuration fixture: active platform identity, normal commercial guard.
 do $fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
  perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
- insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(9),'CLS state 9','CLS74S9','trial',statement_timestamp()+interval '1 day','UTC');
+ insert into public.organizations(id,name,gym_code,status,trial_ends_at,timezone) values(pg_temp.u(9),'CLS state 9','CLS7S9','trial',statement_timestamp()+interval '1 day','UTC');
  perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
 exception when others then
  perform set_config('request.jwt.claims',coalesce(previous_claims,''),true);
