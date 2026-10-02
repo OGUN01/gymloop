@@ -191,3 +191,36 @@ test already pins the stricter reading, the test and this section agree.
 - `/invite/continue`: signed out with a valid cookie → redirect to `/invite/<token>`; signed out with no valid cookie → `/sign-in`; signed in unlinked with no valid cookie → the generic unavailable state; signed in with any linked identity → the D1 sentence with a link home. The signed-in email shown comes from `supabase.auth.getUser()`.
 - Constraints from existing pinned tests the implementers must respect: `auth-actions.ts` and `auth/callback/route.ts` must not contain `headers(`, `.get('next')`, `.delete(`, `.update(`, `.from(` or `.rpc(`, and must keep the literals `'/sign-in?failed=1'`, `readIdentity(`, `identityHome(`, `exchangeCodeForSession(`; the mobile `not-linked.tsx` must not contain `data.gym` (so no `data.gymName` there), `memberId|tenantId|staffId|fullName|Verified member|data.member|planName`, or the phrases `does not exist|no account|not found|no such account|invalid account`.
 - Production hazard: an unset `WEB_APP_URL` defaults to `http://127.0.0.1:3000`; the end-to-end pass verifies the deployed value before any invite is shared.
+
+## Contract amendments v1.2 (2026-10-02, INV bar completion)
+
+These make INV-Q9 and INV-Q11 explicit on the member list and history, and pin INV-Q8's account
+chooser recovery. All existing requirements, refusal privacy, read-model precedence, authorization,
+and accepted bar deviations remain unchanged. No database command, enum or audit shape changes.
+
+- **INV-025 (member-list invite visibility; INV-Q9).** WHEN real front-office staff view the member
+  list THE SYSTEM SHALL show each member's app-access state inline as a dot plus a readable word,
+  and, whenever that member has invite history, the latest invite's generated Postgres enum status
+  (`pending`, `redeemed`, `revoked`, `superseded`) with its sent and expiry times as absolute date-times
+  explicitly in IST. Expired pending invites SHALL be labelled expired without inventing an enum value.
+  The list SHALL offer a "Not joined yet" filter listing members whose `user_id` is null, including
+  never-invited, expired, revoked and unavailable members, and excluding linked members. Applying it
+  SHALL preserve the existing tenant, search, status and pagination constraints. Trainers SHALL not
+  receive invite or app-access metadata. Loading, empty, error and preview states SHALL be honest;
+  missing or failed data SHALL never appear as a successful invite or link.
+- **INV-026 (member invite history; INV-Q11).** WHEN an authorized front-office staff member views
+  a member's history after a successful resend or revoke THE SYSTEM SHALL show the persisted invite
+  audit activity for that member, with a readable actor, action and absolute IST timestamp. A resend
+  SHALL show its supersede and issue events; a revoke SHALL show its revoke event. Successful actions
+  SHALL refresh the displayed state and history without requiring a manual reload; failed actions
+  SHALL never fabricate history. Only this member's invites in this tenant may contribute events;
+  trainers, public invitees and support preview SHALL receive no invite history. Empty, loading and
+  error states SHALL be explicit. History SHALL expose neither raw tokens nor hashes, and SHALL not
+  render audit JSON or refusal-attempt identity data. An unavailable actor name SHALL have an honest
+  fallback instead of being attributed to the viewer.
+- **INV-027 (Google account chooser; INV-Q8, inherited by STI-014).** WHEN either
+  `startInviteGoogleSignIn(token)` or `startStaffInviteGoogleSignIn(token)` starts Google OAuth,
+  THE SYSTEM SHALL pass `options.queryParams: { prompt: 'select_account' }`, alongside the existing
+  callback redirect. The token SHALL remain exclusively in its family's HttpOnly cookie and SHALL
+  never enter OAuth query parameters or the callback URL. "Use a different Google account" SHALL
+  preserve the invite and reach this chooser path. Ordinary sign-in behavior remains unchanged.
