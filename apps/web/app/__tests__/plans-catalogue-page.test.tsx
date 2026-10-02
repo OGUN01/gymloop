@@ -21,6 +21,14 @@ beforeEach(() => {
   audience.mockReset(); audience.mockResolvedValue({ supabase: db, identity: { kind: 'member', tenantId: '71000000-0000-4000-8000-000000000001', memberId: '71000000-0000-4000-8000-000000000101' } });
 });
 describe('PLC-009/011/014/015 read-only member plans page', () => {
+  it('PLC-Q1/Q5 keeps the held offered row in name-price-length-badge reader order', async () => {
+    state.plans = [plan('p1', { name: 'Ordered held offer' })];
+    const html = await render();
+    const entry = html.match(/<li\b(?=[^>]*\bdata-held="true")[^>]*>[\s\S]*?<\/li>/)?.[0];
+    expect(entry).toBeDefined();
+    const words = entry?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    expect(words).toMatch(/Ordered held offer\s+₹1,500\s+for 30 days\s+Your plan/);
+  });
   it('PLC-009 keeps the exact positive discount fact when agreed arithmetic is unsafe', async () => {
     state.live = terms({ price_paise: '9007199254740993', discount_paise: '1' });
     const html = await render(); const held = html.match(/<section\b[^>]*id="your-plan"[\s\S]*?<\/section>/)?.[0];

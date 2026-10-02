@@ -20,6 +20,25 @@ function text(node: ReactNode): string {
   return text(node.props.children as ReactNode);
 }
 describe('PLC-009 rendered native agreed-price row', () => {
+  it('PLC-Q1/Q5 keeps the held offered row and accessible group in name-price-length-badge order', () => {
+    const view: PlanCatalogueView = { plans: [{ id: 'p1', name: 'Ordered held offer', description: null, durationDays: 30, pricePaise: '150000', currency: 'INR', gstRateBp: 0, held: true }], truncated: false, heldUnavailable: false, held: null };
+    const tree = createElement(PlanCatalogueBody, { state: { phase: 'ready', view, loadedAt: null, staleReason: null, offline: false }, copy: planCatalogueCopy(businessNouns('gym')), timeZone: 'Asia/Kolkata', onRetry: () => undefined });
+    const labels: string[] = [];
+    const groups: string[] = [];
+    const visit = (node: ReactNode): void => {
+      if (Array.isArray(node)) { node.forEach(visit); return; }
+      if (!isValidElement<Record<string, unknown>>(node)) return;
+      if (typeof node.type === 'function') { visit((node.type as (props: unknown) => ReactNode)(node.props)); return; }
+      if (typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.startsWith('Ordered held offer,')) {
+        labels.push(node.props.accessibilityLabel); groups.push(text(node));
+      }
+      visit(node.props.children as ReactNode);
+    };
+    visit(tree);
+    expect(labels).toEqual(['Ordered held offer, ₹1,500 for 30 days, Your plan']);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.replace(/\s+/g, ' ').trim()).toMatch(/Ordered held offer\s+₹1,500\s+for 30 days\s+Your plan/);
+  });
   it('keeps the exact positive discount fact when agreed arithmetic is unsafe', () => {
     const view: PlanCatalogueView = { plans: [], truncated: false, heldUnavailable: false, held: {
       planId: 'p1', planName: null, status: 'active', past: false, endsOn: null, current: null, change: 'not_on_offer',

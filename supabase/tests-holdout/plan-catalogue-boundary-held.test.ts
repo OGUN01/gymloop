@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { GymloopIdentity } from '../../packages/shared/src/api/identity';
 import type { PlanCatalogueRead, PlanCatalogueView } from '../../packages/shared/src/api/plan-catalogue';
 import { planCatalogueCopy } from '../../packages/shared/src/api/plan-catalogue';
-import { HeldPlanBlock } from '../../apps/web/app/member/plans/plan-list';
+import { HeldPlanBlock, PlanList } from '../../apps/web/app/member/plans/plan-list';
 import { UI_TOKENS } from '../../packages/shared/src/config/constants';
 import { PlanCatalogueBody } from '../../apps/mobile/components/plan-catalogue';
 import { useMemberPlans } from '../../apps/mobile/lib/use-member-plans';
@@ -55,8 +55,8 @@ vi.mock('react', async (original) => ({
 vi.mock('../../apps/mobile/lib/mobile-context', () => ({ useMobile: () => ({ ...h.caller, palette: UI_TOKENS.colors.light }) }));
 vi.mock('react-native', async () => {
   const { createElement } = await import('react');
-  type Props = { children?: import('react').ReactNode };
-  const host = ({ children }: Props) => createElement('span', null, children);
+  type Props = { children?: import('react').ReactNode; accessibilityLabel?: string; accessible?: boolean };
+  const host = ({ children, accessibilityLabel, accessible }: Props) => createElement('span', { 'aria-label': accessibilityLabel, 'data-native-group': accessible }, children);
   return { View: host, Text: host, Pressable: host, ScrollView: host, ActivityIndicator: host,
     TextInput: host, Modal: host, KeyboardAvoidingView: host, Platform: { OS: 'android' },
     StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 },
@@ -132,6 +132,28 @@ describe('PLC independent discount and callback lifetime boundaries', () => {
 
   });
 
+  it.each(['web', 'native'] as const)('PLC-016/Q1/Q5 %s held offered row reads name price length before badge', surface => {
+    const view = catalogue('Offered held plan');
+    view.held = null;
+    const copy = planCatalogueCopy({ place: 'gym' });
+    const html = surface === 'web' ? renderToStaticMarkup(createElement(PlanList, { view, copy })) :
+      renderToStaticMarkup(createElement(PlanCatalogueBody, {
+        state: { phase: 'ready', view, loadedAt: '2026-10-03T00:00:00Z', staleReason: null, offline: false },
+        copy, timeZone: 'Asia/Kolkata', onRetry: () => undefined,
+      }));
+    const renderedFacts = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    expect(renderedFacts).toContain('Offered held plan ₹100 for 30 days Your plan');
+  });
+
+  it('PLC-016/Q1 native held offered row groups matching spoken facts and badge last', () => {
+    const view = catalogue('Offered held plan');
+    view.held = null;
+    const html = renderToStaticMarkup(createElement(PlanCatalogueBody, {
+      state: { phase: 'ready', view, loadedAt: '2026-10-03T00:00:00Z', staleReason: null, offline: false },
+      copy: planCatalogueCopy({ place: 'gym' }), timeZone: 'Asia/Kolkata', onRetry: () => undefined,
+    }));
+    expect(html).toMatch(/<span(?=[^>]*data-native-group="true")(?=[^>]*aria-label="Offered held plan, ₹100 for 30 days, Your plan")[^>]*>/);
+  });
   it.each(['userId', 'tenantId', 'memberId', 'close', 'unmount'] as const)('PLC-019 retained callback cannot start a read after %s', async boundary => {
     h.read.mockResolvedValue({ ok: true, view: catalogue('A') });
     const retained = renderHook().reload;
@@ -163,6 +185,7 @@ describe('PLC independent discount and callback lifetime boundaries', () => {
     expect(renderHook().state.view?.plans[0]?.name).toBe('B');
   });
 });
+
 
 
 
