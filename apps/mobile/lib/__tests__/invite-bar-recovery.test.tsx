@@ -13,6 +13,7 @@ const { state } = vi.hoisted(() => ({ state: {
   posts: [] as Array<{ path: string; body: unknown }>, outcome: 'already_linked_here',
   peek: [{ gym_name: 'Iron Box Fitness' }] as unknown[], peekFailure: false, network: false,
   refreshes: 0, signOuts: 0,
+  brand: false,
 } }));
 const TOKEN = 'Q'.repeat(43);
 // Independently computed SHA-256 of the fixed UTF-8 token, using .NET SHA256.
@@ -61,10 +62,25 @@ vi.mock('expo-web-browser', () => ({
   openBrowserAsync: async (url: string) => { state.urls.push(url); return { type: 'dismiss' }; },
   openAuthSessionAsync: async (url: string) => { state.events.push('browser'); state.urls.push(url); return { type: 'cancel' }; },
 }));
-vi.mock('../../components/ui', () => ({ FONT: new Proxy({}, { get: () => 'test-font' }), ...Object.fromEntries([
+vi.mock('react-native-svg', () => ({ default: host('svg'), Svg: host('svg'), Path: host('path'), G: host('g'), Circle: host('circle'), Rect: host('rect'), Defs: host('defs'), ClipPath: host('clipPath') }));
+vi.mock('react-native-safe-area-context', () => ({
+  SafeAreaView: host('safe-area'), SafeAreaProvider: host('safe-area-provider'),
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
+vi.mock('lucide-react-native', () => new Proxy({}, {
+  get: (_target, name) => name === 'then' ? undefined : host('icon'),
+  has: () => true,
+}));
+vi.mock('expo-haptics', () => ({ selectionAsync: async () => undefined, impactAsync: async () => undefined, notificationAsync: async () => undefined }));
+vi.mock('../../components/ui', async (original) => {
+  const actual = await original<Record<string, unknown>>();
+  return { FONT: new Proxy({}, { get: () => 'test-font' }), ...Object.fromEntries([
   'Screen', 'Eyebrow', 'Title', 'Body', 'Surface', 'Field', 'LoadingState', 'StateMessage', 'ActionButton',
-].map((name) => [name, (props: Record<string, unknown>) => createElement(name === 'ActionButton' ? 'button' : name === 'Field' ? 'input' : 'view', props,
-  [props.title, props.message, props.label, props.children].filter((value) => value !== undefined) as ReactNode)])) }));
+].map((name) => [name, (props: Record<string, unknown>) => state.brand && name === 'ActionButton'
+  ? createElement(actual.ActionButton as never, props as never)
+  : createElement(name === 'ActionButton' ? 'button' : name === 'Field' ? 'input' : 'view', props,
+    [props.title, props.message, props.label, props.children].filter((value) => value !== undefined) as ReactNode)])) };
+});
 const supabase = {
   rpc: async (name: string, args: unknown) => { state.rpc.push({ name, args }); if (state.peekFailure) throw new Error('connection unavailable'); return { data: state.peek, error: null }; },
   from: () => { throw new Error('native invite must never read person records'); },
@@ -127,8 +143,29 @@ beforeEach(() => {
   state.identity = { kind: 'unlinked' }; state.signedIn = false; state.slots = []; state.cursor = 0; state.effects = [];
   state.store = new Map(); state.events = []; state.homes = []; state.urls = []; state.rpc = []; state.oauth = []; state.posts = [];
   state.outcome = 'already_linked_here'; state.peek = [{ gym_name: GYM }]; state.peekFailure = false; state.network = false; state.refreshes = 0; state.signOuts = 0;
+  state.brand = false;
 });
 describe('INV-029 native landing consent and direct Google', () => {
+  it('INV-029 / INV-Q4 Google button renders the four-color G on a neutral background with a 48dp target', async () => {
+    state.brand = true;
+    const view = await screen();
+    const button = nodes(view.tree).find((node) => node.type === 'button' && /Continue with Google|Sign in with Google/i.test(text(node)));
+    expect(button, 'the real rendered Google control').toBeDefined();
+    const paths = nodes(button).filter((node) => node.type === 'path');
+    const fills = paths.map((node) => String(node.props.fill).toLowerCase());
+    for (const color of ['#4285f4', '#34a853', '#fbbc05', '#ea4335']) expect(fills).toContain(color);
+    expect(paths.every((node) => typeof node.props.d === 'string' && node.props.d.length > 0)).toBe(true);
+    const flatten = (value: unknown): Record<string, unknown> => Array.isArray(value)
+      ? Object.assign({}, ...value.map(flatten)) : value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    const rawStyle = button?.props.style;
+    const style = flatten(typeof rawStyle === 'function' ? rawStyle({ pressed: false }) : rawStyle);
+    expect(Number(style.minHeight ?? style.height)).toBeGreaterThanOrEqual(48);
+    const background = String(style.backgroundColor ?? '').toLowerCase();
+    expect(background).toMatch(/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/);
+    const fullHex = background.length === 4 ? background.slice(1).split('').map((digit) => `${digit}${digit}`).join('') : background.slice(1);
+    const channels = [0, 2, 4].map((start) => Number.parseInt(fullHex.slice(start, start + 2), 16));
+    expect(Math.max(...channels) - Math.min(...channels), 'a neutral light/dark surface, never a recolored brand button').toBeLessThanOrEqual(24);
+  });
   it('first peeks gym-only using expo-crypto SHA256, shows notice/privacy before Google, never redirects to sign-in', async () => {
     const view = await screen(); const visible = text(view.tree);
     expect(state.rpc).toEqual([{ name: 'peek_member_invite', args: { p_token_hash: TOKEN_HASH } }]);
