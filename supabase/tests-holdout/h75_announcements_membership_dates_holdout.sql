@@ -2,7 +2,7 @@
 begin;
 set local role postgres;
 set local search_path to public, extensions;
-select plan(66);
+select plan(72);
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$select ('75910000-0000-4000-8000-'||lpad(to_hex(n),12,'0'))::uuid$$;
 create function pg_temp.sc(n integer default 1) returns text language sql as $$select jsonb_build_object('sub',pg_temp.u(200+n),'role','authenticated','tenant_id',pg_temp.u(1),'staff_id',pg_temp.u(200+n),'app_role',case n when 1 then 'gym_owner' when 2 then 'gym_manager' else 'front_desk' end)::text$$;
 create function pg_temp.run(q text,c text default pg_temp.sc(),r text default 'authenticated') returns jsonb language plpgsql as $$declare v jsonb;begin perform set_config('request.jwt.claims',coalesce(c,''),true);execute format('set local role %I',r);begin execute q into v;exception when others then v:=jsonb_build_object('error',sqlstate);end;set local role postgres;perform set_config('request.jwt.claims','',true);return coalesce(v,'null'::jsonb);end$$;
@@ -130,32 +130,73 @@ select ok((select count(*)=1 from legacy_check_before)and not exists(
  (select conname,pg_get_constraintdef(oid),convalidated from pg_constraint where conrelid='public.memberships'::regclass and conname='memberships_dated_unless_pending_chk' except select conname,definition,convalidated from legacy_check_before)
 ),'ANC exact dated CHECK definition and validation restored after each legacy import');
 select is((select count(*)from public.memberships where id in(select pg_temp.u(960+n)from generate_series(1,6)n)),0::bigint,'ANC historical null imports leave no membership row');
--- Invalid organization timezone is an ordinary fixture, never a suspended
--- organization guard. Each expected fallback call is caught so a missing fallback
--- yields useful assertion failures rather than aborting all remaining assertions.
+-- The ordinary commercial guard must refuse invalid input. Defensive UTC
+-- reads are measured only against a bounded legacy import with that guard
+-- restored immediately; the sentinel rolls back the entire import afterward.
 create function pg_temp.invalid_sc() returns text language sql as $$select jsonb_build_object('sub',pg_temp.u(206),'role','authenticated','tenant_id',pg_temp.u(3),'staff_id',pg_temp.u(206),'app_role','gym_owner')::text$$;
-insert into results values('invalid-org',pg_temp.run($q$insert into public.organizations(id,name,gym_code,status,timezone,currency)values(pg_temp.u(3),'UTC fallback gym','H75TBC','active','Holdout/Invalid','INR')returning to_jsonb(id)$q$,'','postgres'));
-select is((select v->>'error'from results where k='invalid-org'),null::text,'ANC invalid timezone fixture obeys ordinary organization guards');
-insert into results values('invalid-settings',pg_temp.run($q$insert into public.organization_settings(tenant_id)values(pg_temp.u(3))returning to_jsonb(tenant_id)$q$,'','postgres'));
-insert into results values('invalid-branch',pg_temp.run($q$insert into public.branches(id,tenant_id,name,is_default)values(pg_temp.u(13),pg_temp.u(3),'Fallback branch',true)returning to_jsonb(id)$q$,'','postgres'));
+insert into public.organizations(id,name,gym_code,status,timezone,currency)values(pg_temp.u(3),'UTC fallback gym','H75TBC','active','UTC','INR');
+insert into public.organization_settings(tenant_id)values(pg_temp.u(3));
+insert into public.branches(id,tenant_id,name,is_default)values(pg_temp.u(13),pg_temp.u(3),'Fallback branch',true);
 insert into auth.users(id)values(pg_temp.u(206)),(pg_temp.u(1109));
-insert into results values('invalid-staff',pg_temp.run($q$insert into public.staff(id,user_id,tenant_id,branch_id,role,full_name,is_active)values(pg_temp.u(206),pg_temp.u(206),pg_temp.u(3),pg_temp.u(13),'gym_owner','UTC owner',true)returning to_jsonb(id)$q$,'','postgres'));
-insert into results values('invalid-member',pg_temp.run($q$insert into public.members(id,user_id,tenant_id,branch_id,full_name,phone)values(pg_temp.u(109),pg_temp.u(1109),pg_temp.u(3),pg_temp.u(13),'PRIVATE UTC fallback','+919759000109')returning to_jsonb(id)$q$,'','postgres'));
-insert into results values('invalid-plan',pg_temp.run($q$insert into public.plans(id,tenant_id,name,duration_days,price_paise,currency)values(pg_temp.u(302),pg_temp.u(3),'UTC plan',30,0,'INR')returning to_jsonb(id)$q$,'','postgres'));
-insert into results values('invalid-membership',pg_temp.run($q$insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise)values(pg_temp.u(909),pg_temp.u(3),pg_temp.u(109),pg_temp.u(302),'active',(statement_timestamp()at time zone 'UTC')::date,(statement_timestamp()at time zone 'UTC')::date,0)returning to_jsonb(id)$q$,pg_temp.invalid_sc(),'postgres'));
-select is((select v->>'error'from results where k='invalid-membership'),null::text,'ANC UTC endpoints fixture retains ordinary membership guards');
-select is(pg_temp.run($q$select to_jsonb(app.gym_today(pg_temp.u(3)))$q$,'','postgres'),to_jsonb((statement_timestamp()at time zone 'UTC')::date),'ANC invalid organization zone resolves to independently computed UTC day');
+insert into public.staff(id,user_id,tenant_id,branch_id,role,full_name,is_active)values(pg_temp.u(206),pg_temp.u(206),pg_temp.u(3),pg_temp.u(13),'gym_owner','UTC owner',true);
+insert into public.members(id,user_id,tenant_id,branch_id,full_name,phone)values(pg_temp.u(109),pg_temp.u(1109),pg_temp.u(3),pg_temp.u(13),'PRIVATE UTC fallback','+919759000109');
+insert into public.plans(id,tenant_id,name,duration_days,price_paise,currency)values(pg_temp.u(302),pg_temp.u(3),'UTC plan',30,0,'INR');
+select set_config('request.jwt.claims',pg_temp.invalid_sc(),true);
+insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise)values(pg_temp.u(909),pg_temp.u(3),pg_temp.u(109),pg_temp.u(302),'active',(statement_timestamp()at time zone 'UTC')::date,(statement_timestamp()at time zone 'UTC')::date,0);
+select set_config('request.jwt.claims','',true);
+create temp table fallback_org_before as select to_jsonb(o)facts from public.organizations o where id=pg_temp.u(3);
+create temp table fallback_trigger_before as select tgname,pg_get_triggerdef(oid)definition,tgenabled from pg_trigger where tgrelid='public.organizations'::regclass and tgname='organizations_commercial_invariant';
+select is(pg_temp.run($q$update public.organizations set timezone='Holdout/Invalid'where id=pg_temp.u(3)returning to_jsonb(id)$q$,pg_temp.invalid_sc(),'postgres')->>'error','22023','ANC ordinary invalid timezone update refused');
+select is((select to_jsonb(o)from public.organizations o where id=pg_temp.u(3)),(select facts from fallback_org_before),'ANC invalid timezone refusal leaves organization untouched');
 insert into results values('fallback-live',pg_temp.run($q$select to_jsonb(public.create_announcement_draft('transactional','UTC live','Fallback dates','segment',array['active']::public.member_status[],'live',null,null))$q$,pg_temp.invalid_sc()));
-select is((select v->>'error'from results where k='fallback-live'),null::text,'ANC invalid zone live draft ordinary actor');
-select is(pg_temp.run($q$select to_jsonb(count(*))from app.announcement_audience(pg_temp.aid('fallback-live'),pg_temp.u(109))$q$,'','postgres'),'1'::jsonb,'ANC invalid zone live uses UTC audience day');
-select is(pg_temp.run($q$select to_jsonb(g)from public.publish_announcement(pg_temp.aid('fallback-live'))g$q$,pg_temp.invalid_sc())->>'audience_count','1','ANC invalid zone live publish UTC reach');
-select is(pg_temp.run($q$select to_jsonb(count(*))from public.read_member_announcements()where announcement_id=pg_temp.aid('fallback-live')$q$,jsonb_build_object('sub',pg_temp.u(1109),'role','authenticated','tenant_id',pg_temp.u(3),'member_id',pg_temp.u(109),'app_role','member')::text),'1'::jsonb,'ANC invalid zone live feed matches UTC membership');
-select is(pg_temp.run($q$select public.read_announcement(pg_temp.aid('fallback-live'))$q$,pg_temp.invalid_sc())->'announcement'->>'audienceCount','1','ANC invalid zone live staff detail count matches audience');
+select is((select v->>'error'from results where k='fallback-live'),null::text,'ANC UTC live draft ordinary actor');
 insert into results values('fallback-inverse',pg_temp.run($q$select to_jsonb(public.create_announcement_draft('transactional','UTC not_live','Fallback dates','segment',array['active']::public.member_status[],'not_live',null,null))$q$,pg_temp.invalid_sc()));
-select is((select v->>'error'from results where k='fallback-inverse'),null::text,'ANC invalid zone not_live draft ordinary actor');
-select is(pg_temp.run($q$select to_jsonb(count(*))from app.announcement_audience(pg_temp.aid('fallback-inverse'),pg_temp.u(109))$q$,'','postgres'),'0'::jsonb,'ANC invalid zone not_live uses UTC audience day');
-select is(pg_temp.run($q$select to_jsonb(g)from public.publish_announcement(pg_temp.aid('fallback-inverse'))g$q$,pg_temp.invalid_sc())->>'audience_count','0','ANC invalid zone not_live publish UTC reach');
-select is(pg_temp.run($q$select to_jsonb(count(*))from public.read_member_announcements()where announcement_id=pg_temp.aid('fallback-inverse')$q$,jsonb_build_object('sub',pg_temp.u(1109),'role','authenticated','tenant_id',pg_temp.u(3),'member_id',pg_temp.u(109),'app_role','member')::text),'0'::jsonb,'ANC invalid zone not_live feed matches UTC membership');
-select is(pg_temp.run($q$select public.read_announcement(pg_temp.aid('fallback-inverse'))$q$,pg_temp.invalid_sc())->'announcement'->>'audienceCount','0','ANC invalid zone not_live staff detail count matches audience');
+select is((select v->>'error'from results where k='fallback-inverse'),null::text,'ANC UTC not_live draft ordinary actor');
+create temp table fallback_reads(k text primary key,v jsonb);
+do $$
+declare enabled "char"; definition text; v jsonb:='{}'::jsonb; code text; message text;
+begin
+ select tgenabled,fallback_trigger_before.definition into strict enabled,definition from fallback_trigger_before;
+ begin
+  alter table public.organizations disable trigger organizations_commercial_invariant;
+  update public.organizations set timezone='Holdout/Invalid'where id=pg_temp.u(3);
+  if enabled='O'then alter table public.organizations enable trigger organizations_commercial_invariant;
+  elsif enabled='A'then alter table public.organizations enable always trigger organizations_commercial_invariant;
+  elsif enabled='R'then alter table public.organizations enable replica trigger organizations_commercial_invariant;
+  else raise exception 'Legacy fixture requires an enabled commercial guard';end if;
+  v:=jsonb_build_object('guardRestored',exists(select 1 from pg_trigger where tgrelid='public.organizations'::regclass and tgname='organizations_commercial_invariant'and tgenabled=enabled and pg_get_triggerdef(oid)=definition));
+  v:=v||jsonb_build_object('day',pg_temp.run($q$select to_jsonb(app.gym_today(pg_temp.u(3)))$q$,'','postgres'));
+  v:=v||jsonb_build_object('fallback-live-audience',pg_temp.run($q$select to_jsonb(count(*))from app.announcement_audience(pg_temp.aid('fallback-live'),pg_temp.u(109))$q$,'','postgres'));
+  v:=v||jsonb_build_object('fallback-live-publish',pg_temp.run($q$select to_jsonb(g)from public.publish_announcement(pg_temp.aid('fallback-live'))g$q$,pg_temp.invalid_sc()));
+  v:=v||jsonb_build_object('fallback-live-feed',pg_temp.run($q$select to_jsonb(count(*))from public.read_member_announcements()where announcement_id=pg_temp.aid('fallback-live')$q$,jsonb_build_object('sub',pg_temp.u(1109),'role','authenticated','tenant_id',pg_temp.u(3),'member_id',pg_temp.u(109),'app_role','member')::text));
+  v:=v||jsonb_build_object('fallback-live-detail',pg_temp.run($q$select public.read_announcement(pg_temp.aid('fallback-live'))$q$,pg_temp.invalid_sc()));
+  v:=v||jsonb_build_object('fallback-inverse-audience',pg_temp.run($q$select to_jsonb(count(*))from app.announcement_audience(pg_temp.aid('fallback-inverse'),pg_temp.u(109))$q$,'','postgres'));
+  v:=v||jsonb_build_object('fallback-inverse-publish',pg_temp.run($q$select to_jsonb(g)from public.publish_announcement(pg_temp.aid('fallback-inverse'))g$q$,pg_temp.invalid_sc()));
+  v:=v||jsonb_build_object('fallback-inverse-feed',pg_temp.run($q$select to_jsonb(count(*))from public.read_member_announcements()where announcement_id=pg_temp.aid('fallback-inverse')$q$,jsonb_build_object('sub',pg_temp.u(1109),'role','authenticated','tenant_id',pg_temp.u(3),'member_id',pg_temp.u(109),'app_role','member')::text));
+  v:=v||jsonb_build_object('fallback-inverse-detail',pg_temp.run($q$select public.read_announcement(pg_temp.aid('fallback-inverse'))$q$,pg_temp.invalid_sc()));
+  raise exception using errcode='ZH002',message='holdout legacy timezone rollback sentinel';
+ exception when sqlstate 'ZH002'then null;
+ when others then get stacked diagnostics code=returned_sqlstate,message=message_text;v:=v||jsonb_build_object('importError',code,'message',message);
+ end;
+ insert into fallback_reads values('measured',v);
+end $$;
+select is((select v->>'importError'from fallback_reads),null::text,'ANC bounded malformed timezone import completes without bypassing application guards');
+select is((select v->>'guardRestored'from fallback_reads),'true','ANC exact commercial trigger restored before every actual application read');
+select is((select v->'day'from fallback_reads),to_jsonb((statement_timestamp()at time zone 'UTC')::date),'ANC malformed legacy gym timezone resolves to independently computed UTC day');
+select is((select v->'fallback-live-audience'from fallback_reads),'1'::jsonb,'ANC legacy invalid zone live UTC audience');
+select is((select v->'fallback-live-publish'->>'audience_count'from fallback_reads),'1','ANC legacy invalid zone live publish UTC reach');
+select is((select v->'fallback-live-feed'from fallback_reads),'1'::jsonb,'ANC legacy invalid zone live feed matches UTC membership');
+select is((select v->'fallback-live-detail'->'announcement'->>'audienceCount'from fallback_reads),'1','ANC legacy invalid zone live staff count matches UTC audience');
+select is((select v->'fallback-inverse-audience'from fallback_reads),'0'::jsonb,'ANC legacy invalid zone not_live UTC audience');
+select is((select v->'fallback-inverse-publish'->>'audience_count'from fallback_reads),'0','ANC legacy invalid zone not_live publish UTC reach');
+select is((select v->'fallback-inverse-feed'from fallback_reads),'0'::jsonb,'ANC legacy invalid zone not_live feed matches UTC membership');
+select is((select v->'fallback-inverse-detail'->'announcement'->>'audienceCount'from fallback_reads),'0','ANC legacy invalid zone not_live staff count matches UTC audience');
+select is((select to_jsonb(o)from public.organizations o where id=pg_temp.u(3)),(select facts from fallback_org_before),'ANC sentinel restores exact original organization including timezone');
+select ok((select count(*)=1 from fallback_trigger_before)and not exists(
+ (select tgname,definition,tgenabled from fallback_trigger_before except select tgname,pg_get_triggerdef(oid),tgenabled from pg_trigger where tgrelid='public.organizations'::regclass and tgname='organizations_commercial_invariant')union all
+ (select tgname,pg_get_triggerdef(oid),tgenabled from pg_trigger where tgrelid='public.organizations'::regclass and tgname='organizations_commercial_invariant'except select tgname,definition,tgenabled from fallback_trigger_before)
+),'ANC sentinel restores exact commercial trigger definition and enabled state');
+select is(pg_temp.run($q$update public.organizations set timezone='Holdout/StillInvalid'where id=pg_temp.u(3)returning to_jsonb(id)$q$,pg_temp.invalid_sc(),'postgres')->>'error','22023','ANC invalid ordinary write still refused after legacy seam');
+select is((select to_jsonb(o)from public.organizations o where id=pg_temp.u(3)),(select facts from fallback_org_before),'ANC restored guard refusal remains atomic');
 select * from finish();
 rollback;

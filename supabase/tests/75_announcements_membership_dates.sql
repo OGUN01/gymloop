@@ -3,7 +3,7 @@ begin;
 set local role postgres;
 set local search_path=extensions,public;
 select set_config('request.jwt.claims','',true);
-select plan(299);
+select plan(316);
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$select ('75100000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.claim(r text,s integer,m integer,u integer,t integer) returns void language plpgsql as $$begin perform set_config('request.jwt.claims',jsonb_strip_nulls(jsonb_build_object('sub',pg_temp.u(u),'role','authenticated','app_role',r,'tenant_id',pg_temp.u(t),'staff_id',case when s is not null then pg_temp.u(s) end,'member_id',case when m is not null then pg_temp.u(m) end))::text,true);end$$;
 create function pg_temp.refusal(q text) returns text language plpgsql as $$begin execute q; return 'OK'; exception when others then return sqlstate; end$$;
@@ -502,59 +502,155 @@ select is((select count(*)::integer from app.announcement_audience((select id fr
 select is((select count(*)::integer from app.announcement_audience((select id from boundary_ids where t=2 and k='not_live'))),8,'ANC boundary: tenant 2 not_live shared delivery audience matches current dates');
 select is((select count(*)::integer from app.announcement_audience((select id from boundary_ids where t=2 and k='all'))),11,'ANC boundary: tenant 2 all shared delivery audience matches current dates');
 select is((select count(*)::integer from app.announcement_audience((select id from boundary_ids where t=2 and k='promo'))),0,'ANC boundary: tenant 2 promo shared delivery audience matches current dates');
--- Invalid organization timezone is an approved validated-fallback boundary.
--- Preserve the ordinary platform configuration guard and every normal table trigger.
+-- Invalid normal timezone writes are refused. Defensive fallback uses only the
+-- owner-frozen rollback-only legacy import seam in legacy-compatibility-clarification.md.
 set local role postgres;
 select pg_temp.claim('super_admin',null,null,999,null);
 insert into auth.users(id,email) values(pg_temp.u(923),'anc-boundary-owner3@example.test'),(pg_temp.u(1101),'anc-boundary-utc-live@example.test'),(pg_temp.u(1102),'anc-boundary-utc-future@example.test');
 insert into public.organizations(id,name,gym_code,status,timezone)
-values(pg_temp.u(3),'ANC Boundary Invalid Zone','AB751U','active','Not/A_Timezone');
+values(pg_temp.u(3),'ANC Boundary Invalid Zone','AB751U','active','UTC');
 insert into public.branches(id,tenant_id,name,is_default,timezone)
 values(pg_temp.u(13),pg_temp.u(3),'UTC fallback',true,'UTC');
 insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name,is_active)
 values(pg_temp.u(23),pg_temp.u(3),pg_temp.u(13),pg_temp.u(923),'gym_owner','UTC boundary owner',true);
-select set_config('request.jwt.claims','',true);
-insert into public.plans(id,tenant_id,name,duration_days,price_paise)
-values(pg_temp.u(43),pg_temp.u(3),'UTC boundary',30,10000);
-insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone,status) values
-(pg_temp.u(201),pg_temp.u(3),pg_temp.u(13),pg_temp.u(1101),'UTC inclusive endpoint','+917510000201','active'),
-(pg_temp.u(202),pg_temp.u(3),pg_temp.u(13),pg_temp.u(1102),'UTC starts tomorrow','+917510000202','active');
--- Independent UTC dates: never derive this oracle from the helper being tested.
-insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise,currency) values
-(pg_temp.u(1201),pg_temp.u(3),pg_temp.u(201),pg_temp.u(43),'active',(statement_timestamp() at time zone 'UTC')::date,(statement_timestamp() at time zone 'UTC')::date,10000,'INR'),
-(pg_temp.u(1202),pg_temp.u(3),pg_temp.u(202),pg_temp.u(43),'frozen',(statement_timestamp() at time zone 'UTC')::date+1,(statement_timestamp() at time zone 'UTC')::date+30,10000,'INR');
-select is(app.gym_today(pg_temp.u(3)),(statement_timestamp() at time zone 'UTC')::date,'ANC invalid timezone: registered day helper falls back to actual UTC date');
-set local role authenticated;
-select pg_temp.claim('gym_owner',23,null,923,3);
-insert into boundary_ids values(3,'live',public.create_announcement_draft('transactional','UTC live boundary','Invalid timezone fallback','segment',array['active']::public.member_status[],'live',null,null));
-select is((select audience_count from public.publish_announcement((select id from boundary_ids where t=3 and k='live'))),1,'ANC invalid timezone: live publish counts UTC membership eligibility');
-select is((select audience_count from public.list_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='live')),1,'ANC invalid timezone: live staff list count uses UTC');
-select is((public.read_announcement((select id from boundary_ids where t=3 and k='live'))->'announcement'->>'audienceCount')::integer,1,'ANC invalid timezone: live staff detail count uses UTC');
-insert into boundary_ids values(3,'not_live',public.create_announcement_draft('transactional','UTC not_live boundary','Invalid timezone fallback','segment',array['active']::public.member_status[],'not_live',null,null));
-select is((select audience_count from public.publish_announcement((select id from boundary_ids where t=3 and k='not_live'))),1,'ANC invalid timezone: not_live publish counts UTC membership eligibility');
-select is((select audience_count from public.list_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='not_live')),1,'ANC invalid timezone: not_live staff list count uses UTC');
-select is((public.read_announcement((select id from boundary_ids where t=3 and k='not_live'))->'announcement'->>'audienceCount')::integer,1,'ANC invalid timezone: not_live staff detail count uses UTC');
+create temp table boundary_utc_original as select timezone,to_jsonb(o) as organization_row,
+(select coalesce(jsonb_agg(to_jsonb(a) order by id),'[]') from public.audit_log a where tenant_id=pg_temp.u(3)) as audit_rows
+from public.organizations o where id=pg_temp.u(3);
+create temp table boundary_utc_trigger as select pg_get_triggerdef(oid) as definition,tgenabled as enabled
+from pg_trigger where tgrelid='public.organizations'::regclass
+ and tgname='organizations_commercial_invariant'
+ and tgfoid='app.enforce_organization_commercial()'::regprocedure and not tgisinternal;
+select is((select count(*)::integer from boundary_utc_trigger),1,'ANC invalid timezone: exact registered commercial trigger captured');
+select is(pg_temp.refusal($q$update public.organizations set timezone='Not/A_Timezone' where id=pg_temp.u(3)$q$),'22023','ANC invalid timezone: normal configuration update refuses malformed timezone');
+select is((select to_jsonb(o) from public.organizations o where id=pg_temp.u(3)),(select organization_row from boundary_utc_original),'ANC invalid timezone: normal refusal leaves exact organization unchanged');
+select is((select coalesce(jsonb_agg(to_jsonb(a) order by id),'[]') from public.audit_log a where tenant_id=pg_temp.u(3)),(select audit_rows from boundary_utc_original),'ANC invalid timezone: normal refusal leaves audit unchanged');
+create temp table boundary_utc_results(result jsonb,sentinel_caught boolean,unexpected_sqlstate text,stage text);
+do $utc_legacy$
+declare
+ retained jsonb := '{}'::jsonb;
+ original_definition text;
+ original_enabled "char";
+ caught boolean := false;
+ failure_state text;
+ phase text := 'capture';
+ announcement_key text;
+ announcement_id_value uuid;
+ publish_count integer;
+ member_key integer;
+ membership_count integer;
+ marked boolean;
+ feed_count integer;
+ staff_list_count integer;
+ staff_detail_count integer;
+ receipt_count integer;
+begin
+ select definition,enabled into strict original_definition,original_enabled from boundary_utc_trigger;
+ begin
+   phase := 'legacy timezone import';
+   alter table public.organizations disable trigger organizations_commercial_invariant;
+   update public.organizations set timezone='Not/A_Timezone' where id=pg_temp.u(3);
+   -- Restore exactly and immediately; no application call precedes this restoration.
+   case original_enabled
+    when 'O' then alter table public.organizations enable trigger organizations_commercial_invariant;
+    when 'R' then alter table public.organizations enable replica trigger organizations_commercial_invariant;
+    when 'A' then alter table public.organizations enable always trigger organizations_commercial_invariant;
+    when 'D' then alter table public.organizations disable trigger organizations_commercial_invariant;
+    else raise exception 'Unknown commercial trigger enabled state';
+   end case;
+   if not exists(select 1 from pg_trigger where tgrelid='public.organizations'::regclass and tgname='organizations_commercial_invariant' and pg_get_triggerdef(oid)=original_definition and tgenabled=original_enabled) then
+    raise exception 'Commercial trigger was not restored exactly';
+   end if;
+   retained := retained || jsonb_build_object('guard_restored_before_calls',true);
+   phase := 'ordinary UTC fixture rows with every guard restored';
+   insert into public.plans(id,tenant_id,name,duration_days,price_paise) values(pg_temp.u(43),pg_temp.u(3),'UTC boundary',30,10000);
+   insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone,status) values
+   (pg_temp.u(201),pg_temp.u(3),pg_temp.u(13),pg_temp.u(1101),'UTC inclusive endpoint','+917510000201','active'),
+   (pg_temp.u(202),pg_temp.u(3),pg_temp.u(13),pg_temp.u(1102),'UTC starts tomorrow','+917510000202','active');
+   -- Independent UTC dates are never derived from the helper under test.
+   insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise,currency) values
+   (pg_temp.u(1201),pg_temp.u(3),pg_temp.u(201),pg_temp.u(43),'active',(statement_timestamp() at time zone 'UTC')::date,(statement_timestamp() at time zone 'UTC')::date,10000,'INR'),
+   (pg_temp.u(1202),pg_temp.u(3),pg_temp.u(202),pg_temp.u(43),'frozen',(statement_timestamp() at time zone 'UTC')::date+1,(statement_timestamp() at time zone 'UTC')::date+30,10000,'INR');
+   phase := 'registered gym day helper';
+   retained := retained || jsonb_build_object('today',app.gym_today(pg_temp.u(3)));
+   set local role authenticated;
+   perform pg_temp.claim('gym_owner',23,null,923,3);
+   foreach announcement_key in array array['live','not_live'] loop
+    phase := 'normal announcement commands '||announcement_key;
+    announcement_id_value := public.create_announcement_draft('transactional','UTC '||announcement_key||' boundary','Invalid timezone fallback','segment',array['active']::public.member_status[],announcement_key::public.announcement_membership_filter,null,null);
+    insert into boundary_ids values(3,announcement_key,announcement_id_value);
+    select audience_count into publish_count from public.publish_announcement(announcement_id_value);
+    select audience_count into staff_list_count from public.list_announcements() where announcement_id=announcement_id_value;
+    staff_detail_count := (public.read_announcement(announcement_id_value)->'announcement'->>'audienceCount')::integer;
+    retained := retained || jsonb_build_object(announcement_key||'_publish',publish_count,announcement_key||'_staff_list',staff_list_count,announcement_key||'_staff_detail',staff_detail_count);
+   end loop;
+   set local role postgres;
+   foreach announcement_key in array array['live','not_live'] loop
+    phase := 'shared audience '||announcement_key;
+    member_key := case when announcement_key='live' then 201 else 202 end;
+    select count(*)::integer into membership_count from app.announcement_audience((select id from boundary_ids where t=3 and k=announcement_key),pg_temp.u(member_key));
+    retained := retained || jsonb_build_object(announcement_key||'_shared',membership_count);
+   end loop;
+   for member_key in 201..202 loop
+    perform pg_temp.claim('member',null,member_key,member_key+900,3);
+    set local role authenticated;
+    foreach announcement_key in array array['live','not_live'] loop
+     phase := 'member feed and marker '||member_key||' '||announcement_key;
+     select id into strict announcement_id_value from boundary_ids where t=3 and k=announcement_key;
+     select count(*)::integer into feed_count from public.read_member_announcements() where announcement_id=announcement_id_value;
+     marked := public.mark_announcement_read(announcement_id_value,1);
+     retained := retained || jsonb_build_object(member_key||'_'||announcement_key||'_feed',feed_count,member_key||'_'||announcement_key||'_marked',marked);
+    end loop;
+    set local role postgres;
+   end loop;
+   perform pg_temp.claim('gym_owner',23,null,923,3);
+   set local role authenticated;
+   foreach announcement_key in array array['live','not_live'] loop
+    phase := 'current receipt aggregate '||announcement_key;
+    select read_current into receipt_count from public.list_announcements() where announcement_id=(select id from boundary_ids where t=3 and k=announcement_key);
+    retained := retained || jsonb_build_object(announcement_key||'_receipts',receipt_count);
+   end loop;
+   set local role postgres;
+   phase := 'sentinel rollback';
+   raise exception using errcode='Z7512',message='Rollback only invalid timezone legacy seam';
+ exception
+  when sqlstate 'Z7512' then caught := true;
+  when others then failure_state := sqlstate;
+ end;
+ insert into boundary_utc_results values(retained,caught,failure_state,phase);
+end $utc_legacy$;
+select is((select unexpected_sqlstate from boundary_utc_results),null::text,'ANC invalid timezone: restored-guard real operations raise no unexpected SQLSTATE');
+select is((select sentinel_caught from boundary_utc_results),true,'ANC invalid timezone: full legacy seam reaches deliberate rollback');
+select is((select (result->>'guard_restored_before_calls')::boolean from boundary_utc_results),true,'ANC invalid timezone: exact commercial guard restored before all application calls');
+select is((select (result->>'today')::date from boundary_utc_results),(statement_timestamp() at time zone 'UTC')::date,'ANC invalid timezone: registered day helper falls back to actual UTC date');
+select is((select (result->>'live_publish')::integer from boundary_utc_results),1,'ANC invalid timezone: actual live publish uses UTC eligibility with all guards restored');
+select is((select (result->>'live_staff_list')::integer from boundary_utc_results),1,'ANC invalid timezone: actual live staff_list uses UTC eligibility with all guards restored');
+select is((select (result->>'live_staff_detail')::integer from boundary_utc_results),1,'ANC invalid timezone: actual live staff_detail uses UTC eligibility with all guards restored');
+select is((select (result->>'live_shared')::integer from boundary_utc_results),1,'ANC invalid timezone: actual live shared uses UTC eligibility with all guards restored');
+select is((select (result->>'live_receipts')::integer from boundary_utc_results),1,'ANC invalid timezone: actual live receipts uses UTC eligibility with all guards restored');
+select is((select (result->>'not_live_publish')::integer from boundary_utc_results),1,'ANC invalid timezone: actual not_live publish uses UTC eligibility with all guards restored');
+select is((select (result->>'not_live_staff_list')::integer from boundary_utc_results),1,'ANC invalid timezone: actual not_live staff_list uses UTC eligibility with all guards restored');
+select is((select (result->>'not_live_staff_detail')::integer from boundary_utc_results),1,'ANC invalid timezone: actual not_live staff_detail uses UTC eligibility with all guards restored');
+select is((select (result->>'not_live_shared')::integer from boundary_utc_results),1,'ANC invalid timezone: actual not_live shared uses UTC eligibility with all guards restored');
+select is((select (result->>'not_live_receipts')::integer from boundary_utc_results),1,'ANC invalid timezone: actual not_live receipts uses UTC eligibility with all guards restored');
+select is((select (result->>'201_live_feed')::integer from boundary_utc_results),1,'ANC invalid timezone: actual member 201 live feed uses UTC');
+select is((select (result->>'201_live_marked')::boolean from boundary_utc_results),true,'ANC invalid timezone: actual member 201 live marker uses UTC');
+select is((select (result->>'201_not_live_feed')::integer from boundary_utc_results),0,'ANC invalid timezone: actual member 201 not_live feed uses UTC');
+select is((select (result->>'201_not_live_marked')::boolean from boundary_utc_results),false,'ANC invalid timezone: actual member 201 not_live marker uses UTC');
+select is((select (result->>'202_live_feed')::integer from boundary_utc_results),0,'ANC invalid timezone: actual member 202 live feed uses UTC');
+select is((select (result->>'202_live_marked')::boolean from boundary_utc_results),false,'ANC invalid timezone: actual member 202 live marker uses UTC');
+select is((select (result->>'202_not_live_feed')::integer from boundary_utc_results),1,'ANC invalid timezone: actual member 202 not_live feed uses UTC');
+select is((select (result->>'202_not_live_marked')::boolean from boundary_utc_results),true,'ANC invalid timezone: actual member 202 not_live marker uses UTC');
 set local role postgres;
-select is((select count(*)::integer from app.announcement_audience((select id from boundary_ids where t=3 and k='live'),pg_temp.u(201))),1,'ANC invalid timezone: shared live audience uses independently dated UTC fixture');
-select is((select count(*)::integer from app.announcement_audience((select id from boundary_ids where t=3 and k='not_live'),pg_temp.u(202))),1,'ANC invalid timezone: shared not_live audience uses independently dated UTC fixture');
-set local role postgres;
-select pg_temp.claim('member',null,201,1101,3);
-set local role authenticated;
-select is((select count(*)::integer from public.read_member_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='live')),1,'ANC invalid timezone: member 201 live feed reflects UTC day');
-select is(public.mark_announcement_read((select id from boundary_ids where t=3 and k='live'),1),true,'ANC invalid timezone: member 201 live marker reflects UTC day');
-select is((select count(*)::integer from public.read_member_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='not_live')),0,'ANC invalid timezone: member 201 not_live feed reflects UTC day');
-select is(public.mark_announcement_read((select id from boundary_ids where t=3 and k='not_live'),1),false,'ANC invalid timezone: member 201 not_live marker reflects UTC day');
-set local role postgres;
-select pg_temp.claim('member',null,202,1102,3);
-set local role authenticated;
-select is((select count(*)::integer from public.read_member_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='live')),0,'ANC invalid timezone: member 202 live feed reflects UTC day');
-select is(public.mark_announcement_read((select id from boundary_ids where t=3 and k='live'),1),false,'ANC invalid timezone: member 202 live marker reflects UTC day');
-select is((select count(*)::integer from public.read_member_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='not_live')),1,'ANC invalid timezone: member 202 not_live feed reflects UTC day');
-select is(public.mark_announcement_read((select id from boundary_ids where t=3 and k='not_live'),1),true,'ANC invalid timezone: member 202 not_live marker reflects UTC day');
-set local role postgres;
-select pg_temp.claim('gym_owner',23,null,923,3);
-set local role authenticated;
-select is((select read_current from public.list_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='live')),1,'ANC invalid timezone: live eligible UTC receipt aggregate');
-select is((select read_current from public.list_announcements() where announcement_id=(select id from boundary_ids where t=3 and k='not_live')),1,'ANC invalid timezone: not_live eligible UTC receipt aggregate');
+select is((select pg_get_triggerdef(oid) from pg_trigger where tgrelid='public.organizations'::regclass and tgname='organizations_commercial_invariant'),(select definition from boundary_utc_trigger),'ANC invalid timezone: exact original trigger definition remains after rollback');
+select is((select tgenabled::text from pg_trigger where tgrelid='public.organizations'::regclass and tgname='organizations_commercial_invariant'),(select enabled::text from boundary_utc_trigger),'ANC invalid timezone: exact original trigger enabled state remains after rollback');
+select is((select timezone from public.organizations where id=pg_temp.u(3)),(select timezone from boundary_utc_original),'ANC invalid timezone: sentinel restores original valid timezone');
+select is((select count(*)::integer from public.members where tenant_id=pg_temp.u(3)),0,'ANC invalid timezone: imported member rows rolled back');
+select is((select count(*)::integer from public.memberships where tenant_id=pg_temp.u(3)),0,'ANC invalid timezone: imported membership rows rolled back');
+select is((select count(*)::integer from public.announcements where tenant_id=pg_temp.u(3)),0,'ANC invalid timezone: normal announcements within legacy seam rolled back');
+select is((select count(*)::integer from public.announcement_receipts where tenant_id=pg_temp.u(3)),0,'ANC invalid timezone: actual marker receipt writes rolled back');
+select pg_temp.claim('super_admin',null,null,999,null);
+select is(pg_temp.refusal($q$update public.organizations set timezone='Not/A_Timezone' where id=pg_temp.u(3)$q$),'22023','ANC invalid timezone: ordinary invalid-write refusal remains after restoration');
+select is((select to_jsonb(o) from public.organizations o where id=pg_temp.u(3)),(select organization_row from boundary_utc_original),'ANC invalid timezone: final normal refusal preserves exact organization');
+select is((select coalesce(jsonb_agg(to_jsonb(a) order by id),'[]') from public.audit_log a where tenant_id=pg_temp.u(3)),(select audit_rows from boundary_utc_original),'ANC invalid timezone: full legacy rollback and final refusal preserve audit');
 select * from finish();
 rollback;
