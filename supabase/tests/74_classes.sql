@@ -624,7 +624,7 @@ select is(pg_temp.run($q$select public.set_service_active(null,null)$q$),'22023'
 select is(pg_temp.run($q$select public.create_class_rules(null,null,null,null,null,null,null,null,null)$q$),'22023','CLS-024: actor 21 create_class_rules, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.update_class_rule(null,null,null,null,null,null)$q$),'22023','CLS-024: actor 21 update_class_rule, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.create_class_session(null,null,null,null,null,null,null)$q$),'22023','CLS-024: actor 21 create_class_session, authorization precedes invalid args');
-select is(pg_temp.run($q$select public.update_class_session(null,null,null,null,null,null,null)$q$),'22023','CLS-024: actor 21 update_class_session, authorization precedes invalid args');
+select is(pg_temp.run($q$select public.update_class_session(null::uuid,null::date,null::time,null::integer,null::integer,null::uuid)$q$),'22023','CLS-024: actor 21 update_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_session(null,null)$q$),'22023','CLS-024: actor 21 cancel_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.book_class_session(null)$q$),'42501','CLS-024: actor 21 book_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_booking(null)$q$),'42501','CLS-024: actor 21 cancel_class_booking, authorization precedes invalid args');
@@ -640,7 +640,7 @@ select is(pg_temp.run($q$select public.set_service_active(null,null)$q$),'22023'
 select is(pg_temp.run($q$select public.create_class_rules(null,null,null,null,null,null,null,null,null)$q$),'22023','CLS-024: actor 22 create_class_rules, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.update_class_rule(null,null,null,null,null,null)$q$),'22023','CLS-024: actor 22 update_class_rule, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.create_class_session(null,null,null,null,null,null,null)$q$),'22023','CLS-024: actor 22 create_class_session, authorization precedes invalid args');
-select is(pg_temp.run($q$select public.update_class_session(null,null,null,null,null,null,null)$q$),'22023','CLS-024: actor 22 update_class_session, authorization precedes invalid args');
+select is(pg_temp.run($q$select public.update_class_session(null::uuid,null::date,null::time,null::integer,null::integer,null::uuid)$q$),'22023','CLS-024: actor 22 update_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_session(null,null)$q$),'22023','CLS-024: actor 22 cancel_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.book_class_session(null)$q$),'42501','CLS-024: actor 22 book_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_booking(null)$q$),'42501','CLS-024: actor 22 cancel_class_booking, authorization precedes invalid args');
@@ -656,7 +656,7 @@ select is(pg_temp.run($q$select public.set_service_active(null,null)$q$),'42501'
 select is(pg_temp.run($q$select public.create_class_rules(null,null,null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 23 create_class_rules, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.update_class_rule(null,null,null,null,null,null)$q$),'42501','CLS-024: actor 23 update_class_rule, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.create_class_session(null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 23 create_class_session, authorization precedes invalid args');
-select is(pg_temp.run($q$select public.update_class_session(null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 23 update_class_session, authorization precedes invalid args');
+select is(pg_temp.run($q$select public.update_class_session(null::uuid,null::date,null::time,null::integer,null::integer,null::uuid)$q$),'42501','CLS-024: actor 23 update_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_session(null,null)$q$),'42501','CLS-024: actor 23 cancel_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.book_class_session(null)$q$),'42501','CLS-024: actor 23 book_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_booking(null)$q$),'42501','CLS-024: actor 23 cancel_class_booking, authorization precedes invalid args');
@@ -672,7 +672,7 @@ select is(pg_temp.run($q$select public.set_service_active(null,null)$q$),'42501'
 select is(pg_temp.run($q$select public.create_class_rules(null,null,null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 24 create_class_rules, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.update_class_rule(null,null,null,null,null,null)$q$),'42501','CLS-024: actor 24 update_class_rule, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.create_class_session(null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 24 create_class_session, authorization precedes invalid args');
-select is(pg_temp.run($q$select public.update_class_session(null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 24 update_class_session, authorization precedes invalid args');
+select is(pg_temp.run($q$select public.update_class_session(null::uuid,null::date,null::time,null::integer,null::integer,null::uuid)$q$),'42501','CLS-024: actor 24 update_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_session(null,null)$q$),'42501','CLS-024: actor 24 cancel_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.book_class_session(null)$q$),'42501','CLS-024: actor 24 book_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_booking(null)$q$),'42501','CLS-024: actor 24 cancel_class_booking, authorization precedes invalid args');
@@ -688,7 +688,7 @@ select is(pg_temp.run($q$select public.set_service_active(null,null)$q$),'42501'
 select is(pg_temp.run($q$select public.create_class_rules(null,null,null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 26 create_class_rules, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.update_class_rule(null,null,null,null,null,null)$q$),'42501','CLS-024: actor 26 update_class_rule, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.create_class_session(null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 26 create_class_session, authorization precedes invalid args');
-select is(pg_temp.run($q$select public.update_class_session(null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 26 update_class_session, authorization precedes invalid args');
+select is(pg_temp.run($q$select public.update_class_session(null::uuid,null::date,null::time,null::integer,null::integer,null::uuid)$q$),'42501','CLS-024: actor 26 update_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_session(null,null)$q$),'42501','CLS-024: actor 26 cancel_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.book_class_session(null)$q$),'42501','CLS-024: actor 26 book_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_booking(null)$q$),'42501','CLS-024: actor 26 cancel_class_booking, authorization precedes invalid args');
@@ -704,7 +704,7 @@ select is(pg_temp.run($q$select public.set_service_active(null,null)$q$),'42501'
 select is(pg_temp.run($q$select public.create_class_rules(null,null,null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 28 create_class_rules, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.update_class_rule(null,null,null,null,null,null)$q$),'42501','CLS-024: actor 28 update_class_rule, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.create_class_session(null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 28 create_class_session, authorization precedes invalid args');
-select is(pg_temp.run($q$select public.update_class_session(null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 28 update_class_session, authorization precedes invalid args');
+select is(pg_temp.run($q$select public.update_class_session(null::uuid,null::date,null::time,null::integer,null::integer,null::uuid)$q$),'42501','CLS-024: actor 28 update_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_session(null,null)$q$),'42501','CLS-024: actor 28 cancel_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.book_class_session(null)$q$),'42501','CLS-024: actor 28 book_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_booking(null)$q$),'42501','CLS-024: actor 28 cancel_class_booking, authorization precedes invalid args');
@@ -720,7 +720,7 @@ select is(pg_temp.run($q$select public.set_service_active(null,null)$q$),'42501'
 select is(pg_temp.run($q$select public.create_class_rules(null,null,null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 29 create_class_rules, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.update_class_rule(null,null,null,null,null,null)$q$),'42501','CLS-024: actor 29 update_class_rule, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.create_class_session(null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 29 create_class_session, authorization precedes invalid args');
-select is(pg_temp.run($q$select public.update_class_session(null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 29 update_class_session, authorization precedes invalid args');
+select is(pg_temp.run($q$select public.update_class_session(null::uuid,null::date,null::time,null::integer,null::integer,null::uuid)$q$),'42501','CLS-024: actor 29 update_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_session(null,null)$q$),'42501','CLS-024: actor 29 cancel_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.book_class_session(null)$q$),'42501','CLS-024: actor 29 book_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_booking(null)$q$),'42501','CLS-024: actor 29 cancel_class_booking, authorization precedes invalid args');
@@ -736,7 +736,7 @@ select is(pg_temp.run($q$select public.set_service_active(null,null)$q$),'42501'
 select is(pg_temp.run($q$select public.create_class_rules(null,null,null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 101 create_class_rules, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.update_class_rule(null,null,null,null,null,null)$q$),'42501','CLS-024: actor 101 update_class_rule, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.create_class_session(null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 101 create_class_session, authorization precedes invalid args');
-select is(pg_temp.run($q$select public.update_class_session(null,null,null,null,null,null,null)$q$),'42501','CLS-024: actor 101 update_class_session, authorization precedes invalid args');
+select is(pg_temp.run($q$select public.update_class_session(null::uuid,null::date,null::time,null::integer,null::integer,null::uuid)$q$),'42501','CLS-024: actor 101 update_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_session(null,null)$q$),'42501','CLS-024: actor 101 cancel_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.book_class_session(null)$q$),'22023','CLS-024: actor 101 book_class_session, authorization precedes invalid args');
 select is(pg_temp.run($q$select public.cancel_class_booking(null)$q$),'22023','CLS-024: actor 101 cancel_class_booking, authorization precedes invalid args');
