@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "verifiedAt": "2026-10-02T22:41:17.9623397+00:00",
+  "repository": "OGUN01/gymloop",
+  "environment": "production-media",
+  "authorization": "openspec/changes/v2-batch2-shared/media-verification-amendment.md",
+  "reviewer": {
+    "type": "User",
+    "login": "OGUN01",
+    "id": 47548607
+  },
+  "preventSelfReview": false,
+  "preventSelfReviewReason": "Single owner account initiates and may manually approve its workflow; the agent does not bypass the required-reviewer gate.",
+  "allowedDeployments": [
+    {
+      "name": "main",
+      "type": "branch"
+    }
+  ],
+  "workflow": ".github/workflows/media-deploy.yml",
+  "workflowSha256": "bd81ec85dc026079757e749b1ca0560e293de13a5ee066aa3df77ed7f475d4db",
+  "workflowDispatched": false,
+  "edgeSecretsProvisioned": false,
+  "edgeDeployed": false,
+  "liveMediaVerified": false,
+  "sourceReview": "Fresh independent MEDIA application critic: static GO only",
+  "officialReferences": [
+    "https://docs.github.com/en/rest/deployments/environments",
+    "https://docs.github.com/en/rest/deployments/branch-policies"
+  ]
+}
