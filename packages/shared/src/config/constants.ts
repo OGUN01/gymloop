@@ -550,3 +550,15 @@ export const STAFF_INVITE_EMAIL_MAX_LENGTH = 254;
 
 /** Latest persisted invite activity retained on a member history view (INV-028). */
 export const MEMBER_INVITE_HISTORY_LIMIT = 50;
+/** Google Identity R10 provider metrics; independent of body typography. */
+export const GOOGLE_PROVIDER_METRICS = {
+  remBase: 16,
+  fontSize: 14,
+  lineHeight: 20,
+  fontWeight: 500,
+  paddingStart: 12,
+  iconGap: 10,
+  paddingEnd: 12,
+  webTarget: 44,
+  nativeTarget: 48,
+} as const;

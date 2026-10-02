@@ -1,4 +1,4 @@
-import { GoogleGlyph } from '../google-glyph';
+import { GoogleProviderButton } from '../google-provider-button';
 import { redirect } from 'next/navigation';
 import Image from 'next/image';
 import { PRODUCT_NAME, PUBLIC_PAGE_PATHS } from '@gymloop/shared';
@@ -41,7 +41,7 @@ export default async function SignInPage({
       ) : null}
 
       <form action={startGoogleSignIn} className="sign-in-provider-form">
-        <button type="submit" className="sign-in-provider"><GoogleGlyph /><span>Continue with Google</span></button>
+        <GoogleProviderButton />
       </form>
       <details className="sign-in-email-disclosure">
         <summary>Use email instead</summary>

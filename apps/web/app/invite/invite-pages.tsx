@@ -7,7 +7,7 @@ import { readIdentity } from '../../lib/identity-session';
 import { peekInvite } from '../../lib/member-invites';
 import { peekStaffInvite } from '../../lib/staff-invites';
 import { InviteReplay } from './invite-replay';
-import { GoogleGlyph } from '../google-glyph';
+import { GoogleProviderButton } from '../google-provider-button';
 import { InviteReady, InviteRefusal, InviteSignedOut, readSignedInEmail, refusalCodeFor } from './invite-parts';
 
 async function peek(supabase: Parameters<typeof peekInvite>[0], token: string, staff: boolean) {
@@ -27,7 +27,7 @@ export async function renderInviteLanding(token: string, staff = false) {
   const staffRole = 'staffRole' in invite ? invite.staffRole as string : undefined;
   if (session.signedIn) return <InviteReady {...invite} staffRole={staffRole} email={await readSignedInEmail(session.supabase)} linkLabel="Link this account" token={token} />;
   const start = staff ? startStaffInviteGoogleSignIn : startInviteGoogleSignIn;
-  return InviteSignedOut({ ...invite, staffRole, token, children: <form action={start.bind(null, token)} className="sign-in-provider-form"><button type="submit" className="sign-in-provider"><GoogleGlyph /><span>Continue with Google</span></button></form> });
+  return InviteSignedOut({ ...invite, staffRole, token, children: <form action={start.bind(null, token)} className="sign-in-provider-form"><GoogleProviderButton /></form> });
 }
 
 /** Cookie continuation never places the token in its markup. */
