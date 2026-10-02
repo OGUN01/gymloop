@@ -12,9 +12,16 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); },
 }));
-vi.mock('@gymloop/shared', () => ({
+// INV (member invites): the callback now also reads INVITE_COOKIE_NAME / INVITE_TOKEN_PATTERN from shared, and
+// the real module must stay available for them. These tests present no invite cookie, so the outcomes below are unchanged.
+vi.mock('@gymloop/shared', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@gymloop/shared')>()),
   serverEnv: () => ({ WEB_APP_URL: 'https://app.gymloop.example' }),
   webAppEnv: () => ({ WEB_APP_URL: 'https://app.gymloop.example' }),
+}));
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers(),
+  cookies: async () => ({ get: () => undefined, has: () => false, getAll: () => [] }),
 }));
 vi.mock('../../lib/supabase/server', () => ({
   createServerSupabase: vi.fn(async () => ({
