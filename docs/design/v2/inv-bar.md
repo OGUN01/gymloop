@@ -135,6 +135,14 @@ The critic scores each criterion pass / fail with evidence (a screenshot, an acc
 
 **INV-Q4 — Google button is conformant.** Label is "Continue with Google" or "Sign in with Google" (never "Google" alone); the "G" is the unmodified mark on a light, dark or neutral background; target at least 44px on web and 48dp on Android (Chalkline); no other sign-in option is given more prominence. *Probe:* inspect the element and compare with the R10 screenshot. *From:* R10.
 
+R10 verification on 2026-10-02 confirms that the current unmodified mark is the
+gradient super G; the older four solid-color paths do not meet this criterion.
+The official 200 × 200 transparent PNG is available at
+https://developers.google.com/static/identity/images/g-logo.png, with SHA-256
+`d1ce9c2af0b10a7333abc99bc706f9a6a199e5b65bf3e3009624f076b8638e6a`.
+Reuse these bytes on both platforms without redrawing the mark. This clarifies
+the existing reference requirement and changes no authentication behavior.
+
 **INV-Q5 — Every refusal names what happened and the next action.** Each of the refusal states is one or two sentences, in plain words, never a code, never blaming the person, and each carries a primary action or names who to contact (the gym, by name). No dead end. *Probe:* trigger every state, read the strings, confirm each has a verb the person can do next. *From:* R3 (find an owner or admin), R6 (the repair), D1 copy.
 
 **INV-Q6 — Causes are distinct, never conflated.** At least these states have their own message: expired, already used, no longer active (revoked), wrong Google account, this Google account already linked (D1), and member no longer eligible. Two causes behind one sentence is a fail. *Probe:* trigger all six and diff the strings. *From:* R6 (the named anti-pattern). The already-linked state is the owner's D1 decision (paraphrased from `docs/planning/v2-campaign-goal.md`): this Google account is already joined as a member and cannot be linked again; ask your gym to use a different email. It never offers a picker and never names the other gym.

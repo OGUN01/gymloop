@@ -10,6 +10,7 @@ const { createElement } = webRequire('react');
 const io = vi.hoisted(() => ({
   token: 'R'.repeat(43), gym: 'Independent Recovery Gym', email: 'viewer@recovery.example',
   context: null as any, identity: null as any, client: null as any,
+  params: {} as Record<string, string>,
   stored: new Map<string, string>(), order: [] as string[], effects: [] as (() => any)[],
   slots: new Map<string, any[]>(), current: '', index: 0, changed: false,
   post: vi.fn(), fetch: vi.fn(), replace: vi.fn(), push: vi.fn(), oauth: vi.fn(),
@@ -50,7 +51,7 @@ vi.mock('../../apps/mobile/components/ui.tsx', () => ({ FONT: {
   'Screen', 'Eyebrow', 'Title', 'Body', 'Surface', 'ActionButton', 'Field', 'StateMessage', 'LoadingState',
 ].map(name => [name, name === 'ActionButton' ? 'button' : name === 'Field' ? 'input' : 'section'])) }));
 vi.mock('expo-router', () => ({
-  useLocalSearchParams: () => ({ token: io.token }), useRouter: () => ({ replace: io.replace, push: io.push }),
+  useLocalSearchParams: () => io.params, useRouter: () => ({ replace: io.replace, push: io.push }),
   router: { replace: io.replace, push: io.push }, Link: 'a', Redirect: 'redirect',
 }));
 vi.mock('expo-secure-store', () => ({
@@ -160,20 +161,27 @@ beforeEach(() => {
   vi.stubEnv('EXPO_PUBLIC_SUPABASE_URL', 'https://recovery.supabase.co');
   vi.stubEnv('EXPO_PUBLIC_SUPABASE_ANON_KEY', 'holdout-public-key');
   io.slots.clear(); io.effects = []; io.stored.clear(); io.order = []; io.changed = false;
+  io.params = { token: io.token };
   for (const spy of [io.post, io.fetch, io.replace, io.push, io.oauth, io.refresh, io.signOut, io.open, io.digest]) spy.mockReset();
   io.identity = { kind: 'unlinked', userId: 'd1111111-1111-4111-8111-111111111111' };
   io.oauth.mockImplementation(async () => { io.order.push('oauth'); return { data: { url: 'https://accounts.google.com/independent' }, error: null }; });
   io.open.mockResolvedValue({ type: 'cancel' });
   io.digest.mockImplementation(async (_algorithm: string, raw: string) => createHash('sha256').update(raw).digest('hex'));
   io.refresh.mockResolvedValue({ data: { session: { user: { email: io.email } } }, error: null });
-  io.signOut.mockResolvedValue({ error: null });
+  io.signOut.mockImplementation(async () => { io.order.push('signOut'); return { error: null }; });
   io.client = { rpc: vi.fn(async (name: string, args: any) => {
     expect(name).toBe('peek_member_invite');
     expect(args).toEqual({ p_token_hash: createHash('sha256').update(io.token).digest('hex') });
     return { data: [{ gym_name: io.gym }], error: null };
   }), auth: { signInWithOAuth: io.oauth, refreshSession: io.refresh, signOut: io.signOut,
     getUser: async () => ({ data: { user: { id: io.identity.userId, email: io.email } }, error: null }),
-    getClaims: async () => ({ data: { claims: { sub: io.identity.userId } }, error: null }),
+    getClaims: async () => ({ data: { claims: { role: 'authenticated', sub: io.identity.userId,
+      ...(io.identity.kind === 'member' ? { app_role: 'member', tenant_id: io.identity.tenantId, member_id: io.identity.memberId }
+        : io.identity.kind === 'staff' ? { app_role: io.identity.role, tenant_id: io.identity.tenantId, staff_id: io.identity.staffId }
+        : io.identity.kind === 'platform' ? { app_role: io.identity.role } : {}),
+    } }, error: null }),
+    getSession: async () => ({ data: { session: { user: { id: io.identity.userId, email: io.email } } }, error: null }),
+    exchangeCodeForSession: async () => ({ data: { session: { user: { id: io.identity.userId, email: io.email } } }, error: null }),
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe: vi.fn() } } }),
   } };
   io.post.mockResolvedValue({ ok: true, data: { outcome: 'already_linked_here', gymName: io.gym } });
@@ -190,6 +198,89 @@ beforeEach(() => {
       return (native.signInWithGoogleMobile as any)(io.client);
     },
   };
+});
+
+function linkedNative(kind: 'member' | 'staff' | 'platform') {
+  io.context.identity = { kind, role: kind === 'staff' ? 'trainer' : kind === 'platform' ? 'platform_support' : 'member',
+    userId: 'd1111111-1111-4111-8111-111111111111', tenantId: 'e2222222-2222-4222-8222-222222222222',
+    ...(kind === 'member' ? { memberId: 'f3333333-3333-4333-8333-333333333333' }
+      : kind === 'staff' ? { staffId: 'f3333333-3333-4333-8333-333333333333' } : {}),
+  };
+}
+function destinations(tree: any) {
+  const route = (value: any) => typeof value === 'string' ? value
+    : String(value?.pathname ?? value).replace(/\[([^\]]+)\]/g, (_: string, key: string) => String(value?.params?.[key] ?? `[${key}]`));
+  return [...io.replace.mock.calls.map(([path]: any[]) => route(path)),
+    ...io.push.mock.calls.map(([path]: any[]) => route(path)),
+    ...walk(tree).filter(node => node.type === 'redirect').map(node => route(node.props.href))];
+}
+
+describe('INV-030 saved token continuity after OAuth', () => {
+  it.each(['member', 'staff', 'platform'] as const)('%s root resumes saved invite before ordinary role home', async kind => {
+    linkedNative(kind); io.stored.set('gymloop.pending-invite', io.token);
+    const { default: Index } = await import('../../apps/mobile/app/index');
+    const screen = await mount(Index);
+    const routes = destinations(screen.tree());
+    expect(routes.some(path => path.includes('/invite/') && path.includes(io.token))).toBe(true);
+    expect(routes.every(path => path.includes('/invite/'))).toBe(true);
+    expect(io.post).not.toHaveBeenCalled();
+  });
+  it.each(['member', 'staff', 'platform'] as const)('%s callback preserves saved invite continuity after successful OAuth exchange', async kind => {
+    linkedNative(kind); io.identity = io.context.identity;
+    io.stored.set('gymloop.pending-invite', io.token); io.params = { code: 'independent-recovery-code' };
+    const { default: Callback } = await import('../../apps/mobile/app/auth/callback');
+    const screen = await mount(Callback);
+    const routes = destinations(screen.tree());
+    // A callback may return to root while identity verification settles. Root must then
+    // preserve this invite before role home, as covered separately above.
+    expect(routes.some(path => path === '/' || path.includes('/invite/') && path.includes(io.token))).toBe(true);
+    expect(routes.every(path => path === '/' || path.includes('/invite/'))).toBe(true);
+    expect(io.post).not.toHaveBeenCalled();
+  });
+  it.each(['member', 'staff', 'platform'] as const)('%s with no saved invite keeps ordinary routing', async kind => {
+    linkedNative(kind);
+    const { default: Index } = await import('../../apps/mobile/app/index');
+    const screen = await mount(Index);
+    const routes = destinations(screen.tree());
+    expect(routes.length).toBeGreaterThan(0);
+    expect(routes.some(path => path.includes('/invite/'))).toBe(false);
+    expect(io.post).not.toHaveBeenCalled();
+  });
+});
+
+describe('INV-029/030 one-press native account recovery', () => {
+  it.each(['landing', 'saved-consent'])('%s saves, signs out and directly opens chooser, retaining token if OAuth fails', async surface => {
+    if (surface === 'landing') linkedNative('staff');
+    else io.post.mockResolvedValue({ ok: false, error: { code: 'email_mismatch',
+      message: "This invite wasn't sent to this Google account. Sign in with the email your gym has on file for you, or ask them to update it." } });
+    io.stored.set('gymloop.pending-invite', io.token);
+    io.oauth.mockImplementation(async () => { io.order.push('oauth'); return { data: { url: null }, error: { message: 'OAuth temporarily unavailable' } }; });
+    const component = surface === 'landing'
+      ? (await import('../../apps/mobile/app/invite/[token]')).default
+      : (await import('../../apps/mobile/app/not-linked')).default;
+    const screen = await mount(component);
+    if (surface === 'saved-consent') await screen.press(/link (?:my )?membership|link this account/i);
+    await screen.press(/different.*account|switch.*account/i);
+    expect(io.order).toContain('save'); expect(io.order).toContain('signOut'); expect(io.order).toContain('oauth');
+    expect(io.order.indexOf('save')).toBeLessThan(io.order.indexOf('signOut'));
+    expect(io.order.indexOf('signOut')).toBeLessThan(io.order.indexOf('oauth'));
+    expect(io.oauth).toHaveBeenCalledWith(expect.objectContaining({ options: expect.objectContaining({ queryParams: { prompt: 'select_account' } }) }));
+    expect([...io.stored.values()]).toContain(io.token);
+    expect(screen.text()).toMatch(/try again|retry|unavailable|could not|couldn.t/i);
+    expect(destinations(screen.tree()).some(path => /\/(?:member|desk)(?:\/|$)/.test(path))).toBe(false);
+    privateView(screen.tree());
+  });
+  it.each(['invite_failed', 'network'])('temporary %s envelope shows truthful recovery without expired/replaced copy or queue', async code => {
+    linkedNative('member');
+    io.post.mockResolvedValue({ ok: false, error: { code, message: 'Temporary connection failure. Try again.' } });
+    const { default: Page } = await import('../../apps/mobile/app/invite/[token]');
+    const screen = await mount(Page);
+    expect(screen.text()).toMatch(/connect|retry|try again|could not|couldn.t/i);
+    expect(screen.text()).not.toMatch(/expired|replaced/i);
+    expect(destinations(screen.tree()).some(path => /\/(?:member|desk)(?:\/|$)/.test(path))).toBe(false);
+    expect([...io.stored.keys()].some(key => /queue|offline.*command|check.?in/i.test(key))).toBe(false);
+    expect(io.refresh).not.toHaveBeenCalled(); privateView(screen.tree());
+  });
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
