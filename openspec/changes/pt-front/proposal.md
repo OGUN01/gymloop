@@ -280,3 +280,23 @@ Owner-approved SHP verification amendment is binding. PTF neither confirms via d
 Owner/manager set_trainer_profile still authorizes/locks trainer and uses app.media_attach/app.media_release in the same transaction; trainer self-service/photo authority, booking locks, cancellation policy and completed-pack waiver are unchanged. Released image objects may be pruned after 30 days, but media metadata tombstones remain through canonical configuration retention or retained FK history, whichever is later; no cascade/SET NULL/history rewrite. A removed/pruned image renders placeholder. Protected CI alone provisions/deploys SHP’s accepted Edge scope and existing R2 credentials. PTF test authors consume this frozen seam; media verification races are owned by SHP’s independent full-blind tests.
 
 Trainer-photo attachment parity is fixed by SHP’s approved "Trainer attachment pseudonym parity" section: lowercase dashed UUID inputs, exact UTF-8 pt-trainer:<tenant>:<staff>, MD5 digest formatted 8-4-4-4-12 without version/variant changes; builtin Edge node:crypto only, no new package/public RPC/secret. Test authors compare both fixed vectors there against app.pt_trainer_key and Edge output and refuse mismatched image/pseudonym pairs. The actual staff id remains private; all booking, money and completed-pack waiver requirements are unchanged.
+
+## SQL availability JSON encoding (orchestrator clarification, 2026-10-02)
+
+`public.set_trainer_availability(p_staff_id uuid, p_windows jsonb)` receives the
+same strict window shape as `trainerAvailabilityRequestSchema`, without a second
+adapter-specific vocabulary. `p_windows` is a JSON array of objects whose exact
+keys are `weekday`, `startMinute`, `endMinute`. All three values are JSON numbers
+with the contracted integer/range/window checks; numeric strings, booleans,
+null/missing values, snake_case aliases and unknown keys are malformed input.
+SQL NULL, non-array input and non-object elements are likewise refused with
+22023, after existing actor authorization. An empty array removes availability;
+the existing 28-window limit, atomic replacement, overlap, audit and permissions
+remain unchanged. Stored/audited database row fields retain `start_minute` and
+`end_minute`; they do not define the command's JSON encoding.
+
+This closes an omitted interface encoding under the orchestrator's standing
+delegation; it adds no new column, function, route, permission or business rule.
+Both independent DB authors were paused before this wording was fixed. The
+separate recorded-return question in `completed-pack-return-boundary.md` still
+requires the owner decision before either author resumes.
