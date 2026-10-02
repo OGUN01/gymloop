@@ -26,7 +26,11 @@ describe('BIZ-009 canonical business vocabulary', () => {
     expect(businessRoleLabel('gym_manager', nouns)).toBe(`${nouns.place} manager`);
     expect(businessRoleLabel('front_desk', nouns)).toBe('front desk');
     expect(businessRoleLabel('trainer', nouns)).toBe(nouns.trainer);
-    for (const noun of Object.values(nouns)) expect(humanize(noun)).toBe(noun[0].toUpperCase() + noun.slice(1));
+    for (const noun of Object.values(nouns)) {
+      const initial = noun[0];
+      if (initial === undefined) throw new Error('Every golden business noun must have an initial letter');
+      expect(humanize(noun)).toBe(initial.toUpperCase() + noun.slice(1));
+    }
   });
   it.each([null, undefined, '', 'custom', 'GYM', {}, 1])('falls back safely for invalid value %j', (value) => {
     expect(businessNouns(value as never)).toEqual(golden.gym);

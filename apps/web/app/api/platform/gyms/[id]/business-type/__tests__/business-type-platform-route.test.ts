@@ -1,14 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ role: 'super_admin', kind: 'platform', error: null as null | { code: string }, calls: [] as Array<{ name: string; args: unknown }> }));
+const state = vi.hoisted(() => ({ role: 'super_admin', kind: 'platform', error: null as null | { code: string }, authThrows: false, rpcThrows: false, calls: [] as Array<{ name: string; args: unknown }> }));
 const tenant = '70000000-0000-4000-8000-000000000001';
 const key = '70000000-0000-4000-8000-000000000401';
-vi.mock('../../../../../../../lib/identity-session', () => ({ readIdentity: async () => ({ signedIn: true, supabase: { rpc: async (name: string, args: unknown) => { state.calls.push({ name, args }); return { data: { tenantId: tenant, businessType: 'dance' }, error: state.error }; } }, identity: { kind: state.kind, role: state.role, userId: '70000000-0000-4000-8000-000000000907' } }) }));
+vi.mock('../../../../../../../lib/identity-session', () => ({ readIdentity: async () => {
+  if (state.authThrows) throw new Error('PRIVATE auth transport token');
+  return { signedIn: true, supabase: { rpc: async (name: string, args: unknown) => { state.calls.push({ name, args }); if (state.rpcThrows) throw new Error('PRIVATE RPC SQL detail'); return { data: { tenantId: tenant, businessType: 'dance' }, error: state.error }; } }, identity: { kind: state.kind, role: state.role, userId: '70000000-0000-4000-8000-000000000907' } };
+} }));
 const { POST } = await import('../route');
 const context = { params: Promise.resolve({ id: tenant }) };
 const body = { expectedBusinessType: 'gym', businessType: 'dance', requestKey: key };
 const request = (payload: unknown = body) => new Request(`https://example.test/api/platform/gyms/${tenant}/business-type`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
-beforeEach(() => { state.role = 'super_admin'; state.kind = 'platform'; state.error = null; state.calls = []; });
+beforeEach(() => { state.role = 'super_admin'; state.kind = 'platform'; state.error = null; state.authThrows = false; state.rpcThrows = false; state.calls = []; });
 describe('BIZ-019 platform command route', () => {
+  it.each(['auth', 'rpc'] as const)('a thrown %s transport returns a safe typed error envelope with no-store', async (failure) => {
+    state.authThrows = failure === 'auth'; state.rpcThrows = failure === 'rpc';
+    const input = request(); const json = vi.spyOn(input, 'json');
+    const response = await POST(input, context);
+    expect(response.status).toBeGreaterThanOrEqual(400); expect(response.status).toBeLessThan(600);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    const result: unknown = await response.json();
+    expect(result).toEqual({ ok: false, error: { code: expect.stringMatching(/^[a-z][a-z_]+$/), message: expect.any(String) } });
+    expect(JSON.stringify(result)).not.toContain('PRIVATE');
+    if (failure === 'auth') { expect(json).not.toHaveBeenCalled(); expect(state.calls).toEqual([]); }
+    else expect(state.calls).toHaveLength(1);
+  });
   it('uses URL tenant plus strict expected/target/request facts', async () => {
     const response = await POST(request(), context);
     expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toBe('no-store');

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Exercise the form with the actual props supplied by its server page. The
 // proposal fixes behavior and component names, not a private prop dialect.
 const state = vi.hoisted(() => ({ role: 'gym_owner', preview: false, type: 'gym', error: false,
-  hooks: new Map<string, unknown>(), scope: { path: '', cursor: 0 },
+  hooks: new Map<string, unknown>(), scope: { path: '', cursor: 0 }, effects: [] as Array<() => void>,
   requests: [] as Array<{ url: string; init: RequestInit }>, response: null as unknown,
 }));
 vi.mock('react', async (load) => {
@@ -15,8 +15,15 @@ vi.mock('react', async (load) => {
     const slot = key(); if (!state.hooks.has(slot)) state.hooks.set(slot, typeof initial === 'function' ? (initial as () => unknown)() : initial);
     return [state.hooks.get(slot), (next: unknown) => state.hooks.set(slot, typeof next === 'function' ? (next as (old: unknown) => unknown)(state.hooks.get(slot)) : next)];
   };
+  const useEffect = (effect: () => unknown, deps?: unknown[]) => {
+    const slot = key(); const previous = state.hooks.get(slot) as { deps?: unknown[]; cleanup?: unknown } | undefined;
+    if (!previous || !deps || deps.length !== previous.deps?.length || deps.some((value, index) => !Object.is(value, previous.deps?.[index]))) {
+      const entry = { deps, cleanup: undefined as unknown }; state.hooks.set(slot, entry);
+      state.effects.push(() => { if (typeof previous?.cleanup === 'function') previous.cleanup(); entry.cleanup = effect(); });
+    }
+  };
   return { ...actual, useState, useRef: (value: unknown) => useState({ current: value })[0], useId: () => key(),
-    useEffect: () => undefined, useLayoutEffect: () => undefined, useMemo: (fn: () => unknown) => fn(), useCallback: (fn: unknown) => fn,
+    useEffect, useLayoutEffect: useEffect, useMemo: (fn: () => unknown) => fn(), useCallback: (fn: unknown) => fn,
     useTransition: () => [false, (fn: () => unknown) => fn()] };
 });
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }), redirect: vi.fn(), notFound: vi.fn() }));
@@ -55,7 +62,15 @@ const expand = (node: ReactNode, path = 'form'): ReactNode => {
   if (typeof node.type === 'string') hosts.push(result as Host);
   return result;
 };
-const render = (form: ReactElement) => { hosts.length = 0; return renderToStaticMarkup(expand(form)); };
+const render = (form: ReactElement) => {
+  for (let pass = 0; pass < 8; pass += 1) {
+    hosts.length = 0; const html = renderToStaticMarkup(expand(form));
+    const effects = state.effects.splice(0);
+    if (!effects.length) return html;
+    effects.forEach((effect) => effect());
+  }
+  throw new Error('Mounted form effects did not settle');
+};
 const text = (node: ReactNode): string => Array.isArray(node) ? node.map(text).join(' ') : isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : typeof node === 'string' ? node : '';
 const choose = (value: string) => {
   const radio = hosts.find((node) => node.type === 'input' && node.props.type === 'radio' && node.props.value === value);
@@ -72,13 +87,27 @@ const press = async (label: string) => {
 };
 const form = async () => { const element = find(await SettingsPage()); expect(element).not.toBeNull(); return element!; };
 beforeEach(() => {
-  state.role = 'gym_owner'; state.preview = false; state.type = 'gym'; state.error = false; state.hooks.clear(); state.requests = [];
+  state.role = 'gym_owner'; state.preview = false; state.type = 'gym'; state.error = false; state.hooks.clear(); state.effects = []; state.requests = [];
   state.response = { ok: true, data: { businessType: 'dance', previousBusinessType: 'gym', changed: true } };
   vi.stubGlobal('navigator', { onLine: true });
+  vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
   vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => { state.requests.push({ url, init }); if (state.response instanceof Error) throw state.response; return new Response(JSON.stringify(state.response), { status: (state.response as { ok: boolean }).ok ? 200 : 403 }); }));
 });
 afterEach(() => vi.unstubAllGlobals());
 describe('BIZ-017/020 Settings interactions', () => {
+  it('a mounted ready editor follows the next authoritative server render without submitting', async () => {
+    render(await form()); state.type = 'yoga'; const html = render(await form());
+    expect(hosts.find((node) => node.type === 'input' && node.props.value === 'yoga')?.props.checked).toBe(true);
+    expect(hosts.some((node) => node.type === 'label' && /Yoga studio/.test(text(node.props.children as ReactNode)) && /Current/.test(text(node.props.children as ReactNode)))).toBe(true);
+    expect(html).not.toContain('Confirm change'); expect(state.requests).toEqual([]);
+  });
+  it('a refreshed authoritative value becomes Current while an unsubmitted choice is open', async () => {
+    render(await form()); choose('dance'); render(await form());
+    state.type = 'yoga'; const refreshed = await form(); render(refreshed);
+    expect(hosts.some((node) => node.type === 'label' && /Yoga studio/.test(text(node.props.children as ReactNode)) && /Current/.test(text(node.props.children as ReactNode)))).toBe(true);
+    choose('yoga'); expect(render(refreshed)).not.toContain('Confirm change');
+    expect(state.requests).toEqual([]);
+  });
   it('current option and vocabulary preview are visible, with no submit before selection', async () => {
     const html = render(await form());
     expect(html).toContain('What kind of business is this?'); expect(html).toContain('Current'); expect(html).toContain('Dance academy'); expect(html).toContain('Words used:');

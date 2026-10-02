@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { isValidElement, type ReactNode } from 'react';
 
-const h = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, effects: [] as Array<() => unknown>, appListeners: new Set<(value: string) => void>(), queries: [] as Array<{ table: string; column: string; tenant: string }>, replies: [] as Array<Promise<unknown> | (() => Promise<unknown>)>, deletes: [] as string[], callback: null as null | ((event: string, session: unknown) => void), initial: null as unknown, claims: new Map<string, { promise: Promise<unknown>; resolve: (value: unknown) => void }>(), cache: new Map<string, string>() }));
+const h = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, effects: [] as Array<() => unknown>, appListeners: new Set<(value: string) => void>(), queries: [] as Array<{ table: string; column: string; tenant: string }>, replies: [] as Array<Promise<unknown> | (() => Promise<unknown>)>, deletes: [] as string[], rejectVocabularyDelete: false, authSignOuts: 0, queueClears: 0, callback: null as null | ((event: string, session: unknown) => void), initial: null as unknown, claims: new Map<string, { promise: Promise<unknown>; resolve: (value: unknown) => void }>(), cache: new Map<string, string>() }));
 vi.mock('react', async (original) => {
   const actual = await original<typeof import('react')>();
   return { ...actual,
@@ -32,7 +32,8 @@ vi.mock('react', async (original) => {
     },
   };
 });
-vi.mock('expo-secure-store', () => ({ getItemAsync: async (key: string) => h.cache.get(key) ?? null, setItemAsync: async (key: string, value: string) => { h.cache.set(key, value); }, deleteItemAsync: async (key: string) => { h.deletes.push(key); h.cache.delete(key); } }));
+vi.mock('expo-secure-store', () => ({ getItemAsync: async (key: string) => h.cache.get(key) ?? null, setItemAsync: async (key: string, value: string) => { h.cache.set(key, value); }, deleteItemAsync: async (key: string) => { h.deletes.push(key); if (h.rejectVocabularyDelete && key === 'gymloop.business-type') throw new Error('optional vocabulary storage unavailable'); h.cache.delete(key); } }));
+vi.mock('../offline-check-in', async (original) => ({ ...await original<Record<string, unknown>>(), clearOfflineCheckIns: async () => { h.queueClears += 1; } }));
 vi.mock('expo-web-browser', () => ({ maybeCompleteAuthSession: () => undefined }));
 vi.mock('expo-splash-screen', () => ({ preventAutoHideAsync: async () => undefined, hideAsync: async () => undefined }));
 vi.mock('@expo-google-fonts/archivo', () => ({ useFonts: () => [true], Archivo_400Regular: 1, Archivo_500Medium: 1, Archivo_600SemiBold: 1, Archivo_700Bold: 1 }));
@@ -45,7 +46,7 @@ vi.mock('../native-session', async (original) => ({ ...await original<Record<str
   getSession: async () => ({ data: { session: await h.initial }, error: null }),
   onAuthStateChange: (callback: typeof h.callback) => { h.callback = callback; return { data: { subscription: { unsubscribe: () => undefined } } }; },
   getClaims: async (token: string) => h.claims.get(token)!.promise,
-  signOut: async () => ({ error: null }),
+  signOut: async () => { h.authSignOuts += 1; return { error: null }; },
 } }) }));
 
 const USER = '11111111-1111-4111-8111-111111111111';
@@ -66,7 +67,7 @@ async function render() {
   await flush();
   return value!;
 }
-beforeEach(() => { h.slots = []; h.cursor = 0; h.effects = []; h.callback = null; h.initial = null; h.claims.clear(); h.cache.clear(); h.appListeners.clear(); h.queries = []; h.replies = []; h.deletes = []; });
+beforeEach(() => { h.slots = []; h.cursor = 0; h.effects = []; h.callback = null; h.initial = null; h.claims.clear(); h.cache.clear(); h.appListeners.clear(); h.queries = []; h.replies = []; h.deletes = []; h.rejectVocabularyDelete = false; h.authSignOuts = 0; h.queueClears = 0; });
 
 
 // BIZ-011: execute the provider's auth, foreground and encrypted-storage effects.
@@ -83,6 +84,15 @@ const fail = () => Promise.resolve({ data: null, error: { message: 'offline' } }
 function foreground(value: string) { h.appListeners.forEach((listener) => listener(value)); }
 
 describe('BIZ-011 native provider lifecycle', () => {
+  it.each(['member', 'staff'] as const)('%s sign-out still clears commands and reaches Auth when vocabulary deletion rejects', async (kind) => {
+    h.replies.push(fetched('dance')); const signedIn = await start(kind); h.rejectVocabularyDelete = true;
+    let failure: unknown;
+    try { await (signedIn.signOut as () => Promise<void>)(); } catch (error) { failure = error; }
+    expect.soft(h.deletes).toContain(KEY);
+    expect.soft(h.queueClears).toBe(1); expect.soft(h.authSignOuts).toBe(1);
+    expect.soft((await settle()).businessType).toBeNull();
+    expect(failure).toBeUndefined();
+  });
   it.each(['member', 'staff'] as const)('%s reads its own organization and persists the fetched nouns', async (kind) => {
     h.replies.push(fetched('dance')); const value = await start(kind);
     expect(h.queries).toEqual([{ table: 'organizations', column: 'business_type', tenant: TENANT }]);
