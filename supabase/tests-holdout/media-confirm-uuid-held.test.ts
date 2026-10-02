@@ -28,7 +28,11 @@ it('accepted uppercase UUID confirms when trusted Edge returns the same canonica
   const response = await POST(request);
   expect(h.read).toHaveBeenCalledWith(request);
   expect(h.invoke).toHaveBeenCalledOnce();
-  expect(h.invoke.mock.calls[0]).toEqual(['media', expect.objectContaining({ body: { operation: 'confirm', assetId } })]);
+  const [functionName, forwarded] = h.invoke.mock.calls[0]! as [string, { body: { operation: string; assetId: string }; headers: HeadersInit }];
+  expect(functionName).toBe('media');
+  expect(forwarded.body).toEqual({ operation: 'confirm', assetId: expect.any(String) });
+  expect(forwarded.body.assetId.toLowerCase()).toBe(canonicalAssetId);
+  expect(new Headers(forwarded.headers).get('authorization')).toBe(`Bearer ${accessToken}`);
   expect(response.headers.get('cache-control')).toBe('no-store');
   expect(response.status).toBe(200);
   const body = await response.json() as { ok: boolean; data: { assetId: string; confirmed: boolean } };
