@@ -466,3 +466,35 @@ docs/evidence/v2/media/protected-ci-environment.json (commit395be81). It admits
 only main and requires OGUN01 review. No workflow was dispatched, no Edge secret
 was provisioned and no media object was uploaded. Source/gates, protected review
 and actual verified immutable publication remain acceptance work.
+
+### Live Settings and application boundary checkpoint, 2026-10-03
+
+Root ran the real owner Business Settings journey against the local test-first
+application source and the correct current Cloud project while all DB workflows
+were idle, with the shared Cloud lock held. The first cold-preview save remained
+pending when its expectation ended; it is not a pass. An independent ordinary
+demo-owner read verified the original gym setting unchanged. After anonymous
+401 API warmup, the unchanged browser test passes1/1 in16.1seconds, including
+the audited change/restoration, Escape focus, three-action path, 390/1440 widths,
+light/dark emulation, axe, 200percent text, reduced motion and 44px label height.
+The original gym setting is authoritatively verified restored; the lock is
+released. Receipt: docs/evidence/v2/biz-settings-live-web.json. This does not
+establish all BIZ surfaces, native runtime or full feature acceptance.
+
+CLS complete backend holds pass363/363 after independent network-import fixture
+repairb57bef1. A fresh source critic then rejects partial create-rule weekday
+results. Independent visible/helde3d885a precede exact-count/set validation;
+visible324/324 and root's affected held202/202 pass. Screens remain unbuilt and
+a fresh final backend review is pending. PLC visible102/102 and current held21/21
+pass after separate numeric and field-order tests; fresh final review and browser
+acceptance remain open. ANC visible6631c6e and held9b5f278 precede its separate
+application source: visible100/100, root held8/8, scoped lint/registry and strict
+production typing pass. No ANC live/native or final critic win is claimed.
+
+Shop retry tests23626a3 and98afcff precede the initial retryable-retention fix;
+visible117/117 and held9/9 pass. A fresh complete source review still rejects
+pending double-activation clearing that command, refreshed zero-price props
+blocking reconciliation, and photo validation/pending stage honesty. Public
+existing interfaces57eb98a precede new independent regressions. Source fixes,
+central identity cleanup/navigation, actual media publication and races remain
+required. No bar or assertion was lowered.

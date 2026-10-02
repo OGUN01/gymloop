@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "scope": "BIZ-017 owner Settings live browser acceptance only",
+  "verifiedAt": "2026-10-02T23:55:56.6957657Z",
+  "sourceCommit": "57eb98a plus uncommitted test-first application source",
+  "browser": "Chromium",
+  "previewOrigin": "http://127.0.0.1:3000",
+  "databaseProject": "pecxrpskmfeuyzngvewq",
+  "databaseWorkflowsIdle": true,
+  "lockSerialized": true,
+  "testFile": "tests/e2e/business-type-settings.spec.ts",
+  "passed": 1,
+  "failed": 0,
+  "durationSeconds": 16.1,
+  "viewports": [
+    390,
+    1440
+  ],
+  "colorSchemes": [
+    "light",
+    "dark"
+  ],
+  "checks": [
+    "audited owner change and restoration",
+    "Escape restores keyboard focus",
+    "three-action uncancelled change path",
+    "no horizontal overflow",
+    "axe zero violations",
+    "200 percent root text",
+    "reduced motion",
+    "44px radio-label height"
+  ],
+  "originalBusinessType": "gym",
+  "restoredBusinessType": "gym",
+  "restorationAuthoritativelyVerified": true,
+  "credentialsPrinted": false,
+  "firstColdPreviewAttempt": "Pending request aborted by expectation deadline; not a pass; original setting independently verified unchanged",
+  "actualAndroidVerified": false,
+  "wholeBizFeatureAccepted": false,
+  "sourceHashes": {
+    "tests/e2e/business-type-settings.spec.ts": "c703d0fecdb38bb337cec61232e4cf5d14904dfc014ee0262f1b347cd744ec00",
+    "apps/web/app/(console)/settings/business-type-form.tsx": "32174a42ae8ea90d30da575f0b36f65f8d3e7567e8071e32377c547a5ea31326",
+    "apps/web/app/api/business-type/route.ts": "29b3fc449c66725aa44cdd5805df1aa7844336f2d15561ed540fd29a662bd02e",
+    "apps/web/lib/business-type.ts": "cfd5f27bd383a59578e27dda6b8d0eff40a4964a9904087fc7ccf8343689affd"
+  }
+}
