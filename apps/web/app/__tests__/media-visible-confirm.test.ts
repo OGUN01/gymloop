@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const state = vi.hoisted(() => ({ claims: null as Record<string, unknown> | null, events: [] as string[], wire: [] as Array<{ body: unknown; headers: Headers }>, envelope: {} as Record<string, unknown>, status: 200, failed: false, bearer: 'original-verified-token' as string | null, rpc: vi.fn() }));
+const state = vi.hoisted(() => ({ claims: null as Record<string, unknown> | null, events: [] as string[], wire: [] as Array<{ body: unknown; headers: Headers }>, envelope: {} as Record<string, unknown>, status: 200, failed: false, bearer: 'original-verified-token' as string | null, rpc: vi.fn(), presign: vi.fn() }));
 const id = '72000000-0000-4000-8000-000000000001';
 const owner = { sub: id, role: 'authenticated', app_role: 'gym_owner', tenant_id: id, staff_id: id };
 const client = () => ({
@@ -17,7 +17,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('../../lib/supabase/server', () => ({ createServerSupabase: async () => client() }));
 vi.mock('../../lib/supabase/request', () => ({ createRequestSupabase: async () => ({ supabase: client(), bearer: state.bearer }) }));
 vi.mock('@aws-sdk/client-s3', () => ({ S3Client: class {}, PutObjectCommand: class {} }));
-vi.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl: vi.fn() }));
+vi.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl: state.presign }));
 vi.mock('@gymloop/shared', async original => ({ ...(await original<Record<string, unknown>>()), serverEnv: () => ({ NEXT_PUBLIC_SUPABASE_URL: 'https://supabase.test', NEXT_PUBLIC_SUPABASE_ANON_KEY: 'anon-test' }) }));
 function req(body: unknown) {
   const headers = new Headers({ 'content-type': 'application/json' }); if (state.bearer) headers.set('authorization', 'Bearer ' + state.bearer);
@@ -26,6 +26,7 @@ function req(body: unknown) {
 }
 beforeEach(() => {
   state.claims = owner; state.events = []; state.wire = []; state.failed = false; state.bearer = 'original-verified-token'; state.status = 200; state.envelope = { ok: true, data: { assetId: id, confirmed: true } }; state.rpc.mockReset().mockImplementation(() => { throw new Error('direct confirmation RPC is forbidden'); });
+  state.presign.mockReset();
   vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init); expect(new URL(request.url).pathname).toBe('/functions/v1/media'); state.wire.push({ body: await request.json(), headers: request.headers });
     if (state.failed) throw new Error('RAW_STORAGE_SECRET');
@@ -42,6 +43,25 @@ describe('MED-007 real confirm HTTP delegates to trusted verifier', () => {
   it('cookie caller forwards its verified session token rather than inventing a bearer', async () => {
     state.bearer = null; const { POST } = await import('../api/media/confirm/route'); const response = await POST(req({ assetId: id }));
     expect(response.status).toBe(200); expect(state.wire).toHaveLength(1); expect(state.wire[0]?.headers.get('authorization')).toBe('Bearer original-verified-token'); expect(state.wire[0]?.body).toEqual({ operation: 'confirm', assetId: id }); expect(state.rpc).not.toHaveBeenCalled();
+  });
+  it('accepted uppercase UUID stays confirmed when trusted Edge returns the same canonical lowercase asset', async () => {
+    const canonicalId = '72abcdef-1234-4abc-8abc-abcdef123456';
+    const requestedId = canonicalId.toUpperCase();
+    const { mediaConfirmRequestSchema } = await import('@gymloop/shared');
+    expect(mediaConfirmRequestSchema.safeParse({ assetId: requestedId }).success).toBe(true);
+    state.envelope = { ok: true, data: { assetId: canonicalId, confirmed: true } };
+    const { POST } = await import('../api/media/confirm/route');
+    const response = await POST(req({ assetId: requestedId }));
+    expect(state.wire).toHaveLength(1); expect(state.wire[0]?.headers.get('authorization')).toBe('Bearer original-verified-token');
+    const forwarded = state.wire[0]?.body;
+    if (!forwarded || typeof forwarded !== 'object' || !('assetId' in forwarded) || typeof forwarded.assetId !== 'string') throw new Error('Verifier must receive the UUID command');
+    expect(Object.keys(forwarded).sort()).toEqual(['assetId', 'operation']); expect(forwarded).toMatchObject({ operation: 'confirm' }); expect(forwarded.assetId.toLowerCase()).toBe(canonicalId);
+    expect(state.rpc).not.toHaveBeenCalled(); expect(state.presign).not.toHaveBeenCalled(); expect(state.events.indexOf('caller')).toBeLessThan(state.events.indexOf('body'));
+    expect(response.headers.get('cache-control')).toBe('no-store'); expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.ok).toBe(true); expect(Object.keys(payload.data).sort()).toEqual(['assetId', 'confirmed']); expect(payload.data.confirmed).toBe(true);
+    const confirmation = mediaConfirmRequestSchema.parse({ assetId: payload.data.assetId });
+    expect(confirmation.assetId.toLowerCase()).toBe(canonicalId);
   });
   it.each([[404, 'asset_not_found'], [409, 'upload_missing'], [409, 'upload_changed'], [422, 'upload_rejected'], [403, 'not_permitted'], [500, 'storage_unavailable']])('preserves verifier refusal %s/%s without reporting confirmation', async (status, code) => {
     state.status = status as number; state.envelope = { ok: false, error: { code, message: 'Safe verifier refusal' } };

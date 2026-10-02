@@ -21,7 +21,10 @@ const json = (value: unknown, status = 200) => new Response(JSON.stringify(value
 const isService = (headers: Headers) => headers.get('authorization') === 'Bearer held-service-secret';
 const token = () => [btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' })), btoa(JSON.stringify(claims)), 'signature-validated-by-auth-only'].join('.');
 function rows(data: unknown, url: URL, headers: Headers) {
-  return headers.get('accept')?.includes('object') || url.searchParams.get('limit') === '1' ? json(Array.isArray(data) ? data[0] ?? null : data) : json(data);
+  // PostgreSQL uuid output is canonical even when the supplied UUID input is uppercase.
+  const serialized: unknown = JSON.parse(JSON.stringify(data, (key, value: unknown) =>
+    ['id', 'user_id', 'tenant_id', 'created_by_staff_id', 'attached_to_id'].includes(key) && typeof value === 'string' ? value.toLowerCase() : value));
+  return headers.get('accept')?.includes('object') || url.searchParams.get('limit') === '1' ? json(Array.isArray(serialized) ? serialized[0] ?? null : serialized) : json(serialized);
 }
 async function transport(input: RequestInfo | URL, init?: RequestInit) {
   const request = input instanceof Request ? input : new Request(input, init);
@@ -90,7 +93,11 @@ async function transport(input: RequestInfo | URL, init?: RequestInit) {
       expect(headers.get('if-match')).toBe(published ? '"published"' : '"source"');
       expect(headers.get('range')).toMatch(/^bytes=0-/);
       if (mode === 'get-changed' && !published) return new Response('PRIVATE_CHANGED', { status: 412 });
-      return new Response(mode === 'bad-magic' || mode === 'postcopy-magic' && published ? new Uint8Array(12) : magic, { status: 206, headers: { etag: published ? '"published"' : '"source"', 'content-type': 'image/png' } });
+      // RFC 9110 single-part 206: describe the selected range and actual complete size.
+      const requestedEnd = Number(headers.get('range')?.slice('bytes=0-'.length));
+      const end = Math.min(requestedEnd, magic.length - 1);
+      const bytes = (mode === 'bad-magic' || mode === 'postcopy-magic' && published ? new Uint8Array(12) : magic).slice(0, end + 1);
+      return new Response(bytes, { status: 206, headers: { etag: published ? '"published"' : '"source"', 'content-type': 'image/png', 'content-range': `bytes 0-${end}/${magic.length}` } });
     }
     if (method === 'DELETE') return new Response(null, { status: 204 });
     throw new Error(`Unexpected R2 operation ${method}`);
@@ -162,7 +169,7 @@ it('unknown outcome with authoritative same candidate winner keeps the published
 it('definitive false cleans only its own losing candidate and preserves winner', async () => {
   finalizer = false; expect((await send()).response.status).toBe(200);
   const deletes = r2().filter(call => call.method === 'DELETE' && call.url.pathname.includes('/published/'));
-  expect(deletes).toHaveLength(1); expect(decodeURIComponent(deletes[0].url.pathname)).toBe(`/gymloop-media/${publishedKey}`); expect(publishedKey).not.toBe(row.object_key);
+  expect(deletes).toHaveLength(1); expect(decodeURIComponent(deletes[0]!.url.pathname)).toBe(`/gymloop-media/${publishedKey}`); expect(publishedKey).not.toBe(row.object_key);
 });
 it.each(['product','trainer','announcement'])('member signer %s uses current public exposure and private immutable attachment', async kind => {
   claims = { sub: ids.user, role: 'authenticated', app_role: 'member', tenant_id: ids.tenant, member_id: ids.member, exp: 4102444800 };
@@ -179,8 +186,8 @@ it('trainer actual staff UUID can never substitute for the fixed MD5 pseudonym',
 it('destination collision retries a fresh candidate and never overwrites the occupied key', async () => {
   mode = 'collision'; expect((await send()).response.status).toBe(200);
   const heads = r2().filter(call => call.method === 'HEAD' && call.url.pathname.includes('/published/'));
-  expect(heads.length).toBeGreaterThanOrEqual(3); expect(heads[0].url.pathname).not.toBe(heads[1].url.pathname);
-  const copy = r2().find(call => call.headers.has('x-amz-copy-source'))!; expect(copy.url.pathname).toBe(heads[1].url.pathname); expect(copy.url.pathname).not.toBe(heads[0].url.pathname);
+  expect(heads.length).toBeGreaterThanOrEqual(3); expect(heads[0]!.url.pathname).not.toBe(heads[1]!.url.pathname);
+  const copy = r2().find(call => call.headers.has('x-amz-copy-source'))!; expect(copy.url.pathname).toBe(heads[1]!.url.pathname); expect(copy.url.pathname).not.toBe(heads[0]!.url.pathname);
 });
 it('exposure withdrawal across privileged metadata await prevents a newly issued GET', async () => {
   claims = { sub: ids.user, role: 'authenticated', app_role: 'member', tenant_id: ids.tenant, member_id: ids.member, exp: 4102444800 };
@@ -213,7 +220,7 @@ it.each(['product','trainer'])('front desk cannot confirm %s', async kind => {
 });
 it('front desk can verify an announcement with its actual actor tuple', async () => {
   claims.app_role = 'front_desk'; row.kind = 'announcement'; row.staging_object_key = `${ids.tenant}/staging/announcement/${ids.asset}.png`;
-  expect((await send()).response.status).toBe(200); expect(finalizeCalls()[0].body.p_actor_role).toBe('front_desk');
+  expect((await send()).response.status).toBe(200); expect(finalizeCalls()[0]!.body.p_actor_role).toBe('front_desk');
 });
 it('staff display signs only published confirmed metadata and never finalizes', async () => {
   Object.assign(row, { object_key: `${ids.tenant}/published/product/${ids.asset}.png`, confirmed_at: '2026-10-02T10:00:00Z', verified_source_etag: '"source"', published_etag: '"published"' });
