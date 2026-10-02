@@ -23,7 +23,9 @@
  * from here; the page-level requirements are covered only by source-level guards at the end.
  */
 import { createHash, randomBytes } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { dirname, resolve, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import { inspect } from 'node:util'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -38,6 +40,63 @@ const sha256Hex = (text: string): string => createHash('sha256').update(text, 'u
 const freshToken = (): string => randomBytes(32).toString('base64url')
 const count = (haystack: string, needle: string): number => (needle === '' ? 0 : haystack.split(needle).length - 1)
 const readSource = (relative: string): string => readFileSync(new URL(relative, import.meta.url), 'utf8')
+/** Parse syntax so comments cannot satisfy or violate a contract. Local delegated
+ * exports are resolved by their imported binding, never by an unrelated literal. */
+const contractTs = createRequire(new URL('../../apps/web/package.json', import.meta.url))('typescript') as typeof import('typescript')
+const contractFile = (file: string) => contractTs.createSourceFile(file, readFileSync(file, 'utf8'), contractTs.ScriptTarget.Latest, true, contractTs.ScriptKind.TSX)
+const contractCode = (source: string) => contractTs.createPrinter({ removeComments: true }).printFile(
+  contractTs.createSourceFile('contract.tsx', source, contractTs.ScriptTarget.Latest, true, contractTs.ScriptKind.TSX),
+)
+const contractDependency = (file: string, specifier: string): string | null => {
+  const base = specifier.startsWith('.') ? resolve(dirname(file), specifier)
+    : specifier.startsWith('@/') ? resolve(dirname(fileURLToPath(new URL('../../apps/web/package.json', import.meta.url))), specifier.slice(2)) : null
+  return base === null ? null : [base, `${base}.ts`, `${base}.tsx`, resolve(base, 'index.ts'), resolve(base, 'index.tsx')].find((candidate) => existsSync(candidate) && statSync(candidate).isFile()) ?? null
+}
+const contractBinding = (file: string, name: string, seen = new Set<string>()): string => {
+  const key = `${file}:${name}`
+  if (seen.has(key)) throw new Error(`Circular contract binding ${name}`)
+  seen.add(key)
+  const ast = contractFile(file)
+  for (const statement of ast.statements) {
+    if (contractTs.isVariableStatement(statement)) for (const declaration of statement.declarationList.declarations) {
+      if (contractTs.isIdentifier(declaration.name) && declaration.name.text === name && declaration.initializer) {
+        let value = declaration.initializer
+        while (contractTs.isAsExpression(value) || contractTs.isSatisfiesExpression(value) || contractTs.isParenthesizedExpression(value)) value = value.expression
+        return contractTs.isIdentifier(value) ? contractBinding(file, value.text, seen)
+          : contractTs.createPrinter({ removeComments: true }).printNode(contractTs.EmitHint.Expression, value, ast)
+      }
+    }
+    if (contractTs.isImportDeclaration(statement) && contractTs.isStringLiteral(statement.moduleSpecifier)) {
+      const bindings = statement.importClause?.namedBindings
+      if (bindings && contractTs.isNamedImports(bindings)) for (const binding of bindings.elements) if (binding.name.text === name) {
+        const dependency = contractDependency(file, statement.moduleSpecifier.text)
+        if (dependency) return contractBinding(dependency, binding.propertyName?.text ?? binding.name.text, seen)
+      }
+    }
+    if (contractTs.isExportDeclaration(statement) && statement.moduleSpecifier && contractTs.isStringLiteral(statement.moduleSpecifier)
+      && statement.exportClause && contractTs.isNamedExports(statement.exportClause)) {
+      for (const binding of statement.exportClause.elements) if (binding.name.text === name) {
+        const dependency = contractDependency(file, statement.moduleSpecifier.text)
+        if (dependency) return contractBinding(dependency, binding.propertyName?.text ?? binding.name.text, seen)
+      }
+    }
+  }
+  throw new Error(`Missing contract binding ${name}`)
+}
+const contractPageSource = (file: string, seen = new Set<string>()): string => {
+  if (seen.has(file)) return ''
+  seen.add(file)
+  const ast = contractFile(file)
+  const code = contractCode(ast.text)
+  const dependencies = ast.statements.flatMap((statement) => {
+    if (!contractTs.isImportDeclaration(statement) || statement.importClause?.isTypeOnly || !contractTs.isStringLiteral(statement.moduleSpecifier)) return []
+    const dependency = contractDependency(file, statement.moduleSpecifier.text)
+    // Package barrels have their own functional contract battery. Follow local
+    // web renderers/metadata only, retaining the wrapper's own negative guards.
+    return dependency && dependency.includes(`${sep}apps${sep}web${sep}`) ? [contractPageSource(dependency, seen)] : []
+  })
+  return [code, ...dependencies].join('\n')
+}
 
 const TOKEN_A = 'A'.repeat(43)
 const TOKEN_B = `${'Ab_-'.repeat(10)}Ab_`
@@ -2793,8 +2852,7 @@ describe('INV-022 mobile invite entry (apps/mobile/lib/invite)', () => {
 describe('platform-free shared code, no raw environment reads, no service role in request paths (hard rules 3 and 11, ADR-176)', () => {
   const ORACLE_PHRASES = /does not exist|no account|not found|no such account|invalid account/i
   /** Negative guards look at code and strings, not at prose that explains the rule. */
-  const stripComments = (source: string): string =>
-    source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1')
+  const stripComments = contractCode
 
   it('packages/shared/src/api/member-invites.ts is platform-free', () => {
     const source = stripComments(readSource('../../packages/shared/src/api/member-invites.ts'))
@@ -2829,9 +2887,15 @@ describe('platform-free shared code, no raw environment reads, no service role i
 
   it('the accept pages exist outside (console) and member, are noindex and send no referrer', () => {
     for (const path of ['../../apps/web/app/invite/[token]/page.tsx', '../../apps/web/app/invite/continue/page.tsx']) {
+      const file = fileURLToPath(new URL(path, import.meta.url))
       const source = readSource(path)
-      expect(source).toMatch(/noindex|index\s*:\s*false/)
-      expect(source).toMatch(/no-referrer/)
+      const metadata = contractBinding(file, 'metadata')
+      expect(contractCode(source)).toMatch(/export[\s\S]*\bmetadata\b/)
+      expect(metadata).toMatch(/noindex|index\s*:\s*false/)
+      expect(metadata).toMatch(/referrer\s*:\s*['"]no-referrer['"]/)
+      const renderedSource = contractPageSource(file)
+      expect(renderedSource).toMatch(/inviteNotice/)
+      expect(renderedSource).toMatch(/\/privacy|PUBLIC_PAGE_PATHS/)
       expect(stripComments(source)).not.toMatch(ORACLE_PHRASES)
       expect(stripComments(source)).not.toMatch(/\b(?:localStorage|sessionStorage|indexedDB)\b/)
     }

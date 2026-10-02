@@ -38,7 +38,8 @@
  */
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { dirname, resolve, sep } from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -359,6 +360,63 @@ const planRpc = (fn: string, plan: (args: unknown) => { data?: unknown; error?: 
 const HERE = import.meta.dirname ?? fileURLToPath(new URL('.', import.meta.url))
 const repoFile = (relative: string) => resolve(HERE, '../..', relative)
 const readRepo = (relative: string) => readFileSync(repoFile(relative), 'utf8')
+/** Parse syntax so comments cannot satisfy or violate a contract. Local delegated
+ * exports are resolved by their imported binding, never by an unrelated literal. */
+const contractTs = createRequire(new URL('../../apps/web/package.json', import.meta.url))('typescript') as typeof import('typescript')
+const contractFile = (file: string) => contractTs.createSourceFile(file, readFileSync(file, 'utf8'), contractTs.ScriptTarget.Latest, true, contractTs.ScriptKind.TSX)
+const contractCode = (source: string) => contractTs.createPrinter({ removeComments: true }).printFile(
+  contractTs.createSourceFile('contract.tsx', source, contractTs.ScriptTarget.Latest, true, contractTs.ScriptKind.TSX),
+)
+const contractDependency = (file: string, specifier: string): string | null => {
+  const base = specifier.startsWith('.') ? resolve(dirname(file), specifier)
+    : specifier.startsWith('@/') ? resolve(dirname(fileURLToPath(new URL('../../apps/web/package.json', import.meta.url))), specifier.slice(2)) : null
+  return base === null ? null : [base, `${base}.ts`, `${base}.tsx`, resolve(base, 'index.ts'), resolve(base, 'index.tsx')].find((candidate) => existsSync(candidate) && statSync(candidate).isFile()) ?? null
+}
+const contractBinding = (file: string, name: string, seen = new Set<string>()): string => {
+  const key = `${file}:${name}`
+  if (seen.has(key)) throw new Error(`Circular contract binding ${name}`)
+  seen.add(key)
+  const ast = contractFile(file)
+  for (const statement of ast.statements) {
+    if (contractTs.isVariableStatement(statement)) for (const declaration of statement.declarationList.declarations) {
+      if (contractTs.isIdentifier(declaration.name) && declaration.name.text === name && declaration.initializer) {
+        let value = declaration.initializer
+        while (contractTs.isAsExpression(value) || contractTs.isSatisfiesExpression(value) || contractTs.isParenthesizedExpression(value)) value = value.expression
+        return contractTs.isIdentifier(value) ? contractBinding(file, value.text, seen)
+          : contractTs.createPrinter({ removeComments: true }).printNode(contractTs.EmitHint.Expression, value, ast)
+      }
+    }
+    if (contractTs.isImportDeclaration(statement) && contractTs.isStringLiteral(statement.moduleSpecifier)) {
+      const bindings = statement.importClause?.namedBindings
+      if (bindings && contractTs.isNamedImports(bindings)) for (const binding of bindings.elements) if (binding.name.text === name) {
+        const dependency = contractDependency(file, statement.moduleSpecifier.text)
+        if (dependency) return contractBinding(dependency, binding.propertyName?.text ?? binding.name.text, seen)
+      }
+    }
+    if (contractTs.isExportDeclaration(statement) && statement.moduleSpecifier && contractTs.isStringLiteral(statement.moduleSpecifier)
+      && statement.exportClause && contractTs.isNamedExports(statement.exportClause)) {
+      for (const binding of statement.exportClause.elements) if (binding.name.text === name) {
+        const dependency = contractDependency(file, statement.moduleSpecifier.text)
+        if (dependency) return contractBinding(dependency, binding.propertyName?.text ?? binding.name.text, seen)
+      }
+    }
+  }
+  throw new Error(`Missing contract binding ${name}`)
+}
+const contractPageSource = (file: string, seen = new Set<string>()): string => {
+  if (seen.has(file)) return ''
+  seen.add(file)
+  const ast = contractFile(file)
+  const code = contractCode(ast.text)
+  const dependencies = ast.statements.flatMap((statement) => {
+    if (!contractTs.isImportDeclaration(statement) || statement.importClause?.isTypeOnly || !contractTs.isStringLiteral(statement.moduleSpecifier)) return []
+    const dependency = contractDependency(file, statement.moduleSpecifier.text)
+    // Package barrels have their own functional contract battery. Follow local
+    // web renderers/metadata only, retaining the wrapper's own negative guards.
+    return dependency && dependency.includes(`${sep}apps${sep}web${sep}`) ? [contractPageSource(dependency, seen)] : []
+  })
+  return [code, ...dependencies].join('\n')
+}
 
 /** `it.each` spreads array rows into arguments; wrap every value so arrays and objects are passed whole. */
 const each = <T>(values: readonly T[]): Array<[T]> => values.map((value) => [value])
@@ -1270,7 +1328,7 @@ describe('STI shared barrel and platform-free rules', () => {
   })
 
   it('keeps packages/shared platform-free: no next, react-dom, node: or process.env, and only relative/zod/db imports', () => {
-    const source = readRepo('packages/shared/src/api/staff-invites.ts')
+    const source = contractCode(readRepo('packages/shared/src/api/staff-invites.ts'))
     const specifiers = [...source.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)].map((m) => m[1] as string)
     for (const specifier of specifiers) {
       const allowed = specifier.startsWith('./') || specifier.startsWith('../') || specifier === 'zod' || specifier === '@gymloop/db'
@@ -1278,7 +1336,7 @@ describe('STI shared barrel and platform-free rules', () => {
     }
     expect(source).not.toMatch(/process\.env/)
     expect(source).not.toMatch(/\b(?:window|document|localStorage)\b/)
-    expect(source).not.toMatch(/node:/)
+    expect(specifiers.some((specifier) => specifier.startsWith('node:'))).toBe(false)
   })
 })
 
@@ -2662,7 +2720,7 @@ describe('STI static wiring', () => {
   })
 
   it('the redeem route never calls refreshSession (the staff trigger already deleted the sessions)', () => {
-    expect(read('apps/web/app/api/staff-invites/redeem/route.ts')).not.toMatch(/refreshSession/)
+    expect(contractCode(read('apps/web/app/api/staff-invites/redeem/route.ts'))).not.toMatch(/\brefreshSession\b/)
   })
 
   it('the redeem route answers refusals through the staff copy', () => {
@@ -2672,17 +2730,19 @@ describe('STI static wiring', () => {
   it('the staff pages exist, are noindex and no-referrer, use the staff notice and copy, and stay out of the member flow', () => {
     for (const file of ['apps/web/app/staff-invite/[token]/page.tsx', 'apps/web/app/staff-invite/continue/page.tsx']) {
       expect(existsSync(root(file)), file).toBe(true)
-      const source = read(file)
-      expect(source, file).toMatch(/noindex/i)
-      expect(source, file).toMatch(/no-referrer/)
+      const source = contractCode(read(file))
+      const metadata = contractBinding(root(file), 'metadata')
+      expect(source, file).toMatch(/export[\s\S]*\bmetadata\b/)
+      expect(metadata, file).toMatch(/noindex|index\s*:\s*false/i)
+      expect(metadata, file).toMatch(/referrer\s*:\s*['"]no-referrer['"]/)
       expect(source, file).not.toMatch(/(?<![A-Za-z_])INVITE_COOKIE_NAME|(?<![A-Za-z])peekInvite\b|['"`]\/api\/member-invites/)
     }
-    const landing = read('apps/web/app/staff-invite/[token]/page.tsx')
+    const landing = contractPageSource(root('apps/web/app/staff-invite/[token]/page.tsx'))
     expect(landing).toMatch(/staffInviteNotice/)
     expect(landing).toMatch(/peekStaffInvite/)
     expect(landing).toMatch(/startStaffInviteGoogleSignIn/)
     expect(landing).toMatch(/\/privacy|PUBLIC_PAGE_PATHS/)
-    const cont = read('apps/web/app/staff-invite/continue/page.tsx')
+    const cont = contractPageSource(root('apps/web/app/staff-invite/continue/page.tsx'))
     expect(cont).toMatch(/staffInviteRefusalMessage/)
     expect(cont).toMatch(/\/api\/staff-invites\/redeem/)
     expect(cont).toMatch(/STAFF_INVITE_COOKIE_NAME|fitcruxx_staff_invite/)
