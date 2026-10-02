@@ -145,7 +145,16 @@ function pageClient() {
   };
   return {
     auth: { getClaims: async () => ({ data: null, error: new Error('unused') }) },
-    rpc: () => { throw new Error('the member page reads app access through lib/member-invites'); },
+    rpc: (name: string) => {
+      if (name === 'read_member_guardian') return Promise.resolve({ data: [{
+        age_state: 'adult', date_of_birth: '1990-01-01', adult_on: '2008-01-01', gym_today: '2026-10-03',
+        guardian_name: null, guardian_relation: null, guardian_phone: null, guardian_email: null,
+        guardian_complete: false, link_email: EMAIL, link_email_in_use: false,
+        consent_state: 'none', consent_recorded_at: null, consent_version: null,
+        scoring_state: 'on_adult', guardian_linked_at: null, handover_due: false, legacy_attested_adult: false,
+      }], error: null });
+      throw new Error('the member page reads app access through lib/member-invites');
+    },
     from: (table: string) => {
       const query: Record<string, unknown> = {};
       for (const method of ['select', 'eq', 'order', 'limit', 'in', 'is', 'or', 'range', 'ilike']) query[method] = () => query;
@@ -762,7 +771,7 @@ describe('INV-019 member page wiring', () => {
   beforeEach(() => {
     state.pageMember = {
       id: MEMBER_ID, full_name: 'Asha Rao', phone: PHONE, email: EMAIL, status: 'active',
-      branch_id: 'b1', joined_on: '2026-09-01', member_code: 'M-1', erased_at: null,
+      branch_id: 'b1', joined_on: '2026-09-01', member_code: 'M-1', erased_at: null, date_of_birth: '1990-01-01',
     };
     state.accessResult = ACCESS.invite_pending;
   });

@@ -11,7 +11,10 @@ const db = { from: (table: string) => {
   return chain;
 }, rpc: async () => ({ data: [], error: null }) };
 vi.mock('../../lib/identity-session', () => ({ requireAudience: async () => ({ supabase: db, identity: { kind: 'member', userId: '70000000-0000-4000-8000-000000000906', tenantId: '70000000-0000-4000-8000-000000000001', memberId: '70000000-0000-4000-8000-000000000101' } }) }));
-vi.mock('../../lib/business-type', () => ({ loadBusinessType: async () => state.type, loadBusinessNouns: async () => businessNouns(state.type) }));
+vi.mock('../../lib/business-type', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/business-type')>()),
+  loadBusinessType: async () => state.type, loadBusinessNouns: async () => businessNouns(state.type),
+}));
 vi.mock('../../lib/member-portal', () => ({ loadMemberPortal: async () => ({ errorMessage: null, nouns: businessNouns(state.type), businessType: state.type,
   member: { full_name: 'Aarav Sharma', email: 'aarav@example.test', phone: '+917000000101', member_code: 'BIZ-101' },
   gym: { name: 'BIZ Academy', gym_code: 'BIZ70A', business_type: state.type, businessType: state.type, timezone: 'Asia/Kolkata', branchName: 'Main', branchAddress: null, city: null, state: null },
