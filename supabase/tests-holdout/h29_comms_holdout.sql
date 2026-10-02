@@ -213,7 +213,7 @@ select ok(not coalesce(has_function_privilege('public', to_regprocedure(
 -- ===========================================================================
 
 select enum_has_labels('public', 'message_category',
-  ARRAY['renewal', 'payment', 'fulfilment', 'promotion', 'motivation']::name[],
+  ARRAY['renewal', 'payment', 'fulfilment', 'promotion', 'motivation', 'class_update', 'announcement']::name[],
   '2: message_category is exactly the contract vocabulary, in contract order');
 select has_column('public', 'message_templates', 'category', '2: message_templates.category exists');
 select has_column('public', 'consents', 'request_key', '2: consents.request_key exists');

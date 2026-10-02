@@ -82,8 +82,8 @@ insert into public.message_templates(id,tenant_id,key,channel,locale,category,bo
 select has_enum('public','message_category',
   'COM: message_category is a Postgres enum (ADR-021 — canonical vocabularies are enums)');
 select enum_has_labels('public','message_category',
-  array['renewal','payment','fulfilment','promotion','motivation']::name[],
-  'COM: message_category labels in the contract order — the order is what gen types emits');
+  array['renewal','payment','fulfilment','promotion','motivation','class_update','announcement']::name[],
+  'V2-VOC-001: message_category preserves the existing five labels, then appends class_update and announcement in order');
 
 -- ---------------------------------------------------------------------------
 -- 2. message_templates: category column, and the new/activated rules
