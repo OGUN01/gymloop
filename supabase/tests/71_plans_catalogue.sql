@@ -20,7 +20,7 @@ insert into public.staff(id,tenant_id,branch_id,role,full_name) values(pg_temp.p
 insert into public.members(id,tenant_id,branch_id,full_name,phone,date_of_birth) values(pg_temp.pid(101),pg_temp.pid(1),pg_temp.pid(11),'PLC Adult','+917100000101','1990-01-01'),(pg_temp.pid(102),pg_temp.pid(2),pg_temp.pid(12),'PLC Other','+917100000102','1990-01-01');
 insert into public.plans(id,tenant_id,name,duration_days,price_paise,is_active,sort_order) values
 (pg_temp.pid(201),pg_temp.pid(1),'A first',30,150000,true,1),(pg_temp.pid(202),pg_temp.pid(1),'A second',90,400000,true,2),(pg_temp.pid(203),pg_temp.pid(1),'A hidden',30,120000,false,0),(pg_temp.pid(204),pg_temp.pid(2),'B active',30,99000,true,0),(pg_temp.pid(205),pg_temp.pid(2),'B hidden',30,88000,false,1);
-insert into public.memberships(id,tenant_id,member_id,plan_id,status,price_paise,currency) values(pg_temp.pid(301),pg_temp.pid(1),pg_temp.pid(101),pg_temp.pid(203),'expired',120000,'INR');
+insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise,currency) values(pg_temp.pid(301),pg_temp.pid(1),pg_temp.pid(101),pg_temp.pid(203),'expired',app.gym_today(pg_temp.pid(1))-60,app.gym_today(pg_temp.pid(1))-30,120000,'INR');
 select pg_temp.plc_claim('member');
 set local role authenticated;
 select results_eq($q$select id from public.plans order by sort_order$q$,$q$select * from (values(pg_temp.pid(201)),(pg_temp.pid(202))) as expected$q$,'PLC-001: unfiltered member read only own active plans in database order');

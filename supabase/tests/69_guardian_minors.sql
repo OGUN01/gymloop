@@ -534,7 +534,7 @@ select is((select count(*)::integer from public.notifications where source_notif
 select pg_temp.claim('gym_owner');
 set local role authenticated;
 select lives_ok($q$select public.set_member_age_guardian(pg_temp.gid(103),(current_date-interval '10 years')::date,'Parent private','mother','+916900009907','adult69@example.test')$q$,'GRD-017: change guardian phone after first WhatsApp');
-select is(public.open_notification_whatsapp(pg_temp.gid(651)),'{"communicationOptedOut":true}'::jsonb,'GRD-017: stale recipient snapshot refuses replay URL');
+select is(pg_temp.refusal($q$select public.open_notification_whatsapp(pg_temp.gid(651))$q$),'GL066','GRD-017: changed nonnull guardian recipient preserves baseline stale-snapshot refusal');
 set local role postgres;
 select is((select recipient_phone from public.notifications where source_notification_id=pg_temp.gid(651)),'+916900009906','GRD-017: replay refusal never rewrites sent recipient snapshot');
 
