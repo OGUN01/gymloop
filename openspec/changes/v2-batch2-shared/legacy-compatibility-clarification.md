@@ -58,10 +58,26 @@ full canonical sweep and a fresh policy/index source review remain required.
 
 ## Independent legacy holdout reconciliation
 
-PLC's approved member-policy suffix also applies to h12's exact legacy policy
-matrix: only `plans_member_select` appends `and is_active`. All other policy,
-role, grant and row-visibility requirements remain intact. Change that matrix's
-expected predicate only; do not admit arbitrary additional terms or staff changes.
+h12's legacy role matrix covers the thirty-eight INV/STI-era tables. Its member
+policy marker checks already admit PLC's approved `plans_member_select` suffix;
+no predicate change is needed. Preserve every legacy policy, role, grant and
+row-visibility assertion. Reconcile its closed public-table inventory with the
+fifteen tables explicitly approved in the batch-2 contracts:
+
+- GRD: `guardian_consents`.
+- SHP: `media_assets`, `shop_categories`, `shop_reservations`.
+- PTF: `trainer_profiles`, `trainer_availability`, `trainer_time_off`,
+  `pt_cancellations`.
+- CLS: `services`, `class_rules`, `class_sessions`, `class_bookings`.
+- ANC: `announcements`, `announcement_versions`, `announcement_receipts`.
+
+Record these exact names separately from the unchanged legacy role matrix and
+require that the union matches the public table inventory in both directions,
+with exactly fifty-three tables. An undeclared table, a missing table or a
+duplicate declaration must fail. Do not expand the legacy policy shape to tables
+whose frozen contracts prescribe a different shape, or exempt any additional
+table. The independent central catalogue and each feature's visible and holdout
+suites remain responsible for the new tables' exact policies and permissions.
 
 The closed app-schema definer lists in h21/h22 predate batch 2. Extend their exact
 approved object identities from the frozen public proposals/ADRs, never from a

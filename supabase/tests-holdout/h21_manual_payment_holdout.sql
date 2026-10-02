@@ -753,7 +753,15 @@ select is(
         'checkin_gate_audit',
         -- INV-016/STI-010: exact private audit writers approved by the frozen
         -- invitation contract; no general definer exemption is introduced.
-        'member_invite_audit', 'staff_invite_audit')),
+        'member_invite_audit', 'staff_invite_audit',
+        -- Frozen batch-2 legacy compatibility contract: only these sixteen
+        -- approved names extend the closed list; feature/catalogue suites
+        -- independently pin their exact signatures, volatility and grants.
+        'guardian_audit', 'members_guardian_after_change', 'business_type_audit',
+        'media_audit', 'shop_audit', 'media_attach', 'media_release',
+        'shop_reservation_mark_fulfilled', 'pt_member_actor', 'pt_staff_actor',
+        'pt_audit', 'pt_write_profile', 'class_audit', 'prune_class_sessions',
+        'generate_class_sessions', 'announcement_audit')),
   0,
   'ADR-066/AUD-001/A-012: elevation remains within the closed identity, audit and approved private add-on capability allowlist, now including the gate-mode commands'' definer actor revalidation');
 
