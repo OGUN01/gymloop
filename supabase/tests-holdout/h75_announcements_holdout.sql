@@ -39,6 +39,7 @@ insert into public.members(id,user_id,tenant_id,branch_id,full_name,phone,status
 create function pg_temp.mc(n integer default 0)returns text language sql as $$
 select jsonb_build_object('sub',pg_temp.u(209+n),'role','authenticated','app_role','member','tenant_id',pg_temp.u(case when n=4 then 2 else 1 end),'member_id',pg_temp.u(100+n))::text $$;
 create temp table h75_results(k text primary key,v jsonb);
+grant select on h75_results to authenticated;
 create function pg_temp.aid(k text)returns uuid language sql stable as $$select(v#>>'{}')::uuid from h75_results where h75_results.k=aid.k $$;
 insert into public.consents(id,tenant_id,member_id,purpose,granted,version,source,recorded_at)values
 (pg_temp.u(401),pg_temp.u(1),pg_temp.u(100),'marketing',false,'v1','held',now()-interval '2 days'),

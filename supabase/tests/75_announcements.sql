@@ -15,7 +15,7 @@ select enum_has_labels('public','announcement_status',array['draft','published',
 select enum_has_labels('public','announcement_audience',array['all_members','segment']::name[],'ANC-016: canonical announcement_audience');
 select enum_has_labels('public','announcement_membership_filter',array['any','live','not_live']::name[],'ANC-016: canonical announcement_membership_filter');
 select ok(exists(select 1 from pg_enum e join pg_type t on t.oid=e.enumtypid where t.typname='message_category' and e.enumlabel='announcement'),'ANC-022: prelude category exists');
-select results_eq($q$select attname::text collate "default" from pg_attribute where attrelid='public.announcements'::regclass and attnum>0 and not attisdropped order by attname$q$,$q$select * from (values('closed_at' collate "default"),('created_at' collate "default"),('created_by_staff_id' collate "default"),('current_version' collate "default"),('expires_at' collate "default"),('id' collate "default"),('kind' collate "default"),('published_at' collate "default"),('segment_member_statuses' collate "default"),('segment_membership' collate "default"),('status' collate "default"),('tenant_id' collate "default"),('updated_at' collate "default")) as expected$q$,'ANC-016: exact announcements columns');
+select results_eq($q$select attname::text collate "default" from pg_attribute where attrelid='public.announcements'::regclass and attnum>0 and not attisdropped order by attname::text collate "default"$q$,$q$select * from (values('audience' collate "default"),('closed_at' collate "default"),('created_at' collate "default"),('created_by_staff_id' collate "default"),('current_version' collate "default"),('expires_at' collate "default"),('id' collate "default"),('kind' collate "default"),('published_at' collate "default"),('segment_member_statuses' collate "default"),('segment_membership' collate "default"),('status' collate "default"),('tenant_id' collate "default"),('updated_at' collate "default")) as expected order by column1 collate "default"$q$,'ANC-016: exact announcements columns');
 select ok((select relrowsecurity from pg_class where oid='public.announcements'::regclass) and has_table_privilege('authenticated','public.announcements','SELECT') and not has_table_privilege('authenticated','public.announcements','INSERT') and not has_table_privilege('authenticated','public.announcements','UPDATE') and not has_table_privilege('authenticated','public.announcements','DELETE'),'ANC-016: announcements read-only grants and RLS');
 select results_eq($q$select polname::text collate "default" from pg_policy where polrelid='public.announcements'::regclass order by polname$q$,$q$select * from (values('announcements_tenant_select' collate "default")) as expected$q$,'ANC-016: announcements only contract policy');
 select results_eq($q$select attname::text collate "default" from pg_attribute where attrelid='public.announcement_versions'::regclass and attnum>0 and not attisdropped order by attname$q$,$q$select * from (values('announcement_id' collate "default"),('body' collate "default"),('change_note' collate "default"),('created_at' collate "default"),('created_by_staff_id' collate "default"),('id' collate "default"),('image_asset_id' collate "default"),('tenant_id' collate "default"),('title' collate "default"),('version_no' collate "default")) as expected$q$,'ANC-016: exact announcement_versions columns');
@@ -335,7 +335,22 @@ set local role authenticated;
 select is(pg_temp.anc_refusal($q$select public.create_announcement_draft('transactional',null,null,'all_members',null,null,null,null)$q$),'42501','ANC-018: missing actor precedes malformed draft');
 reset role;
 select set_config('request.jwt.claims','',true);
-update public.announcements set expires_at=published_at+interval '1 microsecond' where id=(select id from anc_ids where k='promo');
+-- Bounded historical import: only this synthetic published row is backdated.
+-- CHECKs remain enabled: published state, null closed_at and expiry > publication.
+create temp table anc_expiry_checks as
+select conname,pg_get_constraintdef(oid) as definition from pg_constraint
+where conrelid='public.announcements'::regclass and conname in('announcements_state_chk','announcements_expiry_chk');
+set local session_replication_role=replica;
+update public.announcements set published_at=statement_timestamp()-interval '2 days',expires_at=statement_timestamp()-interval '1 day'
+where id=(select id from anc_ids where k='promo');
+set local session_replication_role=origin;
+do $$begin
+  if (select count(*) from anc_expiry_checks)<>2 or exists(
+    select 1 from anc_expiry_checks saved left join pg_constraint c
+    on c.conrelid='public.announcements'::regclass and c.conname=saved.conname
+    where c.oid is null or pg_get_constraintdef(c.oid) is distinct from saved.definition)
+  then raise exception 'Historical expiry fixture changed canonical checks'; end if;
+end$$;
 select pg_temp.anc_claim('member',null,102,907);
 set local role authenticated;
 select is((select count(*)::integer from public.read_member_announcements() where announcement_id=(select id from anc_ids where k='promo')),0,'ANC-007: expiry derives ended feed without sweeper');
