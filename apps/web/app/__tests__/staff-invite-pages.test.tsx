@@ -530,7 +530,7 @@ describe('startStaffInviteGoogleSignIn', () => {
 
     expect(state.oauth).toEqual([{
       provider: 'google',
-      options: { redirectTo: 'https://app.fitcruxx.example/auth/callback' },
+      options: { redirectTo: 'https://app.fitcruxx.example/auth/callback', queryParams: { prompt: 'select_account' } },
     }]);
     expect(JSON.stringify(state.oauth)).not.toContain(TOKEN);
   });
@@ -552,7 +552,7 @@ describe('startStaffInviteGoogleSignIn', () => {
 
     await expect(start(TOKEN)).rejects.toThrow(/REDIRECT:/);
 
-    expect(state.oauth).toEqual([{ provider: 'google', options: { redirectTo: 'https://fitcruxx.vercel.app/auth/callback' } }]);
+    expect(state.oauth).toEqual([{ provider: 'google', options: { redirectTo: 'https://fitcruxx.vercel.app/auth/callback', queryParams: { prompt: 'select_account' } } }]);
   });
 
   it.each(['', 'short', 'Q'.repeat(44), `${'Q'.repeat(42)}+`, `https://app.fitcruxx.example/staff-invite/${TOKEN}`])(

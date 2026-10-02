@@ -690,9 +690,14 @@ describe('INV-021 startInviteGoogleSignIn', () => {
     expect(actions.startInviteGoogleSignIn).toBeTypeOf('function');
     await actions.startInviteGoogleSignIn!(TOKEN).catch(() => undefined);
     expect(state.oauthCalls).toHaveLength(1);
-    const [call] = state.oauthCalls as Array<{ provider?: string; options?: { redirectTo?: string } }>;
-    expect(call?.provider).toBe('google');
-    expect(call?.options?.redirectTo).toBe('https://app.fitcruxx.example/auth/callback');
+    const [call] = state.oauthCalls;
+    expect(call).toEqual({
+      provider: 'google',
+      options: {
+        redirectTo: 'https://app.fitcruxx.example/auth/callback',
+        queryParams: { prompt: 'select_account' },
+      },
+    });
     expect(JSON.stringify(call)).not.toContain(TOKEN);
     expect(JSON.stringify(call)).not.toMatch(/next=|invite/i);
   });
