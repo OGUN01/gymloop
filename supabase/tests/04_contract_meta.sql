@@ -881,6 +881,7 @@ select is_empty(
                          ('public.peek_member_invite(text)', 's'),
                          ('public.unlink_member_identity(uuid, text)', 'v'),
                          ('public.read_member_app_access(uuid)', 's'),
+                         ('public.read_member_invite_history(uuid)', 's'),
                          ('public.invite_staff_member(text, text, text, public.app_role, uuid, text)', 'v'),
                          ('public.issue_staff_invite(uuid, text)', 'v'),
                          ('public.revoke_staff_invite(uuid)', 'v'),
