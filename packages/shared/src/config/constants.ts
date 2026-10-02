@@ -479,3 +479,74 @@ export const PHASE8_BACKUP_LIMITS = {
   privateFileMode: 0o600,
   cliArgumentStart: 2,
 } as const;
+
+/**
+ * Bounds for member invites and self-linking (INV-001…INV-024,
+ * `openspec/changes/member-invites/proposal.md`). The database enforces the
+ * same numbers in `issue_member_invite` and `redeem_member_invite`; this block
+ * is the one place the clients read them from.
+ *
+ * `ttlHours` is how long an invite stays redeemable; `tenantIssuesPerHour` and
+ * `memberIssuesPerDay` cap how many a gym and one member can be issued in a
+ * rolling window; `redeemFailuresPerWindow` refused redemptions inside
+ * `redeemWindowMinutes` rate-limit one Auth user. `tokenBytes` is the raw
+ * entropy of a token (32 random bytes encode to 43 base64url characters) and
+ * `cookieMaxAgeSeconds` is how long the OAuth round-trip cookie lives.
+ */
+export const MEMBER_INVITE_LIMITS = {
+  ttlHours: 48,
+  tenantIssuesPerHour: 100,
+  memberIssuesPerDay: 5,
+  redeemFailuresPerWindow: 10,
+  redeemWindowMinutes: 15,
+  tokenBytes: 32,
+  cookieMaxAgeSeconds: 1800,
+} as const;
+
+/**
+ * The cookie that carries an invite token across the Google OAuth round trip
+ * (INV-021). It is never put in a redirect URL, a query string or storage the
+ * page can read: `HttpOnly`, `SameSite=Lax`, `Path=/`, host-only.
+ */
+export const INVITE_COOKIE_NAME = 'fitcruxx_invite';
+
+/**
+ * Accepted length, in characters and after trimming, of the reason an owner or
+ * manager gives when unlinking a member's Google account (INV-014). The same
+ * bounds are checked by `unlink_member_identity`.
+ */
+export const MEMBER_UNLINK_REASON_LENGTH = { min: 3, max: 200 } as const;
+
+/**
+ * Bounds for staff invites and self-linking (STI-001…STI-018,
+ * `openspec/changes/staff-invites/proposal.md`). The same shape as
+ * `MEMBER_INVITE_LIMITS`; the numbers that differ are the gym-wide hourly cap
+ * (30, because a gym rarely onboards more than a handful of staff at once) and
+ * the per-staff-row daily cap. The refused-redemption window is shared with
+ * member invites: the database counts refusals of both families together.
+ */
+export const STAFF_INVITE_LIMITS = {
+  ttlHours: 48,
+  tenantIssuesPerHour: 30,
+  staffIssuesPerDay: 5,
+  redeemFailuresPerWindow: 10,
+  redeemWindowMinutes: 15,
+  tokenBytes: 32,
+  cookieMaxAgeSeconds: 1800,
+} as const;
+
+/**
+ * The cookie that carries a staff invite token across the Google OAuth round
+ * trip (STI-014). A different name from `INVITE_COOKIE_NAME` so the callback can
+ * tell the two flows apart, and a member invite always wins when both are set.
+ */
+export const STAFF_INVITE_COOKIE_NAME = 'fitcruxx_staff_invite';
+
+/** Longest staff full name, in characters and after trimming, that an owner may enter when inviting. */
+export const STAFF_INVITE_FULL_NAME_MAX_LENGTH = 120;
+
+/** Longest email address (RFC 5321 path limit) accepted for a staff invite. */
+export const STAFF_INVITE_EMAIL_MAX_LENGTH = 254;
+
+/** Latest persisted invite activity retained on a member history view (INV-028). */
+export const MEMBER_INVITE_HISTORY_LIMIT = 50;
