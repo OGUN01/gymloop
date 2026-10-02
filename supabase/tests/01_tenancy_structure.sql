@@ -152,6 +152,9 @@ select results_eq(
            ('pause_reasons'::text, '_text'::text, true),
            ('pincode'::text, 'text'::text, false),
            ('preset'::text, 'gym_preset'::text, false),
+           ('pt_cancel_window_hours'::text, 'int4'::text, true),
+           ('pt_late_cancel_consumes_session'::text, 'bool'::text, true),
+           ('pt_session_minutes'::text, 'int4'::text, true),
            ('receipt_prefix'::text, 'text'::text, true),
            ('renewal_reminder_days_from_expiry'::text, '_int2'::text, false),
            ('state'::text, 'text'::text, false),
@@ -283,13 +286,14 @@ select results_eq(
            no_show_threshold_days, checkin_dedupe_seconds, streak_rule_type::text,
            weekly_goal_default, grace_period_days, pause_approver_role::text,
            max_freeze_days_per_year, opening_hours::text, pause_reasons,
-           class_allow_cross_branch, class_cancel_window_hours
+           class_allow_cross_branch, class_cancel_window_hours,
+           pt_cancel_window_hours, pt_late_cancel_consumes_session, pt_session_minutes
     from public.organization_settings where tenant_id = '00000000-0000-4000-8000-0000000000a1'::uuid
   $$,
   $$
     values ('INV'::text, 'RCPT'::text, 4::smallint, 1::smallint, 7::smallint, 120::integer, 'visit_streak'::text,
             3::smallint, 0::smallint, 'gym_manager'::text, 30::smallint, '{}'::text, '{}'::text[],
-            false::boolean, 2::integer)
+            false::boolean, 2::integer, 24::integer, true::boolean, 60::integer)
   $$,
   'NSH-003 / ATT-004 / STK-001 / PAY-001 / CLS fixed settings: the per-gym template defaults the contract fixes, including no cross-branch class booking and a two-hour cancellation window'
 );

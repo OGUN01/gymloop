@@ -299,6 +299,10 @@ select is_empty(
       ('media_assets',            'is_front_office', null,              null),
       ('shop_reservations',       'is_front_office', null,              null),
       ('shop_categories',         'is_staff',        'is_gym_admin',    null),
+      ('trainer_profiles',        'pt_staff',        null,              null),
+      ('trainer_availability',    'pt_staff',        null,              null),
+      ('trainer_time_off',        'pt_staff',        null,              null),
+      ('pt_cancellations',        'pt_staff',        null,              null),
       ('member_imports',          'is_gym_admin',    'is_gym_admin',    null),
       ('messaging_wallets',       'is_gym_admin',    null,              null),
       ('messaging_wallet_ledger', 'is_gym_admin',    null,              null),
@@ -342,6 +346,11 @@ select is_empty(
     want(tbl, clause, actual, pat) as (
       select tbl, 'tenant_select using', rd_using,
              case when read_gate is null then null
+                  when read_gate = 'pt_staff'
+                    then '^' || tcol || '=selectapp\.current_tenant_idandselectapp\.is_front_officeorselectapp\.current_app_role='
+                         || chr(39) || 'trainer' || chr(39) || '(::text)?and'
+                         || case when tbl = 'pt_cancellations' then 'trainer_staff_id' else 'staff_id' end
+                         || '=selectapp\.current_staff_id$'
                   when read_gate = 'owner'
                     then '^' || tcol || '=selectapp\.current_tenant_idandselectapp\.current_app_role='
                          || chr(39) || 'gym_owner' || chr(39) || '(::text)?'
@@ -1059,7 +1068,7 @@ select is_empty(
       join pg_namespace cn on cn.oid = c.relnamespace
       join pg_proc p on p.oid = t.tgfoid
       join pg_namespace n on n.oid = p.pronamespace
-      where cn.nspname = 'public' and c.relname in ('member_invites', 'staff_invites', 'guardian_consents', 'media_assets', 'shop_reservations')
+      where cn.nspname = 'public' and c.relname in ('member_invites', 'staff_invites', 'guardian_consents', 'media_assets', 'shop_reservations', 'trainer_profiles', 'trainer_availability', 'trainer_time_off', 'pt_cancellations')
         and t.tgname = c.relname || '_preview_read_only'
         and not t.tgisinternal and t.tgtype = 31 and t.tgenabled = 'O'
         and n.nspname = 'app' and p.proname = 'enforce_preview_read_only'
@@ -1086,6 +1095,19 @@ select is_empty(
         and p.prorettype = 'trigger'::regtype and not p.prosecdef
         and p.provolatile = 'v' and pg_get_userbyid(p.proowner) = 'postgres'
         and coalesce(p.proconfig @> array['search_path=""'], false)
+    ), pt_policy_guard_triggers as (
+      -- PTF: only this ROW BEFORE UPDATE policy guard is admitted.
+      select t.oid, t.tgrelid from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace cn on cn.oid = c.relnamespace
+      join pg_proc p on p.oid = t.tgfoid
+      join pg_namespace n on n.oid = p.pronamespace
+      where cn.nspname = 'public' and c.relname = 'organization_settings'
+        and t.tgname = 'organization_settings_guard_pt_policy'
+        and not t.tgisinternal and t.tgtype = 19 and t.tgenabled = 'O'
+        and n.nspname = 'app' and p.proname = 'guard_pt_policy_write'
+        and p.pronargs = 0 and p.prorettype = 'trigger'::regtype
+        and not p.prosecdef
     ), legacy_attestation_guard_triggers as (
       -- GRD-002: only the exact write-once setting guard is admitted here.
       select t.oid, t.tgrelid from pg_trigger t
@@ -1110,6 +1132,7 @@ select is_empty(
        and t.oid not in (select oid from gate_guard_triggers)
        and t.oid not in (select oid from invite_preview_triggers)
        and t.oid not in (select oid from shop_invariant_triggers)
+       and t.oid not in (select oid from pt_policy_guard_triggers)
        and t.oid not in (select oid from legacy_attestation_guard_triggers)
        and c.relname not in ('staff', 'members', 'platform_users', 'impersonation_sessions', 'attendance', 'membership_pauses', 'follow_ups', 'payments', 'refunds', 'document_counters', 'memberships', 'addon_products', 'addon_orders', 'pt_sessions')
     union all
