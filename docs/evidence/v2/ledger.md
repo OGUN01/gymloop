@@ -2,7 +2,10 @@
 
 ## Batch 1 — INV + STI (2026-10-02, in progress)
 
-Acceptance and deployment remain pending. No migration has been applied manually.
+Final acceptance remains pending. Batch 1 was pushed as `26ec832`; CI applied both
+migrations successfully in [DB run 37009060386](https://github.com/OGUN01/gymloop/actions/runs/37009060386).
+No migration has been applied manually. That run's schema drift failure is the
+expected pre-regeneration state; its full pgTAP result remains pending.
 The latest owner instruction uses GPT-6.1 Sol for parallel agents and minimizes
 repeated work while preserving the independent authors, blind reviews and gates.
 
@@ -83,9 +86,30 @@ repeated work while preserving the independent authors, blind reviews and gates.
 - Owner deferred phone testing until the end because another agent is using USB
   debugging. This orchestrator stopped its Metro process and will use web/mobile
   viewport checks meanwhile; those do not count as Android runtime proof.
-- Generated `member_invites` types are absent before CI migration. Regeneration and
-  a migration-free follow-up must use ADR-177 after the migrate job succeeds; types
-  are not hand-edited. Final typecheck/build/CI acceptance remains required.
+- After CI migrate succeeded, CLI-generated types were committed/pushed as
+  `8be0713` under ADR-177. All five typecheck tasks and all four build tasks passed
+  locally. [Holdout](https://github.com/OGUN01/gymloop/actions/runs/37009955970) and
+  [test immutability](https://github.com/OGUN01/gymloop/actions/runs/37009955864)
+  passed. The queued types-only DB run must still confirm schema drift.
+- [Follow-up CI 37009955934](https://github.com/OGUN01/gymloop/actions/runs/37009955934)
+  passed the non-browser gates but failed five provider font cases (66 other
+  browser cases passed). Next generated a local Arial fallback despite an empty
+  fallback list; Linux without Arial rejected the combined readiness query.
+  A separate implementer reproduced the missing-local-font failure and disabled
+  the automatic adjustment. Existing red browser tests stayed unchanged; six
+  visible units, five actual-browser cases and eight independent held cases passed.
+  A fresh source critic returned GO. The migration-free repair is pushed as
+  `27d4191`; Linux CI confirmation remains required.
+
+## Batch 2 — contracts and vocabulary staging
+
+Seven proposals and their fetchable bars are being aligned with authoritative
+shared decisions before independent authors start. The owner explicitly approved
+the scoped last-session PT waiver and the separate CI-only notification category
+prelude on 2026-10-02. Their concrete amendment files are the acceptance contracts;
+ordinary completed packs remain terminal. The prelude adds one DB verification
+cycle so subsequent rollback-only feature tests can exercise committed enum labels.
+No batch-2 implementation, migration or acceptance is claimed yet.
 
 Final local gates, browser/Playwright checks, Android runtime evidence, archive and
 CI run links will be recorded after completion. The owner tests after all v2 is built.

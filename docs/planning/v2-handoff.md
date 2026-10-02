@@ -1,7 +1,7 @@
-# V2 campaign handoff — 2026-10-02 (batch 1 in progress)
+# V2 campaign handoff — 2026-10-02 (batch 1 pushed; batch 2 contracts)
 
 Read this, then `docs/planning/v2-feature-map.md`, `docs/planning/v2-campaign-goal.md`, `AGENTS.md`, ADR-176 and ADR-177
-in `docs/decisions.md`. **Nothing has been pushed or permanently migrated.** The
+in `docs/decisions.md`. **Batch 1 is pushed and CI applied its migrations.** The
 current checkpoint below supersedes the historical session-1 snapshot.
 
 ## Current checkpoint
@@ -37,16 +37,27 @@ current checkpoint below supersedes the historical session-1 snapshot.
   passed. Web units 2,724, shared 545, native broad sweep 141 plus two focused
   stroke cases and script/held 2,526 checks are green. SQL remains unchanged.
 - Production invite origin is verified as `https://fitcruxx.vercel.app/`.
-  Generated invite types must follow CI migration under ADR-177; no hand edits.
-- Registry/docs are updated in the working tree. Final gates, deployed browser
+  Batch 1 push `26ec832` migrated successfully; CLI-generated types follow-up
+  `8be0713` passed all five local typecheck tasks and all four build tasks. Holdout
+  and immutability CI passed; the original full pgTAP and queued types-only drift
+  checks remain pending. Follow-up CI found five Linux provider-font failures:
+  Next's generated local Arial fallback was incorrectly required by readiness.
+  Separate implementer/fresh critic repaired this without changing tests;
+  six visible units, five browser cases and eight held cases passed. Repair
+  `27d4191` is pushed, with Linux CI confirmation pending.
+- Registry/docs are updated. Final gates, deployed browser
   journeys, Android runtime evidence, archive and every CI gate remain required.
   A separate `in.fitcruxx.v2check` debug build succeeded and is installed alongside
   the Play release. Device runtime checks are pending; this is not release evidence.
 - Owner deferred USB/device testing to the end of all v2 because another agent
   is using the phone. Do not touch ADB/the device meanwhile; use web/mobile
   viewport checks, preserving final Android acceptance as an open requirement.
-- Batch 2 decisions have not been applied. Resume its seven contract amendments
-  after batch 1 is pushed, then carry batch 2, Waves C/D and versionCode 5 onward.
+- Batch 2 decisions are being applied to all seven contracts and fetchable bars.
+  Owner approved the concrete final-session PT waiver and CI-only notification
+  vocabulary prelude. Freeze the amended contracts before independent authors
+  start. Wait for the whole batch-1 DB run before the vocabulary migration;
+  wait for the whole prelude DB run before the single seven-feature migration push.
+  Then carry batch 2, Waves C/D and versionCode 5 onward.
   Preserve the original full-v2 objective and the independent roles.
 
 Detailed evidence and limits: `docs/evidence/v2/ledger.md`. Minimize usage through

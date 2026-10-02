@@ -17,6 +17,16 @@ standing delegation and are recorded in each feature's ADR text.
 - **[owner] PTF late cancel:** a late cancel (inside the gym's PT cancel window) consumes one session of the pack
   (per-gym flag `pt_late_cancel_consumes_session`, default true; owner/manager may waive per case). No-show consumes
   nothing in v2 (recorded gap, ADR-182).
+- **[owner, additional explicit approval 2026-10-02] PTF last-session waiver:** apply
+  `pt-front/completed-pack-waiver-amendment.md`. Only an unexpired, unreturned pack
+  completed by that exact consumed cancellation may be restored once by owner/manager;
+  immutable causal provenance, exact guard shape, locks, independent money tests,
+  unchanged sold terms and no charge/refund are required. Ordinary completion remains terminal.
+- **[owner, additional explicit approval 2026-10-02] Notification vocabulary prelude:** apply
+  `notification-vocabulary-amendment.md`. `20261003083000_notification_categories.sql`
+  adds only `class_update`, then `announcement`; CI applies and verifies this unit before
+  the main batch-2 rollback sweep. Wait for each whole preceding DB run. The seven
+  business migrations and booking primitives still ship together; CLI types follow ADR-177.
 - **[owner] PLC GST wording:** show the stored GST rate; claim neither inclusive nor exclusive; copy says the gym
   confirms the final amount.
 - **[owner] CLS paused members:** `frozen` memberships are bookable, with the same live-membership predicate as check-in.
@@ -28,7 +38,7 @@ standing delegation and are recorded in each feature's ADR text.
    `app.member_has_live_membership(p_tenant_id uuid, p_member_id uuid, p_on date)` (the QR check-in predicate: status
    `active` or `frozen`, dates containing `p_on`). CLS's `…140000` and PTF's `…130000` both depend on it; neither
    redefines it. Final order: `085000` primitives (CLS), `090000` GRD, `100000` BIZ, `110000` PLC, `120000` SHP,
-   `130000` PTF, `140000` CLS, `150000` ANC. PTF's local sweep splices `085000` first. `74_classes.sql` asserts the
+   `130000` PTF, `140000` CLS, `150000` ANC, preceded by the separately committed owner-approved `083000` vocabulary prelude. PTF's local sweep splices `085000` first. `74_classes.sql` asserts the
    primitives; PTF's suite asserts only its use of them.
 2. **SQLSTATE registry.** Batch 1: GL074–GL082. GRD GL083–GL085. SHP GL086–GL087. ANC GL088. Booking vocabulary
    GL090–GL096. PTF GL097. Reserved GL098–GL099. CLS-only GL110–GL114.
@@ -49,7 +59,7 @@ standing delegation and are recorded in each feature's ADR text.
    `@aws-sdk/s3-request-presigner` (pinned) is allowed in `apps/web` only. R2 bucket CORS is owner-gated.
 6. **Notices.** ANC's convention stands (no helper function): writers insert an `in_app` `notifications` row with a
    `dedupe_key`. CLS uses `class_update`; PTF uses the existing `fulfilment` category; ANC adds `announcement`.
-   Transactional notices skip the consent gate for in-app display. `message_category` final label order:
+   Transactional notices skip the consent gate for in-app display. The separately committed `083000` prelude alone owns both enum additions; CLS/ANC consume them. `message_category` final label order:
    existing five, then `class_update`, then `announcement`; `31_comms_schema_consent.sql` and
    `h29_comms_holdout.sql` get one mechanical `spec:` amendment before implementation (orchestrator).
 7. **Shared tests that grow** (orchestrator makes one mechanical `spec:` amendment each, before implementation):
