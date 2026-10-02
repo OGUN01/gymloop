@@ -95,7 +95,10 @@ insert into matrix (tbl, read_gate, write_gate, member_gate, grant_write) values
   ('messaging_wallets',       'app.is_gym_admin()', null, null, false),
   ('messaging_wallet_ledger', 'app.is_gym_admin()', null, null, false),
   ('webhook_events',          'app.is_gym_admin()', null, null, false),
-  ('audit_log',               'app.is_gym_admin()', null, null, false);
+  ('audit_log',               'app.is_gym_admin()', null, null, false),
+  -- Frozen INV-017/STI-011 extend the read matrix with command-only history.
+  ('member_invites',          'app.is_front_office()', null, null, false),
+  ('staff_invites',           'gym_owner', null, null, false);
 
 insert into matrix (tbl, read_gate, write_gate, member_gate, gym_side) values
   ('platform_users', null, null, null, false);
@@ -127,8 +130,8 @@ create temp view named_pol as
 select is(
   (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relkind = 'r'),
-  36::bigint,
-  'public holds exactly the thirty-six tables the matrix enumerates');
+  38::bigint,
+  'public holds exactly the thirty-eight tables the extended INV/STI matrix enumerates');
 
 select is_empty(
   $q$ select tbl from matrix

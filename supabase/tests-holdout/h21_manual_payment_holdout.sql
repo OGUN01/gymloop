@@ -750,7 +750,10 @@ select is(
         -- action allowlist of its own. checkin_gate_actor — the actor
         -- revalidation — is security invoker and correctly stays OUT of a
         -- definer allowlist.
-        'checkin_gate_audit')),
+        'checkin_gate_audit',
+        -- INV-016/STI-010: exact private audit writers approved by the frozen
+        -- invitation contract; no general definer exemption is introduced.
+        'member_invite_audit', 'staff_invite_audit')),
   0,
   'ADR-066/AUD-001/A-012: elevation remains within the closed identity, audit and approved private add-on capability allowlist, now including the gate-mode commands'' definer actor revalidation');
 
