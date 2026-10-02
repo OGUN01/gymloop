@@ -55,3 +55,35 @@ scoring source. Independent GRD suites retain minor/unknown coverage.
 An implementation-blind author makes these visible compatibility edits; holdouts
 remain independent. Tests commit separately before isolated source work. The
 full canonical sweep and a fresh policy/index source review remain required.
+
+## Independent legacy holdout reconciliation
+
+PLC's approved member-policy suffix also applies to h12's exact legacy policy
+matrix: only `plans_member_select` appends `and is_active`. All other policy,
+role, grant and row-visibility requirements remain intact. Change that matrix's
+expected predicate only; do not admit arbitrary additional terms or staff changes.
+
+The closed app-schema definer lists in h21/h22 predate batch 2. Extend their exact
+approved object identities from the frozen public proposals/ADRs, never from a
+wildcard, all app-schema routines or implementation discovery. These are the
+sixteen already-approved new names (the amended legacy lock helper is already in
+their list and requires no addition):
+
+- GRD: `guardian_audit`, `members_guardian_after_change`.
+- BIZ: `business_type_audit`.
+- SHP: `media_audit`, `shop_audit`, `media_attach`, `media_release`,
+  `shop_reservation_mark_fulfilled`.
+- PTF: `pt_member_actor`, `pt_staff_actor`, `pt_audit`, `pt_write_profile`.
+- CLS: `class_audit`, `prune_class_sessions`, `generate_class_sessions`.
+- ANC: `announcement_audit`.
+
+All other existing closed-list refusals stay in place. The proposals, private-core
+ADR-182/183 and registry own their exact signatures, volatility, owner and grants;
+the independent central catalogue and feature suites continue to assert those
+postures. These additions authorize no new source helper or permission.
+
+GRD's future-DOB refusal fixture must use the following day in its actual fixture
+gym timezone, independently computed from statement_timestamp and that explicit
+zone. UTC current_date + 1 can already be today in India. Preserve the 22023
+refusal and all age/consent assertions; never derive its expected input from the
+production helper under test. Source age rules remain unchanged.

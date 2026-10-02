@@ -120,7 +120,8 @@ select is(pg_temp.run('select to_jsonb(g) from public.record_guardian_consent(pg
 select is(pg_temp.run('select to_jsonb(g) from public.record_guardian_consent(pg_temp.u(104),true,''v1'',repeat(''x'',201)) g')->>'error','22023','GRD-006 source maximum');
 select is(pg_temp.run('select to_jsonb(g) from public.record_guardian_consent(pg_temp.u(104),true,''v1'',''  '') g')->>'error','22023','GRD-006 blank source');
 select is(pg_temp.run('select to_jsonb(g) from public.record_guardian_consent(pg_temp.u(120),null,''UPPER'','''') g')->>'error','42501','GRD-006 visibility before input refusal');
-select is(pg_temp.run('select to_jsonb(public.set_member_age_guardian(pg_temp.u(104),current_date+1,null,null,null,null))')->>'error','22023','GRD-005 future date rejected');
+-- Tomorrow in fixture A's gym timezone stays future across the UTC/IST date boundary.
+select is(pg_temp.run('select to_jsonb(public.set_member_age_guardian(pg_temp.u(104),(statement_timestamp() at time zone ''Asia/Kolkata'')::date+1,null,null,null,null))')->>'error','22023','GRD-005 future date rejected');
 select is(pg_temp.run('select to_jsonb(public.set_member_age_guardian(pg_temp.u(104),current_date-3650,null,''mother'',null,null))')->>'error','22023','GRD-005 relation without name');
 select is(pg_temp.run('select to_jsonb(public.set_member_age_guardian(pg_temp.u(104),current_date-3650,''name'',''mother'',''bad'',null))')->>'constraint','members_guardian_phone_format_chk','GRD-005 phone format constraint');
 select is(pg_temp.run('select to_jsonb(public.set_member_age_guardian(pg_temp.u(104),current_date-3650,repeat(''x'',121),''mother'',null,null))')->>'constraint','members_guardian_name_chk','GRD-005 name maximum');
