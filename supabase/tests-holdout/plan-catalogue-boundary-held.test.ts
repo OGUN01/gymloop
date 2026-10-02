@@ -111,6 +111,25 @@ describe('PLC independent discount and callback lifetime boundaries', () => {
     expect(html.includes('>Agreed price<')).toBe(showAgreed);
   });
 
+  it('PLC-009 unsafe sold price preserves stored Discount independently of agreed arithmetic', () => {
+    const view = catalogue();
+    view.held!.recorded = {
+      listPricePaise: '9007199254740993', discountPaise: '1', agreedPricePaise: null,
+      currency: 'INR', durationDays: 30,
+    };
+    const html = surface === 'web' ? renderToStaticMarkup(createElement(HeldPlanBlock, {
+      view, copy: planCatalogueCopy({ place: 'gym' }),
+    })) : renderToStaticMarkup(createElement(PlanCatalogueBody, {
+      state: { phase: 'ready', view, loadedAt: '2026-10-03T00:00:00Z', staleReason: null, offline: false },
+      copy: planCatalogueCopy({ place: 'gym' }), timeZone: 'Asia/Kolkata', onRetry: () => undefined,
+    }));
+    expect(html).toContain('₹9,00,71,99,25,47,409.93');
+    expect(html).toContain('>Price when sold<');
+    expect(html).toContain('>Discount<');
+    expect(html).toContain('₹0.01');
+    expect(html).not.toContain('>Agreed price<');
+  });
+
   });
 
   it.each(['userId', 'tenantId', 'memberId', 'close', 'unmount'] as const)('PLC-019 retained callback cannot start a read after %s', async boundary => {
@@ -144,6 +163,7 @@ describe('PLC independent discount and callback lifetime boundaries', () => {
     expect(renderHook().state.view?.plans[0]?.name).toBe('B');
   });
 });
+
 
 
 
