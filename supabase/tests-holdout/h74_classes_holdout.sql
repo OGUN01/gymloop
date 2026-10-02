@@ -2,7 +2,7 @@
 begin;
 set local role postgres;
 set local search_path to public, extensions;
-select plan(217);
+select plan(219);
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$select ('74900000-0000-4000-8000-'||lpad(to_hex(n),12,'0'))::uuid$$;
 create function pg_temp.sc(n integer default 1) returns text language sql as $$select jsonb_build_object('sub',pg_temp.u(200+n),'role','authenticated','tenant_id',pg_temp.u(case when n=5 then 2 else 1 end),'staff_id',pg_temp.u(200+n),'app_role',case n when 1 then 'gym_owner' when 2 then 'gym_manager' when 3 then 'front_desk' when 4 then 'trainer' when 5 then 'gym_owner' else 'trainer' end)::text$$;
 create function pg_temp.mc(n integer default 100) returns text language sql as $$select jsonb_build_object('sub',pg_temp.u(1000+n),'role','authenticated','tenant_id',pg_temp.u(case when n=110 then 2 else 1 end),'member_id',pg_temp.u(n),'app_role','member')::text$$;
@@ -18,7 +18,7 @@ update public.members set erased_at=now()where id=pg_temp.u(107);
 insert into public.plans(id,tenant_id,name,duration_days,price_paise,is_active)values(pg_temp.u(300),pg_temp.u(1),'CLS live',365,100000,true),(pg_temp.u(310),pg_temp.u(2),'CLS foreign',365,100000,true);
 -- Imported legacy membership snapshots include null dates and frozen status; replica fixture setup does not bypass any tested command.
 set local session_replication_role=replica;
-insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise)select pg_temp.u(400+n),pg_temp.u(case when n=110 then 2 else 1 end),pg_temp.u(n),pg_temp.u(case when n=110 then 310 else 300 end),case when n=101 then 'frozen'::public.membership_status else 'active'::public.membership_status end,null,null,100000 from generate_series(100,110)n where n<>102;
+insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise)select pg_temp.u(400+n),pg_temp.u(case when n=110 then 2 else 1 end),pg_temp.u(n),pg_temp.u(case when n=110 then 310 else 300 end),case when n=101 then 'frozen'::public.membership_status else 'active'::public.membership_status end,current_date-60,current_date+60,100000 from generate_series(100,110)n where n<>102;
 set local session_replication_role=origin;
 insert into public.services(id,tenant_id,name,default_duration_minutes,default_capacity)values(pg_temp.u(600),pg_temp.u(1),'CLS Yoga',60,2),(pg_temp.u(610),pg_temp.u(2),'CLS foreign',60,2);
 insert into public.class_sessions(id,tenant_id,service_id,branch_id,session_date,starts_at,ends_at,capacity,trainer_staff_id)select pg_temp.u(n),pg_temp.u(case when n=710 then 2 else 1 end),pg_temp.u(case when n=710 then 610 else 600 end),pg_temp.u(case when n=710 then 21 when n=703 then 12 else 11 end),((statement_timestamp()+interval '1 day'+(n-700)*interval '1 minute')at time zone case when n=710 then 'Pacific/Honolulu'when n=703 then 'Pacific/Kiritimati'else 'Asia/Kolkata'end)::date,statement_timestamp()+interval '1 day'+(n-700)*interval '1 minute',statement_timestamp()+interval '1 day 1 hour'+(n-700)*interval '1 minute',case when n=700 then 1 else 5 end,case when n=710 then null else pg_temp.u(204)end from generate_series(700,710)n;
@@ -260,12 +260,24 @@ select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_
 set local session_replication_role=replica;update public.memberships set status='frozen',starts_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date,ends_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date where member_id=pg_temp.u(108);set local session_replication_role=origin;
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),true,'CLS check-in predicate matrix 1 frozen');
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 1');
+-- Only historical NULL-date predicate parity: preserve and restore canonical state.
+create temp table h74_null_constraint as select pg_get_constraintdef(oid)definition,convalidated from pg_constraint where conrelid='public.memberships'::regclass and conname='memberships_dated_unless_pending_chk';
+create temp table h74_null_membership as select id,status,starts_on,ends_on from public.memberships where id=pg_temp.u(508);
+alter table public.memberships drop constraint memberships_dated_unless_pending_chk;
 set local session_replication_role=replica;update public.memberships set status='active',starts_on=null,ends_on=null where member_id=pg_temp.u(108);set local session_replication_role=origin;
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),true,'CLS check-in predicate matrix 2 active');
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 2');
 set local session_replication_role=replica;update public.memberships set status='frozen',starts_on=null,ends_on=null where member_id=pg_temp.u(108);set local session_replication_role=origin;
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),true,'CLS check-in predicate matrix 3 frozen');
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 3');
+-- Restore the imported row only; all assertions and ordinary commands use origin.
+set local session_replication_role=replica;
+update public.memberships m set status=b.status,starts_on=b.starts_on,ends_on=b.ends_on from h74_null_membership b where m.id=b.id;
+set local session_replication_role=origin;
+do $$begin execute 'alter table public.memberships add constraint memberships_dated_unless_pending_chk '||(select definition from h74_null_constraint);end$$;
+select ok((select c.convalidated and c.convalidated=b.convalidated and pg_get_constraintdef(c.oid)=b.definition from pg_constraint c cross join h74_null_constraint b where c.conrelid='public.memberships'::regclass and c.conname='memberships_dated_unless_pending_chk'),'CLS historical null-date seam restores exact validated CHECK');
+select ok((select m.status=b.status and m.starts_on is not distinct from b.starts_on and m.ends_on is not distinct from b.ends_on from public.memberships m join h74_null_membership b on b.id=m.id)and current_setting('session_replication_role')='origin'and not exists(select 1 from public.memberships where status<>'pending'and(starts_on is null or ends_on is null)),'CLS historical null-date seam restores valid row and origin before commands');
+
 set local session_replication_role=replica;update public.memberships set status='active',starts_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date+1,ends_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date+2 where member_id=pg_temp.u(108);set local session_replication_role=origin;
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),false,'CLS check-in predicate matrix 4 active');
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 4');

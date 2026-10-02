@@ -69,10 +69,11 @@ select pg_temp.u(n),pg_temp.u(case when n=110 then 2 else 1 end),
 from generate_series(101,110) n;
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values
  (pg_temp.u(41),pg_temp.u(1),'CLS plan',30,10000),(pg_temp.u(42),pg_temp.u(2),'CLS plan',30,10000);
-insert into public.memberships(id,tenant_id,member_id,plan_id,status,price_paise)
+insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise)
 select pg_temp.u(n+1000),pg_temp.u(case when n=110 then 2 else 1 end),pg_temp.u(n),
  pg_temp.u(case when n=110 then 42 else 41 end),
- case when n=102 then 'frozen'::public.membership_status when n=103 then 'pending'::public.membership_status else 'active'::public.membership_status end,10000
+ case when n=102 then 'frozen'::public.membership_status when n=103 then 'pending'::public.membership_status else 'active'::public.membership_status end,
+ current_date-1,current_date+30,10000
 from generate_series(101,110) n;
 insert into public.organization_settings(tenant_id) values(pg_temp.u(1)),(pg_temp.u(2)) on conflict do nothing;
 insert into pg_temp.saved select 'attendance_before',coalesce(jsonb_agg(to_jsonb(a) order by a.id),'[]') from public.attendance a where tenant_id in(pg_temp.u(1),pg_temp.u(2));

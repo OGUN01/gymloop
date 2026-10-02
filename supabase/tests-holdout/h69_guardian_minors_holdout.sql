@@ -4,7 +4,7 @@
 begin;
 set local role postgres;
 set local search_path to public, extensions;
-select plan(292);
+select plan(293);
 
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$
 select ('69900000-0000-4000-8000-' || lpad(to_hex(n),12,'0'))::uuid
@@ -217,7 +217,7 @@ insert into auth.identities(provider_id,user_id,identity_data,provider) values
 ('h69-google-601',pg_temp.u(601),'{"sub":"h69-google-601","email":"guardian@h69.test","email_verified":true}'::jsonb,'google'),
 ('h69-google-602',pg_temp.u(602),'{"sub":"h69-google-602","email":"child8@h69.test","email_verified":true}'::jsonb,'google');
 select ok(pg_temp.run('select to_jsonb(g) from public.issue_member_invite(pg_temp.u(108),repeat(''c'',64))g')->>'invite_id' is not null,'GRD-014 issue complete minor invite');
-select is(pg_temp.run('select to_jsonb(g) from public.peek_member_invite(repeat(''c'',64))g','','anon')->>'gym_name','GRD holdout A','GRD-015 anonymous peek only gym name');
+select is(pg_temp.run('select jsonb_build_object(''gym_name'',g.gym_name) from public.peek_member_invite(repeat(''c'',64))g','','anon')->>'gym_name','GRD holdout A','GRD-015 anonymous peek only gym name');
 select is(pg_temp.run('select to_jsonb(g) from public.redeem_member_invite(repeat(''c'',64))g',jsonb_build_object('sub',pg_temp.u(602),'role','authenticated')::text)->>'outcome','email_mismatch','GRD-015 own child account refuses guardian invite');
 select is(pg_temp.run('select to_jsonb(g) from public.redeem_member_invite(repeat(''c'',64))g',jsonb_build_object('sub',pg_temp.u(601),'role','authenticated')::text)->>'outcome','linked','GRD-015 guardian Google binds child membership');
 select ok((select user_id=pg_temp.u(601) and guardian_linked_at is not null from public.members where id=pg_temp.u(108)),'GRD-013 successful minor redemption marker');

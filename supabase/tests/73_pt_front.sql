@@ -113,7 +113,7 @@ values(pg_temp.gid(290),pg_temp.gid(1),pg_temp.gid(31),pg_temp.gid(101),'active'
 set local session_replication_role=replica;
 insert into public.pt_sessions(id,tenant_id,addon_order_id,trainer_staff_id,member_id,starts_at,ends_at,status)
 select pg_temp.gid(490+n),pg_temp.gid(1),pg_temp.gid(290),pg_temp.gid(24),pg_temp.gid(31),pg_temp.slot(-10+n),pg_temp.slot(-10+n)+interval '1 hour',
-case when n<3 then 'completed'::public.booking_status else 'scheduled'::public.booking_status end
+case when n<3 then 'completed'::public.pt_session_status else 'scheduled'::public.pt_session_status end
 from generate_series(0,4) n;
 set local session_replication_role=origin;
 create temporary table pt_probe(label text primary key,v jsonb);

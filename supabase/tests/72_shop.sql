@@ -190,10 +190,14 @@ select is((select replayed from public.fulfil_shop_reservation((select id from c
 select is(pg_temp.refusal($q$select * from public.fulfil_shop_reservation((select id from captured where label='big'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),'upi',null,pg_temp.sid(503))$q$),'GL052:idempotency_conflict','SHP-010 replay changed method key conflict');
 select is(pg_temp.refusal($q$select * from public.fulfil_shop_reservation((select id from captured where label='big'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),'cash',null,pg_temp.sid(504))$q$),'GL086:reservation_not_open','SHP-010 different key cannot fulfil twice');
 reset role;
+-- Run the unchanged deferred money guard before DDL drains pending trigger events.
+-- This suite has not overridden its initially-deferred mode; restore it below.
+set constraints public.addon_orders_unaccepted immediate;
 do $$declare original text; begin
   select original_default into strict original from shop_order_clock;
   execute 'alter table public.addon_orders alter column created_at set default '||original;
 end$$;
+set constraints public.addon_orders_unaccepted deferred;
 select is((select pg_get_expr(d.adbin,d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum where d.adrelid='public.addon_orders'::regclass and a.attname='created_at'),(select original_default from shop_order_clock),'SHP-010 test clock restores exact original order default');
 select ok((select o.created_at>=r.created_at from public.shop_reservations r join public.addon_orders o on o.id=r.order_id where r.id=(select id from captured where label='big')),'SHP-011 successful ordinary fulfil preserves temporal order invariant under fixture command clock');
 select results_eq($q$select total_paise,currency collate "default",quantity from public.addon_orders where id=(select order_id from captured where label='fulfilled')$q$,$q$select * from (values(10000000000::bigint,'INR'::text collate "default",2)) as expected$q$,'SHP-010 charge current exact paise not reserved price');

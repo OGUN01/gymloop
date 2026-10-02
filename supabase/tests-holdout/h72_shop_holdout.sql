@@ -82,8 +82,9 @@ insert into public.addon_products(id,tenant_id,kind,name,description,cancellatio
 (pg_temp.u(450),pg_temp.u(1),'diet_plan','Locker','Locker use','Desk policy',30,5001),
 (pg_temp.u(451),pg_temp.u(1),'diet_plan','Complimentary towel','Towel service','Desk policy',1,0),
 (pg_temp.u(460),pg_temp.u(2),'diet_plan','Foreign service','Service','Desk policy',30,5001);
-insert into public.addon_products(id,tenant_id,kind,name,price_paise,is_active) values
-(pg_temp.u(470),pg_temp.u(1),'product','Hidden incomplete',100,false);
+-- Hidden offers may omit disclosure terms, but product stock is always required.
+insert into public.addon_products(id,tenant_id,kind,name,price_paise,is_active,stock_quantity,description) values
+(pg_temp.u(470),pg_temp.u(1),'product','Hidden incomplete',100,false,0,null);
 create function pg_temp.q(n integer) returns uuid language sql stable as $$
 select quote_version from public.addon_products where id=pg_temp.u(n)
 $$;
@@ -310,6 +311,9 @@ select ok((select o.created_at<r.created_at from public.addon_orders o cross joi
 select is(pg_temp.run(format('update public.shop_reservations set status=''fulfilled'',fulfilled_at=statement_timestamp(),fulfilled_by_staff_id=pg_temp.u(201),order_id=%L::uuid where id=pg_temp.rid(''laterreservation'')',
  (select v->'value'->>'order_id' from h72_state where k='priororder')),'{}','postgres')->>'error','GL086','postgres cannot link genuine pre-reservation order');
 select ok((select status='reserved' and order_id is null from public.shop_reservations where id=pg_temp.rid('laterreservation')),'earlier-order refusal leaves reservation untouched');
+-- Execute the canonical deferred order guard before DDL; never disable it.
+set constraints public.addon_orders_unaccepted immediate;
+set constraints public.addon_orders_unaccepted deferred;
 alter table public.addon_orders alter column created_at set default now();
 select is((select pg_get_expr(d.adbin,d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
  where d.adrelid='public.addon_orders'::regclass and a.attname='created_at'),
@@ -449,6 +453,9 @@ select ok(coalesce(pg_temp.run(format('select to_jsonb(x) from public.record_add
  pg_temp.u(102),pg_temp.u(n),pg_temp.q(n),case when n=451 then null else 'cash' end,case when n=451 then 'Holdout complimentary service' else null end,pg_temp.u(2000+n)))->>'error','') in ('','GL057'),
  'listed offer passes canonical sale completeness '||n)
 from unnest(array[401,402,403,404,450,451])n;
+-- Execute the canonical deferred order guard before DDL; never disable it.
+set constraints public.addon_orders_unaccepted immediate;
+set constraints public.addon_orders_unaccepted deferred;
 alter table public.addon_orders alter column created_at set default now();
 select is((select pg_get_expr(d.adbin,d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
  where d.adrelid='public.addon_orders'::regclass and a.attname='created_at'),

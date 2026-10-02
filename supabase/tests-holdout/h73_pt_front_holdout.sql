@@ -4,7 +4,7 @@
 begin;
 set local role postgres;
 set local search_path to public,extensions;
-select plan(315);
+select plan(330);
 create function pg_temp.u(n integer)returns uuid language sql immutable as $$select('73900000-0000-4000-8000-'||lpad(to_hex(n),12,'0'))::uuid$$;
 create function pg_temp.sc(n integer default 1)returns text language sql as $$select jsonb_build_object('sub',pg_temp.u(200+n),'role','authenticated','tenant_id',pg_temp.u(case when n=6 then 2 else 1 end),'staff_id',pg_temp.u(200+n),'app_role',case n when 1 then 'gym_owner'when 2 then 'gym_manager'when 3 then 'front_desk'when 6 then 'gym_owner'else 'trainer'end)::text$$;
 create function pg_temp.mc(n integer default 100)returns text language sql as $$select jsonb_build_object('sub',pg_temp.u(1000+n),'role','authenticated','tenant_id',pg_temp.u(case when n=108 then 2 else 1 end),'member_id',pg_temp.u(n),'app_role','member')::text$$;
@@ -298,11 +298,12 @@ update public.staff set is_active=true where id=pg_temp.u(204);
 insert into h73_res values('photoClear',pg_temp.run($q$select to_jsonb(public.set_trainer_profile(pg_temp.u(204),'Current photo',array['Power'],null,true))$q$,pg_temp.sc(),'authenticated'));
 select is((select attached_to_id from public.media_assets where id=pg_temp.photo()),null::uuid,'PTF clearing profile releases prior image attachment');
 select is(pg_temp.run($q$select to_jsonb(image_asset_id)from public.read_member_trainers()where trainer_key=md5('pt-trainer:'||pg_temp.u(1)||':'||pg_temp.u(204))::uuid$q$,pg_temp.mc()),'null'::jsonb,'PTF released image never exposed from history');
-insert into h73_res values('timeoff',pg_temp.run($q$select to_jsonb(public.add_trainer_time_off(pg_temp.u(204),((select starts_at from public.pt_sessions where id=pg_temp.u(800))at time zone 'Asia/Kolkata')::date,((select starts_at from public.pt_sessions where id=pg_temp.u(800))at time zone 'Asia/Kolkata')::date,'Time off'))$q$,pg_temp.sc(),'authenticated'));
+insert into h73_res values('timeoff',pg_temp.run($q$select to_jsonb(public.add_trainer_time_off(pg_temp.u(204),((statement_timestamp()+interval '48 hours')at time zone 'Asia/Kolkata')::date,((statement_timestamp()+interval '48 hours')at time zone 'Asia/Kolkata')::date,'Time off'))$q$,pg_temp.sc(),'authenticated'));
+select is((select v->>'error'from h73_res where k='timeoff'),null::text,'PTF valid same-day time-off range succeeds before UUID extraction');
 select is((select status::text from public.pt_sessions where id=pg_temp.u(800)),'scheduled','PTF time off preserves standing reservation');
-select is(pg_temp.run($q$select to_jsonb(public.remove_trainer_time_off((select(v#>>'{}')::uuid from h73_res where k='timeoff')))$q$,pg_temp.sc(5))->>'error','42501','PTF other trainer cannot remove time off');
-insert into h73_res values('removeTimeoff',pg_temp.run($q$select to_jsonb(public.remove_trainer_time_off((select(v#>>'{}')::uuid from h73_res where k='timeoff')))$q$,pg_temp.sc(),'authenticated'));
-select is((select count(*)from public.trainer_time_off where id=(select(v#>>'{}')::uuid from h73_res where k='timeoff')and removed_at is not null),1::bigint,'PTF time-off removal keeps tombstone');
+select is(pg_temp.run($q$select to_jsonb(public.remove_trainer_time_off((select(case when jsonb_typeof(v)='string'then v#>>'{}'end)::uuid from h73_res where k='timeoff')))$q$,pg_temp.sc(5))->>'error','42501','PTF other trainer cannot remove time off');
+insert into h73_res values('removeTimeoff',pg_temp.run($q$select to_jsonb(public.remove_trainer_time_off((select(case when jsonb_typeof(v)='string'then v#>>'{}'end)::uuid from h73_res where k='timeoff')))$q$,pg_temp.sc(),'authenticated'));
+select is((select count(*)from public.trainer_time_off where id=(select(case when jsonb_typeof(v)='string'then v#>>'{}'end)::uuid from h73_res where k='timeoff')and removed_at is not null),1::bigint,'PTF time-off removal keeps tombstone');
 update public.staff set branch_id=null where id=pg_temp.u(205);create temp table h73_reassign_before as select to_jsonb(o)facts from public.addon_orders o where id=pg_temp.ord('live');create temp table h73_reassign_session as select to_jsonb(t)facts from public.pt_sessions t where id=pg_temp.u(800);create temp table h73_reassign_audit as select count(*)n from public.audit_log where tenant_id=pg_temp.u(1);
 select is(pg_temp.run($q$select to_jsonb(r)from public.reassign_pt_packs(pg_temp.u(204),pg_temp.u(205),array[pg_temp.ord('live'),pg_temp.u(999)],'Batch move')r$q$,pg_temp.sc())->>'error','42501','PTF mixed reassignment batch refuses atomically');
 select is((select to_jsonb(o)from public.addon_orders o where id=pg_temp.ord('live')),(select facts from h73_reassign_before),'PTF refused batch preserves original trainer and every term');
@@ -454,5 +455,31 @@ select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oi
 select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='waive_pt_forfeit'),'v','PTF frozen volatility waive_pt_forfeit');
 select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='reassign_pt_packs'),'v','PTF frozen volatility reassign_pt_packs');
 select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='set_pt_policy'),'v','PTF frozen volatility set_pt_policy');
+
+-- Imported historical expiry boundary, not a positive booking/waiver command.
+-- Three real completed rows and two genuinely unclosed scheduled rows remain.
+set local session_replication_role=replica;
+insert into public.addon_orders(id,tenant_id,member_id,addon_product_id,status,unit_price_paise,total_paise,currency,trainer_staff_id,sessions_total,sessions_used,starts_on,expires_on)values(pg_temp.u(941),pg_temp.u(1),pg_temp.u(100),pg_temp.u(600),'active',0,0,'INR',pg_temp.u(204),10,3,current_date-30,current_date-1);
+insert into public.pt_sessions(id,tenant_id,addon_order_id,member_id,trainer_staff_id,starts_at,ends_at,status)select pg_temp.u(950+n),pg_temp.u(1),pg_temp.u(941),pg_temp.u(100),pg_temp.u(204),statement_timestamp()-(14+n)*interval '1 day',statement_timestamp()-(14+n)*interval '1 day'+interval '1 hour',case when n<=2 then 'scheduled'::public.pt_session_status else 'completed'::public.pt_session_status end from generate_series(1,5)n;
+set local session_replication_role=origin;
+create temp table h73_expiry_order as select to_jsonb(o)facts from public.addon_orders o where id=pg_temp.u(941);
+create temp table h73_expiry_sessions as select jsonb_agg(to_jsonb(t)order by id)facts from public.pt_sessions t where addon_order_id=pg_temp.u(941);
+create temp table h73_expiry_side_effects as select(select count(*)from public.audit_log where tenant_id=pg_temp.u(1))audits,(select count(*)from public.notifications where tenant_id=pg_temp.u(1))notices,(select count(*)from public.payments where tenant_id=pg_temp.u(1))payments,(select count(*)from public.refunds where tenant_id=pg_temp.u(1))refunds,(select count(*)from public.pt_cancellations where tenant_id=pg_temp.u(1))cancellations;
+insert into h73_res values('expiredMember',pg_temp.run($q$select to_jsonb(r)from public.read_member_pt_packs()r where order_id=pg_temp.u(941)$q$,pg_temp.mc()));
+insert into h73_res values('expiredStaff',pg_temp.run($q$select to_jsonb(r)from public.read_pt_packs()r where order_id=pg_temp.u(941)$q$));
+select is((select v->>'state'from h73_res where k='expiredMember'),'expired','PTF expired historical pack member state');
+select is((select v->>'sessions_remaining'from h73_res where k='expiredMember'),'7','PTF expired member unused count ten minus three includes reserved value');
+select is((select v->>'sessions_scheduled'from h73_res where k='expiredMember'),'2','PTF expired member actual scheduled count stays separate');
+select is((select v->>'can_book'from h73_res where k='expiredMember'),'false','PTF expired pack stays unbookable');
+select is((select v->>'state'from h73_res where k='expiredStaff'),'expired','PTF expired staff state');
+select is((select v->>'sessions_remaining'from h73_res where k='expiredStaff'),'7','PTF expired staff unused count matches member');
+select is((select v->>'sessions_scheduled'from h73_res where k='expiredStaff'),'2','PTF expired staff retains actual reservations');
+select is(pg_temp.run($q$select to_jsonb(r)from public.book_pt_session(pg_temp.u(941),pg_temp.u(960),statement_timestamp()+interval '2 days')r$q$,pg_temp.mc())->>'error','GL055','PTF expired pack refuses new booking');
+select is(pg_temp.run($q$select to_jsonb(count(*))from public.read_member_pt_slots(pg_temp.u(941),current_date,current_date+13)$q$,pg_temp.mc()),'0'::jsonb,'PTF expired pack valid14-day range exposes no slots');
+select is((select to_jsonb(o)from public.addon_orders o where id=pg_temp.u(941)),(select facts from h73_expiry_order),'PTF expired reads and refusal preserve status usage validity and sold facts');
+select is((select jsonb_agg(to_jsonb(t)order by id)from public.pt_sessions t where addon_order_id=pg_temp.u(941)),(select facts from h73_expiry_sessions),'PTF expiry does not infer attendance or close reservations');
+select ok((select audits=(select count(*)from public.audit_log where tenant_id=pg_temp.u(1))and notices=(select count(*)from public.notifications where tenant_id=pg_temp.u(1))and payments=(select count(*)from public.payments where tenant_id=pg_temp.u(1))and refunds=(select count(*)from public.refunds where tenant_id=pg_temp.u(1))and cancellations=(select count(*)from public.pt_cancellations where tenant_id=pg_temp.u(1))from h73_expiry_side_effects),'PTF expiry count and refusal write no audit notice money or waiver');
+select is(pg_temp.run($q$select to_jsonb(sessions_remaining)from public.read_member_pt_packs()where order_id=pg_temp.ord('live')$q$,pg_temp.mc()),'2'::jsonb,'PTF live remaining count keeps total-used-scheduled equation');
+select is(pg_temp.run($q$select to_jsonb(sessions_remaining)from public.read_pt_packs()where order_id=pg_temp.ord('live')$q$),'2'::jsonb,'PTF live staff remaining equation unchanged');
 select * from finish();
 rollback;

@@ -7,7 +7,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims', '', true);
-select plan(707);
+select plan(710);
 
 create function pg_temp.u(n integer) returns uuid language sql immutable as
 $$ select ('74000000-0000-4000-8000-' || lpad(to_hex(n),12,'0'))::uuid $$;
@@ -81,10 +81,11 @@ select pg_temp.u(n),pg_temp.u(case when n=110 then 2 else 1 end),
 from generate_series(101,110) n;
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values
  (pg_temp.u(41),pg_temp.u(1),'CLS plan',30,10000),(pg_temp.u(42),pg_temp.u(2),'CLS plan',30,10000);
-insert into public.memberships(id,tenant_id,member_id,plan_id,status,price_paise)
+insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise)
 select pg_temp.u(n+1000),pg_temp.u(case when n=110 then 2 else 1 end),pg_temp.u(n),
  pg_temp.u(case when n=110 then 42 else 41 end),
- case when n=102 then 'frozen'::public.membership_status when n=103 then 'pending'::public.membership_status else 'active'::public.membership_status end,10000
+ case when n=102 then 'frozen'::public.membership_status when n=103 then 'pending'::public.membership_status else 'active'::public.membership_status end,
+ current_date-1,current_date+30,10000
 from generate_series(101,110) n;
 insert into public.organization_settings(tenant_id) values(pg_temp.u(1)),(pg_temp.u(2)) on conflict do nothing;
 insert into pg_temp.saved select 'attendance_before',coalesce(jsonb_agg(to_jsonb(a) order by a.id),'[]') from public.attendance a where tenant_id in(pg_temp.u(1),pg_temp.u(2));
@@ -92,7 +93,7 @@ insert into pg_temp.saved select 'noshow_before',coalesce(jsonb_agg(to_jsonb(a) 
 select is(app.class_branch_timezone(pg_temp.u(1),pg_temp.u(11)),'Asia/Kolkata','CLS-026: branch timezone');
 select is(app.class_branch_timezone(pg_temp.u(1),pg_temp.u(12)),'Etc/GMT+12','CLS-026: opposite western branch timezone');
 select is(app.class_branch_timezone(pg_temp.u(2),pg_temp.u(13)),'Pacific/Kiritimati','CLS-026: eastern date extreme');
-select ok(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(101),current_date),'BOOKING: active open dates live');
+select ok(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(101),current_date),'BOOKING: active current bounded dates live');
 select ok(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(102),current_date),'BOOKING: owner-approved frozen live');
 select ok(not app.member_has_live_membership(pg_temp.u(1),pg_temp.u(103),current_date),'BOOKING: pending not live');
 select ok(not app.member_has_live_membership(pg_temp.u(2),pg_temp.u(101),current_date),'BOOKING: tenant binding');
@@ -770,6 +771,13 @@ begin
     when sqlstate 'GL013' then return false;
   end;
 end $f$;
+-- Rollback-only historical-null fixture seam: only the dated CHECK is absent.
+-- All helper and actual check-in probes below run with normal origin triggers.
+create temp table classes_historical_date_check as
+select pg_get_constraintdef(oid) as original_definition
+from pg_constraint where conrelid='public.memberships'::regclass
+ and conname='memberships_dated_unless_pending_chk';
+alter table public.memberships drop constraint memberships_dated_unless_pending_chk;
 insert into public.members(id,tenant_id,branch_id,full_name,phone) values(pg_temp.u(16001),pg_temp.u(1),pg_temp.u(11),'Parity 1','+91740100'||lpad('1',4,'0'));
 insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise) select pg_temp.u(17001),pg_temp.u(1),pg_temp.u(16001),pg_temp.u(41),'active',null,null,10000 from (select (statement_timestamp() at time zone 'Asia/Kolkata')::date d)x;
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(16001),(statement_timestamp() at time zone 'Asia/Kolkata')::date),true,'CLS-013: active open');
@@ -890,6 +898,20 @@ insert into public.members(id,tenant_id,branch_id,full_name,phone) values(pg_tem
 insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise) select pg_temp.u(17030),pg_temp.u(1),pg_temp.u(16030),pg_temp.u(41),'cancelled',d,null,10000 from (select (statement_timestamp() at time zone 'Asia/Kolkata')::date d)x;
 select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(16030),(statement_timestamp() at time zone 'Asia/Kolkata')::date),false,'CLS-013: cancelled inclusive start open end');
 select is(pg_temp.checkin_live(pg_temp.u(16030)),app.member_has_live_membership(pg_temp.u(1),pg_temp.u(16030),(statement_timestamp() at time zone 'Asia/Kolkata')::date),'CLS-013: actual enforce_check_in parity cancelled inclusive start open end');
+
+-- Remove only the newly imported parity membership rows before restoring the CHECK.
+-- GL045 guards direct membership writes; this import cleanup is the sole replica block.
+set local session_replication_role = replica;
+delete from public.memberships where tenant_id=pg_temp.u(1)
+ and id in (select pg_temp.u(n) from generate_series(17001,17030) n);
+set local session_replication_role = origin;
+do $$declare original text; begin
+ select original_definition into strict original from classes_historical_date_check;
+ execute 'alter table public.memberships add constraint memberships_dated_unless_pending_chk '||original;
+end$$;
+select is((select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.memberships'::regclass and conname='memberships_dated_unless_pending_chk'),(select original_definition from classes_historical_date_check),'CLS-013: historical fixture restores exact dated CHECK');
+select ok((select convalidated from pg_constraint where conrelid='public.memberships'::regclass and conname='memberships_dated_unless_pending_chk'),'CLS-013: restored dated CHECK validated');
+select is(current_setting('session_replication_role'),'origin','CLS-013: parity cleanup restores normal triggers');
 
 -- Member read surface: exact output contract, counts only and own-booking privacy.
 set local role postgres;
@@ -1088,7 +1110,7 @@ insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_tem
 insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(44),pg_temp.u(4),pg_temp.u(54),pg_temp.u(944),'gym_owner','State owner');
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(124),pg_temp.u(4),pg_temp.u(54),pg_temp.u(1024),'State member','+917402000124');
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values(pg_temp.u(25004),pg_temp.u(4),'State plan',30,10000);
-insert into public.memberships(tenant_id,member_id,plan_id,status,price_paise) values(pg_temp.u(4),pg_temp.u(124),pg_temp.u(25004),'active',10000);
+insert into public.memberships(tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise) values(pg_temp.u(4),pg_temp.u(124),pg_temp.u(25004),'active',current_date-1,current_date+30,10000);
 insert into public.services(id,tenant_id,name,default_duration_minutes,default_capacity) values(pg_temp.u(24004),pg_temp.u(4),'State class',60,2);
 insert into public.class_sessions(id,tenant_id,service_id,branch_id,session_date,starts_at,ends_at,capacity) values(pg_temp.u(26004),pg_temp.u(4),pg_temp.u(24004),pg_temp.u(54),current_date+2,statement_timestamp()+interval '2 days',statement_timestamp()+interval '2 days 1 hour',2);
 set local role authenticated;
@@ -1104,7 +1126,7 @@ insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_tem
 insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(45),pg_temp.u(5),pg_temp.u(55),pg_temp.u(945),'gym_owner','State owner');
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(125),pg_temp.u(5),pg_temp.u(55),pg_temp.u(1025),'State member','+917402000125');
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values(pg_temp.u(25005),pg_temp.u(5),'State plan',30,10000);
-insert into public.memberships(tenant_id,member_id,plan_id,status,price_paise) values(pg_temp.u(5),pg_temp.u(125),pg_temp.u(25005),'active',10000);
+insert into public.memberships(tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise) values(pg_temp.u(5),pg_temp.u(125),pg_temp.u(25005),'active',current_date-1,current_date+30,10000);
 insert into public.services(id,tenant_id,name,default_duration_minutes,default_capacity) values(pg_temp.u(24005),pg_temp.u(5),'State class',60,2);
 insert into public.class_sessions(id,tenant_id,service_id,branch_id,session_date,starts_at,ends_at,capacity) values(pg_temp.u(26005),pg_temp.u(5),pg_temp.u(24005),pg_temp.u(55),current_date+2,statement_timestamp()+interval '2 days',statement_timestamp()+interval '2 days 1 hour',2);
 set local role authenticated;
@@ -1120,7 +1142,7 @@ insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_tem
 insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(46),pg_temp.u(6),pg_temp.u(56),pg_temp.u(946),'gym_owner','State owner');
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(126),pg_temp.u(6),pg_temp.u(56),pg_temp.u(1026),'State member','+917402000126');
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values(pg_temp.u(25006),pg_temp.u(6),'State plan',30,10000);
-insert into public.memberships(tenant_id,member_id,plan_id,status,price_paise) values(pg_temp.u(6),pg_temp.u(126),pg_temp.u(25006),'active',10000);
+insert into public.memberships(tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise) values(pg_temp.u(6),pg_temp.u(126),pg_temp.u(25006),'active',current_date-1,current_date+30,10000);
 insert into public.services(id,tenant_id,name,default_duration_minutes,default_capacity) values(pg_temp.u(24006),pg_temp.u(6),'State class',60,2);
 insert into public.class_sessions(id,tenant_id,service_id,branch_id,session_date,starts_at,ends_at,capacity) values(pg_temp.u(26006),pg_temp.u(6),pg_temp.u(24006),pg_temp.u(56),current_date+2,statement_timestamp()+interval '2 days',statement_timestamp()+interval '2 days 1 hour',2);
 set local role authenticated;
@@ -1136,7 +1158,7 @@ insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_tem
 insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(47),pg_temp.u(7),pg_temp.u(57),pg_temp.u(947),'gym_owner','State owner');
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(127),pg_temp.u(7),pg_temp.u(57),pg_temp.u(1027),'State member','+917402000127');
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values(pg_temp.u(25007),pg_temp.u(7),'State plan',30,10000);
-insert into public.memberships(tenant_id,member_id,plan_id,status,price_paise) values(pg_temp.u(7),pg_temp.u(127),pg_temp.u(25007),'active',10000);
+insert into public.memberships(tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise) values(pg_temp.u(7),pg_temp.u(127),pg_temp.u(25007),'active',current_date-1,current_date+30,10000);
 insert into public.services(id,tenant_id,name,default_duration_minutes,default_capacity) values(pg_temp.u(24007),pg_temp.u(7),'State class',60,2);
 insert into public.class_sessions(id,tenant_id,service_id,branch_id,session_date,starts_at,ends_at,capacity) values(pg_temp.u(26007),pg_temp.u(7),pg_temp.u(24007),pg_temp.u(57),current_date+2,statement_timestamp()+interval '2 days',statement_timestamp()+interval '2 days 1 hour',2);
 set local role authenticated;
@@ -1152,7 +1174,7 @@ insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_tem
 insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(48),pg_temp.u(8),pg_temp.u(58),pg_temp.u(948),'gym_owner','State owner');
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(128),pg_temp.u(8),pg_temp.u(58),pg_temp.u(1028),'State member','+917402000128');
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values(pg_temp.u(25008),pg_temp.u(8),'State plan',30,10000);
-insert into public.memberships(tenant_id,member_id,plan_id,status,price_paise) values(pg_temp.u(8),pg_temp.u(128),pg_temp.u(25008),'active',10000);
+insert into public.memberships(tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise) values(pg_temp.u(8),pg_temp.u(128),pg_temp.u(25008),'active',current_date-1,current_date+30,10000);
 insert into public.services(id,tenant_id,name,default_duration_minutes,default_capacity) values(pg_temp.u(24008),pg_temp.u(8),'State class',60,2);
 insert into public.class_sessions(id,tenant_id,service_id,branch_id,session_date,starts_at,ends_at,capacity) values(pg_temp.u(26008),pg_temp.u(8),pg_temp.u(24008),pg_temp.u(58),current_date+2,statement_timestamp()+interval '2 days',statement_timestamp()+interval '2 days 1 hour',2);
 set local role authenticated;
@@ -1168,7 +1190,7 @@ insert into public.branches(id,tenant_id,name,is_default,timezone) values(pg_tem
 insert into public.staff(id,tenant_id,branch_id,user_id,role,full_name) values(pg_temp.u(49),pg_temp.u(9),pg_temp.u(59),pg_temp.u(949),'gym_owner','State owner');
 insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone) values(pg_temp.u(129),pg_temp.u(9),pg_temp.u(59),pg_temp.u(1029),'State member','+917402000129');
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values(pg_temp.u(25009),pg_temp.u(9),'State plan',30,10000);
-insert into public.memberships(tenant_id,member_id,plan_id,status,price_paise) values(pg_temp.u(9),pg_temp.u(129),pg_temp.u(25009),'active',10000);
+insert into public.memberships(tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise) values(pg_temp.u(9),pg_temp.u(129),pg_temp.u(25009),'active',current_date-1,current_date+30,10000);
 insert into public.services(id,tenant_id,name,default_duration_minutes,default_capacity) values(pg_temp.u(24009),pg_temp.u(9),'State class',60,2);
 insert into public.class_sessions(id,tenant_id,service_id,branch_id,session_date,starts_at,ends_at,capacity) values(pg_temp.u(26009),pg_temp.u(9),pg_temp.u(24009),pg_temp.u(59),current_date+2,statement_timestamp()+interval '2 days',statement_timestamp()+interval '2 days 1 hour',2);
 set local role authenticated;
