@@ -525,7 +525,7 @@ describe('startStaffInviteGoogleSignIn', () => {
     expect(state.events).toEqual(['cookie', 'oauth']);
   });
 
-  it('starts Google with exactly the one fixed callback and no token in it', async () => {
+  it('INV-027 starts Google with the account chooser, exactly the one fixed callback and no token in it', async () => {
     await expect(start(TOKEN)).rejects.toThrow(/REDIRECT:/);
 
     expect(state.oauth).toEqual([{

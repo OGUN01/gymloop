@@ -685,7 +685,7 @@ describe('INV-021 startInviteGoogleSignIn', () => {
     expect(state.writes[0]?.attributes.secure ?? false).toBe(false);
   });
 
-  it('starts Google with redirectTo exactly the fixed callback: no query, no next, no token anywhere', async () => {
+  it('INV-027 starts Google with the account chooser and exactly the fixed callback: no next or token anywhere', async () => {
     const actions = await realActions();
     expect(actions.startInviteGoogleSignIn).toBeTypeOf('function');
     await actions.startInviteGoogleSignIn!(TOKEN).catch(() => undefined);

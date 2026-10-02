@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextResponse } from 'next/server';
 
 /**
  * The OAuth callback and the staff invite cookie (STI-014), written from
@@ -98,7 +99,12 @@ async function callback(cookies: Record<string, string>, query = 'code=valid-cod
   const request = new Request(`${origin}/auth/callback?${query}`, {
     headers: state.cookieHeader === '' ? {} : { cookie: state.cookieHeader },
   });
-  return await GET(request);
+  const response = await GET(request);
+  // STI v1.1 inherits INV's no-store requirement for every callback outcome.
+  // Assert the real response headers on success, invite continuation and failure.
+  expect(response).toBeInstanceOf(NextResponse);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  return response;
 }
 
 beforeEach(() => {

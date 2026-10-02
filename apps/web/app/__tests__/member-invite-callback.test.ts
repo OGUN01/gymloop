@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextResponse } from 'next/server';
 
 /**
  * INV-021: the OAuth callback honours the invite cookie in exactly one place —
@@ -86,6 +87,10 @@ function callbackRequest(path: string, cookie?: string): Request {
 async function run(request: Request) {
   const { GET } = await import('../auth/callback/route');
   const response = await GET(request);
+  // INV v1.1: every callback outcome, including failure redirects, is private.
+  // Keep NextResponse real so a response mock cannot manufacture passing headers.
+  expect(response).toBeInstanceOf(NextResponse);
+  expect(response.headers.get('cache-control')).toBe('no-store');
   return { response, location: response.headers.get('location'), body: await response.text() };
 }
 
