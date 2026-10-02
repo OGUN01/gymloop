@@ -1,5 +1,14 @@
 // Independent frozen public loaders; the client supplied is the authority.
 import { describe, expect, it, vi } from 'vitest';
+// Reads need no native network runtime; commands have their separate offline suite.
+vi.mock('expo-network', () => ({
+  getNetworkStateAsync: async (): Promise<{ isConnected: boolean; isInternetReachable: boolean }> => ({
+    isConnected: true, isInternetReachable: true,
+  }),
+  useNetworkState: (): { isConnected: boolean; isInternetReachable: boolean } => ({
+    isConnected: true, isInternetReachable: true,
+  }),
+}));
 const id = '74900000-0000-4000-8000-000000000001';
 const other = '74900000-0000-4000-8000-000000000002';
 const window = { from: '2026-10-04', to: '2026-10-05' };
