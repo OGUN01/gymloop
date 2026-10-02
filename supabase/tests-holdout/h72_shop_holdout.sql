@@ -270,7 +270,7 @@ select pg_temp.refused(pg_temp.fulfil('sale',810),'GL055','member_unavailable','
 update public.members set status='active' where id=pg_temp.u(102);
 select pg_temp.refused(pg_temp.fulfil('sale',810,null,'razorpay'),'GL055','invalid_payment','fulfil no online charge');
 select ok((select status='reserved' and order_id is null from public.shop_reservations where id=pg_temp.rid('sale')) and
- not exists(select 1 from public.addon_orders where idempotency_key=pg_temp.u(810)::text)),'sale refusal rollback money and intent');
+ not exists(select 1 from public.addon_orders where idempotency_key=pg_temp.u(810)::text),'sale refusal rollback money and intent');
 -- BEGIN bounded successful sale/fulfil command-transaction simulation.
 -- Only the column default changes; all sale functions and invariant triggers stay active.
 insert into h72_state values('order_created_default',to_jsonb((select pg_get_expr(d.adbin,d.adrelid)
