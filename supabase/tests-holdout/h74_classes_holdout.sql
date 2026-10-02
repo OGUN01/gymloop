@@ -255,6 +255,9 @@ update public.branches set timezone='Invalid/CLS'where id=pg_temp.u(12);
 select is(app.class_branch_timezone(pg_temp.u(1),pg_temp.u(12)),'Pacific/Kiritimati','CLS invalid branch falls back gym');
 -- Rotating member gate evaluates the canonical gym-local day, distinct from
 -- the class branch timezone; each successful scan is rolled back below.
+-- Canonical empty opening-hours object means open at every hour/day.
+-- Configure through the ordinary authenticated owner write, not a clock seam.
+do $$declare v jsonb;begin v:=pg_temp.run('update public.organization_settings set opening_hours=''{}''::jsonb where tenant_id=pg_temp.u(1)returning opening_hours',pg_temp.sc());if v is distinct from '{}'::jsonb then raise exception 'all-day parity settings fixture failed: %',v;end if;end$$;
 select is(pg_temp.run($q$select to_jsonb(public.set_checkin_gate_mode('rotating_screen'))$q$),'"rotating_screen"'::jsonb,'CLS parity fixture establishes canonical rotating member gate');
 insert into public.qr_sessions(id,tenant_id,branch_id,token_hash,gate_mode,expires_at,created_by_staff_id)values(pg_temp.u(29000),pg_temp.u(1),pg_temp.u(11),repeat('a',64),'rotating_screen',clock_timestamp()+interval '10 minutes',pg_temp.u(201));
 create temp table h74_parity_diagnostics(outcome jsonb);

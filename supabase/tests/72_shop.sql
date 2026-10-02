@@ -5,7 +5,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims','',true);
-select plan(202);
+select plan(211);
 
 create function pg_temp.sid(n integer) returns uuid language sql immutable as $$select ('72000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.claim(r text, t integer default 1, s integer default null, m integer default null, u integer default null, extra jsonb default '{}'::jsonb) returns void language plpgsql as $$begin perform set_config('request.jwt.claims',(jsonb_strip_nulls(jsonb_build_object('role','authenticated','app_role',r,'tenant_id',pg_temp.sid(t),'staff_id',pg_temp.sid(s),'member_id',pg_temp.sid(m),'sub',pg_temp.sid(u)))||extra)::text,true); end$$;
@@ -472,5 +472,55 @@ select set_config('app.media_finalize_command','finalize:'||(select id::text fro
 select is(pg_temp.refusal($q$update public.media_assets set object_key=pg_temp.pub(830,'trainer'),verified_source_etag='s',published_etag='p',confirmed_at=statement_timestamp() where id=(select id from captured where label='trainer-image')$q$),'GL086:media_verification_invariant','MED-002 suffix marker is not exact finalization command');
 select ok((select pg_get_functiondef(to_regprocedure('public.create_shop_reservation(uuid,integer,uuid)')) ~* 'for\s+update'),'SHP-006 create serializes on product row, two-connection race still required');
 select ok((select bool_and(pg_get_functiondef(to_regprocedure(sig)) like '%shop-reservation:%' and pg_get_functiondef(to_regprocedure(sig)) like '%pg_advisory_xact_lock%' and pg_get_functiondef(to_regprocedure(sig)) like '%hashtextextended%') from rpc_contract where sig in ('public.cancel_shop_reservation(uuid,text)','public.fulfil_shop_reservation(uuid,uuid,public.payment_method,text,uuid)','app.shop_reservation_mark_fulfilled(uuid,uuid)')),'SHP-010 all three transitions use the prescribed reservation advisory lock namespace');
+-- Negative-only prior-sale chronology seam (public rollback-clock clarification).
+-- Separate committed-transaction proof remains mandatory; no stored timestamp is rewritten.
+select set_config('request.jwt.claims','',true);
+insert into public.addon_products(id,tenant_id,kind,name,description,price_paise,currency,validity_days,stock_quantity,cancellation_terms,is_active)
+values(pg_temp.sid(190),pg_temp.sid(1),'product','Prior-sale fixture','Disclosed',10000,'INR',7,4,'Desk collection',true);
+alter table public.addon_orders alter column created_at set default statement_timestamp();
+select pg_temp.claim('front_desk',1,23,null,903);
+set local role authenticated;
+insert into captured(label,order_id,payment_id,replayed)
+select 'prior-sale',order_id,payment_id,replayed from public.record_addon_sale(pg_temp.sid(31),pg_temp.sid(190),1,(select quote_version from public.addon_products where id=pg_temp.sid(190)),null,null,null,'cash',null,pg_temp.sid(590));
+reset role;
+set constraints public.addon_orders_unaccepted immediate;
+do $$declare original text; begin
+ select original_default into strict original from shop_order_clock;
+ execute 'alter table public.addon_orders alter column created_at set default '||original;
+end$$;
+set constraints public.addon_orders_unaccepted deferred;
+create temp table shop_prior_reservation_clock as
+select pg_get_expr(d.adbin,d.adrelid) original_default from pg_attrdef d
+join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
+where d.adrelid='public.shop_reservations'::regclass and a.attname='created_at';
+alter table public.shop_reservations alter column created_at set default clock_timestamp();
+select pg_temp.claim('member',1,null,31,906);
+set local role authenticated;
+insert into captured(label,id,expiry)
+select 'later-reservation',reservation_id,expires_at from public.create_shop_reservation(pg_temp.sid(190),1,(select quote_version from public.addon_products where id=pg_temp.sid(190)));
+reset role;
+-- Restore immediately after creation, before every linking/refusal or positive command.
+do $$declare original text; begin
+ select original_default into strict original from shop_prior_reservation_clock;
+ execute 'alter table public.shop_reservations alter column created_at set default '||original;
+end$$;
+select ok((select o.created_at<r.created_at from public.addon_orders o cross join public.shop_reservations r where o.id=(select order_id from captured where label='prior-sale') and r.id=(select id from captured where label='later-reservation')),'SHP-011 prior ordinary sale strictly precedes later reservation');
+select is((select pg_get_expr(d.adbin,d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum where d.adrelid='public.shop_reservations'::regclass and a.attname='created_at'),(select original_default from shop_prior_reservation_clock),'SHP-011 negative fixture restores exact reservation default before linking');
+select is((select pg_get_expr(d.adbin,d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum where d.adrelid='public.addon_orders'::regclass and a.attname='created_at'),(select original_default from shop_order_clock),'SHP-011 prior-sale fixture restores exact order default');
+create temp table shop_prior_effects as select
+(select coalesce(jsonb_agg(to_jsonb(r) order by r.id),'[]') from public.shop_reservations r where tenant_id=pg_temp.sid(1)) reservation,
+(select coalesce(jsonb_agg(to_jsonb(o) order by o.id),'[]') from public.addon_orders o where product_id=pg_temp.sid(190)) orders,
+(select coalesce(jsonb_agg(to_jsonb(p) order by p.id),'[]') from public.payments p where tenant_id=pg_temp.sid(1)) payments,
+(select stock_quantity from public.addon_products where id=pg_temp.sid(190)) stock,
+(select count(*) from public.audit_log where tenant_id=pg_temp.sid(1)) audits;
+select pg_temp.claim('front_desk',1,23,null,903);
+set local role authenticated;
+select is(pg_temp.refusal($q$select app.shop_reservation_mark_fulfilled((select id from captured where label='later-reservation'),(select order_id from captured where label='prior-sale'))$q$) like 'GL086:%',true,'SHP-011 matching prior ordinary sale cannot fulfil later reservation');
+reset role;
+select is((select coalesce(jsonb_agg(to_jsonb(r) order by r.id),'[]') from public.shop_reservations r where tenant_id=pg_temp.sid(1)),(select reservation from shop_prior_effects),'SHP-011 prior-sale refusal creates or changes no reservation');
+select is((select coalesce(jsonb_agg(to_jsonb(o) order by o.id),'[]') from public.addon_orders o where product_id=pg_temp.sid(190)),(select orders from shop_prior_effects),'SHP-011 prior-sale refusal creates or changes no order');
+select is((select coalesce(jsonb_agg(to_jsonb(p) order by p.id),'[]') from public.payments p where tenant_id=pg_temp.sid(1)),(select payments from shop_prior_effects),'SHP-011 prior-sale refusal creates or changes no payment');
+select is((select stock_quantity from public.addon_products where id=pg_temp.sid(190)),(select stock from shop_prior_effects),'SHP-011 prior-sale refusal preserves stock');
+select is((select count(*) from public.audit_log where tenant_id=pg_temp.sid(1)),(select audits from shop_prior_effects),'SHP-011 prior-sale refusal creates no audit');
 select * from finish();
 rollback;

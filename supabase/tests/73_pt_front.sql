@@ -852,8 +852,8 @@ set local role postgres;
 
 
 -- Canonical hook-issued support preview: real platform actor, no invented staff.
-select set_config('request.jwt.claims','',true);
-select pg_temp.claim('super_admin',null,null,910);
+-- Obtain the ordinary platform token first: it has no tenant or gym identity bits.
+select set_config('request.jwt.claims',(app.custom_access_token_hook(jsonb_build_object('user_id',pg_temp.gid(910),'claims',jsonb_build_object('sub',pg_temp.gid(910),'role','authenticated')))->'claims')::text,true);
 set local role authenticated;
 select public.start_gym_preview(pg_temp.gid(1),'PTF independent preview',pg_temp.gid(999));
 set local role postgres;

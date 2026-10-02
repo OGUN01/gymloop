@@ -9,7 +9,7 @@
 begin;
 set local role postgres;
 set local search_path to public, extensions;
-select plan(271);
+select plan(273);
 
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$
 select ('72900000-0000-4000-8000-'||lpad(to_hex(n),12,'0'))::uuid
@@ -303,14 +303,37 @@ insert into h72_state values('freefulfilled',pg_temp.run(pg_temp.fulfil('free',8
 select ok((select v->>'error' is null and v->'value'->>'payment_id' is null from h72_state where k='freefulfilled'),'free reservation converts without payment');
 -- A genuine ordinary sale before a genuine reservation must remain inadmissible.
 -- This negative causal guard prevents the seam from relaxing SHP-011 semantics.
+-- Frozen rollback-clock clarification: this negative fixture alone changes the
+-- reservation default; positive fulfil/replay above use its canonical default.
+insert into h72_state values('reservation_created_default',to_jsonb((select pg_get_expr(d.adbin,d.adrelid)
+ from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
+ where d.adrelid='public.shop_reservations'::regclass and a.attname='created_at')));
+alter table public.shop_reservations alter column created_at set default clock_timestamp();
 insert into h72_state values('priororder',pg_temp.run('select to_jsonb(x) from public.record_addon_sale(pg_temp.u(102),pg_temp.u(410),1,pg_temp.q(410),null,null,null,''cash'',null,pg_temp.u(827))x'));
 insert into h72_state values('laterreservation',pg_temp.run(pg_temp.reserve(410),pg_temp.member_claim(2)));
+do $restore_reservation_default$
+begin
+ execute format('alter table public.shop_reservations alter column created_at set default %s',
+  (select v#>>'{}' from h72_state where k='reservation_created_default'));
+end
+$restore_reservation_default$;
+select is((select pg_get_expr(d.adbin,d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
+ where d.adrelid='public.shop_reservations'::regclass and a.attname='created_at'),
+ (select v#>>'{}' from h72_state where k='reservation_created_default'),'exact reservation default restored before negative causal probe');
+insert into h72_state values('causalbefore',jsonb_build_object('orders',(select count(*) from public.addon_orders),
+ 'payments',(select count(*) from public.payments),'reservations',(select count(*) from public.shop_reservations),
+ 'stock',(select stock_quantity from public.addon_products where id=pg_temp.u(410))));
 select ok((select o.created_at<r.created_at from public.addon_orders o cross join public.shop_reservations r
  where o.id=(select (v->'value'->>'order_id')::uuid from h72_state where k='priororder') and r.id=pg_temp.rid('laterreservation')),
  'genuine earlier ordinary sale predates later reservation even inside bounded seam');
-select is(pg_temp.run(format('update public.shop_reservations set status=''fulfilled'',fulfilled_at=statement_timestamp(),fulfilled_by_staff_id=pg_temp.u(201),order_id=%L::uuid where id=pg_temp.rid(''laterreservation'')',
+select is(pg_temp.run(format('update public.shop_reservations set status=''fulfilled'',fulfilled_at=statement_timestamp(),fulfilled_by_staff_id=pg_temp.u(201),order_id=%L::uuid where id=pg_temp.rid(''laterreservation'') returning to_jsonb(id)',
  (select v->'value'->>'order_id' from h72_state where k='priororder')),'{}','postgres')->>'error','GL086','postgres cannot link genuine pre-reservation order');
 select ok((select status='reserved' and order_id is null from public.shop_reservations where id=pg_temp.rid('laterreservation')),'earlier-order refusal leaves reservation untouched');
+select ok((select count(*) from public.addon_orders)=(select (v->>'orders')::bigint from h72_state where k='causalbefore') and
+ (select count(*) from public.payments)=(select (v->>'payments')::bigint from h72_state where k='causalbefore') and
+ (select count(*) from public.shop_reservations)=(select (v->>'reservations')::bigint from h72_state where k='causalbefore') and
+ (select stock_quantity from public.addon_products where id=pg_temp.u(410))=(select (v->>'stock')::integer from h72_state where k='causalbefore'),
+ 'earlier-order refusal creates no sale payment reservation or stock effect');
 -- Execute the canonical deferred order guard before DDL; never disable it.
 set constraints public.addon_orders_unaccepted immediate;
 set constraints public.addon_orders_unaccepted deferred;
