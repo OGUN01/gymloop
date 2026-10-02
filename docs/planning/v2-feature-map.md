@@ -15,10 +15,10 @@ churn detection, renewals) is vertical-free by design. Only copy varies.
 
 | Wave | Theme | Features |
 |---|---|---|
-| A | Identity foundations | INV, GRD, BIZ |
-| B | The "front" of the app | CLS, SHP, PTF, ANC |
+| A | Identity foundations | INV, STI, GRD, BIZ |
+| B | The "front" of the app | CLS, SHP, PTF, ANC, PLC |
 | C | Reach and member-visible money | NTF, WSP, PAY |
-| D | Polish and retention | SLF, TRV, LDC, OCC |
+| D | Polish and retention | SLF, TRV, LDC, OCC, RPE |
 
 Wave B is the centerpiece: what a business *does* (classes, training, selling)
 becomes the visible front of the member app; what it *records* (membership,
@@ -301,6 +301,51 @@ sessions excluded).
 
 ---
 
+## F16. Plans catalogue in the member app (PLC)
+
+**What.** A read-only view of the gym's active plans - name, duration, price,
+what it includes - in the member app, giving the Buy tab's renewal request its
+context: a member sees what exists, not only what they already hold.
+
+**Edge cases.**
+- Only active plans are visible; inactive or hidden plans never leak to members.
+- The price shown is the plan's current price; a member's existing membership keeps its recorded price (the existing snapshot rule) - the two may differ and the copy must not imply the old price still holds.
+- Plan ordering follows the existing sort order; no re-sorting on the member side.
+- Read-only: the member may request a renewal of their current plan; any other plan change stays a desk conversation (consistent with the GL043 plan-change refusal rules).
+- GST is displayed per the existing GST-rate storage; no tax math is invented client-side.
+- Offline: the catalogue is cached read-only like the other member read views; no stale-price purchase is possible because no purchase happens in the app.
+
+## F17. Staff invites (STI)
+
+**What.** INV's self-linking token machinery extended to staff rows: an owner
+invites a desk member, trainer or manager by email, they self-link with
+Google, and manual staff provisioning retires for new gyms.
+
+**Edge cases.**
+- Only a gym_owner (and /platform) may send a staff invite - role boundary enforced at the console and revalidated at redemption.
+- The role (front_desk / trainer / gym_manager) is assigned by the inviter and never editable by the invitee; a trainer invite lands on trainer-only surfaces (TRV boundaries).
+- One staff identity per row, reusing the one-binding rule; the same person staffing two gyms hits the same identity question as INV and is decided with it.
+- Owner-level invitations: only /platform links gym_owners (the existing boundary) - an owner may not create another owner.
+- Expiry, resend and revoke reuse INV's token machinery; expiry frees nothing but the token.
+- Unbinding a staff member revokes their sessions through the existing identity-change hook.
+- Every invite, link and unlink is audited.
+- The invited email must match the staff row exactly, with the same refuse-generic copy as member invites.
+
+## F18. PDF reports and GST invoice export (RPE)
+
+**What.** Owner-console exports: payments, attendance and member lists as
+CSV; GST-compliant invoice PDFs from the existing invoices table. Download
+only - no email sending, no scheduling.
+
+**Edge cases.**
+- Exports are tenant-scoped by RLS: a gym can never export another gym's data, and export runs under the requesting staff member's role.
+- Every export carries a generated-at timestamp and data-range stamp inside the file - no undated numbers.
+- Money renders from integer paise through the existing formatter only; no float anywhere in an export, ever.
+- GST invoice layout follows the stored per-line tax breakup; a mismatch between invoice and payments tables is an export-time refusal, not a rendered guess.
+- Export is a data-egress event: audited (who, what, when, range), visible in the audit log.
+- Large exports get row caps or async generation - never a timeout that silently truncates a tax filing.
+- Owner console only in v2; a member-facing invoice download is a later candidate.
+
 ## What stays in add-ons
 
 The add-ons **section** as the member sees it goes away; its contents split:
@@ -320,26 +365,13 @@ The add-ons **section** as the member sees it goes away; its contents split:
 - Migrations via CI only; no Supabase MCP; no eslint-disable.
 - The closed-test feedback merges into this map before build order is locked.
 
-## F15. Candidates from the 2026-10-02 gap review (triaged 2026-10-02)
+## F16-F18 promoted to committed features (owner decision, 2026-10-02)
 
-Found by walking the full member and owner lifecycle through this map, then
-triaged by the owner against one filter: does it serve the core loop
-(attendance -> churn detection -> contact -> renewal collected -> what
-worked)? If not, it is overhead.
+The three gap-review items below were promoted by the owner into the
+committed v2 list as F16 (PLC), F17 (STI) and F18 (RPE) - see their own
+sections above, before "What stays in add-ons".
 
-### Recommended first-in-line when v2 starts (owner-agreed)
-
-- **Plans catalogue in the member app.** Members see what plans exist before
-  requesting a renewal, not just what they already hold. Cheap (read-only
-  view of the existing plans table) and the Buy tab is incomplete without it.
-- **Staff invites.** INV's self-linking flow extended to desk staff and
-  trainers (the same token machinery, staff rows, role boundaries). Cheap, and
-  manual identity provisioning stops scaling the moment real gyms onboard.
-- **PDF reports and GST invoice export.** Payment/attendance exports for tax
-  filing; the invoices table exists with no download. Owner console only,
-  real pain, no member-app risk.
-
-### Parked - build only on real demand
+## F15. Parked candidates - build only on real demand
 
 - **Free trial class booking.** A lead books a trial class from CLS's
   timetable - the standard dance/yoga acquisition move. Waits for CLS.
