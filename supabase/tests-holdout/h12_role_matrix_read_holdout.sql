@@ -30,7 +30,7 @@ begin;
 -- assumed explicitly (ADR-046).
 set local role postgres;
 
-select plan(50);
+select plan(52);
 
 -- ---------------------------------------------------------------------------
 -- The matrix, transcribed from design.md section 8.3.
@@ -103,6 +103,22 @@ insert into matrix (tbl, read_gate, write_gate, member_gate, grant_write) values
 insert into matrix (tbl, read_gate, write_gate, member_gate, gym_side) values
   ('platform_users', null, null, null, false);
 
+-- Frozen batch-2 inventory is separate from the unchanged legacy role matrix:
+-- these tables retain the policy shapes prescribed by their own contracts.
+create temp table approved_batch2_tables (tbl text not null);
+insert into approved_batch2_tables (tbl) values
+  ('guardian_consents'),
+  ('media_assets'), ('shop_categories'), ('shop_reservations'),
+  ('trainer_profiles'), ('trainer_availability'), ('trainer_time_off'),
+  ('pt_cancellations'),
+  ('services'), ('class_rules'), ('class_sessions'), ('class_bookings'),
+  ('announcements'), ('announcement_versions'), ('announcement_receipts');
+
+create temp view approved_public_tables as
+  select tbl from matrix
+  union all
+  select tbl from approved_batch2_tables;
+
 -- ADR-044: pg_class.relname and pg_policy.polname are `name`, collation "C". Joining
 -- them against the text columns of `matrix` without forcing a collation is the
 -- 42P22 that aborts a whole file, so every catalogue identifier is cast to text and
@@ -124,22 +140,34 @@ create temp view named_pol as
    where p.polname like p.tbl || '\_%';
 
 -- ---------------------------------------------------------------------------
--- 1-21. The catalogue: the matrix as it is actually written into pg_policy.
+-- 1-23. The catalogue: the matrix as it is actually written into pg_policy.
 -- ---------------------------------------------------------------------------
 
 select is(
   (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relkind = 'r'),
-  38::bigint,
-  'public holds exactly the thirty-eight tables the extended INV/STI matrix enumerates');
+  53::bigint,
+  'public holds exactly the fifty-three legacy and approved batch-2 tables');
 
 select is_empty(
-  $q$ select tbl from matrix
+  $q$ select tbl from approved_public_tables
       except
       select c.relname::text collate "default" from pg_class c
         join pg_namespace n on n.oid = c.relnamespace
        where n.nspname = 'public' and c.relkind = 'r' $q$,
-  'every table the matrix names exists');
+  'every declared legacy or approved batch-2 table exists');
+
+select is_empty(
+  $q$ select c.relname::text collate "default" from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public' and c.relkind = 'r'
+      except
+      select tbl from approved_public_tables $q$,
+  'every public table is explicitly declared by the legacy or approved batch-2 inventory');
+
+select is_empty(
+  $q$ select tbl from approved_public_tables group by tbl having count(*) <> 1 $q$,
+  'each public-table inventory name is declared exactly once across both inventories');
 
 -- The revised shape retires both of Phase 1's policy names. A survivor is a table
 -- that did not get the split, and it is the one shape whose UPDATE raises.
