@@ -434,3 +434,35 @@ booking confirmation additionally needs current policy unavailable in the five
 safe member projections. A fresh independent contract critic confirmed no
 existing authorized reuse. The two-field read amendment617c9e0 awaits owner
 approval before SQL/app author fanout. No implementation of that read exists.
+
+### Application caller, offline and catalogue review checkpoint, 2026-10-03
+
+Independent SHP caller-context repairf944751 precedes the source adapter's reuse
+of unchanged memberSession/staffSession. Canonical missing-auth requests now use
+the ordinary guard envelope without an added audience policy. The native memory
+cache scope refuses incomplete classified caller IDs. Root's held app rerun
+passes60/60; separate visible closures pass shared42, web/sale109, native14 and
+MEDIA stage/delegation32. No Shop browser/native visual or real reservation race
+win is inferred from these tests; central identity cleanup is not integrated.
+
+CLS visiblea65cb27 and independent held44be722 precede backend implementation.
+Initial visible287 passes. Root's first held run passes358/363; five offline
+native command adapters dispatch before checking connectivity. Independent
+visible source-blind preflight/no-replay tests951e81d are committed RED30 with
+four existing cases green. The separate implementer is correcting that boundary.
+No rendered Classes UI or actual browser/device execution is claimed.
+
+Fresh source-blind PLC application critic returned NO: zero-discount membership
+facts incorrectly show Agreed price (PLC-009), and a retained reload callback can
+start an old-caller read after scope cleanup (PLC-019/Q9). Independent visible
+and held authors are pinning the unchanged requirements before source fixes.
+The guardian provenance and current member PT policy amendments remain pending
+with the owner. Independent PTF scalar fixture repair0cbcb84 preserves all cutoff
+and consumption assertions; backend held134/134 now passes, rendered UI remains
+open. Independent BIZ projection repairceadee1 passes6/6.
+
+Actual protected production-media environment metadata is recorded in
+docs/evidence/v2/media/protected-ci-environment.json (commit395be81). It admits
+only main and requires OGUN01 review. No workflow was dispatched, no Edge secret
+was provisioned and no media object was uploaded. Source/gates, protected review
+and actual verified immutable publication remain acceptance work.

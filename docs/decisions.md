@@ -1809,3 +1809,17 @@ Registry and code searches found no reusable client hook combining guardian comm
 BIZ uses registered `loadBusinessOrganization` to share one caller-RLS organization snapshot per React request, including the already-public name, gym code, timezone and business type. Independent request-lifetime tests precede source; there is no cross-request or JWT cache. `loadConsoleBusinessNouns` composes the unchanged console audience guard with that loader in its own web module. No existing registered helper combined these responsibilities. Memberships/payments reuse it, and check-in reuses its already-required gate-settings caller; duplicate setup is removed without a second validator or formatting escape. Existing visible callers remain unchanged and jscpd reports zero clones.
 
 PTF's `ptNullableRpc` preserves exactly three approved SQL NULL seams: optional profile image, optional time-off reason and omitted reassignment order ids. Generated RPC Args omit PostgreSQL parameter nullability; this adapter is derived from the generated named Args rather than a replacement database type or generic untyped RPC. It keeps canonical SQL NULL behavior within the already-approved commands, caller-session client and strict request schemas. No generated file, authorization, money rule or procedure signature changes. Independent visible/holdout tests precede the backend source. PTF's unbooked-slot current-policy read remains a separate proposed owner amendment; it is not authorized by this reuse note.
+
+**ADR-181 application reuse clarification (2026-10-03).** Shop ordinary routes
+compose the existing memberSession/staffSession guards and caller client instead
+of a second identity validator; media's separate primitive remains unchanged.
+`addonSaleFailure` extracts the unchanged existing sale refusal mapper for reuse
+by reservation fulfilment, avoiding copied money error rules. Native catalogue
+cache uses the frozen in-memory-only contract, not SecureStore or a new storage
+dependency. Registry/code search found no existing feature-cache cleanup lease;
+`shopCacheCurrent` invalidates pending catalogue reads synchronously when cleanup
+starts, while `clearShopCache` removes tracked memory scopes. The native scope
+helper checks completeness of already-classified IDs without inventing a raw
+token authentication policy. Provider/sign-out integration still needs separate
+identity-cleanup tests before source edits. These are factoring notes under the
+approved contract, not an authorization expansion or runtime acceptance claim.

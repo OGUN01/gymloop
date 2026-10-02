@@ -6,6 +6,27 @@ current checkpoint below supersedes the historical session-1 snapshot.
 
 ## Current checkpoint
 
+- Application checkpoint: canonical Shop caller fixtures are committed first as
+  f944751; the separate builder now reuses unchanged memberSession/staffSession.
+  The native scope helper rejects incomplete caller IDs. Root's independent
+  Shop holdouts pass **60/60**; visible shared42, web/sale109, native14 and
+  MEDIA client-stage32 pass. Fresh application critic, provider cleanup tests,
+  central navigation and real browser/media acceptance remain required.
+  Classes app tests are committed first as a65cb27 (visible) and 44be722
+  (held). Initial backend visible287 passes; root's held run passes358/363,
+  finding five native offline dispatch omissions. Independent visible
+  preflight/no-replay regressions951e81d are committed RED30 before the
+  isolated helper correction. No Classes screen is built yet.
+  Fresh PLC source review rejects an Agreed price row with zero discount and
+  a retained retry callback surviving a caller switch. Independent visible
+  and held regressions precede source changes. Guardian recorded-marker copy
+  and the two-field member PT policy read remain owner-pending; no dependent
+  implementation is authorized. ANC app draft readiness remains open.
+  BIZ's held projection repairceadee1 passes6/6; PTF's independently corrected
+  scalar interface holdouts pass134/134, with rendered surfaces still missing.
+  The actual production-media GitHub environment is created with only main
+  admitted and OGUN01 as required reviewer; its receipt is committed395be81.
+  No MEDIA deployment, Edge secret provisioning or live object upload has run.
 - Batch 1 defects, independent tests, implementations and migration/type pushes
   are complete. Full rollback proof: **107 files / 8,934 assertions / zero failures**
   with exact plans. CI 37011785563 is green; DB 37009955982 is wholly green and
