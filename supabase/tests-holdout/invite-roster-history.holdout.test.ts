@@ -144,8 +144,33 @@ function assertPrivate(markup: string) {
   }
 }
 function rowFor(markup: string, name: string) {
-  const matches = markup.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/g) ?? [];
-  const row = matches.find((candidate: string) => candidate.includes(name));
+  // INV-025 specifies a member row, not table markup. Track balanced containers so a
+  // card/link/list implementation receives exactly the same member-local assertions.
+  const stack: { tag: string; start: number; opening: string }[] = [];
+  const candidates: { html: string; semantic: boolean }[] = [];
+  const voidTags = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+  for (const match of markup.matchAll(/<\/?([a-z][a-z0-9]*)\b[^>]*>/gi)) {
+    const tag = match[1].toLowerCase(); const opening = match[0];
+    if (!opening.startsWith('</')) {
+      if (!voidTags.has(tag) && !opening.endsWith('/>')) stack.push({ tag, start: match.index!, opening });
+      continue;
+    }
+    const index = stack.findLastIndex(node => node.tag === tag);
+    if (index < 0) continue;
+    const node = stack[index]; stack.length = index;
+    const html = markup.slice(node.start, match.index! + opening.length);
+    if (!html.includes(name)) continue;
+    const semantic = tag === 'tr' || tag === 'li' || /role=["']row["']/i.test(node.opening);
+    const memberLink = tag === 'a' && /href=["'][^"']*\/members\//i.test(node.opening)
+      && /IST|invite|app access|linked|not invited|unavailable|could not|couldn.t|unable|error/i.test(plain(html));
+    const card = tag === 'article' || /(?:class|data-[\w-]+)=["'][^"']*card/i.test(node.opening);
+    const localContainer = ['div', 'section'].includes(tag)
+      && /IST|invite|app access|linked|not invited|unavailable|could not|couldn.t|unable|error/i.test(plain(html))
+      && (html.match(/href=["'][^"']*\/members\/[^"']+["']/g) ?? []).length <= 1;
+    if (semantic || memberLink || card || localContainer) candidates.push({ html, semantic });
+  }
+  candidates.sort((a, b) => Number(b.semantic) - Number(a.semantic) || a.html.length - b.html.length);
+  const row = candidates[0]?.html;
   expect(row, `member ${name} must have an inline roster row`).toBeTruthy();
   return row!;
 }
