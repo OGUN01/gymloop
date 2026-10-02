@@ -4,7 +4,7 @@
 begin;
 set local role postgres;
 set local search_path to public,extensions;
-select plan(290);
+select plan(315);
 create function pg_temp.u(n integer)returns uuid language sql immutable as $$select('73900000-0000-4000-8000-'||lpad(to_hex(n),12,'0'))::uuid$$;
 create function pg_temp.sc(n integer default 1)returns text language sql as $$select jsonb_build_object('sub',pg_temp.u(200+n),'role','authenticated','tenant_id',pg_temp.u(case when n=6 then 2 else 1 end),'staff_id',pg_temp.u(200+n),'app_role',case n when 1 then 'gym_owner'when 2 then 'gym_manager'when 3 then 'front_desk'when 6 then 'gym_owner'else 'trainer'end)::text$$;
 create function pg_temp.mc(n integer default 100)returns text language sql as $$select jsonb_build_object('sub',pg_temp.u(1000+n),'role','authenticated','tenant_id',pg_temp.u(case when n=108 then 2 else 1 end),'member_id',pg_temp.u(n),'app_role','member')::text$$;
@@ -427,5 +427,32 @@ select is(pg_temp.run($q$select to_jsonb(r)from public.waive_pt_forfeit(pg_temp.
 select is((select sessions_used from public.addon_orders where id=pg_temp.u(920)),1,'PTF expired replay restores no second session');
 select is((select waive_reason from public.pt_cancellations where pt_session_id=pg_temp.u(930)),'Original recorded reason','PTF expired replay preserves recorded reason');
 select is((select count(*)from public.audit_log where tenant_id=pg_temp.u(1)),(select n from h73_expired_replay_audit),'PTF expired replay appends no audit');
+
+-- Frozen PTF provenance mechanism and read/write volatility.
+select ok((select t.tgtype=19 and t.tgqual is null and t.tgenabled='O'and t.tgfoid='app.guard_pt_cancellation_completion()'::regprocedure and t.tgattr::text=(select attnum::text from pg_attribute where attrelid='public.pt_cancellations'::regclass and attname='completed_order')from pg_trigger t where t.tgrelid='public.pt_cancellations'::regclass and t.tgname='pt_cancellations_completed_order_immutable'and not t.tgisinternal),'PTF exact completed-order provenance row trigger');
+select ok((select not p.prosecdef and p.provolatile='v'and p.proowner='postgres'::regrole and 'search_path=""'=any(p.proconfig)from pg_proc p where p.oid='app.guard_pt_cancellation_completion()'::regprocedure),'PTF provenance guard private invoker postgres volatile empty path');
+select ok((select not has_function_privilege('anon',p.oid,'EXECUTE')and not has_function_privilege('authenticated',p.oid,'EXECUTE')and not has_function_privilege('service_role',p.oid,'EXECUTE')and not exists(select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner)))a where a.grantee=0 and a.privilege_type='EXECUTE')from pg_proc p where p.oid='app.guard_pt_cancellation_completion()'::regprocedure),'PTF provenance guard no session or PUBLIC execution');
+select is(pg_temp.run($q$update public.pt_cancellations set completed_order=false where pt_session_id=pg_temp.sid('atomic')returning to_jsonb(pt_session_id)$q$,pg_temp.sc(),'postgres')->>'error','22023','PTF provenance changed by privileged writer rejected');
+select is(pg_temp.run($q$update public.pt_cancellations set completed_order=false where pt_session_id=pg_temp.sid('atomic')returning to_jsonb(pt_session_id)$q$,pg_temp.sc(),'postgres')->>'detail','pt_cancellation_provenance_immutable','PTF provenance privileged refusal detail');
+select is(pg_temp.run($q$update public.pt_cancellations set completed_order=completed_order where pt_session_id=pg_temp.sid('atomic')returning to_jsonb(pt_session_id)$q$,pg_temp.sc(),'postgres')->>'error',null::text,'PTF unchanged provenance assignment permitted');
+select is((select completed_order from public.pt_cancellations where pt_session_id=pg_temp.sid('atomic')),true,'PTF provenance refusal retains causal evidence');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='read_member_trainers'),'s','PTF frozen volatility read_member_trainers');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='read_member_programmes'),'s','PTF frozen volatility read_member_programmes');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='read_member_pt_packs'),'s','PTF frozen volatility read_member_pt_packs');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='read_member_pt_sessions'),'s','PTF frozen volatility read_member_pt_sessions');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='read_member_pt_slots'),'s','PTF frozen volatility read_member_pt_slots');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='book_pt_session'),'v','PTF frozen volatility book_pt_session');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='cancel_pt_booking'),'v','PTF frozen volatility cancel_pt_booking');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='set_trainer_profile'),'v','PTF frozen volatility set_trainer_profile');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='set_own_trainer_profile'),'v','PTF frozen volatility set_own_trainer_profile');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='set_trainer_availability'),'v','PTF frozen volatility set_trainer_availability');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='add_trainer_time_off'),'v','PTF frozen volatility add_trainer_time_off');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='remove_trainer_time_off'),'v','PTF frozen volatility remove_trainer_time_off');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='read_pt_bookings'),'s','PTF frozen volatility read_pt_bookings');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='read_pt_packs'),'s','PTF frozen volatility read_pt_packs');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='cancel_pt_session_as_gym'),'v','PTF frozen volatility cancel_pt_session_as_gym');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='waive_pt_forfeit'),'v','PTF frozen volatility waive_pt_forfeit');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='reassign_pt_packs'),'v','PTF frozen volatility reassign_pt_packs');
+select is((select p.provolatile::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'and p.proname='set_pt_policy'),'v','PTF frozen volatility set_pt_policy');
 select * from finish();
 rollback;

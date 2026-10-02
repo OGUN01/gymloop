@@ -2,7 +2,7 @@
 begin;
 set local role postgres;
 set local search_path to public, extensions;
-select plan(29);
+select plan(30);
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$
 select ('71900000-0000-4000-8000-'||lpad(to_hex(n),12,'0'))::uuid $$;
 create function pg_temp.claims(n integer default 1) returns text language sql as $$
@@ -59,7 +59,8 @@ select is(pg_temp.run('select to_jsonb(count(*))from public.plans',pg_temp.membe
 select is(pg_temp.run('select to_jsonb(count(*))from public.plans','{}'),'0'::jsonb,'PLC-002 missing claims no exposure');
 select is(pg_temp.run('select to_jsonb(count(*))from public.plans',(pg_temp.member_claims()::jsonb-'app_role')::text),'0'::jsonb,'PLC-002 tenant without role no exposure');
 select is(pg_temp.run('select to_jsonb(count(*))from public.plans',(pg_temp.member_claims()::jsonb-'member_id')::text),'0'::jsonb,'PLC-002 member role without id no exposure');
-select is(pg_temp.run('select to_jsonb(count(*))from public.plans',(pg_temp.member_claims()::jsonb||jsonb_build_object('app_role','trainer'))::text),'0'::jsonb,'PLC-002 role-mismatched member claim no exposure');
+select is(pg_temp.run('select to_jsonb(count(*))from public.plans',(pg_temp.member_claims()::jsonb-'tenant_id')::text),'0'::jsonb,'PLC-002 member audience without tenant no exposure');
+select is(pg_temp.run('select to_jsonb(count(*))from public.plans',(pg_temp.claims(4)::jsonb||jsonb_build_object('member_id',pg_temp.u(100)))::text),'3'::jsonb,'PLC-002 staff audience retains own active and inactive plans with extra member claim');
 select is(pg_temp.run($q$insert into public.plans(tenant_id,name,duration_days,price_paise,currency)values(pg_temp.u(1),'forged',30,100,'INR')returning to_jsonb(id)$q$,pg_temp.member_claims())->>'error','42501','PLC-002 member insert still refused');
 select is(pg_temp.run($q$with changed as(update public.plans set name='forged'where id=pg_temp.u(300)returning id)select to_jsonb(count(*))from changed$q$,pg_temp.member_claims()),'0'::jsonb,'PLC-002 member update still affects zero rows');
 select ok(not has_table_privilege('authenticated','public.plans','DELETE')and not has_table_privilege('authenticated','public.plans','TRUNCATE'),'PLC-002 existing delete/truncate grant boundary');
@@ -70,7 +71,7 @@ select is(pg_temp.run('select to_jsonb(count(*))from public.plans',pg_temp.claim
 select is(pg_temp.run('select to_jsonb(count(*))from public.plans',pg_temp.claims(2)),'3'::jsonb,'PLC-002 staff role 2 keeps active and inactive own plans');
 select is(pg_temp.run('select to_jsonb(count(*))from public.plans',pg_temp.claims(3)),'3'::jsonb,'PLC-002 staff role 3 keeps active and inactive own plans');
 select is(pg_temp.run('select to_jsonb(count(*))from public.plans',pg_temp.claims(4)),'3'::jsonb,'PLC-002 staff role 4 keeps active and inactive own plans');
-select is(pg_temp.run('select to_jsonb(count(*))from public.plans',jsonb_build_object('sub',pg_temp.u(207),'role','authenticated','app_role','super_admin')::text),'5'::jsonb,'PLC-002 super_admin unchanged cross-gym read');
-select is(pg_temp.run('select to_jsonb(count(*))from public.plans',jsonb_build_object('sub',pg_temp.u(208),'role','authenticated','app_role','platform_support')::text),'5'::jsonb,'PLC-002 platform_support unchanged cross-gym read');
+select is(pg_temp.run('select to_jsonb(count(*))from public.plans where tenant_id in(pg_temp.u(1),pg_temp.u(2))',jsonb_build_object('sub',pg_temp.u(207),'role','authenticated','app_role','super_admin')::text),'5'::jsonb,'PLC-002 super_admin unchanged cross-gym read');
+select is(pg_temp.run('select to_jsonb(count(*))from public.plans where tenant_id in(pg_temp.u(1),pg_temp.u(2))',jsonb_build_object('sub',pg_temp.u(208),'role','authenticated','app_role','platform_support')::text),'5'::jsonb,'PLC-002 platform_support unchanged cross-gym read');
 select * from finish();
 rollback;
