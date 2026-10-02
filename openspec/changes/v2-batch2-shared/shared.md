@@ -38,14 +38,64 @@ TS tests are named after the feature (`classes-*.test.ts`, `shop-*.test.tsx`, �
 Each feature's spec drafter writes ADR text into its own proposal (an "ADR-NNN text" section); the
 orchestrator appends it to `docs/decisions.md` at integration so concurrent agents never edit that file.
 
-## Shared primitive 1 — MEDIA (owner: SHP; consumed by PTF trainer photos and ANC announcement images)
+## Shared primitive 1 — MEDIA (owner: SHP; consumed by PTF and ANC)
 
-- Storage: the provisioned Cloudflare R2 bucket `gymloop-media`. Object key = `<tenant_id>/<kind>/<uuid>.<ext>` with `kind ∈ product | trainer | announcement`; the tenant prefix is derived server-side from the JWT claim, never from client input.
-- Table `public.media_assets` (tenant-scoped, RLS): `id uuid pk`, `tenant_id`, `kind text` (check in the three kinds), `object_key text not null`, `mime text` (check in `image/jpeg`, `image/png`, `image/webp`), `bytes integer` (check > 0 and ≤ `MEDIA_LIMITS.maxBytes`), `created_by_staff_id uuid`, `created_at`, `confirmed_at timestamptz null`, `deleted_at timestamptz null`, `attached_to_id uuid null`. Both `(tenant_id,id)` and `(tenant_id,object_key)` are unique; no global object-key uniqueness. Staff read their tenant's rows subject to feature roles; members have no direct media-assets read policy.
-- RPCs (definer, audited): `public.register_media_asset(p_kind text, p_object_key text, p_mime text, p_bytes integer) returns uuid` (owner/manager for `product` and `trainer`, front-office for `announcement`; server-derived tenant prefix and hourly tenant registration limit) and `public.confirm_media_asset(p_asset_id uuid) returns void`. Delete is soft. Private `app.media_attach`/`app.media_release` bind feature images atomically; feature contracts pin signatures, permissions and audit shapes.
-- Web: `POST /api/media/upload-url` → `{ assetId, uploadUrl, headers }` (five-minute presigned PUT, bound content type/length); `POST /api/media/confirm` verifies HEAD size/type **and magic bytes** before confirmation. `mediaDisplayUrl(supabase,assetId)` signs staff-visible images. Generic member `POST /api/member/media-url` accepts only `{ assetId }` and returns `{ imageUrl }` after the member's own feature read surface exposes the asset. Internal product/trainer/announcement RPC projections carry `image_asset_id`, `image_object_key`, `image_mime`, all null unless currently confirmed, attached and undeleted. `memberMediaUrl(tenantId,objectKey,mime)` accepts only this trusted server projection; public adapters strip keys/mime. Client object keys never authorize signing. PTF has no separate trainer-photo route. The bucket remains private; CORS is owner-gated.
-- Constants: `MEDIA_LIMITS` contains max bytes, upload/display TTLs and `registrationsPerTenantPerHour` with values pinned in SHP. R2 credentials stay server-only through existing environment accessors. Pinned `@aws-sdk/s3-request-presigner` is allowed in web only; no new native dependency.
-- One image per product / trainer / announcement in v2; a placeholder renders when absent.
+The owner-approved `media-verification-amendment.md` is authoritative in full. It
+supersedes the mutable upload/display key and caller-executable confirmation design.
+SHP/PTF/ANC proposals must be aligned before their independent authors start.
+
+- The provisioned private R2 bucket remains `gymloop-media`. Client PUTs use only
+  `<tenant_id>/staging/<kind>/<uuid>.<ext>`. Verification conditionally copies checked
+  source bytes into a fresh `<tenant_id>/published/<kind>/<uuid>.<ext>` key. No client
+  PUT is ever signed for published keys; retries never recopy a confirmed asset.
+- `media_assets` retains tenant/id and tenant/published-key uniqueness, gains a
+  separately unique staging key and verified source/published ETags, and keeps
+  `attached_to_id`. Published fields and `confirmed_at` are jointly null until
+  finalization, then immutable. Authenticated SELECT grants expose only safe
+  metadata; private keys/ETags are reserved to the trusted service client.
+- Register remains an audited caller command with a tenant-derived staging key,
+  per-kind roles (product/trainer owner/manager, announcement front office), byte
+  bounds and hourly tenant registration limit. The old `confirm_media_asset(uuid)`
+  cannot finalize and has no public/end-user/service-role execute grant. Only the
+  service-role-only `finalize_media_asset` from the amendment stamps verification,
+  after exact registered metadata and active actor revalidation under locks. Its
+  command-keyed guard also binds trusted writes. Attachment/release/deletion remain
+  the existing named narrow feature commands; every actor and audit shape is pinned.
+- One trusted Edge `media` function has exactly operations `confirm`, `member-url`,
+  `staff-url`. It independently validates original caller JWTs, uses caller RLS
+  for visibility, and alone owns credential-service finalization/private media
+  lookups. Confirmation checks HEAD, conditional ranged magic-byte reads, source
+  ETag conditional copy, and published bytes before the DB stamp. Concurrent
+  verification, staff revocation, unknown finalizer outcomes and candidate cleanup
+  follow the amendment; ambiguous outcomes never delete a possibly winning object.
+- Web confirmation keeps its public route/body/envelope and forwards the caller
+  JWT to Edge. There is no web admin client or new DB verification secret. Existing
+  R2 credentials and this one function are provisioned/deployed only through the
+  approved protected CI workflow to the exact Gymloop project. CORS remains separately
+  owner-gated. Pinned web-only presigner approval does not authorize Edge packages.
+- Public member product/trainer/announcement RPCs expose only `image_asset_id`, null
+  unless the current feature image is exposed. No supposedly internal key/MIME
+  projection exists under a member JWT. `memberMediaUrl(supabase,assetId)` forwards
+  that caller to Edge; the generic `POST /api/member/media-url` accepts only
+  `{assetId}` and returns `{imageUrl}`. Edge rechecks current caller feature exposure
+  (including announcement consent), then resolves private metadata and checks
+  tenant/kind/attachment before GET signing. Product and announcement parent ids
+  must equal the actual attachment id. Trainer exposure returns a pseudonymous
+  `trainer_key`; derive the exact canonical `app.pt_trainer_key(tenant,staff)` MD5
+  from the private attachment and compare that key plus `image_asset_id`, never
+  the private staff id directly. The approved amendment pins the byte algorithm
+  and parity vectors; no actual staff UUID crosses the member boundary.
+  `mediaDisplayUrl(supabase,assetId)` uses
+  the analogous caller-scoped staff operation. PTF has no separate photo route.
+  Public app envelopes contain image URLs; an authorized URL necessarily reveals
+  its object path and remains usable for its bounded TTL.
+- One image per product/trainer/announcement; absent/unavailable images render the
+  existing placeholder. Constants include byte/TTL/hourly registration limits as
+  pinned in SHP. No new native dependency; mobile caches remain in-memory.
+- Pruning removes objects only (unconfirmed/orphans after seven days; released or
+  deleted after thirty). Metadata tombstones remain for canonical configuration
+  retention and at least as long as immutable announcement FKs reference them.
+  No cascade, SET NULL, physical referenced-row deletion or history rewrite.
 
 ## Shared primitive 2 — BOOKING (owner: CLS; consumed by PTF)
 

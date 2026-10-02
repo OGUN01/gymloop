@@ -27,6 +27,15 @@ standing delegation and are recorded in each feature's ADR text.
   adds only `class_update`, then `announcement`; CI applies and verifies this unit before
   the main batch-2 rollback sweep. Wait for each whole preceding DB run. The seven
   business migrations and booking primitives still ship together; CLI types follow ADR-177.
+- **[owner, additional explicit approval 2026-10-02] MEDIA verification boundary:** apply
+  `media-verification-amendment.md`. A single trusted Edge `media` verifier/signer,
+  provisioned and deployed through protected CI using the existing R2 credentials,
+  is the explicit architecture exception. Direct authenticated confirmation is denied;
+  conditional verified staging bytes publish to a separate key with no client PUT.
+  Public member RPCs expose only image asset ids, never private key/MIME/ETag projections;
+  URL authorization rechecks current feature exposure. Prune objects while retaining
+  metadata tombstones required by immutable announcement history. No web admin key,
+  new DB secret, manual Cloud migration or general Edge expansion is approved.
 - **[owner] PLC GST wording:** show the stored GST rate; claim neither inclusive nor exclusive; copy says the gym
   confirms the final amount.
 - **[owner] CLS paused members:** `frozen` memberships are bookable, with the same live-membership predicate as check-in.
@@ -57,6 +66,10 @@ standing delegation and are recorded in each feature's ADR text.
    presigned GET only for assets that the member's feature read surface exposes — product, trainer, announcement
    images in the member's tenant); PTF drops its `POST /api/member/trainer-photos`. New dependency
    `@aws-sdk/s3-request-presigner` (pinned) is allowed in `apps/web` only. R2 bucket CORS is owner-gated.
+   The later owner-approved MEDIA amendment supersedes the original mutable key and public confirmation:
+   staging/published namespaces, Edge-only verification/GET signing, service-only finalization and
+   asset-id-only public reads are mandatory. `memberMediaUrl(supabase,assetId)` forwards the caller JWT;
+   it does not accept or sign a client-provided key. Use the amendment's full signatures and race contract.
 6. **Notices.** ANC's convention stands (no helper function): writers insert an `in_app` `notifications` row with a
    `dedupe_key`. CLS uses `class_update`; PTF uses the existing `fulfilment` category; ANC adds `announcement`.
    Transactional notices skip the consent gate for in-app display. The separately committed `083000` prelude alone owns both enum additions; CLS/ANC consume them. `message_category` final label order:

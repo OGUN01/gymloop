@@ -90,7 +90,11 @@ repeated work while preserving the independent authors, blind reviews and gates.
   `8be0713` under ADR-177. All five typecheck tasks and all four build tasks passed
   locally. [Holdout](https://github.com/OGUN01/gymloop/actions/runs/37009955970) and
   [test immutability](https://github.com/OGUN01/gymloop/actions/runs/37009955864)
-  passed. The queued types-only DB run must still confirm schema drift.
+  passed. [Types-only DB 37009955982](https://github.com/OGUN01/gymloop/actions/runs/37009955982)
+  passed every job, including schema drift and seed dry-run. The original
+  [batch-1 DB 37009060386](https://github.com/OGUN01/gymloop/actions/runs/37009060386)
+  passed the full pgTAP suite and seed dry-run; its historical pre-regeneration
+  schema-drift failure is resolved by this successful generated-types follow-up.
 - [Follow-up CI 37009955934](https://github.com/OGUN01/gymloop/actions/runs/37009955934)
   passed the non-browser gates but failed five provider font cases (66 other
   browser cases passed). Next generated a local Arial fallback despite an empty
@@ -99,7 +103,11 @@ repeated work while preserving the independent authors, blind reviews and gates.
   the automatic adjustment. Existing red browser tests stayed unchanged; six
   visible units, five actual-browser cases and eight independent held cases passed.
   A fresh source critic returned GO. The migration-free repair is pushed as
-  `27d4191`; Linux CI confirmation remains required.
+  `27d4191`. [Linux CI 37011785563](https://github.com/OGUN01/gymloop/actions/runs/37011785563)
+  passed both gates and Deno checks, including the browser font cases. The deployed
+  public provider also reached ready at 390px: canonical googleSans, 500 weight,
+  14/20 typography, 44px target and no horizontal clipping. Deployed invalid member
+  and staff invite pages showed their generic refusal with no identity disclosure.
 
 ## Batch 2 — contracts and vocabulary staging
 
@@ -109,7 +117,20 @@ the scoped last-session PT waiver and the separate CI-only notification category
 prelude on 2026-10-02. Their concrete amendment files are the acceptance contracts;
 ordinary completed packs remain terminal. The prelude adds one DB verification
 cycle so subsequent rollback-only feature tests can exercise committed enum labels.
-No batch-2 implementation, migration or acceptance is claimed yet.
+The owner also approved the precise MEDIA verification architecture exception after
+a fresh contract critic found confirmation/overwrite/projection/retention gaps.
+The three consuming proposals were aligned and received a fresh contract GO,
+including independently recomputed trainer pseudonym vectors; live Edge/R2
+authorization, conditional-copy and runtime parity remain required. GRD,
+BIZ, PLC and CLS contracts/bars received explicit GO and are frozen as `769eb13`;
+independent GRD DB suites are drafted (visible 284, holdout 233 assertions), and
+separate app authors are preparing tests. No batch-2 implementation, migration or
+acceptance is claimed yet.
+
+The two independent vocabulary assertions were run against the migrated Cloud
+baseline after every DB workflow completed: visible 63/63 and holdout 123/123
+each failed exactly one expected new-label assertion. Rollback wrappers and
+exact plan counts were preserved. Red tests precede the separate implementer.
 
 Final local gates, browser/Playwright checks, Android runtime evidence, archive and
 CI run links will be recorded after completion. The owner tests after all v2 is built.

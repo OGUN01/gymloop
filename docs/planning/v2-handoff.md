@@ -44,7 +44,9 @@ current checkpoint below supersedes the historical session-1 snapshot.
   Next's generated local Arial fallback was incorrectly required by readiness.
   Separate implementer/fresh critic repaired this without changing tests;
   six visible units, five browser cases and eight held cases passed. Repair
-  `27d4191` is pushed, with Linux CI confirmation pending.
+  `27d4191` is pushed and Linux CI `37011785563` passed gates/Deno including browser
+  font cases. Deployed public provider readiness and generic invite refusals were
+  verified at phone width. Full invitation/Team journeys remain pending.
 - Registry/docs are updated. Final gates, deployed browser
   journeys, Android runtime evidence, archive and every CI gate remain required.
   A separate `in.fitcruxx.v2check` debug build succeeded and is installed alongside
@@ -53,9 +55,16 @@ current checkpoint below supersedes the historical session-1 snapshot.
   is using the phone. Do not touch ADB/the device meanwhile; use web/mobile
   viewport checks, preserving final Android acceptance as an open requirement.
 - Batch 2 decisions are being applied to all seven contracts and fetchable bars.
-  Owner approved the concrete final-session PT waiver and CI-only notification
-  vocabulary prelude. Freeze the amended contracts before independent authors
-  start. Wait for the whole batch-1 DB run before the vocabulary migration;
+  Owner approved the concrete final-session PT waiver, CI-only notification
+  vocabulary prelude and MEDIA verifier/signer architecture exception. GRD/BIZ/PLC/
+  CLS contracts and bars received GO and are frozen as `769eb13`; GRD independent
+  DB suites are drafted and separate app authors are preparing tests. SHP/PTF/ANC
+  MEDIA contracts received a fresh GO after reconciliation, including trainer
+  pseudonym parity. Batch-1 full pgTAP and seed passed; generated-types DB follow-up
+  `37009955982` passed every job and resolved the historical schema drift failure.
+  Vocabulary visible/held tests each ran their exact plan and failed only the
+  expected appended-label assertion. Commit those red before the separate builder.
+  Batch-1 DB sequencing is complete; proceed with the vocabulary migration;
   wait for the whole prelude DB run before the single seven-feature migration push.
   Then carry batch 2, Waves C/D and versionCode 5 onward.
   Preserve the original full-v2 objective and the independent roles.

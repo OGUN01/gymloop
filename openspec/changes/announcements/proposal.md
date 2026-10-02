@@ -3,25 +3,19 @@
 Feature F5 of `docs/planning/v2-feature-map.md`, phase V2-B5 of `docs/planning/v2-campaign-goal.md`,
 batch 2. The cross-feature names are fixed in `openspec/changes/v2-batch2-shared/shared.md` (MEDIA,
 the interim notifications primitive, member-app IA, `businessNouns`); where this file disagrees with it,
-that file wins and this one is corrected. Rigor: **relaxed (ADR-059, shared.md)** — one implementer,
-spec-first and tests-first, every CI gate unchanged, one visible pgTAP suite (`75_announcements.sql`), no
-holdout pgTAP. Two defects here would be silent, and each is pinned by a dedicated visible assertion
-group rather than left to review: a promotional announcement reaching a member without marketing
-consent (ANC-005), and one member's read state becoming visible to anyone else (ANC-013). Whether
-either deserves a holdout is Contract question 1.
+`decisions.md` is authoritative where the shared draft differs. Names and requirements are frozen before tests. Rigor (ADR-059): visible tests precede implementation; an independent holdout author covers exactly two silent groups in `h75_announcements_holdout.sql`: promotion-consent targeting (ANC-005), and read-state privacy (ANC-013). All other ANC work uses one implementer and the unchanged gates. The implementer never reads or edits holdout files.
+
+**MEDIA amendment approved by owner, 2026-10-02:** ANC consumes SHP's scoped Edge verifier/signer and immutable published objects; no direct database confirm, member key projection, web admin or new Edge/native dependency. Its asset-id-only and tombstone-history contracts are fixed before tests.
 
 ## Quality bar
 
 Method as in `docs/design/v2/inv-bar.md`: public pages only, never authenticate into a third party.
-References and their limits (fetched or searched 2026-10-02; the orchestrator's bar step may extract
-this section to `docs/design/v2/anc-bar.md` with screenshots):
+The commissioned `docs/design/v2/anc-bar.md` is required before tests. References and their limits (fetched 2026-10-02):
 
 | ID | Reference | URL | What was observed |
 |---|---|---|---|
 | R1 | Google Classroom Help, "Post announcements to your students" | https://support.google.com/edu/classroom/answer/6020270 | Fetched. Text plus attachments; drafts and scheduled posts live under "Saved announcements"; audience is all students or chosen students; the poster sees how many students received it (and can open their names); posts sort newest first and can be moved to the top; edit is More > Edit then Save. **Silent on** an "edited" label, on notifying about edits, and on read receipts for the post itself. |
-| R2 | Wodify Help, "Understand Announcements" | https://help.wodify.com/hc/en-us/articles/208736808-Understand-Announcements | **Search snippet only; the page itself returned HTTP 403 to a direct fetch.** The snippet states: announcements go to clients and staff, appear in the mobile app and kiosk, a push may be sent when one is created, and the length cap is 1,000 characters. Treated as indicative, not authoritative. |
 | R3 | Slack Help, "Edit or delete messages" | https://slack.com/help/articles/202395258-Edit-or-delete-messages | Official page documents who may edit and how; it does not document an "edited" marker (third-party guides say Slack shows one). |
-| R4 | WhatsApp "Message info" per-member read list, described by Rasayel | https://learn.rasayel.io/en/blog/whatsapp-read-receipts/ | Third-party description only. A sender can see exactly who has and has not read a message. **Deliberately not copied** (see decision 5). |
 
 Where the references are silent the criterion is FitCruxx's own and tagged **[own]**; nobody should
 assume a best-in-class product does it. The critic scores each criterion pass or fail with evidence
@@ -48,7 +42,7 @@ third rejection of one criterion escalates to the owner as a spec problem.
 - **ANC-Q6 — No individual surveillance.** No screen, response, log line or export lists which member
   has or has not read an announcement; staff see counts only. *Probe:* grep every staff response and the
   rendered console for the seeded members' names and ids. *From:* contrast with R1 (names behind the
-  count) and R4; **[own]** (DPDP minimisation, `docs/security.md`).
+  count); **[own]** (DPDP minimisation, `docs/security.md`).
 - **ANC-Q7 — Offline is a state, not a blank.** With the network off, Home on Android shows the cached
   cards under the word "Saved copy" with a time, opening a cached card works, and the read is delivered
   on the next successful load. **[own]**
@@ -74,11 +68,11 @@ never which ones; push arrives later with NTF and attaches without a redesign.
 
 ## Scope
 
-In: DB (4 enums, 3 tables, 2 invariant triggers, 4 helpers, 10 RPCs, one `message_category` label),
+In: DB (4 enums, 3 tables, 2 invariant triggers, 4 helpers, 10 RPCs, consumption of the prelude `message_category` labels),
 shared contracts, web (console list, composer, detail, 8 routes, member Home section, navigation entry),
 mobile (Home section with an offline cache), audit, docs and ADR-184 text. Out (recorded, not built):
 push, WhatsApp and email delivery (NTF, WSP — see "Interim notifications design"); scheduled publish and a
-separate pin flag ("unpin" is unpublish, Contract question 5); a member dismissing or hiding a card;
+separate pin flag ("unpin" is irreversible unpublish, delegated default); a member dismissing or hiding a card;
 named read lists; class-cohort and plan targeting (documented hooks only); rich text, links, several
 images and alt text; showing announcements in the desk (staff) app; comments or reactions; analytics
 beyond counts; a second-person approval step.
@@ -107,11 +101,11 @@ beyond counts; a second-person approval step.
    them. Justification: an announcement is one voice to every member and, if promotional, a marketing
    communication with legal weight; `send_notification` is already gym-admin-only and the feature map's NTF edge cases ask for
    "campaign review before a bulk send"; front desk is the first to know about a closure, so drafting is
-   kept (Contract question 13 asks the owner to confirm the split). Rejected: front desk publishes (one typo reaches everyone); owner-only (a manager
+   kept (delegated actor split, frozen). Rejected: front desk publishes (one typo reaches everyone); owner-only (a manager
    runs the floor); no drafts (the composer would have to publish to save).
 5. **Read means opened, and staff see counts only.** A receipt is written when the member opens a card.
    Staff get aggregate counts through definer RPCs that return no member identifier. Rejected: names behind
-   the count (R1, R4) — behavioural data about a member the gym does not need to run an announcement;
+   the count (R1) — behavioural data about a member the gym does not need to run an announcement;
    viewport tracking (cannot be defined or tested).
 6. **Versioned, with a required note.** Each edit of title, body or image inserts an immutable version and
    requires a 3–200 character note shown to members as "what changed"; a stale editor is refused
@@ -134,7 +128,7 @@ beyond counts; a second-person approval step.
 | Object | Name / signature |
 |---|---|
 | enums | `public.announcement_kind` = `transactional`, `promotional` · `public.announcement_status` = `draft`, `published`, `unpublished`, `discarded` · `public.announcement_audience` = `all_members`, `segment` · `public.announcement_membership_filter` = `any`, `live`, `not_live` |
-| enum value | `alter type public.message_category add value if not exists 'announcement'`, first statement of the migration. PostgreSQL refuses to use a value added in the same transaction, so **no statement executed by this migration may reference the label** (function bodies are late-bound and may). Resulting order after CLS: `renewal, payment, fulfilment, promotion, motivation, class_update, announcement`. |
+| enum dependency | CI-only prelude `20261003083000_notification_categories.sql` adds `class_update` then `announcement` and commits before booking primitives `…085000` and all seven business migrations. ANC `…150000` adds neither label; it consumes the already-committed enum. Final order: `renewal, payment, fulfilment, promotion, motivation, class_update, announcement`. |
 | table | `public.announcements` (tenant-scoped, direct `tenant_id`, RLS on): `id uuid pk default gen_random_uuid()`, `tenant_id uuid not null → organizations(id)`, `kind announcement_kind not null`, `status announcement_status not null default 'draft'`, `audience announcement_audience not null default 'all_members'`, `segment_member_statuses public.member_status[]`, `segment_membership announcement_membership_filter`, `current_version integer not null default 1`, `expires_at timestamptz`, `published_at timestamptz`, `closed_at timestamptz`, `created_by_staff_id uuid not null`, `created_at`, `updated_at` |
 | table | `public.announcement_versions`: `id uuid pk`, `tenant_id`, `announcement_id uuid not null`, `version_no integer not null`, `title text not null`, `body text not null`, `image_asset_id uuid`, `change_note text`, `created_by_staff_id uuid not null`, `created_at` (no `updated_at`) |
 | table | `public.announcement_receipts`: `id uuid pk`, `tenant_id`, `version_id uuid not null`, `member_id uuid not null`, `read_at timestamptz not null default now()`, `created_at` (append-only; no `updated_at`) |
@@ -155,7 +149,7 @@ beyond counts; a second-person approval step.
 | RPC: unpublish | `public.unpublish_announcement(p_announcement_id uuid) returns void` — same posture, VOLATILE; gym admin |
 | RPC: list | `public.list_announcements(p_before_created_at timestamptz default null, p_before_id uuid default null) returns table (announcement_id uuid, kind public.announcement_kind, status public.announcement_status, display_status text, audience public.announcement_audience, segment_member_statuses public.member_status[], segment_membership public.announcement_membership_filter, title text, current_version integer, created_at timestamptz, published_at timestamptz, expires_at timestamptz, closed_at timestamptz, audience_count integer, read_current integer, read_any integer)` — definer, **STABLE**, same posture; front office, support preview allowed (read-only). Newest first by `(created_at, id)`, `discarded` rows omitted, at most **51** rows (the 51st only signals another page; the loader drops it and builds the next cursor with `lib/keyset.ts`). `display_status` ∈ `draft`, `live`, `ended` (published and past `expires_at`), `taken_down`. `audience_count` is non-null only for `draft` and `live`. |
 | RPC: read one | `public.read_announcement(p_announcement_id uuid) returns jsonb` — definer, **STABLE**, same posture; front office, preview allowed. Keys exactly: `announcement` `{id, kind, status, displayStatus, audience, segmentMemberStatuses, segmentMembership, currentVersion, createdAt, publishedAt, expiresAt, closedAt, audienceCount, readCurrent, readAny}` and `versions` (newest first) `[{versionNo, title, body, imageAssetId, changeNote, createdAt, createdByStaffId, readCount}]`. Unknown, foreign and discarded ids are `42501`. |
-| RPC: member feed | `public.read_member_announcements() returns table (announcement_id uuid, kind public.announcement_kind, title text, body text, image_asset_id uuid, version_no integer, published_at timestamptz, edited_at timestamptz, expires_at timestamptz, change_note text, read_state text, read_at timestamptz)` — definer, **STABLE**, same posture; real member only (`app.announcement_member_actor`). Live announcements targeted at the caller, transactional first then `published_at desc, id desc`. `read_state` ∈ `unread`, `updated`, `read`. `edited_at` and `change_note` are non-null only when `version_no > 1`. `read_at` = the caller's latest receipt time for that announcement (any version), else null. |
+| RPC: member feed | `public.read_member_announcements() returns table (announcement_id uuid, kind public.announcement_kind, title text, body text, image_asset_id uuid, version_no integer, published_at timestamptz, edited_at timestamptz, expires_at timestamptz, change_note text, read_state text, read_at timestamptz)` — definer, **STABLE**, same posture; real member only (`app.announcement_member_actor`). Only image_asset_id is returned (no key/MIME/ETag), non-null only for a confirmed, undeleted kind-announcement asset currently attached to this announcement. Live announcements targeted at the caller, transactional first then `published_at desc, id desc`. `read_state` ∈ `unread`, `updated`, `read`. `edited_at` and `change_note` are non-null only when `version_no > 1`. `read_at` = the caller's latest receipt time for that announcement (any version), else null. |
 | RPC: mark read | `public.mark_announcement_read(p_announcement_id uuid, p_version_no integer) returns boolean` — definer, **VOLATILE**, same posture; real member only. Idempotent; `true` when a receipt for (caller, that version) exists afterwards, `false` when the announcement is not currently visible to the caller or the version does not exist. A new receipt is stamped `read_at = statement_timestamp()` (never a caller-supplied time). |
 | advisory lock | tenant-wide, taken by `publish_announcement` before it counts: `pg_advisory_xact_lock(hashtextextended('announcements:' \|\| tenant_id::text, 0))`; then the announcement row lock (`for update`). Lock order everywhere: tenant lock, announcement row, version rows. |
 | SQLSTATEs | `GL088` (with `detail`, below) · `42501` · `22023` — see "SQLSTATE table" |
@@ -202,7 +196,7 @@ beyond counts; a second-person approval step.
 ### Web (`apps/web`)
 
 - `lib/announcements.ts`: `canPublishAnnouncements(identity)` (real `gym_owner`/`gym_manager`; `FRONT_OFFICE_ROLES` from `lib/leads` is reused for the rest), `loadAnnouncementList(supabase, cursor?)`, `loadAnnouncementDetail(supabase, announcementId)` (validated by `announcementDetailSchema`; null when the RPC says `42501`), `announcementRpcFailure(error: { code: string; message: string; details?: string | null }): Response` (the SQLSTATE and `GL088` reason table below, by `Object.hasOwn`).
-- `lib/member-announcements.ts`: `loadMemberAnnouncementFeed(supabase): Promise<{ asOf: string; announcements: AnnouncementCard[] }>` — calls `read_member_announcements`, then `mediaDisplayUrl(assetId)` for exactly the rows returned that have an image, validates with `memberAnnouncementFeedSchema`. A card whose image URL cannot be minted renders as a text card; the feed does not fail.
+- `lib/member-announcements.ts`: `loadMemberAnnouncementFeed(supabase): Promise<{ asOf: string; announcements: AnnouncementCard[] }>` — calls `read_member_announcements`, then the SHP member-exposure signing path for exactly the feed rows returned that have an image (members cannot read `media_assets` directly; `mediaDisplayUrl(supabase, assetId)` is the staff path), resolves only the exposed image_asset_id with `memberMediaUrl(supabase, assetId)` through the shared Edge signer, which rechecks caller-JWT exposure before private key resolution; the web/mobile envelope contains imageUrl only, before validating with `memberAnnouncementFeedSchema`. The generic media-url route repeats current `read_member_announcements` exposure; it cannot use a stale cached feed as authority. A card whose image URL cannot be minted renders as a text card; the feed does not fail.
 - Routes (all `Cache-Control: no-store`; session before body; envelope per `lib/api.ts`; the `[announcementId]` segment must be a uuid or the answer is 400 `invalid_request`):
   - `POST /api/announcements` (front office; `announcementDraftRequestSchema`) → `data: { announcementId }`.
   - `POST /api/announcements/[announcementId]/draft` (front office; same schema) → `data: { updated: true }`.
@@ -214,7 +208,7 @@ beyond counts; a second-person approval step.
   - `POST /api/member/announcements/[announcementId]/read` (real member; `announcementReadRequestSchema`) → `data: { recorded: boolean }`.
 - Pages and components (console, `FRONT_OFFICE_ROLES` and support preview read-only): `app/(console)/announcements/page.tsx` (list with filters All · Live · Drafts · Ended), `announcements/new/page.tsx`, `announcements/[announcementId]/page.tsx` (detail: member-view preview, reach, versions with read counts, actions), `announcements/[announcementId]/edit/page.tsx`; client components `announcement-composer.tsx` (one component for new, edit-draft and edit-published) and `announcement-actions.tsx` (Publish, Take down, Discard confirm panels). Navigation: one exact-match line in `app/(console)/layout.tsx` adding `{ href: '/announcements', label: 'Announcements' }` for front office and to the preview list; the e2e role allow-list is amended in a `spec:` commit.
 - Member Home: `app/member/announcements-section.tsx` (server, renders `announcementSectionHeading`, up to `homeCards` cards, "Show all N" beyond) and `app/member/announcement-card.tsx` (client; a `<button aria-expanded>` that expands the card inline, posts the read once per (announcement, version) on the first open and shows `ANNOUNCEMENT_STATE_WORDS`); inserted into `app/member/page.tsx` by one exact-match edit after the `member-hero` section. Styles in `app/styles/announcements.css` (Chalkline `cl-*` tokens; one import line each in the console and member layouts).
-- `app/privacy/page.tsx` gains `ANNOUNCEMENT_PRIVACY_SENTENCE`. `app/(console)/messages/message-forms.tsx` and `app/api/message-templates/route.ts` exclude `SYSTEM_OWNED_MESSAGE_CATEGORIES` from gym template categories (route answers 422 for them).
+- The final legal integrator adds `ANNOUNCEMENT_PRIVACY_SENTENCE` to BIZ's once-rewritten vertical-neutral `app/privacy/page.tsx`; ANC supplies the sentence and does not edit legal concurrently. `app/(console)/messages/message-forms.tsx` and `app/api/message-templates/route.ts` exclude `SYSTEM_OWNED_MESSAGE_CATEGORIES` from gym template categories (route answers 422 for them).
 
 ### Mobile (`apps/mobile`)
 
@@ -224,8 +218,10 @@ beyond counts; a second-person approval step.
 
 ## Interim notifications design (shared primitive 3)
 
-ANC owns this primitive. It is a **convention plus one enum label**, not a helper function, so no migration
-depends on a later one (CLS `…140000` sorts before ANC `…150000`).
+ANC owns the notice convention, with no helper function. The owner-approved CI-only prelude
+`20261003083000_notification_categories.sql` adds `class_update` then `announcement`; it must commit
+and complete its type follow-up and whole DB run before the seven business migrations. ANC `…150000`
+and CLS `…140000` consume these labels and add neither.
 
 1. `notifications` is the **delivery record**, written only for events that need delivery or an inbox
    presence (CLS cancellation notices now, push later). Content that has its own table (announcements)
@@ -238,7 +234,7 @@ depends on a later one (CLS `…140000` sorts before ANC `…150000`).
    gym" row and `/member/messages` read `payload.body`); then update to `sent` in the same transaction. The
    RPC must itself have checked what `send_notification` checks: member in good standing, gym eligible, and
    — for a promotional category (`promotion`) — the latest `marketing` consent granted. A transactional
-   category (`class_update`, `announcement`) needs no consent row (Contract question 3). The definer context
+   category (`class_update`, `announcement`) bypasses the consent gate for in-app display (decisions.md); PTF's transactional notice uses existing `fulfilment`. The definer context
    (`current_user = postgres`) is what lets this skip the direct-write availability check; the
    `scheduled → sent` audit rows are written by `app.enforce_notification` as for any edge.
 3. ANC itself writes **no** `notifications` rows. Its proof obligation is ANC-022: the new label is
@@ -249,7 +245,7 @@ depends on a later one (CLS `…140000` sorts before ANC `…150000`).
    send. Per recipient it writes one `notifications` row: `channel = 'push'`; `category = 'promotion'` for a
    promotional announcement (so the existing `app.notification_consent_purpose` maps it to `marketing`
    unchanged) and `'announcement'` for a transactional one (maps to `service`; whether a closure notice may
-   go to a member with no `service` consent row is NTF's decision, Contract question 3);
+   go to a member with no `service` consent row is outside this in-app contract and decided in NTF);
    `dedupe_key = 'announcement:' || <announcement_id> || ':v' || <version_no> || ':' || <member_id>`;
    `related_type = 'announcement'`; `related_id = <announcement_id>`; `payload = {"body": <title>,
    "announcementId": …, "versionNo": …}`. Quiet hours, rate limits and campaign review are NTF's. A push
@@ -277,7 +273,7 @@ depends on a later one (CLS `…140000` sorts before ANC `…150000`).
 - **ANC-014 (staff read model).** `list_announcements` and `read_announcement` SHALL be front-office only (support preview allowed, read-only) and answer `42501` for another gym's or an unknown id, indistinguishable. The list SHALL be newest first by `(created_at, id)`, omit discarded rows, return at most 51 rows, and carry `display_status`, the current title and the ANC-013 counts. The detail SHALL return the header, the audience count for `draft`/`live`, and every version, newest first, with its note, creator id and read count.
 - **ANC-015 (audit).** Draft creation, discard, publish, edit and take-down SHALL write `audit_log` through `app.announcement_audit`, attributed to `auth.uid()` and role, record type `announcement`, with no title, body or image in `before`/`after`. Shapes: `drafted` after `{status:'draft', kind, audience}`; `discarded` before `{status:'draft'}` after `{status:'discarded'}`; `published` before `{status:'draft'}` after `{status:'published', kind, audience, version_no:1, expires_at, audience_count}`; `edited` before `{version_no, expires_at}` after `{version_no, expires_at, content_changed}` with the note as `reason` (null for expiry-only); `unpublished` before `{status:'published', version_no}` after `{status:'unpublished'}`. Reads and receipts are not audited.
 - **ANC-016 (tenancy and grants).** The three tables SHALL be RLS-enabled with the policies and grants in "Fixed names"; `authenticated` SHALL hold no insert, update or delete on any of them; every public RPC SHALL be executable by `authenticated` only (revoked from `public`, `anon`, `service_role`); tenant is read from the claim, never from a parameter; a foreign gym's or unknown id SHALL be `42501` or, for the member read marker, `false`. Existing schema meta-tests are amended (see "Test and deployment order").
-- **ANC-017 (image).** An announcement MAY carry one image: a `media_assets` row of kind `announcement`, same gym, confirmed, not deleted, attached by id; the database stores no URL. Members SHALL receive a short-lived presigned display URL (TTL `MEDIA_LIMITS.displayUrlTtlSeconds`) only through the feed route and only for cards the caller can see. Removing or replacing the image is a content edit (a new version). A card without an image is a text card.
+- **ANC-017 (image).** An announcement MAY carry one image: a `media_assets` row of kind `announcement`, same gym, confirmed, not deleted, attached by id; the database stores no URL. Create/update/edit commands SHALL use `app.media_attach(tenant_id, asset_id, 'announcement', announcement_id)` and `app.media_release` after actor/record validation, in the same transaction; replace/remove releases and soft-deletes the old live asset. Historic immutable versions keep their asset reference but never revive a released image. Members SHALL receive a short-lived presigned display URL (TTL `MEDIA_LIMITS.displayUrlTtlSeconds`) through the feed or SHP's generic `POST /api/member/media-url` only for a current card the caller can see; withdrawal, expiry or take-down removes image exposure too. Removing or replacing the image is a content edit (a new version). A card without an image is a text card.
 - **ANC-018 (API).** The eight routes SHALL behave as in "Web", validate through the shared schemas, return the typed envelope, set `Cache-Control: no-store`, identify the caller before reading the body, map SQLSTATEs and `GL088` reasons through the table below by `Object.hasOwn`, and never place an announcement body, a token or a member id in a log, an error message or a URL query.
 - **ANC-019 (console).** The console SHALL provide: a list with dot-plus-word status (`Live`, `Draft`, `Ended`, `Taken down`), kind word, audience summary, dates in gym time (`gymTimeLabel`) and "Read by X of Y" for live rows (only "Read by X" for ended rows) with `ANNOUNCEMENT_READ_FOOTNOTE`; a composer (kind with `announcementKindHelp`, title and body with character counters, optional image through SHP's upload flow, audience controls, optional end date and time in gym time, Save draft, and for gym admins Review and publish); a publish confirmation with `announcementReachSentence` and the expiry; an edit form that requires the note and shows `ANNOUNCEMENT_EDIT_WARNING`; a take-down confirmation; a detail page with the preview exactly as a member sees it, the audience count and the version list. In support preview every control is absent and the pages are read-only. States per the matrix.
 - **ANC-020 (member web Home).** `/member` SHALL render `AnnouncementsSection` after the greeting: up to three cards then "Show all N"; a card is kind word, title, `announcementPreview`, posted or edited date and state word; opening it expands the full body and image inline and, once per (announcement, version) per page load, posts the read; the section is absent when there are none; a failure renders one inline row and never blocks the rest of Home.
@@ -327,13 +323,13 @@ The message of every 4xx is the matching `ANNOUNCEMENT_REFUSAL_COPY` sentence (4
 1. **Marketing consent must exist for promotional reach to be non-zero.** Members with no `marketing` row
    are, by rule, not reached by a promotion. The composer's count says so; recording consent is the existing
    front-desk flow (`record_consent`). Notices are unaffected.
-2. SHP's media infrastructure (R2 bucket, upload routes, `mediaDisplayUrl`) must be live for images; text
+2. SHP's media infrastructure (private R2 staging/published namespaces, protected-CI-deployed Edge `media`, upload routes and JWT-forwarding `mediaDisplayUrl`/`memberMediaUrl`) must be live for images; text
    announcements work without it. Campaign order puts SHP (V2-B2) before ANC (V2-B5).
 3. No Auth, signup or release-channel change. The Android build is part of V2-R (versionCode 5).
 
 ## Test and deployment order
 
-1. `spec:` commits (one author, relaxed rigor; the implementer touches no test): this proposal; visible
+1. `spec:` commits (visible author plus an independent holdout author for the two silent groups; the implementer touches no test): this proposal; visible
    pgTAP `supabase/tests/75_announcements.sql` (fixture prefix `75000000-0000-4000-8000-…`, `begin;` …
    `rollback;`); amended meta-suites: `04_contract_meta.sql` (matrix rows `('announcements','is_front_office',null,null)`,
    `('announcement_versions','is_front_office',null,null)`, `('announcement_receipts',null,null,'own')`; the
@@ -345,7 +341,9 @@ The message of every 4xx is the matching `ANNOUNCEMENT_REFUSAL_COPY` sentence (4
    implementer, not the orchestrator); TypeScript suites named `announcements-*` beside their siblings
    (shared schemas and copy; `lib/announcements`; the eight routes; console components; member section;
    mobile `lib/announcements`).
-2. 75_announcements.sql covers at least: structure (enums, columns, keys, checks, indexes, policies, grants,
+2. `h75_announcements_holdout.sql` (fixture prefix `75900000-0000-4000-8000-…`, `begin;` … `rollback;`) covers exactly: (a) promotional targeting with granted/withdrawn/missing/re-granted latest consent, every feed/read-marker/count/media exposure path, transactional in-app bypass; (b) receipt/read-state privacy against another member, staff, trainer, platform, support preview and foreign tenant, own-state idempotence and aggregate-only counts. The independent author sees the frozen contract, never visible tests or implementation; the implementer never reads or edits it.
+
+   75_announcements.sql covers at least: structure (enums, columns, keys, checks, indexes, policies, grants,
    triggers, function posture and volatility, `announcement` label present); every RPC by role and by gym
    (owner/manager/front desk/trainer/member/platform/impersonator/other gym); the refusal order; the
    lifecycle and graph; consent matrix (consented, withdrawn, never asked, re-granted) against the feed;
@@ -354,9 +352,7 @@ The message of every 4xx is the matching `ANNOUNCEMENT_REFUSAL_COPY` sentence (4
    caps and the rolling window; the tenant lock key present in `publish_announcement`'s definition;
    immutability triggers as `postgres`; ANC-022 conformance. An integration test races two publishes at the
    live cap.
-3. Migration `20261003150000_announcements.sql` only, in the single batch-2 push after batch 1 has settled
-   (ADR-177: `migrate` succeeded, types regenerated). Prove locally with `scripts/pgtap/sweep.py` splicing
-   all batch-2 migrations together; wait for the DB run.
+3. Wait for batch 1's **whole DB workflow** to finish green. Push only the owner-approved CI prelude `20261003083000_notification_categories.sql`; after CI commits it, regenerate/push types as the migration-free ADR-177 follow-up and wait for the prelude's whole DB workflow to finish green. Only then prove the booking-primitives plus seven business migrations together with `scripts/pgtap/sweep.py` under rollback and send the single seven-feature business push (including ANC `20261003150000_announcements.sql`). Never run local Cloud tests while any DB workflow is active, and never push the next migration merely because the preceding `migrate` job passed.
 4. Regenerate `packages/db/types/database.ts` with `supabase gen types typescript --linked`; push types,
    then TypeScript tests (`spec:`), then implementation in separate commits; wait for the schema-drift
    and `ci.yml` runs.
@@ -365,36 +361,35 @@ The message of every 4xx is the matching `ANNOUNCEMENT_REFUSAL_COPY` sentence (4
 ## Requires / Provides
 
 **Requires.** SHP: `media_assets` with `unique (tenant_id, id)` (otherwise the image FK cannot exist),
-columns `kind`, `confirmed_at`, `deleted_at`, kind `announcement`, `register_media_asset`, the upload and
-confirm routes, `mediaDisplayUrl`, and migration `…120000` applied first. CLS: its `class_update` label in
-`…140000` (ANC's label sorts after it). BIZ: `businessNouns` and a way to read the gym's business type
-from a server component and the mobile snapshot (Contract question 7). INV: the `too_many_requests: 429` key
+columns `kind`, `confirmed_at`, `deleted_at`, kind `announcement`, `register_media_asset` for staging only, service-only verified finalization through shared Edge `media` (direct confirm denied), the upload and
+confirm routes, `app.media_attach` / `app.media_release`, `mediaDisplayUrl(supabase, assetId)` for staff, the generic `POST /api/member/media-url` exposure gate and member signing path, and migration `…120000` applied first. The committed CI-only category prelude `…083000`: `class_update` then `announcement`, completed type follow-up and whole DB workflow green; CLS `…140000` no longer owns an enum addition. BIZ: `businessNouns` and a way to read the gym's business type
+from a server component and the mobile snapshot (BIZ-owned read adapter). INV: the `too_many_requests: 429` key
 in `apps/web/lib/api.ts` `STATUS` (already present in the working tree from INV's implementation; ANC adds
 nothing to that file). Existing: `app.current_*` accessors,
 `app.is_front_office`, `app.is_gym_admin`, `consents`, `members`, `memberships`, `staff`, `audit_log`,
 `lib/keyset.ts`, `lib/time.ts gymTimeLabel`, `FRONT_OFFICE_ROLES`, the Chalkline kit.
 
-**Provides.** The `announcement` label and the interim-notification convention (CLS follows it);
+**Provides.** The interim-notification convention (CLS follows it; category labels come from the committed prelude);
 `app.announcement_audience` (NTF recipients; GRD and cohort hooks); the NTF attach contract above;
 `SYSTEM_OWNED_MESSAGE_CATEGORIES`; Home insertion points on web and mobile; the console navigation
-entry; ADR-184. Nothing else is changed in another feature's tables or functions.
+entry; `ANNOUNCEMENT_PRIVACY_SENTENCE` for the legal integrator; ADR-184. Demo seed is a proposed `-- ANC BEGIN` / `-- ANC END` block (one transactional closure and one promotional offer with consent fixtures), appended only by the orchestrator at integration; no concurrent seed edits. Nothing else is changed in another feature's tables or functions.
 
 ## ADR-184 text
 
-**ADR-184 — Announcements on Home: a pull-based, versioned broadcast with per-version read receipts, consent evaluated at read time (owner-approved feature map F5, 2026-10-02).** Decisions, each with the alternative rejected. (1) *The member feed is computed at read time from `announcements`, not fanned out as `notifications` rows.* `app.enforce_notification` audits the insert and every status edge and freezes the payload, so a broadcast would cost two audit rows per member per version, need a new row per member per edit, give members who join after publish nothing, and leave a card standing after consent is withdrawn; the table's graph models delivery, not reading. `notifications` stays the delivery record for NTF. Rejected: fan-out ("notifications reuse" in the feature map). (2) *One targeting predicate, `app.announcement_audience`, used by the feed, the read marker, the staff counts and NTF.* Rejected: a snapshot audience at publish, and an RLS policy carrying the targeting. (3) *Kind decides consent.* Promotional requires the latest `marketing` consent granted; transactional needs none; in-app display is not a send, so the `service` purpose is not consulted; the kind cannot change after the draft stage because that would be a silent consent bypass. Residual risk: mislabelling by staff, mitigated by admin-only publish, a kind-naming confirmation and audit. (4) *Owner and manager publish; front desk drafts.* An announcement is one voice to every member and may be marketing; `send_notification` is already admin-only; the feature map's NTF edge cases ask for review before a bulk send. Rejected: front-desk publish, owner-only, no drafts. (5) *Versioned edits.* Immutable version rows, a current pointer, a required 3–200 character note shown to members, an optimistic `expected_version`, receipts per version, so an edit is visible (`Updated`) to anyone who read an earlier version and a stale editor is refused. Rejected: silent in-place edit; carrying receipts across versions. (6) *Read means the member opened the card; staff see counts only, restricted to the current audience so a count never exceeds the reach.* Rejected: names behind the count (data the gym does not need to run an announcement; DPDP minimisation) and viewport tracking. (7) *One SQLSTATE, `GL088`, with `detail` reason codes* (the `GL055` precedent), because shared.md reserves one. (8) *The interim notification primitive is a convention plus the `announcement` label, not a helper*, so no migration depends on a later one; the label is not referenced in the migration that adds it (a PostgreSQL restriction), and the two tests that pin the original five `message_category` labels are amended. (9) *Reads for mobile use POST* because `packages/api-client` is POST-only. (10) *Plain text, optional decorative image, no scheduled publish, no pin flag, no dismiss, no names* — each recorded as out of scope, not forgotten.
+**ADR-184 — Announcements on Home: a pull-based, versioned broadcast with per-version read receipts, consent evaluated at read time (owner-approved feature map F5, 2026-10-02).** Decisions, each with the alternative rejected. (1) *The member feed is computed at read time from `announcements`, not fanned out as `notifications` rows.* `app.enforce_notification` audits the insert and every status edge and freezes the payload, so a broadcast would cost two audit rows per member per version, need a new row per member per edit, give members who join after publish nothing, and leave a card standing after consent is withdrawn; the table's graph models delivery, not reading. `notifications` stays the delivery record for NTF. Rejected: fan-out ("notifications reuse" in the feature map). (2) *One targeting predicate, `app.announcement_audience`, used by the feed, the read marker, the staff counts and NTF.* Rejected: a snapshot audience at publish, and an RLS policy carrying the targeting. (3) *Kind decides consent.* Promotional requires the latest `marketing` consent granted; transactional needs none; in-app display is not a send, so the `service` purpose is not consulted; the kind cannot change after the draft stage because that would be a silent consent bypass. Residual risk: mislabelling by staff, mitigated by admin-only publish, a kind-naming confirmation and audit. (4) *Owner and manager publish; front desk drafts.* An announcement is one voice to every member and may be marketing; `send_notification` is already admin-only; the feature map's NTF edge cases ask for review before a bulk send. Rejected: front-desk publish, owner-only, no drafts. (5) *Versioned edits.* Immutable version rows, a current pointer, a required 3–200 character note shown to members, an optimistic `expected_version`, receipts per version, so an edit is visible (`Updated`) to anyone who read an earlier version and a stale editor is refused. Rejected: silent in-place edit; carrying receipts across versions. (6) *Read means the member opened the card; staff see counts only, restricted to the current audience so a count never exceeds the reach.* Rejected: names behind the count (data the gym does not need to run an announcement; DPDP minimisation) and viewport tracking. (7) *One SQLSTATE, `GL088`, with `detail` reason codes* (the `GL055` precedent), because shared.md reserves one. (8) *The interim notification primitive is a convention, not a helper*. The owner-approved CI-only `20261003083000_notification_categories.sql` prelude adds `class_update` then `announcement` and commits before all business migrations, avoiding use of an uncommitted new enum value. ANC and CLS consume it; neither business migration adds a label. The orchestrator mechanically amends both category-pin tests before implementation. (9) *Reads for mobile use POST* because `packages/api-client` is POST-only. (10) *Plain text, optional decorative image, no scheduled publish, no pin flag, no dismiss, no names* — each recorded as out of scope, not forgotten.
 
-## Contract questions for the orchestrator
+## Resolved contract choices (delegated defaults; frozen)
 
-1. **Rigor.** shared.md calls ANC relaxed. The two silent defects (a promotion reaching a non-consenting member; read state visible to others) are covered by dedicated visible assertion groups. Do you want a holdout pgTAP (`h75`) for those two groups only?
-2. **One SQLSTATE.** `GL088` with ten RPC `detail` reasons (thirteen with the trigger-only ones) follows `GL055`. If you would rather reserve `GL088`–`GL089`, say so before tests are written.
-3. **Consent for transactional notices.** In-app display needs no consent row (decision 3). For the interim convention and for NTF: may a closure or class-cancellation notice reach a member with no `service` consent row? The existing `app.notification_consent_purpose` would require it for category `announcement`/`class_update`; this contract assumes transactional rows skip consent, and NTF decides for push.
-4. **Message-category pins.** `31_comms_schema_consent.sql` and holdout `h29_comms_holdout.sql` pin five labels. CLS and ANC both extend the list; one amendment to the final order is needed. Confirm who owns the holdout edit.
-5. **Unpin.** "Expiry and unpin" is realized as optional expiry plus take-down (irreversible). A separate pin flag, a "pinned above everything" order, or a republish are not built; confirm or add.
-6. **api-client is POST-only.** The member feed is a POST route. Alternatively hoist a `get` into `packages/api-client` once, for ANC, SHP and CLS together.
-7. **Business type for nouns.** ANC needs the gym's `business_type` in server components and in the mobile snapshot. BIZ must name the loader; until then ANC defaults to `gym` nouns.
-8. **Actor helper duplication.** INV's `app.member_invite_actor(p_roles text[])` now exists (returns `(tenant_id, staff_id, user_id, role)` and refuses any impersonation). ANC needs a variant that admits a support preview for its read RPCs and returns just the staff id, so `app.announcement_actor` is its own function. Collapse the two into one shared helper at integration, or keep them per-feature?
-9. **Aggregate-only read counts.** Staff cannot see who has not read a safety or closure notice. Confirm aggregate-only for v2, or name a transactional-only exception.
-10. **Template category hygiene.** ANC edits `message-forms.tsx` and `message-templates/route.ts` to hide system-owned categories (also covers CLS's `class_update`). Confirm this cross-feature touch, or move it to the integrator.
-11. **Plan and cohort targeting** are hooks only (decision 2, "Interim notifications design" item 5); confirm that status + live-membership is enough for v2.
-12. **Bar evidence.** The Wodify page returned 403; the bar step should either fetch R2 another way or drop it. Screenshots and `docs/design/v2/anc-bar.md` are the orchestrator's if wanted.
-13. **Who publishes.** Recommended and drafted: owner and manager publish, edit and take down; front desk drafts and discards. The feature map says "owner/staff" and its NTF note says "campaign review before a bulk send (front-office role boundary)", which could also be read as front desk being the sender. If the owner wants front desk to publish, the change is the role array passed to `app.announcement_actor` in `publish_announcement`, `edit_announcement` and `unpublish_announcement` plus ANC-003 and the composer's front-desk state; nothing else moves.
+Decisions.md resolves the two-group holdout, sole `GL088` plus stable detail reasons, transactional in-app consent bypass, final category label order, POST reads without ApiClient changes, per-feature actors and central legal/IA/seed integration. Delegated defaults retain expiry plus irreversible take-down (no pin/republish), aggregate-only counts, status plus membership targeting, owner/manager publish and front-desk drafts. ANC owns template-category exclusion as its named integration seam. BIZ provides the member-readable business type for `businessNouns`, including singular `class`; the read-adapter name is owned by BIZ, with `gym` fallback only for absent data. The owner approved the scoped MEDIA architecture/Edge provisioning amendment on 2026-10-02; all choices here are settled.
+
+ADR-184 integration addendum: decisions.md requires the two silent-group holdout with prefix 75900000, separate authors and immutable tests. Enum order is the five existing labels, class_update, announcement, added only by the CI-only category prelude; ANC consumes the committed labels. Notices are direct transactional deduped inserts; PTF uses fulfilment and ANC adds no new notification helper. Accepted MEDIA attach/release and generic member image-exposure routes govern announcement images. Legal/IA/seed changes are integrated centrally after feature screens exist.
+
+Approved ANC image/history boundary: members can call the feed RPC directly; it returns only image_asset_id, no key/MIME/ETag. Shared Edge signer verifies the current caller-JWT feed exposure before privileged media resolution; no web admin client or end-user key-projection RPC. New GET signing rechecks current exposure. Immutable versions retain their media FK after object-only pruning; deleted/released asset metadata tombstones remain for the longer of configuration retention and history references. Never cascade/delete/set-null these FKs. Historical missing/released images render placeholders. Upload confirmation consumes only the accepted amended SHP route, never direct database confirmation.
+
+## Approved MEDIA integration (binding, 2026-10-02)
+
+SHP owns the full protocol in its approved verification section and `../v2-batch2-shared/media-verification-amendment.md`. This is an accepted architecture exception, provisioned/deployed only by protected CI; existing R2 secret names and Edge runtime service credentials are used, with no web service client/new DB secret/Edge package. ANC's upload UI calls `POST /api/media/upload-url` and `POST /api/media/confirm` with the real caller session. The latter forwards the original JWT to Edge `media` operation confirm; allowed staff, safe RLS asset, source HEAD/MIME/length/magic, ETag-conditional immutable published copy and destination recheck precede service-only `finalize_media_asset`. Direct `confirm_media_asset` is denied. Reused staging PUT cannot alter published content. ANC never implements a second verifier/finalizer.
+
+`read_member_announcements` returns only nullable `image_asset_id` for currently visible live cards, never object key/MIME/ETag. `memberMediaUrl(supabase,assetId)` and generic member media-url forward caller JWT to the same Edge member-url operation. Edge repeats this feed as the caller (latest marketing consent, current visibility/version), then privately checks media tenant/kind/attachment/confirmed/undeleted/published state before each GET. A feed cache grants no access; withdrawal/take-down/expiry prevents new image URLs, previously issued URLs may last their remaining <=900s. Web/mobile typed cards contain only imageUrl for rendering. Staff detail image resolution uses `mediaDisplayUrl(supabase,assetId)` Edge staff-url with current allowed safe-row RLS; support preview remains read-only, never confirm.
+
+Create/update/edit uses SHP attach/release in its content transaction; replaced image releases and soft-deletes prior metadata without changing historical version FKs. Pruning removes objects only (unconfirmed/orphan after 7 days; released/deleted after 30 days). Metadata tombstones persist for the longer of account-closure +8-year configuration retention and immutable version references; no cascade, SET NULL, physical media-row delete or version edit in v2. Historic released/missing images render a placeholder. The two silent-group holdout includes live consent withdrawal preventing generic image exposure and read-state privacy; SHP's full blind suite owns byte-verification/publication races, finalizer grants and tombstone structural checks.
