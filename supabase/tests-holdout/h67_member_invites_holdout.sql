@@ -345,13 +345,17 @@ begin
       case when p_gmail = 'auto' then v_def else p_gmail end,
       p_confirmed, p_prov, p_eident, p_google);
   end if;
-  insert into public.members (id, tenant_id, branch_id, user_id, full_name, phone, email, status, erased_at, date_of_birth)
+  insert into public.members (id, tenant_id, branch_id, user_id, full_name, phone, email, status, erased_at, date_of_birth, guardian_name, guardian_relation, guardian_phone, guardian_email)
   values (pg_temp.u(10000 + p_k), pg_temp.u(p_org), pg_temp.u(p_org + 10), p_mbound, 'Scn ' || p_k::text,
           '+9179' || lpad(p_k::text, 8, '0'),
           case when p_memail = 'auto' then v_def else p_memail end,
           p_mstatus::public.member_status,
           case when p_merased then now() else null end,
-          p_dob);
+          p_dob,
+          case when p_k in (7, 206) then 'H67 Guardian' else null end,
+          case when p_k in (7, 206) then 'mother'::public.guardian_relation else null end,
+          case when p_k in (7, 206) then '+919999999967' else null end,
+          case when p_k in (7, 206) then v_def else null end);
   if p_inv <> 'none' then
     insert into public.member_invites (tenant_id, member_id, token_hash, status, issued_by_staff_id,
                                        issued_at, expires_at, closed_at, closed_by_staff_id, redeemed_user_id)
@@ -1248,7 +1252,7 @@ select ok((select v ~ '^1:[0-9a-f-]{36}\|~\|[0-9.]+$' from h67_res where k = 'is
   'E INV-002 a member whose status is expired is invitable');
 insert into h67_res values ('iss206', pg_temp.issue(pg_temp.k_owner(), pg_temp.u(10206), pg_temp.h(2006)));
 select ok((select v ~ '^1:[0-9a-f-]{36}\|~\|[0-9.]+$' from h67_res where k = 'iss206') and exists (select 1 from public.member_invites where token_hash = pg_temp.h(2006) and status = 'pending'),
-  'E INV-002 a member under 18 is not specially blocked');
+  'E INV-002 a member under 18 with a guardian on file is not specially blocked');
 insert into h67_res values ('iss230', pg_temp.issue(pg_temp.c_staff(2009, 'gym_owner', 104, 309), pg_temp.u(10230), pg_temp.h(2300)));
 select ok((select v ~ '^1:[0-9a-f-]{36}\|~\|[0-9.]+$' from h67_res where k = 'iss230') and exists (select 1 from public.member_invites where token_hash = pg_temp.h(2300) and status = 'pending'),
   'E INV-002 a trial gym inside its trial window is eligible');
@@ -1754,7 +1758,7 @@ select is(pg_temp.red(6, 6), '1:email_mismatch|~',
 select is(pg_temp.red(606, 6), '1:linked|H67 Alpha Fitness',
   'H INV-007 the account matching the edited address links and the refusal did not burn the invite');
 select is(pg_temp.red(7, 7), '1:linked|H67 Alpha Fitness',
-  'H INV-007 a member under 18 links like any other member');
+  'H INV-007 a member under 18 with a guardian on file links like any other member');
 select is(pg_temp.red(8, 8), '1:linked|H67 Alpha Fitness',
   'H INV-007 a paused member is bindable');
 select is(pg_temp.red(9, 9), '1:linked|H67 Alpha Fitness',
