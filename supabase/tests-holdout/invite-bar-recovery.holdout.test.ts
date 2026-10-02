@@ -68,7 +68,7 @@ vi.mock('expo-network', () => ({
   useNetworkState: () => ({ isConnected: io.context.online, isInternetReachable: io.context.online }),
 }));
 vi.mock('react-native', () => ({
-  View: 'section', Text: 'span', Pressable: 'button', TouchableOpacity: 'button', TextInput: 'input',
+  View: 'section', Text: 'span', Image: 'img', Pressable: 'button', TouchableOpacity: 'button', TextInput: 'input',
   ScrollView: 'section', ActivityIndicator: 'progress', Platform: { OS: 'android', select: (options: any) => options.android ?? options.default },
   StyleSheet: { create: (styles: any) => styles, flatten: (styles: any) => styles, hairlineWidth: 1 },
   Linking: { openURL: io.open, createURL: (path: string) => `fitcruxx://${path}` },
@@ -167,7 +167,7 @@ beforeEach(() => {
   io.oauth.mockImplementation(async () => { io.order.push('oauth'); return { data: { url: 'https://accounts.google.com/independent' }, error: null }; });
   io.open.mockResolvedValue({ type: 'cancel' });
   io.digest.mockImplementation(async (_algorithm: string, raw: string) => createHash('sha256').update(raw).digest('hex'));
-  io.refresh.mockResolvedValue({ data: { session: { user: { email: io.email } } }, error: null });
+  io.refresh.mockResolvedValue({ data: { session: { user: { id: 'd1111111-1111-4111-8111-111111111111', email: io.email } } }, error: null });
   io.signOut.mockImplementation(async () => { io.order.push('signOut'); return { error: null }; });
   io.client = { rpc: vi.fn(async (name: string, args: any) => {
     expect(name).toBe('peek_member_invite');
@@ -191,7 +191,7 @@ beforeEach(() => {
   vi.stubGlobal('window', { location: { replace: io.replace, assign: io.push } });
   io.context = { supabase: io.client, api: { post: io.post }, identity: io.identity,
     palette: UI_TOKENS.colors.dark,
-    session: { user: { email: io.email } }, webOrigin: 'https://recovery-trusted.holdout.example',
+    session: { user: { id: 'd1111111-1111-4111-8111-111111111111', email: io.email } }, webOrigin: 'https://recovery-trusted.holdout.example',
     online: true, ready: true, status: 'ready', refresh: io.refresh, signOut: io.signOut,
     signInWithGoogle: async () => {
       const native = await import('../../apps/mobile/lib/native-session');
@@ -242,7 +242,12 @@ describe('INV-030 saved token continuity after OAuth', () => {
     const { default: Index } = await import('../../apps/mobile/app/index');
     const screen = await mount(Index);
     const routes = destinations(screen.tree());
-    expect(routes.length).toBeGreaterThan(0);
+    if (kind === 'platform') {
+      // The canonical mobile purpose supports members and front desk, so an ordinary
+      // platform session may remain on an honest unsupported/web-only notice.
+      expect(screen.text()).toMatch(/web|not supported|member.*(?:staff|front.?desk)/i);
+      expect(routes.some(path => /\/(?:member|desk)(?:\/|$)/.test(path))).toBe(false);
+    } else expect(routes.length).toBeGreaterThan(0);
     expect(routes.some(path => path.includes('/invite/'))).toBe(false);
     expect(io.post).not.toHaveBeenCalled();
   });
