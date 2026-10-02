@@ -181,7 +181,7 @@ describe('CLS exact booking DTO and refusals', () => {
     [4, 'attended', { bookingId: id, status: 'attended' }],
     [5, id, { serviceId: id }], [6, null, { serviceId: id }],
     [7, true, { serviceId: id, isActive: false, changed: true }],
-    [8, [{ rule_id: id, weekday: 1, sessions_created: 4 }], { rules: [{ ruleId: id, weekday: 1, sessionsCreated: 4 }] }],
+    [8, [{ rule_id: id, weekday: 1, sessions_created: 4 }, { rule_id: second, weekday: 3, sessions_created: 0 }], { rules: [{ ruleId: id, weekday: 1, sessionsCreated: 4 }, { ruleId: second, weekday: 3, sessionsCreated: 0 }] }],
     [9, [{ sessions_created: 2, sessions_updated: 3, sessions_removed: 1, sessions_kept: 4 }], { ruleId: id, sessionsCreated: 2, sessionsUpdated: 3, sessionsRemoved: 1, sessionsKept: 4 }],
     [10, id, { sessionId: id }], [11, null, { sessionId: id }],
     [12, [{ bookings_cancelled: 7, notices_written: 5, notices_withheld: 2, members_without_app: 1 }], { sessionId: id, bookingsCancelled: 7, noticesWritten: 5, noticesWithheld: 2, membersWithoutApp: 1 }],
@@ -190,6 +190,37 @@ describe('CLS exact booking DTO and refusals', () => {
     h.rpc.mockResolvedValue({ data, error: null });
     const response = await invoke(route); expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true, data: expected });
+  });
+  it.each([
+    { name: 'missing requested weekday', data: [{ rule_id: id, weekday: 1, sessions_created: 4 }] },
+    { name: 'duplicate weekday', data: [{ rule_id: id, weekday: 1, sessions_created: 4 }, { rule_id: second, weekday: 1, sessions_created: 2 }] },
+    { name: 'unrequested weekday', data: [{ rule_id: id, weekday: 1, sessions_created: 4 }, { rule_id: second, weekday: 5, sessions_created: 2 }] },
+    { name: 'extra result', data: [{ rule_id: id, weekday: 1, sessions_created: 4 }, { rule_id: second, weekday: 3, sessions_created: 2 }, { rule_id: id, weekday: 5, sessions_created: 1 }] },
+    { name: 'missing generated count', data: [{ rule_id: id, weekday: 1, sessions_created: 4 }, { rule_id: second, weekday: 3 }] },
+  ])('fails closed on rule creation $name without reporting partial success', async ({ data }) => {
+    h.rpc.mockResolvedValue({ data, error: null });
+    const response = await invoke(routes[8]);
+    expect(response.status).toBe(500);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    const payload = await response.json();
+    expect(payload).toMatchObject({ ok: false, error: { code: 'class_failed' } });
+    expect(payload).not.toHaveProperty('data');
+    expect(JSON.stringify(payload)).not.toContain(id);
+    expect(JSON.stringify(payload)).not.toContain(second);
+    expect(h.rpc).toHaveBeenCalledWith('create_class_rules', expect.objectContaining({ p_weekdays: [1, 3] }));
+  });
+  it.each([
+    [{ rule_id: id, weekday: 1, sessions_created: 4 }, { rule_id: second, weekday: 3, sessions_created: 0 }],
+    [{ rule_id: second, weekday: 3, sessions_created: 0 }, { rule_id: id, weekday: 1, sessions_created: 4 }],
+  ].map((data) => [data]))('accepts exactly all requested rule weekdays regardless of response order %#', async (data) => {
+    h.rpc.mockResolvedValue({ data, error: null });
+    const response = await invoke(routes[8]);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    const payload = await response.json();
+    expect(payload.ok).toBe(true);
+    expect(payload.data.rules).toHaveLength(2);
+    expect(payload.data.rules).toEqual(expect.arrayContaining([{ ruleId: id, weekday: 1, sessionsCreated: 4 }, { ruleId: second, weekday: 3, sessionsCreated: 0 }]));
   });
   it.each([0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 12])('route %s rejects missing or unrecognised RPC facts', async (index) => {
     const route = routes[index]!; h.identity = route.audience === 'member' ? member : owner;

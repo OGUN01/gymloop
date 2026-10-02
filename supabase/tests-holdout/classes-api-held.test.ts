@@ -124,6 +124,54 @@ describe('CLS all public route authorization and dispatch boundaries', () => {
       }
     }
   }
+  // CLS-004 returns exactly one rule per requested weekday; CLS-030 rejects partial success.
+  const createRules = routes[8]!;
+  const ruleRows = {
+    monday: { rule_id: id, weekday: 1, sessions_created: 4 },
+    wednesday: { rule_id: '74900000-0000-4000-8000-000000000003', weekday: 3, sessions_created: 0 },
+    extra: { rule_id: '74900000-0000-4000-8000-000000000005', weekday: 5, sessions_created: 2 },
+  };
+  for (const [label, rows] of [
+    ['missing Wednesday', [ruleRows.monday]],
+    ['missing Monday', [ruleRows.wednesday]],
+    ['missing both weekdays', []],
+    ['duplicate Monday replaces Wednesday', [ruleRows.monday, { ...ruleRows.monday, rule_id: ruleRows.extra.rule_id }]],
+    ['duplicate Wednesday replaces Monday', [ruleRows.wednesday, { ...ruleRows.wednesday, rule_id: ruleRows.extra.rule_id }]],
+    ['extra duplicate weekday', [ruleRows.monday, ruleRows.wednesday, { ...ruleRows.wednesday, rule_id: ruleRows.extra.rule_id }]],
+    ['unrequested weekday replaces Wednesday', [ruleRows.monday, ruleRows.extra]],
+    ['extra unrequested weekday', [ruleRows.monday, ruleRows.wednesday, ruleRows.extra]],
+  ] as const) it(`rule creation fails closed for ${label}`, async () => {
+    caller('gym_manager'); h.rpc.mockResolvedValue({ data: rows, error: null });
+    const { response, json } = await run(createRules, { ...createRules.body, weekdays: [1, 3] });
+    expect(response.status).toBe(500); expect(json.ok).toBe(false); expect(json.error.code).toBe('class_failed');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(h.events).toEqual(['identity', 'body']);
+    expect(h.rpc).toHaveBeenCalledTimes(1);
+    expect(h.rpc).toHaveBeenCalledWith('create_class_rules', expect.objectContaining({ p_weekdays: [1, 3] }));
+    expect(h.from).not.toHaveBeenCalled();
+    for (const secret of [id, ruleRows.wednesday.rule_id, ruleRows.extra.rule_id, 'held-caller-jwt']) {
+      expect(JSON.stringify(json)).not.toContain(secret);
+    }
+    expect(json).not.toHaveProperty('data');
+  });
+  for (const [label, rows] of [
+    ['requested order', [ruleRows.monday, ruleRows.wednesday]],
+    ['legitimate unsorted result', [ruleRows.wednesday, ruleRows.monday]],
+  ] as const) it(`rule creation accepts exact weekday coverage in ${label}`, async () => {
+    caller('gym_manager'); h.rpc.mockResolvedValue({ data: rows, error: null });
+    const { response, json } = await run(createRules, { ...createRules.body, weekdays: [1, 3] });
+    expect(response.status).toBe(200); expect(json.ok).toBe(true);
+    expect(json.data.rules).toHaveLength(2);
+    expect(json.data.rules).toEqual(expect.arrayContaining([
+      { ruleId: id, weekday: 1, sessionsCreated: 4 },
+      { ruleId: ruleRows.wednesday.rule_id, weekday: 3, sessionsCreated: 0 },
+    ]));
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(h.events).toEqual(['identity', 'body']);
+    expect(h.rpc).toHaveBeenCalledTimes(1);
+    expect(h.rpc).toHaveBeenCalledWith('create_class_rules', expect.objectContaining({ p_weekdays: [1, 3] }));
+    expect(h.from).not.toHaveBeenCalled();
+  });
   const book = routes[0]!;
   for (const [code, status, refusal] of [
     ['42501', 404, 'session_not_found'], ['GL090', 409, 'class_full'], ['GL091', 409, 'already_booked'],
