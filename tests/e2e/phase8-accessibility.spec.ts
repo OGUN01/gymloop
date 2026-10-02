@@ -5,12 +5,15 @@ import { playwrightEnv } from '@gymloop/shared';
 const { DEMO_ACCOUNT_PASSWORD: demoPassword } = playwrightEnv();
 
 const accounts = {
-  member: { email: 'aarav.member@ironbox.example.com', home: '/member', forbidden: ['Overview', 'Payments', 'Members'] },
-  frontDesk: { email: 'divya@ironbox.example.com', home: '/console/check-in', forbidden: ['Overview', 'Payments', 'Imports'] },
-  trainer: { email: 'rohit@ironbox.example.com', home: '/console', forbidden: ['Overview', 'Payments', 'Messages', 'Leads', 'Imports'] },
+  member: { email: 'aarav.member@ironbox.example.com', home: '/member', forbidden: ['Overview', 'Payments', 'Members', 'Team'] },
+  frontDesk: { email: 'divya@ironbox.example.com', home: '/console/check-in', forbidden: ['Overview', 'Payments', 'Imports', 'Team'] },
+  trainer: { email: 'rohit@ironbox.example.com', home: '/console', forbidden: ['Overview', 'Payments', 'Messages', 'Leads', 'Imports', 'Team'] },
   owner: { email: 'owner@ironbox.example.com', home: '/dashboard', forbidden: [] },
-  superAdmin: { email: 'admin@gymloop.example.com', home: '/platform', forbidden: ['Overview', 'Check-in', 'Members', 'Payments'] },
+  superAdmin: { email: 'admin@gymloop.example.com', home: '/platform', forbidden: ['Overview', 'Check-in', 'Members', 'Payments', 'Team'] },
 } as const;
+
+// STI-015: the Team item is the gym owner's alone. Every other role lists it as forbidden above.
+const requiredNavigation: Partial<Record<keyof typeof accounts, readonly string[]>> = { owner: ['Team'] };
 
 const forbiddenRoutes = {
   member: ['/dashboard', '/console'],
@@ -69,6 +72,9 @@ test.describe('HARD-003 browser accessibility journeys (gates 31–32)', () => {
       await expect(page).toHaveURL(new RegExp(`${account.home.replace('/', '\\/')}(?:[?#]|$)`));
       for (const label of account.forbidden) {
         await expect(page.getByRole('navigation').getByRole('link', { name: label, exact: true })).toHaveCount(0);
+      }
+      for (const label of requiredNavigation[role] ?? []) {
+        await expect(page.getByRole('navigation').getByRole('link', { name: label, exact: true })).toHaveCount(1);
       }
       await expect(page.locator('body')).not.toContainText(/join gym|switch gym/i);
       for (const route of forbiddenRoutes[role]) {
