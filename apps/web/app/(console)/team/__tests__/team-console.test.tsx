@@ -999,6 +999,19 @@ describe('StaffAccessPanel: sending and resending (STI-002)', () => {
 });
 
 describe('StaffAccessPanel: when sending fails', () => {
+  it('STI-002 staff_email_required gives a truthful staff recovery step without inventing profile editing', async () => {
+    const panel = await openPanel(KARAN);
+    plan(failure(422, 'staff_email_required', 'This person has no usable email on file.'));
+    await press(panel, 'Send invite');
+    const markup = panel.html();
+    const text = visible(markup);
+    expect(text).toMatch(/email/i);
+    expect(text).toMatch(/ask|contact|owner|support/i);
+    expect(text).not.toMatch(/edit[^.]*profile|profile[^.]*edit/i);
+    expect(tags(markup, 'a').some((anchor) => /^\/members(?:\/|$)/.test(anchor.href ?? '') || /^\/team\/[^/]+\/edit(?:[?#]|$)/.test(anchor.href ?? ''))).toBe(false);
+    expect(markup).not.toContain(LINK);
+    expect(markup).toMatch(/role="(?:alert|status)"|aria-live=/);
+  });
   it.each([
     ['rate limited', failure(429, 'invite_rate_limited', 'Too many invites for this person today. Try again tomorrow.'), /too many|try again|limit/i],
     ['the person has no usable email', failure(422, 'staff_email_required', 'This person has no usable email on file.'), /e-?mail/i],

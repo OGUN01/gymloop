@@ -115,6 +115,14 @@ beforeEach(() => {
 });
 
 describe('INV-025 member roster invite state and queue', () => {
+  it('INV-025 failed roster read announces failure without claiming the gym has no members', async () => {
+    state.errors.members = true;
+    const html = await roster();
+    expect(text(html)).toMatch(/could(n.?t| not)|unable|failed|try again/i);
+    expect(html).toMatch(/role="alert"|aria-live=/);
+    expect(text(html)).not.toMatch(/no members yet|no members|add (your|the) first member/i);
+    expect(html).not.toContain('private backend detail');
+  });
   it.each(['pending', 'redeemed', 'revoked', 'superseded'])('shows latest %s invite inline with dot plus word and absolute sent/expiry IST', async (status) => {
     state.tables.member_invites = [invite(status)];
     const html = await roster();
