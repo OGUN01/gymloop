@@ -16,7 +16,6 @@ describe('PLC-015/023 static Gym entry', () => {
   it('keeps the Gym destination current on the catalogue page', async () => {
     const { MemberNavigation } = await import('../member/member-navigation');
     const html = renderToStaticMarkup(createElement(MemberNavigation));
-    expect(html).toMatch(/<a[^>]*href="\/member\/(?:my-gym|gym)"[^>]*aria-current="page"/);
-    expect(html).toContain('My gym');
+    expect(html).toMatch(/<a\b(?=[^>]*\bhref="\/member\/(?:my-gym|gym)")(?=[^>]*\baria-current="page")[^>]*>(?:(?!<\/a>)[\s\S])*My gym(?:(?!<\/a>)[\s\S])*<\/a>/);
   });
 });
