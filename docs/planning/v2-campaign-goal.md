@@ -39,27 +39,35 @@ while a DB run is in flight (the `db-` concurrency group serializes them).
 Fix the contract, then fan out — never edit a contract while agents work
 against it.
 
-## D1 — decision required BEFORE any Wave A code
+## D1 — DECIDED by owner, 2026-10-02: one Google account, one member. Period.
 
-The identity contract. Today one Google account binds exactly one member row
-(PROV-006: one binding, total, across all gyms). Two real v2 scenarios break
-it: a member who joins two gyms, and one parent with two children (GRD links
-the guardian's Gmail to each child's row).
+**Owner decision:** one Google account works as exactly one member, ever, in
+the whole system. No multi-binding, no gym picker, no ambiguity — because the
+UI derives from the account's single membership. An account that is already
+linked anywhere gets a clear refusal at link time: this account is already
+joined as a member — it cannot be linked again; ask your gym to use a
+different email.
 
-**Recommended resolution:** allow one Google account to hold multiple
-bindings; at sign-in with more than one, the app asks "which gym today?" and
-the session carries ONE tenant's claims at a time (the JWT claim shape stays
-single-tenant — no contract rewrite, only a picker at session start). Binding
-counts go from "exactly 1" to "any, but one per row," tenant-scoped. This
-touches the claim contract, so it gets full blind rigor and is decided and
-built BEFORE INV/STI/GRD. If the owner instead refuses multi-binding, INV/GRD
-must refuse with clear copy instead — decide before building.
+Consequences, now binding on the v2 features:
+
+- PROV-006's exactly-one-binding rule stays the contract, unchanged. Nothing
+  to build for D1 — the decision collapses into INV/STI edge cases.
+- INV's redemption edge case is settled: already-linked (any gym) → refuse
+  with the clear error copy above, never a picker.
+- GRD's same-guardian-two-children case: both children's rows may carry the
+  guardian's contact fields (for notifications and DPDP consent), but only
+  ONE child's row may bind the guardian's Gmail as its app identity. A second
+  child who needs app access links a different Google account (their own, or
+  the other parent's) — the gym chooses at invite time. The refusal copy
+  covers mistakes.
+- A member who genuinely joins two gyms uses two Google accounts, or the
+  second gym records them desk-only. This is accepted cost, not a bug.
+- No change to the JWT claim shape — single-tenant stays.
 
 ## Build order (phases = sessions, in dependency order)
 
 | # | Phase | Features | Why this order |
 |---|---|---|---|
-| 0 | V2-0 | D1 identity decision + build | contract first, everything depends on it |
 | 1 | V2-A1 | INV member invites | the everyday onboarding path |
 | 2 | V2-A2 | STI staff invites | reuses INV machinery immediately while fresh |
 | 3 | V2-A3 | GRD guardian + minors | builds on the identity work; closes DPDP-172 item |

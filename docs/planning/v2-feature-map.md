@@ -40,7 +40,7 @@ app onboarding, `notifications` delivery, audit log.
 - Invite expiry (24–48 h) and single-use enforcement; resend creates a new token and invalidates the old.
 - Revocation by staff before redemption.
 - Redemption with a Google account whose email differs from the member record: refuse with generic copy (never leak whether a member exists), or require exact match — spec decides; edge cases for both.
-- The Google account is already linked to a member row in ANY gym: today PROV-006 enforces exactly one binding per identity. A person joining two gyms is a real scenario; decide one-identity-many-gyms (contract change with holdout implications) or refuse with clear copy.
+- The Google account is already linked to a member row in ANY gym: **DECIDED (owner, 2026-10-02): one account, one member, ever.** Refuse with clear copy - this account is already joined as a member and cannot be linked again; ask your gym to use a different email. Never a picker, never a silent second binding.
 - Member status changes after invite sent (cancelled/refused members cannot link).
 - Member email edited after invite sent (invite follows the row, not the stale address).
 - Invite for an under-18 member: the **guardian's** Gmail is the one that links (see GRD).
@@ -161,7 +161,7 @@ record exists. Closes the open DPDP follow-up from ADR-172.
 **Edge cases.**
 - No DOB given: no behavioral scoring for that member (fail-safe), guardian optional.
 - Member turns 18: scoring eligibility turns on by date; guardian fields become optional but retained for history; account transition (guardian-linked → own account) is an explicit flow, not automatic.
-- Same guardian, multiple children: each child is a separate member row with the same guardian Gmail — **collides with the current one-binding-per-identity rule (PROV-006)**; must be decided together with INV.
+- Same guardian, multiple children: **DECIDED (owner, 2026-10-02): one Google account, one member.** Both children's rows may carry the guardian's contact fields (notifications, DPDP consent), but only one child's row binds the guardian's Gmail as its app identity; a second child needing app access links a different Google account, chosen by the gym at invite time.
 - Consent withdrawal: scoring stops, attendance recording continues (attendance is the gym's operational record; scoring is the inference).
 - Guardian contact changes; guardian vs member shown on receipts (payer note).
 
@@ -324,7 +324,7 @@ Google, and manual staff provisioning retires for new gyms.
 **Edge cases.**
 - Only a gym_owner (and /platform) may send a staff invite - role boundary enforced at the console and revalidated at redemption.
 - The role (front_desk / trainer / gym_manager) is assigned by the inviter and never editable by the invitee; a trainer invite lands on trainer-only surfaces (TRV boundaries).
-- One staff identity per row, reusing the one-binding rule; the same person staffing two gyms hits the same identity question as INV and is decided with it.
+- One staff identity per row, reusing the one-binding rule; the same person staffing two gyms is refused with the same clear copy (owner decision 2026-10-02: one account, one identity, ever).
 - Owner-level invitations: only /platform links gym_owners (the existing boundary) - an owner may not create another owner.
 - Expiry, resend and revoke reuse INV's token machinery; expiry frees nothing but the token.
 - Unbinding a staff member revokes their sessions through the existing identity-change hook.
