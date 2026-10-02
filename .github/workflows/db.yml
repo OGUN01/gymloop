@@ -212,10 +212,14 @@ jobs:
           fi
           changed="$(git diff --name-only "$before" "${{ github.sha }}")"
           echo "Changed files:"; echo "$changed" | sed 's/^/  /'
-          if echo "$changed" | grep -qE '^(supabase/|packages/db/|scripts/check-pgtap-rollback|\.github/workflows/db\.yml)'; then
+          # Generated types are the one packages/db file the suite never reads:
+          # schema-drift (its own job, always run on a types push) is their gate.
+          # A push that changes ONLY packages/db/types/ therefore skips the suite
+          # (ADR-177). Any other file under supabase/ or packages/db/ still runs it.
+          if echo "$changed" | grep -vE '^packages/db/types/' | grep -qE '^(supabase/|packages/db/|scripts/check-pgtap-rollback|\.github/workflows/db\.yml)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice::This push touches no migration, no pgTAP file, no generated types and not this workflow. Skipping the suite (~700s)."
+            echo "::notice::This push touches no migration, no pgTAP file, no non-type packages/db file and not this workflow. Skipping the suite; schema-drift still verifies any generated types."
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
       # The anti-gaming half of the suite (AGENTS.md hard rule #10). The
