@@ -1137,6 +1137,83 @@ export type Database = {
           },
         ]
       }
+      member_invites: {
+        Row: {
+          closed_at: string | null
+          closed_by_staff_id: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          issued_at: string
+          issued_by_staff_id: string
+          member_id: string
+          redeemed_user_id: string | null
+          status: Database["public"]["Enums"]["member_invite_status"]
+          tenant_id: string
+          token_hash: string
+          updated_at: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by_staff_id?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          issued_at?: string
+          issued_by_staff_id: string
+          member_id: string
+          redeemed_user_id?: string | null
+          status?: Database["public"]["Enums"]["member_invite_status"]
+          tenant_id: string
+          token_hash: string
+          updated_at?: string
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by_staff_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          issued_at?: string
+          issued_by_staff_id?: string
+          member_id?: string
+          redeemed_user_id?: string | null
+          status?: Database["public"]["Enums"]["member_invite_status"]
+          tenant_id?: string
+          token_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_invites_closed_by_staff_id_fkey"
+            columns: ["tenant_id", "closed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "member_invites_issued_by_staff_id_fkey"
+            columns: ["tenant_id", "issued_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "member_invites_member_id_fkey"
+            columns: ["tenant_id", "member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "member_invites_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       members: {
         Row: {
           branch_id: string
@@ -2477,6 +2554,83 @@ export type Database = {
           },
         ]
       }
+      staff_invites: {
+        Row: {
+          closed_at: string | null
+          closed_by_staff_id: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          issued_at: string
+          issued_by_staff_id: string
+          redeemed_user_id: string | null
+          staff_id: string
+          status: Database["public"]["Enums"]["staff_invite_status"]
+          tenant_id: string
+          token_hash: string
+          updated_at: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by_staff_id?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          issued_at?: string
+          issued_by_staff_id: string
+          redeemed_user_id?: string | null
+          staff_id: string
+          status?: Database["public"]["Enums"]["staff_invite_status"]
+          tenant_id: string
+          token_hash: string
+          updated_at?: string
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by_staff_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          issued_at?: string
+          issued_by_staff_id?: string
+          redeemed_user_id?: string | null
+          staff_id?: string
+          status?: Database["public"]["Enums"]["staff_invite_status"]
+          tenant_id?: string
+          token_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_invites_closed_by_staff_id_fkey"
+            columns: ["tenant_id", "closed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "staff_invites_issued_by_staff_id_fkey"
+            columns: ["tenant_id", "issued_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "staff_invites_staff_id_fkey"
+            columns: ["tenant_id", "staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "staff_invites_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_events: {
         Row: {
           created_at: string
@@ -2668,6 +2822,37 @@ export type Database = {
         }[]
       }
       fleet_metrics: { Args: never; Returns: Json }
+      invite_staff_member: {
+        Args: {
+          p_branch_id: string
+          p_email: string
+          p_full_name: string
+          p_phone: string
+          p_role: Database["public"]["Enums"]["app_role"]
+          p_token_hash: string
+        }
+        Returns: {
+          expires_at: string
+          invite_id: string
+          staff_id: string
+        }[]
+      }
+      issue_member_invite: {
+        Args: { p_member_id: string; p_token_hash: string }
+        Returns: {
+          expires_at: string
+          invite_id: string
+          superseded_invite_id: string
+        }[]
+      }
+      issue_staff_invite: {
+        Args: { p_staff_id: string; p_token_hash: string }
+        Returns: {
+          expires_at: string
+          invite_id: string
+          superseded_invite_id: string
+        }[]
+      }
       link_gym_owner: {
         Args: {
           p_expected_user_id: string
@@ -2731,6 +2916,19 @@ export type Database = {
         Args: { p_from?: string; p_through?: string }
         Returns: Json
       }
+      peek_member_invite: {
+        Args: { p_token_hash: string }
+        Returns: {
+          gym_name: string
+        }[]
+      }
+      peek_staff_invite: {
+        Args: { p_token_hash: string }
+        Returns: {
+          gym_name: string
+          staff_role: Database["public"]["Enums"]["app_role"]
+        }[]
+      }
       prepare_member_import: {
         Args: {
           p_branch_id: string
@@ -2754,6 +2952,25 @@ export type Database = {
           trainer_name: string
         }[]
       }
+      read_member_app_access: {
+        Args: { p_member_id: string }
+        Returns: {
+          expires_at: string
+          invite_id: string
+          issued_at: string
+          linked_at: string
+          state: string
+        }[]
+      }
+      read_member_invite_history: {
+        Args: { p_member_id: string }
+        Returns: {
+          action: string
+          actor_name: string
+          event_id: string
+          occurred_at: string
+        }[]
+      }
       read_member_mobile_money: { Args: never; Returns: Json }
       read_member_portal_settings: {
         Args: never
@@ -2763,6 +2980,16 @@ export type Database = {
           streak_rule_type: Database["public"]["Enums"]["streak_rule_type"]
           week_start_day: number
           weekly_goal_default: number
+        }[]
+      }
+      read_staff_app_access: {
+        Args: { p_staff_id: string }
+        Returns: {
+          expires_at: string
+          invite_id: string
+          issued_at: string
+          linked_at: string
+          state: string
         }[]
       }
       record_addon_sale: {
@@ -2823,6 +3050,21 @@ export type Database = {
           source: Database["public"]["Enums"]["attendance_source"]
         }[]
       }
+      redeem_member_invite: {
+        Args: { p_token_hash: string }
+        Returns: {
+          gym_name: string
+          outcome: string
+        }[]
+      }
+      redeem_staff_invite: {
+        Args: { p_token_hash: string }
+        Returns: {
+          gym_name: string
+          outcome: string
+          staff_role: Database["public"]["Enums"]["app_role"]
+        }[]
+      }
       replace_checkin_poster: {
         Args: {
           p_branch_id: string
@@ -2831,6 +3073,8 @@ export type Database = {
         }
         Returns: string
       }
+      revoke_member_invite: { Args: { p_invite_id: string }; Returns: string }
+      revoke_staff_invite: { Args: { p_invite_id: string }; Returns: string }
       run_no_show_scan_all: {
         Args: never
         Returns: {
@@ -2891,6 +3135,14 @@ export type Database = {
           p_trial_at: string
         }
         Returns: Json
+      }
+      unlink_member_identity: {
+        Args: { p_member_id: string; p_reason: string }
+        Returns: undefined
+      }
+      unlink_staff_identity: {
+        Args: { p_reason: string; p_staff_id: string }
+        Returns: undefined
       }
       update_lead: {
         Args: {
@@ -2962,6 +3214,7 @@ export type Database = {
         | "cancelled"
         | "completed"
         | "expired"
+      member_invite_status: "pending" | "redeemed" | "revoked" | "superseded"
       member_status: "active" | "paused" | "expired" | "cancelled" | "blocked"
       membership_status:
         | "pending"
@@ -3013,6 +3266,7 @@ export type Database = {
       pt_session_status: "scheduled" | "completed" | "cancelled" | "no_show"
       refund_kind: "refund" | "reversal"
       refund_status: "requested" | "processing" | "completed" | "failed"
+      staff_invite_status: "pending" | "redeemed" | "revoked" | "superseded"
       streak_rule_type: "visit_streak" | "weekly_goal" | "calendar_streak"
     }
     CompositeTypes: {
@@ -3204,6 +3458,7 @@ export const Constants = {
         "completed",
         "expired",
       ],
+      member_invite_status: ["pending", "redeemed", "revoked", "superseded"],
       member_status: ["active", "paused", "expired", "cancelled", "blocked"],
       membership_status: [
         "pending",
@@ -3256,6 +3511,7 @@ export const Constants = {
       pt_session_status: ["scheduled", "completed", "cancelled", "no_show"],
       refund_kind: ["refund", "reversal"],
       refund_status: ["requested", "processing", "completed", "failed"],
+      staff_invite_status: ["pending", "redeemed", "revoked", "superseded"],
       streak_rule_type: ["visit_streak", "weekly_goal", "calendar_streak"],
     },
   },
