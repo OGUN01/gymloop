@@ -36,46 +36,68 @@ const view = (id: string) => ({ plans: [{ id, name: id, description: null, durat
 beforeEach(() => { unmount(); test.calls = []; test.identity = { kind: 'member', userId: 'u1', tenantId: 't1', memberId: 'm1' }; test.offline = false; });
 afterEach(unmount);
 describe('PLC-016/018/019 real hook sequencing', () => {
+  it.each(['userId', 'tenantId', 'memberId'] as const)('revokes the old reload capability after %s changes without invalidating the new request', async (key) => {
+    const oldReload = render(true).reload; await settle();
+    const oldResponse = test.calls[0]; expect(oldResponse).toBeDefined();
+    test.identity = { ...test.identity, [key]: 'scope-b' }; render(true); await settle();
+    expect(test.calls).toHaveLength(2); const currentResponse = test.calls[1]; expect(currentResponse).toBeDefined();
+    const lateReload = oldReload(); await settle();
+    expect(test.calls).toHaveLength(2);
+    oldResponse!.resolve({ ok: true, view: view('scope-a') }); await settle();
+    expect(render(true).state.view).toBeNull();
+    currentResponse!.resolve({ ok: true, view: view('scope-b') }); await settle();
+    expect(render(true).state.view?.plans[0]?.id).toBe('scope-b');
+    await lateReload;
+  });
+  it.each(['close', 'unmount'] as const)('revokes a captured reload after %s and preserves a later open request', async (action) => {
+    const oldReload = render(true).reload; await settle(); const oldResponse = test.calls[0]; expect(oldResponse).toBeDefined();
+    if (action === 'close') render(false); else unmount();
+    const lateReload = oldReload(); await settle(); expect(test.calls).toHaveLength(1);
+    render(true); await settle(); expect(test.calls).toHaveLength(2); const currentResponse = test.calls[1]; expect(currentResponse).toBeDefined();
+    oldResponse!.resolve({ ok: true, view: view('obsolete') }); await settle(); expect(render(true).state.view).toBeNull();
+    currentResponse!.resolve({ ok: true, view: view('current') }); await settle(); expect(render(true).state.view?.plans[0]?.id).toBe('current');
+    await lateReload;
+  });
   it('does not read closed or nonmember sections; opening and reopening refetch', async () => {
     render(false); await settle(); expect(test.calls).toHaveLength(0);
     render(true); await settle(); expect(test.calls.map((call) => call.member)).toEqual(['m1']);
-    test.calls[0].resolve({ ok: true, view: view('first') }); await settle(); expect(render(true).state.view?.plans[0].id).toBe('first');
+    test.calls[0]!.resolve({ ok: true, view: view('first') }); await settle(); expect(render(true).state.view?.plans[0]!.id).toBe('first');
     render(false); render(true); await settle(); expect(test.calls).toHaveLength(2);
     test.identity = { ...test.identity, kind: 'staff' }; render(true); await settle(); expect(test.calls).toHaveLength(2); expect(render(true).state.view).toBeNull();
   });
   it('newest response wins and an older response cannot overwrite it', async () => {
     render(true); await settle(); const reload = render(true).reload(); await settle(); expect(test.calls).toHaveLength(2);
-    test.calls[1].resolve({ ok: true, view: view('new') }); await reload; await settle();
-    test.calls[0].resolve({ ok: true, view: view('old') }); await settle(); expect(render(true).state.view?.plans[0].id).toBe('new');
+    test.calls[1]!.resolve({ ok: true, view: view('new') }); await reload; await settle();
+    test.calls[0]!.resolve({ ok: true, view: view('old') }); await settle(); expect(render(true).state.view?.plans[0]!.id).toBe('new');
   });
   it.each(['userId', 'tenantId', 'memberId'] as const)('%s change clears copy and rejects previous scope response', async (key) => {
-    render(true); await settle(); test.calls[0].resolve({ ok: true, view: view('prior') }); await settle();
+    render(true); await settle(); test.calls[0]!.resolve({ ok: true, view: view('prior') }); await settle();
     const pending = render(true).reload(); await settle(); test.identity = { ...test.identity, [key]: 'different' }; render(true); await settle();
     expect(render(true).state.view).toBeNull();
-    test.calls[1].resolve({ ok: true, view: view('late-prior') }); await pending; await settle(); expect(render(true).state.view).toBeNull();
+    test.calls[1]!.resolve({ ok: true, view: view('late-prior') }); await pending; await settle(); expect(render(true).state.view).toBeNull();
   });
   it('offline refresh retains known view while cold offline exposes failure', async () => {
-    render(true); await settle(); test.calls[0].resolve({ ok: true, view: view('known') }); await settle();
-    test.offline = true; const pending = render(true).reload(); await settle(); test.calls[1].resolve({ ok: false }); await pending; await settle();
-    const stale = render(true).state; expect(stale.view?.plans[0].id).toBe('known'); expect(stale.staleReason).toBe('offline');
-    test.identity = { ...test.identity, memberId: 'new-member' }; render(true); await settle(); test.calls[2].resolve({ ok: false }); await settle();
+    render(true); await settle(); test.calls[0]!.resolve({ ok: true, view: view('known') }); await settle();
+    test.offline = true; const pending = render(true).reload(); await settle(); test.calls[1]!.resolve({ ok: false }); await pending; await settle();
+    const stale = render(true).state; expect(stale.view?.plans[0]!.id).toBe('known'); expect(stale.staleReason).toBe('offline');
+    test.identity = { ...test.identity, memberId: 'new-member' }; render(true); await settle(); test.calls[2]!.resolve({ ok: false }); await settle();
     expect(render(true).state.phase).toBe('failed'); expect(render(true).state.view).toBeNull();
   });
   it('unmount discards the successful copy even when the same member remounts offline', async () => {
-    render(true); await settle(); test.calls[0].resolve({ ok: true, view: view('before-unmount') }); await settle();
-    const known = render(true).state; expect(known.view?.plans[0].id).toBe('before-unmount'); expect(known.loadedAt).not.toBeNull();
+    render(true); await settle(); test.calls[0]!.resolve({ ok: true, view: view('before-unmount') }); await settle();
+    const known = render(true).state; expect(known.view?.plans[0]!.id).toBe('before-unmount'); expect(known.loadedAt).not.toBeNull();
     unmount(); test.offline = true;
     const fresh = render(true).state; expect(fresh.view).toBeNull(); expect(fresh.loadedAt).toBeNull(); expect(fresh.staleReason).toBeNull();
-    await settle(); expect(test.calls).toHaveLength(2); test.calls[1].resolve({ ok: false }); await settle();
+    await settle(); expect(test.calls).toHaveLength(2); test.calls[1]!.resolve({ ok: false }); await settle();
     const failed = render(true).state;
     expect(failed.phase).toBe('failed'); expect(failed.offline).toBe(true); expect(failed.view).toBeNull(); expect(failed.loadedAt).toBeNull(); expect(failed.staleReason).toBeNull();
   });
   it('an in-flight response from an unmounted screen cannot populate a new mount', async () => {
     render(true); await settle(); const oldResponse = test.calls[0];
     unmount(); render(true); await settle(); expect(test.calls).toHaveLength(2);
-    oldResponse.resolve({ ok: true, view: view('unmounted-response') }); await settle();
+    oldResponse!.resolve({ ok: true, view: view('unmounted-response') }); await settle();
     expect(render(true).state.view).toBeNull(); expect(render(true).state.loadedAt).toBeNull();
-    test.calls[1].resolve({ ok: true, view: view('new-mount') }); await settle();
-    expect(render(true).state.view?.plans[0].id).toBe('new-mount');
+    test.calls[1]!.resolve({ ok: true, view: view('new-mount') }); await settle();
+    expect(render(true).state.view?.plans[0]!.id).toBe('new-mount');
   });
 });

@@ -21,6 +21,23 @@ beforeEach(() => {
   audience.mockReset(); audience.mockResolvedValue({ supabase: db, identity: { kind: 'member', tenantId: '71000000-0000-4000-8000-000000000001', memberId: '71000000-0000-4000-8000-000000000101' } });
 });
 describe('PLC-009/011/014/015 read-only member plans page', () => {
+  it('PLC-009 omits agreed price when a positive discount has an unsafe recorded price', async () => {
+    state.live = terms({ price_paise: '9007199254740993', discount_paise: '10000' });
+    const html = await render(); const held = html.match(/<section\b[^>]*id="your-plan"[\s\S]*?<\/section>/)?.[0];
+    expect(held).toBeDefined(); expect(held).toContain('Price when sold'); expect(held).not.toContain('Agreed price');
+  });
+  it.each([
+    ['positive', '10000', true], ['zero', '0', false],
+    ['invalid', 'invalid', false], ['negative', '-1', false],
+    ['above price', '130000', false], ['noncanonical', '01', false],
+  ] as const)('PLC-009 shows agreed price only for valid positive discount: %s', async (_label, discount, shown) => {
+    state.live = terms({ discount_paise: discount });
+    const html = await render();
+    const held = html.match(/<section\b[^>]*id="your-plan"[\s\S]*?<\/section>/)?.[0];
+    expect(held).toBeDefined();
+    if (shown) { expect(held).toContain('Agreed price'); expect(held).toContain('₹1,100'); }
+    else expect(held).not.toContain('Agreed price');
+  });
   it('guards audience and renders name-price-length order, exact facts, both prices and honest GST', async () => {
     const html = await render(); expect(audience).toHaveBeenCalledWith('member');
     expect(html.indexOf('Plan p2')).toBeLessThan(html.lastIndexOf('Plan p1'));
