@@ -111,6 +111,34 @@ repeated work while preserving the independent authors, blind reviews and gates.
 
 ## Batch 2 — contracts and vocabulary staging
 
+Latest local checkpoint (2026-10-02, before any business migration push):
+
+- PTF visible356 and held381 both pass after independent canonical-preview tests
+  and the isolated helper correction. A fresh blind source critic returned GO;
+  actual concurrent transactions, midnight waits and screen comparison remain open.
+- Shop visible211/held276 pass. The negative-only order-default seam now models
+  a prior transaction with `statement_timestamp() - interval '1 microsecond'`,
+  executes the original deferred guard and restores the exact default before the
+  genuine member reservation. Its default is never changed. This is synthetic
+  chronology evidence; real separate-transaction reserve/fulfil/replay/prior-sale
+  refusal remains mandatory. A fresh blind Shop/MEDIA DB critic returned static
+  GO; trusted Edge publication, R2 bytes/cleanup/GET exposure and screens are open.
+- Classes held221 passes live-membership parity through the real token-proof
+  member check-in RPC and the unchanged attendance trigger. Core visible710
+  reaches its complete plan; eight matrix calls were corrected by the independent
+  author to the frozen six-argument signature without changing expected errors.
+  That focused retry is in progress. Existing seed plus scenarios also passed
+  the all-eight-migration rollback preview, without committing any data.
+- Fresh Classes and ANC critics each found one source boundary issue. Concrete
+  owner proposals are pending: `classes/wall-time-boundary-amendment.md` and
+  `announcements/live-membership-boundary-amendment.md`. Affected amendments,
+  independent tests and source fixes wait for approval. These are not accepted
+  source wins; no business push or complete canonical sweep is claimed.
+- Registry, rollback wrapping (123 files) and escape-hatch checks pass. Final
+  whole-push immutability, canonical full SQL sweep, CI, generated types and all
+  app/runtime Gauntlet work remain required. Future app tests are independent
+  uncommitted drafts; missing-module red runs do not prove UI behavior.
+
 Seven proposals and their fetchable bars are being aligned with authoritative
 shared decisions before independent authors start. The owner explicitly approved
 the scoped last-session PT waiver and the separate CI-only notification category

@@ -24,19 +24,28 @@ current checkpoint below supersedes the historical session-1 snapshot.
 - Seven batch-2 contracts, separate SQL authors and central catalogue tests are
   committed first. All eight source drafts exist but remain uncommitted; ANC's
   exact platform-policy reconciliation is complete. All business Cloud schema
-  remains unapplied. PTF's fresh source critic found its canonical preview path
-  missing; public clarification 1feffcf received fresh GO and both independent
-  authors are adding tests before a separate source correction.
+  remains unapplied. PTF's canonical preview clarification 1feffcf received fresh
+  GO; separate visible356/held381 tests preceded the isolated source correction.
+  Both suites now pass. Fresh blind PTF and Shop source critics returned static
+  GO; those reviews do not establish real races, publication or screen quality.
 - Focused runtime passes include GRD visible311/held293, BIZ visible61/held71,
-  PLC visible32/held30, ANC visible157/held88, CLS notice42/held46, and PTF held331
-  on the pre-preview draft. Remaining visible PT/Classes and held Shop fixtures
-  still abort or fail; these passes are not the complete batch sweep. Other
-  affected suites are being repaired by their original independent authors for
-  invalid fixture IDs, lifecycle/date/consent setup, expected-query shape and
-  comparison collations. No failing requirement has been relaxed. Final combined
-  booking-primitives + seven-migration rollback sweep and fresh source critics
-  remain required before the business push. Local Cloud testing stays serialized
+  PLC visible32/held30, ANC visible157/held88, CLS notice42/held46, PTF visible356/
+  held381, and Shop visible211/held276. Classes held221 now passes genuine member
+  check-in parity through the canonical token-proof RPC, with normal guards.
+  Classes visible710 reached its exact plan with eight wrong-arity fixture calls;
+  their original author preserved expected states and corrected the six-argument
+  invocation in 8afa142; runtime retry is in progress. Existing seed/scenarios
+  also passed a rollback preview with all eight draft migrations. These focused
+  passes are not the complete batch sweep. Final combined canonical 123-file
+  sweep remains required before the business push; Cloud testing is serialized
   and forbidden while any DB workflow is active.
+- Two fresh source findings need owner decisions before affected work resumes:
+  classes/wall-time-boundary-amendment.md (24:00 currently shifts the instant but
+  leaves the wrong stored date; recommended explicit rejection preserves weekly
+  identity), and announcements/live-membership-boundary-amendment.md (the frozen
+  glossary cites an old status-only gate; recommended current gym-local inclusive
+  dates). Both concrete proposals are committed and approval cards are pending.
+  Neither source fix nor its new tests has been commissioned before that decision.
 - Owner approved the PT final-session exception, then clarified that ANY
   same-tenant/order-payment refund record blocks it (including pending and failed).
   Public boundary and immutable completed_order posture received independent GO;
@@ -46,13 +55,16 @@ current checkpoint below supersedes the historical session-1 snapshot.
   test commits preceded all source edits. Owner also retained expired packs'
   unused balance: total10-used3 with scheduled2 returns remaining7 and scheduled2
   separately, stays unbookable and changes no ledger. Independent tests preceded
-  the separate expired-reader correction; held331 passed. No complete PT win is
-  claimed while preview, visible fixtures and real concurrency remain open.
+  the separate expired-reader correction. Current visible356/held381 include
+  the canonical preview proof and pass. Real concurrency, midnight waits and
+  screens remain open; no complete PT win is claimed.
 - ANC's narrower frozen direct-table policy lists take precedence through the
   exact ADR-184 exception, independently reviewed GO: no platform policy on any
   of its three tables; support-preview remains actor-checked read-only RPC access.
   The corrected central test commit precedes the completed ANC source draft;
-  both ANC suites now pass, with no notification fan-out or platform policy.
+  both ANC suites pass their frozen contract, with no notification fan-out or
+  platform policy. The later independent date-boundary finding is recorded above;
+  ANC is not source-approved until that targeting contract is resolved.
 - Shop rollback-only success fixtures use a narrowly bounded order-created default
   seam to model separate command transactions without changing money functions,
   guards or successful rows. Genuine multi-transaction ordinary-RPC reserve,
