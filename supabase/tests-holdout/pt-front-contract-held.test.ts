@@ -81,7 +81,7 @@ describe('independent PTF shared boundaries', () => {
       expect(new Date(cancel.cutoff).toISOString()).toBe('2026-11-03T02:45:00.000Z');
       if (late) expect(cancel.sentence).toBe(lateConsumes ? 'This is inside your cancellation window. Cancelling will use 1 session from your pack.' : "This is inside your cancellation window. Cancelling won't use a session from your pack.");
       else expect(cancel.sentence).toMatch(/^Free to cancel until .+\.$/);
-      const book = api.ptBookingConsequence(input); expect(book.sentence).toBe(late ? cancel.sentence : cancel.sentence.replace('Free to cancel', 'You can cancel for free'));
+      const book = api.ptBookingConsequence(input); expect(book).toBe(late ? cancel.sentence : cancel.sentence.replace('Free to cancel', 'You can cancel for free'));
     }
   });
   it('current policy controls preview', async () => {
