@@ -2,7 +2,7 @@
 begin;
 set local role postgres;
 set local search_path to public, extensions;
-select plan(220);
+select plan(221);
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$select ('74900000-0000-4000-8000-'||lpad(to_hex(n),12,'0'))::uuid$$;
 create function pg_temp.sc(n integer default 1) returns text language sql as $$select jsonb_build_object('sub',pg_temp.u(200+n),'role','authenticated','tenant_id',pg_temp.u(case when n=5 then 2 else 1 end),'staff_id',pg_temp.u(200+n),'app_role',case n when 1 then 'gym_owner' when 2 then 'gym_manager' when 3 then 'front_desk' when 4 then 'trainer' when 5 then 'gym_owner' else 'trainer' end)::text$$;
 create function pg_temp.mc(n integer default 100) returns text language sql as $$select jsonb_build_object('sub',pg_temp.u(1000+n),'role','authenticated','tenant_id',pg_temp.u(case when n=110 then 2 else 1 end),'member_id',pg_temp.u(n),'app_role','member')::text$$;
@@ -253,29 +253,33 @@ select is(app.class_local_instant('America/New_York',date '2027-03-14',time '02:
 select is(app.class_local_instant('America/New_York',date '2026-11-01',time '01:30'),timestamptz '2026-11-01 06:30+00','CLS ambiguous DST time PostgreSQL rule');
 update public.branches set timezone='Invalid/CLS'where id=pg_temp.u(12);
 select is(app.class_branch_timezone(pg_temp.u(1),pg_temp.u(12)),'Pacific/Kiritimati','CLS invalid branch falls back gym');
+-- Rotating member gate evaluates the canonical gym-local day, distinct from
+-- the class branch timezone; each successful scan is rolled back below.
+select is(pg_temp.run($q$select to_jsonb(public.set_checkin_gate_mode('rotating_screen'))$q$),'"rotating_screen"'::jsonb,'CLS parity fixture establishes canonical rotating member gate');
+insert into public.qr_sessions(id,tenant_id,branch_id,token_hash,gate_mode,expires_at,created_by_staff_id)values(pg_temp.u(29000),pg_temp.u(1),pg_temp.u(11),repeat('a',64),'rotating_screen',clock_timestamp()+interval '10 minutes',pg_temp.u(201));
 create temp table h74_parity_diagnostics(outcome jsonb);
 create function pg_temp.checkin_parity()returns boolean language plpgsql as $$declare v jsonb;d text;begin
 begin
- v:=pg_temp.run('select to_jsonb(g)from public.record_staff_front_desk_check_in(pg_temp.u(108),''CLS membership parity'',pg_temp.u(29001))g',pg_temp.sc());
- if v?'error'or v='null'::jsonb or not exists(select 1 from public.attendance where id=(v->>'id')::uuid and member_id=pg_temp.u(108)and tenant_id=pg_temp.u(1)and assisted_by_staff_id=pg_temp.u(201))then insert into h74_parity_diagnostics values(jsonb_build_object('source','canonical_checkin','result',v));return false;end if;
+ v:=pg_temp.run('insert into public.attendance(tenant_id,branch_id,member_id,qr_session_id,source,client_event_id)values(pg_temp.u(1),pg_temp.u(11),pg_temp.u(108),pg_temp.u(29000),''qr'',pg_temp.u(29001))returning to_jsonb(attendance)',pg_temp.mc(108));
+ if v?'error'or v='null'::jsonb or not exists(select 1 from public.attendance where id=(v->>'id')::uuid and member_id=pg_temp.u(108)and tenant_id=pg_temp.u(1)and assisted_by_staff_id is null and source='qr'and qr_session_id=pg_temp.u(29000))then insert into h74_parity_diagnostics values(jsonb_build_object('source','canonical_checkin','result',v));return false;end if;
  raise exception using errcode='HX001',message='rollback successful parity probe';
 exception when sqlstate 'HX001'then return true;when others then get stacked diagnostics d=pg_exception_detail;insert into h74_parity_diagnostics values(jsonb_build_object('source','parity_probe','error',sqlstate,'detail',d,'message',sqlerrm));return false;end;end$$;
-set local session_replication_role=replica;update public.memberships set status='active',starts_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date,ends_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date where member_id=pg_temp.u(108);set local session_replication_role=origin;
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),true,'CLS check-in predicate matrix 0 active');
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 0');
-set local session_replication_role=replica;update public.memberships set status='frozen',starts_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date,ends_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date where member_id=pg_temp.u(108);set local session_replication_role=origin;
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),true,'CLS check-in predicate matrix 1 frozen');
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 1');
+set local session_replication_role=replica;update public.memberships set status='active',starts_on=(statement_timestamp()at time zone 'Pacific/Kiritimati')::date,ends_on=(statement_timestamp()at time zone 'Pacific/Kiritimati')::date where member_id=pg_temp.u(108);set local session_replication_role=origin;
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),true,'CLS check-in predicate matrix 0 active');
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 0');
+set local session_replication_role=replica;update public.memberships set status='frozen',starts_on=(statement_timestamp()at time zone 'Pacific/Kiritimati')::date,ends_on=(statement_timestamp()at time zone 'Pacific/Kiritimati')::date where member_id=pg_temp.u(108);set local session_replication_role=origin;
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),true,'CLS check-in predicate matrix 1 frozen');
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 1');
 -- Only historical NULL-date predicate parity: preserve and restore canonical state.
 create temp table h74_null_constraint as select pg_get_constraintdef(oid)definition,convalidated from pg_constraint where conrelid='public.memberships'::regclass and conname='memberships_dated_unless_pending_chk';
 create temp table h74_null_membership as select id,status,starts_on,ends_on from public.memberships where id=pg_temp.u(508);
 alter table public.memberships drop constraint memberships_dated_unless_pending_chk;
 set local session_replication_role=replica;update public.memberships set status='active',starts_on=null,ends_on=null where member_id=pg_temp.u(108);set local session_replication_role=origin;
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),true,'CLS check-in predicate matrix 2 active');
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 2');
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),true,'CLS check-in predicate matrix 2 active');
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 2');
 set local session_replication_role=replica;update public.memberships set status='frozen',starts_on=null,ends_on=null where member_id=pg_temp.u(108);set local session_replication_role=origin;
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),true,'CLS check-in predicate matrix 3 frozen');
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 3');
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),true,'CLS check-in predicate matrix 3 frozen');
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 3');
 -- Restore the imported row only; all assertions and ordinary commands use origin.
 set local session_replication_role=replica;
 update public.memberships m set status=b.status,starts_on=b.starts_on,ends_on=b.ends_on from h74_null_membership b where m.id=b.id;
@@ -284,23 +288,23 @@ do $$begin execute 'alter table public.memberships add constraint memberships_da
 select ok((select c.convalidated and c.convalidated=b.convalidated and pg_get_constraintdef(c.oid)=b.definition from pg_constraint c cross join h74_null_constraint b where c.conrelid='public.memberships'::regclass and c.conname='memberships_dated_unless_pending_chk'),'CLS historical null-date seam restores exact validated CHECK');
 select ok((select m.status=b.status and m.starts_on is not distinct from b.starts_on and m.ends_on is not distinct from b.ends_on from public.memberships m join h74_null_membership b on b.id=m.id)and current_setting('session_replication_role')='origin'and not exists(select 1 from public.memberships where status<>'pending'and(starts_on is null or ends_on is null)),'CLS historical null-date seam restores valid row and origin before commands');
 
-set local session_replication_role=replica;update public.memberships set status='active',starts_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date+1,ends_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date+2 where member_id=pg_temp.u(108);set local session_replication_role=origin;
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),false,'CLS check-in predicate matrix 4 active');
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 4');
-set local session_replication_role=replica;update public.memberships set status='active',starts_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date-2,ends_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date-1 where member_id=pg_temp.u(108);set local session_replication_role=origin;
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),false,'CLS check-in predicate matrix 5 active');
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 5');
+set local session_replication_role=replica;update public.memberships set status='active',starts_on=(statement_timestamp()at time zone 'Pacific/Kiritimati')::date+1,ends_on=(statement_timestamp()at time zone 'Pacific/Kiritimati')::date+2 where member_id=pg_temp.u(108);set local session_replication_role=origin;
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),false,'CLS check-in predicate matrix 4 active');
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 4');
+set local session_replication_role=replica;update public.memberships set status='active',starts_on=(statement_timestamp()at time zone 'Pacific/Kiritimati')::date-2,ends_on=(statement_timestamp()at time zone 'Pacific/Kiritimati')::date-1 where member_id=pg_temp.u(108);set local session_replication_role=origin;
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),false,'CLS check-in predicate matrix 5 active');
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 5');
 set local session_replication_role=replica;update public.memberships set status='pending',starts_on=null,ends_on=null where member_id=pg_temp.u(108);set local session_replication_role=origin;
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),false,'CLS check-in predicate matrix 6 pending');
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 6');
-set local session_replication_role=replica;update public.memberships set status='expired',starts_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date-2,ends_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date+2 where member_id=pg_temp.u(108);set local session_replication_role=origin;
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),false,'CLS check-in predicate matrix 7 expired');
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 7');
-set local session_replication_role=replica;update public.memberships set status='cancelled',starts_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date-2,ends_on=(statement_timestamp()at time zone 'Asia/Kolkata')::date+2 where member_id=pg_temp.u(108);set local session_replication_role=origin;
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),false,'CLS check-in predicate matrix 8 cancelled');
-select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 8');
-select is(app.member_has_live_membership(pg_temp.u(2),pg_temp.u(108),(statement_timestamp()at time zone 'Asia/Kolkata')::date),false,'CLS membership tenant isolation');
-insert into public.organization_holidays(tenant_id,holiday_on,name)values(pg_temp.u(1),(statement_timestamp()at time zone 'Asia/Kolkata')::date+7,'CLS holiday');
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),false,'CLS check-in predicate matrix 6 pending');
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 6');
+set local session_replication_role=replica;update public.memberships set status='expired',starts_on=(statement_timestamp()at time zone 'Pacific/Kiritimati')::date-2,ends_on=(statement_timestamp()at time zone 'Pacific/Kiritimati')::date+2 where member_id=pg_temp.u(108);set local session_replication_role=origin;
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),false,'CLS check-in predicate matrix 7 expired');
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 7');
+set local session_replication_role=replica;update public.memberships set status='cancelled',starts_on=(statement_timestamp()at time zone 'Pacific/Kiritimati')::date-2,ends_on=(statement_timestamp()at time zone 'Pacific/Kiritimati')::date+2 where member_id=pg_temp.u(108);set local session_replication_role=origin;
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),false,'CLS check-in predicate matrix 8 cancelled');
+select is(app.member_has_live_membership(pg_temp.u(1),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),pg_temp.checkin_parity(),'CLS actual check-in trigger parity 8');
+select is(app.member_has_live_membership(pg_temp.u(2),pg_temp.u(108),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date),false,'CLS membership tenant isolation');
+insert into public.organization_holidays(tenant_id,holiday_on,name)values(pg_temp.u(1),(statement_timestamp()at time zone 'Pacific/Kiritimati')::date+7,'CLS holiday');
 insert into h74_res values('rules',pg_temp.run($q$select coalesce(jsonb_agg(to_jsonb(r)),'[]')from public.create_class_rules(pg_temp.u(600),pg_temp.u(11),array[0,1,2,3,4,5,6]::smallint[],time '23:59',60,3,pg_temp.u(204),null,null)r$q$,pg_temp.sc()));
 select is((select jsonb_array_length(v)from h74_res where k='rules'),7,'CLS seven weekdays atomic create');
 create temp table h74_generated as select id,session_date,starts_at,ends_at,capacity from public.class_sessions where tenant_id=pg_temp.u(1)and rule_id is not null;
