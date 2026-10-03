@@ -100,15 +100,15 @@ describe('PAY route session/body order, shape and safe failures', () => {
     expect(response.status).toBe(200);
     expect(state.calls).toEqual([{ name: 'create_purchase_request', args: { p_request_key: id, p_kind: 'shop', p_target_id: id, p_quantity: 1, p_expected_revision: id } }]);
   });
-  it('proof-url returns only the signed URL and its expiry, never storage metadata', async () => {
+  it('proof-url returns only the bounded proof-asset URL and its expiry, never storage metadata', async () => {
     state.claims = member;
     const proofUrl = { path: '../api/purchase-requests/[id]/proof-url/route', method: 'POST' };
-    state.results = [{ data: [{ request_id: id, url: 'https://r2.test/signed', expires_at: '2026-10-02T05:45:00Z' }], error: null }];
+    state.results = [{ data: { requestId: id, proofId: id, assetId: id, url: `/api/purchase-requests/${id}/proof-asset`, expiresAt: '2026-10-02T05:45:00Z' }, error: null }];
     const response = await invoke(proofUrl, request({}, 'POST'));
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
     const payload = await response.json();
-    expect(payload.data).toEqual({ url: 'https://r2.test/signed', expiresAt: '2026-10-02T05:45:00Z' });
+    expect(payload.data).toEqual({ url: `/api/purchase-requests/${id}/proof-asset`, expiresAt: '2026-10-02T05:45:00Z' });
   });
 });
 
@@ -145,12 +145,35 @@ describe('PAY complete actor and safe-read boundaries (BUY-001/009/019)', () => 
     expect(state.calls).toEqual([]);
     expect(state.events).not.toContain('body');
   });
-  // INTERFACE-BLOCKED for the member detail success case: the complete safe
-  // read_purchase_request JSON fields/types/nullability are not yet declared.
-  // Keep the success and RPC assertions intact until the public fixture is supplied.
+  // Full raw read JSON follows the frozen public detail/snapshot declaration.
+  // Unrecorded optional facts are omitted by the SQL projection.
   it.each(readRoutes)('$path invokes only its declared scoped read', async route => {
     state.claims = route.audience;
-    state.results = [{ data: route === readRoutes[0] ? { request_id: id, status: 'requested' } : { requests: [], nextAfter: null, nextAfterId: null }, error: null }];
+    state.results = [{ data: route === readRoutes[0] ? {
+      requestId: id,
+      requestKey: id,
+      kind: 'shop',
+      status: 'requested',
+      targetId: id,
+      quantity: 1,
+      snapshot: {
+        productId: id,
+        productName: 'Gym training towel',
+        kind: 'product',
+        description: null,
+        cancellationTerms: null,
+        validityDays: null,
+        gstRateBp: 0,
+        unitPricePaise: '199900',
+        pricePaise: '199900',
+        totalPaise: '199900',
+        currency: 'INR',
+        quoteVersion: id,
+      },
+      quoteRevision: id,
+      createdAt: '2026-10-02T05:00:00Z',
+      expiresAt: '2026-10-03T05:00:00Z',
+    } : { requests: [], nextAfter: null, nextAfterId: null }, error: null }];
     const response = await invoke(route, new Request('https://gym.example/api'));
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
