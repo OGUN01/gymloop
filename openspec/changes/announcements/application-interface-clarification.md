@@ -26,7 +26,8 @@ promise exactly one HTTP request across concurrent delivery or retries.
 Unmounted web command/form work cannot refresh, navigate or apply a completed
 upload to a replacement form. Existing caller validation remains authoritative;
 no browser-supplied identity is introduced. The separate failure-truth amendment
-remains owner-pending and must not be treated as approved by this clarification.
+was explicitly owner-approved on 2026-10-03; its exact failure boundaries and
+failure-truth-public-declarations.md supersede the older blanket fallback.
 
 ## Existing callable surfaces
 
