@@ -1,8 +1,8 @@
 -- Independent visible fixture assertions: public declarations only.
--- Root injects ordinary seed.sql once after BEGIN and scenarios twice at the literal marker.
+-- Root injects ordinary seed.sql after BEGIN, legacy scenarios once before baselines, and Batch-2 twice afterwards.
 -- Explicit fixture dates derive from the closure anchor; consent clocks come from genuine audit history.
 BEGIN;
--- Root injects ordinary seed.sql once immediately above these TEMP snapshots.
+-- ROOT_INSERT_LEGACY_SCENARIOS_HERE
 CREATE TEMP TABLE b2_visible_legacy ON COMMIT DROP AS
 SELECT 'member' AS kind,m.id,to_jsonb(m)-'updated_at' AS facts FROM public.members m
 WHERE m.tenant_id='00000001-0000-4000-8000-000000000001'

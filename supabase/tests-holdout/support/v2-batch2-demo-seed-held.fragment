@@ -2,6 +2,7 @@
 BEGIN;
 -- Root injects ordinary seed.sql once immediately above this line.
 SET LOCAL search_path = public, extensions;
+-- ROOT_INSERT_LEGACY_SCENARIOS_HERE
 -- Capture existing identities/terms before the primary inserts both legal seed runs.
 CREATE TEMP TABLE held_members_before AS SELECT id, to_jsonb(m) AS facts FROM public.members m WHERE id::text LIKE '00000005-%';
 CREATE TEMP TABLE held_staff_before AS SELECT id, to_jsonb(s) AS facts FROM public.staff s;
