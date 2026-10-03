@@ -7,7 +7,7 @@ export const classIdentifierSchema = z.uuid();
 function result<T>(schema: z.ZodType<T>, data: unknown, map: (row: T) => unknown): unknown | null { const parsed = schema.safeParse(data); return parsed.success ? map(parsed.data) : null; }
 function booking(data: unknown, status: (typeof BOOKING_STATUSES)[number]) { return result(z.tuple([z.object({ booking_id: z.uuid(), status: z.literal(status) })]), data, ([r]) => ({ bookingId: r.booking_id, status: r.status })); }
 export function parseClassBookResult(data: unknown) { return result(z.tuple([z.object({ booking_id: z.uuid(), status: z.literal('booked'), spots_left: count })]), data, ([r]) => ({ bookingId: r.booking_id, status: r.status, spotsLeft: r.spots_left })); }
-export const parseClassDeskBookResult = parseClassBookResult;
+export function parseClassDeskBookResult(data: unknown) { return parseClassBookResult(data); }
 export function parseClassBookingCancelResult(data: unknown) { return booking(data, 'cancelled_by_member'); }
 export function parseClassDeskCancelResult(data: unknown) { return booking(data, 'cancelled_by_gym'); }
 export function parseClassAttendanceResult(data: unknown, input: { bookingId: string; status: (typeof BOOKING_STATUSES)[number] }) { return result(z.enum(BOOKING_STATUSES).refine((status) => status === input.status), data, (status) => ({ bookingId: input.bookingId, status })); }

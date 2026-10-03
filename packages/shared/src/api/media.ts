@@ -9,7 +9,7 @@ export type MediaMime = (typeof MEDIA_MIME_TYPES)[number];
 export const MEDIA_EXTENSIONS: Record<MediaMime, 'jpg' | 'png' | 'webp'> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 export const mediaUploadRequestSchema = z.strictObject({ kind: z.enum(MEDIA_KINDS), mime: z.enum(MEDIA_MIME_TYPES), bytes: z.number().int().min(1).max(MEDIA_LIMITS.maxBytes) });
 export const mediaConfirmRequestSchema = z.strictObject({ assetId: z.uuid() });
-export const memberMediaUrlRequestSchema = mediaConfirmRequestSchema;
+export const memberMediaUrlRequestSchema = z.strictObject(mediaConfirmRequestSchema.shape);
 const KEY = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(staging|published)\/(product|trainer|announcement)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(jpg|png|webp)$/;
 
 export function parseMediaObjectKey(key: string): { tenantId: string; kind: MediaKind; objectUuid: string; extension: string; storageArea: 'staging' | 'published' } | null {

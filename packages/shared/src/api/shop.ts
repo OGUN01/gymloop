@@ -10,7 +10,7 @@ export const SHOP_RESERVATION_STATES = [...Constants.public.Enums.shop_reservati
 export function shopSectionForKind(kind: string): ShopSection | null { return kind === 'product' ? 'products' : kind === 'diet_plan' ? 'services' : null; }
 export const shopReserveRequestSchema = z.strictObject({ itemId: z.uuid(), quantity: z.number().int().min(1).max(SHOP_LIMITS.maxQuantityPerReservation), quoteVersion: z.uuid() });
 export const shopCatalogueRequestSchema = z.strictObject({});
-export const shopMemberCancelRequestSchema = shopCatalogueRequestSchema;
+export const shopMemberCancelRequestSchema = z.strictObject(shopCatalogueRequestSchema.shape);
 export const shopDeskCancelRequestSchema = z.strictObject({ reason: z.string().trim().min(SHOP_LIMITS.cancelReasonMin).max(SHOP_LIMITS.cancelReasonMax) });
 export const shopFulfilRequestSchema = z.strictObject({ quoteVersion: addonSaleRequestSchema.shape.quoteVersion, method: addonSaleRequestSchema.shape.method, reason: addonSaleRequestSchema.shape.reason, idempotencyKey: addonSaleRequestSchema.shape.idempotencyKey });
 export const shopProductDisplayRequestSchema = z.strictObject({ categoryId: z.uuid().nullable(), sortOrder: z.number().int().min(0).max(SHOP_SORT_ORDER_MAX), imageAssetId: z.uuid().nullable() });

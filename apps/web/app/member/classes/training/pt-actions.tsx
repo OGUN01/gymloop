@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { formatDateTime, ptBookingStatusLabel, ptCommandAnswer, ptRecordedInterval, ptRefusalMessage, type BusinessNouns, type PtSession } from '@gymloop/shared';
 import { ClassConfirmation } from '../class-actions';
 import { isObject } from '../../../../lib/keyset';
+import { useBrowserOnline } from '../../../../lib/use-browser-online';
 
 type PresentationLease = { scopeKey: string; sessionId: string; active: boolean; pending: boolean };
 /** A revoked lease is never restored, even when its caller returns later. */
@@ -14,13 +15,8 @@ function renewLease(previous: PresentationLease | null, scopeKey: string, sessio
 }
 
 export function TrainingConnectionNotice() {
-  const [offline, setOffline] = useState(false);
-  useEffect(() => {
-    const update = () => setOffline(!navigator.onLine);
-    update(); window.addEventListener('online', update); window.addEventListener('offline', update);
-    return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); };
-  }, []);
-  return offline ? <p className="cl-alert" role="status">You're offline. Showing what was last loaded. This view is stale.</p> : null;
+  const online = useBrowserOnline();
+  return !online ? <p className="cl-alert" role="status">You're offline. Showing what was last loaded. This view is stale.</p> : null;
 }
 
 export function PtCancelButton({ session, scopeKey, nouns, refreshSession }: { session: PtSession; scopeKey: string; nouns: BusinessNouns; refreshSession: () => Promise<PtSession | null> }) {

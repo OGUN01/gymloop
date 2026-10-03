@@ -1,20 +1,20 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { shopRefusalMessage, SHOP_REFUSAL_COPY, mediaRefusalMessage } from '@gymloop/shared';
 import { usePreviewReadOnly } from '../app/preview-context';
+import { useBrowserOnline } from './use-browser-online';
 
 const DESK_COPY: Record<string, string> = { insufficient_stock: 'Not enough stock to sell this. Cancel the reservation and tell the member.', offer_unavailable: 'This offer is unavailable. Cancel the reservation and tell the member.', idempotency_conflict: 'This request key names another sale. Inspect the existing sale before continuing.', category_name_taken: 'A category with that name already exists. Choose another name.', category_not_found: 'That category is unavailable. Refresh and choose another.', invalid_request: 'Check the fields and try again.', retryable: 'The sale could not finish. Retry the same command.', invalid_payment: 'Choose a desk payment method, or give a reason for a complimentary item.' };
 export function useShopCommand() {
   const preview = usePreviewReadOnly();
   const router = useRouter();
-  const [online, setOnline] = useState(true);
+  const online = useBrowserOnline();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const pending = useRef(false);
   const uncertain = useRef(false);
-  useEffect(() => { const update = () => setOnline(navigator.onLine); update(); window.addEventListener('online', update); window.addEventListener('offline', update); return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); }; }, []);
   async function send(path: string, body: unknown, message: string, method = 'POST'): Promise<Record<string, unknown> | null> {
     if (preview || pending.current || !navigator.onLine) { if (!navigator.onLine) setError("You're offline. Connect before making this change."); return null; }
     pending.current = true; uncertain.current = false; setBusy(true); setError(null); setSuccess(null);

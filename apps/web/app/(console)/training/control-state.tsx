@@ -1,16 +1,11 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import type { ConsoleViewer } from '../../../lib/training-console';
+import { useBrowserOnline } from '../../../lib/use-browser-online';
 
 export function ConsoleTrainingConnectionNotice() {
-  const [offline, setOffline] = useState(false);
-  useEffect(() => {
-    const update = () => setOffline(navigator.onLine === false);
-    update();
-    window.addEventListener('online', update); window.addEventListener('offline', update);
-    return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); };
-  }, []);
-  return offline ? <p className="cl-alert" role="status">You're offline. Reconnect to see bookings. This view may be stale.</p> : null;
+  const online = useBrowserOnline();
+  return online === false ? <p className="cl-alert" role="status">You're offline. Reconnect to see bookings. This view may be stale.</p> : null;
 }
 
 /** Read props are a presentation lease, never a credential. Revocation is permanent. */

@@ -17,7 +17,7 @@ const profile = { bio: z.string().trim().max(L.bioMaxChars), specialities: z.arr
 export const ptBookRequestSchema = z.strictObject({ orderId: z.uuid(), sessionId: z.uuid(), startsAt: z.iso.datetime({ offset: true }) });
 export const ptCancelRequestSchema = z.strictObject({ sessionId: z.uuid() });
 export const ptGymCancelRequestSchema = z.strictObject({ sessionId: z.uuid(), reason });
-export const ptWaiveRequestSchema = ptGymCancelRequestSchema;
+export const ptWaiveRequestSchema = z.strictObject(ptGymCancelRequestSchema.shape);
 export const trainerProfileRequestSchema = z.strictObject({ staffId: z.uuid(), ...profile, photoAssetId: z.uuid().nullable(), isListed: z.boolean() });
 export const ownTrainerProfileRequestSchema = z.strictObject(profile);
 const windowSchema = z.strictObject({ weekday: z.number().int().min(0).max(DAYS_PER_WEEK - 1), startMinute: z.number().int().min(0).max(MINUTES_PER_DAY - 1), endMinute: z.number().int().min(1).max(MINUTES_PER_DAY) }).refine((window) => window.endMinute > window.startMinute, { message: 'End time must follow start time.' });
