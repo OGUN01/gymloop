@@ -27,3 +27,13 @@ PLC-009's positive-discount condition and PLC-019/Q9's caller, lifetime and
 last-good-copy boundaries remain unchanged. A retained callback is not an
 authorization to read after its caller changes, the disclosure closes or the
 hook unmounts. Fresh current-caller reads keep their normal behavior.
+
+## Offered-row reader order
+
+PLC-Q1/Q5 and the commissioned structural bar require the spoken order to
+match the rendered order on both platforms: name, exact price, length,
+offered-plan marker when present, then stored GST rate when present. The
+proposal's native-label example placed GST before the marker and contradicted
+that parity requirement. This clarification resolves the example in favour
+of the frozen quality bar; it changes no field, money rule or audience.
+Independent visible and held order regressions precede the source correction.
