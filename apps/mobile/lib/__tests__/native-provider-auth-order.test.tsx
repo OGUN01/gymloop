@@ -33,14 +33,14 @@ vi.mock('@expo-google-fonts/archivo', () => ({ useFonts: () => [true], Archivo_4
 vi.mock('expo-font', () => ({ useFonts: () => [true] }));
 vi.mock('../../assets/fonts/ArchivoExtraCondensed-ExtraBold.ttf', () => ({ default: 1 }));
 vi.mock('../../assets/fonts/ArchivoExtraCondensed-Bold.ttf', () => ({ default: 1 }));
-vi.mock('react-native', () => ({ StatusBar: () => null, useColorScheme: () => 'dark' }));
+vi.mock('react-native', () => ({ StatusBar: () => null, useColorScheme: () => 'dark', AppState: { addEventListener: () => ({ remove: () => undefined }) } }));
 vi.mock('@gymloop/shared', async (original) => ({ ...await original<Record<string, unknown>>(), mobileClientEnv: () => ({ EXPO_PUBLIC_SUPABASE_URL: 'https://example.supabase.co', EXPO_PUBLIC_SUPABASE_ANON_KEY: 'public-key', EXPO_PUBLIC_API_BASE_URL: 'https://app.example' }) }));
 vi.mock('../native-session', async (original) => ({ ...await original<Record<string, unknown>>(), createMobileSupabase: () => ({ auth: {
   getSession: async () => ({ data: { session: await h.initial }, error: null }),
   onAuthStateChange: (callback: typeof h.callback) => { h.callback = callback; return { data: { subscription: { unsubscribe: () => undefined } } }; },
   getClaims: async (token: string) => h.claims.get(token)!.promise,
   signOut: async () => ({ error: null }),
-} }) }));
+}, from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { business_type: 'gym' }, error: null }) }) }) }) }) }));
 
 const USER = '11111111-1111-4111-8111-111111111111';
 const TENANT = '22222222-2222-4222-8222-222222222222';
@@ -50,15 +50,20 @@ function deferred<T>() { let resolve!: (value: T) => void; const promise = new P
 function session(token: string) { return { access_token: token, user: { id: USER }, refresh_token: 'refresh', token_type: 'bearer', expires_in: 3600 }; }
 function verified(memberId: string) { return { data: { claims: { role: 'authenticated', sub: USER, app_role: 'member', tenant_id: TENANT, member_id: memberId } }, error: null }; }
 async function flush() { for (let i = 0; i < 12; i += 1) await Promise.resolve(); }
-async function render() {
+async function render(settle = false) {
   const { MobileProvider } = await import('../mobile-context');
-  h.cursor = 0;
-  const tree = MobileProvider({ children: null });
   let value: Record<string, unknown> | undefined;
   const visit = (node: ReactNode) => { if (Array.isArray(node)) node.forEach(visit); else if (isValidElement<{ value?: Record<string, unknown>; children?: ReactNode }>(node)) { if (node.props.value && 'identity' in node.props.value) value = node.props.value; visit(node.props.children); } };
-  visit(tree);
-  const effects = h.effects.splice(0); effects.forEach((effect) => effect());
-  await flush();
+  // Initial mounts must not wait for deliberately unresolved auth promises.
+  // Assertions may rerender after hydration effects settle to observe readiness.
+  for (let pass = 0; pass < (settle ? 12 : 1); pass += 1) {
+    h.cursor = 0;
+    value = undefined;
+    visit(MobileProvider({ children: null }));
+    const effects = h.effects.splice(0); effects.forEach((effect) => effect());
+    await flush();
+    if (value) break;
+  }
   return value!;
 }
 beforeEach(() => { h.slots = []; h.cursor = 0; h.effects = []; h.callback = null; h.initial = null; h.claims.clear(); h.cache.clear(); });
@@ -69,9 +74,9 @@ describe('HARD-011 / INV-022 native provider keeps the latest authoritative auth
     await render(); h.callback!('SIGNED_IN', session('old')); await flush();
     h.callback!('TOKEN_REFRESHED', session('new')); await flush();
     h.claims.get('new')!.resolve(verified(NEW)); await flush();
-    expect((await render()).identity).toMatchObject({ kind: 'member', memberId: NEW });
+    expect((await render(true)).identity).toMatchObject({ kind: 'member', memberId: NEW });
     h.claims.get('old')!.resolve(verified(OLD)); await flush();
-    expect((await render()).identity).toMatchObject({ kind: 'member', memberId: NEW });
+    expect((await render(true)).identity).toMatchObject({ kind: 'member', memberId: NEW });
     expect(h.cache.get('gymloop.authenticated-identity') ?? '').not.toContain(OLD);
   });
   it('sign-out invalidates pending claims and prevents obsolete identity cache resurrection', async () => {
@@ -79,7 +84,7 @@ describe('HARD-011 / INV-022 native provider keeps the latest authoritative auth
     h.callback!('SIGNED_IN', session('old')); await flush();
     h.callback!('SIGNED_OUT', null); await flush();
     h.claims.get('old')!.resolve(verified(OLD)); await flush();
-    const value = await render(); expect(value.session).toBeNull(); expect(value.identity).toMatchObject({ kind: 'unlinked' });
+    const value = await render(true); expect(value.session).toBeNull(); expect(value.identity).toMatchObject({ kind: 'unlinked' });
     expect(h.cache.get('gymloop.authenticated-identity') ?? '').not.toContain(OLD);
   });
   it.each(['TOKEN_REFRESHED', 'SIGNED_OUT'])('delayed initial getSession cannot supersede newer %s', async (event) => {
@@ -88,11 +93,9 @@ describe('HARD-011 / INV-022 native provider keeps the latest authoritative auth
     await render(); h.callback!(event, event === 'SIGNED_OUT' ? null : session('new')); await flush();
     if (event !== 'SIGNED_OUT') { h.claims.get('new')!.resolve(verified(NEW)); await flush(); }
     initial.resolve(session('old')); await flush(); h.claims.get('old')!.resolve(verified(OLD)); await flush();
-    const value = await render();
+    const value = await render(true);
     if (event === 'SIGNED_OUT') { expect(value.session).toBeNull(); expect(value.identity).toMatchObject({ kind: 'unlinked' }); }
     else { expect(value.session).toMatchObject({ access_token: 'new' }); expect(value.identity).toMatchObject({ kind: 'member', memberId: NEW }); }
     expect(h.cache.get('gymloop.authenticated-identity') ?? '').not.toContain(OLD);
   });
 });
-
-
