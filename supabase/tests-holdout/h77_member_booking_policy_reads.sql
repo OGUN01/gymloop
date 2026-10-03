@@ -157,17 +157,30 @@ select is((pg_temp.row(700)->>'cancel_by')::timestamptz,(select starts_at-interv
 select is((pg_temp.row(706)->>'cancel_by')::timestamptz,(select starts_at-interval '2 hours'from public.class_sessions where id=pg_temp.u(706)),'CLS booked missing settings retains default');
 insert into public.organization_settings(tenant_id,pt_cancel_window_hours,pt_late_cancel_consumes_session)values(pg_temp.u(1),37,false);
 select is(pg_temp.policy(),'[{"cancel_window_hours":37,"late_cancel_consumes_session":false}]'::jsonb,'PT subsequent read sees recreated current exact row');
+-- Reader-only state probes preserve the same bound member. The public commercial graph forbids active->pending and closed->trial; bypass only its exact guard for fixture assignment, restored before every tested read.
+alter table public.organizations disable trigger organizations_commercial_invariant;
 update public.organizations set status='pending_approval'where id=pg_temp.u(1);
+alter table public.organizations enable trigger organizations_commercial_invariant;
 select is(pg_temp.policy()->>'error','42501','PT ineligible gym pending_approval refused');
+alter table public.organizations disable trigger organizations_commercial_invariant;
 update public.organizations set status='suspended'where id=pg_temp.u(1);
+alter table public.organizations enable trigger organizations_commercial_invariant;
 select is(pg_temp.policy()->>'error','42501','PT ineligible gym suspended refused');
+alter table public.organizations disable trigger organizations_commercial_invariant;
 update public.organizations set status='closed'where id=pg_temp.u(1);
+alter table public.organizations enable trigger organizations_commercial_invariant;
 select is(pg_temp.policy()->>'error','42501','PT ineligible gym closed refused');
+alter table public.organizations disable trigger organizations_commercial_invariant;
 update public.organizations set status='trial',trial_ends_at=statement_timestamp()-interval '1 day'where id=pg_temp.u(1);
+alter table public.organizations enable trigger organizations_commercial_invariant;
 select is(pg_temp.policy()->>'error','42501','PT expired trial refused');
+alter table public.organizations disable trigger organizations_commercial_invariant;
 update public.organizations set trial_ends_at=statement_timestamp()+interval '1 day'where id=pg_temp.u(1);
+alter table public.organizations enable trigger organizations_commercial_invariant;
 select is(pg_temp.policy(),'[{"cancel_window_hours":37,"late_cancel_consumes_session":false}]'::jsonb,'PT live trial allowed');
+alter table public.organizations disable trigger organizations_commercial_invariant;
 update public.organizations set status='active'where id=pg_temp.u(1);
+alter table public.organizations enable trigger organizations_commercial_invariant;
 create temp table h77_before as
 select 'settings't,to_jsonb(x)facts from public.organization_settings x where tenant_id in(pg_temp.u(1),pg_temp.u(2))
 union all select 'sessions',to_jsonb(x)from public.class_sessions x where tenant_id in(pg_temp.u(1),pg_temp.u(2))
