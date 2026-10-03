@@ -55,7 +55,7 @@ vi.mock('expo-notifications', () => ({
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', Image: 'Image', ScrollView: 'ScrollView', Modal: 'Modal', ActivityIndicator: 'ActivityIndicator', TextInput: 'TextInput', StyleSheet: { create: (styles: unknown) => styles }, AppState: { addEventListener: () => ({ remove: vi.fn() }) }, useColorScheme: () => 'light', Linking: { openSettings: h.openSettings } }));
 vi.mock('lucide-react-native', () => ({ Bell: 'Bell', BellOff: 'BellOff', ChevronRight: 'ChevronRight', Check: 'Check', RefreshCw: 'RefreshCw', X: 'X' }));
 vi.mock('../../components/ui', () => {
-  const widgets = ['Screen', 'Eyebrow', 'Title', 'Display', 'Body', 'Rule', 'Status', 'Row', 'LedgerSection', 'SheetHeader', 'ActionButton', 'RowAction', 'StateMessage', 'EmptyState', 'LoadingState', 'Field', 'ChoiceList'];
+  const widgets = ['Screen', 'Eyebrow', 'Title', 'Display', 'Body', 'Rule', 'Status', 'Row', 'LedgerSection', 'SheetHeader', 'ActionButton', 'RowAction', 'StateMessage', 'EmptyState', 'ErrorRetry', 'LoadingState', 'Field', 'ChoiceList'];
   return { ...Object.fromEntries(widgets.map(type => [type, (props: Record<string, unknown>) => ({ type, props })])), Sheet: (props: Record<string, unknown>) => props.visible ? { type: 'Sheet', props } : null };
 });
 let screen: () => unknown;

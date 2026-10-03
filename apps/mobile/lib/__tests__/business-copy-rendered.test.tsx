@@ -66,7 +66,7 @@ vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: host('safe-area
 vi.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === 'then' ? undefined : host(String(name)), has: () => true }));
 vi.mock('../mobile-context', () => ({ useMobile: () => ({
   identity: state.desk ? { kind: 'staff', tenantId: 't1', staffId: 's1', userId: 'u1', role: 'front_desk' } : { kind: 'member', tenantId: 't1', memberId: 'm1', userId: 'u1' },
-  session: { user: { email: 'aarav@example.test' } }, supabase: {}, api: { post: vi.fn() }, palette: UI_TOKENS.colors.light,
+  session: { user: { email: 'aarav@example.test' } }, supabase: {}, api: { post: vi.fn(async () => ({ ok: false, error: { code: 'service_unavailable', message: 'That didn’t go through. Try again.' } })) }, palette: UI_TOKENS.colors.light,
   businessType: state.type, nouns: nouns[state.type], appearance: 'system', setAppearance: vi.fn(), signOut: vi.fn(), webOrigin: 'https://app.example',
 }) }));
 vi.mock('../use-member-snapshot', () => ({ useMemberSnapshot: () => ({ data: state.error ? null : snapshot(), error: null, loading: state.loading, reload: vi.fn() }) }));

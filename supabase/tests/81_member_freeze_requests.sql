@@ -329,4 +329,5 @@ select pg_temp.claim('member',null,101,906,1);
 select pg_temp.probe($q$select public.request_member_freeze(pg_temp.u(301),app.gym_today(pg_temp.u(1))+2,app.gym_today(pg_temp.u(1))+4,'Family function',pg_temp.u(701))$q$);
 set local role postgres;
 select ok((select count(*)::bigint from public.audit_log where tenant_id=pg_temp.u(1)) = (select (v::text)::bigint from proof where k='audit1'),'SLF-015: exact replays append no audit');
+select * from finish();
 rollback;
