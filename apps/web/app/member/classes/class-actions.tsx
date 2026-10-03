@@ -49,7 +49,7 @@ export function useClassCommand(scopeKey?: string) {
   const busy = scope.pending;
   return { send, online, busy, message, setMessage, disabled: preview || busy || !online, preview };
 }
-export function ClassCommandStatus({ command }: { command: ReturnType<typeof useClassCommand> }) { return <>{!command.online ? <p className="cl-alert" role="status">{classRefusalMessage('offline')} Last loaded view; actions are read-only.</p> : null}{command.busy ? <p role="status">Savingâ€¦</p> : null}{command.message ? <p className="cl-alert" role="status">{command.message}</p> : null}</>; }
+export function ClassCommandStatus({ command }: { command: ReturnType<typeof useClassCommand> }) { return <>{!command.online ? <p className="cl-alert" role="status">{classRefusalMessage('offline')} Last loaded view; actions are read-only.</p> : null}{command.busy ? <p role="status">Saving…</p> : null}{command.message ? <p className="cl-alert" role="status">{command.message}</p> : null}</>; }
 export function ClassConfirmation({ open, close, title, children }: { open: boolean; close(): void; title: string; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { if (open) ref.current?.showModal(); else ref.current?.close(); }, [open]);
@@ -75,16 +75,29 @@ export function ClassActions({ session, scopeKey, refreshSession }: { session: M
     return () => { scope.active = false; };
   }, [scope]);
   function close() { if (isCurrent() && !scope.pending && !command.busy) setConfirmation(null); }
-  async function currentFacts(): Promise<MemberClassSession | null> {
+  async function currentFacts(action: 'book' | 'cancel' = 'cancel'): Promise<MemberClassSession | null> {
     if (!isCurrent() || !refreshSession || command.preview || !navigator.onLine) return null;
     try {
       const current = await refreshSession();
-      if (!isCurrent() || !current || current.sessionId !== session.sessionId || current.myBookingId !== session.myBookingId) return null;
+      if (!isCurrent() || !current || current.sessionId !== session.sessionId || (action === 'cancel' && current.myBookingId !== session.myBookingId)) return null;
       return current;
     } catch { return null; }
   }
   function cancellationAllowed(current: MemberClassSession | null): boolean {
     return current !== null && current.myBookingId !== null && current.myBookingStatus === 'booked' && current.sessionStatus === 'scheduled' && current.canCancel && current.cancelBy !== null && Number.isFinite(Date.parse(current.cancelBy)) && Date.now() <= Date.parse(current.cancelBy);
+  }
+  function bookingAllowed(current: MemberClassSession | null): boolean {
+    return current !== null && current.availability === 'open' && current.sessionStatus === 'scheduled' && current.myBookingStatus !== 'booked' && current.cancelBy !== null && Number.isFinite(Date.parse(current.cancelBy));
+  }
+  async function prepareBooking() {
+    if (!isCurrent() || scope.pending || command.disabled) return;
+    scope.pending = true; setPreparing(true); command.setMessage(null); setConfirmation(null);
+    try {
+      const current = await currentFacts('book');
+      if (!isCurrent()) return;
+      setConfirmation({ scope, action: 'book', session: current });
+      if (!bookingAllowed(current)) command.setMessage(current?.cancelBy ? classRefusalMessage('not_bookable') : 'The cancellation deadline could not be loaded. Refresh before booking.');
+    } finally { scope.pending = false; if (isCurrent()) setPreparing(false); }
   }
   async function prepareCancellation() {
     if (!isCurrent() || scope.pending || command.disabled) return;
@@ -115,15 +128,25 @@ export function ClassActions({ session, scopeKey, refreshSession }: { session: M
         const result = await command.send('/api/class-bookings/cancel', { bookingId: current.myBookingId });
         if (result && isCurrent()) { command.setMessage('Your booking is cancelled.'); setConfirmation(null); }
       } else {
-        if (!selected.session || selected.session.cancelBy === null || !Number.isFinite(Date.parse(selected.session.cancelBy)) || selected.session.availability !== 'open') return;
-        const result = await command.send('/api/class-bookings', { sessionId: selected.session.sessionId });
+        const current = await currentFacts('book');
+        if (!isCurrent()) return;
+        if (!current || !bookingAllowed(current)) {
+          setConfirmation({ scope, action: 'book', session: current });
+          command.setMessage(current?.cancelBy ? classRefusalMessage('not_bookable') : 'The cancellation deadline could not be loaded. Refresh before booking.'); return;
+        }
+        const previous = selected.session;
+        if (!previous || (['cancelBy', 'startsAt', 'endsAt', 'sessionDate', 'timezone', 'serviceId', 'serviceName', 'serviceDescription', 'branchId', 'branchName', 'trainerName', 'capacity', 'bookedCount', 'spotsLeft', 'availability', 'myBookingId', 'myBookingStatus', 'sessionStatus'] as const).some((key) => current[key] !== previous[key])) {
+          setConfirmation({ scope, action: 'book', session: current });
+          command.setMessage('The booking details changed. Review the current details and confirm again.'); return;
+        }
+        const result = await command.send('/api/class-bookings', { sessionId: current.sessionId });
         if (result && isCurrent()) { command.setMessage('Booked. Your place is confirmed.'); setConfirmation(null); }
       }
     } finally { scope.pending = false; if (isCurrent()) setPreparing(false); }
   }
-  return <div className="class-actions"><ClassCommandStatus command={command} />{session.availability === 'open' ? <button className="cl-btn cl-btn--primary" disabled={command.disabled || scope.pending} onClick={() => { if (isCurrent() && !scope.pending && !command.disabled) setConfirmation({ scope, action: 'book', session }); }}>Book</button> : null}
+  return <div className="class-actions"><ClassCommandStatus command={command} />{session.availability === 'open' ? <button className="cl-btn cl-btn--primary" disabled={command.disabled || scope.pending} onClick={() => void prepareBooking()}>Book</button> : null}
     {session.myBookingStatus === 'booked' ? canCancel ? <button className="cl-btn cl-btn--quiet" disabled={command.disabled || scope.pending} onClick={() => void prepareCancellation()}>Cancel booking</button> : <p>{classRefusalMessage('cancel_window_closed')}</p> : null}
-    <ClassConfirmation open={selected !== null} close={close} title={selected?.action === 'cancel' ? 'Cancel booking?' : `Book ${facts?.serviceName ?? session.serviceName}`}>{facts ? <><p>{facts.serviceName}</p><p>{formatDateTime(facts.startsAt, facts.timezone)} / {facts.branchName}</p></> : null}{deadline ? <p>Free cancellation until {formatDateTime(deadline, facts!.timezone)} ({facts!.timezone}).</p> : <p role="alert">The cancellation deadline could not be loaded. Refresh before {selected?.action === 'cancel' ? 'cancelling' : 'booking'}.</p>}<ClassCommandStatus command={command} /><div className="cl-actions"><button className="cl-btn cl-btn--primary" disabled={command.disabled || scope.pending || deadline === null || (selected?.action === 'cancel' && (facts?.canCancel !== true || facts.myBookingStatus !== 'booked' || facts.sessionStatus !== 'scheduled'))} onClick={() => void confirm()}>{selected?.action === 'cancel' ? 'Confirm cancellation' : 'Confirm booking'}</button><button className="cl-btn cl-btn--quiet" disabled={command.busy || scope.pending} onClick={close}>Back</button></div></ClassConfirmation>
+    <ClassConfirmation open={selected !== null} close={close} title={selected?.action === 'cancel' ? 'Cancel booking?' : `Book ${facts?.serviceName ?? session.serviceName}`}>{facts ? <><p>{facts.serviceName}</p><p>{formatDateTime(facts.startsAt, facts.timezone)} / {facts.branchName}</p></> : null}{deadline ? <p>Free cancellation until {formatDateTime(deadline, facts!.timezone)} ({facts!.timezone}).</p> : <p role="alert">The cancellation deadline could not be loaded. Refresh before {selected?.action === 'cancel' ? 'cancelling' : 'booking'}.</p>}<ClassCommandStatus command={command} /><div className="cl-actions"><button className="cl-btn cl-btn--primary" disabled={command.disabled || scope.pending || deadline === null || (selected?.action === 'book' && !bookingAllowed(facts)) || (selected?.action === 'cancel' && (facts?.canCancel !== true || facts.myBookingStatus !== 'booked' || facts.sessionStatus !== 'scheduled'))} onClick={() => void confirm()}>{selected?.action === 'cancel' ? 'Confirm cancellation' : 'Confirm booking'}</button><button className="cl-btn cl-btn--quiet" disabled={command.busy || scope.pending} onClick={close}>Back</button></div></ClassConfirmation>
   </div>;
 }
 
