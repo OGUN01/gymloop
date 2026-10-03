@@ -105,6 +105,20 @@ under a different property name.
 
 ## WSP consent and staff recorder interfaces
 
+The registered settings validator is
+`memberWhatsappSettings(data: unknown): MemberWhatsappSettings|null` in
+`apps/web/lib/whatsapp.ts`; the consent-result validator is
+`whatsappConsentWriteResult(data: unknown): WhatsappConsentWriteResult|null`.
+The member web settings loader is the default async page export in
+`apps/web/app/member/whatsapp-consent/page.tsx`. It verifies
+`requireAudience('member')`, requests `read_member_whatsapp_settings` with an
+empty argument object, and renders validated settings into the registered
+consent controls or an honest unavailable/error state. The frozen contract
+does not require an invented `loadMemberWhatsappSettings` export in the
+validator module. Tests may observe this page/controls boundary to verify the
+same read, role, error and availability rules. No new production export is
+necessary merely to match a fixture's invented helper name.
+
 The member command body is `{purpose, granted, noticeVersion}`. The staff
 recorder body is `{memberId, purpose, granted, noticeVersion, source,
 requestKey}`. Both are strict objects: purpose is a valid generated
@@ -120,6 +134,12 @@ correlation remain required and any present violation stays RED. Public
 mechanical declarations do not authorize accepting another purpose, weakening
 staff authority, revealing upstream errors, or treating missing consent as
 opt-in.
+
+The shared staff guard receives front-office roles and
+`{completeWrongAudience: 'forbidden'}` before parsing, independent of the
+recorder's successful RPC result. Authority-call observation fixtures still
+need an honest asynchronous RPC envelope if they continue through a valid
+command body; an undefined mock reply is not a production RPC response.
 
 ## Identity fixture contract
 
