@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isValidElement, type ReactNode } from 'react';
 
 const h = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, effects: [] as Array<() => unknown>, appListeners: new Set<(value: string) => void>(), queries: [] as Array<{ table: string; column: string; tenant: string }>, replies: [] as Array<Promise<unknown> | (() => Promise<unknown>)>, deletes: [] as string[], rejectVocabularyDelete: false, authSignOuts: 0, queueClears: 0, callback: null as null | ((event: string, session: unknown) => void), initial: null as unknown, claims: new Map<string, { promise: Promise<unknown>; resolve: (value: unknown) => void }>(), cache: new Map<string, string>() }));
@@ -44,7 +44,7 @@ vi.mock('react-native', () => ({ StatusBar: () => null, useColorScheme: () => 'd
 vi.mock('@gymloop/shared', async (original) => ({ ...await original<Record<string, unknown>>(), mobileClientEnv: () => ({ EXPO_PUBLIC_SUPABASE_URL: 'https://example.supabase.co', EXPO_PUBLIC_SUPABASE_ANON_KEY: 'public-key', EXPO_PUBLIC_API_BASE_URL: 'https://app.example' }) }));
 vi.mock('../native-session', async (original) => ({ ...await original<Record<string, unknown>>(), createMobileSupabase: () => ({ from: (table: string) => { const query = { table, column: '', tenant: '' }; return { select: (column: string) => { query.column = column; return { eq: (_key: string, tenant: string) => { query.tenant = tenant; return { maybeSingle: () => { h.queries.push(query); const reply = h.replies.shift(); return typeof reply === 'function' ? reply() : reply ?? Promise.resolve({ data: null, error: null }); } }; } }; } }; }, auth: {
   getSession: async () => ({ data: { session: await h.initial }, error: null }),
-  onAuthStateChange: (callback: typeof h.callback) => { h.callback = callback; return { data: { subscription: { unsubscribe: () => undefined } } }; },
+  onAuthStateChange: (callback: typeof h.callback) => { h.callback = callback; return { data: { subscription: { unsubscribe: () => { if (h.callback === callback) h.callback = null; } } } }; },
   getClaims: async (token: string) => h.claims.get(token)!.promise,
   signOut: async () => { h.authSignOuts += 1; return { error: null }; },
 } }) }));
@@ -68,6 +68,19 @@ async function render() {
   return value!;
 }
 beforeEach(() => { h.slots = []; h.cursor = 0; h.effects = []; h.callback = null; h.initial = null; h.claims.clear(); h.cache.clear(); h.appListeners.clear(); h.queries = []; h.replies = []; h.deletes = []; h.rejectVocabularyDelete = false; h.authSignOuts = 0; h.queueClears = 0; });
+// The manual React host must unmount each provider before discarding its hook
+// slots. Resetting counters alone leaves the previous lifecycle mounted.
+// Auth unsubscribe mirrors the documented subscription host, not source logic.
+afterEach(async () => {
+  for (const slot of h.slots) {
+    if (typeof slot !== 'object' || slot === null || !('cleanup' in slot)) continue;
+    const cleanup = (slot as { cleanup?: unknown }).cleanup;
+    if (typeof cleanup === 'function') await cleanup();
+  }
+  await flush();
+  expect(h.appListeners.size).toBe(0);
+  expect(h.callback).toBeNull();
+});
 
 
 // BIZ-011: execute the provider's auth, foreground and encrypted-storage effects.
