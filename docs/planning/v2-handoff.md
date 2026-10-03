@@ -18,10 +18,22 @@ current checkpoint below supersedes the historical session-1 snapshot.
   `openspec/changes/whatsapp-channel/manual-release-scope-amendment.md`:
   no Meta/WABA setup or paid-send activation is required. Guardian/consent,
   factual-open-only and retained wallet/security invariants remain required.
-  WSP app visible184 and independent held60 currently pass; fresh source
-  review and SQL repairs remain open. Full integrated nine-migration preview
-  is RED:123 of145 suites green,22 need diagnosis/repair. Diagnostic preflight
-  stops before real suites unless hook compatibility passes. No follow-up
+  WSP app visible211 pass; expanded held101 currently has97 pass and4 RED
+  dispatch-UUID refusals. Separate implementer is aligning the remaining
+  dispatch consumer. Blind source GO covers consent/read boundaries and the
+  four-line SQL patch (canonical currency alias and three GRD resolver sites),
+  not the dispatch gap or runtime SQL. PAY read/money boundary has fresh
+  source GO, visible79/shared32/NTF23 pass and held112/114 pass; trusted MEDIA
+  proof confirmation/private namespace remain RED, with UI models/PT slot
+  integration also unfinished. Full integrated nine-migration baseline before
+  these repairs is RED:123 of145 suites green. All22 failing suites were
+  rerun with hash-bound rollback-only diagnostics after a passing
+  zero-extension-mutation preflight. Exact errors/top-level TAP are captured;
+  embedded PERFORM details remain unavailable and final CI pg_prove unchanged.
+  Private diagnosis: `scratchpad/v2-integrated-failure-classification.md`;
+  never forward held content to implementers. Post-repair full sweep remains
+  required. Exact current source/SQL patches are uncommitted pending scoped
+  checks/reviews; original external C/D changes remain preserved. No follow-up
   push, whole C/D acceptance, final Android acceptance or release is claimed.
 
 - Latest primary A/B verification checkpoint (2026-10-03, supersedes the
