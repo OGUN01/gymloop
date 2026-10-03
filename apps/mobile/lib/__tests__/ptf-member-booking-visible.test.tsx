@@ -50,6 +50,8 @@ vi.mock('react-native', () => ({ View: 'View', Text: 'Text', ScrollView: 'Scroll
 vi.mock('../../components/ui', () => {
   const host = (name: string) => (props: Props) => ({ type: name, props });
   return {
+    Screen: host('Screen'), Title: host('Title'), Eyebrow: host('Eyebrow'),
+    LedgerSection: host('LedgerSection'),
     ActionButton: host('ActionButton'), Body: host('Body'), EmptyState: host('EmptyState'), ErrorRetry: host('ErrorRetry'), LoadingState: host('LoadingState'), Row: host('Row'), RowAction: host('RowAction'), SearchField: host('SearchField'),
     Sheet: (props: Props) => props.visible ? { type: 'Sheet', props } : null,
     SheetHeader: host('SheetHeader'), StateMessage: host('StateMessage'), Status: host('Status'),

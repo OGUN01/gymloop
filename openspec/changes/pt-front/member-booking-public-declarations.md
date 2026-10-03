@@ -13,6 +13,7 @@ type PtBookingFacts = {
   pack: PtPack | null;
   slots: PtReadSection<{ startsAt: string; endsAt: string; timezone: string }>;
   policy: PtPolicyRead;
+  sessions?: PtReadSection<PtSession>;
 };
 declare function PtBookingForm(props: {
   orderId: string;
@@ -44,6 +45,9 @@ and no supplied caller props. It uses the registered useLocalSearchParams,
 useMobile, loadTraining, loadSlots and loadPtPolicy boundaries. Route params
 select only a valid own order; readiness, complete member identity and the
 current supplied API/Supabase clients determine the presentation lifetime.
+Route focus is also part of that lifetime. Leaving a mounted native stack
+screen permanently revokes its sheet, retry capability and awaited callbacks;
+returning creates a fresh lifetime and cannot reactivate a retained callback.
 The root Expo Stack already admits filesystem routes; no additional stack,
 provider, dependency or invented route authority is required.
 
@@ -88,6 +92,19 @@ current eligibility and returns the session's current status. Render that
 status truthfully; a replay of a later cancelled/completed session must not
 claim a newly booked session. A closed sheet loses its retry capability and
 must not transfer a previous body to a reopened/new selection.
+
+The booking answer does not carry effective consumption. For a returned
+`cancelled_by_member` answer, refresh the original caller's authoritative
+Training projections before choosing a consumption-sensitive label. The
+optional `sessions` facts carry the existing `PtSession` projection from
+upcoming/history reads; production loaders populate them without a new RPC.
+Only an exact session/order/recorded-interval match with actual boolean
+`consumed` authorizes “Cancelled by you” or “Cancelled late - session used”.
+Missing/failed/nonmatching projections leave the command acknowledged with
+neutral “Cancelled. Reload to check whether a session was used.” feedback.
+They never infer consumption from current policy, the answer's cancellation
+window, an earlier read, or a hardcoded false value. Recheck original lifetime
+after this awaited read; failure must not automatically resubmit the command.
 
 ## Verification ownership
 
