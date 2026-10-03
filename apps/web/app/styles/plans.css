@@ -1,0 +1,9 @@
+.plan-list { list-style: none; padding: 0; margin: 0; }
+.plan-entry { border-top: var(--gymloop-border-hairline, 1px) solid var(--gymloop-color-decorative-separator); padding-block: var(--gymloop-space-24); overflow-wrap: anywhere; }
+.plan-entry .cl-row-title { margin: 0; }
+.plan-price { margin-block: var(--gymloop-space-8); }
+.plan-price-amount { font-variant-numeric: tabular-nums; }
+.plan-price-unit, .plan-gst { color: var(--gymloop-color-secondary-text); }
+.plan-description { white-space: pre-wrap; }
+.member-plans .member-quiet + .member-quiet { margin-top: var(--gymloop-space-12); }
+.member-plans .member-facts { margin-bottom: var(--gymloop-space-16); }
