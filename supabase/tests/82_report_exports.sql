@@ -130,7 +130,7 @@ select is(pg_temp.probe($q$select public.export_report_snapshot('payments',date 
 select is(pg_temp.probe($q$select public.export_report_snapshot(null,date '2026-01-01',date '2026-01-31',null,100)$q$),'22023','RPE B10: null dataset refused');
 select is(pg_temp.probe($q$select public.export_report_snapshot('invoicez',date '2026-01-01',date '2026-01-31',null,100)$q$),'22023','RPE B11: dataset vocabulary is payments|attendance|members only');
 select is(pg_temp.probe($q$select public.export_report_snapshot('payments',date '2026-01-31',date '2026-01-01',null,100)$q$),'22023','RPE B12: reversed range refused');
-select is(pg_temp.probe($q$select public.export_report_snapshot('payments','2026-02-30',date '2026-01-31',null,100)$q$),'22023','RPE B13: non-Gregorian date refused');
+select is(pg_temp.probe($q$select public.export_report_snapshot('payments','2026-02-30',date '2026-01-31',null,100)$q$),'22008','RPE B13: a non-Gregorian date is refused at the typed-date call parse (22008), before the body — the route''s zod layer rejects it earlier still');
 select is(pg_temp.probe($q$select public.export_report_snapshot('payments',date '2026-01-01',date '2026-01-31',null,null)$q$),'22023','RPE B14: null row cap refused');
 select is(pg_temp.probe($q$select public.export_report_snapshot('payments',date '2026-01-01',date '2026-01-31',null,0)$q$),'22023','RPE B15: zero row cap refused');
 select is(pg_temp.probe($q$select public.export_report_snapshot('payments',date '2026-01-01',date '2026-01-31',null,-1)$q$),'22023','RPE B16: negative row cap refused');
@@ -155,10 +155,10 @@ select is(r->>'amount_paise','12345','RPE C5: exact paise value — no float any
 select is(r->>'amount_display' like '%123.45',true,'RPE C6: amount_display is the presentation text of the same paise') from (select (v->'rows'->>0)::jsonb r from res where k='pay') s;
 select is(r->>'paid_at_utc',null::jsonb,'RPE C7: a null paid time stays null — never inferred') from (select (v->'rows'->>1)::jsonb r from res where k='pay') s;
 select is(r->>'created_at_utc' like '%Z',true,'RPE C8: created_at_utc is an ISO-8601 UTC instant') from (select (v->'rows'->>0)::jsonb r from res where k='pay') s;
-select is(r->>'payment_id',pg_temp.u(401),'RPE C9: ordering by (created_at,id) — earliest first') from (select (v->'rows'->>0)::jsonb r from res where k='pay') s;
+select is(r->>'payment_id',pg_temp.u(401)::text,'RPE C9: ordering by (created_at,id) — earliest first') from (select (v->'rows'->>0)::jsonb r from res where k='pay') s;
 select is(r->>'current_member_name',null::jsonb,'RPE C10: an erased member''s name is blank, row survives') from (select (v->'rows'->>2)::jsonb r from res where k='pay') s;
 select is(r->>'member_code',null::jsonb,'RPE C11: an erased member''s code is blank') from (select (v->'rows'->>2)::jsonb r from res where k='pay') s;
-select is(r->>'member_id',pg_temp.u(103),'RPE C12: the payment''s own member reference is kept (financial evidence, not an Auth id)') from (select (v->'rows'->>2)::jsonb r from res where k='pay') s;
+select is(r->>'member_id',pg_temp.u(103)::text,'RPE C12: the payment''s own member reference is kept (financial evidence, not an Auth id)') from (select (v->'rows'->>2)::jsonb r from res where k='pay') s;
 select is(r->>'currency','USD','RPE C13: cross-currency rows keep their own currency — never converted or summed') from (select (v->'rows'->>3)::jsonb r from res where k='pay') s;
 select is(r->>'status','refunded','RPE C14: canonical generated-enum status words') from (select (v->'rows'->>2)::jsonb r from res where k='pay') s;
 delete from res where k='pay';
@@ -174,7 +174,7 @@ select is(r->>'checked_out_at_utc' is not null,true,'RPE D6: optional check-out 
 select is(r->>'offline_recorded_at_utc' is not null,true,'RPE D7: offline provenance stamp kept') from (select (v->'rows'->>2)::jsonb r from res where k='att') s;
 select is(r->>'replayed_at_utc' is not null,true,'RPE D8: replay stamp kept (ATT-007 evidence)') from (select (v->'rows'->>2)::jsonb r from res where k='att') s;
 select is(r->>'source','front_desk','RPE D9: canonical attendance source') from (select (v->'rows'->>2)::jsonb r from res where k='att') s;
-select is(r->>'attendance_id',pg_temp.u(422),'RPE D10: ordering by (checked_in_at,id) — earliest first') from (select (v->'rows'->>0)::jsonb r from res where k='att') s;
+select is(r->>'attendance_id',pg_temp.u(422)::text,'RPE D10: ordering by (checked_in_at,id) — earliest first') from (select (v->'rows'->>0)::jsonb r from res where k='att') s;
 delete from res where k='att';
 select is(pg_temp.val($q$select coalesce(jsonb_array_length(public.export_report_snapshot('attendance',date '2026-01-01',date '2026-01-31',pg_temp.u(13),1000)->'rows'),-1))::int,1,'RPE D11: the branch filter uses the stored branch');
 select pg_temp.claim('gym_owner',25,null,905,2);
@@ -186,7 +186,7 @@ insert into res(k,v) values ('mem',(select public.export_report_snapshot('member
 select is((select array_agg(k order by k) from jsonb_object_keys(r) k),array['branch_id','email','full_name','joined_on','member_code','member_id','phone','status']::text[],'RPE E1: exact members projection (no DOB, guardian, notes, consent or account ids)') from (select (v->'rows'->>0)::jsonb r from res where k='mem') s;
 select is((select count(*) from jsonb_array_elements(v->'rows'))::int,2,'RPE E2: the joining cohort counts current non-erased members only') from res where k='mem';
 select is((select count(*) from jsonb_array_elements(v->'rows') r where r->>'member_id'=pg_temp.u(103)::text)::int,0,'RPE E3: an erased member never appears in the roster');
-select is(r->>'member_id',pg_temp.u(101),'RPE E4: ordering by (joined_on,id) — earliest joined first') from (select (v->'rows'->>0)::jsonb r from res where k='mem') s;
+select is(r->>'member_id',pg_temp.u(101)::text,'RPE E4: ordering by (joined_on,id) — earliest joined first') from (select (v->'rows'->>0)::jsonb r from res where k='mem') s;
 select is(r->>'phone','+918200000101','RPE E5: contact facts cross as stored text') from (select (v->'rows'->>0)::jsonb r from res where k='mem') s;
 select is(r->>'branch_id',pg_temp.u(13),'RPE E6: the member''s current branch (not a payment/visit branch)') from (select (v->'rows'->>1)::jsonb r from res where k='mem') s;
 delete from res where k='mem';
