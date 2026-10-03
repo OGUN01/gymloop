@@ -8,7 +8,7 @@ type Node = { type: unknown; props: Props; path?: string };
 type Slot = { value?: unknown; deps?: readonly unknown[] | undefined; cleanup?: (() => void) | undefined };
 const seam = vi.hoisted(() => ({
   stores: new Map<string, Slot[]>(), path: '', cursor: 0, effects: [] as Array<() => void>,
-  loadMember: vi.fn(), slots: vi.fn(), policy: vi.fn(), routeOrder: '' as unknown,
+  loadMember: vi.fn(), slots: vi.fn(), policy: vi.fn(), routeOrder: '' as unknown, uuid: vi.fn(), nextUuid: 0,
   network: true, probe: vi.fn(), networkListener: null as null | ((state: { isConnected: boolean; isInternetReachable: boolean }) => void),
   context: {} as Props,
 }));
@@ -40,6 +40,7 @@ vi.mock('react', async importOriginal => {
 vi.mock('../../lib/mobile-context', () => ({ useMobile: () => seam.context }));
 vi.mock('../../lib/use-business-nouns', () => ({ useBusinessNouns: () => seam.context.nouns }));
 vi.mock('../../lib/training', () => ({ loadTraining: seam.loadMember, loadSlots: seam.slots, loadPtPolicy: seam.policy }));
+vi.mock('expo-crypto', () => ({ randomUUID: seam.uuid }));
 vi.mock('expo-network', () => ({
   getNetworkStateAsync: seam.probe,
   addNetworkStateListener: (callback: typeof seam.networkListener) => { seam.networkListener = callback; return { remove: vi.fn() }; },
@@ -100,6 +101,8 @@ beforeEach(() => {
   cleanup(); vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-03T00:00:00Z'));
   seam.network = true; seam.networkListener = null; seam.context = context(memberA);
   seam.routeOrder = orderId;
+  seam.nextUuid = 0;
+  seam.uuid.mockReset().mockImplementation(() => '73000000-0000-4000-8000-' + String(++seam.nextUuid).padStart(12, '0'));
   seam.loadMember.mockReset().mockResolvedValue(training()); seam.slots.mockReset().mockResolvedValue({ data: [slot], error: null }); seam.policy.mockReset().mockResolvedValue(policy());
   seam.probe.mockReset().mockResolvedValue({ isConnected: true, isInternetReachable: true });
 
