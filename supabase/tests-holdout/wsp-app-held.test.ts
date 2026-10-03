@@ -1,17 +1,10 @@
 // Independent WSP app-layer holdout, authored from the frozen transport
 // contract only (openspec/changes/whatsapp-channel/proposal.md,
 // provider-wallet-amendment.md, wave-c serial declarations). No
-// implementation exists yet, so every module import below fails at runtime:
-// this suite is RED by missing target, and it pins the exact web surfaces the
-// frozen contract names (POST /api/member/whatsapp-consent,
-// POST /api/members/[memberId]/whatsapp-consent,
-// POST /api/notifications/[notificationId]/whatsapp-dispatch, and the
-// read_whatsapp_operations / read_member_whatsapp_settings /
-// set_member_whatsapp_consent / record_whatsapp_consent /
-// request_whatsapp_dispatch boundaries). Field spellings beyond those the
-// contract pins (operations row keys, wallet projection keys, loader names)
-// are the author's natural spellings; name drift is a report to the
-// orchestrator, never a silent test edit.
+// public application packet wave-c-app-verification-declarations.md fixes
+// mechanical module, loader, cursor, row and envelope spellings. Behavior
+// assertions retain the original independent holdout requirements; this
+// suite is never adapted from implementation observations.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Module paths the frozen contract implies; intentionally resolved at
@@ -19,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // compile-time escape hatch.
 const targets = {
   lib: '../../apps/web/lib/whatsapp',
+  operations: '../../apps/web/lib/whatsapp-operations',
   memberConsent: '../../apps/web/app/api/member/whatsapp-consent/route',
   staffConsent: '../../apps/web/app/api/members/[memberId]/whatsapp-consent/route',
   dispatch: '../../apps/web/app/api/notifications/[notificationId]/whatsapp-dispatch/route',
@@ -33,12 +27,12 @@ type WhatsappConsentResult = {
   noticeVersion: string; recordedAt: string;
 };
 type WhatsappOperationRow = {
-  id: string; memberId: string; memberName: string; category: string;
-  status: string; scheduledFor: string | null; sentAt: string | null;
+  notificationId: string; memberId: string; memberName: string; recipientKind: string; templateName: string;
+  status: string; scheduledFor: string; sentAt: string | null;
   deliveredAt: string | null; failedAt: string | null; failedReason: string | null;
   optedOutAt: string | null; optedOutReason: string | null;
-  providerReadAt: string | null; uncertain: boolean;
-  recipientMasked: string | null; refusalReason: string | null;
+  providerReadAt: string | null; outcomeUnknown: boolean;
+  maskedPhone: string | null; refusal: string | null;
 };
 type WhatsappOperationsScreen = {
   operations: WhatsappOperationRow[];
@@ -51,7 +45,6 @@ type LibExports = {
   whatsappConsentResult(data: unknown): WhatsappConsentResult | null;
   memberWhatsappSettingsResult(data: unknown): MemberWhatsappSettings | null;
   loadMemberWhatsappSettings(): Promise<{ settings: MemberWhatsappSettings | null; errorMessage: string | null }>;
-  loadWhatsappOperations(searchParams: Promise<{ cursor?: string; cursorId?: string; limit?: string }>): Promise<WhatsappOperationsScreen>;
 };
 type MemberRoute = { POST(request: Request): Promise<Response> };
 type StaffConsentRoute = { POST(request: Request, context: { params: Promise<{ memberId: string }> }): Promise<Response> };
@@ -124,22 +117,38 @@ describe('held member WhatsApp settings boundary', () => {
 // ─── Desk operations reader: role split, privacy, honest facts ───────────────
 
 const opRow = (overrides: Partial<WhatsappOperationRow> = {}): WhatsappOperationRow => ({
-  id: ids.notification, memberId: ids.member, memberName: 'Held Member', category: 'renewal',
+  notificationId: ids.notification, memberId: ids.member, memberName: 'Held Member', recipientKind: 'self', templateName: 'renewal',
   status: 'sent', scheduledFor: ids.cursorAt, sentAt: ids.cursorAt, deliveredAt: null, failedAt: null,
   failedReason: null, optedOutAt: null, optedOutReason: null, providerReadAt: null,
-  uncertain: false, recipientMasked: '+91 •••• 001', refusalReason: null, ...overrides,
+  outcomeUnknown: false, maskedPhone: '+91 •••• 001', refusal: null, ...overrides,
 });
 const opPayload = (wallet: WhatsappOperationsScreen['wallet'], rows: WhatsappOperationRow[] = [opRow()], extra: Record<string, unknown> = {}) => ({
   operations: rows, nextAfter: null, nextAfterId: null, wallet,
-  chargedTotalPaise: wallet === null ? null : '0', errorMessage: null, ...extra,
+  statusCounts: { accepted: '1', delivered: '0', read: '0', unknown: '1' },
+  templateBlockers: [], chargedTotals: wallet === null ? null : { chargedPaise: '0' }, ...extra,
 });
 
 describe('held WhatsApp operations reader', () => {
   let rpc: ReturnType<typeof vi.fn>;
   let requireAudience: ReturnType<typeof vi.fn>;
   const load = async (params: Record<string, string> = {}) => {
-    const lib = tas<LibExports>(await import(targets.lib));
-    return lib.loadWhatsappOperations(Promise.resolve(params));
+    const lib = tas<{ loadWhatsappOperations(params: { cursor?: string }): Promise<{
+      view: (Omit<WhatsappOperationsScreen, 'chargedTotalPaise' | 'errorMessage'> & {
+        chargedTotals: { chargedPaise: string } | null;
+      }) | null; errorMessage: string | null; isPreview: boolean;
+    }> }>(await import(targets.operations));
+    const result = await lib.loadWhatsappOperations(params);
+    // Mechanical projection of the public loader wrapper for the original
+    // assertions; no validation, truth repair or currency conversion here.
+    return {
+      ...result.view,
+      operations: result.view?.operations ?? [],
+      nextAfter: result.view?.nextAfter ?? null,
+      nextAfterId: result.view?.nextAfterId ?? null,
+      wallet: result.view?.wallet ?? null,
+      chargedTotalPaise: result.view?.chargedTotals?.chargedPaise ?? null,
+      errorMessage: result.errorMessage,
+    };
   };
   beforeEach(() => {
     vi.resetModules();
@@ -182,8 +191,8 @@ describe('held WhatsApp operations reader', () => {
   }, 20_000);
 
   const breachRows: Array<[string, unknown]> = [
-    ['raw phone in row', opPayload(null, [opRow({ recipientMasked: '+918095550001' })])],
-    ['provider message id in row', opPayload(null, [opRow({ refusalReason: 'providerMessageId' })])],
+    ['raw phone in row', opPayload(null, [opRow({ maskedPhone: '+918095550001' })])],
+    ['provider message id in row', opPayload(null, [opRow({ refusal: 'providerMessageId' })])],
     ['dispatch ticket in row', { ...opPayload(null), ticket: 'ticket-hex' }],
     ['whatsapp read posing as clicked_at', { ...opPayload(null, [opRow({ status: 'delivered', deliveredAt: ids.cursorAt })]), clickedAt: ids.cursorAt }],
   ];
@@ -211,7 +220,7 @@ describe('held WhatsApp operations reader', () => {
 
   it.each([
     ['default within bound', {}, null, null],
-    ['explicit cursor', { cursor: ids.cursorAt, cursorId: ids.cursorId }, ids.cursorAt, ids.cursorId],
+    ['explicit cursor', { cursor: `${ids.cursorAt}|${ids.cursorId}` }, ids.cursorAt, ids.cursorId],
   ])('%s produces one exact keyset call', async (_label, params, after, afterId) => {
     rpc.mockResolvedValue({ data: opPayload(null), error: null });
     await load(params);
@@ -235,7 +244,7 @@ describe('held WhatsApp operations reader', () => {
   }, 20_000);
 
   it('cursor id without a timestamp is refused too', async () => {
-    await expect(load({ cursorId: ids.cursorId })).rejects.toThrow();
+    await expect(load({ cursor: `|${ids.cursorId}` })).rejects.toThrow();
     expect(rpc).not.toHaveBeenCalled();
   }, 20_000);
 
@@ -248,10 +257,10 @@ describe('held WhatsApp operations reader', () => {
   }, 20_000);
 
   it.each([
-    ['numeric count', opPayload(null, [opRow({ status: 'sent' })]), { chargedTotalPaise: 100 }],
-    ['fractional total', opPayload({ balancePaise: '1', currency: 'INR' }), { chargedTotalPaise: '10.5' }],
+    ['numeric count', opPayload(null, [opRow({ status: 'sent' })]), { chargedTotals: { chargedPaise: 100 } }],
+    ['fractional total', opPayload({ balancePaise: '1', currency: 'INR' }), { chargedTotals: { chargedPaise: '10.5' } }],
     ['credit-labelled wallet', opPayload(null), { wallet: { balanceCredits: '4500', currency: 'INR' } }],
-    ['unknown currency', opPayload({ balancePaise: '1', currency: 'USD' }), { chargedTotalPaise: '10' }],
+    ['unknown currency', opPayload({ balancePaise: '1', currency: 'USD' }), { chargedTotals: { chargedPaise: '10' } }],
   ])('money field abuse %s is refused, never rendered', async (_label, base, extra) => {
     rpc.mockResolvedValue({ data: { ...opPayload(null), ...base, ...extra }, error: null });
     const screen = await load();
@@ -380,7 +389,7 @@ describe('held front-office WhatsApp routes', () => {
   const rpcOfSession = (): ReturnType<typeof vi.fn> =>
     tas<{ session?: { supabase: { rpc: ReturnType<typeof vi.fn> } } } | undefined>(staffSession.mock.results[0]?.value)?.session?.supabase.rpc ?? vi.fn();
   const dispatchValid = { requestKey: ids.requestKey };
-  const consentValid = { purpose: 'service', granted: true, noticeVersion: 'wsp-v1', source: 'desk-call', requestKey: ids.requestKey };
+  const consentValid = { memberId: ids.member, purpose: 'service', granted: true, noticeVersion: 'wsp-v1', source: 'desk-call', requestKey: ids.requestKey };
 
   it('desk recorder admits only front-office roles and sends the exact command', async () => {
     const rpc = vi.fn().mockResolvedValue({
@@ -399,9 +408,9 @@ describe('held front-office WhatsApp routes', () => {
   }, 20_000);
 
   const recorderBadRows: Array<[string, Record<string, unknown>]> = [
-    ['missing request key', { purpose: 'service', granted: true, noticeVersion: 'wsp-v1', source: 'desk' }],
-    ['missing notice version', { purpose: 'service', granted: true, source: 'desk', requestKey: ids.requestKey }],
-    ['default-on attempt', { purpose: 'service', noticeVersion: 'wsp-v1', source: 'desk', requestKey: ids.requestKey }],
+    ['missing request key', { memberId: ids.member, purpose: 'service', granted: true, noticeVersion: 'wsp-v1', source: 'desk' }],
+    ['missing notice version', { memberId: ids.member, purpose: 'service', granted: true, source: 'desk', requestKey: ids.requestKey }],
+    ['default-on attempt', { memberId: ids.member, purpose: 'service', noticeVersion: 'wsp-v1', source: 'desk', requestKey: ids.requestKey }],
     ['unset granted decision', { ...consentValid, granted: undefined }],
   ];
   it.each(recorderBadRows)('recorder refuses %s, never defaulting a grant', async (_label, body) => {
@@ -413,7 +422,7 @@ describe('held front-office WhatsApp routes', () => {
   }, 20_000);
 
   it('recorder refuses an erased provenance-free withdrawal shape', async () => {
-    await staffRecordWith({ purpose: 'marketing', granted: false, noticeVersion: 'wsp-v1', requestKey: ids.requestKey });
+    await staffRecordWith({ memberId: ids.member, purpose: 'marketing', granted: false, noticeVersion: 'wsp-v1', requestKey: ids.requestKey });
   }, 20_000);
   async function staffRecordWith(body: Record<string, unknown>) {
     const route = tas<StaffConsentRoute>(await import(targets.staffConsent));

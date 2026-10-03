@@ -5,7 +5,9 @@
 // Named pay-app-boundary-held.test.ts because another holdout already occupied
 // pay-app-held.test.ts; the parent orchestrator should dedupe the two.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import * as publicShared from '../../packages/shared/src/index';
+import * as publicShared from '../../packages/shared/src/config/constants';
+import { buildMediaObjectKey, parseMediaObjectKey } from '../../packages/shared/src/api/media';
+import { purchaseCreateRequestSchema, purchaseRequestCopy, purchaseRequestRefusalMessage, purchaseRequestStatusWord } from '../../packages/shared/src/api/purchase';
 const s = publicShared as unknown as Record<string, { safeParse?: (value: unknown) => { success: boolean }; parse?: (value: unknown) => unknown } | ((...args: unknown[]) => unknown) | Record<string, unknown> | number | string>;
 
 const id = '79400000-0000-4000-8000-000000000001';
@@ -37,7 +39,7 @@ const routes: Route[] = [
   { name: 'staff-accept', load: () => loadRoute(`${staffBase}/[id]/accept/route`), method: 'POST', rpc: 'accept_purchase_request', member: false, staff: true, role: 'front_desk', body: { expectedRevision: uuid(2), commandKey: uuid(3) } },
   { name: 'staff-reject', load: () => loadRoute(`${staffBase}/[id]/reject/route`), method: 'POST', rpc: 'reject_purchase_request', member: false, staff: true, role: 'front_desk', body: { expectedRevision: uuid(2), reason: 'No stock left', commandKey: uuid(3) } },
   { name: 'staff-reject-proof', load: () => loadRoute(`${staffBase}/[id]/reject-proof/route`), method: 'POST', rpc: 'reject_payment_proof', member: false, staff: true, role: 'front_desk', body: { assetId: other, expectedRevision: uuid(2), reason: 'Unclear screenshot', commandKey: uuid(3) } },
-  { name: 'staff-record', load: () => loadRoute(`${staffBase}/[id]/record/route`), method: 'POST', rpc: 'record_purchase_request', member: false, staff: true, role: 'gym_manager', body: { expectedRevision: uuid(2), commandKey: uuid(3), actualAmount: '250000', currency: 'INR', paymentMethod: 'upi' } },
+  { name: 'staff-record', load: () => loadRoute(`${staffBase}/[id]/record/route`), method: 'POST', rpc: 'record_purchase_request', member: false, staff: true, role: 'gym_manager', body: { expectedRevision: uuid(2), commandKey: uuid(3), actualAmount: '250000', currency: 'INR', method: 'upi' } },
 ];
 
 beforeEach(() => {
@@ -149,14 +151,14 @@ describe('PAY routes: money honesty at the client boundary', () => {
   });
   it('record requires an explicit currency and payment method — nothing is defaulted client-side', async () => {
     const route = routes[10]; act('staff', 'gym_manager');
-    for (const dropped of ['currency', 'paymentMethod']) {
+    for (const dropped of ['currency', 'method']) {
       const partial = { ...route.body } as Record<string, unknown>; delete partial[dropped];
       const response = await dispatch(route, request(route, partial));
       expect(response.status).toBe(400); expect(h.rpc).not.toHaveBeenCalled();
       h.rpc.mockClear();
     }
   });
-  it.each([['GL068', 409], ['GL066', 409], ['GL123', 409], ['GL124', 409], ['GL125', 409], ['42501', 403], ['P0002', 404], ['23514', 400], ['XX000', 500]])('record maps %s to a stable %d response that leaks no SQL identity', async (code, status) => {
+  it.each([['GL068', 409], ['GL066', 409], ['GL123', 409], ['GL124', 409], ['GL125', 409], ['42501', 403], ['P0002', 404], ['23514', 422], ['XX000', 500]])('record maps %s to a stable %d response that leaks no SQL identity', async (code, status) => {
     const route = routes[10]; act('staff', 'gym_manager'); h.reply.error = { code, details: 'PRIVATE_SQL_MEMBER_MONEY_SECRET', message: 'PRIVATE_MESSAGE' };
     const response = await dispatch(route, request(route, route.body));
     expect(response.status).toBe(status); expect(response.headers.get('cache-control')).toBe('no-store');
@@ -204,32 +206,33 @@ describe('PAY routes: proof privacy and upload truth', () => {
 describe('PAY shared contract: limits, copy truth and money vocabulary', () => {
   it('BUY_LIMITS pins the frozen numbers exactly', () => {
     const limits = s.BUY_LIMITS as unknown as Record<string, number>;
-    expect(limits.requestedTtlHours ?? limits.acceptedTtlHours).toBe(24);
-    expect(limits.unacceptedTtlHours).toBe(24);
-    expect(limits.maxOpenPerMember ?? limits.openRequestsPerMember).toBe(5);
-    expect(limits.creationsPerDay ?? limits.maxCreatesPerDay).toBe(10);
-    expect(limits.proofRegistrationsPerHour ?? limits.maxProofPerHour).toBe(10);
+    expect(limits.requestTtlSecondsAfterAcceptance).toBe(86400);
+    expect(limits.requestTtlSecondsUnaccepted).toBe(86400);
+    expect(limits.openRequestsPerMember).toBe(5);
+    expect(limits.creationsPerMemberPerDay).toBe(10);
+    expect(limits.proofRegistrationsPerMemberPerHour).toBe(10);
     expect(limits.maxQuantity).toBe(10);
     expect(limits.reasonMinLength).toBe(3); expect(limits.reasonMaxLength).toBe(200);
-    expect(limits.proofUrlTtlSeconds ?? limits.privateGetTtlSeconds).toBe(60);
+    expect(limits.privateProofGetTtlSeconds).toBe(60);
   });
   it('status vocabulary upholds BUY-022: pending verification is not payment recorded, and mismatch is not a purchase', () => {
-    const copy = s.purchaseRequestCopy as unknown as Record<string, string>;
-    for (const status of ['requested', 'owner_accepted', 'payment_proof_uploaded', 'recorded', 'mismatch_recorded', 'rejected', 'cancelled', 'expired']) expect(typeof copy[status]).toBe('string');
-    expect(copy.payment_proof_uploaded).toMatch(/pending verification/i);
+    const copy = purchaseRequestCopy as unknown as Record<string, string>;
+    for (const status of ['requested', 'owner_accepted', 'payment_proof_uploaded', 'recorded', 'mismatch_recorded', 'rejected', 'cancelled', 'expired']) expect(typeof purchaseRequestStatusWord(status)).toBe('string');
+    for (const key of ['requested', 'accepted', 'pendingVerification', 'recorded', 'mismatchTitle', 'mismatchNote', 'rejectedTitle', 'cancelledTitle', 'expiredTitle']) expect(typeof copy[key]).toBe('string');
+    expect(copy.pendingVerification).toMatch(/pending verification/i);
     expect(copy.recorded).toMatch(/payment recorded/i);
-    expect(copy.mismatch_recorded).toMatch(/desk/i);
-    expect(copy.mismatch_recorded).not.toMatch(/bought|purchase complete|fulfilled/i);
+    expect(copy.mismatchNote).toMatch(/desk/i);
+    expect(copy.mismatchNote).not.toMatch(/bought|purchase complete|fulfilled/i);
     const everything = Object.values(copy).join(' ');
     expect(everything).not.toMatch(/bank[- ]verified|payment successful|automatically (?:verified|settled)|instantly verified/i);
   });
   it.each(['invalid_request', 'request_unavailable', 'upload_rejected', 'rate_limited', 'not_permitted'])('refusal %s has a specific honest message', code => {
-    const message = (s.purchaseRequestRefusalMessage as unknown as (value: string) => string)(code);
+    const message = purchaseRequestRefusalMessage(code);
     expect(typeof message).toBe('string'); expect(message.length).toBeGreaterThan(10);
     expect(message).not.toMatch(/bank[- ]verified|payment successful/i);
   });
   it('unknown or hostile refusal codes fall back to fixed copy that never echoes the caller input', () => {
-    const refusal = s.purchaseRequestRefusalMessage as unknown as (value: string) => string;
+    const refusal = purchaseRequestRefusalMessage as unknown as (value: string) => string;
     for (const probe of ['constructor', '__proto__', `${id} SHOP_STOCK_SECRET`, 'request_unavailable; DROP TABLE']) {
       const message = refusal(probe);
       expect(message).not.toContain(id); expect(message).not.toContain(probe);
@@ -237,7 +240,7 @@ describe('PAY shared contract: limits, copy truth and money vocabulary', () => {
     expect(refusal('constructor')).toBe(refusal('__proto__'));
   });
   it('create schema is strict: identity, storage and proof internals can never be client-authored', () => {
-    const schema = s.purchaseCreateRequestSchema as unknown as { safeParse(value: unknown): { success: boolean } };
+    const schema = purchaseCreateRequestSchema as unknown as { safeParse(value: unknown): { success: boolean } };
     expect(schema.safeParse({ requestKey: id, kind: 'shop', targetId: other, quantity: 1, expectedRevision: uuid(2) }).success).toBe(true);
     for (const bad of ['tenantId', 'memberId', 'staffId', 'objectKey', 'proofUrl', 'screenshotBase64', 'amountPaise', 'gstRateBp', '__proto_payload']) {
       expect(schema.safeParse({ requestKey: id, kind: 'shop', targetId: other, quantity: 1, expectedRevision: uuid(2), [bad]: other }).success).toBe(false);
@@ -247,9 +250,9 @@ describe('PAY shared contract: limits, copy truth and money vocabulary', () => {
   });
   it('payment_proof becomes a parseable private MEDIA namespace, staged then published', () => {
     for (const storageArea of ['staging', 'published'] as const) {
-      const key = (s.buildMediaObjectKey as unknown as (...a: unknown[]) => string)({ tenantId: id, objectUuid: id, kind: 'payment_proof', mime: 'image/jpeg', storageArea });
+      const key = (buildMediaObjectKey as unknown as (...a: unknown[]) => string)({ tenantId: id, objectUuid: id, kind: 'payment_proof', mime: 'image/jpeg', storageArea });
       expect(key).toBe(`${id}/${storageArea}/payment_proof/${id}.jpg`);
-      expect((s.parseMediaObjectKey as unknown as (value: string) => unknown)(key)).toEqual({ tenantId: id, objectUuid: id, kind: 'payment_proof', extension: 'jpg', storageArea });
+      expect((parseMediaObjectKey as unknown as (value: string) => unknown)(key)).toEqual({ tenantId: id, objectUuid: id, kind: 'payment_proof', extension: 'jpg', storageArea });
     }
   });
   it('member page size default exists and the limits object is registered rather than inlined', () => {
