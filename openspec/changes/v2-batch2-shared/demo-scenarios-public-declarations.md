@@ -7,10 +7,22 @@ Their complete rollback-only verification files live at
 `supabase/tests/support/v2-batch2-demo-seed-visible.fragment` and
 `supabase/tests-holdout/support/v2-batch2-demo-seed-held.fragment` respectively.
 The primary splices the ordinary seed and scenario files into those verification
-transactions and checks exact pgTAP counters after two legal seed executions.
+transactions and checks exact pgTAP counters after two legal scenario executions.
 CI seed-dry-run runs them after the ordinary schema pgTAP job. This arrangement
 keeps seed verification independent of whether the live demo was permanently
 seeded; permanent application remains the manual CI seed workflow only.
+
+Verification splice protocol: immediately after BEGIN the primary inserts
+ordinary seed.sql once. Authors then capture rollback-only TEMP baselines for
+the original 30 members, their sold membership facts, and existing product
+terms/money/stock (category_id and ordinary updated_at are allowed to change).
+Capture any existing owned closure/version clock to prove its immutable replay.
+At the literal comment `-- ROOT_INSERT_BATCH2_SCENARIOS_HERE` the primary
+inserts complete seed-scenarios.sql twice. Assertions follow that marker.
+No fixture deletion, persistent writes from the author, or guessed legacy prices
+are required. Exact approved schema declarations are in the seven proposals
+and the canonical generated packages/db/types/database.ts declarations;
+authors may read those declarations, never migration/reader/seed implementations.
 
 Public engineering packet for independent fixture tests before a separate seed builder.
 This declares seed data and runtime verification separately; it is not execution,
