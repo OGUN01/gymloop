@@ -9,6 +9,13 @@
 -- (20260915100007_phase6_comms.sql), any implementation and
 -- supabase/tests-holdout/ were not read, so this suite is red today by design.
 --
+-- The three operational balance-after assertions below follow the owner-approved
+-- whatsapp-channel existing-credit-conversion-amendment.md and frozen
+-- credit-conversion-public-declarations.md (WSP-101/103): explicit INR integer
+-- paise replaces operational credits; nullable historical values stay nullable.
+-- Original credits remain immutable conversion evidence, not this operational
+-- field. This narrow reconciliation reads no wallet implementation or holdouts.
+--
 -- Resolutions this file pins, stated up front:
 -- * "New/activated templates require a category, trimmed nonempty key/body and
 --   existing supported locale" is enforced natively (a NOT VALID CHECK added to
@@ -389,12 +396,12 @@ select col_type_is('public','messaging_wallet_ledger','recorded_by_user_id','uui
   'COM: messaging_wallet_ledger.recorded_by_user_id is the platform actor');
 select col_is_null('public','messaging_wallet_ledger','recorded_by_user_id',
   'COM: messaging_wallet_ledger.recorded_by_user_id is NULL on history and on future notification debits');
-select has_column('public','messaging_wallet_ledger','balance_after_credits',
-  'COM: messaging_wallet_ledger gains balance_after_credits');
-select col_type_is('public','messaging_wallet_ledger','balance_after_credits','bigint',
-  'COM: messaging_wallet_ledger.balance_after_credits is bigint — credits, not money');
-select col_is_null('public','messaging_wallet_ledger','balance_after_credits',
-  'COM: messaging_wallet_ledger.balance_after_credits is NULL on historical entries');
+select has_column('public','messaging_wallet_ledger','balance_after_paise',
+  'COM: messaging_wallet_ledger exposes operational balance_after_paise after the approved cutover');
+select col_type_is('public','messaging_wallet_ledger','balance_after_paise','bigint',
+  'COM: messaging_wallet_ledger.balance_after_paise is bigint — explicit INR integer paise');
+select col_is_null('public','messaging_wallet_ledger','balance_after_paise',
+  'COM: messaging_wallet_ledger.balance_after_paise remains nullable — original historical null is preserved');
 
 select ok(
   (select exists(
