@@ -3,7 +3,7 @@ import { businessNouns, type MemberClassSession, type ClassTimetableSession, typ
 import { ClassesPane } from '../../components/classes-pane';
 
 type Props = Record<string, unknown>;
-type Node = { type: unknown; props: Props };
+type Node = { type: unknown; props: Props; path?: string };
 type Slot = { value?: unknown; deps?: readonly unknown[] | undefined; cleanup?: (() => void) | undefined };
 const seam = vi.hoisted(() => ({
   stores: new Map<string, Slot[]>(), path: '', cursor: 0, effects: [] as Array<() => void>,
@@ -84,7 +84,7 @@ function visit(value: unknown, path: string): void {
     seam.path = prior; seam.cursor = cursor;
     visit(output, `${path}/render`); return;
   }
-  nodes.push(node);
+  nodes.push({ ...node, path });
   for (const key of ['children', 'title', 'meta', 'status', 'trailing', 'icon']) visit(node.props[key], `${path}/${key}`);
 }
 function draw() { nodes = []; visit({ type: ClassesPane, props: { desk } }, 'root'); seam.effects.splice(0).forEach(effect => effect()); }
@@ -95,7 +95,7 @@ function words(value: unknown): string {
   if (value !== null && typeof value === 'object' && 'props' in value) return words((value as Node).props.children);
   return '';
 }
-function visible() { return nodes.map(node => ['children', 'title', 'meta', 'detail', 'message', 'value'].map(key => words(node.props[key])).join(' ')).join(' ').replace(/\s+/g, ' '); }
+function visible(items: Node[] = nodes) { return items.map(node => ['children', 'title', 'meta', 'detail', 'message', 'value'].map(key => words(node.props[key])).join(' ')).join(' ').replace(/\s+/g, ' '); }
 function control(label: RegExp) { return [...nodes].reverse().find(node => [words(node.props.children), words(node.props.title), words(node.props.accessibilityLabel)].some(value => label.test(value.trim())) && (typeof node.props.onPress === 'function' || typeof node.props.onRetry === 'function')); }
 async function press(label: RegExp) { const node = control(label); expect(node, `rendered action ${label.source} exists`).toBeDefined(); if (!node) return; expect(node.props.disabled, `action ${label.source} enabled`).not.toBe(true); const callback = node.props.onPress ?? node.props.onRetry; if (typeof callback === 'function') await callback(); await settle(); }
 function cleanup() { seam.stores.forEach(slots => slots.forEach(slot => slot.cleanup?.())); seam.stores.clear(); seam.effects = []; }
@@ -115,6 +115,35 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe('CLS rendered native contract', () => {
+  it('replaces the selected roster session with current cancellation facts after marking refresh', async () => {
+    vi.setSystemTime(new Date('2026-10-03T17:00:00+05:30'));
+    desk = true; seam.context = context({ kind: 'staff', userId: memberA.userId, tenantId: memberA.tenantId, staffId: timetable.trainerStaffId, role: 'front_desk' });
+    draw(); await settle(); await press(/Evening mobility/);
+    seam.loadTimetable.mockResolvedValue([{ ...timetable, sessionStatus: 'cancelled', cancelReason: 'Current cancellation facts', capacity: 5, bookedCount: 2, spotsLeft: 3, trainerName: 'Current coach sentinel' }]);
+    seam.loadRoster.mockResolvedValue([{ ...roster, status: 'attended' }]);
+    seam.mark.mockResolvedValue({ ok: true, data: { bookingId: roster.bookingId, status: 'attended' } });
+    await press(/Mark attended/);
+    expect(seam.loadTimetable.mock.calls.length, 'mutation refreshes timetable').toBeGreaterThan(1);
+    const sheet = nodes.find(node => node.type === 'Sheet'); expect(sheet, 'selected roster remains available').toBeDefined();
+    const contents = nodes.filter(node => sheet?.path !== undefined && node.path?.startsWith(`${sheet.path}/`));
+    expect(visible(contents), 'selected roster uses current trainer facts').toContain('Current coach sentinel');
+    expect(visible(contents), 'selected roster no longer uses old trainer').not.toContain('Coach Kavya');
+    expect(visible(contents), 'current session cancellation is explicit').toContain('Cancelled');
+    expect(contents.find(node => /Mark attended|Mark no-show|Add member|Cancel booking/.test(words(node.props.children)) && typeof node.props.onPress === 'function'), 'refreshed cancelled roster is read only').toBeUndefined();
+  });
+  it('refreshes selected roster capacity and trainer after an explicit desk mutation', async () => {
+    vi.setSystemTime(new Date('2026-10-03T17:00:00+05:30'));
+    desk = true; seam.context = context({ kind: 'staff', userId: memberA.userId, tenantId: memberA.tenantId, staffId: timetable.trainerStaffId, role: 'front_desk' });
+    draw(); await settle(); await press(/Evening mobility/);
+    seam.loadTimetable.mockResolvedValue([{ ...timetable, capacity: 5, bookedCount: 2, spotsLeft: 3, trainerName: 'Current coach sentinel' }]);
+    seam.loadRoster.mockResolvedValue([{ ...roster, status: 'attended' }]); seam.mark.mockResolvedValue({ ok: true, data: { bookingId: roster.bookingId, status: 'attended' } });
+    await press(/Mark attended/);
+    const sheet = nodes.find(node => node.type === 'Sheet'); expect(sheet, 'selected roster remains available').toBeDefined();
+    const contents = nodes.filter(node => sheet?.path !== undefined && node.path?.startsWith(`${sheet.path}/`));
+    expect(visible(contents), 'current selected trainer').toContain('Current coach sentinel');
+    expect(visible(contents), 'current selected count and capacity').toMatch(/2\s*(?:of|\/)\s*5|2\s*booked.*5\s*(?:places|spots|capacity)|5\s*(?:places|spots|capacity).*2\s*booked/);
+    expect(visible(contents), 'old selected capacity discarded').not.toMatch(/9\s*(?:of|\/)\s*13/);
+  });
   it('revokes retained confirmation during an authentication transition before identity resolves', async () => {
     seam.loadMember.mockResolvedValue([booked]); draw(); await settle(); await press(/^Cancel(?: booking)?$/);
     const retained = control(/^Confirm(?: cancellation)?$|^Cancel booking$/)?.props.onPress;
