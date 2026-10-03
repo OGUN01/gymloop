@@ -145,6 +145,9 @@ describe('PAY complete actor and safe-read boundaries (BUY-001/009/019)', () => 
     expect(state.calls).toEqual([]);
     expect(state.events).not.toContain('body');
   });
+  // INTERFACE-BLOCKED for the member detail success case: the complete safe
+  // read_purchase_request JSON fields/types/nullability are not yet declared.
+  // Keep the success and RPC assertions intact until the public fixture is supplied.
   it.each(readRoutes)('$path invokes only its declared scoped read', async route => {
     state.claims = route.audience;
     state.results = [{ data: route === readRoutes[0] ? { request_id: id, status: 'requested' } : { requests: [], nextAfter: null, nextAfterId: null }, error: null }];
@@ -164,11 +167,11 @@ describe('PAY complete actor and safe-read boundaries (BUY-001/009/019)', () => 
     expect(JSON.stringify(payload)).not.toContain('PRIVATE_TARGET_EXISTS');
   });
   it('proof-url accepts the frozen JSON object envelope and strips private metadata', async () => {
-    state.results = [{ data: { request_id: id, url: 'https://r2.test/signed', expires_at: '2026-10-02T05:45:00Z', object_key: 'PRIVATE_KEY', etag: 'PRIVATE_ETAG' }, error: null }];
+    state.results = [{ data: { requestId: id, proofId: id, assetId: id, url: `/api/purchase-requests/${id}/proof-asset`, expiresAt: '2026-10-02T05:45:00Z', object_key: 'PRIVATE_KEY', etag: 'PRIVATE_ETAG' }, error: null }];
     const response = await invoke(deskRoutes[4], request({}, 'POST'));
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(await response.json()).toEqual({ ok: true, data: { url: 'https://r2.test/signed', expiresAt: '2026-10-02T05:45:00Z' } });
+    expect(await response.json()).toEqual({ ok: true, data: { url: `/api/purchase-requests/${id}/proof-asset`, expiresAt: '2026-10-02T05:45:00Z' } });
   });
 });
 

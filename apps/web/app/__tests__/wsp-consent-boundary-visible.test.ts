@@ -6,7 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 const boundary = vi.hoisted(() => ({
   rpc: vi.fn(), requireAudience: vi.fn(), readRequestIdentity: vi.fn(),
+  memberSession: vi.fn(), staffSession: vi.fn(),
 }));
+vi.mock('../../lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../lib/api')>();
+  return { ...actual, memberSession: boundary.memberSession, staffSession: boundary.staffSession };
+});
 vi.mock('../../lib/identity-session', () => ({
   requireAudience: boundary.requireAudience,
   readRequestIdentity: boundary.readRequestIdentity,
@@ -34,6 +39,8 @@ beforeEach(() => {
   boundary.rpc.mockResolvedValue({ data: emptyPage, error: null });
   boundary.requireAudience.mockResolvedValue({ identity: owner, supabase: { rpc: boundary.rpc } });
   boundary.readRequestIdentity.mockResolvedValue({ identity: member, supabase: { rpc: boundary.rpc } });
+  boundary.memberSession.mockResolvedValue({ session: { userId, tenantId, memberId, supabase: { rpc: boundary.rpc } } });
+  boundary.staffSession.mockResolvedValue({ session: { userId, tenantId, staffId, role: 'gym_owner', supabase: { rpc: boundary.rpc } } });
 });
 
 describe('WSP operations role and paired keyset boundary', () => {
