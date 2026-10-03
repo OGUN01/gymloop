@@ -139,32 +139,34 @@ export function consentResult(data: unknown): ConsentResult | null {
 // WalletAdjustmentResult — §7, the contract's exact six keys
 // ---------------------------------------------------------------------------
 
-const WALLET_ADJUSTMENT_KEYS = ['ledgerId', 'tenantId', 'deltaCredits', 'reason', 'balanceAfterCredits', 'createdAt'] as const;
+const WALLET_ADJUSTMENT_KEYS = ['ledgerId', 'tenantId', 'deltaPaise', 'currency', 'reason', 'balanceAfterPaise', 'createdAt'] as const;
 
 export type WalletAdjustmentResult = {
   ledgerId: string;
   tenantId: string;
-  deltaCredits: string;
+  deltaPaise: string;
+  currency: 'INR';
   reason: string;
-  balanceAfterCredits: string;
+  balanceAfterPaise: string | null;
   createdAt: string;
 };
 
 /**
- * The contract's exact six-key `WalletAdjustmentResult` (§7). `deltaCredits`
- * and `balanceAfterCredits` are canonical decimal strings, kept as strings
+ * The contract's exact seven-key `WalletAdjustmentResult` (§7). `deltaPaise`
+ * and `balanceAfterPaise` are canonical decimal strings, kept as strings
  * throughout — never routed through `Number()` (§1).
  */
 export function walletAdjustmentResult(data: unknown): WalletAdjustmentResult | null {
   if (!isObject(data) || !hasExactKeys(data, WALLET_ADJUSTMENT_KEYS)) return null;
   if (!isUuid(data.ledgerId) || !isUuid(data.tenantId)) return null;
-  if (!isCanonicalDecimalInteger(data.deltaCredits)) return null;
-  if (!isNonnegativeCanonicalDecimalInteger(data.balanceAfterCredits)) return null;
+  if (!isCanonicalDecimalInteger(data.deltaPaise)) return null;
+  if (data.currency !== 'INR') return null;
+  if (data.balanceAfterPaise !== null && !isNonnegativeCanonicalDecimalInteger(data.balanceAfterPaise)) return null;
   if (typeof data.reason !== 'string' || data.reason.trim() === '') return null;
   if (typeof data.createdAt !== 'string') return null;
   return {
-    ledgerId: data.ledgerId, tenantId: data.tenantId, deltaCredits: data.deltaCredits,
-    reason: data.reason, balanceAfterCredits: data.balanceAfterCredits, createdAt: data.createdAt,
+    ledgerId: data.ledgerId, tenantId: data.tenantId, deltaPaise: data.deltaPaise, currency: data.currency,
+    reason: data.reason, balanceAfterPaise: data.balanceAfterPaise, createdAt: data.createdAt,
   };
 }
 
@@ -199,14 +201,16 @@ export function isCommunicationOptedOut(data: unknown): boolean {
  * than a guess, because inventing a success shape for an unhandled database
  * state is how a lost write gets reported as done.
  */
-export function commsRpcFailure(error: { code: string; message: string }): Response {
+export function commsRpcFailure(error: { code: string; message: string }, walletUnit: 'paise' | 'credits' = 'paise'): Response {
   switch (error.code) {
     case 'GL065':
       return apiFail('unprocessable', 'invalid_consent', 'That consent could not be recorded — check the version and source.');
     case 'GL066':
       return apiFail('unprocessable', 'invalid_notification', 'That message cannot make that move right now.');
     case 'GL067':
-      return apiFail('conflict', 'insufficient_credits', 'This credit movement would put the wallet below zero.');
+      return walletUnit === 'paise'
+        ? apiFail('conflict', 'insufficient_funds', 'This adjustment would put the wallet below zero.')
+        : apiFail('conflict', 'insufficient_credits', 'This credit movement would put the wallet below zero.');
     case 'GL068':
       return apiFail('conflict', 'idempotency_conflict', 'This request key was already used for different facts.');
     case 'GL069':
@@ -221,7 +225,13 @@ export function commsRpcFailure(error: { code: string; message: string }): Respo
     case '23514':
       return apiFail('unprocessable', 'invalid_adjustment', 'That adjustment needs a nonzero delta and a reason.');
     case '22003':
-      return apiFail('unprocessable', 'credits_out_of_range', 'That delta is outside the supported credit range.');
+      return walletUnit === 'paise'
+        ? apiFail('unprocessable', 'paise_out_of_range', 'That delta is outside the supported paise range.')
+        : apiFail('unprocessable', 'credits_out_of_range', 'That delta is outside the supported credit range.');
+    case '22023':
+      return walletUnit === 'paise'
+        ? apiFail('bad_request', 'invalid_request', 'Check the INR currency and adjustment facts, then try again.')
+        : apiFail('server_error', 'operation_failed', 'The change could not be saved. Nothing was written.');
     default:
       return apiFail('server_error', 'operation_failed', 'The change could not be saved. Nothing was written.');
   }

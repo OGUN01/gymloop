@@ -30,7 +30,7 @@ export async function POST(
       Promise<{ data: unknown; error: { code: string; message: string } | null }>;
   };
   const { data, error } = await writer.rpc('open_notification_whatsapp', { p_notification_id: id });
-  if (error) return commsRpcFailure(error);
+  if (error) return commsRpcFailure(error, 'credits');
 
   if (isCommunicationOptedOut(data)) {
     return apiFail('forbidden', 'communication_opted_out', 'This member cannot be messaged right now. No link was created.');

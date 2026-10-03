@@ -1,3 +1,5 @@
+import { isNonnegativeCanonicalDecimalInteger } from '@gymloop/shared';
+import { isObject } from './keyset';
 import { identityHome, type GymloopIdentity } from './identity';
 import { requireAudience } from './identity-session';
 import { FRONT_OFFICE_ROLES } from './leads';
@@ -66,7 +68,7 @@ export type MessagesScreen = {
   memberNextCursor: string | null;
   memberSearchError: string | null;
   templates: MessageTemplateRow[];
-  walletBalanceCredits: string | null;
+  wallet: { balancePaise: string; currency: 'INR' } | null;
   errorMessage: string | null;
 };
 
@@ -74,7 +76,7 @@ type ListNotificationsResult = {
   rows: MessageListRow[];
   statusCounts: Partial<MessageStatusCounts>;
   asOf: string;
-  walletBalanceCredits: string | null;
+  wallet: { balancePaise: string; currency: 'INR' } | null;
 };
 
 export async function loadMessages(
@@ -128,7 +130,7 @@ export async function loadMessages(
     rows: [], statusCounts: EMPTY_STATUS_COUNTS, asOf: null, isAdmin,
     isPreview: identity.kind === 'impersonation', tenantId, members: [],
     memberNextCursor: null, memberSearchError: memberSearch.errorMessage,
-    templates: [], walletBalanceCredits: null, errorMessage: 'The messages list could not be loaded.',
+    templates: [], wallet: null, errorMessage: 'The messages list could not be loaded.',
   };
   if (page.error || page.data === null || !Array.isArray(page.data.rows)) return unusable;
 
@@ -150,7 +152,12 @@ export async function loadMessages(
     memberNextCursor: memberSearch.nextCursor,
     memberSearchError: memberSearch.errorMessage,
     templates: templateRows,
-    walletBalanceCredits: typeof page.data.walletBalanceCredits === 'string' ? page.data.walletBalanceCredits : null,
+    wallet: isAdmin && isObject(page.data.wallet) &&
+      Object.keys(page.data.wallet).every((key) => key === 'balancePaise' || key === 'currency') &&
+      page.data.wallet.currency === 'INR' &&
+      isNonnegativeCanonicalDecimalInteger(page.data.wallet.balancePaise)
+      ? { balancePaise: page.data.wallet.balancePaise, currency: 'INR' }
+      : null,
     errorMessage: null,
   };
 }

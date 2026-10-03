@@ -4,7 +4,7 @@ import { type BusinessNouns } from '@gymloop/shared';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { loadMessages, type MessageListRow, type MessageStatusCounts } from '../../../lib/messages';
 import { ConsentForm, MessageTemplateForm, WhatsAppOpenButton } from './message-forms';
-import { DEFAULT_TIMEZONE, formatDateTime, humanize, MESSAGE_LOG_PREVIEW_ROWS, UI_TOKENS } from '@gymloop/shared';
+import { DEFAULT_TIMEZONE, formatMoney, formatDateTime, humanize, MESSAGE_LOG_PREVIEW_ROWS, UI_TOKENS } from '@gymloop/shared';
 import { Alert } from '../alert';
 import { StatusWord } from '../../status-word';
 
@@ -202,8 +202,8 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       <div className="comms-section-head"><h2 id="wallet-heading" className="cl-section-title">Wallet</h2></div>
       <div className="cl-metric comms-wallet">
         <span className="cl-eyebrow">Balance</span>
-        {screen.walletBalanceCredits !== null
-          ? <span className="cl-metric-value tabular-nums">{screen.walletBalanceCredits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}<span className="comms-wallet-unit">credits</span></span>
+        {screen.wallet !== null
+          ? <span className="cl-metric-value tabular-nums">{formatMoney(screen.wallet.balancePaise, screen.wallet.currency)}</span>
           : <span className="cl-metric-value comms-wallet-unavailable">Unavailable</span>}
         <small>Only a platform administrator can adjust this balance.</small>
       </div>

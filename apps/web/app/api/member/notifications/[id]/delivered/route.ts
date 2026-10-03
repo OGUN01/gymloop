@@ -26,7 +26,7 @@ export async function POST(
       Promise<{ data: unknown; error: { code: string; message: string } | null }>;
   };
   const { data, error } = await writer.rpc('acknowledge_notification', { p_notification_id: id });
-  if (error) return commsRpcFailure(error);
+  if (error) return commsRpcFailure(error, 'credits');
 
   const result = notificationResult(data);
   if (result === null) return apiFail('server_error', 'operation_failed', 'That message could not be marked delivered.');

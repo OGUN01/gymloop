@@ -407,28 +407,25 @@ on conflict (id) do update set
 
 
 -- ---------------------------------------------------------------------------
--- 9. The messaging credit wallet and its ledger. balance_credits is a credit
---    count, not money — no currency column exists here. The two ledger rows
---    sum to the balance.
+-- 9. INR paise-native wallet fixture. Signed movements sum to the balance.
 -- ---------------------------------------------------------------------------
 
-insert into public.messaging_wallets (tenant_id, balance_credits)
-values ('00000001-0000-4000-8000-000000000001', 4500)
-on conflict (tenant_id) do update set balance_credits = excluded.balance_credits;
+insert into public.messaging_wallets (tenant_id, balance_paise, currency)
+values ('00000001-0000-4000-8000-000000000001', 450000, 'INR')
+on conflict (tenant_id) do nothing;
 
-insert into public.messaging_wallet_ledger (id, tenant_id, delta_credits, reason)
+insert into public.messaging_wallet_ledger (id, tenant_id, delta_paise, currency, reason)
 select
   ('00000022-0000-4000-8000-' || lpad(l.n::text, 12, '0'))::uuid,
   '00000001-0000-4000-8000-000000000001'::uuid,
-  l.delta_credits,
+  l.delta_paise,
+  'INR',
   l.reason
 from (values
-  (1,  5000::bigint, 'Opening credit purchase'),
-  (2,  -500::bigint, 'Renewal and win-back pushes sent')
-) as l(n, delta_credits, reason)
-on conflict (id) do update set
-  delta_credits = excluded.delta_credits,
-  reason        = excluded.reason;
+  (1,  500000::bigint, 'Opening credit purchase'),
+  (2,  -50000::bigint, 'Renewal and win-back pushes sent')
+) as l(n, delta_paise, reason)
+on conflict (id) do nothing;
 
 
 -- ---------------------------------------------------------------------------

@@ -592,3 +592,7 @@ export const CLASS_LIMITS = { horizonDays: 28, readWindowMaxDays: 31, nameMax: 8
 export const ANNOUNCEMENT_LIMITS = { titleMaxChars: 80, bodyMaxChars: 1500, changeNoteMinChars: 3, changeNoteMaxChars: 200, maxLivePerTenant: 10, publishesPerDay: 20, maxVersions: 10, maxExpiryDays: 365, homeCards: 3, listPageSize: 50, previewChars: 140 } as const;
 
 export const ANNOUNCEMENT_HTTP_STATUS = { notFound: 404 } as const;
+
+/** Inclusive PostgreSQL bigint bounds for exact integer-string command inputs. */
+export const POSTGRES_BIGINT_MIN = -9223372036854775808n;
+export const POSTGRES_BIGINT_MAX = 9223372036854775807n;

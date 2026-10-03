@@ -38,7 +38,7 @@ export async function POST(request: Request): Promise<Response> {
     p_member_id: memberId, p_purpose: purpose, p_granted: granted,
     p_version: version, p_source: source, p_request_key: requestKey,
   });
-  if (error) return commsRpcFailure(error);
+  if (error) return commsRpcFailure(error, 'credits');
 
   const result = consentResult(data);
   if (result === null) return apiFail('server_error', 'operation_failed', 'The consent could not be recorded. Nothing was written.');

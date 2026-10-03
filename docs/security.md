@@ -125,7 +125,7 @@ The clock starts at the event named in "Retained from". "Erasable" says whether 
 | `audit_log`, `impersonation_sessions` | the event | **8 years** | `hold` | INT-003's whole point. An audit log with a shorter life than the records it audits proves nothing about them. |
 | `no_show_cases`, `follow_ups` | case close | **3 years** | `blank` | Retention analytics and a dispute record about how a member was contacted. Tracks attendance, which is what the cases derive from. |
 | `notifications` | send | **1 year** | `blank` | Delivery reporting and opt-out evidence. The consent record, not this table, is the long-lived proof. |
-| `messaging_wallets`, `messaging_wallet_ledger` | the movement | **8 years** | n/a | A credit ledger the gym is billed against — financial, and it holds no member personal data. |
+| `messaging_wallets`, `messaging_wallet_ledger` | the movement | **8 years** | n/a | Financial INR/paise ledger with immutable original-credit conversion evidence. The isolated cutover preserves every historical reference/timestamp; no member contact data is added. |
 | `addon_products`, `addon_orders`, `pt_sessions` | order completion | **8 years** for the order, **3 years** for the session | `hold` / `blank` | An add-on order is a sale (see the financial row); a PT session is operational history (see attendance). |
 | `leads` | last activity | **2 years** | `delete` | A non-member's personal data held on the basis of an enquiry. The only table here whose rows a DPD-006 request removes outright — nothing financial or evidential references a lead that never converted. |
 | `member_imports` | the run | **1 year** | `delete` | Its error report is a debugging artifact containing member data. It should be the shortest-lived table in the schema. |

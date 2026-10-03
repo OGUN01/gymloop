@@ -1,6 +1,6 @@
 # Domain rules (EARS)
 
-## Approved isolated wallet-paise conversion (source and CI application pending)
+## Approved isolated wallet-paise conversion (built; CI application pending)
 
 Authoritative EARS WSP-101 through WSP-109 are frozen in
 `openspec/changes/whatsapp-channel/credit-conversion-public-declarations.md`

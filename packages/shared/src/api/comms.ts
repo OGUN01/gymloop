@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { POSTGRES_BIGINT_MIN, POSTGRES_BIGINT_MAX } from '../config/constants';
 
 /**
  * Phase 6 communications/wallet cluster's platform-free wire layer
@@ -23,7 +24,7 @@ const CANONICAL_DECIMAL_INTEGER = /^(?:0|-?[1-9][0-9]*)$/;
 /**
  * The §1 grammar: `0` or nonzero-leading digits, one leading minus for a
  * negative value. Byte-identical to `rupeesFromPaise`'s own guard in
- * `api/payments.ts` (`/^(?:0|-?[1-9][0-9]*)$/`) — comms credits are a second
+ * `api/payments.ts` (`/^(?:0|-?[1-9][0-9]*)$/`) — comms money is a second
  * bigint boundary, not a second rounding rule, so this is the same pattern
  * named again rather than a divergent copy.
  */
@@ -31,7 +32,7 @@ export function isCanonicalDecimalInteger(value: unknown): value is string {
   return typeof value === 'string' && CANONICAL_DECIMAL_INTEGER.test(value);
 }
 
-/** A canonical decimal integer that is never negative — the ledger's `balance_after_credits >= 0` CHECK (§2). */
+/** A canonical decimal integer that is never negative — the ledger's `balance_after_paise >= 0` CHECK (§2). */
 export function isNonnegativeCanonicalDecimalInteger(value: unknown): value is string {
   return isCanonicalDecimalInteger(value) && !value.startsWith('-');
 }
@@ -45,7 +46,11 @@ export const RESERVED_RENEWAL_TEMPLATE_KEY = 'renewal_reminder';
 
 const uuid = z.uuid();
 const nonBlank = z.string().trim().min(1);
-const canonicalCredits = z.string().refine(isCanonicalDecimalInteger, 'Must be a canonical decimal integer.');
+const canonicalPaise = z.string().refine((value) => {
+  if (!isCanonicalDecimalInteger(value)) return false;
+  const exact = BigInt(value);
+  return exact >= POSTGRES_BIGINT_MIN && exact <= POSTGRES_BIGINT_MAX;
+}, 'Must be a canonical decimal integer within the PostgreSQL bigint range.');
 
 /**
  * `POST /api/consents` (§3, §8). `purpose` is shape-checked here only —
@@ -79,10 +84,11 @@ export const messageTemplateRequestSchema = z.object({
 }).strict();
 export type MessageTemplateRequest = z.infer<typeof messageTemplateRequestSchema>;
 
-/** `POST /api/messaging-wallet/adjust` (§7). `deltaCredits` may be zero or negative; the RPC's CHECK owns refusing zero. */
+/** `POST /api/messaging-wallet/adjust` (§7). `deltaPaise` may be zero or negative; the RPC's CHECK owns refusing zero. */
 export const walletAdjustRequestSchema = z.object({
   tenantId: uuid,
-  deltaCredits: canonicalCredits,
+  deltaPaise: canonicalPaise,
+  currency: z.literal('INR'),
   reason: nonBlank,
   requestKey: uuid,
 }).strict();

@@ -1,0 +1,100 @@
+{
+  "verifiedAtUtc": "2026-10-03T09:12:27.3100996Z",
+  "projectRef": "pecxrpskmfeuyzngvewq",
+  "sourceHashes": [
+    {
+      "path": "supabase/migrations/20261004085000_messaging_wallet_paise.sql",
+      "sha256": "677f027e96bb6e75da91ff9ba09a4f6492ddfbb879daff6dfae940d280665174"
+    },
+    {
+      "path": "packages/shared/src/api/comms.ts",
+      "sha256": "148b1b90a41eebc18d62551b3b5d1f0ab43516bbb7a135b596fa85d1aeabf46a"
+    },
+    {
+      "path": "packages/shared/src/config/constants.ts",
+      "sha256": "eda01f2c674d82415ac0332b6310ba8338ade03909482c790f6331b4af0496ec"
+    },
+    {
+      "path": "apps/web/lib/comms.ts",
+      "sha256": "d1f4ba4b86dc79d697e9f592320a85661e0c68aa79714eb24c94cdd57fc0c16e"
+    },
+    {
+      "path": "apps/web/lib/messages.ts",
+      "sha256": "284befcc6079ab18d67f9cdd86843e9d6f6d679226463475499074770c421567"
+    },
+    {
+      "path": "apps/web/app/(console)/messages/page.tsx",
+      "sha256": "0fcf6617dfa8dcbca8e191151923579a411426c4e9535e2e41c45e449b99c94d"
+    },
+    {
+      "path": "apps/web/app/api/messaging-wallet/adjust/route.ts",
+      "sha256": "f06356d3f30f54df715b68671e246882b44038bea7fdb291eb3a4e50cc05cdbc"
+    },
+    {
+      "path": "apps/web/app/api/consents/route.ts",
+      "sha256": "dc04d5c7f9b40a326211aad8cad110f0006eba8a4547f46f1145a0399a0cae5e"
+    },
+    {
+      "path": "apps/web/app/api/message-templates/route.ts",
+      "sha256": "8ec3ed3bf8740339d7e796a2747451f4ff161d1ee794f671e913cb2ccce66f6c"
+    },
+    {
+      "path": "apps/web/app/api/member/notifications/[id]/delivered/route.ts",
+      "sha256": "f53922d8a86860b135eaadd55a85bd23198ac1dc23685e53fde11a1d12c9564d"
+    },
+    {
+      "path": "apps/web/app/api/notifications/[id]/whatsapp/route.ts",
+      "sha256": "1854bbcc3e6c59037dea36a45d50f897ab322302ee9645dfd928cef91aed058b"
+    },
+    {
+      "path": "supabase/seed.sql",
+      "sha256": "90d58cde44195b501339827c90cbc59512fe5e13811e0011d1370e6d26990202"
+    }
+  ],
+  "affectedPgTap": {
+    "files": 16,
+    "exactPlans": true,
+    "failures": 0,
+    "assertions": 864.0,
+    "beginRollback": true
+  },
+  "independentCutoverFixtures": {
+    "beginRollback": true,
+    "cases": 8,
+    "failures": 0,
+    "assertions": 67.0,
+    "fingerprintOnlyEphemeralSubstitution": true
+  },
+  "consumerTests": {
+    "held": 42,
+    "visible": 241,
+    "failed": 0
+  },
+  "seed": {
+    "runs": 2,
+    "convertedWalletsPreserved": true,
+    "convertedHistoryPreserved": true,
+    "ledgerRows": 2,
+    "walletRows": 3,
+    "beginRollback": true
+  },
+  "projectTypes": {
+    "failed": 0,
+    "packages": 5
+  },
+  "freshCritic": {
+    "scope": "isolated WSP-101 through WSP-109 source only",
+    "verdict": "GO",
+    "name": "wallet_source_acceptance_isolated_critic",
+    "implementationBlindToTests": true
+  },
+  "migrationApplied": false,
+  "providerActivated": false,
+  "allProductionGatesAccepted": false,
+  "allV2Accepted": false,
+  "limits": [
+    "CI must recheck exact complete original-credit manifest under both locks before applying",
+    "Full delivery/provider contracts and end-to-end acceptance remain open",
+    "Private outputs and identifiers are not published"
+  ]
+}

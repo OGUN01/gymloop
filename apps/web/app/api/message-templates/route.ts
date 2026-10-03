@@ -54,7 +54,7 @@ async function createTemplate(
     tenant_id: fields.tenantId, key: fields.key, channel: fields.channel, locale: fields.locale,
     category: fields.category, body: fields.body, is_active: fields.isActive,
   }).select().single();
-  if (error) return commsRpcFailure(error);
+  if (error) return commsRpcFailure(error, 'credits');
   const row = templateRow(data);
   if (row === null) return apiFail('server_error', 'operation_failed', 'The template could not be saved. Nothing was written.');
   return commsOk('created', row);
@@ -79,7 +79,7 @@ async function updateTemplate(
     .eq('id', templateId)
     .select()
     .maybeSingle();
-  if (error) return commsRpcFailure(error);
+  if (error) return commsRpcFailure(error, 'credits');
   if (data === null) return apiFail('not_found', 'not_found', 'That template is not available.');
   const row = templateRow(data);
   if (row === null) return apiFail('server_error', 'operation_failed', 'The template could not be saved. Nothing was written.');
