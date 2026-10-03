@@ -70,6 +70,12 @@ vi.mock('../mobile-context', () => ({ useMobile: () => ({
   businessType: state.type, nouns: nouns[state.type], appearance: 'system', setAppearance: vi.fn(), signOut: vi.fn(), webOrigin: 'https://app.example',
 }) }));
 vi.mock('../use-member-snapshot', () => ({ useMemberSnapshot: () => ({ data: state.error ? null : snapshot(), error: null, loading: state.loading, reload: vi.fn() }) }));
+// BIZ observes the real place screen with the PLC disclosure closed. Double
+// only PLC's documented hook seam; its behavior has independent PLC coverage.
+vi.mock('../use-member-plans', () => ({ useMemberPlans: () => ({
+  state: { phase: 'idle', view: null, loadedAt: null, staleReason: null, offline: false },
+  reload: async () => undefined,
+}) }));
 vi.mock('../mobile-data', async (original) => ({ ...await original<Record<string, unknown>>(),
   loadDeskMembers: async () => state.empty ? [] : Array.from({ length: state.count }, (_, index) => ({ id: `m${index}`, fullName: `Aarav Sharma ${index}`, phone: '+917000000101', status: 'active', memberCode: `BIZ-10${index}` })),
   loadDeskFollowUps: async () => [], loadDefaultBranch: async () => 'branch1',
