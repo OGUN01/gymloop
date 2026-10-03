@@ -601,3 +601,310 @@ on conflict (id) do update set
 -- again, and diff. The existing thirty members (IB001-IB030) and every row
 -- seed.sql creates are never touched by this file (no shared uuids, no
 -- update to any table outside the four above).
+
+-- Batch-2 public packet: represented static states, never command evidence.
+-- The complete packet is inserted once; later runs validate its original clock.
+do $batch_two$
+declare
+  tenant uuid := '00000001-0000-4000-8000-000000000001';
+  branch uuid := '00000002-0000-4000-8000-000000000001';
+  desk uuid := '00000003-0000-4000-8000-000000000004';
+  aarav uuid := '00000005-0000-4000-8000-000000000001';
+  owner_id uuid; owner_user uuid; r timestamptz; t date; replay boolean;
+  graph jsonb := '[]'; item jsonb; row_data jsonb; actual jsonb; typed jsonb;
+  x record; n integer; k integer; day date; start_at timestamptz;
+  columns_sql text; values_sql text; table_name text; count_actual integer;
+  holiday_owned boolean; weekly_count integer := 0;
+  plan_id uuid := '00000004-0000-4000-8000-000000000001';
+  sold_price bigint; sold_currency text; sold_duration integer;
+begin
+  perform pg_advisory_xact_lock(hashtextextended('batch2-demo:' || tenant::text,0));
+  if app.class_branch_timezone(tenant,branch) is distinct from 'Asia/Kolkata'
+     or not exists(select 1 from public.organizations where id=tenant and timezone='Asia/Kolkata') then
+    raise exception 'Batch-2 requires the existing Asia/Kolkata demo gym/branch';
+  end if;
+  select published_at + interval '10 minutes',created_by_staff_id into r,owner_id
+    from public.announcements where id='00000089-0000-4000-8000-000000000001';
+  replay := found;
+  if replay and r is null then raise exception 'Batch-2 anchor unavailable'; end if;
+  if not replay then r := statement_timestamp(); end if;
+  t := (r at time zone 'Asia/Kolkata')::date;
+  select u.id into strict owner_user from auth.users u where lower(u.email)='owner@ironbox.example.com';
+  if replay then
+    if not exists(select 1 from public.staff s where s.id=owner_id and s.tenant_id=tenant
+       and s.user_id=owner_user and s.role='gym_owner') then
+      raise exception 'Batch-2 original owner binding unavailable';
+    end if;
+  else
+    select s.id into strict owner_id from public.staff s where s.tenant_id=tenant
+      and s.user_id=owner_user and s.role='gym_owner' and s.is_active;
+    if not exists(select 1 from public.organization_settings where tenant_id=tenant and class_cancel_window_hours=2) then
+      raise exception 'Batch-2 initial closed-window fixture requires the existing two-hour policy';
+    end if;
+  end if;
+  select price_paise,currency,duration_days into strict sold_price,sold_currency,sold_duration
+    from public.plans where tenant_id=tenant and id=plan_id;
+  if replay then
+    select price_paise,currency,duration_days into strict sold_price,sold_currency,sold_duration
+      from public.memberships where tenant_id=tenant and id='00000081-0000-4000-8000-000000000201';
+  end if;
+  if sold_price is null or sold_price<0 or sold_currency is null or sold_currency !~ '^[A-Z]{3}$'
+     or sold_duration is null or sold_duration<=0 then
+    raise exception 'Batch-2 original sold membership terms unavailable or invalid';
+  end if;
+  if not exists(select 1 from public.staff where id=desk and tenant_id=tenant and role='front_desk')
+     or (select count(*) from public.staff where tenant_id=tenant and role='trainer'
+       and id in ('00000003-0000-4000-8000-000000000001','00000003-0000-4000-8000-000000000002','00000003-0000-4000-8000-000000000003'))<>3 then
+    raise exception 'Batch-2 existing staff unavailable';
+  end if;
+
+  for x in select * from (values
+    (201,'Demo Asha Grant','active'),(202,'Demo Bela Withdrawn','active'),
+    (203,'Demo Charu Unasked','active'),(204,'Demo Dev Regranted','expired')) v(n,name,status) loop
+    graph := graph || jsonb_build_array(jsonb_build_object('table','members','row',jsonb_build_object(
+      'id',format('00000080-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'tenant_id',tenant,'branch_id',branch,
+      'member_code','B2D'||x.n,'full_name',x.name,'phone','+919876720'||right(x.n::text,3),
+      'user_id',null,'email',null,'gender',null,'photo_url',null,'erased_at',null,
+      'guardian_name',null,'guardian_relation',null,'guardian_phone',null,'guardian_email',null,'guardian_linked_at',null,
+      'date_of_birth',(t-interval '25 years')::date,'status',x.status,'joined_on',t-60,
+      'weekly_goal_visits',null,'rest_days','[]'::jsonb,'motivation_push_enabled',true,'notes',null,
+      'created_at',r,'updated_at',r)));
+    graph := graph || jsonb_build_array(jsonb_build_object('table','memberships','row',jsonb_build_object(
+      'id',format('00000081-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'tenant_id',tenant,
+      'member_id',format('00000080-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'plan_id',plan_id,
+      'status',x.status,'starts_on',t-case when x.n=204 then 60 else 30 end,
+      'ends_on',t+case when x.n=204 then -1 else 30 end,
+      'price_paise',sold_price,'discount_paise',0,'currency',sold_currency,
+      'duration_days',sold_duration,'periods_granted',0,'coupon_id',null,'renewal_of_membership_id',null,
+      'activated_at',(t-case when x.n=204 then 60 else 30 end + time '10:00') at time zone 'Asia/Kolkata',
+      'cancelled_at',null,'cancel_reason',null,'created_at',r,'updated_at',r)));
+  end loop;
+  for x in select * from (values (1,201,true),(2,202,true),(3,202,false),
+    (4,204,true),(5,204,false),(6,204,true)) v(n,member_no,granted) loop
+    graph := graph || jsonb_build_array(jsonb_build_object('table','consents','row',jsonb_build_object(
+      'id',format('00000091-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'tenant_id',tenant,
+      'member_id',format('00000080-0000-4000-8000-%s',lpad(x.member_no::text,12,'0')),
+      'purpose','marketing','granted',x.granted,'version','v1','source','front_desk_signup',
+      'recorded_by_staff_id',desk,'recorded_at',r-(7-x.n)*interval '1 minute')));
+  end loop;
+  for x in select * from (values (1,'Demo Yoga',6,true),(2,'Demo Strength',2,true),
+    (3,'Demo Dance',6,true),(4,'Demo Archived Pilates',6,false)) v(n,name,capacity,active) loop
+    graph := graph || jsonb_build_array(jsonb_build_object('table','services','row',jsonb_build_object(
+      'id',format('00000082-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'tenant_id',tenant,
+      'name',x.name,'description',null,'default_duration_minutes',60,'default_capacity',x.capacity,
+      'is_active',x.active,'sort_order',x.n*10,'created_at',r,'updated_at',r)));
+  end loop;
+  for x in select * from (values (1,1,time '07:00',6),(2,3,time '18:00',2),(3,5,time '18:00',6)) v(n,weekday,time,capacity) loop
+    graph := graph || jsonb_build_array(jsonb_build_object('table','class_rules','row',jsonb_build_object(
+      'id',format('00000083-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'tenant_id',tenant,
+      'service_id',format('00000082-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'branch_id',branch,
+      'weekday',x.weekday,'start_time',x.time,'duration_minutes',60,'capacity',x.capacity,
+      'trainer_staff_id',format('00000003-0000-4000-8000-%s',lpad(x.n::text,12,'0')),
+      'valid_from',t,'valid_until',t+27,'is_active',true,'created_at',r,'updated_at',r)));
+  end loop;
+  holiday_owned := not exists(select 1 from public.organization_holidays where tenant_id=tenant and holiday_on=t+3
+    and id<>'00000086-0000-4000-8000-000000000001');
+  if holiday_owned then
+    graph := graph || jsonb_build_array(jsonb_build_object('table','organization_holidays','row',jsonb_build_object(
+      'id','00000086-0000-4000-8000-000000000001','tenant_id',tenant,'holiday_on',t+3,
+      'name','Demo class holiday','created_at',r)));
+  end if;
+  for x in select * from (values (1,1,1,time '08:00',6),(2,2,1,time '18:00',2),
+    (3,3,2,time '18:00',6),(4,1,3,time '08:00',6),(5,1,0,time '00:00',6),
+    (6,3,-1,time '18:00',6)) v(n,service_no,offset_days,time,capacity) loop
+    start_at := case when x.n=5 then r+interval '60 minutes' else (t+x.offset_days+x.time) at time zone 'Asia/Kolkata' end;
+    graph := graph || jsonb_build_array(jsonb_build_object('table','class_sessions','row',jsonb_build_object(
+      'id',format('00000084-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'tenant_id',tenant,
+      'service_id',format('00000082-0000-4000-8000-%s',lpad(x.service_no::text,12,'0')),
+      'branch_id',branch,'rule_id',null,'session_date',(start_at at time zone 'Asia/Kolkata')::date,
+      'starts_at',start_at,'ends_at',start_at+interval '60 minutes','capacity',x.capacity,
+      'trainer_staff_id','00000003-0000-4000-8000-000000000001','status',case when x.n=3 then 'cancelled' else 'scheduled' end,
+      'customised_at',null,'cancelled_at',case when x.n=3 then r else null end,
+      'cancel_reason',case when x.n=3 then 'Demo instructor unavailable' else null end,
+      'cancelled_by_staff_id',case when x.n=3 then owner_id else null end,'created_at',r,'updated_at',r)));
+  end loop;
+  -- Candidate numbers retain their chronological rule/date identity, including gaps.
+  n := 100;
+  for day in select t+g from generate_series(0,27) g loop
+    for x in select * from (values (1,1,time '07:00',6),(2,3,time '18:00',2),(3,5,time '18:00',6)) v(n,weekday,time,capacity)
+      where v.weekday=extract(dow from day) order by v.n loop
+      n := n+1;
+      if day=t+3 or exists(select 1 from public.organization_holidays where tenant_id=tenant and holiday_on=day) then continue; end if;
+      weekly_count := weekly_count+1;
+      start_at := (day+x.time) at time zone 'Asia/Kolkata';
+      graph := graph || jsonb_build_array(jsonb_build_object('table','class_sessions','row',jsonb_build_object(
+        'id',format('00000084-0000-4000-8000-%s',lpad(n::text,12,'0')),'tenant_id',tenant,
+        'service_id',format('00000082-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'branch_id',branch,
+        'rule_id',format('00000083-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'session_date',day,
+        'starts_at',start_at,'ends_at',start_at+interval '60 minutes','capacity',x.capacity,
+        'trainer_staff_id',format('00000003-0000-4000-8000-%s',lpad(x.n::text,12,'0')),
+        'status','scheduled','customised_at',null,'cancelled_at',null,'cancel_reason',null,'cancelled_by_staff_id',null,
+        'created_at',r,'updated_at',r)));
+    end loop;
+  end loop;
+  for x in select * from (values (1,2,201),(2,2,202),(3,3,1),(4,3,201),(5,4,203),(6,5,1),(7,6,204)) v(n,session_no,member_no) loop
+    graph := graph || jsonb_build_array(jsonb_build_object('table','class_bookings','row',jsonb_build_object(
+      'id',format('00000085-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'tenant_id',tenant,
+      'session_id',format('00000084-0000-4000-8000-%s',lpad(x.session_no::text,12,'0')),
+      'member_id',case when x.member_no=1 then aarav else format('00000080-0000-4000-8000-%s',lpad(x.member_no::text,12,'0'))::uuid end,
+      'status',case when x.session_no=3 then 'session_cancelled' else 'booked' end,
+      'booked_at',case when x.session_no=6 then (t-2+time '10:00') at time zone 'Asia/Kolkata' else r-interval '20 minutes' end,
+      'cancelled_at',case when x.session_no=3 then r else null end,
+      'cancel_reason',null,'marked_at',null,'acted_by_staff_id',case when x.session_no=3 then null else desk end,
+      'created_at',case when x.session_no=6 then (t-2+time '10:00') at time zone 'Asia/Kolkata' else r-interval '20 minutes' end,'updated_at',r)));
+  end loop;
+  for x in select * from (values (1,'Demo Supplements'),(2,'Demo Other services')) v(n,name) loop
+    graph := graph || jsonb_build_array(jsonb_build_object('table','shop_categories','row',jsonb_build_object(
+      'id',format('00000088-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'tenant_id',tenant,
+      'name',x.name,'sort_order',x.n*10,'is_active',true,'created_at',r,'updated_at',r)));
+  end loop;
+  for x in select * from (values
+    (1,'transactional','Demo closure notice','The studio will be closed on the demo class holiday. Please check your class booking before travelling.'),
+    (2,'promotional','Demo PT offer','Ask the front desk about the PT Starter programme. The programme price and terms are shown in Training.')) v(n,kind,title,body) loop
+    graph := graph || jsonb_build_array(jsonb_build_object('table','announcements','row',jsonb_build_object(
+      'id',format('00000089-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'tenant_id',tenant,
+      'kind',x.kind,'status','published','audience','all_members','segment_member_statuses',null,'segment_membership',null,
+      'current_version',1,'expires_at',(t+7+time '23:00') at time zone 'Asia/Kolkata',
+      'published_at',r-interval '10 minutes','closed_at',null,'created_by_staff_id',owner_id,
+      'created_at',r-interval '10 minutes','updated_at',r)));
+    graph := graph || jsonb_build_array(jsonb_build_object('table','announcement_versions','row',jsonb_build_object(
+      'id',format('00000090-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'tenant_id',tenant,
+      'announcement_id',format('00000089-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'version_no',1,
+      'title',x.title,'body',x.body,'image_asset_id',null,'change_note',null,'created_by_staff_id',owner_id,
+      'created_at',r-interval '10 minutes')));
+  end loop;
+  for k in 1..2 loop
+    graph := graph || jsonb_build_array(jsonb_build_object('table','notifications','row',jsonb_build_object(
+      'id',format('00000087-0000-4000-8000-%s',lpad(k::text,12,'0')),'tenant_id',tenant,
+      'member_id',case when k=1 then aarav else '00000080-0000-4000-8000-000000000201'::uuid end,
+      'channel','in_app','category','class_update','template_key','class_session_cancelled','status','sent',
+      'template_id',null,'recipient_phone',null,
+      'dedupe_key','class-cancelled:00000084-0000-4000-8000-000000000003:'||case when k=1 then aarav else '00000080-0000-4000-8000-000000000201'::uuid end,
+      'related_type','class_session','related_id','00000084-0000-4000-8000-000000000003',
+      'scheduled_for',r,'created_at',r,'updated_at',r,'delivered_at',null,'clicked_at',null,'converted_at',null,
+      'failed_at',null,'failed_reason',null,'opted_out_at',null,'opted_out_reason',null,'source_notification_id',null,
+      'payload',jsonb_build_object('kind','class_session_cancelled','sessionId','00000084-0000-4000-8000-000000000003',
+        'reason','Demo instructor unavailable','body','Demo Dance on '||to_char((t+2+time '18:00'),'FMDD Mon YYYY "at" FMHH12:MI am')||' has been cancelled. Reason: Demo instructor unavailable'))));
+  end loop;
+
+  -- Check the entire ownership namespace before any insertion, including unexpected IDs.
+  for x in select * from (values ('members',80),('memberships',81),('services',82),('class_rules',83),
+    ('class_sessions',84),('class_bookings',85),('organization_holidays',86),('notifications',87),
+    ('shop_categories',88),('announcements',89),('announcement_versions',90),('consents',91)) v(tab,ns) loop
+    execute format('select count(*) from public.%I where id::text like $1',x.tab)
+      into count_actual using format('000000%s-0000-4000-8000-%%',x.ns);
+    select count(*) into n from jsonb_array_elements(graph) g where g->>'table'=x.tab;
+    if count_actual<>(case when replay then n else 0 end) then raise exception 'Batch-2 incomplete/colliding namespace: %',x.tab; end if;
+  end loop;
+  if not replay and (
+    exists(select 1 from public.members where tenant_id=tenant and (member_code in ('B2D201','B2D202','B2D203','B2D204') or phone in ('+919876720201','+919876720202','+919876720203','+919876720204')))
+    or exists(select 1 from public.services where tenant_id=tenant and lower(btrim(name)) in ('demo yoga','demo strength','demo dance','demo archived pilates'))
+    or exists(select 1 from public.shop_categories where tenant_id=tenant and lower(name) in ('demo supplements','demo other services'))
+    or exists(select 1 from public.notifications where tenant_id=tenant and dedupe_key in
+      ('class-cancelled:00000084-0000-4000-8000-000000000003:'||aarav,
+       'class-cancelled:00000084-0000-4000-8000-000000000003:00000080-0000-4000-8000-000000000201'))
+  ) then raise exception 'Batch-2 natural key collision'; end if;
+  if (select count(*) from public.addon_products where tenant_id=tenant and id in
+    ('00000009-0000-4000-8000-000000000003','00000009-0000-4000-8000-000000000004','00000009-0000-4000-8000-000000000005'))<>3 then
+    raise exception 'Batch-2 existing Shop products unavailable';
+  end if;
+  for item in select value from jsonb_array_elements(graph) loop
+    table_name := item->>'table'; row_data := item->'row';
+    if replay then
+      execute format('select to_jsonb(v) from public.%I v where id=$1::uuid',table_name) into actual using row_data->>'id';
+      execute format('select to_jsonb(jsonb_populate_record(null::public.%I,$1))',table_name) into typed using row_data;
+      if actual is null or exists(select 1 from jsonb_object_keys(row_data) key where actual->key is distinct from typed->key) then
+        raise exception 'Batch-2 immutable row mismatch: % %',table_name,row_data->>'id';
+      end if;
+      if table_name='notifications' and (actual->>'sent_at' is null or (actual->>'sent_at')::timestamptz<r) then
+        raise exception 'Batch-2 notification delivery evidence unavailable';
+      end if;
+      if table_name='notifications' and not exists(select 1 from public.audit_log a
+        where a.tenant_id=tenant and a.record_type='notification' and a.record_id=(row_data->>'id')::uuid
+          and a.action='notification.sent'
+          and (a.after->>'sent_at')::timestamptz=(actual->>'sent_at')::timestamptz
+          and a.before->>'status'='scheduled' and a.after->>'status'='sent') then
+        raise exception 'Batch-2 original notification delivery history mismatch';
+      end if;
+    else
+      if table_name='notifications' then row_data := row_data||jsonb_build_object('status','scheduled','sent_at',null); end if;
+      select string_agg(format('%I',key),',' order by key),string_agg(format('v.%I',key),',' order by key)
+        into columns_sql,values_sql from jsonb_object_keys(row_data) key;
+      execute format('insert into public.%I (%s) select %s from jsonb_populate_record(null::public.%I,$1) v',
+        table_name,columns_sql,values_sql,table_name) using row_data;
+      if table_name='notifications' then
+        update public.notifications set status='sent' where id=(row_data->>'id')::uuid;
+      end if;
+    end if;
+  end loop;
+  if exists(select 1 from public.announcement_receipts where tenant_id=tenant
+     and version_id in ('00000090-0000-4000-8000-000000000001','00000090-0000-4000-8000-000000000002')) then
+    raise exception 'Batch-2 static announcement receipt graph changed';
+  end if;
+  -- Inspect every incoming FK, including identity, delivery, purchase and rule
+  -- relations. Only owned graph edges and the three approved Shop assignments
+  -- may point into this packet. This also covers tables with composite PKs.
+  for x in
+    select distinct child_schema.nspname as child_schema,child.relname as tab,
+      child_column.attname as fk,parent.relname as parent_tab
+    from pg_catalog.pg_constraint c
+    join pg_catalog.pg_class child on child.oid=c.conrelid
+    join pg_catalog.pg_namespace child_schema on child_schema.oid=child.relnamespace
+    join pg_catalog.pg_class parent on parent.oid=c.confrelid
+    join pg_catalog.pg_namespace parent_schema on parent_schema.oid=parent.relnamespace
+    cross join lateral unnest(c.conkey,c.confkey) keys(child_num,parent_num)
+    join pg_catalog.pg_attribute child_column on child_column.attrelid=child.oid and child_column.attnum=keys.child_num
+    join pg_catalog.pg_attribute parent_column on parent_column.attrelid=parent.oid and parent_column.attnum=keys.parent_num
+    where c.contype='f' and parent_schema.nspname='public' and parent_column.attname='id'
+      and parent.relname in (select g->>'table' from jsonb_array_elements(graph) g)
+  loop
+    execute format('select count(*) from %I.%I a where a.%I in
+      (select (g->''row''->>''id'')::uuid from jsonb_array_elements($1) g where g->>''table''=$2)
+      and not exists(select 1 from jsonb_array_elements($1) g where g->>''table''=$3
+        and g->''row''->>''id''=to_jsonb(a)->>''id'')
+      and not (to_jsonb(a)->>''id''=any($4))',x.child_schema,x.tab,x.fk)
+      into count_actual using graph,x.parent_tab,
+        case when x.child_schema='public' then x.tab else null end,
+        case when x.child_schema='public' and x.tab='addon_products' and x.fk='category_id' and x.parent_tab='shop_categories'
+          then array['00000009-0000-4000-8000-000000000003','00000009-0000-4000-8000-000000000004','00000009-0000-4000-8000-000000000005']
+          else array[]::text[] end;
+    if count_actual<>0 then raise exception 'Batch-2 foreign graph changed: %',x.tab; end if;
+  end loop;
+  -- Polymorphic references have no FK to enumerate. Ordinary automatic audit
+  -- rows remain authentic history; application notification/media rows do not.
+  if exists(select 1 from public.notifications a where a.related_id in
+      (select (g->'row'->>'id')::uuid from jsonb_array_elements(graph) g)
+      and not exists(select 1 from jsonb_array_elements(graph) g where g->>'table'='notifications'
+        and (g->'row'->>'id')::uuid=a.id))
+    or exists(select 1 from public.media_assets a where a.attached_to_id in
+      (select (g->'row'->>'id')::uuid from jsonb_array_elements(graph) g)) then
+    raise exception 'Batch-2 polymorphic graph changed';
+  end if;
+  if exists(select 1 from public.attendance where member_id in
+      (select (g->'row'->>'id')::uuid from jsonb_array_elements(graph) g where g->>'table'='members'))
+    or exists(select 1 from public.payments where member_id in
+      (select (g->'row'->>'id')::uuid from jsonb_array_elements(graph) g where g->>'table'='members'))
+    or exists(select 1 from public.guardian_consents where member_id in
+      (select (g->'row'->>'id')::uuid from jsonb_array_elements(graph) g where g->>'table'='members'))
+    or exists(select 1 from public.no_show_cases where member_id in
+      (select (g->'row'->>'id')::uuid from jsonb_array_elements(graph) g where g->>'table'='members'))
+    or exists(select 1 from public.follow_ups f join public.no_show_cases c on c.id=f.case_id
+      where c.member_id in
+      (select (g->'row'->>'id')::uuid from jsonb_array_elements(graph) g where g->>'table'='members')) then
+    raise exception 'Batch-2 static member history changed';
+  end if;
+  for x in select * from (values (3,2),(4,1),(5,1)) v(product_no,category_no) loop
+    if replay then
+      if not exists(select 1 from public.addon_products where tenant_id=tenant
+        and id=format('00000009-0000-4000-8000-%s',lpad(x.product_no::text,12,'0'))::uuid
+        and category_id=format('00000088-0000-4000-8000-%s',lpad(x.category_no::text,12,'0'))::uuid) then
+        raise exception 'Batch-2 Shop category assignment changed';
+      end if;
+    else
+      update public.addon_products set category_id=format('00000088-0000-4000-8000-%s',lpad(x.category_no::text,12,'0'))::uuid
+        where tenant_id=tenant and id=format('00000009-0000-4000-8000-%s',lpad(x.product_no::text,12,'0'))::uuid;
+    end if;
+  end loop;
+  raise notice 'Batch-2 original anchor %, weekly occurrences %, owned holiday %, replay %',r,weekly_count,holiday_owned::integer,replay;
+end
+$batch_two$;
