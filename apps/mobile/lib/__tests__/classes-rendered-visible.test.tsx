@@ -115,6 +115,29 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe('CLS rendered native contract', () => {
+  it.each([
+    { name: 'shorter still-open cancellation deadline', updated: { ...booked, cancelBy: '2026-10-03T15:00:00+05:30' }, expected: /15:00|3:00\s*[pP][mM]/ },
+    { name: 'renamed service in the displayed commitment', updated: { ...booked, serviceName: 'Renamed mobility commitment' }, expected: /Renamed mobility commitment/ },
+    { name: 'changed branch timezone in the displayed commitment', updated: { ...booked, timezone: 'UTC' }, expected: /10:30\s*[aA][mM]|10:30/ },
+  ])('requires renewed explicit cancellation confirmation for $name', async ({ updated, expected }) => {
+    vi.setSystemTime(new Date('2026-10-03T14:30:00+05:30'));
+    seam.loadMember.mockResolvedValue([booked]);
+    draw(); await settle(); await press(/^Cancel(?: booking)?$/);
+    expect(visible(), 'prepared confirmation displays original local deadline').toMatch(/16:00|4:00\s*[pP][mM]/);
+    expect(seam.cancel, 'preparation alone never sends cancellation').not.toHaveBeenCalled();
+    seam.loadMember.mockResolvedValue([updated]);
+    await press(/^Confirm(?: cancellation)?$|^Cancel booking$/);
+    expect(seam.cancel, 'changed still-valid facts require renewed explicit confirmation').not.toHaveBeenCalled();
+    const sheet = nodes.find(node => node.type === 'Sheet');
+    expect(sheet, 'changed facts retain an explicit confirmation sheet').toBeDefined();
+    const contents = nodes.filter(node => sheet?.path !== undefined && node.path?.startsWith(`${sheet.path}/`));
+    expect(visible(contents), 'confirmation displays current authoritative commitment facts').toMatch(expected);
+    await press(/^Confirm(?: cancellation)?$|^Cancel booking$/);
+    expect(seam.cancel, 'renewed confirmation sends exact current booking and a callable lease').toHaveBeenCalledWith(seam.context.api, booked.myBookingId, expect.any(Function));
+    expect(seam.cancel, 'renewed explicit confirmation sends once').toHaveBeenCalledTimes(1);
+    const shouldSend: unknown = seam.cancel.mock.calls[0]?.[2];
+    expect(typeof shouldSend === 'function' && shouldSend(), 'renewed command lease is current').toBe(true);
+  });
   it('replaces the selected roster session with current cancellation facts after marking refresh', async () => {
     vi.setSystemTime(new Date('2026-10-03T17:00:00+05:30'));
     desk = true; seam.context = context({ kind: 'staff', userId: memberA.userId, tenantId: memberA.tenantId, staffId: timetable.trainerStaffId, role: 'front_desk' });
