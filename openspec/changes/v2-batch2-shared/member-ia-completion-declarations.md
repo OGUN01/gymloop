@@ -107,8 +107,59 @@ webOrigin, api, supabase, palette and appearance/session/signOut fields. Existin
 UI Row preserves title/meta/onPress/accessibility label/hint; native hooks/router
 and WebBrowser may be doubled at public seams. Web `requireAudience('member')`
 remains authoritative for historical orders and all current feature reads.
-Existing `AddonOrderDetails`, `AddonSessionRows`, `AddonLoadError`, registered
+Existing `AddonOrderFacts`, `AddonLoadError`, registered
 columns/formatters and completed-return RPC remain unchanged.
+
+Historical web dependency paths: requireAudience in
+`apps/web/lib/identity-session.ts`; loadBusinessOrganization in
+`apps/web/lib/business-type.ts`; UUID_PATTERN in `apps/web/lib/keyset.ts`;
+gymTimeLabel in `apps/web/lib/time.ts`; StatusWord in
+`apps/web/app/status-word.tsx`; all Addon display types/columns/components in
+`apps/web/app/(console)/add-ons/display.tsx`. loadMemberPortal is in
+`apps/web/lib/member-portal.ts`; businessNouns/PUBLIC_PAGE_PATHS/formatMoney
+are existing shared exports. Native kit/hooks paths are
+`apps/mobile/components/ui.tsx`, `apps/mobile/lib/use-member-snapshot.ts`,
+`apps/mobile/lib/use-member-plans.ts`, `apps/mobile/lib/use-business-nouns.ts`,
+`apps/mobile/lib/mobile-context.tsx` and `apps/mobile/components/legal-links.tsx`.
+Native Classes composes `classes-pane.tsx` and `training-section.tsx` from
+that same components directory; Expo Router and WebBrowser are public hosts.
+
+Additional existing declarations (no bodies):
+
+```ts
+type Tables = Database['public']['Tables'];
+type Person = { full_name:string; phone?:string };
+type AddonOrder = Omit<Tables['addon_orders']['Row'], 'unit_price_paise'|'total_paise'> & {
+  unit_price_paise:string; total_paise:string; sold_at:string|null;
+  sold_by_staff_id:string|null;
+  sale_snapshot: { kind:Tables['addon_products']['Row']['kind']; name:string;
+    description:string; cancellationTerms:string; validityDays:number;
+    trainerQualification:string|null } | null;
+  members:Person|null; seller:Person|null; trainer:Person|null;
+  addon_products:{name:string}|null;
+  payments:{receipt_number:string|null; status:Tables['payments']['Row']['status'];
+    method:Tables['payments']['Row']['method']; amount_paise:string; currency:string}|null;
+};
+type AddonSession = Tables['pt_sessions']['Row'] & { members:Person|null; staff:Person|null };
+declare function AddonOrderFacts(props: { order:AddonOrder; timezone:string;
+  showPayment?:boolean; detail?:boolean; children?:ReactNode }): React.JSX.Element;
+declare function AddonLoadError(props:{label:string;href:string}):React.JSX.Element;
+// Existing caller-owned completed-return RPC data:
+type MemberReturns = { orderId:string; returns:{ refundId:string;
+  kind:Database['public']['Enums']['refund_kind']; amountPaise:string;
+  currency:string; processedAt:string|null }[] };
+```
+
+Historical default page accepts optional searchParams Promise with offer, order,
+offerAfter, orderAfter, sessionAfter strings, and optional absent props. The
+member audience result supplies the existing caller Supabase client and verified
+member identity (kind/member/user/tenant IDs). Read hosts support normal select,
+eq, order, gt, limit, maybeSingle and the exact-count head projection; reply shape
+is `{data,error,count?}`. Orders and sessions use generated rows plus the declared
+relations/decimal money overrides. The sole completed-return projection is
+read_member_addon_returns({p_order_id}); no direct refunds read is authorized.
+loadBusinessOrganization(client,tenantId) yields the existing organization's
+timezone/business_type/name/gym_code display row with error/data state.
 
 Independent visible tests explicitly amend the former Add-ons catalogue
 expectation while preserving order/return/session assertions. A separate held
