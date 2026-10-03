@@ -20,7 +20,16 @@ for (const theme of ['light', 'dark'] as const) {
       await signIn(page, accounts.member);
       await page.goto('/member/classes');
       await expect(page.getByRole('heading', { level: 1 })).toContainText(/classes/i);
-      await expect(page.getByRole('navigation').getByRole('link', { name: 'Classes', exact: true })).toBeVisible();
+      const classesSegment = page.getByRole('navigation', { name: 'Classes and training', exact: true }).getByRole('link', { name: 'Classes', exact: true });
+      await expect(classesSegment).toBeVisible();
+      await expect(classesSegment).toHaveAttribute('aria-current', 'page');
+      const memberNavigation = page.getByRole('navigation', { name: 'Member navigation', exact: true });
+      await expect(memberNavigation.getByRole('link')).toHaveText(['Home', 'Classes', 'Shop', 'Activity', 'You']);
+      for (const [label, href] of [['Home', '/member'], ['Classes', '/member/classes'], ['Shop', '/member/shop'], ['Activity', '/member/activity'], ['You', '/member/you']] as const) {
+        await expect(memberNavigation.getByRole('link', { name: label, exact: true })).toHaveAttribute('href', href);
+      }
+      await expect(memberNavigation.getByRole('link', { name: 'Classes', exact: true })).toHaveAttribute('aria-current', 'page');
+      await expect(memberNavigation.locator('a[aria-current="page"]')).toHaveCount(1);
       await expect(page.locator('html')).toHaveAttribute('lang', 'en');
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
