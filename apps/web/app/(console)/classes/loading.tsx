@@ -1,0 +1,1 @@
+export default function Loading() { return <main className="cl-page" aria-busy="true"><h1 className="cl-title">Loading timetable</h1><div className="cl-skeleton"><p role="status">Loading classes…</p></div></main>; }
