@@ -47,6 +47,18 @@ export async function flushPendingReads(api: ApiClient, scope: AnnouncementScope
   }
 }
 
+/** Delete a refused scope only while its permanent caller/request lifetime remains current. */
+export async function discardAnnouncementCache(scope: AnnouncementScope, isCurrent: () => boolean): Promise<void> {
+  const revision = cacheRevision;
+  const active = () => revision === cacheRevision && isCurrent();
+  await serialized(async () => {
+    if (!active()) return;
+    const cache = await loadAnnouncementCache(scope);
+    if (!cache || !active()) return;
+    try { await SecureStore.deleteItemAsync(ANNOUNCEMENT_CACHE_KEY); } catch { /* Refused callers remain unable to display or acknowledge saved cards. */ }
+  });
+}
+
 /** Invalidate old work immediately; delete after any write already inside SecureStore. */
 export function clearAnnouncementCache(): Promise<void> {
   cacheRevision = {};

@@ -14,7 +14,8 @@ export function announcementRpcFailure(error: { code: string; message: string; d
   if (error.code === '22023') return noStore(apiFail('bad_request', 'invalid_request', 'Check the announcement fields and try again.'));
   const reason = error.details ?? '';
   if (error.code === 'GL088' && Object.hasOwn(refusals, reason)) { const failure = refusals[reason]!; return noStore(apiFail(failure.status, failure.code, announcementRefusalMessage(reason))); }
-  return noStore(apiFail('server_error', 'announcement_failed', announcementRefusalMessage('generic')));
+  if (error.code === 'GL088') return noStore(apiFail('server_error', 'announcement_failed', announcementRefusalMessage('generic')));
+  return noStore(apiFail('server_error', 'announcement_outcome_unknown', announcementRefusalMessage('unknown_outcome')));
 }
 export async function loadAnnouncementList(supabase: SupabaseClient<Database>, cursor?: string): Promise<{ rows: AnnouncementListRow[]; nextCursor: string | null; errorMessage: string | null }> {
   const before = decodeCursor(cursor, (value) => typeof value.createdAt === 'string' && Number.isFinite(Date.parse(value.createdAt)) && isUuid(value.id) ? { createdAt: value.createdAt, id: value.id } : null);

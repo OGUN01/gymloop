@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import * as Network from 'expo-network';
 import { memberAnnouncementFeedSchema, type AnnouncementCard } from '@gymloop/shared';
 import { useMobile } from './mobile-context';
-import { applyLocalRead, flushPendingReads, loadAnnouncementCache, queueRead, resolveAnnouncementFeed, saveAnnouncementCache, type AnnouncementScope } from './announcements';
+import { applyLocalRead, discardAnnouncementCache, flushPendingReads, loadAnnouncementCache, queueRead, resolveAnnouncementFeed, saveAnnouncementCache, type AnnouncementScope } from './announcements';
 
 export function useAnnouncements() {
   const { identity, api } = useMobile();
@@ -11,6 +12,9 @@ export function useAnnouncements() {
   const callerLifetime = currentCaller.current;
   const mounted = useRef(false);
   const request = useRef<object>({});
+  const refusedCaller = useRef<typeof callerLifetime | null>(null);
+  const readCapability = useRef<object>({});
+  const readLifetime = readCapability.current;
   const [state, setState] = useState<{ owner: typeof callerLifetime; cards: AnnouncementCard[]; stale: boolean; fetchedAt: string | null; loading: boolean; error: string | null }>({ owner: callerLifetime, cards: [], stale: false, fetchedAt: null, loading: true, error: null });
   const reload = useCallback(async () => {
     if (scopeKey === null || !mounted.current || currentCaller.current !== callerLifetime) return;
@@ -20,8 +24,18 @@ export function useAnnouncements() {
     const cache = await loadAnnouncementCache(scope); if (!valid()) return;
     try {
       const response = await api.post('/api/member/announcements/feed', {}); if (!valid()) return;
-      if (!response.ok) throw new Error('Unavailable');
+      if (!response.ok) {
+        if (['not_signed_in', 'not_permitted', 'unauthorized', 'forbidden'].includes(response.error.code)) {
+          refusedCaller.current = callerLifetime;
+          readCapability.current = {};
+          setState({ owner: callerLifetime, cards: [], stale: false, fetchedAt: null, loading: false, error: response.error.code === 'not_signed_in' || response.error.code === 'unauthorized' ? 'Sign in to continue.' : 'You do not have permission to view announcements.' });
+          await discardAnnouncementCache(scope, valid);
+          return;
+        }
+        throw new Error('Unavailable');
+      }
       const feed = memberAnnouncementFeedSchema.parse(response.data);
+      refusedCaller.current = null;
       await saveAnnouncementCache({ scope, fetchedAt: feed.asOf, announcements: feed.announcements, pendingReads: cache?.pendingReads ?? [] }, valid); if (!valid()) return;
       await flushPendingReads(api, scope, valid); if (!valid()) return;
       const saved = await loadAnnouncementCache(scope); if (!valid()) return;
@@ -32,14 +46,17 @@ export function useAnnouncements() {
       if (!valid()) return;
       const latest = await loadAnnouncementCache(scope); if (!valid()) return;
       const saved = resolveAnnouncementFeed({ fetched: null, cached: latest ?? cache, scope });
-      setState({ owner: callerLifetime, ...saved, loading: false, error: saved.stale ? null : "Announcements will appear when you're back online." });
+      let offline = false;
+      try { const network = await Network.getNetworkStateAsync(); offline = network.isConnected === false || network.isInternetReachable === false; } catch { /* Unknown connectivity keeps the ordinary refresh failure. */ }
+      if (!valid()) return;
+      setState({ owner: callerLifetime, ...(refusedCaller.current === callerLifetime ? { cards: [], stale: false, fetchedAt: null } : saved), loading: false, error: offline ? "Announcements will appear when you're back online." : "Announcements couldn't be loaded. Try again." });
     }
   }, [scopeKey, api, callerLifetime]);
   useEffect(() => { mounted.current = true; void reload(); return () => { mounted.current = false; request.current = {}; }; }, [reload]);
   const markRead = useCallback(async (announcementId: string, versionNo: number) => {
-    if (scopeKey === null || !mounted.current || currentCaller.current !== callerLifetime) return;
+    if (scopeKey === null || !mounted.current || currentCaller.current !== callerLifetime || refusedCaller.current === callerLifetime || readCapability.current !== readLifetime) return;
     const [tenantId, userId, memberId] = scopeKey.split(':'); const scope = { tenantId: tenantId!, userId: userId!, memberId: memberId! };
-    const revision = request.current; const valid = () => mounted.current && currentCaller.current === callerLifetime && request.current === revision;
+    const revision = request.current; const valid = () => mounted.current && currentCaller.current === callerLifetime && request.current === revision && refusedCaller.current !== callerLifetime && readCapability.current === readLifetime;
     setState((old) => old.owner === callerLifetime ? { ...old, cards: applyLocalRead(old.cards, announcementId, versionNo) } : old);
     await queueRead(scope, announcementId, versionNo, valid);
     if (valid() && !state.stale) {
@@ -52,7 +69,7 @@ export function useAnnouncements() {
       }
       else { try { const response = await api.post<{ recorded: boolean }>(`/api/member/announcements/${announcementId}/read`, { versionNo }); if (valid() && (!response.ok || !response.data.recorded)) void reload(); } catch { if (valid()) void reload(); } }
     }
-  }, [scopeKey, api, callerLifetime, state.stale, reload]);
+  }, [scopeKey, api, callerLifetime, state.stale, reload, readLifetime]);
   const visible = state.owner === callerLifetime ? state : { cards: [], stale: false, fetchedAt: null, loading: true, error: null };
   return { cards: visible.cards, stale: visible.stale, fetchedAt: visible.fetchedAt, loading: visible.loading, error: visible.error, reload, markRead };
 }

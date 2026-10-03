@@ -46,8 +46,9 @@ export const ANNOUNCEMENT_REFUSAL_COPY = {
   version_conflict: 'Someone else changed this announcement while you were editing. Reload to see the latest version, then try again.',
   no_change: 'Nothing was changed, so no new version was published.',
   generic: 'The announcement could not be saved. Nothing was changed.',
+  unknown_outcome: 'The result could not be confirmed. Reload to check whether the announcement was saved.',
 } as const;
-export function announcementRefusalMessage(reason: string): string { return Object.hasOwn(ANNOUNCEMENT_REFUSAL_COPY, reason) ? ANNOUNCEMENT_REFUSAL_COPY[reason as keyof typeof ANNOUNCEMENT_REFUSAL_COPY] : ANNOUNCEMENT_REFUSAL_COPY.generic; }
+export function announcementRefusalMessage(reason: string): string { const key = reason === 'announcement_outcome_unknown' ? 'unknown_outcome' : reason; return Object.hasOwn(ANNOUNCEMENT_REFUSAL_COPY, key) ? ANNOUNCEMENT_REFUSAL_COPY[key as keyof typeof ANNOUNCEMENT_REFUSAL_COPY] : ANNOUNCEMENT_REFUSAL_COPY.generic; }
 export function announcementKindHelp(value: AnnouncementCard['kind'], nouns: BusinessNouns): string { return value === 'transactional' ? `Reaches every ${nouns.member} this is addressed to. Use it for closures, safety and schedule changes.` : `Reaches only ${nouns.members} who agreed to hear about news and offers from your ${nouns.place}. Others will not see it.`; }
 export function announcementReachSentence({ kind: value, count, nouns }: { kind: AnnouncementCard['kind']; count: number; nouns: BusinessNouns }): string { const sentence = count === 0 ? `No ${nouns.members} would see this right now.` : `${count} ${count === 1 ? nouns.member : nouns.members} will see this on their Home screen.`; return sentence + (value === 'promotional' ? ` Only ${nouns.members} who agreed to news and offers are counted.` : ''); }
 export function announcementSectionHeading(place: string): string { return `From your ${place}`; }
