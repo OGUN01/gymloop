@@ -86,7 +86,7 @@ beforeEach(() => {
   fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
   vi.stubGlobal('navigator', { onLine: true }); vi.stubGlobal('window', new EventTarget());
 });
-afterEach(() => { for (const cleanup of seams.cleanup) cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { for (const cleanup of seams.cleanup) cleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 async function page(params = {}) {
   const { default: Page } = await import('../../apps/web/app/member/classes/training/page');
   return Page({ searchParams: Promise.resolve(params) });
@@ -107,7 +107,7 @@ describe('PTF independent web member caller-bound reads', () => {
       state: 'expired', canBook: false, timezone: session.timezone }];
     seams.training.mockResolvedValue(data); const tree = await page(); const text = words(tree);
     expect(text).toMatch(/4\s+of\s+11\s+used/); expect(text).toMatch(/3\s+booked/);
-    expect(text).toMatch(/7\s+(?:left to book|unspent)/); expect(text).toMatch(/expired/i);
+    expect(text).toMatch(/7\s+(?:left to book|unspent|unused)/); expect(text).toMatch(/expired/i);
     expect(elements(tree).filter(e => /Book a session/.test(words(e))).some(e => e.props.href)).toBe(false);
   });
   it('preserves programme disclosures and exact decimal paise without exposing caller identifiers', async () => {
@@ -128,13 +128,29 @@ describe('PTF independent web member caller-bound reads', () => {
     ['cancelled_by_member', false, 'Cancelled by you'], ['cancelled_by_member', true, 'Cancelled late - session used'],
     ['cancelled_by_gym', false, 'Cancelled by your gym'],
   ] as const)('retains exact history status %s consumed=%s', async (status, consumed, label) => {
-    seams.history.mockResolvedValue({ data: [{ ...session, status, consumed, canCancel: false }], error: null });
+    const data = snapshot(); data.history = { data: [{ ...session, status, consumed, canCancel: false }], error: null };
+    seams.training.mockResolvedValue(data);
     const tree = await page();
     expect(words(tree) + ' ' + elements(tree).map(e => String(e.props.label ?? '')).join(' ')).toContain(label);
   });
   it('past booked history explains unrecorded outcome without inventing attendance', async () => {
-    seams.history.mockResolvedValue({ data: [{ ...session, startsAt: '2020-01-01T05:30:00Z', endsAt: '2020-01-01T06:30:00Z', canCancel: false }], error: null });
+    const data = snapshot(); data.history = { data: [{ ...session, startsAt: '2020-01-01T05:30:00Z', endsAt: '2020-01-01T06:30:00Z', canCancel: false }], error: null };
+    seams.training.mockResolvedValue(data);
     expect(words(await page())).toContain('Waiting for your trainer to record it.');
+  });
+  it.each([
+    ['2026-10-05T06:30:00Z', false],
+    ['2026-10-05T06:00:00Z', false],
+    ['2026-10-05T05:59:59.999Z', true],
+  ] as const)('end time %s has waiting caption=%s', async (endsAt, waiting) => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-05T06:00:00Z'));
+    const data = snapshot(); data.upcoming = { data: [], error: null };
+    data.history = { data: [{ ...session, startsAt: '2026-10-05T05:30:00Z', endsAt, canCancel: false }], error: null };
+    seams.training.mockResolvedValue(data); const tree = await page();
+    expect(words(tree).includes('Waiting for your trainer to record it.')).toBe(waiting);
+    expect(words(tree) + ' ' + elements(tree).map(e => String(e.props.label ?? '')).join(' ')).toContain('Booked');
+    expect(words(tree)).not.toContain('Attended'); expect(words(tree)).not.toContain('No-show');
+    expect(seams.history).not.toHaveBeenCalled();
   });
   it('guards member before feature reads and keeps failed sections independent', async () => {
     const data = snapshot(); data.packs = { data: null, error: 'Please try again.' };
