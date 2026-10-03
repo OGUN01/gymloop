@@ -23,12 +23,30 @@ for (const theme of ['light', 'dark'] as const) for (const viewport of sizes) {
     await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-    const targets = page.getByRole('button');
-    for (const button of await targets.all()) {
-      if (!(await button.isVisible())) continue;
-      const box = await button.boundingBox();
+    const content = page.getByRole('main');
+    const segments = page.getByRole('navigation', { name: 'Classes and training', exact: true });
+    const memberNavigation = page.getByRole('navigation', { name: /^(?:Member|Student) navigation$/i });
+    await expect(content).toBeVisible(); await expect(segments).toBeVisible(); await expect(memberNavigation).toBeVisible();
+    await expect(segments.getByRole('link', { name: 'Classes', exact: true })).toBeVisible();
+    await expect(segments.getByRole('link', { name: 'Training', exact: true })).toBeVisible();
+    expect(await memberNavigation.getByRole('link').count()).toBeGreaterThan(0);
+    const buttons = content.getByRole('button');
+    let visibleButtons = 0;
+    for (const button of await buttons.all()) if (await button.isVisible()) visibleButtons += 1;
+    if (visibleButtons === 0) {
+      // An empty product fixture proves its empty state and navigation, not booking controls.
+      await expect(content.getByText(/You have no (?:sessions|classes) booked\./)).toBeVisible();
+      await expect(content.getByText('Ask the front desk about a training pack.', { exact: true })).toBeVisible();
+    }
+    const targets = buttons.or(content.getByRole('link')).or(segments.getByRole('link')).or(memberNavigation.getByRole('link'));
+    let visibleTargets = 0;
+    for (const target of await targets.all()) {
+      if (!(await target.isVisible())) continue;
+      visibleTargets += 1;
+      const box = await target.boundingBox();
       expect(box?.height).toBeGreaterThanOrEqual(44); expect(box?.width).toBeGreaterThanOrEqual(44);
     }
+    expect(visibleTargets).toBeGreaterThan(0);
   });
 }
 test('PTF-Q1/Q2/Q3 current pack reaches confirm in four taps and states cutoff before mutation', async ({ page }) => {
