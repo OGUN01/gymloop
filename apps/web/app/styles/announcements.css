@@ -1,4 +1,7 @@
-.anc-page { display: grid; gap: var(--gymloop-space-24); max-width: 64rem; margin: 0 auto; }
+.anc-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gymloop-space-24); max-width: 64rem; margin: 0 auto; overflow-wrap: anywhere; }
+.anc-page > *, .anc-composer > * { min-width: 0; }
+.anc-page .cl-title { overflow-wrap: anywhere; }
+.anc-page .cl-btn { min-width: 0; max-width: 100%; white-space: normal; }
 .anc-section { margin-block: var(--gymloop-space-24); }
 .anc-section h2 { font-size: var(--gymloop-type-section-title-size); font-weight: 600; }
 .anc-card, .anc-version { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
@@ -9,7 +12,7 @@
 .anc-content, .anc-version { padding-block: 1rem; }
 .anc-body { white-space: pre-wrap; overflow-wrap: anywhere; }
 .anc-image { display: block; width: 100%; max-height: 32rem; object-fit: contain; margin-block: 1rem; }
-.anc-composer { display: grid; gap: 1.5rem; max-width: 44rem; }
+.anc-composer { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; max-width: 44rem; }
 .anc-composer fieldset { border: 1px solid var(--gymloop-color-decorative-separator); padding: 1rem; display: grid; gap: 1rem; min-width: 0; }
 .anc-composer textarea { min-height: 8rem; resize: vertical; }
 .anc-kind { display: grid; grid-template-columns: auto 1fr; gap: .5rem; }
