@@ -12,7 +12,7 @@ begin;
 set local role postgres;
 set local search_path=extensions,public;
 select set_config('request.jwt.claims','',true);
-select plan(146);
+select plan(138);
 create function pg_temp.aid(n integer) returns uuid language sql immutable as $f$select ('80100000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$f$;
 create function pg_temp.claim(r text default 'gym_owner',s integer default 21,m integer default null,u integer default 901,t integer default 1,p boolean default false) returns void language plpgsql as $f$begin perform set_config('request.jwt.claims',jsonb_strip_nulls(jsonb_build_object('sub',pg_temp.aid(u),'role','authenticated','app_role',r,'tenant_id',pg_temp.aid(t),'staff_id',case when s is not null then pg_temp.aid(s) end,'member_id',case when m is not null then pg_temp.aid(m) end,'impersonation_session_id',case when p then pg_temp.aid(999) end))::text,true); end$f$;
 create function pg_temp.refusal(q text) returns text language plpgsql as $f$declare detail text; begin begin execute q; raise exception using errcode='Z8000'; exception when others then if sqlstate='Z8000' then return 'SUCCESS'; end if; get stacked diagnostics detail=PG_EXCEPTION_DETAIL; return sqlstate||case when detail<>'' then ':'||detail else '' end; end; end$f$;
@@ -21,6 +21,7 @@ create function pg_temp.hasfn(q text) returns boolean language sql immutable as 
 create function pg_temp.col(tbl text,col text) returns boolean language sql immutable as $f$select exists(select 1 from pg_attribute where attrelid=to_regclass(tbl) and attname=col and not attisdropped)$f$;
 create function pg_temp.nuniq(tbl text) returns integer language sql immutable as $f$select count(*)::integer from pg_indexes where schemaname='public' and tablename=tbl and indexdef ~* 'unique'$f$;
 create function pg_temp.nfk(tbl text) returns integer language sql immutable as $f$select count(*)::integer from pg_constraint where conrelid=to_regclass(tbl) and contype='f'$f$;
+create function pg_temp.shortid(u uuid) returns text language sql immutable as $f$select right(u::text,3)$f$;
 create temp table wsp_ids(k text primary key,id uuid not null);
 create temp table wsp_txt(k text primary key,v text not null);
 grant all on wsp_ids to authenticated,service_role;
@@ -32,7 +33,9 @@ grant execute on function pg_temp.aid(integer),pg_temp.claim(text,integer,intege
 -- ---------------------------------------------------------------------------
 insert into public.organizations(id,name,gym_code,status) values(pg_temp.aid(1),'WSP A','WSP80A','active'),(pg_temp.aid(2),'WSP B','WSP80B','active');
 insert into public.branches(id,tenant_id,name,is_default) values(pg_temp.aid(11),pg_temp.aid(1),'A',true),(pg_temp.aid(12),pg_temp.aid(2),'B',true);
-insert into auth.users(id) select pg_temp.aid(n) from generate_series(901,916) n;
+insert into auth.users(id) select pg_temp.aid(n) from generate_series(901,918) n;
+insert into public.platform_users(user_id,email,full_name,role,is_active)
+values(pg_temp.aid(917),'wsp-super@example.test','WSP SUPER','super_admin',true);
 insert into public.staff(id,tenant_id,user_id,branch_id,role,full_name) values
 (pg_temp.aid(21),pg_temp.aid(1),pg_temp.aid(901),pg_temp.aid(11),'gym_owner','Owner'),
 (pg_temp.aid(22),pg_temp.aid(1),pg_temp.aid(902),pg_temp.aid(11),'gym_manager','Manager'),
@@ -77,13 +80,28 @@ select set_config('request.jwt.claims','',true);
 create temp table wsp_run as select app.run_renewal_reminders(pg_temp.aid(1)) as r;
 set local role postgres;
 insert into wsp_ids(k,id)
-select 'src_'||n.member_id::text, n.id
+select 'src_'||pg_temp.shortid(n.member_id), n.id
 from public.notifications n
 join public.members m on m.id=n.member_id and m.tenant_id=n.tenant_id
 where n.tenant_id=pg_temp.aid(1) and n.category='renewal'
   and n.channel='in_app' and n.template_key='renewal_reminder'
   and n.status='sent' and n.related_type='membership';
 select set_config('request.jwt.claims','',true);
+
+-- Strict opt-in: members the tests dispatch need a currently-granted
+-- WhatsApp channel consent (WSP-002 as amended by the serial decision).
+do $b$ begin
+  if not pg_temp.tbl('public.whatsapp_channel_consents') then
+    perform ok(false,'WSP: channel-consent fixture block red (schema absent)'); return; end if;
+  insert into public.whatsapp_channel_consents(id,tenant_id,member_id,purpose,granted,notice_version,source,recipient_phone_digest,contact_version_ref,recipient_basis,recorded_at)
+  values
+  (pg_temp.aid(461),pg_temp.aid(1),pg_temp.aid(101),'service',true,'wsp-notice-v1','signup',repeat('0',64),'cv-1','self',now()-interval '1 day'),
+  (pg_temp.aid(462),pg_temp.aid(1),pg_temp.aid(102),'service',true,'wsp-notice-v1','signup',repeat('0',64),'cv-1','self',now()-interval '1 day'),
+  (pg_temp.aid(463),pg_temp.aid(1),pg_temp.aid(109),'service',true,'wsp-notice-v1','signup',repeat('0',64),'cv-1','self',now()-interval '1 day'),
+  (pg_temp.aid(464),pg_temp.aid(1),pg_temp.aid(110),'service',true,'wsp-notice-v1','signup',repeat('0',64),'cv-1','self',now()-interval '1 day'),
+  (pg_temp.aid(465),pg_temp.aid(1),pg_temp.aid(111),'service',true,'wsp-notice-v1','signup',repeat('0',64),'cv-1','self',now()-interval '1 day'),
+  (pg_temp.aid(466),pg_temp.aid(1),pg_temp.aid(112),'service',true,'wsp-notice-v1','signup',repeat('0',64),'cv-1','self',now()-interval '1 day');
+end $b$;
 
 -- ---------------------------------------------------------------------------
 -- S1: canonical enums unchanged
@@ -249,7 +267,7 @@ do $b$ begin
   declare v jsonb; begin
     v := public.read_member_whatsapp_settings();
     perform is(v->>'recipientKind','self','WSP: adult recipient kind is self');
-    perform ok(v->>'service'='false' and v->>'marketing'='false','WSP: no channel consent means service and marketing off');
+    perform ok(v->>'service'='true' and v->>'marketing'='false','WSP: granted service channel consent shows on, marketing stays independently off');
     perform ok(v->>'maskedPhone' is not null and v->>'maskedPhone' <> '+917500000101' and v->>'maskedPhone' like '%101','WSP: phone masked, never the raw number');
     perform is(v->>'available','false','WSP: unavailable while no sender account is configured');
   end;
@@ -292,9 +310,9 @@ do $b$ begin
   perform pg_temp.claim('member',null,106,911,1,false);
   perform is(pg_temp.refusal($q$select public.set_member_whatsapp_consent('service'::public.consent_purpose,true,'wsp-notice-v1')$q$),
     '42501','WSP: erased member cannot consent');
-  perform pg_temp.claim('member',null,107,912,2,false);
+  perform pg_temp.claim('member',null,107,912,1,false);
   perform is(pg_temp.refusal($q$select public.set_member_whatsapp_consent('service'::public.consent_purpose,true,'wsp-notice-v1')$q$),
-    '42501','WSP: foreign member cannot consent here');
+    '42501','WSP: forged tenant/member claim cannot consent here');
   perform pg_temp.claim('front_desk',23,null,903,1,false);
   declare v jsonb; begin
     v := public.record_whatsapp_consent(pg_temp.aid(101),'service'::public.consent_purpose,true,'wsp-notice-v1','desk_verification',pg_temp.aid(601));
@@ -317,6 +335,15 @@ do $b$ begin
   perform set_config('role','postgres',true);
 end $b$;
 
+-- Tenant wallet fixture (paise units, opened at zero); S8 funds it through
+-- the frozen super-admin adjustment and S10 drains it for the overspend case.
+do $b$ begin
+  if not pg_temp.col('public.messaging_wallets','balance_paise') then
+    perform ok(false,'WSP: wallet paise fixture red (cutover migration absent)'); return; end if;
+  insert into public.messaging_wallets(tenant_id,balance_paise,currency)
+  values(pg_temp.aid(1),0::bigint,'INR');
+end $b$;
+
 -- ---------------------------------------------------------------------------
 -- S6: read_whatsapp_operations role boundaries and envelope
 -- ---------------------------------------------------------------------------
@@ -327,14 +354,17 @@ do $b$ begin
   perform set_config('role','authenticated',true);
   declare v jsonb; begin
     v := public.read_whatsapp_operations(null,null,50);
-    perform is((select count(*) from jsonb_object_keys(v)),3::bigint,'WSP: operations envelope is exactly operations/nextAfter/nextAfterId');
+    perform is((select string_agg(k,',' order by k) from jsonb_object_keys(v) as j(k)),
+      'chargedTotals,nextAfter,nextAfterId,operations,statusCounts,templateBlockers,wallet',
+      'WSP: operations envelope is the frozen seven-key shape');
     perform ok(v::text not like '%+9175000001%','WSP: operations expose no raw phone');
-    perform ok(v::text not like '%balancePaise%' and v::text not like '%charged%','WSP: desk sees no wallet amounts or charged totals');
+    perform ok((v->'statusCounts') ? 'accepted' and (v->'statusCounts') ? 'delivered' and (v->'statusCounts') ? 'read' and (v->'statusCounts') ? 'unknown','WSP: statusCounts separates accepted/delivered/read/unknown');
+    perform is(v->'wallet','null'::jsonb,'WSP: desk sees the wallet key present with JSON null, no amounts');
   end;
   perform pg_temp.claim('gym_owner',21,null,901,1,false);
   declare v jsonb; begin
     v := public.read_whatsapp_operations(null,null,50);
-    perform ok(v::text like '%balancePaise%','WSP: owner/manager additionally receive wallet amounts');
+    perform ok(v->'wallet' is not null and v->'wallet'->>'balancePaise' is not null,'WSP: owner/manager wallet object present with exact paise balance');
   end;
   perform pg_temp.claim('trainer',24,null,904,1,false);
   perform is(pg_temp.refusal($q$select public.read_whatsapp_operations(null,null,50)$q$),'42501','WSP: trainer denied operations');
@@ -406,8 +436,9 @@ do $b$ begin
     perform is(jsonb_array_length(CASE WHEN jsonb_typeof(c->'attempts')='array' THEN c->'attempts' ELSE '[]'::jsonb END),0,
       'WSP: without funds the claim dispatches nothing (WSP-006)');
   end;
-  insert into public.messaging_wallets(tenant_id,balance_paise,currency)
-  values(pg_temp.aid(1),500::bigint,'INR');
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.aid(917),'role','authenticated','app_role','super_admin')::text,true);
+  perform public.adjust_messaging_wallet_paise(pg_temp.aid(1),500::bigint,'INR','wsp-suite-funding',pg_temp.aid(630));
+  perform set_config('request.jwt.claims','',true);
   declare c jsonb; a jsonb; begin
     c := public.claim_whatsapp_dispatch(10);
     perform is(jsonb_array_length(CASE WHEN jsonb_typeof(c->'attempts')='array' THEN c->'attempts' ELSE '[]'::jsonb END),1,
@@ -415,8 +446,6 @@ do $b$ begin
     a := c->'attempts'->0;
     perform ok(a->>'ticket' is not null and a->>'attemptId' is not null,'WSP: claim returns attempt and ticket identifiers only');
     perform ok(a->>'expiresAt' is not null and (a->>'expiresAt')::timestamptz <= now()+interval '130 seconds','WSP: authorization ticket is ~120 seconds');
-    insert into wsp_ids(k,id) values('att1',(a->>'attemptId')::uuid);
-    insert into wsp_txt(k,v) values('tick1',a->>'ticket');
   end;
   perform is(pg_temp.refusal($q$select public.claim_whatsapp_dispatch(0)$q$),'22023','WSP: batch below 1 refused');
   perform is(pg_temp.refusal($q$select public.claim_whatsapp_dispatch(51)$q$),'22023','WSP: batch above 50 refused');
@@ -434,29 +463,31 @@ do $b$ begin
       'WSP: claim reserves both queued attempts');
   end;
   insert into wsp_ids(k,id)
-  select 'att_'||a.notification_id::text, a.id from public.notification_whatsapp_attempts a
-  where a.tenant_id=pg_temp.aid(1) and a.notification_id in (select id from wsp_ids where k in ('src_101','src_102','src_110'));
+  select 'att_'||pg_temp.shortid(a.member_id), a.id from public.notification_whatsapp_attempts a
+  where a.tenant_id=pg_temp.aid(1) and a.member_id in (pg_temp.aid(101),pg_temp.aid(102),pg_temp.aid(110))
+  on conflict (k) do nothing;
   insert into wsp_txt(k,v)
-  select 'tick_'||a.notification_id::text, a.lease_ticket::text from public.notification_whatsapp_attempts a
-  where a.tenant_id=pg_temp.aid(1) and a.notification_id in (select id from wsp_ids where k in ('src_101','src_102','src_110'));
+  select 'tick_'||pg_temp.shortid(a.member_id), a.lease_ticket::text from public.notification_whatsapp_attempts a
+  where a.tenant_id=pg_temp.aid(1) and a.member_id in (pg_temp.aid(101),pg_temp.aid(102),pg_temp.aid(110))
+  on conflict (k) do nothing;
   declare r jsonb; begin
-    r := public.authorize_whatsapp_dispatch((select id from wsp_ids where k='att_'||(select id from wsp_ids where k='src_102')::text),
-      (select v from wsp_txt where k='tick_'||(select id from wsp_ids where k='src_102')::text)::uuid);
+    r := public.authorize_whatsapp_dispatch((select id from wsp_ids where k='att_102'),
+      (select v from wsp_txt where k='tick_102')::uuid);
     perform is(r->>'authorized','true','WSP: authorize admits the reserved attempt before I/O');
   end;
-  insert into public.consents(tenant_id,member_id,purpose,granted,version,source,recorded_at)
-  values(pg_temp.aid(1),pg_temp.aid(110),'service',false,'v2','member_app',now());
+  insert into public.whatsapp_channel_consents(id,tenant_id,member_id,purpose,granted,notice_version,source,recipient_phone_digest,contact_version_ref,recipient_basis,recorded_at)
+  values(pg_temp.aid(467),pg_temp.aid(1),pg_temp.aid(110),'service',false,'wsp-notice-v1','member_app',repeat('0',64),'cv-1','self',now());
   declare r jsonb; begin
-    r := public.authorize_whatsapp_dispatch((select id from wsp_ids where k='att_'||(select id from wsp_ids where k='src_110')::text),
-      (select v from wsp_txt where k='tick_'||(select id from wsp_ids where k='src_110')::text)::uuid);
+    r := public.authorize_whatsapp_dispatch((select id from wsp_ids where k='att_110'),
+      (select v from wsp_txt where k='tick_110')::uuid);
     perform is(r->>'authorized','false','WSP: withdrawal committed before authorization yields no provider request');
     perform ok(r->>'recipient' is null,'WSP: a refused authorization returns no recipient');
   end;
   perform is(pg_temp.refusal($q$select public.authorize_whatsapp_dispatch(pg_temp.aid(8888),pg_temp.aid(8899))$q$),
     'P0002','WSP: unknown attempt/reservation pair is invisible');
-  perform is(pg_temp.refusal($q$select public.authorize_whatsapp_dispatch((select id from wsp_ids where k='att_'||(select id from wsp_ids where k='src_102')::text),pg_temp.aid(8898))$q$),
+  perform is(pg_temp.refusal($q$select public.authorize_whatsapp_dispatch((select id from wsp_ids where k='att_102'),pg_temp.aid(8898))$q$),
     'GL120','WSP: wrong ticket is a stale-ticket conflict');
-  perform is(pg_temp.refusal($q$select public.authorize_whatsapp_dispatch((select id from wsp_ids where k='att_'||(select id from wsp_ids where k='src_102')::text),(select v from wsp_txt where k='tick_'||(select id from wsp_ids where k='src_102')::text)::uuid)$q$),
+  perform is(pg_temp.refusal($q$select public.authorize_whatsapp_dispatch((select id from wsp_ids where k='att_102'),(select v from wsp_txt where k='tick_102')::uuid)$q$),
     'GL120','WSP: replayed authorization cannot grant a second send');
 end $b$;
 
@@ -468,22 +499,22 @@ do $b$ begin
     perform ok(false,'WSP: acceptance facade absent (red)'); return; end if;
   perform set_config('request.jwt.claims','',true);
   declare r jsonb; begin
-    r := public.authorize_whatsapp_dispatch((select id from wsp_ids where k='att_'||(select id from wsp_ids where k='src_101')::text),
-      (select v from wsp_txt where k='tick_'||(select id from wsp_ids where k='src_101')::text)::uuid);
+    r := public.authorize_whatsapp_dispatch((select id from wsp_ids where k='att_101'),
+      (select v from wsp_txt where k='tick_101')::uuid);
     perform is(r->>'authorized','true','WSP: the first attempt authorizes for acceptance');
   end;
   declare r jsonb; begin
-    r := public.record_whatsapp_acceptance((select id from wsp_ids where k='att_'||(select id from wsp_ids where k='src_101')::text),
-      (select v from wsp_txt where k='tick_'||(select id from wsp_ids where k='src_101')::text)::uuid,'wamid.A801','ev-acc-801');
+    r := public.record_whatsapp_acceptance((select id from wsp_ids where k='att_101'),
+      (select v from wsp_txt where k='tick_101')::uuid,'wamid.A801','ev-acc-801');
     perform is(r->>'replayed','false','WSP: acceptance records once');
   end;
   declare r jsonb; begin
-    r := public.record_whatsapp_acceptance((select id from wsp_ids where k='att_'||(select id from wsp_ids where k='src_101')::text),
-      (select v from wsp_txt where k='tick_'||(select id from wsp_ids where k='src_101')::text)::uuid,'wamid.A801','ev-acc-801');
+    r := public.record_whatsapp_acceptance((select id from wsp_ids where k='att_101'),
+      (select v from wsp_txt where k='tick_101')::uuid,'wamid.A801','ev-acc-801');
     perform is(r->>'replayed','true','WSP: acceptance replay is inert');
   end;
   perform ok(exists(select 1 from public.notification_whatsapp_attempts
-    where id=(select id from wsp_ids where k='att_'||(select id from wsp_ids where k='src_101')::text)
+    where id=(select id from wsp_ids where k='att_101')
       and accepted_at is not null and provider_message_id='wamid.A801' and released_at is null),
     'WSP: acceptance stores evidence and preserves the hold');
   perform ok(not exists(select 1 from public.messaging_wallet_ledger
@@ -491,16 +522,16 @@ do $b$ begin
   perform pg_temp.claim('front_desk',23,null,903,1,false);
   perform set_config('role','authenticated',true);
   perform lives_ok($q$select public.record_whatsapp_consent(pg_temp.aid(102),'service'::public.consent_purpose,true,'wsp-notice-v1','desk_verification',pg_temp.aid(604))$q$,
-    'WSP: desk re-records the withdrawn member consent');
+    'WSP: desk appends a fresh verified consent row for the re-queued member');
   perform set_config('role','postgres',true);
   perform set_config('request.jwt.claims','',true);
   declare r jsonb; begin
-    r := public.finish_whatsapp_rejection((select id from wsp_ids where k='att_'||(select id from wsp_ids where k='src_102')::text),
-      (select v from wsp_txt where k='tick_'||(select id from wsp_ids where k='src_102')::text)::uuid,'recipient_invalid',true);
+    r := public.finish_whatsapp_rejection((select id from wsp_ids where k='att_102'),
+      (select v from wsp_txt where k='tick_102')::uuid,'recipient_invalid',true);
     perform is(r->>'replayed','false','WSP: known rejection records once');
   end;
   perform ok(exists(select 1 from public.notification_whatsapp_attempts
-    where id=(select id from wsp_ids where k='att_'||(select id from wsp_ids where k='src_102')::text)
+    where id=(select id from wsp_ids where k='att_102')
       and released_at is not null and failure_code='recipient_invalid'),
     'WSP: known rejection releases the hold without charge');
   perform ok(exists(select 1 from public.notifications
@@ -567,10 +598,10 @@ do $b$ begin
   perform lives_ok($q$select public.record_whatsapp_receipt(pg_temp.aid(501),'wamid.A801','fp-late-801','delivered',now(),pg_temp.aid(704)::text)$q$,
     'WSP: late evidence after terminal failure is retained');
   perform ok(exists(select 1 from public.notification_whatsapp_receipts
-    where receipt_fingerprint='fp-late-801'),'WSP: late evidence row retained for reconciliation');
-  perform ok(not exists(select 1 from public.notifications
-    where id=(select id from wsp_ids where k='src_102') and status='delivered'),
-    'WSP: terminal failure is not revived by late evidence');
+    where receipt_fingerprint='fp-late-801')
+    and not exists(select 1 from public.notifications
+      where id=(select id from wsp_ids where k='src_102') and status='delivered'),
+    'WSP: late evidence retained for reconciliation without reviving the terminal failure');
 end $b$;
 
 -- ---------------------------------------------------------------------------
@@ -586,9 +617,11 @@ do $b$ begin
   perform lives_ok($q$select public.request_whatsapp_dispatch((select id from wsp_ids where k='src_112'),pg_temp.aid(632))$q$,'WSP: queue member 112 reminder');
   perform set_config('role','postgres',true);
   declare bal text; begin
+    perform set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.aid(917),'role','authenticated','app_role','super_admin')::text,true);
     perform public.adjust_messaging_wallet_paise(pg_temp.aid(1),(-250)::bigint,'INR','wsp-competency-test',pg_temp.aid(633));
+    perform set_config('request.jwt.claims','',true);
     select balance_paise::text into bal from public.messaging_wallets where tenant_id=pg_temp.aid(1);
-    perform is(bal,'150','WSP: reasoned adjustment moves the exact paise balance');
+    perform is(bal,'150','WSP: reasoned adjustment under a real super-admin moves the exact paise balance');
   end;
   declare c jsonb; c2 jsonb; n integer; begin
     c := public.claim_whatsapp_dispatch(10);
@@ -597,8 +630,9 @@ do $b$ begin
     c2 := public.claim_whatsapp_dispatch(10);
     perform is(jsonb_array_length(CASE WHEN jsonb_typeof(c2->'attempts')='array' THEN c2->'attempts' ELSE '[]'::jsonb END),0,
       'WSP: two sends cannot overspend the final amount');
-    select count(*) into n from public.messaging_wallet_ledger where tenant_id=pg_temp.aid(1);
-    perform is(n,1,'WSP: holds never alter the balance or masquerade as a second wallet');
+    select count(*) into n from public.messaging_wallet_ledger
+      where tenant_id=pg_temp.aid(1) and notification_id is not null;
+    perform is(n,1,'WSP: only the causal payment debits the ledger (holds and the reasoned adjustment move no payment row)');
   end;
   perform lives_ok($q$insert into public.whatsapp_rate_versions(id,tenant_id,sender_account_id,effective_from,destination_market,provider_category,amount_paise,max_amount_paise,currency,rounding_revision,evidence_digest)
     values(pg_temp.aid(504),pg_temp.aid(1),pg_temp.aid(501),now(),'IN','marketing',0,0,'INR','all_in','ev-zero')$q$,
