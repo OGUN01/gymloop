@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   post: vi.fn(), routerPush: vi.fn(), openSettings: vi.fn(), requestPermission: vi.fn(),
   responseListener: null as ((event: unknown) => unknown) | null, registerListener: null as ((event: unknown) => unknown) | null,
   registerCalls: [] as Array<Record<string, unknown>>,
+  supabase: { rpc: async () => ({ data: null, error: { code: 'P0002', message: 'WhatsApp settings unavailable' } }) },
 }));
 function mockReactHooks(actual: Record<string, unknown>) {
   const memo = (factory: () => unknown, deps?: unknown[]) => {
@@ -31,7 +32,7 @@ function mockReactHooks(actual: Record<string, unknown>) {
   return { ...actual, ...hooks, default: { ...(actual.default as Record<string, unknown>), ...hooks } };
 }
 vi.mock('react', async original => mockReactHooks(await original<Record<string, unknown>>()));
-vi.mock('../../apps/mobile/lib/mobile-context', () => ({ useMobile: () => ({ identity: { kind: 'member', userId: 'user-a', tenantId: 'tenant-a', memberId: 'member-a', role: 'member' }, api: { post: h.post }, ready: true, nouns: { place: 'gym', plural: 'gyms', member: 'member', trainer: 'trainer', class: 'class' }, palette: {}, businessType: 'gym', appearance: 'light', supabase: {}, session: {}, signOut: vi.fn() }) }));
+vi.mock('../../apps/mobile/lib/mobile-context', () => ({ useMobile: () => ({ identity: { kind: 'member', userId: 'user-a', tenantId: 'tenant-a', memberId: 'member-a', role: 'member' }, api: { post: h.post }, ready: true, nouns: { place: 'gym', plural: 'gyms', member: 'member', trainer: 'trainer', class: 'class' }, palette: {}, businessType: 'gym', appearance: 'light', supabase: h.supabase, session: {}, signOut: vi.fn() }) }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: h.routerPush, replace: vi.fn() }), useLocalSearchParams: () => ({}), Link: 'Link', Redirect: 'Redirect', usePathname: () => '/(member)/you' }));
 vi.mock('expo-secure-store', () => ({ setItemAsync: vi.fn(), getItemAsync: async () => null, deleteItemAsync: vi.fn() }));
 vi.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: h.online, isInternetReachable: h.online }), getNetworkStateAsync: async () => ({ isConnected: h.online, isInternetReachable: h.online }), addNetworkStateListener: () => ({ remove: vi.fn() }) }));

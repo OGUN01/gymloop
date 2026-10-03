@@ -12,6 +12,9 @@ const h = vi.hoisted(() => ({
   online: true,
   identity: { kind: 'member', userId: 'user-a', tenantId: 'tenant-a', memberId: 'member-a', role: 'member' } as Record<string, string>,
   post: vi.fn(),
+  // The public provider retains one client across unrelated screen renders.
+  // Dependent settings reads get a real asynchronous failure envelope.
+  supabase: { rpc: vi.fn(async () => ({ data: null, error: { code: 'fixture_unavailable', message: 'Settings unavailable in this fixture.' } })) },
   permission: 'undetermined' as string,
   deviceToken: 'fcm-fixture-token' as string | null,
   registerCalls: [] as Array<Record<string, unknown>>,
@@ -38,7 +41,7 @@ function mockReactHooks(actual: Record<string, unknown>) {
   return { ...actual, ...hooks, default: { ...(actual.default as Record<string, unknown>), ...hooks } };
 }
 vi.mock('react', async original => mockReactHooks(await original<Record<string, unknown>>()));
-vi.mock('../mobile-context', () => ({ useMobile: () => ({ identity: h.identity, api: { post: h.post }, ready: true, nouns: { place: 'gym', plural: 'gyms', member: 'member', trainer: 'trainer', class: 'class' }, palette: {}, businessType: 'gym', appearance: 'light', supabase: {}, session: h.identity.kind === 'member' ? {} : null, signOut: vi.fn() }) }));
+vi.mock('../mobile-context', () => ({ useMobile: () => ({ identity: h.identity, api: { post: h.post }, ready: true, nouns: { place: 'gym', plural: 'gyms', member: 'member', trainer: 'trainer', class: 'class' }, palette: {}, businessType: 'gym', appearance: 'light', supabase: h.supabase, session: h.identity.kind === 'member' ? {} : null, signOut: vi.fn() }) }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useLocalSearchParams: () => ({}), Link: 'Link', Redirect: 'Redirect' }));
 vi.mock('expo-secure-store', () => ({ setItemAsync: vi.fn(), getItemAsync: async () => null, deleteItemAsync: vi.fn() }));
 vi.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: h.online, isInternetReachable: h.online }), getNetworkStateAsync: async () => ({ isConnected: h.online, isInternetReachable: h.online }), addNetworkStateListener: () => ({ remove: vi.fn() }) }));
