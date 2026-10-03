@@ -63,7 +63,7 @@ describe('public announcement read privacy disclosure', () => {
     const Page = (await import('../(public)/privacy/page')).default;
     const html = renderToStaticMarkup(await Page());
     const text = html.replace(/<[^>]*>/g, '').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&');
-    const sentence = 'When you open an announcement in the app, FitCruxx records that you opened that version. Your gym sees how many members opened it, not who.';
+    const sentence = 'When you open an announcement in the app, FitCruxx records that you opened that version. The business sees how many members opened it, not who.';
     expect(ANNOUNCEMENT_PRIVACY_SENTENCE).toBe(sentence);
     expect(text).toContain(sentence);
   });

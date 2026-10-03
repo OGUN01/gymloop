@@ -55,8 +55,8 @@ select lives_ok($q$select * from app.pt_availability_grid('UTC','UTC','2500-01-0
 select throws_ok($q$select * from app.pt_availability_grid('UTC','UTC','5874897-12-31','5874897-12-31',(select jsonb_agg(jsonb_build_object('weekday',n,'startMinute',0,'endMinute',1440)) from generate_series(0,6)n),60)$q$,'22023',null,'unsupported finite date arithmetic refuses explicitly rather than overflowing');
 -- Real actor setup uses permitted visible-domain fixtures. No guard replacement.
 insert into public.organizations(id,name,gym_code,status,timezone,currency) values
-(pg_temp.gid(1),'Grid repair visible','GRID202A','active','Pacific/Kiritimati','INR'),
-(pg_temp.gid(2),'Grid repair foreign','GRID202B','active','UTC','INR');
+(pg_temp.gid(1),'Grid repair visible','GR202A','active','Pacific/Kiritimati','INR'),
+(pg_temp.gid(2),'Grid repair foreign','GR202B','active','UTC','INR');
 insert into public.organization_settings(tenant_id) values(pg_temp.gid(1)),(pg_temp.gid(2));
 insert into public.branches(id,tenant_id,name,is_default,timezone) values
 (pg_temp.gid(11),pg_temp.gid(1),'Date-line trainer',true,'Pacific/Honolulu'),(pg_temp.gid(12),pg_temp.gid(2),'Foreign',true,'UTC');

@@ -38,7 +38,7 @@ select is(pg_temp.hg('UTC','UTC','2026-01-04','2026-01-04',(select jsonb_agg(jso
 select is(pg_temp.hg('UTC','UTC','2026-01-04','2026-01-04',(select jsonb_agg(jsonb_build_object('weekday',0,'startMinute',n,'endMinute',n+1))from generate_series(0,27)n),15),'[]'::jsonb,'twenty-eight nonoverlapping windows accepted even with no fitting starts');
 select is(pg_temp.hg('UTC','UTC','5874897-12-31','5874897-12-31',(select jsonb_agg(jsonb_build_object('weekday',d,'startMinute',0,'endMinute',1440))from generate_series(0,6)d),15)->>'error','22023','unsupported timestamp arithmetic boundary explicitly refused');
 -- Isolated rollback fixtures use real actors and ordinary command configuration.
-insert into public.organizations(id,name,gym_code,status,timezone,currency)values(pg_temp.hu(1),'Held grid east','H202A','active','Pacific/Kiritimati','INR'),(pg_temp.hu(2),'Held grid foreign','H202B','active','UTC','INR');
+insert into public.organizations(id,name,gym_code,status,timezone,currency)values(pg_temp.hu(1),'Held grid east','H2020A','active','Pacific/Kiritimati','INR'),(pg_temp.hu(2),'Held grid foreign','H2020B','active','UTC','INR');
 insert into public.organization_settings(tenant_id)values(pg_temp.hu(1)),(pg_temp.hu(2));
 insert into public.branches(id,tenant_id,name,timezone,is_default)values(pg_temp.hu(11),pg_temp.hu(1),'Held trainer west','Pacific/Honolulu',true),(pg_temp.hu(21),pg_temp.hu(2),'Foreign','UTC',true);
 insert into auth.users(id)select pg_temp.hu(n)from unnest(array[201,204,205,206,207,208,1100,1101])n;
