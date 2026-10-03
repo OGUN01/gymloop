@@ -9,9 +9,9 @@ import { describe, expect, it } from 'vitest';
 // held-suite convention (rendered phases author their own held files); no `todo`
 // markers are used to hide coverage, only this header records the split.
 //
-// Route paths derive from the frozen proposal's "Proposed routes" list and the
-// repo's App Router spelling. If the implementation renames a module, that is an
-// implementer report to the parent, never a silent edit of this file.
+// Route URLs derive from the frozen proposal's "Proposed routes" list; concrete
+// App Router module names derive from the public NTF POST routes registry row.
+// Dynamic segment labels do not change the public URL/identity boundary.
 //
 // This suite does not touch the database, never reads other Wave C suites, and
 // never claims delivery evidence of any kind.
@@ -94,9 +94,9 @@ const ROUTES: { name: string; path: string }[] = [
   { name: 'member push-device register', path: '../../apps/web/app/api/member/push-device/route' },
   { name: 'member push-device remove', path: '../../apps/web/app/api/member/push-device/remove/route' },
   { name: 'member push-preference', path: '../../apps/web/app/api/member/push-preference/route' },
-  { name: 'member push-event evidence', path: '../../apps/web/app/api/member/notifications/[id]/push-event/route' },
-  { name: 'campaign push review', path: '../../apps/web/app/api/announcements/[id]/push-review/route' },
-  { name: 'campaign cancel', path: '../../apps/web/app/api/push-campaigns/[id]/cancel/route' },
+  { name: 'member push-event evidence', path: '../../apps/web/app/api/member/notifications/[notificationId]/push-event/route' },
+  { name: 'campaign push review', path: '../../apps/web/app/api/announcements/[announcementId]/push-review/route' },
+  { name: 'campaign cancel', path: '../../apps/web/app/api/push-campaigns/[campaignId]/cancel/route' },
 ];
 
 const enumValuesPrefix = 'http://localhost/api/member/push-device';

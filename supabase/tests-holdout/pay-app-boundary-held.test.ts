@@ -1,7 +1,7 @@
 // Independent PAY app-layer holdout; frozen contract only (openspec/changes/member-purchases/
 // proposal.md BUY-001…025 + contract-resolution-amendment.md); no visible PAY app suite and
-// no implementation read. Nothing is implemented yet: every section is RED today, either
-// because the shared symbols do not exist or because the frozen route modules do not resolve.
+// no implementation read. Route discovery follows frozen public URL paths; Next's
+// internal dynamic-segment variable spelling is not part of the HTTP contract.
 // Named pay-app-boundary-held.test.ts because another holdout already occupied
 // pay-app-held.test.ts; the parent orchestrator should dedupe the two.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -16,25 +16,34 @@ vi.mock('../../apps/web/lib/identity-session', () => ({ readIdentity: h.cookie, 
 
 const memberBase = '../../apps/web/app/api/member/purchase-requests';
 const staffBase = '../../apps/web/app/api/purchase-requests';
+const routeModules = import.meta.glob('../../apps/web/app/api/{member/purchase-requests,purchase-requests}/**/route.ts');
+const moduleSlots = new WeakMap<object, string>();
+async function loadRoute(publicPath: string) {
+  const key = Object.keys(routeModules).find(path => path.replace(/\[[^\]]+\]/g, '[id]') === `${publicPath}.ts`);
+  if (!key) throw new Error(`Missing frozen PAY route: ${publicPath}`);
+  const module = await routeModules[key]() as object;
+  moduleSlots.set(module, key.match(/\[([^\]]+)\]/)?.[1] ?? 'id');
+  return module;
+}
 type Route = { name: string; load: () => Promise<unknown>; method: string; rpc: string | null; member: boolean; staff: boolean; role: string; body: Record<string, unknown> | null };
 const routes: Route[] = [
-  { name: 'member-create', load: () => import(`${memberBase}/route`), method: 'POST', rpc: 'create_purchase_request', member: true, staff: false, role: 'front_desk', body: { requestKey: id, kind: 'shop', targetId: other, quantity: 1, expectedRevision: uuid(2) } },
-  { name: 'member-list', load: () => import(`${memberBase}/route`), method: 'GET', rpc: 'read_member_purchase_requests', member: true, staff: false, role: 'front_desk', body: null },
-  { name: 'member-detail', load: () => import(`${memberBase}/[id]/route`), method: 'GET', rpc: 'read_purchase_request', member: true, staff: false, role: 'front_desk', body: null },
-  { name: 'member-cancel', load: () => import(`${memberBase}/[id]/cancel/route`), method: 'POST', rpc: 'cancel_purchase_request', member: true, staff: false, role: 'front_desk', body: { commandKey: uuid(3) } },
-  { name: 'member-reconfirm', load: () => import(`${memberBase}/[id]/reconfirm/route`), method: 'POST', rpc: 'reconfirm_purchase_quote', member: true, staff: false, role: 'front_desk', body: { expectedRevision: uuid(2), commandKey: uuid(3) } },
-  { name: 'member-proof-confirm', load: () => import(`${memberBase}/[id]/proof-confirm/route`), method: 'POST', rpc: 'attach_payment_proof', member: true, staff: false, role: 'front_desk', body: { assetId: other, expectedRevision: uuid(2), commandKey: uuid(3) } },
-  { name: 'staff-list', load: () => import(`${staffBase}/route`), method: 'GET', rpc: 'read_purchase_requests', member: false, staff: true, role: 'front_desk', body: null },
-  { name: 'staff-accept', load: () => import(`${staffBase}/[id]/accept/route`), method: 'POST', rpc: 'accept_purchase_request', member: false, staff: true, role: 'front_desk', body: { expectedRevision: uuid(2), commandKey: uuid(3) } },
-  { name: 'staff-reject', load: () => import(`${staffBase}/[id]/reject/route`), method: 'POST', rpc: 'reject_purchase_request', member: false, staff: true, role: 'front_desk', body: { expectedRevision: uuid(2), reason: 'No stock left', commandKey: uuid(3) } },
-  { name: 'staff-reject-proof', load: () => import(`${staffBase}/[id]/reject-proof/route`), method: 'POST', rpc: 'reject_payment_proof', member: false, staff: true, role: 'front_desk', body: { assetId: other, expectedRevision: uuid(2), reason: 'Unclear screenshot', commandKey: uuid(3) } },
-  { name: 'staff-record', load: () => import(`${staffBase}/[id]/record/route`), method: 'POST', rpc: 'record_purchase_request', member: false, staff: true, role: 'gym_manager', body: { expectedRevision: uuid(2), commandKey: uuid(3), actualAmount: '250000', currency: 'INR', paymentMethod: 'upi' } },
+  { name: 'member-create', load: () => loadRoute(`${memberBase}/route`), method: 'POST', rpc: 'create_purchase_request', member: true, staff: false, role: 'front_desk', body: { requestKey: id, kind: 'shop', targetId: other, quantity: 1, expectedRevision: uuid(2) } },
+  { name: 'member-list', load: () => loadRoute(`${memberBase}/route`), method: 'GET', rpc: 'read_member_purchase_requests', member: true, staff: false, role: 'front_desk', body: null },
+  { name: 'member-detail', load: () => loadRoute(`${memberBase}/[id]/route`), method: 'GET', rpc: 'read_purchase_request', member: true, staff: false, role: 'front_desk', body: null },
+  { name: 'member-cancel', load: () => loadRoute(`${memberBase}/[id]/cancel/route`), method: 'POST', rpc: 'cancel_purchase_request', member: true, staff: false, role: 'front_desk', body: { commandKey: uuid(3) } },
+  { name: 'member-reconfirm', load: () => loadRoute(`${memberBase}/[id]/reconfirm/route`), method: 'POST', rpc: 'reconfirm_purchase_quote', member: true, staff: false, role: 'front_desk', body: { expectedRevision: uuid(2), commandKey: uuid(3) } },
+  { name: 'member-proof-confirm', load: () => loadRoute(`${memberBase}/[id]/proof-confirm/route`), method: 'POST', rpc: 'attach_payment_proof', member: true, staff: false, role: 'front_desk', body: { assetId: other, expectedRevision: uuid(2), commandKey: uuid(3) } },
+  { name: 'staff-list', load: () => loadRoute(`${staffBase}/route`), method: 'GET', rpc: 'read_purchase_requests', member: false, staff: true, role: 'front_desk', body: null },
+  { name: 'staff-accept', load: () => loadRoute(`${staffBase}/[id]/accept/route`), method: 'POST', rpc: 'accept_purchase_request', member: false, staff: true, role: 'front_desk', body: { expectedRevision: uuid(2), commandKey: uuid(3) } },
+  { name: 'staff-reject', load: () => loadRoute(`${staffBase}/[id]/reject/route`), method: 'POST', rpc: 'reject_purchase_request', member: false, staff: true, role: 'front_desk', body: { expectedRevision: uuid(2), reason: 'No stock left', commandKey: uuid(3) } },
+  { name: 'staff-reject-proof', load: () => loadRoute(`${staffBase}/[id]/reject-proof/route`), method: 'POST', rpc: 'reject_payment_proof', member: false, staff: true, role: 'front_desk', body: { assetId: other, expectedRevision: uuid(2), reason: 'Unclear screenshot', commandKey: uuid(3) } },
+  { name: 'staff-record', load: () => loadRoute(`${staffBase}/[id]/record/route`), method: 'POST', rpc: 'record_purchase_request', member: false, staff: true, role: 'gym_manager', body: { expectedRevision: uuid(2), commandKey: uuid(3), actualAmount: '250000', currency: 'INR', paymentMethod: 'upi' } },
 ];
 
 beforeEach(() => {
   h.identity = null; h.reply = { data: null, error: null };
   h.rpc.mockReset(); h.cookie.mockReset(); h.bearer.mockReset(); h.fetch.mockReset();
-  const read = async () => ({ identity: h.identity ?? { kind: 'unlinked' }, supabase: { rpc: h.rpc }, signedIn: h.identity !== null, authenticatedUser: h.identity !== null });
+  const read = async () => h.identity === null ? null : ({ identity: h.identity, supabase: { rpc: h.rpc }, signedIn: true, authenticatedUser: true });
   h.cookie.mockImplementation(read); h.bearer.mockImplementation(read);
   h.rpc.mockImplementation(() => Object.assign(Promise.resolve(h.reply), { single: async () => h.reply, maybeSingle: async () => h.reply }));
   h.fetch.mockImplementation(async () => new Response(JSON.stringify({ ok: true, data: { assetId: other } }), { status: 200, headers: { 'content-type': 'application/json' } }));
@@ -49,7 +58,7 @@ function act(kind: 'member' | 'staff' | 'impersonation' | 'none', role = 'front_
 }
 async function dispatch(route: Route, requestInit: Request) {
   const mod = await route.load() as Record<string, (request: Request, context: { params: Promise<Record<string, string>> }) => Promise<Response>>;
-  return mod[route.method](requestInit, { params: Promise.resolve({ id }) });
+  return mod[route.method](requestInit, { params: Promise.resolve({ [moduleSlots.get(mod) ?? 'id']: id }) });
 }
 function request(route: Route, body: unknown, search = '') {
   return new Request(`https://holdout.example/api/purchase${search}`, { method: route.method, headers: { authorization: 'Bearer held' }, body: body === null ? undefined : JSON.stringify(body) });
@@ -157,7 +166,7 @@ describe('PAY routes: money honesty at the client boundary', () => {
     const route = routes[2]; act('member');
     for (const probe of [uuid(9), uuid(8)]) {
       const mod = await route.load() as Record<string, (request: Request, context: { params: Promise<Record<string, string>> }) => Promise<Response>>;
-      const response = await mod.GET(request(route, null), { params: Promise.resolve({ id: probe }) });
+      const response = await mod.GET(request(route, null), { params: Promise.resolve({ [moduleSlots.get(mod) ?? 'id']: probe }) });
       expect(response.status).toBe(404);
     }
     expect(h.rpc).toHaveBeenCalledTimes(2);
@@ -178,7 +187,7 @@ describe('PAY routes: proof privacy and upload truth', () => {
     expect(refused.status).toBe(422); expect(h.rpc).not.toHaveBeenCalled();
   });
   it('proof-url issues an authorized ephemeral reference with no-store and never an object key or etag', async () => {
-    const route: Route = { name: 'proof-url', load: () => import(`${memberBase}/[id]/proof-url/route`), method: 'POST', rpc: null, member: true, staff: false, role: 'front_desk', body: null };
+    const route: Route = { name: 'proof-url', load: () => loadRoute(`${staffBase}/[id]/proof-url/route`), method: 'POST', rpc: null, member: true, staff: false, role: 'front_desk', body: null };
     act('member'); h.fetch.mockImplementation(async () => new Response(JSON.stringify({ ok: true, data: { url: `https://media.holdout.example/${id}/published/payment_proof/${uuid(5)}.jpg` } }), { status: 200 }));
     const response = await dispatch(route, request(route, null));
     expect(response.headers.get('cache-control')).toBe('no-store');
@@ -228,7 +237,7 @@ describe('PAY shared contract: limits, copy truth and money vocabulary', () => {
     expect(refusal('constructor')).toBe(refusal('__proto__'));
   });
   it('create schema is strict: identity, storage and proof internals can never be client-authored', () => {
-    const schema = s.createPurchaseRequestSchema as unknown as { safeParse(value: unknown): { success: boolean } };
+    const schema = s.purchaseCreateRequestSchema as unknown as { safeParse(value: unknown): { success: boolean } };
     expect(schema.safeParse({ requestKey: id, kind: 'shop', targetId: other, quantity: 1, expectedRevision: uuid(2) }).success).toBe(true);
     for (const bad of ['tenantId', 'memberId', 'staffId', 'objectKey', 'proofUrl', 'screenshotBase64', 'amountPaise', 'gstRateBp', '__proto_payload']) {
       expect(schema.safeParse({ requestKey: id, kind: 'shop', targetId: other, quantity: 1, expectedRevision: uuid(2), [bad]: other }).success).toBe(false);

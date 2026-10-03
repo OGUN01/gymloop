@@ -424,7 +424,8 @@ describe('held front-office WhatsApp routes', () => {
 
   it('recorder marks the write impersonation-hostile', async () => {
     staffSession.mockClear();
-    tas<StaffConsentRoute>(await import(targets.staffConsent));
+    const route = tas<StaffConsentRoute>(await import(targets.staffConsent));
+    await route.POST(json(consentValid), { params: Promise.resolve({ memberId: ids.member }) });
     const options = tas<{ completeWrongAudience?: string } | undefined>(staffSession.mock.calls[0]?.[1]);
     expect(options?.completeWrongAudience).toBe('forbidden');
   }, 20_000);
