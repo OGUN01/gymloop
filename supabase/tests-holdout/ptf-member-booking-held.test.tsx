@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import type { PtPack, MemberTraining, PtPolicyRead } from '@gymloop/shared';
+import type { PtPack, MemberTraining, PtPolicyRead, PtSession } from '@gymloop/shared';
 import { businessNouns, UI_TOKENS } from '@gymloop/shared';
 
 // Independent declaration-only author. These hosts preserve callbacks and children;
@@ -9,7 +9,7 @@ type Node = { type: unknown; props: Props };
 type Cell = { value?: unknown; deps?: unknown[] | undefined; cleanup?: (() => void) | undefined };
 const seam = vi.hoisted(() => ({
   active: null as null | { cells: Cell[]; cursor: number; effects: (() => void)[] },
-  mobile: {} as Props, online: true, listeners: new Set<(state: Props) => void>(),
+  mobile: {} as Props, focus: true, online: true, listeners: new Set<(state: Props) => void>(),
   refresh: vi.fn(), audience: vi.fn(), webSchedule: vi.fn(), network: vi.fn(), loadMember: vi.fn(), loadDesk: vi.fn(), loadRoster: vi.fn(),
   book: vi.fn(), cancel: vi.fn(), deskBook: vi.fn(), deskCancel: vi.fn(), mark: vi.fn(), search: vi.fn(), training: vi.fn(), slots: vi.fn(), policy: vi.fn(), nativeTraining: vi.fn(), nativeSlots: vi.fn(), nativePolicy: vi.fn(), params: {} as Props, uuid: vi.fn(),
 }));
@@ -61,7 +61,7 @@ vi.mock('../../apps/mobile/lib/mobile-data', () => ({ loadDeskMembers: seam.sear
 vi.mock('expo-network', () => ({ getNetworkStateAsync: () => seam.network(),
   addNetworkStateListener: (fn: (state: Props) => void) => { seam.listeners.add(fn); return { remove: () => seam.listeners.delete(fn) }; },
 }));
-vi.mock('expo-router', () => ({ useLocalSearchParams: () => seam.params, useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), router: { push: vi.fn() } }));
+vi.mock('expo-router', async () => { const React = await import('react'); return ({ useIsFocused: () => seam.focus, useFocusEffect: (callback: () => void | (() => void)) => React.useEffect(() => seam.focus ? callback() : undefined, [callback, seam.focus]), useLocalSearchParams: () => seam.params, useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), router: { push: vi.fn() } }); });
 vi.mock('expo-crypto', () => ({ randomUUID: () => seam.uuid() }));
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', TextInput: 'TextInput',
   ScrollView: 'ScrollView', ActivityIndicator: 'ActivityIndicator', Modal: 'Modal',
@@ -128,7 +128,7 @@ function mount(component: (props: never) => unknown, props: Props = {}) {
 }
 
 type Slot = { startsAt: string; endsAt: string; timezone: string };
-type Facts = { pack: PtPack | null; slots: { data: Slot[] | null; error: string | null }; policy: PtPolicyRead };
+type Facts = { pack: PtPack | null; slots: { data: Slot[] | null; error: string | null }; policy: PtPolicyRead; sessions?: { data: PtSession[] | null; error: string | null } };
 type BookingBody = { orderId: string; sessionId: string; startsAt: string };
 const id = (n: number) => `77930000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const memberA = { kind: 'member', userId: id(1), tenantId: id(2), memberId: id(3) };
@@ -137,7 +137,7 @@ const nouns = businessNouns('gym');
 const slot: Slot = { startsAt: '2026-10-03T04:30:00Z', endsAt: '2026-10-03T05:30:00Z', timezone: 'Asia/Kathmandu' };
 const pack: PtPack = { orderId: id(40), programmeName: 'Held own strength', trainerKey: id(30), trainerName: 'Mira held trainer', sessionsTotal: 10, sessionsUsed: 3, sessionsScheduled: 2, sessionsRemaining: 5, startsOn: '2026-09-01', expiresOn: '2026-12-01', state: 'live', canBook: true, timezone: 'Asia/Kolkata' };
 function facts(): Facts { return { pack: { ...pack }, slots: { data: [{ ...slot }], error: null }, policy: { data: { cancelWindowHours: 12, lateCancelConsumes: true }, error: null } }; }
-function training(current: Facts): MemberTraining { return { trainers: { data: [], error: null }, programmes: { data: [], error: null }, packs: { data: current.pack ? [current.pack] : [], error: null }, upcoming: { data: [], error: null }, history: { data: [], error: null } }; }
+function training(current: Facts): MemberTraining { return { trainers: { data: [], error: null }, programmes: { data: [], error: null }, packs: { data: current.pack ? [current.pack] : [], error: null }, upcoming: { data: [], error: null }, history: current.sessions ?? { data: [], error: null } }; }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 const confirm = /^Confirm(?: booking)?$/i;
 const retry = /^(?:Retry(?:.*booking)?|Try again|Confirm(?: booking)?)$/i;
@@ -146,7 +146,7 @@ let post: ReturnType<typeof vi.fn<(path: string, body: BookingBody) => Promise<R
 let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.resetAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-02T20:00:00Z')); currentFacts = facts();
-  seam.online = true; seam.listeners.clear(); seam.params = { orderId: id(40) };
+  seam.focus = true; seam.online = true; seam.listeners.clear(); seam.params = { orderId: id(40) };
   seam.uuid.mockReturnValueOnce(id(90)).mockReturnValueOnce(id(91)).mockReturnValue(id(92));
   seam.network.mockImplementation(async () => ({ isConnected: seam.online, isInternetReachable: seam.online }));
   const query = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), maybeSingle: vi.fn(async () => ({ data: { timezone: 'Asia/Kolkata' }, error: null })) };
@@ -228,6 +228,11 @@ describe.each(['web', 'native'] as const)('independent actual %s PTF booking', p
     expect(post).toHaveBeenCalledTimes(1); const original = post.mock.calls[0]![1]; expect(h.view.text()).not.toMatch(/successfully booked|booking confirmed/i);
     currentFacts = { ...currentFacts, pack: { ...pack, state: 'closed', canBook: false }, slots: { data: [], error: null } };
     post.mockImplementationOnce(async (_path, body) => ({ ok: true, data: { ...body, endsAt: slot.endsAt, status, inCancelWindow: true, replayed: true } }));
+    if (status === 'cancelled_by_member') currentFacts.sessions = { data: [{
+      ...original, endsAt: slot.endsAt, timezone: slot.timezone, programmeName: pack.programmeName,
+      trainerKey: pack.trainerKey, trainerName: pack.trainerName, status: 'cancelled_by_member', consumed: false,
+      cancelledAt: '2026-10-02T20:00:00Z', cancelCutoff: '2026-10-02T16:30:00Z', lateNow: true, consumesNow: true, canCancel: false,
+    }], error: null };
     await h.view.settle(); expect(post).toHaveBeenCalledTimes(1); await h.view.press(retry);
     expect(post).toHaveBeenCalledTimes(2); expect(post.mock.calls[1]).toEqual(['/api/member/pt-bookings', original]);
     expect(h.view.text()).toContain(status === 'booked' ? 'Booked' : status === 'attended' ? 'Attended' : 'Cancelled by you');
@@ -303,3 +308,4 @@ describe('actual PTF route and refreshed caller boundaries', () => {
     expect(findForm(result)).toBeNull(); expect(seam.slots).not.toHaveBeenCalled(); expect(post).not.toHaveBeenCalled();
   });
 });
+
