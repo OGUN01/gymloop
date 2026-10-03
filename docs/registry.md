@@ -1,5 +1,10 @@
 # Registry — the anti-duplication index
 
+| Symbol | Planned path | Responsibility | Consumers |
+|---|---|---|---|
+| `ptBookingCancellationFeedback` | `packages/shared/src/api/pt-front-data.ts` | Existing neutral message or canonical consumed/nonconsumed cancellation label from authoritative fresh session evidence | Web/native member booking feedback |
+| `ptBookingOpenSlotGroups` | `packages/shared/src/api/pt-front-data.ts` | Own live/bookable pack, succeeded valid future slots grouped in each row's zone; explicit clock input and unchanged order | Web/native member booking day selectors |
+
 ## Approved wallet-paise unit — built; CI application pending
 
 This cutover is authorized by efff581/bf3253c. Source below implements the
@@ -23,13 +28,20 @@ Owner-approved 2026-10-03; exact declarations precede independent tests.
 | `PtMemberPolicy` / `PtPolicyRead` / `PtPolicyReadClient` / `readMemberPtPolicy` | `packages/shared/src/api/pt-front-data.ts` | One strict platform-free nullable policy projection and sanitized failure boundary; narrow caller transport for the new read | Web/native PTF adapters |
 | `loadMemberPtPolicy` / `loadPtPolicy` | `apps/web/lib/training.ts` / `apps/mobile/lib/training.ts` | Supplied-current-caller policy adapters; no default or private settings read | Web/native PTF booking surfaces |
 
-### Approved member booking surface declarations — source pending
+### Approved member booking surfaces — built; final verification pending
 
 | Symbol | Planned path | Responsibility | Consumers |
 |---|---|---|---|
-| `PtBookingFacts` / `PtBookingForm` | `apps/web/app/member/classes/training/pt-actions.tsx` | Current own pack/slot/policy confirmation; exact per-sheet command and uncertain-result replay under permanent caller lifetime | Member booking page |
+| `PtBookingFacts` / `PtBookingForm` | `apps/web/app/member/classes/training/pt-actions.tsx` | Current own pack/slot/policy confirmation and absolute cutoff; exact per-sheet command and uncertain-result replay under permanent caller lifetime; fresh exact session consumption or neutral ordinary feedback | Member booking page |
+| `ptBookingTrainingFacts` / `ptBookingCancellationConsumption` | `packages/shared/src/api/pt-front-data.ts` | Pure own-order pack/current session projection and exact fresh authoritative consumption; no transport, identity, storage or clock | Web/native booking surfaces; member-booking-reuse-public-declarations.md |
+| `PtBookingAnswer` / `ptBookingAnswer` | `packages/shared/src/api/pt-front.ts` | Reuses the canonical book decoder, exact command identity and PT-applicable outcomes; null preserves uncertain retry | Web/native booking command answers |
+| `requireOriginalMember` | `apps/web/lib/member-action-caller.ts` | Fresh existing member guard plus exact original user/tenant/member equality for captured server actions | Classes and PT booking action reads |
 | Member booking page default export | `apps/web/app/member/classes/training/book/[orderId]/page.tsx` | Authenticated own-order route with full original caller revalidation before refreshed facts | Training pack Book link |
-| Native booking screen default export | `apps/mobile/app/training/book/[orderId].tsx` | Current useMobile member and own-order booking using registered readers, kit and API | Native Training pack Book action |
+| `PtBookingScreen` (default export) | `apps/mobile/app/training/book/[orderId].tsx` | Current useMobile member and own-order booking using registered readers, kit and API; permanent mounted-stack focus lifetime | Native Training pack Book action |
+| `BookingSelection` / `BookingSheet` / `bookingSelection` / `sameBookingSelection` (private) | `apps/web/app/member/classes/training/pt-actions.tsx` | Exact returned slot and current policy selection, consequence/cutoff comparison and one-sheet command identity; no new eligibility rule | `PtBookingForm` |
+| `readBookingFacts` / captured `refreshFacts` (private) | `apps/web/app/member/classes/training/book/[orderId]/page.tsx` | Supplied current-caller pack/slots/policy/session reads and full original-caller server-action revalidation | Member booking page and form |
+| `BookingSlot` / `NativeBookingFacts` / `NativeBookingLifetime` / `NativeBookingSelection` / `NativeBookingSheet` / `selectBooking` / `bookingFactsChanged` (private) | `apps/mobile/app/training/book/[orderId].tsx` | Native exact selection, changed-fact confirmation and permanently revoked caller/focus capability; no persisted booking queue | Native booking screen |
+| Native booking `current` / `publish` / `connected` / `refresh` / `reload` / `prepare` / `commit` / `close` (private closures) | Same native booking screen | Guard every awaited read, final network preflight, explicit submission/retry and publication with the original capability | Native booking screen |
 
 | SHP application symbols | Path | Responsibility | Consumers |
 |---|---|---|---|
@@ -1079,6 +1091,7 @@ must come from CLI generation after CI applies the migrations.
 | `app.guard_pt_policy_write` / organization_settings_guard_pt_policy / `app.guard_pt_cancellation_completion` / pt_cancellations_completed_order_immutable | PTF migration above | Audited-only policy writes and immutable causal completion marker | PTF settings and cancellation guards |
 | `app.pt_member_actor` / `app.pt_staff_actor` / `app.pt_member_command_ok` | PTF migration above | Complete current identity and narrowly scoped member-command admission to unchanged Phase 6 guards | PTF readers/commands and three surgical Phase 6 replacements; no session EXECUTE grants |
 | `app.pt_trainer_key` / `app.pt_booking_status` / `app.pt_pack_state` / `app.pt_slot_state` | PTF migration above | Deterministic private-id pseudonym, derived booking/pack state and one read/write availability predicate | Member projections and booking |
+| `app.pt_availability_grid(text,text,date,date,jsonb,integer)` | `supabase/migrations/20261003170000_pt_front_contract_repairs.sql` (built; CI application and runtime verification pending) | Private STABLE invoker enumeration of absolute trainer-local grid starts inside requested gym-local dates; handles repeated/missing wall times without actor, clock or tenant-table reads; no ordinary/service execute grants | `public.read_member_pt_slots`; frozen `grid-repair-public-declarations.md` |
 | `app.pt_audit` / `app.pt_write_profile` | PTF migration above | Allowlisted audit and private shared profile validation/attachment core for separately authorized owner and self-service commands (ADR-182) | Trainer profile writers and PTF audited commands; no session EXECUTE grants |
 | `public.read_member_trainers` / `public.read_member_programmes` / `public.read_member_pt_packs` / `public.read_member_pt_sessions` / `public.read_member_pt_slots` | PTF migration above | Safe member projections; expired remaining counts unused sessions, all other states subtract reservations | Web/mobile Training |
 | `public.read_pt_bookings` / `public.read_pt_packs` | PTF migration above | Staff/trainer-scoped bookings and pack projection with the same expired-balance exception | Training console and future TRV |
@@ -1316,10 +1329,10 @@ These scoped rows register application source; rendered-surface and live accepta
 | `AnnouncementsSection` / `AnnouncementCard` / `AnnouncementCards` | `apps/web/app/member/announcements-section.tsx`, `announcement-card.tsx`, `announcement-cards.tsx`; `apps/mobile/components/announcements.tsx` | Independent Home section, three cards then show all, plain text/decorative image, dot-plus-word read state and open-only receipt | Existing member Home screens |
 | `ANNOUNCEMENT_CACHE_KEY` / `AnnouncementScope` / `CachedFeed` / `resolveAnnouncementFeed` / `applyLocalRead` / `loadAnnouncementCache` / `saveAnnouncementCache` / `queueRead` / `flushPendingReads` | `apps/mobile/lib/announcements.ts` | Existing SecureStore, exact tenant/user/member scope, safe validation, serialized writes, authoritative stored card state plus exact pending-read optimism overlay, and revision-checked pending receipt delivery | `useAnnouncements`, visible cache assertions |
 | `clearAnnouncementCache` | `apps/mobile/lib/announcements.ts` | Synchronously invalidates preceding announcement cache work, then deletes cards/pending receipts in serialized SecureStore order | MobileProvider identity cleanup |
-| `discardAnnouncementCache` (approved declaration; source pending) | `apps/mobile/lib/announcements.ts` | Discards only a definitively refused current complete caller scope under serialized storage and permanent lifetime checks; a late refusal cannot erase/revoke a newer cache | Native announcement feed permission failure |
+| `discardAnnouncementCache` (built; CI verification pending) | `apps/mobile/lib/announcements.ts` | Discards only a definitively refused current complete caller scope under serialized storage and permanent lifetime checks; a late refusal cannot erase/revoke a newer cache | Native announcement feed permission failure |
 | `clearPrivateFeatures` (private provider coordination) | `apps/mobile/lib/mobile-context.tsx` | Immediately attempts both feature cache revocations, independently captures invocation errors, and waits for both cleanup outcomes before completing or rejecting | MobileProvider authentication replacement, sign-out and teardown |
 | `cacheRevision` (private cache coordination) | `apps/mobile/lib/announcements.ts` | Permanently revokes preceding reads/saves/queued receipts while ordered cleanup prevents late restoration | Native announcement cache operations |
-| `useAnnouncements` | `apps/mobile/lib/use-announcements.ts` | Independent API feed; seven public fields, private caller lifetime, same-scope saved copy, and permanently revoked retained work after caller replacement/unmount | Native Home section |
+| `useAnnouncements` | `apps/mobile/lib/use-announcements.ts` | Independent API feed; seven public fields, private caller/read capabilities, reachable same-scope saved copy with truthful refresh feedback, and permanently revoked retained work after caller replacement/unmount or definitive permission refusal | Native Home section |
 
 ## CLS screen interfaces
 

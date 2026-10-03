@@ -6,6 +6,65 @@ current checkpoint below supersedes the historical session-1 snapshot.
 
 ## Current checkpoint
 
+- Latest primary checkpoint (2026-10-03, supersedes older pending-source and
+  owner-decision references below): member PT booking is source-committed
+  d8a8c95; fresh clean source review gives GO and its focused visible/held
+  decoder, focus and replay checks pass. Guardian linked-account copy is
+  source-committed a5eeca9 with independent visible16/held17 and clean source
+  GO. Approved neutral Privacy wording is frozen1b03d18, independently tested
+  4ad5b81 and source-committed5cf06d6, with9 new assertions and source GO.
+  The complete native run passes44 files/552 assertions; independent legacy
+  web host/oracle repairs pass59 assertions and the release guard7 assertions.
+  Broader consolidated gates and actual runtime/visual acceptance remain open.
+  Four real duplication findings in PT booking have frozen reuse declarations
+  ce7f272/4e7dc27 and independently committed RED tests40a911c; the separate
+  source is separately committedcc69ec7 after further frozen declarations
+  cbc17d0 and independent RED additions140d276. Current focused309/309 checks
+  pass; a fresh clean source critic gives GO. The exact committed tracked source
+  passes five-package typecheck, knip and zero-clone duplication. Receipt:
+  docs/evidence/v2/pt-booking-reuse-local.json. No ignore or formatting workaround.
+- PT absolute-grid/eligibility repair is source-committed03a08b8 after separate
+  visible75 and holdout91 SQL assertions4a2e586. Fresh blind source review gives
+  GO, but those SQL assertions have not executed. The exact-second grid's
+  maximum14-day runtime/resource behavior also needs actual verification.
+  Owner deferred pgTAP execution during building; retain affected/full SQL
+  verification before publishing. The earlier131-file cached proof below
+  excludes this repair and all newer Wave C migrations/tests.
+- External Wave C coordination has progressed: contract freeze08c713b and
+  independent SQL RED commits5909903/2f69101/cf2c05a are present; NTF/PAY source
+  and app authors are in flight. Its older draft/no-author entries are historical.
+  Provider/compliance prerequisites still require actual activation evidence.
+  Owner asks for dependency-safe parallel Wave D work. The prepared prompt and
+  shared-path/migration checkpoint are scratchpad/wave-d-parallel-prompt.txt
+  and scratchpad/primary-batch2-checkpoint.md. Pending Wave D commercial/legal
+  choices are not implicitly approved. No push or device acceptance is claimed.
+
+- Latest post-review repair checkpoint (2026-10-03): all five scoped owner
+  repairs are approved/frozen in5fc3c17; earlier pending references to them are
+  superseded. Policy reads/cancel-by migrationc086b93 and CLS current-facts/final
+  cutoff source219f84b are committed, as are navigation/privacyba3c840 and shared
+  reusef37dfcb. PT booking pages now exist on both platforms: focused visible
+  75/75 and independent held89/89 pass, including native mounted-stack focus,
+  absolute cutoff, exact retry identity and fresh effective consumption.
+  Final clean source review remains pending. ANC unknown-outcome/scoped-cache
+  and reachable saved-copy repairs pass focused visible36/36, held42/42 and
+  affected legacy136/136; a fresh source-only critic gives GO. GRD linked-copy
+  independent visible/held tests are committed before its separate repair.
+  The external source report is preserved unchanged; no full acceptance is
+  inferred from it. Demo scenarios, remaining report minors, broad gates,
+  runtime/visual/browser/Android proof, Waves C/D and release remain open.
+- Isolated wallet source is committedb29c27c and has fresh source GO, affected
+  SQL864/864, independent cutover67/67, visible241/241, held42/42 and two
+  rollback seed passes. Receipt: wallet-paise-local-verification.json. The full
+  rollback sweep pinned368adb9 covers131 files/12,982 assertions; its only three
+  failures were old operational balance-after-credit column expectations.
+  Independent spec correction335556b preserves63 schema assertions in approved
+  paise units, then the only changed SQL file passes63/63 against identical
+  pinned migration hashes. Combined full proof is131/131 with zero failures:
+  docs/evidence/v2/batch2-postrepair-pgtap-local.json. Cloud lock is released;
+  neither policy nor wallet migration has been permanently applied. No push,
+  provider activation, device use or versionCode5 release occurs here.
+
 - Latest completion checkpoint (2026-10-03): all batch-2 application source is
   committed after its independent tests: MEDIA7f2a5b9, PLC0d802c1,
   SHP94b0974/d4b8792, BIZ/contextb19b7f1, GRDda97b59, CLSaf19a32 and ANC068c926.

@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-03",
+  "source_commit": "cc69ec7",
+  "spec_commits": ["ce7f272", "4e7dc27", "cbc17d0"],
+  "independent_red_test_commits": ["40a911c", "140d276"],
+  "test_independence": "Separate visible and holdout authors read approved public declarations only; separate source builder read no tests or private outputs; fresh source critic read no tests or prior reviews.",
+  "focused_verification": {
+    "shared": { "files": 2, "passed": 76 },
+    "web": { "files": 2, "passed": 41 },
+    "native_and_holdout": { "files": 5, "passed": 192 },
+    "total_passed": 309,
+    "failures": 0
+  },
+  "source_review": { "critic": "pt_booking_reuse_final_clean_critic", "verdict": "GO", "scope": "Seven exact production files; source-only." },
+  "tracked_snapshot_gates": {
+    "source_snapshot": "cc69ec7",
+    "typecheck": { "workspaces": ["packages/shared", "packages/db", "packages/api-client", "apps/web", "apps/mobile"], "all_passed": true, "compiler_settings": "Canonical; package dependencies resolve the pinned workspace sources." },
+    "knip": { "passed": true },
+    "duplication": { "source_files": 379, "clones": 0, "passed": true, "scope": "Canonical tracked source archive before dependency junctions; canonical test/generated-source exclusions retained; git-ignore discovery unnecessary because archive contains no untracked files." }
+  },
+  "limits": [
+    "Other chat's unfinished Wave C files and dependency edits are excluded from the tracked snapshot; integrated full-v2 gates remain required.",
+    "No pgTAP execution: owner deferred it during building; new SQL runtime/performance and affected/full sweep remain required before publishing.",
+    "No browser, Android device, live provider, CI deployment, archive or release acceptance is inferred."
+  ]
+}

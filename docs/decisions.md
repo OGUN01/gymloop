@@ -1909,3 +1909,44 @@ No new authority state or ignore escape.
 ### CLS application UI reuse note (2026-10-03)
 
 CLS screens reuse `StatusWord`, `RouteError`, registered caller readers, business nouns, and the native `Screen`, `Row`, `Status`, `Sheet`, `SheetHeader`, `RowAction`, `ActionButton`, `StateMessage`, `LoadingState`, `EmptyState`, `ErrorRetry` and `SearchField`. Existing Shop command copy and its private confirmation dialog do not express class refusals or result semantics, so the class action module adds a caller-bound command hook and an accessible native HTML dialog wrapper, consumed by member, roster and owner editors. No shared design primitive or Classes/Training control is added. `MemberClassesView` and `ClassesPane` remain integration interfaces for the PTF-owned controls. Unbooked cancellation deadlines remain unavailable under the accepted read contract; confirmation refuses commitment until the separate prebooking-cutoff amendment is approved, independently tested and applied. No default cancellation policy is invented.
+
+### PT absolute grid enumeration reuse decision (2026-10-03)
+
+Frozen grid-repair-public-declarations.md preserves PTF-008 and PTF-017.
+app.pt_slot_state remains the sole live availability classifier. It cannot
+supply a complete set of absolute starts for a requested gym-local day range;
+converting trainer wall times once loses repeated instants and can normalize
+missing times. The private, clock-independent pt_availability_grid seam is a
+real production reader dependency, not a test-only override. Its STABLE invoker
+posture reads no tenant data and grants no ordinary or service execution. Fixed
+DST dates can therefore be tested all year without altering the clock or the
+unchanged Phase-6 current-day sold-validity guard. The reader retains both sold
+windows and filters current eligibility before its existing ordered cap.
+Target eligibility precedes same-trainer refusal exactly as PTF-017 specifies.
+No new business calendar bound, pack eligibility, money rule or public RPC is
+introduced. Independent visible and holdout authors precede the separate build.
+
+### PT booking projection and caller-action reuse (2026-10-03)
+
+The duplication gate identifies four repeated responsibilities in the new
+web/native booking paths. Registry search finds canonical readers, decoder,
+interval validator and member guard, but no primitive owns the common Training
+projection, exact public command-answer mapping, fresh cancellation-consumption
+match or original-member reacquisition. Frozen member-booking-reuse-public-
+declarations.md adds those narrow wrappers in their existing layers. Each
+reuses those canonical primitives. The web action wrapper is a thin separate
+server adapter, keeping the identity core stable; all three original identity
+fields still must match after the fresh member guard. Transport, caller/focus
+capabilities, fresh-read ordering, selection, confirmation and uncertain replay
+remain in their existing surfaces. Independent tests precede implementation;
+no duplication ignore, reformatted clone or broader authority is introduced.
+
+The final reuse continuation also centralizes cancellation feedback after the
+unchanged fresh-read/lifetime check and groups valid future slots by each row's
+own zone. Existing groupSlotsByLocalDay takes a single collection timezone;
+it does not own this own-live-pack and mixed-row-zone boundary. The two pure
+wrappers delegate existing consumption/status/interval/local-date primitives,
+take an explicit finite clock and introduce no seventh status or new calendar.
+Frozen cbc17d0 and independent RED additions140d276 precede separate source
+cc69ec7. The current approved CLS cutoff/policy boundaries supersede the older
+pending language in the historical reuse note above.

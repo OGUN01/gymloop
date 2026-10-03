@@ -731,3 +731,71 @@ forging evidence after cutover. JSON201 metadata corrects an accidental303 label
 Full WSP/NTF remains draft; pending owner decisions, Waves C/D, every gate,
 consolidated critics and full browser/Android scenarios remain open. No push,
 archive or versionCode5 release occurred.
+
+### Post-readiness repair checkpoint, 2026-10-03
+
+The owner's external parallel-batch2-readiness-review.md is retained unchanged
+as source inspection, not acceptance. All five scoped repairs are approved in
+5fc3c17. Current committed policy/cancel-byc086b93, CLS final refresh/cutoff
+219f84b and navigation/privacyba3c840 close the corresponding primary-flow
+integration gaps after independent tests. Shared shape/online reusef37dfcb
+retains193 affected visible and303 held checks, plus the affected UI assertions.
+
+The isolated wallet unit is now source-committedb29c27c after fresh source GO,
+864 affected pgTAP assertions,67 one-time independent cutover assertions,
+241 visible and42 held consumer assertions, and two actual seed rollback runs.
+The complete SQL sweep pinned368adb9 executes131 files and12,982 assertions.
+Its only three failures are superseded operational balance-after-credit schema
+expectations in31_comms_schema_consent.sql. Independent335556b retains all63
+assertions in the owner-approved paise schema; that only changed SQL file passes
+63/63 against identical pinned migration hashes. The composed full proof is
+131/131, zero failures, exact plans. The redacted receipt records both snapshots
+and proof kind at batch2-postrepair-pgtap-local.json. No permanent schema or
+money conversion occurs; CI remains the sole applier.
+
+PT booking source passes75 visible and89 independent held assertions after
+tests-first focus, consumption, absolute-cutoff and closed status-vocabulary
+repairs. A replacement clean source critic is required; a candidate that emitted
+test excerpts during a recursive search is excluded from acceptance. Guardian
+copy's first proposed visible author is likewise excluded after a metadata read
+included a reader body; a replacement clean author commits0bf46a3, independently
+of helda31b534, before the separate source repair. No contaminated candidate
+supplies a test or acceptance claim. ANC focused36 visible/42 held plus136
+legacy assertions pass; fresh source criticanc_complete_final_fresh_critic
+returns GO including the actual saved-copy consumer. Final browser, Android,
+visual and production-gate acceptance remains open for every feature.
+
+### Current repair proof boundaries and parallel checkpoint, 2026-10-03
+
+PT member-booking source d8a8c95 follows independent tests and passes the
+focused visible/held decoder, fresh-facts, focus and exact-replay checks;
+the replacement uncontaminated source critic gives GO. Guardian linked-account
+copy a5eeca9 passes independent visible16 and held17 with fresh source GO.
+Owner-approved neutral Privacy wording is frozen1b03d18, tested separately
+4ad5b81 and built5cf06d6:9 new checks pass and a fresh source critic gives GO.
+The complete native run is44 files/552 assertions green. Independently repaired
+legacy web hosts/oracles pass59 assertions; the release guard passes7.
+
+PT SQL grid/target-eligibility source03a08b8 follows separately authored visible75
+and holdout91 assertions4a2e586 and has source-only GO. Actual SQL execution
+and maximum14-day grid performance are unverified. The owner deferred pgTAP
+during building; the affected/full sweep remains required before publishing.
+The cached131-file proof is pinned to its earlier two migrations and excludes
+this SQL repair and Wave C. No permanent schema change is claimed.
+
+Four genuine PT booking clones require the frozen narrow reuse declarations
+ce7f272/4e7dc27. Independent visible27 and held13 tests are all actually RED
+before their separate40a911c test commit; the separate source builder is in
+flight at that checkpoint. Additional genuine feedback/day grouping boundaries
+freezecbc17d0 and independent RED additions140d276 precede separate source
+cc69ec7. Focused309/309 assertions pass, a fresh clean source critic gives GO,
+and exact committed tracked source passes all five package typechecks, knip and
+zero-clone duplication. Receipt: pt-booking-reuse-local.json. These exclude the
+external chat's unfinished Wave C sources and establish no full-v2 acceptance.
+
+Wave C's external contract/SQL RED commits are present and its builders/authors
+continue. The primary publishes a shared-path/migration checkpoint and a Wave D
+parallel prompt; these authorize coordination, not unapproved commercial/legal
+choices. Demo scenarios, final consolidated gates, browser/Android proof, CI,
+archival and versionCode5 remain open. No push, provider activation or occupied
+USB-device action occurs in this checkpoint.
