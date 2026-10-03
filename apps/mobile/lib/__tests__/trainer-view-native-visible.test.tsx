@@ -76,14 +76,14 @@ const DAY_END = Date.parse('2026-03-09T00:00:00+05:30');
 
 function scriptedClient(pages: Array<Record<string, unknown>[]>, error: Record<string, unknown> | null = null) {
   const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+  const indexes: Record<string, number> = {};
   const client = {
     rpc: async (name: string, args: Record<string, unknown>) => {
       calls.push({ name, args });
       if (error) return { data: null, error };
-      const page = name === 'read_pt_bookings'
-        ? (args.p_after_starts_at == null ? pages[0] : pages[1])
-        : (args.p_after_id == null ? pages[0] : pages[1]);
-      return { data: page ?? [], error: null };
+      const hasCursor = args.p_after_starts_at != null || args.p_after_id != null;
+      const index = hasCursor ? (indexes[name] = (indexes[name] ?? 0) + 1) : 0;
+      return { data: pages[index] ?? [], error: null };
     },
   };
   return { client, calls };
@@ -136,15 +136,16 @@ describe('TRV-002/005/006 host read contract', () => {
     for (const call of calls) expect(JSON.stringify(call.args)).not.toContain('other-staff');
     await expect(loadTrainerZone(client as never, { kind: 'member', userId: USER_ID, tenantId: TENANT_ID, memberId: 'm1' } as GymloopIdentity)).rejects.toThrow();
   });
-  it('day reads use trainer-local midnight bounds, exhaust pages, and accept no other-trainer filter', async () => {
+  it('day reads use trainer-local midnight bounds, exhaust pages until a successful empty page, and accept no other-trainer filter', async () => {
     const { loadTrainerBookings } = await import('../../lib/trainer-view');
     const pageOne = Array.from({ length: 50 }, (_, index) => bookingRow({ session_id: `s-${index}`, member_code: `M-${String(index).padStart(4, '0')}` }));
-    const { client, calls } = scriptedClient([pageOne, [bookingRow({ session_id: 's-last', member_code: 'M-9999' })]]);
+    const { client, calls } = scriptedClient([pageOne, [bookingRow({ session_id: 's-last', member_code: 'M-9999' })], []]);
     const section = await loadTrainerBookings(client as never, trainerIdentity, { p_from: '2026-03-07T18:30:00+00:00', p_to: '2026-03-08T18:30:00+00:00' });
     expect(section.error).toBeNull();
     expect(section.data).toHaveLength(51);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     expect(calls[1]!.args.p_after_id).toBe('s-49');
+    expect(calls[2]!.args.p_after_id).toBe('s-last');
     for (const call of calls) {
       expect(Date.parse(String(call.args.p_from))).toBe(DAY_START);
       expect(Date.parse(String(call.args.p_to))).toBe(DAY_END);

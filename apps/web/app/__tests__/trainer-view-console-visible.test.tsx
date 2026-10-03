@@ -11,11 +11,14 @@ const seam = vi.hoisted(() => ({
   rpc: [] as Array<{ name: string; args: Record<string, unknown> }>,
   bookingPages: [] as Array<Record<string, unknown>[]>,
   packPages: [] as Array<Record<string, unknown>[]>,
+  bookingPageIndex: 0,
+  packPageIndex: 0,
   choices: [] as Array<Record<string, unknown>>,
   bookingError: null as Record<string, unknown> | null,
   packError: null as Record<string, unknown> | null,
   redirects: [] as string[],
   loaderCalls: [] as string[],
+  loaderArgs: [] as Array<{ name: string; args: unknown[] }>,
 }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => { seam.redirects.push(path); throw new Error(`REDIRECT:${path}`); },
@@ -33,13 +36,13 @@ vi.mock('../../lib/identity-session', () => ({
         seam.rpc.push({ name, args });
         if (name === 'read_pt_bookings') {
           if (seam.bookingError) return { data: null, error: seam.bookingError };
-          const page = args.p_after_starts_at == null ? seam.bookingPages[0] : seam.bookingPages[1];
-          return { data: page ?? [], error: null };
+          const index = args.p_after_starts_at == null ? 0 : ++seam.bookingPageIndex;
+          return { data: seam.bookingPages[index] ?? [], error: null };
         }
         if (name === 'read_pt_packs') {
           if (seam.packError) return { data: null, error: seam.packError };
-          const page = args.p_after_id == null ? seam.packPages[0] : seam.packPages[1];
-          return { data: page ?? [], error: null };
+          const index = args.p_after_id == null ? 0 : ++seam.packPageIndex;
+          return { data: seam.packPages[index] ?? [], error: null };
         }
         return { data: [], error: null };
       },
@@ -52,8 +55,8 @@ vi.mock('../../lib/training-console', async importOriginal => {
   return {
     ...actual,
     loadTrainerChoices: async () => seam.choices,
-    loadPtBookings: async (...args: unknown[]) => { seam.loaderCalls.push('bookings'); return (actual.loadPtBookings as (...a: unknown[]) => unknown)(...args); },
-    loadPtPacks: async (...args: unknown[]) => { seam.loaderCalls.push('packs'); return (actual.loadPtPacks as (...a: unknown[]) => unknown)(...args); },
+    loadPtBookings: async (...args: unknown[]) => { seam.loaderCalls.push('bookings'); seam.loaderArgs.push({ name: 'bookings', args }); return (actual.loadPtBookings as (...a: unknown[]) => unknown)(...args); },
+    loadPtPacks: async (...args: unknown[]) => { seam.loaderCalls.push('packs'); seam.loaderArgs.push({ name: 'packs', args }); return (actual.loadPtPacks as (...a: unknown[]) => unknown)(...args); },
   };
 });
 
@@ -101,16 +104,22 @@ const packCalls = () => seam.rpc.filter(call => call.name === 'read_pt_packs');
 
 beforeEach(() => {
   seam.identity = trainer;
-  seam.rpc = []; seam.bookingPages = []; seam.packPages = []; seam.bookingError = null; seam.packError = null; seam.redirects = []; seam.loaderCalls = [];
+  seam.rpc = []; seam.bookingPages = []; seam.packPages = []; seam.bookingPageIndex = 0; seam.packPageIndex = 0; seam.bookingError = null; seam.packError = null; seam.redirects = []; seam.loaderCalls = []; seam.loaderArgs = [];
   seam.choices = [{ staffId: STAFF_ID, name: 'Trainer One', timezone: 'Asia/Kolkata' }];
 });
 
 describe('TRV-001/006 entry and read scope', () => {
-  it('a verified trainer reaches own-client reads with no selectable trainer filter', async () => {
+  it('a verified trainer reaches own-client reads through the published adapters with no selectable trainer filter', async () => {
     seam.bookingPages = [[bookingRow({})]]; seam.packPages = [[]];
     await renderTrainerDay();
-    expect(bookingCalls().length).toBeGreaterThan(0);
-    for (const call of bookingCalls()) expect(call.args.p_trainer_staff_id == null).toBe(true);
+    expect(seam.loaderCalls).toContain('bookings');
+    expect(seam.loaderCalls).toContain('packs');
+    for (const entry of seam.loaderArgs) {
+      const filters = (entry.args[2] ?? {}) as Record<string, unknown>;
+      expect(filters.p_trainer_staff_id ?? null).toBeNull();
+      expect(filters.p_status ?? null).toBeNull();
+    }
+    for (const call of bookingCalls()) expect(call.args.p_trainer_staff_id).toBe(STAFF_ID);
   });
   it('other staff keep their existing PTF surface and are not given the trainer day contract', async () => {
     seam.identity = { kind: 'staff', role: 'gym_owner', userId: USER_ID, tenantId: TENANT_ID, staffId: OTHER_STAFF_ID };
@@ -169,18 +178,21 @@ describe('TRV-003 sessions and TRV-005 complete paging', () => {
     expect(text).toContain(ptBookingStatusLabel('booked', false, ''));
     expect(text).toContain(ptBookingStatusLabel('no_show', false, ''));
   });
-  it('exhausts every keyset page before presenting the complete day', async () => {
+  it('exhausts every keyset page until a successful empty page before presenting the complete day', async () => {
     const pageOne = Array.from({ length: 50 }, (_, index) => bookingRow({
       session_id: `s-${index}`, member_code: `M-${String(index).padStart(4, '0')}`, member_name: `Member ${index}`,
       starts_at: '2026-03-08T03:00:00+00:00',
     }));
-    seam.bookingPages = [pageOne, [bookingRow({ session_id: 's-last', member_code: 'M-9999', member_name: 'Last Client' })]];
+    seam.bookingPages = [pageOne, [bookingRow({ session_id: 's-last', member_code: 'M-9999', member_name: 'Last Client' })], []];
     seam.packPages = [[]];
     const text = await renderTrainerDay();
-    expect(bookingCalls()).toHaveLength(2);
+    expect(bookingCalls()).toHaveLength(3);
     const second = bookingCalls()[1]!.args;
     expect(second.p_after_starts_at).toBe('2026-03-08T03:00:00+00:00');
     expect(second.p_after_id).toBe('s-49');
+    const third = bookingCalls()[2]!.args;
+    expect(third.p_after_starts_at).toBe('2026-03-08T03:00:00+00:00');
+    expect(third.p_after_id).toBe('s-last');
     expect(text).toContain('Last Client'); expect(text).toContain('M-9999');
   });
 });
