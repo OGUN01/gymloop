@@ -11,6 +11,7 @@ source lands; then update those rows atomically with the source commit.
 | `public.adjust_messaging_wallet_paise(uuid,bigint,text,text,uuid)` | `supabase/migrations/20261004085000_messaging_wallet_paise.sql` | Exact INR/paise command; complete active super-admin authority, locked replay and atomic audit; no transport activation | Existing wallet POST |
 | `app.record_wallet_movement(uuid,bigint,text,text,uuid,uuid,uuid)` | Same approved migration | Sole private paise arithmetic/replay/audit helper; no session EXECUTE | Owning paise adjustment |
 | `app.enforce_wallet_conversion_evidence()` | Same approved migration | Invoker trigger protects original-credit metadata and rejects forged converted history; no callable conversion escape | Wallet and ledger evidence guards |
+| `POSTGRES_BIGINT_MIN` / `POSTGRES_BIGINT_MAX` | `packages/shared/src/config/constants.ts` | Exact signed PostgreSQL bigint bounds; retain the existing phase6 delta-input range rule without Number conversion | Strict wallet paise request schema |
 
 | SHP application symbols | Path | Responsibility | Consumers |
 |---|---|---|---|
