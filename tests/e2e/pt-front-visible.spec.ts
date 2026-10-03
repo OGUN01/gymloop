@@ -3,6 +3,45 @@ import AxeBuilder from '@axe-core/playwright';
 import { playwrightEnv } from '@gymloop/shared';
 const { DEMO_ACCOUNT_PASSWORD: password } = playwrightEnv();
 const sizes = [{ width: 390, height: 844 }, { width: 1440, height: 1000 }] as const;
+async function doubleApplicationText(page: import('@playwright/test').Page) {
+  const snapshot = await page.evaluate(() => {
+    const roots = [...document.querySelectorAll<HTMLElement>('main, nav[aria-label="Member navigation"], nav[aria-label="Student navigation"]')];
+    const elements = [...new Set(roots.flatMap(root => [root, ...root.querySelectorAll<HTMLElement>('*')]))];
+    return elements.flatMap((element, index) => {
+      const computed = getComputedStyle(element); const box = element.getBoundingClientRect();
+      const ownText = [...element.childNodes].some(node => node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim()));
+      if (!(element instanceof HTMLElement) || !box.width || !box.height || computed.visibility === 'hidden'
+        || !(ownText || element.matches('p,h1,h2,h3,h4,h5,h6,a,button,label,input,select,textarea,legend,summary'))) return [];
+      return [{ index, tag: element.tagName, text: element.textContent, fontSize: Number.parseFloat(computed.fontSize), lineHeight: computed.lineHeight,
+        paragraph: element.matches('main p'), navigationLabel: element.matches('nav a') }];
+    });
+  });
+  expect(snapshot.some(item => item.paragraph)).toBe(true);
+  expect(snapshot.some(item => item.navigationLabel)).toBe(true);
+  // All baseline reads above finish before the first temporary style write.
+  await page.evaluate(records => {
+    const roots = [...document.querySelectorAll<HTMLElement>('main, nav[aria-label="Member navigation"], nav[aria-label="Student navigation"]')];
+    const elements = [...new Set(roots.flatMap(root => [root, ...root.querySelectorAll<HTMLElement>('*')]))];
+    for (const item of records) {
+      const element = elements[item.index];
+      if (!element || element.tagName !== item.tag || element.textContent !== item.text) throw new Error('Application text changed during enlargement fixture');
+      element.style.setProperty('font-size', `${item.fontSize * 2}px`, 'important');
+      const numericLineHeight = Number.parseFloat(item.lineHeight);
+      element.style.setProperty('line-height', Number.isFinite(numericLineHeight) ? `${numericLineHeight * 2}px` : item.lineHeight, 'important');
+    }
+  }, snapshot);
+  const enlarged = await page.evaluate(records => {
+    const roots = [...document.querySelectorAll<HTMLElement>('main, nav[aria-label="Member navigation"], nav[aria-label="Student navigation"]')];
+    const elements = [...new Set(roots.flatMap(root => [root, ...root.querySelectorAll<HTMLElement>('*')]))];
+    return records.map(item => { const style = getComputedStyle(elements[item.index]!); return { fontSize: Number.parseFloat(style.fontSize), lineHeight: style.lineHeight }; });
+  }, snapshot);
+  for (const [index, before] of snapshot.entries()) {
+    expect(enlarged[index]!.fontSize).toBeCloseTo(before.fontSize * 2);
+    const lineHeight = Number.parseFloat(before.lineHeight);
+    if (Number.isFinite(lineHeight)) expect(Number.parseFloat(enlarged[index]!.lineHeight)).toBeCloseTo(lineHeight * 2);
+    else expect(enlarged[index]!.lineHeight).toBe(before.lineHeight);
+  }
+}
 async function openTraining(page: import('@playwright/test').Page) {
   await page.goto('/sign-in'); await page.getByText('Use email instead', { exact: true }).click();
   await page.getByLabel('Email').fill('aarav.member@ironbox.example.com'); await page.getByLabel('Password').fill(password ?? '');
@@ -15,12 +54,13 @@ async function selectOpenSlot(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: /(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun).*\d{1,2}[:.]\d{2}/ }).first().click();
 }
 for (const theme of ['light', 'dark'] as const) for (const viewport of sizes) {
-  test(`PTF-Q9 Training ${theme} ${viewport.width} large text and reduced motion`, async ({ page }) => {
+  test(`PTF-Q9 Training ${theme} ${viewport.width} large text and reduced motion`, async ({ page }, info) => {
     await page.setViewportSize(viewport); await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
     await openTraining(page);
     await expect(page.getByRole('link', { name: 'Training', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Classes', exact: true }).first()).toBeVisible();
-    await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
+    await page.screenshot({ path: info.outputPath(`training-${theme}-${viewport.width}.png`), fullPage: true });
+    await doubleApplicationText(page);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     const content = page.getByRole('main');
@@ -47,6 +87,7 @@ for (const theme of ['light', 'dark'] as const) for (const viewport of sizes) {
       expect(box?.height).toBeGreaterThanOrEqual(44); expect(box?.width).toBeGreaterThanOrEqual(44);
     }
     expect(visibleTargets).toBeGreaterThan(0);
+    await page.screenshot({ path: info.outputPath(`training-${theme}-${viewport.width}-large-text.png`), fullPage: true });
   });
 }
 test('PTF-Q1/Q2/Q3 current pack reaches confirm in four taps and states cutoff before mutation', async ({ page }) => {

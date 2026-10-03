@@ -4,6 +4,45 @@ import { playwrightEnv } from '@gymloop/shared';
 
 const { DEMO_ACCOUNT_PASSWORD: password } = playwrightEnv();
 const accounts = { member: 'aarav.member@ironbox.example.com', owner: 'owner@ironbox.example.com', desk: 'divya@ironbox.example.com' };
+async function doubleApplicationText(page: import('@playwright/test').Page) {
+  const snapshot = await page.evaluate(() => {
+    const roots = [...document.querySelectorAll<HTMLElement>('main, nav[aria-label="Member navigation"], nav[aria-label="Student navigation"]')];
+    const elements = [...new Set(roots.flatMap(root => [root, ...root.querySelectorAll<HTMLElement>('*')]))];
+    return elements.flatMap((element, index) => {
+      const computed = getComputedStyle(element); const box = element.getBoundingClientRect();
+      const ownText = [...element.childNodes].some(node => node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim()));
+      if (!(element instanceof HTMLElement) || !box.width || !box.height || computed.visibility === 'hidden'
+        || !(ownText || element.matches('p,h1,h2,h3,h4,h5,h6,a,button,label,input,select,textarea,legend,summary'))) return [];
+      return [{ index, tag: element.tagName, text: element.textContent, fontSize: Number.parseFloat(computed.fontSize), lineHeight: computed.lineHeight,
+        paragraph: element.matches('main p'), navigationLabel: element.matches('nav a') }];
+    });
+  });
+  expect(snapshot.some(item => item.paragraph)).toBe(true);
+  expect(snapshot.some(item => item.navigationLabel)).toBe(true);
+  // All baseline reads above finish before the first temporary style write.
+  await page.evaluate(records => {
+    const roots = [...document.querySelectorAll<HTMLElement>('main, nav[aria-label="Member navigation"], nav[aria-label="Student navigation"]')];
+    const elements = [...new Set(roots.flatMap(root => [root, ...root.querySelectorAll<HTMLElement>('*')]))];
+    for (const item of records) {
+      const element = elements[item.index];
+      if (!element || element.tagName !== item.tag || element.textContent !== item.text) throw new Error('Application text changed during enlargement fixture');
+      element.style.setProperty('font-size', `${item.fontSize * 2}px`, 'important');
+      const numericLineHeight = Number.parseFloat(item.lineHeight);
+      element.style.setProperty('line-height', Number.isFinite(numericLineHeight) ? `${numericLineHeight * 2}px` : item.lineHeight, 'important');
+    }
+  }, snapshot);
+  const enlarged = await page.evaluate(records => {
+    const roots = [...document.querySelectorAll<HTMLElement>('main, nav[aria-label="Member navigation"], nav[aria-label="Student navigation"]')];
+    const elements = [...new Set(roots.flatMap(root => [root, ...root.querySelectorAll<HTMLElement>('*')]))];
+    return records.map(item => { const style = getComputedStyle(elements[item.index]!); return { fontSize: Number.parseFloat(style.fontSize), lineHeight: style.lineHeight }; });
+  }, snapshot);
+  for (const [index, before] of snapshot.entries()) {
+    expect(enlarged[index]!.fontSize).toBeCloseTo(before.fontSize * 2);
+    const lineHeight = Number.parseFloat(before.lineHeight);
+    if (Number.isFinite(lineHeight)) expect(Number.parseFloat(enlarged[index]!.lineHeight)).toBeCloseTo(lineHeight * 2);
+    else expect(enlarged[index]!.lineHeight).toBe(before.lineHeight);
+  }
+}
 async function signIn(page: import('@playwright/test').Page, email: string) {
   await page.goto('/sign-in');
   await page.getByText('Use email instead', { exact: true }).click();
@@ -34,9 +73,18 @@ for (const theme of ['light', 'dark'] as const) {
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       await page.screenshot({ path: info.outputPath(`classes-${theme}-${width}.png`), fullPage: true });
-      await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
+      await doubleApplicationText(page);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+      const productTargets = page.getByRole('main').getByRole('button').or(page.getByRole('main').getByRole('link')).or(memberNavigation.getByRole('link'));
+      let visibleTargets = 0;
+      for (const target of await productTargets.all()) {
+        if (!(await target.isVisible())) continue;
+        visibleTargets += 1;
+        const box = await target.boundingBox();
+        expect(box?.height).toBeGreaterThanOrEqual(44); expect(box?.width).toBeGreaterThanOrEqual(44);
+      }
+      expect(visibleTargets).toBeGreaterThan(0);
       await page.screenshot({ path: info.outputPath(`classes-${theme}-${width}-large-text.png`), fullPage: true });
     });
   }
