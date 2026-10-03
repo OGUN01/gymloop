@@ -11,6 +11,16 @@ import { apiFail, apiOk, noStore, type ApiFailStatus } from './api';
 export type RefusalSpec = { status: ApiFailStatus; code: string; message: string };
 export type RefusalMapping = Record<string, RefusalSpec | ((details: string | null) => Response)>;
 
+/** The refusal entries every Wave C/D runner shares verbatim (actor, target
+ * invisibility, replay conflict, state conflict). Feature-specific codes
+ * (GL067, GL123…, proof branches) stay in each runner's own table. */
+export const WAVE_REFUSAL_MAP: Record<string, RefusalSpec> = {
+  '42501': { status: 'forbidden', code: 'not_permitted', message: 'You cannot perform this action from this account.' },
+  P0002: { status: 'not_found', code: 'request_unavailable', message: "That request isn't available." },
+  GL068: { status: 'conflict', code: 'idempotency_conflict', message: 'This was already handled with different details.' },
+  GL066: { status: 'conflict', code: 'state_conflicted', message: 'Someone else changed this first. Refresh and try again.' },
+};
+
 /** Map a Postgres error to its frozen envelope; unknown codes stay generic. */
 export function sqlRefusal(mapping: RefusalMapping, code: string, details: string | null, fallback: RefusalSpec): Response {
   const entry = mapping[code];

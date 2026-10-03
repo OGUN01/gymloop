@@ -1,5 +1,5 @@
 import { apiOk, apiFail, noStore } from './api';
-import { sqlRefusal, sqlRpcResponse, sqlUuidFrom, waveRouteHead } from './sql-envelope';
+import { WAVE_REFUSAL_MAP, sqlRefusal, sqlRpcResponse, sqlUuidFrom, waveRouteHead } from './sql-envelope';
 import { readRequestIdentity } from './identity-session';
 
 /**
@@ -16,10 +16,7 @@ export type PurchaseAudience = 'member' | 'frontOffice' | 'memberOrFrontOffice';
 export type PurchaseOperation = 'create' | 'cancel' | 'reconfirm' | 'proofUploadUrl' | 'proofConfirm' | 'accept' | 'reject' | 'rejectProof' | 'record' | 'proofUrl';
 
 const REFUSAL_MAP = {
-  '42501': { status: 'forbidden', code: 'not_permitted', message: 'You cannot perform this action from this account.' },
-  P0002: { status: 'not_found', code: 'request_unavailable', message: "That request isn't available." },
-  GL068: { status: 'conflict', code: 'idempotency_conflict', message: 'This was already handled with different details.' },
-  GL066: { status: 'conflict', code: 'state_conflicted', message: 'Someone else changed this first. Refresh and try again.' },
+  ...WAVE_REFUSAL_MAP,
   GL123: { status: 'conflict', code: 'state_conflicted', message: 'Someone else changed this first. Refresh and try again.' },
   GL124: { status: 'conflict', code: 'state_conflicted', message: 'Someone else changed this first. Refresh and try again.' },
   GL125: { status: 'conflict', code: 'state_conflicted', message: 'Someone else changed this first. Refresh and try again.' },
