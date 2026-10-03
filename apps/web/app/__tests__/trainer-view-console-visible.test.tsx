@@ -72,7 +72,7 @@ const trainer = { kind: 'staff', role: 'trainer', userId: USER_ID, tenantId: TEN
 
 function bookingRow(over: Record<string, unknown>): Record<string, unknown> {
   return {
-    session_id: 's1', order_id: 'o1', member_id: 'm1', member_name: 'Asha V', member_code: 'M-0001',
+    session_id: 'a0000000-0000-4000-8000-000000000001', order_id: 'b0000000-0000-4000-8000-000000000001', member_id: 'c0000000-0000-4000-8000-000000000001', member_name: 'Asha V', member_code: 'M-0001',
     trainer_staff_id: STAFF_ID, trainer_name: 'Trainer One',
     starts_at: '2026-03-08T03:00:00+00:00', ends_at: '2026-03-08T04:00:00+00:00', timezone: 'Asia/Kolkata',
     status: 'booked', consumed: false, cancelled_at: null,
@@ -81,7 +81,7 @@ function bookingRow(over: Record<string, unknown>): Record<string, unknown> {
 }
 function packRow(over: Record<string, unknown>): Record<string, unknown> {
   return {
-    order_id: 'o1', member_id: 'm1', member_name: 'Asha V', member_code: 'M-0001',
+    order_id: 'b0000000-0000-4000-8000-000000000001', member_id: 'c0000000-0000-4000-8000-000000000001', member_name: 'Asha V', member_code: 'M-0001',
     trainer_staff_id: STAFF_ID, trainer_name: 'Trainer One', trainer_active: true,
     programme_name: 'Strength Base', sessions_total: 10, sessions_used: 3, sessions_scheduled: 2,
     sessions_remaining: 5, starts_on: '2026-03-01', expires_on: '2026-05-01', state: 'live',
@@ -150,10 +150,10 @@ describe('TRV-002 day selection and zone bounds', () => {
   });
   it('includes an overnight session by its start and excludes outside-day starts', async () => {
     seam.bookingPages = [[
-      bookingRow({ session_id: 's-before', member_name: 'Early', starts_at: '2026-03-07T18:29:00+00:00' }),
-      bookingRow({ session_id: 's-overnight', member_name: 'Overnight', starts_at: '2026-03-07T19:00:00+00:00' }),
-      bookingRow({ session_id: 's-in', member_name: 'In Day', starts_at: '2026-03-08T03:00:00+00:00' }),
-      bookingRow({ session_id: 's-next', member_name: 'Next Day', starts_at: '2026-03-08T18:30:00+00:00' }),
+      bookingRow({ session_id: 'a0000000-0000-4000-8000-000000000011', member_name: 'Early', starts_at: '2026-03-07T18:29:00+00:00' }),
+      bookingRow({ session_id: 'a0000000-0000-4000-8000-000000000012', member_name: 'Overnight', starts_at: '2026-03-07T19:00:00+00:00' }),
+      bookingRow({ session_id: 'a0000000-0000-4000-8000-000000000013', member_name: 'In Day', starts_at: '2026-03-08T03:00:00+00:00' }),
+      bookingRow({ session_id: 'a0000000-0000-4000-8000-000000000014', member_name: 'Next Day', starts_at: '2026-03-08T18:30:00+00:00' }),
     ]]; seam.packPages = [[]];
     const text = await renderTrainerDay();
     expect(text).toContain('Overnight'); expect(text).toContain('In Day');
@@ -169,8 +169,8 @@ describe('TRV-002 day selection and zone bounds', () => {
 describe('TRV-003 sessions and TRV-005 complete paging', () => {
   it('renders sessions ascending by (starts_at, session_id) with member name/code and canonical status words', async () => {
     seam.bookingPages = [[
-      bookingRow({ session_id: 's2', member_name: 'Bala R', member_code: 'M-0002', starts_at: '2026-03-08T05:00:00+00:00', status: 'no_show' }),
-      bookingRow({ session_id: 's1', member_name: 'Asha V', member_code: 'M-0001', status: 'booked' }),
+      bookingRow({ session_id: 'a0000000-0000-4000-8000-000000000002', member_name: 'Bala R', member_code: 'M-0002', starts_at: '2026-03-08T05:00:00+00:00', status: 'no_show' }),
+      bookingRow({ session_id: 'a0000000-0000-4000-8000-000000000001', member_name: 'Asha V', member_code: 'M-0001', status: 'booked' }),
     ]]; seam.packPages = [[]];
     const text = await renderTrainerDay();
     expect(text.indexOf('Asha V')).toBeGreaterThan(-1); expect(text.indexOf('Bala R')).toBeGreaterThan(-1);
@@ -180,42 +180,42 @@ describe('TRV-003 sessions and TRV-005 complete paging', () => {
   });
   it('exhausts every keyset page until a successful empty page before presenting the complete day', async () => {
     const pageOne = Array.from({ length: 50 }, (_, index) => bookingRow({
-      session_id: `s-${index}`, member_code: `M-${String(index).padStart(4, '0')}`, member_name: `Member ${index}`,
+      session_id: `a0000000-0000-4000-8000-${String(index).padStart(12, '0')}`, member_code: `M-${String(index).padStart(4, '0')}`, member_name: `Member ${index}`,
       starts_at: '2026-03-08T03:00:00+00:00',
     }));
-    seam.bookingPages = [pageOne, [bookingRow({ session_id: 's-last', member_code: 'M-9999', member_name: 'Last Client' })], []];
+    seam.bookingPages = [pageOne, [bookingRow({ session_id: 'a0000000-0000-4000-8000-000000000050', member_code: 'M-9999', member_name: 'Last Client' })], []];
     seam.packPages = [[]];
     const text = await renderTrainerDay();
     expect(bookingCalls()).toHaveLength(3);
     const second = bookingCalls()[1]!.args;
     expect(second.p_after_starts_at).toBe('2026-03-08T03:00:00+00:00');
-    expect(second.p_after_id).toBe('s-49');
+    expect(second.p_after_id).toBe('a0000000-0000-4000-8000-000000000049');
     const third = bookingCalls()[2]!.args;
     expect(third.p_after_starts_at).toBe('2026-03-08T03:00:00+00:00');
-    expect(third.p_after_id).toBe('s-last');
+    expect(third.p_after_id).toBe('a0000000-0000-4000-8000-000000000050');
     expect(text).toContain('Last Client'); expect(text).toContain('M-9999');
   });
 });
 
 describe('TRV-004 pack truth joined by order id', () => {
   it('shows live pack facts as N left to book without recalculating', async () => {
-    seam.bookingPages = [[bookingRow({ order_id: 'o1' })]];
-    seam.packPages = [[packRow({ order_id: 'o1', sessions_remaining: 5 })]];
+    seam.bookingPages = [[bookingRow({ order_id: 'b0000000-0000-4000-8000-000000000001' })]];
+    seam.packPages = [[packRow({ order_id: 'b0000000-0000-4000-8000-000000000001', sessions_remaining: 5 })]];
     const text = await renderTrainerDay();
     expect(text).toContain('5 left to book');
     expect(text).toContain('Strength Base');
   });
   it('shows expired packs as N unused · expired with the scheduled count still visible', async () => {
-    seam.bookingPages = [[bookingRow({ order_id: 'o1' })]];
-    seam.packPages = [[packRow({ order_id: 'o1', state: 'expired', sessions_remaining: 2, sessions_scheduled: 4 })]];
+    seam.bookingPages = [[bookingRow({ order_id: 'b0000000-0000-4000-8000-000000000001' })]];
+    seam.packPages = [[packRow({ order_id: 'b0000000-0000-4000-8000-000000000001', state: 'expired', sessions_remaining: 2, sessions_scheduled: 4 })]];
     const text = await renderTrainerDay();
     expect(text).toContain('2 unused · expired');
     expect(text).toContain('4');
     expect(text).toContain(ptPackStateLabel('expired'));
   });
   it('never shows another client\'s pack when the order has none', async () => {
-    seam.bookingPages = [[bookingRow({ order_id: 'o2', member_name: 'Bala R', member_code: 'M-0002' })]];
-    seam.packPages = [[packRow({ order_id: 'o1', member_name: 'Asha V', member_code: 'M-0001' })]];
+    seam.bookingPages = [[bookingRow({ order_id: 'b0000000-0000-4000-8000-000000000002', member_name: 'Bala R', member_code: 'M-0002' })]];
+    seam.packPages = [[packRow({ order_id: 'b0000000-0000-4000-8000-000000000001', member_name: 'Asha V', member_code: 'M-0001' })]];
     const text = await renderTrainerDay();
     expect(text).toContain("Pack details aren't available. Refresh to try again.");
     expect(text).not.toContain('Strength Base');
@@ -251,7 +251,7 @@ describe('TRV-007/008 empty, failure and offline states', () => {
 
 describe('TRV-009 superseded reads', () => {
   it('a changed date request re-reads with new bounds instead of reusing old rows', async () => {
-    seam.bookingPages = [[bookingRow({})], [bookingRow({ session_id: 's9', member_name: 'Next Day Client', starts_at: '2026-03-09T03:00:00+00:00' })]];
+    seam.bookingPages = [[bookingRow({})], [bookingRow({ session_id: 'a0000000-0000-4000-8000-000000000009', member_name: 'Next Day Client', starts_at: '2026-03-09T03:00:00+00:00' })]];
     seam.packPages = [[]];
     await renderTrainerDay({ date: DAY });
     await renderTrainerDay({ date: '2026-03-09' });
