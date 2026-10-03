@@ -642,8 +642,8 @@ begin
   -- Stale revision refuses before any effect (SLF-013).
   if p_expected_revision is distinct from v_request.revision then
     raise exception 'Member freeze request stale'
-      using errcode = 'GL066'
-      with detail = format('expected revision %s, current revision %s',
+      using errcode = 'GL066',
+      detail = format('expected revision %s, current revision %s',
                            p_expected_revision, v_request.revision);
   end if;
 
@@ -735,8 +735,8 @@ begin
 
     if v_used_days + v_proposed > v_settings.max_freeze_days_per_year then
       raise exception 'Freeze allowance exhausted for this year'
-        using errcode = 'GL067'
-        with detail = format('used %s days, proposed %s days, allowance %s',
+        using errcode = 'GL067',
+        detail = format('used %s days, proposed %s days, allowance %s',
                              v_used_days, v_proposed,
                              v_settings.max_freeze_days_per_year);
     end if;
