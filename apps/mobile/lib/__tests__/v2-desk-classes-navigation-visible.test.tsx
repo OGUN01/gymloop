@@ -36,11 +36,19 @@ function screens(desk = false) {
 
 // CLS desk entry; preserve the accepted member five-destination contract.
 describe('native desk Classes navigation integration', () => {
-  it.each(['gym_owner', 'gym_manager', 'front_desk', 'trainer'] as const)('exposes desk Classes for %s', role => {
+  it.each(['gym_owner', 'gym_manager', 'front_desk'] as const)('exposes desk Classes for %s', role => {
     state.businessType = 'gym';
     state.identity = { kind: 'staff', role, userId: 'integration-user', tenantId: 'integration-tenant', staffId: 'integration-staff' };
     expect(screens(true).filter(item => !item.hidden).map(item => [item.name, item.title])).toEqual([
       ['index', 'Check-in'], ['classes', 'Classes'], ['members', 'Members'], ['follow-ups', 'Follow-ups'], ['more', 'More'],
+    ]);
+  });
+  // TRV: the owner-approved trainer-only fifth desk tab sits before More; other roles see no change.
+  it('exposes desk Classes and the trainer-only Training tab for trainer', () => {
+    state.businessType = 'gym';
+    state.identity = { kind: 'staff', role: 'trainer', userId: 'integration-user', tenantId: 'integration-tenant', staffId: 'integration-staff' };
+    expect(screens(true).filter(item => !item.hidden).map(item => [item.name, item.title])).toEqual([
+      ['index', 'Check-in'], ['classes', 'Classes'], ['members', 'Members'], ['follow-ups', 'Follow-ups'], ['training', 'Training'], ['more', 'More'],
     ]);
   });
   it.each([['gym', 'Classes'], ['dance', 'Batches'], ['yoga', 'Classes'], ['martial_arts', 'Classes'], ['studio', 'Classes']] as const)('uses %s class wording', (businessType, title) => {

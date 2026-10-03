@@ -15,7 +15,7 @@ vi.mock('../../lib/mobile-context', () => ({
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 vi.mock('react-native', () => ({ StyleSheet: { create: (styles: unknown) => styles }, Platform: { OS: 'android', select: (value: { android?: unknown; default?: unknown }) => value.android ?? value.default } }));
 vi.mock('../../components/ui', () => ({ FONT: { medium: 'ArchivoMedium' }, SegmentedControl: () => null, Screen: () => null, Header: () => null, PageHeader: () => null, Eyebrow: () => null, Title: () => null, Subtitle: () => null }));
-vi.mock('lucide-react-native', () => ({ House: () => null, Home: () => null, Dumbbell: () => null, ShoppingBag: () => null, Activity: () => null, UserRound: () => null, User: () => null, Building2: () => null, ScanLine: () => null, Users: () => null, MessageCircle: () => null, Menu: () => null, ClipboardList: () => null, MoreHorizontal: () => null, CalendarDays: () => null, Calendar: () => null, ChartNoAxesColumn: () => null, ListTodo: () => null, LogIn: () => null, UsersRound: () => null, Dumbbell: () => null }));
+vi.mock('lucide-react-native', () => ({ House: () => null, Home: () => null, Dumbbell: () => null, ShoppingBag: () => null, Activity: () => null, UserRound: () => null, User: () => null, Building2: () => null, ScanLine: () => null, Users: () => null, MessageCircle: () => null, Menu: () => null, ClipboardList: () => null, MoreHorizontal: () => null, CalendarDays: () => null, Calendar: () => null, ChartNoAxesColumn: () => null, ListTodo: () => null, LogIn: () => null, UsersRound: () => null }));
 vi.mock('expo-router', () => {
   const Tabs = Object.assign(({ children }: { children: ReactNode }) => createElement('nav', null, children), {
     Screen: ({ name, options }: { name: string; options: { title?: string; href?: string | null } }) =>
@@ -70,7 +70,7 @@ describe('TRV-001 trainer-only desk entry', () => {
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const STAFF_ID = '33333333-3333-4333-8333-333333333333';
-const trainerIdentity = staffIdentity('trainer');
+const trainerIdentity: GymloopIdentity = { kind: 'staff', role: 'trainer', userId: USER_ID, tenantId: TENANT_ID, staffId: STAFF_ID };
 const DAY_START = Date.parse('2026-03-08T00:00:00+05:30');
 const DAY_END = Date.parse('2026-03-09T00:00:00+05:30');
 
