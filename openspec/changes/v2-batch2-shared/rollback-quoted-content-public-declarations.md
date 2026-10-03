@@ -21,6 +21,14 @@ removing content from quoted tokens. Unterminated constructs fail closed.
 Actual COMMIT hidden by quoted decoys still refuses; actual body commits remain
 refused. This is a static guard, not execution or arbitrary SQL interpretation.
 
+The same lexical boundary includes newline-separated string continuation:
+whitespace/comments containing a newline may join successive single-quoted
+segments. An initial E prefix supplies escape semantics to every joined segment;
+only that first segment needs the prefix. Retain this state through the entire
+chain, then reset it at an intervening substantive token or statement boundary.
+Comment-looking text inside a continued escaped literal stays quoted, and a real
+completion command following the chain must remain visible to the guard.
+
 Examples independently generated for this contract include a SELECT literal
 `'demo$sha256$active$location$0001'`, a literal containing `; -- /*`, a quoted
 identifier containing a dollar-tag-looking substring, an E literal with an
