@@ -24,13 +24,17 @@ const stays: Record<string, readonly string[]> = {
   ],
   '(console)/messages/page.tsx': ['held back because the member opted out.'],
   '(console)/messages/message-forms.tsx': ['This member has opted out or is no longer eligible. No message link was created.'],
+  // LDC frozen outcome labels (openspec/changes/lead-conversion/proposal.md LDC-011/002).
   '(console)/leads/lead-forms.tsx': [
     'That phone belongs to a member who cannot be linked right now.',
     'An existing member already owns this phone. Link the lead to that member explicitly.',
     'An existing member already owns this phone. Confirm the explicit link for',
     'An existing member already owns this phone, but their details could not be shown here. Reload the screen and start the conversion again.',
     'The connection was interrupted. The outcome is uncertain. Retry the conversion — it won’t create a second member.',
+    'Member created',
+    'Lead linked to existing member',
   ],
+  '(console)/leads/page.tsx': ['Convert to member'],
   // BIZ-F3 preserves platform operator chrome; tenant metrics still vary.
   'platform/[id]/page.tsx': ['That gym is not available.', 'We couldn’t load this gym’s details. Please try again.', 'All gyms', 'Gym code ·', 'Manage gym'],
 };
