@@ -223,7 +223,7 @@ describe('held WhatsApp operations reader', () => {
 
   const breachRows: Array<[string, unknown]> = [
     ['raw phone in row', opPayload(null, [opRow({ maskedPhone: '+918095550001' })])],
-    ['provider message id in row', opPayload(null, [opRow({ refusal: 'providerMessageId' })])],
+    ['provider message id in row', opPayload(null, [{ ...opRow(), providerMessageId: 'wamid.HELD' } as WhatsappOperationRow])],
     ['dispatch ticket in row', { ...opPayload(null), ticket: 'ticket-hex' }],
     ['whatsapp read posing as clicked_at', { ...opPayload(null, [opRow({ status: 'delivered', deliveredAt: ids.cursorAt })]), clickedAt: ids.cursorAt }],
   ];

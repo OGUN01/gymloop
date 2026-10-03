@@ -225,6 +225,13 @@ describe('readWhatsappOperationsPage — frozen envelope, no secrets in any row'
     const rows = Array.from({ length: 101 }, () => baseRow);
     expect(readWhatsappOperationsPage({ ...page, operations: rows })).toBeNull();
   });
+
+  it.each(['phone', 'recipientPhone', 'providerReadReceipt', 'rawReceipt', 'leaseTicket'])(
+    'refuses undeclared operations row key %s', async (key) => {
+      const { readWhatsappOperationsPage } = await whatsapp();
+      expect(readWhatsappOperationsPage({ ...page, operations: [{ ...baseRow, [key]: 'private-value' }] })).toBeNull();
+    },
+  );
 });
 
 describe('whatsappOperationsView — the role split in one place', () => {
@@ -302,4 +309,13 @@ describe('whatsappOutcome — one honest outcome, never invented delivery', () =
     expect(whatsappOutcome(row({ status: 'delivered' }))).not.toBe('delivered');
     expect(whatsappOutcome(row({ status: 'delivered', deliveredAt: 'd' }))).not.toBe('read');
   });
+
+  it.each(['delivered', 'clicked', 'converted'])(
+    'status %s alone cannot certify provider delivery or read', async (status) => {
+      const { whatsappOutcome } = await whatsapp();
+      const result = whatsappOutcome(row({ status, sentAt: null, deliveredAt: null, providerReadAt: null }));
+      expect(result).not.toBe('delivered');
+      expect(result).not.toBe('read');
+    },
+  );
 });
