@@ -13,12 +13,14 @@ on:
       - 'supabase/**'
       - 'packages/db/types/**'
       - 'scripts/check-pgtap-rollback.mjs'
+      - 'scripts/pgtap/splice.py'
       - '.github/workflows/db.yml'
   pull_request:
     paths:
       - 'supabase/**'
       - 'packages/db/types/**'
       - 'scripts/check-pgtap-rollback.mjs'
+      - 'scripts/pgtap/splice.py'
       - '.github/workflows/db.yml'
 
 # Database strategy (docs/decisions.md ADR-030): one Supabase Cloud project,
@@ -176,6 +178,50 @@ jobs:
           } > /tmp/seed_dry.sql
           supabase db query --linked -f /tmp/seed_dry.sql
 
+      - if: github.event_name == 'push' || needs.migrate.outputs.migrations_changed == 'false'
+        name: Verify independent batch-2 demo graphs and legal replay
+        # Each author owns a separate rollback-only proof. Ordinary seed.sql
+        # runs before its TEMP baselines; scenarios run twice after the marker.
+        # The existing counter harness detects assertion and plan failures.
+        run: |
+          for proof in supabase/tests/support/v2-batch2-demo-seed-visible.fragment supabase/tests-holdout/support/v2-batch2-demo-seed-held.fragment; do
+            python - "$proof" <<'PY'
+          import pathlib, re, sys
+          source = pathlib.Path(sys.argv[1]).read_text()
+          marker = '-- ROOT_INSERT_BATCH2_SCENARIOS_HERE'
+          if source.count(marker) != 1:
+              raise SystemExit('Expected one scenario splice marker')
+          source = re.sub(r'(?im)^(BEGIN;|ROLLBACK;|SELECT \* FROM finish\(\);)$', lambda match: match.group().lower(), source)
+          scenario = pathlib.Path('supabase/seed-scenarios.sql').read_text()
+          source = source.replace(marker, scenario + '\n' + scenario + '\n')
+          pathlib.Path('/tmp/batch2_seed_proof.sql').write_text(source)
+          PY
+            python scripts/pgtap/splice.py /tmp/batch2_seed_proof.sql /tmp/batch2_seed_run.sql supabase/seed.sql
+            node --input-type=module - /tmp/batch2_seed_run.sql <<'JS'
+          import { readFileSync } from 'node:fs';
+          import { findNonRolledBackTests } from './scripts/check-pgtap-rollback.mjs';
+          const path = process.argv[2];
+          const refused = findNonRolledBackTests([{ path, content: readFileSync(path, 'utf8') }]);
+          if (refused.length) throw new Error('Refusing a seed proof that can commit');
+          JS
+            supabase db query --linked -f /tmp/batch2_seed_run.sql > /tmp/batch2_seed_result.json
+            python - "$proof" <<'PY'
+          import json, pathlib, re, sys
+          proof = pathlib.Path(sys.argv[1]).read_text()
+          planned = re.search(r'(?im)^\s*select\s+plan\((\d+)\)', proof)
+          if planned is None:
+              raise SystemExit('Missing literal proof plan')
+          expected = int(planned.group(1))
+          result = json.loads(pathlib.Path('/tmp/batch2_seed_result.json').read_text())
+          rows = result.get('rows')
+          if result.get('_tag') == 'Error' or not isinstance(rows, list) or len(rows) != 1:
+              raise SystemExit('Seed proof returned no unique counter row')
+          if rows[0].get('failures') != 0 or rows[0].get('ran') != expected:
+              raise SystemExit('Seed proof assertion or plan failure')
+          print(f'{sys.argv[1]}: {expected}/{expected} passed; rolled back')
+          PY
+          done
+
   # Full pgTAP suite against the Cloud project, after the apply, never
   # concurrently with another merge (see `concurrency` above). Every file is
   # rollback-wrapped, enforced by `pgtap-rollback`. Same PR skip rule as drift.
@@ -216,7 +262,7 @@ jobs:
           # schema-drift (its own job, always run on a types push) is their gate.
           # A push that changes ONLY packages/db/types/ therefore skips the suite
           # (ADR-177). Any other file under supabase/ or packages/db/ still runs it.
-          if echo "$changed" | grep -vE '^packages/db/types/' | grep -qE '^(supabase/|packages/db/|scripts/check-pgtap-rollback|\.github/workflows/db\.yml)'; then
+          if echo "$changed" | grep -vE '^packages/db/types/' | grep -qE '^(supabase/|packages/db/|scripts/check-pgtap-rollback|scripts/pgtap/splice\.py$|\.github/workflows/db\.yml)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::This push touches no migration, no pgTAP file, no non-type packages/db file and not this workflow. Skipping the suite; schema-drift still verifies any generated types."
