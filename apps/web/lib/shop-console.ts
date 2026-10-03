@@ -5,7 +5,7 @@ import { decodeCursor, encodeCursor, quoteFilterValue, UUID_PATTERN } from './ke
 type Tables = Database['public']['Tables'];
 export type ShopCategory = Pick<Tables['shop_categories']['Row'], 'id' | 'name' | 'sort_order' | 'is_active'>;
 export type ShopProduct = Omit<Tables['addon_products']['Row'], 'price_paise'> & { price_paise: string; heldQuantity: number | null; imageUrl: string | null; imageAssetId: string | null };
-export type ShopDeskReservation = Omit<Tables['shop_reservations']['Row'], 'unit_price_paise'> & { unit_price_paise: string; members: { full_name: string; phone: string } | null; addon_products: { price_paise: string; quote_version: string; is_active: boolean } | null };
+type ShopDeskReservation = Omit<Tables['shop_reservations']['Row'], 'unit_price_paise'> & { unit_price_paise: string; members: { full_name: string; phone: string } | null; addon_products: { price_paise: string; quote_version: string; is_active: boolean } | null };
 export async function loadShopCategories(supabase: SupabaseClient<Database>, tenantId: string) {
   const result = await supabase.from('shop_categories').select('id,name,sort_order,is_active').eq('tenant_id', tenantId).order('sort_order').order('name').order('id').limit(SHOP_LIMITS.catalogueMax + 1);
   if (result.error || (result.data?.length ?? 0) > SHOP_LIMITS.catalogueMax) throw new Error('Categories could not be loaded completely.');

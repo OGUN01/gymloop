@@ -8,7 +8,7 @@ import { saleFailure } from './addon-sale-failure';
 type Operation = 'reserve' | 'memberCancel' | 'deskCancel' | 'fulfil' | 'display' | 'categoryCreate' | 'categoryPatch' | 'categoryOrder' | 'catalogue';
 const commands = { reserve: shopReserveRequestSchema, memberCancel: shopMemberCancelRequestSchema, deskCancel: shopDeskCancelRequestSchema, fulfil: shopFulfilRequestSchema, display: shopProductDisplayRequestSchema, categoryCreate: shopCategoryCreateRequestSchema, categoryPatch: shopCategoryPatchRequestSchema, categoryOrder: shopCategoryOrderRequestSchema, catalogue: shopCatalogueRequestSchema };
 /** Auth verification precedes every parse, including malformed JSON and IDs. */
-export async function shopCommand(request: Request, operation: Operation) {
+async function shopCommand(request: Request, operation: Operation) {
   const member = operation === 'reserve' || operation === 'memberCancel' || operation === 'catalogue';
   const frontOffice = operation === 'deskCancel' || operation === 'fulfil';
   const caller = member
