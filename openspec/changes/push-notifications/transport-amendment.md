@@ -1,6 +1,11 @@
-# NTF transport amendment — PROPOSED OWNER DECISION REQUIRED
+# NTF transport amendment — APPROVED (owner, 2026-10-03)
 
-Status: **proposed, 2026-10-03; not approved, frozen, implemented, deployed or live**. This document prepares one narrow architecture decision for `proposal.md`. It authorizes no extension enablement, secret creation/provisioning, Firebase signup/configuration, deployment or phone action. Tests, holdouts and implementation have not been changed for this amendment.
+Status: **approved, 2026-10-03**. The owner approved this boundary and its
+infrastructure/custody plan for the frozen NTF contract. Approval authorizes
+contract completion and (per `pre-configuration-amendment.md`) tests and
+implementation before Firebase configuration; it still does not provision or
+enable anything. The separately named Firebase/app prerequisite below must be
+supplied before protected provisioning and live acceptance.
 
 ## Decision proposed
 

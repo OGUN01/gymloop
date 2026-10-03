@@ -1,9 +1,14 @@
-# PAY contract resolutions — owner decision required, 2026-10-03
+# PAY contract resolutions — APPROVED (owner, 2026-10-03)
 
-**PROPOSED, NOT APPROVED.** This resolves three conflicts between F10 and the
-approved money/Shop contracts. No test author or implementer may start PAY until
-the selected boundaries are folded into its complete frozen EARS contract.
-It changes no batch-2 migration being verified now.
+**APPROVED.** The owner selected all three recommended boundaries: (1) hard
+stock holds for accepted PAY requests; (2) record actual funds without falsely
+completing the purchase (`mismatch_recorded`); (3) renew eligible held
+memberships at their recorded sold terms. The resolutions are folded into the
+frozen `proposal.md`, which pins the exact recording command
+`public.record_purchase_request(...)` and the renewal revision token. The
+remaining engineering sequence is unchanged: independent visible and holdout
+money tests (implementer-blind), separate implementer, fresh critics and
+every gate. It changes no batch-2 migration.
 
 ## 1. Accepted stock
 

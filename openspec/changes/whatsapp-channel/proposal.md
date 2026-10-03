@@ -1,6 +1,23 @@
-# WSP — WhatsApp channel (DRAFT / NOTFROZEN, 2026-10-03)
+# WSP — WhatsApp channel (TRANSPORT FROZEN, 2026-10-03)
 
-The complete contract remains in preparation, not frozen or live. The owner approved the scoped `provider-wallet-amendment.md`: Meta direct, an explicitly guarded INR unit transition, verified billable-delivery charging and channel-specific consent. That approval authorizes serial contract completion, not provider setup, sending, purchasing, secret provisioning, cloud changes or guessing a credit valuation. Freeze the exact shared NTF/WSP seams before independent tests. Preserve F9, INT-002, DPD-002/003/004, MNY-001/002/003 and the current authorization/communications contracts.
+The owner approved the scoped `provider-wallet-amendment.md` (Meta direct,
+guarded INR unit transition, verified billable-delivery charging,
+channel-specific consent) and, after NTF transport approval, the shared
+delivery seam froze: `wave-c-delivery-declarations-draft.md` (dec3278) plus
+`wave-c-serial-freeze-declarations.md` pin the facades, keys, envelopes,
+grants, bounds and SQLSTATE allocation (GL119–122 WSP). The WSP transport
+contract is frozen from proposal + provider-wallet amendment + those two
+declarations; test authors are commissioned against exactly these documents.
+
+**Live sending stays disabled** until provider setup (WABA, sender, approved
+templates/categories, effective INR tariff, protected credentials) and a
+documented India compliance determination are complete. No DLT exemption is
+inferred; F9's DLT condition stays an unresolved prerequisite until the owner
+records either documented inapplicability with an explicit F9 amendment or
+completed registration evidence. The provider-unconfigured/empty-wallet desk
+and in-app path is fully useful before activation; no fabricated success.
+Preserve F9, INT-002, DPD-002/003/004, MNY-001/002/003 and the current
+authorization/communications contracts.
 
 ## Purpose, scope and dependencies
 

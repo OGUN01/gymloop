@@ -1,6 +1,20 @@
-# NTF — Android push delivery (DRAFT, 2026-10-03)
+# NTF — Android push delivery (FROZEN, 2026-10-03)
 
-Not frozen, approved, implemented or live. Narrow Wave C contract preparation while batch 2 completes. No test author may start from this draft. Owner approval of the decisions below and a serial contract freeze precede independent visible/holdout authors, implementation and critic. No FCM account, key, public signup, cloud mutation, phone/USB/ADB/Metro action or delivery has occurred in drafting.
+Owner approvals recorded 2026-10-03: the transport amendment is approved
+(Edge `push-dispatch` adapter, pg_cron+pg_net wakeup, Vault custody, protected
+CI deploy), and the scoped `pre-configuration-amendment.md` authorizes tests
+and implementation before Firebase configuration, failing closed without it.
+Service consent for external transactional push and quiet hours
+`[21:00,08:00)` Asia/Kolkata are retained contract rules (dec3278), not
+further approval gates. The Firebase project identity, Android registration
+and protected credentials remain owner-gated deployment/live prerequisites.
+Mechanical freeze (facades, revision rule, keys, envelopes, grants, bounds,
+SQLSTATE GL115–118) is in
+`../v2-batch2-shared/wave-c-serial-freeze-declarations.md`. This contract is
+now frozen: read it with the transport and pre-configuration amendments and
+the serial declarations; test authors are commissioned against exactly these
+documents. No FCM configuration, deployment, secret provisioning or delivery
+has occurred.
 
 ## Purpose and bar
 
