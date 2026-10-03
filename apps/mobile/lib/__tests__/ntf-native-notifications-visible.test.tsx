@@ -81,6 +81,7 @@ function action(label: RegExp) {
   const node = nodes.find(node => typeof node.props.onPress === 'function' && label.test(String(node.props.children ?? node.props.title ?? node.props.accessibilityLabel ?? '')));
   expect(node, `Missing actual screen control ${label}`).toBeDefined(); return node!;
 }
+function press(label: RegExp) { const node = action(label); (node.props.onPress as () => void)(); }
 const youSettings = {
   preferences: [
     { category: 'renewal', enabled: true }, { category: 'payment', enabled: true }, { category: 'fulfilment', enabled: true },
@@ -113,7 +114,7 @@ describe('NTF native notifications section (red until built)', () => {
   });
   it('asks through an explicit member control, then registers the native FCM token', async () => {
     await render();
-    action(/enable|turn on|allow/i).props.onPress();
+    press(/enable|turn on|allow/i);
     expect(h.requestPermission).toHaveBeenCalled();
     await new Promise(resolve => setTimeout(resolve, 0));
     await render();
@@ -133,13 +134,13 @@ describe('NTF native notifications section (red until built)', () => {
   it('denied permission opens OS settings only on request', async () => {
     h.permission = 'denied';
     await render();
-    action(/open settings/i).props.onPress();
+    press(/open settings/i);
     expect(h.openSettings).toHaveBeenCalled();
   });
   it('offline shows a clear error and never queues a registration claiming success', async () => {
     h.online = false;
     await render();
-    action(/enable|turn on|allow/i).props.onPress();
+    press(/enable|turn on|allow/i);
     await new Promise(resolve => setTimeout(resolve, 0));
     await render();
     expect(h.registerCalls).toEqual([]);

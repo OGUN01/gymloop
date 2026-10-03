@@ -1,5 +1,5 @@
 import { useBusinessNouns } from '../lib/use-business-nouns';
-import { AVATAR_INITIALS_MAX, formatDay, humanize, FONT, PRODUCT_NAME, statusTone, statusWord, toLocalDate, UI_TOKENS } from '@gymloop/shared';
+import { AVATAR_INITIALS_MAX, formatDay, FONT, PRODUCT_NAME, statusTone, statusWord, toLocalDate, UI_TOKENS } from '@gymloop/shared';
 import { ChevronRight, Search } from 'lucide-react-native';
 import { AccessibilityInfo, ActivityIndicator, Animated, Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View, useColorScheme, type PressableProps, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 import { useEffect, useRef, useState, type ReactNode } from 'react';

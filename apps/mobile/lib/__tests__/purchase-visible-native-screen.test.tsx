@@ -82,7 +82,7 @@ describe('MemberBuy native surface', () => {
     h.online = false;
     h.post.mockImplementation(async () => { throw new Error('network'); });
     const create = action(/request|buy/i);
-    try { await create.props.onPress(); } catch { /* command guards may throw */ }
+    try { await (create.props.onPress as () => Promise<void>)(); } catch { /* command guards may throw */ }
     expect(h.post.mock.calls.length).toBeGreaterThan(0);
   });
   it('cancelled request shows Cancelled with its decision time, not a pending montage', async () => {
