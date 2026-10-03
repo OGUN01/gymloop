@@ -270,12 +270,18 @@ describe('held WhatsApp operations reader', () => {
   }, 20_000);
 
   it('half a cursor is refused before the read rather than restarting the page', async () => {
-    await expect(load({ cursor: ids.cursorAt })).rejects.toThrow();
+    const lib = tas<{ loadWhatsappOperations(params: { cursor: string }): Promise<unknown> }>(await import(targets.operations));
+    await expect(lib.loadWhatsappOperations({ cursor: ids.cursorAt })).resolves.toEqual({
+      view: null, errorMessage: 'The WhatsApp operations list could not be loaded.', isPreview: false,
+    });
     expect(rpc).not.toHaveBeenCalled();
   }, 20_000);
 
   it('cursor id without a timestamp is refused too', async () => {
-    await expect(load({ cursor: `|${ids.cursorId}` })).rejects.toThrow();
+    const lib = tas<{ loadWhatsappOperations(params: { cursor: string }): Promise<unknown> }>(await import(targets.operations));
+    await expect(lib.loadWhatsappOperations({ cursor: `|${ids.cursorId}` })).resolves.toEqual({
+      view: null, errorMessage: 'The WhatsApp operations list could not be loaded.', isPreview: false,
+    });
     expect(rpc).not.toHaveBeenCalled();
   }, 20_000);
 
