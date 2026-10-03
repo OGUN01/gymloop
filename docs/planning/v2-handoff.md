@@ -1,10 +1,28 @@
-# V2 campaign handoff — 2026-10-03 (batch 2 applied; application builds)
+# V2 campaign handoff — 2026-10-04 (batch 2 applied; integrated verification)
 
 Read this, then `docs/planning/v2-feature-map.md`, `docs/planning/v2-campaign-goal.md`, `AGENTS.md`, ADR-176 and ADR-177
 in `docs/decisions.md`. **Batch 1 is pushed and CI applied its migrations.** The
 current checkpoint below supersedes the historical session-1 snapshot.
 
 ## Current checkpoint
+
+- Latest owner-directed infrastructure/scope checkpoint (2026-10-04): reuse
+  Samurai API, now named FitCruxx, project `samuraiapi-51996`, under approved
+  account `sharmaharsh9887@gmail.com`. Android `in.fitcruxx.app` is registered;
+  public configuration identity/download verified. Restricted push sender
+  role/account/key are prepared but not created or granted; exact pending
+  access/custody packet is `openspec/changes/push-notifications/firebase-provisioning-packet.md`.
+  Receipt: `docs/evidence/v2/firebase/setup-20261004.json`. Push adapter and
+  protected deployment/client-build wiring remain open. Owner explicitly
+  replaces automated WhatsApp release with manual handoff, frozen in
+  `openspec/changes/whatsapp-channel/manual-release-scope-amendment.md`:
+  no Meta/WABA setup or paid-send activation is required. Guardian/consent,
+  factual-open-only and retained wallet/security invariants remain required.
+  WSP app visible184 and independent held60 currently pass; fresh source
+  review and SQL repairs remain open. Full integrated nine-migration preview
+  is RED:123 of145 suites green,22 need diagnosis/repair. Diagnostic preflight
+  stops before real suites unless hook compatibility passes. No follow-up
+  push, whole C/D acceptance, final Android acceptance or release is claimed.
 
 - Latest primary A/B verification checkpoint (2026-10-03, supersedes the
   earlier failed-build and unexecuted PT-grid entries): isolated A/B base

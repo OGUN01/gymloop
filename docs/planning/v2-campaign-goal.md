@@ -4,6 +4,14 @@ Companion to `docs/planning/v2-feature-map.md` (the what). This file is the
 how: the build order, the per-feature session loop, the definition of done,
 and the release plan. Every v2 session starts by reading both files.
 
+**Owner scope update (2026-10-04).** WhatsApp ships as the frozen manual
+handoff in `openspec/changes/whatsapp-channel/manual-release-scope-amendment.md`;
+Meta/WABA activation and live paid sends are deferred. All retained security,
+guardian/consent and money checks remain. Android push uses approved Firebase
+project `samuraiapi-51996`, now named FitCruxx; Android registration is complete,
+but restricted server access, protected deployment and live device evidence
+remain required. No registration or mock pass replaces final end-to-end gates.
+
 ## The method (unchanged from v1 — the Gauntlet Loop)
 
 Every feature, no exceptions, runs the same loop inside ONE session:
@@ -80,7 +88,7 @@ Consequences, now binding on the v2 features:
 | 9 | V2-B5 | ANC announcements on Home | trivial once CLS/NTF shapes exist |
 | 10 | V2-C1 | NTF push notifications | delivery layer for everything after |
 | 11 | V2-C2 | PAY Buy tab + payment screenshots | money path, full blind; needs NTF for desk alerts |
-| 12 | V2-C3 | WSP WhatsApp | provider work, independent money-adjacent |
+| 12 | V2-C3 | WSP manual WhatsApp handoff | retained consent/guardian and dormant money safeguards |
 | 13 | V2-D1 | SLF self-service | needs PAY's request flow |
 | 14 | V2-D2 | TRV trainer view | needs CLS/PTF data |
 | 15 | V2-D3 | LDC lead convert | small |

@@ -139,6 +139,11 @@ reminders (with CLS), announcements (with ANC). Member settings toggle per
 category. The `notifications`, `member_devices`, `consents` tables already
 exist — this is delivery wiring plus policy.
 
+**Approved infrastructure (2026-10-04).** Reused project `samuraiapi-51996`
+is named FitCruxx; `in.fitcruxx.app` is registered under the approved Google
+account. Restricted server access, client build wiring and protected CI
+deployment remain pending; registration alone proves no delivered push.
+
 **Edge cases.**
 - Consent withdrawal mid-campaign removes the member from the segment without a send.
 - Token rotation and uninstall handling; stale tokens pruned on delivery failure.
@@ -180,17 +185,19 @@ listing correctness.
 
 ## F9. WhatsApp channel (WSP)
 
-**What.** Provider wiring for WhatsApp (the `messaging_wallets` ledger is
-already scaffolded): renewal reminders, absence follow-ups, receipts.
-Pay-per-message wallet per gym.
+**What.** Owner-directed manual WhatsApp handoff for renewal reminders,
+absence follow-ups and receipts. Authorized staff opens a prefilled WhatsApp
+link and presses Send in WhatsApp. The frozen manual-release-scope amendment
+supersedes provider activation for this release; automated paid messaging is
+deferred. Existing wallet history and dormant transport safeguards remain.
 
 **Edge cases.**
-- Meta template approval before any send; DLT registration for India.
-- Opt-in/out per member via the consents system; withdrawal stops sends immediately.
-- Wallet empty: fail-safe (no send, desk fallback), never a silent drop.
-- Per-message cost recorded in the wallet ledger (money rules apply — integer paise).
-- Delivery and read receipts; fallback to in-app/push on failure.
-- PII minimization in templates (no balances/arrears in plain template text where avoidable).
+- Preserve tenant/role, guardian-recipient, consent, opt-out and erasure checks.
+- Record opening only; never infer sent/delivered/read or move wallet money.
+- Manual opening is not an account-linking session or automatic sender.
+- No Meta/WABA credentials or live paid-send gate for this manual release.
+- Retained dormant provider code stays disabled and must pass its security
+  and integer-paise money invariants.
 
 ## F10. Buy tab, member-initiated requests and payment screenshots - manual collection (PAY)
 

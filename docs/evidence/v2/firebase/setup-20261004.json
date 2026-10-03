@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-04",
+  "account": "sharmaharsh9887@gmail.com",
+  "projectId": "samuraiapi-51996",
+  "projectNumber": "762123271201",
+  "previousDisplayName": "samuraiapi",
+  "displayName": "FitCruxx",
+  "plan": "Spark",
+  "androidPackage": "in.fitcruxx.app",
+  "androidNickname": "FitCruxx Android",
+  "androidAppId": "1:762123271201:android:35e9d8498bea4f64113760",
+  "publicConfigSha256": "44babffefef9ca11f0de585ec45b5ac1a1f7f80f63328efe1b4fbf9d68a4d10a",
+  "registeredAppsBefore": 0,
+  "apiUsageInventoryClaimed": false,
+  "verified": ["project display name", "Android registration", "downloaded public configuration identity"],
+  "serverAccountCreated": false,
+  "serverKeyCreated": false,
+  "protectedProvisioningCompleted": false,
+  "providerAcceptanceClaimed": false,
+  "screenshots": ["project-renamed-20261004.jpg", "android-registered-20261004.jpg", "push-role-prepared-20261004.jpg"]
+}
