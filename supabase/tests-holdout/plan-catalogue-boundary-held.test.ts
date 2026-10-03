@@ -132,9 +132,10 @@ describe('PLC independent discount and callback lifetime boundaries', () => {
 
   });
 
-  it.each(['web', 'native'] as const)('PLC-016/Q1/Q5 %s held offered row reads name price length before badge', surface => {
+  it.each([['web', 0], ['native', 0], ['web', 1800], ['native', 1800]] as const)('PLC-016/Q1/Q5 %s held offered row reads name price length before badge with GST %s', (surface, gstRateBp) => {
     const view = catalogue('Offered held plan');
     view.held = null;
+    view.plans[0]!.gstRateBp = gstRateBp;
     const copy = planCatalogueCopy({ place: 'gym' });
     const html = surface === 'web' ? renderToStaticMarkup(createElement(PlanList, { view, copy })) :
       renderToStaticMarkup(createElement(PlanCatalogueBody, {
@@ -143,16 +144,19 @@ describe('PLC independent discount and callback lifetime boundaries', () => {
       }));
     const renderedFacts = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
     expect(renderedFacts).toContain('Offered held plan ₹100 for 30 days Your plan');
+    if (gstRateBp > 0) expect(renderedFacts).toContain('Offered held plan ₹100 for 30 days Your plan GST 18%');
   });
 
-  it('PLC-016/Q1 native held offered row groups matching spoken facts and badge last', () => {
+  it.each([0, 1800])('PLC-016/Q1 native held offered row groups matching spoken facts then marker and GST %s', gstRateBp => {
     const view = catalogue('Offered held plan');
     view.held = null;
+    view.plans[0]!.gstRateBp = gstRateBp;
     const html = renderToStaticMarkup(createElement(PlanCatalogueBody, {
       state: { phase: 'ready', view, loadedAt: '2026-10-03T00:00:00Z', staleReason: null, offline: false },
       copy: planCatalogueCopy({ place: 'gym' }), timeZone: 'Asia/Kolkata', onRetry: () => undefined,
     }));
-    expect(html).toMatch(/<span(?=[^>]*data-native-group="true")(?=[^>]*aria-label="Offered held plan, ₹100 for 30 days, Your plan")[^>]*>/);
+    if (gstRateBp === 0) expect(html).toMatch(/<span(?=[^>]*data-native-group="true")(?=[^>]*aria-label="Offered held plan, ₹100 for 30 days, Your plan")[^>]*>/);
+    else expect(html).toMatch(/<span(?=[^>]*data-native-group="true")(?=[^>]*aria-label="Offered held plan, ₹100 for 30 days, Your plan, GST 18%")[^>]*>/);
   });
   it.each(['userId', 'tenantId', 'memberId', 'close', 'unmount'] as const)('PLC-019 retained callback cannot start a read after %s', async boundary => {
     h.read.mockResolvedValue({ ok: true, view: catalogue('A') });
@@ -185,12 +189,3 @@ describe('PLC independent discount and callback lifetime boundaries', () => {
     expect(renderHook().state.view?.plans[0]?.name).toBe('B');
   });
 });
-
-
-
-
-
-
-
-
-
