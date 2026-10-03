@@ -101,9 +101,11 @@ function visible(node: ReactNode): string {
 function buttons(html: string): string[] {
   return (html.match(/<button\b[^>]*>[\s\S]*?<\/button>/gi) ?? []).map((b) => b.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
 }
-/** A row action labelled exactly "Convert" — its own text node, not prose containing the word. */
+/** A row action labelled exactly "Convert to member" (LDC-002's frozen label) —
+ * its own text node, not prose containing the words. Anchored so prose like
+ * "Convert or mark lost" never matches. */
 function convertActions(html: string): number {
-  return (html.match(/>\s*Convert\s*</g) ?? []).length;
+  return (html.match(/>\s*Convert to member\s*</g) ?? []).length;
 }
 async function leadsPage() {
   const mod = await import('../(console)/leads/page');
