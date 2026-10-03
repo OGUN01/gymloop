@@ -17,7 +17,11 @@ current checkpoint below supersedes the historical session-1 snapshot.
   Independent browser locator changes25a8592/4c93998 preserve review-before-
   publish and scope the duplicated reach sentence to the confirmation region.
   Current browser passes: responsive4, actual text ANC lifecycle1, read-only
-  PLC6 and read-only BIZ preview/cancel1. Whole-feature acceptance is open.
+  PLC6 and read-only BIZ preview/cancel1, plus read-only CLS8/PTF4/SHP3,
+  INV-font5 and role-routing5:37 total, zero skipped/flaky/failed. Empty
+  Training/Classes and Shop offline states prove only their stated bounds;
+  no populated booking, guardian handover or invite redemption is inferred.
+  Whole-feature acceptance is open.
   The full current A/B rollback sweep passes **133 files / 13,148 assertions /
   zero failures**, including57 holdout files and all three pending migration
   previews. Exact source/migration/canonical-SQL/receipt hashes permit reuse
