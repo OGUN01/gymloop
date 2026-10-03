@@ -6,7 +6,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   DEFAULT_TIMEZONE, MEMBER_INVITE_LIMITS, MEMBER_UNLINK_REASON_LENGTH, PRODUCT_NAME,
-  formatDateTime, inviteShareMessage, staffInviteShareMessage,
+  formatDateTime, inviteShareMessage, staffInviteShareMessage, guardianInviteShareMessage,
 } from '@gymloop/shared';
 import type { StaffRole } from '../../../../lib/identity';
 import type { MemberAppAccess } from '../../../../lib/member-invites';
@@ -48,6 +48,7 @@ type AppAccessPanelProps = {
   /** `null` when the state could not be read, or may not be in a support preview. */
   access: MemberAppAccess | null;
   readOnly?: boolean;
+  guardian?: { name: string; memberFirstName: string } | null;
 };
 
 type Busy = 'issue' | 'revoke' | 'unlink' | null;
@@ -77,6 +78,7 @@ const REFUSALS: Record<string, string> = {
   invite_not_pending: 'This invite was already used, replaced or revoked. Reload the page to see the current status.',
   member_not_linked: "This member's account is already unlinked. Reload the page to see the current status.",
   not_signed_in: 'Your session has ended. Sign in again, then try again.',
+  guardian_required: "Add the guardian's name, relation, phone and email in Age and guardian before inviting this member.",
 };
 
 const FALLBACK = {
@@ -116,7 +118,7 @@ export function AppAccessPanel(props: AppAccessPanelProps) {
   return props.role === 'trainer' ? null : <AppAccessSection {...props} />;
 }
 
-function AppAccessSection({ memberId, memberName, gymName, email, phone, role, access: loadedAccess, readOnly = false, staffRoleLabel, initialIssued }: AppAccessPanelProps) {
+function AppAccessSection({ memberId, memberName, gymName, email, phone, role, access: loadedAccess, readOnly = false, staffRoleLabel, initialIssued, guardian }: AppAccessPanelProps) {
   const staff = staffRoleLabel !== undefined;
   const subject = staff ? 'staff member' : 'member';
   const commandId = staff ? { staffId: memberId } : { memberId };
@@ -141,7 +143,7 @@ function AppAccessSection({ memberId, memberName, gymName, email, phone, role, a
 
   /** One command: one request at a time, a sentence for every way it can fail, never a raw code. */
   async function send(kind: Exclude<Busy, null>, path: string, body: Record<string, string>): Promise<Record<string, unknown> | null> {
-    if (inFlight.current) return null;
+    if (access === null || preview || inFlight.current) return null;
     inFlight.current = true;
     setBusy(kind);
     setError(null);
@@ -192,9 +194,9 @@ function AppAccessSection({ memberId, memberName, gymName, email, phone, role, a
   }
 
   async function copyLink() {
-    if (issued === null) return;
+    if (issued === null || access === null || access.state === 'linked' || access.state === 'unavailable' || preview) return;
     try {
-      await navigator.clipboard.writeText(issued.link);
+      await navigator.clipboard.writeText(guardian == null ? issued.link : guardianInviteShareMessage({ guardianName: guardian.name, memberName: guardian.memberFirstName, gymName, email: address, link: issued.link }));
       setCopied(true);
       setError(null);
     } catch {
@@ -207,17 +209,20 @@ function AppAccessSection({ memberId, memberName, gymName, email, phone, role, a
   const sendButton = (
     <button type="button" className="cl-btn cl-btn--primary" disabled={busy !== null} onClick={() => void issueInvite()}>{sendLabel}</button>
   );
-  const needsEmail = staff ? <p className="app-access-note">This staff member has no email address on file. Ask your gym owner to update the staff record before sending an invite.</p> : (
+  const needsEmail = staff ? <p className="app-access-note">This staff member has no email address on file. Ask your gym owner to update the staff record before sending an invite.</p> : guardian != null ? (
+    <p className="app-access-note">Add the guardian&apos;s email in the <a href="#guardian-heading">Age and guardian section</a>, save it, then send the invite. The guardian uses that address to sign in with Google.</p>
+  ) : (
     <p className="app-access-note">
       This member has no email address on file, so their invite can&apos;t be matched to a Google account.{' '}
       <Link href={`/members/${memberId}/edit`}>Add an email on their profile</Link>, then send the invite.
     </p>
   );
-  const share = issued === null ? null : staffRoleLabel === undefined ? inviteShareMessage({ memberName, gymName, email: address, link: issued.link }) : staffInviteShareMessage({ staffName: memberName, gymName, roleLabel: staffRoleLabel, email: address, link: issued.link });
+  const share = issued === null || access === null || access.state === 'linked' || access.state === 'unavailable' ? null : guardian != null ? guardianInviteShareMessage({ guardianName: guardian.name, memberName: guardian.memberFirstName, gymName, email: address, link: issued.link }) : staffRoleLabel === undefined ? inviteShareMessage({ memberName, gymName, email: address, link: issued.link }) : staffInviteShareMessage({ staffName: memberName, gymName, roleLabel: staffRoleLabel, email: address, link: issued.link });
 
   return (
     <section aria-labelledby="member-app-access-heading" aria-busy={busy !== null} className="app-access">
       <h2 id="member-app-access-heading" className="cl-section-title member-detail-heading">App access</h2>
+      {guardian != null && access !== null && access.state !== 'linked' ? <p className="app-access-note">This invite links the guardian&apos;s Google account.</p> : null}
       <p role="status" className="sr-only">{busy !== null ? 'Working.' : copied ? 'Link copied.' : issued !== null ? 'Invite created. The link is below.' : ''}</p>
       {error === null ? null : <Alert>{error}</Alert>}
 
@@ -244,7 +249,7 @@ function AppAccessSection({ memberId, memberName, gymName, email, phone, role, a
 
           {access.state === 'linked' ? (
             <p className="app-access-note">
-              {memberName} signs in to the app with their own Google account.
+              {guardian == null ? `${memberName} signs in to the app with their own Google account.` : `The guardian's Google account remains linked to ${memberName}'s membership after they turn 18. An owner or manager must explicitly hand over or unlink the account to end that guardian sign-in.`}
               {canUnlink ? ' Unlinking ends their app sessions; they need a new invite to link again.' : ' Only an owner or manager can unlink the account.'}
             </p>
           ) : null}
@@ -259,7 +264,7 @@ function AppAccessSection({ memberId, memberName, gymName, email, phone, role, a
           ) : null}
           {access.state === 'not_invited' && hasEmail ? (
             <p className="app-access-note">
-              Sending creates a link for {address}. Nothing is delivered for you: share the link, the QR code or a WhatsApp message with {memberName} yourself.
+              Sending creates a link for {address}. Nothing is delivered for you: share the link, the QR code or a WhatsApp message with {guardian?.name ?? memberName} yourself.
             </p>
           ) : null}
           {access.state === 'unavailable' ? (

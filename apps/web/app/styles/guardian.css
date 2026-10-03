@@ -1,0 +1,18 @@
+/* GRD uses the console tokens in both appearances; no animated eligibility changes. */
+.guardian-panel, .guardian-form, .guardian-consent, .guardian-confirm, .guardian-coverage { display: grid; gap: var(--gymloop-space-16); min-width: 0; }
+.guardian-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--gymloop-space-12); }
+.guardian-heading h2, .guardian-consent h3, .guardian-panel p, .guardian-coverage p { margin: 0; }
+.guardian-panel p, .guardian-coverage p { max-width: 65ch; overflow-wrap: anywhere; }
+.guardian-note { color: var(--gymloop-color-secondary-text); }
+.guardian-fields { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: var(--gymloop-space-16); min-width: 0; }
+.guardian-fields .cl-field { min-width: 0; }
+.guardian-panel .cl-btn, .guardian-coverage .cl-btn { min-height: var(--gymloop-target-interactive); white-space: normal; }
+.guardian-consent { border-top: 1px solid var(--gymloop-color-decorative-separator); padding-top: var(--gymloop-space-16); }
+.guardian-check { display: flex; align-items: center; gap: var(--gymloop-space-12); min-height: var(--gymloop-target-interactive); cursor: pointer; }
+.guardian-check input { flex-shrink: 0; }
+.guardian-statement { border-left: var(--gymloop-space-4) solid var(--gymloop-color-decorative-separator); padding-left: var(--gymloop-space-16); }
+.guardian-coverage { padding: var(--gymloop-space-16); border: 1px solid var(--gymloop-color-decorative-separator); border-radius: var(--gymloop-radius-control); margin-bottom: var(--gymloop-space-16); }
+.guardian-coverage ul { margin: 0; padding-left: var(--gymloop-space-20); }
+.guardian-coverage a, .guardian-ledger a { min-height: var(--gymloop-target-interactive); display: inline-flex; align-items: center; }
+.guardian-ledger { list-style: none; margin: 0; padding: 0; }
+.guardian-ledger li { display: grid; gap: var(--gymloop-space-8); padding-block: var(--gymloop-space-16); border-bottom: 1px solid var(--gymloop-color-decorative-separator); }

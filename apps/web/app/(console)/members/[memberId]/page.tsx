@@ -1,3 +1,5 @@
+import { loadBusinessNouns } from '../../../../lib/business-type';
+
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ChevronRight, Pencil, Plus } from 'lucide-react';
@@ -7,12 +9,13 @@ import type { StaffRole } from '../../../../lib/identity';
 import { requireAudience } from '../../../../lib/identity-session';
 import { loadMemberAppAccess } from '../../../../lib/member-invites';
 import { loadMembershipStanding } from '../../../../lib/membership-state';
-import { createServerSupabase } from '../../../../lib/supabase/server';
 import { loadMember } from '../member-data';
 import { StatusWord } from '../../../status-word';
 import { loadMemberInviteActivity } from '../../../../lib/member-invite-history';
 import { InviteHistory } from './invite-history';
 import { AppAccessPanel } from './app-access-panel';
+import { GuardianPanel } from './guardian-panel';
+import { loadMemberGuardian } from '../../../../lib/guardian';
 
 /**
  * One member, and what they have actually done — the visits, most recent first.
@@ -48,6 +51,8 @@ export default async function MemberDetailPage({
   params: Promise<{ memberId: string }>;
   searchParams: Promise<{ visits?: string }>;
 }) {
+  const businessCaller = await requireAudience('console');
+  const nouns = await loadBusinessNouns(businessCaller.supabase, businessCaller.identity.tenantId);
   const { memberId } = await params;
   const allVisits = (await searchParams).visits === 'all';
   const { data: member } = await loadMember(memberId);
@@ -56,16 +61,15 @@ export default async function MemberDetailPage({
   // gym — the same answer either way, which is the answer RLS already gives.
   if (!member) notFound();
 
-  const { identity } = await requireAudience('console');
+  const { identity, supabase } = businessCaller;
   const seesMoney = !(identity.kind === 'staff' && identity.role === 'trainer');
   // "App access" belongs to the front office. A trainer neither sees it nor causes
   // its read; a support preview sees it read-only, and the database refuses the
   // read to an impersonation, so it is not attempted there.
   const appAccessRole: StaffRole | null = identity.kind === 'impersonation' ? 'front_desk' : identity.role === 'trainer' ? null : identity.role;
-  const supabase = await createServerSupabase();
   // Money is read only for a role that may see it: a trainer's request never
   // asks for it, rather than asking and hiding the answer.
-  const [{ data: branch }, { data: visits, error: visitsError }, standing, payments, gym, appAccess, inviteActivity] = await Promise.all([
+  const [{ data: branch }, { data: visits, error: visitsError }, standing, payments, gym, appAccess, inviteActivity, guardian] = await Promise.all([
     supabase.from('branches').select('name').eq('id', member.branch_id).maybeSingle(),
     supabase
       .from('attendance')
@@ -85,9 +89,10 @@ export default async function MemberDetailPage({
           .order('id')
           .limit(MEMBER_DETAIL_PAYMENTS_PREVIEW)
       : Promise.resolve({ data: null }),
-    appAccessRole === null ? null : supabase.from('organizations').select('name').eq('id', identity.tenantId).maybeSingle(),
+    appAccessRole === null ? null : supabase.from('organizations').select('name,timezone').eq('id', identity.tenantId).maybeSingle(),
     appAccessRole === null || identity.kind === 'impersonation' ? null : loadMemberAppAccess(supabase, memberId),
     identity.kind === 'staff' && appAccessRole !== null ? loadMemberInviteActivity(supabase, memberId) : null,
+    appAccessRole === null ? null : loadMemberGuardian(supabase, memberId),
   ]);
 
   // Live on the gate's terms — the status AND the dates (ADR-084) — so a
@@ -98,28 +103,30 @@ export default async function MemberDetailPage({
 
   return (
     <main className="cl-page member-detail-page">
-      <Link href="/console" className="cl-back"><ArrowLeft aria-hidden="true" className="desk-icon" />All members</Link>
+      <Link href="/console" className="cl-back"><ArrowLeft aria-hidden="true" className="desk-icon" />All {nouns.members}</Link>
       <div className="cl-page-header member-detail-header">
         <div className="member-detail-identity">
           <span aria-hidden="true" className="member-detail-monogram">{member.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('')}</span>
           <div>
             <h1 className="cl-title">{member.full_name}</h1>
+            {guardian?.ageState === 'minor' ? <StatusWord status="minor" label="Under 18" /> : null}
             <p className="cl-lede member-detail-meta">
-              {member.member_code ? <span className="member-detail-code">Member code <span className="tabular-nums">{member.member_code}</span></span> : null}
+              {member.member_code ? <span className="member-detail-code">{humanize(nouns.member)} code <span className="tabular-nums">{member.member_code}</span></span> : null}
               <span className="tabular-nums">{formatPhone(member.phone)}</span>
               {state ? <StatusWord status={state.status} label={state.label} /> : <StatusWord status={member.status} />}
             </p>
           </div>
         </div>
         <div className="cl-actions member-detail-actions">
-          <Link href={`/members/${member.id}/edit`} className="cl-btn"><Pencil aria-hidden="true" className="desk-icon" />Edit member</Link>
+          <Link href={`/members/${member.id}/edit`} className="cl-btn"><Pencil aria-hidden="true" className="desk-icon" />Edit {nouns.member}</Link>
           {seesMoney ? <Link href={`/memberships/${member.id}`} className="cl-btn cl-btn--primary"><Plus aria-hidden="true" className="desk-icon" />Record payment</Link> : null}
         </div>
       </div>
 
       {member.erased_at === null ? null : (
         <p className="cl-alert" data-tone="warn">
-          This member’s personal details were erased on {DATE_ONLY.format(new Date(member.erased_at))}.
+
+          This {nouns.member}’s personal details were erased on {DATE_ONLY.format(new Date(member.erased_at))}.
         </p>
       )}
 
@@ -136,14 +143,19 @@ export default async function MemberDetailPage({
           </section>
 
           {appAccessRole === null ? null : (
+            <GuardianPanel memberId={member.id} memberName={member.full_name} gymName={gym?.data?.name ?? 'Your gym'} timezone={gym?.data?.timezone ?? DEFAULT_TIMEZONE} role={appAccessRole} guardian={guardian} access={appAccess} readOnly={identity.kind === 'impersonation'} />
+          )}
+
+          {appAccessRole === null ? null : (
             <AppAccessPanel
               memberId={member.id}
               memberName={member.full_name}
               gymName={gym?.data?.name ?? 'Your gym'}
-              email={member.email}
-              phone={member.phone}
+              email={guardian?.linkEmail ?? null}
+              phone={guardian === null ? null : guardian.ageState === 'minor' ? guardian.guardianComplete ? guardian.guardianPhone : null : member.phone}
+              guardian={guardian !== null && (guardian.ageState === 'minor' || (appAccess?.state === 'linked' && guardian.guardianLinkedAt !== null && guardian.handoverDue)) ? { name: guardian.guardianName ?? 'Guardian', memberFirstName: member.full_name.trim().split(/\s+/)[0] ?? '' } : null}
               role={appAccessRole}
-              access={appAccess}
+              access={guardian === null ? null : appAccess}
               readOnly={identity.kind === 'impersonation'}
             />
           )}
@@ -215,7 +227,7 @@ export default async function MemberDetailPage({
                 <li key={visit.id} className="flex-nowrap">
                   <span><span className="cl-row-title tabular-nums">{DATE_TIME.format(new Date(visit.checked_in_at))}</span>
                     {visit.assist_reason === null ? null : <span className="cl-row-meta">{visit.assist_reason}</span>}</span>
-                  <span className="cl-muted text-sm whitespace-nowrap">{visit.source === 'qr' ? 'Gym QR' : 'Desk assisted'}</span>
+                  <span className="cl-muted text-sm whitespace-nowrap">{visit.source === 'qr' ? `${humanize(nouns.place)} QR` : 'Desk assisted'}</span>
                 </li>
               ))}
             </ul>

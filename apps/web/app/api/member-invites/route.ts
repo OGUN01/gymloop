@@ -21,6 +21,7 @@ const ISSUE_REFUSALS = {
   GL076: { status: 'unprocessable', code: 'member_email_required', message: 'Add a valid email address for this member, then send the invite.' },
   GL077: { status: 'conflict', code: 'member_already_linked', message: 'This member has already linked their account.' },
   GL078: { status: 'too_many_requests', code: 'invite_rate_limited', message: 'Too many invites have been sent recently. Wait a while, then try again.' },
+  GL083: { status: 'unprocessable', code: 'guardian_required', message: "Add the guardian's name, relation, phone and email in Age and guardian before inviting this member." },
 } as const;
 
 const ISSUE_FAILED = { code: 'invite_failed', message: 'The invite could not be created. Nothing was sent. Try again.' } as const;

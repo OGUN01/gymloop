@@ -1,3 +1,6 @@
+import { requireAudience } from '../../../lib/identity-session';
+import { loadBusinessNouns } from '../../../lib/business-type';
+import { type BusinessNouns } from '@gymloop/shared';
 import { MutationForm } from '../../preview-context';
 import { Constants } from '@gymloop/db';
 import { RED_LIST_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
@@ -6,6 +9,8 @@ import { Alert } from '../alert';
 import { AVATAR_INITIALS_MAX, DEFAULT_TIMEZONE, MS_PER_DAY, formatDay, formatPhone, humanize } from '@gymloop/shared';
 import { ChevronRight, Users } from 'lucide-react';
 import { loadRedList } from '../../../lib/red-list';
+import { loadGuardianCoverage } from '../../../lib/guardian';
+import { GuardianCoverageNote } from './guardian-coverage-note';
 
 /** How each outcome reads for bringing the member back: coming, deferred, or not. */
 const OUTCOME_TONE: Record<string, string> = {
@@ -25,25 +30,29 @@ function daysAgo(instant: string, now: Date): string {
 }
 
 /** The red list is the daily operational queue, rendered without client JavaScript. */
-const MESSAGES: Record<string, string> = {
-  already_being_contacted: 'Somebody else is contacting that member right now — check what they logged first.',
-  case_closed: 'That member has already come back, so their case is closed.',
+const messages = (nouns: BusinessNouns): Record<string, string> => ({
+  already_being_contacted: `Somebody else is contacting that ${nouns.member} right now — check what they logged first.`,
+  case_closed: `That ${nouns.member} has already come back, so their case is closed.`,
   contact_not_yours: 'A follow-up is logged by the person who made it.',
   correction_other_case: 'That correction points at another case’s entry.',
   not_permitted: 'Your role may not log follow-ups.',
   invalid: 'That follow-up was not readable — check the channel and outcome.',
   follow_up_failed: 'That follow-up could not be saved.',
-};
+});
 
 export default async function RedListPage({
   searchParams,
 }: {
   searchParams: Promise<{ cursor?: string; limit?: string; error?: string }>;
 }) {
+  const businessCaller = await requireAudience('console');
+  const nouns = await loadBusinessNouns(businessCaller.supabase, businessCaller.identity.tenantId);
+  const guardianRole = businessCaller.identity.kind === 'impersonation' ? 'front_desk' : businessCaller.identity.role;
+  const guardianCoverage = guardianRole === 'trainer' ? null : await loadGuardianCoverage(businessCaller.supabase);
   const params = await searchParams;
   const now = new Date();
   const { cases, pageSize, nextCursor, errorMessage } = await loadRedList(searchParams);
-  const problem = params.error === undefined ? null : (MESSAGES[params.error] ?? MESSAGES.follow_up_failed);
+  const problem = params.error === undefined ? null : (messages(nouns)[params.error] ?? messages(nouns).follow_up_failed);
   const sized = pageSize === RED_LIST_PAGE_SIZE_DEFAULT ? {} : { limit: String(pageSize) };
   const nextHref = nextCursor === null ? null : `?${new URLSearchParams({ ...sized, cursor: nextCursor }).toString()}`;
   // The loader pages by cursor and counts nothing, so a total is claimed only when
@@ -62,16 +71,17 @@ export default async function RedListPage({
           <h1 className="follow-up-title">People to follow up</h1>
           <p className="follow-up-intro">
             {errorMessage !== null || cases.length === 0
-              ? 'Members who have stopped coming, longest away first.'
+              ? `${humanize(nouns.members)} who have stopped coming, longest away first.`
               : paged
                 ? `${cases.length} on this page · longest away first.`
-                : `${cases.length === 1 ? '1 member' : `${cases.length} members`}, longest away first.`}
+                : `${cases.length === 1 ? `1 ${nouns.member}` : `${cases.length} ${nouns.members}`}, longest away first.`}
           </p>
         </div>
-        <Link href="/console" className="cl-btn follow-up-route-link"><Users aria-hidden="true" className="desk-icon" />All members</Link>
+        <Link href="/console" className="cl-btn follow-up-route-link"><Users aria-hidden="true" className="desk-icon" />All {nouns.members}</Link>
       </div>
 
       {problem === null ? null : <Alert>{problem}</Alert>}
+      <GuardianCoverageNote coverage={guardianCoverage} role={guardianRole} readOnly={businessCaller.identity.kind === 'impersonation'} nouns={nouns} />
       {errorMessage === null ? null : <Alert>The red list could not load. {errorMessage}</Alert>}
 
       {errorMessage !== null ? null : cases.length === 0 ? (
@@ -80,9 +90,9 @@ export default async function RedListPage({
           <p>Nobody is overdue today. That is the outcome this screen is for.</p>
         </section>
       ) : (
-        <section className="follow-up-queue" aria-label="Members needing follow-up">
+        <section className="follow-up-queue" aria-label={`${humanize(nouns.members)} needing follow-up`}>
           <div className="follow-up-column-headings" aria-hidden="true">
-            <span>Member</span><span>Attendance</span><span>Last contact</span><span>Follow up</span>
+            <span>{humanize(nouns.member)}</span><span>Attendance</span><span>Last contact</span><span>Follow up</span>
           </div>
           <ul className="follow-up-rows">
             {cases.map((row) => (

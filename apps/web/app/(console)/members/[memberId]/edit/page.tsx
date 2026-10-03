@@ -1,3 +1,6 @@
+import { requireAudience } from '../../../../../lib/identity-session';
+import { loadBusinessNouns } from '../../../../../lib/business-type';
+
 import { notFound } from 'next/navigation';
 import { loadMember } from '../../member-data';
 import { MemberForm } from '../../member-form';
@@ -13,6 +16,8 @@ import { takeMemberEcho } from '../../echo';
  * matrix in a second place, where it can disagree with the first.
  */
 export default async function EditMemberPage({ params }: { params: Promise<{ memberId: string }> }) {
+  const businessCaller = await requireAudience('console');
+  const nouns = await loadBusinessNouns(businessCaller.supabase, businessCaller.identity.tenantId);
   const { memberId } = await params;
   const { data: member } = await loadMember(memberId);
 
@@ -20,6 +25,7 @@ export default async function EditMemberPage({ params }: { params: Promise<{ mem
 
   return (
     <MemberForm
+      nouns={nouns}
       title={`Edit ${member.full_name}`}
       action={`/api/members/${member.id}`}
       cancelHref={`/members/${member.id}`}
