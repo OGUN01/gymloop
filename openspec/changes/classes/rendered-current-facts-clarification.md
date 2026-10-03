@@ -42,7 +42,9 @@ confirmation; the inclusive cutoff remains unchanged. If returned confirmation
 facts change, show the current facts and require a renewed explicit confirmation.
 New-booking deadline repair remains owner-pending and cannot use client defaults.
 
-The existing useClassCommand remains the command seam. Its obsolete callbacks
+The existing `useClassCommand(scopeKey?: string)` remains the command seam;
+its existing return fields and `send(path, body, method?)` signature are unchanged.
+Its obsolete callbacks
 cannot start a fetch after unmount or permanent scope invalidation. Late results
 cannot update feedback, refresh a replacement view or return success to an old
 continuation. Optional scope metadata is a presentation lease, never authority.
