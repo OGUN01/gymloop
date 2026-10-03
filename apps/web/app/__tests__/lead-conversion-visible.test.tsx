@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createElement, isValidElement, type ReactElement, type ReactNode } from 'react';
+import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { GymloopIdentity, StaffRole } from '@gymloop/shared';
+import type { GymloopIdentity } from '@gymloop/shared';
 import type { Database } from '@gymloop/db';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -12,7 +12,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // independent holdout author and real acceptance, not here. Behavior comes
 // from the frozen contract, never from component bodies.
 type Row = Record<string, unknown>;
-type Element = ReactElement<Row>;
 const h = vi.hoisted(() => ({
   rows: [] as Row[],
   errorMessage: null as string | null,
@@ -90,16 +89,8 @@ vi.mock('../../lib/identity-session', () => ({
   }),
 }));
 
-function descendants(node: ReactNode): Element[] {
-  if (Array.isArray(node)) return node.flatMap(descendants);
-  if (!isValidElement<Row>(node)) return [];
-  return [node, ...descendants(node.props.children as ReactNode)];
-}
 function visible(node: ReactNode): string {
   return renderToStaticMarkup(node).replace(/<[^>]*>/g, ' ').replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"');
-}
-function buttons(html: string): string[] {
-  return (html.match(/<button\b[^>]*>[\s\S]*?<\/button>/gi) ?? []).map((b) => b.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
 }
 /** A row action labelled exactly "Convert to member" (LDC-002's frozen label) —
  * its own text node, not prose containing the words. Anchored so prose like

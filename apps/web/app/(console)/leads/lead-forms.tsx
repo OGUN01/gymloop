@@ -4,7 +4,7 @@ import { businessNouns, type BusinessNouns } from '@gymloop/shared';
 
 import { Constants } from '@gymloop/db';
 import { formatDateTime, formatPhone, gymWallClockFormatter, humanize } from '@gymloop/shared';
-import { useState, useRef, useEffect, type FormEvent } from 'react';
+import { useState, useRef, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Field, inputClass } from '../field';

@@ -10,18 +10,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 vi.mock('next-themes', () => ({ useTheme: () => ({ theme: 'light', setTheme: vi.fn() }) }));
 vi.mock('next/link', () => ({ default: (props: Record<string, unknown>) => ({ type: 'a', props }) }));
 const id = '78100000-0000-4000-8000-000000000001';
-const settingsReply = {
-  preferences: [
-    { category: 'renewal', enabled: true },
-    { category: 'payment', enabled: true },
-    { category: 'fulfilment', enabled: true },
-    { category: 'promotion', enabled: false },
-    { category: 'motivation', enabled: true },
-    { category: 'class_update', enabled: true },
-    { category: 'announcement', enabled: true },
-  ],
-  devices: [{ id, lastSeenAt: '2026-10-03T05:00:00Z', active: true }],
-};
 const nouns = { place: 'gym', plural: 'gyms', member: 'member', trainer: 'trainer', class: 'class' } as const;
 const profile = { id, fullName: 'Fixture Member', phone: '+918000000000', memberSince: '2026-01-01', status: 'active' };
 const membership = { planName: 'Monthly', statusText: 'Active', validUntil: '2026-12-01T00:00:00Z', gymId: id, gymName: 'Fixture Gym' };

@@ -31,7 +31,6 @@ vi.mock('../../lib/messages', () => ({
   commsOk: (status: string, data: unknown) => Response.json({ ok: true, data }, { status: status === 'created' ? 201 : 200 }),
 }));
 vi.mock('../../lib/api', () => ({ platformSession: async () => ({ session: { supabase: {} } }), jsonBody: async () => ({ payload: {} }), apiFail: () => new Response(null, { status: 500 }) }));
-const nouns = { place: 'gym', plural: 'gyms', member: 'member', trainer: 'trainer', class: 'class' } as const;
 
 let page: (props: { searchParams: Promise<Record<string, string>> }) => Promise<string>;
 beforeEach(async () => {
