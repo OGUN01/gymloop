@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('server-only', () => ({}));
+
 type Section = { data: unknown; error: string | null };
 type Adapter = (...args: unknown[]) => Promise<Section>;
 const targetPath = '../../apps/web/lib/training-console';
@@ -148,3 +150,5 @@ describe('held independent detail sections and preview reads', () => {
     const result = await load(db.client, caller(), ids.staff, '2027-01-01', '2027-01-01', 'Asia/Kolkata'); expect(result.data).toBeNull(); expect(result.error).toBeTruthy();
   });
 });
+
+
