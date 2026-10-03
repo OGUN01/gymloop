@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import type { PtPack, MemberTraining, PtPolicyRead, PtSession } from '@gymloop/shared';
-import { businessNouns, UI_TOKENS } from '@gymloop/shared';
+import { businessNouns, UI_TOKENS, formatDateTime } from '@gymloop/shared';
 
 // Independent declaration-only author. These hosts preserve callbacks and children;
 // they make no geometry, dot, axe, screen-reader or real-device claim.
@@ -288,5 +288,39 @@ describe.each(['web', 'native'] as const)('held %s failed consumption refresh', 
     else seam.nativeTraining.mockResolvedValueOnce({ ...training(facts()), upcoming: { data: null, error: 'retryable' }, history: { data: null, error: 'retryable' } });
     await h.view.press(retry); expect(h.view.text()).toContain(neutral); await h.view.settle();
     expect(post).toHaveBeenCalledTimes(2);
+  });
+});
+
+function nodeWords(value: unknown): string {
+  if (value == null || typeof value === 'boolean') return '';
+  if (Array.isArray(value)) return value.map(nodeWords).join(' ');
+  if (typeof value === 'object') return nodeWords((value as Node).props?.children);
+  return String(value);
+}
+describe.each(['web', 'native'] as const)('held %s absolute cutoff and status vocabulary', platform => {
+  it.each([true, false])('already-late sheet names exact slot-zone cutoff before Confirm, consumption=%s', async lateCancelConsumes => {
+    currentFacts.policy = { data: { cancelWindowHours: 12, lateCancelConsumes }, error: null };
+    const h = await setup(platform); await h.choose(); h.noSend();
+    expect(h.view.text()).toContain(formatDateTime('2026-10-02T16:30:00Z', slot.timezone));
+    expect(h.view.text()).toContain(slot.timezone);
+    expect(h.view.text()).toContain(lateCancelConsumes ? 'This is inside your cancellation window. Cancelling will use 1 session from your pack.' : "This is inside your cancellation window. Cancelling won't use a session from your pack.");
+  });
+  it('fresh window change recomputes absolute cutoff in selected slot zone and needs renewed confirmation', async () => {
+    const h = await setup(platform); await h.choose();
+    currentFacts.policy = { data: { cancelWindowHours: 10, lateCancelConsumes: false }, error: null };
+    await h.view.press(confirm); h.noSend();
+    expect(h.view.text()).toContain(formatDateTime('2026-10-02T18:30:00Z', slot.timezone));
+    expect(h.view.text()).not.toContain(formatDateTime('2026-10-02T16:30:00Z', slot.timezone));
+    expect(h.view.text()).toContain(slot.timezone);
+    expect(h.view.text()).toContain("This is inside your cancellation window. Cancelling won't use a session from your pack.");
+  });
+  it('unestablished consumption acknowledgement is ordinary feedback rather than a seventh status word', async () => {
+    const { h } = await uncertain(platform); currentFacts.sessions = { data: [], error: null };
+    await h.view.press(retry); expect(h.view.text()).toContain(neutral);
+    const statuses = h.view.nodes().filter(node => node.type === 'Status' || Object.hasOwn(node.props, 'data-status'));
+    for (const status of statuses) {
+      expect(nodeWords(status.props.children)).not.toContain(neutral);
+      for (const field of ['label', 'value', 'status', 'data-status']) expect(String(status.props[field] ?? '')).not.toContain(neutral);
+    }
   });
 });
