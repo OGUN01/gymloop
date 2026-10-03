@@ -27,7 +27,7 @@ vi.mock('expo-router', () => {
     Screen: ({ name, options }: { name: string; options: { title?: string; href?: string | null } }) =>
       createElement('span', { 'data-screen': name, 'data-hidden': options.href === null ? 'yes' : 'no' }, options.title),
   });
-  return { Tabs };
+  return { Tabs, useLocalSearchParams: () => ({}) };
 });
 
 function screens(desk = false) {
