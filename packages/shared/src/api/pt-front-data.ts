@@ -1,7 +1,8 @@
 import type { Database } from '@gymloop/db';
 import { INSTANT_FRACTIONAL_SECOND_DIGITS, MEMBER_PAGE_SIZE_DEFAULT, MINUTES_PER_HOUR, MS_PER_HOUR } from '../config/constants';
 import { formatDateTime } from '../display/display';
-import { ptApiError, ptPolicyRequestSchema } from './pt-front';
+import { ptApiError, ptPolicyRequestSchema, ptBookingStatusLabel } from './pt-front';
+import { toLocalDate } from '../streaks/streaks';
 
 type Functions = Database['public']['Functions'];
 type MemberRead = 'read_member_trainers' | 'read_member_programmes' | 'read_member_pt_packs' | 'read_member_pt_sessions' | 'read_member_pt_slots';
@@ -90,6 +91,38 @@ export async function readMemberTraining(client: PtReadClient, signImage?: (asse
   return { trainers: { data: trainersRead.error ? null : trainers, error: trainersRead.error ? ptApiError(trainersRead.error.code, trainersRead.error.details).code : null }, programmes: section(programmesRead, programme), packs: section(packsRead, pack), upcoming: section(upcomingRead, (row): PtSession => session(row)), history: section(historyRead, (row): PtSession => session(row)) };
 }
 export type MemberTraining = Awaited<ReturnType<typeof readMemberTraining>>;
+export function ptBookingTrainingFacts(training: MemberTraining, orderId: string): { pack: PtPack | null; sessions: PtReadSection<PtSession> } {
+  const sessions: PtReadSection<PtSession> = training.upcoming?.error === null && training.history?.error === null && Array.isArray(training.upcoming.data) && Array.isArray(training.history.data)
+    ? { data: [...training.upcoming.data, ...training.history.data], error: null }
+    : { data: null, error: 'retryable' };
+  const matches = training.packs?.error === null && Array.isArray(training.packs.data) ? training.packs.data.filter(row => row.orderId === orderId) : [];
+  return { pack: matches.length === 1 ? matches[0]! : null, sessions };
+}
+
+export function ptBookingCancellationConsumption(sessions: PtReadSection<PtSession> | undefined, answer: Pick<PtSession, 'sessionId' | 'orderId' | 'startsAt' | 'endsAt'>): boolean | null {
+  const matches = sessions?.error === null && Array.isArray(sessions.data) ? sessions.data.filter(row => row?.sessionId === answer.sessionId && row.orderId === answer.orderId && row.startsAt === answer.startsAt && row.endsAt === answer.endsAt) : [];
+  if (matches.length !== 1) return null;
+  const row = matches[0]!;
+  return row.status === 'cancelled_by_member' && typeof row.consumed === 'boolean' && ptRecordedInterval(row) !== null ? row.consumed : null;
+}
+
+export function ptBookingCancellationFeedback(sessions: PtReadSection<PtSession> | undefined, answer: Pick<PtSession, 'sessionId' | 'orderId' | 'startsAt' | 'endsAt'>, placeNoun: string): { message: string | null; label: string | null } {
+  const consumed = ptBookingCancellationConsumption(sessions, answer);
+  return consumed === null ? { message: 'Cancelled. Reload to check whether a session was used.', label: null } : { message: null, label: ptBookingStatusLabel('cancelled_by_member', consumed, placeNoun) };
+}
+
+export function ptBookingOpenSlotGroups(pack: PtPack | null | undefined, slots: PtReadSection<{ startsAt: string; endsAt: string; timezone: string }> | undefined, orderId: string, now: number): Map<string, { startsAt: string; endsAt: string; timezone: string }[]> {
+  const groups = new Map<string, { startsAt: string; endsAt: string; timezone: string }[]>();
+  if (!Number.isFinite(now) || !pack || pack.orderId !== orderId || pack.state !== 'live' || pack.canBook !== true || slots?.error !== null || !Array.isArray(slots.data)) return groups;
+  for (const slot of slots.data) {
+    if (ptRecordedInterval(slot) === null || Date.parse(slot.startsAt) <= now) continue;
+    const day = toLocalDate(new Date(slot.startsAt), slot.timezone);
+    const group = groups.get(day) ?? [];
+    group.push(slot);
+    groups.set(day, group);
+  }
+  return groups;
+}
 export async function readMemberPtHistory(client: PtReadClient, cursor?: PtHistoryCursor) {
   return section(await read(client, 'read_member_pt_sessions', { p_scope: 'history', p_limit: MEMBER_PAGE_SIZE_DEFAULT, ...(cursor ? { p_after_starts_at: cursor.startsAt, p_after_id: cursor.sessionId } : {}) }), (row): PtSession => session(row));
 }

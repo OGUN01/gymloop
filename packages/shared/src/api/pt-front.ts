@@ -75,3 +75,11 @@ const answerSchemas = {
 };
 /** Whitelist and validate RPC output; never spread a private database row. */
 export function ptCommandAnswer(kind: keyof typeof answerSchemas, data: unknown): unknown | null { const parsed = answerSchemas[kind].safeParse(data); return parsed.success ? parsed.data : null; }
+
+export type PtBookingAnswer = z.infer<typeof bookedAnswer>;
+export function ptBookingAnswer(data: unknown, command: z.infer<typeof ptBookRequestSchema>): PtBookingAnswer | null {
+  if (data === null || typeof data !== 'object' || Array.isArray(data)) return null;
+  const fields = data as Record<string, unknown>;
+  const answer = ptCommandAnswer('book', [{ session_id: fields.sessionId, order_id: fields.orderId, starts_at: fields.startsAt, ends_at: fields.endsAt, status: fields.status, in_cancel_window: fields.inCancelWindow, replayed: fields.replayed }]) as PtBookingAnswer | null;
+  return answer !== null && answer.sessionId === command.sessionId && answer.orderId === command.orderId && answer.startsAt === command.startsAt && Date.parse(answer.endsAt) > Date.parse(command.startsAt) ? answer : null;
+}

@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { PT_BOOKING_LIMITS, classDayStrip, toLocalDate, ptBookRequestSchema, ptRefusalMessage } from '@gymloop/shared';
+import { PT_BOOKING_LIMITS, classDayStrip, toLocalDate, ptBookRequestSchema, ptBookingTrainingFacts, ptRefusalMessage } from '@gymloop/shared';
 import { requireAudience } from '../../../../../../lib/identity-session';
+import { requireOriginalMember } from '../../../../../../lib/member-action-caller';
 import { loadBusinessNouns, loadBusinessOrganization } from '../../../../../../lib/business-type';
 import { loadMemberTraining, loadMemberSlots, loadMemberPtPolicy } from '../../../../../../lib/training';
 import { PtBookingForm, type PtBookingFacts } from '../../pt-actions';
@@ -9,9 +10,7 @@ import '../../../../../styles/training.css';
 
 async function readBookingFacts(current: Awaited<ReturnType<typeof requireAudience<'member'>>>, orderId: string): Promise<PtBookingFacts> {
     const training = await loadMemberTraining(current.supabase);
-    const sessions = training.upcoming?.error === null && training.history?.error === null && Array.isArray(training.upcoming.data) && Array.isArray(training.history.data) ? { data: [...training.upcoming.data, ...training.history.data], error: null } : { data: null, error: 'retryable' };
-    const matches = training.packs.error === null ? training.packs.data?.filter(pack => pack.orderId === orderId) : null;
-    const pack = matches?.length === 1 ? matches[0]! : null;
+    const { pack, sessions } = ptBookingTrainingFacts(training, orderId);
     if (!pack) return { sessions, pack: null, slots: { data: null, error: 'not_found' }, policy: { data: null, error: null } };
     const organization = await loadBusinessOrganization(current.supabase, current.identity.tenantId);
     if (organization.error || !organization.data) return { sessions, pack, slots: { data: null, error: 'retryable' }, policy: { data: null, error: 'retryable' } };
@@ -36,8 +35,8 @@ export default async function Page({ params }: { params: Promise<{ orderId: stri
   async function refreshFacts(): Promise<PtBookingFacts | null> {
     'use server';
     try {
-      const current = await requireAudience('member');
-      if (current.identity.userId !== original.userId || current.identity.tenantId !== original.tenantId || current.identity.memberId !== original.memberId) return null;
+      const current = await requireOriginalMember(original);
+      if (current === null) return null;
       return await readBookingFacts(current, orderId);
     } catch { return null; }
   }

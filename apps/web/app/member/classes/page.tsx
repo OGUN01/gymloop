@@ -1,5 +1,6 @@
 import { CLASS_LIMITS, classDayStrip, toLocalDate, humanize } from '@gymloop/shared';
 import { requireAudience } from '../../../lib/identity-session';
+import { requireOriginalMember } from '../../../lib/member-action-caller';
 import { loadBusinessOrganization, loadBusinessNouns } from '../../../lib/business-type';
 import { loadMemberClassSchedule } from '../../../lib/classes';
 import { MemberClassesView } from './member-classes-view';
@@ -20,8 +21,8 @@ export default async function MemberClassesPage() {
   async function refreshSessions() {
     'use server';
     try {
-      const current = await requireAudience('member');
-      if (current.identity.userId !== original.userId || current.identity.tenantId !== original.tenantId || current.identity.memberId !== original.memberId) return null;
+      const current = await requireOriginalMember(original);
+      if (current === null) return null;
       return await loadMemberClassSchedule(current.supabase, window);
     } catch { return null; }
   }

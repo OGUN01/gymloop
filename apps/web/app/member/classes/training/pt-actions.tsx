@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatDateTime, formatDay, toLocalDate, ptBookingStatusLabel, ptBookingConsequence, ptCancellationConsequence, ptBookRequestSchema, ptPolicyRequestSchema, ptCommandAnswer, ptRecordedInterval, ptRefusalMessage, PT_REFUSAL_COPY, type BusinessNouns, type PtSession, type PtPack, type PtReadSection, type PtPolicyRead } from '@gymloop/shared';
+import { formatDateTime, formatDay, ptBookingStatusLabel, ptBookingConsequence, ptCancellationConsequence, ptBookRequestSchema, ptPolicyRequestSchema, ptCommandAnswer, ptBookingAnswer, ptBookingCancellationFeedback, ptBookingOpenSlotGroups, ptRecordedInterval, ptRefusalMessage, PT_REFUSAL_COPY, type BusinessNouns, type PtSession, type PtPack, type PtReadSection, type PtPolicyRead } from '@gymloop/shared';
 import { ClassConfirmation } from '../class-actions';
 import { isObject } from '../../../../lib/keyset';
 import { useBrowserOnline } from '../../../../lib/use-browser-online';
@@ -103,20 +103,16 @@ export function PtBookingForm({ orderId, scopeKey, nouns, initial, refreshFacts 
       if (!current() || sheetRef.current !== sending) return;
       const payload: unknown = await response.json(); if (!current() || sheetRef.current !== sending) return;
       const data = isObject(payload) && isObject(payload.data) ? payload.data : null;
-      const answer = data ? ptCommandAnswer('book', [{ session_id: data.sessionId, order_id: data.orderId, starts_at: data.startsAt, ends_at: data.endsAt, status: data.status, in_cancel_window: data.inCancelWindow, replayed: data.replayed }]) : null;
-      if (response.ok && isObject(payload) && payload.ok === true && isObject(answer) && answer.sessionId === expected.body.sessionId && answer.orderId === orderId && answer.startsAt === expected.body.startsAt && Date.parse(String(answer.endsAt)) > Date.parse(expected.body.startsAt)) {
-        let label = answer.status === 'cancelled_by_member' ? '' : ptBookingStatusLabel(String(answer.status), false, nouns.place);
+      const answer = ptBookingAnswer(data, expected.body);
+      if (response.ok && isObject(payload) && payload.ok === true && answer !== null) {
+        const label = answer.status === 'cancelled_by_member' ? '' : ptBookingStatusLabel(String(answer.status), false, nouns.place);
         if (answer.status === 'cancelled_by_member') {
           publish(facts, null, 'Cancelled. Reload to check whether a session was used.');
           const latest = await fresh();
           if (!current()) return;
-          const matches = latest?.sessions?.error === null && Array.isArray(latest.sessions.data) ? latest.sessions.data.filter(row => row?.sessionId === answer.sessionId && row.orderId === answer.orderId && row.startsAt === answer.startsAt && row.endsAt === answer.endsAt && row.status === 'cancelled_by_member' && typeof row.consumed === 'boolean' && ptRecordedInterval(row) !== null) : [];
-          if (matches.length !== 1) {
-            publish(latest ?? facts, null, 'Cancelled. Reload to check whether a session was used.');
-            return;
-          }
-          label = ptBookingStatusLabel('cancelled_by_member', matches[0]!.consumed, nouns.place);
-          facts = latest ?? facts;
+          const feedback = ptBookingCancellationFeedback(latest?.sessions, answer, nouns.place);
+          publish(latest ?? facts, null, feedback.message, feedback.label === null ? null : { value: answer.status, label: feedback.label });
+          return;
         }
         publish(facts, null, null, { value: String(answer.status), label });
       } else {
@@ -131,13 +127,7 @@ export function PtBookingForm({ orderId, scopeKey, nouns, initial, refreshFacts 
   function close() { if (current() && !lease.pending) publish(visible.facts, null, null); }
   const pack = visible.facts?.pack;
   const slots = visible.facts?.slots;
-  const groups = new Map<string, NonNullable<PtBookingFacts['slots']['data']>>();
-  if (pack?.orderId === orderId && pack.state === 'live' && pack.canBook && slots?.error === null && Array.isArray(slots.data)) {
-    for (const slot of slots.data) {
-      if (Date.parse(slot.startsAt) <= Date.now() || ptRecordedInterval(slot) === null) continue;
-      const day = toLocalDate(new Date(slot.startsAt), slot.timezone); const group = groups.get(day) ?? []; group.push(slot); groups.set(day, group);
-    }
-  }
+  const groups = ptBookingOpenSlotGroups(pack, visible.facts?.slots, orderId, Date.now());
   const day = visible.day && groups.has(visible.day) ? visible.day : groups.keys().next().value;
   const interval = selected ? ptRecordedInterval(selected.selection.slot) : null;
   const cutoff = selected ? ptCancellationConsequence({ startsAt: selected.selection.slot.startsAt, now: new Date().toISOString(), windowHours: selected.selection.policy.cancelWindowHours, lateConsumes: selected.selection.policy.lateCancelConsumes, timezone: selected.selection.slot.timezone }).cutoff : null;

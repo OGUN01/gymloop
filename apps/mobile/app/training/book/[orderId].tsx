@@ -3,7 +3,7 @@ import { ScrollView, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Crypto from 'expo-crypto';
 import * as Network from 'expo-network';
-import { PT_BOOKING_LIMITS, PT_REFUSAL_COPY, classDayStrip, formatDateTime, formatDay, toLocalDate, ptBookRequestSchema, ptPolicyRequestSchema, ptRecordedInterval, ptBookingConsequence, ptCancellationConsequence, ptBookingStatusLabel, ptCommandAnswer, ptRefusalMessage, type PtPack, type PtPolicyRead, type PtReadSection, type PtSession } from '@gymloop/shared';
+import { PT_BOOKING_LIMITS, PT_REFUSAL_COPY, classDayStrip, formatDateTime, formatDay, toLocalDate, ptBookRequestSchema, ptPolicyRequestSchema, ptRecordedInterval, ptBookingConsequence, ptCancellationConsequence, ptBookingStatusLabel, ptBookingAnswer, ptBookingCancellationFeedback, ptBookingOpenSlotGroups, ptBookingTrainingFacts, ptRefusalMessage, type PtPack, type PtPolicyRead, type PtReadSection, type PtSession } from '@gymloop/shared';
 import { useMobile } from '../../../lib/mobile-context';
 import { loadTraining, loadSlots, loadPtPolicy } from '../../../lib/training';
 import { ActionButton, Body, EmptyState, ErrorRetry, LedgerSection, LoadingState, RowAction, Screen, Sheet, SheetHeader, StateMessage, Status, Title } from '../../../components/ui';
@@ -82,9 +82,7 @@ export default function PtBookingScreen() {
       if (!await connected() || !readingCurrent()) return null;
       const training = await loadTraining(supabase);
       if (!readingCurrent()) return null;
-      const sessions = training.upcoming?.error === null && training.history?.error === null && Array.isArray(training.upcoming.data) && Array.isArray(training.history.data) ? { data: [...training.upcoming.data, ...training.history.data], error: null } : { data: null, error: 'retryable' };
-      const matches = training.packs.error === null ? training.packs.data?.filter(pack => pack.orderId === orderId) : null;
-      const pack = matches?.length === 1 ? matches[0]! : null;
+      const { pack, sessions } = ptBookingTrainingFacts(training, orderId);
       if (!pack) return { sessions, pack: null, slots: { data: null, error: 'not_found' }, policy: { data: null, error: null } };
       const organization = await supabase.from('organizations').select('timezone').eq('id', identity.tenantId).maybeSingle();
       if (!readingCurrent()) return null;
@@ -157,26 +155,18 @@ export default function PtBookingScreen() {
         const uncertain = !Object.hasOwn(PT_REFUSAL_COPY, code) || code === 'retryable' || code === 'pt_failed';
         publish(facts, { ...sending, uncertain }, ptRefusalMessage(code)); return;
       }
-      const data = result.data;
-      const answer = data && typeof data === 'object' && !Array.isArray(data) ? ptCommandAnswer('book', [{ session_id: data.sessionId, order_id: data.orderId, starts_at: data.startsAt, ends_at: data.endsAt, status: data.status, in_cancel_window: data.inCancelWindow, replayed: data.replayed }]) : null;
-      if (answer && typeof answer === 'object' && !Array.isArray(answer)) {
-        const decoded = answer as Record<string, unknown>;
-        if (decoded.sessionId === expected.body.sessionId && decoded.orderId === orderId && decoded.startsAt === expected.body.startsAt && Date.parse(String(decoded.endsAt)) > Date.parse(expected.body.startsAt)) {
-          let label = decoded.status === 'cancelled_by_member' ? '' : ptBookingStatusLabel(String(decoded.status), false, nouns.place);
+      const decoded = ptBookingAnswer(result.data, expected.body);
+      if (decoded !== null) {
+          const label = decoded.status === 'cancelled_by_member' ? '' : ptBookingStatusLabel(String(decoded.status), false, nouns.place);
           if (decoded.status === 'cancelled_by_member') {
             publish(facts, null, 'Cancelled. Reload to check whether a session was used.');
             const latest = await refresh();
             if (!current()) return;
-            const matches = latest?.sessions?.error === null && Array.isArray(latest.sessions.data) ? latest.sessions.data.filter(row => row?.sessionId === decoded.sessionId && row.orderId === decoded.orderId && row.startsAt === decoded.startsAt && row.endsAt === decoded.endsAt && row.status === 'cancelled_by_member' && typeof row.consumed === 'boolean' && ptRecordedInterval(row) !== null) : [];
-            if (matches.length !== 1) {
-              publish(latest ?? facts, null, 'Cancelled. Reload to check whether a session was used.');
-              return;
-            }
-            label = ptBookingStatusLabel('cancelled_by_member', matches[0]!.consumed, nouns.place);
-            facts = latest ?? facts;
+            const feedback = ptBookingCancellationFeedback(latest?.sessions, decoded, nouns.place);
+            publish(latest ?? facts, null, feedback.message, feedback.label);
+            return;
           }
           publish(facts, null, null, label); return;
-        }
       }
       publish(facts, sending, ptRefusalMessage('retryable'));
     } catch { if (current()) publish(facts, sending ?? expected, ptRefusalMessage('retryable')); }
@@ -186,13 +176,7 @@ export default function PtBookingScreen() {
   if (scope === null) return <Screen><StateMessage>{ptRefusalMessage('not_found')}</StateMessage></Screen>;
   const facts = visible.facts;
   const pack = facts?.pack;
-  const groups = new Map<string, BookingSlot[]>();
-  if (pack?.orderId === orderId && pack.state === 'live' && pack.canBook && facts?.slots.error === null && Array.isArray(facts.slots.data)) {
-    for (const slot of facts.slots.data) {
-      if (Date.parse(slot.startsAt) <= Date.now() || ptRecordedInterval(slot) === null) continue;
-      const date = toLocalDate(new Date(slot.startsAt), slot.timezone); const group = groups.get(date) ?? []; group.push(slot); groups.set(date, group);
-    }
-  }
+  const groups = ptBookingOpenSlotGroups(pack, facts?.slots, orderId!, Date.now());
   const day = visible.day && groups.has(visible.day) ? visible.day : groups.keys().next().value;
   const interval = selected ? ptRecordedInterval(selected.selection.slot) : null;
   const cutoff = selected ? ptCancellationConsequence({ startsAt: selected.selection.slot.startsAt, now: new Date().toISOString(), windowHours: selected.selection.policy.cancelWindowHours, lateConsumes: selected.selection.policy.lateCancelConsumes, timezone: selected.selection.slot.timezone }).cutoff : null;
