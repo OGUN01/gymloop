@@ -5,7 +5,7 @@ import { MobileProvider, useMobile } from '../mobile-context';
 import { nativeShopCache, readShopCache, shopCacheCurrent, writeShopCache } from '../shop-cache';
 import { loadAnnouncementCache, saveAnnouncementCache } from '../announcements';
 
-const h = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, effects: [] as Array<() => void | (() => void)>, cleanups: [] as Array<() => void>, context: undefined as unknown, listener: undefined as undefined | ((event: string, session: Session | null) => void), session: null as Session | null, tokenPause: null as null | Promise<void>, resolutions: [] as Array<{ identity: GymloopIdentity; wait?: Promise<void> }>, storage: new Map<string, string>(), removalFailure: false, logout: vi.fn(), fetch: vi.fn() }));
+const h = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, effects: [] as Array<() => void | (() => void)>, cleanups: [] as Array<() => void>, context: undefined as unknown, listener: undefined as undefined | ((event: string, session: Session | null) => void), session: null as Session | null, tokenPause: null as null | Promise<void>, resolutions: [] as Array<{ identity: GymloopIdentity; wait?: Promise<void> }>, storage: new Map<string, string>(), removalFailure: false, shopThrow: false, announcementThrow: false, shopCleanup: vi.fn(), announcementCleanup: vi.fn(), logout: vi.fn(), fetch: vi.fn() }));
 vi.mock('react', async (original) => {
   const actual = await original<typeof import('react')>();
   return { ...actual, createContext: () => ({ Provider: 'provider' }), useContext: () => h.context,
@@ -23,7 +23,9 @@ vi.mock('react-native', () => ({ StatusBar: 'statusbar', useColorScheme: () => '
 vi.mock('@gymloop/shared', async (original) => ({ ...await original<typeof import('@gymloop/shared')>(), mobileClientEnv: () => ({ EXPO_PUBLIC_SUPABASE_URL: 'https://supabase.example.com', EXPO_PUBLIC_SUPABASE_ANON_KEY: 'public-placeholder', EXPO_PUBLIC_API_BASE_URL: 'https://api.example.com', EXPO_PUBLIC_WEB_URL: 'https://web.example.com' }) }));
 vi.mock('expo-secure-store', () => ({ getItemAsync: async (key: string) => h.storage.get(key) ?? null, setItemAsync: async (key: string, value: string) => { h.storage.set(key, value); }, deleteItemAsync: async (key: string) => { if (h.removalFailure) throw new Error('Storage unavailable'); h.storage.delete(key); } }));
 vi.mock('../offline-check-in', () => ({ clearOfflineCheckIns: vi.fn(async () => undefined) }));
-vi.mock('../native-session', () => ({ createMobileSupabase: () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { business_type: 'gym' }, error: null }) }) }) }), auth: { getSession: async () => { await h.tokenPause; return { data: { session: h.session }, error: null }; }, onAuthStateChange: (callback: typeof h.listener) => { h.listener = callback; return { data: { subscription: { unsubscribe: vi.fn() } } }; }, signOut: h.logout } }), resolveNativeMobileSession: async () => { const next = h.resolutions.shift(); if (!next) throw new Error('Missing independent session fixture'); await next.wait; return { identity: next.identity, queueScope: next.identity.kind === 'member' ? next.identity : null, replay: 'ready' }; }, signOutMobile: async () => { await h.logout(); } }));
+vi.mock('../native-session', async (original) => ({ ...await original<typeof import('../native-session')>(), createMobileSupabase: () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { business_type: 'gym' }, error: null }) }) }) }), auth: { getSession: async () => { await h.tokenPause; return { data: { session: h.session }, error: null }; }, onAuthStateChange: (callback: typeof h.listener) => { h.listener = callback; return { data: { subscription: { unsubscribe: vi.fn() } } }; }, signOut: h.logout } }), resolveNativeMobileSession: async () => { const next = h.resolutions.shift(); if (!next) throw new Error('Missing independent session fixture'); await next.wait; return { identity: next.identity, queueScope: next.identity.kind === 'member' ? next.identity : null, replay: 'ready' }; } }));
+vi.mock('../shop-cache', async (original) => { const actual = await original<typeof import('../shop-cache')>(); return { ...actual, clearShopCache: (...args: Parameters<typeof actual.clearShopCache>) => { h.shopCleanup(); if (h.shopThrow) throw new Error('Synchronous Shop cleanup failed'); return actual.clearShopCache(...args); } }; });
+vi.mock('../announcements', async (original) => { const actual = await original<typeof import('../announcements')>(); return { ...actual, clearAnnouncementCache: () => { h.announcementCleanup(); if (h.announcementThrow) throw new Error('Synchronous announcement cleanup failed'); return actual.clearAnnouncementCache(); } }; });
 const owner: Extract<GymloopIdentity, { kind: 'member' }> = { kind: 'member', userId: '20000000-0000-4000-8000-000000000001', tenantId: '10000000-0000-4000-8000-000000000001', memberId: '30000000-0000-4000-8000-000000000001' };
 const other: Extract<GymloopIdentity, { kind: 'member' }> = { ...owner, userId: '20000000-0000-4000-8000-000000000002', tenantId: '10000000-0000-4000-8000-000000000002', memberId: '30000000-0000-4000-8000-000000000002' };
 function session(token: string): Session { return { access_token: token, refresh_token: 'refresh', expires_in: 1, token_type: 'bearer', user: { id: owner.userId, app_metadata: {}, user_metadata: {}, aud: 'authenticated', created_at: '2026-10-03T00:00:00Z' } }; }
@@ -34,7 +36,48 @@ async function start(identity: GymloopIdentity = owner) { h.session = session('j
 async function seed() { await writeShopCache(nativeShopCache, owner.memberId, { items: [], reservations: [], truncated: false, serverTime: '2026-10-03T00:00:00Z' }); await saveAnnouncementCache({ scope: owner, fetchedAt: '2026-10-03T00:00:00Z', announcements: [], pendingReads: [] }); }
 function replace(identity: GymloopIdentity, wait?: Promise<void>) { h.session = session('jwt-B'); h.resolutions.push(wait ? { identity, wait } : { identity }); h.listener?.('SIGNED_IN', h.session); }
 describe('actual native provider current caller and private cache boundary', () => {
-  beforeEach(() => { h.slots = []; h.cursor = 0; h.effects = []; h.cleanups = []; h.context = undefined; h.listener = undefined; h.session = null; h.tokenPause = null; h.resolutions = []; h.storage.clear(); h.removalFailure = false; h.logout.mockReset().mockResolvedValue(undefined); h.fetch.mockReset().mockResolvedValue({ json: async () => ({ ok: true, data: {} }) }); vi.stubGlobal('fetch', h.fetch); });
+  beforeEach(() => { h.slots = []; h.cursor = 0; h.effects = []; h.cleanups = []; h.context = undefined; h.listener = undefined; h.session = null; h.tokenPause = null; h.resolutions = []; h.storage.clear(); h.removalFailure = false; h.shopThrow = false; h.announcementThrow = false; h.shopCleanup.mockClear(); h.announcementCleanup.mockClear(); h.logout.mockReset().mockResolvedValue({ error: null }); h.fetch.mockReset().mockResolvedValue({ json: async () => ({ ok: true, data: {} }) }); vi.stubGlobal('fetch', h.fetch); });
+  it.each(['Shop', 'announcements'] as const)('signout survives synchronous %s cleanup invocation failure while revoking caller immediately', async (feature) => {
+    const current = await start();
+    await seed();
+    const precedingShopAttempts = h.shopCleanup.mock.calls.length;
+    const precedingAnnouncementAttempts = h.announcementCleanup.mock.calls.length;
+    h.shopThrow = feature === 'Shop';
+    h.announcementThrow = feature === 'announcements';
+    const signingOut = current.signOut();
+    const staleAction = current.api.post('/api/probe', {}).catch(() => undefined);
+    await expect(signingOut).rejects.toThrow();
+    await staleAction;
+    expect(h.shopCleanup.mock.calls.length).toBeGreaterThan(precedingShopAttempts);
+    expect(h.announcementCleanup.mock.calls.length).toBeGreaterThan(precedingAnnouncementAttempts);
+    expect(h.logout).toHaveBeenCalledTimes(1);
+    expect(h.fetch).not.toHaveBeenCalled();
+  });
+  it.each(['Shop', 'announcements'] as const)('replacement does not publish a linked owner after synchronous %s cleanup failure', async (feature) => {
+    const old = await start();
+    await seed();
+    h.shopCleanup.mockClear(); h.announcementCleanup.mockClear();
+    h.shopThrow = feature === 'Shop'; h.announcementThrow = feature === 'announcements';
+    try { replace(other); } catch { /* The failed event may reject; privacy remains required. */ }
+    const current = await settle();
+    await old.api.post('/api/probe', {}).catch(() => undefined);
+    expect(h.shopCleanup).toHaveBeenCalled();
+    expect(h.announcementCleanup).toHaveBeenCalled();
+    expect(current.identity).not.toEqual(other);
+    expect(h.fetch).not.toHaveBeenCalled();
+  });
+  it.each(['Shop', 'announcements'] as const)('teardown independently attempts both cleanups after synchronous %s failure', async (feature) => {
+    const old = await start();
+    h.shopCleanup.mockClear(); h.announcementCleanup.mockClear();
+    h.shopThrow = feature === 'Shop'; h.announcementThrow = feature === 'announcements';
+    for (const cleanup of h.cleanups) {
+      try { cleanup(); } catch { /* Continue independent teardown callbacks. */ }
+    }
+    await old.api.post('/api/probe', {}).catch(() => undefined);
+    expect(h.shopCleanup).toHaveBeenCalled();
+    expect(h.announcementCleanup).toHaveBeenCalled();
+    expect(h.fetch).not.toHaveBeenCalled();
+  });
   it('Auth replacement immediately revokes retained API and Shop lease before ownership resolves', async () => { const old = await start(); await seed(); const lease = shopCacheCurrent(nativeShopCache); const wait = deferred(); replace(other, wait.promise); expect(lease()).toBe(false); await old.api.post('/api/probe', {}).catch(() => undefined); expect(h.fetch).not.toHaveBeenCalled(); wait.resolve(); const current = await settle(); expect(current.identity).toEqual(other); expect(await readShopCache(nativeShopCache, owner.memberId)).toBeNull(); expect(await loadAnnouncementCache(owner)).toBeNull(); await current.api.post('/api/probe', {}); expect(h.fetch).toHaveBeenCalled(); });
   it('different verified ownership publishes only after old Shop and announcement caches are empty', async () => { await start(); await seed(); replace(other); const current = await settle(); expect(current.identity).toEqual(other); expect(await readShopCache(nativeShopCache, owner.memberId)).toBeNull(); expect(await loadAnnouncementCache(owner)).toBeNull(); });
   it('successful signout synchronously revokes preceding cache lease and removes private caches', async () => { const current = await start(); await seed(); const lease = shopCacheCurrent(nativeShopCache); const signingOut = current.signOut(); expect(lease()).toBe(false); await signingOut; expect(await loadAnnouncementCache(owner)).toBeNull(); });
