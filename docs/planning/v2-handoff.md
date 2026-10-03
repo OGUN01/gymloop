@@ -6,6 +6,20 @@ current checkpoint below supersedes the historical session-1 snapshot.
 
 ## Current checkpoint
 
+- Latest application state (supersedes earlier bullets): SHP independent
+  command/photo testsbeba18b precede repair; visible web253/shared72 and root
+  held16 pass. PLC visible103/current held24 pass after independent spoken-order
+  tests575a19d; real web baseline6/6 passes, receipt in
+  docs/evidence/v2/plans-catalogue-live-web.json. Fresh final source critics and
+  native/exception scenarios remain required. CLS backend has fresh source GO;
+  initial screens now exist with lint/production typing clean, but rendered
+  acceptance is unverified. Prebooking cutoff amendmentf42fb41 has contract GO
+  and awaits owner approval. Shared controls6407634 are tests-first and building.
+  ANC fresh complete source critic returned NO; scoped independent regression
+  fanout is next, and failure-truth-amendment.md is proposed. No all-v2 win,
+  final integration, Android acceptance or release has occurred. Cloud lock is
+  released; root-only preview session24986 remains running. Preserve the other
+  agent's USB phone and all Android/build artifacts.
 - Application checkpoint: canonical Shop caller fixtures are committed first as
   f944751; the separate builder now reuses unchanged memberSession/staffSession.
   The native scope helper rejects incomplete caller IDs. Root's independent

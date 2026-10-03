@@ -498,3 +498,35 @@ blocking reconciliation, and photo validation/pending stage honesty. Public
 existing interfaces57eb98a precede new independent regressions. Source fixes,
 central identity cleanup/navigation, actual media publication and races remain
 required. No bar or assertion was lowered.
+
+### Current screens and complete-review checkpoint, 2026-10-03
+
+SHP's independent visible and held command/photo regressionsbeba18b precede
+the two-control source repair. Visible web253/253 and shared72/72 pass; root's
+new held16/16 pass. No native provider/navigation, live reservation race or
+immutable-media acceptance is inferred. A fresh final critic remains required.
+
+PLC field and spoken marker/GST ordering regressions725f860 and575a19d precede
+separate renderer corrections. Visible103/103 and root's current held24/24
+pass. Six actual Chromium route tests pass in33.4seconds, covering four
+theme/width combinations, exact baseline terms, no catalogue writes, role
+redirects, axe, enlarged text, reduced motion and keyboard/back-link targets.
+Receipt and four captures: plans-catalogue-live-web.json and plc-live-web/.
+This is baseline web evidence; exception scenarios, final navigation, Android
+and fresh final acceptance remain open.
+
+CLS's fresh backend critic returned source GO after the complete-weekday fix.
+All prescribed initial screens now exist; backend visible324/324, screen lint,
+production typing and duplication pass. Rendered screen tests/runtime/critic
+remain required. The authoritative prebooking cutoff amendmentf42fb41 has a
+fresh contract GO and awaits the owner; booking confirmations currently refuse
+missing deadlines. PTF shared controls have independent RED tests6407634 and
+are being implemented separately. Its policy read remains owner-pending.
+
+ANC's fresh full source review returned NO despite earlier100 visible/8 held
+passing. Required repairs include scope-transition privacy, refused read truth,
+stable Home placement, a visible native preview and stale web work. Public
+interface clarification preserves idempotent receipt semantics; duplicate HTTP
+delivery alone is not a forbidden double count. The precise failure-truth
+amendment remains proposed, with no dependent source change authorized.
+Android remains deferred; no complete v2 win, archive or release is claimed.

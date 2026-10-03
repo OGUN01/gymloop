@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "scope": "PLC live web route baseline acceptance only",
+  "verifiedAt": "2026-10-03T00:17:12.0121543Z",
+  "sourceCommit": "575a19d plus uncommitted test-first application source",
+  "browser": "Chromium",
+  "previewOrigin": "http://127.0.0.1:3000",
+  "databaseProject": "pecxrpskmfeuyzngvewq",
+  "databaseWorkflowsIdle": true,
+  "lockSerialized": true,
+  "testFile": "tests/e2e/plans-catalogue-visible.spec.ts",
+  "passed": 6,
+  "failed": 0,
+  "durationSeconds": 33.4,
+  "viewports": [
+    390,
+    1440
+  ],
+  "colorSchemes": [
+    "light",
+    "dark"
+  ],
+  "checks": [
+    "baseline four offered plans in stored order",
+    "exact displayed money and durations",
+    "held sold terms distinct from current offers",
+    "stored GST18 rate without tax arithmetic",
+    "no writes after sign-in on member catalogue",
+    "signed-out redirect before catalogue",
+    "owner redirected to dashboard",
+    "axe zero violations at normal and 200 percent text",
+    "no horizontal overflow at 200 percent text",
+    "reduced motion",
+    "44px back link and keyboard focus"
+  ],
+  "screenshots": [
+    "plans-light-390-large-text.png",
+    "plans-light-1440-large-text.png",
+    "plans-dark-390-large-text.png",
+    "plans-dark-1440-large-text.png"
+  ],
+  "credentialsPrinted": false,
+  "actualAndroidVerified": false,
+  "wholePlcFeatureAccepted": false,
+  "unverified": [
+    "native rendered/runtime acceptance",
+    "exception and changed-sold-term live scenarios",
+    "final navigation integration",
+    "fresh final feature critic"
+  ],
+  "sourceHashes": {
+    "tests/e2e/plans-catalogue-visible.spec.ts": "844f4fd81977e6f90cff97749c7bd210ac3b17075b1be50b80a606ace317f5ac",
+    "packages/shared/src/api/plan-catalogue.ts": "8cb09221b853e363c48063e3867276a089de1a02f2a5449643183f0ef7309de8",
+    "apps/web/app/member/plans/page.tsx": "59de97dcb21601b047c5e2db06ee512142c2b11a74c4b52960a6547e75d23099",
+    "apps/web/app/member/plans/plan-list.tsx": "aeb121a68f9bea4fa65ac1a110ef28973f0c3ae5936a1c5465299a5ea13ec5ff",
+    "apps/web/app/styles/plans.css": "b0c283dc2b2f5d51867ba31a681e50a326b245778763aec4bbf8afd165afdcc0"
+  }
+}
