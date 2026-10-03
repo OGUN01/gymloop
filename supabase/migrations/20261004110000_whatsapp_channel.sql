@@ -11,19 +11,9 @@
 -- (whatsapp-paid:<source_notification_id> paid child; whatsapp-fallback:<id>
 -- in-app fallback; manual whatsapp:<id> untouched).
 --
--- NOT done here (reported to the orchestrator as required seam extensions,
--- per the WSP implementer brief): this migration intentionally does NOT
--- re-amend app.enforce_notification / public.send_notification / app.run_
--- push_events, because the authorization to amend the shared seam is the
--- orchestrator's serial decision, not an implementer discretion. The three
--- missing extension points are documented at the bottom of this file:
---   (1) service-created insert of the whatsapp_paid child,
---   (2) whatsapp_link scheduled→sent under durable attempt evidence,
---   (3) whatsapp-caused sent→delivered on the in-app source row.
--- Until those land, the WSP transport records all provider/attempt/receipt
--- truth in its own tables and the source-row advances stay provably blocked
--- (never faked).
---
+-- The enforce_notification extensions (paid-child insert, child sent on
+-- acceptance, source delivered on receipt, fallback child) are implemented
+-- in this same file as serial-authorized additive branches.
 -- GL119: sender/template/rate not dispatch-ready. GL120: stale/mismatched
 -- lease ticket or replayed authorization. GL121: causal debit refusal.
 -- GL122: receipt without a matching accepted attempt or evidence conflict.
@@ -1313,7 +1303,10 @@ begin
   end if;
   -- CURRENT = latest per member+purpose. The table is append-only, so ctid
   -- is the stable insertion order; uuid ids are not time-ordered and a
-  -- same-recorded_at withdrawal must never lose the tiebreak to them.
+  -- same-recorded_at withdrawal must never lose the tiebreak to them. This
+  -- ordering REQUIRES the append-only discipline: ctid is stable only
+  -- because consent rows are never updated and the table is never
+  -- rewritten (no VACUUM FULL / CLUSTER on it).
   select c.* into v_row from public.whatsapp_channel_consents c
    where c.tenant_id = p_tenant and c.member_id = p_member and c.purpose = p_purpose
    order by c.recorded_at desc, c.ctid desc limit 1;
@@ -1752,11 +1745,6 @@ begin
     null
   );
 
-  -- SEAM GAP (reported): the paid whatsapp_link child insert belongs here and
-  -- needs the shared enforce_notification extension; without it we do NOT
-  -- forge the row, and we do not forge claims in the JWT to sneak past the
-  -- front-office-only INSERT guard.
-
   return jsonb_build_object(
     'authorized', true,
     'attemptId', v_attempt.id,
@@ -2048,10 +2036,13 @@ begin
     raise exception 'The receipt timestamp is outside the accepted window' using errcode = '22023';
   end if;
 
+  -- Row lock before the fingerprint insert: concurrent duplicate receipts
+  -- for the same attempt serialize here instead of racing the unique index.
   select a.* into v_attempt from public.notification_whatsapp_attempts a
    where a.sender_account_id = p_sender_account_id
      and a.provider_message_id = btrim(p_provider_message_id)
-     and a.accepted_at is not null;
+     and (p_event_kind = 'failed' or a.accepted_at is not null)
+   for update;
   if not found then
     raise exception 'A receipt requires a matching accepted attempt'
       using errcode = 'GL122';
@@ -2089,6 +2080,66 @@ begin
     p_event_kind, p_provider_at, btrim(p_evidence_digest),
     v_rate.provider_category, v_rate.id::text
   );
+
+  if p_event_kind = 'failed' then
+    -- WSP-007 known-rejection semantics via the provider's own failure
+    -- callback: finalize the attempt as a terminal failure (reason recorded,
+    -- hold released, no debit, no resend), fail the source on its legal
+    -- sent→failed edge and surface the in-app fallback child. The adapter
+    -- pairing (a separately recorded acceptance) is optional here: the
+    -- callback pairs with the attempt's provider message id.
+    if v_attempt.completed_at is null then
+      update public.notification_whatsapp_attempts a
+         set failure_code = 'provider_rejected',
+             completed_at = clock_timestamp(),
+             released_at = clock_timestamp()
+       where a.id = v_attempt.id
+       returning * into v_attempt;
+      perform app.wsp_close_queue_row(v_attempt.tenant_id, v_attempt.notification_id);
+      select n.* into v_source from public.notifications n
+       where n.tenant_id = v_attempt.tenant_id and n.id = v_attempt.notification_id
+       for update;
+      if v_source.id is not null and v_source.status = 'sent'::public.notification_status then
+        update public.notifications n
+           set status = 'failed'::public.notification_status,
+               failed_reason = 'provider_rejected'
+         where n.tenant_id = v_attempt.tenant_id and n.id = v_attempt.notification_id
+         returning * into v_source;
+      end if;
+      insert into public.notifications (
+        tenant_id, member_id, channel, status, template_key, template_id,
+        category, related_type, related_id, dedupe_key, scheduled_for,
+        payload, source_notification_id
+      )
+      select n.tenant_id, n.member_id, 'in_app'::public.notification_channel,
+             'scheduled'::public.notification_status, null, null,
+             n.category, n.related_type, n.related_id,
+             'whatsapp-fallback:' || n.id::text, statement_timestamp(),
+             n.payload, n.id
+        from public.notifications n
+       where n.tenant_id = v_attempt.tenant_id and n.id = v_attempt.notification_id
+      on conflict (tenant_id, dedupe_key) where dedupe_key is not null do nothing;
+      insert into public.audit_log (
+        tenant_id, actor_user_id, actor_role, impersonation_session_id,
+        action, record_type, record_id, before, after, reason
+      ) values (
+        v_attempt.tenant_id, null, null, null,
+        'whatsapp_attempt.rejected', 'whatsapp_attempt', v_attempt.id,
+        null,
+        jsonb_build_object('notificationId', v_attempt.notification_id,
+                           'failureCode', 'provider_rejected', 'via', 'receipt'),
+        null
+      );
+    end if;
+    select n.* into v_source from public.notifications n
+     where n.tenant_id = v_attempt.tenant_id and n.id = v_attempt.notification_id;
+    return jsonb_build_object(
+      'attemptId', v_attempt.id, 'replayed', false,
+      'applied', true,
+      'notification', app.notification_result_json(v_source),
+      'ledgerId', null, 'debitedPaise', '0', 'currency', 'INR'
+    );
+  end if;
 
   if p_event_kind = 'read' then
     if v_attempt.provider_read_at is null or p_provider_at > v_attempt.provider_read_at then
@@ -2287,12 +2338,6 @@ begin
                          'reconciled', v_was_uncertain),
       null
     );
-
-    -- SEAM GAP (reported): the in-app fallback child
-    -- (whatsapp-fallback:<source_notification_id>) is a separate causal row
-    -- whose INSERT is blocked by the renewal-reserved identity branch of
-    -- app.enforce_notification until the orchestrator authorizes the seam
-    -- extension. The hold release above is the durable truth already saved.
 
     return jsonb_build_object('attemptId', v_attempt.id, 'replayed', false,
       'notification', app.notification_result_json(v_source));
@@ -2709,12 +2754,12 @@ begin
            new.dedupe_key not like 'whatsapp-paid:%'
            and (new.template_id is not null or new.template_key is not null)
          )
-         or not exists (
-           select 1 from public.members m
-            where m.tenant_id = new.tenant_id
-              and m.id = new.member_id
-              and m.phone = new.recipient_phone
-         ) then
+         -- Serial-owner ruling: the frozen recipient snapshot is the
+         -- RESOLVED contact (WSP-002): the member's own phone for an adult,
+         -- the complete guardian's phone for a minor — the same resolved
+         -- contact the consent digests are computed over.
+         or app.member_contact_phone(new.tenant_id, new.member_id)
+            is distinct from new.recipient_phone then
         raise exception 'A WhatsApp child must be an unchanged snapshot of its source'
           using errcode = 'GL066';
       end if;
