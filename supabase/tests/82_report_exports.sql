@@ -188,7 +188,7 @@ select is((select count(*) from jsonb_array_elements(v->'rows'))::int,2,'RPE E2:
 select is((select count(*) from jsonb_array_elements(v->'rows') r where r->>'member_id'=pg_temp.u(103)::text)::int,0,'RPE E3: an erased member never appears in the roster');
 select is(r->>'member_id',pg_temp.u(101)::text,'RPE E4: ordering by (joined_on,id) — earliest joined first') from (select (v->'rows'->>0)::jsonb r from res where k='mem') s;
 select is(r->>'phone','+918200000101','RPE E5: contact facts cross as stored text') from (select (v->'rows'->>0)::jsonb r from res where k='mem') s;
-select is(r->>'branch_id',pg_temp.u(13),'RPE E6: the member''s current branch (not a payment/visit branch)') from (select (v->'rows'->>1)::jsonb r from res where k='mem') s;
+select is(r->>'branch_id',pg_temp.u(13)::text,'RPE E6: the member''s current branch (not a payment/visit branch)') from (select (v->'rows'->>1)::jsonb r from res where k='mem') s;
 delete from res where k='mem';
 
 -- ============ F. payload shape, cap+1, gym zone ============
