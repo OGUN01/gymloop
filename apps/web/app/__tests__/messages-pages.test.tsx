@@ -329,7 +329,7 @@ describe('staff /messages — role-gated sections', () => {
 
   it('formats a large exact wallet string without rounding through a JS number', async () => {
     state.rpcResult = { rows: ROWS, statusCounts: STATUS_COUNTS, wallet: { balancePaise: '900719925474099101', currency: 'INR' }, asOf: '2026-09-10T10:00:00+00:00' };
-    expect(inspect(await loadMessagesPage()).text).toContain('₹90,07,19,92,54,74,099.01');
+    expect(inspect(await loadMessagesPage()).text).toContain('₹9,00,71,99,25,47,40,991.01');
   });
 
   it('a whatsapp_link child is labelled "Opened in WhatsApp", verbatim', async () => {
