@@ -30,7 +30,7 @@ vi.mock('../../lib/identity-session', () => ({
 
 const renderPage = async () => {
   const { default: ExportsPage } = await import('../(console)/exports/page');
-  return renderToStaticMarkup(<ExportsPage />);
+  return renderToStaticMarkup((await ExportsPage()) as never);
 };
 
 beforeEach(() => {
@@ -111,8 +111,8 @@ describe('RPE-013 role gating and state copy', () => {
     for (const key of required) {
       const entry = (REPORT_EXPORT_STATES as Record<string, { label?: string; action?: string }>)[key];
       expect(entry, `state ${key} exists`).toBeDefined();
-      expect(entry.label?.length ?? 0).toBeGreaterThan(0);
-      expect(entry.action?.length ?? 0).toBeGreaterThan(0);
+      expect(entry?.label?.length ?? 0).toBeGreaterThan(0);
+      expect(entry?.action?.length ?? 0).toBeGreaterThan(0);
     }
     expect(String((REPORT_EXPORT_STATES as Record<string, { hint?: string }>).too_large?.hint ?? '')).toMatch(/narrow/i);
     const labels = required.map((key) => String((REPORT_EXPORT_STATES as Record<string, { label?: string }>)[key]?.label));

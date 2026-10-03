@@ -86,7 +86,7 @@ const POST = async (body: unknown, init: RequestInit = {}) => {
   );
 };
 
-const decode = async (response: Response) => new TextDecoder().decode(await response.arrayBuffer());
+const decode = async (response: Response) => new TextDecoder('utf-8', { ignoreBOM: true }).decode(await response.arrayBuffer());
 
 const COMMON = 'row_type,export_id,generated_at_utc,snapshot_at_utc,range_from,range_through,range_basis,timezone,branch_scope,data_row_count';
 const DATASET_COLUMNS: Record<string, string> = {
@@ -180,8 +180,10 @@ describe('RPE-003 bounded exact request', () => {
     const unknownResponse = await POST({ ...goodBody(), branchId: BRANCH });
     const foreignResponse = await POST({ ...goodBody(), branchId: '86000000-0000-4000-8000-000000000999' });
     expect(unknownResponse.status).toBe(404);
-    expect(await unknownResponse.text()).toBe(await foreignResponse.text());
-    expect(await unknownResponse.text()).not.toContain('PRIVATE');
+    const unknownBody = await unknownResponse.text();
+    const foreignBody = await foreignResponse.text();
+    expect(unknownBody).toBe(foreignBody);
+    expect(unknownBody).not.toContain('PRIVATE');
   });
 
   it('a transport-oversize body is refused without source facts', async () => {
@@ -192,8 +194,8 @@ describe('RPE-003 bounded exact request', () => {
   });
 
   it('GET is not an export method', async () => {
-    const { GET } = await import('../api/report-exports/route');
-    expect(GET).toBeUndefined();
+    const routeModule = (await import('../api/report-exports/route')) as unknown as Record<string, unknown>;
+    expect(routeModule.GET).toBeUndefined();
   });
 });
 
