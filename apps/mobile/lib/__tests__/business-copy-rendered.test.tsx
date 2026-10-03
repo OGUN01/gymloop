@@ -177,6 +177,16 @@ describe('BIZ-012/021 rendered native vocabulary and accessible names', () => {
       expect(nodes(expand(icon)).map((node) => String(node.type)).join(' ')).toMatch(/Building/i);
     }
   });
+  it.each([['dance', 'Batches'], ['gym', 'Classes']] as const)('%s member primary tabs preserve the five destinations and use %s', async (type, classesLabel) => {
+    state.type = type;
+    const { RoleTabs } = await import('../../components/role-tabs');
+    const tree = expand(createElement(RoleTabs, { desk: false }));
+    const primary = nodes(tree).filter((node) => node.type === 'tab'
+      && (node.props.options as { href?: unknown } | undefined)?.href !== null);
+    expect(primary.map((node) => node.props.name)).toEqual(['index', 'classes', 'shop', 'activity', 'you']);
+    expect(primary.map((node) => (node.props.options as { title?: string } | undefined)?.title))
+      .toEqual(['Home', classesLabel, 'Shop', 'Activity', 'You']);
+  });
 });
 
 // BIZ-012/014 and the approved pre-BIZ hierarchy: the place is the eyebrow,
