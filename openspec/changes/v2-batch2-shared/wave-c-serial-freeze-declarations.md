@@ -182,6 +182,33 @@ GL codes are allocated through GL114 (CLS). Wave C takes:
 Existing GL066 invalid-state, GL067 wallet insufficiency and GL069 disabled
 paid stub keep their meanings; nothing is repurposed.
 
+## Serial amendments 2026-10-03 (post-first-implementation rounds)
+
+1. **Service-only causal debit writer (WSP):** `app.apply_whatsapp_transport_debit`
+   is the frozen debit path for verified billable delivery — postgres-owned
+   definer, `search_path=''`, EXECUTE only `service_role`, replicating
+   `app.record_wallet_movement`'s locked arithmetic/audit/evidence guards. It
+   cannot weaken identity checks because no user actor exists on the transport
+   path; `record_wallet_movement` remains the sole user-actor movement path.
+   Every debit call binds causally to an existing verified attempt + receipt
+   row; amounts come only from server tariff facts.
+2. **WhatsApp consent is strictly opt-in:** a dispatch authorization requires
+   a currently-granted `whatsapp_channel_consents` row (purpose + recipient
+   basis, rechecked at authorize). Absence is never consent; "presence-gated"
+   accommodation is void.
+3. **read_whatsapp_operations envelope frozen** as
+   `{operations, nextAfter, nextAfterId, statusCounts, templateBlockers,
+   wallet, chargedTotals}` — wallet + chargedTotals only in owner/manager
+   context, nulled for desk, refused for trainer/member.
+4. **WSP seam branches authorized** as additive whatsapp-channel cases in the
+   WSP migration: service-context `whatsapp-paid:<source>` child insert;
+   whatsapp_link scheduled→sent under durable attempt evidence; whatsapp
+   sent→delivered on the in-app source on delivery-receipt evidence;
+   fallback-child exception to the renewal-reserved identity branch.
+5. **PAY proof-URL RPC** (`public.read_purchase_proof_url(p_request_id
+   uuid)`, owner-member or same-tenant verifier, ≤60s, no keys/ETags) frozen
+   in the PAY proposal.
+
 ## Remaining before test authors start
 
 Serial work now complete except items that cannot precede owner decisions:

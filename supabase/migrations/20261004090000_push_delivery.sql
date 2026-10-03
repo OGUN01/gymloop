@@ -1585,12 +1585,14 @@ begin
         raise exception 'A renewal reminder is created only by the trusted scheduler'
           using errcode = '42501';
       end if;
-      -- A push child of a real renewal source is the sanctioned transport
-      -- extension (NTF-007): it must mirror the immutable source exactly.
+      -- Transport children of a real renewal source are the sanctioned
+      -- delivery extensions (NTF-007 for push; the phase6 manual WhatsApp
+      -- open for whatsapp_link). Each must mirror the immutable source;
+      -- the channel-specific blocks below still enforce their own actor,
+      -- snapshot and recipient rules on top.
       if new.channel = 'push'::public.notification_channel
          and new.source_notification_id is not null
-         and not (new.template_key is not null
-                  or new.source_notification_id is null) then
+         and new.template_key is null then
         select s.* into v_source
           from public.notifications s
          where s.tenant_id = new.tenant_id
@@ -1603,6 +1605,22 @@ begin
            or v_source.related_id is distinct from new.related_id
            or v_source.template_key is distinct from 'renewal_reminder' then
           raise exception 'A renewal push child must be an unchanged mirror of its renewal source'
+            using errcode = 'GL066';
+        end if;
+      elsif new.channel = 'whatsapp_link'::public.notification_channel
+         and new.source_notification_id is not null
+         and new.template_key is null then
+        select s.* into v_source
+          from public.notifications s
+         where s.tenant_id = new.tenant_id
+           and s.id = new.source_notification_id
+           and s.member_id = new.member_id;
+        if v_source.id is null
+           or v_source.category is distinct from new.category
+           or v_source.related_type is distinct from new.related_type
+           or v_source.related_id is distinct from new.related_id
+           or v_source.template_key is distinct from 'renewal_reminder' then
+          raise exception 'A renewal WhatsApp child must be an unchanged mirror of its renewal source'
             using errcode = 'GL066';
         end if;
       else
