@@ -22,9 +22,12 @@ const icon = (Icon: typeof House) => ({ color, focused }: { color: ColorValue; f
 </View>;
 export function RoleTabs({ desk = false }: { desk?: boolean }) {
   const nouns = useBusinessNouns();
-  const { palette, businessType } = useMobile();
+  const { palette, businessType, identity } = useMobile();
   const insets = useSafeAreaInsets();
-  const names = desk ? [{ name: 'index', title: 'Check-in', Icon: LogIn }, { name: 'classes', title: humanize(nouns.classes), Icon: CalendarDays }, { name: 'members', title: `${humanize(nouns.members)}`, Icon: UsersRound }, { name: 'follow-ups', title: 'Follow-ups', Icon: ListTodo }, { name: 'more', title: 'More', Icon: MoreHorizontal }] : [{ name: 'index', title: 'Home', Icon: House }, { name: 'classes', title: humanize(nouns.classes), Icon: CalendarDays }, { name: 'shop', title: 'Shop', Icon: ShoppingBag }, { name: 'activity', title: 'Activity', Icon: ChartNoAxesColumn }, { name: 'you', title: 'You', Icon: UserRound }];
+  // TRV: the Training tab exists only on a trainer's desk bar; other roles see no change.
+  const staffShape = identity as { kind?: string; role?: string } | null | undefined;
+  const trainerTabs = desk && staffShape?.kind === 'staff' && staffShape.role === 'trainer' ? [{ name: 'training', title: 'Training', Icon: Dumbbell }] : [];
+  const names = desk ? [{ name: 'index', title: 'Check-in', Icon: LogIn }, { name: 'classes', title: humanize(nouns.classes), Icon: CalendarDays }, { name: 'members', title: `${humanize(nouns.members)}`, Icon: UsersRound }, { name: 'follow-ups', title: 'Follow-ups', Icon: ListTodo }, ...trainerTabs, { name: 'more', title: 'More', Icon: MoreHorizontal }] : [{ name: 'index', title: 'Home', Icon: House }, { name: 'classes', title: humanize(nouns.classes), Icon: CalendarDays }, { name: 'shop', title: 'Shop', Icon: ShoppingBag }, { name: 'activity', title: 'Activity', Icon: ChartNoAxesColumn }, { name: 'you', title: 'You', Icon: UserRound }];
   return <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: palette.primaryAction, tabBarInactiveTintColor: palette.secondaryText, tabBarStyle: { backgroundColor: palette.canvas, borderTopColor: palette.decorativeSeparator, borderTopWidth: 1, elevation: 0, height: UI_TOKENS.geometry.targets.touch + space[3] + insets.bottom, paddingBottom: insets.bottom + space[0] }, tabBarItemStyle: { minHeight: UI_TOKENS.geometry.targets.touch, paddingTop: 0 }, tabBarIconStyle: styles.slot, tabBarLabelStyle: { fontFamily: FONT.medium, fontSize: UI_TOKENS.typography.secondary.size } }}>{names.map(({ name, title, Icon }) => <Tabs.Screen key={name} name={name} options={{ title, tabBarIcon: icon(Icon) }} />)}
     {!desk && <Tabs.Screen name="gym" options={{ title: `My ${nouns.place}`, href: null, tabBarIcon: icon(businessType === 'gym' || businessType == null ? Dumbbell : Building2) }} />}
   </Tabs>;
