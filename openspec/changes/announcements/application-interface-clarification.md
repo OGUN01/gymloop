@@ -27,3 +27,25 @@ Unmounted web command/form work cannot refresh, navigate or apply a completed
 upload to a replacement form. Existing caller validation remains authoritative;
 no browser-supplied identity is introduced. The separate failure-truth amendment
 remains owner-pending and must not be treated as approved by this clarification.
+
+## Existing callable surfaces
+
+- `AnnouncementComposer({ nouns, timezone, canPublish, detail })` is a named
+  export from the console `announcement-composer.tsx`; `nouns: BusinessNouns`,
+  `timezone: string`, `canPublish: boolean`, `detail?: AnnouncementDetail`.
+- `AnnouncementActions({ detail, nouns, timezone, canPublish, review })` is a
+  named export from `announcement-actions.tsx`; the same types apply, with
+  required `detail` and optional boolean `review` (default false).
+- Named `useAnnouncements()` consumes only `identity: GymloopIdentity` and
+  `api: ApiClient` from the existing named `useMobile()` provider, plus the
+  registered exact-scope cache interfaces. `markRead(announcementId: string,
+  versionNo: number)` and `reload()` are asynchronous actions.
+- Named `useAnnouncementCommand()` is a no-props console hook using the
+  existing preview-read-only boolean, browser connectivity/fetch and Next
+  router. `send(path: string, body: unknown)` returns a command data object
+  or null. Existing outcome fields are `online`, `busy`, `error`, `conflict`,
+  `setError`, `preview`, `disabled`. These are presentation interfaces, not a
+  second source of caller authorization.
+
+Blind authors may mock these public dependencies and import existing kit
+components as black boxes, without reading feature implementation bodies.
