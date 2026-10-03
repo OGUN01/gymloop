@@ -1,9 +1,11 @@
 # WhatsApp provider and wallet decision
 
-Status: proposed owner decision, 2026-10-03. Not approved or frozen. Read with
-`proposal.md` and `docs/design/v2/wsp-bar.md`. This prepares the decisions that
-block independent authors; it authorizes no provider registration, contact,
-purchase, credential provisioning, deployment or commercial conversion.
+Status: owner-approved scoped decision, 2026-10-03. The owner selected
+"Approve the Meta/INR amendment" after public contract review. The complete WSP
+proposal and shared NTF seams still need serial freeze before authors start.
+Read with `proposal.md` and `docs/design/v2/wsp-bar.md`. This authorizes no
+provider registration, contact, purchase, credential provisioning, deployment
+or unvalued commercial conversion.
 
 ## Proposed boundary
 
@@ -71,10 +73,9 @@ Credentials must never appear in a chat, repository, evidence artifact or
 mobile/web build. Real-provider acceptance remains required on an explicitly
 owner-designated, consented recipient after protected setup.
 
-## Owner decision
+## Recorded owner decision
 
-Approve this Meta-direct architecture, guarded INR unit transition,
-delivery-evidence charging and channel-specific consent boundary, or select
-the explicit alternative provider/units in the proposal. Approval allows
+The owner approved this Meta-direct architecture, guarded INR unit transition,
+delivery-evidence charging and channel-specific consent boundary. Approval allows
 serial contract completion and independent tests; it does not resolve missing
 provider/compliance facts or authorize guessing a historical credit value.
