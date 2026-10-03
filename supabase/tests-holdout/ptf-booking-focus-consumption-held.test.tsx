@@ -1,3 +1,4 @@
+import { ptCommandAnswer } from '../../packages/shared/src/api/pt-front';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import type { PtPack, MemberTraining, PtPolicyRead, PtSession } from '@gymloop/shared';
 import { businessNouns, UI_TOKENS, formatDateTime } from '@gymloop/shared';
@@ -322,5 +323,35 @@ describe.each(['web', 'native'] as const)('held %s absolute cutoff and status vo
       expect(nodeWords(status.props.children)).not.toContain(neutral);
       for (const field of ['label', 'value', 'status', 'data-status']) expect(String(status.props[field] ?? '')).not.toContain(neutral);
     }
+  });
+});
+
+describe('held PT applicability within generated booking enum', () => {
+  it('registered book decoder rejects otherwise exact CLS-only session_cancelled row', () => {
+    expect(ptCommandAnswer('book', [{ order_id: pack.orderId, session_id: id(90), starts_at: slot.startsAt,
+      ends_at: slot.endsAt, status: 'session_cancelled', in_cancel_window: true, replayed: false }])).toBeNull();
+  });
+});
+describe.each(['web', 'native'] as const)('held actual %s CLS-only PT answer boundary', platform => {
+  it('matching CLS status keeps original uncertain command retryable without automatic dispatch or invented status', async () => {
+    const h = await setup(platform); await h.choose();
+    post.mockImplementationOnce(async (_path, body) => ({ ok: true, data: { ...body, endsAt: slot.endsAt,
+      status: 'session_cancelled', inCancelWindow: true, replayed: false } }));
+    await h.view.press(confirm); expect(post).toHaveBeenCalledTimes(1);
+    const original = post.mock.calls[0]![1];
+    expect(h.view.text()).not.toMatch(/Unavailable|successfully booked|booking confirmed/i);
+    expect(h.enabled(retry).length).toBeGreaterThan(0);
+    expect(h.enabled(/reload/i).length).toBeGreaterThan(0);
+    const statuses = h.view.nodes().filter(node => node.type === 'Status' || Object.hasOwn(node.props, 'data-status'));
+    for (const status of statuses) {
+      expect(nodeWords(status.props.children)).not.toMatch(/Unavailable|session.cancelled/i);
+      for (const field of ['label', 'value', 'status', 'data-status']) expect(String(status.props[field] ?? '')).not.toMatch(/Unavailable|session.cancelled/i);
+    }
+    await h.view.settle(); expect(post).toHaveBeenCalledTimes(1);
+    currentFacts = { ...currentFacts, pack: { ...pack, state: 'closed', canBook: false }, slots: { data: [], error: null } };
+    post.mockImplementationOnce(async (_path, body) => ({ ok: true, data: { ...body, endsAt: slot.endsAt,
+      status: 'booked', inCancelWindow: true, replayed: true } }));
+    await h.view.press(retry); expect(post).toHaveBeenCalledTimes(2);
+    expect(post.mock.calls[1]).toEqual(['/api/member/pt-bookings', original]); expect(h.view.text()).toContain('Booked');
   });
 });
