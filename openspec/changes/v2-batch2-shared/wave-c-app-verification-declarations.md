@@ -160,6 +160,24 @@ to omit a test's actual native notification behavior.
 
 ## Explicit remaining build defects
 
+### PAY public proof-reader JSON interface
+
+`read_purchase_proof_url(p_request_id uuid)` returns one JSON object with
+`requestId`, `proofId`, `assetId`, `expiresAt` and `url`, using those exact
+camel-case names. It is not a set-returning array and does not return an R2
+object key or ETag. The URL is the same-origin bounded proof-asset route.
+The public POST projects only `{url, expiresAt}` into the standard envelope;
+private storage fields must never cross that boundary. Fixtures must use
+the declared object shape and must not invent a provider-signed URL as the
+database result. The proof-asset route independently authenticates and
+reauthorizes the currently active proof through trusted MEDIA.
+
+The detail reader returns the frozen safe purchase-request JSON object;
+the list readers return `{requests, nextAfter, nextAfterId}`. A successful
+list fixture may use the honest empty page; a detail fixture must include
+the complete safe public fields needed to render the request, not just an
+id and status. Arbitrary storage metadata is never admitted by success.
+
 ### Native notification SDK cold-start interface
 
 The installed Expo Notifications API exposes
