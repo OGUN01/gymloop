@@ -1,0 +1,9 @@
+.shop-workspace .cl-btn { white-space: normal; min-width: var(--gymloop-target-touch); overflow-wrap: anywhere; text-align: center; }
+.shop-workspace :is(h2, h3, p, label) { overflow-wrap: anywhere; }
+.shop-workspace dialog::backdrop { background: var(--gymloop-color-scrim); }
+.shop-loading-tile { display: grid; min-width: 0; gap: var(--gymloop-space-16); }
+.shop-loading-image { width: 100%; aspect-ratio: 1; }
+.shop-loading-line { width: 100%; height: var(--gymloop-space-16); }
+.shop-loading-line--short { width: 60%; }
+.shop-loading-row { display: grid; flex: 1; min-width: var(--gymloop-target-touch); gap: var(--gymloop-space-8); }
+.shop-loading-row-end { width: var(--gymloop-target-touch); height: var(--gymloop-space-16); }
