@@ -10,6 +10,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1100.0",
+    "@aws-sdk/s3-request-presigner": "3.1100.0",
     "@fontsource-variable/archivo": "5.3.0",
     "@gymloop/db": "workspace:*",
     "@gymloop/shared": "workspace:*",

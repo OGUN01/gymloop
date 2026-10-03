@@ -1,0 +1,60 @@
+name: Protected MEDIA Edge deployment
+
+# Deliberately manual: review source and require the protected environment
+# approval before provisioning the existing credential or deploying MEDIA.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: media-edge-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    environment: production-media
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PROJECT_REF: pecxrpskmfeuyzngvewq
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: supabase/setup-cli@v3
+        with: { version: 2.110.0 }
+      - name: Verify exact project and required configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$PROJECT_REF" = 'pecxrpskmfeuyzngvewq'
+          test "$R2_BUCKET" = 'gymloop-media'
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          test -n "$SUPABASE_DB_PASSWORD"
+          test -n "$R2_ACCESS_KEY_ID"
+          test -n "$R2_SECRET_ACCESS_KEY"
+          test -n "$R2_ENDPOINT"
+          supabase link --project-ref "$PROJECT_REF" --yes
+          test "$(cat supabase/.temp/project-ref)" = "$PROJECT_REF"
+      - name: Provision existing private R2 configuration and deploy only MEDIA
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          media_env_file="$(mktemp)"
+          trap 'rm -f "$media_env_file"' EXIT
+          printf 'R2_ACCESS_KEY_ID=%s\nR2_SECRET_ACCESS_KEY=%s\nR2_BUCKET=%s\nR2_ENDPOINT=%s\n' "$R2_ACCESS_KEY_ID" "$R2_SECRET_ACCESS_KEY" "$R2_BUCKET" "$R2_ENDPOINT" > "$media_env_file"
+          supabase secrets set --project-ref "$PROJECT_REF" --env-file "$media_env_file" >/dev/null
+          supabase functions deploy media --project-ref "$PROJECT_REF" --use-api --import-map supabase/functions/deno.json
+      - name: Verify provisioned names without values
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase secrets list --project-ref "$PROJECT_REF" --output json | jq -e 'map(.name) | contains(["R2_ACCESS_KEY_ID","R2_SECRET_ACCESS_KEY","R2_BUCKET","R2_ENDPOINT"])' >/dev/null
