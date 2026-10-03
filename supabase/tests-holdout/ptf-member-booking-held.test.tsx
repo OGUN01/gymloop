@@ -78,7 +78,7 @@ vi.mock('../../apps/mobile/components/ui', () => {
       : [props.title, props.children];
     return { type: name, props: { ...props, children } };
   };
-  return Object.fromEntries(['ActionButton', 'Body', 'EmptyState', 'ErrorRetry', 'LoadingState', 'Row', 'RowAction', 'SearchField', 'Sheet', 'SheetHeader', 'StateMessage', 'Status', 'LedgerSection', 'Display', 'Rule'].map(name => [name, host(name)]));
+  return Object.fromEntries(['Screen', 'Title', 'Eyebrow', 'ActionButton', 'Body', 'EmptyState', 'ErrorRetry', 'LoadingState', 'Row', 'RowAction', 'SearchField', 'Sheet', 'SheetHeader', 'StateMessage', 'Status', 'LedgerSection', 'Display', 'Rule'].map(name => [name, host(name)]));
 });
 
 import * as ptActions from '../../apps/web/app/member/classes/training/pt-actions';
