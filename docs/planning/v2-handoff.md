@@ -43,6 +43,16 @@ current checkpoint below supersedes the historical session-1 snapshot.
   still occupied. External C/D coordinators retain their work; no duplicate
   coordinator, combined push, whole A/B win or v2 release is claimed.
 
+- Publication preflight now finds a concrete Wave C history gate failure:
+  `node scripts/check-test-immutability.mjs origin/main..HEAD` returns exit1
+  for5aab604737e9, which combines78_push_delivery.sql tests with the NTF
+  migration under a feat: prefix. External C owns independent-author evidence
+  and the exact test-first/source split before any push; changing the prefix
+  alone does not repair the workflow. Concrete repair packet:
+  scratchpad/wave-c-mixed-commit-handoff.md. Primary has not rewritten history
+  or waived the gate. Registry preamble omission is fixed indff1f38 and the
+  registry gate passes. A/B local pass counts remain bounded and unchanged.
+
 - Latest primary demo/verification checkpoint: independent static demo proofs
   are committed38f1a5d/710c79b with visible31 and holdout23 assertions. Separate
   immutable seed-once graph source4eab3ca preserves the original seed prefix;
