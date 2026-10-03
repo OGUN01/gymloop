@@ -35,3 +35,5 @@ Independent visible integration regressions precede the source. The earlier
 four-desk-destination preservation oracle is superseded only by this specified
 Classes insertion; member-five-tab and all other original assertions remain.
 Root updates registry/docs and runs full final web/native acceptance.
+
+Owner-approved neutral-privacy-copy-amendment.md (2026-10-03) replaces only the registered disclosure's venue wording with 'The business', retaining verbatim rendering and every privacy rule.

@@ -1,6 +1,6 @@
 # Announcement privacy wording across business types
 
-Proposed owner decision, 2026-10-03. No source or tests changed by this proposal.
+Owner-approved wording-only decision, 2026-10-03. The owner selected the neutral wording after reviewing this concrete proposal. Independent tests precede the separate source edit.
 
 The frozen ANC sentence says "Your gym sees how many members opened it, not
 who." The approved BIZ public-legal contract requires the neutral term "the
