@@ -1,12 +1,13 @@
 import { isValidElement, type ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UI_TOKENS } from '@gymloop/shared';
 
 // Public declarations only. These tests execute the real no-props surface.
 const h = vi.hoisted(() => ({ cursor: 0, slots: [] as unknown[], effects: [] as Array<() => unknown>,
   cleanups: [] as Array<() => unknown>, changed: false, online: true,
   identity: { kind: 'member', tenantId: '73000000-0000-4000-8000-000000000001', userId: '73000000-0000-4000-8000-000000000002', memberId: '73000000-0000-4000-8000-000000000003' } as Record<string, string>,
-  listeners: [] as Array<(state: unknown) => void>, load: vi.fn(), history: vi.fn(), post: vi.fn(), queue: vi.fn(), store: vi.fn(), navigate: vi.fn(),
+  listeners: [] as Array<(state: unknown) => void>, load: vi.fn(), history: vi.fn(), post: vi.fn(), queue: vi.fn(), store: vi.fn(), navigate: vi.fn(), network: vi.fn(),
+  ready: true, client: {} as Record<string, unknown>, api: null as { post: (...args: unknown[]) => unknown } | null,
 }));
 function hooks(actual: Record<string, unknown>) {
   const memo = (make: () => unknown, deps?: unknown[]) => {
@@ -30,13 +31,12 @@ function hooks(actual: Record<string, unknown>) {
   return { ...actual, ...overrides, default: { ...(actual.default as Record<string, unknown>), ...overrides } };
 }
 vi.mock('react', async original => hooks(await original<Record<string, unknown>>()));
-const client = { caller: 'public-fixture' };
-vi.mock('../mobile-context', () => ({ useMobile: () => ({ identity: h.identity, ready: true, session: {},
-  supabase: client, api: { post: h.post }, palette: UI_TOKENS.colors.light,
+vi.mock('../mobile-context', () => ({ useMobile: () => ({ identity: h.identity, ready: h.ready, session: {},
+  supabase: h.client, api: h.api, palette: UI_TOKENS.colors.light,
   nouns: { place: 'gym', session: 'session', sessions: 'sessions', member: 'member', members: 'members', trainer: 'trainer', class: 'class', classes: 'classes' }, businessType: 'gym',
 }) }));
 vi.mock('../training', () => ({ loadTraining: h.load, loadTrainingHistory: h.history }));
-vi.mock('expo-network', () => ({ getNetworkStateAsync: async () => ({ isConnected: h.online, isInternetReachable: h.online }),
+vi.mock('expo-network', () => ({ getNetworkStateAsync: h.network,
   addNetworkStateListener: (listener: (state: unknown) => void) => { h.listeners.push(listener); return { remove: () => { h.listeners = h.listeners.filter(item => item !== listener); } }; },
 }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: h.navigate, replace: h.navigate }), router: { push: h.navigate, replace: h.navigate }, Link: 'Link', Redirect: 'Redirect' }));
@@ -101,13 +101,22 @@ function action(pattern: RegExp, scope = tree) { const node = scope.find(item =>
 async function press(node: Node) { await (node.props.onPress as () => unknown)(); await render(); }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 function unmount() { h.cleanups.splice(0).forEach(cleanup => cleanup()); }
+function revoke(kind: 'api' | 'client' | 'readiness') {
+  if (kind === 'api') h.api = { post: h.post };
+  else if (kind === 'client') h.client = { caller: 'replacement same-identity client' };
+  else h.ready = false;
+}
 beforeEach(() => {
   unmount(); h.cursor = 0; h.slots = []; h.effects = []; h.changed = false; h.online = true; h.listeners = [];
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(session.cancelCutoff));
+  h.ready = true; h.client = { caller: 'public-fixture' }; h.api = { post: h.post };
+  h.network.mockReset().mockImplementation(async () => ({ isConnected: h.online, isInternetReachable: h.online }));
   h.identity = { kind: 'member', tenantId: '73000000-0000-4000-8000-000000000001', userId: '73000000-0000-4000-8000-000000000002', memberId: '73000000-0000-4000-8000-000000000003' };
   h.load.mockReset().mockResolvedValue(data()); h.history.mockReset().mockResolvedValue({ data: [], error: null });
   h.post.mockReset().mockResolvedValue({ ok: true, data: { sessionId, status: 'cancelled_by_member', late: false, consumed: false, sessionsRemaining: 6, replayed: false } });
   h.queue.mockClear(); h.store.mockClear(); h.navigate.mockClear();
 });
+afterEach(() => { unmount(); vi.useRealTimers(); });
 
 describe('PTF visible TrainingSection reads and existing-session cancellation', () => {
   it.each(['trainers', 'programmes', 'packs', 'upcoming', 'history'] as const)('keeps successful sections when %s fails independently', async section => {
@@ -172,6 +181,7 @@ describe('PTF visible TrainingSection reads and existing-session cancellation', 
   it('marks last-loaded reads stale and disables cancellation while positively offline', async () => {
     await mount(); h.online = false; h.listeners.forEach(listener => listener({ isConnected: false, isInternetReachable: false })); await render();
     expect(visible()).toContain("You're offline. Showing what was last loaded."); expect(visible()).toContain('Visible live pack');
+    expect(visible()).toMatch(/stale/i);
     for (const button of tree.filter(node => /^Cancel(?: session)?$/.test(label(node)))) expect(button.props.disabled).toBe(true);
     expect(h.post).not.toHaveBeenCalled(); expect(h.queue).not.toHaveBeenCalled();
   });
@@ -197,5 +207,74 @@ describe('PTF visible TrainingSection reads and existing-session cancellation', 
   it('a retained confirmation from the previous caller cannot issue a request', async () => {
     await mount(); await press(action(/^Cancel(?: session)?$/)); const oldConfirm = action(/Confirm|Cancel session/);
     h.identity = { ...h.identity, memberId: '73000000-0000-4000-8000-000000000022' }; await render(); await (oldConfirm.props.onPress as () => unknown)(); await render(); expect(h.post).not.toHaveBeenCalled();
+  });
+  it.each([true, false])('fresh free-to-late consequence (%s consumption) requires renewed explicit confirmation with its absolute cutoff', async consumesNow => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-06T06:30:00.001Z'));
+    await mount(); await press(action(/^Cancel(?: session)?$/)); const before = h.load.mock.calls.length;
+    const fresh = data(); fresh.upcoming.data[0] = { ...session, lateNow: true, consumesNow }; h.load.mockResolvedValue(fresh);
+    await press(action(/Confirm|Cancel session/)); expect(h.load.mock.calls.length).toBeGreaterThan(before); expect(h.post).not.toHaveBeenCalled();
+    expect(visible()).toContain(consumesNow ? 'This is inside your cancellation window. Cancelling will use 1 session from your pack.' : "This is inside your cancellation window. Cancelling won't use a session from your pack.");
+    expect(visible()).toMatch(/6.*Oct.*2026|Oct.*6.*2026/); expect(visible()).toContain('12:00');
+    await press(action(/Confirm|Cancel session/)); expect(h.post).toHaveBeenCalledExactlyOnceWith('/api/member/pt-bookings/cancel', { sessionId });
+  });
+  it.each(['missing', 'null-cutoff', 'wrong-row', 'cancelled', 'uncancellable', 'read-error'] as const)('fresh %s before confirmation refuses without falling back to old facts', async failure => {
+    await mount(); await press(action(/^Cancel(?: session)?$/)); const before = h.load.mock.calls.length; const fresh = data();
+    if (failure === 'missing') fresh.upcoming.data = [];
+    else if (failure === 'read-error') fresh.upcoming = { data: null, error: 'Please try again.' } as never;
+    else fresh.upcoming.data[0] = { ...session, ...(failure === 'null-cutoff' ? { cancelCutoff: null } : failure === 'wrong-row' ? { sessionId: '73000000-0000-4000-8000-000000000081' } : failure === 'cancelled' ? { status: 'cancelled_by_member' } : { canCancel: false }) } as typeof session;
+    h.load.mockResolvedValue(fresh); await press(action(/Confirm|Cancel session/)); expect(h.load.mock.calls.length).toBeGreaterThan(before); expect(h.post).not.toHaveBeenCalled();
+  });
+  it('preserves free cancellation at the exact inclusive cutoff through fresh prepare and confirm reads', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(session.cancelCutoff));
+    await mount(); await press(action(/^Cancel(?: session)?$/)); expect(visible()).toMatch(/Free to cancel until/); expect(visible()).toContain('12:00');
+    const before = h.load.mock.calls.length; await press(action(/Confirm|Cancel session/)); expect(h.load.mock.calls.length).toBeGreaterThan(before); expect(h.post).toHaveBeenCalledExactlyOnceWith('/api/member/pt-bookings/cancel', { sessionId });
+  });
+  it('a clock crossing while the exact-session read is paused cannot immediately send stale free facts', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-06T06:29:59.999Z'));
+    await mount(); await press(action(/^Cancel(?: session)?$/)); const pending = deferred<ReturnType<typeof data>>(); h.load.mockReturnValueOnce(pending.promise);
+    const before = h.load.mock.calls.length; const oldConfirm = action(/Confirm|Cancel session/); const operation = (oldConfirm.props.onPress as () => unknown)();
+    await new Promise(resolve => setTimeout(resolve, 0)); expect(h.load.mock.calls.length).toBeGreaterThan(before); expect(h.post).not.toHaveBeenCalled();
+    vi.setSystemTime(new Date('2026-10-06T06:30:00.001Z')); pending.resolve(data()); await operation; await render(); expect(h.post).not.toHaveBeenCalled();
+    const fresh = data(); fresh.upcoming.data[0] = { ...session, lateNow: true, consumesNow: true }; h.load.mockResolvedValue(fresh);
+    await press(action(/Confirm|Cancel session/)); expect(h.post).not.toHaveBeenCalled(); expect(visible()).toContain('Cancelling will use 1 session from your pack.');
+    await press(action(/Confirm|Cancel session/)); expect(h.post).toHaveBeenCalledTimes(1);
+  });
+  it.each(['api', 'client', 'readiness'] as const)('same-identity %s change permanently revokes retained cancellation handlers', async capability => {
+    await mount(); await press(action(/^Cancel(?: session)?$/)); const oldConfirm = action(/Confirm|Cancel session/);
+    const originalApi = h.api; const originalClient = h.client; revoke(capability); await render();
+    h.api = originalApi; h.client = originalClient; h.ready = true; await render();
+    await (oldConfirm.props.onPress as () => unknown)(); await render(); expect(h.post).not.toHaveBeenCalled(); expect(h.navigate).not.toHaveBeenCalled();
+  });
+  it.each(['api', 'client', 'readiness'] as const)('same-identity %s change discards preceding pending read data', async capability => {
+    const pending = deferred<ReturnType<typeof data>>(); h.load.mockReturnValueOnce(pending.promise); await mount(); revoke(capability); await render();
+    const poison = data(); poison.trainers.data[0]!.bio = 'Forbidden obsolete capability biography'; pending.resolve(poison); await render(); expect(visible()).not.toContain('Forbidden obsolete capability biography'); expect(h.post).not.toHaveBeenCalled();
+  });
+  it.each(['api', 'client', 'readiness'] as const)('late cancellation feedback is discarded after %s replacement', async capability => {
+    await mount(); await press(action(/^Cancel(?: session)?$/)); const pending = deferred<unknown>(); h.post.mockReturnValueOnce(pending.promise);
+    const operation = (action(/Confirm|Cancel session/).props.onPress as () => unknown)(); await new Promise(resolve => setTimeout(resolve, 0)); expect(h.post).toHaveBeenCalledTimes(1);
+    revoke(capability); await render(); h.changed = false; pending.resolve({ ok: true, data: { sessionId, status: 'cancelled_by_member', late: false, consumed: false, sessionsRemaining: 6, replayed: false } }); await operation;
+    expect(h.changed).toBe(false); expect(h.navigate).not.toHaveBeenCalled();
+  });
+  it('live pack Book action only navigates online to its exact order route and makes no command', async () => {
+    await mount(); await press(action(/Book a session/)); expect(h.navigate).toHaveBeenCalledTimes(1);
+    const destination = h.navigate.mock.calls[0]![0] as string | { pathname: string; params?: { orderId?: string } };
+    if (typeof destination === 'string') expect(destination).toBe(`/training/book/${orderId}`);
+    else { expect(destination.pathname).toBe('/training/book/[orderId]'); expect(destination.params?.orderId).toBe(orderId); }
+    expect(h.post).not.toHaveBeenCalled(); expect(h.queue).not.toHaveBeenCalled();
+  });
+  it.each(['api', 'client', 'readiness'] as const)('same-identity %s change permanently revokes retained Book navigation', async capability => {
+    await mount(); const oldBook = action(/Book a session/); const originalApi = h.api; const originalClient = h.client;
+    revoke(capability); await render(); h.api = originalApi; h.client = originalClient; h.ready = true; await render();
+    await (oldBook.props.onPress as () => unknown)(); await render(); expect(h.navigate).not.toHaveBeenCalled(); expect(h.post).not.toHaveBeenCalled();
+  });
+  it('unavailable and offline packs have no enabled Book action, explicit stale marker and no reconnect navigation', async () => {
+    const fixture = data(); fixture.packs.data[0] = { ...pack, state: 'fully_booked', canBook: false, sessionsRemaining: 0 }; h.load.mockResolvedValue(fixture); await mount();
+    for (const button of tree.filter(node => /Book a session/.test(label(node)))) expect(button.props.disabled ?? typeof button.props.onPress !== 'function').toBe(true);
+    h.load.mockResolvedValue(data()); h.identity = { ...h.identity, memberId: '73000000-0000-4000-8000-000000000082' }; await render(); const book = action(/Book a session/);
+    h.online = false; h.listeners.forEach(listener => listener({ isConnected: false, isInternetReachable: false })); await render();
+    expect(visible()).toContain("You're offline. Showing what was last loaded."); expect(visible()).toMatch(/stale/i);
+    for (const button of tree.filter(node => /Book a session/.test(label(node)))) expect(button.props.disabled).toBe(true);
+    await (book.props.onPress as () => unknown)(); await render(); expect(h.navigate).not.toHaveBeenCalled();
+    h.online = true; h.listeners.forEach(listener => listener({ isConnected: true, isInternetReachable: true })); await render(); expect(h.navigate).not.toHaveBeenCalled(); expect(h.post).not.toHaveBeenCalled(); expect(h.queue).not.toHaveBeenCalled();
   });
 });
