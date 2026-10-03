@@ -8,6 +8,7 @@ import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Field, inputClass } from '../field';
+import { isBrowserOffline, OfflineNotice } from '../../offline-notice';
 import { Alert } from '../alert';
 import { StatusWord } from '../../status-word';
 import { UUID_PATTERN } from '../../../lib/keyset';
@@ -64,25 +65,9 @@ function leadProblemText(code: string): string {
  */
 const OFFLINE_COPY = "You're offline. Connect to convert this lead.";
 
-function isBrowserOffline(): boolean {
-  return typeof navigator !== 'undefined' && navigator.onLine === false;
-}
-
 /** The workspace banner that tells the desk a conversion needs a connection. */
 export function LeadsOfflineNotice() {
-  const [synced, setSynced] = useState<boolean | null>(null);
-  useEffect(() => {
-    const update = () => setSynced(navigator.onLine === false);
-    update();
-    window.addEventListener('online', update);
-    window.addEventListener('offline', update);
-    return () => {
-      window.removeEventListener('online', update);
-      window.removeEventListener('offline', update);
-    };
-  }, []);
-  if (!isBrowserOffline() && synced !== true) return null;
-  return <p role="status" className="cl-alert" data-tone="warn">{OFFLINE_COPY}</p>;
+  return <OfflineNotice copy={OFFLINE_COPY} />;
 }
 
 type LeadCommandShape = { path: string; method: 'POST' | 'PATCH'; body: Record<string, unknown> };

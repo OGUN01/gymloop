@@ -15,11 +15,11 @@ import { MEMBER_PAGE_SIZE_DEFAULT } from '@gymloop/shared';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type FreezeAudience = 'member' | 'frontOffice';
+type FreezeAudience = 'member' | 'frontOffice';
 const FRONT_OFFICE_ROLES = ['gym_owner', 'gym_manager', 'front_desk'];
 export type FreezeOperation = 'create' | 'cancel' | 'readList' | 'readOne' | 'staffRead' | 'adopt' | 'approve' | 'reject' | 'expire';
 
-export function freezeFailure(code: string): Response {
+function freezeFailure(code: string): Response {
   if (code === '42501') return noStore(apiFail('forbidden', 'not_permitted', 'You cannot perform this action from this account.'));
   if (code === 'P0002') return noStore(apiFail('not_found', 'request_unavailable', "That request isn't available."));
   if (code === 'GL068') return noStore(apiFail('conflict', 'idempotency_conflict', 'This was already handled with different details.'));
@@ -67,7 +67,7 @@ function camelResult(data: unknown): unknown {
   return camelRow(data as Record<string, unknown>);
 }
 
-export function requestIdFrom(segment: Record<string, string>): string | null {
+function requestIdFrom(segment: Record<string, string>): string | null {
   const value = segment.requestId ?? segment.id ?? '';
   return value && UUID_PATTERN.test(value) ? value : null;
 }

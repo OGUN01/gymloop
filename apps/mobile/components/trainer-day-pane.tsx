@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { formatDateTime, ptBookingStatusLabel, ptPackStateLabel } from '@gymloop/shared';
 import { useMobile } from '../lib/mobile-context';
 import { useBusinessNouns } from '../lib/use-business-nouns';
+import { useRuntimeOnline } from '../lib/online-probe';
 import { ActionButton, Body, EmptyState, ErrorRetry, LoadingState, Rule, StateMessage, Status } from './ui';
 import type { TrainerPack } from '../lib/trainer-view';
 import type { useTrainerDay } from '../lib/use-trainer-day';
@@ -29,15 +29,7 @@ function PackFacts({ pack, place }: { pack: TrainerPack; place: string }) {
 export function TrainerDayPane({ state }: { state: ReturnType<typeof useTrainerDay> }) {
   const { palette } = useMobile();
   const nouns = useBusinessNouns();
-  const [online, setOnline] = useState(false);
-  useEffect(() => {
-    let active = true;
-    // probed at runtime so the pane imports no network module at load time
-    void import('expo-network').then(Network => Network.getNetworkStateAsync()).then(network => {
-      if (active) setOnline(network.isConnected === true && network.isInternetReachable === true);
-    }).catch(() => { if (active) setOnline(false); });
-    return () => { active = false; };
-  }, [state.refresh]);
+  const online = useRuntimeOnline(state.refresh);
   const day = state.day;
   const packsByOrder = new Map<string, TrainerPack>();
   if (day !== null && day.packs.data !== null) {

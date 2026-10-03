@@ -166,3 +166,26 @@ export type FreezeRequestCopy = ReturnType<typeof freezeRequestCopy>;
 export function freezeApproverRoleNote(role: string): string {
   return `Approval is set for the ${role} role.`;
 }
+
+/** A request can still be withdrawn by its own member before approval (SLF-009). */
+export function freezeRequestCancellable(status: string): boolean {
+  return status === 'requested' || status === 'desk_submitted';
+}
+
+/**
+ * The one status word for a member-visible request row (SLF-018's state
+ * matrix, bar criterion 4): every frozen status maps to its own word, and an
+ * approved row names its derived effective condition rather than a bare
+ * "approved" — scheduled, currently paused or completed.
+ */
+export function freezeRequestStateWord(copy: FreezeRequestCopy, status: string, effective: FreezeEffectiveState | null): string {
+  switch (status) {
+    case 'requested': return copy.awaitingAdoption;
+    case 'desk_submitted': return copy.awaitingApproval;
+    case 'approved': return effective === 'scheduled' ? copy.scheduled : effective === 'paused' ? copy.paused : effective === 'completed' ? copy.completed : copy.approved;
+    case 'rejected': return copy.rejected;
+    case 'cancelled': return copy.cancelled;
+    case 'expired': return copy.expired;
+    default: return copy.awaitingAdoption;
+  }
+}

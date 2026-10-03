@@ -10,7 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * section failures mirror the published PTF contract.
  */
 
-export type TrainerIdentity = Extract<GymloopIdentity, { kind: 'staff' }>;
+type TrainerIdentity = Extract<GymloopIdentity, { kind: 'staff' }>;
 export type TrainerBooking = Omit<Database['public']['Functions']['read_pt_bookings']['Returns'][number], 'cancelled_at'> & { cancelled_at: string | null };
 export type TrainerPack = Database['public']['Functions']['read_pt_packs']['Returns'][number];
 export type BookingArgs = Database['public']['Functions']['read_pt_bookings']['Args'];
@@ -60,6 +60,35 @@ export async function loadTrainerZone(client: SupabaseClient<Database>, identity
   } catch { return { data: null, error: 'unavailable' }; }
 }
 
+/**
+ * The one keyset page walk both TRV sections share: fetch a page through the
+ * caller's session, stop only on a successful empty page, refuse a cursor
+ * that did not advance (the feed cannot be paginated honestly), and cap the
+ * whole walk — past the cap the section fails sanitized, never partially.
+ */
+async function walkTrainerPages<T, C extends object>(
+  fetchPage: (cursor: C | null) => Promise<{ data: T[] | null; error: { code: string } | null }>,
+  nextCursor: (last: T) => C | null,
+  sameCursor: (previous: C, next: C) => boolean,
+): Promise<PtReadSection<T>> {
+  try {
+    const rows: T[] = [];
+    let cursor: C | null = null;
+    for (;;) {
+      const result = await fetchPage(cursor);
+      if (result.error || result.data === null) return { data: null, error: 'unavailable' };
+      const page = result.data;
+      if (page.length === 0) return { data: rows, error: null };
+      const next = nextCursor(page[page.length - 1]!);
+      // A cursor that did not advance means the feed cannot be paginated honestly.
+      if (next === null || (cursor !== null && sameCursor(cursor, next))) return { data: null, error: 'unavailable' };
+      if (rows.length + page.length > SECTION_SCAN_CAP) return { data: null, error: 'unavailable' };
+      cursor = next;
+      rows.push(...page);
+    }
+  } catch { return { data: null, error: 'unavailable' }; }
+}
+
 export async function loadTrainerBookings(client: SupabaseClient<Database>, identity: GymloopIdentity, args: BookingArgs): Promise<PtReadSection<TrainerBooking>> {
   const trainer = guardTrainer(identity);
   // Argument validation rejects before any read: another trainer cannot be
@@ -70,50 +99,33 @@ export async function loadTrainerBookings(client: SupabaseClient<Database>, iden
   const to = instantOrNothing(args.p_to);
   if (from === null || to === null || Date.parse(to) <= Date.parse(from) || Date.parse(to) - Date.parse(from) > PT_BOOKING_LIMITS.bookingRangeDaysMax * MS_PER_DAY) throw new Error('Unavailable');
   if ((args.p_after_id != null) !== (args.p_after_starts_at != null)) throw new Error('Unavailable');
-  try {
-    const rows: TrainerBooking[] = [];
-    let cursor: { startsAt: string; id: string } | null = null;
-    for (;;) {
-      const result = await client.rpc('read_pt_bookings', {
-        p_from: from, p_to: to, p_limit: PT_READ_PAGE_MAX,
-        ...(cursor ? { p_after_starts_at: cursor.startsAt, p_after_id: cursor.id } : {}),
-      });
-      if (result.error || result.data === null) return { data: null, error: 'unavailable' };
-      const page = result.data;
-      if (page.length === 0) return { data: rows, error: null };
-      const last = page[page.length - 1]!;
+  return walkTrainerPages<TrainerBooking, { startsAt: string; id: string }>(
+    (cursor) => client.rpc('read_pt_bookings', {
+      p_from: from, p_to: to, p_limit: PT_READ_PAGE_MAX,
+      ...(cursor ? { p_after_starts_at: cursor.startsAt, p_after_id: cursor.id } : {}),
+    }) as unknown as Promise<{ data: TrainerBooking[] | null; error: { code: string } | null }>,
+    (last) => {
       const startsAt = instantOrNothing(last.starts_at);
       const id = textOrNothing(last.session_id);
-      // A cursor that did not advance means the feed cannot be paginated honestly.
-      if (startsAt === null || id === null || (cursor !== null && startsAt === cursor.startsAt && id === cursor.id)) return { data: null, error: 'unavailable' };
-      if (rows.length + page.length > SECTION_SCAN_CAP) return { data: null, error: 'unavailable' };
-      cursor = { startsAt, id };
-      rows.push(...page);
-    }
-  } catch { return { data: null, error: 'unavailable' }; }
+      return startsAt === null || id === null ? null : { startsAt, id };
+    },
+    (previous, next) => previous.startsAt === next.startsAt && previous.id === next.id,
+  );
 }
 
 export async function loadTrainerPacks(client: SupabaseClient<Database>, identity: GymloopIdentity, args: PackArgs): Promise<PtReadSection<TrainerPack>> {
   const trainer = guardTrainer(identity);
   if (args.p_trainer_staff_id != null && args.p_trainer_staff_id !== trainer.staffId) throw new Error('Unavailable');
   if (args.p_state != null) throw new Error('Unavailable');
-  try {
-    const rows: TrainerPack[] = [];
-    let after: string | null = null;
-    for (;;) {
-      const result = await client.rpc('read_pt_packs', {
-        p_limit: PT_READ_PAGE_MAX,
-        ...(after ? { p_after_id: after } : {}),
-      });
-      if (result.error || result.data === null) return { data: null, error: 'unavailable' };
-      const page = result.data;
-      if (page.length === 0) return { data: rows, error: null };
-      const last = page[page.length - 1]!;
+  return walkTrainerPages<TrainerPack, { id: string }>(
+    (cursor) => client.rpc('read_pt_packs', {
+      p_limit: PT_READ_PAGE_MAX,
+      ...(cursor ? { p_after_id: cursor.id } : {}),
+    }) as unknown as Promise<{ data: TrainerPack[] | null; error: { code: string } | null }>,
+    (last) => {
       const id = textOrNothing(last.order_id);
-      if (id === null || (after !== null && id === after)) return { data: null, error: 'unavailable' };
-      if (rows.length + page.length > SECTION_SCAN_CAP) return { data: null, error: 'unavailable' };
-      after = id;
-      rows.push(...page);
-    }
-  } catch { return { data: null, error: 'unavailable' }; }
+      return id === null ? null : { id };
+    },
+    (previous, next) => previous.id === next.id,
+  );
 }
