@@ -344,4 +344,17 @@ describe('PTF actual native booking route', () => {
     expect(post()).not.toHaveBeenCalled();
   });
 
+
+  it('rejects the matching Classes-only status as uncertain and retains exact explicit retry identity', async () => {
+    post().mockImplementationOnce(async (_path: unknown, body: Record<string, unknown>) => ({ ok: true, data: answer(body, 'session_cancelled') }));
+    draw(); await settle(); await press(slotControl); await press(confirmation);
+    const original = post().mock.calls[0]?.[1] as Record<string, unknown>; expect(post()).toHaveBeenCalledTimes(1);
+    expect(visible()).not.toMatch(/Session booked|Successfully booked|Unavailable/);
+    expect(nodes.filter(node => node.type === 'Status').some(node => Object.values(node.props).includes('Unavailable'))).toBe(false);
+    post().mockResolvedValueOnce({ ok: true, data: { ...answer(original, 'attended'), replayed: true } });
+    await press(/^Retry(?: booking)?$|^Try again$/);
+    expect(post()).toHaveBeenCalledTimes(2); expect(post().mock.calls[1]?.[1]).toEqual(original);
+    expect(visible()).toContain('Attended');
+  });
+
 });

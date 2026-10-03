@@ -281,4 +281,17 @@ describe('PTF actual booking form policy, command and replay', () => {
     expect(seam.fetch).not.toHaveBeenCalled();
   });
 
+
+  it('rejects the matching Classes-only status as uncertain and retains exact explicit retry identity', async () => {
+    seam.fetch.mockImplementationOnce(async (_path: unknown, init: { body: string }) => ({ ok: true, json: async () => ({ ok: true, data: answer(JSON.parse(init.body) as Record<string, unknown>, 'session_cancelled') }) }));
+    draw(); await settle(); await press(slotControl); await press(confirmation);
+    const original = postBody(); expect(seam.fetch).toHaveBeenCalledTimes(1);
+    expect(visible()).not.toMatch(/Session booked|Successfully booked|Unavailable/);
+    expect(nodes.some(node => String(node.props['data-status'] ?? '').toLowerCase().includes('unavailable'))).toBe(false);
+    seam.fetch.mockImplementationOnce(async () => ({ ok: true, json: async () => ({ ok: true, data: { ...answer(original, 'attended'), replayed: true } }) }));
+    await press(/^Retry(?: booking)?$|^Try again$/);
+    expect(seam.fetch).toHaveBeenCalledTimes(2); expect(postBody()).toEqual(original);
+    expect(visible()).toContain('Attended');
+  });
+
 });

@@ -80,4 +80,17 @@ describe('PTF frozen platform-free contracts', () => {
     expect(pt.ptRefusalMessage('slot_taken')).toBe('That time was just taken. Pick another time.');
     expect(formatMoney('9007199254740993', 'INR')).toBe('₹9,00,71,99,25,47,409.93');
   });
+
+  it('rejects the generated Classes-only booking status at the PT command boundary', () => {
+    const raw = { session_id: ids.session, order_id: ids.order, starts_at: instant,
+      ends_at: '2026-10-04T11:00:00+05:30', status: 'session_cancelled', in_cancel_window: true, replayed: true };
+    expect(pt.ptCommandAnswer('book', [raw])).toBeNull();
+  });
+  it.each(['booked', 'attended', 'no_show', 'cancelled_by_member', 'cancelled_by_gym'])('preserves the applicable generated PT reply %s', status => {
+    const raw = { session_id: ids.session, order_id: ids.order, starts_at: instant,
+      ends_at: '2026-10-04T11:00:00+05:30', status, in_cancel_window: false, replayed: true };
+    expect(pt.ptCommandAnswer('book', [raw])).toEqual({ sessionId: ids.session, orderId: ids.order,
+      startsAt: instant, endsAt: raw.ends_at, status, inCancelWindow: false, replayed: true });
+  });
+
 });
