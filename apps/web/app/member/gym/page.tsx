@@ -57,6 +57,7 @@ export default async function MemberGymPage() {
         </div>
       </details></li>
       <li><Link className="member-row" href="/member/plans"><Tag {...icon} /><span className="member-row-text"><strong>Plans &amp; prices</strong><small>{planCatalogueCopy(nouns).rowMeta}</small></span><span /><ChevronRight {...chevron} /></Link></li>
+      <li><Link className="member-row" href="/member/freeze-requests"><Tag {...icon} /><span className="member-row-text"><strong>Freeze requests</strong><small>Ask your {nouns.place} to pause your membership</small></span><span /><ChevronRight {...chevron} /></Link></li>
       <li><Link className="member-row" href="/member/classes/training#trainers"><CalendarDays {...icon} /><span className="member-row-text"><strong>Trainers &amp; programmes</strong><small>Explore training at your {nouns.place}</small></span><span /><ChevronRight {...chevron} /></Link></li>
       <li><Link className="member-row" href="/member/shop#services"><Package {...icon} /><span className="member-row-text"><strong>Other services</strong><small>Explore services at your {nouns.place}</small></span><span /><ChevronRight {...chevron} /></Link></li>
       <li><Link className="member-row" href="/member/messages">
