@@ -89,6 +89,37 @@ beforeEach(() => {
 });
 
 describe('SHP-019 held desk command lifetime at the ordinary HTTP boundary', () => {
+  it.each(['retryable', 'unknown'])('retains the command after pending double activation and a first %s outcome', async outcome => {
+    let resolve!: (value: unknown) => void;
+    let reject!: (reason: unknown) => void;
+    fetchBoundary.mockImplementationOnce(() => new Promise((yes, no) => { resolve = yes; reject = no; })).mockResolvedValueOnce(success());
+    await open(); field('select', 'upi');
+    const form = elements().find(node => node.type === 'form' && typeof node.props.onSubmit === 'function');
+    const button = elements().find(node => node.type === 'button' && /record.*sale|confirm.*sale|sell.*now|complete.*sale/i.test(text(node)));
+    const callback = (form?.props.onSubmit ?? button?.props.onClick) as Handler;
+    expect(callback).toBeTypeOf('function');
+    const firstDispatch = callback(event()); const duplicate = callback(event()); await settle();
+    expect(requests).toHaveLength(1); const original = command(0);
+    if (outcome === 'unknown') reject(new TypeError('unconfirmed network outcome')); else resolve(refuse('retryable'));
+    await firstDispatch; await duplicate; await settle();
+    props.quoteVersion = changedQuote; render(); field('select', 'card');
+    expect(requests).toHaveLength(1); await retry();
+    expect(requests).toHaveLength(2); expect(command(1)).toEqual(original);
+  });
+  it.each(['paid-to-complimentary', 'complimentary-to-paid'])('reconciles an uncertain %s sale using its original reviewed context', async transition => {
+    const originallyFree = transition === 'complimentary-to-paid';
+    if (originallyFree) { props.currentPricePaise = '0'; render(); }
+    fetchBoundary.mockRejectedValueOnce(new TypeError('response missing')).mockResolvedValueOnce(success());
+    await open();
+    if (originallyFree) field('textarea', 'Approved welcome gift'); else field('select', 'cash');
+    await confirm(); const original = command(0);
+    expect(original).toMatchObject(originallyFree ? { method: null, reason: 'Approved welcome gift' } : { method: 'cash', reason: null });
+    props = { ...props, currentPricePaise: originallyFree ? '31415' : '0', currency: 'USD', quoteVersion: changedQuote }; render();
+    expect(text(tree)).not.toContain('314.15');
+    expect(text(tree)).not.toContain('USD');
+    if (!originallyFree) expect(text(tree)).toContain('165');
+    await retry(); expect(requests).toHaveLength(2); expect(command(1)).toEqual(original);
+  });
   it('links a completed sale to the server-returned order and receipt', async () => {
     fetchBoundary.mockResolvedValueOnce(success());
     await open(); field('select', 'cash'); await confirm();
