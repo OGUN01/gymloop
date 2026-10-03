@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createMemoryShopCache, writeShopCache, readShopCache, clearShopCache } from '../../../mobile/lib/shop-cache';
-import { shopCacheScope, reserveOutcomeMessage, heldUntilLabel } from '../../../mobile/lib/shop';
+import { createMemoryShopCache, writeShopCache, readShopCache, clearShopCache } from '../shop-cache';
+import { shopCacheScope, reserveOutcomeMessage, heldUntilLabel } from '../shop';
 const response = { items: [], reservations: [], truncated: false, serverTime: '2026-10-02T04:30:00Z' };
 const identity = { kind: 'member' as const, userId: 'user', tenantId: 'tenant', memberId: 'member', role: 'member' as const };
 describe('SHP-022 last-good app-run-only cache', () => {

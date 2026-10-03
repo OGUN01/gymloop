@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRequire } from 'node:module';
 
 // Test-only React/native boundary. This renders the actual screen and runs its
 // hooks; all catalogue, cache and command decisions remain in the real modules.
@@ -25,18 +24,16 @@ function mockReactHooks(actual: Record<string, unknown>) {
   return { ...actual, ...hooks, default: { ...(actual.default as Record<string, unknown>), ...hooks } };
 }
 vi.mock('react', async original => mockReactHooks(await original<Record<string, unknown>>()));
-// Mobile and web resolve different pinned React installations. Intercept the
-// mobile entry too, including default-import hooks, without changing any config.
-const mobileReactPath = createRequire(new URL('../../../mobile/package.json', import.meta.url)).resolve('react');
-vi.mock('../../../mobile/lib/mobile-context', () => ({ useMobile: () => ({ identity: h.identity, api: { post: h.post }, ready: true, nouns: { place: 'gym', plural: 'gyms', member: 'member', trainer: 'trainer', class: 'class' }, palette: {}, businessType: 'gym', appearance: 'light', supabase: {}, session: h.identity.kind === 'member' ? {} : null, signOut: vi.fn() }) }));
-vi.mock('../../../mobile/lib/use-member-snapshot', () => ({ useMemberSnapshot: () => ({ data: { gym: { name: 'Fixture Gym', displayName: 'Fixture Gym', timezone: 'Asia/Kolkata' } }, error: null, loading: false, reload: vi.fn() }) }));
+// Package-local React imports share the renderer mock, including default hooks.
+vi.mock('../mobile-context', () => ({ useMobile: () => ({ identity: h.identity, api: { post: h.post }, ready: true, nouns: { place: 'gym', plural: 'gyms', member: 'member', trainer: 'trainer', class: 'class' }, palette: {}, businessType: 'gym', appearance: 'light', supabase: {}, session: h.identity.kind === 'member' ? {} : null, signOut: vi.fn() }) }));
+vi.mock('../use-member-snapshot', () => ({ useMemberSnapshot: () => ({ data: { gym: { name: 'Fixture Gym', displayName: 'Fixture Gym', timezone: 'Asia/Kolkata' } }, error: null, loading: false, reload: vi.fn() }) }));
 vi.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: h.online, isInternetReachable: h.online }), getNetworkStateAsync: async () => ({ isConnected: h.online, isInternetReachable: h.online }), addNetworkStateListener: () => ({ remove: vi.fn() }) }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useLocalSearchParams: () => ({}), Link: 'Link', Redirect: 'Redirect' }));
 vi.mock('expo-secure-store', () => ({ setItemAsync: h.persist, getItemAsync: async () => null, deleteItemAsync: vi.fn() }));
-vi.mock('../../../mobile/lib/offline-check-in', () => ({ saveOfflineCheckIn: h.queue, loadOfflineCheckIns: async () => [], clearOfflineCheckIns: vi.fn(), shouldReplayOnSignal: () => false, createReplayCoordinator: () => ({ requestReplay: vi.fn() }) }));
+vi.mock('../offline-check-in', () => ({ saveOfflineCheckIn: h.queue, loadOfflineCheckIns: async () => [], clearOfflineCheckIns: vi.fn(), shouldReplayOnSignal: () => false, createReplayCoordinator: () => ({ requestReplay: vi.fn() }) }));
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', Image: 'Image', ScrollView: 'ScrollView', Modal: 'Modal', ActivityIndicator: 'ActivityIndicator', TextInput: 'TextInput', StyleSheet: { create: (styles: unknown) => styles }, AppState: { addEventListener: () => ({ remove: vi.fn() }) }, useColorScheme: () => 'light' }));
 vi.mock('lucide-react-native', () => ({ ShoppingBag: 'ShoppingBag', Package: 'Package', Image: 'ImageIcon', ImageOff: 'ImageOff', Plus: 'Plus', Minus: 'Minus', RefreshCw: 'RefreshCw', X: 'X', ChevronRight: 'ChevronRight', Check: 'Check', Clock: 'Clock' }));
-vi.mock('../../../mobile/components/ui', () => {
+vi.mock('../../components/ui', () => {
   const widgets = ['Screen', 'Eyebrow', 'Title', 'Display', 'Body', 'Rule', 'Status', 'Row', 'LedgerSection', 'SheetHeader', 'ActionButton', 'RowAction', 'StateMessage', 'EmptyState', 'LoadingState', 'Field', 'ChoiceList'];
   return { ...Object.fromEntries(widgets.map(type => [type, (props: Record<string, unknown>) => ({ type, props })])), Sheet: (props: Record<string, unknown>) => props.visible ? { type: 'Sheet', props } : null };
 });
@@ -69,12 +66,11 @@ function action(label: RegExp) {
 }
 beforeEach(async () => {
   vi.resetModules(); h.cursor = 0; h.slots = []; h.effects = []; h.changed = false; h.online = true; h.identity = { kind: 'member', userId: 'user-a', tenantId: 'tenant-a', memberId: 'member-a', role: 'member' };
-  vi.doMock(mobileReactPath, async original => mockReactHooks(await original<Record<string, unknown>>()));
   h.post.mockReset().mockImplementation(async (path: string) => h.online && path === '/api/shop/catalogue' ? { ok: true, data: catalogue } : { ok: false, error: { code: 'network_failed', message: "That didn't go through. Try again." } }); h.queue.mockReset(); h.persist.mockReset();
 });
 describe('native React runtime harness control', () => {
   it('mobile-resolved named and default hooks use the test renderer state and effects', async () => {
-    const runtime = await import(mobileReactPath) as typeof import('react') & { default: typeof import('react') };
+    const runtime = await import('react') as typeof import('react') & { default: typeof import('react') };
     const effect = vi.fn(); const marker = {};
     const probe = () => {
       const [value, setValue] = runtime.useState('initial');
@@ -89,7 +85,7 @@ describe('native React runtime harness control', () => {
   });
 });
 describe('SHP-022 actual native Shop screen offline contract', () => {
-  beforeEach(async () => { screen = (await import('../../../mobile/app/(member)/shop')).default; });
+  beforeEach(async () => { screen = (await import('../../app/(member)/shop')).default; });
   it.each([[/Reserve/i, item.name], [/Cancel/i, reservation.itemName]] as const)('shows last-good data and refuses %s offline without a queue', async (label, title) => {
     await render(); expect(text()).toContain(item.name); expect(text()).toContain(reservation.itemName);
     if (!nodes.some(node => typeof node.props.onPress === 'function' && label.test(String(node.props.children ?? node.props.title ?? node.props.accessibilityLabel ?? '')))) {
