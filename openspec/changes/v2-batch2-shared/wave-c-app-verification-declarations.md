@@ -149,6 +149,15 @@ rather than an invented unlinked identity object. Verified identities keep
 the existing registered wrappers and audience predicates. No route may
 derive authority from the existence of a mocked target or from body fields.
 
+Native `useMobile` exposes the provider's stable Supabase client. An unrelated
+screen render does not create another client; identity resolution unmounts
+the provider children before mounting the new actor's tree. A fixture must
+retain the same client object across unrelated renders and provide an honest
+asynchronous RPC envelope when the actual mounted WhatsApp section reads its
+settings. The section remains mounted and observable. This is the existing
+provider lifetime contract, not permission to hide dependent components or
+to omit a test's actual native notification behavior.
+
 ## Explicit remaining build defects
 
 These declarations are not acceptance. MEDIA payment-proof upload completion,
