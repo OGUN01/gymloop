@@ -70,6 +70,7 @@ missing public declarations rather than open helper/implementation files.
 ## Existing kit declarations (presentation only)
 
 ```ts
+declare function Body(props: { children: ReactNode; muted?: boolean; strong?: boolean }): React.JSX.Element;
 declare function Status(props: { children: ReactNode; tone?: 'ok' | 'warn' | 'risk' | 'accent' | 'neutral' }): React.JSX.Element;
 declare function ActionButton(props: PressableProps & {
   children: ReactNode; secondary?: boolean; quiet?: boolean;
@@ -99,3 +100,8 @@ Kit hosts may be doubled for deterministic component interactions while
 preserving their public children/props/callbacks. A doubled Status does not prove
 the real kit's dot, target dimensions, layout or device accessibility. Those
 remain source and real rendered/native acceptance checks.
+
+The eligible pack action uses PTF-029's public caption, "Book a session",
+with the business noun substitution already required by PTF-031 and ptCopy.
+A generic Row value of "Book" alone does not satisfy that caption requirement.
+This adds missing presentation declarations; it changes no command or policy.
