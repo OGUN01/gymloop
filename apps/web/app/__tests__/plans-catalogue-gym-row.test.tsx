@@ -13,9 +13,9 @@ describe('PLC-015/023 static Gym entry', () => {
     expect(html).toContain('href="/member/plans"'); expect(html).toContain('Plans &amp; prices'); expect(html).toContain('What each plan costs and includes');
     expect(html.indexOf('href="/member/plans"')).toBeLessThan(html.indexOf('href="/member/messages"')); expect(query).not.toHaveBeenCalled();
   });
-  it('keeps the Gym destination current on the catalogue page', async () => {
+  it('leaves primary destinations unselected on the secondary catalogue page', async () => {
     const { MemberNavigation } = await import('../member/member-navigation');
     const html = renderToStaticMarkup(createElement(MemberNavigation));
-    expect(html).toMatch(/<a\b(?=[^>]*\bhref="\/member\/(?:my-gym|gym)")(?=[^>]*\baria-current="page")[^>]*>(?:(?!<\/a>)[\s\S])*My gym(?:(?!<\/a>)[\s\S])*<\/a>/);
+    expect(html).not.toContain('aria-current="page"');
   });
 });
