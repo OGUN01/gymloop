@@ -99,4 +99,3 @@ describe('independent ANC exact-version cache lifetime', () => {
     expect((await loadAnnouncementCache(scope))?.pendingReads).toEqual([{ announcementId, versionNo: 2 }]);
   });
 });
-

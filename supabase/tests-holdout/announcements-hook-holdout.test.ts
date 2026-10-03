@@ -180,4 +180,3 @@ describe('independent ANC complete caller hook lifetime', () => {
     expect((await actual.loadAnnouncementCache(scope))?.announcements).toEqual([card(2, 'updated')]);
   });
 });
-
