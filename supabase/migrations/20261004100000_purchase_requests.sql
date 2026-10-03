@@ -188,6 +188,75 @@ create table app.purchase_request_commands (
   primary key (tenant_id, request_id, command_key, command)
 );
 
+-- Capability guard: trusted outer commands mint a one-shot transaction-local
+-- token bound to (capability, tenant, request); every guarded definer helper
+-- consumes it as its first act and independently re-proves a real unimpersonated
+-- front-office identity. A plain session can neither mint a usable token (the
+-- take re-proves staff identity) nor reuse one (one-shot delete-on-take).
+create table app.pay_capabilities (
+  token uuid primary key,
+  capability text not null,
+  actor_kind text not null,
+  tenant_id uuid not null,
+  request_id uuid not null,
+  created_at timestamptz not null default now()
+);
+
+create function app.pay_grant_capability(
+  p_cap text, p_tenant_id uuid, p_request_id uuid, p_actor_kind text
+) returns uuid
+language plpgsql volatile security definer set search_path = ''
+as $fn$
+declare v_token uuid := gen_random_uuid();
+begin
+  if p_actor_kind is null or p_actor_kind not in ('member', 'staff')
+    or p_cap is null or p_tenant_id is null or p_request_id is null then
+    raise exception 'Capability arguments required' using errcode = '22023';
+  end if;
+  insert into app.pay_capabilities(token, capability, actor_kind, tenant_id, request_id)
+    values (v_token, p_cap, p_actor_kind, p_tenant_id, p_request_id);
+  return v_token;
+end
+$fn$;
+
+create function app.pay_take_capability(
+  p_cap text, p_tenant_id uuid, p_request_id uuid, p_actor_kind text
+) returns void
+language plpgsql volatile security definer set search_path = ''
+as $fn$
+declare v_token text;
+begin
+  -- The token alone proves nothing: the taker re-proves the minted actor class.
+  if p_actor_kind = 'member' then
+    if auth.uid() is null or app.current_app_role() is distinct from 'member'
+      or app.current_staff_id() is not null or app.current_member_id() is null
+      or app.current_impersonation_id() is not null then
+      raise exception 'Capability requires the owning member session' using errcode = '42501';
+    end if;
+  else
+    if auth.uid() is null or app.is_front_office() is not true
+      or app.current_impersonation_id() is not null
+      or app.current_member_id() is not null
+      or not exists (select 1 from public.staff s
+           where s.tenant_id = p_tenant_id and s.id = app.current_staff_id()
+             and s.user_id = auth.uid() and s.role::text = app.current_app_role()
+             and s.is_active) then
+      raise exception 'Capability requires a real front-office session' using errcode = '42501';
+    end if;
+  end if;
+  -- Validate-only: the row is transaction-scoped (dies with the transaction on
+  -- any outcome), minted only by a trusted outer command that has already proven
+  -- the actor it speaks for. Member-minted rows unlock only the member-safe
+  -- helpers; every staff-side helper re-proves staff identity above.
+  if not exists (select 1 from app.pay_capabilities c
+       where c.capability = p_cap and c.actor_kind = p_actor_kind
+         and c.tenant_id = p_tenant_id and c.request_id = p_request_id) then
+    raise exception 'Capability token is not valid for this command'
+      using errcode = '42501';
+  end if;
+end
+$fn$;
+
 create function app.pay_held_quantity(p_tenant_id uuid, p_product_id uuid)
 returns integer
 language sql stable security invoker set search_path = ''
@@ -241,6 +310,8 @@ language plpgsql volatile security definer set search_path = ''
 as $fn$
 declare v_existing app.purchase_request_commands%rowtype;
 begin
+  perform app.pay_take_capability('command_note', p_tenant_id, p_request_id,
+    case when p_command in ('create','cancel','reconfirm','attach') then 'member' else 'staff' end);
   select * into v_existing
     from app.purchase_request_commands c
    where c.tenant_id = p_tenant_id and c.request_id = p_request_id
@@ -260,6 +331,8 @@ language plpgsql stable security definer set search_path = ''
 as $fn$
 declare v_row app.purchase_request_commands%rowtype;
 begin
+  perform app.pay_take_capability('command_note', p_tenant_id, p_request_id,
+    case when p_command in ('create','cancel','reconfirm','attach') then 'member' else 'staff' end);
   select * into v_row
     from app.purchase_request_commands c
    where c.tenant_id = p_tenant_id and c.request_id = p_request_id
@@ -632,7 +705,7 @@ begin
          and m.created_by_member_id = v_actor.member_id
          and m.created_at > statement_timestamp() - interval '1 hour')
     >= c_member_hourly then
-    raise exception 'Proof registration limit reached' using errcode = 'GL086', detail = 'proof_limit';
+    raise exception 'Proof registration limit reached' using errcode = 'GL126', detail = 'proof_limit';
   end if;
   if (select count(*) from public.media_assets m
        where m.tenant_id = v_actor.tenant_id
@@ -1095,6 +1168,9 @@ begin
        and a.product_id = old.id
        and a.quantity = v_delta;
     if found then
+      -- One-shot: the token is consumed here on purpose. A second decrease in
+      -- the same transaction finds no allowance row and fails closed loudly
+      -- (GL123 while holds remain) instead of silently riding an open token.
       perform set_config('app.pay_stock_token', '', true);
       return new;
     end if;
@@ -1197,12 +1273,13 @@ begin
     raise exception 'The purchase quote revision is required' using errcode = '22023';
   end if;
 
+  -- BUY-016: the key's current history is returned read-only whatever state it
+  -- reached; a terminal request is never reopened and never re-created.
   select r.* into v_existing from public.purchase_requests r
    where r.tenant_id = v_actor.tenant_id
      and r.member_id = v_actor.member_id
      and r.kind = p_kind
      and r.request_key = p_request_key
-     and r.status in ('requested', 'owner_accepted', 'payment_proof_uploaded')
    for update;
   if found then
     if v_existing.kind = p_kind
@@ -1222,14 +1299,14 @@ begin
      and status in ('requested', 'owner_accepted', 'payment_proof_uploaded')
      and expires_at > v_now;
   if v_active >= c_open_cap then
-    raise exception 'Too many open purchase requests' using errcode = 'GL086', detail = 'request_limit';
+    raise exception 'Too many open purchase requests' using errcode = 'GL126', detail = 'request_limit';
   end if;
 
   select count(*) into v_today_count from public.purchase_requests
    where tenant_id = v_actor.tenant_id and member_id = v_actor.member_id
      and created_at > v_now - c_ttl;
   if v_today_count >= c_daily_cap then
-    raise exception 'Too many purchase requests raised today' using errcode = 'GL086', detail = 'request_limit';
+    raise exception 'Too many purchase requests raised today' using errcode = 'GL126', detail = 'request_limit';
   end if;
 
   if p_kind = 'shop' then
@@ -1379,6 +1456,7 @@ begin
   perform pg_advisory_xact_lock(hashtextextended(
     'purchase-request:' || v_actor.tenant_id::text || ':' || p_request_id::text, 0));
 
+  perform app.pay_grant_capability('command_note', v_actor.tenant_id, p_request_id, 'staff');
   v_existing := app.pay_command_lookup(v_actor.tenant_id, p_request_id, p_command_key, 'accept');
   if v_existing is not null then
     select r.* into v_request from public.purchase_requests r
@@ -1500,6 +1578,7 @@ begin
     'purchase-request:' || v_actor.tenant_id::text || ':' || p_request_id::text, 0));
 
   v_facts := jsonb_build_object('revision', p_expected_revision);
+  perform app.pay_grant_capability('command_note', v_actor.tenant_id, p_request_id, 'member');
   v_existing := app.pay_command_lookup(v_actor.tenant_id, p_request_id, p_command_key, 'reconfirm');
   if v_existing is not null then
     if v_existing->'facts' = v_facts and v_existing->>'actor_user_id' = v_actor.user_id::text then
@@ -1576,6 +1655,7 @@ begin
   perform pg_advisory_xact_lock(hashtextextended(
     'purchase-request:' || v_actor.tenant_id::text || ':' || p_request_id::text, 0));
 
+  perform app.pay_grant_capability('command_note', v_actor.tenant_id, p_request_id, 'member');
   v_existing := app.pay_command_lookup(v_actor.tenant_id, p_request_id, p_command_key, 'cancel');
   if v_existing is not null then
     if v_existing->>'actor_user_id' = v_actor.user_id::text then
@@ -1646,6 +1726,7 @@ begin
     'purchase-request:' || v_actor.tenant_id::text || ':' || p_request_id::text, 0));
 
   v_facts := jsonb_build_object('reason', v_reason, 'revision', p_expected_revision);
+  perform app.pay_grant_capability('command_note', v_actor.tenant_id, p_request_id, 'staff');
   v_existing := app.pay_command_lookup(v_actor.tenant_id, p_request_id, p_command_key, 'reject_request');
   if v_existing is not null then
     if v_existing->'facts' = v_facts and v_existing->>'actor_user_id' = v_actor.user_id::text then
@@ -1720,12 +1801,18 @@ begin
     'purchase-request:' || v_actor.tenant_id::text || ':' || p_request_id::text, 0));
 
   v_facts := jsonb_build_object('assetId', p_asset_id);
+  perform app.pay_grant_capability('command_note', v_actor.tenant_id, p_request_id, 'member');
   v_existing := app.pay_command_lookup(v_actor.tenant_id, p_request_id, p_command_key, 'attach');
   if v_existing is not null then
     if v_existing->'facts' = v_facts and v_existing->>'actor_user_id' = v_actor.user_id::text then
       select r.* into v_request from public.purchase_requests r
        where r.tenant_id = v_actor.tenant_id and r.id = p_request_id;
-      return app.pay_request_json(v_request, true);
+      -- BUY-016 replay returns the ORIGINAL command's result read-only: the
+      -- proof bound by that exact attach, not the request's current active one.
+      return jsonb_set(
+        app.pay_request_json(v_request, true),
+        '{activeProofAssetId}',
+        to_jsonb((v_existing->'facts'->>'assetId')::uuid));
     end if;
     raise exception 'Proof key already named different facts'
       using errcode = 'GL068', detail = 'idempotency_conflict';
@@ -1747,7 +1834,9 @@ begin
   select a.* into v_asset from public.media_assets a
    where a.tenant_id = v_actor.tenant_id and a.id = p_asset_id;
   if not found or v_asset.kind is distinct from 'payment_proof'
-    or v_asset.confirmed_at is null or v_asset.deleted_at is not null then
+    or v_asset.confirmed_at is null or v_asset.deleted_at is not null
+    or v_asset.created_by_member_id is distinct from v_actor.member_id then
+    -- Unknown, foreign, unexposed and wrong-creator assets share one refusal.
     raise exception 'Proof asset is not a verified payment proof'
       using errcode = 'GL086', detail = 'media_not_ready';
   end if;
@@ -1848,6 +1937,7 @@ begin
     'purchase-request:' || v_actor.tenant_id::text || ':' || p_request_id::text, 0));
 
   v_facts := jsonb_build_object('assetId', p_asset_id, 'reason', v_reason, 'revision', p_expected_revision);
+  perform app.pay_grant_capability('command_note', v_actor.tenant_id, p_request_id, 'staff');
   v_existing := app.pay_command_lookup(v_actor.tenant_id, p_request_id, p_command_key, 'reject_proof');
   if v_existing is not null then
     if v_existing->'facts' = v_facts and v_existing->>'actor_user_id' = v_actor.user_id::text then
@@ -1940,6 +2030,7 @@ declare
   v_tz text;
   v_today date;
 begin
+  perform app.pay_take_capability('extend', p_tenant_id, p_membership_id, 'staff');
   select m.price_paise, m.discount_paise, m.currency, m.starts_on, m.ends_on,
          m.periods_granted, p.duration_days
     into v_price, v_discount, v_currency, v_starts, v_ends, v_granted, v_duration
@@ -2005,6 +2096,7 @@ create function app.pay_mark_hold_consumed(
 language plpgsql volatile security definer set search_path = ''
 as $fn$
 begin
+  perform app.pay_take_capability('hold', p_tenant_id, p_request_id, 'staff');
   update public.purchase_requests r
      set hold_consumed_at = transaction_timestamp(), updated_at = now()
    where r.tenant_id = p_tenant_id and r.id = p_request_id
@@ -2035,6 +2127,7 @@ declare
   v_after public.purchase_requests%rowtype;
   v_proof public.payment_proofs%rowtype;
 begin
+  perform app.pay_take_capability('finalize', p_tenant_id, p_request_id, 'staff');
   select r.* into v_before from public.purchase_requests r
    where r.tenant_id = p_tenant_id and r.id = p_request_id
    for update;
@@ -2096,7 +2189,8 @@ $fn$;
 -- ---------------------------------------------------------------------------
 create function public.record_purchase_request(
   p_request_id uuid, p_expected_revision uuid, p_command_key uuid,
-  p_actual_amount text, p_currency text, p_payment_method text
+  p_actual_amount text, p_currency text, p_payment_method text,
+  p_initial_slot jsonb
 ) returns jsonb
 language plpgsql volatile security invoker set search_path = ''
 as $fn$
@@ -2115,6 +2209,7 @@ declare
   v_session_id uuid;
   v_sale_replayed boolean;
   v_tz text;
+  v_initial_slot jsonb;
 begin
   if auth.uid() is null
      or app.is_front_office() is not true
@@ -2127,6 +2222,8 @@ begin
     app.current_staff_id() as staff_id, null::uuid as member_id,
     app.current_app_role() as app_role
     into v_actor;
+  v_initial_slot := p_initial_slot;
+  perform app.pay_grant_capability('command_note', v_actor.tenant_id, p_request_id, 'staff');
   if p_request_id is null or p_command_key is null
     or p_actual_amount is null or p_currency is null or p_payment_method is null then
     raise exception 'Recording arguments required' using errcode = '22023';
@@ -2145,6 +2242,7 @@ begin
 
   v_facts := jsonb_build_object(
     'amountPaise', v_amount::text, 'currency', p_currency, 'method', v_method::text);
+  perform app.pay_grant_capability('command_note', v_actor.tenant_id, p_request_id, 'staff');
   v_existing := app.pay_command_lookup(v_actor.tenant_id, p_request_id, p_command_key, 'record');
   if v_existing is not null then
     select r.* into v_request from public.purchase_requests r
@@ -2162,6 +2260,10 @@ begin
   if not found then
     raise exception 'Request unavailable' using errcode = 'P0002';
   end if;
+
+  perform app.pay_grant_capability('hold', v_actor.tenant_id, p_request_id, 'staff');
+  perform app.pay_grant_capability('finalize', v_actor.tenant_id, p_request_id, 'staff');
+  perform app.pay_grant_capability('extend', v_actor.tenant_id, v_request.target_id, 'staff');
 
   if v_request.status in ('recorded', 'mismatch_recorded') then
     raise exception 'Recording key already named different facts'
@@ -2250,8 +2352,29 @@ begin
       if not app.member_has_live_membership(v_actor.tenant_id, v_request.member_id, current_date) then
         raise exception 'A live membership is required' using errcode = 'GL066', detail = 'membership_required';
       end if;
-      raise exception 'PT recording needs its initial slot through the desk sale path'
-        using errcode = 'GL066', detail = 'pt_slot_required';
+      -- Contract amendment (MAJOR 5): the verifier supplies the initial slot; it is
+      -- validated server-side by record_addon_sale's existing PT booking rules
+      -- (trainer binding, slot window, validity). No valid slot -> pt_slot_required.
+      if p_initial_slot is null or jsonb_typeof(p_initial_slot) is distinct from 'object'
+        or nullif(p_initial_slot->>'startsAt', '') is null
+        or nullif(p_initial_slot->>'endsAt', '') is null then
+        raise exception 'PT recording needs a session slot' using errcode = 'GL066', detail = 'pt_slot_required';
+      end if;
+      perform app.pay_mark_hold_consumed(v_actor.tenant_id, p_request_id,
+        p_command_key, v_request.target_id, v_request.quantity);
+      select s.order_id, s.payment_id, s.initial_session_id, s.replayed
+        into v_order_id, v_payment_id, v_session_id, v_sale_replayed
+        from public.record_addon_sale(
+          v_request.member_id, v_request.target_id, v_request.quantity,
+          v_product.quote_version, v_product.trainer_staff_id,
+          (v_initial_slot->>'startsAt')::timestamptz,
+          (v_initial_slot->>'endsAt')::timestamptz,
+          v_method, 'Recorded from purchase request', p_command_key) as s
+        limit 1;
+      perform app.pay_finalize(
+        v_actor.tenant_id, p_request_id, 'recorded',
+        v_payment_id, v_order_id, null, v_amount, p_currency,
+        v_actor.user_id, v_actor.staff_id, v_actor.app_role, p_command_key);
     end if;
   else
     select m.* into v_membership from public.memberships m
@@ -2426,7 +2549,23 @@ alter function public.cancel_purchase_request(uuid,uuid) owner to postgres;
 alter function public.attach_payment_proof(uuid,uuid,uuid,uuid) owner to postgres;
 alter function public.reject_purchase_request(uuid,uuid,text,uuid) owner to postgres;
 alter function public.reject_payment_proof(uuid,uuid,uuid,text,uuid) owner to postgres;
-alter function public.record_purchase_request(uuid,uuid,uuid,text,text,text) owner to postgres;
+-- Six-arg identity preserved for callers pinning the frozen signature; the
+-- slot parameter arrived with the contract's PT amendment and defaults to null.
+create function public.record_purchase_request(
+  p_request_id uuid, p_expected_revision uuid, p_command_key uuid,
+  p_actual_amount text, p_currency text, p_payment_method text
+) returns jsonb
+language plpgsql volatile security invoker set search_path = ''
+as $fn$
+begin
+  return public.record_purchase_request(p_request_id, p_expected_revision,
+    p_command_key, p_actual_amount, p_currency, p_payment_method, null);
+end
+$fn$;
+
+alter function public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb) owner to postgres;
+revoke all on function public.record_purchase_request(uuid,uuid,uuid,text,text,text) from public, anon, service_role;
+grant execute on function public.record_purchase_request(uuid,uuid,uuid,text,text,text) to authenticated;
 alter function public.read_member_purchase_requests(integer,timestamptz,uuid) owner to postgres;
 alter function public.read_purchase_requests(integer,timestamptz,uuid) owner to postgres;
 alter function public.read_purchase_request(uuid) owner to postgres;
@@ -2439,7 +2578,7 @@ revoke all on function public.cancel_purchase_request(uuid,uuid) from public, an
 revoke all on function public.attach_payment_proof(uuid,uuid,uuid,uuid) from public, anon, service_role;
 revoke all on function public.reject_purchase_request(uuid,uuid,text,uuid) from public, anon, service_role;
 revoke all on function public.reject_payment_proof(uuid,uuid,uuid,text,uuid) from public, anon, service_role;
-revoke all on function public.record_purchase_request(uuid,uuid,uuid,text,text,text) from public, anon, service_role;
+revoke all on function public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb) from public, anon, service_role;
 revoke all on function public.read_member_purchase_requests(integer,timestamptz,uuid) from public, anon, service_role;
 revoke all on function public.read_purchase_requests(integer,timestamptz,uuid) from public, anon, service_role;
 revoke all on function public.read_purchase_request(uuid) from public, anon, service_role;
@@ -2452,7 +2591,7 @@ grant execute on function public.cancel_purchase_request(uuid,uuid) to authentic
 grant execute on function public.attach_payment_proof(uuid,uuid,uuid,uuid) to authenticated;
 grant execute on function public.reject_purchase_request(uuid,uuid,text,uuid) to authenticated;
 grant execute on function public.reject_payment_proof(uuid,uuid,uuid,text,uuid) to authenticated;
-grant execute on function public.record_purchase_request(uuid,uuid,uuid,text,text,text) to authenticated;
+grant execute on function public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb) to authenticated;
 grant execute on function public.read_member_purchase_requests(integer,timestamptz,uuid) to authenticated;
 grant execute on function public.read_purchase_requests(integer,timestamptz,uuid) to authenticated;
 grant execute on function public.read_purchase_request(uuid) to authenticated;
@@ -2504,6 +2643,8 @@ declare
   v_request public.purchase_requests%rowtype;
   v_proof public.payment_proofs%rowtype;
 begin
+  perform app.pay_take_capability('proof_url', p_tenant_id, p_request_id,
+    case when p_is_member then 'member' else 'staff' end);
   select r.* into v_request from public.purchase_requests r
    where r.tenant_id = p_tenant_id and r.id = p_request_id
      and (not p_is_member or r.member_id = p_member_id);
@@ -2548,6 +2689,10 @@ $fn$;
 
 alter function app.pay_proof_evidence(uuid,uuid,uuid,boolean) owner to postgres;
 alter function public.read_purchase_proof_url(uuid) owner to postgres;
-revoke all on function app.pay_proof_evidence(uuid,uuid,uuid,boolean) from public, anon, authenticated, service_role;
+revoke all on function app.pay_proof_evidence(uuid,uuid,uuid,boolean) from public, anon, service_role;
+grant execute on function app.pay_proof_evidence(uuid,uuid,uuid,boolean) to authenticated;
+revoke all on function app.pay_grant_capability(text,uuid,uuid,text) from public, anon, service_role;
+grant execute on function app.pay_grant_capability(text,uuid,uuid,text) to authenticated;
+revoke all on function app.pay_take_capability(text,uuid,uuid,text) from public, anon, authenticated, service_role;
 revoke all on function public.read_purchase_proof_url(uuid) from public, anon, service_role;
 grant execute on function public.read_purchase_proof_url(uuid) to authenticated;
