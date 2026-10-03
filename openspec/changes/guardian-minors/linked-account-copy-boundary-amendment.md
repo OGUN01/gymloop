@@ -1,6 +1,7 @@
 # Guardian linked-account copy boundary
 
-Status: proposed for owner decision, 2026-10-03. No authorization, SQL,
+Status: owner-approved and frozen, 2026-10-03 (five scoped batch-2 repairs).
+No authorization, SQL,
 claim, consent, handover eligibility or recipient rule changes.
 
 Three fresh application reviews have rejected the guardian-account copy

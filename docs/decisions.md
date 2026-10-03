@@ -1883,6 +1883,27 @@ identity, templates, effective tariff, protected custody and India compliance
 remain activation prerequisites. This decision authorizes neither provisioning
 nor a live send, and supplies no live delivery or all-v2 acceptance evidence.
 
+### Approved five scoped batch-2 repairs (2026-10-03)
+
+The owner explicitly approves the final-send cutoff and prebooking-deadline
+amendments for CLS, the two-field real-member PT policy read, the guardian
+linked-account copy boundary and the announcement failure-truth amendment.
+Their exact files and member-policy-repair-public-declarations.md are frozen
+before independent test authors and separate implementers. They supersede only
+the named older pending/default/null/failure-copy boundaries; booking, money,
+claim, consent and audience rules remain. One forward-only member-policy-read
+follow-up migration supplies both approved read changes, applied by CI only.
+All source and runtime acceptance remains required.
+
+Two routine reuse decisions: the existing five-section PT reader has an array
+result and a generated five-RPC transport, so it cannot validate the approved
+scalar two-field policy. A single platform-free readMemberPtPolicy in its
+existing module owns strict parsing and sanitized errors for both adapters.
+The existing command hooks carry feature command/lifetime state and cannot be
+used solely to display connectivity. Both Training notices therefore share one
+presentation-only useTrainingOnline hook, retaining their own zero-argument
+interfaces, copy and predicates. No new authority state or ignore escape.
+
 ### CLS application UI reuse note (2026-10-03)
 
 CLS screens reuse `StatusWord`, `RouteError`, registered caller readers, business nouns, and the native `Screen`, `Row`, `Status`, `Sheet`, `SheetHeader`, `RowAction`, `ActionButton`, `StateMessage`, `LoadingState`, `EmptyState`, `ErrorRetry` and `SearchField`. Existing Shop command copy and its private confirmation dialog do not express class refusals or result semantics, so the class action module adds a caller-bound command hook and an accessible native HTML dialog wrapper, consumed by member, roster and owner editors. No shared design primitive or Classes/Training control is added. `MemberClassesView` and `ClassesPane` remain integration interfaces for the PTF-owned controls. Unbooked cancellation deadlines remain unavailable under the accepted read contract; confirmation refuses commitment until the separate prebooking-cutoff amendment is approved, independently tested and applied. No default cancellation policy is invented.

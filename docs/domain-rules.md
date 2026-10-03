@@ -263,6 +263,13 @@ INV/STI lifecycle interpretation: the invite status graph is pending→redeemed,
 
 ## V2 batch 2 frozen rules (implementation and acceptance pending)
 
+Owner approval on 2026-10-03 freezes five scoped repairs: CLS final-send cutoff
+and prebooking deadline, PTF member policy read, GRD linked-account provenance
+copy and ANC failure truth. Their corresponding amendments and
+`openspec/changes/v2-batch2-shared/member-policy-repair-public-declarations.md`
+supersede only those exact older boundaries. Independent tests and separate
+source implementations, followed by gates and real acceptance, remain required.
+
 The authoritative GRD-001…GRD-028 EARS text is
 `openspec/changes/guardian-minors/proposal.md`, with the owner-approved
 `marker-integrity-amendment.md` completing GRD-013's provenance boundary. The

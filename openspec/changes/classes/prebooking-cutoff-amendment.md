@@ -1,6 +1,7 @@
 # Class cancellation deadline before booking — proposed contract repair
 
-Status: proposed for owner decision, 2026-10-03. No booking eligibility,
+Status: owner-approved and frozen, 2026-10-03 (five scoped batch-2 repairs).
+No booking eligibility,
 cancellation authority, identity, capacity, money or attendance change.
 
 ## Problem and exact change

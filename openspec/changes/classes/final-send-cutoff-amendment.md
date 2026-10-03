@@ -1,9 +1,10 @@
 # Classes cancellation final-send cutoff boundary
 
-Status: **proposed owner clarification, 2026-10-03**. The third fresh Classes
+Status: **owner-approved and frozen, 2026-10-03**. The owner approves this
+with the four other scoped batch-2 repairs. The third fresh Classes
 cancellation review rejects the current client boundary. AGENTS.md requires
 owner escalation after three rejections of one dimension; no bar is lowered.
-No dependent source change is authorized by this proposal alone.
+Independent tests precede its separate source repair.
 
 ## Concrete failure
 

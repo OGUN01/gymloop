@@ -1,6 +1,7 @@
 # Announcement failure truth — proposed contract repair
 
-Status: proposed for owner decision, 2026-10-03. No audience, consent,
+Status: owner-approved and frozen, 2026-10-03 (five scoped batch-2 repairs).
+No audience, consent,
 version, receipt count, booking, money or mutation privilege changes.
 
 The frozen ANC-021 blanket failed-fetch cache fallback conflicts with Q8's

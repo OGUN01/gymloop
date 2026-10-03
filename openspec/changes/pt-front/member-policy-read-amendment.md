@@ -1,6 +1,7 @@
 # Member PT policy read — proposed contract repair
 
-Status: proposed for owner decision, 2026-10-03. Existing booking and
+Status: owner-approved and frozen, 2026-10-03 (five scoped batch-2 repairs).
+Existing booking and
 cancellation authority, lock order, money records and policy history do not change.
 
 ## Problem and exact change

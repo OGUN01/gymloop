@@ -1,7 +1,9 @@
 # Classes rendered acceptance — declarations only
 
 Existing application-interface-clarification.md and proposal/bar remain
-authoritative. The prebooking-cutoff amendment is owner-pending: missing member
+authoritative. The prebooking-cutoff amendment is owner-approved on 2026-10-03:
+v2-batch2-shared/member-policy-repair-public-declarations.md fixes its read boundary.
+Missing member
 deadlines must fail closed, without client policy defaults or a new read grant.
 These declarations expose callable seams, not implementation bodies.
 

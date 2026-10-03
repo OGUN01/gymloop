@@ -2,7 +2,8 @@
 
 Status: orchestrator-frozen delegated interface clarification, 2026-10-03.
 No eligibility, money, policy, identity or booking requirement changes. The
-separate member-policy read proposal remains pending owner approval.
+separate member-policy read amendment is owner-approved on 2026-10-03. Its
+frozen declarations are v2-batch2-shared/member-policy-repair-public-declarations.md.
 
 ## Presentation helper
 
