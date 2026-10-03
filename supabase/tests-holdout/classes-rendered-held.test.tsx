@@ -356,6 +356,35 @@ describe('CLS independent held actual native rendered boundaries', () => {
     expect(seam.deskCancel).toHaveBeenCalledWith(seam.mobile.api, id('20'), 'Member asked at desk', expect.any(Function));
     const guard = seam.deskCancel.mock.calls[0]?.at(-1) as (() => boolean) | undefined; expect(guard?.()).toBe(true); view.unmount(); expect(guard?.()).toBe(false);
   });
+  it('native changed still-open cancellation deadline requires a renewed explicit confirmation of current facts', async () => {
+    vi.setSystemTime(new Date('2026-10-03T09:00:00Z'));
+    seam.loadMember.mockResolvedValue([cancellable()]);
+    const view = mount(ClassesPane); await view.settle(); await view.press(/^Cancel(?: booking)?$/i);
+    expect(view.text()).toMatch(/4[:.]00|16:00/);
+    seam.loadMember.mockResolvedValue([cancellable({ cancelBy: '2026-10-03T09:30:00Z' })]);
+    await view.press(/^Confirm(?: cancellation)?$/i);
+    expect(seam.cancel).not.toHaveBeenCalled(); expect(view.text()).toMatch(/3[:.]00|15:00/);
+    await view.press(/^Confirm(?: cancellation)?$/i);
+    expect(seam.cancel).toHaveBeenCalledTimes(1); expect(seam.cancel).toHaveBeenCalledWith(seam.mobile.api, id('20'), expect.any(Function)); view.unmount();
+  });
+  it('native changed session place and time require confirmation of refreshed facts before cancelling the same own booking', async () => {
+    seam.loadMember.mockResolvedValue([cancellable()]);
+    const view = mount(ClassesPane); await view.settle(); await view.press(/^Cancel(?: booking)?$/i);
+    seam.loadMember.mockResolvedValue([cancellable({ branchName: 'North annex', timezone: 'Asia/Kathmandu', startsAt: '2026-10-03T13:30:00Z', endsAt: '2026-10-03T14:30:00Z', cancelBy: '2026-10-03T11:30:00Z' })]);
+    await view.press(/^Confirm(?: cancellation)?$/i);
+    expect(seam.cancel).not.toHaveBeenCalled(); expect(view.text()).toContain('North annex'); expect(view.text()).toMatch(/5[:.]15|17:15/);
+    await view.press(/^Confirm(?: cancellation)?$/i);
+    expect(seam.cancel).toHaveBeenCalledTimes(1); expect(seam.cancel).toHaveBeenCalledWith(seam.mobile.api, id('20'), expect.any(Function)); view.unmount();
+  });
+  it('native refreshed other booking id is fail-closed even if cancellation remains allowed', async () => {
+    seam.loadMember.mockResolvedValue([cancellable()]);
+    const view = mount(ClassesPane); await view.settle(); await view.press(/^Cancel(?: booking)?$/i);
+    seam.loadMember.mockResolvedValue([cancellable({ myBookingId: id('98') })]);
+    await view.press(/^Confirm(?: cancellation)?$/i);
+    expect(seam.cancel).not.toHaveBeenCalled();
+    if (view.controls(/^Confirm(?: cancellation)?$/i).some(node => !node.props.disabled)) await view.press(/^Confirm(?: cancellation)?$/i);
+    expect(seam.cancel).not.toHaveBeenCalled(); view.unmount();
+  });
 });
 
 describe('CLS held public current-facts and permanent command lifetime', () => {
