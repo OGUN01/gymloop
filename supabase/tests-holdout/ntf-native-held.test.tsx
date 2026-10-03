@@ -40,6 +40,7 @@ vi.mock('expo-notifications', () => ({
   getPermissionsAsync: async () => ({ status: h.permission, granted: h.permission === 'granted' }),
   requestPermissionsAsync: async () => { h.requestPermission(); return { status: h.permission, granted: h.permission === 'granted' }; },
   getDevicePushTokenAsync: async () => ({ type: 'fcm', data: h.deviceToken }),
+  getLastNotificationResponseAsync: async () => null,
   setNotificationHandler: vi.fn(),
   addNotificationResponseReceivedListener: (listener: (event: unknown) => unknown) => { h.responseListener = listener; return { remove: vi.fn() }; },
   addNotificationReceivedListener: (listener: (event: unknown) => unknown) => { h.registerListener = listener; return { remove: vi.fn() }; },

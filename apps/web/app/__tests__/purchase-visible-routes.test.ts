@@ -111,3 +111,113 @@ describe('PAY route session/body order, shape and safe failures', () => {
     expect(payload.data).toEqual({ url: 'https://r2.test/signed', expiresAt: '2026-10-02T05:45:00Z' });
   });
 });
+
+const readRoutes = [
+  { path: '../api/member/purchase-requests/[id]/route', method: 'GET', audience: member },
+  { path: '../api/purchase-requests/route', method: 'GET', audience: owner },
+] as const;
+
+describe('PAY complete actor and safe-read boundaries (BUY-001/009/019)', () => {
+  it.each([...routes, ...readRoutes])('$path returns 401 for an absent session before body or RPC', async route => {
+    state.claims = null;
+    const req = route.method === 'GET' ? new Request('https://gym.example/api') : request({}, route.method, true);
+    const response = await invoke(route, req);
+    expect(response.status).toBe(401);
+    expect(state.calls).toEqual([]);
+    expect(state.events).not.toContain('body');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+  it.each([...memberRoutes, readRoutes[0]])('$path refuses a real staff actor before member RPC/body', async route => {
+    state.claims = owner;
+    const req = route.method === 'GET' ? new Request('https://gym.example/api') : request({}, route.method, true);
+    const response = await invoke(route, req);
+    expect(response.status).toBe(403);
+    expect((await response.json()).error.code).toBe('not_permitted');
+    expect(state.calls).toEqual([]);
+    expect(state.events).not.toContain('body');
+  });
+  it.each([...deskRoutes.filter(route => !route.path.includes('/proof-url')), readRoutes[1]])('$path refuses a member actor before desk RPC/body', async route => {
+    state.claims = member;
+    const req = route.method === 'GET' ? new Request('https://gym.example/api') : request({}, route.method, true);
+    const response = await invoke(route, req);
+    expect(response.status).toBe(403);
+    expect((await response.json()).error.code).toBe('not_permitted');
+    expect(state.calls).toEqual([]);
+    expect(state.events).not.toContain('body');
+  });
+  it.each(readRoutes)('$path invokes only its declared scoped read', async route => {
+    state.claims = route.audience;
+    state.results = [{ data: route === readRoutes[0] ? { request_id: id, status: 'requested' } : { requests: [], nextAfter: null, nextAfterId: null }, error: null }];
+    const response = await invoke(route, new Request('https://gym.example/api'));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(state.calls).toHaveLength(1);
+    expect(state.calls[0]?.name).toBe(route === readRoutes[0] ? 'read_purchase_request' : 'read_purchase_requests');
+    if (route === readRoutes[0]) expect(state.calls[0]?.args).toEqual({ p_request_id: id });
+  });
+  it('member detail refuses an invisible target without leaking its existence', async () => {
+    state.results = [{ data: null, error: { code: 'P0002', message: 'PRIVATE_TARGET_EXISTS' } }];
+    const response = await invoke(readRoutes[0], new Request('https://gym.example/api'));
+    expect(response.status).toBe(404);
+    const payload = await response.json();
+    expect(payload.error.code).toBe('request_unavailable');
+    expect(JSON.stringify(payload)).not.toContain('PRIVATE_TARGET_EXISTS');
+  });
+  it('proof-url accepts the frozen JSON object envelope and strips private metadata', async () => {
+    state.results = [{ data: { request_id: id, url: 'https://r2.test/signed', expires_at: '2026-10-02T05:45:00Z', object_key: 'PRIVATE_KEY', etag: 'PRIVATE_ETAG' }, error: null }];
+    const response = await invoke(deskRoutes[4], request({}, 'POST'));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ ok: true, data: { url: 'https://r2.test/signed', expiresAt: '2026-10-02T05:45:00Z' } });
+  });
+});
+
+describe('PAY record HTTP canonical money boundary (BUY-012)', () => {
+  it.each(['9223372036854775808', '01', '+1', '1e3', '1.0', '0', 199900])('refuses amount %s before recording', async actualAmount => {
+    state.claims = owner;
+    const record = deskRoutes[3];
+    const response = await invoke(record, request({ ...record.body, actualAmount }, 'POST'));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error.code).toBe('invalid_request');
+    expect(state.calls).toEqual([]);
+  });
+  it('forwards maximum signed-bigint paise without precision loss', async () => {
+    state.claims = owner;
+    state.results = [{ data: { request_id: id, status: 'recorded', replayed: false }, error: null }];
+    const record = deskRoutes[3];
+    const response = await invoke(record, request({ ...record.body, actualAmount: '9223372036854775807' }, 'POST'));
+    expect(response.status).toBe(200);
+    expect(state.calls[0]?.args).toMatchObject({ p_actual_amount: '9223372036854775807', p_currency: 'INR', p_payment_method: 'upi' });
+  });
+  it.each(['GL126', '__proto__', 'constructor', 'toString'])('maps %s without raw refusal or prototype output', async code => {
+    state.claims = owner;
+    state.results = [{ data: null, error: { code, message: 'RAW_PRIVATE_LEDGER' } }];
+    const record = deskRoutes[3];
+    const response = await invoke(record, request(record.body, 'POST'));
+    expect(response.status).toBe(code === 'GL126' ? 429 : 500);
+    const payload = await response.json();
+    expect(typeof payload.error.message).toBe('string');
+    expect(JSON.stringify(payload)).not.toContain('RAW_PRIVATE_LEDGER');
+    if (code === 'GL126') expect(payload.error.code).toBe('rate_limited');
+  });
+});
+
+describe('PAY real verifier authority cannot be substituted by trainer or preview', () => {
+  it.each([
+    trainer,
+    { role: 'authenticated', sub: id, app_role: 'super_admin' },
+    { ...owner, impersonation_session_id: id },
+  ])('denies non-verifier claims on every desk command/read before malformed body', async claims => {
+    for (const route of [...deskRoutes, readRoutes[1]]) {
+      state.claims = claims;
+      state.calls = [];
+      state.events = [];
+      const req = route.method === 'GET' ? new Request('https://gym.example/api') : request({}, route.method, true);
+      const response = await invoke(route, req);
+      expect(response.status).toBe(403);
+      expect((await response.json()).error.code).toBe('not_permitted');
+      expect(state.calls).toEqual([]);
+      expect(state.events).not.toContain('body');
+    }
+  });
+});

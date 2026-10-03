@@ -88,3 +88,29 @@ describe('refusal vocabulary for PAY surfaces', () => {
     expect(copy.toLowerCase()).toContain('verification');
   });
 });
+
+describe('recorded paise stays within the signed-bigint wire contract', () => {
+  const valid = { expectedRevision: id, commandKey: id, actualAmount: '199900', currency: 'INR', method: 'upi' };
+  it.each(['1', '9007199254740993', '9223372036854775807'])('accepts exact decimal string %s without Number rounding', actualAmount => {
+    const result = purchaseRecordRequestSchema.safeParse({ ...valid, actualAmount });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.actualAmount).toBe(actualAmount);
+  });
+  it.each(['9223372036854775808', '999999999999999999999999', '01', '+1', '-1', ' 1', '1 ', '1.0', '1e3', '', '0', 199900, null])('refuses noncanonical or overflowing amount %s', actualAmount => {
+    expect(purchaseRecordRequestSchema.safeParse({ ...valid, actualAmount }).success).toBe(false);
+  });
+  it('requires method and explicit INR and refuses extra money facts', () => {
+    const { method: _method, ...missingMethod } = valid;
+    const { currency: _currency, ...missingCurrency } = valid;
+    expect(purchaseRecordRequestSchema.safeParse(missingMethod).success).toBe(false);
+    expect(purchaseRecordRequestSchema.safeParse(missingCurrency).success).toBe(false);
+    for (const method of ['UPI', 'unknown', '', null]) expect(purchaseRecordRequestSchema.safeParse({ ...valid, method }).success).toBe(false);
+    expect(purchaseRecordRequestSchema.safeParse({ ...valid, actualAmount: '1', tax: '1' }).success).toBe(false);
+  });
+});
+
+describe('unknown refusal codes cannot access prototype properties', () => {
+  it.each(['__proto__', 'constructor', 'prototype', 'toString', 'valueOf', 'hasOwnProperty', 'RAW_PRIVATE_REFUSAL'])('uses fixed safe copy for %s', code => {
+    expect(purchaseRequestRefusalMessage(code)).toBe("That didn't work. Try again, or ask the desk.");
+  });
+});
