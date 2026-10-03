@@ -14,12 +14,12 @@ test('ANC-Q1/Q5/Q8/Q9 publish review and immutable version display', async ({ pa
   expect(id).toMatch(/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/);
   try {
     await page.goto(`/announcements/${id}`);
-    await page.getByRole('button', { name: 'Publish', exact: true }).click();
+    await page.getByRole('button', { name: 'Review and publish', exact: true }).click();
     await expect(page.getByText('Notice', { exact: true }).first()).toBeVisible();
     await expect(page.getByText(/will see this on their Home screen\.|would see this right now\./)).toBeVisible();
     await expect(page.getByText(/until you take it down/i)).toBeVisible();
     const publishResponse = page.waitForResponse((response) => response.url().endsWith(`/api/announcements/${id}/publish`) && response.request().method() === 'POST');
-    await page.getByRole('button', { name: /Confirm publish|Publish announcement/, exact: false }).click();
+    await page.getByRole('button', { name: /^(?:Publish|Confirm publish|Publish announcement)$/, exact: true }).click();
     const result = await publishResponse; expect(result.status()).toBe(200);
     const edited = await page.request.post(`/api/announcements/${id}/edit`, { data: { expectedVersion: 1, title: 'ANC visible revised closure', body: 'Synthetic revised closure.', changeNote: 'Opening time corrected' } });
     expect(edited.status()).toBe(200); await page.reload();
