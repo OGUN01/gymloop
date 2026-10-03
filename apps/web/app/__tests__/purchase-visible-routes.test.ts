@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // PAY HTTP boundary against the frozen route list; SQL tests own ledger order.
 // Routes do not exist yet — the failing import is the expected RED.
@@ -38,7 +38,12 @@ function request(payload: unknown, method: string, malformed = false) {
 const context = { params: Promise.resolve({ id, requestId: id }) };
 async function invoke(route: { path: string; method: string }, req: Request) { const module = await import(route.path); return module[route.method](req, context) as Promise<Response>; }
 
-beforeEach(() => { state.claims = member; state.calls = []; state.results = []; state.events = []; });
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-02T05:44:30Z'));
+  state.claims = member; state.calls = []; state.results = []; state.events = [];
+});
+afterEach(() => { vi.useRealTimers(); });
 
 describe('PAY route session/body order, shape and safe failures', () => {
   it.each(routes)('$path identifies caller before reading malformed JSON', async route => {
@@ -196,6 +201,23 @@ describe('PAY complete actor and safe-read boundaries (BUY-001/009/019)', () => 
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(await response.json()).toEqual({ ok: true, data: { url: `/api/purchase-requests/${id}/proof-asset`, expiresAt: '2026-10-02T05:45:00Z' } });
   });
+  // Frozen PAY transport requires a live no-store GET with a TTL at most 60s.
+  it.each([
+    ['already expired', '2026-10-02T05:44:29Z'],
+    ['expires exactly now', '2026-10-02T05:44:30Z'],
+    ['exceeds sixty seconds', '2026-10-02T05:45:31Z'],
+  ])('proof-url refuses an RPC URL that %s', async (_case, expiresAt) => {
+    state.results = [{ data: { requestId: id, proofId: id, assetId: id, url: `/api/purchase-requests/${id}/proof-asset`, expiresAt }, error: null }];
+    const response = await invoke(deskRoutes[4], request({}, 'POST'));
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(response.status).toBeLessThan(600);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    const payload = await response.json();
+    expect(payload.ok).toBe(false);
+    expect(payload.data).toBeUndefined();
+    expect(typeof payload.error.message).toBe('string');
+    expect(JSON.stringify(payload)).not.toContain('/proof-asset');
+  });
 });
 
 describe('PAY record HTTP canonical money boundary (BUY-012)', () => {
@@ -232,7 +254,7 @@ describe('PAY real verifier authority cannot be substituted by trainer or previe
   it.each([
     trainer,
     { role: 'authenticated', sub: id, app_role: 'super_admin' },
-    { ...owner, impersonation_session_id: id },
+    { role: 'authenticated', sub: id, app_role: 'gym_owner', tenant_id: id, impersonation_session_id: id },
   ])('denies non-verifier claims on every desk command/read before malformed body', async claims => {
     for (const route of [...deskRoutes, readRoutes[1]]) {
       state.claims = claims;
@@ -242,6 +264,19 @@ describe('PAY real verifier authority cannot be substituted by trainer or previe
       const response = await invoke(route, req);
       expect(response.status).toBe(403);
       expect((await response.json()).error.code).toBe('not_permitted');
+      expect(state.calls).toEqual([]);
+      expect(state.events).not.toContain('body');
+    }
+  });
+  it('classifies mixed staff/preview claims as unlinked before any desk body or RPC', async () => {
+    for (const route of [...deskRoutes, readRoutes[1]]) {
+      state.claims = { ...owner, impersonation_session_id: id };
+      state.calls = [];
+      state.events = [];
+      const req = route.method === 'GET' ? new Request('https://gym.example/api') : request({}, route.method, true);
+      const response = await invoke(route, req);
+      expect(response.status).toBe(401);
+      expect((await response.json()).error.code).toBe('not_signed_in');
       expect(state.calls).toEqual([]);
       expect(state.events).not.toContain('body');
     }
