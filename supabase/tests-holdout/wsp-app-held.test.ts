@@ -498,6 +498,65 @@ describe('held front-office WhatsApp routes', () => {
   const dispatchValid = { requestKey: ids.requestKey };
   const consentValid = { memberId: ids.member, purpose: 'service', granted: true, noticeVersion: 'wsp-v1', source: 'desk-call', requestKey: ids.requestKey };
 
+  it.each([
+    ['short hex', 'abcd'],
+    ['compact hex', '80800000000040008000000000000003'],
+    ['oversized tail', '80800000-0000-4000-8000-000000000003aa'],
+    ['shifted separator', '8080000-00000-4000-8000-000000000003'],
+    ['extra separator', '80800000--0000-4000-8000-000000000003'],
+  ])('recorder canonical member UUID rejects %s before RPC', async (_label, memberId) => {
+    const rpc = vi.fn().mockResolvedValue({ data: {
+      consentId: ids.consent, purpose: 'service', granted: true,
+      noticeVersion: 'wsp-v1', recordedAt: ids.cursorAt,
+    }, error: null });
+    staffSession.mockResolvedValue({ session: { supabase: { rpc }, userId: ids.user,
+      tenantId: ids.tenant, staffId: ids.staff, role: 'front_desk' } });
+    const route = tas<StaffConsentRoute>(await import(targets.staffConsent));
+    const reply = await route.POST(json({ ...consentValid, memberId }), { params: Promise.resolve({ memberId }) });
+    expect.soft(reply.status).toBe(400);
+    expect.soft(await reply.json()).toMatchObject({ ok: false, error: { code: 'invalid_request' } });
+    expect(rpc).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it.each([
+    ['short hex', 'feed'],
+    ['compact hex', '80800000000040008000000000000008'],
+    ['oversized tail', '80800000-0000-4000-8000-000000000008ab'],
+    ['shifted separator', '808000000-000-4000-8000-000000000008'],
+    ['extra separator', '80800000-0000--4000-8000-000000000008'],
+  ])('recorder canonical request UUID rejects %s before RPC', async (_label, requestKey) => {
+    const rpc = vi.fn().mockResolvedValue({ data: {
+      consentId: ids.consent, purpose: 'service', granted: true,
+      noticeVersion: 'wsp-v1', recordedAt: ids.cursorAt,
+    }, error: null });
+    staffSession.mockResolvedValue({ session: { supabase: { rpc }, userId: ids.user,
+      tenantId: ids.tenant, staffId: ids.staff, role: 'front_desk' } });
+    const route = tas<StaffConsentRoute>(await import(targets.staffConsent));
+    const reply = await route.POST(json({ ...consentValid, requestKey }), { params: Promise.resolve({ memberId: ids.member }) });
+    expect.soft(reply.status).toBe(400);
+    expect.soft(await reply.json()).toMatchObject({ ok: false, error: { code: 'invalid_request' } });
+    expect(rpc).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it.each([
+    ['short hex', 'cafe'],
+    ['compact hex', '80800000000040008000000000000008'],
+    ['oversized tail', '80800000-0000-4000-8000-000000000008cd'],
+    ['shifted separator', '80800000-0000-400-08000-000000000008'],
+    ['extra separator', '80800000-0000-4000--8000-000000000008'],
+  ])('dispatch canonical request UUID rejects %s before RPC', async (_label, requestKey) => {
+    const rpc = vi.fn().mockResolvedValue({ data: {
+      notificationId: ids.notification, queued: false, reason: 'communication_opted_out',
+    }, error: null });
+    staffSession.mockResolvedValue({ session: { supabase: { rpc }, userId: ids.user,
+      tenantId: ids.tenant, staffId: ids.staff, role: 'front_desk' } });
+    const route = tas<DispatchRoute>(await import(targets.dispatch));
+    const reply = await route.POST(json({ requestKey }), { params: Promise.resolve({ notificationId: ids.notification }) });
+    expect.soft(reply.status).toBe(400);
+    expect.soft(await reply.json()).toMatchObject({ ok: false, error: { code: 'invalid_request' } });
+    expect(rpc).not.toHaveBeenCalled();
+  }, 20_000);
+
   it('desk recorder admits only front-office roles and sends the exact command', async () => {
     const rpc = vi.fn().mockResolvedValue({
       data: { consentId: ids.consent, purpose: 'service', granted: true, noticeVersion: 'wsp-v1', recordedAt: ids.cursorAt }, error: null,

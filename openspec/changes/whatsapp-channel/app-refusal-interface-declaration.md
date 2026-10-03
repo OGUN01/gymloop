@@ -19,6 +19,13 @@ projection. A bare date/number, impossible calendar date or missing timezone
 is malformed, even if JavaScript `Date.parse` accepts it. It uses the same
 refusal envelope before RPC. Both halves are preserved verbatim when valid.
 
+HTTP `memberId` and `requestKey` use the canonical UUID wire shape: five
+case-insensitive hexadecimal groups of lengths `8-4-4-4-12`, with exactly
+four hyphens. This does not add an RFC version restriction. Compact,
+overlong or misplaced-separator forms refuse as `400 invalid_request`
+before any RPC; a well-formed UUID still undergoes all existing authority
+and target checks.
+
 The existing concealed-phone projection requirement applies to **all**
 visible digits together: adding a mask marker or separators to a fully
 visible phone does not conceal it. Independent privacy checks must cover

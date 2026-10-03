@@ -119,6 +119,34 @@ describe('WSP operations role and paired keyset boundary', () => {
 });
 
 describe('WSP-002 consent acknowledgement corresponds to the submitted decision', () => {
+  it.each(['memberId', 'requestKey'] as const)(
+    'refuses malformed UUID %s before RPC', async (field) => {
+      const route = await import('../api/members/[memberId]/whatsapp-consent/route');
+      for (const malformed of [
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        '55555555-5555-4555-8555-55555555555',
+        '555555555-555-4555-8555-555555555555',
+      ]) {
+        boundary.rpc.mockClear();
+        boundary.rpc.mockResolvedValue({ data: decision, error: null });
+        const body = {
+          memberId, purpose: 'service', granted: true, noticeVersion: decision.noticeVersion,
+          source: 'recipient_verified', requestKey, [field]: malformed,
+        };
+        const request = new Request('https://gymloop.test/api/whatsapp-consent', {
+          method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+        });
+        const response = await route.POST(request, {
+          params: Promise.resolve({ memberId: field === 'memberId' ? malformed : memberId }),
+        });
+        expect.soft(response.status).toBe(400);
+        expect.soft(await response.json()).toMatchObject({ ok: false, error: { code: 'invalid_request' } });
+        expect.soft(boundary.rpc).not.toHaveBeenCalled();
+      }
+    },
+  );
+
   it.each(['member', 'staff'] as const)('%s confirms a matching successful RPC decision', async (audience) => {
     boundary.rpc.mockResolvedValue({ data: decision, error: null });
     boundary.readRequestIdentity.mockResolvedValue({ identity: audience === 'member' ? member : owner, supabase: { rpc: boundary.rpc } });
