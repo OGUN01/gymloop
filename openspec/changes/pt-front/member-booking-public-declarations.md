@@ -48,6 +48,10 @@ current supplied API/Supabase clients determine the presentation lifetime.
 Route focus is also part of that lifetime. Leaving a mounted native stack
 screen permanently revokes its sheet, retry capability and awaited callbacks;
 returning creates a fresh lifetime and cannot reactivate a retained callback.
+The installed `expo-router` `useFocusEffect` export is the declared focus host:
+it accepts a memoized effect returning a cleanup callback. Independent native
+hosts invoke that cleanup on blur while keeping the screen mounted, then run
+the effect anew on focus. No other navigation hook/provider is introduced.
 The root Expo Stack already admits filesystem routes; no additional stack,
 provider, dependency or invented route authority is required.
 

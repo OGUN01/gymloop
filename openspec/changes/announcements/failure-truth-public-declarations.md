@@ -49,3 +49,19 @@ or malformed response and retain their unmount/preview/offline safeguards.
 No SQL migration, audience/RLS change or generated type edit is authorized.
 Tests exercise actual helpers/hooks/routes/cache and existing caller lifetimes,
 mocking only declared API/caller/network/storage/rendering boundaries.
+
+## Reachable saved-copy feedback
+
+The existing registered native `AnnouncementsSection` in
+`apps/mobile/components/announcements.tsx` accepts
+`{feed: ReturnType<typeof useAnnouncements>; timezone: string}`. Its existing
+seven-field feed includes cards, loading, error, stale, fetchedAt, reload and
+markRead. A non-permission refresh error must coexist with retained same-scope
+cards and their Saved copy timestamp; the actual rendered component must not
+return before showing those cards. Show sanitized refresh feedback and an
+explicit Try again action alongside the saved cards. They remain expandable
+and their existing scoped offline read queue remains available. A definitive
+permission refusal leaves no cached cards or acknowledgement capability and
+renders only its sanitized refusal/retry state. Loading/empty/healthy feed
+behavior remains unchanged. No new feed interface or persistence key is added.
+Independent visible and held rendered regressions precede the component fix.
