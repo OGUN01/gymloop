@@ -10,7 +10,7 @@ type Cell = { value?: unknown; deps?: unknown[] | undefined; cleanup?: (() => vo
 const seam = vi.hoisted(() => ({
   active: null as null | { cells: Cell[]; cursor: number; effects: (() => void)[] },
   mobile: {} as Props, online: true, listeners: new Set<(state: Props) => void>(),
-  refresh: vi.fn(), loadMember: vi.fn(), loadDesk: vi.fn(), loadRoster: vi.fn(),
+  refresh: vi.fn(), audience: vi.fn(), webSchedule: vi.fn(), network: vi.fn(), loadMember: vi.fn(), loadDesk: vi.fn(), loadRoster: vi.fn(),
   book: vi.fn(), cancel: vi.fn(), deskBook: vi.fn(), deskCancel: vi.fn(), mark: vi.fn(), search: vi.fn(),
 }));
 vi.mock('react', async importOriginal => {
@@ -47,6 +47,12 @@ vi.mock('react', async importOriginal => {
   };
 });
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: seam.refresh }) }));
+vi.mock('../../apps/web/lib/identity-session', () => ({ requireAudience: seam.audience }));
+vi.mock('../../apps/web/lib/classes', () => ({ loadMemberClassSchedule: seam.webSchedule }));
+vi.mock('../../apps/web/lib/business-type', () => ({
+  loadBusinessOrganization: async () => ({ data: { name: 'Held Gym', business_type: 'gym', timezone: 'Asia/Kolkata' }, error: null }),
+  loadBusinessNouns: async () => businessNouns('gym'),
+}));
 vi.mock('../../apps/web/app/preview-context', () => ({ usePreviewReadOnly: () => false }));
 vi.mock('../../apps/mobile/lib/mobile-context', () => ({ useMobile: () => seam.mobile }));
 vi.mock('../../apps/mobile/lib/use-business-nouns', () => ({ useBusinessNouns: () => seam.mobile.nouns }));
@@ -56,7 +62,7 @@ vi.mock('../../apps/mobile/lib/classes', () => ({
   deskCancelClassBooking: seam.deskCancel, markClassAttendance: seam.mark,
 }));
 vi.mock('../../apps/mobile/lib/mobile-data', () => ({ loadDeskMembers: seam.search }));
-vi.mock('expo-network', () => ({ getNetworkStateAsync: async () => ({ isConnected: seam.online, isInternetReachable: seam.online }),
+vi.mock('expo-network', () => ({ getNetworkStateAsync: () => seam.network(),
   addNetworkStateListener: (fn: (state: Props) => void) => { seam.listeners.add(fn); return { remove: () => seam.listeners.delete(fn) }; },
 }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), router: { push: vi.fn() } }));
@@ -80,6 +86,7 @@ vi.mock('../../apps/mobile/components/ui', () => {
 
 import { MemberClassesView } from '../../apps/web/app/member/classes/member-classes-view';
 import { ClassesPane } from '../../apps/mobile/components/classes-pane';
+import { ClassActions, useClassCommand } from '../../apps/web/app/member/classes/class-actions';
 
 function mount(component: (props: never) => unknown, props: Props = {}) {
   const frames = new Map<string, { cells: Cell[]; cursor: number; effects: (() => void)[] }>();
@@ -147,13 +154,18 @@ function roster(overrides: Partial<ClassRosterBooking> = {}): ClassRosterBooking
     cancelledAt: null, cancelReason: null, markedAt: null, membershipLive: false, checkedInAt: '2026-10-03T12:00:00Z', ...overrides };
 }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
+function cancellable(overrides: Partial<MemberClassSession> = {}) {
+  return session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z', ...overrides });
+}
 const browser = new EventTarget();
 beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-03T07:00:00Z')); vi.clearAllMocks();
   seam.online = true; seam.listeners.clear();
+  seam.network.mockImplementation(async () => ({ isConnected: seam.online, isInternetReachable: seam.online }));
   const query = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), maybeSingle: vi.fn(async () => ({ data: { timezone: 'Asia/Kolkata', branch_id: id('12') }, error: null })) };
   seam.mobile = { identity: identityA, ready: true, supabase: { from: vi.fn(() => query) }, api: { post: vi.fn() },
     palette: UI_TOKENS.colors.light, nouns, businessType: 'gym', webOrigin: 'https://gymloop.test' };
+  seam.audience.mockResolvedValue({ identity: identityA, supabase: seam.mobile.supabase }); seam.webSchedule.mockResolvedValue([session()]);
   seam.loadMember.mockResolvedValue([session()]); seam.loadDesk.mockResolvedValue([timetable()]); seam.loadRoster.mockResolvedValue([roster()]);
   seam.search.mockResolvedValue([]);
   seam.book.mockResolvedValue({ ok: true, data: { bookingId: id('20'), status: 'booked', spotsLeft: 3 } });
@@ -189,7 +201,7 @@ describe('CLS independent held web rendered member boundary', () => {
   });
   it('confirms an existing cancellation with the authoritative absolute local deadline then refreshes', async () => {
     const row = session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' });
-    const view = mount(MemberClassesView, { sessions: [row], today: '2026-10-03', nouns });
+    const view = mount(MemberClassesView, { sessions: [row], today: '2026-10-03', nouns, scopeKey: 'held-A', refreshSessions: async () => [row] });
     await view.settle(); await view.press(/^Cancel(?: booking)?$/i); expect(view.text()).toMatch(/4[:.]00|16:00/);
     await view.press(/^Confirm(?: cancellation)?$/i);
     expect(fetch).toHaveBeenCalledWith('/api/class-bookings/cancel', expect.objectContaining({ method: 'POST', body: JSON.stringify({ bookingId: id('20') }) }));
@@ -212,7 +224,7 @@ describe('CLS independent held web rendered member boundary', () => {
   });
   it('keeps existing cancellation pending and prevents a second submitted command', async () => {
     const request = deferred<{ ok: boolean; json: () => Promise<unknown> }>(); vi.mocked(fetch).mockReturnValue(request.promise as Promise<Response>);
-    const view = mount(MemberClassesView, { sessions: [session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })], today: '2026-10-03', nouns });
+    const view = mount(MemberClassesView, { sessions: [cancellable()], today: '2026-10-03', nouns, scopeKey: 'held-A', refreshSessions: async () => [cancellable()] });
     await view.settle(); await view.press(/^Cancel(?: booking)?$/i); await view.press(/^Confirm(?: cancellation)?$/i);
     expect(fetch).toHaveBeenCalledTimes(1); expect(seam.refresh).not.toHaveBeenCalled();
     expect(view.controls(/^Confirm(?: cancellation)?$/i).filter(node => !node.props.disabled)).toHaveLength(0);
@@ -340,5 +352,121 @@ describe('CLS independent held actual native rendered boundaries', () => {
     const input = view.nodes().find(node => typeof node.props.onChangeText === 'function' && /reason/i.test(String(node.props.placeholder ?? node.props.accessibilityLabel ?? ''))); expect(input).toBeDefined();
     const change = input?.props.onChangeText; if (typeof change === 'function') change('Member asked at desk'); await view.settle(); await view.press(/^Confirm(?: cancellation)?$/i);
     expect(seam.deskCancel).toHaveBeenCalledWith(seam.mobile.api, id('20'), 'Member asked at desk'); view.unmount();
+  });
+});
+
+describe('CLS held public current-facts and permanent command lifetime', () => {
+  const commands = [
+    ['bookClass', [id('10')]], ['cancelClassBooking', [id('20')]],
+    ['deskBookClass', [id('10'), id('21')]], ['deskCancelClassBooking', [id('20'), 'Desk member request']],
+    ['markClassAttendance', [id('20'), 'attended']],
+  ] as const;
+  it.each(commands)('actual native %s refuses a false guard before network and transport', async (name, args) => {
+    const actual = await vi.importActual<Record<string, (...args: unknown[]) => Promise<unknown>>>('../../apps/mobile/lib/classes');
+    const post = vi.fn(async () => ({ ok: true, data: {} }));
+    await actual[name]?.({ post }, ...args, () => false);
+    expect(post).not.toHaveBeenCalled(); expect(seam.network).not.toHaveBeenCalled();
+  });
+  it.each(commands)('actual native %s rechecks revoked lifetime after asynchronous network preflight', async (name, args) => {
+    const actual = await vi.importActual<Record<string, (...args: unknown[]) => Promise<unknown>>>('../../apps/mobile/lib/classes');
+    const preflight = deferred<{ isConnected: boolean; isInternetReachable: boolean }>(); seam.network.mockReturnValue(preflight.promise);
+    const post = vi.fn(async () => ({ ok: true, data: {} })); let current = true;
+    const pending = actual[name]?.({ post }, ...args, () => current); current = false;
+    preflight.resolve({ isConnected: true, isInternetReachable: true }); await pending; expect(post).not.toHaveBeenCalled();
+  });
+  type Command = ReturnType<typeof useClassCommand>;
+  function commandHost() {
+    let command!: Command;
+    const callable = useClassCommand as (scopeKey?: string) => Command;
+    function Host(props: Props) { command = callable(String(props.scopeKey)); return null; }
+    const view = mount(Host, { scopeKey: 'A' }); return { view, current: () => command };
+  }
+  it.each(['unmount', 'A-B-A'])('actual web hook obsolete send after %s never fetches or succeeds', async transition => {
+    const { view, current } = commandHost(); await view.settle(); const old = current().send;
+    if (transition === 'unmount') view.unmount();
+    else { view.rerender({ scopeKey: 'B' }); await view.settle(); view.rerender({ scopeKey: 'A' }); await view.settle(); }
+    const outcome = await old('/api/class-bookings/cancel', { bookingId: id('20') });
+    expect(fetch).not.toHaveBeenCalled(); expect(outcome).toBeNull(); expect(seam.refresh).not.toHaveBeenCalled(); view.unmount();
+  });
+  it.each(['unmount', 'A-B-A'])('actual web hook late completion after %s cannot refresh, feedback or return success', async transition => {
+    const request = deferred<Response>(); vi.mocked(fetch).mockReturnValue(request.promise);
+    const { view, current } = commandHost(); await view.settle(); const pending = current().send('/api/class-bookings/cancel', { bookingId: id('20') });
+    await view.settle();
+    if (transition === 'unmount') view.unmount();
+    else { view.rerender({ scopeKey: 'B' }); await view.settle(); view.rerender({ scopeKey: 'A' }); await view.settle(); }
+    request.resolve({ ok: true, json: async () => ({ ok: true, data: { bookingId: id('20'), status: 'cancelled_by_member' } }) } as Response);
+    const outcome = await pending; expect(outcome).toBeNull(); expect(seam.refresh).not.toHaveBeenCalled();
+    if (transition !== 'unmount') { await view.settle(); expect(current().message).toBeFalsy(); } view.unmount();
+  });
+  it.each([null, cancellable({ sessionStatus: 'cancelled' }), cancellable({ canCancel: false }), cancellable({ myBookingId: id('99') }), cancellable({ sessionId: id('98') }), cancellable({ cancelBy: null }), cancellable({ myBookingStatus: 'no_show' })])('actual ClassActions does not prepare stale or missing current cancellation facts %j', async refreshed => {
+    const refreshSession = vi.fn(async () => refreshed);
+    const view = mount(ClassActions, { session: cancellable(), cancelWindowHours: null, scopeKey: 'A', refreshSession });
+    await view.settle(); await view.press(/^Cancel(?: booking)?$/i); expect(refreshSession).toHaveBeenCalled();
+    expect(view.controls(/^Confirm(?: cancellation)?$/i).filter(node => !node.props.disabled)).toHaveLength(0); expect(fetch).not.toHaveBeenCalled(); view.unmount();
+  });
+  it('actual ClassActions fails closed when current read metadata is absent', async () => {
+    const view = mount(ClassActions, { session: cancellable(), cancelWindowHours: null, scopeKey: 'A' }); await view.settle();
+    if (view.controls(/^Cancel(?: booking)?$/i).some(node => !node.props.disabled)) await view.press(/^Cancel(?: booking)?$/i);
+    expect(view.controls(/^Confirm(?: cancellation)?$/i).filter(node => !node.props.disabled)).toHaveLength(0); expect(fetch).not.toHaveBeenCalled(); view.unmount();
+  });
+  it('actual ClassActions refreshes before prepare and confirm and accepts the exact inclusive cutoff', async () => {
+    const refreshSession = vi.fn(async () => cancellable());
+    const view = mount(ClassActions, { session: cancellable(), cancelWindowHours: null, scopeKey: 'A', refreshSession });
+    await view.settle(); await view.press(/^Cancel(?: booking)?$/i); expect(refreshSession).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(new Date('2026-10-03T10:30:00Z')); await view.press(/^Confirm(?: cancellation)?$/i);
+    expect(refreshSession).toHaveBeenCalledTimes(2); expect(fetch).toHaveBeenCalledTimes(1); view.unmount();
+  });
+  it('actual ClassActions rechecks clock one millisecond after cutoff and sends nothing', async () => {
+    const refreshSession = vi.fn(async () => cancellable());
+    const view = mount(ClassActions, { session: cancellable(), cancelWindowHours: null, scopeKey: 'A', refreshSession });
+    await view.settle(); await view.press(/^Cancel(?: booking)?$/i); vi.setSystemTime(new Date('2026-10-03T10:30:00.001Z'));
+    await view.press(/^Confirm(?: cancellation)?$/i); expect(fetch).not.toHaveBeenCalled(); view.unmount();
+  });
+  it('actual ClassActions policy change updates facts and requires renewed explicit confirmation', async () => {
+    const refreshSession = vi.fn().mockResolvedValueOnce(cancellable()).mockResolvedValue(cancellable({ cancelBy: '2026-10-03T09:30:00Z' }));
+    const view = mount(ClassActions, { session: cancellable(), cancelWindowHours: null, scopeKey: 'A', refreshSession });
+    await view.settle(); await view.press(/^Cancel(?: booking)?$/i); await view.press(/^Confirm(?: cancellation)?$/i);
+    expect(fetch).not.toHaveBeenCalled(); expect(view.text()).toMatch(/3[:.]00|15:00/);
+    await view.press(/^Confirm(?: cancellation)?$/i); expect(fetch).toHaveBeenCalledTimes(1); view.unmount();
+  });
+  it('actual ClassActions rereads on reopening instead of retaining first confirmation facts', async () => {
+    const refreshSession = vi.fn().mockResolvedValueOnce(cancellable()).mockResolvedValue(cancellable({ canCancel: false }));
+    const view = mount(ClassActions, { session: cancellable(), cancelWindowHours: null, scopeKey: 'A', refreshSession });
+    await view.settle(); await view.press(/^Cancel(?: booking)?$/i);
+    const closer = view.nodes().find(node => typeof node.props.onClick === 'function' && /close|cancel|back|keep booking|not now/i.test(String(node.props['aria-label'] ?? node.props.children ?? '')) && !/Cancel booking/i.test(String(node.props.children)));
+    expect(closer).toBeDefined(); const close = closer?.props.onClick; if (typeof close === 'function') close(); await view.settle(); await view.press(/^Cancel(?: booking)?$/i);
+    expect(refreshSession).toHaveBeenCalledTimes(2); expect(view.controls(/^Confirm(?: cancellation)?$/i).filter(node => !node.props.disabled)).toHaveLength(0); view.unmount();
+  });
+  it('native roster refresh uses externally cancelled current timetable rather than its old selection', async () => {
+    seam.mobile.identity = { kind: 'staff', userId: id('1'), tenantId: id('2'), staffId: id('7'), role: 'front_desk' };
+    seam.loadDesk.mockResolvedValue([timetable({ startsAt: '2026-10-03T07:30:00Z', endsAt: '2026-10-03T08:30:00Z' })]);
+    const view = mount(ClassesPane, { desk: true }); await view.settle(); await view.press(/Held yoga/);
+    seam.loadDesk.mockResolvedValue([timetable({ sessionStatus: 'cancelled', capacity: 23, trainerStaffId: id('99'), trainerName: 'Replacement teacher' })]);
+    await view.press(/Refresh timetable/i);
+    expect(view.controls(/^(?:Mark attended|Attended|Mark no.show|No.show|Undo|Cancel booking)$/i)).toHaveLength(0);
+    expect(view.text()).toContain('Cancelled'); expect(view.text()).toContain('23'); view.unmount();
+  });
+  it('native refreshed roster revokes trainer marking after current timetable reassignment', async () => {
+    seam.mobile.identity = { kind: 'staff', userId: id('1'), tenantId: id('2'), staffId: id('7'), role: 'trainer' };
+    seam.loadDesk.mockResolvedValue([timetable({ startsAt: '2026-10-03T07:30:00Z', endsAt: '2026-10-03T08:30:00Z' })]);
+    const view = mount(ClassesPane, { desk: true }); await view.settle(); await view.press(/Held yoga/);
+    expect(view.controls(/^(?:Mark attended|Attended)$/i).length).toBeGreaterThan(0);
+    seam.loadDesk.mockResolvedValue([timetable({ startsAt: '2026-10-03T07:30:00Z', endsAt: '2026-10-03T08:30:00Z', trainerStaffId: id('99'), trainerName: 'Replacement teacher' })]);
+    await view.press(/Refresh timetable/i);
+    expect(view.controls(/^(?:Mark attended|Attended|Mark no.show|No.show|Undo)$/i)).toHaveLength(0); expect(seam.mark).not.toHaveBeenCalled(); view.unmount();
+  });
+  it.each([identityB, { ...identityA, memberId: id('88') }, { ...identityA, userId: id('89') }])('retained actual server refresh callback refuses changed freshly verified caller %j before feature read', async identity => {
+    const actual = await vi.importActual<{ default: () => Promise<unknown> }>('../../apps/web/app/member/classes/page');
+    const tree = await actual.default();
+    function find(value: unknown): Props | null {
+      if (!value || typeof value !== 'object') return null;
+      if (Array.isArray(value)) { for (const child of value) { const match = find(child); if (match) return match; } return null; }
+      const node = value as Node; if (node.type === MemberClassesView) return node.props; return find(node.props?.children);
+    }
+    const props = find(tree); expect(props).not.toBeNull(); expect(props?.scopeKey).toBeTruthy();
+    const refresh = props?.refreshSessions; expect(refresh).toBeTypeOf('function');
+    seam.audience.mockResolvedValue({ identity, supabase: seam.mobile.supabase }); seam.webSchedule.mockClear();
+    const result = typeof refresh === 'function' ? await refresh() : undefined;
+    expect(result).toBeNull(); expect(seam.webSchedule).not.toHaveBeenCalled();
   });
 });
