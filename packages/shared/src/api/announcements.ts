@@ -33,7 +33,7 @@ export const ANNOUNCEMENT_STALE_WORD = 'Saved copy';
 export const ANNOUNCEMENT_UPDATED_HINT = 'You read an earlier version. This one changed.';
 export const ANNOUNCEMENT_EDIT_WARNING = 'Anyone who already opened the earlier version will see this marked Updated, with your note.';
 export const ANNOUNCEMENT_READ_FOOTNOTE = 'A member counts as having read an announcement when they open it in the app.';
-export const ANNOUNCEMENT_PRIVACY_SENTENCE = 'When you open an announcement in the app, FitCruxx records that you opened that version. Your gym sees how many members opened it, not who.';
+export const ANNOUNCEMENT_PRIVACY_SENTENCE = 'When you open an announcement in the app, FitCruxx records that you opened that version. The business sees how many members opened it, not who.';
 export const ANNOUNCEMENT_REFUSAL_COPY = {
   not_draft: 'This announcement is no longer a draft. Reload to see where it stands.',
   not_live: "This announcement has ended, so it can't be edited. Write a new one instead.",
