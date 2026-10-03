@@ -13,7 +13,7 @@ source lands; then update those rows atomically with the source commit.
 | `app.enforce_wallet_conversion_evidence()` | Same approved migration | Invoker trigger protects original-credit metadata and rejects forged converted history; no callable conversion escape | Wallet and ledger evidence guards |
 | `POSTGRES_BIGINT_MIN` / `POSTGRES_BIGINT_MAX` | `packages/shared/src/config/constants.ts` | Exact signed PostgreSQL bigint bounds; retain the existing phase6 delta-input range rule without Number conversion | Strict wallet paise request schema |
 
-### Approved booking-policy repair declarations — source pending
+### Approved booking-policy repair declarations — built, CI application pending
 
 Owner-approved 2026-10-03; exact declarations precede independent tests.
 
@@ -22,6 +22,14 @@ Owner-approved 2026-10-03; exact declarations precede independent tests.
 | `public.read_member_pt_policy()` | `supabase/migrations/20261003160000_member_booking_policy_reads.sql` | Stable exact existing real-member validator; current same-tenant two-field cancellation policy, no settings grant or writes | PTF booking confirmation |
 | `PtMemberPolicy` / `PtPolicyRead` / `PtPolicyReadClient` / `readMemberPtPolicy` | `packages/shared/src/api/pt-front-data.ts` | One strict platform-free nullable policy projection and sanitized failure boundary; narrow caller transport for the new read | Web/native PTF adapters |
 | `loadMemberPtPolicy` / `loadPtPolicy` | `apps/web/lib/training.ts` / `apps/mobile/lib/training.ts` | Supplied-current-caller policy adapters; no default or private settings read | Web/native PTF booking surfaces |
+
+### Approved member booking surface declarations — source pending
+
+| Symbol | Planned path | Responsibility | Consumers |
+|---|---|---|---|
+| `PtBookingFacts` / `PtBookingForm` | `apps/web/app/member/classes/training/pt-actions.tsx` | Current own pack/slot/policy confirmation; exact per-sheet command and uncertain-result replay under permanent caller lifetime | Member booking page |
+| Member booking page default export | `apps/web/app/member/classes/training/book/[orderId]/page.tsx` | Authenticated own-order route with full original caller revalidation before refreshed facts | Training pack Book link |
+| Native booking screen default export | `apps/mobile/app/training/book/[orderId].tsx` | Current useMobile member and own-order booking using registered readers, kit and API | Native Training pack Book action |
 
 | SHP application symbols | Path | Responsibility | Consumers |
 |---|---|---|---|
@@ -1136,7 +1144,7 @@ These scoped rows register application source; rendered-surface and live accepta
 | `loadMemberTraining` / `loadMemberSlots` / `loadMemberTrainingHistory` | `apps/web/lib/training.ts` | Caller-scoped read projection with currently exposed MEDIA image signing | Member web Training |
 | `TrainingSection` | `apps/mobile/components/training-section.tsx` | Current-member Training reads, sold pack/programme facts and authoritative existing-session cancellation with caller-lifetime and connectivity guards; new-booking policy seam remains owner-pending | Central native Classes/Training integration |
 | `PtCancelButton` / `TrainingConnectionNotice` | `apps/web/app/member/classes/training/pt-actions.tsx` | Existing-session current-fact confirmation, permanent caller lease and truthful online-only cancellation; stale read notice without commands | Member web Training |
-| `useTrainingOnline` (approved source cleanup declaration) | `apps/web/app/member/classes/training/pt-actions.tsx` | Presentation-only browser connectivity listener; initial online state preserves existing notices, each consumer retains its own offline predicate and copy; no command or authority state | Member and console Training connection notices |
+| `useBrowserOnline` (approved source cleanup declaration) | `apps/web/lib/use-browser-online.ts` | Presentation-only browser connectivity listener; initial online state preserves existing notices, each consumer retains its own offline predicate and copy; no command or authority state | Member/console Training notices and existing Shop command presentation |
 | `PresentationLease` / `renewLease` (private) | `apps/web/app/member/classes/training/pt-actions.tsx` | Reuses or permanently revokes a component-local caller/session presentation lease; no new identity authority | PtCancelButton |
 | `current` / `publish` / `allowed` / `fresh` / `close` / `prepare` / `confirm` (private) | `apps/web/app/member/classes/training/pt-actions.tsx` | Guards exact refreshed session facts, explicit renewed confirmation and obsolete feedback without a shared feature-inappropriate command hook | PtCancelButton |
 | `sessionRow` / `refreshSession` (private; inline server callback) | `apps/web/app/member/classes/training/page.tsx` | Renders current session status and rereads through a fresh verified member audience matching the captured user/tenant/member before any feature read | Member Training page |

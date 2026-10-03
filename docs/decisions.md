@@ -1901,8 +1901,10 @@ scalar two-field policy. A single platform-free readMemberPtPolicy in its
 existing module owns strict parsing and sanitized errors for both adapters.
 The existing command hooks carry feature command/lifetime state and cannot be
 used solely to display connectivity. Both Training notices therefore share one
-presentation-only useTrainingOnline hook, retaining their own zero-argument
-interfaces, copy and predicates. No new authority state or ignore escape.
+presentation-only useBrowserOnline hook, retaining their own zero-argument
+interfaces, copy and predicates. The common module also supplies the existing
+Shop hook's identical connectivity state, eliminating its real listener clone.
+No new authority state or ignore escape.
 
 ### CLS application UI reuse note (2026-10-03)
 
