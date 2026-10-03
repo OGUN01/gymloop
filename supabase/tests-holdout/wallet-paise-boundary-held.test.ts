@@ -9,6 +9,8 @@ describe('held explicit paise boundary', () => {
   it('accepts exact large canonical signed paise only with INR', async () => {
     const { walletAdjustRequestSchema } = await import('../../packages/shared/src/api/comms');
     expect(walletAdjustRequestSchema.safeParse(valid).success).toBe(true);
+    // Canonical zero reaches SQL23514, preserving authorization/target validation order.
+    expect(walletAdjustRequestSchema.safeParse({ ...valid, deltaPaise: '0' }).success).toBe(true);
     expect(walletAdjustRequestSchema.safeParse({ ...valid, deltaPaise: '-9007199254740993' }).success).toBe(true);
     expect(walletAdjustRequestSchema.safeParse({ ...valid, deltaPaise: '9223372036854775807' }).success).toBe(true);
     expect(walletAdjustRequestSchema.safeParse({ ...valid, deltaPaise: '-9223372036854775808' }).success).toBe(true);
@@ -23,7 +25,6 @@ describe('held explicit paise boundary', () => {
     { ...valid, deltaPaise: '+100' },
     { ...valid, deltaPaise: '0100' },
     { ...valid, deltaPaise: '-0' },
-    { ...valid, deltaPaise: '0' },
     { ...valid, deltaPaise: '9223372036854775808' },
     { ...valid, deltaPaise: '-9223372036854775809' },
   ])('refuses old mixed ambiguous or out-of-range body %#', async body => {
@@ -67,6 +68,17 @@ describe('held actual HTTP and result boundaries', () => {
     expect(reply.status).toBe(201);
     expect(await reply.json()).toEqual({ ok: true, data: result });
   }, 20_000);
+  it('forwards canonical zero to SQL and returns its invalid-adjustment refusal', async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: '23514', message: 'Held zero delta refusal' } });
+    const { POST } = await import('../../apps/web/app/api/messaging-wallet/adjust/route');
+    const reply = await POST(new Request('https://gymloop.test/api/messaging-wallet/adjust', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...valid, deltaPaise: '0' }) }));
+    expect(platformSession).toHaveBeenCalledWith({ requireAdmin: true });
+    expect(rpc).toHaveBeenCalledExactlyOnceWith('adjust_messaging_wallet_paise', {
+      p_tenant_id: tenantId, p_delta_paise: '0', p_currency: 'INR', p_reason: valid.reason, p_request_key: requestKey,
+    });
+    expect(reply.status).toBe(422);
+    expect(await reply.json()).toMatchObject({ ok: false, error: { code: 'invalid_adjustment' } });
+  }, 20_000);
   it.each([
     { tenantId, requestKey, deltaCredits: '100', reason: 'Old request' },
     { ...valid, deltaCredits: '100' },
@@ -105,7 +117,7 @@ describe('held actual HTTP and result boundaries', () => {
   it.each([
     ['22003', 422, 'paise_out_of_range'], ['GL067', 409, 'insufficient_funds'],
     ['GL068', 409, 'idempotency_conflict'], ['42501', 403, 'forbidden'],
-    ['23514', 422, 'invalid_adjustment'], ['22023', 422, 'invalid_request'],
+    ['23514', 422, 'invalid_adjustment'], ['22023', 400, 'invalid_request'],
   ])('real POST maps %s to explicit unit-aware refusal', async (code, status, apiCode) => {
     rpc.mockResolvedValue({ data: null, error: { code, message: 'Held refusal' } });
     const { POST } = await import('../../apps/web/app/api/messaging-wallet/adjust/route');
