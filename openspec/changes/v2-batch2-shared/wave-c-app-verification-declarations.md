@@ -141,6 +141,15 @@ recorder's successful RPC result. Authority-call observation fixtures still
 need an honest asynchronous RPC envelope if they continue through a valid
 command body; an undefined mock reply is not a production RPC response.
 
+The registered HTTP wrapper entry points are `memberSession(request)` and
+`staffSession(roles, options, request)` exported by `apps/web/lib/api.ts`.
+Both return `{session}` or `{failure: Response}`; successful sessions include
+the caller's Supabase client. The consent routes use those registered
+wrappers. The operations page instead uses `requireAudience('console')` from
+`identity-session.ts`. Mocking only the page guard does not supply a verified
+HTTP session. Fixtures may partially mock the existing HTTP wrapper exports
+while retaining the real JSON/envelope helpers and real consent validator.
+
 ## Identity fixture contract
 
 The registered `readRequestIdentity` returns null for an absent, invalid or
