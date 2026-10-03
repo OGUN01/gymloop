@@ -1810,6 +1810,30 @@ BIZ uses registered `loadBusinessOrganization` to share one caller-RLS organizat
 
 PTF's `ptNullableRpc` preserves exactly three approved SQL NULL seams: optional profile image, optional time-off reason and omitted reassignment order ids. Generated RPC Args omit PostgreSQL parameter nullability; this adapter is derived from the generated named Args rather than a replacement database type or generic untyped RPC. It keeps canonical SQL NULL behavior within the already-approved commands, caller-session client and strict request schemas. No generated file, authorization, money rule or procedure signature changes. Independent visible/holdout tests precede the backend source. PTF's unbooked-slot current-policy read remains a separate proposed owner amendment; it is not authorized by this reuse note.
 
+PTF web existing-session cancellation reuses the registered `ClassConfirmation`
+dialog, shared `ptCommandAnswer`, display/status helpers and verified member read
+loaders. Registry and exact production searches find existing Guardian/Shop/CLS
+command hooks carry different refusal/uncertainty copy and do not combine PTF's
+fresh-confirmation facts with its accepted-only refresh rule. Private component
+coordination therefore owns the PTF pending/lease/fact comparison without another
+exported hook, identity parser, database client, dependency or default policy.
+Independent actual-page/control tests acf09fc and fca4613 precede source. This
+routine presentation choice does not approve the pending new-booking policy seam
+or establish browser/Android acceptance.
+
+PTF console interface reuse (2026-10-03): the frozen packet61b01d5 reuses the
+verified console audience, existing paged PT RPCs, Field/inputClass, MEDIA upload
+and caller-forwarded display URL helpers. Complete owner/manager reassignment
+preparation needs the already-permitted three-field ACTIVE order projection
+intersected with complete PT RPC IDs; read state cannot identify underlying
+ACTIVE orders before their validity. No RPC or authorization is added and TRV
+continues using only its two existing RPCs. Existing class/shop/guardian hooks
+have different refusal, uncertainty and result contracts; the proposed
+usePtCommand owns PT accepted-envelope outcomes and permanent caller/control
+leases while retaining server authority and the existing role matrix. Separate
+visible and held authors precede all source. This routine adapter choice changes
+no money, sold facts, policy, permission or owner-pending booking seam.
+
 **ADR-181 application reuse clarification (2026-10-03).** Shop ordinary routes
 compose the existing memberSession/staffSession guards and caller client instead
 of a second identity validator; media's separate primitive remains unchanged.
@@ -1823,3 +1847,26 @@ helper checks completeness of already-classified IDs without inventing a raw
 token authentication policy. Provider/sign-out integration still needs separate
 identity-cleanup tests before source edits. These are factoring notes under the
 approved contract, not an authorization expansion or runtime acceptance claim.
+
+
+ANC application reuse note (2026-10-03, ADR-184 implementation): the source reuses generated enums, `BusinessNouns`, the existing front-office role set and verified identity/session guards, API envelopes/no-store wrapper, keyset cursor guards, `gymTimeLabel`/`deskTime` and `offsetInstantFromGymWallTime`, existing Field/Chalkline and native Row/Status controls, SecureStore, and SHP's `uploadMediaFile`/caller-forwarded media signers. No new dependency, upload verifier, signing pipeline, service client, claim vocabulary or database command is introduced. Separate `announcementCommand`, `announcementConsole` and `useAnnouncementCommand` adapters are required because ANC's frozen support-preview and actor split, aggregate-only response validation, GL088 refusals and version-conflict reload differ from Shop's command/permission contracts; reusing Shop's hook would show false refusal/stock copy and adopt the wrong mutation behavior. Cache writes are serialized independently of the check-in queue to preserve their different payload and lifecycle; per-operation scope/revision guards reject stale account/reload work. Source checks alone do not claim a deployed media proof or a visual gauntlet win.
+
+### WSP provider and wallet boundary (owner-approved, 2026-10-03)
+
+The owner approved `openspec/changes/whatsapp-channel/provider-wallet-amendment.md`
+after independent public-contract review. Use Meta directly through one narrowly
+scoped Edge dispatch/webhook exception; keep consent, recipients, causal attempts,
+tariffs and money in SQL. Preserve the single wallet/ledger and existing reasoned
+super-admin adjustment authority. The INR unit transition requires a locked,
+transactional zero-balance/no-ledger-history proof; otherwise CI must refuse and
+wait for an exact owner-approved conversion. No credit value is invented. Charge
+once on verified billable delivery, never acceptance, and require separate actual
+recipient WhatsApp opt-in as well as the existing purpose consent. No runtime
+tax/FX calculation. The complete shared NTF/WSP contract is not frozen; provider
+identity, templates, effective tariff, protected custody and India compliance
+remain activation prerequisites. This decision authorizes neither provisioning
+nor a live send, and supplies no live delivery or all-v2 acceptance evidence.
+
+### CLS application UI reuse note (2026-10-03)
+
+CLS screens reuse `StatusWord`, `RouteError`, registered caller readers, business nouns, and the native `Screen`, `Row`, `Status`, `Sheet`, `SheetHeader`, `RowAction`, `ActionButton`, `StateMessage`, `LoadingState`, `EmptyState`, `ErrorRetry` and `SearchField`. Existing Shop command copy and its private confirmation dialog do not express class refusals or result semantics, so the class action module adds a caller-bound command hook and an accessible native HTML dialog wrapper, consumed by member, roster and owner editors. No shared design primitive or Classes/Training control is added. `MemberClassesView` and `ClassesPane` remain integration interfaces for the PTF-owned controls. Unbooked cancellation deadlines remain unavailable under the accepted read contract; confirmation refuses commitment until the separate prebooking-cutoff amendment is approved, independently tested and applied. No default cancellation policy is invented.

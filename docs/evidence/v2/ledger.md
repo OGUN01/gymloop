@@ -563,3 +563,133 @@ have observed passes across these three runs; this is not one all-nine current
 head run. Receipt: shop-live-web.json. No actual sale, media publication or
 Android acceptance is claimed. All temporary active intents were canceled
 through their ordinary authenticated API; no unrelated fixture data was removed.
+
+### Current Classes regressions and collapsed Shop checkpoint, 2026-10-03
+
+Classes' fresh complete application source critic finds stale native command
+continuations, selected-roster facts and web callback/cancellation facts. Frozen
+metadata b049a95 and 1f7bc80 precede independently authored visible 0a065c9 and
+held 2698883. Visible baseline is 21 original passes and 37 new failures; held
+baseline is 36 original passes and 31 new failures. A separate builder is fixing
+these boundaries without reading held suites. No rendered Classes win is claimed.
+
+Shop's fresh review finds collapsed console catalogue offline status missing.
+Independent unit and actual-browser regression b2463db precedes the separate
+page-level notice change. Root observes the new browser case fail before the fix
+and pass afterward in 12.7 seconds; reconnect sends no command. Ten distinct
+browser cases now have observed passes across five affected runs, not one final
+current-head full run. The new strict fresh full application source critic is GO,
+with immutable MEDIA, actual races, final integration and Android still unverified.
+The updated shop-live-web.json carries exact source and raw-log hashes. No money
+write, media publication or unrelated fixture mutation occurred in these two runs.
+The serialized Cloud lock is released; DB workflows were idle throughout.
+
+PTF web read and existing-session cancellation public interfaces are frozen in
+a0c9d4e; source-blind visible and independent held authors are writing tests before
+its missing page and controls. This packet adds no booking-policy read or new booking implementation.
+Console interfaces remain proposed. Owner-pending feature amendments are unchanged.
+
+### Training current facts and precise browser text checkpoint, 2026-10-03
+
+Web member Training first red testsacf09fc/fca4613 precede its separate page and
+current-cancellation controls. Caption/end-time/history clarifications and
+independent fixture/regression commits7279cca/39b03ae precede the final caption
+fix. Current affected visible122/122 and root held41/41 pass. Native current
+fact/lease red tests52a9c2d/48a78ef precede separate source; actual deferred-media
+red testsb0a0a62/9552d37 close a fresh critic's delayed photo-request finding.
+Known start-clock/offline-copy tests7d3e967/6d44d94 were observed red before the
+isolated component fix. Current native affected visible62/62 and root held66/66
+pass, with strict held typing green. A new complete bounded source critic remains
+required; no Android, new-booking destination or whole PTF acceptance is inferred.
+
+Classes changed-confirmation fact tests c4892d8/5122443 precede the separate
+native reconfirmation correction; current affected visible177/177 and root
+held70/70 pass. The third cancellation review finds a deadline crossing in the
+helper's final awaited network check. Owner proposal6f9783f remains pending;
+no dependent work silently changes that boundary. Original prebooking policy
+decisions remain pending separately.
+
+Real read-only Classes owner/desk browser baseline passes4/4 in52.3seconds.
+Independent public-navigation fixture3283ebe exposes missing ClassesSegments
+mounting; the separate page integrator supplies it. The Training target fixture
+1c6528a excludes only the32px framework development-tool overlay, preserving44px
+app links/buttons. Both theme/width matrices then pass8/8 in37.7seconds, but that
+root-font perturbation does not establish that every product word doubled.
+Independent stronger testsd163636 measure/double actual app text and numeric line
+heights. Six checks pass and two Classes390 checks expose only the fixture's
+inline-important spacing, corrected independently075bb26 without suppressing axe.
+The two affected checks pass15.3seconds. Root's positive visual review nevertheless
+finds overlapping five-tab captions at enlarged text. Frozen presentation
+clarification04f2869 precedes new independent visible geometry checks and a
+separate integrator. The layout bar remains open despite those bounded passes.
+
+These browser reads use the actual Cloud database only while all DB workflows
+are completed and latest DB run37061577506 is green, under root's serialized
+Cloud lock. No booking, cancellation, money, media or unrelated fixture writes
+occurred; auth sign-in is the only requested mutation. Cloud lock is released.
+
+### Bounded navigation fix and build-first execution, 2026-10-03
+
+Independent geometry testsd87c600 collect eight live member checks: two pass
+and six fail before the separate central CSS integration. They detect full
+navigation captions crossing their own targets and Training's last content
+behind its footer. Root's exact affected post-fix matrix passes8/8 in43.9seconds;
+actual doubled text, local bounds, final-content reachability, themes, reduced
+motion, axe and44px application targets remain checked. Original eight enlarged
+screenshots, exact source and raw log hashes, fixture bounds and unverified
+scenarios are recorded in member-classes-training-live-web.json. No booking,
+cancellation, money or media writes occurred; the serialized Cloud lock is
+released. Full Home/You/Shop/Activity integration remains for consolidated work.
+
+The complete bounded native Training critic supports cancellation/lease/media
+safety but rejects missing recorded confirmation duration. The owner approves
+the precise both-platform amendment5603790; independent new tests precede source.
+Console visible9904bb7 has152 meaningful missing-target RED cases and independent
+helda14f05b has132, with separate lint/strict typing green. Only then do two
+separate builders start its adapters/coordinator and pages/controls. This is
+tests-first evidence, not a console acceptance claim.
+
+Owner execution update897c3c7 prioritizes completing accepted builds in parallel
+and consolidating complete reviews and all scenarios at the end. Existing
+evidence is retained; unchanged SQL is not rerun. Independent safeguards and
+every production gate remain required before shipping. No full-v2, Android,
+release or archive win is inferred from these partial matrices.
+
+### Completed Training and member composition builds, 2026-10-03
+
+The separate console builders follow visible9904bb7 and helda14f05b. Current
+visible152/152 pass. Independent host calibration0f8040e uses canonical typed
+business nouns, genuine organization timezone, real explicit-selection mode
+and correct component rendering; it preserves every scenario. Final read43/43
+and affected rendered89/89 pass. The actual source repair gives the successful
+empty staff list a Team action with an owner-only link. Preview and other roles
+retain their existing access. Opaque scope keys preserve full verified identity
+and preview lease facts without serializing raw tenant/user identifiers.
+
+Recorded cancellation duration follows owner amendment5603790 and independent
+visibleba3e7a5/held2d19dae. Separate source passes affected visible142/142 and
+held28/28. Independent clock/consequence calibration5ee13d9 preserves exact
+recorded seconds/fractions, local dates and the published consequence. No
+policy-default duration or invented whole-minute rounding is accepted.
+
+Canonical Gym, history and desk composition follows e3860fc/218a6d9, independent
+visible31a18c8 and helde829534. Separate source passes visible36/36 and held26/26.
+The independent held audit0f8040e renders dependency components before checking
+their failure text and checks historical purchases at the declared destination;
+exact large paise, native ledger, sold terms, caller filtering, RPC shape and
+cursors remain tested. Web types and scoped lint pass. The installed Expo route
+generator refreshes its ignored declarations from existing screens without
+starting Metro or using a phone; native types then pass. Registry and escape
+gates pass. Reports are root-private under scratchpad. These are affected build
+checks, not complete visual/runtime acceptance or all-v2 completion. No Cloud
+or permanent database mutation occurs in this completion step. Completed source
+is saved as IA ff923d8, shared application contracts666b0ff and Training cbaa6ce.
+The independent final inline-caption oracle calibration7c43e43 preserves its
+whole required sentence. These commits have not been pushed; consolidated blind
+acceptance and every required gate remain ahead of release.
+
+The owner approves the scoped WSP Meta/INR decisiona3a2a08 after public review.
+The zero-balance/no-history conversion guard, final all-in integer tariff,
+delivery-evidence debit and separate recipient channel consent are retained.
+The full shared delivery specification is still in serial preparation; no
+credential, provider registration, legal clearance or real send is inferred.

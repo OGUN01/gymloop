@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "scope": "CLS and PTF bounded member read-only live browser evidence",
+  "recordedAt": "2026-10-03T04:29:45.7049845Z",
+  "sourceCommit": "d87c600 plus separate uncommitted application source; see exact hashes",
+  "browser": "Chromium",
+  "previewOrigin": "http://127.0.0.1:3000",
+  "databaseProject": "pecxrpskmfeuyzngvewq",
+  "latestDatabaseRun": "37061577506",
+  "databaseWorkflowsIdle": true,
+  "serializedCloudLock": true,
+  "run": {
+    "passed": 8,
+    "failed": 0,
+    "durationSeconds": 43.9,
+    "log": "scratchpad/member-nav-caption-final-browser.log",
+    "logSha256": "e499772c5d9ac2bd611f91fcb949cf063d14df2d36e74098d903266e88e1b125"
+  },
+  "priorGeometryRed": {
+    "passed": 2,
+    "failed": 6,
+    "durationSeconds": 45.9,
+    "log": "scratchpad/member-nav-caption-red-browser.log",
+    "logSha256": "f431a6c9053e90bfccb4c0e4a141cdf5482bfd4cbaead590af4c62fe4dc8315f"
+  },
+  "checks": [
+    "Actual computed app text and numeric line heights doubled",
+    "390px and 1440px; light and dark; reduced motion",
+    "Five complete primary navigation labels stay inside their own targets",
+    "Last meaningful page content remains above navigation at scroll end",
+    "Axe and 44px app targets; framework development overlay outside app excluded",
+    "Classes/Training segment mounted and current destination correct"
+  ],
+  "fixtureScope": "Classes empty timetable; Training no booked sessions or packs, actual trainer and programme reads. Does not prove booking or cancellation journeys.",
+  "mutations": "Authenticated sign-in only; no booking, cancellation, money, media or unrelated fixture writes",
+  "positiveScreenshotsPersisted": true,
+  "sourceHashes": {
+    "tests/e2e/classes-visible.spec.ts": "4a8a7e043a6b722f041f035d63e3071c62ce2049776ebbcaffd26085da456532",
+    "tests/e2e/pt-front-visible.spec.ts": "f9843f9851b83d2ec024141bdf9ef8782ca83225cdfe6c31f3b8bbd464eb5a89",
+    "apps/web/app/globals.css": "62e0728338304aec973a3373bdbd9a6e6fad961bd489f3092453bb2f9834bae7",
+    "apps/web/app/member/member-navigation.tsx": "f66da85d0a5863484f5d5b2e1616862209d38586988d798f15162b98462f6c59",
+    "apps/web/app/member/classes/page.tsx": "a507c30fb3c1eab674d6e4287fa4a639145986dfd9fe3ba33ca7a49de65eedaf",
+    "apps/web/app/member/classes/training/page.tsx": "f59339ca5a9afb1807ca89c9f7dcf40ebeed6f6303d47f6defa097026671f7a4",
+    "apps/web/app/member/classes/training/pt-actions.tsx": "93159013d801487e8fb01152f6de179b0a36438e88a6f3dcaf1323cfff45bd6b"
+  },
+  "screenshotHashes": {
+    "docs/evidence/v2/member-classes-training-live-web/classes-dark-390-large-text.png": "17a429131b48e9e7af2b39a4adb7e598841cdd449f0f13b56a170a28f1b8c840",
+    "docs/evidence/v2/member-classes-training-live-web/classes-light-390-large-text.png": "bd5df47dcd5837c79332cb63109bef87d1dce9331e423c1fd15b9e2760df2fd8",
+    "docs/evidence/v2/member-classes-training-live-web/classes-dark-1440-large-text.png": "cae085e90055ae4361bd0bf56daaf390c9949d9e3e6cae09598a955b45a592f2",
+    "docs/evidence/v2/member-classes-training-live-web/classes-light-1440-large-text.png": "bc01a3f8331a15f7e0648f0d58982a3013408961ee438101e0fe67b389be2953",
+    "docs/evidence/v2/member-classes-training-live-web/training-light-390-large-text.png": "049f08310ad484c23d1d78039e3cf4c98636db6c234427368b41d8a831dd9cf5",
+    "docs/evidence/v2/member-classes-training-live-web/training-dark-390-large-text.png": "03bdfdc0c174d68ddee57a2935baee231e67fd62be688cc6c6abe9dd1aeb3ce4",
+    "docs/evidence/v2/member-classes-training-live-web/training-dark-1440-large-text.png": "0aed664de6c160109769ea8e173bc591c8eb96b2a7386ec3413a4d4e6ea12d2f",
+    "docs/evidence/v2/member-classes-training-live-web/training-light-1440-large-text.png": "4e496768a5ba2b14f30567592a71d6a1a5e62b36dc23f3cfa97cc0e214c5b62e"
+  },
+  "cloudLockReleased": true,
+  "wholeClassesFeatureAccepted": false,
+  "wholeTrainingFeatureAccepted": false,
+  "actualAndroidVerified": false,
+  "remaining": [
+    "All primary-route footer/CTA integration",
+    "New booking and cancellation scenario acceptance",
+    "Complete roles and caller-switch scenarios",
+    "Fresh complete blind feature comparison",
+    "Release-source full v2 browser and Android sweep"
+  ]
+}

@@ -1,5 +1,25 @@
 # Registry — the anti-duplication index
 
+| SHP application symbols | Path | Responsibility | Consumers |
+|---|---|---|---|
+| `MediaUploadStage` | `apps/web/lib/media-upload.ts` | UI-only optional staging observation, no authority/protocol change | Product display progress |
+| `ShopCategory` / `ShopProduct` / `ShopDeskReservation` / `loadShopProducts` / `loadShopReservations` / `loadShopCategories` / `shopProductWord` | `apps/web/lib/shop-console.ts` | Staff RLS reads, keyset and exact decimal prices | Shop console |
+| `CategoryManager` | `apps/web/app/(console)/shop/categories/category-manager.tsx` | Category create/rename/archive/order | Category page |
+| `ProductDisplayPanel` | `apps/web/app/(console)/shop/product-display-panel.tsx` | One Save photo/category/order presentation | Console products |
+| `ReservationActions` | `apps/web/app/(console)/shop/reservation-actions.tsx` | Preserved desk sale key and reasoned cancellation | Console reservations |
+| `useShopCommand` / `ShopCommandStatus` | `apps/web/lib/use-shop-command.tsx` | No-queue network guard and command feedback | Shop controls |
+| `ShopImage` | `apps/web/app/member/shop/shop-image.tsx` | Adjacent-name decorative image with failure placeholder | Shop screens |
+| `ReserveControl` / `CancelReservationButton` | `apps/web/app/member/shop/shop-actions.tsx` | Reviewed intent and cancellation sheets | Member Shop |
+| `shopReserveResultSchema` / `shopFulfilResultSchema` | `packages/shared/src/api/shop.ts` | Exact frozen RPC result decoding | Shop HTTP |
+| `loadMemberShop` / `shopFailure` | `apps/web/lib/shop.ts` | Caller RPC projection and safe SQL refusals | Shop HTTP/member page |
+| `shopCommand` / `shopRoute` | `apps/web/lib/shop-http.ts` | Audience before strict JSON, typed RPC commands and safe response | SHP routes |
+| `saleFailure` | `apps/web/lib/addon-sale-failure.ts` | Existing Phase 6 sale refusal mapper factored unchanged | Add-on sale and Shop fulfil |
+| `SHOP_LIMITS` / `SHOP_SORT_ORDER_MAX` | `packages/shared/src/config/constants.ts` | Frozen reservation/category bounds | SHP schemas and screens |
+| `SHOP_SECTIONS` / `ShopSection` / `SHOP_AVAILABILITY` / `SHOP_RESERVATION_STATES` / `shopSectionForKind` | `packages/shared/src/api/shop.ts` | Generated reservation read vocabulary and offer sections | Shop readers/screens |
+| `shopReserveRequestSchema` / `shopCatalogueRequestSchema` / `shopMemberCancelRequestSchema` / `shopDeskCancelRequestSchema` / `shopFulfilRequestSchema` / `shopProductDisplayRequestSchema` / `shopCategoryCreateRequestSchema` / `shopCategoryPatchRequestSchema` / `shopCategoryOrderRequestSchema` | `packages/shared/src/api/shop.ts` | Strict frozen commands | SHP routes |
+| `shopItemSchema` / `ShopItem` / `shopReservationSchema` / `ShopReservation` / `shopCatalogueResponseSchema` / `ShopCatalogueResponse` | `packages/shared/src/api/shop.ts` | Decimal-money safe public projection | SHP web/native |
+| `groupShopItems` / `shopMaxQuantity` / `shopGstLabel` / `shopReserveNotice` / `SHOP_REFUSAL_COPY` / `shopRefusalMessage` / `SHOP_TERMS_CHANGED_NOTE` / `shopOfflineNotice` / `shopReservationStateWord` | `packages/shared/src/api/shop.ts` | Frozen honest display logic/copy | SHP screens |
+
 **If it is not in this table, it does not exist.** Before writing any helper, constant, type, hook, or component, search this file and grep the codebase. Reuse what's here, or record why you couldn't in `docs/decisions.md`. Adding an exported symbol without registering it here fails the `registry-lint` CI gate.
 
 Update this file in the same commit that adds the export. One row per symbol, kept alphabetical within its table.
@@ -777,15 +797,15 @@ The shared money/credit codec, template/category placeholder vocab and request s
 | `mobileClientEnv` | `packages/shared/src/config/env.ts` | Validated Expo public Supabase URL, anon key and API base URL, read in the sole permitted environment module | Mobile provider |
 | `ApiError` / `CheckInResult` / `ApiFetch` / `ApiClientOptions` | `packages/api-client/src/index.ts` | Platform-neutral API error/result and injected transport contracts; the package owns no browser or native global | Native client adapters |
 | `OfflineCheckInOutcome` / `drainOfflineCheckIns` | `apps/mobile/lib/offline-check-in.ts` | Serial reconnect replay result and drain operation; only server-confirmed events leave encrypted device storage | Member Home |
-| `AppearanceMode` / `MobileProvider` / `useMobile` | `apps/mobile/lib/mobile-context.tsx` | Native app context for verified identity, splash-gated persisted appearance, RLS clients, sign-out cleanup and the configured `webOrigin` for public legal pages; an unlinked session keeps its Supabase session so the not-linked screen can name the signed-in email | Native routes |
+| `AppearanceMode` / `MobileProvider` / `useMobile` | `apps/mobile/lib/mobile-context.tsx` | Native app context for verified identity, splash-gated persisted appearance, RLS clients, revocable current-session API capabilities, ordered Shop/announcement privacy cleanup and the configured `webOrigin` for public legal pages; an unlinked session keeps its Supabase session so the not-linked screen can name the signed-in email | Native routes |
 | `Screen` / `Eyebrow` / `Title` / `Body` / `Surface` / `ActionButton` / `Field` / `StateMessage` / `LoadingState` | `apps/mobile/components/ui.tsx` | Shared native presentation primitives using registered spacing, typography, continuous curves, semantic light/dark colours and 48-point controls | Member and desk routes |
 | `RoleTabs` | `apps/mobile/components/role-tabs.tsx` | Four-label member or desk Expo Router tab shell using the shared native token adapter | Native group layouts |
 | `MemberSnapshot` / `loadMemberSnapshot` / `DeskMember` / `loadDeskMembers` / `DeskFollowUp` / `loadDeskFollowUps` / `loadDefaultBranch` | `apps/mobile/lib/mobile-data.ts` | Caller-session RLS reads for real member progress/membership/messages/consent and desk roster/follow-up/branch facts; the claim-scoped money RPC supplies bigint paise as canonical decimal strings | Native tab screens |
 | `useMemberSnapshot` | `apps/mobile/lib/use-member-snapshot.ts` | Reloadable member RLS snapshot hook with truthful loading and refusal states | Member Home, Activity and My gym |
 | `Layout` / `Index` / `SignIn` / `AuthCallback` / `NotLinkedScreen` / `MemberLayout` / `DeskLayout` / `MemberHome` / `ActivityScreen` / `GymScreen` / `YouScreen` / `DeskCheckIn` / `MembersScreen` / `FollowUpsScreen` / `MoreScreen` / `DeskHome` | `apps/mobile/app/**/*.tsx` | Expo Router root, verified-role redirects, the HARD-011 not-linked screen for a live session with no complete identity, four real member tabs, four real desk tabs and compatibility redirects; every state is backed by caller-session RLS facts or a real command | Native application entry point |
-| `MemberNavigation` / `loadMemberPortal` | `apps/web/app/member/member-navigation.tsx`, `apps/web/lib/member-portal.ts` | Route-derived four-destination member navigation and one caller-session RLS fact source for gym identity, progress, membership and messages | Member web routes |
+| `MemberNavigation` / `loadMemberPortal` | `apps/web/app/member/member-navigation.tsx`, `apps/web/lib/member-portal.ts` | Route-derived accepted five-destination member navigation and one caller-session RLS fact source for gym identity, progress, membership and messages | Member web routes |
 | `YouSettings` | `apps/web/app/member/you-settings.tsx` | Member account settings sheet that reveals appearance through a dismissible nested hierarchy while rendering only caller-scoped profile facts | Member You route |
-| `MemberHomePage` / `MemberCheckInPage` / `MemberActivityPage` / `MemberGymPage` / `MemberYouPage` | `apps/web/app/member/**/page.tsx` | Four truthful member destinations plus a mobile-scan handoff that records no attendance itself, with compact responsive presentation and no invented writes or facts | Member navigation |
+| `MemberHomePage` / `MemberCheckInPage` / `MemberActivityPage` / `MemberGymPage` / `MemberYouPage` | `apps/web/app/member/**/page.tsx`; canonical Gym at `member/gym/page.tsx` with `member/my-gym/page.tsx` compatibility render | Accepted member destinations and secondary Gym, preserved historical receipts and a mobile-scan handoff that records no attendance itself | Member navigation |
 
 ## Phase 8 hardening
 
@@ -1000,6 +1020,17 @@ must come from CLI generation after CI applies the migrations.
 | `app.enforce_media_asset_verification` / `media_assets_verified_immutable` / `app.enforce_shop_reservation` / `shop_reservations_enforce` | SHP migration above | Exact private invoker guards bind every writer to immutable publication and causal reservation transitions | Named invariant triggers; central metadata pins exact shapes |
 | `public.register_media_asset` / `public.confirm_media_asset` / `public.finalize_media_asset` / `public.delete_media_asset` | SHP migration above | Staging registration, denied compatibility confirm, credential-service-only verified finalizer and reasoned soft deletion | Approved trusted Edge media boundary and caller-scoped web media routes |
 | `app.media_attach` / `app.media_release` | SHP migration above | Same-transaction feature attachment/release with one live image per parent; immutable historical metadata remains | Shop display, owner-controlled trainer profile and announcement version commands |
+| `MEDIA_LIMITS` / `MEDIA_IMAGE_SIGNATURES` / `MEDIA_RUNTIME_LIMITS` / `MEDIA_HTTP_STATUS` | `packages/shared/src/config/constants.ts` | Frozen cap, TTL, registration/orphan limits, image signatures and protocol encoding/clock/status bounds | Shared MEDIA schemas, web upload and trusted Edge verification |
+| `MEDIA_KINDS` / `MediaKind` / `MEDIA_MIME_TYPES` / `MediaMime` / `MEDIA_EXTENSIONS` | `packages/shared/src/api/media.ts` | Non-enum media kind/MIME wire vocabulary and canonical extension map | Shared input, upload/storage namespace and client preflight |
+| `mediaUploadRequestSchema` / `mediaConfirmRequestSchema` / `memberMediaUrlRequestSchema` | `packages/shared/src/api/media.ts` | Strict registration and shared UUID-only confirm/sign request boundaries | Three MEDIA POST routes |
+| `buildMediaObjectKey` / `parseMediaObjectKey` / `matchesImageSignature` | `packages/shared/src/api/media.ts` | Namespaced DB-format key codec and actual-byte photo signature check | Upload key construction, staging-only AWS adapter and visible MEDIA contract |
+| `MEDIA_REFUSAL_COPY` / `mediaRefusalMessage` | `packages/shared/src/api/media.ts` | Frozen refusal copy using the registered own-property invite-copy lookup | MEDIA routes and browser upload |
+| `createMediaStorage` / `invokeMedia` / `mediaDisplayUrl` / `memberMediaUrl` | `apps/web/lib/media.ts` | Staging-only PUT presigner and original verified token forwarding; GET/private metadata authority stays in Edge | Upload/confirm/member URL handlers and feature image readers |
+| `mediaCommand` / `mediaFailure` | `apps/web/lib/media-http.ts` | Registered request identity and typed API/no-store envelopes with MED-specific 403, strict input and sanitized refusal mapping | Three MEDIA POST handlers |
+| `uploadMediaFile` / `uploadProductImage` | `apps/web/lib/media-upload.ts`, `apps/web/app/(console)/shop/image-upload.ts` | Preflight → registration → staging PUT with Content-Type only → trusted confirm, returns only confirmed asset id | Shop/PTF/ANC upload consumers |
+| MEDIA POST handlers | `apps/web/app/api/media/upload-url/route.ts`, `confirm/route.ts`; `apps/web/app/api/member/media-url/route.ts` | Session-first no-store caller-scoped registration, original-token confirm and generic member URL adapter | Browser/member application |
+| Trusted MEDIA HTTP entrypoint / Edge local import map | `supabase/functions/media/index.ts`, `supabase/functions/deno.json` | Auth-verified current caller/RLS exposure, signed S3 conditional source/copy/postcopy verification, service-only finalizer and conservative unknown-outcome cleanup; generated DB type resolves locally without a new package | Protected MEDIA Edge deployment, CI Deno check and frozen visible protocol tests |
+| Protected MEDIA deployment | `.github/workflows/media-deploy.yml` | Manual main-only protected-environment CLI provisioning/deployment to exact Gymloop project; secret input private, no manual DB apply | Owner-reviewed deployment; live runtime proof remains separate |
 | `public.set_shop_product_display` / `public.read_member_shop` / `public.read_member_shop_reservations` | SHP migration above | Administrative presentation and safe asset-id-only member projections | Web/mobile Shop |
 | `public.create_shop_reservation` / `public.cancel_shop_reservation` / `public.fulfil_shop_reservation` / `app.shop_reservation_mark_fulfilled` | SHP migration above | Soft reservation, authenticated cancellation and ordinary Phase 6 sale conversion with independently checked causal marking | Shop member actions and front-office fulfilment |
 | `public.read_shop_product_holds` / `public.reorder_shop_categories` | SHP migration above | Front-office hold quantities and gym-admin exact category reorder | Shop console |
@@ -1030,6 +1061,23 @@ must come from CLI generation after CI applies the migrations.
 | `public.create_announcement_draft` / `public.update_announcement_draft` / `public.discard_announcement_draft` / `public.publish_announcement` / `public.edit_announcement` / `public.unpublish_announcement` | ANC migration above | Authorized audited drafting and publishing with optimistic version edits | Announcement console |
 | `public.list_announcements` / `public.read_announcement` / `public.read_member_announcements` / `public.mark_announcement_read` | ANC migration above | Counts-only staff reads, currently eligible member feed and own idempotent receipt | Console and member Home |
 | announcements_tenant_created_idx / announcements_tenant_published_idx / announcements_tenant_creator_idx / announcement_versions_tenant_image_idx / announcement_versions_tenant_creator_idx / announcement_receipts_tenant_member_idx | ANC migration above | Tenant-leading policy, pagination, current-feed and image/history lookup | ANC policies/readers and shared media |
+## GRD app contracts and surfaces
+
+| Symbol | Location | Purpose | Consumers |
+|---|---|---|---|
+| `GUARDIAN_LIMITS` / `GUARDIAN_CONSENT_VERSION` | `packages/shared/src/config/constants.ts` | Frozen guardian bounds and absence-consent version | Shared schemas and guardian forms/routes |
+| `GUARDIAN_RELATIONS` / `GuardianRelation` / `GUARDIAN_RELATION_LABELS` | `packages/shared/src/api/guardian.ts` | Generated guardian enum with display labels | Guardian form and consent statement |
+| `GUARDIAN_AGE_STATES` / `GuardianAgeState` / `GUARDIAN_CONSENT_STATES` / `GuardianConsentState` / `GUARDIAN_SCORING_STATES` / `GuardianScoringState` / `GUARDIAN_ATTENTION_REASONS` / `GuardianAttentionReason` | `packages/shared/src/api/guardian.ts` | Fixed derived read-model states | Guardian readers and UI |
+| `GUARDIAN_SCORING_COPY` / `guardianScoringMessage` / `guardianConsentStatement` / `guardianInviteShareMessage` / `guardianCoverageLines` | `packages/shared/src/api/guardian.ts` | Exact consequence, consent, invite and coverage copy | Guardian console and INV panel |
+| `guardianProfileRequestSchema` / `guardianConsentRequestSchema` / `guardianHandoverRequestSchema` / `guardianLegacyAttestationRequestSchema` | `packages/shared/src/api/guardian.ts` | Strict caller commands without client authority | Guardian routes and forms |
+| `MemberGuardian` / `GuardianCoverage` / `GuardianAttentionMember` / `loadMemberGuardian` / `loadGuardianCoverage` / `loadGuardianAttention` | `apps/web/lib/guardian.ts` | Fail-closed caller-session RPC projections | Member detail, red list and attention ledger |
+| `GuardianPanel` | `apps/web/app/(console)/members/[memberId]/guardian-panel.tsx` | Age, guardian, consent and confirmed adult handover | Front-office member detail |
+| `GuardianCoverageNote` | `apps/web/app/(console)/red-list/guardian-coverage-note.tsx` | Coverage disclosure and scoped reason links | Red list |
+| `LegacyAdultAttestationBanner` / `LEGACY_ADULT_ATTESTATION_COPY` | `apps/web/app/(console)/red-list/legacy-adult-attestation-banner.tsx` | Required one-time real-owner confirmation and shared disclosure | Red list coverage note |
+| `useGuardianCommand` | `apps/web/lib/use-guardian-command.ts` | Preview/offline/pending-safe mutations with authoritative refresh | GuardianPanel and attestation banner |
+| `guardianStaffCommand` | `apps/web/lib/guardian-routes.ts` | Reuses verified session-first command parsing; GRD-only malformed JSON normalization | Four GRD command routes |
+| Guardian command route conventions | `apps/web/app/api/member-guardian/route.ts`, `consent/route.ts`, `legacy-attestation/route.ts`; `apps/web/app/api/member-identity/handover/route.ts` | Session-first, strict no-store commands; handover owner/manager, legacy attestation owner only | Guardian member panel and coverage banner |
+| Guardian attention page convention | `apps/web/app/(console)/members/attention/page.tsx` | Front-office caller-session reason ledger with fail-closed reads | Coverage reason links |
 
 ## BIZ app vocabulary
 
@@ -1038,3 +1086,231 @@ must come from CLI generation after CI applies the migrations.
 | `BUSINESS_TYPES` / `BusinessType` / `DEFAULT_BUSINESS_TYPE` / `isBusinessType` | `packages/shared/src/business-type.ts` | Generated business enum and safe boundary validation | Web Settings, platform, mobile provider |
 | `BusinessNouns` / `businessNouns` / `businessRoleLabel` / `BUSINESS_TYPE_LABELS` / `BUSINESS_TYPE_SUMMARIES` | `packages/shared/src/business-type.ts` | Frozen eight-noun table and role/choice presentation | Member surfaces and console chrome |
 | `businessTypeCommandSchema` / `setGymBusinessTypeRequestSchema` / `BusinessTypeChange` | `packages/shared/src/business-type.ts` | Strict owner/platform command contracts and owner result | Business-type routes and Settings form |
+| `loadBusinessType` / `loadBusinessNouns` | `apps/web/lib/business-type.ts` | Caller-session tenant copy read; safe gym fallback, no cross-request cache | Single-tenant web pages |
+| `loadConsoleBusinessNouns` | `apps/web/lib/console-business-nouns.ts` | Resolves the existing console audience guard then loads nouns using its caller client and tenant; shares the request-local organization snapshot | Memberships and payments pages |
+| `loadBusinessOrganization` / `requestOrganizations` / `BusinessOrganizationRead` | `apps/web/lib/business-type.ts` | React request-local organization snapshot keyed by tenant, queried through the supplied caller's RLS client | Console layout, member portal, Settings and vocabulary loaders |
+| `setGymBusinessType` | `apps/web/lib/platform.ts` | Existing platform RPC/error/replay adapter | Platform business-type route |
+| `BusinessTypeForm` | `apps/web/app/(console)/settings/business-type-form.tsx` | Owner three-interaction vocabulary control, accessible inline confirmation | Settings page |
+| `BUSINESS_TYPE_STORAGE_KEY` / `encodePersistedBusinessType` / `readPersistedBusinessType` / `resolveBusinessType` | `apps/mobile/lib/business-type.ts` | Tenant-bound encrypted vocabulary persistence and resolution | MobileProvider |
+| `useBusinessNouns` | `apps/mobile/lib/use-business-nouns.ts` | Read resolved native vocabulary | Member and desk screens |
+
+## PTF application contracts and backend adapters
+
+These scoped rows register application source; rendered-surface and live acceptance remain pending.
+
+| Symbol | Location | Purpose | Consumers |
+|---|---|---|---|
+| `PT_BOOKING_LIMITS` / `PT_POLICY_BOUNDS` / `PT_POLICY_DEFAULTS` / `PT_HTTP_STATUS` / `MS_PER_HOUR` / `MINUTES_PER_DAY` / `MINUTES_PER_HOUR` | `packages/shared/src/config/constants.ts` | Frozen PTF booking, policy, time-unit and response bounds | PTF contracts and application adapters |
+| `ptBookRequestSchema` / `ptCancelRequestSchema` / `ptGymCancelRequestSchema` / `ptWaiveRequestSchema` / `trainerProfileRequestSchema` / `ownTrainerProfileRequestSchema` / `trainerAvailabilityRequestSchema` / `trainerTimeOffRequestSchema` / `trainerTimeOffRemoveRequestSchema` / `ptReassignRequestSchema` / `ptPolicyRequestSchema` | `packages/shared/src/api/pt-front.ts` | Strict approved commands, normalized profile input, overlap and calendar validation | Eleven PTF POST handlers and forms |
+| `TrainerWindow` / `normalizeSpecialities` / `windowsOverlap` / `formatMinuteOfDay` / `parseMinuteOfDay` | `packages/shared/src/api/pt-front.ts` | Platform-free weekly-window validation and presentation | Training trainer forms |
+| `PT_REFUSAL_COPY` / `ptRefusalMessage` / `ptApiError` | `packages/shared/src/api/pt-front.ts` | Pinned own-property refusal copy and code-only SQLSTATE/detail mapping | PTF HTTP and web/native states |
+| `PtConsequenceInput` / `ptCancellationConsequence` / `ptBookingConsequence` / `groupSlotsByLocalDay` | `packages/shared/src/api/pt-front.ts` | Strict cutoff parity and branch-local slot grouping | Booking and cancellation confirmation |
+| `ptPackStateLabel` / `ptBookingStatusLabel` / `ptCopy` / `PtCopy` | `packages/shared/src/api/pt-front.ts` | Generated pack labels, six booking labels and business vocabulary copy | Web/native Training surfaces |
+| `ptCommandAnswer` | `packages/shared/src/api/pt-front.ts` | Exact RPC result validation and public-field-only mapping | Eleven PTF POST handlers |
+| `PtReadClient` / `PtHistoryCursor` / `PtReadSection` / `PtPack` / `PtSession` / `PtProgramme` / `PtTrainer` / `MemberTraining` | `packages/shared/src/api/pt-front-data.ts` | Generated-projection-derived public Training read model with per-section failures | Web/native Training loaders |
+| `readMemberTraining` / `readMemberPtHistory` / `readMemberPtSlots` | `packages/shared/src/api/pt-front-data.ts` | Caller-bound five-projection orchestration, keyset history and safe slots without caches/private table reads | Web/native loader adapters |
+| `ptCommand` / `ptNullableRpc` | `apps/web/lib/pt-http.ts` | Session-before-body role enforcement, sanitized no-store envelopes and three generated-metadata nullable RPC argument adapters | Eleven PTF POST handlers |
+| `loadMemberTraining` / `loadMemberSlots` / `loadMemberTrainingHistory` | `apps/web/lib/training.ts` | Caller-scoped read projection with currently exposed MEDIA image signing | Member web Training |
+| `TrainingSection` | `apps/mobile/components/training-section.tsx` | Current-member Training reads, sold pack/programme facts and authoritative existing-session cancellation with caller-lifetime and connectivity guards; new-booking policy seam remains owner-pending | Central native Classes/Training integration |
+| `PtCancelButton` / `TrainingConnectionNotice` | `apps/web/app/member/classes/training/pt-actions.tsx` | Existing-session current-fact confirmation, permanent caller lease and truthful online-only cancellation; stale read notice without commands | Member web Training |
+| `PresentationLease` / `renewLease` (private) | `apps/web/app/member/classes/training/pt-actions.tsx` | Reuses or permanently revokes a component-local caller/session presentation lease; no new identity authority | PtCancelButton |
+| `current` / `publish` / `allowed` / `fresh` / `close` / `prepare` / `confirm` (private) | `apps/web/app/member/classes/training/pt-actions.tsx` | Guards exact refreshed session facts, explicit renewed confirmation and obsolete feedback without a shared feature-inappropriate command hook | PtCancelButton |
+| `sessionRow` / `refreshSession` (private; inline server callback) | `apps/web/app/member/classes/training/page.tsx` | Renders current session status and rereads through a fresh verified member audience matching the captured user/tenant/member before any feature read | Member Training page |
+| `Lifetime` / `Confirmation` / `disconnected` / `safeImage` / `consequence` / `currentSession` / `sameConfirmation` (private) | `apps/mobile/components/training-section.tsx` | Native presentation lifetime includes supplied API and read client; validates exact fresh session facts and compares the already-shown consequence without inventing policy | TrainingSection |
+| `current` / `refresh` / `connected` / `close` / `prepare` / `cancel` / `book` / `moreHistory` / `section` / `sessionRow` (private) | `apps/mobile/components/training-section.tsx` | Existing Training reads, explicit cancellation, guarded eligible-pack navigation and history; obsolete caller/capability work cannot publish or continue | TrainingSection |
+| `loadTraining` / `loadSlots` / `loadTrainingHistory` | `apps/mobile/lib/training.ts` | Native caller-bound reads and optional current API photo signing; no persisted cache | Native Training |
+| `PTF POST handlers` | `apps/web/app/api/member/pt-bookings/route.ts, cancel/route.ts; apps/web/app/api/pt-bookings/cancel/route.ts; apps/web/app/api/pt-forfeits/waive/route.ts; apps/web/app/api/trainer-profiles/route.ts, own/route.ts; apps/web/app/api/trainer-availability/route.ts; apps/web/app/api/trainer-time-off/route.ts, remove/route.ts; apps/web/app/api/pt-reassignments/route.ts; apps/web/app/api/pt-policy/route.ts` | Caller-session-only commands; strict schemas, current DB replay facts and no private row spreading | Member/staff Training application |
+
+## PTF console adapters (frozen declarations; independent tests precede source)
+
+| Symbol | Location | Purpose | Consumers |
+|---|---|---|---|
+| `ConsoleViewer` / `VerifiedConsoleViewer` / `TrainerChoice` / `StaffBooking` / `StaffPack` / `TrainerProfile` / `TimeOff` / `PtPolicy` / `ReadValue` | `apps/web/lib/training-console.ts` | Generated-type-derived console display/read aliases; verified caller stays server-side and preview role remains null | PTF console pages and controls |
+| `loadPtBookings` / `loadPtPacks` | `apps/web/lib/training-console.ts` | One existing RPC page with verified tenant/own-trainer scope and sanitized failures | Console Training lists |
+| `loadTrainerChoices` / `loadTrainerDetail` / `loadPtPolicy` | `apps/web/lib/training-console.ts` | Safe role-scoped display projections, independent detail sections and no editable policy defaults | Training trainer/profile/policy pages |
+| `loadReassignmentCandidates` | `apps/web/lib/training-console.ts` | Complete owner/manager-only ACTIVE projection intersected with complete existing PT RPC IDs; exact scheduled count and command-cap guidance | ReassignPacksPanel |
+| `loadTimeOffBookings` | `apps/web/lib/training-console.ts` | Complete scoped scheduled bookings across paged half-open local-date chunks, without truncating standing commitments | TrainerTimeOffPanel |
+| `usePtCommand` | `apps/web/lib/use-pt-command.tsx` | Feature-specific PT refusal/accepted-envelope semantics and permanent caller/control lease; class/shop/guardian hooks have different outcomes | PTF console client controls |
+| `BookingRowActions` / `ReassignPacksPanel` | `apps/web/app/(console)/training/booking-actions.tsx`; `apps/web/app/(console)/training/reassign-panel.tsx` | Role-scoped explicit reason/confirmation for existing cancel, waive and exact source reassignment commands | Console bookings/packs |
+| `TrainerProfileForm` / `TrainerAvailabilityEditor` / `TrainerTimeOffPanel` | `apps/web/app/(console)/training/trainers/[staffId]/trainer-forms.tsx` | Safe profile/media stages, overlap-validated windows and standing-booking-aware time off | Trainer detail page |
+| `PtPolicyForm` | `apps/web/app/(console)/training/policy/pt-policy-form.tsx` | Existing three-setting owner/manager policy with explicit consequences and read-only preview | Console policy page |
+| `PT_READ_PAGE_MAX` | `packages/shared/src/config/constants.ts` | Existing staff PT RPC maximum/default page size of 50, distinct from member pagination | Console PT adapters |
+| `CallerClient` / `ConsoleIdentity` / `BookingArgs` / `PackArgs` (private declaration aliases) | `apps/web/lib/training-console.ts` | Existing request-scoped client, verified identity and generated RPC arguments; no new authority | Console PT adapters |
+| `guardConsoleCaller` / `guardTrainerTarget` / `failedRead` / `guardPackArgs` / `guardBookingArgs` / `clampPtPageLimit` (private) | `apps/web/lib/training-console.ts` | Preserve verified caller and exact role/target/read filter bounds before feature reads; sanitize failures | Console PT adapters |
+| `readCompletePacks` / `readActiveOrderIds` / `readCompleteBookings` (private) | `apps/web/lib/training-console.ts` | Exhaust accepted scoped cursors/projections; incomplete or nonprogressing reads cannot supply a complete count | Reassignment and time-off previews |
+| `PtCommandOptions` / `PtCommandLease` / `commandFailureMessage` (private) | `apps/web/lib/use-pt-command.tsx` | Typed permanent console presentation lease and truthful PT command outcomes | usePtCommand |
+| `consoleCaller` / `TrainingNavigation` / `ReadFailure` / booking and pack filter schemas | `apps/web/app/(console)/training/presentation.tsx` | Adapt already verified console identity for presentation, existing feature navigation and independent read failure states | Console Training server pages |
+| `postCommand` / `managers` / `ownTrainer` | `apps/web/app/(console)/training/command.ts` | Existing strict PT request/envelope validation and permitted presentation actions; server authorization remains final | Console Training controls |
+| `useControlState` | `apps/web/app/(console)/training/control-state.tsx` | Permanently revoke obsolete authoritative facts/viewer/target confirmation and upload continuations before command preparation | Console Training controls |
+| `completeTrainerPacks` (private) | `apps/web/app/(console)/training/trainers/page.tsx` | Exhaust scoped pack RPC pages to honest trainer warnings; failures and repeated cursors do not become totals | Trainer list page |
+| `commandData` | `apps/web/app/(console)/training/command.ts` | Narrow an existing validated PT command envelope before reading its accepted data | Console Training controls |
+| `Loading` | `apps/web/app/(console)/training/loading.tsx` | Existing kit skeleton while the guarded console Training server page resolves | Console Training routes |
+| `ConsoleTrainingConnectionNotice` | `apps/web/app/(console)/training/control-state.tsx` | Existing pinned console offline sentence and stale marker; reconnect queues no command | Console Training pages |
+| `ptRecordedInterval` | `packages/shared/src/api/pt-front-data.ts` | Exact recorded positive interval validation, gym-local start/end labels and elapsed duration without session-policy defaults or legacy rounding | Web/native existing cancellation confirmations |
+| `INSTANT_FRACTIONAL_SECOND_DIGITS` | `packages/shared/src/config/constants.ts` | Three-digit millisecond precision of recorded instants when exact local confirmation times require it | ptRecordedInterval |
+
+## PLC application catalogue contracts
+
+| Name | File | Purpose | Used by |
+|---|---|---|---|
+| `HeldPlanBlock` | `apps/web/app/member/plans/plan-list.tsx` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `HeldPlanChange` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `HeldPlanView` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `MEMBER_PLAN_TERMS_COLUMNS` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `PLAN_CATALOGUE_COLUMNS` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `PlanCatalogueBody` | `apps/mobile/components/plan-catalogue.tsx` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `PlanCatalogueCopy` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `PlanCatalogueDb` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `PlanCatalogueEntry` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `PlanCatalogueRead` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `PlanCatalogueState` | `apps/mobile/lib/plan-catalogue-state.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `PlanCatalogueView` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `PlanList` | `apps/web/app/member/plans/plan-list.tsx` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `buildPlanCatalogueView` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `heldPlanNotice` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `initialPlanCatalogueState` | `apps/mobile/lib/plan-catalogue-state.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `memberAgreedPrice` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `planCatalogueCopy` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `planCatalogueNotice` | `apps/mobile/lib/plan-catalogue-state.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `planCatalogueReducer` | `apps/mobile/lib/plan-catalogue-state.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `planDurationLabel` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `planGstLabel` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `readPlanCatalogue` | `packages/shared/src/api/plan-catalogue.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `useMemberPlans` | `apps/mobile/lib/use-member-plans.ts` | PLC frozen read-only catalogue contract | Member plans web and native surfaces |
+| `shopCacheScope` / `reserveOutcomeMessage` / `heldUntilLabel` | `apps/mobile/lib/shop.ts` | SHP identity scope, shared refusal copy and gym-local hold display | Native Shop |
+| `ShopCacheStore` / `createMemoryShopCache` / `nativeShopCache` / `writeShopCache` / `readShopCache` / `clearShopCache` | `apps/mobile/lib/shop-cache.ts` | Validated app-run-only last-good catalogue; default singleton cleared with identity cleanup | Native Shop and MobileProvider |
+| `ShopScreen` | `apps/mobile/app/(member)/shop.tsx` | SHP member catalogue and confirmation sheets; network preflight and scope-safe response handling | Member Shop tab |
+| `shopCacheCurrent` | `apps/mobile/lib/shop-cache.ts` | Pending reads and commands lose their cache lease synchronously when identity cleanup begins | Native Shop |
+| `writes` (private per-store coordination) | `apps/mobile/lib/shop-cache.ts` | WeakMap of ordered writes/deletes preventing a paused preceding write from restoring identity-cleared memory | `writeShopCache`, `clearShopCache` |
+| `ShopConnectionNotice` | `apps/web/lib/use-shop-command.tsx` | Read-only connection notice using the registered command hook/status; reconnect changes the notice without submitting | Console Shop reservations, including empty state |
+
+## CLS application contracts and caller adapters (CLS-001…040)
+
+| Symbol | File | Purpose | Consumers |
+|---|---|---|---|
+| `BOOKING_STATUSES` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `CLASS_SESSION_STATUSES` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `CLASS_AVAILABILITIES` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `ClassAvailability` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classBookRequestSchema` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classBookingCancelRequestSchema` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classDeskBookRequestSchema` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classDeskCancelRequestSchema` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classAttendanceRequestSchema` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `serviceRequestSchema` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `serviceActiveRequestSchema` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classRulesRequestSchema` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classRuleUpdateRequestSchema` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classSessionRequestSchema` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classSessionUpdateRequestSchema` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classSessionCancelRequestSchema` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classSettingsRequestSchema` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `CLASS_REFUSAL_COPY` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `ClassRefusalCode` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classRefusalMessage` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classAvailabilityLabel` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classDayStrip` | `packages/shared/src/api/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `ClassReadClient` | `packages/shared/src/api/classes-data.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `ClassReadWindow` | `packages/shared/src/api/classes-data.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `MemberClassSession` | `packages/shared/src/api/classes-data.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `ClassTimetableSession` | `packages/shared/src/api/classes-data.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `ClassRosterBooking` | `packages/shared/src/api/classes-data.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `readMemberClasses` | `packages/shared/src/api/classes-data.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `readClassTimetable` | `packages/shared/src/api/classes-data.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `readClassRoster` | `packages/shared/src/api/classes-data.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classIdentifierSchema` | `packages/shared/src/api/classes-results.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `parseClassBookResult` | `packages/shared/src/api/classes-results.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `parseClassDeskBookResult` | `packages/shared/src/api/classes-results.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `parseClassBookingCancelResult` | `packages/shared/src/api/classes-results.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `parseClassDeskCancelResult` | `packages/shared/src/api/classes-results.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `parseClassAttendanceResult` | `packages/shared/src/api/classes-results.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `parseServiceResult` | `packages/shared/src/api/classes-results.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `parseServiceResultUpdate` | `packages/shared/src/api/classes-results.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `parseServiceActiveResult` | `packages/shared/src/api/classes-results.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `parseClassRulesResult` | `packages/shared/src/api/classes-results.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `parseClassRuleUpdateResult` | `packages/shared/src/api/classes-results.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `parseClassSessionResult` | `packages/shared/src/api/classes-results.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `parseClassSessionUpdateResult` | `packages/shared/src/api/classes-results.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `parseClassSessionCancelResult` | `packages/shared/src/api/classes-results.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `parseClassSettingsResult` | `packages/shared/src/api/classes-results.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classCommand` | `apps/web/lib/class-http.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `classRpc` | `apps/web/lib/class-http.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `loadMemberClassSchedule` | `apps/web/lib/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `loadClassTimetable` | `apps/web/lib/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `loadClassRoster` | `apps/web/lib/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `loadServices` | `apps/web/lib/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `loadClassRules` | `apps/web/lib/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `loadClassSettings` | `apps/web/lib/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `loadMemberClasses` | `apps/mobile/lib/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `loadDeskTimetable` | `apps/mobile/lib/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `loadDeskRoster` | `apps/mobile/lib/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `bookClass` | `apps/mobile/lib/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `cancelClassBooking` | `apps/mobile/lib/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `deskBookClass` | `apps/mobile/lib/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `deskCancelClassBooking` | `apps/mobile/lib/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `markClassAttendance` | `apps/mobile/lib/classes.ts` | Frozen CLS validation, safe projection or caller-scoped command/read boundary | CLS web and native interfaces |
+| `CLASS_LIMITS` | `packages/shared/src/config/constants.ts` | Frozen CLS bounds and horizons | CLS contracts and screens |
+| `apps/web/app/api/class-bookings/route.ts` | `apps/web/app/api/class-bookings/route.ts` | Session-first no-store CLS command | CLS clients |
+| `apps/web/app/api/class-bookings/attendance/route.ts` | `apps/web/app/api/class-bookings/attendance/route.ts` | Session-first no-store CLS command | CLS clients |
+| `apps/web/app/api/class-bookings/cancel/route.ts` | `apps/web/app/api/class-bookings/cancel/route.ts` | Session-first no-store CLS command | CLS clients |
+| `apps/web/app/api/class-bookings/desk/route.ts` | `apps/web/app/api/class-bookings/desk/route.ts` | Session-first no-store CLS command | CLS clients |
+| `apps/web/app/api/class-bookings/desk-cancel/route.ts` | `apps/web/app/api/class-bookings/desk-cancel/route.ts` | Session-first no-store CLS command | CLS clients |
+| `apps/web/app/api/class-rules/route.ts` | `apps/web/app/api/class-rules/route.ts` | Session-first no-store CLS command | CLS clients |
+| `apps/web/app/api/class-rules/[ruleId]/route.ts` | `apps/web/app/api/class-rules/[ruleId]/route.ts` | Session-first no-store CLS command | CLS clients |
+| `apps/web/app/api/class-sessions/route.ts` | `apps/web/app/api/class-sessions/route.ts` | Session-first no-store CLS command | CLS clients |
+| `apps/web/app/api/class-sessions/[sessionId]/route.ts` | `apps/web/app/api/class-sessions/[sessionId]/route.ts` | Session-first no-store CLS command | CLS clients |
+| `apps/web/app/api/class-sessions/[sessionId]/cancel/route.ts` | `apps/web/app/api/class-sessions/[sessionId]/cancel/route.ts` | Session-first no-store CLS command | CLS clients |
+| `apps/web/app/api/class-settings/route.ts` | `apps/web/app/api/class-settings/route.ts` | Session-first no-store CLS command | CLS clients |
+| `apps/web/app/api/services/route.ts` | `apps/web/app/api/services/route.ts` | Session-first no-store CLS command | CLS clients |
+| `apps/web/app/api/services/[serviceId]/route.ts` | `apps/web/app/api/services/[serviceId]/route.ts` | Session-first no-store CLS command | CLS clients |
+| `apps/web/app/api/services/[serviceId]/active/route.ts` | `apps/web/app/api/services/[serviceId]/active/route.ts` | Session-first no-store CLS command | CLS clients |
+
+
+### ANC application contracts and surfaces (2026-10-03)
+
+| Symbol | Location | Contract / reuse | Consumers |
+|---|---|---|---|
+| `ANNOUNCEMENT_LIMITS` / `ANNOUNCEMENT_HTTP_STATUS` | `packages/shared/src/config/constants.ts` | Frozen content/version/feed limits and vanished-read HTTP status | ANC schemas, pages, native cache |
+| `ANNOUNCEMENT_SEGMENT_MEMBER_STATUSES` / `ANNOUNCEMENT_READ_STATES` / `ANNOUNCEMENT_DISPLAY_STATUSES` / `ANNOUNCEMENT_REFUSAL_REASONS` / `SYSTEM_OWNED_MESSAGE_CATEGORIES` | `packages/shared/src/api/announcements.ts` | Generated enum-derived member segment statuses, read projections/refusals and feature-owned template exclusion | Shared validation, console, template CRUD |
+| `announcementDraftRequestSchema` / `announcementEditRequestSchema` / `announcementReadRequestSchema` / `memberFeedRequestSchema` / `memberAnnouncementFeedSchema` / `announcementListRowSchema` / `announcementDetailSchema` | Same shared module | Strict tenant-free requests and aggregate-only/member URL-only responses | Eight session-first routes, staff loaders, native cache validation |
+| `AnnouncementCard` / `AnnouncementDetail` / `AnnouncementListRow` | Same shared module | Inferred wire projections; member card contains display URL, never asset/key metadata | Console/member UI and native |
+| `ANNOUNCEMENT_KIND_LABELS` / `ANNOUNCEMENT_STATE_WORDS` / `ANNOUNCEMENT_STALE_WORD` / `ANNOUNCEMENT_UPDATED_HINT` / `ANNOUNCEMENT_EDIT_WARNING` / `ANNOUNCEMENT_READ_FOOTNOTE` / `ANNOUNCEMENT_PRIVACY_SENTENCE` / `ANNOUNCEMENT_REFUSAL_COPY` | Same shared module | Pinned honest consent/read/privacy/refusal copy | ANC views, legal integrator |
+| `announcementKindHelp` / `announcementReachSentence` / `announcementSectionHeading` / `announcementRefusalMessage` / `announcementPreview` | Same shared module | Existing `BusinessNouns`, counts-only reach, own-key refusal lookup and bounded word-safe preview | Console and both Home sections |
+| `canPublishAnnouncements` / `announcementRpcFailure` / `loadAnnouncementList` / `loadAnnouncementDetail` | `apps/web/lib/announcements.ts` | Real-admin permission, sanitized SQLSTATE mapping, validated aggregate reads and existing keyset helpers | Console pages and route boundary |
+| `loadMemberAnnouncementFeed` | `apps/web/lib/member-announcements.ts` | Caller RPC exposes only asset ids, existing `memberMediaUrl` signs current exposure; unavailable images become text | Web Home and POST member feed |
+| `announcementCommand` | `apps/web/lib/announcement-http.ts` | Reuses session-before-body guards, `noStore`, shared schemas and authoritative commands, no tenant parameter | POST `/api/announcements`, id draft/discard/publish/edit/unpublish; POST member feed/read |
+| `announcementConsole` | `apps/web/lib/announcement-console.ts` | Reuses front-office roles, audience identity and BIZ nouns; trainer not-found and preview read-only | Console list/new/detail/edit |
+| `useAnnouncementCommand` / `AnnouncementCommandStatus` | `apps/web/lib/use-announcement-command.tsx` | ANC-specific safe refusal, connection/busy/version-conflict state; preview has no commands | Composer/actions/offline state |
+| `AnnouncementComposer` / `AnnouncementComposerForm` / `ComposerProps` / `AnnouncementActions` / `AnnouncementActionsPanel` / `ActionProps` / `AnnouncementOffline` | `apps/web/app/(console)/announcements/` | Existing Field/Chalkline controls, gym wall-clock resolver and `uploadMediaFile`; one reviewed publication; immutable version note | Four console pages |
+| `AnnouncementsSection` / `AnnouncementCard` / `AnnouncementCards` | `apps/web/app/member/announcements-section.tsx`, `announcement-card.tsx`, `announcement-cards.tsx`; `apps/mobile/components/announcements.tsx` | Independent Home section, three cards then show all, plain text/decorative image, dot-plus-word read state and open-only receipt | Existing member Home screens |
+| `ANNOUNCEMENT_CACHE_KEY` / `AnnouncementScope` / `CachedFeed` / `resolveAnnouncementFeed` / `applyLocalRead` / `loadAnnouncementCache` / `saveAnnouncementCache` / `queueRead` / `flushPendingReads` | `apps/mobile/lib/announcements.ts` | Existing SecureStore, exact tenant/user/member scope, safe validation, serialized writes, authoritative stored card state plus exact pending-read optimism overlay, and revision-checked pending receipt delivery | `useAnnouncements`, visible cache assertions |
+| `clearAnnouncementCache` | `apps/mobile/lib/announcements.ts` | Synchronously invalidates preceding announcement cache work, then deletes cards/pending receipts in serialized SecureStore order | MobileProvider identity cleanup |
+| `clearPrivateFeatures` (private provider coordination) | `apps/mobile/lib/mobile-context.tsx` | Immediately attempts both feature cache revocations, independently captures invocation errors, and waits for both cleanup outcomes before completing or rejecting | MobileProvider authentication replacement, sign-out and teardown |
+| `cacheRevision` (private cache coordination) | `apps/mobile/lib/announcements.ts` | Permanently revokes preceding reads/saves/queued receipts while ordered cleanup prevents late restoration | Native announcement cache operations |
+| `useAnnouncements` | `apps/mobile/lib/use-announcements.ts` | Independent API feed; seven public fields, private caller lifetime, same-scope saved copy, and permanently revoked retained work after caller replacement/unmount | Native Home section |
+
+## CLS screen interfaces
+
+| Symbol | File | Purpose | Consumers |
+|---|---|---|---|
+| `useClassCommand` | `apps/web/app/member/classes/class-actions.tsx` | CLS caller-bound screen, modal action or owner editor; existing Chalkline controls | CLS pages/native routes and final PTF integration |
+| `ClassCommandStatus` | `apps/web/app/member/classes/class-actions.tsx` | CLS caller-bound screen, modal action or owner editor; existing Chalkline controls | CLS pages/native routes and final PTF integration |
+| `ClassConfirmation` | `apps/web/app/member/classes/class-actions.tsx` | CLS caller-bound screen, modal action or owner editor; existing Chalkline controls | CLS pages/native routes and final PTF integration |
+| `ClassActions` | `apps/web/app/member/classes/class-actions.tsx` | CLS caller-bound screen, modal action or owner editor; existing Chalkline controls | CLS pages/native routes and final PTF integration |
+| `MemberClassesView` | `apps/web/app/member/classes/member-classes-view.tsx` | CLS caller-bound screen, modal action or owner editor; existing Chalkline controls | CLS pages/native routes and final PTF integration |
+| `RosterActions` | `apps/web/app/(console)/classes/[sessionId]/roster-actions.tsx` | CLS caller-bound screen, modal action or owner editor; existing Chalkline controls | CLS pages/native routes and final PTF integration |
+| `ServiceEditor` | `apps/web/app/(console)/classes/class-forms.tsx` | CLS caller-bound screen, modal action or owner editor; existing Chalkline controls | CLS pages/native routes and final PTF integration |
+| `ScheduleEditor` | `apps/web/app/(console)/classes/class-forms.tsx` | CLS caller-bound screen, modal action or owner editor; existing Chalkline controls | CLS pages/native routes and final PTF integration |
+| `SessionEditor` | `apps/web/app/(console)/classes/class-forms.tsx` | CLS caller-bound screen, modal action or owner editor; existing Chalkline controls | CLS pages/native routes and final PTF integration |
+| `ClassSettingsEditor` | `apps/web/app/(console)/classes/class-forms.tsx` | CLS caller-bound screen, modal action or owner editor; existing Chalkline controls | CLS pages/native routes and final PTF integration |
+| `ClassesPane` | `apps/mobile/components/classes-pane.tsx` | CLS caller-bound screen, modal action or owner editor; existing Chalkline controls | CLS pages/native routes and final PTF integration |
+| `isCurrent` / `prepareCancellation` / `confirmMember` / `memberEntry` (private rendered coordination) | `apps/mobile/components/classes-pane.tsx` | Permanent caller-lifetime checks, fresh authoritative cancellation preparation/confirmation, and shared member-ledger rendering without new authority | Native Classes reads and existing booking actions |
+| `classCommandCurrent` (private continuation guard) | `apps/mobile/lib/classes.ts` | Optional presentation guard only refuses work, checked before asynchronous preflight and immediately before command submission | Five existing native Classes command helpers |
+| `rosterCurrent` (private current-session guard) | `apps/mobile/components/classes-pane.tsx` | Reconciles selected roster with current timetable status, trainer and marking window before actions | Native staff Classes roster |
+| `isCurrent` / `setMessage` / `close` / `currentFacts` / `cancellationAllowed` / `prepareCancellation` (private control coordination) | `apps/web/app/member/classes/class-actions.tsx` | Permanent callback lease and fresh exact cancellation facts; obsolete work cannot send, publish feedback, refresh or return success | Existing useClassCommand and ClassActions |
+| `refreshSessions` (inline read-only server callback) | `apps/web/app/member/classes/page.tsx` | Fresh member audience and original verified user/tenant/member equality before bounded schedule read; no identifier argument or new authority | MemberClassesView exact current-session confirmation |
+| `entry` (private rendered ledger) | `apps/web/app/member/classes/member-classes-view.tsx` | Reuses one session-row presentation for upcoming own bookings and the selected day, preserving branch-local times and past own-status words | Member web Classes |
+| `ClassesScreen` | `apps/mobile/app/(member)/classes.tsx`; `apps/mobile/app/(desk)/classes.tsx` | Verified role-layout Classes route shells | Expo role route groups |
+| `ClassesSegments` | `apps/web/app/member/classes/segments.tsx` | Controlled Classes/Training navigation links, one current page and registered kit targets without data reads or motion | Central member Classes integration |
+| `SegmentedControl` | `apps/mobile/components/ui.tsx` | Controlled Classes/Training accessible tabs using only provider palette, wrapping text and registered touch targets | Central native Classes integration |
+| `ClassConnectionNotice` | `apps/web/app/member/classes/class-actions.tsx` | Stale/read-only connection state with exact CLS offline sentence | Member and console timetables |
