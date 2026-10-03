@@ -881,6 +881,12 @@ The shared money/credit codec, template/category placeholder vocab and request s
 | `evaluateMonitorCadence` / Phase 8 monitor watchdog CLI | `scripts/phase8-monitor-watchdog.mjs` | Validates GitHub run evidence, decides whether the last successful production monitor start is stale, and emits only generic production or disjoint TEST issue content. | `.github/workflows/phase8-monitor-watchdog.yml` |
 | `tests/load/phase8-morning-checkin.js` | `tests/load/phase8-morning-checkin.js` | k6 scenario for the fixed morning spike plus real cross-tenant read and mutation denial checks. It requires caller-supplied non-production identity material and writes raw JSON only through k6's caller-selected `--out json=` target. | HARD-004 isolated non-production load run |
 
+## Rollback-only database verification (ADR-030)
+
+| Symbol | Location | Contract | Consumers |
+|---|---|---|---|
+| `findNonRolledBackTests` | `scripts/check-pgtap-rollback.mjs` | Pure lexical guard over `{path, content}` files; requires BEGIN/START TRANSACTION and final ROLLBACK, refuses top-level completion and conservative body COMMIT, consumes quoted tokens/comments without invented SQL commands, and fails closed on unterminated constructs. | `check-pgtap-rollback` CLI, independent script/holdout regression suites, `.github/workflows/db.yml` compiled batch-2 demo proof guard |
+
 ## Closed-test identity provisioning (PROV-001…010)
 
 | Symbol | Location | Contract | Consumers |

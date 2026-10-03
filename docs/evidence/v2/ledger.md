@@ -1,5 +1,27 @@
 # FitCruxx v2 acceptance ledger
 
+### Latest demo and verification-source checkpoint, 2026-10-03
+
+Separate visible31/held23 demo assertions precede source4eab3ca. The additive
+seed-once packet preserves original seed text and immutable history, validates
+the complete static graph, and admits only specified Shop category assignments.
+Its final clean source critic gives GO; actual initial/replay SQL is deferred.
+Rollback lexical repair26f2c67 and completion variants7074231 follow independent
+actual RED captures; current36 checks pass. Static protection checks141 SQL
+files without executing them. Both demo proof compositions and embedded CI
+Python/Node/YAML syntax pass offline. CI wiring5438381 receives source GO,
+serializes proofs after pgTAP, and includes its splice dependency in path and
+suite filters. Receipt: batch2-demo-and-rollback-local.json.
+
+No push or permanent DB/seed action occurs. SQL assertions/performance and
+actual demo replay remain mandatory before publishing; integrated production
+build, all gates and browser/Android acceptance remain open. The pinned web
+build cannot resolve Next through snapshot dependency junctions, so no build
+acceptance is claimed. Current registry checks include unfinished external
+Wave C/D exports. Wave D's independent RED commits and builders are present;
+the older prompt's pending/preparation-only labels are historical. RPE invoice
+PDF remains an explicitly deferred outcome in its coordinator's contract.
+
 ## Batch 1 — INV + STI (2026-10-02, in progress)
 
 Final acceptance remains pending. Batch 1 was pushed as `26ec832`; CI applied both

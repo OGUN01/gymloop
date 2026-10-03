@@ -6,6 +6,24 @@ current checkpoint below supersedes the historical session-1 snapshot.
 
 ## Current checkpoint
 
+- Latest primary demo/verification checkpoint: independent static demo proofs
+  are committed38f1a5d/710c79b with visible31 and holdout23 assertions. Separate
+  immutable seed-once graph source4eab3ca preserves the original seed prefix;
+  complete replay/foreign relations and null notice template/phone snapshots
+  receive final clean source GO. No SQL execution is claimed. Rollback lexical
+  repair26f2c67 and completion-variant hardening7074231 follow independent
+  RED commits6055216/59bbca8/24402e0; all36 focused checks pass. Static rollback
+  protection checks141 current SQL files; both composed seed proofs pass that
+  guard offline. CI wiring5438381 runs the separate proofs after pgTAP and
+  includes splice.py in its trigger/classification dependencies. Final clean
+  source review gives GO to all three units. Receipt:
+  docs/evidence/v2/batch2-demo-and-rollback-local.json. Actual demo replay, new
+  SQL/runtime/performance, integrated production build/gates and final browser/
+  Android acceptance remain open. The pinned web-build attempt could not
+  resolve Next through snapshot dependency junctions; it proves no build pass.
+  External Wave D RED commits and source drafts are now present alongside
+  Wave C. Do not start a duplicate coordinator from the older parallel prompt.
+
 - Latest primary checkpoint (2026-10-03, supersedes older pending-source and
   owner-decision references below): member PT booking is source-committed
   d8a8c95; fresh clean source review gives GO and its focused visible/held

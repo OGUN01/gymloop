@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-03",
+  "source_commits": {
+    "demo_graph": "4eab3ca",
+    "rollback_lexical_repair": "26f2c67",
+    "rollback_completion_variants": "7074231",
+    "ci_seed_proof_wiring": "5438381"
+  },
+  "independent_test_commits": {
+    "demo_initial": "38f1a5d",
+    "demo_notice_null_relations": "710c79b",
+    "rollback_initial": "6055216",
+    "rollback_continuation": "59bbca8",
+    "rollback_completion_variants": "24402e0"
+  },
+  "independence": "Separate implementation-blind visible and holdout authors precede separate source builders. Final clean critic read public declarations and source only, with no tests or earlier reviews.",
+  "focused_rollback_verification": {
+    "files": 3,
+    "passed": 36,
+    "failures": 0,
+    "initial_red": { "failures": 15, "passed": 3 },
+    "continuation_red": { "failures": 3, "passed": 22 },
+    "completion_variants_red": { "failures": 2, "passed": 27 },
+    "exact_source_eslint_passed": true
+  },
+  "static_sql_rollback_check": { "files": 141, "passed": true, "database_executed": false },
+  "demo_proofs": {
+    "visible_plan": 31,
+    "holdout_plan": 23,
+    "ordinary_seed_insertions_per_proof": 1,
+    "scenario_insertions_per_proof": 2,
+    "compiled_proof_rollback_guard_passed": true,
+    "yaml_and_embedded_python_node_syntax_passed": true,
+    "offline_sql_plpgsql_parse_passed": true,
+    "database_executed": false
+  },
+  "fresh_source_review": {
+    "critic": "batch2_seed_and_proof_final_clean_critic",
+    "demo": "GO",
+    "rollback_guard": "GO",
+    "ci_composition": "GO",
+    "scope": "Source-only; not execution or full acceptance."
+  },
+  "limits": [
+    "Owner deferred pgTAP execution during building. Both demo proofs, exact-second PT-grid assertions/performance and the full affected/new-migration visible/holdout sweep remain required before publishing.",
+    "The pinned Wave B production-build attempt failed snapshot dependency resolution. Integrated production build remains required; no source build defect or passing build is inferred.",
+    "Current full-workspace registry gate includes unfinished external Wave C/D exports and is not green. Central registration and all integrated gates remain required.",
+    "No permanent seed, migration, CI run, push, browser/Android, provider activation, archive or versionCode5 release acceptance is claimed."
+  ]
+}

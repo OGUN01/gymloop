@@ -1926,6 +1926,23 @@ Target eligibility precedes same-trainer refusal exactly as PTF-017 specifies.
 No new business calendar bound, pack eligibility, money rule or public RPC is
 introduced. Independent visible and holdout authors precede the separate build.
 
+### Batch-2 immutable demo and compiled rollback proof (2026-10-03)
+
+Reuse the existing registered findNonRolledBackTests checker before executing
+compiled demo proofs. Its lexical repair consumes quoted tokens and actual
+comments before finding SQL boundaries, retains E-string escape semantics
+across continued segments, and refuses completion-command variants. Independent
+visible/holdout regressions precede the separate builder; no parser exception
+or weaker transaction rule is added. The CI splice dependency participates in
+both workflow triggers and pgTAP change classification.
+
+The demo is a seed-once exact graph under a transaction lock. Reruns verify the
+original immutable clock and all specified rows/relations without rewriting
+history. Current-time scenarios use separate ordinary authenticated commands.
+Initial source and legal replay are independently verified inside rollback-only
+proofs; those SQL executions remain owner-deferred during building. The final
+clean source critic gives GO, which does not establish runtime acceptance.
+
 ### PT booking projection and caller-action reuse (2026-10-03)
 
 The duplication gate identifies four repeated responsibilities in the new
