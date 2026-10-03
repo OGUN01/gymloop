@@ -215,7 +215,7 @@ in the registry and phase6 contract. No generated top-up RPC is declared.
 | Existing registered consumer | Explicit change required in same release |
 |---|---|
 | `walletAdjustRequestSchema` / `WalletAdjustRequest`, packages/shared/src/api/comms.ts | Body becomes `{tenantId,deltaPaise,currency,reason,requestKey}`. Strictly reject old deltaCredits or mixed-unit body, never multiply an unlabelled request. Reuse existing canonical integer codec; platform-free. |
-| `POST /api/messaging-wallet/adjust` | Calls new adjust_messaging_wallet_paise through caller client; body/results explicitly paise+INR. Existing 303/envelope conventions retained. Stale credit clients receive validation failure, not accidental charge. |
+| `POST /api/messaging-wallet/adjust` | Calls new adjust_messaging_wallet_paise through caller client; body/results explicitly paise+INR. Existing JSON 201 success/envelope conventions retained. Stale credit clients receive validation failure, not accidental charge. |
 | `WalletAdjustmentResult` / `walletAdjustmentResult`, apps/web/lib/comms.ts | Validate exact new seven-key paise result and null/string historical balance-after. Update commsRpcFailure's explicit unit-aware error mapping. |
 | `public.list_notifications`, `MessagesScreen` / `loadMessages`, apps/web/lib/messages.ts | Keep notification/status fields and one-statement/RLS behavior; wallet projection becomes an explicitly named `{balancePaise,currency}` object, null for existing unauthorized/absent wallet cases. No credit field returns paise. Front desk wallet denial remains. |
 | `public.onboard_gym`, `POST /api/platform/gyms` | Initial wallet balance_paise=0,currency=INR; no conversion metadata and no opening movement/receipt. Preserve onboarding replay and authority. |
@@ -266,3 +266,69 @@ the implementer cannot alter tests or read holdouts/private result files.
 No transport author builds against this isolated conversion as if delivery were
 approved or configured. Provider/rate/tax/compliance facts remain activation
 prerequisites and this unit creates no hold, charge or external provider request.
+
+## Published application signatures for independent authors
+
+Declaration-only metadata from registered existing seams; no function body is
+part of this packet. Root `vitest.config.mts` supplies installed web/native
+module identities. Holdout authors own their held files and may mock external
+caller/read hosts while keeping the real command/schema/result boundary.
+
+```ts
+// apps/web/lib/api.ts
+type PlatformSession = { supabase: CallerSupabase; userId: string; role: PlatformRole };
+function platformSession(options?: { requireAdmin?: boolean }):
+  Promise<{ session: PlatformSession } | { failure: Response }>;
+function jsonBody(request: Request): Promise<{ payload: unknown } | { failure: Response }>;
+function apiFail(status: ApiFailStatus, code: string, message: string,
+  details?: Readonly<Record<string, unknown>>): Response;
+// apps/web/lib/comms.ts
+function walletAdjustmentResult(data: unknown): WalletAdjustmentResult | null;
+function commsRpcFailure(error: { code: string; message: string }): Response;
+function commsOk(status: 'ok' | 'created', data: unknown): Response;
+// apps/web/lib/messages.ts
+function loadMessages(searchParams: Promise<{ channel?: string; q?: string; memberCursor?: string }>):
+  Promise<MessagesScreen>;
+```
+
+`CallerSupabase` denotes the existing verified caller's installed client, not a
+new exported replacement type. The POST uses `platformSession({requireAdmin:true})`
+before JSON parsing; mock the registered `apps/web/lib/api.ts` host if needed,
+never the actual wallet POST or result/schema under test. `commsOk('created',data)`
+is HTTP 201 `{ok:true,data}`; `'ok'` is 200. Failure is the existing
+`{ok:false,error:{code,message}}` envelope. A malformed RPC result refuses with
+HTTP 500 rather than success. Public result fields and paise SQLSTATE responses
+above govern the new unit. This corrects the consumer table's former accidental
+303 wording; no form redirect is introduced.
+
+The registered messages loader uses `requireAudience('console')` from
+`apps/web/lib/identity-session.ts` and `loadMemberSearch` from
+`apps/web/lib/members.ts` as external caller/roster hosts. Its own list RPC,
+wallet validation and real formatter remain the unit under test. The fields
+other than wallet remain the existing MessagesScreen declarations.
+
+The console audience host returns `Promise<{supabase:CallerSupabase,
+identity:Extract<GymloopIdentity,{kind:'staff'|'impersonation'}>}>`, with the
+existing classified `GymloopIdentity` exported from `@gymloop/shared`. A complete
+staff identity has kind, userId, tenantId, staffId and role; preview uses its
+existing full classified shape. Member-search declaration is
+`loadMemberSearch(Promise<{q?:string,cursor?:string,limit?:string,access?:string,
+status?:string}>)` returning `{phone:string,filters:object,members:Array<{
+id:string,full_name:string,phone:string,status:MemberStatus,user_id:string|null,
+erased_at:string|null}>,pageSize:number,nextCursor:string|null,errorMessage:string|null}`.
+MemberStatus and identity roles remain the generated/registered vocabularies.
+The returned messages screen retains rows, statusCounts, asOf, isAdmin, isPreview,
+tenantId, members `{id,name}`, memberNextCursor, memberSearchError, templates
+`{id,key,channel,locale,category,body,isActive}`, errorMessage and the new wallet.
+List rows retain id, memberId, memberName, channel, category, status, scheduledFor,
+sentAt, deliveredAt, failedAt, failedReason, optedOutAt, optedOutReason and
+sourceNotificationId (nullable event fields). `statusCounts` has scheduled,
+sent, delivered, failed and opted_out canonical integer-string counts.
+
+The exact live fingerprint is a locked migration acceptance condition. Ordinary
+recurring suites must not recompute it from a wallet's later mutable updated_at
+or require all future wallets/movements to remain at the original inventory.
+Immutable evidence checks scope converted rows; new rows have null evidence.
+Original timestamp and complete-fingerprint checks belong at the cutover,
+including a rollback preview of changed baseline facts. No extra historical
+timestamp column is authorized merely to repeat a one-time baseline assertion.

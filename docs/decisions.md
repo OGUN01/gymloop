@@ -1,5 +1,21 @@
 # Decisions
 
+### Approved existing messaging-credit conversion — 2026-10-03
+
+Explicit owner approvalefff581 sets1 old credit=INR1=100 paise; subsequent
+delegation retains it. Frozen isolated packetbf3253c fixes the same-table unit
+cutover, immutable originals, exact locked complete-manifest acceptance,
+explicit paise facade and old-facade historical replay-only. Alternatives of
+resetting history, guessing a rate, changing positional credit arguments or
+silently exposing paise under credit names are rejected. The complete read-only
+receipt confirms each tenant's net and converted signed-bigint bounds; CI repeats
+all facts under both locks and refuses any drift. Independent authors precede
+the separate source. Existing JSON201 success is retained. Recurring tests do
+not compare a later mutable wallet timestamp to a one-time cutover fingerprint;
+separate rollback pre/post fixture packets verify exact cutover and historical
+replay without granting an evidence-forgery escape. Full delivery transport,
+provider facts, compliance and activation remain separate prerequisites.
+
 Append-only ADR log. One decision per entry, with rejected alternatives and why. Update an existing entry rather than duplicating it; delete an entry that turns out to be wrong (with a note on what replaced it, in the entry that replaces it).
 
 The **Open Decisions** section at the bottom is different in kind: these are genuine unknowns intentionally left unresolved, tied to the phase that must resolve them. A future session reaching that phase must make the call deliberately — reading this list first — rather than inventing an answer under deadline pressure or rediscovering the gap mid-build.

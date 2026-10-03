@@ -6,6 +6,31 @@ current checkpoint below supersedes the historical session-1 snapshot.
 
 ## Current checkpoint
 
+- Latest completion checkpoint (2026-10-03): all batch-2 application source is
+  committed after its independent tests: MEDIA7f2a5b9, PLC0d802c1,
+  SHP94b0974/d4b8792, BIZ/contextb19b7f1, GRDda97b59, CLSaf19a32 and ANC068c926.
+  These commits follow IA ff923d8 and Training cbaa6ce. Source completion does
+  not establish final acceptance; the listed pending owner amendments, remaining
+  Waves C/D, consolidated critics, all gates and full browser/Android scenarios
+  remain open. No push, Edge deployment, provider activation or device use occurs.
+  BIZ five-destination dance/gym navigation follows independent tests5564b0f,
+  5ecfff9/9e01e85 and separate source12538d3; affected50/50, scoped lint and
+  web/native types pass. MEDIA affected visible144/144 and held57/57 pass;
+  local Deno is unavailable, so its CI check and actual protected deployment
+  still remain required. Preserve the occupied USB phone and external artifacts.
+
+- The credit question is settled: explicit owner approvalefff581 and subsequent
+  delegation retain **1 old credit = INR1 =100 paise**. Frozen isolated
+  credit-conversion declarationsbf3253c precede two independent test authors;
+  the full WSP/NTF transport contract is still a draft. The new complete read-only
+  manifest receipt `docs/evidence/v2/wsp-wallet-exact-manifest.json` establishes
+  exact baseline SHA-256, per-tenant reconciliation and signed-bigint100-scale
+  safety. CI must repeat it under both locks; any changed fact refuses atomically.
+  Source is not yet built and no balance or history is converted. A declaration
+  correction retains the existing JSON201 success, not a form303 redirect.
+  Recurring tests distinguish immutable conversion evidence from mutable later
+  wallet balances/timestamps; one-time cutover tests own exact-baseline refusal.
+
 - Owner execution update: prioritize completing straightforward accepted builds
   in parallel, then consolidate complete surface comparisons and every scenario
   into the final browser/Android sweep (897c3c7). Avoid repeated broad partial
@@ -49,7 +74,8 @@ current checkpoint below supersedes the historical session-1 snapshot.
   source predicate and do not infer plan-limit semantics before that reply.
   WSP's correctly linked read-only aggregate inventory observes3 wallets,
   one nonzero balance of4,500 credits and2 ledger rows. The zero-value/history
-  guard cannot pass; exact credit-to-paise conversionba46e02 awaits the owner.
+  guard cannot pass; the exact conversion is now approvedefff581 and frozen
+  separatelybf3253c at100 paise per old credit, superseding ba46e02's pending state.
   Do not reset, revalue or delete history. Evidence is
   docs/evidence/v2/wsp-wallet-unit-inventory.json; DB workflows were completed,
   the shared Cloud lock was held/released, and no source/money record changed.

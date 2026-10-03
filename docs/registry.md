@@ -1,5 +1,17 @@
 # Registry — the anti-duplication index
 
+## Approved wallet-paise unit — frozen declarations, source pending
+
+This planned cutover is authorized by efff581/bf3253c. Existing wallet symbols
+below still describe the deployed credit version until its separately tested
+source lands; then update those rows atomically with the source commit.
+
+| Symbol | Planned path | Responsibility | Consumers |
+|---|---|---|---|
+| `public.adjust_messaging_wallet_paise(uuid,bigint,text,text,uuid)` | `supabase/migrations/20261004085000_messaging_wallet_paise.sql` | Exact INR/paise command; complete active super-admin authority, locked replay and atomic audit; no transport activation | Existing wallet POST |
+| `app.record_wallet_movement(uuid,bigint,text,text,uuid,uuid,uuid)` | Same approved migration | Sole private paise arithmetic/replay/audit helper; no session EXECUTE | Owning paise adjustment |
+| `app.enforce_wallet_conversion_evidence()` | Same approved migration | Invoker trigger protects original-credit metadata and rejects forged converted history; no callable conversion escape | Wallet and ledger evidence guards |
+
 | SHP application symbols | Path | Responsibility | Consumers |
 |---|---|---|---|
 | `MediaUploadStage` | `apps/web/lib/media-upload.ts` | UI-only optional staging observation, no authority/protocol change | Product display progress |

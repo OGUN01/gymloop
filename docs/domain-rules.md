@@ -1,5 +1,17 @@
 # Domain rules (EARS)
 
+## Approved isolated wallet-paise conversion (source and CI application pending)
+
+Authoritative EARS WSP-101 through WSP-109 are frozen in
+`openspec/changes/whatsapp-channel/credit-conversion-public-declarations.md`
+bf3253c, following explicit valuation approvalefff581. They require a locked
+complete-field baseline proof, exact signed100-scale conversion, immutable
+original-credit evidence, explicit INR/paise adjustment and read/API shapes,
+legacy historical replay-only, unavailable-versus-zero distinction and unchanged
+free-channel/history behavior. Visible and holdout authors remain independent;
+the source implementer never reads holdouts. This isolated unit does not freeze
+the complete WSP/NTF delivery contract or activate a provider.
+
 Every rule below traces to a bullet in the master build prompt §8. Each requirement gets a stable ID (`<CATEGORY>-<NNN>`) so gate 2 ("every requirement has ≥1 visible and ≥1 holdout test") is mechanically checkable once Phase 1+ writes tests against these IDs — reference the ID in the test name or description, don't restate the requirement text in the test.
 
 Canonical status vocabularies referenced below are defined in `docs/data-model.md`. Do not invent a parallel vocabulary.

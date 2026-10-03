@@ -700,5 +700,34 @@ credits,2 ledger rows and4,500 net ledger credits. DB runs were completed and
 latest37061577506 green; lock is released. No record was changed. Exact query
 and private-output hashes, scope and limits are in wsp-wallet-unit-inventory.json.
 The approved zero-value/no-history conversion guard therefore refuses; precise
-owner rate decisionba46e02 remains pending. Aggregates and seed reasons establish
-no INR valuation, authority to reset, or real-provider acceptance.
+owner rate decisionba46e02 was subsequently resolved by explicit approvalefff581
+at100 paise per old credit. Aggregates and seed reasons alone established no
+valuation, authority to reset or real-provider acceptance.
+
+### Committed batch-2 application checkpoint and approved credit unit, 2026-10-03
+
+Separate application source commits now retain MEDIA7f2a5b9, PLC0d802c1,
+SHP94b0974/d4b8792, BIZ/contextb19b7f1, GRDda97b59, CLSaf19a32 and ANC068c926.
+BIZ actual five-primary dance/gym navigation follows independent test commits
+5564b0f/5ecfff9/9e01e85 and separate source12538d3, with affected50/50,
+source lint and web/native types green. MEDIA affected visible144/144 and
+held57/57 pass with exact source lint; local Deno unavailable, so its CI check
+and protected real deployment remain required. These are build checkpoints,
+not consolidated acceptance, live media verification or final device evidence.
+
+The owner explicitly approves1 old credit=INR1=100 paise and later delegates
+the same decision without reopening it. Frozen isolated engineering packet
+bf3253c precedes separate visible and holdout authors. Complete read-only receipt
+`wsp-wallet-exact-manifest.json` records all approved field names, canonical
+PostgreSQL SHA-256, counts, private query/result hashes, per-tenant reconciliation
+and signed100-scale bigint safety. Correct projectpecxrpskmfeuyzngvewq,
+latest completed DB37061577506, no DB workflow in flight, shared Cloud lock
+held/released and literal BEGIN/ROLLBACK are verified. No money, schema, history
+or provider state changed. CI must repeat the complete proof under both locks.
+The conversion source is still unbuilt. Recurring assertions protect immutable
+evidence without requiring later balances or updated_at to remain at cutover.
+Independent one-time pre/post fixture packets test historical replay without
+forging evidence after cutover. JSON201 metadata corrects an accidental303 label.
+Full WSP/NTF remains draft; pending owner decisions, Waves C/D, every gate,
+consolidated critics and full browser/Android scenarios remain open. No push,
+archive or versionCode5 release occurred.
