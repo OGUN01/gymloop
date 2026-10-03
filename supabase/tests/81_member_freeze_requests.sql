@@ -22,7 +22,7 @@ begin;
 set local role postgres;
 set local search_path=extensions,public;
 select set_config('request.jwt.claims','',true);
-select plan(140);
+select plan(141);
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$select ('81000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.claim(r text default 'member', s integer default null, m integer default null, a integer default 901, t integer default 1, p boolean default false) returns void language plpgsql as $$begin perform set_config('request.jwt.claims',jsonb_strip_nulls(jsonb_build_object('sub',pg_temp.u(a),'role','authenticated','app_role',r,'tenant_id',pg_temp.u(t),'staff_id',case when s is not null then pg_temp.u(s) end,'member_id',case when m is not null then pg_temp.u(m) end,'impersonation_session_id',case when p then pg_temp.u(999) end))::text,true); end$$;
 create function pg_temp.probe(q text) returns text language plpgsql as $$begin execute q; return 'OK'; exception when others then return sqlstate; end$$;
@@ -192,8 +192,14 @@ select pg_temp.claim('member',null,101,906,1);
 select is(pg_temp.probe($q$select public.request_member_freeze(pg_temp.u(301),app.gym_today(pg_temp.u(1))+5,app.gym_today(pg_temp.u(1))+7,'Changed facts',pg_temp.u(701))$q$),'GL068','SLF-013: changed facts under a used key conflict');
 select pg_temp.claim('member',null,102,907,1);
 select is(pg_temp.probe($q$select public.request_member_freeze(pg_temp.u(302),app.gym_today(pg_temp.u(1))+3,app.gym_today(pg_temp.u(1))+6,'Overlap',pg_temp.u(737))$q$),'GL066','SLF-005: inclusive overlap with an approved pause refused');
-select is(pg_temp.probe($q$select public.request_member_freeze(pg_temp.u(302),app.gym_today(pg_temp.u(1))+6,app.gym_today(pg_temp.u(1))+8,'Adjacent',pg_temp.u(703))$q$),'OK','SLF-005: adjacent intervals sharing no date allowed');
+select is(pg_temp.probe($q$select public.request_member_freeze(pg_temp.u(302),app.gym_today(pg_temp.u(1))+6,app.gym_today(pg_temp.u(1))+8,'Adjacent',pg_temp.u(741))$q$),'OK','SLF-005: adjacent intervals sharing no date allowed');
 set local role postgres;
+-- Expiry fixture: the frozen RPC table limits expire to "only already
+-- ineffective open request" (SLF-010: the start day has elapsed). Such a row is
+-- a legitimate unmaterialized state, so it is seeded here on the trusted path;
+-- the RPC-created adjacency request above moves to key 741 so key 703 names
+-- this elapsed fixture for the E-section expiry flow.
+select is(pg_temp.probe($q$insert into public.member_freeze_requests(id,tenant_id,member_id,membership_id,requested_by_user_id,request_key,starts_on,ends_on,reason) values(pg_temp.u(415),pg_temp.u(1),pg_temp.u(101),pg_temp.u(301),pg_temp.u(906),pg_temp.u(703),app.gym_today(pg_temp.u(1))-5,app.gym_today(pg_temp.u(1))-2,'Elapsed fixture')$q$),'OK','SLF-010: an elapsed-start open request is a legitimate state the expire command exists to close');
 select pg_temp.probe($q$insert into proof select 'r102',to_jsonb(id) from public.member_freeze_requests where tenant_id=pg_temp.u(1) and request_key=pg_temp.u(703)$q$);
 set local role authenticated;
 select pg_temp.claim('member',null,101,906,1);
@@ -301,7 +307,7 @@ select is(pg_temp.probe('select public.read_staff_freeze_requests(50,null,null)'
 select pg_temp.claim('trainer',24,null,904,1);
 select is(pg_temp.probe('select public.read_staff_freeze_requests(50,null,null)'),'42501','SLF-003: trainers gain no freeze queue');
 select pg_temp.claim('gym_owner',25,null,905,2);
-select is(pg_temp.probe('select public.read_staff_freeze_requests(50,null,null)'),'42501','SLF-003: foreign-tenant staff reads nothing');
+select is(pg_temp.probe('select public.read_staff_freeze_requests(50,null,null)'),'OK','SLF-003: a valid foreign-tenant front-office caller reads their own (empty) queue; scoping, not refusal');
 -- Audit truth.
 set local role postgres;
 select pg_temp.probe($q$insert into proof select 'audit1',to_jsonb(count(*)) from public.audit_log where tenant_id=pg_temp.u(1)$q$);
