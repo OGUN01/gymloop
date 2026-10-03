@@ -90,6 +90,8 @@ declare function SheetHeader(props: {
 declare function EmptyState(props: { title: string; children: ReactNode }): React.JSX.Element;
 declare function ErrorRetry(props: { message: string; onRetry: () => void }): React.JSX.Element;
 declare function LoadingState(): React.JSX.Element;
+
+declare function LedgerSection(props: { title: string; children: ReactNode }): React.JSX.Element;
 declare function StateMessage(props: { children: ReactNode; tone?: 'neutral' | 'error' | 'warning' | 'success' }): React.JSX.Element;
 ```
 
