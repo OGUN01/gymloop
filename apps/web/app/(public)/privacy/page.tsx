@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { PRODUCT_NAME, PUBLISHER_NAME, PUBLIC_PAGE_PATHS, SUPPORT_EMAIL } from '@gymloop/shared';
+import { ANNOUNCEMENT_PRIVACY_SENTENCE, PRODUCT_NAME, PUBLISHER_NAME, PUBLIC_PAGE_PATHS, SUPPORT_EMAIL } from '@gymloop/shared';
 
 export const metadata: Metadata = { title: `Privacy policy | ${PRODUCT_NAME}`, description: `How ${PRODUCT_NAME} uses and keeps member and staff information.` };
 
@@ -30,6 +30,7 @@ export default function PrivacyPage() {
         <li>Payments, refunds and receipts the business records for money it collected outside {PRODUCT_NAME}, plus add-on orders. {PRODUCT_NAME} does not process card or UPI payments or store card details.</li>
         <li>Enquiries (leads) recorded by the business, and staff account information.</li>
       </ul>
+      <p>{ANNOUNCEMENT_PRIVACY_SENTENCE}</p>
       <p>The camera reads the business&rsquo;s check-in QR code on your device. No photos are uploaded from a QR scan.</p>
       <p>When you accept an invite from the business, {PRODUCT_NAME} links the Google account you sign in with to your member record at that business, so you can see your own visits, payments and messages. The business can unlink it again at any time.</p>
     </section>

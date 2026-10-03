@@ -31,24 +31,29 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
   const frontOffice = identity.kind === 'staff' && (FRONT_OFFICE_ROLES as readonly string[]).includes(identity.role);
   const items = preview
     ? [
-      { href: '/console/check-in', label: 'Check-in' }, { href: '/red-list', label: 'Follow-ups' },
+      { href: '/console/check-in', label: 'Check-in' },
+      { href: '/classes', label: humanize(nouns.classes) }, { href: '/red-list', label: 'Follow-ups' },
       { href: '/console', label: humanize(nouns.members) }, { href: '/payments', label: 'Payments' },
-      { href: '/messages', label: 'Messages' }, { href: '/add-ons', label: 'Add-ons' },
+      { href: '/messages', label: 'Messages' }, { href: '/announcements', label: 'Announcements' },
+      { href: '/add-ons', label: 'Add-ons' },
     ]
     : identity.kind === 'staff' && identity.role === 'trainer'
       ? [
-        { href: '/console/check-in', label: 'Check-in' }, { href: '/red-list', label: 'Follow-ups' },
+        { href: '/console/check-in', label: 'Check-in' },
+        { href: '/classes', label: humanize(nouns.classes) }, { href: '/red-list', label: 'Follow-ups' },
         { href: '/console', label: humanize(nouns.members) }, { href: '/add-ons', label: 'Add-ons' },
       ]
       : [
         ...(identity.kind === 'staff' && (identity.role === 'gym_owner' || identity.role === 'gym_manager')
           ? [{ href: '/dashboard', label: 'Overview' }] : []),
-        { href: '/console/check-in', label: 'Check-in' }, { href: '/red-list', label: 'Follow-ups' },
+        { href: '/console/check-in', label: 'Check-in' },
+        { href: '/classes', label: humanize(nouns.classes) }, { href: '/red-list', label: 'Follow-ups' },
         { href: '/console', label: humanize(nouns.members) },
         ...(frontOffice ? [{ href: '/memberships', label: 'Memberships' }] : []),
         ...(identity.kind === 'staff' && (identity.role === 'gym_owner' || identity.role === 'gym_manager')
           ? [{ href: '/payments', label: 'Payments' }] : []),
         ...(canViewMessages(identity) ? [{ href: '/messages', label: 'Messages' }] : []),
+        ...(frontOffice ? [{ href: '/announcements', label: 'Announcements' }] : []),
         { href: '/add-ons', label: 'Add-ons' },
         ...(frontOffice ? [{ href: '/leads', label: 'Leads' }] : []),
         ...(identity.kind === 'staff' && identity.role === 'gym_owner' ? [{ href: '/team', label: 'Team' }] : []),
