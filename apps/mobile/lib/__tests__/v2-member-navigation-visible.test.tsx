@@ -60,7 +60,8 @@ describe('accepted member information architecture — native', () => {
   it.each(['gym', 'dance'] as const)('preserves desk destinations for %s', businessType => {
     state.businessType = businessType;
     expect(screens(true).filter(screen => !screen.hidden).map(screen => [screen.name, screen.title])).toEqual([
-      ['index', 'Check-in'], ['members', businessType === 'dance' ? 'Students' : 'Members'],
+      ['index', 'Check-in'], ['classes', businessType === 'dance' ? 'Batches' : 'Classes'],
+      ['members', businessType === 'dance' ? 'Students' : 'Members'],
       ['follow-ups', 'Follow-ups'], ['more', 'More'],
     ]);
   });
