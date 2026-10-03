@@ -9,7 +9,7 @@ import { UI_TOKENS, formatDateTime, formatDay, formatPhone, humanize, toLocalDat
 import { Field, inputClass } from '../field';
 import { Alert } from '../alert';
 import { StatusWord } from '../../status-word';
-import { LeadConvertDialog, LeadEditForm, LeadEnquiryForm, LeadStageForm } from './lead-forms';
+import { LeadConvertDialog, LeadEditForm, LeadEnquiryForm, LeadStageForm, LeadsOfflineNotice } from './lead-forms';
 
 /**
  * The front-office leads pipeline: one `list_leads` snapshot, the filters the
@@ -184,6 +184,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
 
     {screen.errorMessage !== null ? <div className="cl-section"><Alert>{screen.errorMessage}</Alert></div> : null}
 
+    {/* The desk's own connectivity, announced where the conversion action
+        lives: offline, the workspace says so before any command is attempted. */}
+    <LeadsOfflineNotice />
+
     <section aria-labelledby="pipeline-heading" className="cl-section">
       <div className="cl-section-head leads-section-head">
         <h2 id="pipeline-heading" className="cl-section-title">Pipeline</h2>
@@ -231,7 +235,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
                   ? <Link className="cl-btn cl-btn--small" href={`/members/${member}`}>{`Open ${nouns.member}`}</Link>
                   : null}
                 {open ? <details className="leads-toggle leads-toggle--act">
-                  <summary className="cl-btn cl-btn--small">{row.stage === 'trial_done' ? 'Convert' : 'Change stage'}</summary>
+                  <summary className="cl-btn cl-btn--small">{row.stage === 'trial_done' ? 'Convert to member' : 'Change stage'}</summary>
                 </details> : null}
                 {open ? <details className="leads-toggle leads-toggle--edit">
                   <summary className="leads-edit-summary">Edit<ChevronDown aria-hidden="true" className="leads-chevron" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></summary>

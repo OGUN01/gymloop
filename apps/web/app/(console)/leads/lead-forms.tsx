@@ -4,7 +4,8 @@ import { businessNouns, type BusinessNouns } from '@gymloop/shared';
 
 import { Constants } from '@gymloop/db';
 import { formatDateTime, formatPhone, gymWallClockFormatter, humanize } from '@gymloop/shared';
-import { useState, useRef, type FormEvent } from 'react';
+import { useState, useRef, useEffect, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Field, inputClass } from '../field';
 import { Alert } from '../alert';
@@ -52,6 +53,36 @@ function leadProblemText(code: string): string {
   return Object.hasOwn(LEAD_ERRORS, code)
     ? LEAD_ERRORS[code] ?? 'Review the details and try again.'
     : 'The outcome is uncertain. Retry the same change, or reload this screen.';
+}
+
+/**
+ * The one offline sentence the contract pins, shown by the workspace banner
+ * and reused verbatim by the convert guard. `navigator.onLine` is a browser
+ * fact: a production server render has no meaningful value, so SSR renders
+ * nothing and the client's own render — kept current by the online/offline
+ * listeners — is the truth.
+ */
+const OFFLINE_COPY = "You're offline. Connect to convert this lead.";
+
+function isBrowserOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
+/** The workspace banner that tells the desk a conversion needs a connection. */
+export function LeadsOfflineNotice() {
+  const [synced, setSynced] = useState<boolean | null>(null);
+  useEffect(() => {
+    const update = () => setSynced(navigator.onLine === false);
+    update();
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
+  if (!isBrowserOffline() && synced !== true) return null;
+  return <p role="status" className="cl-alert" data-tone="warn">{OFFLINE_COPY}</p>;
 }
 
 type LeadCommandShape = { path: string; method: 'POST' | 'PATCH'; body: Record<string, unknown> };
@@ -224,6 +255,11 @@ export function LeadConvertDialog({ leadId, revision, fullName, nouns = business
   const [pending, setPending] = useState(false);
   const [problem, setProblem] = useState('');
   const [notice, setNotice] = useState('');
+  // The accepted conversion, held so the desk reads what happened even when
+  // the list behind the dialog cannot refresh — the outcome never invites a
+  // second conversion, and the stale list is labelled as needing a refresh.
+  const [outcome, setOutcome] = useState<{ memberId: string; outcome: 'created_member' | 'linked_existing' } | null>(null);
+  const router = useRouter();
   // The revision this dialog last submitted against; a stale_lead answer
   // replaces it with the returned current revision so the retry is a new
   // command under a fresh key instead of a loop of the same conflict.
@@ -236,6 +272,13 @@ export function LeadConvertDialog({ leadId, revision, fullName, nouns = business
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
+    // Offline, the command is refused where it stands: nothing is queued, so
+    // a reconnect cannot surprise the desk with a conversion they never saw
+    // leave the room.
+    if (isBrowserOffline()) {
+      setProblem(OFFLINE_COPY);
+      return;
+    }
     // Without a disclosed member there is nothing to link to: the request is
     // a create no matter what an old dialog state might say.
     const effective = member !== null ? mode : 'create';
@@ -257,8 +300,20 @@ export function LeadConvertDialog({ leadId, revision, fullName, nouns = business
       const payload = await response.json() as { ok?: boolean; data?: Record<string, unknown>; error?: LeadErrorEnvelope & { member?: LinkMember } };
       if (response.ok && payload.ok === true && payload.data && typeof payload.data === 'object') {
         const memberId = payload.data.memberId;
-        if (typeof memberId === 'string' && UUID_PATTERN.test(memberId)) window.location.assign(`/members/${memberId}`);
-        else window.location.reload();
+        const outcome = payload.data.outcome;
+        if (typeof memberId === 'string' && UUID_PATTERN.test(memberId) &&
+          (outcome === 'created_member' || outcome === 'linked_existing')) {
+          // The snapshot behind the dialog is now stale: show the outcome and
+          // its Open member action here, and ask the router for a refreshed
+          // list in place — the filters stay, and if the refresh cannot
+          // complete the outcome still stands with the list labelled stale.
+          setOutcome({ memberId, outcome });
+          setNotice('');
+          setProblem('');
+          try { router.refresh(); } catch { /* the stale list keeps its label; the outcome stands */ }
+          return;
+        }
+        window.location.reload();
         return;
       }
       const code = typeof payload.error?.code === 'string' ? payload.error.code : '';
@@ -281,16 +336,39 @@ export function LeadConvertDialog({ leadId, revision, fullName, nouns = business
         keys.current[effective] = null;
         return;
       }
+      if (code === 'not_signed_in' || code === 'not_permitted') {
+        // The session or the role changed under the dialog: the held member
+        // facts and both request keys are decision data of an authority the
+        // caller may no longer have, so they are dropped, not reused.
+        setMember(null);
+        setMode('create');
+        setNotice('');
+        keys.current = { create: null, link_existing: null };
+      }
       // A known failure is definitive — nothing was written — so the next
       // attempt of this decision mints a fresh key. An unknown code leaves the
       // outcome uncertain and this key preserved for the retry.
-      if (Object.hasOwn(LEAD_ERRORS, code)) keys.current[effective] = null;
-      setProblem(leadProblemText(code));
+      if (Object.hasOwn(LEAD_ERRORS, code)) {
+        keys.current[effective] = null;
+        setProblem(leadProblemText(code));
+      } else {
+        setProblem('Conversion not confirmed. Retry to check the same request.');
+      }
     } catch {
-      setProblem('The connection was interrupted. The outcome is uncertain. Retry the conversion — it won’t create a second member.');
+      setProblem('Conversion not confirmed. Retry to check the same request.');
     } finally {
       setPending(false);
     }
+  }
+
+  if (outcome !== null) {
+    return <div role="status" className="cl-form leads-convert">
+      <p className="text-sm font-medium">{outcome.outcome === 'created_member' ? 'Member created' : 'Lead linked to existing member'}</p>
+      <div className="cl-actions">
+        <Link className="cl-btn cl-btn--primary" href={`/members/${outcome.memberId}`}>{`Open ${nouns.member}`}</Link>
+      </div>
+      <p className="cl-hint">The list needs a refresh to show this conversion.</p>
+    </div>;
   }
 
   return <form method="post" onSubmit={submit} className="cl-form leads-convert">
