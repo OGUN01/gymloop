@@ -3,7 +3,7 @@ import { useBusinessNouns } from '../../lib/use-business-nouns';
 import { useRouter } from 'expo-router';
 import { BadgeCheck } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { LegalLinks } from '../../components/legal-links';
 import { Initials, LedgerSection, Row, Screen, Sheet, SheetHeader, Status } from '../../components/ui';
 
@@ -36,6 +36,7 @@ export default function YouScreen() {
   const push = useMemberPush();
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const pushResponse = useMemberPushResponse(push.registration);
+  const loadSettings = useCallback(() => loadWhatsappSettings(supabase), [supabase]);
   return <Screen>
     {data ? <View style={[styles.profile, { borderColor: palette.decorativeSeparator }]}>
       <View style={styles.avatar}><Initials name={data.member.fullName} size="profile" /></View>
@@ -70,7 +71,7 @@ export default function YouScreen() {
       {pushResponse.unavailable ? <Text accessibilityRole="alert" style={[styles.pushNote, { color: palette.errorRiskText }]}>That update isn't available.</Text> : null}
     </LedgerSection>
     <WhatsappConsentSection
-      loadSettings={() => loadWhatsappSettings(supabase)}
+      loadSettings={loadSettings}
       setConsent={(purpose, granted, noticeVersion) => setWhatsappConsent(api, purpose, granted, noticeVersion)}
     />
     <LegalLinks />
