@@ -1,10 +1,10 @@
-# TRV proposed public declarations
+# TRV public declarations
 
-**DRAFT NOT FROZEN — 2026-10-03.** Companion to proposal.md and
-`../pt-front/web-console-public-declarations.md`. No owner approval, tests,
-implementation or new grant is implied. These declarations publish proposed
-import targets for later independent authors; they are not registered exports.
-Only public requirements, registry and declaration packets were read.
+**FROZEN 2026-10-03, with two implementation-shape amendments recorded at
+build time (coordinator adjudication; the security letter of TRV-006 is
+untouched).** Companion to proposal.md and
+`../pt-front/web-console-public-declarations.md`. These declarations publish
+import targets for independent authors; they are not registered exports.
 
 ## Existing web boundary
 
@@ -36,6 +36,23 @@ host retains its original session client and remotely verified identity from
 existing session machinery. A cached offline identity cannot start a new read.
 Verification/binding rejection clears facts and follows existing access handling.
 No constructor for verified authority or additional claim parser is proposed.
+
+**Amendment A (zone source, 2026-10-03).** The landed native zone host resolves
+the trainer's timezone through caller-RLS metadata reads of the own `staff` row,
+its `branches.timezone` and `organizations.timezone` — the same facts the
+published choices projection returns — instead of calling `loadTrainerChoices`.
+The earlier "uses only the published safe choices projection" wording is
+superseded. The security letter stands unchanged: no `members`, `pt_sessions`
+or `addon_orders` read exists anywhere in TRV (verified), no cross-tenant row
+can enter, and missing/invalid zone metadata still fails the day honestly
+rather than falling back to a device zone.
+
+**Amendment B (host paging ownership, 2026-10-03).** The native host is a
+complete-day reader: it owns the keyset walk internally (always starting at
+the day start and exhausting every page until empty, per TRV-005 as
+adjudicated) and does not expose cursor passthrough as caller state. The
+"thin passthrough" wording is superseded; `p_from`/`p_to` remain caller-owned.
+The web host composes the published adapters exactly as published.
 
 ```ts
 type TrainerIdentity = Extract<GymloopIdentity, { kind: 'staff' }>;

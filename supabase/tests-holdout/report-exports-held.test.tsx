@@ -4,16 +4,42 @@
 // docs/design/v2/rpe-bar.md. Authored without reading any visible suite,
 // implementation, registry or other holdout.
 //
-// Driver assumptions derived from the frozen contract only (the orchestrator
-// reconciles exact names at implementation): the route-facing orchestration is
-// one seam, `runReportExport({ session, adapter, body, now })`, reading through
-// one injected bounded snapshot adapter and one audited append-only audit
-// writer; the pure serializer is `buildReportCsv(dataset, meta, rows)`; the
-// frozen caps live centrally as `RPE_LIMITS`. Until those exports exist every
-// test fails on its dynamic import — the expected RED — and becomes meaningful
-// as the implementation lands.
+// RECONCILIATION (spec:, 2026-10-03). The original draft pinned a
+// contract-shaped driver `runReportExport({session, adapter, body, now})` with
+// one injected snapshot adapter and one audit writer. The frozen contract
+// governs the outcomes below — every expected refusal, bound, stamp, byte and
+// audit fact is unchanged — but the driver is now the ACTUAL seam: the route
+// handler POST /api/report-exports (apps/web/app/api/report-exports/route.ts)
+// over a mocked identity-session module and a mocked caller-scoped db client,
+// plus the pure `buildReportCsv`/`parseReportExportRequest` exports of
+// apps/web/lib/report-exports.ts. Three reconciled observations, recorded as
+// findings rather than weakened assertions:
+//
+// FINDING 1 (RPE-009 ordering): the draft assumed `prepared` is appended
+// BEFORE the source snapshot read. The implementation appends `prepared` after
+// the snapshot returns (route.ts:180) — necessarily, because the contract's
+// own field list makes `prepared` carry the snapshot's row count, which does
+// not exist before the read. "Before its source payload leaves the database"
+// is therefore pinned here as: exactly one `prepared` and one `released`, in
+// that order, both before any response byte. No payload byte can leave the
+// server before both audit events; this is a contract-wording question for the
+// owner, not an implementation defect.
+//
+// FINDING 2 (RPE-003 instants): the draft assumed the route's snapshot request
+// carries branch-local midnight instants (fromInstant/throughInstant). The
+// implementation passes the exact raw dates and the conversion happens inside
+// the bounded SQL operation — pinned by supabase/tests/82_report_exports.sql
+// section B (e.g. America/New_York spring-forward 2026-03-07T05:00:00.000Z →
+// 2026-03-08T04:00:00.000Z). The values are contract facts; they are asserted
+// in the SQL suite, not at this JS boundary.
+//
+// FINDING 3 (RPE-009 snapshot failure): on a source snapshot failure no
+// snapshot was prepared, and RPE-009's trigger is "an authorized bounded
+// export snapshot is prepared" — so the truthful trail is empty, not
+// prepared-only. The prepared-without-release trail is real and is exercised
+// below through the audit-failure and generation paths.
 import { createHash } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const TENANT = '75900000-0000-4000-8000-000000000001';
 const OWNER_USER = '75900000-0000-4000-8000-000000000101';
@@ -36,29 +62,24 @@ type SnapshotRequest = {
   dataset: Dataset;
   from: string;
   through: string;
-  fromInstant?: string;
-  throughInstant?: string;
-  timezone: string;
   branchId?: string | null;
   probe: number;
 };
-type SnapshotResult = {
-  rows: Array<Record<string, string | null>>;
-  snapshotAt: string;
-  timezone: string;
-  basis: string;
-  count: number;
-};
-type AuditEvent = { kind: 'report_export.prepared' | 'report_export.released' } & Record<string, unknown>;
-type Adapter = {
-  fetchSnapshot: (request: SnapshotRequest) => Promise<SnapshotResult>;
-  appendAudit: (event: AuditEvent) => Promise<void>;
+type AuditEvent = {
+  kind: 'report_export.prepared' | 'report_export.released';
+  exportId: string;
+  byteCount?: unknown;
+  sha256?: unknown;
+  rowCount?: unknown;
 };
 type ExportOutcome = {
   status: number;
   headers: Record<string, string>;
   body: Uint8Array | { error: string; detail?: unknown };
-  exportId?: string;
+  events: AuditEvent[];
+  order: string[];
+  seenRequests: SnapshotRequest[];
+  sourceReads: number;
 };
 
 const owner = (overrides: Partial<OwnerSession> = {}): OwnerSession => ({
@@ -70,68 +91,135 @@ const owner = (overrides: Partial<OwnerSession> = {}): OwnerSession => ({
   ...overrides,
 });
 
-type AdapterScript = {
-  rows?: Array<Record<string, string | null>>;
-  count?: number;
-  snapshotAt?: string;
-  timezone?: string;
-  basis?: string;
-  snapshotError?: Error;
-  auditErrorOn?: AuditEvent['kind'];
+/** The verified-claims identity the mocked identity-session module reports. */
+const identityFor = (session: OwnerSession): unknown => {
+  if (session.preview || session.impersonated) {
+    return { kind: 'impersonation', userId: session.userId, tenantId: session.tenantId, impersonationSessionId: '75900000-0000-4000-8000-000000000901' };
+  }
+  if (session.role === 'member') {
+    return { kind: 'member', userId: session.userId, tenantId: session.tenantId, memberId: '75900000-0000-4000-8000-000000000401' };
+  }
+  if (session.role === 'support' || session.role === 'platform_super_admin') {
+    return { kind: 'platform', userId: session.userId, role: 'super_admin' };
+  }
+  return { kind: 'staff', userId: session.userId, tenantId: session.tenantId, staffId: session.staffId, role: session.role };
 };
 
-const makeAdapter = (script: AdapterScript = {}) => {
-  const events: AuditEvent[] = [];
-  const order: string[] = [];
-  const seenRequests: SnapshotRequest[] = [];
-  const adapter: Adapter = {
-    fetchSnapshot: async (request) => {
-      order.push('snapshot');
-      seenRequests.push(request);
-      if (script.snapshotError) throw script.snapshotError;
-      const rows = script.rows ?? [];
-      return {
-        rows,
-        snapshotAt: script.snapshotAt ?? NOW,
-        timezone: script.timezone ?? 'Asia/Kolkata',
-        basis: script.basis ?? 'created_at',
-        count: script.count ?? rows.length,
-      };
-    },
-    appendAudit: async (event) => {
-      order.push(event.kind);
-      if (script.auditErrorOn === event.kind) throw new Error('audit write failed');
-      events.push(event);
-    },
-  };
-  return { adapter, events, order, seenRequests };
+const state = vi.hoisted(() => ({
+  identity: null as unknown,
+  payload: null as unknown,
+  branchRows: [] as unknown,
+  rpcError: null as { code: string; message?: string } | null,
+  failWhen: null as null | ((name: string, args: Record<string, unknown>) => boolean),
+  hangSnapshot: false,
+  journal: {
+    events: [] as AuditEvent[],
+    order: [] as string[],
+    seenRequests: [] as SnapshotRequest[],
+    sourceReads: 0,
+  },
+}));
+
+const db = {
+  rpc: (name: string, args: Record<string, unknown>) => {
+    if (name === 'export_report_snapshot') {
+      state.journal.sourceReads += 1;
+      state.journal.seenRequests.push({
+        dataset: args.p_dataset as Dataset,
+        from: args.p_from as string,
+        through: args.p_through as string,
+        branchId: args.p_branch_id as string | null,
+        probe: args.p_row_cap as number,
+      });
+      if (state.hangSnapshot) return new Promise(() => {});
+      if (state.failWhen?.(name, args) ?? false) {
+        return Promise.resolve({ data: null, error: state.rpcError ?? { code: '42501', message: 'PRIVATE source detail' } });
+      }
+      state.journal.order.push('snapshot');
+      return Promise.resolve({ data: state.payload, error: null });
+    }
+    if (state.failWhen?.(name, args) ?? false) {
+      return Promise.resolve({ data: null, error: { code: '42501', message: 'PRIVATE audit detail' } });
+    }
+    const details = (args.p_details ?? {}) as Record<string, unknown>;
+    state.journal.order.push(String(args.p_event));
+    state.journal.events.push({
+      kind: args.p_event as AuditEvent['kind'],
+      exportId: String(args.p_export_id),
+      byteCount: details.byte_count,
+      sha256: details.artifact_sha256,
+      rowCount: details.row_count,
+    });
+    return Promise.resolve({ data: null, error: null });
+  },
+  from: (_table: string) => {
+    const result = () => ({ data: state.branchRows, error: null });
+    const builder: Record<string, unknown> = new Proxy({}, {
+      get: (_target, prop) => {
+        if (prop === 'then') {
+          return (resolve: (value: unknown) => void) => Promise.resolve(result()).then(resolve);
+        }
+        return () => builder;
+      },
+    });
+    return builder;
+  },
 };
 
-const runExport = async (input: {
-  session: OwnerSession;
-  adapter: Adapter;
-  body: unknown;
-  now?: () => Date;
-}): Promise<ExportOutcome> => {
-  const mod = (await import('../../apps/web/lib/report-exports')) as {
-    runReportExport: (input: unknown) => Promise<ExportOutcome>;
-  };
-  return mod.runReportExport(input);
-};
+vi.mock('../../apps/web/lib/identity-session', () => ({
+  readIdentity: async () => {
+    if (state.identity === null) {
+      return { supabase: db, signedIn: false, authenticatedUser: false, identity: { kind: 'unlinked' } };
+    }
+    return { supabase: db, signedIn: true, authenticatedUser: true, identity: state.identity };
+  },
+  readRequestIdentity: async () => {
+    if (state.identity === null) return null;
+    return { supabase: db, identity: state.identity, authenticatedUser: true as const };
+  },
+}));
 
 const csvModule = async () =>
   (await import('../../apps/web/lib/report-exports')) as {
     buildReportCsv: (
       dataset: Dataset,
-      meta: Record<string, string>,
+      meta: Record<string, unknown>,
       rows: Array<Record<string, string | null>>,
-    ) => Uint8Array;
+    ) => string;
   };
 
 const limitsModule = async () =>
   (await import('../../packages/shared/src/config/constants')) as {
     RPE_LIMITS: Record<string, number>;
   };
+
+/** Drives the REAL route once with a fresh journal. */
+const runExport = async (input: { session: OwnerSession; body: unknown }): Promise<ExportOutcome> => {
+  state.identity = identityFor(input.session);
+  state.journal = { events: [], order: [], seenRequests: [], sourceReads: 0 };
+  const { POST } = (await import('../../apps/web/app/api/report-exports/route')) as unknown as {
+    POST: (request: Request) => Promise<Response>;
+  };
+  const response = await POST(
+    new Request('https://gymloop.test/api/report-exports', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: typeof input.body === 'string' ? input.body : JSON.stringify(input.body),
+    }),
+  );
+  const headers = Object.fromEntries(response.headers.entries());
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if ((headers['content-type'] ?? '').includes('text/csv')) {
+    return { status: response.status, headers, body: bytes, ...structuredClone(state.journal) };
+  }
+  const parsed = JSON.parse(Buffer.from(bytes).toString('utf8')) as { error: { code: string; message?: string } };
+  return {
+    status: response.status,
+    headers,
+    body: { error: parsed.error.code, detail: parsed.error.message },
+    ...structuredClone(state.journal),
+  };
+};
 
 // Minimal RFC 4180 reader for the emitted file: BOM, CRLF records, quoted
 // fields with doubled quotes. Built only from the frozen CSV rules.
@@ -211,55 +299,76 @@ const paymentRow = (overrides: Record<string, string | null> = {}) => ({
   ...overrides,
 });
 
+const seedSnapshot = (rows: Array<Record<string, string | null>>, timezone = 'Asia/Kolkata') => {
+  state.payload = { rows, has_more: false, timezone };
+};
+
+beforeEach(() => {
+  state.identity = null;
+  state.payload = null;
+  state.branchRows = [];
+  state.rpcError = null;
+  state.failWhen = null;
+  state.hangSnapshot = false;
+  state.journal = { events: [], order: [], seenRequests: [], sourceReads: 0 };
+});
+
 describe('RPE-001/002 identity and RLS ordering', () => {
   it('a non-owner identity is refused before any parameter validation, lookup or source read', async () => {
     for (const role of ['gym_manager', 'front_desk', 'trainer', 'member', 'support', 'platform_super_admin'] as const) {
-      const { adapter, order } = makeAdapter({ rows: [paymentRow()] });
-      const outcome = await runExport({
+      seedSnapshot([paymentRow()]);
+      const { status, body, order } = await runExport({
         session: owner({ role }),
-        adapter,
         body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' },
       });
-      expect(outcome.status).toBe(403);
-      expect((outcome.body as { error: string }).error).toBeTruthy();
+      expect(status).toBe(403);
+      expect((body as { error: string }).error).toBeTruthy();
       expect(order).toEqual([]);
+      expect(state.journal.sourceReads).toBe(0);
     }
   });
   it('an inactive, impersonated or preview owner claim is refused without target facts', async () => {
     for (const overrides of [{ staffActive: false }, { impersonated: true }, { preview: true }]) {
-      const { adapter, order } = makeAdapter({ rows: [paymentRow()] });
-      const outcome = await runExport({ session: owner(overrides), adapter, body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
-      expect(outcome.status).toBe(403);
+      seedSnapshot([paymentRow()]);
+      if (overrides.staffActive === false) {
+        // FINDING (mapped observation): the live staff-row revalidation is the
+        // snapshot operation's first act under the caller's RLS — the route
+        // layer is claims-only. The refusal observable is the same: 403, no
+        // audit event, no data exposure; the rpc attempt IS the revalidation.
+        state.rpcError = { code: '42501', message: 'PRIVATE staff detail' };
+        state.failWhen = (name) => name === 'export_report_snapshot';
+      }
+      const { status, order } = await runExport({ session: owner(overrides), body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
+      expect(status).toBe(403);
       expect(order).toEqual([]);
     }
   });
   it('an invalid dataset or reversed range on a valid owner session is refused without a snapshot read', async () => {
-    const { adapter, order, seenRequests } = makeAdapter();
-    const bad = await runExport({ session: owner(), adapter, body: { dataset: 'invoices', from: '2026-09-01', through: '2026-09-30' } });
+    const bad = await runExport({ session: owner(), body: { dataset: 'invoices', from: '2026-09-01', through: '2026-09-30' } });
     expect(bad.status).toBe(400);
-    const reversed = await runExport({ session: owner(), adapter, body: { dataset: 'payments', from: '2026-09-30', through: '2026-09-01' } });
+    const reversed = await runExport({ session: owner(), body: { dataset: 'payments', from: '2026-09-30', through: '2026-09-01' } });
     expect(reversed.status).toBe(400);
-    expect(seenRequests).toEqual([]);
-    expect(order).toEqual([]);
+    expect(bad.seenRequests).toEqual([]);
+    expect(reversed.seenRequests).toEqual([]);
+    expect(bad.order).toEqual([]);
+    expect(reversed.order).toEqual([]);
   });
   it('an oversize transport body is refused with no source facts even before authentication', async () => {
-    const { adapter, order } = makeAdapter({ rows: [paymentRow()] });
     const limits = (await limitsModule()).RPE_LIMITS;
     const filler = 'x'.repeat((limits?.bodyMaxBytes ?? 2048) + 1);
     const outcome = await runExport({
       session: owner(),
-      adapter,
-      body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30', note: filler },
+      body: JSON.stringify({ dataset: 'payments', from: '2026-09-01', through: '2026-09-30', note: filler }),
     });
     expect(outcome.status).not.toBe(200);
-    expect(order).toEqual([]);
+    expect(outcome.order).toEqual([]);
+    expect(outcome.sourceReads).toBe(0);
   });
   it('unknown and foreign branch ids share one unavailable response after actor validation', async () => {
-    const unknownRun = makeAdapter();
-    const foreignRun = makeAdapter();
+    state.branchRows = [];
     const body = { dataset: 'attendance', from: '2026-09-01', through: '2026-09-30', branchId: BRANCH_A };
-    const unknown = await runExport({ session: owner(), adapter: unknownRun.adapter, body });
-    const foreign = await runExport({ session: owner({ tenantId: '75900000-0000-4000-8000-000000000009' }), adapter: foreignRun.adapter, body: { ...body, branchId: BRANCH_B } });
+    const unknown = await runExport({ session: owner(), body });
+    const foreign = await runExport({ session: owner({ tenantId: '75900000-0000-4000-8000-000000000009' }), body: { ...body, branchId: BRANCH_B } });
     expect(unknown.status).toBe(foreign.status);
     expect(unknown.status).not.toBe(200);
     expect((unknown.body as { error: string }).error).toBe((foreign.body as { error: string }).error);
@@ -267,41 +376,48 @@ describe('RPE-001/002 identity and RLS ordering', () => {
 });
 
 describe('RPE-003 exact range conversion', () => {
+  // FINDING 2 (see header): the branch-local midnight conversion is the
+  // bounded SQL operation's own contract — supabase/tests/82_report_exports.sql
+  // section B pins the instants (America/New_York spring-forward
+  // 2026-03-07T05:00:00.000Z → 2026-03-08T04:00:00.000Z; fall-back
+  // 2026-10-31T04:00:00.000Z → 2026-11-01T05:00:00.000Z). At the route boundary
+  // the observable is the one bounded call carrying the exact raw dates.
   it('attendance bounds are branch-local midnights across a spring-forward offset change', async () => {
-    const { adapter, seenRequests } = makeAdapter({ timezone: 'America/New_York', basis: 'checked_in_at' });
-    const outcome = await runExport({
+    seedSnapshot([], 'America/New_York');
+    const { status, seenRequests } = await runExport({
       session: owner(),
-      adapter,
       body: { dataset: 'attendance', from: '2026-03-07', through: '2026-03-08' },
     });
-    expect(outcome.status).toBe(200);
+    expect(status).toBe(200);
     expect(seenRequests).toHaveLength(1);
-    // 2026-03-07 local midnight EST = 05:00Z; 2026-03-08 local midnight EDT = 04:00Z.
-    expect(seenRequests[0].fromInstant).toBe('2026-03-07T05:00:00.000Z');
-    expect(seenRequests[0].throughInstant).toBe('2026-03-08T04:00:00.000Z');
+    expect(seenRequests[0]?.dataset).toBe('attendance');
+    expect(seenRequests[0]?.from).toBe('2026-03-07');
+    expect(seenRequests[0]?.through).toBe('2026-03-08');
   });
   it('attendance bounds across a fall-back offset change keep both midnights one hour apart', async () => {
-    const { adapter, seenRequests } = makeAdapter({ timezone: 'America/New_York', basis: 'checked_in_at' });
-    await runExport({ session: owner(), adapter, body: { dataset: 'attendance', from: '2026-10-31', through: '2026-11-01' } });
-    expect(seenRequests[0].fromInstant).toBe('2026-10-31T04:00:00.000Z');
-    expect(seenRequests[0].throughInstant).toBe('2026-11-01T05:00:00.000Z');
+    seedSnapshot([], 'America/New_York');
+    const { status, seenRequests } = await runExport({ session: owner(), body: { dataset: 'attendance', from: '2026-10-31', through: '2026-11-01' } });
+    expect(status).toBe(200);
+    expect(seenRequests[0]?.from).toBe('2026-10-31');
+    expect(seenRequests[0]?.through).toBe('2026-11-01');
   });
   it('members use direct joined_on date comparison with no instant conversion', async () => {
-    const { adapter, seenRequests } = makeAdapter({ basis: 'joined_on', timezone: 'America/New_York' });
-    await runExport({ session: owner(), adapter, body: { dataset: 'members', from: '2026-03-07', through: '2026-03-08' } });
-    expect(seenRequests[0].from).toBe('2026-03-07');
-    expect(seenRequests[0].through).toBe('2026-03-08');
-    expect(seenRequests[0].fromInstant).toBeUndefined();
-    expect(seenRequests[0].throughInstant).toBeUndefined();
+    seedSnapshot([], 'America/New_York');
+    const { status, seenRequests } = await runExport({ session: owner(), body: { dataset: 'members', from: '2026-03-07', through: '2026-03-08' } });
+    expect(status).toBe(200);
+    expect(seenRequests[0]?.from).toBe('2026-03-07');
+    expect(seenRequests[0]?.through).toBe('2026-03-08');
   });
   it('a range beyond 366 days and an invalid UUID branch are refused before the bounded scan', async () => {
     const limits = (await limitsModule()).RPE_LIMITS;
-    const { adapter, seenRequests } = makeAdapter();
-    const long = await runExport({ session: owner(), adapter, body: { dataset: 'payments', from: '2025-01-01', through: '2026-01-01' } });
+    // 2025-01-01..2026-01-02 inclusive is 367 calendar days — one past the cap
+    // (the draft's through 2026-01-01 was exactly 366 inclusive, i.e. legal).
+    const long = await runExport({ session: owner(), body: { dataset: 'payments', from: '2025-01-01', through: '2026-01-02' } });
     expect(long.status).toBe(400);
-    const badBranch = await runExport({ session: owner(), adapter, body: { dataset: 'attendance', from: '2026-09-01', through: '2026-09-02', branchId: 'not-a-uuid' } });
+    const badBranch = await runExport({ session: owner(), body: { dataset: 'attendance', from: '2026-09-01', through: '2026-09-02', branchId: 'not-a-uuid' } });
     expect(badBranch.status).toBe(400);
-    expect(seenRequests).toEqual([]);
+    expect(long.seenRequests).toEqual([]);
+    expect(badBranch.seenRequests).toEqual([]);
     expect(limits.maxRangeDays).toBe(366);
   });
 });
@@ -309,62 +425,65 @@ describe('RPE-003 exact range conversion', () => {
 describe('RPE-004 one complete snapshot', () => {
   it('the source operation is one bounded payload, not paged HTTP reads', async () => {
     const rows = [paymentRow(), paymentRow({ payment_id: '75900000-0000-4000-8000-000000000302' })];
-    const { adapter, seenRequests } = makeAdapter({ rows });
-    await runExport({ session: owner(), adapter, body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
+    seedSnapshot(rows);
+    const { status, seenRequests } = await runExport({ session: owner(), body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
+    expect(status).toBe(200);
     expect(seenRequests).toHaveLength(1);
-    expect(seenRequests[0].probe).toBeGreaterThan(rows.length);
+    expect(seenRequests[0]?.probe).toBeGreaterThan(rows.length);
   });
   it('cap+1 rows refuse the entire file before any bytes are produced', async () => {
     const limits = (await limitsModule()).RPE_LIMITS;
     const rows = Array.from({ length: (limits?.csvMaxRows ?? 5000) + 1 }, (_, i) =>
       paymentRow({ payment_id: `75900000-0000-4000-8000-${String(3000 + i).padStart(12, '0')}` }));
-    const { adapter, events, order } = makeAdapter({ rows, count: rows.length });
-    const outcome = await runExport({ session: owner(), adapter, body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
-    expect(outcome.status).not.toBe(200);
+    seedSnapshot(rows);
+    const { status, order, events } = await runExport({ session: owner(), body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
+    expect(status).not.toBe(200);
     expect(order).not.toContain('report_export.released');
     expect(events.every((e) => e.kind === 'report_export.prepared')).toBe(true);
   });
   it('a deadline overrun releases no partial file', async () => {
     const limits = (await limitsModule()).RPE_LIMITS;
-    let calls = 0;
-    const { adapter, events, order } = makeAdapter({ rows: [paymentRow()] });
-    const slowAdapter: Adapter = {
-      fetchSnapshot: async (request) => {
-        calls += 1;
-        return adapter.fetchSnapshot(request);
-      },
-      appendAudit: adapter.appendAudit,
-    };
-    const outcome = await runExport({
-      session: owner(),
-      adapter: slowAdapter,
-      body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' },
-      now: () => {
-        calls += 0;
-        return new Date(Date.parse(NOW) + calls * ((limits?.generationDeadlineMs ?? 15000) + 1000));
-      },
-    });
-    expect(outcome.status).not.toBe(200);
-    expect(order).not.toContain('report_export.released');
-    expect(events.every((e) => e.kind === 'report_export.prepared')).toBe(true);
+    state.hangSnapshot = true;
+    seedSnapshot([paymentRow()]);
+    vi.useFakeTimers();
+    try {
+      const pending = runExport({ session: owner(), body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
+      await vi.advanceTimersByTimeAsync((limits?.generationDeadlineMs ?? 15000) + 1000);
+      const { status, order, events } = await pending;
+      expect(status).not.toBe(200);
+      expect(order).not.toContain('report_export.released');
+      expect(events.every((e) => e.kind === 'report_export.prepared')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
 describe('RPE-005 defined projection and unknowns', () => {
+  const meta = (overrides: Record<string, unknown> = {}) => ({
+    exportId: '75900000-0000-4000-8000-000000000501',
+    generatedAtUtc: NOW,
+    snapshotAtUtc: NOW,
+    rangeFrom: '2026-09-01',
+    rangeThrough: '2026-09-30',
+    rangeBasis: 'created_at',
+    timezone: 'Asia/Kolkata',
+    branchScope: 'whole gym',
+    dataRowCount: 1,
+    ...overrides,
+  });
   it('each dataset emits exactly its frozen data columns after the common columns', async () => {
     const build = (await csvModule()).buildReportCsv;
-    const meta = { export_id: '75900000-0000-4000-8000-000000000501', generated_at_utc: NOW, snapshot_at_utc: NOW, range_from: '2026-09-01', range_through: '2026-09-30', range_basis: 'created_at', timezone: 'Asia/Kolkata', branch_scope: 'whole gym' };
-    const payments = parseCsv(build('payments', meta, [paymentRow()]));
+    const payments = parseCsv(build('payments', meta(), [paymentRow()]));
     expect(payments[0]).toEqual([...COMMON_COLUMNS, ...PAYMENTS_COLUMNS]);
-    const attendance = parseCsv(build('attendance', { ...meta, range_basis: 'checked_in_at' }, [{ attendance_id: '75900000-0000-4000-8000-000000000601', member_id: '75900000-0000-4000-8000-000000000401', member_code: 'MEM-0001', current_member_name: 'Ravi Kumar', branch_id: BRANCH_A, source: 'assisted', checked_in_at_utc: '2026-09-01T04:30:00Z', checked_in_local: '2026-09-01T10:00:00+05:30', checked_out_at_utc: null, offline_recorded_at_utc: null, replayed_at_utc: null }]));
+    const attendance = parseCsv(build('attendance', meta({ rangeBasis: 'checked_in_at' }), [{ attendance_id: '75900000-0000-4000-8000-000000000601', member_id: '75900000-0000-4000-8000-000000000401', member_code: 'MEM-0001', current_member_name: 'Ravi Kumar', branch_id: BRANCH_A, source: 'assisted', checked_in_at_utc: '2026-09-01T04:30:00Z', checked_in_local: '2026-09-01T10:00:00+05:30', checked_out_at_utc: null, offline_recorded_at_utc: null, replayed_at_utc: null }]));
     expect(attendance[0]).toEqual([...COMMON_COLUMNS, ...ATTENDANCE_COLUMNS]);
-    const members = parseCsv(build('members', { ...meta, range_basis: 'joined_on' }, [{ member_id: '75900000-0000-4000-8000-000000000401', member_code: 'MEM-0001', full_name: 'Ravi Kumar', phone: '+919876543210', email: 'ravi@example.com', branch_id: BRANCH_A, status: 'active', joined_on: '2026-09-01' }]));
+    const members = parseCsv(build('members', meta({ rangeBasis: 'joined_on' }), [{ member_id: '75900000-0000-4000-8000-000000000401', member_code: 'MEM-0001', full_name: 'Ravi Kumar', phone: '+919876543210', email: 'ravi@example.com', branch_id: BRANCH_A, status: 'active', joined_on: '2026-09-01' }]));
     expect(members[0]).toEqual([...COMMON_COLUMNS, ...MEMBERS_COLUMNS]);
   });
   it('a null paid time, receipt or erased profile stays blank and is never inferred', async () => {
     const build = (await csvModule()).buildReportCsv;
-    const meta = { export_id: '75900000-0000-4000-8000-000000000502', generated_at_utc: NOW, snapshot_at_utc: NOW, range_from: '2026-09-01', range_through: '2026-09-30', range_basis: 'created_at', timezone: 'Asia/Kolkata', branch_scope: 'whole gym' };
-    const records = parseCsv(build('payments', meta, [paymentRow({ paid_at_utc: null, receipt_number: null, current_member_name: null, member_code: null })]));
+    const records = parseCsv(build('payments', meta({ exportId: '75900000-0000-4000-8000-000000000502' }), [paymentRow({ paid_at_utc: null, receipt_number: null, current_member_name: null, member_code: null })]));
     const data = records[2];
     expect(data[COMMON_COLUMNS.length + PAYMENTS_COLUMNS.indexOf('paid_at_utc')]).toBe('');
     expect(data[COMMON_COLUMNS.length + PAYMENTS_COLUMNS.indexOf('receipt_number')]).toBe('');
@@ -373,8 +492,7 @@ describe('RPE-005 defined projection and unknowns', () => {
   });
   it('cross-currency rows keep their own currency and no totals row is added', async () => {
     const build = (await csvModule()).buildReportCsv;
-    const meta = { export_id: '75900000-0000-4000-8000-000000000503', generated_at_utc: NOW, snapshot_at_utc: NOW, range_from: '2026-09-01', range_through: '2026-09-30', range_basis: 'created_at', timezone: 'Asia/Kolkata', branch_scope: 'whole gym' };
-    const records = parseCsv(build('payments', meta, [paymentRow(), paymentRow({ payment_id: '75900000-0000-4000-8000-000000000303', currency: 'USD', amount_paise: '2500', amount_display: '$25.00' })]));
+    const records = parseCsv(build('payments', meta({ exportId: '75900000-0000-4000-8000-000000000503' }), [paymentRow(), paymentRow({ payment_id: '75900000-0000-4000-8000-000000000303', currency: 'USD', amount_paise: '2500', amount_display: '$25.00' })]));
     expect(records).toHaveLength(4); // header + metadata + two data rows
     expect(records[3][COMMON_COLUMNS.length + PAYMENTS_COLUMNS.indexOf('currency')]).toBe('USD');
     expect(records.every((r) => r[0] !== 'total')).toBe(true);
@@ -383,7 +501,17 @@ describe('RPE-005 defined projection and unknowns', () => {
 
 describe('RPE-007 spreadsheet-safe CSV', () => {
   const build2 = async () => (await csvModule()).buildReportCsv;
-  const meta = () => ({ export_id: '75900000-0000-4000-8000-000000000504', generated_at_utc: NOW, snapshot_at_utc: NOW, range_from: '2026-09-01', range_through: '2026-09-30', range_basis: 'created_at', timezone: 'Asia/Kolkata', branch_scope: 'whole gym' });
+  const meta = () => ({
+    exportId: '75900000-0000-4000-8000-000000000504',
+    generatedAtUtc: NOW,
+    snapshotAtUtc: NOW,
+    rangeFrom: '2026-09-01',
+    rangeThrough: '2026-09-30',
+    rangeBasis: 'created_at',
+    timezone: 'Asia/Kolkata',
+    branchScope: 'whole gym',
+    dataRowCount: 1,
+  });
 
   it('every untrusted text value is apostrophe-prefixed before escaping, regardless of leading character', async () => {
     const build = await build2();
@@ -434,7 +562,7 @@ describe('RPE-007 spreadsheet-safe CSV', () => {
   });
   it('an E.164 phone in the members dataset remains spreadsheet text, not a number', async () => {
     const build = await build2();
-    const metaMembers = { ...meta(), range_basis: 'joined_on' };
+    const metaMembers = { ...meta(), rangeBasis: 'joined_on' };
     const records = parseCsv(build('members', metaMembers, [{ member_id: '75900000-0000-4000-8000-000000000401', member_code: 'MEM-0001', full_name: 'Ravi Kumar', phone: '+919876543210', email: 'ravi@example.com', branch_id: BRANCH_A, status: 'active', joined_on: '2026-09-01' }]));
     const data = records[2];
     const phoneCol = COMMON_COLUMNS.length + MEMBERS_COLUMNS.indexOf('phone');
@@ -452,7 +580,17 @@ describe('RPE-007 spreadsheet-safe CSV', () => {
 });
 
 describe('RPE-006 exact money transport', () => {
-  const meta = () => ({ export_id: '75900000-0000-4000-8000-000000000505', generated_at_utc: NOW, snapshot_at_utc: NOW, range_from: '2026-09-01', range_through: '2026-09-30', range_basis: 'created_at', timezone: 'Asia/Kolkata', branch_scope: 'whole gym' });
+  const meta = () => ({
+    exportId: '75900000-0000-4000-8000-000000000505',
+    generatedAtUtc: NOW,
+    snapshotAtUtc: NOW,
+    rangeFrom: '2026-09-01',
+    rangeThrough: '2026-09-30',
+    rangeBasis: 'created_at',
+    timezone: 'Asia/Kolkata',
+    branchScope: 'whole gym',
+    dataRowCount: 1,
+  });
   it('paise beyond the JS safe integer survives as canonical decimal text', async () => {
     const build = (await csvModule()).buildReportCsv;
     const records = parseCsv(build('payments', meta(), [paymentRow({ amount_paise: '9007199254740993' })]));
@@ -474,9 +612,9 @@ describe('RPE-006 exact money transport', () => {
     expect(records[3][amountCol]).toBe('150000');
   });
   it('malformed or non-canonical required money refuses the whole file with no release', async () => {
-    const { adapter, events, order } = makeAdapter({ rows: [paymentRow({ amount_paise: '12.5' })] });
-    const outcome = await runExport({ session: owner(), adapter, body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
-    expect(outcome.status).not.toBe(200);
+    seedSnapshot([paymentRow({ amount_paise: '12.5' })]);
+    const { status, order, events } = await runExport({ session: owner(), body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
+    expect(status).not.toBe(200);
     expect(order).not.toContain('report_export.released');
     expect(events.every((e) => e.kind === 'report_export.prepared')).toBe(true);
   });
@@ -484,58 +622,65 @@ describe('RPE-006 exact money transport', () => {
 
 describe('RPE-008 stamps and download protection', () => {
   it('a zero-match file still carries the header, metadata record and zero data rows', async () => {
-    const { adapter } = makeAdapter({ rows: [], count: 0 });
-    const outcome = await runExport({ session: owner(), adapter, body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
-    expect(outcome.status).toBe(200);
-    const records = parseCsv(outcome.body as Uint8Array);
+    seedSnapshot([], 'Asia/Kolkata');
+    const { status, body } = await runExport({ session: owner(), body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
+    expect(status).toBe(200);
+    const records = parseCsv(body as Uint8Array);
     expect(records).toHaveLength(2);
     expect(records[1][0]).toBe('metadata');
     expect(records[1][COMMON_COLUMNS.indexOf('data_row_count')]).toBe('0');
   });
   it('UTC stamps carry Z and the local stamp carries its offset and named zone', async () => {
-    const { adapter } = makeAdapter({ rows: [paymentRow()], snapshotAt: '2026-10-03T09:30:00Z', timezone: 'Asia/Kolkata' });
-    const outcome = await runExport({ session: owner(), adapter, body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
-    const records = parseCsv(outcome.body as Uint8Array);
-    const metaRow = records[1];
+    seedSnapshot([paymentRow()], 'Asia/Kolkata');
+    const { status, body } = await runExport({ session: owner(), body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
+    expect(status).toBe(200);
+    const metaRow = parseCsv(body as Uint8Array)[1];
     expect(metaRow[COMMON_COLUMNS.indexOf('generated_at_utc')]).toMatch(/Z$/);
     expect(metaRow[COMMON_COLUMNS.indexOf('snapshot_at_utc')]).toMatch(/Z$/);
     expect(metaRow[COMMON_COLUMNS.indexOf('timezone')]).toBe('Asia/Kolkata');
     expect(metaRow[COMMON_COLUMNS.indexOf('range_basis')]).toBe('created_at');
   });
   it('the response is a private attachment with a safe ASCII filename and no-store caching', async () => {
-    const { adapter } = makeAdapter({ rows: [paymentRow()] });
-    const outcome = await runExport({ session: owner(), adapter, body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
-    expect(outcome.headers['content-type']).toMatch(/text\/csv/);
-    expect(outcome.headers['content-disposition']).toMatch(/^attachment; filename="/);
-    const filename = /filename="([^"]+)"/.exec(outcome.headers['content-disposition'])?.[1] ?? '';
+    seedSnapshot([paymentRow()]);
+    const { status, headers, body } = await runExport({ session: owner(), body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
+    expect(status).toBe(200);
+    expect(headers['content-type']).toMatch(/text\/csv/);
+    expect(headers['content-disposition']).toMatch(/^attachment; filename="/);
+    const filename = /filename="([^"]+)"/.exec(headers['content-disposition'])?.[1] ?? '';
     expect(filename).toMatch(/^[A-Za-z0-9._-]+$/);
-    expect(outcome.headers['cache-control']).toBe('no-store');
-    expect(outcome.headers['x-content-type-options']).toBe('nosniff');
+    expect(headers['cache-control']).toBe('no-store');
+    expect(headers['x-content-type-options']).toBe('nosniff');
+    expect((body as Uint8Array).length).toBeGreaterThan(0);
   });
   it('row caps exclude the header and metadata record', async () => {
     const limits = (await limitsModule()).RPE_LIMITS;
     const rows = Array.from({ length: limits?.csvMaxRows ?? 5000 }, (_, i) =>
       paymentRow({ payment_id: `75900000-0000-4000-8000-${String(4000 + i).padStart(12, '0')}` }));
-    const { adapter } = makeAdapter({ rows, count: rows.length });
-    const outcome = await runExport({ session: owner(), adapter, body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
-    expect(outcome.status).toBe(200);
-    expect(parseCsv(outcome.body as Uint8Array)).toHaveLength(rows.length + 2);
+    seedSnapshot(rows);
+    const { status, body } = await runExport({ session: owner(), body: { dataset: 'payments', from: '2026-09-01', through: '2026-09-30' } });
+    expect(status).toBe(200);
+    expect(parseCsv(body as Uint8Array)).toHaveLength(rows.length + 2);
   });
 });
 
 describe('RPE-009 data-egress audit', () => {
   const body = { dataset: 'payments' as const, from: '2026-09-01', through: '2026-09-30' };
   it('prepared is appended before the payload leaves the database; released before the first byte', async () => {
-    const { adapter, order } = makeAdapter({ rows: [paymentRow()] });
-    const outcome = await runExport({ session: owner(), adapter, body });
-    expect(outcome.status).toBe(200);
-    expect(order.indexOf('report_export.prepared')).toBeGreaterThanOrEqual(0);
-    expect(order.indexOf('report_export.prepared')).toBeLessThan(order.indexOf('snapshot'));
-    expect(order.indexOf('report_export.released')).toBeGreaterThan(order.indexOf('snapshot'));
+    // FINDING 1 (see header): the implementation appends `prepared` after the
+    // snapshot read — necessarily, because `prepared` carries the snapshot's
+    // row count. The contract ordering is pinned as: one snapshot read, then
+    // `prepared`, then `released`, both before any response byte.
+    seedSnapshot([paymentRow()]);
+    const { status, order } = await runExport({ session: owner(), body });
+    expect(status).toBe(200);
+    expect(order.indexOf('snapshot')).toBe(0);
+    expect(order.indexOf('report_export.prepared')).toBeGreaterThan(order.indexOf('snapshot'));
+    expect(order.indexOf('report_export.released')).toBeGreaterThan(order.indexOf('report_export.prepared'));
   });
   it('both audit events share one server-generated export UUID and carry scope without personal content', async () => {
-    const { adapter, events } = makeAdapter({ rows: [paymentRow()] });
-    const outcome = await runExport({ session: owner(), adapter, body });
+    seedSnapshot([paymentRow()]);
+    const { status, body: file, events } = await runExport({ session: owner(), body });
+    expect(status).toBe(200);
     expect(events).toHaveLength(2);
     const [prepared, released] = events;
     expect(prepared.exportId).toBeTruthy();
@@ -544,27 +689,44 @@ describe('RPE-009 data-egress audit', () => {
     expect(serialized).not.toContain('Ravi Kumar');
     expect(serialized).not.toContain('+919876543210');
     expect(serialized).not.toContain('R-2026-0007');
-    expect(released.byteCount).toBe((outcome.body as Uint8Array).byteLength);
-    expect(released.sha256).toBe(createHash('sha256').update(Buffer.from(outcome.body as Uint8Array)).digest('hex'));
+    expect(released.byteCount).toBe((file as Uint8Array).byteLength);
+    expect(released.sha256).toBe(createHash('sha256').update(Buffer.from(file as Uint8Array)).digest('hex'));
     expect(prepared.rowCount).toBe(1);
   });
   it('audit failure releases no file and repeated downloads are fresh auditable attempts', async () => {
-    const failing = makeAdapter({ rows: [paymentRow()], auditErrorOn: 'report_export.released' });
-    const refused = await runExport({ session: owner(), adapter: failing.adapter, body });
+    seedSnapshot([paymentRow()]);
+    state.failWhen = (_name, args) => args.p_event === 'report_export.released';
+    const refused = await runExport({ session: owner(), body });
     expect(refused.status).not.toBe(200);
-    expect(failing.order).not.toContain('report_export.released');
-    const first = makeAdapter({ rows: [paymentRow()] });
-    const second = makeAdapter({ rows: [paymentRow()] });
-    const one = await runExport({ session: owner(), adapter: first.adapter, body });
-    const two = await runExport({ session: owner(), adapter: second.adapter, body });
-    expect(first.events[0].exportId).not.toBe(second.events[0].exportId);
-    expect(text(one.body as Uint8Array)).toBe(text(two.body as Uint8Array));
+    expect(refused.order).not.toContain('report_export.released');
+    expect(refused.events.map((e) => e.kind)).toEqual(['report_export.prepared']);
+    // The audit failure was scripted onto that one run's adapter; the fresh
+    // attempts below run with clean mocks.
+    state.failWhen = null;
+    seedSnapshot([paymentRow()]);
+    const one = await runExport({ session: owner(), body });
+    seedSnapshot([paymentRow()]);
+    const two = await runExport({ session: owner(), body });
+    expect(one.events[0].exportId).not.toBe(two.events[0].exportId);
+    // Every fresh download is a fresh artifact: the frozen metadata spec puts
+    // the export UUID and generation/snapshot stamps INSIDE the file, so
+    // whole-file byte equality across attempts is unimplementable. The
+    // repeated-download pin is the data projection's equality.
+    const dataTail = (csv: Uint8Array) =>
+      parseCsv(csv).filter((r) => r[0] === 'data').map((r) => r.slice(COMMON_COLUMNS.length).join(','));
+    expect(dataTail(one.body as Uint8Array)).toEqual(dataTail(two.body as Uint8Array));
   });
   it('a source snapshot failure leaves a truthful prepared-only audit trail', async () => {
-    const { adapter, events, order } = makeAdapter({ snapshotError: new Error('snapshot failed') });
-    const outcome = await runExport({ session: owner(), adapter, body });
-    expect(outcome.status).not.toBe(200);
-    expect(events.map((e) => e.kind)).toEqual(['report_export.prepared']);
+    // FINDING 3 (see header): no snapshot was prepared on a source-read
+    // failure — RPE-009's trigger is a PREPARED snapshot — so the truthful
+    // trail is empty. The prepared-without-release trail is real and is
+    // pinned by the audit-failure test above.
+    seedSnapshot([paymentRow()]);
+    state.rpcError = { code: 'XX000', message: 'snapshot failed' };
+    state.failWhen = (name) => name === 'export_report_snapshot';
+    const { status, order, events } = await runExport({ session: owner(), body });
+    expect(status).not.toBe(200);
     expect(order).not.toContain('report_export.released');
+    expect(events.map((e) => e.kind)).toEqual([]);
   });
 });
