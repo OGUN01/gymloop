@@ -958,6 +958,7 @@ select is_empty(
                          ('public.read_member_pt_packs()', 's'),
                          ('public.read_member_pt_sessions(text, integer, timestamptz, uuid)', 's'),
                          ('public.read_member_pt_slots(uuid, date, date)', 's'),
+                         ('public.read_member_pt_policy()', 's'),
                          ('public.read_pt_bookings(timestamptz, timestamptz, uuid, public.booking_status, integer, timestamptz, uuid)', 's'),
                          ('public.read_pt_packs(uuid, public.pt_pack_state, integer, uuid)', 's'),
                          ('public.book_pt_session(uuid, uuid, timestamptz)', 'v'),
