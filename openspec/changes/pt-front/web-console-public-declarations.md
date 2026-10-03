@@ -11,6 +11,9 @@ Documentation aliases below need not become exported production symbols. Reuse g
 ```ts
 type CallerClient = SupabaseClient<Database>;
 type ConsoleIdentity = Extract<GymloopIdentity, { kind: 'staff' | 'impersonation' }>;
+// Existing shared identity arms, declaration only:
+// staff: { kind:'staff'; userId:string; tenantId:string; staffId:string; role:StaffRole }
+// impersonation: { kind:'impersonation'; userId:string; tenantId:string; impersonationSessionId:string }
 type StaffRole = Extract<GymloopIdentity, { kind: 'staff' }>['role'];
 type ConsoleViewer = {
   role: StaffRole | null;
@@ -188,6 +191,28 @@ usePtCommand coordinates existing cookie-authenticated POST/fetch only. The perm
 | PtPolicyForm | /api/pt-policy {cancelWindowHours,lateCancelConsumes,sessionMinutes} |
 
 PTF-028's role matrix is unchanged: owner/manager reassignment, policy, waiver and profile listing; owner/manager/front desk gym cancellation; owner/manager or own trainer availability/time off; own trainer profile limited to bio/specialities. Preview exposes no mutation control. Cancellation/waiver require reason and explicit confirmation; reassignment confirms the exact complete selected scheduled count and member notices. Availability shows inline overlap refusal; existing schema and database remain backstops. Profile upload uses existing SHP upload/confirm/display seams. Changing availability or adding time off never cancels existing sessions.
+
+## Existing presentation/media dependency declarations
+
+```ts
+// apps/web/app/(console)/field.tsx
+declare function Field(props: { label: string; children: ReactNode }): React.JSX.Element;
+declare const inputClass: 'cl-input';
+// apps/web/lib/media-upload.ts
+type MediaUploadStage = 'uploading' | 'verifying';
+declare function uploadMediaFile(file: File, kind: MediaKind,
+  onStage?: (stage: MediaUploadStage) => void): Promise<{ assetId: string }>;
+// apps/web/lib/media.ts; caller-forwarded existing Edge API, no admin client
+declare function mediaDisplayUrl(client: CallerClient, assetId: string,
+  verifiedToken?: string): Promise<string | null>;
+// apps/web/lib/business-type.ts
+declare function loadBusinessNouns(client: CallerClient, tenantId: string): Promise<BusinessNouns>;
+```
+
+Actual rendered hosts may be doubled only at these public boundaries while
+preserving labels/children/control callbacks. Doubles do not establish real
+target dimensions, layout, keyboard focus or browser acceptance. Next router's
+existing refresh/push and HTML online/offline events are presentation boundaries.
 
 ## Source truth and review status
 
