@@ -229,7 +229,7 @@ describe('member add-on page and preview', () => {
     const secondOrderParams = new URL(secondOrderHref!, 'https://gymloop.test').searchParams;
     expect(secondOrderParams.get('order')).toBe(PRODUCT_ID);
     expect(secondOrderParams.has('sessionAfter')).toBe(false);
-    expect(secondOrderParams.get('offerAfter')).toBe('offer-cursor');
+    expect(secondOrderParams.has('offerAfter')).toBe(false);
     expect(secondOrderParams.get('listAfter')).toBe('order-list-cursor');
   });
 
@@ -265,7 +265,7 @@ describe('member add-on page and preview', () => {
     expect(markup).toMatch(/trainer|not recorded|unavailable/i);
   });
 
-  it('labels a missing member-visible trainer name without substituting the internal staff UUID', async () => {
+  it('retires member offers including hidden trainer metadata', async () => {
     const trainerId = '77777777-7777-4777-8777-777777777777';
     state.identity = { kind: 'member', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', tenantId: '11111111-1111-4111-8111-111111111111', memberId: MEMBER_ID };
     state.rows.addon_products = [{
@@ -274,20 +274,23 @@ describe('member add-on page and preview', () => {
       session_count: 2, trainer_staff_id: trainerId, trainer_qualification: 'Gym-stated qualification', staff: null, trainer: null, is_active: true,
     }];
     const { default: Page } = await import('../member/add-ons/page');
-    const markup = html(await Page(pageProps));
-    expect(markup).toContain('Member PT offer');
-    expect(markup).toContain('Gym-stated qualification');
+    const markup = html(await Page({ searchParams: Promise.resolve({ offer: PRODUCT_ID, offerAfter: 'legacy-offer-cursor' }) }));
+    expect(markup).not.toContain('Member PT offer');
+    expect(state.selections.some(({ table }) => table === 'addon_products')).toBe(false);
+    expect(markup).not.toContain('Gym-stated qualification');
     expect(markup).not.toContain(trainerId);
   });
 
-  it('shows current offerings and own frozen history, but no staff sale, receipt, fulfilment, or refund-confirmation controls', async () => {
+  it('shows own frozen history without retired offerings or staff mutations', async () => {
     state.identity = { kind: 'member', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', tenantId: '11111111-1111-4111-8111-111111111111', memberId: MEMBER_ID };
     state.rows.addon_products = [{ id: PRODUCT_ID, tenant_id: '11111111-1111-4111-8111-111111111111', name: 'Visible plan', kind: 'diet_plan', price_paise: '10000', currency: 'INR', description: 'Plan details', validity_days: 30, cancellation_terms: 'Terms', is_active: true }];
     state.rows.addon_orders = [{ id: ORDER_ID, tenant_id: '11111111-1111-4111-8111-111111111111', member_id: MEMBER_ID, status: 'completed', quantity: 1, unit_price_paise: '10000', total_paise: '10000', currency: 'INR', sale_snapshot: { kind: 'diet_plan', name: 'Sold historical plan', description: 'Sold terms', cancellationTerms: 'Sold terms', validityDays: 30, trainerQualification: null } }];
     const { default: Page } = await import('../member/add-ons/page');
     const markup = html(await Page(pageProps));
 
-    for (const text of ['Visible plan', 'Plan details', 'Sold historical plan', 'Sold terms']) expect(markup).toContain(text);
+    for (const text of ['Sold historical plan', 'Sold terms']) expect(markup).toContain(text);
+    for (const text of ['Visible plan', 'Plan details']) expect(markup).not.toContain(text);
+    expect(state.selections.some(({ table }) => table === 'addon_products')).toBe(false);
     expect(markup).not.toMatch(/record.*received|accept complimentary|mark diet plan delivered|confirm money returned/i);
     expect(markup).not.toMatch(/\/payments\//i);
   });
