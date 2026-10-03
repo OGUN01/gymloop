@@ -68,3 +68,10 @@ this approval does not freeze the complete WSP transport contract or attest to
 actual provider setup, delivery or India compliance. Existing history is retained;
 no reset is authorized. The Meta provider, verified-delivery debit, recipient
 opt-in and protected setup boundaries already approved remain unchanged.
+
+The owner's later instruction delegates this decision to the orchestrator and
+requests continuation without repeating the credit question. The orchestrator
+retains the already recorded 100-paise choice. The new read-only complete manifest
+receipt at `docs/evidence/v2/wsp-wallet-exact-manifest.json` confirms each tenant's
+balance/ledger equality and that all original monetary values fit bigint after
+that exact conversion. Nothing has been converted or sent by either read.

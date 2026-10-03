@@ -45,38 +45,49 @@ calls default to own scope. Explicit other-trainer input produces zero rows per
 PTF-022, not a new refusal code. Cross-tenant targeting exposes no row. Invalid
 or stale binding/role/tenant/user claims retain PTF actor rejection (`42501`).
 PTF's member loaders `loadMemberTraining` / `loadTraining` are member-only and
-must not be called from this staff screen. The public PTF contract does not name
-a staff loader export. At freeze, inspect the then-landed Training adapter and
-reuse its staff read/paging implementation; if it exists, bind the screen to it
-and remove the conditional adapter below. No parallel adapter dialect is allowed.
+must not be called from this staff screen. The frozen public PTF console packet
+now declares `loadPtBookings`, `loadPtPacks`, `loadTrainerChoices`,
+`VerifiedConsoleViewer` and `PtReadSection`. Web TRV composes those existing
+single-page adapters; it does not introduce a shared RPC adapter or a second
+web read dialect. Read [the proposed TRV declarations](public-declarations.md)
+with `../pt-front/web-console-public-declarations.md` before independent fanout.
 
 ## Consumers, types and dependencies (proposed, not registered exports)
 
 Web consumer: trainer rendering of existing
 `apps/web/app/(console)/training/page.tsx`; retain other staff's PTF rendering.
 Native consumer: proposed `apps/mobile/app/(desk)/training.tsx`, reached by a
-trainer-only “My clients today” entry in the existing desk navigation. Reuse
-`useMobile`, verified `GymloopIdentity`, `requireAudience` / `readIdentity`, and
-the current staff/trainer binding checks. Native staff routing already exists;
-no new role, claim, root audience, login path or persisted capability is proposed.
+trainer-only “My clients today” entry in the existing desk navigation. That
+placement remains an owner choice. Reuse `useMobile`, verified
+`GymloopIdentity`, `requireAudience` / `readIdentity`, and the current
+staff/trainer binding checks. Native staff routing already exists; no new role,
+claim, root audience, login path or persisted capability is proposed.
 
-Rows derive from generated `Database['public']['Functions']['read_pt_bookings']
-['Returns'][number]` and the corresponding `read_pt_packs` return type. Canonical
-status/state come from generated enums; never hand-copy a vocabulary. Preserve
-the RPC's snake_case row shape; do not create a second balance model.
+Reuse PTF `StaffBooking` (including nullable `cancelled_at`), `StaffPack` and
+`PtReadSection`. Native documentation aliases derive from the same generated
+RPC row types, with the same nullable cancellation correction; native imports
+no web runtime. Canonical status/state come from generated enums. Preserve the
+RPC's snake_case shape and exact balances; no second balance model is proposed.
 
-If PTF has no reusable staff adapter when frozen, proposed shared exports in
-`packages/shared/src/api/trainer-view.ts`, re-exported by `src/index.ts`, are:
+Web orchestration exhausts existing `loadPtBookings` / `loadPtPacks` pages.
+Native needs a caller-bound host, read coordinator hook and screen declarations
+because PTF's published native loaders are member-only. Their precise proposed
+boundaries are in `public-declarations.md`; they are platform adapters for the
+same public RPC/section contract, not new shared exports or authorization.
+Existing `loadTrainerChoices` metadata supplies the own trainer's branch/gym
+resolved timezone even when bookings and packs are successfully empty. Native
+uses only the same published safe choices projection under caller RLS. Missing
+or failed own timezone metadata prevents day reads, rather than inferring a
+zone from the first session, device, or a fabricated default.
 
-| Export | Contract | Consumers |
-|---|---|---|
-| `TrainerBookingRow` / `TrainerPackRow` | The two generated RPC row aliases above | Adapter and both screens |
-| `TrainerReadPort` | Injected `readBookings(args)` and `readPacks(args)`, arguments and return rows derived from those exact generated Functions; returns `{data: rows or null, error: {code: string} or null}` | Thin existing caller-client adapters in web/mobile Training libraries |
-| `loadTrainerDay(port, {from, to})` | Uses exact PTF RPCs, null trainer/status/state filters; walks keyset pages to completion; returns `{bookings: TrainerBookingRow[], packs: TrainerPackRow[]}` or propagates failure. Filters packs to displayed `order_id` values only after paging. No balance/date/status arithmetic | Both screens |
-| `trainerViewCopy(nouns)` | Heading, state and control copy fixed below, with existing BIZ nouns where relevant | Both screens |
+The booking and pack sections fail independently with null data and sanitized
+errors. Successful bookings survive a pack failure with explicit unavailable
+pack facts. Failed booking pages never become a successful empty day or a
+partial complete list. Successful pack sections are joined by `order_id` only
+after all pages complete. See the companion for cursor progress and freshness.
 
-No new component export, SDK dependency, native package, money helper or runtime
-environment variable is planned. Shared remains platform-free and uses its
+No SDK dependency, native package, money helper or runtime environment variable
+is planned. Proposed host/hook/screen exports require the usual registry review. Shared remains platform-free and uses its
 existing type-only `@gymloop/db` dependency. Reuse PTF `ptPackStateLabel`,
 `ptBookingStatusLabel`, `ptApiError`, `PT_BOOKING_LIMITS`, existing page-size
 constants, `businessNouns`, `toLocalDate`, `offsetInstantFromGymWallTime`,
@@ -117,10 +128,9 @@ unit. This draft authorizes no registry or decision edit.
   SHALL NOT recalculate, sum different packs, promise expired booking or infer
   refunds/payment values. The expired exception is not a new calculation here.
 - **TRV-005 (complete reads).** WHILE a result has another PTF keyset page THE
-  SYSTEM SHALL continue or expose a working “More sessions” continuation without
-  claiming a complete total. The default page cap SHALL NOT hide later clients.
-  Pack paging SHALL reach each displayed order. WHEN either RPC fails or a pack
-  is absent after complete paging THE SYSTEM SHALL show “Pack details aren't
+  SYSTEM SHALL continue through every page before presenting a complete day. The default page cap SHALL NOT hide later clients.
+  Pack paging SHALL complete before joining displayed orders. WHEN pack paging
+  fails or a pack is absent after complete paging THE SYSTEM SHALL show “Pack details aren't
   available. Refresh to try again.” rather than zero or another client's pack.
   No count badge is required; any count SHALL describe loaded sessions, not
   distinct clients or all-day completeness unless that is proven.
@@ -136,7 +146,8 @@ unit. This draft authorizes no registry or decision edit.
   THE SYSTEM SHALL show “No clients scheduled for this date.” and Today/date
   controls. WHEN loading THE SYSTEM SHALL show an announced loading state.
   WHEN a request fails THE SYSTEM SHALL show “Couldn't load your sessions.”
-  with Refresh. Permission failure SHALL follow existing generic access copy,
+  with Refresh; a successful independent pack section SHALL NOT turn that
+  booking failure into an empty day. Permission failure SHALL follow existing generic access copy,
   with no client existence hint. Empty SHALL never substitute for failure.
 - **TRV-008 (offline/freshness).** WHEN offline THE SYSTEM SHALL show “You're
   offline. Connect to load your sessions.” and Refresh; it SHALL queue no write

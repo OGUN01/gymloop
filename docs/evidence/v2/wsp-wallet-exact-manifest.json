@@ -1,0 +1,61 @@
+{
+  "verifiedAtUtc": "2026-10-03T06:33:29.736Z",
+  "scope": "Read-only complete field manifest for the approved original-credit cutover; no raw tenant/ledger/actor identifiers published",
+  "projectRef": "pecxrpskmfeuyzngvewq",
+  "latestCompletedDbRun": 37061577506,
+  "noDbRunsInFlightAtRead": true,
+  "sharedCloudLockHeld": true,
+  "sharedCloudLockReleased": true,
+  "readOnlyBeginRollback": true,
+  "sessionTimezone": "UTC",
+  "manifestFingerprint": {
+    "algorithm": "PostgreSQL SHA-256 of UTF-8 manifest jsonb::text",
+    "sha256": "79a7a86950098a93b9a2d0f78e9e0416beea077ea0bdc9308ae1e805df12cacb",
+    "walletOrder": [
+      "tenant_id"
+    ],
+    "ledgerOrder": [
+      "tenant_id",
+      "id"
+    ],
+    "walletFields": [
+      "tenant_id",
+      "balance_credits",
+      "created_at",
+      "updated_at"
+    ],
+    "ledgerFields": [
+      "id",
+      "tenant_id",
+      "delta_credits",
+      "balance_after_credits",
+      "reason",
+      "notification_id",
+      "request_key",
+      "recorded_by_user_id",
+      "created_at"
+    ],
+    "monetaryRepresentation": "Canonical decimal strings, retaining SQL null for historical missing balance-after"
+  },
+  "querySha256": "3aeae9b6bc2ebcff04e06375f824c985cc709598fdc1809424c45c47f653e0ae",
+  "privateCliResultSha256": "89bebd6b8930ec0a40b21c6a1c41b57fa08c3e377c29b69510fa8431bf45f95c",
+  "inventory": {
+    "walletRows": "3",
+    "nonzeroWalletRows": "1",
+    "ledgerRows": "2",
+    "originalAggregateCredits": "4500",
+    "selectedPaisePerOldCredit": "100",
+    "proposedAggregatePaise": "450000",
+    "currency": "INR"
+  },
+  "perTenantNetReconciles": true,
+  "allRecordedMonetaryValuesFitConvertedBigint": true,
+  "approvalReference": "efff581",
+  "moneyOrSourceRecordsMutated": false,
+  "migrationApplied": false,
+  "providerActivated": false,
+  "limits": [
+    "CI must lock both tables and compare the same complete field manifest again before cutover",
+    "This receipt is evidence of inventory and arithmetic only, not conversion, provider delivery or all-v2 acceptance"
+  ]
+}
