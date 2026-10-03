@@ -67,7 +67,7 @@ insert into public.organization_settings(tenant_id,pause_approver_role,max_freez
 -- the linked evidence of closed requests.
 insert into public.membership_pauses(id,tenant_id,membership_id,starts_on,ends_on,reason,requested_by_staff_id) values
 (pg_temp.u(601),pg_temp.u(1),pg_temp.u(302),app.gym_today(pg_temp.u(1))+1,app.gym_today(pg_temp.u(1))+5,'Desk approved pause',pg_temp.u(21)),
-(pg_temp.u(602),pg_temp.u(1),pg_temp.u(306),app.gym_today(pg_temp.u(1))+6,app.gym_today(pg_temp.u(1))+9,'Budget fixture pause',pg_temp.u(21)),
+(pg_temp.u(602),pg_temp.u(1),pg_temp.u(306),app.gym_today(pg_temp.u(1))-10,app.gym_today(pg_temp.u(1))-4,'Budget fixture pause',pg_temp.u(21)),
 (pg_temp.u(603),pg_temp.u(1),pg_temp.u(302),app.gym_today(pg_temp.u(1))+10,app.gym_today(pg_temp.u(1))+12,'Closed-request evidence pause',pg_temp.u(21));
 set local role authenticated;
 select pg_temp.claim('gym_manager',22,null,902,1);
@@ -250,8 +250,15 @@ set local role authenticated;
 select is(pg_temp.probe('select public.approve_member_freeze_request((select (v->>''id'')::uuid from proof where k=''r101''),3,pg_temp.u(715))'),'GL066','SLF-013: an approved request is terminal');
 -- Budget recheck: tighten the gym allowance, then a member whose approved
 -- history plus the proposal exceeds it must fail at final approval only.
+-- Deterministic on any run date: pause 602 is elapsed approved history
+-- (four days in the run's current calendar year) and the budget is 2, so the
+-- refusal holds whether or not request 705's start (gym-local tomorrow) lands
+-- in the same accounting year as that history (same-year: 4 used + 3 proposed
+-- = 7 > 2; a Dec-31 run puts tomorrow in the next year: 0 used + 3 = 3 > 2 —
+-- GL067 either way, with the used-history contribution shown on 364 of 365
+-- run dates).
 set local role postgres;
-update public.organization_settings set max_freeze_days_per_year=5 where tenant_id=pg_temp.u(1);
+update public.organization_settings set max_freeze_days_per_year=2 where tenant_id=pg_temp.u(1);
 set local role authenticated;
 select pg_temp.claim('member',null,109,915,1);
 select is(pg_temp.probe($q$select public.request_member_freeze(pg_temp.u(306),app.gym_today(pg_temp.u(1))+1,app.gym_today(pg_temp.u(1))+3,'Budget request',pg_temp.u(705))$q$),'OK','SLF-012: request creation does not consume allowance');
