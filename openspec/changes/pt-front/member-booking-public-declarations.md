@@ -122,6 +122,15 @@ StatusWord/Status label: PTF-Q5's six existing status words remain the complete
 status vocabulary. Only established effective consumption enables its matching
 cancelled status word.
 
+The generated booking-status enum also contains CLS's `session_cancelled`.
+That is not a PT outcome under the original PTF-Q5 vocabulary. A matching
+booking response carrying that value must be rejected as an uncertain answer,
+never close the retry sheet as success or render “Unavailable” as a new status.
+The existing registered `ptCommandAnswer` PT decoder is the common boundary:
+narrow the generated enum's applicability for PT; do not create a handwritten
+canonical status list. Both surfaces retain explicit retry/reload with the
+original command identity when the PT answer is invalid.
+
 ## Verification ownership
 
 Independent visible and held authors cover actual web/native surfaces,
