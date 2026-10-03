@@ -94,7 +94,7 @@ function words(value: unknown): string {
   if (isValidElement(value) || 'props' in value) return words(node.props.children);
   return '';
 }
-function label(node: Node) { return [node.props.label, node.props.message, node.props.value, node.props.control, words(node.props.title), words(node.props.meta), words(node.props.children)].filter(value => typeof value === 'string').join(' '); }
+function label(node: Node) { return [node.props.label, node.props.message, node.props.value, node.props.control, words(node.props.title), words(node.props.meta), words(node.props.children)].filter((value): value is string => typeof value === 'string' && value.trim().length > 0).map(value => value.trim()).join(' ').trim(); }
 function visible() { return tree.map(label).join(' '); }
 function descendants(node: Node) { const original = tree; tree = []; collect(node); const result = tree; tree = original; return result; }
 function action(pattern: RegExp, scope = tree) { const node = scope.find(item => typeof item.props.onPress === 'function' && pattern.test(label(item))); expect(node).toBeDefined(); return node!; }

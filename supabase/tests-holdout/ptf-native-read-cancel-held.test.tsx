@@ -1,7 +1,7 @@
 import type React from 'react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { UI_TOKENS, businessNouns, type GymloopIdentity } from '@gymloop/shared';
+import { UI_TOKENS, businessNouns, formatDateTime, type GymloopIdentity } from '@gymloop/shared';
 import type { MemberTraining as PublicTraining, PtSession as PublicSession } from '@gymloop/shared';
 // Nullable read failures and cancellation provenance are frozen packet facts.
 type PtSession = Omit<PublicSession, 'cancelledAt' | 'cancelCutoff'> & { cancelledAt: string | null; cancelCutoff: string | null };
@@ -21,7 +21,7 @@ type HostNode = { type: unknown; props: Props; textContent: string; children: Ho
 function host(name: string) { return function Host(props: Props) { return { type: name, props }; }; }
 vi.mock('../../apps/mobile/lib/mobile-context', () => ({ useMobile: () => mocks.context }));
 vi.mock('../../apps/mobile/lib/training', () => ({ loadTraining: mocks.load, loadTrainingHistory: vi.fn(async () => ({ data: [], error: null })) }));
-vi.mock('../../apps/mobile/components/ui', () => Object.fromEntries(['Status', 'ActionButton', 'Row', 'Sheet', 'SheetHeader', 'EmptyState', 'ErrorRetry', 'LoadingState', 'StateMessage', 'Section', 'Card', 'Heading', 'Body'].map(name => [name, host(name)])));
+vi.mock('../../apps/mobile/components/ui', () => Object.fromEntries(['Status', 'ActionButton', 'Row', 'Sheet', 'SheetHeader', 'EmptyState', 'ErrorRetry', 'LoadingState', 'StateMessage', 'LedgerSection', 'Section', 'Card', 'Heading', 'Body'].map(name => [name, host(name)])));
 vi.mock('react-native', () => ({ View: host('View'), Text: host('Text'), Pressable: host('Pressable'), ScrollView: host('ScrollView'), Image: host('Image'), ActivityIndicator: host('ActivityIndicator'), StyleSheet: { create: (styles: unknown) => styles }, Platform: { OS: 'android' }, useWindowDimensions: () => ({ width: 390, height: 844, fontScale: 1 }) }));
 vi.mock('expo-network', () => ({ getNetworkStateAsync: async () => ({ isConnected: mocks.online, isInternetReachable: mocks.online }), addNetworkStateListener: (fn: (state: { isConnected: boolean; isInternetReachable: boolean }) => void) => { mocks.listeners.add(fn); return { remove: () => mocks.listeners.delete(fn) }; } }));
 vi.mock('expo-router', () => ({ router: { push: vi.fn(), replace: vi.fn() }, useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), Link: host('Link') }));
@@ -41,13 +41,13 @@ function renderNode(value: unknown): HostNode {
   const element = value as { type: unknown; props: Props };
   if (typeof element.type === 'function') return renderNode(element.type(element.props));
   if (element.type === 'Sheet' && !element.props.visible) return renderNode(null);
-  const children = [element.props.title, element.props.meta, element.props.status, element.props.value, element.props.trailing, element.props.detail, element.props.message, element.props.children].filter(value => value !== undefined).map(renderNode);
+  const children = [element.props.title, element.props.meta, element.props.status, element.props.value, element.props.trailing, element.props.footer, element.props.detail, element.props.message, element.props.children].filter(value => value !== undefined).map(renderNode);
   return { ...element, children, textContent: children.map(child => child.textContent).join(' ') };
 }
 function render() { hooks.cursor = 0; hooks.dirty = false; tree = renderNode(Component()); for (const effect of hooks.effects.splice(0)) effect(); }
 async function flush() { for (let pass = 0; pass < 12; pass++) { await Promise.resolve(); if (hooks.dirty) render(); } }
 function nodes(node = tree): HostNode[] { return [node, ...node.children.flatMap(child => nodes(child))]; }
-function text() { return tree.textContent; }
+function text() { return tree.textContent.replace(/\s+/g, ' ').trim(); }
 function button(label: RegExp): HostNode { const result = nodes().find(n => typeof n.props.onPress === 'function' && label.test(n.textContent || String(n.props.accessibilityLabel ?? ''))); expect(result, `action ${label}`).toBeDefined(); return result!; }
 async function act(fn: () => void | Promise<void>) { await fn(); await flush(); }
 async function press(node: HostNode) { await act(async () => { (node.props.onPress as () => void)(); }); }
@@ -59,7 +59,7 @@ beforeEach(() => {
   mocks.load.mockReset().mockResolvedValue(data()); mocks.post.mockReset().mockResolvedValue({ ok: true, data: { sessionId: id(50), status: 'cancelled_by_member', late: false, consumed: false, sessionsRemaining: 6, replayed: false } }); mocks.online = true; mocks.listeners.clear();
   mocks.context = { identity: member(), ready: true, session: { user: { id: id(1) }, access_token: 'caller-a' }, supabase: { rpc: vi.fn() }, api: { post: mocks.post }, businessType: 'gym', nouns: businessNouns('gym'), palette: UI_TOKENS.colors.light, appearance: 'light', webOrigin: 'https://example.invalid', signOut: vi.fn(), setAppearance: vi.fn() };
 });
-afterEach(() => { for (const cleanup of hooks.cleanups) cleanup?.(); });
+afterEach(() => { for (const cleanup of hooks.cleanups) cleanup?.(); vi.restoreAllMocks(); });
 
 describe('independent native Training reads and existing-session cancellation', () => {
   it.each(['trainers', 'programmes', 'packs', 'upcoming', 'history'] as const)('keeps successful sections when %s fails with null', async failed => {
@@ -69,8 +69,8 @@ describe('independent native Training reads and existing-session cancellation', 
     if (failed !== 'programmes') expect(text()).toContain('Desk programme');
     if (failed !== 'trainers') expect(text()).toContain('Certified coach');
   });
-  it('shows bought used reserved available and original expired balance separately', async () => { await mount(); expect(text()).toMatch(/3 of 10 used/); expect(text()).toContain('2 booked'); expect(text()).toContain('5 left to book'); expect(text()).toMatch(/7.*(?:unspent|left)|(?:unspent|left).*7/); expect(text()).toMatch(/1 (?:Sep|September) 2026/); expect(text()).toMatch(/1 (?:Feb|February) 2026/); const expired = nodes().find(n => n.props.title === 'Expired plan'); if (expired) expect(expired.textContent).not.toContain('Book a session'); });
-  it('offers exact paise price GST terms and desk sale only', async () => { await mount(); expect(text()).toMatch(/12,?345\.67/); expect(text()).toContain('INR'); expect(text()).toMatch(/18\s*%/); expect(text()).toContain('Desk terms remain binding'); expect(text()).toContain('Show at the desk'); expect(text()).not.toMatch(/Buy now|Pay now|Purchase/); expect(mocks.post).not.toHaveBeenCalled(); });
+  it('shows bought used reserved available and original expired balance separately', async () => { await mount(); expect(text()).toMatch(/3 of 10 used/); expect(text()).toContain('2 booked'); expect(text()).toContain('5 left to book'); expect(text()).toMatch(/7.*(?:unspent|unused|left)|(?:unspent|unused|left).*7/); expect(text()).toMatch(/1 (?:Sep|September)(?: 2026)? [–-] 1 (?:Dec|December) 2026/); expect(text()).toMatch(/1 (?:Feb|February) 2026/); const expired = nodes().find(n => n.props.title === 'Expired plan'); if (expired) expect(expired.textContent).not.toContain('Book a session'); });
+  it('offers exact paise price GST terms and desk sale only', async () => { await mount(); expect(text()).toMatch(/12,?345\.67/); expect(text()).toMatch(/INR|\u20b9/); expect(text()).toMatch(/18\s*%/); expect(text()).toContain('Desk terms remain binding'); expect(text()).toContain('Show at the desk'); expect(text()).not.toMatch(/Buy now|Pay now|Purchase/); expect(mocks.post).not.toHaveBeenCalled(); });
   it('uses the six pinned words and explains past unmarked booked rows', async () => { const fixture = data(); fixture.history.data = [session({ endsAt: '2026-01-01T11:00:00+05:30' }), session({ status: 'attended' }), session({ status: 'no_show' }), session({ status: 'cancelled_by_member' }), session({ status: 'cancelled_by_gym' }), session({ status: 'cancelled_by_member', consumed: true })].map((row, i) => ({ ...row, sessionId: id(60 + i) })); await mountWith(fixture); for (const word of ['Booked', 'Attended', 'No-show', 'Cancelled by you', 'Cancelled by your gym', 'Cancelled late - session used', 'Waiting for your trainer to record it.']) expect(text()).toContain(word); expect(text()).not.toContain('Not marked'); });
   it.each< GymloopIdentity >([{ kind: 'unlinked' }, { kind: 'platform', userId: id(1), role: 'super_admin' }, { kind: 'impersonation', userId: id(1), tenantId: id(8), impersonationSessionId: id(9) }, { kind: 'staff', userId: id(1), tenantId: id(8), staffId: id(3), role: 'trainer' }])('wrong audience makes no read or command: $kind', async identity => { mocks.context.identity = identity; await mount(); expect(mocks.load).not.toHaveBeenCalled(); expect(mocks.post).not.toHaveBeenCalled(); });
   it('discards A to B to A late read rather than reviving revoked A', async () => { const old = deferred<MemberTraining>(); mocks.load.mockReturnValueOnce(old.promise); await mount(); await change(member(2)); await change(member()); const fixture = data(); fixture.trainers.data![0]!.displayName = 'Revoked response'; old.resolve(fixture); await flush(); expect(text()).not.toContain('Revoked response'); });
@@ -79,15 +79,21 @@ describe('independent native Training reads and existing-session cancellation', 
   it('refreshes authoritative current session facts before opening late confirmation', async () => { await mount(); const refreshed = data(); refreshed.upcoming.data = [session({ lateNow: true, consumesNow: true })]; mocks.load.mockResolvedValue(refreshed); await press(button(/^Cancel(?: session)?$/i)); expect(mocks.load.mock.calls.length).toBeGreaterThan(1); expect(text()).toContain('This is inside your cancellation window. Cancelling will use 1 session from your pack.'); expect(mocks.post).not.toHaveBeenCalled(); });
   it('missing current session facts fail closed rather than trusting initial facts', async () => { await mount(); mocks.load.mockResolvedValue({ ...data(), upcoming: { data: null, error: 'Please try again.' } }); await press(button(/^Cancel(?: session)?$/i)); expect(mocks.post).not.toHaveBeenCalled(); expect(text()).not.toContain('Free to cancel until'); });
   it('free confirmation states an absolute gym-local cutoff before a command', async () => {
+    const resolveOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+    vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockImplementation(function (this: Intl.DateTimeFormat) { return { ...resolveOptions.call(this), timeZone: 'America/New_York' }; });
     await mount(); await press(button(/^Cancel(?: session)?$/i));
-    expect(text()).toMatch(/Free to cancel until .*4 (?:Oct|October) 2026.*10:00/i);
+    expect(text()).toContain(`Free to cancel until ${formatDateTime('2026-10-04T10:00:00+05:30', 'Asia/Kolkata')}.`);
     expect(mocks.post).not.toHaveBeenCalled();
   });
   it('caller change while cancellation refresh is pending cannot open stale confirmation', async () => {
     await mount(); const refresh = deferred<MemberTraining>(); mocks.load.mockReturnValueOnce(refresh.promise);
-    await press(button(/^Cancel(?: session)?$/i)); await change(member(2)); await change(member());
-    const old = data(); old.upcoming.data = [session({ lateNow: true, consumesNow: true })]; refresh.resolve(old); await flush();
+    await press(button(/^Cancel(?: session)?$/i));
+    const fresh = data(); fresh.upcoming.data = [session({ sessionId: id(77), programmeName: 'Current lifetime session' })]; mocks.load.mockResolvedValue(fresh);
+    await change(member(2)); await change(member());
+    const old = data(); old.upcoming.data = [session({ programmeName: 'Revoked session refresh', lateNow: true, consumesNow: true })]; refresh.resolve(old); await flush();
     expect(text()).not.toContain('This is inside your cancellation window. Cancelling will use 1 session from your pack.');
+    expect(text()).toContain('Current lifetime session'); expect(text()).not.toContain('Revoked session refresh');
+    expect(nodes().filter(node => node.type === 'Sheet')).toHaveLength(0);
     expect(mocks.post).not.toHaveBeenCalled();
   });
   it('reopening refreshes changed policy rather than retaining the first preview', async () => {
