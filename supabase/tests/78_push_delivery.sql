@@ -131,11 +131,11 @@ select is((select (result->>'tokenRevision')::int from ntf_reg),1,'NTF-003: firs
 select is((select registered_user_id from public.member_devices where id=(select (result->>'deviceId')::uuid from ntf_reg)),pg_temp.aid(906),'NTF-003: device binds the authenticated account');
 select is((select is_active from public.member_devices where id=(select (result->>'deviceId')::uuid from ntf_reg)),true,'NTF-003: registered device active');
 select public.register_member_push_device(pg_temp.aid(652),'fcm-token-781-A','android') as result;
-select is((select token_revision from public.member_devices where installation_id=pg_temp.aid(652) and member_id=pg_temp.aid(101)),1,'NTF-003: same installation/token replay inert, no revision bump');
+select is((select token_revision from public.member_devices where installation_id=pg_temp.aid(652) and member_id=pg_temp.aid(101)),1::bigint,'NTF-003: same installation/token replay inert, no revision bump');
 select is((select count(*)::integer from public.member_devices where member_id=pg_temp.aid(101) and installation_id=pg_temp.aid(652)),1,'NTF-003: replay creates no second row');
 select public.register_member_push_device(pg_temp.aid(652),'fcm-token-781-A2','android') as result;
-select is((select token_revision from public.member_devices where installation_id=pg_temp.aid(652) and member_id=pg_temp.aid(101)),2,'NTF-004: rotation increments revision atomically');
-select is((select token_revision from public.member_devices where installation_id=pg_temp.aid(652) and member_id=pg_temp.aid(101)),2,'NTF-004: rotation leaves the frozen revision readable without reading the raw token');
+select is((select token_revision from public.member_devices where installation_id=pg_temp.aid(652) and member_id=pg_temp.aid(101)),2::bigint,'NTF-004: rotation increments revision atomically');
+select is((select token_revision from public.member_devices where installation_id=pg_temp.aid(652) and member_id=pg_temp.aid(101)),2::bigint,'NTF-004: rotation leaves the frozen revision readable without reading the raw token');
 select is((select is_active from public.member_devices where installation_id=pg_temp.aid(652) and member_id=pg_temp.aid(101)),true,'NTF-004: rotated device stays active with cleared invalidation');
 select is(pg_temp.ntf_refusal($q$select public.register_member_push_device(pg_temp.aid(653),'fcm-token-781-B','ios')$q$),'22023','NTF-003: non-Android platform refused');
 select is(pg_temp.ntf_refusal($q$select public.register_member_push_device(pg_temp.aid(653),'','android')$q$),'22023','NTF-003: blank token refused');
@@ -175,7 +175,7 @@ select is((select bool_and((d.value->>'active')='false') from jsonb_array_elemen
 select public.register_member_push_device(pg_temp.aid(651),'legacy-token-781','android') as result;
 select is((select registered_user_id from public.member_devices where installation_id=pg_temp.aid(651)),pg_temp.aid(906),'NTF-003: matching self-registration adopts the legacy row');
 select is((select is_active from public.member_devices where installation_id=pg_temp.aid(651)),true,'NTF-003: adopted legacy device becomes active');
-select is((select token_revision from public.member_devices where installation_id=pg_temp.aid(651)),1,'NTF-003: adopting an untouched legacy row starts at revision one');
+select is((select token_revision from public.member_devices where installation_id=pg_temp.aid(651)),1::bigint,'NTF-003: adopting an untouched legacy row starts at revision one');
 reset role;
 
 -- ============ D. unregister ============
@@ -186,7 +186,7 @@ select pg_temp.ntf_claim('member',null,101,906,1,false);
 set local role authenticated;
 create temp table ntf_unreg as select public.unregister_member_push_device(pg_temp.aid(660)) as result;
 select is((select (result->>'disabled')::text from ntf_unreg),'true','NTF-004: unregister answers disabled:true');
-select is((select count(*) from public.member_devices where installation_id=pg_temp.aid(660)),0,'NTF-004: another member''s device rows are invisible, not refused (no existence oracle)');
+select is((select count(*)::integer from public.member_devices where installation_id=pg_temp.aid(660)),0,'NTF-004: another member''s device rows are invisible, not refused (no existence oracle)');
 create temp table ntf_unreg2 as select public.unregister_member_push_device(pg_temp.aid(699)) as result;
 select is((select (result->>'disabled')::text from ntf_unreg2),'true','NTF-004: unknown installation is inert disabled:true');
 select public.unregister_member_push_device(pg_temp.aid(652)) as result;
@@ -361,7 +361,7 @@ set local role authenticated;
 create temp table ntf_cancel as select public.cancel_announcement_push((select (result->>'campaignId')::uuid from ntf_review)) as result;
 select is((select (result->>'cancelled')::text from ntf_cancel),'true','NTF-011: owner cancels the campaign');
 select is((select cancelled_at is not null from public.notification_push_campaigns where id=(select (result->>'campaignId')::uuid from ntf_review)),true,'NTF-011: cancellation stamped');
-select is(pg_temp.ntf_refusal($q$select public.cancel_announcement_push(pg_temp.aid(9999))$q$),'42501','NTF-011: unknown campaign is indistinguishable from foreign');
+select is(pg_temp.ntf_refusal($q$select public.cancel_announcement_push(pg_temp.aid(9999))$q$),'P0002','NTF-011: unknown campaign is target-invisible, indistinguishable from foreign');
 reset role;
 select set_config('request.jwt.claims','',true);
 select is((select count(*)::integer from public.notification_push_campaigns where tenant_id=pg_temp.aid(1) and announcement_id=(select id from ntf_ids where k='notice') and version_no=1),1,'NTF-011: review created exactly one campaign row');
