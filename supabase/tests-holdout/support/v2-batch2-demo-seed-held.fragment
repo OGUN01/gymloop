@@ -24,8 +24,10 @@ CREATE TEMP VIEW held_owned AS
  UNION ALL SELECT 'versions',id,to_jsonb(x) FROM public.announcement_versions x WHERE id::text LIKE '00000090-%'
  UNION ALL SELECT 'consents',id,to_jsonb(x) FROM public.consents x WHERE id::text LIKE '00000091-%';
 CREATE TEMP TABLE held_owned_before AS SELECT * FROM held_owned;
+CREATE TEMP TABLE held_consent_audits_before AS SELECT id,to_jsonb(a) AS facts
+ FROM public.audit_log a WHERE record_id::text LIKE '00000091-%';
 -- ROOT_INSERT_BATCH2_SCENARIOS_HERE
-SELECT plan(23);
+SELECT plan(26);
 CREATE TEMP VIEW held_anchor AS SELECT published_at + interval '10 minutes' AS r,
  ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t
  FROM public.announcements WHERE id = '00000089-0000-4000-8000-000000000001';
@@ -58,8 +60,45 @@ SELECT ok((SELECT count(*) FROM public.memberships WHERE id::text LIKE '00000081
 SELECT ok((SELECT count(*) FROM public.consents WHERE id::text LIKE '00000091-%')=6 AND
  (SELECT count(*) FROM public.consents c CROSS JOIN held_anchor a JOIN (VALUES (1,201,true),(2,202,true),(3,202,false),(4,204,true),(5,204,false),(6,204,true)) e(n,m,g)
  ON c.id::text='00000091-0000-4000-8000-'||lpad(e.n::text,12,'0')
- WHERE c.member_id::text='00000080-0000-4000-8000-'||lpad(e.m::text,12,'0') AND c.tenant_id='00000001-0000-4000-8000-000000000001' AND c.purpose='marketing' AND c.granted=e.g AND c.recorded_at=a.r-(7-e.n)*interval '1 minute' AND c.recorded_by_staff_id='00000003-0000-4000-8000-000000000004' AND btrim(c.version)<>'' AND btrim(c.source)<>'')=6
+ WHERE c.member_id::text='00000080-0000-4000-8000-'||lpad(e.m::text,12,'0') AND c.tenant_id='00000001-0000-4000-8000-000000000001' AND c.purpose='marketing' AND c.granted=e.g AND isfinite(c.recorded_at) AND c.request_key IS NULL AND c.recorded_by_staff_id='00000003-0000-4000-8000-000000000004' AND btrim(c.version)<>'' AND btrim(c.source)<>'')=6
  AND (SELECT count(*) FROM public.consents c JOIN held_members m ON m.id=c.member_id)=6,'six exact ordered marketing decisions; no unasked or service-consent extras');
+SELECT ok((SELECT count(*) FROM public.audit_log a
+ WHERE a.tenant_id='00000001-0000-4000-8000-000000000001'
+ AND a.action='consent.recorded' AND a.record_type='consent'
+ AND a.record_id IN (SELECT id FROM public.consents WHERE id::text LIKE '00000091-%'))=6
+ AND NOT EXISTS(SELECT 1 FROM public.consents c WHERE c.id::text LIKE '00000091-%'
+ AND (SELECT count(*) FROM public.audit_log a
+ WHERE a.tenant_id=c.tenant_id AND a.action='consent.recorded'
+ AND a.record_type='consent' AND a.record_id=c.id)=1 IS NOT TRUE)
+ AND (SELECT count(*) FROM public.consents c JOIN public.audit_log a
+ ON a.tenant_id=c.tenant_id AND a.action='consent.recorded'
+ AND a.record_type='consent' AND a.record_id=c.id
+ WHERE c.id::text LIKE '00000091-%' AND a.before IS NULL AND a.request_key IS NULL
+ AND a.after @> jsonb_build_object('member_id',c.member_id,'purpose',c.purpose,
+ 'granted',c.granted,'version',c.version,'source',c.source,
+ 'recorded_by_staff_id',c.recorded_by_staff_id,'request_key',NULL)
+ AND jsonb_typeof(a.after->'recorded_at')='string'
+ AND isfinite((a.after->>'recorded_at')::timestamptz)
+ AND c.recorded_at=(a.after->>'recorded_at')::timestamptz)=6,
+ 'each exact consent retains one genuine original audit with finite matching server time and complete logical facts');
+SELECT ok(NOT EXISTS(SELECT 1 FROM held_consent_audits_before b
+ LEFT JOIN public.audit_log a USING(id) WHERE to_jsonb(a) IS DISTINCT FROM b.facts),
+ 'legal replay preserves every preexisting owned consent audit byte-for-byte');
+SELECT ok((SELECT count(*) FROM public.consents earlier JOIN public.consents later
+ ON earlier.member_id=later.member_id AND earlier.id<later.id
+ WHERE (earlier.id::text,later.id::text) IN
+ (('00000091-0000-4000-8000-000000000002','00000091-0000-4000-8000-000000000003'),
+ ('00000091-0000-4000-8000-000000000004','00000091-0000-4000-8000-000000000005'),
+ ('00000091-0000-4000-8000-000000000005','00000091-0000-4000-8000-000000000006'))
+ AND earlier.recorded_at<later.recorded_at)=3
+ AND (SELECT count(*) FROM (SELECT DISTINCT ON(c.member_id) c.member_id,c.id,c.granted
+ FROM public.consents c JOIN held_members m ON m.id=c.member_id
+ WHERE c.purpose='marketing' ORDER BY c.member_id,c.recorded_at DESC) latest
+ WHERE (latest.member_id::text,latest.id::text,latest.granted) IN
+ (('00000080-0000-4000-8000-000000000201','00000091-0000-4000-8000-000000000001',true),
+ ('00000080-0000-4000-8000-000000000202','00000091-0000-4000-8000-000000000003',false),
+ ('00000080-0000-4000-8000-000000000204','00000091-0000-4000-8000-000000000006',true)))=3,
+ 'server times strictly order each grant withdrawal sequence and resolve exact final member decisions');
 SELECT is((SELECT count(*) FROM (SELECT DISTINCT ON (c.member_id) c.granted FROM public.consents c JOIN held_members m ON m.id=c.member_id WHERE c.purpose='marketing' ORDER BY c.member_id,c.recorded_at DESC) latest WHERE granted),2::bigint,'latest consent resolves grant and regrant to two eligible promotions');
 SELECT ok((SELECT count(*) FROM public.services WHERE id::text LIKE '00000082-%')=4 AND
  (SELECT count(*) FROM public.services s JOIN (VALUES (1,'Demo Yoga',6,true),(2,'Demo Strength',2,true),(3,'Demo Dance',6,true),(4,'Demo Archived Pilates',6,false)) e(n,name,cap,active)

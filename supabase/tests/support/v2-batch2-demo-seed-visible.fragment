@@ -1,6 +1,6 @@
 -- Independent visible fixture assertions: public declarations only.
 -- Root injects ordinary seed.sql once after BEGIN and scenarios twice at the literal marker.
--- All dates derive from the persisted original closure anchor; no current-day assumption.
+-- Explicit fixture dates derive from the closure anchor; consent clocks come from genuine audit history.
 BEGIN;
 -- Root injects ordinary seed.sql once immediately above these TEMP snapshots.
 CREATE TEMP TABLE b2_visible_legacy ON COMMIT DROP AS
@@ -22,8 +22,15 @@ UNION ALL
 SELECT 'version',v.id,to_jsonb(v) FROM public.announcement_versions v
 WHERE v.id::text LIKE '00000090-0000-4000-8000-%';
 
+CREATE TEMP TABLE b2_visible_existing_consent_history ON COMMIT DROP AS
+SELECT 'consent' AS kind,c.id,to_jsonb(c) AS facts FROM public.consents c
+WHERE c.id::text LIKE '00000091-0000-4000-8000-%'
+UNION ALL
+SELECT 'audit',a.id,to_jsonb(a) FROM public.audit_log a
+WHERE a.record_id::text LIKE '00000091-0000-4000-8000-%';
+
 -- ROOT_INSERT_BATCH2_SCENARIOS_HERE
-SELECT plan(31);
+SELECT plan(34);
 
 WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
 SELECT ok((SELECT count(*)=1 AND bool_and(published_at IS NOT NULL) FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001'::uuid), 'Closure supplies one persisted replay anchor');
@@ -50,7 +57,33 @@ WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at 
 SELECT ok((SELECT count(*)=0 FROM public.payments p WHERE p.member_id::text LIKE '00000080-%' OR p.membership_id::text LIKE '00000081-%'), 'No synthetic payment funds the cohort');
 
 WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
-SELECT ok((SELECT count(*)=6 AND bool_and(c.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND c.purpose='marketing' AND c.version<>'' AND c.source<>'' AND c.recorded_by_staff_id='00000003-0000-4000-8000-000000000004'::uuid AND c.recorded_at=clock.r-(7-right(c.id::text,3)::integer)*interval '1 minute') FROM public.consents c CROSS JOIN clock WHERE c.id::text LIKE '00000091-0000-4000-8000-%'), 'Six ordered marketing records retain Divya attribution and anchor times');
+SELECT ok((SELECT count(*)=6 AND bool_and(c.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND c.purpose='marketing' AND c.version<>'' AND c.source<>'' AND c.recorded_by_staff_id='00000003-0000-4000-8000-000000000004'::uuid AND c.request_key IS NULL AND c.recorded_at IS NOT NULL AND isfinite(c.recorded_at)) FROM public.consents c CROSS JOIN clock WHERE c.id::text LIKE '00000091-0000-4000-8000-%'), 'Six server-stamped marketing records retain Divya attribution and null request keys');
+
+SELECT ok((SELECT count(*)=6 AND bool_and(
+ (SELECT count(*)=1 AND bool_and(a.before IS NULL AND a.request_key IS NULL
+  AND a.after @> jsonb_build_object('member_id',c.member_id,'purpose',c.purpose,
+   'granted',c.granted,'version',c.version,'source',c.source,
+   'recorded_by_staff_id',c.recorded_by_staff_id,'request_key',NULL)
+  AND a.after->>'recorded_at' IS NOT NULL
+  AND isfinite((a.after->>'recorded_at')::timestamptz)
+  AND (a.after->>'recorded_at')::timestamptz=c.recorded_at)
+ FROM public.audit_log a WHERE a.tenant_id=c.tenant_id
+  AND a.action='consent.recorded' AND a.record_type='consent' AND a.record_id=c.id))
+ FROM public.consents c WHERE c.id::text LIKE '00000091-0000-4000-8000-%'),
+ 'Every consent retains exactly one genuine original audit with matching finite clock and complete logical attribution');
+
+SELECT ok((SELECT count(*)=6 AND count(*) FILTER (WHERE prior_at IS NOT NULL)=3
+ AND bool_and(prior_at IS NULL OR recorded_at>prior_at)
+ FROM (SELECT c.recorded_at,lag(c.recorded_at) OVER (PARTITION BY c.member_id ORDER BY c.id) AS prior_at
+ FROM public.consents c WHERE c.id::text LIKE '00000091-0000-4000-8000-%') ordered),
+ 'Bela and Dev consent clocks strictly increase in declared append order');
+
+SELECT ok(NOT EXISTS (SELECT 1 FROM b2_visible_existing_consent_history b
+ LEFT JOIN LATERAL (SELECT 'consent' AS kind,c.id,to_jsonb(c) AS facts FROM public.consents c
+ UNION ALL SELECT 'audit',a.id,to_jsonb(a) FROM public.audit_log a) current_rows
+ ON current_rows.kind=b.kind AND current_rows.id=b.id
+ WHERE current_rows.facts IS DISTINCT FROM b.facts),
+ 'Previously present consent rows and every original consent audit remain byte-for-byte unchanged on replay');
 
 WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
 SELECT ok((SELECT count(*)=6 AND bool_and(c.member_id=CASE right(c.id::text,3)::integer WHEN 1 THEN '00000080-0000-4000-8000-000000000201'::uuid WHEN 2 THEN '00000080-0000-4000-8000-000000000202'::uuid WHEN 3 THEN '00000080-0000-4000-8000-000000000202'::uuid ELSE '00000080-0000-4000-8000-000000000204'::uuid END AND c.granted=(right(c.id::text,3)::integer IN (1,2,4,6))) FROM public.consents c WHERE c.id::text LIKE '00000091-0000-4000-8000-%'), 'Grant withdrawal and regrant history belongs to the declared members');
