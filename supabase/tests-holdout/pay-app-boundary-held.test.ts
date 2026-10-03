@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as publicShared from '../../packages/shared/src/config/constants';
 import { buildMediaObjectKey, parseMediaObjectKey } from '../../packages/shared/src/api/media';
 import { purchaseCreateRequestSchema, purchaseRequestCopy, purchaseRequestRefusalMessage, purchaseRequestStatusWord } from '../../packages/shared/src/api/purchase';
+import { classifyIdentity } from '../../packages/shared/src/api/identity';
 const s = publicShared as unknown as Record<string, { safeParse?: (value: unknown) => { success: boolean }; parse?: (value: unknown) => unknown } | ((...args: unknown[]) => unknown) | Record<string, unknown> | number | string>;
 
 const id = '79400000-0000-4000-8000-000000000001';
@@ -96,6 +97,44 @@ describe('PAY routes: session-before-body, role and identity armor', () => {
   it.each(routes.filter(r => r.body !== null))('$name strict schemas refuse client identity injection before any call', async route => {
     act(route.member ? 'member' : 'staff'); const response = await dispatch(route, request(route, { ...route.body, tenantId: other, memberId: other, staffId: other }));
     expect(response.status).toBe(400); expect(h.rpc).not.toHaveBeenCalled(); expect(h.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('PAY canonical raw preview claims: complete identity versus contradictory claims', () => {
+  const commands: Route[] = [
+    ...routes.filter(route => route.method === 'POST'),
+    { name: 'member-proof-upload-url', load: () => loadRoute(`${memberBase}/[id]/proof-upload-url/route`), method: 'POST', rpc: null, member: true, staff: false, role: 'front_desk', body: null },
+    { name: 'private-proof-url', load: () => loadRoute(`${staffBase}/[id]/proof-url/route`), method: 'POST', rpc: null, member: true, staff: true, role: 'front_desk', body: null },
+  ];
+
+  it.each(commands)('$name refuses a canonical verified preview with 403 before body or effects', async route => {
+    const claims = { sub: id, app_role: 'gym_owner', tenant_id: other, impersonation_session_id: uuid(3), aud: 'authenticated', role: 'authenticated' };
+    const identity = classifyIdentity(claims);
+    expect(identity).toEqual({ kind: 'impersonation', userId: id, tenantId: other, impersonationSessionId: uuid(3) });
+    h.identity = identity;
+    const req = new Request('https://holdout.example/preview', { method: 'POST', headers: { authorization: 'Bearer held' }, body: 'invalid-json' });
+    const parse = vi.spyOn(req, 'json');
+    const response = await dispatch(route, req);
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ ok: false, error: { code: 'not_permitted' } });
+    expect(parse).not.toHaveBeenCalled(); expect(h.rpc).not.toHaveBeenCalled(); expect(h.fetch).not.toHaveBeenCalled();
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it.each(commands)('$name treats forbidden preview staff/member facts as invalid identity before body or effects', async route => {
+    for (const forbidden of [{ staff_id: uuid(4) }, { member_id: uuid(5) }, { staff_id: uuid(4), member_id: uuid(5) }]) {
+      const identity = classifyIdentity({ sub: id, app_role: 'gym_owner', tenant_id: other, impersonation_session_id: uuid(3), ...forbidden });
+      expect(identity.kind).toBe('unlinked');
+      // The public verified request reader returns null for an unclassified session.
+      h.identity = null;
+      const req = new Request('https://holdout.example/contradictory', { method: 'POST', headers: { authorization: 'Bearer held' }, body: 'invalid-json' });
+      const parse = vi.spyOn(req, 'json');
+      const response = await dispatch(route, req);
+      expect(response.status).toBe(401);
+      expect(await response.json()).toMatchObject({ ok: false, error: { code: 'not_signed_in' } });
+      expect(parse).not.toHaveBeenCalled(); expect(h.rpc).not.toHaveBeenCalled(); expect(h.fetch).not.toHaveBeenCalled();
+      expect(response.headers.get('cache-control')).toBe('no-store');
+    }
   });
 });
 
