@@ -160,6 +160,19 @@ to omit a test's actual native notification behavior.
 
 ## Explicit remaining build defects
 
+### Native notification SDK cold-start interface
+
+The installed Expo Notifications API exposes
+`getLastNotificationResponseAsync(): Promise<NotificationResponse | null>`
+alongside the permission, native-device-token, received-listener and
+response-listener methods. This is a public SDK interface declaration,
+verified against the installed declaration
+`apps/mobile/node_modules/expo-notifications/build/NotificationsEmitter.d.ts`.
+A fixture for an ordinary cold start with no notification response must
+provide an asynchronous null result. Missing exports are not evidence of an
+SDK exception. Listener registration, actual mounted callbacks, adversarial
+response handling and token privacy still require their original assertions.
+
 These declarations are not acceptance. MEDIA payment-proof upload completion,
 the approved PT initial-slot HTTP integration, canonical generated enum use,
 consent-result correlation, live provider setup, final browser/device evidence
