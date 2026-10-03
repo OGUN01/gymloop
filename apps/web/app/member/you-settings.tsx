@@ -2,13 +2,13 @@
 
 import { businessNouns, humanize, type BusinessNouns } from '@gymloop/shared';
 
-import Link from 'next/link';
 import { BadgeCheck, ChevronDown, ChevronRight, Monitor, Moon, Settings, Sun } from 'lucide-react';
 import { AVATAR_INITIALS_MAX, formatPhone, UI_TOKENS } from '@gymloop/shared';
 import { useTheme } from 'next-themes';
 import { useEffect, useRef, useState } from 'react';
 import { StatusWord } from '../status-word';
 import { memberGymName } from './member-ui';
+import { YouNotifications } from './you-notifications';
 
 type Profile = { full_name: string; email: string | null; phone: string | null; member_code: string | null; gymName: string; gymCode: string; branchName: string };
 type Membership = { planName: string; status: string } | null;
@@ -21,7 +21,11 @@ const appearanceChoices = (nouns: BusinessNouns) => [
   { name: 'Dark', value: 'dark', hint: `Easier in a dim ${nouns.place}`, Icon: Moon },
 ] as const;
 
-export default function YouSettings({ profile, membership, nouns = businessNouns(null) }: { profile: Profile; membership: Membership; nouns?: BusinessNouns }) {
+type YouSettingsProps = { profile?: Profile; membership?: Membership; nouns?: BusinessNouns };
+const BLANK_PROFILE: Profile = { full_name: '', email: null, phone: null, member_code: null, gymName: '', gymCode: '', branchName: '' };
+
+export default function YouSettings(props: YouSettingsProps = {}) {
+  const { profile = BLANK_PROFILE, membership = null, nouns = businessNouns(null) } = props;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [appearanceExpanded, setAppearanceExpanded] = useState(true);
   const [hasMounted, setHasMounted] = useState(false);
@@ -37,10 +41,11 @@ export default function YouSettings({ profile, membership, nouns = businessNouns
   }, [settingsOpen]);
   const appearanceSummary = !hasMounted ? 'Loading appearance' : theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System';
   const contactSummary = profile.email ?? profile.phone ?? 'Available after sign-in';
-  const gymName = memberGymName({ name: profile.gymName, branchName: profile.branchName }), gymSummary = `${gymName} · ${profile.gymCode}`;
+  const gymName = memberGymName({ name: profile.gymName ?? '', branchName: profile.branchName ?? '' }), gymSummary = profile.gymName ? `${gymName} · ${profile.gymCode ?? ''}` : '';
   const personalSummary = profile.phone ? formatPhone(profile.phone) : profile.email ?? 'Available after sign-in';
-  const membershipSummary = membership ? `${membership.planName} · ${membership.status.replaceAll('_', ' ')}` : 'No membership is visible';
-  const initials = profile.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('');
+  const membershipStatus = membership?.status ?? (membership as { statusText?: string } | null)?.statusText ?? '';
+  const membershipSummary = membership ? `${membership.planName}${membershipStatus ? ` · ${membershipStatus.replaceAll('_', ' ')}` : ''}` : 'No membership is visible';
+  const initials = ((profile.full_name ?? (profile as { fullName?: string }).fullName ?? '') as string).split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('');
   const openSettings = () => { setAppearanceExpanded(true); setSettingsOpen(true); };
   return <>
     <button type="button" className="member-settings-trigger" aria-label="Open settings" title="Settings" onClick={openSettings}><Settings {...large} /></button>
@@ -56,10 +61,11 @@ export default function YouSettings({ profile, membership, nouns = businessNouns
     <h2 className="cl-eyebrow member-eyebrow member-account-eyebrow">Account</h2>
     <ul className="member-account-list" aria-label="Account">
       <li aria-label={`Personal details, ${personalSummary}`}><span className="member-account-row member-account-row--fact"><strong>Personal details</strong><small>{personalSummary}</small></span></li>
-      <li aria-label={`Membership, ${membershipSummary}`}><Link className="member-account-row" href="/member/gym#membership"><strong>Membership</strong><span className="member-account-value">{membership ? <>{membership.planName}<StatusWord status={membership.status} /></> : 'None visible'}</span><ChevronRight {...small} /></Link></li>
-      <li aria-label={`${humanize(nouns.place)}, ${gymName}, ${profile.branchName} branch`}><Link className="member-account-row" href="/member/gym"><strong>{humanize(nouns.place)}</strong><small>{gymName} · {profile.branchName}</small><ChevronRight {...small} /></Link></li>
+      <li aria-label={`Membership, ${membershipSummary}`}><a className="member-account-row" href="/member/gym#membership"><strong>Membership</strong><span className="member-account-value">{membership ? <>{membership.planName}{typeof membership.status === 'string' ? <StatusWord status={membership.status} /> : null}</> : 'None visible'}</span><ChevronRight {...small} /></a></li>
+      <li aria-label={`${humanize(nouns.place)}, ${gymName}, ${profile.branchName ?? ''} branch`}><a className="member-account-row" href="/member/gym"><strong>{humanize(nouns.place)}</strong><small>{gymSummary || 'Available after sign-in'}</small><ChevronRight {...small} /></a></li>
       <li aria-label={`Appearance, ${appearanceSummary}`}><button type="button" className="member-account-row" aria-label={`Appearance, ${appearanceSummary}`} onClick={openSettings}><strong>Appearance</strong><small>{appearanceSummary}</small><ChevronRight {...small} /></button></li>
     </ul>
+    <YouNotifications nouns={nouns} />
     {settingsOpen ? <div className="member-sheet-backdrop" role="presentation" onClick={() => setSettingsOpen(false)}><section className="member-settings-sheet" role="dialog" aria-modal="true" aria-labelledby="member-settings-title" onClick={(event) => event.stopPropagation()}>
       <header className="member-sheet-header"><h2 id="member-settings-title" className="cl-display">Settings</h2><button ref={closeRef} type="button" className="member-sheet-done" onClick={() => setSettingsOpen(false)}>Done</button></header>
       <button type="button" className="member-sheet-toggle" aria-label={`Appearance, ${appearanceSummary}`} aria-expanded={appearanceExpanded} aria-controls="member-appearance-choices" onClick={() => setAppearanceExpanded((open) => !open)}>

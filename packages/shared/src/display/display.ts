@@ -89,3 +89,16 @@ export function groupByMonth<T>(items: readonly T[], instantOf: (item: T) => str
   }
   return months;
 }
+
+/** A status vocabulary value as people say it ("in_app" → "In app"). */
+export function statusWord(value: string): string {
+  return humanize(value);
+}
+
+/** Status dot tone for membership, payment, order and member vocabularies (UX9-003). */
+export function statusTone(status: string): 'ok' | 'warn' | 'risk' | 'neutral' {
+  if (['active', 'captured', 'completed', 'succeeded', 'paid', 'delivered', 'granted'].includes(status)) return 'ok';
+  if (['paused', 'pending', 'created', 'scheduled', 'trial', 'requested', 'processing'].includes(status)) return 'warn';
+  if (['expired', 'cancelled', 'blocked', 'failed', 'refunded', 'lost'].includes(status)) return 'risk';
+  return 'neutral';
+}

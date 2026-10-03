@@ -3,7 +3,9 @@ import { loadBusinessNouns } from '../../../lib/business-type';
 import { type BusinessNouns } from '@gymloop/shared';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { loadMessages, type MessageListRow, type MessageStatusCounts } from '../../../lib/messages';
+import { loadPushCampaigns } from '../../../lib/push-campaigns';
 import { ConsentForm, MessageTemplateForm, WhatsAppOpenButton } from './message-forms';
+import { PushCampaignsSection } from './push-campaigns-section';
 import { DEFAULT_TIMEZONE, formatMoney, formatDateTime, humanize, MESSAGE_LOG_PREVIEW_ROWS, UI_TOKENS } from '@gymloop/shared';
 import { Alert } from '../alert';
 import { StatusWord } from '../../status-word';
@@ -60,11 +62,24 @@ function when(instant: string): string {
 /** A 16px Lucide glyph at the kit's stroke, for section links and disclosure toggles. */
 const iconProps = { 'aria-hidden': true, size: UI_TOKENS.icons.controlSize, strokeWidth: UI_TOKENS.icons.strokeWidth } as const;
 
-export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ channel?: string; q?: string; memberCursor?: string; log?: string }> }) {
+export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ channel?: string; q?: string; memberCursor?: string; log?: string; push?: string; pushReview?: string; pushVersion?: string; pushTitle?: string; pushKind?: string }> }) {
   const { log, ...params } = await searchParams;
   const screen = await loadMessages(Promise.resolve(params));
   const businessCaller = await requireAudience('console');
   const nouns = await loadBusinessNouns(businessCaller.supabase, businessCaller.identity.tenantId);
+  // The push-campaign snapshot loads only on demand (`?push=1`): the message
+  // log stays the single RPC snapshot this render can disagree against, and
+  // before the push migration applies the on-demand reader answers not-ok and
+  // the section shows the truthful unconfigured line (pre-configuration amendment).
+  const campaigns = params.push === '1'
+    ? await loadPushCampaigns(businessCaller.supabase as never, null)
+    : ({ ok: false } as const);
+  const pushReview = params.pushReview !== undefined && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.pushReview)
+    && params.pushVersion !== undefined && /^\d+$/.test(params.pushVersion)
+    ? { announcementId: params.pushReview, versionNo: Number(params.pushVersion), title: params.pushTitle ?? 'Untitled announcement', kind: params.pushKind ?? 'Announcement' }
+    : null;
+  const reviewRole = businessCaller.identity.kind === 'staff'
+    && (businessCaller.identity.role === 'gym_owner' || businessCaller.identity.role === 'gym_manager') ? 'owner-manager' : 'desk-preview';
   const nextMemberQuery = new URLSearchParams();
   if (params.channel) nextMemberQuery.set('channel', params.channel);
   if (params.q) nextMemberQuery.set('q', params.q);
@@ -94,6 +109,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       <span id="comms-jump-label" className="cl-eyebrow comms-subnav-label">On this page</span>
       <a href="#log">Recent<ChevronDown {...iconProps} /></a>
       <a href="#consent">Consent<ChevronDown {...iconProps} /></a>
+      <a href="#push-campaigns">Push<ChevronDown {...iconProps} /></a>
       {screen.isAdmin ? <a href="#templates">Templates<ChevronDown {...iconProps} /></a> : null}
       {screen.isAdmin ? <a href="#wallet">Wallet<ChevronDown {...iconProps} /></a> : null}
     </nav>
@@ -170,6 +186,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       </div>
     </section>
 
+    <PushCampaignsSection campaigns={campaigns} loaded={params.push === "1"} review={pushReview} role={reviewRole} />
     {screen.isAdmin ? <section id="templates" aria-labelledby="templates-heading" className="comms-section comms-anchor">
       <div className="comms-section-head"><h2 id="templates-heading" className="cl-section-title">Message templates</h2></div>
       {screen.templates.length === 0 ? <div className="cl-empty"><strong>No templates yet.</strong><p>{screen.isPreview ? `Templates appear here once the ${nouns.place} writes one.` : 'Create the first one below.'}</p></div> : <div className="comms-templates">

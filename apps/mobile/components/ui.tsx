@@ -1,5 +1,5 @@
 import { useBusinessNouns } from '../lib/use-business-nouns';
-import { AVATAR_INITIALS_MAX, formatDay, humanize, PRODUCT_NAME, toLocalDate, UI_TOKENS } from '@gymloop/shared';
+import { AVATAR_INITIALS_MAX, formatDay, humanize, FONT, PRODUCT_NAME, statusTone, statusWord, toLocalDate, UI_TOKENS } from '@gymloop/shared';
 import { ChevronRight, Search } from 'lucide-react-native';
 import { AccessibilityInfo, ActivityIndicator, Animated, Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View, useColorScheme, type PressableProps, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -10,11 +10,8 @@ import { useMobile, type AppearanceMode } from '../lib/mobile-context';
 const space = UI_TOKENS.geometry.spacing;
 const type = UI_TOKENS.typography;
 
-/** Chalkline font roles, registered in MobileProvider (ADR-170). */
-export const FONT = {
-  regular: 'Archivo_400Regular', medium: 'Archivo_500Medium', semibold: 'Archivo_600SemiBold', bold: 'Archivo_700Bold',
-  display: 'ArchivoDisplay', displayBold: 'ArchivoDisplayBold',
-} as const;
+/** Chalkline font roles, registered in MobileProvider (ADR-170) — the single source is `@gymloop/shared`. */
+export { FONT };
 
 /**
  * A 24dp canvas gradient drawn with SVG, so content scrolling under an edge fades instead of being sliced: `bottom`
@@ -80,17 +77,8 @@ export function Rule() {
 }
 
 /** A database vocabulary value as a sentence-case word ("no_response" → "No response"). */
-export function statusWord(value: string): string {
-  return humanize(value);
-}
-
-/** Status dot tone for membership, payment, order and member vocabularies. */
-export function statusTone(status: string): 'ok' | 'warn' | 'risk' | 'neutral' {
-  if (['active', 'captured', 'completed', 'succeeded', 'paid', 'delivered', 'granted'].includes(status)) return 'ok';
-  if (['paused', 'pending', 'created', 'scheduled', 'trial', 'requested', 'processing'].includes(status)) return 'warn';
-  if (['expired', 'cancelled', 'blocked', 'failed', 'refunded', 'lost'].includes(status)) return 'risk';
-  return 'neutral';
-}
+/** Status vocabulary and dot tones live in `@gymloop/shared` so web agrees with native. */
+export { statusTone, statusWord };
 
 /** Dot and word status (UX9-003). */
 export function Status({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'ok' | 'warn' | 'risk' | 'accent' | 'neutral' }) {

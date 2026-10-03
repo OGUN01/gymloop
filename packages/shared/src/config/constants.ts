@@ -596,3 +596,34 @@ export const ANNOUNCEMENT_HTTP_STATUS = { notFound: 404 } as const;
 /** Inclusive PostgreSQL bigint bounds for exact integer-string command inputs. */
 export const POSTGRES_BIGINT_MIN = -9223372036854775808n;
 export const POSTGRES_BIGINT_MAX = 9223372036854775807n;
+
+/** Frozen NTF-001…016 push delivery bounds (wave-c-serial-freeze-declarations). */
+export const PUSH_PROMO_QUIET_START_HOUR = 21;
+export const PUSH_PROMO_QUIET_END_HOUR = 8;
+export const PUSH_QUIET_TIMEZONE = 'Asia/Kolkata';
+export const PUSH_CLASS_REMINDER_MINUTES = 60;
+export const PUSH_ABSENCE_MIN_DAYS = 7;
+export const PUSH_CAMPAIGN_WINDOW_MINUTES = 60;
+export const PUSH_CAMPAIGN_MAX_TARGETS = 1000;
+export const PUSH_TENANT_REQUESTS_PER_MINUTE = 100;
+export const PUSH_WORKER_BATCH_SIZE = 100;
+export const PUSH_RESERVATION_SECONDS = 90;
+export const PUSH_DEVICE_STALE_DAYS = 30;
+export const PUSH_TOKEN_MAX_CHARS = 4096;
+export const PUSH_PROVIDER_MESSAGE_ID_MAX_CHARS = 256;
+export const PUSH_FAILURE_CODE_MAX_CHARS = 64;
+
+/** Frozen BUY-001…025 member purchase request bounds (member-purchases proposal). */
+export const BUY_LIMITS = { requestTtlSecondsAfterAcceptance: 86_400, requestTtlSecondsUnaccepted: 86_400, openRequestsPerMember: 5, creationsPerMemberPerDay: 10, proofRegistrationsPerMemberPerHour: 10, maxQuantity: 10, reasonMinLength: 3, reasonMaxLength: 200, proofMaxBytes: 2_097_152, privateProofGetTtlSeconds: 60 } as const;
+
+/** Frozen WSP dispatch bounds (whatsapp-channel proposal + serial declarations). */
+export const WSP_CLAIM_BATCH_MAX = 50;
+export const WSP_DISPATCH_TICKET_SECONDS = 120;
+export const WSP_TENANT_REQUESTS_PER_MINUTE = 30;
+export const WSP_OPERATIONS_PAGE_MAX = 100;
+
+/** Chalkline native font roles, registered by the mobile provider (ADR-170). */
+export const FONT = {
+  regular: 'Archivo_400Regular', medium: 'Archivo_500Medium', semibold: 'Archivo_600SemiBold', bold: 'Archivo_700Bold',
+  display: 'ArchivoDisplay', displayBold: 'ArchivoDisplayBold',
+} as const;

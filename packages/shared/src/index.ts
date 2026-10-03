@@ -30,3 +30,6 @@ export * from './api/classes';
 export * from './api/classes-data';
 export * from './api/classes-results';
 export * from './api/announcements';
+export * from './api/purchase';
+export * from './api/push';
+export * from './api/whatsapp';
