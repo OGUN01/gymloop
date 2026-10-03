@@ -53,7 +53,9 @@ The private bookedAnswer schema remains canonical. Accept only a non-null
 nonarray public camel-case response object; map its existing public fields to
 the registered ptCommandAnswer('book', ...) boundary. Require exact sessionId,
 orderId and startsAt equality with the command, and a valid recorded end later
-than the submitted start. Return the decoded database-field answer or null.
+than the submitted start. Return the decoded camel-case public answer or null.
+Its existing fields are sessionId, orderId, startsAt, endsAt, status,
+inCancelWindow and replayed; no other result vocabulary is introduced.
 The existing generated-enum restriction excluding session_cancelled remains
 authoritative. Do not add a status validator, fallback status or new copy.
 
