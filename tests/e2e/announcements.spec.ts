@@ -16,7 +16,7 @@ test('ANC-Q1/Q5/Q8/Q9 publish review and immutable version display', async ({ pa
     await page.goto(`/announcements/${id}`);
     await page.getByRole('button', { name: 'Review and publish', exact: true }).click();
     await expect(page.getByText('Notice', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText(/will see this on their Home screen\.|would see this right now\./)).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Review announcement', exact: true }).getByText(/will see this on their Home screen\.|would see this right now\./)).toBeVisible();
     await expect(page.getByText(/until you take it down/i)).toBeVisible();
     const publishResponse = page.waitForResponse((response) => response.url().endsWith(`/api/announcements/${id}/publish`) && response.request().method() === 'POST');
     await page.getByRole('button', { name: /^(?:Publish|Confirm publish|Publish announcement)$/, exact: true }).click();
