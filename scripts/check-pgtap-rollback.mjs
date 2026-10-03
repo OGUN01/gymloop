@@ -9,8 +9,10 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-const SQL_COMMENT_RE = /--[^\n]*|\/\*[\s\S]*?\*\//g;
-const DOLLAR_TAG_RE = /\$[A-Za-z_]*\$/y;
+// PostgreSQL's scanner permits high bytes in identifier starts/continuations,
+// including UTF-8 combining marks, rather than restricting Unicode categories.
+// Non-ASCII UTF-16 units here represent those bytes in the decoded SQL input.
+const DOLLAR_TAG_RE = /\$(?:[A-Za-z_\u0080-\uFFFF][A-Za-z_0-9\u0080-\uFFFF]*)?\$/y;
 const COMMIT_IN_BODY_RE = /\bCOMMIT\b/;
 
 /**
@@ -26,19 +28,95 @@ const COMMIT_IN_BODY_RE = /\bCOMMIT\b/;
  * commit, so ignoring bodies would trade a false alarm for a silent hole.
  */
 function partsOf(sql) {
-  const src = sql.replace(SQL_COMMENT_RE, '');
+  const src = sql;
   const statements = [];
   const bodies = [];
+  let complete = true;
+  let escapedContinuation = false;
+  let continuationNewline = false;
   let buf = '';
   let i = 0;
   while (i < src.length) {
+    // Comments are recognized only outside quoted tokens. Replace them with
+    // whitespace so adjacent words cannot become an invented command.
+    if (src.startsWith('--', i)) {
+      const newline = src.slice(i).search(/[\r\n]/);
+      continuationNewline = continuationNewline || newline !== -1;
+      i = newline === -1 ? src.length : i + newline + 1;
+      buf += ' ';
+      continue;
+    }
+    if (src.startsWith('/*', i)) {
+      const start = i;
+      let depth = 1;
+      i += '/*'.length;
+      while (i < src.length && depth > 0) {
+        if (src.startsWith('/*', i)) {
+          depth += 1;
+          i += '/*'.length;
+        } else if (src.startsWith('*/', i)) {
+          depth -= 1;
+          i += '*/'.length;
+        } else {
+          i += 1;
+        }
+      }
+      if (depth > 0) complete = false;
+      continuationNewline = continuationNewline || /[\r\n]/.test(src.slice(start, i));
+      buf += ' ';
+      continue;
+    }
+    if (/[ \t\r\n\f\v]/.test(src[i])) {
+      continuationNewline = continuationNewline || /[\r\n]/.test(src[i]);
+      buf += src[i];
+      i += 1;
+      continue;
+    }
+    if (src[i] === "'" || src[i] === '"') {
+      const start = i;
+      const quote = src[i];
+      // A newline-separated segment returns to the first segment's escape
+      // state; actual gap comments are whitespace, quoted decoys are content.
+      const escaped = quote === "'" && ((escapedContinuation && continuationNewline) ||
+        (/[eE]/.test(src[i - 1] ?? '') &&
+        !/[A-Za-z_0-9$\u0080-\uFFFF]/.test(src[i - 'E\''.length] ?? '')));
+      let closed = false;
+      i += 1;
+      while (i < src.length) {
+        if (escaped && src[i] === '\\') {
+          i += '\\x'.length;
+        } else if (src[i] === quote) {
+          i += 1;
+          if (src[i] === quote) {
+            i += 1;
+          } else {
+            closed = true;
+            break;
+          }
+        } else {
+          i += 1;
+        }
+      }
+      if (!closed) complete = false;
+      escapedContinuation = closed && quote === "'" && escaped;
+      continuationNewline = false;
+      buf += src.slice(start, i);
+      continue;
+    }
+    // Anything beyond gap whitespace/comments ends the continuation chain,
+    // including a fresh E prefix, identifier, dollar token or semicolon.
+    escapedContinuation = false;
+    continuationNewline = false;
     DOLLAR_TAG_RE.lastIndex = i;
-    const tag = DOLLAR_TAG_RE.exec(src);
+    const tag = /[A-Za-z_0-9$\u0080-\uFFFF]/.test(src[i - 1] ?? '') ? null : DOLLAR_TAG_RE.exec(src);
     if (tag) {
       const close = src.indexOf(tag[0], i + tag[0].length);
       const end = close === -1 ? src.length : close + tag[0].length;
-      bodies.push(src.slice(i + tag[0].length, close === -1 ? src.length : close).toUpperCase());
-      buf += src.slice(i, end);
+      const body = partsOf(src.slice(i + tag[0].length, close === -1 ? src.length : close));
+      const bodyText = body.statements.join(';');
+      bodies.push(bodyText);
+      complete = complete && close !== -1 && body.complete;
+      buf += tag[0] + bodyText + (close === -1 ? '' : tag[0]);
       i = end;
       continue;
     }
@@ -52,19 +130,19 @@ function partsOf(sql) {
     i += 1;
   }
   if (buf.trim()) statements.push(buf.trim().toUpperCase());
-  return { statements: statements.filter(Boolean), bodies };
+  return { statements: statements.filter(Boolean), bodies, complete };
 }
 
 /** Pure, testable. `files` is [{ path, content }]. */
 export function findNonRolledBackTests(files) {
   const found = [];
   for (const { path, content } of files) {
-    const { statements: stmts, bodies } = partsOf(content);
+    const { statements: stmts, bodies, complete } = partsOf(content);
     const first = stmts[0];
     if (first !== 'BEGIN' && first !== 'START TRANSACTION') {
       found.push({ path, reason: 'does not start with BEGIN' });
     }
-    if (stmts.at(-1) !== 'ROLLBACK') {
+    if (!complete || stmts.at(-1) !== 'ROLLBACK') {
       found.push({ path, reason: 'does not end with ROLLBACK' });
     }
     // `END` is a synonym for COMMIT only as a top-level statement; inside a
