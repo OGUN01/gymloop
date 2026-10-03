@@ -2,6 +2,30 @@ import { describe, expect, it } from 'vitest';
 import { findNonRolledBackTests } from '../../scripts/check-pgtap-rollback.mjs';
 
 describe('rollback guard quoted-content contract', () => {
+  it('retains E escapes across a multi-segment newline and comment continuation', () => {
+    expect(findNonRolledBackTests([{ path: 'continued.sql', content: String.raw`BEGIN; SELECT E'first'
+'second\' ; -- /* $decoy$'
+/* join /* nested */ */ 'third\' ; COMMIT; --'; ROLLBACK;` }])).toEqual([]);
+  });
+
+  it('keeps real transaction completion visible after continued E strings', () => {
+    for (const completion of ['COMMIT', 'END']) {
+      expect(findNonRolledBackTests([{ path: 'continued-completion.sql', content: String.raw`BEGIN; SELECT E'first' -- join
+'second\' ; -- /* $decoy$'; ${completion}; ROLLBACK;` }])).toEqual([expect.objectContaining({ path: 'continued-completion.sql', reason: expect.any(String) })]);
+    }
+  });
+
+  it('fails closed when a continued E segment has no unescaped closing quote', () => {
+    expect(findNonRolledBackTests([{ path: 'continued-unfinished.sql', content: String.raw`BEGIN; SELECT E'first'
+'second\'; ROLLBACK;` }])).toEqual([expect.objectContaining({ path: 'continued-unfinished.sql', reason: expect.any(String) })]);
+  });
+
+  it('resets E escapes at substantive tokens and statement boundaries', () => {
+    expect(findNonRolledBackTests([{ path: 'reset.sql', content: String.raw`BEGIN; SELECT E'first'
+|| '\'; SELECT E'next';
+SELECT '\'; ROLLBACK;` }])).toEqual([]);
+  });
+
   it('keeps dollar-tag decoys in ordinary literals inert', () => {
     expect(findNonRolledBackTests([{ path: 'literal.sql', content: "BEGIN; SELECT 'demo$sha256$active$location$0001'; ROLLBACK;" }])).toEqual([]);
   });

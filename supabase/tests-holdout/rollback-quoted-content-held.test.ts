@@ -3,6 +3,39 @@ import { describe, expect, it } from 'vitest';
 import { findNonRolledBackTests } from '../../scripts/check-pgtap-rollback.mjs';
 
 describe('rollback guard quoted-content holdout', () => {
+  it('keeps initial escape semantics through a chain of newline and comment separators', () => {
+    for (const separator of ['\n', ' /* join\n/* nested */ tail */ ', ' -- join\n']) {
+      expect(findNonRolledBackTests([{
+        path: 'continued-decoys.sql',
+        content: String.raw`BEGIN; SELECT E'head'${separator}'mid\'; COMMIT; -- $phantom$'${separator}'tail\'; END; /* $other$'; ROLLBACK;`,
+      }])).toEqual([]);
+    }
+  });
+
+  it('sees real completion after the closing quote of a continued escape chain', () => {
+    for (const command of ['COMMIT', 'END']) {
+      expect(findNonRolledBackTests([{
+        path: 'continued-completion.sql',
+        content: String.raw`BEGIN; SELECT E'head'
+'body\'; -- false boundary $decoy$'
+'last\' /* quoted */'; ${command}; ROLLBACK;`,
+      }])).toEqual([
+        expect.objectContaining({ path: 'continued-completion.sql', reason: expect.any(String) }),
+      ]);
+    }
+  });
+
+  it('resets escape semantics after a substantive token or statement boundary', () => {
+    for (const content of [
+      String.raw`BEGIN; SELECT E'head',
+'\'; ROLLBACK;`,
+      String.raw`BEGIN; SELECT E'head'; SELECT
+'\'; ROLLBACK;`,
+    ]) {
+      expect(findNonRolledBackTests([{ path: 'escape-reset.sql', content }])).toEqual([]);
+    }
+  });
+
   it('treats synthetic tags and doubled quotes inside literals as inert', () => {
     expect(findNonRolledBackTests([{
       path: 'quoted-label.sql',
