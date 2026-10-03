@@ -187,6 +187,24 @@ list fixture may use the honest empty page; a detail fixture must include
 the complete safe public fields needed to render the request, not just an
 id and status. Arbitrary storage metadata is never admitted by success.
 
+The canonical raw detail keys are `requestId`, `requestKey`, `kind`, `status`,
+`targetId`, `quantity`, `snapshot`, `quoteRevision`, `createdAt`, `expiresAt`,
+`acceptedAt`, `acceptedRevision`, `rejectReason`, `activeProofAssetId`,
+`recordedPaymentId`, `recordedOrderId`, `recordedMembershipId`,
+`recordedAmountPaise`, `recordedCurrency` and `replayed`. Optional facts with
+no recorded value are omitted by the SQL JSON projection. IDs/revisions are
+UUIDs; dates are ISO instants; quantities are integer; money is canonical
+decimal text. The request uses the generated purchase kind/status vocabulary.
+For an ordinary shop request, `snapshot` contains `productId`, `productName`,
+`kind: 'product'`, `description`, `cancellationTerms`, `validityDays`,
+`gstRateBp`, `unitPricePaise`, `pricePaise`, `totalPaise`, `currency: 'INR'`
+and `quoteVersion`. Optional description/terms/validity facts may be null.
+PT adds its bound `trainerStaffId` and integer `sessionCount`; renewal instead
+carries `membershipId`, `planId`, `planName`, `netPricePaise`, `grossPricePaise`,
+`discountPaise`, `currency`, `durationDays` and `endsOn`. Read-only `replayed`
+may be omitted; it must not imply a successful new write.
+This declares the existing RPC wire shape, not a new screen or money rule.
+
 ### Native notification SDK cold-start interface
 
 The installed Expo Notifications API exposes
