@@ -1,0 +1,103 @@
+-- Independent public-contract fixture holdout. No runtime-command acceptance claim.
+BEGIN;
+-- Root injects ordinary seed.sql once immediately above this line.
+SET LOCAL search_path = public, extensions;
+-- Capture existing identities/terms before the primary inserts both legal seed runs.
+CREATE TEMP TABLE held_members_before AS SELECT id, to_jsonb(m) AS facts FROM public.members m WHERE id::text LIKE '00000005-%';
+CREATE TEMP TABLE held_staff_before AS SELECT id, to_jsonb(s) AS facts FROM public.staff s;
+CREATE TEMP TABLE held_auth_before AS SELECT id, to_jsonb(u) AS facts FROM auth.users u;
+CREATE TEMP TABLE held_products_before AS SELECT id, to_jsonb(p) - 'category_id' - 'updated_at' AS facts FROM public.addon_products p;
+CREATE TEMP TABLE held_terms_before AS SELECT id, to_jsonb(m) AS facts FROM public.memberships m WHERE id::text NOT LIKE '00000081-%';
+CREATE TEMP TABLE held_clocks_before AS SELECT id, to_jsonb(a) AS facts FROM public.announcements a WHERE id::text LIKE '00000089-%';
+CREATE TEMP TABLE held_versions_before AS SELECT id, to_jsonb(v) AS facts FROM public.announcement_versions v WHERE id::text LIKE '00000090-%';
+CREATE TEMP VIEW held_owned AS
+ SELECT 'members' AS relation,id,to_jsonb(x) AS facts FROM public.members x WHERE id::text LIKE '00000080-%'
+ UNION ALL SELECT 'memberships',id,to_jsonb(x) FROM public.memberships x WHERE id::text LIKE '00000081-%'
+ UNION ALL SELECT 'services',id,to_jsonb(x) FROM public.services x WHERE id::text LIKE '00000082-%'
+ UNION ALL SELECT 'rules',id,to_jsonb(x) FROM public.class_rules x WHERE id::text LIKE '00000083-%'
+ UNION ALL SELECT 'sessions',id,to_jsonb(x) FROM public.class_sessions x WHERE id::text LIKE '00000084-%'
+ UNION ALL SELECT 'bookings',id,to_jsonb(x) FROM public.class_bookings x WHERE id::text LIKE '00000085-%'
+ UNION ALL SELECT 'holidays',id,to_jsonb(x) FROM public.organization_holidays x WHERE id::text LIKE '00000086-%'
+ UNION ALL SELECT 'notices',id,to_jsonb(x) FROM public.notifications x WHERE id::text LIKE '00000087-%'
+ UNION ALL SELECT 'categories',id,to_jsonb(x) FROM public.shop_categories x WHERE id::text LIKE '00000088-%'
+ UNION ALL SELECT 'announcements',id,to_jsonb(x) FROM public.announcements x WHERE id::text LIKE '00000089-%'
+ UNION ALL SELECT 'versions',id,to_jsonb(x) FROM public.announcement_versions x WHERE id::text LIKE '00000090-%'
+ UNION ALL SELECT 'consents',id,to_jsonb(x) FROM public.consents x WHERE id::text LIKE '00000091-%';
+CREATE TEMP TABLE held_owned_before AS SELECT * FROM held_owned;
+-- ROOT_INSERT_BATCH2_SCENARIOS_HERE
+SELECT plan(22);
+CREATE TEMP VIEW held_anchor AS SELECT published_at + interval '10 minutes' AS r,
+ ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t
+ FROM public.announcements WHERE id = '00000089-0000-4000-8000-000000000001';
+CREATE TEMP VIEW held_members AS SELECT * FROM public.members WHERE id::text LIKE '00000080-%';
+CREATE TEMP VIEW held_sessions AS SELECT * FROM public.class_sessions WHERE id::text LIKE '00000084-%';
+CREATE TEMP VIEW held_bookings AS SELECT * FROM public.class_bookings WHERE id::text LIKE '00000085-%';
+SELECT ok((SELECT count(*) FROM held_anchor)=1
+ AND NOT EXISTS(SELECT 1 FROM held_clocks_before b LEFT JOIN public.announcements a USING(id) WHERE to_jsonb(a) IS DISTINCT FROM b.facts)
+ AND NOT EXISTS(SELECT 1 FROM held_versions_before b LEFT JOIN public.announcement_versions v USING(id) WHERE to_jsonb(v) IS DISTINCT FROM b.facts)
+ AND NOT EXISTS(SELECT 1 FROM held_owned_before b LEFT JOIN held_owned c USING(relation,id) WHERE c.facts IS DISTINCT FROM b.facts), 'one closure anchor exists and preexisting full owned history is preserved exactly');
+SELECT ok(NOT EXISTS (SELECT 1 FROM held_members_before b LEFT JOIN public.members m USING(id) WHERE to_jsonb(m) IS DISTINCT FROM b.facts)
+ AND NOT EXISTS (SELECT 1 FROM held_staff_before b LEFT JOIN public.staff s USING(id) WHERE to_jsonb(s) IS DISTINCT FROM b.facts)
+ AND NOT EXISTS (SELECT 1 FROM held_auth_before b LEFT JOIN auth.users u USING(id) WHERE to_jsonb(u) IS DISTINCT FROM b.facts)
+ AND (SELECT count(*) FROM auth.users) = (SELECT count(*) FROM held_auth_before), 'existing member/staff/Auth identity facts preserved and no Auth identity created');
+SELECT ok(NOT EXISTS (SELECT 1 FROM held_products_before b LEFT JOIN public.addon_products p USING(id) WHERE (to_jsonb(p)-'category_id'-'updated_at') IS DISTINCT FROM b.facts)
+ AND NOT EXISTS (SELECT 1 FROM held_terms_before b LEFT JOIN public.memberships m USING(id) WHERE to_jsonb(m) IS DISTINCT FROM b.facts), 'existing product money stock disclosures and sold membership facts preserved');
+SELECT is((SELECT count(*) FROM held_members),4::bigint,'exactly four owned members, including no extra namespace member');
+SELECT ok((SELECT count(*) FROM held_members m CROSS JOIN held_anchor a WHERE m.tenant_id='00000001-0000-4000-8000-000000000001' AND m.branch_id='00000002-0000-4000-8000-000000000001' AND m.user_id IS NULL AND m.erased_at IS NULL AND m.guardian_linked_at IS NULL AND m.date_of_birth=(a.t-interval '25 years')::date
+ AND (m.id::text,m.member_code,m.phone,m.full_name,m.status::text) IN
+ (('00000080-0000-4000-8000-000000000201','B2D201','+919876720201','Demo Asha Grant','active'),
+ ('00000080-0000-4000-8000-000000000202','B2D202','+919876720202','Demo Bela Withdrawn','active'),
+ ('00000080-0000-4000-8000-000000000203','B2D203','+919876720203','Demo Charu Unasked','active'),
+ ('00000080-0000-4000-8000-000000000204','B2D204','+919876720204','Demo Dev Regranted','expired'))) = 4,'adult unlinked cohort exact identity status and anchored DOB');
+SELECT ok((SELECT count(*) FROM public.memberships WHERE id::text LIKE '00000081-%')=4 AND (SELECT count(*) FROM public.memberships WHERE member_id IN(SELECT id FROM held_members))=4 AND
+ (SELECT count(*) FROM public.memberships m JOIN held_members c ON c.id=m.member_id CROSS JOIN held_anchor a JOIN public.plans p ON p.id='00000004-0000-4000-8000-000000000001'
+ WHERE m.id::text=replace(c.id::text,'00000080-','00000081-') AND m.tenant_id=c.tenant_id AND m.plan_id=p.id AND m.price_paise=p.price_paise AND m.currency=p.currency AND m.duration_days=p.duration_days AND m.discount_paise=0 AND m.periods_granted=0
+ AND m.status::text=CASE WHEN c.member_code='B2D204' THEN 'expired' ELSE 'active' END
+ AND m.starts_on=a.t-CASE WHEN c.member_code='B2D204' THEN 60 ELSE 30 END
+ AND m.ends_on=a.t+CASE WHEN c.member_code='B2D204' THEN -1 ELSE 30 END)=4,'exact memberships preserve Monthly sold terms with anchored live/lapsed dates');
+SELECT ok((SELECT count(*) FROM public.consents WHERE id::text LIKE '00000091-%')=6 AND
+ (SELECT count(*) FROM public.consents c CROSS JOIN held_anchor a JOIN (VALUES (1,201,true),(2,202,true),(3,202,false),(4,204,true),(5,204,false),(6,204,true)) e(n,m,g)
+ ON c.id::text='00000091-0000-4000-8000-'||lpad(e.n::text,12,'0')
+ WHERE c.member_id::text='00000080-0000-4000-8000-'||lpad(e.m::text,12,'0') AND c.tenant_id='00000001-0000-4000-8000-000000000001' AND c.purpose='marketing' AND c.granted=e.g AND c.recorded_at=a.r-(7-e.n)*interval '1 minute' AND c.recorded_by_staff_id='00000003-0000-4000-8000-000000000004' AND btrim(c.version)<>'' AND btrim(c.source)<>'')=6
+ AND (SELECT count(*) FROM public.consents c JOIN held_members m ON m.id=c.member_id)=6,'six exact ordered marketing decisions; no unasked or service-consent extras');
+SELECT is((SELECT count(*) FROM (SELECT DISTINCT ON (c.member_id) c.granted FROM public.consents c JOIN held_members m ON m.id=c.member_id WHERE c.purpose='marketing' ORDER BY c.member_id,c.recorded_at DESC) latest WHERE granted),2::bigint,'latest consent resolves grant and regrant to two eligible promotions');
+SELECT ok((SELECT count(*) FROM public.services WHERE id::text LIKE '00000082-%')=4 AND
+ (SELECT count(*) FROM public.services s JOIN (VALUES (1,'Demo Yoga',6,true),(2,'Demo Strength',2,true),(3,'Demo Dance',6,true),(4,'Demo Archived Pilates',6,false)) e(n,name,cap,active)
+ ON s.id::text='00000082-0000-4000-8000-'||lpad(e.n::text,12,'0') WHERE s.tenant_id='00000001-0000-4000-8000-000000000001' AND s.name=e.name AND s.default_capacity=e.cap AND s.is_active=e.active AND s.default_duration_minutes=60 AND s.sort_order=e.n*10)=4,'exact four service configurations');
+SELECT ok((SELECT count(*) FROM public.class_rules WHERE id::text LIKE '00000083-%')=3 AND
+ (SELECT count(*) FROM public.class_rules q CROSS JOIN held_anchor a JOIN (VALUES (1,1,'07:00'::time,6),(2,3,'18:00'::time,2),(3,5,'18:00'::time,6)) e(n,dow,tm,cap)
+ ON q.id::text='00000083-0000-4000-8000-'||lpad(e.n::text,12,'0') WHERE q.service_id::text='00000082-0000-4000-8000-'||lpad(e.n::text,12,'0') AND q.trainer_staff_id::text='00000003-0000-4000-8000-'||lpad(e.n::text,12,'0') AND q.tenant_id='00000001-0000-4000-8000-000000000001' AND q.branch_id='00000002-0000-4000-8000-000000000001' AND q.weekday=e.dow AND q.start_time=e.tm AND q.duration_minutes=60 AND q.capacity=e.cap AND q.is_active AND q.valid_from=a.t AND q.valid_until=a.t+27)=3,'exact weekly assignment and validity graph');
+CREATE TEMP VIEW held_expected_occurrences AS SELECT row_number() OVER(ORDER BY d.day,q.id)+100 AS n,q.*,d.day::date AS expected_date
+ FROM public.class_rules q CROSS JOIN held_anchor a CROSS JOIN LATERAL generate_series(a.t::timestamp,(a.t+27)::timestamp,interval '1 day') d(day)
+ WHERE q.id::text LIKE '00000083-%' AND extract(dow FROM d.day)=q.weekday AND NOT EXISTS(SELECT 1 FROM public.organization_holidays h WHERE h.tenant_id=q.tenant_id AND h.holiday_on=d.day::date);
+SELECT ok((SELECT count(*) FROM held_sessions WHERE rule_id IS NOT NULL)=(SELECT count(*) FROM held_expected_occurrences)
+ AND NOT EXISTS(SELECT 1 FROM held_expected_occurrences e LEFT JOIN held_sessions s ON s.id::text='00000084-0000-4000-8000-'||lpad(e.n::text,12,'0') WHERE s.rule_id IS DISTINCT FROM e.id OR s.service_id IS DISTINCT FROM e.service_id OR s.trainer_staff_id IS DISTINCT FROM e.trainer_staff_id OR s.session_date IS DISTINCT FROM e.expected_date OR s.starts_at IS DISTINCT FROM ((e.expected_date+e.start_time) AT TIME ZONE 'Asia/Kolkata') OR s.ends_at IS DISTINCT FROM (s.starts_at+interval '60 minutes') OR s.capacity IS DISTINCT FROM e.capacity OR s.status::text IS DISTINCT FROM 'scheduled'), 'weekly occurrences exactly holiday-filtered ordered and assigned');
+SELECT ok((SELECT count(*) FROM held_sessions WHERE rule_id IS NULL)=6 AND (SELECT count(*) FROM held_sessions)=(SELECT count(*)+6 FROM held_expected_occurrences)
+ AND (SELECT count(*) FROM held_sessions s WHERE s.tenant_id='00000001-0000-4000-8000-000000000001' AND s.branch_id='00000002-0000-4000-8000-000000000001' AND s.session_date=(s.starts_at AT TIME ZONE 'Asia/Kolkata')::date)=(SELECT count(*) FROM held_sessions),'exact session graph and correct local date including midnight crossover');
+SELECT ok((SELECT count(*) FROM held_sessions s CROSS JOIN held_anchor a JOIN (VALUES (1,1,1,'08:00'::time,6),(2,2,1,'18:00'::time,2),(3,3,2,'18:00'::time,6),(4,1,3,'08:00'::time,6),(5,1,0,'00:00'::time,6),(6,3,-1,'18:00'::time,6)) e(n,svc,off,tm,cap)
+ ON s.id::text='00000084-0000-4000-8000-'||lpad(e.n::text,12,'0') WHERE s.rule_id IS NULL AND s.service_id::text='00000082-0000-4000-8000-'||lpad(e.svc::text,12,'0') AND s.trainer_staff_id='00000003-0000-4000-8000-000000000001' AND s.capacity=e.cap AND s.starts_at=CASE WHEN e.n=5 THEN a.r+interval '60 minutes' ELSE ((a.t+e.off+e.tm) AT TIME ZONE 'Asia/Kolkata') END AND s.ends_at=s.starts_at+interval '60 minutes' AND s.status::text=CASE WHEN e.n=3 THEN 'cancelled' ELSE 'scheduled' END)=6,'one-offs pin open full cancelled holiday cutoff and lapsed historical shapes');
+SELECT ok((SELECT count(*) FROM held_bookings)=7 AND
+ (SELECT count(*) FROM held_bookings b JOIN (VALUES (1,2,201,'booked'),(2,2,202,'booked'),(3,3,1,'session_cancelled'),(4,3,201,'session_cancelled'),(5,4,203,'booked'),(6,5,1,'booked'),(7,6,204,'booked')) e(n,s,m,state)
+ ON b.id::text='00000085-0000-4000-8000-'||lpad(e.n::text,12,'0') WHERE b.session_id::text='00000084-0000-4000-8000-'||lpad(e.s::text,12,'0') AND b.member_id::text=CASE WHEN e.m=1 THEN '00000005-0000-4000-8000-000000000001' ELSE '00000080-0000-4000-8000-'||lpad(e.m::text,12,'0') END AND b.status::text=e.state AND b.marked_at IS NULL AND b.tenant_id='00000001-0000-4000-8000-000000000001')=7
+ AND (SELECT count(*) FROM public.class_bookings WHERE session_id IN(SELECT id FROM held_sessions))=7,'seven exact bookings with no extra attendee or marked/no-show state');
+SELECT ok((SELECT count(*) FROM public.organization_holidays h CROSS JOIN held_anchor a WHERE h.tenant_id='00000001-0000-4000-8000-000000000001' AND h.holiday_on=a.t+3)=1 AND
+ (SELECT count(*) FROM public.organization_holidays WHERE id::text LIKE '00000086-%') BETWEEN 0 AND 1 AND EXISTS(SELECT 1 FROM held_bookings WHERE id='00000085-0000-4000-8000-000000000005' AND status='booked'),'holiday is unique and pre-holiday booking retained');
+SELECT ok(EXISTS(SELECT 1 FROM held_sessions s CROSS JOIN held_anchor a WHERE s.id='00000084-0000-4000-8000-000000000003' AND s.cancel_reason='Demo instructor unavailable' AND s.cancelled_at IS NOT NULL AND s.cancelled_by_staff_id IS NOT NULL)
+ AND NOT EXISTS(SELECT 1 FROM held_bookings b JOIN held_sessions s ON s.id=b.session_id WHERE b.status='session_cancelled' AND b.cancelled_at IS DISTINCT FROM s.cancelled_at), 'cancelled terminal history retains causal timestamp and actor');
+SELECT ok((SELECT count(*) FROM public.notifications WHERE id::text LIKE '00000087-%')=2 AND
+ (SELECT count(*) FROM public.notifications n JOIN held_bookings b ON b.member_id=n.member_id AND b.session_id=n.related_id JOIN held_sessions s ON s.id=n.related_id
+ WHERE n.id::text LIKE '00000087-%' AND n.tenant_id=s.tenant_id AND n.channel='in_app' AND n.category='class_update' AND n.template_key='class_session_cancelled' AND n.status='sent' AND n.related_type='class_session' AND s.id='00000084-0000-4000-8000-000000000003' AND n.dedupe_key='class-cancelled:'||s.id::text||':'||n.member_id::text AND n.sent_at IS NOT NULL AND n.sent_at>=n.scheduled_for AND n.payload->>'sessionId'=s.id::text AND jsonb_typeof(n.payload->'kind')='string' AND btrim(n.payload->>'kind')<>'' AND n.payload->>'reason'=s.cancel_reason AND n.payload->>'body'='Demo Dance on '||to_char(s.starts_at AT TIME ZONE 'Asia/Kolkata','FMDD Mon YYYY')||' at '||to_char(s.starts_at AT TIME ZONE 'Asia/Kolkata','FMHH12:MI am')||' has been cancelled. Reason: Demo instructor unavailable' AND n.delivered_at IS NULL AND n.clicked_at IS NULL AND n.converted_at IS NULL)=2,'two legal sent cancellation notice terminal states with correct recipient dedupe and payload');
+SELECT ok((SELECT count(*) FROM public.announcements WHERE id::text LIKE '00000089-%')=2 AND (SELECT count(*) FROM public.announcement_versions WHERE id::text LIKE '00000090-%')=2
+ AND (SELECT count(*) FROM public.announcements h JOIN public.announcement_versions v ON v.announcement_id=h.id CROSS JOIN held_anchor a JOIN (VALUES (1,'transactional','Demo closure notice','The studio will be closed on the demo class holiday. Please check your class booking before travelling.'),(2,'promotional','Demo PT offer','Ask the front desk about the PT Starter programme. The programme price and terms are shown in Training.')) e(n,kind,title,body)
+ ON h.id::text='00000089-0000-4000-8000-'||lpad(e.n::text,12,'0') WHERE v.id::text='00000090-0000-4000-8000-'||lpad(e.n::text,12,'0') AND h.tenant_id='00000001-0000-4000-8000-000000000001' AND v.tenant_id=h.tenant_id AND h.kind::text=e.kind AND h.status='published' AND h.audience='all_members' AND h.segment_member_statuses IS NULL AND h.segment_membership IS NULL AND h.current_version=1 AND h.closed_at IS NULL AND h.published_at=a.r-interval '10 minutes' AND v.created_at=h.published_at AND h.expires_at=((a.t+7+time '23:00') AT TIME ZONE 'Asia/Kolkata') AND v.version_no=1 AND v.title=e.title AND v.body=e.body AND v.image_asset_id IS NULL AND v.change_note IS NULL AND v.created_by_staff_id=h.created_by_staff_id)=2
+ AND (SELECT count(*) FROM public.announcement_versions WHERE announcement_id::text LIKE '00000089-%')=2,'exact immutable text-only ANC version-one audience and anchor facts');
+SELECT ok((SELECT count(*) FROM public.announcements h JOIN public.staff s ON s.id=h.created_by_staff_id AND s.tenant_id=h.tenant_id JOIN auth.users u ON u.id=s.user_id WHERE h.id::text LIKE '00000089-%' AND s.role='gym_owner' AND lower(u.email)='owner@ironbox.example.com')=2
+ AND NOT EXISTS(SELECT 1 FROM public.announcement_receipts WHERE version_id::text LIKE '00000090-%') AND NOT EXISTS(SELECT 1 FROM public.notifications WHERE related_id::text LIKE '00000089-%'),'real preserved owner attribution; unread versions; no ANC fan-out');
+SELECT ok((SELECT count(*) FROM public.shop_categories WHERE id::text LIKE '00000088-%')=2 AND
+ (SELECT count(*) FROM public.shop_categories c JOIN (VALUES (1,'Demo Supplements',10),(2,'Demo Other services',20)) e(n,name,ord) ON c.id::text='00000088-0000-4000-8000-'||lpad(e.n::text,12,'0') WHERE c.tenant_id='00000001-0000-4000-8000-000000000001' AND c.name=e.name AND c.sort_order=e.ord AND c.is_active)=2
+ AND (SELECT count(*) FROM public.addon_products WHERE (id::text,category_id::text) IN (('00000009-0000-4000-8000-000000000003','00000088-0000-4000-8000-000000000002'),('00000009-0000-4000-8000-000000000004','00000088-0000-4000-8000-000000000001'),('00000009-0000-4000-8000-000000000005','00000088-0000-4000-8000-000000000001')))=3,'exact category graph and existing product assignment');
+SELECT ok(NOT EXISTS(SELECT 1 FROM public.attendance WHERE member_id IN(SELECT id FROM held_members)) AND NOT EXISTS(SELECT 1 FROM public.no_show_cases WHERE member_id IN(SELECT id FROM held_members)) AND NOT EXISTS(SELECT 1 FROM public.payments WHERE member_id IN(SELECT id FROM held_members)) AND NOT EXISTS(SELECT 1 FROM public.addon_orders WHERE member_id IN(SELECT id FROM held_members)) AND NOT EXISTS(SELECT 1 FROM public.shop_reservations WHERE member_id IN(SELECT id FROM held_members)), 'cohort has no fabricated attendance retention payment sale or reservation history');
+SELECT ok(EXISTS(SELECT 1 FROM held_sessions s CROSS JOIN held_anchor a JOIN held_bookings b ON b.session_id=s.id JOIN public.memberships m ON m.member_id=b.member_id WHERE s.id='00000084-0000-4000-8000-000000000006' AND s.ends_at<a.r AND b.status='booked' AND b.marked_at IS NULL AND m.status='expired' AND m.ends_on=a.t-1)
+ AND EXISTS(SELECT 1 FROM held_sessions s CROSS JOIN held_anchor a WHERE s.id='00000084-0000-4000-8000-000000000005' AND s.starts_at-interval '2 hours'=a.r-interval '60 minutes'), 'anchored lapsed unmarked history and original two-hour closed-window facts');
+SELECT * FROM finish();
+ROLLBACK;

@@ -1,0 +1,128 @@
+-- Independent visible fixture assertions: public declarations only.
+-- Root injects ordinary seed.sql once after BEGIN and scenarios twice at the literal marker.
+-- All dates derive from the persisted original closure anchor; no current-day assumption.
+BEGIN;
+-- Root injects ordinary seed.sql once immediately above these TEMP snapshots.
+CREATE TEMP TABLE b2_visible_legacy ON COMMIT DROP AS
+SELECT 'member' AS kind,m.id,to_jsonb(m)-'updated_at' AS facts FROM public.members m
+WHERE m.tenant_id='00000001-0000-4000-8000-000000000001'
+ AND m.id::text BETWEEN '00000005-0000-4000-8000-000000000001' AND '00000005-0000-4000-8000-000000000030'
+UNION ALL
+SELECT 'membership',x.id,to_jsonb(x)-'updated_at' FROM public.memberships x
+WHERE x.tenant_id='00000001-0000-4000-8000-000000000001'
+ AND x.member_id::text BETWEEN '00000005-0000-4000-8000-000000000001' AND '00000005-0000-4000-8000-000000000030'
+UNION ALL
+SELECT 'product',p.id,to_jsonb(p)-'category_id'-'updated_at' FROM public.addon_products p
+WHERE p.tenant_id='00000001-0000-4000-8000-000000000001';
+
+CREATE TEMP TABLE b2_visible_existing_clock ON COMMIT DROP AS
+SELECT 'announcement' AS kind,a.id,to_jsonb(a)-'updated_at' AS facts FROM public.announcements a
+WHERE a.id::text LIKE '00000089-0000-4000-8000-%'
+UNION ALL
+SELECT 'version',v.id,to_jsonb(v) FROM public.announcement_versions v
+WHERE v.id::text LIKE '00000090-0000-4000-8000-%';
+
+-- ROOT_INSERT_BATCH2_SCENARIOS_HERE
+SELECT plan(30);
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=1 AND bool_and(published_at IS NOT NULL) FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001'::uuid), 'Closure supplies one persisted replay anchor');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=30 FROM public.members m WHERE m.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND m.id::text BETWEEN '00000005-0000-4000-8000-000000000001' AND '00000005-0000-4000-8000-000000000030'), 'Original thirty member identities remain');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=16 FROM public.members m WHERE m.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND m.id::text BETWEEN '00000005-0000-4000-8000-000000000101' AND '00000005-0000-4000-8000-000000000116'), 'Existing scenario member identities remain');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=4 AND bool_and(m.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND m.branch_id='00000002-0000-4000-8000-000000000001'::uuid AND m.user_id IS NULL AND m.erased_at IS NULL AND m.guardian_linked_at IS NULL AND m.date_of_birth=(clock.t-interval '25 years')::date) FROM public.members m CROSS JOIN clock WHERE m.id::text LIKE '00000080-0000-4000-8000-%'), 'Four adult unlinked fixtures preserve the identity boundary');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=4 AND bool_and(m.member_code='B2D'||right(m.id::text,3) AND m.phone='+919876720'||right(m.id::text,3) AND m.status::text=CASE WHEN right(m.id::text,3)='204' THEN 'expired' ELSE 'active' END) FROM public.members m WHERE m.id::text LIKE '00000080-0000-4000-8000-%'), 'Cohort contact keys and active versus lapsed statuses match');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=4 AND bool_and(x.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND x.member_id::text=replace(x.id::text,'00000081-','00000080-') AND x.plan_id='00000004-0000-4000-8000-000000000001'::uuid AND x.price_paise=p.price_paise AND x.currency=p.currency AND x.duration_days=p.duration_days AND x.discount_paise=0 AND x.periods_granted=0) FROM public.memberships x JOIN public.plans p ON p.id=x.plan_id CROSS JOIN clock WHERE x.id::text LIKE '00000081-0000-4000-8000-%'), 'Synthetic memberships reuse exact Monthly sold terms with zero paid periods');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=4 AND bool_and(x.starts_on=clock.t-CASE WHEN right(x.id::text,3)='204' THEN 60 ELSE 30 END AND x.ends_on=clock.t+CASE WHEN right(x.id::text,3)='204' THEN -1 ELSE 30 END AND x.status::text=CASE WHEN right(x.id::text,3)='204' THEN 'expired' ELSE 'active' END) FROM public.memberships x CROSS JOIN clock WHERE x.id::text LIKE '00000081-0000-4000-8000-%'), 'Membership dates are measured from the initial gym-local day');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=0 FROM public.payments p WHERE p.member_id::text LIKE '00000080-%' OR p.membership_id::text LIKE '00000081-%'), 'No synthetic payment funds the cohort');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=6 AND bool_and(c.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND c.purpose='marketing' AND c.version<>'' AND c.source<>'' AND c.recorded_by_staff_id='00000003-0000-4000-8000-000000000004'::uuid AND c.recorded_at=clock.r-(7-right(c.id::text,3)::integer)*interval '1 minute') FROM public.consents c CROSS JOIN clock WHERE c.id::text LIKE '00000091-0000-4000-8000-%'), 'Six ordered marketing records retain Divya attribution and anchor times');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=6 AND bool_and(c.member_id=CASE right(c.id::text,3)::integer WHEN 1 THEN '00000080-0000-4000-8000-000000000201'::uuid WHEN 2 THEN '00000080-0000-4000-8000-000000000202'::uuid WHEN 3 THEN '00000080-0000-4000-8000-000000000202'::uuid ELSE '00000080-0000-4000-8000-000000000204'::uuid END AND c.granted=(right(c.id::text,3)::integer IN (1,2,4,6))) FROM public.consents c WHERE c.id::text LIKE '00000091-0000-4000-8000-%'), 'Grant withdrawal and regrant history belongs to the declared members');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=0 FROM public.consents c WHERE c.member_id::text LIKE '00000080-%' AND (c.purpose='service' OR c.member_id='00000080-0000-4000-8000-000000000203'::uuid)), 'Unasked member and service consent remain absent');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=2 AND array_agg(member_id ORDER BY member_id)=ARRAY['00000080-0000-4000-8000-000000000201'::uuid,'00000080-0000-4000-8000-000000000204'::uuid] FROM (SELECT DISTINCT ON (member_id) member_id,granted FROM public.consents WHERE member_id::text LIKE '00000080-%' AND purpose='marketing' ORDER BY member_id,recorded_at DESC,id DESC) latest WHERE granted), 'Only Asha and Dev have current marketing grants');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=4 AND bool_and(s.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND s.default_duration_minutes=60 AND s.sort_order=right(s.id::text,3)::integer*10 AND s.default_capacity=CASE WHEN s.id='00000082-0000-4000-8000-000000000002'::uuid THEN 2 ELSE 6 END AND s.is_active=(s.id<>'00000082-0000-4000-8000-000000000004'::uuid)) AND array_agg(s.name ORDER BY s.id)=ARRAY['Demo Yoga','Demo Strength','Demo Dance','Demo Archived Pilates'] FROM public.services s WHERE s.id::text LIKE '00000082-0000-4000-8000-%'), 'Exactly four ordered services include inactive Pilates');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=3 AND bool_and(q.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND q.branch_id='00000002-0000-4000-8000-000000000001'::uuid AND q.service_id::text=replace(q.id::text,'00000083-','00000082-') AND q.trainer_staff_id::text=replace(q.id::text,'00000083-','00000003-') AND q.weekday=right(q.id::text,3)::integer*2-1 AND q.start_time=CASE WHEN q.id='00000083-0000-4000-8000-000000000001'::uuid THEN time '07:00' ELSE time '18:00' END AND q.duration_minutes=60 AND q.capacity=CASE WHEN q.id='00000083-0000-4000-8000-000000000002'::uuid THEN 2 ELSE 6 END AND q.is_active AND q.valid_from=clock.t AND q.valid_until=clock.t+27) FROM public.class_rules q CROSS JOIN clock WHERE q.id::text LIKE '00000083-0000-4000-8000-%'), 'Three weekly rules bind service trainer weekday time and initial validity');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT NOT EXISTS ((SELECT q.id AS rule_id,d::date AS session_date FROM public.class_rules q CROSS JOIN clock CROSS JOIN LATERAL generate_series(clock.t::timestamp,(clock.t+27)::timestamp,interval '1 day') d WHERE q.id::text LIKE '00000083-0000-4000-8000-%' AND extract(dow FROM d)=q.weekday AND NOT EXISTS(SELECT 1 FROM public.organization_holidays h WHERE h.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND h.holiday_on=d::date) EXCEPT SELECT s.rule_id,s.session_date FROM public.class_sessions s WHERE s.id::text LIKE '00000084-0000-4000-8000-%' AND s.rule_id IS NOT NULL) UNION ALL (SELECT s.rule_id,s.session_date FROM public.class_sessions s WHERE s.id::text LIKE '00000084-0000-4000-8000-%' AND s.rule_id IS NOT NULL EXCEPT SELECT q.id,d::date FROM public.class_rules q CROSS JOIN clock CROSS JOIN LATERAL generate_series(clock.t::timestamp,(clock.t+27)::timestamp,interval '1 day') d WHERE q.id::text LIKE '00000083-0000-4000-8000-%' AND extract(dow FROM d)=q.weekday AND NOT EXISTS(SELECT 1 FROM public.organization_holidays h WHERE h.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND h.holiday_on=d::date)))), 'Weekly materialization is exactly the nonholiday calendar set');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=0 FROM public.class_sessions s JOIN public.class_rules q ON q.id=s.rule_id WHERE s.id::text LIKE '00000084-0000-4000-8000-%' AND (s.tenant_id<>q.tenant_id OR s.branch_id<>q.branch_id OR s.service_id<>q.service_id OR s.trainer_staff_id IS DISTINCT FROM q.trainer_staff_id OR s.capacity<>q.capacity OR s.starts_at<>(s.session_date+q.start_time) AT TIME ZONE 'Asia/Kolkata' OR s.ends_at<>s.starts_at+interval '60 minutes' OR s.status<>'scheduled')), 'Generated sessions preserve rule relationships and local instants');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=0 FROM (SELECT s.id,row_number() OVER (ORDER BY s.session_date,s.rule_id)+100 AS ordinal FROM public.class_sessions s WHERE s.id::text LIKE '00000084-0000-4000-8000-%' AND s.rule_id IS NOT NULL) ordered WHERE right(id::text,3)::integer<>ordinal), 'Occurrence identities follow chronological rule order');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=6 AND bool_and(s.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND s.branch_id='00000002-0000-4000-8000-000000000001'::uuid AND s.trainer_staff_id='00000003-0000-4000-8000-000000000001'::uuid AND s.ends_at=s.starts_at+interval '60 minutes' AND s.capacity=CASE WHEN s.id='00000084-0000-4000-8000-000000000002'::uuid THEN 2 ELSE 6 END AND s.session_date=(s.starts_at AT TIME ZONE 'Asia/Kolkata')::date) FROM public.class_sessions s WHERE s.id::text LIKE '00000084-0000-4000-8000-%' AND s.rule_id IS NULL), 'Six oneoffs keep Rohit capacities and actual local dates');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=6 AND bool_and(s.service_id=CASE right(s.id::text,3)::integer WHEN 2 THEN '00000082-0000-4000-8000-000000000002'::uuid WHEN 3 THEN '00000082-0000-4000-8000-000000000003'::uuid WHEN 6 THEN '00000082-0000-4000-8000-000000000003'::uuid ELSE '00000082-0000-4000-8000-000000000001'::uuid END AND s.starts_at=CASE right(s.id::text,3)::integer WHEN 1 THEN (clock.t+1+time '08:00') AT TIME ZONE 'Asia/Kolkata' WHEN 2 THEN (clock.t+1+time '18:00') AT TIME ZONE 'Asia/Kolkata' WHEN 3 THEN (clock.t+2+time '18:00') AT TIME ZONE 'Asia/Kolkata' WHEN 4 THEN (clock.t+3+time '08:00') AT TIME ZONE 'Asia/Kolkata' WHEN 5 THEN clock.r+interval '60 minutes' ELSE (clock.t-1+time '18:00') AT TIME ZONE 'Asia/Kolkata' END) FROM public.class_sessions s CROSS JOIN clock WHERE s.id::text LIKE '00000084-0000-4000-8000-%' AND s.rule_id IS NULL), 'Oneoff dates remain anchored including the crossing-midnight window');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=6 AND bool_and(CASE WHEN s.id='00000084-0000-4000-8000-000000000003'::uuid THEN s.status='cancelled' AND s.cancel_reason='Demo instructor unavailable' AND s.cancelled_at IS NOT NULL AND s.cancelled_at<=clock.r AND s.cancelled_by_staff_id IS NOT NULL ELSE s.status='scheduled' AND s.cancelled_at IS NULL END) FROM public.class_sessions s CROSS JOIN clock WHERE s.id::text LIKE '00000084-0000-4000-8000-%' AND s.rule_id IS NULL), 'Cancelled terminal state survives replay without reviving other sessions');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=7 AND bool_and(b.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND b.session_id=CASE right(b.id::text,3)::integer WHEN 1 THEN '00000084-0000-4000-8000-000000000002'::uuid WHEN 2 THEN '00000084-0000-4000-8000-000000000002'::uuid WHEN 3 THEN '00000084-0000-4000-8000-000000000003'::uuid WHEN 4 THEN '00000084-0000-4000-8000-000000000003'::uuid WHEN 5 THEN '00000084-0000-4000-8000-000000000004'::uuid WHEN 6 THEN '00000084-0000-4000-8000-000000000005'::uuid ELSE '00000084-0000-4000-8000-000000000006'::uuid END AND b.member_id=CASE right(b.id::text,3)::integer WHEN 1 THEN '00000080-0000-4000-8000-000000000201'::uuid WHEN 2 THEN '00000080-0000-4000-8000-000000000202'::uuid WHEN 3 THEN '00000005-0000-4000-8000-000000000001'::uuid WHEN 4 THEN '00000080-0000-4000-8000-000000000201'::uuid WHEN 5 THEN '00000080-0000-4000-8000-000000000203'::uuid WHEN 6 THEN '00000005-0000-4000-8000-000000000001'::uuid ELSE '00000080-0000-4000-8000-000000000204'::uuid END AND b.status::text=CASE WHEN right(b.id::text,3)::integer IN(3,4) THEN 'session_cancelled' ELSE 'booked' END AND b.marked_at IS NULL) FROM public.class_bookings b WHERE b.id::text LIKE '00000085-0000-4000-8000-%'), 'Seven bookings encode full cancelled holiday window and lapsed seats without attendance');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=1 FROM public.organization_holidays h CROSS JOIN clock WHERE h.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND h.holiday_on=clock.t+3), 'Holiday fixture has one tenant-local date whether owned or reused');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)<=1 AND coalesce(bool_and(h.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND h.holiday_on=clock.t+3 AND h.name='Demo class holiday'),true) FROM public.organization_holidays h CROSS JOIN clock WHERE h.id::text LIKE '00000086-0000-4000-8000-%'), 'Owned holiday count is zero or one with declared shape');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=2 AND bool_and(n.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND n.channel='in_app' AND n.category='class_update' AND n.template_key='class_session_cancelled' AND n.status='sent' AND n.sent_at IS NOT NULL AND n.related_type='class_session' AND n.related_id='00000084-0000-4000-8000-000000000003'::uuid AND n.dedupe_key='class-cancelled:'||n.related_id||':'||n.member_id AND n.member_id IN ('00000005-0000-4000-8000-000000000001'::uuid,'00000080-0000-4000-8000-000000000201'::uuid) AND n.payload->>'sessionId'=n.related_id::text AND n.payload->>'reason'='Demo instructor unavailable' AND nullif(n.payload->>'kind','') IS NOT NULL AND n.payload->>'body'='Demo Dance on '||to_char(clock.t+2,'FMDD Mon YYYY')||' at 6:00 pm has been cancelled. Reason: Demo instructor unavailable') AND count(DISTINCT n.member_id)=2 FROM public.notifications n CROSS JOIN clock WHERE n.id::text LIKE '00000087-0000-4000-8000-%'), 'Two sent deduped cancellation notices retain lawful recipients and display content');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=2 AND bool_and(a.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND a.status='published' AND a.kind::text=CASE WHEN a.id='00000089-0000-4000-8000-000000000001'::uuid THEN 'transactional' ELSE 'promotional' END AND a.audience='all_members' AND a.segment_member_statuses IS NULL AND a.segment_membership IS NULL AND a.current_version=1 AND a.closed_at IS NULL AND a.published_at=clock.r-interval '10 minutes' AND a.expires_at=(clock.t+7+time '23:00') AT TIME ZONE 'Asia/Kolkata') FROM public.announcements a CROSS JOIN clock WHERE a.id::text LIKE '00000089-0000-4000-8000-%'), 'Two published announcements share immutable publication and expiry clocks');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=2 AND bool_and(v.tenant_id=a.tenant_id AND v.announcement_id::text=replace(v.id::text,'00000090-','00000089-') AND v.version_no=1 AND v.created_at=a.published_at AND v.created_by_staff_id=a.created_by_staff_id AND v.image_asset_id IS NULL AND v.change_note IS NULL AND s.tenant_id=a.tenant_id AND s.role='gym_owner' AND s.user_id IS NOT NULL AND v.title=CASE WHEN a.id='00000089-0000-4000-8000-000000000001'::uuid THEN 'Demo closure notice' ELSE 'Demo PT offer' END AND v.body=CASE WHEN a.id='00000089-0000-4000-8000-000000000001'::uuid THEN 'The studio will be closed on the demo class holiday. Please check your class booking before travelling.' ELSE 'Ask the front desk about the PT Starter programme. The programme price and terms are shown in Training.' END) FROM public.announcement_versions v JOIN public.announcements a ON a.id=v.announcement_id JOIN public.staff s ON s.id=a.created_by_staff_id WHERE v.id::text LIKE '00000090-0000-4000-8000-%'), 'Version one preserves text owner tenant binding and publication provenance');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=0 FROM public.announcement_receipts x JOIN public.announcement_versions v ON v.id=x.version_id WHERE v.id::text LIKE '00000090-0000-4000-8000-%'), 'Both fixture versions begin unread without fabricated receipts');
+
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
+SELECT ok((SELECT count(*)=2 AND bool_and(c.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND c.is_active AND c.sort_order=right(c.id::text,3)::integer*10 AND c.name=CASE WHEN c.id='00000088-0000-4000-8000-000000000001'::uuid THEN 'Demo Supplements' ELSE 'Demo Other services' END) AND (SELECT count(*)=3 AND bool_and(p.category_id=CASE WHEN p.id='00000009-0000-4000-8000-000000000003'::uuid THEN '00000088-0000-4000-8000-000000000002'::uuid ELSE '00000088-0000-4000-8000-000000000001'::uuid END) FROM public.addon_products p WHERE p.id IN ('00000009-0000-4000-8000-000000000003'::uuid,'00000009-0000-4000-8000-000000000004'::uuid,'00000009-0000-4000-8000-000000000005'::uuid)) FROM public.shop_categories c WHERE c.id::text LIKE '00000088-0000-4000-8000-%'), 'Exactly two categories assign the existing three declared offers');
+
+SELECT ok(NOT EXISTS (SELECT 1 FROM b2_visible_legacy b LEFT JOIN LATERAL
+ (SELECT 'member' AS kind,m.id,to_jsonb(m)-'updated_at' AS facts FROM public.members m
+  UNION ALL SELECT 'membership',x.id,to_jsonb(x)-'updated_at' FROM public.memberships x
+  UNION ALL SELECT 'product',p.id,to_jsonb(p)-'category_id'-'updated_at' FROM public.addon_products p) c
+ ON c.kind=b.kind AND c.id=b.id WHERE c.facts IS DISTINCT FROM b.facts),
+ 'Original members sold membership facts and product money stock disclosures remain unchanged');
+
+-- Empty on a first insertion: the remaining assertions verify convergence against the stored R.
+SELECT ok(NOT EXISTS (SELECT 1 FROM b2_visible_existing_clock b LEFT JOIN LATERAL
+ (SELECT 'announcement' AS kind,a.id,to_jsonb(a)-'updated_at' AS facts FROM public.announcements a
+  UNION ALL SELECT 'version',v.id,to_jsonb(v) FROM public.announcement_versions v) c
+ ON c.kind=b.kind AND c.id=b.id WHERE c.facts IS DISTINCT FROM b.facts),
+ 'Existing immutable closure clock versions and original owner attribution survive replay');
+
+SELECT * FROM finish();
+ROLLBACK;
+
