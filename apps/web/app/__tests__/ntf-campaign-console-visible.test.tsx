@@ -33,7 +33,7 @@ vi.mock('../../lib/messages', () => ({
 vi.mock('../../lib/api', () => ({ platformSession: async () => ({ session: { supabase: {} } }), jsonBody: async () => ({ payload: {} }), apiFail: () => new Response(null, { status: 500 }) }));
 const nouns = { place: 'gym', plural: 'gyms', member: 'member', trainer: 'trainer', class: 'class' } as const;
 
-let page: () => Promise<string>;
+let page: (props: { searchParams: Promise<Record<string, string>> }) => Promise<string>;
 beforeEach(async () => {
   vi.resetModules(); h.screen = null; h.audience = null;
   ({ default: page } = await import('../(console)/messages/page') as unknown as { default: (props: { searchParams: Promise<Record<string, string>> }) => Promise<string> });

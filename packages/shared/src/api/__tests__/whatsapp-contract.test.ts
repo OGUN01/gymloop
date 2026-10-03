@@ -62,7 +62,8 @@ describe('memberWhatsappConsentRequestSchema', () => {
   });
 
   it('rejects a missing notice version — consent without the accepted notice is not consent', () => {
-    const { noticeVersion: _dropped, ...withoutNotice } = valid;
+    const withoutNotice: Partial<typeof valid> = { ...valid };
+    delete withoutNotice.noticeVersion;
     expect(memberWhatsappConsentRequestSchema.safeParse(withoutNotice).success).toBe(false);
   });
 
@@ -103,7 +104,8 @@ describe('staffWhatsappConsentRequestSchema', () => {
   });
 
   it('rejects a missing request key — the recorder is replay-guarded like every command', () => {
-    const { requestKey: _dropped, ...withoutKey } = valid;
+    const withoutKey: Partial<typeof valid> = { ...valid };
+    delete withoutKey.requestKey;
     expect(staffWhatsappConsentRequestSchema.safeParse(withoutKey).success).toBe(false);
   });
 
@@ -116,7 +118,8 @@ describe('staffWhatsappConsentRequestSchema', () => {
   });
 
   it('rejects an old generic-consent shape (version instead of noticeVersion)', () => {
-    const { noticeVersion: _dropped, ...generic } = valid;
+    const generic: Partial<typeof valid> = { ...valid };
+    delete generic.noticeVersion;
     expect(staffWhatsappConsentRequestSchema.safeParse({ ...generic, version: 'v1' }).success).toBe(false);
   });
 });
