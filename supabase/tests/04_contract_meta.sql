@@ -901,6 +901,7 @@ select is_empty(
                           ('public.acknowledge_notification(uuid)', 'v'),
                           ('public.open_notification_whatsapp(uuid)', 'v'),
                           ('public.adjust_messaging_wallet(uuid, bigint, text, uuid)', 'v'),
+                          ('public.adjust_messaging_wallet_paise(uuid, bigint, text, text, uuid)', 'v'),
                           ('public.member_mobile_check_in(text, uuid, timestamptz)', 'v'),
                           ('public.read_member_mobile_money()', 's'),
                           ('public.read_member_portal_settings()', 's'),

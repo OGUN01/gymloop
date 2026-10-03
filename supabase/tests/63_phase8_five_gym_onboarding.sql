@@ -72,8 +72,8 @@ select is((select count(*) from (select tenant_id from public.branches
   where tenant_id in (select request_key from pilot63_requests) and is_default group by tenant_id having count(*)=1) exact), 5::bigint,
   'PILOT-006: exactly one default branch exists per gym');
 select is((select count(*) from (select tenant_id from public.messaging_wallets
-  where tenant_id in (select request_key from pilot63_requests) and balance_credits=0 group by tenant_id having count(*)=1) exact), 5::bigint,
-  'PILOT-006: exactly one zero-credit wallet exists per gym');
+  where tenant_id in (select request_key from pilot63_requests) and balance_paise=0 and currency='INR' and original_balance_credits is null and converted_at is null group by tenant_id having count(*)=1) exact), 5::bigint,
+  'PILOT-006: exactly one zero-paise wallet exists per gym');
 select is((select count(*) from public.messaging_wallet_ledger
   where tenant_id in (select request_key from pilot63_requests)), 0::bigint,
   'PILOT-006: zero opening balance creates no ledger movement');

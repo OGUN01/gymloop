@@ -61,12 +61,12 @@ insert into public.member_devices (id, tenant_id, member_id, platform, push_toke
   ('a0000000-0000-4000-8000-000000000007'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
    'a0000000-0000-4000-8000-000000000004'::uuid, 'android', 'tok-comms-structure-a1');
 
-insert into public.messaging_wallets (tenant_id) values
-  ('a0000000-0000-4000-8000-000000000001'::uuid);
+insert into public.messaging_wallets (tenant_id, currency) values
+  ('a0000000-0000-4000-8000-000000000001'::uuid, 'INR');
 
-insert into public.messaging_wallet_ledger (id, tenant_id, delta_credits, reason) values
+insert into public.messaging_wallet_ledger (id, tenant_id, delta_paise, reason, currency) values
   ('a0000000-0000-4000-8000-000000000009'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
-   500, 'topup');
+   500, 'topup', 'INR');
 
 -- ---------------------------------------------------------------------------
 -- 1-6. The six tables the comms cluster owns exist.
@@ -146,11 +146,11 @@ select hasnt_column('public', 'messaging_wallets', 'id',
   'comms: messaging_wallets is keyed by tenant_id and has no id column (contract: Every table)');
 select col_is_pk('public', 'messaging_wallets', 'tenant_id',
   'comms: messaging_wallets.tenant_id is the primary key (spec: one wallet per gym)');
-select col_type_is('public', 'messaging_wallets', 'balance_credits', 'bigint',
-  'comms: messaging_wallets.balance_credits is bigint — credits, not money, so no currency column beside it');
+select col_type_is('public', 'messaging_wallets', 'balance_paise', 'bigint',
+  'comms: messaging_wallets.balance_paise is bigint — explicit INR integer paise');
 
-select col_type_is('public', 'messaging_wallet_ledger', 'delta_credits', 'bigint',
-  'comms: messaging_wallet_ledger.delta_credits is bigint (spec: the balance is the sum)');
+select col_type_is('public', 'messaging_wallet_ledger', 'delta_paise', 'bigint',
+  'comms: messaging_wallet_ledger.delta_paise is bigint (spec: the balance is the sum)');
 select col_is_null('public', 'messaging_wallet_ledger', 'notification_id',
   'comms: messaging_wallet_ledger.notification_id is nullable — a top-up moves credits with no notification');
 
@@ -190,22 +190,22 @@ select throws_ok(
 );
 
 select throws_ok(
-  $q$ update public.messaging_wallets set balance_credits = -1
+  $q$ update public.messaging_wallets set balance_paise = -1
       where tenant_id = 'a0000000-0000-4000-8000-000000000001'::uuid $q$,
   '23514'::text, null::text,
   'comms: a wallet balance driven below zero is rejected (spec scenario: a balance driven below zero)'
 );
 
 select throws_ok(
-  $q$ insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason)
-      values ('a0000000-0000-4000-8000-000000000001'::uuid, 0, 'noop') $q$,
+  $q$ insert into public.messaging_wallet_ledger (tenant_id, delta_paise, reason, currency)
+      values ('a0000000-0000-4000-8000-000000000001'::uuid, 0, 'noop', 'INR') $q$,
   '23514'::text, null::text,
   'comms: a ledger delta of zero is rejected (spec scenario: a ledger entry that moves nothing)'
 );
 
 select throws_ok(
-  $q$ insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason)
-      values ('a0000000-0000-4000-8000-000000000001'::uuid, -10, '') $q$,
+  $q$ insert into public.messaging_wallet_ledger (tenant_id, delta_paise, reason, currency)
+      values ('a0000000-0000-4000-8000-000000000001'::uuid, -10, '', 'INR') $q$,
   '23514'::text, null::text,
   'comms: an empty ledger reason is rejected (spec: every movement carries a non-empty reason)'
 );
@@ -284,8 +284,8 @@ select lives_ok(
 );
 
 select throws_ok(
-  $q$ insert into public.messaging_wallets (tenant_id)
-      values ('a0000000-0000-4000-8000-000000000001'::uuid) $q$,
+  $q$ insert into public.messaging_wallets (tenant_id, currency)
+      values ('a0000000-0000-4000-8000-000000000001'::uuid, 'INR') $q$,
   '23505'::text, null::text,
   'comms: a second wallet row for the same organisation is rejected (spec scenario: one wallet per gym)'
 );
@@ -398,7 +398,7 @@ select throws_ok(
 );
 
 select throws_ok(
-  $q$ update public.messaging_wallet_ledger set delta_credits = 1
+  $q$ update public.messaging_wallet_ledger set delta_paise = 1
       where id = 'a0000000-0000-4000-8000-000000000009'::uuid $q$,
   '42501'::text, null::text,
   'INT-001: an authenticated caller updating a ledger row in their own tenant is refused for want of privilege (spec scenario: editing the ledger)'
@@ -409,8 +409,8 @@ select throws_ok(
 -- in place, so only this one shows the grant is gone. Without it the wallet
 -- being read-only buys nothing — the gym simply appends its own credit rows.
 select throws_ok(
-  $q$ insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason)
-      values ('a0000000-0000-4000-8000-000000000001'::uuid, 500, 'self-issued credits') $q$,
+  $q$ insert into public.messaging_wallet_ledger (tenant_id, delta_paise, reason, currency)
+      values ('a0000000-0000-4000-8000-000000000001'::uuid, 500, 'self-issued credits', 'INR') $q$,
   '42501'::text, null::text,
   'ADR-049: an authenticated caller appending a ledger row in their own tenant is refused for want of privilege — the balance is the sum of the ledger, so this is the same hole ADR-047 closed on messaging_wallets'
 );

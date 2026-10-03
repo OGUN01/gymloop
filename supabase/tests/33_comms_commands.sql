@@ -87,9 +87,9 @@ insert into public.members(id,tenant_id,branch_id,full_name,phone,status,motivat
  ('3c000000-0000-4000-8000-000000000036','3c000000-0000-4000-8000-000000000002','3c000000-0000-4000-8000-000000000012','Member B1','+915330000036','active',true);
 update public.members set user_id='3c000000-0000-4000-8000-000000000904' where id='3c000000-0000-4000-8000-000000000031';
 update public.members set user_id='3c000000-0000-4000-8000-000000000903' where id='3c000000-0000-4000-8000-000000000032';
-insert into public.messaging_wallets(tenant_id,balance_credits) values
- ('3c000000-0000-4000-8000-000000000001',100),
- ('3c000000-0000-4000-8000-000000000002',0);
+insert into public.messaging_wallets(tenant_id,balance_paise, currency) values
+ ('3c000000-0000-4000-8000-000000000001',100, 'INR'),
+ ('3c000000-0000-4000-8000-000000000002',0, 'INR');
 insert into public.plans(id,tenant_id,name,duration_days,price_paise) values
  ('3c000000-0000-4000-8000-000000000401','3c000000-0000-4000-8000-000000000001','Monthly',30,20000);
 -- Only membership 451 (member A1) ends today (the expiry_day window) --
@@ -728,22 +728,22 @@ select set_config('request.jwt.claims',
 set local role authenticated;
 
 select lives_ok(
-  $q$insert into cmd_results select 'adj-first', public.adjust_messaging_wallet('3c000000-0000-4000-8000-000000000001', 50, 'Monthly top-up', '3c000000-0000-4000-8000-000000000601')$q$,
+  $q$insert into cmd_results select 'adj-first', public.adjust_messaging_wallet_paise('3c000000-0000-4000-8000-000000000001', 50, 'INR', 'Monthly top-up', '3c000000-0000-4000-8000-000000000601')$q$,
   'COM: a super admin adjusts the messaging wallet upward with a request key');
 
 select results_eq(
-  $$select (select count(*) from jsonb_object_keys(result)), result->>'deltaCredits', result->>'balanceAfterCredits', result->>'reason'
+  $$select (select count(*) from jsonb_object_keys(result)), result->>'deltaPaise', result->>'balanceAfterPaise', result->>'reason'
       from cmd_results where label='adj-first'$$,
-  $$select 6::bigint, '50'::text, '150'::text, 'Monthly top-up'::text$$,
-  'COM: the adjustment result carries the exact six facts with decimal strings');
+  $$select 7::bigint, '50'::text, '150'::text, 'Monthly top-up'::text$$,
+  'COM: the adjustment result carries the exact seven facts with decimal strings');
 
 select results_eq(
-  $$select w.balance_credits::text from public.messaging_wallets w where w.tenant_id='3c000000-0000-4000-8000-000000000001'$$,
+  $$select w.balance_paise::text from public.messaging_wallets w where w.tenant_id='3c000000-0000-4000-8000-000000000001'$$,
   $$select '150'::text$$,
   'COM: the wallet balance moved to the new total');
 
 select results_eq(
-  $$select l.delta_credits::text, l.balance_after_credits::text, l.reason
+  $$select l.delta_paise::text, l.balance_after_paise::text, l.reason
       from public.messaging_wallet_ledger l
      where l.tenant_id='3c000000-0000-4000-8000-000000000001'::uuid
        and l.request_key='3c000000-0000-4000-8000-000000000601'::uuid$$,
@@ -751,7 +751,7 @@ select results_eq(
   'COM: one keyed ledger row carries the resulting balance');
 
 select lives_ok(
-  $q$insert into cmd_results select 'adj-replay', public.adjust_messaging_wallet('3c000000-0000-4000-8000-000000000001', 50, 'Monthly top-up', '3c000000-0000-4000-8000-000000000601')$q$,
+  $q$insert into cmd_results select 'adj-replay', public.adjust_messaging_wallet_paise('3c000000-0000-4000-8000-000000000001', 50, 'INR', 'Monthly top-up', '3c000000-0000-4000-8000-000000000601')$q$,
   'COM: the exact replay is accepted');
 
 select results_eq(
@@ -763,40 +763,40 @@ select results_eq(
   $$select 1::bigint$$,
   'COM: the exact replay appended no ledger row');
 select results_eq(
-  $$select w.balance_credits::text from public.messaging_wallets w where w.tenant_id='3c000000-0000-4000-8000-000000000001'::uuid$$,
+  $$select w.balance_paise::text from public.messaging_wallets w where w.tenant_id='3c000000-0000-4000-8000-000000000001'::uuid$$,
   $$select '150'::text$$,
   'COM: the exact replay moved no balance');
 
 select throws_ok(
-  $q$select * from public.adjust_messaging_wallet('3c000000-0000-4000-8000-000000000001', 25, 'Different reason', '3c000000-0000-4000-8000-000000000601')$q$,
+  $q$select * from public.adjust_messaging_wallet_paise('3c000000-0000-4000-8000-000000000001', 25, 'INR', 'Different reason', '3c000000-0000-4000-8000-000000000601')$q$,
   'GL068'::text, null::text,
   'COM: a reused key with different facts is GL068 idempotency_conflict');
 
 select throws_ok(
-  $q$select * from public.adjust_messaging_wallet('3c000000-0000-4000-8000-000000000001', -200, 'Bulk debit', '3c000000-0000-4000-8000-000000000602')$q$,
+  $q$select * from public.adjust_messaging_wallet_paise('3c000000-0000-4000-8000-000000000001', -200, 'INR', 'Bulk debit', '3c000000-0000-4000-8000-000000000602')$q$,
   'GL067'::text, null::text,
-  'COM: a movement that would drive the locked wallet below zero is GL067 insufficient_credits');
+  'COM: a movement that would drive the locked wallet below zero is GL067 insufficient_funds');
 
 select throws_ok(
-  $q$select * from public.adjust_messaging_wallet('3c000000-0000-4000-8000-000000000001', 0, 'Noop', '3c000000-0000-4000-8000-000000000603')$q$,
+  $q$select * from public.adjust_messaging_wallet_paise('3c000000-0000-4000-8000-000000000001', 0, 'INR', 'Noop', '3c000000-0000-4000-8000-000000000603')$q$,
   '23514'::text, null::text,
   'COM: a zero delta is a native CHECK refusal mapped to invalid_adjustment at the route');
 
 select throws_ok(
-  $q$select * from public.adjust_messaging_wallet('3c000000-0000-4000-8000-000000000001', 10, ' ', '3c000000-0000-4000-8000-000000000604')$q$,
+  $q$select * from public.adjust_messaging_wallet_paise('3c000000-0000-4000-8000-000000000001', 10, 'INR', ' ', '3c000000-0000-4000-8000-000000000604')$q$,
   '23514'::text, null::text,
   'COM: a blank reason is a native CHECK refusal mapped to invalid_adjustment at the route');
 
 select throws_ok(
-  $q$select * from public.adjust_messaging_wallet('3c000000-0000-4000-8000-000000000001', 9223372036854775807::bigint, 'Overflow probe', '3c000000-0000-4000-8000-000000000605')$q$,
+  $q$select * from public.adjust_messaging_wallet_paise('3c000000-0000-4000-8000-000000000001', 9223372036854775807::bigint, 'INR', 'Overflow probe', '3c000000-0000-4000-8000-000000000605')$q$,
   '22003'::text, null::text,
-  'COM: a bigint overflow is the native 22003, mapped to 422 credits_out_of_range at the route');
+  'COM: a bigint overflow is the native 22003, mapped to 422 paise_out_of_range at the route');
 
 -- The private helper is uncallable.
 select ok(
-  (select not has_function_privilege('authenticated','app.record_wallet_movement(uuid,bigint,text,uuid,uuid,uuid)','execute')
-     and not has_function_privilege('anon','app.record_wallet_movement(uuid,bigint,text,uuid,uuid,uuid)','execute')
-     and not has_function_privilege('service_role','app.record_wallet_movement(uuid,bigint,text,uuid,uuid,uuid)','execute')),
+  (select not has_function_privilege('authenticated','app.record_wallet_movement(uuid,bigint,text,text,uuid,uuid,uuid)','execute')
+     and not has_function_privilege('anon','app.record_wallet_movement(uuid,bigint,text,text,uuid,uuid,uuid)','execute')
+     and not has_function_privilege('service_role','app.record_wallet_movement(uuid,bigint,text,text,uuid,uuid,uuid)','execute')),
   'COM: app.record_wallet_movement is revoked from PUBLIC, anon, authenticated and service_role');
 
 select ok(
@@ -842,7 +842,7 @@ select results_eq(
 
 select results_eq(
   $$select a.action, a.record_type, a.reason,
-          a."before"->>'balance_credits', a."after"->>'balance_credits',
+          a."before"->>'balance_paise', a."after"->>'balance_paise',
           (select array_agg(k order by k) from jsonb_object_keys(a."after") k)
       from public.audit_log a
      where a.record_type='messaging_wallet' and a.record_id='3c000000-0000-4000-8000-000000000001'::uuid
@@ -850,7 +850,7 @@ select results_eq(
   $$select 'messaging_wallet.adjusted'::text, 'messaging_wallet'::text, 'Monthly top-up'::text,
           '100'::text, '150'::text,
           (select array_agg(k order by k)
-             from unnest(array['balance_credits','ledger_id','delta_credits','notification_id','request_key','recorded_by_user_id']::text[]) as expected(k))$$,
+             from unnest(array['balance_paise','currency','ledger_id','delta_paise','notification_id','request_key','recorded_by_user_id']::text[]) as expected(k))$$,
   'COM: messaging_wallet.adjusted carries the exact W shape with integer values as strings');
 
 select results_eq(

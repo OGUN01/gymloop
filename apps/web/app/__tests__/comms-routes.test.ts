@@ -497,12 +497,12 @@ describe('POST /api/message-templates', () => {
 
 describe('POST /api/messaging-wallet/adjust', () => {
   const adjustRoute = async () => (await import('../api/messaging-wallet/adjust/route'));
-  const requestBody = { tenantId: TENANT_ID, deltaCredits: '500', reason: 'Promotional top-up', requestKey: KEY };
-  const ledgerResult = { ledgerId: LEDGER_ID, tenantId: TENANT_ID, deltaCredits: '500', reason: 'Promotional top-up', balanceAfterCredits: '5000', createdAt: '2026-09-10T10:00:00+00:00' };
+  const requestBody = { tenantId: TENANT_ID, deltaPaise: '500', currency: 'INR', reason: 'Promotional top-up', requestKey: KEY };
+  const ledgerResult = { ledgerId: LEDGER_ID, tenantId: TENANT_ID, deltaPaise: '500', currency: 'INR', reason: 'Promotional top-up', balanceAfterPaise: '5000', createdAt: '2026-09-10T10:00:00+00:00' };
 
   beforeEach(() => { state.claims = SUPER_ADMIN; });
 
-  it('sends exactly the four named adjust_messaging_wallet facts, deltaCredits as the untouched string', async () => {
+  it('sends exactly the five named adjust_messaging_wallet_paise facts, deltaPaise as the untouched string', async () => {
     state.results = [{ data: ledgerResult, error: null }];
     const { POST } = await adjustRoute();
 
@@ -512,40 +512,40 @@ describe('POST /api/messaging-wallet/adjust', () => {
     expect(response.status).toBe(201);
     expect(payload).toMatchObject({ ok: true, data: ledgerResult });
     expect(state.rpc).toEqual([{
-      name: 'adjust_messaging_wallet',
-      args: { p_tenant_id: TENANT_ID, p_delta_credits: '500', p_reason: 'Promotional top-up', p_request_key: KEY },
+      name: 'adjust_messaging_wallet_paise',
+      args: { p_tenant_id: TENANT_ID, p_delta_paise: '500', p_currency: 'INR', p_reason: 'Promotional top-up', p_request_key: KEY },
     }]);
   });
 
-  it('never turns a huge deltaCredits into a JS number on the way to the RPC or in the response', async () => {
+  it('never turns a huge deltaPaise into a JS number on the way to the RPC or in the response', async () => {
     const huge = '9223372036854775807';
-    state.results = [{ data: { ...ledgerResult, deltaCredits: huge, balanceAfterCredits: huge }, error: null }];
+    state.results = [{ data: { ...ledgerResult, deltaPaise: huge, balanceAfterPaise: huge }, error: null }];
     const { POST } = await adjustRoute();
 
-    const response = await POST(json('/api/messaging-wallet/adjust', { ...requestBody, deltaCredits: huge }));
+    const response = await POST(json('/api/messaging-wallet/adjust', { ...requestBody, deltaPaise: huge }));
     const payload = await body(response);
 
-    expect(state.rpc[0]?.args.p_delta_credits).toBe(huge);
-    expect(typeof state.rpc[0]?.args.p_delta_credits).toBe('string');
-    expect(payload.data?.deltaCredits).toBe(huge);
-    expect(typeof payload.data?.deltaCredits).toBe('string');
+    expect(state.rpc[0]?.args.p_delta_paise).toBe(huge);
+    expect(typeof state.rpc[0]?.args.p_delta_paise).toBe('string');
+    expect(payload.data?.deltaPaise).toBe(huge);
+    expect(typeof payload.data?.deltaPaise).toBe('string');
   });
 
   it('accepts a negative delta (a debit) with one leading minus', async () => {
-    state.results = [{ data: { ...ledgerResult, deltaCredits: '-200', balanceAfterCredits: '4800' }, error: null }];
+    state.results = [{ data: { ...ledgerResult, deltaPaise: '-200', balanceAfterPaise: '4800' }, error: null }];
     const { POST } = await adjustRoute();
 
-    const response = await POST(json('/api/messaging-wallet/adjust', { ...requestBody, deltaCredits: '-200' }));
+    const response = await POST(json('/api/messaging-wallet/adjust', { ...requestBody, deltaPaise: '-200' }));
 
     expect(response.status).toBe(201);
-    expect(state.rpc[0]?.args.p_delta_credits).toBe('-200');
+    expect(state.rpc[0]?.args.p_delta_paise).toBe('-200');
   });
 
   it('sends a zero delta through to the RPC rather than pre-refusing it — the CHECK constraint owns that refusal', async () => {
     state.results = [{ data: null, error: { code: '23514', message: 'zero delta or blank reason' } }];
     const { POST } = await adjustRoute();
 
-    const response = await POST(json('/api/messaging-wallet/adjust', { ...requestBody, deltaCredits: '0' }));
+    const response = await POST(json('/api/messaging-wallet/adjust', { ...requestBody, deltaPaise: '0' }));
 
     expect(state.rpc).toHaveLength(1);
     expect(response.status).toBe(422);
@@ -553,14 +553,19 @@ describe('POST /api/messaging-wallet/adjust', () => {
   });
 
   it.each([
-    ['a non-canonical deltaCredits (leading zero)', { ...requestBody, deltaCredits: '0500' }],
-    ['a fractional deltaCredits', { ...requestBody, deltaCredits: '500.5' }],
-    ['a JS-number deltaCredits', { ...requestBody, deltaCredits: 500 }],
+    ['a non-canonical deltaPaise (leading zero)', { ...requestBody, deltaPaise: '0500' }],
+    ['a fractional deltaPaise', { ...requestBody, deltaPaise: '500.5' }],
+    ['a JS-number deltaPaise', { ...requestBody, deltaPaise: 500 }],
     ['a blank reason', { ...requestBody, reason: '   ' }],
     ['a non-uuid tenantId', { ...requestBody, tenantId: 'not-a-uuid' }],
     ['a non-uuid requestKey', { ...requestBody, requestKey: 'not-a-uuid' }],
     ['a forged ledgerId', { ...requestBody, ledgerId: LEDGER_ID }],
-    ['a forged balanceAfterCredits', { ...requestBody, balanceAfterCredits: '5000' }],
+    ['mixed credit units', { ...requestBody, deltaCredits: '5' }],
+    ['legacy credits only', { tenantId: TENANT_ID, deltaCredits: '5', reason: 'legacy', requestKey: KEY }],
+    ['non-INR currency', { ...requestBody, currency: 'USD' }],
+    ['missing currency', { tenantId: TENANT_ID, deltaPaise: '500', reason: 'top up', requestKey: KEY }],
+    ['forged conversion evidence', { ...requestBody, original_delta_credits: '5', conversion_paise_per_credit: '100' }],
+    ['a forged balanceAfterPaise', { ...requestBody, balanceAfterPaise: '5000' }],
   ])('refuses %s before invoking adjust_messaging_wallet', async (_name, payload) => {
     const { POST } = await adjustRoute();
     const response = await POST(json('/api/messaging-wallet/adjust', payload));
@@ -571,10 +576,11 @@ describe('POST /api/messaging-wallet/adjust', () => {
   });
 
   it.each([
-    ['GL067', 409, 'insufficient_credits'],
+    ['GL067', 409, 'insufficient_funds'],
     ['GL068', 409, 'idempotency_conflict'],
     ['23514', 422, 'invalid_adjustment'],
-    ['22003', 422, 'credits_out_of_range'],
+    ['22003', 422, 'paise_out_of_range'],
+    ['22023', 400, 'invalid_request'],
     ['40001', 409, 'retryable'],
     ['40P01', 409, 'retryable'],
   ])('maps %s to HTTP %s / %s, never inventing success', async (code, status, expectedCode) => {

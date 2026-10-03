@@ -227,12 +227,12 @@ insert into public.member_imports (id, tenant_id, uploaded_by_staff_id, file_nam
   ('13000000-0000-4000-8000-00000000001a'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000022'::uuid, 'batch-1.csv', '{"A": "full_name"}'::jsonb),
   ('13000000-0000-4000-8000-00000000001b'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, '13000000-0000-4000-8000-000000000022'::uuid, 'batch-2.csv', '{"A": "full_name"}'::jsonb);
 
-insert into public.messaging_wallets (tenant_id) values
-  ('13000000-0000-4000-8000-000000000001'::uuid);
+insert into public.messaging_wallets (tenant_id, currency) values
+  ('13000000-0000-4000-8000-000000000001'::uuid, 'INR');
 
-insert into public.messaging_wallet_ledger (id, tenant_id, delta_credits, reason) values
-  ('13000000-0000-4000-8000-00000000001c'::uuid, '13000000-0000-4000-8000-000000000001'::uuid,  1000, 'topup'),
-  ('13000000-0000-4000-8000-00000000001d'::uuid, '13000000-0000-4000-8000-000000000001'::uuid,   -10, 'push sent');
+insert into public.messaging_wallet_ledger (id, tenant_id, delta_paise, reason, currency) values
+  ('13000000-0000-4000-8000-00000000001c'::uuid, '13000000-0000-4000-8000-000000000001'::uuid,  1000, 'topup', 'INR'),
+  ('13000000-0000-4000-8000-00000000001d'::uuid, '13000000-0000-4000-8000-000000000001'::uuid,   -10, 'push sent', 'INR');
 
 insert into public.webhook_events (id, tenant_id, event_id, event_type, payload, signature_valid) values
   ('13000000-0000-4000-8000-00000000001e'::uuid, '13000000-0000-4000-8000-000000000001'::uuid, 'evt_13_1', 'payment.captured', '{}'::jsonb, true),

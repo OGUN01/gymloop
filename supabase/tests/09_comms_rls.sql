@@ -113,13 +113,13 @@ insert into public.consents (id, tenant_id, member_id, purpose, granted, version
    'b0000000-0000-4000-8000-000000000004'::uuid, 'marketing', true, 'v1', 'signup_form',
    'b0000000-0000-4000-8000-000000000003'::uuid);
 
-insert into public.messaging_wallets (tenant_id, balance_credits) values
-  ('a0000000-0000-4000-8000-000000000001'::uuid, 100),
-  ('b0000000-0000-4000-8000-000000000001'::uuid, 250);
+insert into public.messaging_wallets (tenant_id, balance_paise, currency) values
+  ('a0000000-0000-4000-8000-000000000001'::uuid, 100, 'INR'),
+  ('b0000000-0000-4000-8000-000000000001'::uuid, 250, 'INR');
 
-insert into public.messaging_wallet_ledger (id, tenant_id, delta_credits, reason) values
-  ('a0000000-0000-4000-8000-000000000009'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid, 100, 'topup'),
-  ('b0000000-0000-4000-8000-000000000009'::uuid, 'b0000000-0000-4000-8000-000000000001'::uuid, 250, 'topup');
+insert into public.messaging_wallet_ledger (id, tenant_id, delta_paise, reason, currency) values
+  ('a0000000-0000-4000-8000-000000000009'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid, 100, 'topup', 'INR'),
+  ('b0000000-0000-4000-8000-000000000009'::uuid, 'b0000000-0000-4000-8000-000000000001'::uuid, 250, 'topup', 'INR');
 
 -- ---------------------------------------------------------------------------
 -- 1-22. As a signed-in gym_owner of Gym A.
@@ -210,7 +210,7 @@ select ok(
 );
 
 select throws_ok(
-  $q$ update public.messaging_wallets set balance_credits = 999
+  $q$ update public.messaging_wallets set balance_paise = 999
        where tenant_id = 'b0000000-0000-4000-8000-000000000001'::uuid $q$,
   '42501'::text, null::text,
   'gate 7 (ADR-047): gym A updating gym B messaging_wallets is refused for want of privilege — the wallet is read-only to authenticated, so the balance cannot be set by any gym session'
@@ -250,14 +250,14 @@ select ok(
   'DPD-001: gym A cannot record consent for gym B, and consents retains an authenticated tenant WITH CHECK'
 );
 select throws_ok(
-  $q$ insert into public.messaging_wallets (tenant_id, balance_credits)
-      values ('b0000000-0000-4000-8000-000000000001'::uuid, 1) $q$,
+  $q$ insert into public.messaging_wallets (tenant_id, balance_paise, currency)
+      values ('b0000000-0000-4000-8000-000000000001'::uuid, 1, 'INR') $q$,
   '42501'::text, null::text,
   'gate 7 (ADR-047): gym A inserting a messaging_wallets row for gym B is rejected for want of privilege — the wallet is read-only to authenticated'
 );
 select throws_ok(
-  $q$ insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason)
-      values ('b0000000-0000-4000-8000-000000000001'::uuid, -50, 'planted') $q$,
+  $q$ insert into public.messaging_wallet_ledger (tenant_id, delta_paise, reason, currency)
+      values ('b0000000-0000-4000-8000-000000000001'::uuid, -50, 'planted', 'INR') $q$,
   '42501'::text, null::text,
   'gate 7 (ADR-049): gym A inserting a messaging_wallet_ledger row for gym B is rejected for want of privilege — the ledger is read-only to authenticated, so the refusal never reaches the with check'
 );
@@ -404,13 +404,13 @@ select ok(
   and pg_temp.has_authenticated_tenant_with_check('consents'),
   'DPD-002: no claims cannot insert consent, independently backed by the authenticated tenant WITH CHECK');
 select throws_ok(
-  $q$ insert into public.messaging_wallets (tenant_id, balance_credits)
-      values ('a0000000-0000-4000-8000-000000000001'::uuid, 1) $q$,
+  $q$ insert into public.messaging_wallets (tenant_id, balance_paise, currency)
+      values ('a0000000-0000-4000-8000-000000000001'::uuid, 1, 'INR') $q$,
   '42501'::text, null::text,
   'gate 7: no claims, an insert into messaging_wallets is rejected');
 select throws_ok(
-  $q$ insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason)
-      values ('a0000000-0000-4000-8000-000000000001'::uuid, -1, 'noclaims') $q$,
+  $q$ insert into public.messaging_wallet_ledger (tenant_id, delta_paise, reason, currency)
+      values ('a0000000-0000-4000-8000-000000000001'::uuid, -1, 'noclaims', 'INR') $q$,
   '42501'::text, null::text,
   'gate 7: no claims, an insert into messaging_wallet_ledger is rejected');
 
@@ -480,13 +480,13 @@ select ok(
   and pg_temp.has_authenticated_tenant_with_check('consents'),
   'DPD-002: an empty tenant claim cannot insert consent, independently backed by the authenticated tenant WITH CHECK');
 select throws_ok(
-  $q$ insert into public.messaging_wallets (tenant_id, balance_credits)
-      values ('a0000000-0000-4000-8000-000000000001'::uuid, 1) $q$,
+  $q$ insert into public.messaging_wallets (tenant_id, balance_paise, currency)
+      values ('a0000000-0000-4000-8000-000000000001'::uuid, 1, 'INR') $q$,
   '42501'::text, null::text,
   'gate 7: empty tenant_id claim, an insert into messaging_wallets is rejected');
 select throws_ok(
-  $q$ insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason)
-      values ('a0000000-0000-4000-8000-000000000001'::uuid, -1, 'emptyclaim') $q$,
+  $q$ insert into public.messaging_wallet_ledger (tenant_id, delta_paise, reason, currency)
+      values ('a0000000-0000-4000-8000-000000000001'::uuid, -1, 'emptyclaim', 'INR') $q$,
   '42501'::text, null::text,
   'gate 7: empty tenant_id claim, an insert into messaging_wallet_ledger is rejected');
 
@@ -511,7 +511,7 @@ select is(
   true,
   'gate 7: gym B member_devices row is unchanged and still present');
 select is(
-  (select balance_credits from public.messaging_wallets where tenant_id = 'b0000000-0000-4000-8000-000000000001'::uuid),
+  (select balance_paise from public.messaging_wallets where tenant_id = 'b0000000-0000-4000-8000-000000000001'::uuid),
   250::bigint,
   'gate 7: gym B messaging_wallets balance is unchanged');
 -- The next two follow PRIVILEGE refusals, not RLS filtering: `authenticated`

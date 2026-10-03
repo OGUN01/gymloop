@@ -200,7 +200,7 @@ beforeEach(() => {
   state.rpcResult = {
     rows: ROWS,
     statusCounts: STATUS_COUNTS,
-    walletBalanceCredits: '4500',
+    wallet: { balancePaise: '450000', currency: 'INR' },
     asOf: '2026-09-10T10:00:00+00:00',
   };
   state.rows = {
@@ -320,6 +320,18 @@ describe('staff /messages — role-gated sections', () => {
     expect(findComponent(page, 'WalletAdjustForm')).toBeUndefined();
   });
 
+  it('distinguishes an unavailable wallet from an available zero INR balance', async () => {
+    state.rpcResult = { rows: ROWS, statusCounts: STATUS_COUNTS, wallet: null, asOf: '2026-09-10T10:00:00+00:00' };
+    expect(inspect(await loadMessagesPage()).text).not.toContain('₹0');
+    state.rpcResult = { rows: ROWS, statusCounts: STATUS_COUNTS, wallet: { balancePaise: '0', currency: 'INR' }, asOf: '2026-09-10T10:00:00+00:00' };
+    expect(inspect(await loadMessagesPage()).text).toContain('₹0');
+  });
+
+  it('formats a large exact wallet string without rounding through a JS number', async () => {
+    state.rpcResult = { rows: ROWS, statusCounts: STATUS_COUNTS, wallet: { balancePaise: '900719925474099101', currency: 'INR' }, asOf: '2026-09-10T10:00:00+00:00' };
+    expect(inspect(await loadMessagesPage()).text).toContain('₹90,07,19,92,54,74,099.01');
+  });
+
   it('a whatsapp_link child is labelled "Opened in WhatsApp", verbatim', async () => {
     state.rows.notifications = [
       ...(state.rows.notifications ?? []),
@@ -328,7 +340,7 @@ describe('staff /messages — role-gated sections', () => {
     state.rpcResult = {
       rows: [...ROWS, { ...ROWS[1], id: WHATSAPP_CHILD.notificationId, channel: 'whatsapp_link', sourceNotificationId: SENT_ID }],
       statusCounts: STATUS_COUNTS,
-      walletBalanceCredits: '4500',
+      wallet: { balancePaise: '450000', currency: 'INR' },
       asOf: '2026-09-10T10:00:00+00:00',
     };
     const page = await loadMessagesPage();

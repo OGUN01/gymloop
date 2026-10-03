@@ -36,8 +36,8 @@ select ok((select count(*)=1 from public.organization_settings where tenant_id='
   'ONB-001: onboarding creates exactly one settings row');
 select ok((select count(*)=1 from public.branches where tenant_id='37000000-0000-4000-8000-000000000001' and is_default),
   'ONB-001: onboarding creates exactly one default branch');
-select ok((select count(*)=1 from public.messaging_wallets where tenant_id='37000000-0000-4000-8000-000000000001' and balance_credits=0),
-  'ONB-001: onboarding creates one zero-credit wallet');
+select ok((select count(*)=1 from public.messaging_wallets where tenant_id='37000000-0000-4000-8000-000000000001' and balance_paise=0 and currency='INR' and original_balance_credits is null and converted_at is null),
+  'ONB-001: onboarding creates one zero-paise wallet');
 select ok((select count(*)=0 from public.messaging_wallet_ledger where tenant_id='37000000-0000-4000-8000-000000000001'),
   'ONB-001: zero opening balance does not fabricate a ledger movement');
 select ok((select count(*)=1 from public.staff where tenant_id='37000000-0000-4000-8000-000000000001'

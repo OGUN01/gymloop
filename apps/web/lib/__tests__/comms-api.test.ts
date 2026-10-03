@@ -18,20 +18,20 @@ import { describe, expect, it } from 'vitest';
  *   exact eight keys (§3): `consentId,memberId,purpose,granted,version,source,
  *   recordedAt,recordedByStaffId`.
  * - `walletAdjustmentResult(data: unknown): WalletAdjustmentResult | null` —
- *   the contract's exact six keys (§7): `ledgerId,tenantId,deltaCredits,
- *   reason,balanceAfterCredits,createdAt`, with `deltaCredits` and
- *   `balanceAfterCredits` as canonical decimal strings, never JS numbers
+ *   the contract's exact seven keys (WSP-104): `ledgerId,tenantId,deltaPaise,
+ *   currency,reason,balanceAfterPaise,createdAt`, with `deltaPaise` and
+ *   `balanceAfterPaise` as canonical decimal strings, never JS numbers
  *   (§1: "No bigint/numeric value crosses JSON as a JS number").
  * - `isCanonicalIntegerString(value: unknown): value is string` — the §1
  *   grammar: `0` or nonzero-leading digits, one leading minus for negative,
- *   nothing else. Used to validate `deltaCredits` before it reaches an RPC.
+ *   nothing else. Used to validate `deltaPaise` before it reaches an RPC.
  * - `commsRpcFailure(error: { code: string; message: string }): Response` —
  *   the §1 error table in one place, the same role `leadWriteFailure` plays
  *   for leads: GL065→422 invalid_consent, GL066→422 invalid_notification,
- *   GL067→409 insufficient_credits, GL068→409 idempotency_conflict,
+ *   GL067→409 insufficient_funds, GL068→409 idempotency_conflict,
  *   GL069→422 invalid_provider_evidence, 42501→403 forbidden, P0002→404
  *   not_found, 40001/40P01→409 retryable, 23514→422 invalid_adjustment
- *   (wallet), 22003→422 credits_out_of_range, anything else→500
+ *   (wallet), 22003→422 paise_out_of_range, anything else→500
  *   operation_failed.
  */
 
@@ -205,29 +205,29 @@ describe('isCanonicalIntegerString — §1 decimal-string grammar', () => {
 
 describe('WalletAdjustmentResult — decimal-string money, BigInt-safe', () => {
   const adjustment: Fields = {
-    ledgerId: LEDGER_ID, tenantId: TENANT_ID, deltaCredits: '500', reason: 'Promotional top-up',
-    balanceAfterCredits: '5000', createdAt: '2026-09-10T10:00:00+00:00',
+    ledgerId: LEDGER_ID, tenantId: TENANT_ID, deltaPaise: '500', currency: 'INR', reason: 'Promotional top-up',
+    balanceAfterPaise: '5000', createdAt: '2026-09-10T10:00:00+00:00',
   };
 
-  it('accepts the exact six-key shape with string credits', async () => {
+  it('accepts the exact seven-key shape with string paise', async () => {
     const { walletAdjustmentResult } = await comms();
     expect(walletAdjustmentResult(adjustment)).toEqual(adjustment);
   });
 
-  it('accepts a negative deltaCredits (a debit) with one leading minus', async () => {
+  it('accepts a negative deltaPaise (a debit) with one leading minus', async () => {
     const { walletAdjustmentResult } = await comms();
-    const debit = { ...adjustment, deltaCredits: '-500', balanceAfterCredits: '4000' };
+    const debit = { ...adjustment, deltaPaise: '-500', balanceAfterPaise: '4000' };
     expect(walletAdjustmentResult(debit)).toEqual(debit);
   });
 
-  it('preserves a deltaCredits beyond Number.MAX_SAFE_INTEGER byte-for-byte — never routed through Number()', async () => {
+  it('preserves a deltaPaise beyond Number.MAX_SAFE_INTEGER byte-for-byte — never routed through Number()', async () => {
     const { walletAdjustmentResult } = await comms();
     const huge = '9223372036854775807';
-    const result = walletAdjustmentResult({ ...adjustment, deltaCredits: huge, balanceAfterCredits: huge });
+    const result = walletAdjustmentResult({ ...adjustment, deltaPaise: huge, balanceAfterPaise: huge });
     expect(result).not.toBeNull();
-    expect(result?.deltaCredits).toBe(huge);
-    expect(result?.balanceAfterCredits).toBe(huge);
-    expect(BigInt(result?.deltaCredits ?? '0')).toBe(BigInt(huge));
+    expect(result?.deltaPaise).toBe(huge);
+    expect(result?.balanceAfterPaise).toBe(huge);
+    expect(BigInt(result?.deltaPaise ?? '0')).toBe(BigInt(huge));
   });
 
   it.each(Object.keys(adjustment))('refuses a result missing %s', async (key) => {
@@ -240,24 +240,39 @@ describe('WalletAdjustmentResult — decimal-string money, BigInt-safe', () => {
     expect(walletAdjustmentResult({ ...adjustment, notificationId: null })).toBeNull();
   });
 
-  it.each(['deltaCredits', 'balanceAfterCredits'])('refuses a JS number %s rather than a decimal string', async (key) => {
+  it.each(['deltaPaise', 'balanceAfterPaise'])('refuses a JS number %s rather than a decimal string', async (key) => {
     const { walletAdjustmentResult } = await comms();
     expect(walletAdjustmentResult({ ...adjustment, [key]: 500 })).toBeNull();
   });
 
-  it.each(['deltaCredits', 'balanceAfterCredits'])('refuses a non-canonical %s string (leading zero)', async (key) => {
+  it.each(['deltaPaise', 'balanceAfterPaise'])('refuses a non-canonical %s string (leading zero)', async (key) => {
     const { walletAdjustmentResult } = await comms();
     expect(walletAdjustmentResult({ ...adjustment, [key]: '0500' })).toBeNull();
   });
 
-  it('refuses a negative balanceAfterCredits — the ledger CHECK never permits one', async () => {
+  it('refuses a negative balanceAfterPaise — the ledger CHECK never permits one', async () => {
     const { walletAdjustmentResult } = await comms();
-    expect(walletAdjustmentResult({ ...adjustment, balanceAfterCredits: '-1' })).toBeNull();
+    expect(walletAdjustmentResult({ ...adjustment, balanceAfterPaise: '-1' })).toBeNull();
   });
 
   it.each(['ledgerId', 'tenantId'])('refuses a non-uuid %s', async (key) => {
     const { walletAdjustmentResult } = await comms();
     expect(walletAdjustmentResult({ ...adjustment, [key]: 'not-a-uuid' })).toBeNull();
+  });
+
+  it('preserves a null historical balance-after instead of inventing zero', async () => {
+    const { walletAdjustmentResult } = await comms();
+    expect(walletAdjustmentResult({ ...adjustment, balanceAfterPaise: null })).toEqual({ ...adjustment, balanceAfterPaise: null });
+  });
+
+  it.each(['USD', '', null])('refuses non-INR currency %j', async (currency) => {
+    const { walletAdjustmentResult } = await comms();
+    expect(walletAdjustmentResult({ ...adjustment, currency })).toBeNull();
+  });
+
+  it('refuses mixed credit evidence in a new paise result', async () => {
+    const { walletAdjustmentResult } = await comms();
+    expect(walletAdjustmentResult({ ...adjustment, deltaCredits: '5' })).toBeNull();
   });
 
   it('refuses a blank reason', async () => {
@@ -270,7 +285,7 @@ describe('commsRpcFailure — the §1 error table, one honest outcome per code',
   it.each([
     ['GL065', 'Blank version/source, invalid consent attribution or missing required consent facts.', 422, 'invalid_consent'],
     ['GL066', 'Illegal graph edge or frozen content/identity mutation.', 422, 'invalid_notification'],
-    ['GL067', 'This credit movement would put the wallet below zero.', 409, 'insufficient_credits'],
+    ['GL067', 'This credit movement would put the wallet below zero.', 409, 'insufficient_funds'],
     ['GL068', 'This request key was already used for different facts.', 409, 'idempotency_conflict'],
     ['GL069', 'That paid-acceptance request lacks valid evidence.', 422, 'invalid_provider_evidence'],
     ['42501', 'Row security refused the write.', 403, 'forbidden'],
@@ -278,7 +293,8 @@ describe('commsRpcFailure — the §1 error table, one honest outcome per code',
     ['40001', 'Serialization failure.', 409, 'retryable'],
     ['40P01', 'Deadlock detected.', 409, 'retryable'],
     ['23514', 'Zero delta or blank reason.', 422, 'invalid_adjustment'],
-    ['22003', 'Delta credits overflowed bigint range.', 422, 'credits_out_of_range'],
+    ['22003', 'Delta paise overflowed bigint range.', 422, 'paise_out_of_range'],
+    ['22023', 'Currency must be INR.', 400, 'invalid_request'],
     ['XX000', 'Some other unmapped failure.', 500, 'operation_failed'],
   ])('maps %s to HTTP %s / %s, never a fabricated success', async (code, message, status, expectedCode) => {
     const { commsRpcFailure } = await comms();
