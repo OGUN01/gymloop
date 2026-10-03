@@ -17,6 +17,7 @@ vi.mock('react-native', () => ({ StyleSheet: { create: (styles: unknown) => styl
 vi.mock('react', async importOriginal => ({
   ...await importOriginal<typeof import('react')>(),
   useState: () => [state.segment, (value: 'classes' | 'training') => { state.segment = value; }],
+  useEffect: () => {},
 }));
 vi.mock('../../components/classes-pane', () => ({ ClassesPane: () => null }));
 vi.mock('../../components/training-section', () => ({ TrainingSection: () => null }));
