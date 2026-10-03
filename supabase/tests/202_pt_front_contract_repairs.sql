@@ -81,7 +81,7 @@ insert into public.addon_orders(id,tenant_id,member_id,addon_product_id,status,q
 update public.staff set is_active=false where id=pg_temp.gid(25);
 insert into public.trainer_availability(tenant_id,staff_id,weekday,start_minute,end_minute) select pg_temp.gid(1),pg_temp.gid(24),n,0,1440 from generate_series(0,6)n;
 create temp table requested_days as select app.gym_today(pg_temp.gid(1))+2 as d;
-create temp table expected_live as select g.starts_at,g.ends_at,'Pacific/Kiritimati'::text as timezone from requested_days d cross join lateral app.pt_availability_grid('Pacific/Kiritimati','Pacific/Honolulu',d.d,d.d,(select jsonb_agg(jsonb_build_object('weekday',weekday,'startMinute',start_minute,'endMinute',end_minute)) from public.trainer_availability where staff_id=pg_temp.gid(24)),60)g where app.pt_slot_state(pg_temp.gid(1),pg_temp.gid(24),g.starts_at)='open';
+create temp table expected_live as select g.starts_at,g.ends_at,'Pacific/Honolulu'::text as timezone from requested_days d cross join lateral app.pt_availability_grid('Pacific/Kiritimati','Pacific/Honolulu',d.d,d.d,(select jsonb_agg(jsonb_build_object('weekday',weekday,'startMinute',start_minute,'endMinute',end_minute)) from public.trainer_availability where staff_id=pg_temp.gid(24)),60)g where app.pt_slot_state(pg_temp.gid(1),pg_temp.gid(24),g.starts_at)='open';
 create temp table actual_live(starts_at timestamptz,ends_at timestamptz,timezone text);
 grant select on requested_days,expected_live to authenticated;
 grant select,insert,delete on actual_live to authenticated;
@@ -151,7 +151,7 @@ select results_eq($q$select jsonb_build_object('orders',(select jsonb_agg(to_jso
 set local role authenticated;
 select lives_ok($q$select public.set_pt_policy(24,true,15)$q$,'owner changes duration through authorized policy command');
 set local role postgres;
-create temp table expected_capped as select g.starts_at,g.ends_at,'Pacific/Kiritimati'::text timezone from requested_days d cross join lateral app.pt_availability_grid('Pacific/Kiritimati','Pacific/Honolulu',d.d,d.d+13,(select jsonb_agg(jsonb_build_object('weekday',weekday,'startMinute',start_minute,'endMinute',end_minute)) from public.trainer_availability where staff_id=pg_temp.gid(24)),15)g where app.pt_slot_state(pg_temp.gid(1),pg_temp.gid(24),g.starts_at)='open' order by g.starts_at limit 400;
+create temp table expected_capped as select g.starts_at,g.ends_at,'Pacific/Honolulu'::text timezone from requested_days d cross join lateral app.pt_availability_grid('Pacific/Kiritimati','Pacific/Honolulu',d.d,d.d+13,(select jsonb_agg(jsonb_build_object('weekday',weekday,'startMinute',start_minute,'endMinute',end_minute)) from public.trainer_availability where staff_id=pg_temp.gid(24)),15)g where app.pt_slot_state(pg_temp.gid(1),pg_temp.gid(24),g.starts_at)='open' order by g.starts_at limit 400;
 grant select on expected_capped to authenticated;
 select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.gid(903),'role','authenticated','app_role','member','tenant_id',pg_temp.gid(1),'member_id',pg_temp.gid(31))::text,true);
 set local role authenticated;
