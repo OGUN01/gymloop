@@ -43,3 +43,28 @@ and raw public RPC rows. This specifies interfaces rather than source details.
 Before booking-confirmation test fanout or UI build, the separately proposed
 member-policy seam must be owner-resolved and frozen. Existing-session
 cancellation previews use the authoritative current session read facts.
+
+## Shared Classes / Training controls
+
+The frozen PTF-owned controls are presentation seams, independent of the
+proposed member-policy read. They introduce no reads, commands or identity.
+
+- Web `ClassesSegments({ current })` takes `current: 'classes' | 'training'`.
+  It renders the exact labels Classes and Training as links to `/member/classes`
+  and `/member/classes/training` in a navigation landmark labelled
+  "Classes and training"; only the current link has `aria-current="page"`.
+  These are navigation links, with ordinary keyboard focus and kit targets.
+- Native `SegmentedControl({ value, onChange })` takes
+  `value: 'classes' | 'training'` and
+  `onChange(value: 'classes' | 'training'): void`. The same two labels are
+  controlled tabs, each with the correct selected accessibility state; an
+  activated different tab calls the supplied callback once with its literal
+  value. The control contains no member data, network requests, storage,
+  provider lifecycle changes or default selection outside its supplied value.
+- Both reuse registered kit/theme/spacing/target tokens, support enlarged text
+  without fixed-height clipping, and introduce no motion. The native control
+  obtains only palette through the existing `useMobile` presentation context.
+  The central integrator owns mounting the feature panes and selection state.
+
+Independent visible control tests are committed before their implementation.
+Rendered/native runtime acceptance and final navigation remain separate gates.
