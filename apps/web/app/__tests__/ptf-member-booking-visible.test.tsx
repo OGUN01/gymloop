@@ -1,6 +1,6 @@
 // Independently authored from frozen approved PTF declarations; no source or holdouts read.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { businessNouns, ptBookingConsequence, type PtPack } from '@gymloop/shared';
+import { businessNouns, ptBookingConsequence, type PtPack, type PtSession } from '@gymloop/shared';
 import { PtBookingForm } from '../member/classes/training/pt-actions';
 import BookingPage from '../member/classes/training/book/[orderId]/page';
 
@@ -32,6 +32,14 @@ const slot = { startsAt: '2026-10-03T06:30:00Z', endsAt: '2026-10-03T07:30:00Z',
 type Facts = Parameters<typeof PtBookingForm>[0]['initial'];
 const facts = (): Facts => ({ pack, slots: { data: [slot], error: null }, policy: { data: { cancelWindowHours: 0, lateCancelConsumes: false }, error: null } });
 const training = () => ({ trainers: { data: [], error: null }, programmes: { data: [], error: null }, packs: { data: [pack], error: null }, upcoming: { data: [], error: null }, history: { data: [], error: null } });
+
+function cancelledSession(body: Record<string, unknown>, consumed: boolean): PtSession {
+  return { sessionId: String(body.sessionId), orderId, programmeName: pack.programmeName,
+    trainerKey: pack.trainerKey, trainerName: pack.trainerName, ...slot,
+    status: 'cancelled_by_member', consumed, cancelledAt: '2026-10-03T01:00:00Z',
+    cancelCutoff: null, lateNow: false, consumesNow: false, canCancel: false };
+}
+
 let nodes: Node[] = [];
 let scope = 'member:A';
 let initial: Facts;
@@ -187,7 +195,7 @@ describe('PTF actual booking form policy, command and replay', () => {
     expect(seam.fetch).toHaveBeenCalledTimes(1); const original = postBody();
     expect(visible()).not.toMatch(/Session booked|Successfully booked/);
     await settle(); expect(seam.fetch).toHaveBeenCalledTimes(1);
-    read = async () => ({ ...facts(), pack: { ...pack, state: 'closed', canBook: false }, slots: { data: [], error: null } });
+    read = async () => ({ ...facts(), pack: { ...pack, state: 'closed', canBook: false }, slots: { data: [], error: null }, sessions: { data: [cancelledSession(original, false)], error: null } });
     seam.fetch.mockImplementationOnce(async () => ({ ok: true, json: async () => ({ ok: true, data: { ...answer(original, 'cancelled_by_member'), replayed: true } }) }));
     await press(/^Retry(?: booking)?$|^Try again$/);
     expect(seam.fetch).toHaveBeenCalledTimes(2); expect(postBody()).toEqual(original);
@@ -225,4 +233,40 @@ describe('PTF actual booking form policy, command and replay', () => {
     expect(seam.fetch).not.toHaveBeenCalled();
     if (transition === 'offline') { vi.stubGlobal('navigator', { onLine: true }); window.dispatchEvent(new Event('online')); await settle(); expect(seam.fetch).not.toHaveBeenCalled(); }
   });
+
+  it.each([false, true])('labels cancelled replay only from fresh exact effective consumed=%s', async consumed => {
+    seam.fetch.mockRejectedValueOnce(new Error('Unknown outcome')); draw(); await settle(); await press(slotControl); await press(confirmation); const body = postBody();
+    const section = { data: [cancelledSession(body, consumed)], error: null };
+    const current = vi.fn().mockResolvedValue({ ...facts(), sessions: section }); read = current;
+    seam.fetch.mockImplementationOnce(async () => ({ ok: true, json: async () => ({ ok: true, data: { ...answer(body, 'cancelled_by_member'), replayed: true } }) }));
+    await press(/^Retry(?: booking)?$|^Try again$/);
+    expect(seam.fetch).toHaveBeenCalledTimes(2); expect(postBody()).toEqual(body); expect(current).toHaveBeenCalledTimes(1);
+    expect(visible()).toContain(consumed ? 'Cancelled late - session used' : 'Cancelled by you');
+    expect(visible()).not.toContain(consumed ? 'Cancelled by you' : 'Cancelled late - session used');
+  });
+  it.each(['missing', 'failed', 'wrong session', 'wrong interval'] as const)('uses neutral cancellation truth when fresh Training is %s', async failure => {
+    seam.fetch.mockRejectedValueOnce(new Error('Unknown outcome')); draw(); await settle(); await press(slotControl); await press(confirmation); const body = postBody();
+    const exact = cancelledSession(body, true);
+    const section = failure === 'failed' ? { data: null, error: 'Please try again.' } : {
+      data: failure === 'missing' ? [] : [{ ...exact, ...(failure === 'wrong session' ? { sessionId: '73000000-0000-4000-8000-000000000099' } : { endsAt: '2026-10-03T08:30:00Z' }) }], error: null,
+    };
+    const current = vi.fn().mockResolvedValue({ ...facts(), sessions: section }); read = current;
+    seam.fetch.mockImplementationOnce(async () => ({ ok: true, json: async () => ({ ok: true, data: { ...answer(body, 'cancelled_by_member'), replayed: true } }) }));
+    await press(/^Retry(?: booking)?$|^Try again$/);
+    expect(seam.fetch).toHaveBeenCalledTimes(2); expect(postBody()).toEqual(body); expect(current).toHaveBeenCalledTimes(1);
+    expect(visible()).toContain('Cancelled. Reload to check whether a session was used.');
+    expect(visible()).not.toMatch(/Cancelled by you|Cancelled late - session used/);
+  });
+
+
+  it('does not publish cancellation consumption from a late read after permanent lifetime revocation', async () => {
+    seam.fetch.mockRejectedValueOnce(new Error('Unknown')); draw(); await settle(); await press(slotControl); await press(confirmation); const body = postBody();
+    const waiting = deferred<Facts | null>(); read = () => waiting.promise; seam.fetch.mockImplementationOnce(async () => ({ ok: true, json: async () => ({ ok: true, data: { ...answer(body, 'cancelled_by_member'), replayed: true } }) }));
+    const retry = action(/^Retry(?: booking)?$|^Try again$/)?.props.onClick; expect(retry).toBeTypeOf('function');
+    const pending = typeof retry === 'function' ? retry() : undefined; await settle();
+    scope = 'member:B'; draw(); await settle(); scope = 'member:A'; draw(); await settle();
+    waiting.resolve({ ...facts(), sessions: { data: [cancelledSession(body, true)], error: null } }); await pending; await settle();
+    expect(seam.fetch).toHaveBeenCalledTimes(2); expect(visible()).not.toMatch(/Cancelled by you|Cancelled late - session used/);
+  });
+
 });

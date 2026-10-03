@@ -1,6 +1,6 @@
 // Independently authored from frozen approved PTF declarations; no source or holdouts read.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { businessNouns, ptBookingConsequence, type PtPack } from '@gymloop/shared';
+import { businessNouns, ptBookingConsequence, type PtPack, type PtSession } from '@gymloop/shared';
 import BookingScreen from '../../app/training/book/[orderId]';
 
 type Props = Record<string, unknown>;
@@ -10,7 +10,7 @@ const seam = vi.hoisted(() => ({
   stores: new Map<string, Slot[]>(), path: '', cursor: 0, effects: [] as Array<() => void>,
   loadMember: vi.fn(), slots: vi.fn(), policy: vi.fn(), routeOrder: '' as unknown, uuid: vi.fn(), nextUuid: 0,
   network: true, probe: vi.fn(), networkListener: null as null | ((state: { isConnected: boolean; isInternetReachable: boolean }) => void),
-  context: {} as Props,
+  context: {} as Props, focused: true, focusEffects: new Map<unknown, (() => void) | undefined>(),
 }));
 vi.mock('react', async importOriginal => {
   const actual = await importOriginal<typeof import('react')>();
@@ -45,7 +45,7 @@ vi.mock('expo-network', () => ({
   getNetworkStateAsync: seam.probe,
   addNetworkStateListener: (callback: typeof seam.networkListener) => { seam.networkListener = callback; return { remove: vi.fn() }; },
 }));
-vi.mock('expo-router', () => ({ router: { push: vi.fn(), replace: vi.fn() }, useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useLocalSearchParams: () => ({ orderId: seam.routeOrder }) }));
+vi.mock('expo-router', () => ({ useFocusEffect: (effect: () => void | (() => void)) => { if (seam.focused && !seam.focusEffects.has(effect)) seam.focusEffects.set(effect, effect() || undefined); }, router: { push: vi.fn(), replace: vi.fn() }, useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useLocalSearchParams: () => ({ orderId: seam.routeOrder }) }));
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', ScrollView: 'ScrollView', Pressable: 'Pressable', TextInput: 'TextInput', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: (styles: unknown) => styles }, Platform: { OS: 'android' } }));
 vi.mock('../../components/ui', () => {
   const host = (name: string) => (props: Props) => ({ type: name, props });
@@ -61,9 +61,17 @@ const memberA = { kind: 'member', userId: '74000000-0000-4000-8000-000000000011'
 const orderId = '73000000-0000-4000-8000-000000000032';
 const pack: PtPack = { orderId, programmeName: 'Saved movement programme', trainerKey: '73000000-0000-4000-8000-000000000033', trainerName: 'Coach Kavya', sessionsTotal: 10, sessionsUsed: 3, sessionsScheduled: 2, sessionsRemaining: 5, startsOn: '2026-10-01', expiresOn: '2026-10-31', state: 'live', canBook: true, timezone: 'Asia/Kolkata' };
 const slot = { startsAt: '2026-10-03T06:30:00Z', endsAt: '2026-10-03T07:30:00Z', timezone: 'Asia/Kolkata' };
-const training = () => ({ trainers: { data: [], error: null }, programmes: { data: [], error: null }, packs: { data: [pack], error: null }, upcoming: { data: [], error: null }, history: { data: [], error: null } });
+const training = () => ({ trainers: { data: [], error: null }, programmes: { data: [], error: null }, packs: { data: [pack], error: null }, upcoming: { data: [] as PtSession[], error: null }, history: { data: [] as PtSession[], error: null } });
 const policy = () => ({ data: { cancelWindowHours: 0, lateCancelConsumes: false }, error: null });
 const answer = (body: Record<string, unknown>, status = 'booked') => ({ sessionId: body.sessionId, orderId, startsAt: slot.startsAt, endsAt: slot.endsAt, status, inCancelWindow: false, replayed: false });
+
+
+function cancelledSession(body: Record<string, unknown>, consumed: boolean): PtSession {
+  return { sessionId: String(body.sessionId), orderId, programmeName: pack.programmeName,
+    trainerKey: pack.trainerKey, trainerName: pack.trainerName, ...slot,
+    status: 'cancelled_by_member', consumed, cancelledAt: '2026-10-03T01:00:00Z',
+    cancelCutoff: null, lateNow: false, consumesNow: false, canCancel: false };
+}
 
 let nodes: Node[] = [];
 function visit(value: unknown, path: string): void {
@@ -91,7 +99,8 @@ function words(value: unknown): string {
 function visible(items: Node[] = nodes) { return items.map(node => ['children', 'title', 'meta', 'detail', 'message', 'value'].map(key => words(node.props[key])).join(' ')).join(' ').replace(/\s+/g, ' '); }
 function control(label: RegExp) { return [...nodes].reverse().find(node => [words(node.props.children), words(node.props.title), words(node.props.accessibilityLabel)].some(value => label.test(value.trim())) && (typeof node.props.onPress === 'function' || typeof node.props.onRetry === 'function')); }
 async function press(label: RegExp) { const node = control(label); expect(node, `rendered action ${label.source} exists`).toBeDefined(); if (!node) return; expect(node.props.disabled, `action ${label.source} enabled`).not.toBe(true); const callback = node.props.onPress ?? node.props.onRetry; if (typeof callback === 'function') await callback(); await settle(); }
-function cleanup() { seam.stores.forEach(slots => slots.forEach(slot => slot.cleanup?.())); seam.stores.clear(); seam.effects = []; }
+function focus(value: boolean) { if (!value) { seam.focusEffects.forEach(cleanup => cleanup?.()); seam.focusEffects.clear(); } seam.focused = value; draw(); }
+function cleanup() { seam.focusEffects.forEach(cleanup => cleanup?.()); seam.focusEffects.clear(); seam.stores.forEach(slots => slots.forEach(slot => slot.cleanup?.())); seam.stores.clear(); seam.effects = []; }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(yes => { resolve = yes; }); return { promise, resolve }; }
 function context(identity: unknown) {
   return { identity, ready: true, nouns: businessNouns('gym'), palette: {}, session: { user: { id: memberA.userId }, access_token: 'fixture-token' }, api: { post: vi.fn().mockImplementation(async (_path: unknown, body: Record<string, unknown>) => ({ ok: true, data: answer(body) })) }, supabase: {
@@ -101,7 +110,7 @@ function context(identity: unknown) {
 }
 beforeEach(() => {
   cleanup(); vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-03T00:00:00Z'));
-  seam.network = true; seam.networkListener = null; seam.context = context(memberA);
+  seam.focused = true; seam.network = true; seam.networkListener = null; seam.context = context(memberA);
   seam.routeOrder = orderId;
   seam.nextUuid = 0;
   seam.uuid.mockReset().mockImplementation(() => '73000000-0000-4000-8000-' + String(++seam.nextUuid).padStart(12, '0'));
@@ -255,4 +264,73 @@ describe('PTF actual native booking route', () => {
     expect(originalPost).not.toHaveBeenCalled(); expect(post()).not.toHaveBeenCalled();
     if (transition === 'offline') { seam.network = true; seam.probe.mockResolvedValue({ isConnected: true, isInternetReachable: true }); seam.networkListener?.({ isConnected: true, isInternetReachable: true }); await settle(); expect(post()).not.toHaveBeenCalled(); }
   });
+
+  it.each([false, true])('labels cancelled replay only from fresh exact effective consumed=%s', async consumed => {
+    post().mockRejectedValueOnce(new Error('Unknown outcome')); draw(); await settle(); await press(slotControl); await press(confirmation); const body = post().mock.calls[0]?.[1] as Record<string, unknown>;
+    const section = { data: [cancelledSession(body, consumed)], error: null };
+    seam.loadMember.mockResolvedValue({ ...training(), history: section }); const reads = seam.loadMember.mock.calls.length;
+    post().mockResolvedValueOnce({ ok: true, data: { ...answer(body, 'cancelled_by_member'), replayed: true } });
+    await press(/^Retry(?: booking)?$|^Try again$/);
+    expect(post()).toHaveBeenCalledTimes(2); expect(post().mock.calls[1]?.[1]).toEqual(body); expect(seam.loadMember).toHaveBeenCalledTimes(reads + 1);
+    expect(visible()).toContain(consumed ? 'Cancelled late - session used' : 'Cancelled by you');
+    expect(visible()).not.toContain(consumed ? 'Cancelled by you' : 'Cancelled late - session used');
+  });
+  it.each(['missing', 'failed', 'wrong session', 'wrong interval'] as const)('uses neutral cancellation truth when fresh Training is %s', async failure => {
+    post().mockRejectedValueOnce(new Error('Unknown outcome')); draw(); await settle(); await press(slotControl); await press(confirmation); const body = post().mock.calls[0]?.[1] as Record<string, unknown>;
+    const exact = cancelledSession(body, true);
+    const section = failure === 'failed' ? { data: null, error: 'Please try again.' } : {
+      data: failure === 'missing' ? [] : [{ ...exact, ...(failure === 'wrong session' ? { sessionId: '73000000-0000-4000-8000-000000000099' } : { endsAt: '2026-10-03T08:30:00Z' }) }], error: null,
+    };
+    seam.loadMember.mockResolvedValue({ ...training(), history: section }); const reads = seam.loadMember.mock.calls.length;
+    post().mockResolvedValueOnce({ ok: true, data: { ...answer(body, 'cancelled_by_member'), replayed: true } });
+    await press(/^Retry(?: booking)?$|^Try again$/);
+    expect(post()).toHaveBeenCalledTimes(2); expect(post().mock.calls[1]?.[1]).toEqual(body); expect(seam.loadMember).toHaveBeenCalledTimes(reads + 1);
+    expect(visible()).toContain('Cancelled. Reload to check whether a session was used.');
+    expect(visible()).not.toMatch(/Cancelled by you|Cancelled late - session used/);
+  });
+
+
+  it.each(['confirmation', 'unknown retry'] as const)('permanently revokes retained %s across mounted blur and return', async kind => {
+    draw(); await settle(); await press(slotControl);
+    if (kind === 'unknown retry') { post().mockRejectedValueOnce(new Error('Unknown')); await press(confirmation); }
+    const retained = control(kind === 'confirmation' ? confirmation : /^Retry(?: booking)?$|^Try again$/)?.props.onPress;
+    expect(retained).toBeTypeOf('function'); const prior = post().mock.calls.length;
+    focus(false); await settle(); focus(true); await settle();
+    if (typeof retained === 'function') await retained(); await settle();
+    expect(post()).toHaveBeenCalledTimes(prior);
+    await press(slotControl); await press(confirmation);
+    expect(post()).toHaveBeenCalledTimes(prior + 1);
+    if (prior) expect(post().mock.calls[prior]?.[1]).not.toEqual(post().mock.calls[0]?.[1]);
+  });
+  it('revokes an awaited final network preflight on blur even when returning before it resolves', async () => {
+    draw(); await settle(); await press(slotControl);
+    const waiting = deferred<{ isConnected: boolean; isInternetReachable: boolean }>(); seam.probe.mockReturnValueOnce(waiting.promise);
+    const confirm = control(confirmation)?.props.onPress; expect(confirm).toBeTypeOf('function');
+    const pending = typeof confirm === 'function' ? confirm() : undefined; await settle();
+    focus(false); await settle(); focus(true); await settle();
+    waiting.resolve({ isConnected: true, isInternetReachable: true }); await pending; await settle();
+    expect(post()).not.toHaveBeenCalled();
+  });
+  it('stops an awaited selection read after mounted blur and refocus', async () => {
+    draw(); await settle(); const waiting = deferred<ReturnType<typeof training>>(); seam.loadMember.mockReturnValueOnce(waiting.promise);
+    const select = control(slotControl)?.props.onPress; expect(select).toBeTypeOf('function');
+    const pending = typeof select === 'function' ? select() : undefined; await settle();
+    focus(false); await settle(); focus(true); await settle();
+    const slots = seam.slots.mock.calls.length; const policies = seam.policy.mock.calls.length;
+    waiting.resolve(training()); await pending; await settle();
+    expect(seam.slots).toHaveBeenCalledTimes(slots); expect(seam.policy).toHaveBeenCalledTimes(policies);
+    expect(post()).not.toHaveBeenCalled(); expect(control(confirmation)).toBeUndefined();
+  });
+
+
+  it('does not publish cancellation consumption from a late read after permanent lifetime revocation', async () => {
+    post().mockRejectedValueOnce(new Error('Unknown')); draw(); await settle(); await press(slotControl); await press(confirmation); const body = post().mock.calls[0]?.[1] as Record<string, unknown>;
+    const waiting = deferred<ReturnType<typeof training> & { history: { data: PtSession[]; error: null } }>(); seam.loadMember.mockReturnValueOnce(waiting.promise); post().mockResolvedValueOnce({ ok: true, data: { ...answer(body, 'cancelled_by_member'), replayed: true } });
+    const retry = control(/^Retry(?: booking)?$|^Try again$/)?.props.onPress; expect(retry).toBeTypeOf('function');
+    const pending = typeof retry === 'function' ? retry() : undefined; await settle();
+    focus(false); await settle(); focus(true); await settle();
+    waiting.resolve({ ...training(), history: { data: [cancelledSession(body, true)], error: null } }); await pending; await settle();
+    expect(post()).toHaveBeenCalledTimes(2); expect(visible()).not.toMatch(/Cancelled by you|Cancelled late - session used/);
+  });
+
 });
