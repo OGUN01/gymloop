@@ -39,7 +39,11 @@ describe('PLC-005/007/008 shared caller read', () => {
     responses[failed] = { data: null, error: { message: 'private' } };
     const result = await readPlanCatalogue(fake(responses).db, 'member');
     expect(result.ok).toBe(true); if (!result.ok) return;
-    expect(result.view.heldUnavailable).toBe(true); expect(result.view.held).toBeNull(); expect(result.view.plans[0].held).toBe(false);
+    expect(result.view.heldUnavailable).toBe(true); expect(result.view.held).toBeNull();
+    const firstPlan = result.view.plans[0];
+    expect(firstPlan).toBeDefined();
+    if (firstPlan === undefined) throw new Error('Expected the successful catalogue plan fixture');
+    expect(firstPlan.held).toBe(false);
   });
 });
 describe('PLC-006/007/009/011 view model', () => {
@@ -47,8 +51,14 @@ describe('PLC-006/007/009/011 view model', () => {
     const result = view([plan('z'), plan('p1'), plan('a', { description: '  Two lines\nplain <b>text</b>  ' })]);
     expect(result.plans.map((row) => row.id)).toEqual(['z', 'p1', 'a']);
     expect(result.plans.map((row) => row.held)).toEqual([false, true, false]);
-    expect(result.plans[2].description).toBe('Two lines\nplain <b>text</b>');
-    expect(view([plan('p1', { description: ' \n ' })]).plans[0].description).toBeNull();
+    const describedPlan = result.plans[2];
+    expect(describedPlan).toBeDefined();
+    if (describedPlan === undefined) throw new Error('Expected the third catalogue plan fixture');
+    expect(describedPlan.description).toBe('Two lines\nplain <b>text</b>');
+    const blankPlan = view([plan('p1', { description: ' \n ' })]).plans[0];
+    expect(blankPlan).toBeDefined();
+    if (blankPlan === undefined) throw new Error('Expected the blank-description plan fixture');
+    expect(blankPlan.description).toBeNull();
   });
   it.each([
     [{ price_paise: '150000' }, {}, 'none'],
