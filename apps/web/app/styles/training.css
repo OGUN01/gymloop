@@ -1,0 +1,7 @@
+.pt-training { min-width: 0; overflow-wrap: anywhere; }
+.pt-training > * + *, .pt-training section > * + *, .pt-training article > * + * { margin-block-start: var(--gymloop-space-16); }
+.pt-training article { min-width: 0; }
+.pt-training .cl-status { white-space: normal; }
+.pt-training .cl-btn { white-space: normal; text-align: center; transition: none; transform: none; padding-block: var(--gymloop-space-8); }
+.pt-training-photo { background-size: cover; background-position: center; }
+.pt-training .class-sheet { width: calc(100% - var(--gymloop-space-32)); max-width: var(--gymloop-layout-content-max-width); padding: var(--gymloop-space-24); }
