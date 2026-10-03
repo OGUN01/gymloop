@@ -99,8 +99,8 @@ insert into public.no_show_cases
   ('88880000-0013-4000-8000-0000000000a1', 'aaaa0000-0013-4000-8000-000000000001',
      '33330000-0013-4000-8000-0000000000a1', 9, 7);
 
-insert into public.messaging_wallets (tenant_id, balance_credits) values
-  ('aaaa0000-0013-4000-8000-000000000001', 100);
+insert into public.messaging_wallets (tenant_id, balance_paise, currency) values
+  ('aaaa0000-0013-4000-8000-000000000001', 100, 'INR');
 
 insert into auth.users (id) values
   ('11110000-0013-4000-8000-0000000000f1'),
@@ -253,7 +253,7 @@ select ok(
   'a gym cannot invent an impersonation session against itself');
 
 select ok(
-  pg_temp.rejected($q$update public.messaging_wallets set balance_credits = 999999
+  pg_temp.rejected($q$update public.messaging_wallets set balance_paise = 999999
                      where tenant_id = 'aaaa0000-0013-4000-8000-000000000001'$q$),
   'a gym cannot write the credit balance it is billed against');
 
@@ -265,8 +265,8 @@ select ok(
   'a gym cannot forge a webhook delivery it verified itself');
 
 select ok(
-  pg_temp.rejected($q$insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason)
-                    values ('aaaa0000-0013-4000-8000-000000000001', 1000, 'self minted')$q$),
+  pg_temp.rejected($q$insert into public.messaging_wallet_ledger (tenant_id, delta_paise, reason, currency)
+                    values ('aaaa0000-0013-4000-8000-000000000001', 1000, 'self minted', 'INR')$q$),
   'a gym cannot mint its own messaging credits');
 
 select ok(

@@ -112,15 +112,15 @@ insert into public.consents (id, tenant_id, member_id, purpose, granted, version
   ('b2900000-0000-4000-8000-000000000a50'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a10'::uuid, 'service', true, 'h29-v1', 'holdout fixture', now() - interval '10 days'),
   ('b2900000-0000-4000-8000-000000000a52'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 'b2900000-0000-4000-8000-000000000a11'::uuid, 'service', true, 'h29-v1', 'holdout fixture', now() - interval '10 days');
 
-insert into public.messaging_wallets (tenant_id, balance_credits) values
-  ('b2900000-0000-4000-8000-000000000a00'::uuid, 500),
-  ('b2900000-0000-4000-8000-000000000b00'::uuid, 500),
-  ('b2900000-0000-4000-8000-000000000c00'::uuid, 100);
+insert into public.messaging_wallets (tenant_id, balance_paise, currency) values
+  ('b2900000-0000-4000-8000-000000000a00'::uuid, 500, 'INR'),
+  ('b2900000-0000-4000-8000-000000000b00'::uuid, 500, 'INR'),
+  ('b2900000-0000-4000-8000-000000000c00'::uuid, 100, 'INR');
 
-insert into public.messaging_wallet_ledger (id, tenant_id, delta_credits, reason) values
-  ('b2900000-0000-4000-8000-000000000a51'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 500, 'holdout fixture top up'),
-  ('b2900000-0000-4000-8000-000000000b51'::uuid, 'b2900000-0000-4000-8000-000000000b00'::uuid, 500, 'holdout fixture top up'),
-  ('b2900000-0000-4000-8000-000000000c51'::uuid, 'b2900000-0000-4000-8000-000000000c00'::uuid, 100, 'holdout fixture top up');
+insert into public.messaging_wallet_ledger (id, tenant_id, delta_paise, reason, currency) values
+  ('b2900000-0000-4000-8000-000000000a51'::uuid, 'b2900000-0000-4000-8000-000000000a00'::uuid, 500, 'holdout fixture top up', 'INR'),
+  ('b2900000-0000-4000-8000-000000000b51'::uuid, 'b2900000-0000-4000-8000-000000000b00'::uuid, 500, 'holdout fixture top up', 'INR'),
+  ('b2900000-0000-4000-8000-000000000c51'::uuid, 'b2900000-0000-4000-8000-000000000c00'::uuid, 100, 'holdout fixture top up', 'INR');
 
 -- A source in_app notification for the WhatsApp/ack tests below. It is created
 -- in its legal scheduled state and is made available through the public command
@@ -192,20 +192,20 @@ select ok(not coalesce(has_function_privilege('authenticated', to_regprocedure('
 
 select ok(coalesce((select p.prosecdef and 'search_path=""' = any(p.proconfig)
     from pg_catalog.pg_proc p where p.oid = to_regprocedure(
-      'public.adjust_messaging_wallet(uuid,bigint,text,uuid)')), false),
+      'public.adjust_messaging_wallet_paise(uuid,bigint,text,text,uuid)')), false),
   '7: adjust_messaging_wallet is definer, empty search_path');
 select ok(coalesce(has_function_privilege('authenticated', to_regprocedure(
-    'public.adjust_messaging_wallet(uuid,bigint,text,uuid)'), 'EXECUTE'), false),
+    'public.adjust_messaging_wallet_paise(uuid,bigint,text,text,uuid)'), 'EXECUTE'), false),
   '7: authenticated may execute adjust_messaging_wallet (the super_admin gate is inside the body)');
 
 select ok(not coalesce(has_function_privilege('public', to_regprocedure(
-      'app.record_wallet_movement(uuid,bigint,text,uuid,uuid,uuid)'), 'EXECUTE'), true)
+      'app.record_wallet_movement(uuid,bigint,text,text,uuid,uuid,uuid)'), 'EXECUTE'), true)
     and not coalesce(has_function_privilege('anon', to_regprocedure(
-      'app.record_wallet_movement(uuid,bigint,text,uuid,uuid,uuid)'), 'EXECUTE'), true)
+      'app.record_wallet_movement(uuid,bigint,text,text,uuid,uuid,uuid)'), 'EXECUTE'), true)
     and not coalesce(has_function_privilege('authenticated', to_regprocedure(
-      'app.record_wallet_movement(uuid,bigint,text,uuid,uuid,uuid)'), 'EXECUTE'), true)
+      'app.record_wallet_movement(uuid,bigint,text,text,uuid,uuid,uuid)'), 'EXECUTE'), true)
     and not coalesce(has_function_privilege('service_role', to_regprocedure(
-      'app.record_wallet_movement(uuid,bigint,text,uuid,uuid,uuid)'), 'EXECUTE'), true),
+      'app.record_wallet_movement(uuid,bigint,text,text,uuid,uuid,uuid)'), 'EXECUTE'), true),
   '7: app.record_wallet_movement is executable by nobody directly - only its owning command may call it');
 
 -- ===========================================================================
@@ -226,9 +226,9 @@ select has_column('public', 'notifications', 'opted_out_at', '2: notifications.o
 select has_column('public', 'notifications', 'opted_out_reason', '2: notifications.opted_out_reason exists');
 select has_column('public', 'messaging_wallet_ledger', 'request_key', '2: messaging_wallet_ledger.request_key exists');
 select has_column('public', 'messaging_wallet_ledger', 'recorded_by_user_id', '2: messaging_wallet_ledger.recorded_by_user_id exists');
-select has_column('public', 'messaging_wallet_ledger', 'balance_after_credits', '2: messaging_wallet_ledger.balance_after_credits exists');
-select col_type_is('public', 'messaging_wallet_ledger', 'balance_after_credits', 'bigint',
-  '2: balance_after_credits is a plain bigint, never a JS-unsafe numeric surprise at rest');
+select has_column('public', 'messaging_wallet_ledger', 'balance_after_paise', '2: messaging_wallet_ledger.balance_after_paise exists');
+select col_type_is('public', 'messaging_wallet_ledger', 'balance_after_paise', 'bigint',
+  '2: balance_after_paise is a plain bigint, never a JS-unsafe numeric surprise at rest');
 
 select ok(exists(select 1 from pg_indexes where schemaname = 'public' and tablename = 'consents'
     and indexdef ilike '%(tenant_id, request_key)%' and indexdef ilike '%where (request_key is not null)%'),
@@ -1296,7 +1296,7 @@ select set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-
     'staff_id', 'b2900000-0000-4000-8000-000000000a02', 'app_role', 'gym_owner')::text, true);
 set local role authenticated;
 select throws_ok($tap$
-  select public.adjust_messaging_wallet('b2900000-0000-4000-8000-000000000a00'::uuid, 10, 'holdout topup', gen_random_uuid())
+  select public.adjust_messaging_wallet_paise('b2900000-0000-4000-8000-000000000a00'::uuid, 10, 'INR', 'holdout topup', gen_random_uuid())
 $tap$, '42501'::char(5), null,
   '7: adjust_messaging_wallet requires super_admin, a gym_owner is refused');
 
@@ -1305,7 +1305,7 @@ select set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-
     'role', 'authenticated', 'app_role', 'super_admin', 'tenant_id', 'b2900000-0000-4000-8000-000000000a00')::text, true);
 set local role authenticated;
 select throws_ok($tap$
-  select public.adjust_messaging_wallet('b2900000-0000-4000-8000-000000000a00'::uuid, 10, 'holdout topup', gen_random_uuid())
+  select public.adjust_messaging_wallet_paise('b2900000-0000-4000-8000-000000000a00'::uuid, 10, 'INR', 'holdout topup', gen_random_uuid())
 $tap$, null::char(5), null, '7: a super_admin claim carrying a gym tenant_id (an impersonated/gym-scoped shape) is refused - no gym/staff/member identity is permitted');
 
 set local role postgres;
@@ -1314,15 +1314,15 @@ select set_config('request.jwt.claims', json_build_object('sub', 'b2900000-0000-
 set local role authenticated;
 
 select throws_ok($tap$
-  select public.adjust_messaging_wallet('b2900000-0000-4000-8000-000000000a00'::uuid, 0, 'holdout zero', gen_random_uuid())
+  select public.adjust_messaging_wallet_paise('b2900000-0000-4000-8000-000000000a00'::uuid, 0, 'INR', 'holdout zero', gen_random_uuid())
 $tap$, '23514'::char(5), null,
   '7: a zero delta is refused (invalid_adjustment)');
 select throws_ok($tap$
-  select public.adjust_messaging_wallet('b2900000-0000-4000-8000-000000000a00'::uuid, 10, '', gen_random_uuid())
+  select public.adjust_messaging_wallet_paise('b2900000-0000-4000-8000-000000000a00'::uuid, 10, 'INR', '', gen_random_uuid())
 $tap$, '23514'::char(5), null,
   '7: a blank reason is refused (invalid_adjustment)');
 select throws_ok($tap$
-  select public.adjust_messaging_wallet('b2900000-0000-4000-8000-000000000c00'::uuid, -5000000, 'holdout ceiling', gen_random_uuid())
+  select public.adjust_messaging_wallet_paise('b2900000-0000-4000-8000-000000000c00'::uuid, -5000000, 'INR', 'holdout ceiling', gen_random_uuid())
 $tap$, 'GL067'::char(5), null,
   '7: a delta that would drive the wallet below zero is GL067');
 
@@ -1333,12 +1333,12 @@ declare
   v_first jsonb; v_replay jsonb;
   v_balance_before bigint;
 begin
-  v_first := public.adjust_messaging_wallet('b2900000-0000-4000-8000-000000000a00'::uuid, 25, 'holdout replay topup', v_key);
-  v_balance_before := (v_first ->> 'balanceAfterCredits')::bigint;
+  v_first := public.adjust_messaging_wallet_paise('b2900000-0000-4000-8000-000000000a00'::uuid, 25, 'INR', 'holdout replay topup', v_key);
+  v_balance_before := (v_first ->> 'balanceAfterPaise')::bigint;
   -- Move the balance again so a naive replay could disagree with current state.
-  perform public.adjust_messaging_wallet('b2900000-0000-4000-8000-000000000a00'::uuid, 5, 'holdout second move', gen_random_uuid());
-  v_replay := public.adjust_messaging_wallet('b2900000-0000-4000-8000-000000000a00'::uuid, 25, 'holdout replay topup', v_key);
-  if v_replay <> v_first or (v_replay ->> 'balanceAfterCredits')::bigint <> v_balance_before then
+  perform public.adjust_messaging_wallet_paise('b2900000-0000-4000-8000-000000000a00'::uuid, 5, 'INR', 'holdout second move', gen_random_uuid());
+  v_replay := public.adjust_messaging_wallet_paise('b2900000-0000-4000-8000-000000000a00'::uuid, 25, 'INR', 'holdout replay topup', v_key);
+  if v_replay <> v_first or (v_replay ->> 'balanceAfterPaise')::bigint <> v_balance_before then
     raise exception 'exact replay must return the ORIGINAL immutable entry even after the balance moved again: % vs %', v_first, v_replay;
   end if;
 end $$;
@@ -1348,22 +1348,22 @@ select throws_ok($tap$
 do $$
 declare v_key uuid := gen_random_uuid();
 begin
-  perform public.adjust_messaging_wallet('b2900000-0000-4000-8000-000000000a00'::uuid, 25, 'holdout conflict a', v_key);
-  perform public.adjust_messaging_wallet('b2900000-0000-4000-8000-000000000a00'::uuid, 30, 'holdout conflict b', v_key);
+  perform public.adjust_messaging_wallet_paise('b2900000-0000-4000-8000-000000000a00'::uuid, 25, 'INR', 'holdout conflict a', v_key);
+  perform public.adjust_messaging_wallet_paise('b2900000-0000-4000-8000-000000000a00'::uuid, 30, 'INR', 'holdout conflict b', v_key);
 end $$;
 $tap$, 'GL068'::char(5), null,
   '7: the same request key with a different delta/reason is GL068');
 
 select throws_ok($tap$
-  select public.adjust_messaging_wallet(gen_random_uuid(), 5, 'holdout no wallet', gen_random_uuid())
+  select public.adjust_messaging_wallet_paise(gen_random_uuid(), 5, 'INR', 'holdout no wallet', gen_random_uuid())
 $tap$, null::char(5), null, '7: a target tenant with no wallet row at all is refused');
 
 set local role authenticated;
 select throws_ok($tap$
-  insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason, balance_after_credits)
-  values ('b2900000-0000-4000-8000-000000000a00', 5, 'holdout direct forge', 999999)
+  insert into public.messaging_wallet_ledger (tenant_id, delta_paise, reason, balance_after_paise, currency)
+  values ('b2900000-0000-4000-8000-000000000a00', 5, 'holdout direct forge', 999999, 'INR')
 $tap$, '42501'::char(5), null,
-  '7: authenticated/service_role cannot directly insert a ledger row carrying a forged balance_after_credits');
+  '7: authenticated/service_role cannot directly insert a ledger row carrying a forged balance_after_paise');
 
 -- ===========================================================================
 -- PART 14 — §8 exact audit shapes.
@@ -1377,13 +1377,14 @@ begin
   select before, after, reason into v_row from public.audit_log
     where action = 'messaging_wallet.adjusted' and tenant_id = 'b2900000-0000-4000-8000-000000000a00'
     order by occurred_at desc limit 1;
-  if v_row.after is null or not (v_row.after ? 'balance_credits' and v_row.after ? 'ledger_id'
-      and v_row.after ? 'delta_credits' and v_row.after ? 'notification_id' and v_row.after ? 'request_key'
-      and v_row.after ? 'recorded_by_user_id') then
+  if v_row.after is null or not (v_row.after ? 'balance_paise' and v_row.after ? 'ledger_id'
+      and v_row.after ? 'delta_paise' and v_row.after ? 'notification_id' and v_row.after ? 'request_key'
+      and v_row.after ? 'recorded_by_user_id' and (v_row.after ->> 'currency') IS NOT DISTINCT FROM 'INR'
+      and (v_row.after - ARRAY['balance_paise','currency','ledger_id','delta_paise','notification_id','request_key','recorded_by_user_id']) = '{}'::jsonb) then
     raise exception 'messaging_wallet.adjusted audit "after" must be exactly W, got %', v_row.after;
   end if;
-  if v_row.before is null or not (v_row.before ? 'balance_credits') or (v_row.before - 'balance_credits') <> '{}'::jsonb then
-    raise exception 'messaging_wallet.adjusted audit "before" must be exactly {balance_credits}, got %', v_row.before;
+  if v_row.before is null or not (v_row.before ? 'balance_paise') or v_row.before ->> 'currency' IS DISTINCT FROM 'INR' or (v_row.before - ARRAY['balance_paise','currency']) <> '{}'::jsonb then
+    raise exception 'messaging_wallet.adjusted audit "before" must be exactly {balance_paise}, got %', v_row.before;
   end if;
 end $$;
 $tap$, '8: messaging_wallet.adjusted audit before/after are exactly the contract shapes');

@@ -65,13 +65,13 @@ insert into public.consents (id, tenant_id, member_id, purpose, granted, version
   ('09c00000-0000-4000-8000-000000000a15'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, '09c00000-0000-4000-8000-000000000a02'::uuid, 'service', true, 'v1', 'holdout fixture', now() - interval '1 day'),
   ('09c00000-0000-4000-8000-000000000b13'::uuid, '09c00000-0000-4000-8000-000000000b00'::uuid, '09c00000-0000-4000-8000-000000000b02'::uuid, 'marketing', true, 'v1', 'holdout fixture', now() - interval '1 day');
 
-insert into public.messaging_wallets (tenant_id, balance_credits) values
-  ('09c00000-0000-4000-8000-000000000a00'::uuid, 100),
-  ('09c00000-0000-4000-8000-000000000b00'::uuid, 100);
+insert into public.messaging_wallets (tenant_id, balance_paise, currency) values
+  ('09c00000-0000-4000-8000-000000000a00'::uuid, 100, 'INR'),
+  ('09c00000-0000-4000-8000-000000000b00'::uuid, 100, 'INR');
 
-insert into public.messaging_wallet_ledger (id, tenant_id, delta_credits, reason) values
-  ('09c00000-0000-4000-8000-000000000a14'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, 100, 'holdout fixture top up'),
-  ('09c00000-0000-4000-8000-000000000b14'::uuid, '09c00000-0000-4000-8000-000000000b00'::uuid, 100, 'holdout fixture top up');
+insert into public.messaging_wallet_ledger (id, tenant_id, delta_paise, reason, currency) values
+  ('09c00000-0000-4000-8000-000000000a14'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, 100, 'holdout fixture top up', 'INR'),
+  ('09c00000-0000-4000-8000-000000000b14'::uuid, '09c00000-0000-4000-8000-000000000b00'::uuid, 100, 'holdout fixture top up', 'INR');
 
 -- ===========================================================================
 -- PART 0 — no tenant claim at all. The GUC has never been set in this
@@ -180,7 +180,7 @@ select is_empty(
   'ISO messaging_wallets: Gym A cannot read Gym B wallet row'
 );
 select throws_ok(
-  $$ insert into public.messaging_wallets (tenant_id, balance_credits) values ('09c00000-0000-4000-8000-000000000b00', 5) $$,
+  $$ insert into public.messaging_wallets (tenant_id, balance_paise, currency) values ('09c00000-0000-4000-8000-000000000b00', 5, 'INR') $$,
   '42501'::char(5), null,
   'ISO messaging_wallets: Gym A cannot insert a wallet row labelled with Gym B'
 );
@@ -195,7 +195,7 @@ select is_empty(
   'ISO messaging_wallet_ledger: Gym A cannot read Gym B ledger rows'
 );
 select throws_ok(
-  $$ insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason) values ('09c00000-0000-4000-8000-000000000b00', 10, 'holdout cross tenant') $$,
+  $$ insert into public.messaging_wallet_ledger (tenant_id, delta_paise, reason, currency) values ('09c00000-0000-4000-8000-000000000b00', 10, 'holdout cross tenant', 'INR') $$,
   '42501'::char(5), null,
   'ISO messaging_wallet_ledger: Gym A cannot insert a row labelled with Gym B'
 );
@@ -218,7 +218,7 @@ update public.member_devices set is_active = false where id = '09c00000-0000-400
 -- authenticated holds no UPDATE at all and the write is refused outright rather
 -- than filtered down to zero rows.
 select throws_ok(
-  $$ update public.messaging_wallets set balance_credits = 999 where tenant_id = '09c00000-0000-4000-8000-000000000b00' $$,
+  $$ update public.messaging_wallets set balance_paise = 999 where tenant_id = '09c00000-0000-4000-8000-000000000b00' $$,
   '42501'::char(5), null,
   'ISO messaging_wallets: ADR-047 read-only tier, a wallet update is refused for want of privilege and never reaches the policy'
 );
@@ -261,7 +261,7 @@ select results_eq(
   'ISO member_devices: Gym B row is unchanged after Gym A attempted to update it by primary key'
 );
 select results_eq(
-  $$ select balance_credits from public.messaging_wallets where tenant_id = '09c00000-0000-4000-8000-000000000b00' $$,
+  $$ select balance_paise from public.messaging_wallets where tenant_id = '09c00000-0000-4000-8000-000000000b00' $$,
   ARRAY[100::bigint],
   'ISO messaging_wallets: Gym B wallet is unchanged after Gym A''s refused update by primary key'
 );
@@ -499,7 +499,7 @@ select throws_ok(
   'ADR-016: updating a ledger row inside the callers own tenant is refused for want of privilege'
 );
 select throws_ok(
-  $$ insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason) values ('09c00000-0000-4000-8000-000000000a00', 5, 'holdout self issued credit') $$,
+  $$ insert into public.messaging_wallet_ledger (tenant_id, delta_paise, reason, currency) values ('09c00000-0000-4000-8000-000000000a00', 5, 'holdout self issued credit', 'INR') $$,
   '42501'::char(5), null,
   'ADR-049: a gym session crediting its own ledger, correctly labelled with its own tenant, is refused for want of privilege'
 );
@@ -534,41 +534,42 @@ select results_eq(
 -- Asserted as the owner because ADR-047's read-only tier leaves no user session
 -- that may write the wallet at all.
 select throws_ok(
-  $$ update public.messaging_wallets set balance_credits = -1 where tenant_id = '09c00000-0000-4000-8000-000000000a00' $$,
+  $$ update public.messaging_wallets set balance_paise = -1 where tenant_id = '09c00000-0000-4000-8000-000000000a00' $$,
   '23514'::char(5), null,
   'ADR-016: a wallet balance driven below zero is rejected'
 );
 select lives_ok(
-  $$ update public.messaging_wallets set balance_credits = 0 where tenant_id = '09c00000-0000-4000-8000-000000000a00' $$,
+  $$ update public.messaging_wallets set balance_paise = 0 where tenant_id = '09c00000-0000-4000-8000-000000000a00' $$,
   'ADR-016: a wallet balance of exactly zero is accepted, the bound is inclusive'
 );
 select throws_ok(
-  $$ insert into public.messaging_wallets (tenant_id, balance_credits) values ('09c00000-0000-4000-8000-000000000a00', 50) $$,
+  $$ insert into public.messaging_wallets (tenant_id, balance_paise, currency) values ('09c00000-0000-4000-8000-000000000a00', 50, 'INR') $$,
   '23505'::char(5), null,
   'ADR-016: a second wallet row for the same organisation is rejected, tenant_id is the primary key'
 );
 
 -- --- messaging_wallet_ledger: every movement is non-zero and gives a reason --
 select throws_ok(
-  $$ insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason) values ('09c00000-0000-4000-8000-000000000a00', 0, 'holdout no movement') $$,
+  $$ insert into public.messaging_wallet_ledger (tenant_id, delta_paise, reason, currency) values ('09c00000-0000-4000-8000-000000000a00', 0, 'holdout no movement', 'INR') $$,
   '23514'::char(5), null,
   'ADR-016: a ledger row with a delta of zero is rejected, a ledger row records a movement'
 );
 select lives_ok(
-  $$ insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason) values ('09c00000-0000-4000-8000-000000000a00', -5, 'holdout debit') $$,
+  $$ insert into public.messaging_wallet_ledger (tenant_id, delta_paise, reason, currency) values ('09c00000-0000-4000-8000-000000000a00', -5, 'holdout debit', 'INR') $$,
   'ADR-016: a negative delta is accepted, a debit is a movement'
 );
 select throws_ok(
-  $$ insert into public.messaging_wallet_ledger (tenant_id, delta_credits, reason) values ('09c00000-0000-4000-8000-000000000a00', 5, '') $$,
+  $$ insert into public.messaging_wallet_ledger (tenant_id, delta_paise, reason, currency) values ('09c00000-0000-4000-8000-000000000a00', 5, '', 'INR') $$,
   '23514'::char(5), null,
   'ADR-016: a ledger row with an empty reason is rejected'
 );
-select is_empty(
-  $$ select table_name from information_schema.columns where table_schema = 'public' and column_name = 'currency' and table_name in ('message_templates', 'notifications', 'member_devices', 'consents', 'messaging_wallets', 'messaging_wallet_ledger') $$,
-  'MNY-002: no table in the comms cluster carries a currency column, messaging credits are a count and not money'
+select results_eq(
+  $$ select table_name::text from information_schema.columns where table_schema = 'public' and column_name = 'currency' and table_name in ('message_templates', 'notifications', 'member_devices', 'consents', 'messaging_wallets', 'messaging_wallet_ledger') order by table_name $$,
+  ARRAY['messaging_wallet_ledger','messaging_wallets']::text[],
+  'WSP-107: only the two wallet money tables carry explicit currency'
 );
-select col_type_is('public', 'messaging_wallets', 'balance_credits', 'bigint',
-  'ADR-016: balance_credits is a plain bigint credit count');
+select col_type_is('public', 'messaging_wallets', 'balance_paise', 'bigint',
+  'ADR-016: balance_paise is a integer paise stored in bigint');
 select has_column('public', 'messaging_wallets', 'created_at',
   'the contract: every table carries created_at, messaging_wallets included');
 select has_column('public', 'messaging_wallet_ledger', 'created_at',

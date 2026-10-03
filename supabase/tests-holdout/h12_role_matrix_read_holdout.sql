@@ -542,11 +542,11 @@ insert into public.member_imports
   ('aaaa0000-0012-4000-8000-0000000000c3', 'aaaa0000-0012-4000-8000-000000000001',
      '22220000-0012-4000-8000-0000000000a2', 'members.csv', '{}'::jsonb);
 
-insert into public.messaging_wallets (tenant_id, balance_credits) values
-  ('aaaa0000-0012-4000-8000-000000000001', 100);
+insert into public.messaging_wallets (tenant_id, balance_paise, currency) values
+  ('aaaa0000-0012-4000-8000-000000000001', 100, 'INR');
 
-insert into public.messaging_wallet_ledger (id, tenant_id, delta_credits, reason) values
-  ('aaaa0000-0012-4000-8000-0000000000c4', 'aaaa0000-0012-4000-8000-000000000001', 100, 'topup');
+insert into public.messaging_wallet_ledger (id, tenant_id, delta_paise, reason, currency) values
+  ('aaaa0000-0012-4000-8000-0000000000c4', 'aaaa0000-0012-4000-8000-000000000001', 100, 'topup', 'INR');
 
 insert into public.webhook_events
   (id, tenant_id, event_id, event_type, payload, signature_valid) values

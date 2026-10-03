@@ -55,9 +55,9 @@ SELECT is(
   'onboarding creates exactly one default branch'
 );
 SELECT is(
-  (SELECT balance_credits FROM public.messaging_wallets WHERE tenant_id = '31000000-0000-4000-8000-000000000101'::uuid),
+  (SELECT balance_paise FROM public.messaging_wallets WHERE tenant_id = '31000000-0000-4000-8000-000000000101'::uuid),
   0::bigint,
-  'onboarding creates a zero-credit wallet'
+  'onboarding creates a zero-paise INR wallet'
 );
 SELECT is(
   (SELECT count(*) FROM public.staff WHERE tenant_id = '31000000-0000-4000-8000-000000000101'::uuid AND role = 'gym_owner' AND is_active AND user_id IS NULL),

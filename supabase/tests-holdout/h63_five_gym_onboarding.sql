@@ -93,8 +93,8 @@ SELECT is((SELECT count(*) FROM public.branches b
 
 SELECT is((SELECT count(*) FROM public.messaging_wallets w
   JOIN public.organizations o ON o.id = w.tenant_id
-  WHERE o.name LIKE 'H63 Synthetic Gym %' AND w.balance_credits = 0), 5::bigint,
-  'exactly one zero-credit wallet is created per gym');
+  WHERE o.name LIKE 'H63 Synthetic Gym %' AND w.balance_paise = 0), 5::bigint,
+  'exactly one zero-paise INR wallet is created per gym');
 
 SELECT is((SELECT count(*) FROM public.staff p
   JOIN public.organizations o ON o.id = p.tenant_id
