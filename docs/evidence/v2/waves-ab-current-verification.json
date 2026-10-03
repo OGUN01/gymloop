@@ -1,0 +1,249 @@
+{
+  "verifiedAtUtc": "2026-10-03T16:23:40.546310+00:00",
+  "scope": [
+    "INV",
+    "STI",
+    "GRD",
+    "BIZ",
+    "PLC",
+    "SHP",
+    "PTF",
+    "CLS",
+    "ANC"
+  ],
+  "sourceBasis": {
+    "base": "cc69ec75e0cd08f2931dd200d681fa3fdc88cd65",
+    "responsiveSourceCommit": "e3123ba1",
+    "responsiveSpecCommits": [
+      "4a18277",
+      "2ad1b7f",
+      "a443f4e4"
+    ],
+    "independentBrowserLocatorCommits": [
+      "25a8592",
+      "4c93998a"
+    ],
+    "explicitNode24DevTypesCommit": "50915ef",
+    "responsiveSourceHashes": {
+      "apps/web/app/globals.css": "af4edc28d267d26c842a7d59312c54f4203cb68b39ff12e84f16330ab3d9c02c",
+      "apps/web/app/styles/announcements.css": "666b8d29acd7aee0e3c3d4796d6fd570c91c13fbbb9c91fff2880a45848dc2ab",
+      "apps/web/app/(console)/announcements/page.tsx": "a78db06a63dfcf2b7b829fc439d765585e78a034aa64d99285b6f78730613900",
+      "apps/web/app/(console)/announcements/[announcementId]/page.tsx": "860cb7b0c2f745f375daf0ecd01e1d75f30cfae7d8a22ae77e0cdd4d55af8b4d"
+    }
+  },
+  "productionBuild": {
+    "exitCode": 0,
+    "buildId": "L3yG7nDHjnDv4gsKokRPr",
+    "nodeVersion": "v24.18.0",
+    "privateLogSha256": "0c48a6b374591edcbd382e8ccf22c050af2ab0d145cbaaf8658a73a140645546",
+    "qualification": "Isolated A/B source and physical dependencies; private Next root binding; base lock plus explicit Node24 devtypes. C/D app source excluded."
+  },
+  "codeChecks": {
+    "baselineFivePackageLint": "green",
+    "baselineFivePackageTypecheck": "green",
+    "responsiveAffectedEslintExitCode": 0,
+    "composedAutomatedAssertions": 9593,
+    "qualification": "Broad baseline had three independent stale fixture/oracle failures, corrected and affected groups rerun green. This is composed evidence, not one clean final integrated HEAD run."
+  },
+  "sqlSweep": {
+    "files": 133,
+    "heldFiles": 57,
+    "assertions": 13148,
+    "failures": 0,
+    "exactPlans": true,
+    "migrations": [
+      {
+        "file": "supabase/migrations/20261003160000_member_booking_policy_reads.sql",
+        "sha256": "6e3c1036c0344956ea700e9ee8731ce7389d29dcd306f232e0370c8153ae3d4c"
+      },
+      {
+        "file": "supabase/migrations/20261003170000_pt_front_contract_repairs.sql",
+        "sha256": "f1b21c13b1ab15486b6054aec9147113ce32f90fe6ed9b0fa31728a74a38431f"
+      },
+      {
+        "file": "supabase/migrations/20261004085000_messaging_wallet_paise.sql",
+        "sha256": "677f027e96bb6e75da91ff9ba09a4f6492ddfbb879daff6dfae940d280665174"
+      }
+    ],
+    "projectRef": "pecxrpskmfeuyzngvewq",
+    "rollbackOnly": true,
+    "schemaApplied": false,
+    "cAndDIncluded": false,
+    "proofKind": "Current exact-source aggregate and canonical receipts with bound unchanged-suite reuse",
+    "manifestSha256": "3bce15794dfd23f52d1dd7b1bbaffaf8abadc0a2b0944c712919439503228b39",
+    "fullResultsSha256": "4f3a1817173dfd66e486eb24a41bd358365a4d2889e7965e1cec2108803f8e69"
+  },
+  "browserCurrentBuild": {
+    "buildId": "L3yG7nDHjnDv4gsKokRPr",
+    "passedCases": 12,
+    "runs": [
+      {
+        "name": "Canonical FOUR responsive console",
+        "passedCases": 4,
+        "durationMs": 36464.558,
+        "reportSha256": "df452961d4fde0e394466c585badb693a959f20303235e26ef1a732c93abe16e"
+      },
+      {
+        "name": "Canonical PLC current read-only SIX",
+        "passedCases": 6,
+        "durationMs": 146708.213,
+        "reportSha256": "8e0f8937a0a3f6524202118334d486c35c143d1919f1bc2c3b601b26125e57b4"
+      },
+      {
+        "name": "Bounded BIZ readonly preview/cancel",
+        "passedCases": 1,
+        "durationMs": 20491.615999999998,
+        "reportSha256": "88ae12d7afa5df42e31ec1e0c8dbfe56ef7c730ed44140665d7b0f215fbfb655"
+      },
+      {
+        "name": "Canonical ANC final lifecycle scoped-independent-oracle",
+        "passedCases": 1,
+        "durationMs": 43538.691999999995,
+        "reportSha256": "61f9e8a9a918c687af5a254f7e0700f891f2502fe7b9da5dc91f0591dcb198ad"
+      }
+    ],
+    "privateReceiptSha256": "58b93ae77f303882e997da0112f15762a0fd2d94953bdaea45126cd53e5db681",
+    "qualification": [
+      "PLC baseline actual offers and own held plan only; no changed-price/inactive/failure fixtures supplied",
+      "BIZ read-only local preview/cancel only; no business type change or identity changes",
+      "ANC text-only owned rows through normal commands; no media/real delivery/Google/contact operations",
+      "No phone/Metro/device/DB CLI or source/test edits by verifier",
+      "No new invite creation to prove runtimeHTTPSgenerated origin; old wrong-origin failures remain qualified historical evidence"
+    ],
+    "priorFailuresPreserved": true
+  },
+  "freshRenderedCritic": {
+    "verdict": "bounded GO",
+    "privateReportSha256": "421c990b3ac50d80a936fedc954e7f9c41114e65c1ac532a07a84dc9636d8e66",
+    "scope": "ANC list/new/taken-down detail,390/1440,light/dark,root16→32px,reduced motion;12 enlarged screenshots;sampled keyboard,44px targets,contrast,clipping and file-input containment.",
+    "wholeFeatureAcceptance": false
+  },
+  "demoReplayProof": {
+    "status": "green rollback execution",
+    "visiblePlan": 34,
+    "heldPlan": 26,
+    "frozenClockCorrection": "e39ebbc",
+    "independentTestCommit": "4e12a0f",
+    "frozenCompositionCorrection": "2f74bb8",
+    "independentMarkerCommit": "afe660c",
+    "assertions": 60,
+    "cases": [
+      {
+        "author": "visible",
+        "planned": 34,
+        "ran": 34,
+        "failures": 0,
+        "receiptSha256": "e6fbe98a7169e2f5cb008c646959af19dd2f9581d55f17611994c34b8afd22ee"
+      },
+      {
+        "author": "held",
+        "planned": 26,
+        "ran": 26,
+        "failures": 0,
+        "receiptSha256": "00388018d5499c2470eda67f75532061b26a053b9e97e91b5cede392ee67a850"
+      }
+    ],
+    "schemaOrSeedApplied": false,
+    "executionManifestSha256": "2b9a5690b91b45eaac00383dd6f866274f3b5e1b050bbdf6506d5fa03fd750f9",
+    "separateImplementationCommit": "b42309905e55e5780e4e2c50f8ea922aa2dfbf6f",
+    "freshBlindSourceReviews": {
+      "seedClockRepair": "GO",
+      "ciCompositionRepair": "GO",
+      "scope": "Separate public-contract/source-only critics; no test fragments, holdouts or results read."
+    },
+    "currentInputHashesBound": true,
+    "qualification": "Ordinary seed and unchanged legacy scenario setup precede exact baselines. Only the new Batch-2 packet runs twice; every original date/identity/money assertion remains unchanged."
+  },
+  "ptGridMaximumRangeObservation": {
+    "status": "observed rollback-only",
+    "receiptSha256": "016e43aed0d3afff83f43fd08b753d973b72b17a1e6007880343c2b9d6b533dd",
+    "observation": {
+      "cases": [
+        {
+          "case_name": "lord_howe_half_hour_fold",
+          "coverage": "Every weekday: [0,360), [360,720), [720,1080), [1080,1440); four touching nonoverlapping six-hour windows; full trainer-local day",
+          "from_date": "2026-03-30",
+          "gym_timezone": "Australia/Lord_Howe",
+          "inclusive_days": 14,
+          "observed_elapsed_ms": 2367.48,
+          "observed_rows": 1346,
+          "session_minutes": 15,
+          "to_date": "2026-04-12",
+          "trainer_timezone": "Australia/Lord_Howe",
+          "window_count": 28
+        },
+        {
+          "case_name": "lord_howe_half_hour_gap",
+          "coverage": "Every weekday: [0,360), [360,720), [720,1080), [1080,1440); four touching nonoverlapping six-hour windows; full trainer-local day",
+          "from_date": "2026-10-01",
+          "gym_timezone": "Australia/Lord_Howe",
+          "inclusive_days": 14,
+          "observed_elapsed_ms": 2386.322,
+          "observed_rows": 1342,
+          "session_minutes": 15,
+          "to_date": "2026-10-14",
+          "trainer_timezone": "Australia/Lord_Howe",
+          "window_count": 28
+        },
+        {
+          "case_name": "new_york_fold",
+          "coverage": "Every weekday: [0,360), [360,720), [720,1080), [1080,1440); four touching nonoverlapping six-hour windows; full trainer-local day",
+          "from_date": "2026-10-26",
+          "gym_timezone": "America/New_York",
+          "inclusive_days": 14,
+          "observed_elapsed_ms": 2701.963,
+          "observed_rows": 1348,
+          "session_minutes": 15,
+          "to_date": "2026-11-08",
+          "trainer_timezone": "America/New_York",
+          "window_count": 28
+        },
+        {
+          "case_name": "new_york_gap",
+          "coverage": "Every weekday: [0,360), [360,720), [720,1080), [1080,1440); four touching nonoverlapping six-hour windows; full trainer-local day",
+          "from_date": "2026-03-02",
+          "gym_timezone": "America/New_York",
+          "inclusive_days": 14,
+          "observed_elapsed_ms": 2347.611,
+          "observed_rows": 1340,
+          "session_minutes": 15,
+          "to_date": "2026-03-15",
+          "trainer_timezone": "America/New_York",
+          "window_count": 28
+        },
+        {
+          "case_name": "ordinary_utc",
+          "coverage": "Every weekday: [0,360), [360,720), [720,1080), [1080,1440); four touching nonoverlapping six-hour windows; full trainer-local day",
+          "from_date": "2026-01-01",
+          "gym_timezone": "UTC",
+          "inclusive_days": 14,
+          "observed_elapsed_ms": 1761.776,
+          "observed_rows": 1344,
+          "session_minutes": 15,
+          "to_date": "2026-01-14",
+          "trainer_timezone": "UTC",
+          "window_count": 28
+        }
+      ],
+      "kind": "private_post_build_runtime_observation",
+      "measurement": "Single count(*) materialization per case; clock_timestamp wall elapsed includes query overhead; no latency threshold",
+      "resource_scope": "Five sequential pure helper calls; 14 inclusive gym-local days, 28 windows and 15-minute duration per call; no production table writes; no memory/CPU measurement"
+    },
+    "acceptanceThresholdInvented": false
+  },
+  "remaining": [
+    "Pending migrations permanently applied by CI and regenerated types",
+    "MEDIA protected deployment/config and real verified publication",
+    "Populated booking, money, guardian and remaining role/boundary browser journeys",
+    "Verified Google redemption scenario where owner-controlled account is required",
+    "Android final runtime; owner says USB device still occupied",
+    "Integrated current HEAD gates/CI and final feature critics/archive"
+  ],
+  "waveCDCompletionClaimed": false,
+  "allProductionGatesAccepted": false,
+  "wavesABAccepted": false,
+  "androidAccepted": false,
+  "allV2Accepted": false,
+  "pushPerformed": false,
+  "releasePerformed": false
+}

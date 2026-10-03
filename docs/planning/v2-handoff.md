@@ -6,6 +6,39 @@ current checkpoint below supersedes the historical session-1 snapshot.
 
 ## Current checkpoint
 
+- Latest primary A/B verification checkpoint (2026-10-03, supersedes the
+  earlier failed-build and unexecuted PT-grid entries): isolated A/B base
+  cc69ec75 plus responsive source e3123ba1 builds successfully on Node24;
+  build id L3yG7nDHjnDv4gsKokRPr. Explicit devtypes pin50915ef and private
+  matching Next tracing/Turbopack roots resolve the prior harness failures.
+  Independent responsive RED tests a443f4e4 preceded the source. All four
+  responsive cases now pass; a fresh blind rendered critic gives bounded GO
+  for list/new/taken-down detail at390/1440, both themes and real doubled text.
+  Independent browser locator changes25a8592/4c93998 preserve review-before-
+  publish and scope the duplicated reach sentence to the confirmation region.
+  Current browser passes: responsive4, actual text ANC lifecycle1, read-only
+  PLC6 and read-only BIZ preview/cancel1. Whole-feature acceptance is open.
+  The full current A/B rollback sweep passes **133 files / 13,148 assertions /
+  zero failures**, including57 holdout files and all three pending migration
+  previews. Exact source/migration/canonical-SQL/receipt hashes permit reuse
+  only of unchanged green cases; transaction-control suites execute unchanged
+  via the canonical CLI, and CI pg_prove remains independently required.
+  Receipt: docs/evidence/v2/waves-ab-current-verification.json. Pending
+  migrations are still permanently unapplied; no money was converted or seed
+  committed. Actual demo replay now passes independent visible34/held26:
+  server-clock declaration e39ebbc/test4e12a0f and legacy-before-baseline
+  composition declaration2f74bb8/testafe660c precede separate sourceb423099.
+  Fresh blind seed and CI-composition reviews give scoped GO. All original
+  legacy date/identity/money assertions remain intact; only the new packet
+  runs twice after lawful legacy setup. Current input/SQL/receipt hashes bind
+  both rollback executions. Five pure PT grid observations over14-day maximum
+  ranges return consistent UTC/DST counts in1.76–2.70 seconds; no latency SLO,
+  whole-RPC performance or CPU/memory acceptance is inferred.
+  MEDIA deployment/runtime, populated scenario journeys, final current HEAD
+  gates/CI, Android and final archive remain open. Owner says the USB phone is
+  still occupied. External C/D coordinators retain their work; no duplicate
+  coordinator, combined push, whole A/B win or v2 release is claimed.
+
 - Latest primary demo/verification checkpoint: independent static demo proofs
   are committed38f1a5d/710c79b with visible31 and holdout23 assertions. Separate
   immutable seed-once graph source4eab3ca preserves the original seed prefix;

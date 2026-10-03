@@ -5,6 +5,9 @@ demo requirements; creates no new commercial, identity or business-rule choice.
 The consent recorded_at exception in `demo-consent-clock-declarations.md`
 supersedes only this packet's historical consent clocks and defines genuine
 server-time/audit preservation. All other fixture clocks and shapes remain.
+The verification composition correction in `demo-proof-composition-declarations.md`
+supersedes the original complete-file replay protocol below: unchanged legacy
+setup precedes every exact baseline; the new packet alone executes twice.
 Separate visible/holdout post-seed SQL authors precede the separate seed builder.
 Their complete rollback-only verification files live at
 `supabase/tests/support/v2-batch2-demo-seed-visible.fragment` and
