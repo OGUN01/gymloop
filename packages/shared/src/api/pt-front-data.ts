@@ -1,7 +1,7 @@
 import type { Database } from '@gymloop/db';
 import { INSTANT_FRACTIONAL_SECOND_DIGITS, MEMBER_PAGE_SIZE_DEFAULT, MINUTES_PER_HOUR, MS_PER_HOUR } from '../config/constants';
 import { formatDateTime } from '../display/display';
-import { ptApiError } from './pt-front';
+import { ptApiError, ptPolicyRequestSchema } from './pt-front';
 
 type Functions = Database['public']['Functions'];
 type MemberRead = 'read_member_trainers' | 'read_member_programmes' | 'read_member_pt_packs' | 'read_member_pt_sessions' | 'read_member_pt_slots';
@@ -9,6 +9,30 @@ export type PtReadClient = {
   rpc<N extends MemberRead>(name: N, args?: Functions[N]['Args']): PromiseLike<{ data: Functions[N]['Returns'] | null; error: { code: string; details: string } | null }>;
 };
 export type PtHistoryCursor = { startsAt: string; sessionId: string };
+export type PtMemberPolicy = { cancelWindowHours: number; lateCancelConsumes: boolean };
+export type PtPolicyRead = { data: PtMemberPolicy | null; error: string | null };
+export type PtPolicyReadClient = {
+  rpc(name: 'read_member_pt_policy'): PromiseLike<{ data: unknown; error: unknown }>;
+};
+/** The current caller's policy is required; missing settings never imply defaults. */
+export async function readMemberPtPolicy(client: PtPolicyReadClient): Promise<PtPolicyRead> {
+  const failed: PtPolicyRead = { data: null, error: 'retryable' };
+  try {
+    const result = await client.rpc('read_member_pt_policy');
+    if (result.error !== null || !Array.isArray(result.data)) return failed;
+    if (result.data.length === 0) return { data: null, error: null };
+    if (result.data.length !== 1) return failed;
+    const row: unknown = result.data[0];
+    if (row === null || typeof row !== 'object' || Array.isArray(row)
+      || !Object.hasOwn(row, 'cancel_window_hours') || !Object.hasOwn(row, 'late_cancel_consumes_session')) return failed;
+    const fields = row as Record<string, unknown>;
+    const parsed = ptPolicyRequestSchema.pick({ cancelWindowHours: true, lateCancelConsumes: true }).safeParse({
+      cancelWindowHours: fields.cancel_window_hours,
+      lateCancelConsumes: fields.late_cancel_consumes_session,
+    });
+    return parsed.success ? { data: parsed.data, error: null } : failed;
+  } catch { return failed; }
+}
 export type PtReadSection<T> = { data: T[] | null; error: string | null };
 async function read<N extends MemberRead>(client: PtReadClient, name: N, args?: Functions[N]['Args']) {
   try { return await client.rpc(name, args); }

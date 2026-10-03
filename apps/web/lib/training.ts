@@ -1,4 +1,4 @@
-import { readMemberTraining, readMemberPtSlots, readMemberPtHistory, type PtReadClient, type PtHistoryCursor } from '@gymloop/shared';
+import { readMemberTraining, readMemberPtSlots, readMemberPtHistory, readMemberPtPolicy, type PtReadClient, type PtHistoryCursor, type PtPolicyReadClient, type PtPolicyRead } from '@gymloop/shared';
 import { memberMediaUrl } from './media';
 import type { StaffSession } from './api';
 
@@ -8,3 +8,4 @@ export function loadMemberTraining(supabase: StaffSession['supabase']) {
 }
 export function loadMemberSlots(supabase: StaffSession['supabase'], orderId: string, from: string, to: string) { return readMemberPtSlots(supabase as unknown as PtReadClient, orderId, from, to); }
 export function loadMemberTrainingHistory(supabase: StaffSession['supabase'], cursor?: PtHistoryCursor) { return readMemberPtHistory(supabase as unknown as PtReadClient, cursor); }
+export function loadMemberPtPolicy(supabase: StaffSession['supabase']): Promise<PtPolicyRead> { return readMemberPtPolicy(supabase as unknown as PtPolicyReadClient); }
