@@ -94,6 +94,18 @@ command, publish feedback or refresh the new caller's page.
 ## Existing dependency declarations for source-blind authors
 
 ```ts
+// Existing shared nouns and registered API-client envelope (declarations only)
+type BusinessNouns = {
+  place: string; session: string; sessions: string; class: string;
+  classes: string; member: string; members: string; trainer: string;
+};
+type ApiEnvelope<T> = { ok: true; data: T } |
+  { ok: false; error: { code: string; message: string; [detail: string]: unknown } };
+type PtCancelResult = {
+  sessionId: string; status: Database['public']['Enums']['booking_status'];
+  late: boolean; consumed: boolean; sessionsRemaining: number; replayed: boolean;
+};
+// Cancel route JSON is ApiEnvelope<PtCancelResult>.
 // apps/web/lib/identity-session.ts
 declare function requireAudience(audience: 'member'): Promise<{
   identity: { kind: 'member'; userId: string; tenantId: string; memberId: string };
