@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "scope": "SHP bounded live browser acceptance across three affected runs",
+  "recordedAt": "2026-10-03T02:00:29.6475573Z",
+  "sourceCommit": "664b8e6 plus test-first uncommitted application source",
+  "browser": "Chromium",
+  "previewOrigin": "http://127.0.0.1:3000",
+  "databaseProject": "pecxrpskmfeuyzngvewq",
+  "databaseWorkflowsIdle": true,
+  "serializedCloudLock": true,
+  "testFile": "tests/e2e/shop-visible.spec.ts",
+  "runs": [
+    {
+      "name": "original-eight",
+      "passed": 6,
+      "failures": [
+        "Empty demo had no desk reservation fixture",
+        "Empty desk results hid offline notice"
+      ],
+      "failed": 2
+    },
+    {
+      "name": "independent-genuine-fixture-and-new-empty-state",
+      "failure": "Empty desk results hid offline notice",
+      "durationSeconds": 52.6,
+      "passed": 2,
+      "failed": 1
+    },
+    {
+      "name": "post-fix affected acceptance",
+      "durationSeconds": 46.7,
+      "passed": 3,
+      "cases": [
+        "genuine member reservation fresh read and exact cancellation",
+        "member and console themes, accessibility and targets",
+        "empty desk offline and reconnect with no automatic command"
+      ],
+      "failed": 0
+    }
+  ],
+  "distinctCasesWithObservedPass": 9,
+  "allNineOnSingleCurrentHead": false,
+  "checks": [
+    "Real member reserve, authoritative new read and exact cancellation",
+    "Desk uncertain sale key and cancellation reason using intercepted commands",
+    "Front desk redirect and trainer denial",
+    "Trimmed category refusal using intercepted command",
+    "Chosen photo staging PUT then verification rejection using intercepted upload",
+    "Positive populated and empty offline states",
+    "390px and 1440px, light and dark, axe, 200 percent text, reduced motion and 44px controls"
+  ],
+  "actualMoneyWrite": false,
+  "actualMediaPublication": false,
+  "reservationFixtureCleanup": "Only exact test-created intents canceled through ordinary authenticated member API; no unrelated rows removed",
+  "positiveScreenshotsPersisted": false,
+  "actualAndroidVerified": false,
+  "wholeShopFeatureAccepted": false,
+  "remaining": [
+    "Single final v2 end-to-end on release source",
+    "Actual immutable MEDIA publication and races",
+    "Final navigation integration",
+    "Real Android",
+    "Fresh full feature acceptance"
+  ],
+  "sourceHashes": {
+    "tests/e2e/shop-visible.spec.ts": "35ff35574ecf5a3f42933748410f094aa2e6b7d99161c47b5a26465fa1d7814f",
+    "apps/web/app/(console)/shop/reservations/page.tsx": "3f568a3c17f1e1db1d07e78ddb1a01cae8ed14b8c4cea88f8046fc701676a053",
+    "apps/web/lib/use-shop-command.tsx": "271a14024d27bd160d55ce4ba55a5c62f7c80666322d6986e39ed994813e87ab",
+    "apps/web/app/member/shop/page.tsx": "653bdd486a9619be21c0d6b778eb956e135493a716bd7995e632127264ea03bd",
+    "apps/web/app/member/shop/shop-actions.tsx": "43ab1ff1b8f3f1ca5091975b4d6ba3d87fea6dbe9e90ff34538005fa71e697df"
+  },
+  "rawLogHashes": {
+    "scratchpad/shop-live-browser.log": "c5db8f88fe41c50ea9c732fd3f10892f93f63a64c1f9b65aaf01d8616099a7dc",
+    "scratchpad/shop-fixture-browser.log": "0d024188a73588f901735ea0787b23960f12d774956ab9f6a2b74d52c97ca657",
+    "scratchpad/shop-final-browser.log": "bd97d419152b3f24014c67dbfd903ea8a4dce08cc27daf1a336cf15dd641919c"
+  }
+}

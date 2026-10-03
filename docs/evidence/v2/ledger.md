@@ -530,3 +530,36 @@ interface clarification preserves idempotent receipt semantics; duplicate HTTP
 delivery alone is not a forbidden double count. The precise failure-truth
 amendment remains proposed, with no dependent source change authorized.
 Android remains deferred; no complete v2 win, archive or release is claimed.
+
+### Native cleanup, Training reads and Shop browser checkpoint, 2026-10-03
+
+Independent clean native identity authors replace the quarantined drafts that
+accidentally exposed helper bodies. Their public declaration packets carry no
+implementation. Test commits e2dfd6c, 56db435, 4efa8f0, fce8994, 3d421fb and
+1741f4e precede separate source corrections. Two fresh reviews found skipped
+logout paths; independent synchronous feature-error regressions preserve actual
+provider and SDK logout behavior. The final strict source critic returns GO for
+the complete frozen transport/cache/logout boundary; a candidate whose search
+accidentally included __tests__ is disqualified and supplies no acceptance.
+Root's current native holds pass 26/26 across the provider, cache and cleanup
+recovery files. Separate affected visible checks pass 57/57. Real browser account
+switching and Android remain required; no full identity runtime win is inferred.
+
+PTF native read/existing-cancel tests ca5df2e and 5a91e91 were committed with
+45 actual missing-target failures before TrainingSection source. Independent
+host/format fixture repair 664b8e6 preserves all cancellation assertions. Root's
+current rendered checks pass visible20/20 and held25/25, with null-section and
+nullable cancellation facts corrected in shared read types. New booking policy,
+web/desk Training, final mounting, geometry and Android remain open.
+
+Shop's initial eight browser cases pass six and expose a missing populated
+fixture plus a real empty-view offline defect. Independent fixture/new-case
+commit 95affa8 creates and cancels only exact ordinary member reservations;
+desk money commands and photo stages remain intercepted. Two repaired populated
+checks then pass, while the new empty-view case stays red before the separate
+connection notice fix. Root's post-fix affected run passes three, including the
+genuine reserve/read/cancel and theme/accessibility cases. Nine distinct cases
+have observed passes across these three runs; this is not one all-nine current
+head run. Receipt: shop-live-web.json. No actual sale, media publication or
+Android acceptance is claimed. All temporary active intents were canceled
+through their ordinary authenticated API; no unrelated fixture data was removed.
