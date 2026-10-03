@@ -550,6 +550,31 @@ export const STAFF_INVITE_EMAIL_MAX_LENGTH = 254;
 
 /** Latest persisted invite activity retained on a member history view (INV-028). */
 export const MEMBER_INVITE_HISTORY_LIMIT = 50;
+/** Frozen GRD input and read limits. */
+export const GUARDIAN_LIMITS = { nameMaxLength: 120, sourceMaxLength: 200, reasonMinLength: 3, reasonMaxLength: 200, attentionListMax: 100 } as const;
+/** Version of the guardian absence-follow-up statement. */
+export const GUARDIAN_CONSENT_VERSION = 'guardian-absence-v1';
+/** Frozen MEDIA object limits and signature data, MED-006…012. */
+export const MEDIA_LIMITS = { maxBytes: 2_097_152, uploadUrlTtlSeconds: 300, displayUrlTtlSeconds: 900, registrationsPerTenantPerHour: 60, signatureHeadBytes: 12, unconfirmedObjectPruneDays: 7, deletedObjectPruneDays: 30 } as const;
+export const MEDIA_IMAGE_SIGNATURES = { jpegHex: 'FFD8FF', pngHex: '89504E470D0A1A0A', webpContainer: 'RIFF', webpFormat: 'WEBP', webpFormatOffset: 8 } as const;
+/** Encoding/clock mechanics used by the media capability protocol. */
+export const MEDIA_RUNTIME_LIMITS = { hexRadix: 16, millisecondsPerSecond: 1000, jwtParts: 3, md5GroupEnds: [8, 12, 16, 20], datePrefixLength: 8, destinationAttempts: 5, networkTimeoutMs: 20_000 } as const;
+/** Trusted MEDIA HTTP transport statuses (web reuses the existing api.ts mapper). */
+export const MEDIA_HTTP_STATUS = { ok: 200, partialContent: 206, preconditionFailed: 412, invalid_request: 400, not_permitted: 403, asset_not_found: 404, upload_missing: 409, upload_changed: 409, upload_rejected: 422, media_not_ready: 409, media_in_use: 409, media_failed: 500, storage_unavailable: 500 } as const;
+/** Frozen SHP intent limits; reservations never charge or move stock. */
+export const SHOP_LIMITS = { reservationTtlHours: 24, maxOpenReservationsPerMember: 5, maxQuantityPerReservation: 10, reservationsPerMemberPerDay: 10, catalogueMax: 200, categoryNameMax: 60, cancelReasonMin: 3, cancelReasonMax: 200 } as const;
+export const SHOP_SORT_ORDER_MAX = 32_767;
+
+/** Frozen PTF booking, presentation and policy bounds. */
+export const PT_BOOKING_LIMITS = { horizonDays: 28, slotRangeDays: 14, slotRowsMax: 400, minLeadMinutes: 60, memberBookingsPerDay: 10, availabilityWindowsMax: 28, specialitiesMax: 8, specialityMaxChars: 40, bioMaxChars: 600, reasonMinChars: 3, reasonMaxChars: 200, timeOffReasonMaxChars: 200, reassignBatchMax: 100, bookingRangeDaysMax: 62 } as const;
+export const PT_READ_PAGE_MAX = 50;
+export const PT_POLICY_BOUNDS = { cancelWindowHoursMax: 168, sessionMinutesMin: 15, sessionMinutesMax: 180, sessionMinutesStep: 5 } as const;
+export const PT_POLICY_DEFAULTS = { cancelWindowHours: 24, lateCancelConsumes: true, sessionMinutes: 60 } as const;
+export const MS_PER_HOUR = 3_600_000;
+export const MINUTES_PER_DAY = 1_440;
+export const MINUTES_PER_HOUR = 60;
+export const INSTANT_FRACTIONAL_SECOND_DIGITS = 3;
+export const PT_HTTP_STATUS = { invalid: 400, missing: 404, conflict: 409, limited: 429, failed: 500 } as const;
 /** Google Identity R10 provider metrics; independent of body typography. */
 export const GOOGLE_PROVIDER_METRICS = {
   remBase: 16,
@@ -562,3 +587,8 @@ export const GOOGLE_PROVIDER_METRICS = {
   webTarget: 44,
   nativeTarget: 48,
 } as const;
+/** Frozen CLS-001…040 command and generation bounds. */
+export const CLASS_LIMITS = { horizonDays: 28, readWindowMaxDays: 31, nameMax: 80, descriptionMax: 500, durationMinMinutes: 5, durationMaxMinutes: 480, capacityMin: 1, capacityMax: 500, cancelWindowDefaultHours: 2, cancelWindowMaxHours: 168, markLeadMinutes: 60, markGraceHours: 24, reasonMin: 3, reasonMax: 200, maxServicesPerTenant: 50, maxActiveRulesPerTenant: 200, sortOrderMax: 1000 } as const;
+export const ANNOUNCEMENT_LIMITS = { titleMaxChars: 80, bodyMaxChars: 1500, changeNoteMinChars: 3, changeNoteMaxChars: 200, maxLivePerTenant: 10, publishesPerDay: 20, maxVersions: 10, maxExpiryDays: 365, homeCards: 3, listPageSize: 50, previewChars: 140 } as const;
+
+export const ANNOUNCEMENT_HTTP_STATUS = { notFound: 404 } as const;
