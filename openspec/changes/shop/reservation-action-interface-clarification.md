@@ -50,3 +50,16 @@ delegate to control verification timing and ordinary fetch for the display save.
 Same-render repeated activation cannot create concurrent upload/save sequences.
 Invalid display fields cannot report Saving when no display mutation occurs;
 errors and retries must preserve truthful stages and confirmed-asset reuse.
+
+## Existing route loading fallbacks
+
+The member `app/member/shop/loading.tsx` and console
+`app/(console)/shop/loading.tsx` each export the ordinary no-props Next loading
+component as default. The frozen States table requires shaped skeleton tiles
+for the member and skeleton rows for the console; a loading sentence alone
+does not satisfy it. Placeholders are decorative, contain no fabricated money,
+counts, names or images, and are excluded from the accessibility tree. The
+ongoing loading state is announced separately. Reuse existing theme/spacing
+tokens and honour enlarged text/reduced motion; no exact placeholder count is
+invented. Independent structural tests precede the fallback correction, with
+actual rendering/accessibility evidence still required for full acceptance.
