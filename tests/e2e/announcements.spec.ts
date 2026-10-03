@@ -42,3 +42,83 @@ test('ANC-Q1/Q5/Q8/Q9 publish review and immutable version display', async ({ pa
     }
   }
 });
+
+for (const route of ['/announcements', '/announcements/new']) {
+  for (const colorScheme of ['light', 'dark'] as const) {
+    test(`ANC-Q9 responsive console ${route} at 200% text in ${colorScheme}`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 900 });
+      await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
+      const password = playwrightEnv().DEMO_ACCOUNT_PASSWORD;
+      await page.goto('/sign-in'); await page.getByText('Use email instead', { exact: true }).click();
+      await page.getByLabel('Email').fill('owner@ironbox.example.com'); await page.getByLabel('Password').fill(password ?? '');
+      await Promise.all([page.waitForURL(/\/dashboard/), page.getByRole('button', { name: 'Sign in', exact: true }).click()]);
+      await page.goto(route);
+      const appearance = page.getByRole('group', { name: 'Appearance', exact: true });
+      await appearance.getByRole('button', { name: colorScheme === 'light' ? 'Light' : 'Dark', exact: true }).click();
+      await page.locator('html').evaluate((node) => {
+        node.style.fontSize = `${Number.parseFloat(getComputedStyle(node).fontSize) * 2}px`;
+      });
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      const brand = page.getByText('FitCruxx', { exact: true });
+      await expect(brand).toBeVisible();
+      await expect(appearance).toBeVisible();
+      const brandBounds = await brand.boundingBox();
+      const appearanceBounds = await appearance.boundingBox();
+      expect(brandBounds).not.toBeNull(); expect(appearanceBounds).not.toBeNull();
+      if (!brandBounds || !appearanceBounds) throw new Error('Brand and appearance must have readable bounds');
+      for (const bounds of [brandBounds, appearanceBounds]) {
+        expect(bounds.width).toBeGreaterThan(0); expect(bounds.height).toBeGreaterThan(0);
+        expect(bounds.x).toBeGreaterThanOrEqual(0); expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+      }
+      expect(brandBounds.x + brandBounds.width <= appearanceBounds.x
+        || appearanceBounds.x + appearanceBounds.width <= brandBounds.x
+        || brandBounds.y + brandBounds.height <= appearanceBounds.y
+        || appearanceBounds.y + appearanceBounds.height <= brandBounds.y).toBe(true);
+      const brandTextBounds = await brand.evaluate((node) => {
+        const range = document.createRange(); range.selectNodeContents(node);
+        return Array.from(range.getClientRects()).filter((rect) => rect.width > 0)
+          .map((rect) => ({ x: rect.left, y: rect.top, width: rect.width, height: rect.height }));
+      });
+      expect(brandTextBounds.length).toBeGreaterThan(0);
+      for (const bounds of brandTextBounds) {
+        expect(bounds.height).toBeGreaterThan(0);
+        expect(bounds.x).toBeGreaterThanOrEqual(0); expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+        expect(bounds.y).toBeGreaterThanOrEqual(0); expect(bounds.y + bounds.height).toBeLessThanOrEqual(900);
+        expect(bounds.x + bounds.width <= appearanceBounds.x
+          || appearanceBounds.x + appearanceBounds.width <= bounds.x
+          || bounds.y + bounds.height <= appearanceBounds.y
+          || appearanceBounds.y + appearanceBounds.height <= bounds.y).toBe(true);
+      }
+      for (const name of ['System', 'Light', 'Dark']) {
+        const control = appearance.getByRole('button', { name, exact: true });
+        await expect(control).toBeVisible(); await expect(control).toBeEnabled();
+        const bounds = await control.boundingBox();
+        expect(bounds).not.toBeNull();
+        expect(bounds?.width).toBeGreaterThanOrEqual(44); expect(bounds?.height).toBeGreaterThanOrEqual(44);
+        if (!bounds) throw new Error('Appearance controls must have readable bounds');
+        for (const textBounds of brandTextBounds) {
+          expect(textBounds.x + textBounds.width <= bounds.x
+            || bounds.x + bounds.width <= textBounds.x
+            || textBounds.y + textBounds.height <= bounds.y
+            || bounds.y + bounds.height <= textBounds.y).toBe(true);
+        }
+        await control.focus(); await expect(control).toBeFocused();
+        await control.press('Space'); await expect(control).toBeFocused();
+      }
+      await appearance.getByRole('button', { name: colorScheme === 'light' ? 'Light' : 'Dark', exact: true }).click();
+      const heading = route === '/announcements'
+        ? page.getByRole('heading', { name: 'Announcements', exact: true, level: 1 })
+        : page.getByRole('heading', { level: 1 });
+      await expect(heading).toBeVisible();
+      const headingLayout = await heading.evaluate((node) => {
+        const range = document.createRange(); range.selectNodeContents(node);
+        const rects = Array.from(range.getClientRects());
+        return { lineTops: [...new Set(rects.filter((rect) => rect.width > 0).map((rect) => rect.top))],
+          readable: rects.every((rect) => rect.left >= 0 && rect.right <= innerWidth && rect.width > 0 && rect.height > 0) };
+      });
+      expect(headingLayout.readable).toBe(true);
+      if (route === '/announcements') expect(headingLayout.lineTops.length).toBeGreaterThan(1);
+      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    });
+  }
+}
