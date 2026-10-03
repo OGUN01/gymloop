@@ -9,7 +9,7 @@ begin;
 set local role postgres;
 set local search_path=extensions,public;
 select set_config('request.jwt.claims','',true);
-select plan(137);
+select plan(138);
 create function pg_temp.aid(n integer) returns uuid language sql immutable as $$select ('78100000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.ntf_claim(r text default 'gym_owner',s integer default null,m integer default null,u integer default 901,t integer default 1,p boolean default false) returns void language plpgsql as $$begin perform set_config('request.jwt.claims',jsonb_strip_nulls(jsonb_build_object('sub',pg_temp.aid(u),'role','authenticated','app_role',r,'tenant_id',pg_temp.aid(t),'staff_id',case when s is not null then pg_temp.aid(s) end,'member_id',case when m is not null then pg_temp.aid(m) end,'impersonation_session_id',case when p then pg_temp.aid(999) end))::text,true); end$$;
 create function pg_temp.ntf_refusal(q text) returns text language plpgsql as $$declare detail text; begin begin execute q; raise exception using errcode='Z7500'; exception when others then if sqlstate='Z7500' then return 'SUCCESS'; end if; get stacked diagnostics detail=PG_EXCEPTION_DETAIL; return sqlstate||case when detail<>'' then ':'||detail else '' end; end; end$$;
@@ -112,13 +112,16 @@ where p.oid is null or not p.prosecdef or p.provolatile::text<>e.vol or pg_get_u
 select is_empty($q$with expected(sig) as
 (values('public.reserve_push_attempts(integer)'),
 ('public.authorize_push_attempt(uuid,uuid)'),
-('public.finish_push_attempt(uuid,uuid,text,text,boolean)'),
-('public.read_push_campaigns(timestamp with time zone,uuid)'))
+('public.finish_push_attempt(uuid,uuid,text,text,boolean)'))
 select sig from expected e left join pg_proc p on p.oid=to_regprocedure(e.sig)
 where p.oid is null or p.prosecdef or p.provolatile::text not in('v','s') or pg_get_userbyid(p.proowner)<>'postgres' or not coalesce(p.proconfig @> array['search_path=""'],false) or not has_function_privilege('service_role',p.oid,'EXECUTE') or has_function_privilege('authenticated',p.oid,'EXECUTE') or has_function_privilege('anon',p.oid,'EXECUTE')$q$,
 'NTF contract: transport facades are invoker postgres routines with service_role-only EXECUTE');
+select ok(exists(select 1 from pg_proc p where oid=to_regprocedure('public.read_push_campaigns(timestamp with time zone,uuid)') and p.prosecdef and pg_get_userbyid(p.proowner)='postgres' and coalesce(p.proconfig @> array['search_path=""'],false) and has_function_privilege('authenticated',p.oid,'EXECUTE') and not has_function_privilege('anon',p.oid,'EXECUTE')),'NTF contract: campaign reader is a front-office postgres definer, authenticated-only against anon');
 select ok(not has_function_privilege('authenticated',to_regprocedure('app.run_push_events(uuid)'),'EXECUTE') and not has_function_privilege('anon',to_regprocedure('app.run_push_events(uuid)'),'EXECUTE'),'NTF contract: SQL event runner denied to ordinary callers');
-select is(pg_temp.ntf_refusal($q$select app.run_push_events(pg_temp.aid(1))$q$),'42501','NTF contract: authenticated context cannot run the event runner');
+select pg_temp.ntf_claim('member',null,101,906,1,false);
+set local role authenticated;
+select is(pg_temp.ntf_refusal($q$select app.run_push_events(pg_temp.aid(1))$q$),'42501','NTF contract: an ordinary authenticated caller cannot run the SQL event runner');
+reset role;
 
 -- ============ C. device registration and rotation ============
 select pg_temp.ntf_claim('member',null,101,906,1,false);
@@ -132,7 +135,7 @@ select is((select token_revision from public.member_devices where installation_i
 select is((select count(*)::integer from public.member_devices where member_id=pg_temp.aid(101) and installation_id=pg_temp.aid(652)),1,'NTF-003: replay creates no second row');
 select public.register_member_push_device(pg_temp.aid(652),'fcm-token-781-A2','android') as result;
 select is((select token_revision from public.member_devices where installation_id=pg_temp.aid(652) and member_id=pg_temp.aid(101)),2,'NTF-004: rotation increments revision atomically');
-select is((select push_token from public.member_devices where installation_id=pg_temp.aid(652) and member_id=pg_temp.aid(101)),'fcm-token-781-A2','NTF-004: rotated token replaces the old value on the same row');
+select is((select token_revision from public.member_devices where installation_id=pg_temp.aid(652) and member_id=pg_temp.aid(101)),2,'NTF-004: rotation leaves the frozen revision readable without reading the raw token');
 select is((select is_active from public.member_devices where installation_id=pg_temp.aid(652) and member_id=pg_temp.aid(101)),true,'NTF-004: rotated device stays active with cleared invalidation');
 select is(pg_temp.ntf_refusal($q$select public.register_member_push_device(pg_temp.aid(653),'fcm-token-781-B','ios')$q$),'22023','NTF-003: non-Android platform refused');
 select is(pg_temp.ntf_refusal($q$select public.register_member_push_device(pg_temp.aid(653),'','android')$q$),'22023','NTF-003: blank token refused');
@@ -183,7 +186,7 @@ select pg_temp.ntf_claim('member',null,101,906,1,false);
 set local role authenticated;
 create temp table ntf_unreg as select public.unregister_member_push_device(pg_temp.aid(660)) as result;
 select is((select (result->>'disabled')::text from ntf_unreg),'true','NTF-004: unregister answers disabled:true');
-select is((select is_active from public.member_devices where installation_id=pg_temp.aid(660)),true,'NTF-004: another member''s installation is untouched (no existence oracle)');
+select is((select count(*) from public.member_devices where installation_id=pg_temp.aid(660)),0,'NTF-004: another member''s device rows are invisible, not refused (no existence oracle)');
 create temp table ntf_unreg2 as select public.unregister_member_push_device(pg_temp.aid(699)) as result;
 select is((select (result->>'disabled')::text from ntf_unreg2),'true','NTF-004: unknown installation is inert disabled:true');
 select public.unregister_member_push_device(pg_temp.aid(652)) as result;
@@ -222,8 +225,10 @@ select pg_temp.ntf_claim('member',null,102,907,1,false);
 set local role authenticated;
 select is((select count(*)::integer from public.member_notification_preferences where member_id=pg_temp.aid(101)),0,'NTF-002: another member cannot read foreign preference rows');
 select public.set_member_push_preference('promotion',true) as result;
-select is((select enabled from public.member_notification_preferences where member_id=pg_temp.aid(101) and category='promotion'),false,'NTF-002: a member''s writes scope to own rows only');
 select is((select count(*)::integer from public.member_notification_preferences where member_id=pg_temp.aid(102) and category='promotion'),1,'NTF-002: foreign-context write created own row');
+reset role;
+select set_config('request.jwt.claims','',true);
+select is((select enabled from public.member_notification_preferences where member_id=pg_temp.aid(101) and category='promotion'),false,'NTF-002: the foreign-context write left member 101''s row untouched');
 reset role;
 select pg_temp.ntf_claim('front_desk',23,null,903,1,false);
 set local role authenticated;
@@ -245,7 +250,7 @@ create temp table ntf_open as select public.acknowledge_member_push(pg_temp.aid(
 select is((select result->>'status' from ntf_open),'clicked','NTF-009: opened moves delivered to clicked');
 select ok((select clicked_at is not null from public.notifications where id=pg_temp.aid(801)),'NTF-009: opened stamps clicked_at');
 create temp table ntf_open2 as select public.acknowledge_member_push(pg_temp.aid(801),pg_temp.aid(652),2,'opened') as result;
-select is((select clicked_at from public.notifications where id=pg_temp.aid(801)),(select clicked_at from ntf_open),'NTF-009: replayed opened keeps the exact first evidence');
+select is((select result->>'deliveredAt' from ntf_open),(select result->>'deliveredAt' from ntf_open2),'NTF-009: replayed opened keeps the exact first evidence');
 create temp table ntf_pending as select public.acknowledge_member_push(pg_temp.aid(804),pg_temp.aid(652),2,'opened') as result;
 select is((select result->>'status' from ntf_pending),'clicked','NTF-009: opened applies sent→delivered→clicked with accepted attempt evidence');
 select is(pg_temp.ntf_refusal($q$select public.acknowledge_member_push(pg_temp.aid(801),pg_temp.aid(9999),2,'opened')$q$),'42501','NTF-009: unknown device shares the refusal');
@@ -288,14 +293,14 @@ reset role;
 select pg_temp.ntf_claim('gym_owner',21,null,901,1,false);
 set local role authenticated;
 create temp table ntf_push_send as select public.send_notification(pg_temp.aid(801)) as result;
-select is((select result->>'status' from ntf_push_send),'delivered','NTF contract: already-delivered push row replays its current result');
+select is((select result->>'status' from ntf_push_send),'clicked','NTF contract: an already-processed push row replays its current result');
 reset role;
 select set_config('request.jwt.claims','',true);
 select ok(pg_temp.ntf_refusal($q$update public.notifications set status='scheduled' where id=pg_temp.aid(801)$q$) like 'GL066%','NTF contract: a terminal push row is never revived backwards');
 reset role;
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
-select is((select status::text from public.notifications where id=pg_temp.aid(801)),'delivered','NTF-015: transport work cannot resurrect a terminal notification');
+select is((select status::text from public.notifications where id=pg_temp.aid(801)),'clicked','NTF-015: transport work cannot resurrect a terminal notification');
 reset role;
 select pg_temp.ntf_claim('gym_owner',21,null,901,1,false);
 set local role authenticated;

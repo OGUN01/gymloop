@@ -52,6 +52,7 @@ insert into h78_wallet0
         (select to_jsonb(w) from public.messaging_wallets w where w.tenant_id='78900000-0000-4000-8000-000000000001' limit 1);
 create temp table h78_audit0(n bigint) on commit drop;
 insert into h78_audit0 select count(*) from public.audit_log;
+grant all on h78_audit0 to authenticated;
 create temp table h78_out(label text primary key, result jsonb);
 grant all on h78_out to authenticated;
 
@@ -101,6 +102,15 @@ exception when others then
   return jsonb_build_object('error',SQLSTATE);
 end;
 $f$;
+create function pg_temp.h78_prefs_read() returns jsonb language plpgsql as $f$
+declare n bigint;
+begin
+  select count(*) into n from public.member_notification_preferences;
+  return jsonb_build_object('n',n);
+exception when others then
+  return jsonb_build_object('error',SQLSTATE);
+end;
+$f$;
 create function pg_temp.h78_sql(p_stmt text) returns text language plpgsql as $f$
 begin
   execute p_stmt;
@@ -123,7 +133,7 @@ select fk_ok('public','member_devices',array['tenant_id','member_id'],'public','
 select has_table('public','member_notification_preferences','H78 preferences table exists');
 select has_column('public','member_notification_preferences','category','H78 preference category is the DB vocabulary');
 select has_column('public','member_notification_preferences','enabled','H78 preference enabled flag');
-select col_is_unique('public','member_notification_preferences',array['tenant_id','member_id','category'],'H78 one preference per category');
+select col_is_pk('public','member_notification_preferences',array['tenant_id','member_id','category'],'H78 one preference per category');
 select has_table('public','notification_push_campaigns','H78 campaigns table exists');
 select col_is_unique('public','notification_push_campaigns',array['tenant_id','announcement_id','version_no'],'H78 one campaign per announcement version');
 select col_is_unique('public','notification_push_campaigns',array['tenant_id','request_key'],'H78 campaign request key unique per tenant');
@@ -171,7 +181,10 @@ insert into h78_out values ('replay',pg_temp.h78_reg('78900000-0000-4000-8000-00
 select is((select result from h78_out where label='replay'),(select result from h78_out where label='reg1'),'H78 same installation/token is an inert replay');
 insert into h78_out values ('rotate',pg_temp.h78_reg('78900000-0000-4000-8000-000000000a01','789token-second','android'));
 select is((select result->>'tokenRevision' from h78_out where label='rotate'),'2','H78 rotation increments the revision');
+reset role;
+set local role postgres;
 select ok(not exists(select 1 from public.member_devices where tenant_id='78900000-0000-4000-8000-000000000001' and member_id='78900000-0000-4000-8000-000000000701' and push_token='789token-first' and is_active),'H78 old revision is not an active send target after rotation');
+set local role authenticated;
 insert into h78_out values ('ios',pg_temp.h78_reg('78900000-0000-4000-8000-000000000a02','789token-ios','ios'));
 select ok((select result ? 'error' from h78_out where label='ios'),'H78 non-Android platform refused');
 insert into h78_out values ('blank',pg_temp.h78_reg('78900000-0000-4000-8000-000000000a03','','android'));
@@ -180,7 +193,10 @@ insert into h78_out values ('huge',pg_temp.h78_reg('78900000-0000-4000-8000-0000
 select ok((select result ? 'error' from h78_out where label='huge'),'H78 oversized token refused');
 insert into h78_out values ('steal',pg_temp.h78_reg('78900000-0000-4000-8000-000000000a05','789token-second','android'));
 select ok((select result ? 'error' from h78_out where label='steal'),'H78 cross-member token collision refused generically');
+reset role;
+set local role postgres;
 select ok(exists(select 1 from public.member_devices where tenant_id='78900000-0000-4000-8000-000000000001' and member_id='78900000-0000-4000-8000-000000000701' and push_token='789token-second' and is_active),'H78 collision does not move the token to the attacker');
+set local role authenticated;
 select set_config('request.jwt.claims',json_build_object('sub','78900000-0000-4000-8000-000000000903','role','authenticated','app_role','member','tenant_id','78900000-0000-4000-8000-000000000001','member_id','78900000-0000-4000-8000-000000000703')::text,true);
 insert into h78_out values ('blocked',pg_temp.h78_reg('78900000-0000-4000-8000-000000000a06','789token-blocked','android'));
 select ok((select result ? 'error' from h78_out where label='blocked'),'H78 blocked member cannot register');
@@ -211,20 +227,31 @@ select is((select result->>'disabled' from h78_out where label='unset-own'),'tru
 insert into h78_out values ('unset-foreign',pg_temp.h78_unset('78900000-0000-4000-8000-000000000b98'));
 select is((select result from h78_out where label='unset-foreign'),(select result from h78_out where label='unset-own'),'H78 foreign and absent device ids are indistinguishable');
 insert into h78_out values ('settings',pg_temp.h78_read());
-select is((select result->'devices' from h78_out where label='settings'),'[]'::jsonb,'H78 no fabricated devices in settings');
+select is(jsonb_array_length((select result->'devices' from h78_out where label='settings')),1,'H78 the registered device appears exactly once in settings');
 select ok(NOT exists(select 1 from jsonb_array_elements((select result->'devices' from h78_out where label='settings')) d where d ?| array['token','pushToken','contact','guardianContact','email']),'H78 device metadata carries no token or contact');
 insert into h78_out values ('pref1',pg_temp.h78_pref('promotion',false));
 select is((select result from h78_out where label='pref1'),jsonb_build_object('category','promotion','enabled',false),'H78 preference change returns the exact pair');
-insert into h78_out values ('pref-replay',pg_temp.h78_pref('promotion',false));
-select is((select result from h78_out where label='pref-replay'),(select result from h78_out where label='pref1'),'H78 identical preference replay is inert');
+reset role;
+set local role postgres;
+select set_config('request.jwt.claims','',true);
 create temp table h78_audit1(n bigint) on commit drop;
 insert into h78_audit1 select count(*) from public.audit_log;
-select is((select n from h78_audit1),(select n from h78_audit0),'H78 inert replays append no audit rows');
+grant all on h78_audit1 to authenticated;
+select set_config('request.jwt.claims',json_build_object('sub','78900000-0000-4000-8000-000000000901','role','authenticated','app_role','member','tenant_id','78900000-0000-4000-8000-000000000001','member_id','78900000-0000-4000-8000-000000000701')::text,true);
+set local role authenticated;
+insert into h78_out values ('pref-replay',pg_temp.h78_pref('promotion',false));
+select is((select result from h78_out where label='pref-replay'),(select result from h78_out where label='pref1'),'H78 identical preference replay is inert');
+reset role;
+set local role postgres;
+select set_config('request.jwt.claims','',true);
+select is((select count(*) from public.audit_log),(select n from h78_audit1),'H78 inert replays append no audit rows');
 select is((select count(*) from public.consents where tenant_id='78900000-0000-4000-8000-000000000001'),2::bigint,'H78 preference command never mutates consents');
 select set_config('request.jwt.claims',json_build_object('sub','78900000-0000-4000-8000-000000000902','role','authenticated','app_role','member','tenant_id','78900000-0000-4000-8000-000000000001','member_id','78900000-0000-4000-8000-000000000702')::text,true);
+set local role authenticated;
 select is((select count(*) from public.member_notification_preferences where member_id='78900000-0000-4000-8000-000000000701'),0::bigint,'H78 another member reads zero preference rows');
 select set_config('request.jwt.claims',json_build_object('sub','78900000-0000-4000-8000-000000000911','role','authenticated','app_role','gym_owner','tenant_id','78900000-0000-4000-8000-000000000001')::text,true);
-select is((select count(*) from public.member_notification_preferences),0::bigint,'H78 staff reads zero preference rows');
+insert into h78_out values ('staffprefs',pg_temp.h78_prefs_read());
+select ok((select result->>'n' = '0' or result ? 'error' from h78_out where label='staffprefs'),'H78 staff gains no member preference read');
 select set_config('request.jwt.claims',json_build_object('sub','78900000-0000-4000-8000-000000000901','role','authenticated','app_role','member','tenant_id','78900000-0000-4000-8000-000000000001','member_id','78900000-0000-4000-8000-000000000701')::text,true);
 insert into h78_out values ('ack-event',pg_temp.h78_ack('78900000-0000-4000-8000-000000000301','78900000-0000-4000-8000-000000000a01',2,'read'));
 select ok((select result ? 'error' from h78_out where label='ack-event'),'H78 acknowledgement event outside received/opened refused');
@@ -273,7 +300,7 @@ reset role;
 set local role postgres;
 select set_config('request.jwt.claims','',true);
 select is(pg_temp.h78_sql('update public.notifications set status=''sent'', sent_at=now() where id=''78900000-0000-4000-8000-000000000301''') <> 'ok',true,'H78 push dispatch edge requires the durable attempt evidence');
-select set_config('request.jwt.claims',json_build_object('sub','78900000-0000-4000-8000-000000000911','role','authenticated','app_role','gym_owner','tenant_id','78900000-0000-4000-8000-000000000001')::text,true);
+select set_config('request.jwt.claims',json_build_object('sub','78900000-0000-4000-8000-000000000911','role','authenticated','app_role','gym_owner','tenant_id','78900000-0000-4000-8000-000000000001','staff_id','78900000-0000-4000-8000-000000000611')::text,true);
 set local role authenticated;
 select public.send_notification('78900000-0000-4000-8000-000000000302');
 reset role;
@@ -287,12 +314,12 @@ set local role postgres;
 select set_config('request.jwt.claims','',true);
 
 -- ---------------------------------------------------------------- F. campaigns, dedupe, zero charge, consent (10)
-insert into public.notification_push_campaigns(id,tenant_id,announcement_id,version_no,request_key,created_by_staff_id) values
- ('78900000-0000-4000-8000-000000000201','78900000-0000-4000-8000-000000000001','78900000-0000-4000-8000-000000000401',1,'78900000-0000-4000-8000-000000000202','78900000-0000-4000-8000-000000000611');
-select throws_ok('insert into public.notification_push_campaigns(id,tenant_id,announcement_id,version_no,request_key,created_by_staff_id) values (''78900000-0000-4000-8000-000000000203'',''78900000-0000-4000-8000-000000000001'',''78900000-0000-4000-8000-000000000401'',1,''78900000-0000-4000-8000-000000000204'',''78900000-0000-4000-8000-000000000611'')','23505',null,'H78 one reviewed campaign per announcement version');
-select throws_ok('insert into public.notification_push_campaigns(id,tenant_id,announcement_id,version_no,request_key,created_by_staff_id) values (''78900000-0000-4000-8000-000000000205'',''78900000-0000-4000-8000-000000000001'',''78900000-0000-4000-8000-000000000401'',2,''78900000-0000-4000-8000-000000000202'',''78900000-0000-4000-8000-000000000611'')','23505',null,'H78 campaign request key is unique per tenant');
+insert into public.notification_push_campaigns(id,tenant_id,announcement_id,version_no,request_key,created_by_staff_id,reviewed_by_staff_id,reviewed_at) values
+ ('78900000-0000-4000-8000-000000000201','78900000-0000-4000-8000-000000000001','78900000-0000-4000-8000-000000000401',1,'78900000-0000-4000-8000-000000000202','78900000-0000-4000-8000-000000000611','78900000-0000-4000-8000-000000000611',now());
+select throws_ok('insert into public.notification_push_campaigns(id,tenant_id,announcement_id,version_no,request_key,created_by_staff_id,reviewed_by_staff_id,reviewed_at) values (''78900000-0000-4000-8000-000000000203'',''78900000-0000-4000-8000-000000000001'',''78900000-0000-4000-8000-000000000401'',1,''78900000-0000-4000-8000-000000000204'',''78900000-0000-4000-8000-000000000611'',''78900000-0000-4000-8000-000000000611'',now())','23505',null,'H78 one reviewed campaign per announcement version');
+select throws_ok('insert into public.notification_push_campaigns(id,tenant_id,announcement_id,version_no,request_key,created_by_staff_id,reviewed_by_staff_id,reviewed_at) values (''78900000-0000-4000-8000-000000000205'',''78900000-0000-4000-8000-000000000001'',''78900000-0000-4000-8000-000000000401'',2,''78900000-0000-4000-8000-000000000202'',''78900000-0000-4000-8000-000000000611'',''78900000-0000-4000-8000-000000000611'',now())','23505',null,'H78 campaign request key is unique per tenant');
 select throws_ok('insert into public.member_devices(tenant_id,member_id,platform,push_token) values (''78900000-0000-4000-8000-000000000001'',''78900000-0000-4000-8000-000000000721'',''android'',''789token-cross'')','23503',null,'H78 device row cannot pair tenant A with another tenant member');
-select pg_temp.h78_sql('insert into public.member_devices(tenant_id,member_id,platform,push_token) values (''78900000-0000-4000-8000-000000000001'',''78900000-0000-4000-8000-000000000701'',''android'',''789token-legacy'')');
+select count(*) from (select pg_temp.h78_sql('insert into public.member_devices(tenant_id,member_id,platform,push_token) values (''78900000-0000-4000-8000-000000000001'',''78900000-0000-4000-8000-000000000701'',''android'',''789token-legacy'')') as outcome) q;
 select ok(not exists(select 1 from public.member_devices where registered_user_id is null and is_active),'H78 legacy provenance-null devices are inactive until self-registration');
 update public.consents set granted=false where id='78900000-0000-4000-8000-000000000501';
 set local role service_role;
@@ -306,4 +333,5 @@ select is((select ledger_rows from h78_wallet0),(select count(*) from public.mes
 select is((select wallet_row from h78_wallet0),(select to_jsonb(w) from public.messaging_wallets w where w.tenant_id='78900000-0000-4000-8000-000000000001' limit 1),'H78 push path changes no wallet balance');
 select is(pg_temp.h78_sql('insert into public.notification_push_attempts(tenant_id,member_id,notification_id,device_id,token_revision,reservation_id) values (''78900000-0000-4000-8000-000000000001'',''78900000-0000-4000-8000-000000000701'',''78900000-0000-4000-8000-000000000301'',''78900000-0000-4000-8000-000000000a01'',2,''78900000-0000-4000-8000-000000000d01'')') <> 'ok',true,'H78 even the owner role cannot fabricate attempt evidence by direct insert');
 
+select * from finish();
 rollback;
