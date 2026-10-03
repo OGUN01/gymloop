@@ -86,10 +86,20 @@ const duration = (minutes: string, seconds?: string) => {
 };
 const localClock = (iso: string) => {
   const date = new Date(iso);
-  const text = displayed().toLowerCase();
-  const clock = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', hour12: true }).format(date).toLowerCase().replace(/\s+/g, ' ');
-  const clock24 = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
-  expect(text.includes(clock) || text.includes(clock24), `local clock ${clock}`).toBe(true);
+  const local = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).formatToParts(date);
+  const part = (type: string) => Number(local.find(item => item.type === type)?.value);
+  const hour = part('hour');
+  const minute = part('minute');
+  const second = part('second');
+  const millisecond = date.getUTCMilliseconds();
+  const clocks = [...displayed().toLowerCase().matchAll(/\b(\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?\s*(am|pm)?\b/g)];
+  const matches = clocks.some(match => {
+    const displayedHour = Number(match[1]);
+    const actualHour = match[5] ? displayedHour % 12 + (match[5] === 'pm' ? 12 : 0) : displayedHour;
+    const actualMilliseconds = Number((match[4] ?? '').padEnd(3, '0'));
+    return actualHour === hour && Number(match[2]) === minute && Number(match[3] ?? '0') === second && actualMilliseconds === millisecond;
+  });
+  expect(matches, `exact local clock for ${iso}`).toBe(true);
 };
 beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-03T00:00:00Z'));
@@ -137,8 +147,9 @@ describe.each(['web', 'native'] as const)('%s held recorded cancellation interva
   });
   it.each([false, true])('duration preserves current late consequence and absolute cutoff (consumes=%s)', async consumes => {
     current = { ...base, lateNow: true, consumesNow: consumes }; await mount(); await press(/cancel/i);
-    duration('75'); localClock(base.cancelCutoff as string); expect(displayed()).toMatch(/late/i);
-    expect(displayed()).toMatch(consumes ? /(?:used|uses|consume)/i : /(?:not|no|free|kept|returned|remaining)/i);
+    duration('75'); localClock(base.cancelCutoff as string);
+    expect(displayed()).toMatch(/(?:5|05).*oct|oct.*(?:5|05)/i);
+    expect(displayed()).toContain(consumes ? "This is inside your cancellation window. Cancelling will use 1 session from your pack." : "This is inside your cancellation window. Cancelling won't use a session from your pack.");
     expect(sends()).not.toHaveBeenCalled();
   });
   it('wrong session cannot revive the displayed interval', async () => {
