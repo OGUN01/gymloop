@@ -109,7 +109,12 @@ select is(jsonb_build_object(
  (select v from proof where k='read_before'),'Reads/refusals preserve settings, bookings, audit and notifications');
 select is((select coalesce(jsonb_agg(jsonb_build_object('relation',relation,'mode',mode,'type',locktype) order by relation,mode,locktype),'[]') from pg_locks where pid=pg_backend_pid() and mode<>'AccessShareLock' and relation is not null),(select v from proof where k='locks_before'),'Reads/refusals add no write or row relation locks');
 select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.u(928),'role','authenticated','app_role','super_admin')::text,true);
+-- Active -> trial is deliberately not a legal commercial transition. This
+-- isolated actor-read fixture needs that historical state; restore the exact
+-- commercial invariant before invoking any read under test.
+alter table public.organizations disable trigger organizations_commercial_invariant;
 update public.organizations set status='trial',trial_ends_at=statement_timestamp()+interval '1 day' where id=pg_temp.u(1);
+alter table public.organizations enable trigger organizations_commercial_invariant;
 set local role authenticated;
 select pg_temp.claim();
 select is(pg_temp.probe('select * from public.read_member_pt_policy()'),'OK','PT: live trial eligible');
