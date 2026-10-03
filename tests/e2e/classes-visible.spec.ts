@@ -28,7 +28,7 @@ async function doubleApplicationText(page: import('@playwright/test').Page) {
       if (!element || element.tagName !== item.tag || element.textContent !== item.text) throw new Error('Application text changed during enlargement fixture');
       element.style.setProperty('font-size', `${item.fontSize * 2}px`, 'important');
       const numericLineHeight = Number.parseFloat(item.lineHeight);
-      element.style.setProperty('line-height', Number.isFinite(numericLineHeight) ? `${numericLineHeight * 2}px` : item.lineHeight, 'important');
+      element.style.setProperty('line-height', Number.isFinite(numericLineHeight) ? `${numericLineHeight * 2}px` : item.lineHeight);
     }
   }, snapshot);
   const enlarged = await page.evaluate(records => {
