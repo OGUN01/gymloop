@@ -181,7 +181,14 @@ describe('CLS rendered native contract', () => {
     expect(seam.search, 'search forwarded to supplied caller client').toHaveBeenCalledWith(seam.context.supabase, 'matching');
     await press(/Search matching member/);
     if (!seam.deskBook.mock.calls.length) await press(/^Confirm(?: booking)?$|^Book$/);
-    expect(seam.deskBook, 'chosen member rather than caller ID').toHaveBeenCalledWith(seam.context.api, session.sessionId, memberB.memberId);
+    expect(seam.deskBook, 'chosen member rather than caller ID with caller lease').toHaveBeenCalledWith(seam.context.api, session.sessionId, memberB.memberId, expect.any(Function));
+    const shouldSend: unknown = seam.deskBook.mock.calls[0]?.[3];
+    expect(typeof shouldSend === 'function' && shouldSend(), 'desk booking lease is current').toBe(true);
+    const originalContext = seam.context; seam.context = context(memberB); draw(); await settle();
+    expect(typeof shouldSend === 'function' && shouldSend(), 'desk booking lease is revoked after scope change').toBe(false);
+    seam.context = originalContext; draw(); await settle();
+    expect(typeof shouldSend === 'function' && shouldSend(), 'desk booking lease never revives after caller ABA').toBe(false);
+    cleanup(); expect(typeof shouldSend === 'function' && shouldSend(), 'desk booking lease remains revoked after unmount').toBe(false);
     expect(seam.mark, 'adding a booking never marks attendance').not.toHaveBeenCalled();
   });
   it('loads local today, shows session facts and ignores surplus member fields', async () => {
@@ -262,7 +269,10 @@ describe('CLS rendered native contract', () => {
     for (const fact of ['Roster person', 'GL-404', 'Checked in', 'No live membership', 'No app']) expect(visible(), `desk roster fact ${fact}`).toContain(fact);
     seam.mark.mockResolvedValue({ ok: true, data: { bookingId: roster.bookingId, status: 'attended' } });
     await press(/Mark attended/);
-    expect(seam.mark, 'explicit attendance is one tap').toHaveBeenCalledWith(seam.context.api, roster.bookingId, 'attended');
+    expect(seam.mark, 'explicit attendance is one tap with caller lease').toHaveBeenCalledWith(seam.context.api, roster.bookingId, 'attended', expect.any(Function));
+    const shouldSend: unknown = seam.mark.mock.calls[0]?.[3];
+    expect(typeof shouldSend === 'function' && shouldSend(), 'attendance lease is current').toBe(true);
+    cleanup(); expect(typeof shouldSend === 'function' && shouldSend(), 'attendance lease is revoked after unmount').toBe(false);
     expect(seam.deskBook, 'booking is not attendance').not.toHaveBeenCalled();
   });
   it('makes a cancelled desk roster read only', async () => {
