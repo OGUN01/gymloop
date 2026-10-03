@@ -25,7 +25,9 @@ const client = () => {
     ...(scope.member ? { member_id: '70000000-0000-4000-8000-000000000101' } : { staff_id: '70000000-0000-4000-8000-000000000021' }) };
   return {
     auth: { getClaims: async () => ({ data: { claims }, error: null }) },
-    rpc: async () => ({ data: [], error: null }),
+    rpc: async (name: string) => ({ data: name === 'read_member_portal_settings'
+      ? [{ city: 'Pune', state: 'Maharashtra', streak_rule_type: 'weekly_goal', week_start_day: 1, weekly_goal_default: 3 }]
+      : [], error: null }),
     from: (table: string) => {
       let projection = ''; let target = scope.tenant;
       const result = () => {
@@ -35,7 +37,7 @@ const client = () => {
           if (vocabulary) { request.reads.push(`${scope.user}:${target}`); request.type = request.afterRead; }
           return { data: scope.allowed && target === scope.tenant ? { id: scope.tenant, name: 'BIZ Academy', gym_code: 'BIZ70A', timezone: 'Asia/Kolkata', ...(vocabulary ? { business_type: type } : {}) } : null, error: null };
         }
-        if (table === 'members' && scope.member) return { data: { id: 'member_id' in claims ? claims.member_id : null, full_name: 'Aarav Sharma', member_code: 'BIZ-101', phone: '+917000000101', email: null, branch_id: null, status: 'active' }, error: null };
+        if (table === 'members' && scope.member) return { data: { id: 'member_id' in claims ? claims.member_id : null, full_name: 'Aarav Sharma', member_code: 'BIZ-101', phone: '+917000000101', email: null, branch_id: null, status: 'active', weekly_goal_visits: 3, rest_days: [] }, error: null };
         return { data: [], error: null, count: 0 };
       };
       const query = {
@@ -43,7 +45,8 @@ const client = () => {
         eq: (column: string, value: string) => { if (table === 'organizations' && column === 'id') target = value; return query; },
         in: () => query, is: () => query, order: () => query, limit: () => query, range: () => query, or: () => query,
         gte: () => query, lte: () => query, lt: () => query, gt: () => query,
-        maybeSingle: async () => result(), single: async () => result(),
+        maybeSingle: async () => { const reply = result(); return { ...reply, data: Array.isArray(reply.data) ? null : reply.data }; },
+        single: async () => { const reply = result(); return { ...reply, data: Array.isArray(reply.data) ? null : reply.data }; },
         then: (resolve: (value: ReturnType<typeof result>) => unknown) => Promise.resolve(result()).then(resolve),
       };
       return query;
@@ -55,6 +58,8 @@ vi.mock('../../lib/identity-session', () => ({ requireAudience: async () => ({ s
   ? { kind: 'member', userId: request.user, tenantId: request.tenant, memberId: '70000000-0000-4000-8000-000000000101' }
   : { kind: 'staff', userId: request.user, tenantId: request.tenant, staffId: '70000000-0000-4000-8000-000000000021', role: 'gym_owner' } }) }));
 vi.mock('../../lib/auth-actions', () => ({ signOut: vi.fn() }));
+// Do not let unrelated ANC/media hosting replace the real BIZ request reads.
+vi.mock('../../lib/member-announcements', () => ({ loadMemberAnnouncementFeed: async () => ({ asOf: '2026-10-03T00:00:00Z', announcements: [] }) }));
 vi.mock('next-themes', () => ({ useTheme: () => ({ theme: 'system', setTheme: vi.fn() }) }));
 vi.mock('next/navigation', () => ({ usePathname: () => request.member ? '/member' : '/console', redirect: vi.fn(), notFound: vi.fn() }));
 
@@ -67,7 +72,9 @@ const renderRequest = async (surface: 'console' | 'member') => {
   const tree = surface === 'console'
     ? await (await import('../(console)/layout')).default({ children: page })
     : await (await import('../member/layout')).default({ children: page });
-  return renderToStaticMarkup(tree).replace(/<[^>]*>/g, ' ');
+  const html = renderToStaticMarkup(tree);
+  const accessibleNames = [...html.matchAll(/(?:aria-label|alt|title)="([^"]*)"/g)].map((match) => match[1]);
+  return `${html.replace(/<[^>]*>/g, ' ')} ${accessibleNames.join(' ')}`;
 };
 beforeEach(() => { request.tenant = '70000000-0000-4000-8000-000000000001'; request.user = '70000000-0000-4000-8000-000000000901'; request.allowed = true; startRequest('dance'); });
 describe('BIZ-010/020 request vocabulary consistency', () => {

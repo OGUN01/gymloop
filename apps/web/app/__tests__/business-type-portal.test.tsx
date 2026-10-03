@@ -24,6 +24,8 @@ vi.mock('../../lib/member-portal', () => ({ loadMemberPortal: async () => ({ err
 }) }));
 vi.mock('../../lib/member-messages', () => ({ loadMemberMessages: async () => ({ messages: [], consents: [], errorMessage: null, nouns: businessNouns(state.type) }) }));
 vi.mock('../../lib/auth-actions', () => ({ signOut: vi.fn() }));
+// ANC is an independent Home composition; keep BIZ pages and navigation real.
+vi.mock('../../lib/member-announcements', () => ({ loadMemberAnnouncementFeed: async () => ({ asOf: '2026-10-03T00:00:00Z', announcements: [] }) }));
 vi.mock('next-themes', () => ({ useTheme: () => ({ theme: 'system', setTheme: vi.fn() }) }));
 vi.mock('next/navigation', () => ({ usePathname: () => '/member', redirect: vi.fn(), notFound: vi.fn() }));
 
@@ -60,6 +62,10 @@ describe('BIZ-012/013 Tier A rendered text and accessible names', () => {
     state.type = 'dance'; const { default: Layout } = await import('../member/layout');
     const html = renderToStaticMarkup(await Layout({ children: 'Body' }));
     expect(visible(html)).not.toMatch(/\b(?:gym|member|members|trainer)\b/i);
-    expect(html).toMatch(/building-2|building2/i); expect(html).not.toMatch(/lucide-dumbbell/);
+    // Gym is secondary in the approved five-tab IA; place glyphs belong there.
+    const links = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].map((match) => ({ attributes: match[1], text: match[2].replace(/<[^>]*>/g, '').trim() }));
+    expect(links.map((link) => link.text)).toEqual(['Home', 'Batches', 'Shop', 'Activity', 'You']);
+    expect(links.map((link) => link.attributes.match(/href="([^"]+)"/)?.[1])).toEqual(['/member', '/member/classes', '/member/shop', '/member/activity', '/member/you']);
+    expect(html).not.toMatch(/lucide-dumbbell/);
   });
 });
