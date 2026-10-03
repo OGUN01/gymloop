@@ -35,6 +35,7 @@ function database(rows: Row[], failure: string | null = null) {
     const match = /^([a-z_]+)\.(ilike|eq)\.(.*)$/.exec(expression);
     if (!match) throw new Error('Malformed filter grammar');
     const [, field, operator, pattern] = match;
+    if (field === undefined || operator === undefined || pattern === undefined) throw new Error('Incomplete filter grammar');
     return row => operator === 'ilike' ? matches(value(row, field), pattern) : value(row, field) === pattern;
   };
   const split = (expression: string) => {
@@ -93,7 +94,7 @@ describe('CLS-Q6 caller-bound native member search', () => {
     const rows = roster().reverse();
     const { client, selections } = database(rows);
     const actual = await loadDeskMembers(client, query);
-    const expected = rows.toSorted((a, b) => a.full_name.localeCompare(b.full_name)).slice(0, MEMBER_PAGE_SIZE_DEFAULT)
+    const expected = [...rows].sort((a, b) => a.full_name.localeCompare(b.full_name)).slice(0, MEMBER_PAGE_SIZE_DEFAULT)
       .map(row => ({ id: row.id, fullName: row.full_name, phone: row.phone, status: row.status, memberCode: row.member_code }));
     expect(actual).toEqual(expected);
     expect(selections.flatMap(projection => projection.split(',').map(field => field.trim())).sort())
