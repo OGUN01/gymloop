@@ -1,6 +1,6 @@
 // Independently authored from frozen approved PTF declarations; no source or holdouts read.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { businessNouns, ptBookingConsequence, type PtPack, type PtSession } from '@gymloop/shared';
+import { businessNouns, formatDateTime, ptBookingConsequence, type PtPack, type PtSession } from '@gymloop/shared';
 import { PtBookingForm } from '../member/classes/training/pt-actions';
 import BookingPage from '../member/classes/training/book/[orderId]/page';
 
@@ -105,7 +105,7 @@ describe('PTF actual member booking page caller and own-order boundary', () => {
     const freshClient = { marker: 'refreshed caller client' };
     seam.audience.mockResolvedValue({ identity, supabase: freshClient });
     const refresh = props?.refreshFacts; expect(refresh).toBeTypeOf('function');
-    if (typeof refresh === 'function') expect(await refresh()).toEqual(facts());
+    if (typeof refresh === 'function') expect(await refresh()).toEqual({ ...facts(), sessions: { data: [], error: null } });
     expect(seam.policy).toHaveBeenLastCalledWith(freshClient);
     const reads = seam.training.mock.calls.length + seam.policy.mock.calls.length + seam.slots.mock.calls.length;
     for (const key of ['userId', 'tenantId', 'memberId']) {
@@ -195,7 +195,7 @@ describe('PTF actual booking form policy, command and replay', () => {
     expect(seam.fetch).toHaveBeenCalledTimes(1); const original = postBody();
     expect(visible()).not.toMatch(/Session booked|Successfully booked/);
     await settle(); expect(seam.fetch).toHaveBeenCalledTimes(1);
-    read = async () => ({ ...facts(), pack: { ...pack, state: 'closed', canBook: false }, slots: { data: [], error: null }, sessions: { data: [cancelledSession(original, false)], error: null } });
+    read = async () => ({ ...facts(), pack: { ...pack, state: 'closed', canBook: false }, slots: { data: [], error: null }, sessions: { data: [cancelledSession(original, false)], error: null } }); draw(); await settle();
     seam.fetch.mockImplementationOnce(async () => ({ ok: true, json: async () => ({ ok: true, data: { ...answer(original, 'cancelled_by_member'), replayed: true } }) }));
     await press(/^Retry(?: booking)?$|^Try again$/);
     expect(seam.fetch).toHaveBeenCalledTimes(2); expect(postBody()).toEqual(original);
@@ -237,7 +237,7 @@ describe('PTF actual booking form policy, command and replay', () => {
   it.each([false, true])('labels cancelled replay only from fresh exact effective consumed=%s', async consumed => {
     seam.fetch.mockRejectedValueOnce(new Error('Unknown outcome')); draw(); await settle(); await press(slotControl); await press(confirmation); const body = postBody();
     const section = { data: [cancelledSession(body, consumed)], error: null };
-    const current = vi.fn().mockResolvedValue({ ...facts(), sessions: section }); read = current;
+    const current = vi.fn().mockResolvedValue({ ...facts(), sessions: section }); read = current; draw(); await settle();
     seam.fetch.mockImplementationOnce(async () => ({ ok: true, json: async () => ({ ok: true, data: { ...answer(body, 'cancelled_by_member'), replayed: true } }) }));
     await press(/^Retry(?: booking)?$|^Try again$/);
     expect(seam.fetch).toHaveBeenCalledTimes(2); expect(postBody()).toEqual(body); expect(current).toHaveBeenCalledTimes(1);
@@ -250,23 +250,35 @@ describe('PTF actual booking form policy, command and replay', () => {
     const section = failure === 'failed' ? { data: null, error: 'Please try again.' } : {
       data: failure === 'missing' ? [] : [{ ...exact, ...(failure === 'wrong session' ? { sessionId: '73000000-0000-4000-8000-000000000099' } : { endsAt: '2026-10-03T08:30:00Z' }) }], error: null,
     };
-    const current = vi.fn().mockResolvedValue({ ...facts(), sessions: section }); read = current;
+    const current = vi.fn().mockResolvedValue({ ...facts(), sessions: section }); read = current; draw(); await settle();
     seam.fetch.mockImplementationOnce(async () => ({ ok: true, json: async () => ({ ok: true, data: { ...answer(body, 'cancelled_by_member'), replayed: true } }) }));
     await press(/^Retry(?: booking)?$|^Try again$/);
     expect(seam.fetch).toHaveBeenCalledTimes(2); expect(postBody()).toEqual(body); expect(current).toHaveBeenCalledTimes(1);
     expect(visible()).toContain('Cancelled. Reload to check whether a session was used.');
     expect(visible()).not.toMatch(/Cancelled by you|Cancelled late - session used/);
+    expect(nodes.some(node => String(node.props['data-status'] ?? '').toLowerCase().includes('reload to check'))).toBe(false);
   });
 
 
   it('does not publish cancellation consumption from a late read after permanent lifetime revocation', async () => {
     seam.fetch.mockRejectedValueOnce(new Error('Unknown')); draw(); await settle(); await press(slotControl); await press(confirmation); const body = postBody();
     const waiting = deferred<Facts | null>(); read = () => waiting.promise; seam.fetch.mockImplementationOnce(async () => ({ ok: true, json: async () => ({ ok: true, data: { ...answer(body, 'cancelled_by_member'), replayed: true } }) }));
+    draw(); await settle();
     const retry = action(/^Retry(?: booking)?$|^Try again$/)?.props.onClick; expect(retry).toBeTypeOf('function');
     const pending = typeof retry === 'function' ? retry() : undefined; await settle();
     scope = 'member:B'; draw(); await settle(); scope = 'member:A'; draw(); await settle();
     waiting.resolve({ ...facts(), sessions: { data: [cancelledSession(body, true)], error: null } }); await pending; await settle();
     expect(seam.fetch).toHaveBeenCalledTimes(2); expect(visible()).not.toMatch(/Cancelled by you|Cancelled late - session used/);
+  });
+
+
+  it.each([false, true])('shows the absolute cutoff in returned slot timezone before inside-window confirmation, consumes=%s', async consumes => {
+    initial = { ...facts(), slots: { data: [{ ...slot, timezone: 'UTC' }], error: null }, policy: { data: { cancelWindowHours: 168, lateCancelConsumes: consumes }, error: null } }; read = vi.fn().mockResolvedValue(initial);
+    draw(); await settle(); await press(/6:30|06:30/);
+    expect(visible()).toContain(formatDateTime('2026-09-26T06:30:00Z', 'UTC'));
+    expect(visible()).toContain('UTC');
+    expect(visible()).toContain(ptBookingConsequence({ startsAt: slot.startsAt, now: new Date().toISOString(), windowHours: 168, lateConsumes: consumes, timezone: 'UTC' }));
+    expect(seam.fetch).not.toHaveBeenCalled();
   });
 
 });

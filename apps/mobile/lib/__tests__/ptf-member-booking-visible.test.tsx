@@ -1,6 +1,6 @@
 // Independently authored from frozen approved PTF declarations; no source or holdouts read.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { businessNouns, ptBookingConsequence, type PtPack, type PtSession } from '@gymloop/shared';
+import { businessNouns, formatDateTime, ptBookingConsequence, type PtPack, type PtSession } from '@gymloop/shared';
 import BookingScreen from '../../app/training/book/[orderId]';
 
 type Props = Record<string, unknown>;
@@ -287,6 +287,7 @@ describe('PTF actual native booking route', () => {
     expect(post()).toHaveBeenCalledTimes(2); expect(post().mock.calls[1]?.[1]).toEqual(body); expect(seam.loadMember).toHaveBeenCalledTimes(reads + 1);
     expect(visible()).toContain('Cancelled. Reload to check whether a session was used.');
     expect(visible()).not.toMatch(/Cancelled by you|Cancelled late - session used/);
+    expect(nodes.filter(node => node.type === 'Status').some(node => Object.values(node.props).some(value => typeof value === 'string' && value.includes('Reload to check')))).toBe(false);
   });
 
 
@@ -331,6 +332,16 @@ describe('PTF actual native booking route', () => {
     focus(false); await settle(); focus(true); await settle();
     waiting.resolve({ ...training(), history: { data: [cancelledSession(body, true)], error: null } }); await pending; await settle();
     expect(post()).toHaveBeenCalledTimes(2); expect(visible()).not.toMatch(/Cancelled by you|Cancelled late - session used/);
+  });
+
+
+  it.each([false, true])('shows the absolute cutoff in returned slot timezone before inside-window confirmation, consumes=%s', async consumes => {
+    seam.slots.mockResolvedValue({ data: [{ ...slot, timezone: 'UTC' }], error: null }); seam.policy.mockResolvedValue({ data: { cancelWindowHours: 168, lateCancelConsumes: consumes }, error: null });
+    draw(); await settle(); await press(/6:30|06:30/);
+    expect(visible()).toContain(formatDateTime('2026-09-26T06:30:00Z', 'UTC'));
+    expect(visible()).toContain('UTC');
+    expect(visible()).toContain(ptBookingConsequence({ startsAt: slot.startsAt, now: new Date().toISOString(), windowHours: 168, lateConsumes: consumes, timezone: 'UTC' }));
+    expect(post()).not.toHaveBeenCalled();
   });
 
 });
