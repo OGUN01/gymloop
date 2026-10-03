@@ -47,6 +47,12 @@ current checkpoint below supersedes the historical session-1 snapshot.
   must not authorize a builder. The reviewed pause allowance proposal
   51115c6/70271aa is awaiting the owner; retain its exact current start-year
   source predicate and do not infer plan-limit semantics before that reply.
+  WSP's correctly linked read-only aggregate inventory observes3 wallets,
+  one nonzero balance of4,500 credits and2 ledger rows. The zero-value/history
+  guard cannot pass; exact credit-to-paise conversionba46e02 awaits the owner.
+  Do not reset, revalue or delete history. Evidence is
+  docs/evidence/v2/wsp-wallet-unit-inventory.json; DB workflows were completed,
+  the shared Cloud lock was held/released, and no source/money record changed.
 
 - Latest application state (supersedes earlier bullets): native integration
   has independent clean authors, tests-first synchronous cleanup regressions

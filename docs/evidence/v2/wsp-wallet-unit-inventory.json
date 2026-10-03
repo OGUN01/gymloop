@@ -1,0 +1,31 @@
+{
+  "verifiedAtUtc": "2026-10-03T05:52:17Z",
+  "scope": "Read-only aggregate inventory for the owner-approved guarded WSP unit transition",
+  "projectRef": "pecxrpskmfeuyzngvewq",
+  "cliLinkedRefVerified": true,
+  "latestCompletedDbRun": 37061577506,
+  "latestDbConclusion": "success",
+  "noDbRunsInFlightAtRead": true,
+  "sharedCloudLockHeld": true,
+  "sharedCloudLockReleased": true,
+  "readOnlyBeginRollback": true,
+  "querySha256": "d4e6c3199514f407be2eed8d6a623ee0783ab38d194ff77e15fcc9668b86caa7",
+  "privateCliResultSha256": "20197bd85273ff0e5839fcc4e3ac5f73433ef7cdf21762f1b3fa5f942cee1f5e",
+  "inventory": {
+    "walletRows": "3",
+    "nonzeroWalletRows": "1",
+    "aggregateBalanceCredits": "4500",
+    "ledgerRows": "2",
+    "aggregateLedgerDeltaCredits": "4500"
+  },
+  "approvedZeroValueGuardCanPass": false,
+  "exactCreditValueKnown": false,
+  "moneyOrSourceRecordsMutated": false,
+  "migrationApplied": false,
+  "providerActivated": false,
+  "limits": [
+    "Aggregates do not establish an INR exchange rate",
+    "Exact live row identity and conversion facts require a fresh locked check inside CI",
+    "This inventory establishes neither provider delivery nor all-v2 acceptance"
+  ]
+}

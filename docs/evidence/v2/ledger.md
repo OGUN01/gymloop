@@ -693,3 +693,12 @@ The zero-balance/no-history conversion guard, final all-in integer tariff,
 delivery-evidence debit and separate recipient channel consent are retained.
 The full shared delivery specification is still in serial preparation; no
 credential, provider registration, legal clearance or real send is inferred.
+
+Correctly linked CLI aggregate inventory under a read-only BEGIN/ROLLBACK and
+the shared Cloud lock finds3 wallets, one nonzero balance,4,500 aggregate
+credits,2 ledger rows and4,500 net ledger credits. DB runs were completed and
+latest37061577506 green; lock is released. No record was changed. Exact query
+and private-output hashes, scope and limits are in wsp-wallet-unit-inventory.json.
+The approved zero-value/no-history conversion guard therefore refuses; precise
+owner rate decisionba46e02 remains pending. Aggregates and seed reasons establish
+no INR valuation, authority to reset, or real-provider acceptance.
