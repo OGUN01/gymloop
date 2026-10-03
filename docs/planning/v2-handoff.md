@@ -16,8 +16,10 @@ current checkpoint below supersedes the historical session-1 snapshot.
   BIZ five-destination dance/gym navigation follows independent tests5564b0f,
   5ecfff9/9e01e85 and separate source12538d3; affected50/50, scoped lint and
   web/native types pass. MEDIA affected visible144/144 and held57/57 pass;
-  local Deno is unavailable, so its CI check and actual protected deployment
-  still remain required. Preserve the occupied USB phone and external artifacts.
+  Deno was initially unavailable in PATH; the temporary official npm runtime
+  now checks both Edge Functions successfully with the committed Deno config.
+  CI and actual protected deployment remain required. Preserve the occupied
+  USB phone and external artifacts.
 
 - The credit question is settled: explicit owner approvalefff581 and subsequent
   delegation retain **1 old credit = INR1 =100 paise**. Frozen isolated
@@ -26,7 +28,19 @@ current checkpoint below supersedes the historical session-1 snapshot.
   manifest receipt `docs/evidence/v2/wsp-wallet-exact-manifest.json` establishes
   exact baseline SHA-256, per-tenant reconciliation and signed-bigint100-scale
   safety. CI must repeat it under both locks; any changed fact refuses atomically.
-  Source is not yet built and no balance or history is converted. A declaration
+  Separate SQL and consumer builders have now built the isolated source, still
+  uncommitted. Visible241/241, independent held42/42, web/shared types and scoped
+  lint pass. Actual correctly linked rollback previews pass new visible37/37
+  and held40/40 SQL assertions. Independent one-time cutover fixture previews
+  pass8/8 cases with67/67 assertions: exact large historical replay, null/timestamp/
+  audit preservation, three changed-baseline refusals and three net/overflow
+  refusals. All source/fixture hashes and outputs remain root-private; synthetic
+  previews replace only the fingerprint in ephemeral copies. One GitHub status
+  check failed closed on a transient connection error; exact prior green results
+  were retained and only unfinished cases resumed after DB status verification.
+  The Cloud lock is released. Existing affected legacy suites, seed compatibility,
+  fresh blind review and remaining gates are still pending; no migration, balance
+  or history was permanently converted. A declaration
   correction retains the existing JSON201 success, not a form303 redirect.
   Recurring tests distinguish immutable conversion evidence from mutable later
   wallet balances/timestamps; one-time cutover tests own exact-baseline refusal.
