@@ -210,3 +210,18 @@ test('SHP-Q10 empty desk reservations still reports offline and reconnects witho
   await expect(page.getByText('No open reservations.', { exact: true })).toBeVisible();
   expect(mutations).toEqual([]);
 });
+test('SHP-017/Q10 collapsed console Shop shows offline without opening a product panel', async ({ page }) => {
+  await signIn(page, 'owner@ironbox.example.com'); await page.goto('/shop');
+  await expect(page.getByRole('button', { name: 'Photo and category', exact: true }).first(), 'A normal successful catalogue is required for collapsed-panel acceptance').toBeVisible();
+  await expect(page.locator('input[type=file]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
+  const commands: string[] = [];
+  page.on('request', request => { const path = new URL(request.url()).pathname; if (request.method() !== 'GET' && /^\/api\/(?:shop(?:\/|$)|shop-reservations(?:\/|$)|media(?:\/|$))/.test(path)) commands.push(request.method() + ' ' + path); });
+  const offlineNotice = page.getByText(/offline/i).first();
+  await page.context().setOffline(true);
+  try { await expect(offlineNotice).toBeVisible(); await expect(page.locator('input[type=file]')).toHaveCount(0); expect(commands).toEqual([]); }
+  finally { await page.context().setOffline(false); }
+  await expect(offlineNotice).toBeHidden(); await page.reload();
+  await expect(page.getByRole('button', { name: 'Photo and category', exact: true }).first()).toBeVisible();
+  await expect(page.locator('input[type=file]')).toHaveCount(0); expect(commands).toEqual([]);
+});
