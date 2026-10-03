@@ -1,10 +1,15 @@
+import { humanize, planCatalogueCopy } from '@gymloop/shared';
+import { useBusinessNouns } from '../../lib/use-business-nouns';
 import { formatMoney, toLocalDate, UI_TOKENS } from '@gymloop/shared';
 import { useRouter } from 'expo-router';
-import { ChartNoAxesColumn, CreditCard, MessageSquareMore, Package, ScanLine } from 'lucide-react-native';
+import { ChartNoAxesColumn, CreditCard, MessageSquareMore, Package, ScanLine, Tag } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 import { useState, type ReactNode } from 'react';
 import { ActionButton, Body, Eyebrow, FONT, LoadingState, Row, Screen, StateMessage, Status, Title, dayLabel, statusTone, statusWord } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
+import { PlanCatalogueBody } from '../../components/plan-catalogue';
+import { useMemberPlans } from '../../lib/use-member-plans';
+import { LegalLinks } from '../../components/legal-links';
 import { useMemberSnapshot } from '../../lib/use-member-snapshot';
 
 /** What each consent purpose covers, in the member's words, under its name (as on web). */
@@ -44,14 +49,17 @@ function LedgerGroup({ title, empty, note, children }: { title: string; empty: s
 }
 
 export default function GymScreen() {
+  const nouns = useBusinessNouns();
   const router = useRouter();
   const { api, palette } = useMobile();
   const { data, error, loading, reload } = useMemberSnapshot();
-  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [openSection, setOpenSection] = useState<string | null>('addons');
   const [marking, setMarking] = useState(false);
-  const [markError, setMarkError] = useState<string | null>(null);
+  const [markError, setMarkError] = useState<string | null>('addons');
+  const plans = useMemberPlans(openSection === 'plans');
+  const plansCopy = planCatalogueCopy(nouns);
   if (loading) return <Screen><LoadingState /></Screen>;
-  if (error || !data) return <Screen><Title>My gym</Title><StateMessage tone="error">{error ?? 'Gym details are unavailable.'}</StateMessage><ActionButton secondary onPress={() => void reload()}>Try again</ActionButton></Screen>;
+  if (error || !data) return <Screen><Title>My {nouns.place}</Title><StateMessage tone="error">{error ?? `${humanize(nouns.place)} details are unavailable.`}</StateMessage><ActionButton secondary onPress={() => void reload()}>Try again</ActionButton></Screen>;
   const latestUnread = data.messages.find((message) => message.status === 'sent');
   const unread = data.messages.filter((message) => message.status === 'sent').length;
   const toggle = (id: string) => setOpenSection((section) => section === id ? null : id);
@@ -65,13 +73,13 @@ export default function GymScreen() {
   const messagesMeta = data.messages.length === 0 ? 'No messages yet' : unread > 0 ? `${unread} new` : 'All read';
   // As on web: the add-on still being used, else how many orders there are.
   const activeAddOn = data.addOns.find((order) => order.sessionsTotal !== null && order.sessionsUsed < order.sessionsTotal);
-  const addOnsMeta = activeAddOn ? `${keepPhrases(activeAddOn.name)} · ${activeAddOn.sessionsUsed} of ${activeAddOn.sessionsTotal} sessions used` : data.addOns.length === 0 ? 'No add-on orders yet' : `${data.addOns.length} ${data.addOns.length === 1 ? 'order' : 'orders'}`;
+  const addOnsMeta = activeAddOn ? `${keepPhrases(activeAddOn.name)} · ${activeAddOn.sessionsUsed} of ${activeAddOn.sessionsTotal} ${nouns.sessions} used` : data.addOns.length === 0 ? 'No add-on orders yet' : `${data.addOns.length} ${data.addOns.length === 1 ? 'order' : 'orders'}`;
   const lastVisit = data.visits[0] ? shortDate(data.visits[0].checkedInAt) : null;
-  return <Screen footer={<ActionButton accessibilityHint="Opens the member check-in scanner" icon={<ScanLine color={palette.textOnPrimary} size={UI_TOKENS.icons.navigationSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />} onPress={() => router.push({ pathname: '/(member)', params: { scan: '1' } })}>Scan to check in</ActionButton>}>
+  return <Screen footer={<ActionButton accessibilityHint={`Opens the ${nouns.member} check-in scanner`} icon={<ScanLine color={palette.textOnPrimary} size={UI_TOKENS.icons.navigationSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />} onPress={() => router.push({ pathname: '/(member)', params: { scan: '1' } })}>Scan to check in</ActionButton>}>
     <View>
-      <Eyebrow>My gym</Eyebrow>
-      <Title fit>{gymName}</Title>
-      <Text style={[styles.gymLine, { color: palette.secondaryText }]}>{data.gym.branchName} · Gym code <Text style={{ color: palette.primaryText, fontFamily: FONT.semibold }}>{data.gym.code}</Text></Text>
+      <Eyebrow>My {nouns.place}</Eyebrow>
+      <Title>{gymName}</Title>
+      <Text style={[styles.gymLine, { color: palette.secondaryText }]}>{data.gym.branchName} · {humanize(nouns.place)} code <Text style={{ color: palette.primaryText, fontFamily: FONT.semibold }}>{data.gym.code}</Text></Text>
       {address ? <Text style={[styles.address, { color: palette.secondaryText }]}>{address}</Text> : null}
     </View>
     <View style={[styles.list, { borderColor: palette.decorativeSeparator }]}>
@@ -79,6 +87,10 @@ export default function GymScreen() {
       {openSection === 'membership' ? <View style={[styles.sectionBody, { borderColor: palette.decorativeSeparator }]}>
         <LedgerGroup title="Receipts" empty="No receipts yet.">{data.receipts.map((receipt, index) => <LedgerRow key={receipt.id} first={index === 0} amount primary={formatMoney(receipt.amountPaise, receipt.currency)} detail={receipt.paidAt ? shortDate(receipt.paidAt) : receipt.receiptNumber ?? 'Date not recorded'} status={<Status tone={statusTone(receipt.status)}>{statusWord(receipt.status)}</Status>} />)}</LedgerGroup>
       </View> : null}
+      <Row icon={<Tag {...icon} />} title="Plans & prices" meta={plansCopy.rowMeta} expanded={openSection === 'plans'} onPress={() => toggle('plans')} accessibilityLabel={`Plans & prices, ${plansCopy.rowMeta}`} />
+      {openSection === 'plans' ? <View style={[styles.sectionBody, { borderColor: palette.decorativeSeparator }]}><PlanCatalogueBody state={plans.state} copy={plansCopy} timeZone={data.gym.timezone} onRetry={() => { void plans.reload(); }} /></View> : null}
+      <Row icon={<Tag {...icon} />} title="Trainers & programmes" meta={`Explore training at your ${nouns.place}`} onPress={() => router.push({ pathname: '/(member)/classes', params: { section: 'training' } })} accessibilityHint="Opens Training" />
+      <Row icon={<Package {...icon} />} title="Other services" onPress={() => router.push('/(member)/shop')} accessibilityHint="Opens Shop" />
       <Row icon={<ChartNoAxesColumn {...icon} />} title="Attendance history" meta={lastVisit ? `Last visit ${lastVisit}` : 'No visits yet'} onPress={() => router.push('/(member)/activity')} accessibilityLabel={`Attendance history, ${lastVisit ? `last visit ${lastVisit}` : 'no visits yet'}`} accessibilityHint="Opens Activity" />
       <Row icon={<MessageSquareMore {...icon} />} title="Messages & consent" meta={messagesMeta} expanded={openSection === 'messages'} onPress={() => toggle('messages')} accessibilityLabel={`Messages & consent, ${messagesMeta}`} />
       {openSection === 'messages' ? <View style={[styles.sectionBody, { borderColor: palette.decorativeSeparator }]}>
@@ -87,11 +99,12 @@ export default function GymScreen() {
         {markError ? <StateMessage tone="error">{markError}</StateMessage> : null}
         <LedgerGroup title="Consent history" empty="No consent decisions recorded yet." note="To change a choice, ask your front desk.">{data.consents.map((consent, index) => <LedgerRow key={`${consent.purpose}-${consent.recordedAt}`} first={index === 0} primary={`${statusWord(consent.purpose)} messages`} detail={[CONSENT_SCOPE[consent.purpose], `${consent.granted ? 'Since' : 'Withdrawn'} ${shortDate(consent.recordedAt)}`].filter(Boolean).join(' · ')} status={<Status tone={consent.granted ? 'ok' : 'neutral'}>{consent.granted ? 'Allowed' : 'Withdrawn'}</Status>} />)}</LedgerGroup>
       </View> : null}
-      <Row icon={<Package {...icon} />} title="Add-ons" meta={addOnsMeta} expanded={openSection === 'addons'} onPress={() => toggle('addons')} accessibilityLabel={`Add-ons, ${addOnsMeta}`} />
+      <Row icon={<Package {...icon} />} title="Orders & completed returns" meta={addOnsMeta} expanded={openSection === 'addons'} onPress={() => toggle('addons')} accessibilityLabel={`Orders & completed returns, ${addOnsMeta}`} />
       {openSection === 'addons' ? <View style={[styles.sectionBody, { borderColor: palette.decorativeSeparator }]}>
-        <LedgerGroup title="Purchases" empty="Ask the front desk about personal training and other offers.">{data.addOns.map((order, index) => <LedgerRow key={order.id} first={index === 0} primary={order.totalPaise ? `${keepPhrases(order.name)} · ${formatMoney(order.totalPaise, order.currency)}` : keepPhrases(order.name)} detail={order.sessionsTotal === null ? undefined : `Used ${order.sessionsUsed} of ${order.sessionsTotal} sessions`} status={<Status tone={statusTone(order.status)}>{statusWord(order.status)}</Status>} />)}</LedgerGroup>
+        <LedgerGroup title="Purchases" empty="No purchases recorded yet.">{data.addOns.map((order, index) => <LedgerRow key={order.id} first={index === 0} primary={order.totalPaise ? `${keepPhrases(order.name)} · ${formatMoney(order.totalPaise, order.currency)}` : keepPhrases(order.name)} detail={order.sessionsTotal === null ? undefined : `Used ${order.sessionsUsed} of ${order.sessionsTotal} ${nouns.sessions}`} status={<Status tone={statusTone(order.status)}>{statusWord(order.status)}</Status>} />)}</LedgerGroup>
       </View> : null}
     </View>
+    <LegalLinks />
   </Screen>;
 }
 

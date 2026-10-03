@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { humanize, UI_TOKENS } from '@gymloop/shared';
 import * as Crypto from 'expo-crypto';
 import { StyleSheet, Text, View } from 'react-native';
@@ -8,7 +10,8 @@ import { useMobile } from '../../lib/mobile-context';
 import { loadDefaultBranch } from '../../lib/mobile-data';
 
 export default function MoreScreen() {
-  const { api, appearance, identity, palette, session, signOut, supabase } = useMobile();
+  const { api, appearance, identity, palette, session, signOut, supabase, webOrigin } = useMobile();
+  const router = useRouter();
   const [branch, setBranch] = useState<{ id: string; name: string } | null>(null);
   const [name, setName] = useState(''); const [phone, setPhone] = useState('');
   const [message, setMessage] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
@@ -34,6 +37,7 @@ export default function MoreScreen() {
   const label = [styles.label, { color: palette.primaryText }];
   return <Screen>
     <View><Eyebrow>{branch?.name ?? 'Front desk'}</Eyebrow><Title>More</Title><Body muted>Walk-in leads, appearance and your account.</Body></View>
+    <LedgerSection title="Timetable"><Row title="Classes" onPress={() => router.push('/(desk)/classes')} accessibilityHint="Opens Classes" /><Row title="Training" meta="Opens the web console" accessibilityHint="Opens the authenticated Training web console in your browser" onPress={() => { void WebBrowser.openBrowserAsync(new URL('/training', webOrigin).toString()); }} /></LedgerSection>
     {frontOffice ? <View style={[styles.section, styles.leadForm, { borderColor: palette.decorativeSeparator }]}>
       <Eyebrow>New lead</Eyebrow>
       <Body muted>Take a walk-in’s details for the team to follow up.</Body>

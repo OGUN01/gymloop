@@ -1,3 +1,8 @@
+import { Suspense } from 'react';
+import { AnnouncementsSection } from './announcements-section';
+import { requireAudience } from '../../lib/identity-session';
+import { loadMemberAnnouncementFeed } from '../../lib/member-announcements';
+import { businessNouns } from '@gymloop/shared';
 import Link from 'next/link';
 import { CalendarCheck, ChevronRight, CreditCard, MessageSquareMore, ScanLine } from 'lucide-react';
 import { AVATAR_INITIALS_MAX, UI_TOKENS } from '@gymloop/shared';
@@ -8,7 +13,9 @@ import { MemberWeekRhythm, memberGreeting, memberGymName, memberShortDate } from
 const icon = { 'aria-hidden': true, size: UI_TOKENS.icons.navigationSize, strokeWidth: UI_TOKENS.icons.strokeWidth } as const;
 
 export default async function MemberHomePage() {
+  const announcementFeed = requireAudience('member').then(({ supabase }) => loadMemberAnnouncementFeed(supabase)).catch(() => null);
   const portal = await loadMemberPortal();
+  const nouns = portal.nouns ?? businessNouns(null);
   if (portal.errorMessage) return <main className="member-route member-portal"><h1 className="member-title">Home</h1><p className="cl-alert" role="alert">{portal.errorMessage}</p></main>;
   const firstName = portal.member.full_name.split(' ')[0] ?? portal.member.full_name;
   const initials = portal.member.full_name.split(' ').filter(Boolean).slice(0, AVATAR_INITIALS_MAX).map((part) => part.charAt(0)).join('');
@@ -17,7 +24,7 @@ export default async function MemberHomePage() {
   const lastVisitLabel = lastVisit ? `${new Date(lastVisit.checked_in_at).toLocaleDateString('en-GB', { weekday: 'short', timeZone: portal.gym.timezone })}, ${memberShortDate(new Date(lastVisit.checked_in_at).toLocaleDateString('en-CA', { timeZone: portal.gym.timezone }))} · ${new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: portal.gym.timezone }).format(new Date(lastVisit.checked_in_at))}` : null;
   return <main className="member-route member-portal member-home">
     <header className="member-portal-header">
-      <p><strong>{memberGymName(portal.gym)}</strong> · {portal.gym.branchName}</p>
+      <p><Link href="/member/gym"><strong>{memberGymName(portal.gym)}</strong></Link> · {portal.gym.branchName}</p>
       <Link href="/member/you" className="member-initial" aria-label={`${portal.member.full_name}, open You`}>{initials}</Link>
     </header>
     <section className="member-hero"><h1>{memberGreeting(portal.gym.timezone)}, {firstName}</h1></section>
@@ -26,8 +33,8 @@ export default async function MemberHomePage() {
       <p className="member-home-goal">{remaining === 0 ? 'Weekly goal complete. Nice work.' : `${remaining} more ${remaining === 1 ? 'visit' : 'visits'} to your weekly goal.`}</p>
       <MemberWeekRhythm visits={portal.visits} timezone={portal.gym.timezone} weekStart={'weekStart' in portal ? portal.weekStart : undefined} />
     </section>
-    <ul className="member-home-rows" aria-label="Your gym">
-      <li><Link className="member-row" href="/member/my-gym">
+    <ul className="member-home-rows" aria-label={`Your ${nouns.place}`}>
+      <li><Link className="member-row" href="/member/gym#membership">
         <CreditCard {...icon} />
         <span className="member-row-text"><strong>{portal.membership ? portal.membership.planName : 'Membership'}</strong><small>{portal.membership ? portal.membership.endsOn ? `Ends ${memberShortDate(portal.membership.endsOn)}` : 'No end date' : 'No membership is visible'}</small></span>
         {portal.membership ? <StatusWord status={portal.membership.status} /> : <span />}
@@ -35,7 +42,7 @@ export default async function MemberHomePage() {
       </Link></li>
       {portal.latestMessage ? <li><Link className="member-row" href="/member/messages">
         <MessageSquareMore {...icon} />
-        <span className="member-row-text"><strong>Latest from your gym</strong><small className="member-row-clamp">{portal.latestMessage.body}</small></span>
+        <span className="member-row-text"><strong>Latest from your {nouns.place}</strong><small className="member-row-clamp">{portal.latestMessage.body}</small></span>
         {portal.latestMessage.status === 'sent' ? <span className="cl-status" data-tone="accent">New</span> : <span />}
         <ChevronRight {...icon} size={UI_TOKENS.icons.controlSize} />
       </Link></li> : null}
@@ -47,5 +54,6 @@ export default async function MemberHomePage() {
       </Link></li> : null}
     </ul>
     <div className="member-scan-sticky"><Link className="member-primary-action member-primary-action--dominant" href="/member/check-in"><ScanLine {...icon} />Scan to check in</Link></div>
+    <Suspense fallback={null}><AnnouncementsSection nouns={nouns} timezone={portal.gym.timezone} feedPromise={announcementFeed} /></Suspense>
   </main>;
 }

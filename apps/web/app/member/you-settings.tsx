@@ -1,5 +1,7 @@
 'use client';
 
+import { businessNouns, humanize, type BusinessNouns } from '@gymloop/shared';
+
 import Link from 'next/link';
 import { BadgeCheck, ChevronDown, ChevronRight, Monitor, Moon, Settings, Sun } from 'lucide-react';
 import { AVATAR_INITIALS_MAX, formatPhone, UI_TOKENS } from '@gymloop/shared';
@@ -13,13 +15,13 @@ type Membership = { planName: string; status: string } | null;
 
 const small = { 'aria-hidden': true, size: UI_TOKENS.icons.controlSize, strokeWidth: UI_TOKENS.icons.strokeWidth } as const;
 const large = { 'aria-hidden': true, size: UI_TOKENS.icons.navigationSize, strokeWidth: UI_TOKENS.icons.strokeWidth } as const;
-const APPEARANCE_CHOICES = [
+const appearanceChoices = (nouns: BusinessNouns) => [
   { name: 'System', value: 'system', hint: 'Match this device', Icon: Monitor },
   { name: 'Light', value: 'light', hint: 'Warm paper, dark ink', Icon: Sun },
-  { name: 'Dark', value: 'dark', hint: 'Easier in a dim gym', Icon: Moon },
+  { name: 'Dark', value: 'dark', hint: `Easier in a dim ${nouns.place}`, Icon: Moon },
 ] as const;
 
-export default function YouSettings({ profile, membership }: { profile: Profile; membership: Membership }) {
+export default function YouSettings({ profile, membership, nouns = businessNouns(null) }: { profile: Profile; membership: Membership; nouns?: BusinessNouns }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [appearanceExpanded, setAppearanceExpanded] = useState(true);
   const [hasMounted, setHasMounted] = useState(false);
@@ -46,7 +48,7 @@ export default function YouSettings({ profile, membership }: { profile: Profile;
       <div className="member-avatar" aria-hidden="true">{initials}</div>
       <div>
         <h1 className="member-profile-name">{profile.full_name}</h1>
-        <p className="member-verified"><BadgeCheck {...small} />Verified member</p>
+        <p className="member-verified"><BadgeCheck {...small} />Verified {nouns.member}</p>
         <small>{gymSummary}</small>
         <small>{contactSummary}</small>
       </div>
@@ -54,8 +56,8 @@ export default function YouSettings({ profile, membership }: { profile: Profile;
     <h2 className="cl-eyebrow member-eyebrow member-account-eyebrow">Account</h2>
     <ul className="member-account-list" aria-label="Account">
       <li aria-label={`Personal details, ${personalSummary}`}><span className="member-account-row member-account-row--fact"><strong>Personal details</strong><small>{personalSummary}</small></span></li>
-      <li aria-label={`Membership, ${membershipSummary}`}><Link className="member-account-row" href="/member/my-gym#membership"><strong>Membership</strong><span className="member-account-value">{membership ? <>{membership.planName}<StatusWord status={membership.status} /></> : 'None visible'}</span><ChevronRight {...small} /></Link></li>
-      <li aria-label={`Gym, ${gymName}, ${profile.branchName} branch`}><Link className="member-account-row" href="/member/my-gym"><strong>Gym</strong><small>{gymName} · {profile.branchName}</small><ChevronRight {...small} /></Link></li>
+      <li aria-label={`Membership, ${membershipSummary}`}><Link className="member-account-row" href="/member/gym#membership"><strong>Membership</strong><span className="member-account-value">{membership ? <>{membership.planName}<StatusWord status={membership.status} /></> : 'None visible'}</span><ChevronRight {...small} /></Link></li>
+      <li aria-label={`${humanize(nouns.place)}, ${gymName}, ${profile.branchName} branch`}><Link className="member-account-row" href="/member/gym"><strong>{humanize(nouns.place)}</strong><small>{gymName} · {profile.branchName}</small><ChevronRight {...small} /></Link></li>
       <li aria-label={`Appearance, ${appearanceSummary}`}><button type="button" className="member-account-row" aria-label={`Appearance, ${appearanceSummary}`} onClick={openSettings}><strong>Appearance</strong><small>{appearanceSummary}</small><ChevronRight {...small} /></button></li>
     </ul>
     {settingsOpen ? <div className="member-sheet-backdrop" role="presentation" onClick={() => setSettingsOpen(false)}><section className="member-settings-sheet" role="dialog" aria-modal="true" aria-labelledby="member-settings-title" onClick={(event) => event.stopPropagation()}>
@@ -64,7 +66,7 @@ export default function YouSettings({ profile, membership }: { profile: Profile;
         <strong>Appearance</strong><small>{appearanceSummary}</small><ChevronDown {...small} />
       </button>
       {appearanceExpanded ? <div id="member-appearance-choices" className="member-appearance-choices" role="radiogroup" aria-label="Appearance">
-        {APPEARANCE_CHOICES.map(({ name, value, hint, Icon }) => <label key={value} className="member-appearance-choice">
+        {appearanceChoices(nouns).map(({ name, value, hint, Icon }) => <label key={value} className="member-appearance-choice">
           <input type="radio" name="member-appearance" value={value} checked={hasMounted && (theme ?? 'system') === value} onChange={() => setTheme(value)} />
           <Icon {...large} />
           <span><strong>{name}</strong><small>{hint}</small></span>

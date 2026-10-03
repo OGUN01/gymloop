@@ -1,3 +1,7 @@
+import { AnnouncementsSection } from '../../components/announcements';
+import { useAnnouncements } from '../../lib/use-announcements';
+import { humanize } from '@gymloop/shared';
+import { useBusinessNouns } from '../../lib/use-business-nouns';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -26,6 +30,8 @@ type Outcome =
 
 
 export default function MemberHome() {
+  const announcementFeed = useAnnouncements();
+  const nouns = useBusinessNouns();
   const { api, identity, palette } = useMobile(); const { data, error, loading, reload } = useMemberSnapshot();
   const router = useRouter();
   const params = useLocalSearchParams<{ scan?: string }>();
@@ -71,7 +77,7 @@ export default function MemberHome() {
     return () => { networkSubscription.remove(); appStateSubscription.remove(); };
   }, [coordinator, identity]);
   if (loading) return <Screen><LoadingState /></Screen>;
-  if (error || !data) return <Screen><Title>Home</Title><StateMessage tone="error">{error ?? 'Your gym information is unavailable.'}</StateMessage>{queued > 0 && <StateMessage tone="warning">{queued} check-in {queued === 1 ? 'is' : 'are'} awaiting confirmation.</StateMessage>}<ActionButton secondary onPress={() => void reload()}>Try again</ActionButton></Screen>;
+  if (error || !data) return <Screen><Title>Home</Title><StateMessage tone="error">{error ?? `Your ${nouns.place} information is unavailable.`}</StateMessage>{queued > 0 && <StateMessage tone="warning">{queued} check-in {queued === 1 ? 'is' : 'are'} awaiting confirmation.</StateMessage>}<ActionButton secondary onPress={() => void reload()}>Try again</ActionButton></Screen>;
   const checkIn = async (raw: string) => {
     if (pending || identity.kind !== 'member') return; setPending(true); setScanning(false); setOutcome({ kind: 'confirming' });
     const token = tokenFromScan(raw).trim(); const clientEventId = Crypto.randomUUID(); const offlineRecordedAt = new Date().toISOString(); const network = await Network.getNetworkStateAsync();
@@ -91,7 +97,7 @@ export default function MemberHome() {
   const lastVisitText = lastVisit ? `${lastVisit.toLocaleDateString('en-GB', { weekday: 'short', timeZone: data.gym.timezone })}, ${dayLabel(toLocalDate(lastVisit, data.gym.timezone), data.gym.timezone)} · ${new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: data.gym.timezone }).format(lastVisit)}` : null;
   const icon = { size: UI_TOKENS.icons.navigationSize, strokeWidth: UI_TOKENS.icons.strokeWidth } as const;
   // While scanning or confirming the label says what is happening, so the scan icon (which names the action) is dropped.
-  const checkInAction = <ActionButton accessibilityHint="Opens the camera to scan your gym QR code" disabled={pending} icon={scanning || pending ? undefined : <ScanLine color={palette.textOnPrimary} {...icon} />} onPress={() => { setOutcome(null); setScanning((value) => !value); }}>{pending ? 'Confirming check-in…' : scanning ? 'Cancel scanning' : 'Scan to check in'}</ActionButton>;
+  const checkInAction = <ActionButton accessibilityHint={`Opens the camera to scan your ${nouns.place} QR code`} disabled={pending} icon={scanning || pending ? undefined : <ScanLine color={palette.textOnPrimary} {...icon} />} onPress={() => { setOutcome(null); setScanning((value) => !value); }}>{pending ? 'Confirming check-in…' : scanning ? 'Cancel scanning' : 'Scan to check in'}</ActionButton>;
 
   if (outcome && outcome.kind !== 'confirming') {
     const resultIcon = { size: UI_TOKENS.typography.heroMetric.size, strokeWidth: UI_TOKENS.icons.strokeWidth } as const;
@@ -110,7 +116,7 @@ export default function MemberHome() {
       <View>
         {outcome.kind === 'confirmed' ? <>
           <Row title="Time" trailing={<Body>{new Date(outcome.at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: data.gym.timezone })}</Body>} />
-          <Row title="Gym" trailing={<Body>{gymName}</Body>} />
+          <Row title={humanize(nouns.place)} trailing={<Body>{gymName}</Body>} />
         </> : null}
         {outcome.kind === 'saved' || queued > 0 ? <><Row title="Status" trailing={<Status tone="warn">Pending</Status>} /><Row title="Waiting on this device" trailing={<Body>{queued} check-in{queued === 1 ? '' : 's'}</Body>} /></> : null}
       </View>
@@ -121,13 +127,13 @@ export default function MemberHome() {
   return <Screen footer={checkInAction}>
     <View style={styles.header}>
       <View style={styles.gymLine}>
-        <Text style={[styles.gymText, { color: palette.secondaryText }]} numberOfLines={1}><Text style={{ color: palette.primaryText, fontFamily: FONT.semibold }}>{gymName}</Text> · {data.gym.branchName}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${gymName}, open ${nouns.place}`} onPress={() => router.push('/(member)/gym')}><Text style={[styles.gymText, { color: palette.secondaryText }]} numberOfLines={1}><Text style={{ color: palette.primaryText, fontFamily: FONT.semibold }}>{gymName}</Text> · {data.gym.branchName}</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={`${data.member.fullName}, open You`} onPress={() => router.push('/(member)/you')} style={({ pressed }) => [styles.avatarTarget, pressed && styles.pressed]}><Initials name={data.member.fullName} size="header" /></Pressable>
       </View>
       <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit style={[styles.greeting, { color: palette.primaryText }]}>{greeting}, {firstName}</Text>
     </View>
     <Rule />
-    {scanning ? <View style={[styles.scanner, { borderColor: palette.decorativeSeparator, backgroundColor: palette.surface }]}>{permission?.granted ? <CameraView style={styles.camera} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data: value }) => void checkIn(value)} /> : <View style={styles.permission}><Body>Camera access is needed only while you scan the gym QR.</Body><ActionButton secondary onPress={() => void requestPermission()}>Allow camera</ActionButton></View>}</View> : null}
+    {scanning ? <View style={[styles.scanner, { borderColor: palette.decorativeSeparator, backgroundColor: palette.surface }]}>{permission?.granted ? <CameraView style={styles.camera} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data: value }) => void checkIn(value)} /> : <View style={styles.permission}><Body>Camera access is needed only while you scan the {nouns.place} QR.</Body><ActionButton secondary onPress={() => void requestPermission()}>Allow camera</ActionButton></View>}</View> : null}
     {outcome?.kind === 'confirming' ? <StateMessage>Confirming your check-in…</StateMessage> : null}
     {queued > 0 ? <StateMessage tone="warning">{queued} check-in {queued === 1 ? 'is' : 'are'} awaiting confirmation.</StateMessage> : null}
     {/* The week and the ledger sit together at the foot of the page: a short page ends 24 above the Scan button and any
@@ -141,12 +147,13 @@ export default function MemberHome() {
         <WeekRhythm days={rhythmDays} />
         <Body muted>{remaining === 0 ? 'Weekly goal complete. Nice work.' : `${remaining} more ${remaining === 1 ? 'visit' : 'visits'} to your weekly goal.`}</Body>
       </View>
+      <AnnouncementsSection feed={announcementFeed} timezone={data.gym.timezone} />
       {/* One ruled ledger, as on web: membership, the latest message when there is one, and the last visit — every row
           the same anatomy (icon, text, trailing status, chevron). */}
       <View>
         <Rule />
         <Row icon={<CreditCard color={palette.primaryText} {...icon} />} title={data.membership ? data.membership.planName : 'No membership is visible'} meta={data.membership?.endsOn ? `Ends ${dayLabel(data.membership.endsOn, data.gym.timezone)}` : undefined} trailing={data.membership ? <Status tone={statusTone(data.membership.status)}>{statusWord(data.membership.status)}</Status> : undefined} onPress={() => router.push('/(member)/gym')} accessibilityLabel={data.membership ? `Membership, ${data.membership.planName}, ${statusWord(data.membership.status)}${data.membership.endsOn ? `, ends ${dayLabel(data.membership.endsOn, data.gym.timezone)}` : ''}` : 'Membership details'} />
-        {data.messages[0] ? <Row icon={<MessageSquareMore color={palette.primaryText} {...icon} />} title="Latest from your gym" meta={data.messages[0].body} trailing={data.messages[0].status === 'sent' ? <Status tone="accent">New</Status> : undefined} onPress={() => router.push('/(member)/gym')} accessibilityLabel={`Latest from your gym: ${data.messages[0].body}`} /> : null}
+        {data.messages[0] ? <Row icon={<MessageSquareMore color={palette.primaryText} {...icon} />} title={`Latest from your ${nouns.place}`} meta={data.messages[0].body} trailing={data.messages[0].status === 'sent' ? <Status tone="accent">New</Status> : undefined} onPress={() => router.push('/(member)/gym')} accessibilityLabel={`Latest from your ${nouns.place}: ${data.messages[0].body}`} /> : null}
         {lastVisitText ? <Row icon={<CalendarCheck color={palette.primaryText} {...icon} />} title="Last visit" meta={lastVisitText} onPress={() => router.push('/(member)/activity')} accessibilityLabel={`Last visit, ${lastVisitText}`} accessibilityHint="Opens Activity" /> : null}
       </View>
     </View>
