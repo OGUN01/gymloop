@@ -1,0 +1,24 @@
+.anc-page { display: grid; gap: var(--gymloop-space-24); max-width: 64rem; margin: 0 auto; }
+.anc-section { margin-block: var(--gymloop-space-24); }
+.anc-section h2 { font-size: var(--gymloop-type-section-title-size); font-weight: 600; }
+.anc-card, .anc-version { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+.anc-card-control { appearance: none; background: transparent; border: 0; color: inherit; cursor: pointer; display: grid; gap: .5rem; padding: 1rem 0; text-align: left; width: 100%; font: inherit; }
+.anc-card-control:focus-visible { outline: 2px solid var(--gymloop-color-primary-action); outline-offset: .25rem; }
+.anc-card-meta, .anc-preview { color: var(--gymloop-color-secondary-text); }
+.anc-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.anc-content, .anc-version { padding-block: 1rem; }
+.anc-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.anc-image { display: block; width: 100%; max-height: 32rem; object-fit: contain; margin-block: 1rem; }
+.anc-composer { display: grid; gap: 1.5rem; max-width: 44rem; }
+.anc-composer fieldset { border: 1px solid var(--gymloop-color-decorative-separator); padding: 1rem; display: grid; gap: 1rem; min-width: 0; }
+.anc-composer textarea { min-height: 8rem; resize: vertical; }
+.anc-kind { display: grid; grid-template-columns: auto 1fr; gap: .5rem; }
+.anc-kind span { grid-column: 2; }
+.anc-filters { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+.anc-filters [aria-current] { font-weight: 700; text-decoration: underline; text-underline-offset: .4rem; }
+.anc-list { padding: 0; list-style: none; }
+.anc-list li { border-bottom: 1px solid var(--gymloop-color-decorative-separator); }
+.anc-list a { display: grid; gap: .5rem; padding-block: 1rem; color: inherit; text-decoration: none; }
+.anc-confirm { border: 1px solid var(--gymloop-color-decorative-separator); padding: 1.5rem; }
+.anc-actions { margin-block: 1rem; }
+.anc-loading-row { min-height: var(--gymloop-target-touch); }

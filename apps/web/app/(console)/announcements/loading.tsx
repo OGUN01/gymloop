@@ -1,0 +1,1 @@
+export default function AnnouncementsLoading() { return <main className="cl-page anc-page" aria-busy="true"><h1 className="cl-title">Announcements</h1><p role="status">Loading announcements…</p><div className="cl-skeleton anc-loading-row" aria-hidden="true" /><div className="cl-skeleton anc-loading-row" aria-hidden="true" /></main>; }
