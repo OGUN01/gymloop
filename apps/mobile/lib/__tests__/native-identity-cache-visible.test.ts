@@ -16,6 +16,29 @@ function deferred() { let resolve!: () => void; const promise = new Promise<void
 async function turns() { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); }
 describe('native private cache integration contract', () => {
   beforeEach(() => { storage.values.clear(); storage.pause = null; });
+  it('failed Shop deletion remains retryable and fresh writes work after successful cleanup', async () => {
+    const values = new Map<string, string>();
+    let failRemoval = true;
+    const store = {
+      get: async (key: string) => values.get(key) ?? null,
+      set: async (key: string, value: string) => { values.set(key, value); },
+      remove: async (key: string) => { if (failRemoval) throw new Error('Private Shop removal failed'); values.delete(key); },
+    };
+    const catalogue = { items: [], reservations: [], truncated: false, serverTime: feed.fetchedAt };
+    await writeShopCache(store, scope.memberId, catalogue);
+    expect(values.size).toBeGreaterThan(0);
+    await expect(clearShopCache(store)).rejects.toThrow();
+    expect(values.size).toBeGreaterThan(0);
+    failRemoval = false;
+    await clearShopCache(store);
+    expect(values.size).toBe(0);
+    expect(await readShopCache(store, scope.memberId)).toBeNull();
+    await writeShopCache(store, scope.memberId, catalogue);
+    expect(await readShopCache(store, scope.memberId)).not.toBeNull();
+    const replacement = '30000000-0000-4000-8000-000000000002';
+    await writeShopCache(store, replacement, catalogue);
+    expect(await readShopCache(store, replacement)).not.toBeNull();
+  });
   it('Shop clear revokes its preceding lease synchronously and permits fresh work', async () => {
     const store = createMemoryShopCache(); const old = shopCacheCurrent(store);
     await writeShopCache(store, scope.memberId, { items: [], reservations: [], truncated: false, serverTime: feed.fetchedAt });
