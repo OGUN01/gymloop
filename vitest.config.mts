@@ -16,6 +16,7 @@ export default defineConfig({
   oxc: { jsx: { runtime: 'automatic' } },
   resolve: {
     alias: [
+      { find: /^server-only$/, replacement: webRequire.resolve('server-only') },
       { find: /^next\/headers$/, replacement: webRequire.resolve('next/headers') },
       { find: /^next\/navigation$/, replacement: webRequire.resolve('next/navigation') },
       { find: /^next\/image$/, replacement: webRequire.resolve('next/image') },

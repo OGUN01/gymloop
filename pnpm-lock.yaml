@@ -127,6 +127,9 @@ importers:
       '@supabase/supabase-js':
         specifier: 2.112.4
         version: 2.112.4
+      '@types/react':
+        specifier: 19.2.18
+        version: 19.2.18
       dependency-cruiser:
         specifier: 18.2.0
         version: 18.2.0
@@ -142,6 +145,12 @@ importers:
       knip:
         specifier: 6.34.0
         version: 6.34.0
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: 19.2.8
+        version: 19.2.8
       supabase:
         specifier: 2.110.0
         version: 2.110.0
@@ -281,6 +290,9 @@ importers:
       saxen:
         specifier: 11.1.1
         version: 11.1.1
+      server-only:
+        specifier: 0.0.1
+        version: 0.0.1
       unzipper-esm:
         specifier: 0.13.3
         version: 0.13.3
