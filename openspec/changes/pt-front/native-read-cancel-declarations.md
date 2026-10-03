@@ -38,7 +38,7 @@ type PtSession = {
   sessionId: string; orderId: string; programmeName: string;
   trainerKey: string; trainerName: string; startsAt: string;
   endsAt: string; timezone: string; status: 'booked' | 'attended' | 'no_show' |
-    'cancelled_by_member' | 'cancelled_by_gym'; consumed: boolean;
+  'cancelled_by_member' | 'cancelled_by_gym' | 'session_cancelled'; consumed: boolean;
   cancelledAt: string | null; cancelCutoff: string | null;
   lateNow: boolean; consumesNow: boolean; canCancel: boolean;
 };
@@ -66,3 +66,34 @@ permissions and lifetime rules remain those of the proposal/bar.
 New booking policy, a new SQL routine, new props/test-only factories and any
 claim reclassification are outside this packet. Test authors must request any
 missing public declarations rather than open helper/implementation files.
+
+## Existing kit declarations (presentation only)
+
+```ts
+declare function Status(props: { children: ReactNode; tone?: 'ok' | 'warn' | 'risk' | 'accent' | 'neutral' }): React.JSX.Element;
+declare function ActionButton(props: PressableProps & {
+  children: ReactNode; secondary?: boolean; quiet?: boolean;
+  disabledNeutral?: boolean; icon?: ReactNode;
+}): React.JSX.Element;
+declare function Row(props: {
+  title: ReactNode; meta?: ReactNode; status?: ReactNode; value?: string;
+  trailing?: ReactNode; onPress?: () => void; expanded?: boolean;
+  reserveChevron?: boolean; accessibilityLabel?: string;
+  accessibilityHint?: string; accessibilityState?: PressableProps['accessibilityState'];
+  icon?: ReactNode;
+}): React.JSX.Element;
+declare function Sheet(props: { visible: boolean; onClose: () => void; children: ReactNode }): React.JSX.Element;
+declare function SheetHeader(props: {
+  eyebrow?: string; title: string; detail?: string; control: 'Done' | 'Cancel';
+  onControl: () => void; controlDisabled?: boolean; controlAccessibilityLabel?: string;
+}): React.JSX.Element;
+declare function EmptyState(props: { title: string; children: ReactNode }): React.JSX.Element;
+declare function ErrorRetry(props: { message: string; onRetry: () => void }): React.JSX.Element;
+declare function LoadingState(): React.JSX.Element;
+declare function StateMessage(props: { children: ReactNode; tone?: 'neutral' | 'error' | 'warning' | 'success' }): React.JSX.Element;
+```
+
+Kit hosts may be doubled for deterministic component interactions while
+preserving their public children/props/callbacks. A doubled Status does not prove
+the real kit's dot, target dimensions, layout or device accessibility. Those
+remain source and real rendered/native acceptance checks.
