@@ -1,7 +1,6 @@
 import { unregisterMemberPushDeviceRequestSchema } from '@gymloop/shared';
-import { readRequestIdentity } from '../../../../../lib/identity-session';
+import { commsOk, memberPushSession, pushJsonBody, pushRpc } from '../../../../../lib/push-http';
 import { apiFail, noStore } from '../../../../../lib/api';
-import { commsOk, commsRpcFailure } from '../../../../../lib/comms';
 
 /**
  * `POST /api/member/push-device/remove` — the member unregisters one
@@ -11,26 +10,13 @@ import { commsOk, commsRpcFailure } from '../../../../../lib/comms';
  * offline and cannot reach this route.
  */
 export async function POST(request: Request): Promise<Response> {
-  const caller = await readRequestIdentity(request);
-  if (caller === null) return noStore(apiFail('unauthorized', 'not_signed_in', 'Sign in as a member first.'));
-  if (caller.identity.kind !== 'member') return noStore(apiFail('forbidden', 'not_permitted', 'Only your own member account can remove a device.'));
-
-  let payload: unknown;
-  try {
-    payload = await request.json();
-  } catch {
-    return noStore(apiFail('bad_request', 'invalid_request', 'That device removal was not valid JSON.'));
-  }
-  const body = unregisterMemberPushDeviceRequestSchema.safeParse(payload);
-  if (!body.success) return noStore(apiFail('bad_request', 'invalid_request', 'That device removal is missing the installation identifier.'));
-
-  const writer = caller.supabase as unknown as {
-    rpc(name: 'unregister_member_push_device', args: { p_installation_id: string }):
-      Promise<{ data: unknown; error: { code: string; message: string } | null }>;
-  };
-  const { data, error } = await writer.rpc('unregister_member_push_device', { p_installation_id: body.data.installationId });
-  if (error) return noStore(commsRpcFailure(error));
-  const row = Array.isArray(data) ? (data[0] ?? null) : (data as { disabled: boolean } | null);
-  if (row === null || typeof row !== 'object') return noStore(apiFail('server_error', 'operation_failed', 'The device could not be removed. Try again.'));
-  return noStore(commsOk('ok', row));
+  const head = await memberPushSession(request, { signedOut: 'Sign in as a member first.', wrongAudience: 'Only your own member account can remove a device.' });
+  if ('failure' in head) return head.failure;
+  const body = await pushJsonBody(request, 'That device removal was not valid JSON.');
+  if ('failure' in body) return body.failure;
+  const parsed = unregisterMemberPushDeviceRequestSchema.safeParse(body.payload);
+  if (!parsed.success) return noStore(apiFail('bad_request', 'invalid_request', 'That device removal is missing the installation identifier.'));
+  const result = await pushRpc<{ disabled: boolean }>(head.session, 'unregister_member_push_device', { p_installation_id: parsed.data.installationId });
+  if ('failure' in result) return result.failure;
+  return noStore(commsOk('ok', result.row));
 }

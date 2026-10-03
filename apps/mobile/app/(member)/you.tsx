@@ -15,7 +15,10 @@ function SignOutRow({ onPress, secondary }: { onPress: () => void; secondary: st
 }
 import { useMobile } from '../../lib/mobile-context';
 import { useMemberPush, PUSH_CATEGORY_DEFAULTS } from '../../lib/use-member-push';
+import { useMemberPushResponse } from '../../lib/use-push-response';
 import { useMemberSnapshot } from '../../lib/use-member-snapshot';
+import { WhatsappConsentSection } from '../../components/whatsapp-consent-section';
+import { loadWhatsappSettings, setWhatsappConsent } from '../../lib/whatsapp';
 
 /** System / Light / Dark, as the shared appearance choices name them. */
 const appearanceCaption = (mode: string): string => (mode === 'system' ? 'System' : mode === 'light' ? 'Light' : 'Dark');
@@ -28,10 +31,11 @@ const APPEARANCE_CHOICES = [
 export default function YouScreen() {
   const nouns = useBusinessNouns();
   const router = useRouter();
-  const { appearance, signOut, palette, setAppearance } = useMobile();
+  const { appearance, signOut, palette, setAppearance, api, supabase } = useMobile();
   const { data } = useMemberSnapshot();
   const push = useMemberPush();
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const pushResponse = useMemberPushResponse(push.registration);
   return <Screen>
     {data ? <View style={[styles.profile, { borderColor: palette.decorativeSeparator }]}>
       <View style={styles.avatar}><Initials name={data.member.fullName} size="profile" /></View>
@@ -63,7 +67,12 @@ export default function YouScreen() {
       <Text style={[styles.pushNote, { color: palette.secondaryText }]}>Push isn't configured. Updates remain in the app.</Text>
       <Text style={[styles.pushNote, { color: palette.secondaryText }]}>A missing preference stays enabled by default. Turning a category off changes only device delivery; your inbox keeps every update.</Text>
       <Text style={[styles.pushNote, { color: palette.secondaryText }]}>Devices list their last seen time and active state here after registration.</Text>
+      {pushResponse.unavailable ? <Text accessibilityRole="alert" style={[styles.pushNote, { color: palette.errorRiskText }]}>That update isn't available.</Text> : null}
     </LedgerSection>
+    <WhatsappConsentSection
+      loadSettings={() => loadWhatsappSettings(supabase)}
+      setConsent={(purpose, granted, noticeVersion) => setWhatsappConsent(api, purpose, granted, noticeVersion)}
+    />
     <LegalLinks />
     {/* Sign out sits separately below the ledger, the same quiet footer action as before. */}
     <SignOutRow onPress={() => void signOut()} secondary={palette.secondaryText} />

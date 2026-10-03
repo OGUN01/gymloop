@@ -46,12 +46,12 @@ export function sqlUuidFrom(segment: Record<string, string>, keys: readonly stri
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) ? value : null;
 }
 
-export type AudienceIdentityShape = { kind: 'member' | 'staff' | 'impersonation'; role?: string };
+type AudienceIdentityShape = { kind: 'member' | 'staff' | 'impersonation'; role?: string };
 export type WaveAudience = 'member' | 'frontOffice' | 'memberOrFrontOffice';
 const FRONT_OFFICE = ['gym_owner', 'gym_manager', 'front_desk'];
 
 /** The shared audience rule for Wave C HTTP runners: member, front office, or either. */
-export function waveAudienceAllowed(identity: AudienceIdentityShape, audience: WaveAudience): boolean {
+function waveAudienceAllowed(identity: AudienceIdentityShape, audience: WaveAudience): boolean {
   const isMember = identity.kind === 'member';
   const isFrontOffice = identity.kind === 'staff' && FRONT_OFFICE.includes(identity.role ?? '');
   return audience === 'member' ? isMember : audience === 'frontOffice' ? isFrontOffice : isMember || isFrontOffice;

@@ -28,7 +28,14 @@ function campaignRow(row: unknown): PushCampaignSummary | null {
   const value = row as Record<string, unknown>;
   if (typeof value.campaignId !== 'string' || typeof value.announcementId !== 'string') return null;
   if (numeric(value.versionNo) === null) return null;
-  const rawCounts = value.counts !== null && typeof value.counts === 'object' ? value.counts as Record<string, unknown> : null;
+  // read_push_campaigns returns flat count columns, not a nested counts object.
+  const counts = {
+    accepted: numeric(value.acceptedCount),
+    received: numeric(value.receivedCount),
+    opened: numeric(value.openedCount),
+    failed: numeric(value.failedCount),
+    uncertain: numeric(value.uncertainCount),
+  };
   return {
     campaignId: value.campaignId,
     announcementId: value.announcementId,
@@ -36,13 +43,7 @@ function campaignRow(row: unknown): PushCampaignSummary | null {
     reviewedAt: typeof value.reviewedAt === 'string' ? value.reviewedAt : null,
     cancelledAt: typeof value.cancelledAt === 'string' ? value.cancelledAt : null,
     eligibleCount: numeric(value.eligibleCount),
-    counts: rawCounts === null ? null : {
-      accepted: numeric(rawCounts.accepted),
-      received: numeric(rawCounts.received),
-      opened: numeric(rawCounts.opened),
-      failed: numeric(rawCounts.failed),
-      uncertain: numeric(rawCounts.uncertain),
-    },
+    counts: (counts.accepted === null && counts.received === null && counts.opened === null && counts.failed === null && counts.uncertain === null) ? null : counts,
   };
 }
 
@@ -50,7 +51,7 @@ export type PushCampaignsRead =
   | { ok: true; page: { campaigns: PushCampaignSummary[]; nextBefore: string | null; nextBeforeId: string | null } }
   | { ok: false };
 
-export function parsePushCampaignPage(data: unknown): { campaigns: PushCampaignSummary[]; nextBefore: string | null; nextBeforeId: string | null } | null {
+function parsePushCampaignPage(data: unknown): { campaigns: PushCampaignSummary[]; nextBefore: string | null; nextBeforeId: string | null } | null {
   if (data === null || typeof data !== 'object') return null;
   const value = data as Record<string, unknown>;
   if (!Array.isArray(value.campaigns)) return null;

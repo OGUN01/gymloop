@@ -1,6 +1,7 @@
 import { isNonnegativeCanonicalDecimalInteger, WSP_OPERATIONS_PAGE_MAX } from '@gymloop/shared';
 import { isObject } from './keyset';
 import type { GymloopIdentity } from './identity';
+import { staffSession, type StaffSession } from './api';
 
 /**
  * WSP WhatsApp surfaces' wire validators and the one role split, mirroring
@@ -324,4 +325,16 @@ export function whatsappOutcome(row: Record<string, unknown>): WhatsappOutcome {
   if (evidence(row.optedOutAt)) return 'opted_out';
   if (evidence(row.sentAt)) return 'accepted';
   return 'queued';
+}
+
+/**
+ * The shared consent/identity preamble for the two WhatsApp staff routes
+ * (member-consent recording and dispatch queueing): one verified front-office
+ * session check — the allowed roles, the no-impersonation posture and the
+ * unauthorized/forbidden refusals live here exactly once.
+ */
+export async function whatsappStaffCaller(
+  request: Request,
+): Promise<{ session: StaffSession } | { failure: Response }> {
+  return staffSession(['gym_owner', 'gym_manager', 'front_desk'], { completeWrongAudience: 'forbidden' }, request);
 }

@@ -41,8 +41,6 @@ export type PurchaseCreateRequest = z.infer<typeof purchaseCreateRequestSchema>;
 
 export const purchaseCancelRequestSchema = z.strictObject({ commandKey: id });
 export const purchaseAcceptRequestSchema = z.strictObject({ expectedRevision: id, commandKey: id });
-/** Reconfirmation reuses the accept envelope; the distinction is state, not shape. */
-export const purchaseReconfirmRequestSchema = purchaseAcceptRequestSchema;
 export const purchaseProofUploadUrlRequestSchema = z.strictObject({});
 export const purchaseProofConfirmRequestSchema = purchaseAcceptRequestSchema.extend({ assetId: id });
 
@@ -91,8 +89,7 @@ export const purchaseRequestsPageSchema = z.strictObject({
 });
 export type PurchaseRequestsPage = z.infer<typeof purchaseRequestsPageSchema>;
 
-export const purchaseRequestDetailSchema = purchaseRequestRowSchema;
-export type PurchaseRequestDetail = z.infer<typeof purchaseRequestDetailSchema>;
+export type PurchaseRequestDetail = z.infer<typeof purchaseRequestRowSchema>;
 
 export const purchaseProofUrlResultSchema = z.array(z.strictObject({
   request_id: id,

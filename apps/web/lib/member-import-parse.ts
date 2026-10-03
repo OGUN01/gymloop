@@ -27,7 +27,7 @@ import {
   SURROGATE_LOW_MAX,
   SURROGATE_LOW_MIN,
   UTF8_BOM_BYTES,
-  isProlepticGregorianDay,
+  gregorianIsoDayParts,
   normalizeMemberImportHeaderLabel,
   type MemberImportCell,
 } from '@gymloop/shared';
@@ -832,12 +832,7 @@ export function convertXlsxSerialToIsoDay(serialText: string, date1904: boolean)
 
 /** Validates one `t="d"` cell's raw text as exactly `YYYY-MM-DD` with a real Gregorian day. */
 export function convertXlsxTypedDateToIsoDay(value: string): string | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (match === null) return null;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  return isProlepticGregorianDay(year, month, day) ? value : null;
+  return gregorianIsoDayParts(value) === null ? null : value;
 }
 
 // ---------------------------------------------------------------------------

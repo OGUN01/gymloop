@@ -1,3 +1,4 @@
+import { purchaseAcceptRequestSchema, purchaseCancelRequestSchema, purchaseCreateRequestSchema, purchaseProofConfirmRequestSchema, purchaseProofRejectRequestSchema, purchaseProofUploadUrlRequestSchema, purchaseRecordRequestSchema, purchaseRejectRequestSchema } from '@gymloop/shared';
 import { apiOk, apiFail, noStore } from './api';
 import { WAVE_REFUSAL_MAP, sqlRefusal, sqlRpcResponse, sqlUuidFrom, waveRouteHead } from './sql-envelope';
 import { readRequestIdentity } from './identity-session';
@@ -12,7 +13,6 @@ import { readRequestIdentity } from './identity-session';
  * message is never echoed.
  */
 
-export type PurchaseAudience = 'member' | 'frontOffice' | 'memberOrFrontOffice';
 export type PurchaseOperation = 'create' | 'cancel' | 'reconfirm' | 'proofUploadUrl' | 'proofConfirm' | 'accept' | 'reject' | 'rejectProof' | 'record' | 'proofUrl';
 
 const REFUSAL_MAP = {
@@ -27,22 +27,22 @@ const REFUSAL_MAP = {
 } as const;
 const GENERIC_REFUSAL = { status: 'server_error', code: 'operation_failed', message: "That didn't work. Try again, or ask the desk." } as const;
 
-export function purchaseFailure(code: string, details: string | null = null): Response {
+function purchaseFailure(code: string, details: string | null = null): Response {
   return sqlRefusal(REFUSAL_MAP, code, details, GENERIC_REFUSAL);
 }
 
 /** Audience, request schema and RPC per frozen operation; schemas live in @gymloop/shared. */
 const OPERATIONS = {
-  create: { audience: 'member' as const, schema: () => import('@gymloop/shared').then(m => m.purchaseCreateRequestSchema) },
-  cancel: { audience: 'member' as const, schema: () => import('@gymloop/shared').then(m => m.purchaseCancelRequestSchema) },
-  reconfirm: { audience: 'member' as const, schema: () => import('@gymloop/shared').then(m => m.purchaseReconfirmRequestSchema) },
-  proofUploadUrl: { audience: 'member' as const, schema: () => import('@gymloop/shared').then(m => m.purchaseProofUploadUrlRequestSchema) },
-  proofConfirm: { audience: 'member' as const, schema: () => import('@gymloop/shared').then(m => m.purchaseProofConfirmRequestSchema) },
-  accept: { audience: 'frontOffice' as const, schema: () => import('@gymloop/shared').then(m => m.purchaseAcceptRequestSchema) },
-  reject: { audience: 'frontOffice' as const, schema: () => import('@gymloop/shared').then(m => m.purchaseRejectRequestSchema) },
-  rejectProof: { audience: 'frontOffice' as const, schema: () => import('@gymloop/shared').then(m => m.purchaseProofRejectRequestSchema) },
-  record: { audience: 'frontOffice' as const, schema: () => import('@gymloop/shared').then(m => m.purchaseRecordRequestSchema) },
-  proofUrl: { audience: 'memberOrFrontOffice' as const, schema: () => import('@gymloop/shared').then(m => m.purchaseProofUploadUrlRequestSchema) },
+  create: { audience: 'member' as const, schema: purchaseCreateRequestSchema },
+  cancel: { audience: 'member' as const, schema: purchaseCancelRequestSchema },
+  reconfirm: { audience: 'member' as const, schema: purchaseAcceptRequestSchema },
+  proofUploadUrl: { audience: 'member' as const, schema: purchaseProofUploadUrlRequestSchema },
+  proofConfirm: { audience: 'member' as const, schema: purchaseProofConfirmRequestSchema },
+  accept: { audience: 'frontOffice' as const, schema: purchaseAcceptRequestSchema },
+  reject: { audience: 'frontOffice' as const, schema: purchaseRejectRequestSchema },
+  rejectProof: { audience: 'frontOffice' as const, schema: purchaseProofRejectRequestSchema },
+  record: { audience: 'frontOffice' as const, schema: purchaseRecordRequestSchema },
+  proofUrl: { audience: 'memberOrFrontOffice' as const, schema: purchaseProofUploadUrlRequestSchema },
 } as const;
 
 const RESULT_FIELDS = { request_id: 'requestId', status: 'status', replayed: 'replayed', receipt_id: 'receiptId' };
@@ -55,8 +55,7 @@ export async function purchaseRoute(request: Request, operation: PurchaseOperati
   const { supabase } = head;
   let payload: unknown;
   try { payload = await request.json(); } catch { return noStore(apiFail('bad_request', 'invalid_request', 'The request body was not JSON.')); }
-  const schema = await spec.schema();
-  const parsed = schema.safeParse(payload);
+  const parsed = spec.schema.safeParse(payload);
   if (!parsed.success) return noStore(apiFail('bad_request', 'invalid_request', 'Check the details and try again.'));
   const body = parsed.data as Record<string, unknown>;
   const segment = context ? await context.params : {};

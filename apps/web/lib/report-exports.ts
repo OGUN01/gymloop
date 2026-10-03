@@ -1,4 +1,4 @@
-import { isNonnegativeCanonicalDecimalInteger, RPE_LIMITS } from '@gymloop/shared';
+import { gregorianIsoDayParts, isNonnegativeCanonicalDecimalInteger, RPE_LIMITS } from '@gymloop/shared';
 
 /**
  * RPE (CSV-first delivery) — the owner console's report exports.
@@ -81,16 +81,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 const MS_PER_DAY = 86_400_000;
 
 function gregorianParts(value: unknown): { year: number; month: number; day: number } | null {
-  if (typeof value !== 'string') return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (match === null) return null;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const probe = new Date(Date.UTC(year, month - 1, day));
-  return probe.getUTCFullYear() === year && probe.getUTCMonth() === month - 1 && probe.getUTCDate() === day
-    ? { year, month, day }
-    : null;
+  return gregorianIsoDayParts(value);
 }
 
 /**

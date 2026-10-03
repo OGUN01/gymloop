@@ -330,6 +330,22 @@ function isoDayFromParts(year: number, month: number, day: number): string {
   return `${String(year).padStart(ISO_YEAR_DIGITS, '0')}-${String(month).padStart(ISO_MONTH_DAY_DIGITS, '0')}-${String(day).padStart(ISO_MONTH_DAY_DIGITS, '0')}`;
 }
 
+/**
+ * Parses one exact `YYYY-MM-DD` text as a real proleptic-Gregorian day's
+ * parts, or null for any other shape (including the JavaScript rollover
+ * quirks a Date-based probe would accept). Shared by the member-import
+ * parser and the report-export day-span validation.
+ */
+export function gregorianIsoDayParts(value: unknown): { year: number; month: number; day: number } | null {
+  if (typeof value !== 'string') return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (match === null) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  return isProlepticGregorianDay(year, month, day) ? { year, month, day } : null;
+}
+
 /** NFKC, trim, collapse each whitespace run to one ASCII space (full_name, gender). */
 function collapseWhitespace(value: string): string {
   return value.normalize('NFKC').replace(UNICODE_WHITESPACE, ' ').replace(OUTER_UNICODE_WHITESPACE, '');

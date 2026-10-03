@@ -1,6 +1,6 @@
-import { apiFail, jsonBody, staffSession } from '../../../../../lib/api';
+import { apiFail, jsonBody } from '../../../../../lib/api';
 import { commsOk, commsRpcFailure } from '../../../../../lib/comms';
-import { whatsappDispatchResult } from '../../../../../lib/whatsapp';
+import { whatsappDispatchResult, whatsappStaffCaller } from '../../../../../lib/whatsapp';
 
 /**
  * `POST /api/notifications/[notificationId]/whatsapp-dispatch` — the front
@@ -33,11 +33,7 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ notificationId: string }> },
 ): Promise<Response> {
-  const caller = await staffSession(
-    ['gym_owner', 'gym_manager', 'front_desk'],
-    { completeWrongAudience: 'forbidden' },
-    request,
-  );
+  const caller = await whatsappStaffCaller(request);
   if ('failure' in caller) return caller.failure;
 
   const { notificationId } = await context.params;
