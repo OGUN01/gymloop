@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Database } from '../../packages/db/types/database';
+
+type HeldRole = Database['public']['Enums']['app_role'];
 
 type Node = { type?: unknown; props?: Record<string, unknown> };
 const boundary = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, effects: [] as { deps?: unknown[]; cleanup?: () => void }[], effectCursor: 0, online: true, refresh: vi.fn(), audience: vi.fn(), send: vi.fn(), fetch: vi.fn() }));
@@ -15,7 +18,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: boundary.refres
 vi.mock('../../apps/web/lib/identity-session', () => ({ requireAudience: boundary.audience }));
 vi.mock('../../apps/web/lib/media-upload', () => ({ uploadMediaFile: boundary.send }));
 vi.mock('../../apps/web/app/(console)/field', () => ({ Field: ({ label, children }: { label: string; children: unknown }) => ({ type: 'label', props: { children: [label, children] } }), inputClass: 'cl-input' }));
-const viewer = { role: 'gym_owner', staffId: '80200000-0000-4000-8000-000000000001', readOnly: false, scopeKey: 'tenant:actor:owner' };
+const viewer: { role: HeldRole; staffId: string; readOnly: boolean; scopeKey: string } = { role: 'gym_owner', staffId: '80200000-0000-4000-8000-000000000001', readOnly: false, scopeKey: 'tenant:actor:owner' };
 const nouns = { place: 'studio', person: 'client', people: 'clients', membership: 'membership', memberships: 'memberships', trainer: 'coach', trainers: 'coaches', activity: 'activity' };
 async function exported(path: string, name: string): Promise<(props: Record<string, unknown>) => unknown> {
   const module = await import(path).catch(() => ({})) as Record<string, unknown>; expect(module[name], `Frozen ${path}#${name} must be renderable`).toBeTypeOf('function'); return module[name] as (props: Record<string, unknown>) => unknown;
@@ -228,7 +231,7 @@ describe('held explicit frozen source and real reassignment POST', () => {
   ])('$caseName', async ({ override }) => {
     const component = await exported(controls[1].path, controls[1].name); const props = reassignProps(override); const view = render(component, props); expect(flatten(view).filter(node => node.type === 'button' && /confirm|reassign|review/i.test(text(node)) && !node.props?.disabled)).toEqual([]); expect(boundary.fetch).not.toHaveBeenCalled();
   });
-  it.each(['gym_owner', 'manager'])('all-source for %s submits exact provided source and omits orderIds', async role => {
+  it.each((['gym_owner', 'gym_manager'] satisfies HeldRole[]))('all-source for %s submits exact provided source and omits orderIds', async role => {
     const component = await exported(controls[1].path, controls[1].name); const props = reassignProps({ viewer: { ...viewer, role } }); boundary.fetch.mockResolvedValue(acceptedResponse({ results: [{ orderId: heldOrderA, changed: true, cancelledSessions: 3 }, { orderId: heldOrderB, changed: true, cancelledSessions: 4 }] }));
     chooseDestination(render(component, props)); changeField(render(component, props), /reason/i, 'Trainer moving away'); chooseAll(render(component, props)); await activate(render(component, props), /reassign|review|continue/i); expect(boundary.fetch).not.toHaveBeenCalled(); const confirmation = render(component, props); expect(text(confirmation)).toMatch(/7\s+(?:scheduled\s+)?sessions/i); expect(text(confirmation)).toMatch(/notif/i); await activate(confirmation, /confirm/i);
     expect(sent()).toEqual({ url: '/api/pt-reassignments', body: { fromStaffId: viewer.staffId, toStaffId: destinationId, reason: 'Trainer moving away' } }); expect(boundary.refresh).toHaveBeenCalledTimes(1);
@@ -250,16 +253,16 @@ describe('held explicit frozen source and real reassignment POST', () => {
 });
 
 describe('held actual console service-command envelopes', () => {
-  it.each(['gym_owner', 'manager', 'front_desk'])('gym cancel by %s sends only confirmed session/reason', async role => {
+  it.each((['gym_owner', 'gym_manager', 'front_desk'] satisfies HeldRole[]))('gym cancel by %s sends only confirmed session/reason', async role => {
     const component = await exported(controls[0].path, controls[0].name); const props = { booking, viewer: { ...viewer, role }, nouns }; boundary.fetch.mockResolvedValue(acceptedResponse({ sessionId: booking.session_id, status: 'cancelled_by_gym', replayed: false })); await activate(render(component, props), /cancel/i); expect(boundary.fetch).not.toHaveBeenCalled(); changeField(render(component, props), /reason/i, 'Trainer unavailable'); await activate(render(component, props), /confirm/i); expect(sent()).toEqual({ url: '/api/pt-bookings/cancel', body: { sessionId: booking.session_id, reason: 'Trainer unavailable' } }); expect(boundary.refresh).toHaveBeenCalledTimes(1);
   });
-  it.each(['gym_owner', 'manager'])('late forfeiture waiver by %s requires a reason then sends the exact session', async role => {
+  it.each((['gym_owner', 'gym_manager'] satisfies HeldRole[]))('late forfeiture waiver by %s requires a reason then sends the exact session', async role => {
     const component = await exported(controls[0].path, controls[0].name); const props = { booking: { ...booking, status: 'cancelled_by_member', consumed: true }, viewer: { ...viewer, role }, nouns }; boundary.fetch.mockResolvedValue(acceptedResponse({ sessionId: booking.session_id, orderId: heldOrderA, sessionsUsed: 0, replayed: false })); await activate(render(component, props), /waive/i); expect(boundary.fetch).not.toHaveBeenCalled(); changeField(render(component, props), /reason/i, 'Exceptional circumstances'); await activate(render(component, props), /confirm/i); expect(sent()).toEqual({ url: '/api/pt-forfeits/waive', body: { sessionId: booking.session_id, reason: 'Exceptional circumstances' } });
   });
   it.each(['', 'xy', 'x'.repeat(201)])('cancel reason outside 3..200 never writes (%j)', async reason => {
     const component = await exported(controls[0].path, controls[0].name); const props = { booking, viewer, nouns }; await activate(render(component, props), /cancel/i); changeField(render(component, props), /reason/i, reason); const view = render(component, props); const enabled = flatten(view).find(node => node.type === 'button' && /confirm/i.test(text(node)) && !node.props?.disabled); if (enabled) await activate(view, /confirm/i); expect(boundary.fetch).not.toHaveBeenCalled();
   });
-  it.each(['gym_owner', 'manager', 'trainer'])('profile save for %s uses the correct endpoint and bounded fields', async role => {
+  it.each((['gym_owner', 'gym_manager', 'trainer'] satisfies HeldRole[]))('profile save for %s uses the correct endpoint and bounded fields', async role => {
     const component = await exported(controls[2].path, controls[2].name); const props = { ...controls[2].props, viewer: { ...viewer, role }, nouns }; boundary.fetch.mockResolvedValue(acceptedResponse({ profileId: heldOrderA })); changeField(render(component, props), /bio/i, 'Updated held biography'); await activate(render(component, props), /save/i); const command = sent(); expect(command.url).toBe(role === 'trainer' ? '/api/trainer-profiles/own' : '/api/trainer-profiles'); expect(command.body).toEqual(role === 'trainer' ? { bio: 'Updated held biography', specialities: ['Strength'] } : { staffId: viewer.staffId, bio: 'Updated held biography', specialities: ['Strength'], photoAssetId: null, isListed: false }); expect(boundary.refresh).toHaveBeenCalledTimes(1);
   });
   it('owner listing changes explicitly preserve the public profile command shape', async () => {
@@ -284,3 +287,4 @@ describe('held actual console service-command envelopes', () => {
     const component = await exported(controls[5].path, controls[5].name); const props = { ...controls[5].props, viewer, nouns }; boundary.fetch.mockResolvedValue({ ok: false, status: 500, json: async () => ({ error: { code: 'UNKNOWN', message: 'PRIVATE SQL JWT contact@example.com' } }) }); await activate(render(component, props), /save/i); expect(boundary.refresh).not.toHaveBeenCalled(); expect(text(render(component, props))).not.toMatch(/PRIVATE|SQL|JWT|contact@/);
   });
 });
+

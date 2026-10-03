@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { Database } from '../../packages/db/types/database';
+
+type HeldRole = Database['public']['Enums']['app_role'];
 
 vi.mock('server-only', () => ({}));
 
@@ -11,7 +14,7 @@ async function target(name: string): Promise<Adapter> {
   return module[name] as Adapter;
 }
 const ids = { tenant: '80100000-0000-4000-8000-000000000001', actor: '80100000-0000-4000-8000-000000000002', staff: '80100000-0000-4000-8000-000000000003', other: '80100000-0000-4000-8000-000000000004' };
-function caller(role = 'gym_owner') {
+function caller(role: HeldRole | 'accountant' = 'gym_owner') {
   return { identity: { kind: 'staff', userId: ids.actor, tenantId: ids.tenant, staffId: ids.staff, role }, viewer: { role, staffId: ids.staff, readOnly: false, scopeKey: `${ids.tenant}:${ids.staff}:${role}` } };
 }
 const preview = { identity: { kind: 'impersonation', userId: ids.actor, tenantId: ids.tenant, impersonationSessionId: ids.other }, viewer: { role: null, staffId: null, readOnly: true, scopeKey: 'preview-session' } };
@@ -20,12 +23,33 @@ function database(rows: Record<string, unknown[]> = {}, rpcReply: (name: string,
   const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => rpcReply(name, args));
   const from = vi.fn((table: string) => {
     const builder: Record<string, unknown> = {};
+    const operations: { method: string; args: unknown[] }[] = [];
     for (const method of ['select', 'eq', 'in', 'is', 'order', 'range', 'limit', 'gt', 'gte', 'lt', 'lte']) {
-      builder[method] = (...args: unknown[]) => { calls.push({ table, method, args }); return builder; };
+      builder[method] = (...args: unknown[]) => { calls.push({ table, method, args }); operations.push({ method, args }); return builder; };
     }
-    const result = { data: rows[table] ?? [], error: null };
-    builder.then = (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve);
-    builder.maybeSingle = async () => ({ data: rows[table]?.[0] ?? null, error: null });
+    const result = () => {
+      let data = [...(rows[table] ?? [])] as Record<string, unknown>[];
+      const execution = [...operations.filter(operation => ['eq', 'is', 'in', 'gt', 'gte', 'lt', 'lte'].includes(operation.method)), ...operations.filter(operation => operation.method === 'order'), ...operations.filter(operation => ['limit', 'range'].includes(operation.method))];
+      for (const { method, args } of execution) {
+        const key = String(args[0]);
+        if (method === 'eq' || method === 'is') data = data.filter(row => !(key in row) || row[key] === args[1]);
+        if (method === 'in') data = data.filter(row => !(key in row) || (args[1] as unknown[]).includes(row[key]));
+        if (['gt', 'gte', 'lt', 'lte'].includes(method)) data = data.filter(row => {
+          if (!(key in row)) return true;
+          const comparison = typeof row[key] === 'number' && typeof args[1] === 'number' ? row[key] - args[1] : String(row[key]).localeCompare(String(args[1]));
+          return method === 'gt' ? comparison > 0 : method === 'gte' ? comparison >= 0 : method === 'lt' ? comparison < 0 : comparison <= 0;
+        });
+        if (method === 'order') {
+          const direction = (args[1] as { ascending?: boolean } | undefined)?.ascending === false ? -1 : 1;
+          data.sort((left, right) => String(left[key]).localeCompare(String(right[key])) * direction);
+        }
+        if (method === 'limit') data = data.slice(0, Number(args[0]));
+        if (method === 'range') data = data.slice(Number(args[0]), Number(args[1]) + 1);
+      }
+      return { data, error: null };
+    };
+    builder.then = (resolve: (value: unknown) => unknown) => Promise.resolve(result()).then(resolve);
+    builder.maybeSingle = async () => ({ data: result().data[0] ?? null, error: null });
     builder.single = builder.maybeSingle;
     return builder;
   });
@@ -66,7 +90,7 @@ describe('held PTF console verified caller refusal before reads', () => {
 });
 
 describe('held console exact public read facts', () => {
-  it.each(['gym_owner', 'manager', 'front_desk', 'trainer'])('bookings preserve nullable cancellation and exact balances for %s', async role => {
+  it.each((['gym_owner', 'gym_manager', 'front_desk', 'trainer'] satisfies HeldRole[]))('bookings preserve nullable cancellation and exact balances for %s', async role => {
     const load = await target('loadPtBookings'); const row = { session_id: ids.other, cancelled_at: null, status: 'booked', sessions_total: 8, sessions_used: 1, sessions_remaining: 5 };
     const db = database({}, () => ({ data: [row], error: null })); const result = await load(db.client, caller(role), range);
     expect(result).toEqual({ data: [row], error: null }); expect(db.rpc.mock.calls[0]?.[0]).toBe('read_pt_bookings');
@@ -93,7 +117,7 @@ describe('held console exact public read facts', () => {
 });
 
 describe('held exact ACTIVE reassignment set', () => {
-  it.each(['gym_owner', 'manager'])('intersects complete RPC PT ids with underlying ACTIVE for %s', async role => {
+  it.each((['gym_owner', 'gym_manager'] satisfies HeldRole[]))('intersects complete RPC PT ids with underlying ACTIVE for %s', async role => {
     const load = await target('loadReassignmentCandidates'); const a = '80100000-0000-4000-8000-000000000010'; const b = '80100000-0000-4000-8000-000000000011'; const c = '80100000-0000-4000-8000-000000000012';
     const first = [pack(a, 'closed', 3), pack(b, 'closed', 7), pack(c, 'expired', 4)];
     const db = database({ addon_orders: [{ id: a, status: 'active', trainer_staff_id: ids.staff }, { id: c, status: 'active', trainer_staff_id: ids.staff }, { id: ids.other, status: 'active', trainer_staff_id: ids.staff }] }, (_name, args) => ({ data: args.p_after_id ? [] : first, error: null }));
@@ -150,5 +174,7 @@ describe('held independent detail sections and preview reads', () => {
     const result = await load(db.client, caller(), ids.staff, '2027-01-01', '2027-01-01', 'Asia/Kolkata'); expect(result.data).toBeNull(); expect(result.error).toBeTruthy();
   });
 });
+
+
 
 
