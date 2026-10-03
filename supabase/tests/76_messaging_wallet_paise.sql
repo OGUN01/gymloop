@@ -4,7 +4,7 @@ set local role postgres;
 set local search_path = extensions, public;
 set local timezone = 'UTC';
 select set_config('request.jwt.claims','',true);
-select plan(37);
+select plan(49);
 
 select has_function('public','adjust_messaging_wallet_paise',array['uuid','bigint','text','text','uuid'],'WSP-104 explicit paise command');
 select hasnt_column('public','messaging_wallets','balance_credits','WSP-107 old balance column is absent');
@@ -52,6 +52,30 @@ set local role authenticated;
 select throws_ok($q$select public.adjust_messaging_wallet_paise('76000000-0000-4000-8000-000000000001',1,'INR','denied','76000000-0000-4000-8000-000000000605')$q$,'42501',null,'WSP-104 gym caller denied even with active platform row');
 select throws_ok($q$select app.record_wallet_movement('76000000-0000-4000-8000-000000000001',1,'INR','denied','76000000-0000-4000-8000-000000000606',null,'76000000-0000-4000-8000-000000000901')$q$,'42501',null,'WSP-104 private arithmetic path has no caller grant');
 reset role;
+-- Owning invocation deliberately bypasses EXECUTE grants, not verified authority.
+-- Probe both an absent wallet and an exact already-recorded request: authorization
+-- must precede lookup and historical replay under SECURITY DEFINER ownership.
+select set_config('request.jwt.claims','{"sub":"76000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"super_admin","impersonation_session_id":"76000000-0000-4000-8000-000000000801"}',true);
+select throws_ok($q$select app.record_wallet_movement('76000000-0000-4000-8000-000000000099',1,'INR','authority probe','76000000-0000-4000-8000-000000000608',null,'76000000-0000-4000-8000-000000000901')$q$,'42501',null,'WSP-104 private authority impersonation before missing wallet') ;
+select throws_ok($q$select app.record_wallet_movement('76000000-0000-4000-8000-000000000001',900719925474099101,'INR','exact amount','76000000-0000-4000-8000-000000000601',null,'76000000-0000-4000-8000-000000000901')$q$,'42501',null,'WSP-104 private authority impersonation before historical replay') ;
+select set_config('request.jwt.claims','{"sub":"76000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"member"}',true);
+select throws_ok($q$select app.record_wallet_movement('76000000-0000-4000-8000-000000000099',1,'INR','authority probe','76000000-0000-4000-8000-000000000608',null,'76000000-0000-4000-8000-000000000901')$q$,'42501',null,'WSP-104 private authority member claim before missing wallet') ;
+select throws_ok($q$select app.record_wallet_movement('76000000-0000-4000-8000-000000000001',900719925474099101,'INR','exact amount','76000000-0000-4000-8000-000000000601',null,'76000000-0000-4000-8000-000000000901')$q$,'42501',null,'WSP-104 private authority member claim before historical replay') ;
+select set_config('request.jwt.claims','{"sub":"76000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"super_admin","tenant_id":"76000000-0000-4000-8000-000000000001","member_id":"76000000-0000-4000-8000-000000000701"}',true);
+select throws_ok($q$select app.record_wallet_movement('76000000-0000-4000-8000-000000000099',1,'INR','authority probe','76000000-0000-4000-8000-000000000608',null,'76000000-0000-4000-8000-000000000901')$q$,'42501',null,'WSP-104 private authority mixed platform/member claims before missing wallet') ;
+select throws_ok($q$select app.record_wallet_movement('76000000-0000-4000-8000-000000000001',900719925474099101,'INR','exact amount','76000000-0000-4000-8000-000000000601',null,'76000000-0000-4000-8000-000000000901')$q$,'42501',null,'WSP-104 private authority mixed platform/member claims before historical replay') ;
+select set_config('request.jwt.claims','{"sub":"76000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"super_admin"}',true);
+select throws_ok($q$select app.record_wallet_movement('76000000-0000-4000-8000-000000000099',1,'INR','authority probe','76000000-0000-4000-8000-000000000608',null,'76000000-0000-4000-8000-000000000902')$q$,'42501',null,'WSP-104 private authority actor mismatch before missing wallet') ;
+select throws_ok($q$select app.record_wallet_movement('76000000-0000-4000-8000-000000000001',900719925474099101,'INR','exact amount','76000000-0000-4000-8000-000000000601',null,'76000000-0000-4000-8000-000000000902')$q$,'42501',null,'WSP-104 private authority actor mismatch before historical replay') ;
+select throws_ok($q$select app.record_wallet_movement('76000000-0000-4000-8000-000000000099',1,'INR','authority probe','76000000-0000-4000-8000-000000000608',null,null)$q$,'42501',null,'WSP-104 private authority null actor before missing wallet') ;
+update public.platform_users set is_active=false where user_id='76000000-0000-4000-8000-000000000901';
+select set_config('request.jwt.claims','{"sub":"76000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"super_admin"}',true);
+select throws_ok($q$select app.record_wallet_movement('76000000-0000-4000-8000-000000000099',1,'INR','authority probe','76000000-0000-4000-8000-000000000608',null,'76000000-0000-4000-8000-000000000901')$q$,'42501',null,'WSP-104 private authority inactive spoof before missing wallet') ;
+select throws_ok($q$select app.record_wallet_movement('76000000-0000-4000-8000-000000000001',900719925474099101,'INR','exact amount','76000000-0000-4000-8000-000000000601',null,'76000000-0000-4000-8000-000000000901')$q$,'42501',null,'WSP-104 private authority inactive spoof before historical replay') ;
+select set_config('request.jwt.claims','',true);
+update public.platform_users set is_active=true where user_id='76000000-0000-4000-8000-000000000901';
+select set_config('request.jwt.claims','{"sub":"76000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"super_admin"}',true);
+select is(app.record_wallet_movement('76000000-0000-4000-8000-000000000001',900719925474099101,'INR','exact amount','76000000-0000-4000-8000-000000000601',null,'76000000-0000-4000-8000-000000000901'),(select result from wallet76_results where label='first'),'WSP-104 owning invocation with verified matching active admin retains exact replay');
 -- Inject audit storage failure only for this fixture; the real command must roll back.
 create function pg_temp.wallet76_audit_failure() returns trigger language plpgsql as $f$
 begin
