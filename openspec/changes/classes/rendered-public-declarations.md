@@ -22,7 +22,7 @@ type MemberClassSession = {
   spotsLeft: number; sessionStatus: Database['public']['Enums']['class_session_status'];
   myBookingId: string | null;
   myBookingStatus: Database['public']['Enums']['booking_status'] | null;
-  availability: Database['public']['Enums']['class_availability'];
+  availability: 'open' | 'booked' | 'full' | 'closed' | 'cancelled' | 'membership_not_live';
   canCancel: boolean; cancelBy: string | null;
 };
 type ClassTimetableSession = {
@@ -55,7 +55,8 @@ declare function deskCancelClassBooking(api: ApiClient, bookingId: string, reaso
 declare function markClassAttendance(api: ApiClient, bookingId: string, status: Database['public']['Enums']['booking_status']): Promise<ApiEnvelope<{ bookingId: string; status: Database['public']['Enums']['booking_status'] }>>;
 ```
 
-These wire types are exported from @gymloop/shared. Native modules export the
+Availability is the frozen derived read-model label, not a stored Postgres
+enum (proposal fixed names). These wire types are exported from @gymloop/shared. Native modules export the
 functions shown, not reexports of all shared types. useMobile comes from
 mobile/lib/mobile-context; useBusinessNouns from mobile/lib/use-business-nouns
 returns BusinessNouns. Their public values/API signatures and kit props are in
