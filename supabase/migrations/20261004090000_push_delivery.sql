@@ -818,9 +818,9 @@ begin
   select c.* into v_campaign from public.notification_push_campaigns c
    where c.tenant_id = v_tenant and c.id = p_campaign_id for update;
 
-  -- Unknown and foreign campaigns share one refusal, indistinguishable.
+  -- Unknown and foreign campaigns share one target-invisible refusal.
   if v_campaign.id is null then
-    raise exception 'Campaign unavailable' using errcode = '42501';
+    raise exception 'Campaign unavailable' using errcode = 'P0002';
   end if;
 
   if v_campaign.cancelled_at is null then
@@ -933,7 +933,7 @@ end
 $fn$;
 
 revoke all on function public.read_push_campaigns(timestamp with time zone, uuid) from public, anon;
-grant execute on function public.read_push_campaigns(timestamp with time zone, uuid) to authenticated, service_role;
+grant execute on function public.read_push_campaigns(timestamp with time zone, uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 9. Transport work (service-only facades over private DEFINER helpers).
@@ -1466,8 +1466,9 @@ begin
     end loop;
   end if;
 
-  -- 3. Class reminders: one per booked member per upcoming session.
-  if not v_configured or true then
+  -- 3. Class reminders: one per booked member per upcoming session
+  --    (created unconfigured too; in-app truth does not wait for the provider).
+  if true then
     for v_notif, v_member in
       select s.id, b.member_id
         from public.class_bookings b
@@ -2284,35 +2285,3 @@ begin
 end
 $check$;
 
--- pgTAP compatibility shims: the NTF suite compares the bigint token_revision
--- column against integer literals, and the installed pgTAP carries only
--- is(anyelement,anyelement,text) — whose same-type rule dies on
--- is(bigint,unknown-int-literal) with 42883. Two exact complements make every
--- existing call shape dispatch without ambiguity: integer-to-integer calls
--- take the exact int4 match, and bigint-against-literal calls take the
--- (first anyelement, second bigint) form. Existing suites are unaffected
--- (exact matches win only where both sides resolve).
-create function extensions.is(a anyelement, p bigint, d text default null)
-returns text
-language sql
-immutable
-as $fn$
-  select extensions.is(a::text, p::text, d)
-$fn$;
-
-create function extensions.is(a int4, p int4, d text default null)
-returns text
-language sql
-immutable
-as $fn$
-  select extensions.is(a::text, p::text, d)
-$fn$;
-
-do $check$
-begin
-  if to_regprocedure('extensions.is(anyelement,bigint,text)') is null
-     or to_regprocedure('extensions.is(int4,int4,text)') is null then
-    raise exception 'push_delivery: pgTAP bigint is() shims missing';
-  end if;
-end
-$check$;
