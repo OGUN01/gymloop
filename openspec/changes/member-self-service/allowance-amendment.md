@@ -9,8 +9,8 @@ meaning before independent tests; it authorizes no source or database change.
 Preserve the existing annual accounting rule: the current organization's
 `max_freeze_days_per_year` applies per member across all their memberships,
 using the calendar year of each request's start date. Count the entire
-inclusive approved interval in that start year, including days beyond year
-end. Add the entire proposed approved interval; equality is allowed, a larger
+inclusive approved, non-rejected source interval in that start year, including
+days beyond year end. Add the entire proposed approved interval; equality is allowed, a larger
 sum is refused. Rejected, pending and withdrawn requests consume no allowance.
 Do not silently replace this with per-day allocation, a rolling year or a
 membership-specific annual counter.
