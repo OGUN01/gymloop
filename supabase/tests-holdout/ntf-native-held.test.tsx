@@ -62,13 +62,16 @@ function flatten(value: unknown): void {
   nodes.push(node); flatten(node.props.children); flatten(node.props.footer); flatten(node.props.trailing);
 }
 async function render() {
-  for (let pass = 0; pass < 30; pass++) {
+  // A quiet render is not completion of lazy native-module/listener setup.
+  // NTF-009/016 require the real mounted callback path, within a bounded wait.
+  await vi.waitFor(async () => {
     h.cursor = 0; h.changed = false; nodes = []; flatten(screen());
     const effects = h.effects.splice(0); effects.forEach(effect => effect());
     await new Promise(resolve => setTimeout(resolve, 0));
-    if (!h.changed && h.effects.length === 0) return;
-  }
-  throw new Error('Screen did not settle');
+    expect(h.changed, 'Screen still updating').toBe(false);
+    expect(h.effects, 'Screen still has pending effects').toHaveLength(0);
+    expect(h.responseListener, 'Mounted notification response listener').not.toBeNull();
+  });
 }
 function text() { return JSON.stringify(nodes.map(node => node.props)); }
 function action(label: RegExp) {
@@ -106,13 +109,21 @@ it('an adversarial payload with an arbitrary URL/external intent never routes an
   }
 });
 
-it('no screen render and no posted body ever carries the device token or any provider artifact', async () => {
+it('only authorized device registration carries the native token; screen and unrelated posts expose no provider artifact', async () => {
   await render();
   action(/enable|turn on|allow/i).props.onPress();
   await new Promise(resolve => setTimeout(resolve, 0));
   await render();
   expect(text()).not.toMatch(/fcm|token|installation/i);
-  expect(JSON.stringify(h.post.mock.calls)).not.toMatch(/fcm-holdout-secret-token/);
+  // NTF-003 explicitly submits the native token to the member device writer;
+  // NTF-013 forbids exposing it through display or unrelated commands.
+  expect(h.registerCalls).toHaveLength(1);
+  expect(h.registerCalls[0]).toEqual({
+    installationId: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
+    pushToken: h.deviceToken,
+    platform: 'android',
+  });
+  expect(JSON.stringify(h.post.mock.calls.filter(call => call[0] !== '/api/member/push-device'))).not.toMatch(/fcm-holdout-secret-token|pushToken|providerMessageId|serviceAccount/i);
   expect(JSON.stringify(h.registerCalls)).not.toMatch(/Expo/i);
 });
 

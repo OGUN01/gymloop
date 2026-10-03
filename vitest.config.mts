@@ -24,7 +24,7 @@ export default defineConfig({
       { find: /^react\/jsx-runtime$/, replacement: webRequire.resolve('react/jsx-runtime') },
       { find: /^react\/jsx-dev-runtime$/, replacement: webRequire.resolve('react/jsx-dev-runtime') },
       { find: /^react-dom\/server$/, replacement: webRequire.resolve('react-dom/server') },
-      ...['react-native', 'react-native-svg', 'lucide-react-native', 'expo-router', 'expo-crypto', 'expo-secure-store', 'expo-web-browser', 'expo-network', 'expo-font', 'expo-splash-screen', '@expo-google-fonts/archivo'].map(name => ({ find: new RegExp(`^${name}$`), replacement: mobileRequire.resolve(name) })),
+      ...['react-native', 'react-native-svg', 'lucide-react-native', 'expo-router', 'expo-crypto', 'expo-secure-store', 'expo-web-browser', 'expo-network', 'expo-notifications', 'expo-font', 'expo-splash-screen', '@expo-google-fonts/archivo'].map(name => ({ find: new RegExp(`^${name}$`), replacement: mobileRequire.resolve(name) })),
     ],
   },
 });

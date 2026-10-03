@@ -71,19 +71,27 @@ const ids = {
 
 // ─── Settings validator and member loader ────────────────────────────────────
 
-// Observe the real page's element tree; never replace its read or validator.
+// Observe the real page's original validator result and rendered error text.
 async function observeMemberWhatsappSettingsPage() {
-  const page = tas<{ default(): Promise<unknown> }>(await import(targets.memberSettingsPage));
-  const tree = await page.default();
+  const lib = tas<LibExports>(await import(targets.lib));
+  // spyOn calls through to the original validator; no replacement implementation.
+  const validator = vi.spyOn(lib, 'memberWhatsappSettings');
+  let tree: unknown;
   let settings: MemberWhatsappSettings | null = null;
+  try {
+    const page = tas<{ default(): Promise<unknown> }>(await import(targets.memberSettingsPage));
+    tree = await page.default();
+    const result = validator.mock.results.at(-1);
+    if (result?.type === 'return') settings = result.value;
+  } finally {
+    validator.mockRestore();
+  }
   const renderedText: string[] = [];
   const walk = (node: unknown): void => {
     if (typeof node === 'string') { renderedText.push(node); return; }
     if (Array.isArray(node)) { node.forEach(walk); return; }
     if (node === null || typeof node !== 'object') return;
     const record = tas<Record<string, unknown>>(node);
-    if (['service', 'marketing', 'recipientKind', 'maskedPhone', 'noticeVersion', 'available']
-      .every(key => Object.hasOwn(record, key))) settings = tas<MemberWhatsappSettings>(record);
     // Observe actual props/children, without invoking components or inventing data.
     for (const [key, value] of Object.entries(record)) {
       if (key !== 'type' && key !== '_owner' && key !== '_store') walk(value);
