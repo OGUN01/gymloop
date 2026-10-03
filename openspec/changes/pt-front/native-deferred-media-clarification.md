@@ -31,7 +31,9 @@ do not own a rendered lease; it cannot widen server authority.
 Independent visible and held authors pause actual projection completion, revoke
 the supplied lease, then return listed trainer image metadata. They verify zero
 obsolete media calls, including API/read-client/caller ABA and unmount. They also
-pause the first image request, revoke, and verify subsequent image requests do
-not start. Current leases still request exact asset IDs through the existing API;
+revoke the predicate synchronously during the first image invocation and verify
+that later invocations do not start. Requests already begun before revocation
+may finish; parallel image requests are not retroactively canceled. Current
+leases still request exact asset IDs through the existing API;
 false/throwing predicates fail closed. These tests precede the separate builder.
 No private image key, staff identifier, token or new media parser is introduced.
