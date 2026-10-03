@@ -1,14 +1,45 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { playwrightEnv } from '@gymloop/shared';
+import { playwrightEnv, shopCatalogueResponseSchema } from '@gymloop/shared';
 
 // Post-CI browser acceptance. Most commands are intercepted. The named
-// read-after-reserve case creates one intent and cancels it in finally; it never
+// read-after-reserve and desk fixture cases create intent and cancel in finally; they never
 // creates a sale/payment or R2 object. These tests are not run by the test author.
 async function signIn(page: Page, email: string) {
   await page.goto('/sign-in'); await page.getByText('Use email instead', { exact: true }).click();
   await page.getByLabel('Email').fill(email); await page.getByLabel('Password').fill(playwrightEnv().DEMO_ACCOUNT_PASSWORD ?? '');
   await Promise.all([page.waitForURL(url => !url.pathname.includes('sign-in')), page.getByRole('button', { name: 'Sign in', exact: true }).click()]);
+}
+async function reservableProduct(page: Page) {
+  const response = await page.request.post('/api/shop/catalogue', { data: {} });
+  expect(response.status()).toBe(200);
+  const envelope = await response.json() as { ok: boolean; data: unknown };
+  expect(envelope.ok).toBe(true);
+  const catalogue = shopCatalogueResponseSchema.parse(envelope.data);
+  const chosen = [...catalogue.items].sort((left, right) => left.itemId.localeCompare(right.itemId)).find(item => item.section === 'products' && item.availability === 'available' && item.pricePaise !== '0' && (item.availableQuantity ?? 0) > 0 && !catalogue.reservations.some(row => row.itemId === item.itemId && row.state === 'reserved'));
+  expect(chosen, 'Demo requires a paid reservable product without this member already holding it').toBeDefined();
+  if (!chosen) throw new Error('A reservable demo product is required');
+  return chosen;
+}
+async function withOpenDeskReservation(page: Page, exercise: () => Promise<void>) {
+  const browser = page.context().browser();
+  if (!browser) throw new Error('A separate authenticated member browser context is required');
+  const memberContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
+  const member = await memberContext.newPage();
+  let reservationId: string | null = null;
+  try {
+    await signIn(member, 'aarav.member@ironbox.example.com');
+    const chosen = await reservableProduct(member);
+    const response = await member.request.post('/api/shop/reservations', { data: { itemId: chosen.itemId, quantity: 1, quoteVersion: chosen.quoteVersion } });
+    const envelope = await response.json() as { ok: boolean; data?: { reservationId: string } };
+    if (envelope.ok && envelope.data) reservationId = envelope.data.reservationId;
+    expect(response.status()).toBe(200); expect(envelope.ok).toBe(true); expect(reservationId).toMatch(/^[a-f0-9-]{36}$/);
+    await exercise();
+  } finally {
+    try {
+      if (reservationId) { const cancelled = await member.request.post('/api/shop/reservations/' + reservationId + '/cancel', { data: {} }); expect(cancelled.status()).toBe(200); const body = await cancelled.json() as { ok: boolean; data?: { cancelled: boolean } }; expect(body).toEqual({ ok: true, data: { cancelled: true } }); }
+    } finally { await memberContext.close(); }
+  }
 }
 test('SHP-Q1/Q2/Q6/Q7 reserve refuses honestly within three taps and refreshes', async ({ page }) => {
   await signIn(page, 'aarav.member@ironbox.example.com');
@@ -30,11 +61,8 @@ test('SHP-Q1/Q2/Q6/Q7 reserve refuses honestly within three taps and refreshes',
 });
 test('SHP-020 reserve is visible in a fresh authenticated catalogue read and releases its hold on cancel', async ({ page }) => {
   await signIn(page, 'aarav.member@ironbox.example.com');
-  const beforeResponse = await page.request.post('/api/shop/catalogue', { data: {} });
-  expect(beforeResponse.status()).toBe(200);
-  const before = (await beforeResponse.json()).data;
-  const chosen = before.items.find((item: { itemId: string; section: string; availability: string; availableQuantity: number | null }) => item.section === 'products' && item.availability === 'available' && (item.availableQuantity ?? 0) > 0 && !before.reservations.some((row: { itemId: string; state: string }) => row.itemId === item.itemId && row.state === 'reserved'));
-  expect(chosen, 'Demo requires a reservable product without this member already holding it').toBeDefined();
+  const chosen = await reservableProduct(page);
+
   let reservationId: string | null = null;
   try {
     await page.goto('/member/shop');
@@ -98,14 +126,16 @@ test('SHP-002 console category form sends a trimmed command and renders the name
   expect(commands).toEqual([{ name: 'Visible category' }]);
 });
 test('SHP-017 desk interactions reuse uncertain sell command and require member-visible cancellation reason', async ({ page }) => {
-  await signIn(page, 'divya@ironbox.example.com'); await page.goto('/shop/reservations');
-  const sell = page.getByRole('button', { name: 'Sell this', exact: true }).first();
-  await expect(sell, 'Demo requires an open reservation for the desk interaction').toBeVisible();
-  const sales: Array<{ quoteVersion: string; method: string; reason: string | null; idempotencyKey: string }> = [];
-  await page.route('**/api/shop-reservations/*/fulfil', async route => {
-    expect(route.request().method()).toBe('POST'); sales.push(route.request().postDataJSON());
-    if (sales.length === 1) { await route.abort('failed'); return; }
-    await route.fulfill({ status: 409, json: { ok: false, error: { code: 'quote_changed', message: 'Review the current price before selling.' } }, headers: { 'cache-control': 'no-store' } });
+  await signIn(page, 'divya@ironbox.example.com');
+  await withOpenDeskReservation(page, async () => {
+    await page.goto('/shop/reservations');
+    const sell = page.getByRole('button', { name: 'Sell this', exact: true }).first();
+    await expect(sell, 'Demo requires an open reservation for the desk interaction').toBeVisible();
+    const sales: Array<{ quoteVersion: string; method: string; reason: string | null; idempotencyKey: string }> = [];
+    await page.route('**/api/shop-reservations/*/fulfil', async route => {
+      expect(route.request().method()).toBe('POST'); sales.push(route.request().postDataJSON());
+      if (sales.length === 1) { await route.abort('failed'); return; }
+      await route.fulfill({ status: 409, json: { ok: false, error: { code: 'quote_changed', message: 'Review the current price before selling.' } }, headers: { 'cache-control': 'no-store' } });
   });
   await sell.click(); await page.getByRole('combobox').last().selectOption('cash');
   const submit = page.getByRole('button', { name: /^(Record sale|Sell this|Confirm sale)$/ }).last();
@@ -124,6 +154,7 @@ test('SHP-017 desk interactions reuse uncertain sell command and require member-
   const cancel = page.getByRole('button', { name: /^(Cancel|Cancel reservation|Confirm cancellation)$/ }).last(); await cancel.evaluate(button => (button as HTMLButtonElement).click()); expect(cancellations).toEqual([]);
   await reason.fill('Sold out at desk'); await cancel.click();
   await expect(page.getByText('This reservation has already been collected or cancelled.', { exact: true })).toBeVisible(); expect(cancellations).toEqual([{ reason: 'Sold out at desk' }]);
+  });
 });
 test('SHP-Q4 one Save runs staging PUT then verification and never reports success after rejection', async ({ page }) => {
   await signIn(page, 'owner@ironbox.example.com'); await page.goto('/shop');
@@ -149,7 +180,33 @@ test('SHP-017 console offline state disables chosen-photo save and desk actions'
   await page.context().setOffline(true);
   try { await expect(page.getByText(/offline/i).first()).toBeVisible(); await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled(); }
   finally { await page.context().setOffline(false); }
-  await page.goto('/shop/reservations'); await page.context().setOffline(true);
-  try { await expect(page.getByText(/offline/i).first()).toBeVisible(); for (const button of await page.getByRole('button', { name: /Sell this|Cancel/, exact: true }).all()) await expect(button).toBeDisabled(); }
-  finally { await page.context().setOffline(false); }
+  await withOpenDeskReservation(page, async () => {
+    await page.goto('/shop/reservations');
+    await expect(page.getByRole('button', { name: 'Sell this', exact: true }).first()).toBeVisible();
+    await page.context().setOffline(true);
+    try { await expect(page.getByText(/offline/i).first()).toBeVisible(); for (const button of await page.getByRole('button', { name: /Sell this|Cancel/, exact: true }).all()) await expect(button).toBeDisabled(); }
+    finally { await page.context().setOffline(false); }
+  });
+});
+test('SHP-Q10 empty desk reservations still reports offline and reconnects without commands', async ({ page }) => {
+  await signIn(page, 'divya@ironbox.example.com');
+  await page.goto('/shop/reservations');
+  await expect(page.getByText('No open reservations.', { exact: true }), 'This empty-state acceptance requires an empty dedicated demo view; do not remove unrelated holds to manufacture it').toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sell this', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(0);
+  const mutations: string[] = [];
+  page.on('request', request => {
+    if (request.method() !== 'GET' && /^\/api\/(?:shop-reservations|shop\/reservations)(?:\/|$)/.test(new URL(request.url()).pathname)) mutations.push(request.method() + ' ' + new URL(request.url()).pathname);
+  });
+  const offlineNotice = page.getByText(/offline/i).first();
+  await page.context().setOffline(true);
+  try {
+    await expect(offlineNotice, 'Empty results do not remove the browser connection status').toBeVisible();
+    await expect(page.getByText('No open reservations.', { exact: true })).toBeVisible();
+    expect(mutations).toEqual([]);
+  } finally { await page.context().setOffline(false); }
+  await expect(offlineNotice).toBeHidden();
+  await page.reload();
+  await expect(page.getByText('No open reservations.', { exact: true })).toBeVisible();
+  expect(mutations).toEqual([]);
 });
