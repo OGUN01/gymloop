@@ -227,6 +227,7 @@ describe('CLS rendered native contract', () => {
     expect(seam.cancel, 'unmount does not trigger command').not.toHaveBeenCalled();
   });
   it('renders roster flags and provides a one-tap explicit attendance command at the desk', async () => {
+    vi.setSystemTime(new Date('2026-10-03T17:00:00+05:30'));
     desk = true; seam.context = context({ kind: 'staff', userId: memberA.userId, tenantId: memberA.tenantId, staffId: timetable.trainerStaffId, role: 'front_desk' });
     draw(); await settle(); await press(/Evening mobility/);
     for (const fact of ['Roster person', 'GL-404', 'Checked in', 'No live membership', 'No app']) expect(visible(), `desk roster fact ${fact}`).toContain(fact);
