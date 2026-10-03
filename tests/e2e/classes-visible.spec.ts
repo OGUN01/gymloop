@@ -4,6 +4,64 @@ import { playwrightEnv } from '@gymloop/shared';
 
 const { DEMO_ACCOUNT_PASSWORD: password } = playwrightEnv();
 const accounts = { member: 'aarav.member@ironbox.example.com', owner: 'owner@ironbox.example.com', desk: 'divya@ironbox.example.com' };
+async function checkEnlargedNavigationAndEndContent(page: import('@playwright/test').Page) {
+  const navigation = page.getByRole('navigation', { name: /^(?:Member|Student) navigation$/i });
+  await expect(navigation.getByRole('link')).toHaveText(['Home', 'Classes', 'Shop', 'Activity', 'You']);
+  for (const [label, href] of [['Home', '/member'], ['Classes', '/member/classes'], ['Shop', '/member/shop'], ['Activity', '/member/activity'], ['You', '/member/you']] as const) {
+    await expect(navigation.getByRole('link', { name: label, exact: true })).toHaveAttribute('href', href);
+  }
+  const captions = await navigation.evaluate(nav => [...nav.querySelectorAll('a')].map(anchor => {
+    const box = anchor.getBoundingClientRect(); const walker = document.createTreeWalker(anchor, NodeFilter.SHOW_TEXT);
+    const rects: Array<{ left: number; right: number; top: number; bottom: number }> = [];
+    const textParents = new Set<Element>([anchor]);
+    let text: Node | null;
+    while ((text = walker.nextNode())) {
+      if (!text.textContent?.trim()) continue;
+      let parent = text.parentElement;
+      while (parent && anchor.contains(parent)) { textParents.add(parent); if (parent === anchor) break; parent = parent.parentElement; }
+      const range = document.createRange(); range.selectNodeContents(text);
+      for (const rect of range.getClientRects()) rects.push({ left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom });
+    }
+    const styles = [...textParents].map(element => {
+      const style = getComputedStyle(element);
+      return { display: style.display, visibility: style.visibility, opacity: style.opacity, textOverflow: style.textOverflow };
+    });
+    return { label: anchor.textContent, box: { left: box.left, right: box.right, top: box.top, bottom: box.bottom }, rects, styles };
+  }));
+  for (const caption of captions) {
+    expect(caption.rects.length, caption.label ?? '').toBeGreaterThan(0);
+    for (const rect of caption.rects) {
+      expect(rect.left, caption.label ?? '').toBeGreaterThanOrEqual(caption.box.left - 1);
+      expect(rect.right, caption.label ?? '').toBeLessThanOrEqual(caption.box.right + 1);
+      expect(rect.top, caption.label ?? '').toBeGreaterThanOrEqual(caption.box.top - 1);
+      expect(rect.bottom, caption.label ?? '').toBeLessThanOrEqual(caption.box.bottom + 1);
+    }
+    for (const style of caption.styles) {
+      expect(style.display).not.toBe('none'); expect(style.visibility).toBe('visible');
+      expect(Number(style.opacity)).toBeGreaterThan(0); expect(style.textOverflow).not.toBe('ellipsis');
+    }
+  }
+  await page.evaluate(async () => {
+    window.scrollTo(0, document.documentElement.scrollHeight);
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  });
+  const end = await page.evaluate(() => {
+    const nav = document.querySelector('nav[aria-label="Member navigation"], nav[aria-label="Student navigation"]');
+    const candidates = [...document.querySelectorAll<HTMLElement>('main *')].filter(element => {
+      const style = getComputedStyle(element); const box = element.getBoundingClientRect();
+      return box.width > 0 && box.height > 0 && style.visibility === 'visible' && Number(style.opacity) > 0
+        && ([...element.childNodes].some(node => node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim()))
+          || element.matches('button,a,input,select,textarea'));
+    });
+    const last = candidates.at(-1); if (!nav || !last) return null;
+    const box = last.getBoundingClientRect();
+    return { text: last.textContent, top: box.top, bottom: box.bottom, navTop: nav.getBoundingClientRect().top, viewportHeight: window.innerHeight };
+  });
+  expect(end).not.toBeNull();
+  expect(end!.top, end!.text ?? '').toBeGreaterThanOrEqual(-1);
+  expect(end!.bottom, end!.text ?? '').toBeLessThanOrEqual(end!.navTop + 1);
+  expect(end!.bottom).toBeLessThanOrEqual(end!.viewportHeight + 1);
+}
 async function doubleApplicationText(page: import('@playwright/test').Page) {
   const snapshot = await page.evaluate(() => {
     const roots = [...document.querySelectorAll<HTMLElement>('main, nav[aria-label="Member navigation"], nav[aria-label="Student navigation"]')];
@@ -74,6 +132,7 @@ for (const theme of ['light', 'dark'] as const) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       await page.screenshot({ path: info.outputPath(`classes-${theme}-${width}.png`), fullPage: true });
       await doubleApplicationText(page);
+      await checkEnlargedNavigationAndEndContent(page);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
       const productTargets = page.getByRole('main').getByRole('button').or(page.getByRole('main').getByRole('link')).or(memberNavigation.getByRole('link'));
