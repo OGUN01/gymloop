@@ -28,6 +28,9 @@ vi.mock('expo-secure-store', () => ({
   setItemAsync: async (_key: string, value: string) => { harness.disk = value; },
   deleteItemAsync: async () => { harness.disk = null; },
 }));
+vi.mock('expo-network', () => ({
+  getNetworkStateAsync: vi.fn(async () => ({ isConnected: true, isInternetReachable: true })),
+}));
 vi.mock('react', () => {
   const memo = (factory: () => unknown, deps?: unknown[]) => {
     const index = harness.cursor++;
