@@ -35,7 +35,3 @@ export function CancelReservationButton({ reservationId }: { reservationId: stri
   const [open, setOpen] = useState(false);
   return <div>{!open ? <ShopCommandStatus command={command} /> : null}<button className="cl-btn cl-btn--quiet" disabled={command.disabled} onClick={() => setOpen(true)}>Cancel</button><ConfirmationSheet open={open} close={() => setOpen(false)} label="Cancel reservation"><ShopCommandStatus command={command} /><p>Cancel this reservation and release its hold?</p><button className="cl-btn" disabled={command.disabled} onClick={async () => { if (await command.send(`/api/shop/reservations/${reservationId}/cancel`, {}, 'Cancelled')) setOpen(false); }}>Confirm cancellation</button><button className="cl-btn cl-btn--quiet" onClick={() => setOpen(false)}>Keep reservation</button></ConfirmationSheet></div>;
 }
-
-
-
-

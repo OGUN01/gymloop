@@ -23,5 +23,3 @@ export default async function ShopReservationsPage({ searchParams = Promise.reso
     })}{result.next ? <Link className="cl-btn" href={`?${new URLSearchParams({ tab: closed ? 'closed' : 'open', after: result.next })}`}>More reservations</Link> : null}</main>;
   } catch { return <main className="shop-workspace cl-page"><h1 className="cl-title">Shop reservations</h1><p role="alert">Reservations couldn&apos;t be loaded.</p><Link className="cl-btn" href="/shop/reservations">Retry</Link></main>; }
 }
-
-

@@ -29,5 +29,3 @@ export function saleFailure(code: string, details: string | null, message: strin
     'That sale could not be accepted.',
   );
 }
-
-

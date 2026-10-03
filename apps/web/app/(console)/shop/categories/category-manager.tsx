@@ -15,4 +15,3 @@ export function CategoryManager({ categories }: { categories: ShopCategory[] }) 
   const [name, setName] = useState('');
   return <div className="space-y-5"><ShopCommandStatus command={command} /><form className="space-y-3" onSubmit={async event => { event.preventDefault(); const body = shopCategoryCreateRequestSchema.safeParse({ name }); if (body.success && await command.send('/api/shop/categories', body.data, 'Category added')) setName(''); }}><label className="block">New category<input className="cl-input min-h-11 w-full" value={name} onChange={event => setName(event.target.value)} /></label><button className="cl-btn" disabled={command.disabled || !shopCategoryCreateRequestSchema.safeParse({ name }).success}>Add category</button></form>{categories.map(category => <CategoryRow key={category.id} category={category} categories={categories} />)}</div>;
 }
-
