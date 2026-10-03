@@ -83,6 +83,27 @@ async function mount() {
 }
 
 describe('independent actual native Training current cancellation', () => {
+  it.each([
+    ['2026-10-05T05:29:59.999Z', true],
+    ['2026-10-05T05:30:00.000Z', false],
+    ['2026-10-05T05:30:00.001Z', false],
+  ] as const)('paused confirming read at %s permits command=%s using stable authoritative late facts', async (resumeAt, allowed) => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-05T05:29:58Z'));
+    const current = { ...row, lateNow: true, consumesNow: true };
+    seam.load.mockResolvedValue(data(current));
+    const screen = await mount(); await press(screen.render(), /^Cancel/i);
+    expect(text(screen.render())).toContain('This is inside your cancellation window. Cancelling will use 1 session from your pack.');
+    const confirming = deferred<MemberTraining>(); seam.load.mockReturnValueOnce(confirming.promise);
+    const before = seam.load.mock.calls.length;
+    const pending = (action(screen.render(), /Confirm|Cancel session/i).props.onPress as () => Promise<void>)(); await flush();
+    expect(seam.load.mock.calls.length).toBeGreaterThan(before); expect(seam.post).not.toHaveBeenCalled();
+    vi.setSystemTime(new Date(resumeAt)); confirming.resolve(data(current)); await pending; await flush();
+    if (allowed) expect(seam.post).toHaveBeenCalledWith('/api/member/pt-bookings/cancel', { sessionId: row.sessionId });
+    else {
+      expect(seam.post).not.toHaveBeenCalled();
+      expect(text(screen.render())).toContain("This session has already started, so it can't be cancelled here. Ask your trainer or the front desk.");
+    }
+  });
   it.each([null, { ...row, sessionId: '07077c51-c831-46dd-a6ec-887209dd96f7' }, { ...row, canCancel: false },
     { ...row, cancelCutoff: null }, { ...row, status: 'attended' as const }])('fresh confirming session invalidation %# sends nothing', async current => {
     const screen = await mount(); await press(screen.render(), /^Cancel/i); seam.load.mockResolvedValue(data(current));
@@ -179,6 +200,14 @@ describe('independent native permanent supplied-capability lease', () => {
 });
 
 describe('independent native training navigation and offline facts', () => {
+  it('positive listener offline immediately shows stale and pinned retry before any disabled action press', async () => {
+    const screen = await mount(); expect(seam.listener).toBeTypeOf('function');
+    seam.listener!({ isConnected: false, isInternetReachable: false }); const visible = text(screen.render());
+    expect(visible).toContain("You're offline. Showing what was last loaded."); expect(visible).toMatch(/stale/i);
+    expect(visible).toContain('Please try again.'); expect(seam.post).not.toHaveBeenCalled();
+    seam.listener!({ isConnected: true, isInternetReachable: true }); screen.render(); await flush();
+    expect(seam.post).not.toHaveBeenCalled(); expect(seam.push).not.toHaveBeenCalled();
+  });
   function pack(state: PtPack['state'], canBook: boolean): PtPack { return { orderId: row.orderId, programmeName: 'Owned training pack', trainerKey: row.trainerKey,
     trainerName: 'Mira', sessionsTotal: 8, sessionsUsed: 1, sessionsScheduled: 1, sessionsRemaining: 6, startsOn: '2026-10-01', expiresOn: '2026-11-30', state, canBook, timezone: row.timezone }; }
   it('live eligible pack has actual Book action to frozen proposed route only', async () => {
