@@ -63,7 +63,7 @@ describe('BIZ-012/013 Tier A rendered text and accessible names', () => {
     const html = renderToStaticMarkup(await Layout({ children: 'Body' }));
     expect(visible(html)).not.toMatch(/\b(?:gym|member|members|trainer)\b/i);
     // Gym is secondary in the approved five-tab IA; place glyphs belong there.
-    const links = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].map((match) => ({ attributes: match[1], text: match[2].replace(/<[^>]*>/g, '').trim() }));
+    const links = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].map((match): { attributes: string; text: string } => ({ attributes: match[1] ?? '', text: (match[2] ?? '').replace(/<[^>]*>/g, '').trim() }));
     expect(links.map((link) => link.text)).toEqual(['Home', 'Batches', 'Shop', 'Activity', 'You']);
     expect(links.map((link) => link.attributes.match(/href="([^"]+)"/)?.[1])).toEqual(['/member', '/member/classes', '/member/shop', '/member/activity', '/member/you']);
     expect(html).not.toMatch(/lucide-dumbbell/);
