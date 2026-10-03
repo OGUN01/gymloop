@@ -181,19 +181,34 @@ jobs:
       - if: github.event_name == 'push' || needs.migrate.outputs.migrations_changed == 'false'
         name: Verify independent batch-2 demo graphs and legal replay
         # Each author owns a separate rollback-only proof. Ordinary seed.sql
-        # runs before its TEMP baselines; scenarios run twice after the marker.
+        # runs first, then legacy scenarios run once before TEMP baselines.
+        # Only the Batch-2 packet runs twice after those baselines.
         # The existing counter harness detects assertion and plan failures.
         run: |
           for proof in supabase/tests/support/v2-batch2-demo-seed-visible.fragment supabase/tests-holdout/support/v2-batch2-demo-seed-held.fragment; do
             python - "$proof" <<'PY'
           import pathlib, re, sys
           source = pathlib.Path(sys.argv[1]).read_text()
-          marker = '-- ROOT_INSERT_BATCH2_SCENARIOS_HERE'
-          if source.count(marker) != 1:
-              raise SystemExit('Expected one scenario splice marker')
           source = re.sub(r'(?im)^(BEGIN;|ROLLBACK;|SELECT \* FROM finish\(\);)$', lambda match: match.group().lower(), source)
-          scenario = pathlib.Path('supabase/seed-scenarios.sql').read_text()
-          source = source.replace(marker, scenario + '\n' + scenario + '\n')
+          legacy_marker = '-- ROOT_INSERT_LEGACY_SCENARIOS_HERE'
+          batch_marker = '-- ROOT_INSERT_BATCH2_SCENARIOS_HERE'
+          lines = source.splitlines(keepends=True)
+          legacy_positions = [index for index, line in enumerate(lines) if line.rstrip('\r\n') == legacy_marker]
+          batch_positions = [index for index, line in enumerate(lines) if line.rstrip('\r\n') == batch_marker]
+          if len(legacy_positions) != 1 or len(batch_positions) != 1:
+              raise SystemExit('Expected one exact legacy marker and one exact Batch-2 marker')
+          if legacy_positions[0] >= batch_positions[0]:
+              raise SystemExit('Legacy scenario marker must precede Batch-2 marker')
+          scenario_lines = pathlib.Path('supabase/seed-scenarios.sql').read_text().splitlines(keepends=True)
+          boundary = '-- Batch-2 public packet: represented static states, never command evidence.'
+          boundaries = [index for index, line in enumerate(scenario_lines) if line.rstrip('\r\n') == boundary]
+          if len(boundaries) != 1:
+              raise SystemExit('Expected one exact Batch-2 scenario boundary')
+          legacy = ''.join(scenario_lines[:boundaries[0]])
+          batch = ''.join(scenario_lines[boundaries[0]:])
+          lines[legacy_positions[0]] = legacy + '\n'
+          lines[batch_positions[0]] = batch + '\n' + batch + '\n'
+          source = ''.join(lines)
           pathlib.Path('/tmp/batch2_seed_proof.sql').write_text(source)
           PY
             python scripts/pgtap/splice.py /tmp/batch2_seed_proof.sql /tmp/batch2_seed_run.sql supabase/seed.sql

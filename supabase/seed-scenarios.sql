@@ -615,6 +615,7 @@ declare
   x record; n integer; k integer; day date; start_at timestamptz;
   columns_sql text; values_sql text; table_name text; count_actual integer;
   holiday_owned boolean; weekly_count integer := 0;
+  consent_at timestamptz; previous_consent_at timestamptz; previous_consent_member integer;
   plan_id uuid := '00000004-0000-4000-8000-000000000001';
   sold_price bigint; sold_currency text; sold_duration integer;
 begin
@@ -681,11 +682,39 @@ begin
   end loop;
   for x in select * from (values (1,201,true),(2,202,true),(3,202,false),
     (4,204,true),(5,204,false),(6,204,true)) v(n,member_no,granted) loop
-    graph := graph || jsonb_build_array(jsonb_build_object('table','consents','row',jsonb_build_object(
+    row_data := jsonb_build_object(
       'id',format('00000091-0000-4000-8000-%s',lpad(x.n::text,12,'0')),'tenant_id',tenant,
       'member_id',format('00000080-0000-4000-8000-%s',lpad(x.member_no::text,12,'0')),
       'purpose','marketing','granted',x.granted,'version','v1','source','front_desk_signup',
-      'recorded_by_staff_id',desk,'recorded_at',r-(7-x.n)*interval '1 minute')));
+      'recorded_by_staff_id',desk,'request_key',null);
+    -- INSERT leaves recorded_at to the ordinary stamp and genuine audit trigger.
+    -- Replay takes its original clock from history, never from the current row.
+    if replay then
+      select count(*) into count_actual from public.audit_log a
+        where a.tenant_id=tenant and a.action='consent.recorded' and a.record_type='consent'
+          and a.record_id=(row_data->>'id')::uuid;
+      if count_actual<>1 then
+        raise exception 'Batch-2 original consent history missing or ambiguous: %',row_data->>'id';
+      end if;
+      select a.after into actual from public.audit_log a
+        where a.tenant_id=tenant and a.action='consent.recorded' and a.record_type='consent'
+          and a.record_id=(row_data->>'id')::uuid and a.before is null;
+      if actual is null or (actual-'recorded_at') is distinct from (row_data-'id'-'tenant_id')
+         or jsonb_typeof(actual->'recorded_at') is distinct from 'string' then
+        raise exception 'Batch-2 original consent history mismatch: %',row_data->>'id';
+      end if;
+      consent_at := (actual->>'recorded_at')::timestamptz;
+      if consent_at is null or not isfinite(consent_at) then
+        raise exception 'Batch-2 original consent clock unavailable: %',row_data->>'id';
+      end if;
+      if previous_consent_member=x.member_no and consent_at<=previous_consent_at then
+        raise exception 'Batch-2 original consent append order mismatch: %',row_data->>'id';
+      end if;
+      previous_consent_member := x.member_no;
+      previous_consent_at := consent_at;
+      row_data := row_data || jsonb_build_object('recorded_at',consent_at);
+    end if;
+    graph := graph || jsonb_build_array(jsonb_build_object('table','consents','row',row_data));
   end loop;
   for x in select * from (values (1,'Demo Yoga',6,true),(2,'Demo Strength',2,true),
     (3,'Demo Dance',6,true),(4,'Demo Archived Pilates',6,false)) v(n,name,capacity,active) loop
