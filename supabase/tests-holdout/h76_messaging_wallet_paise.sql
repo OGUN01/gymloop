@@ -3,7 +3,7 @@
 begin;
 set local role postgres;
 set local search_path to public, extensions;
-select plan(40);
+select plan(52);
 select has_column('public','messaging_wallets','balance_paise','operational wallet uses paise');
 select hasnt_column('public','messaging_wallets','balance_credits','old operational credit column removed');
 select hasnt_column('public','messaging_wallet_ledger','delta_credits','old ledger operational credit column removed');
@@ -61,6 +61,24 @@ select is((select count(*) from public.messaging_wallet_ledger where tenant_id='
 select is((select count(*) from public.audit_log where tenant_id='76900000-0000-4000-8000-000000000001' and action='messaging_wallet.adjusted'),2::bigint,'two actual adjustments exactly two audits');
 select ok(not exists(select 1 from public.messaging_wallet_ledger where tenant_id='76900000-0000-4000-8000-000000000001' and (original_delta_credits is not null or original_balance_after_credits is not null or conversion_paise_per_credit is not null or conversion_currency is not null or conversion_approval_ref is not null or converted_at is not null)),'native movements have no evidence');
 select ok(not has_function_privilege('authenticated','app.enforce_wallet_conversion_evidence()','EXECUTE') and not has_function_privilege('service_role','app.enforce_wallet_conversion_evidence()','EXECUTE'),'evidence guard grants no bypass authority');
+-- §1/§7 retained WSP-104: exercise the owning private boundary itself.
+-- These calls use postgres so EXECUTE revocation cannot mask a missing body gate.
+-- A second real active admin is deliberately a valid actor row, but not auth.uid().
+insert into auth.users(id) values ('76900000-0000-4000-8000-000000000011');
+insert into public.platform_users(user_id,role,full_name,email,is_active) values ('76900000-0000-4000-8000-000000000011','super_admin','H76 Other Admin','h76other@holdout.test',true);
+select throws_ok($q$select app.record_wallet_movement('76900000-0000-4000-8000-000000000099',1,'INR','private authority','76900000-0000-4000-8000-000000000012',null,'76900000-0000-4000-8000-000000000011')$q$,'42501'::char(5),null,'private false active actor is refused before missing wallet lookup');
+select throws_ok($q$select app.record_wallet_movement('76900000-0000-4000-8000-000000000001',9007199254740993,'INR','large','76900000-0000-4000-8000-000000000003',null,'76900000-0000-4000-8000-000000000011')$q$,'42501'::char(5),null,'private false active actor is refused before replay comparison');
+select throws_ok($q$select app.record_wallet_movement('76900000-0000-4000-8000-000000000099',1,'INR','private authority','76900000-0000-4000-8000-000000000012',null,null)$q$,'42501'::char(5),null,'private null adjustment actor cannot bypass subject binding');
+select set_config('request.jwt.claims','{"sub":"76900000-0000-4000-8000-000000000002","role":"authenticated","app_role":"super_admin","impersonation_session_id":"76900000-0000-4000-8000-000000000013"}',true);
+select throws_ok($q$select app.record_wallet_movement('76900000-0000-4000-8000-000000000099',1,'INR','private authority','76900000-0000-4000-8000-000000000012',null,'76900000-0000-4000-8000-000000000002')$q$,'42501'::char(5),null,'private impersonation is refused before missing wallet lookup');
+select throws_ok($q$select app.record_wallet_movement('76900000-0000-4000-8000-000000000001',9007199254740993,'INR','large','76900000-0000-4000-8000-000000000003',null,'76900000-0000-4000-8000-000000000002')$q$,'42501'::char(5),null,'private impersonation is refused before otherwise exact replay');
+select set_config('request.jwt.claims','{"sub":"76900000-0000-4000-8000-000000000002","role":"authenticated","app_role":"super_admin","tenant_id":"76900000-0000-4000-8000-000000000001","staff_id":"76900000-0000-4000-8000-000000000008"}',true);
+select throws_ok($q$select app.record_wallet_movement('76900000-0000-4000-8000-000000000099',1,'INR','private authority','76900000-0000-4000-8000-000000000012',null,'76900000-0000-4000-8000-000000000002')$q$,'42501'::char(5),null,'private mixed platform and gym identity is refused before target lookup');
+select throws_ok($q$select app.record_wallet_movement('76900000-0000-4000-8000-000000000001',9007199254740993,'INR','large','76900000-0000-4000-8000-000000000003',null,'76900000-0000-4000-8000-000000000002')$q$,'42501'::char(5),null,'private mixed authority cannot replay existing movement');
+select set_config('request.jwt.claims','{"sub":"76900000-0000-4000-8000-000000000002","role":"authenticated","app_role":"super_admin"}',true);
+select is((select balance_paise::text from public.messaging_wallets where tenant_id='76900000-0000-4000-8000-000000000001'),'9007199254740992','private authority refusals never alter wallet');
+select is((select count(*) from public.messaging_wallet_ledger where tenant_id='76900000-0000-4000-8000-000000000001'),2::bigint,'private authority refusals append no movement');
+select is((select count(*) from public.audit_log where tenant_id='76900000-0000-4000-8000-000000000001' and action='messaging_wallet.adjusted'),2::bigint,'private authority refusals append no monetary audit');
 alter table public.audit_log add constraint h76_abort_actual_adjustment check (not (tenant_id='76900000-0000-4000-8000-000000000001'::uuid and action='messaging_wallet.adjusted' and reason='held audit refusal'));
 set local role authenticated;
 select throws_ok($q$select public.adjust_messaging_wallet_paise('76900000-0000-4000-8000-000000000001',1,'INR','held audit refusal','76900000-0000-4000-8000-000000000006')$q$,'23514'::char(5),null,'audit refusal aborts the actual monetary command');
@@ -73,5 +91,7 @@ select throws_ok($q$select public.adjust_messaging_wallet_paise('76900000-0000-4
 select throws_ok($q$select public.adjust_messaging_wallet_paise('76900000-0000-4000-8000-000000000001',9007199254740993,'INR','large','76900000-0000-4000-8000-000000000003')$q$,'42501'::char(5),null,'replay cannot bypass current actor authority');
 select throws_ok($q$select public.adjust_messaging_wallet('76900000-0000-4000-8000-000000000001',1,'old inactive actor','76900000-0000-4000-8000-000000000007')$q$,'42501'::char(5),null,'legacy facade retains authority before missing-key refusal');
 set local role postgres;
+select throws_ok($q$select app.record_wallet_movement('76900000-0000-4000-8000-000000000099',1,'INR','private inactive actor','76900000-0000-4000-8000-000000000014',null,'76900000-0000-4000-8000-000000000002')$q$,'42501'::char(5),null,'private inactive matching actor is refused before target lookup');
+select throws_ok($q$select app.record_wallet_movement('76900000-0000-4000-8000-000000000001',9007199254740993,'INR','large','76900000-0000-4000-8000-000000000003',null,'76900000-0000-4000-8000-000000000002')$q$,'42501'::char(5),null,'private inactive matching actor is refused before exact replay');
 select * from finish();
 rollback;

@@ -564,8 +564,10 @@ select throws_ok(
   'ADR-016: a ledger row with an empty reason is rejected'
 );
 select results_eq(
-  $$ select table_name::text from information_schema.columns where table_schema = 'public' and column_name = 'currency' and table_name in ('message_templates', 'notifications', 'member_devices', 'consents', 'messaging_wallets', 'messaging_wallet_ledger') order by table_name $$,
-  ARRAY['messaging_wallet_ledger','messaging_wallets']::text[],
+  -- Compare exact UTF-8 bytes: polymorphic pgTAP text-array comparison otherwise
+  -- has an indeterminate collation on the information_schema domain.
+  $$ select convert_to(table_name::text, 'UTF8') from information_schema.columns where table_schema = 'public' and column_name = 'currency' and table_name in ('message_templates', 'notifications', 'member_devices', 'consents', 'messaging_wallets', 'messaging_wallet_ledger') order by table_name collate "C" $$,
+  ARRAY[convert_to('messaging_wallet_ledger', 'UTF8'),convert_to('messaging_wallets', 'UTF8')],
   'WSP-107: only the two wallet money tables carry explicit currency'
 );
 select col_type_is('public', 'messaging_wallets', 'balance_paise', 'bigint',
