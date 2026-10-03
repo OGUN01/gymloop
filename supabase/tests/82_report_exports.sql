@@ -235,4 +235,5 @@ select pg_temp.claim('gym_owner',21,null,901,1);
 -- ============ H. the surroundings stay untouched ============
 select is(pg_temp.probe($q$insert into public.audit_log (tenant_id,action,record_type,record_id) values (pg_temp.u(1),'x.y','z',pg_temp.u(809))$q$),'42501','RPE H1: audit_log stays append-only to triggers/definers — authenticated gets no direct INSERT');
 select is((select relrowsecurity from pg_class where oid='public.audit_log'::regclass),true,'RPE H2: audit_log keeps its RLS');
+select * from finish();
 rollback;

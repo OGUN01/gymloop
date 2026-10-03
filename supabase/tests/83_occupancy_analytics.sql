@@ -261,4 +261,5 @@ select ok(to_regprocedure('public.owner_metrics(date,date)') is distinct from to
 -- 44
 select ok((select pg_temp.snapx('2026-09-14','2026-09-27',null,false))::jsonb->'heatmap'->>'eligibleDateCount' = '14' and (select pg_temp.snapx('2026-09-14','2026-09-27',null,false))::jsonb->'heatmap'->'excludedDates' = '[]'::jsonb and exists(select 1 from jsonb_array_elements((select pg_temp.snapx('2026-09-14','2026-09-27',null,false))::jsonb->'heatmap'->'cells') c where (c->>'weekday')='1' and (c->>'hour')='7' and (c->>'arrivals')='3'),'OCC-005: with the exclusion toggle off the holiday date returns to the exposure (14 eligible dates, no exclusions, the Monday 07:00 cell counts all three same-hour arrivals incl. the two holiday-date visits)');
 
+select * from finish();
 rollback;
