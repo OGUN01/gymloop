@@ -49,3 +49,12 @@ remains owner-pending and must not be treated as approved by this clarification.
 
 Blind authors may mock these public dependencies and import existing kit
 components as black boxes, without reading feature implementation bodies.
+
+Exact existing cache actions: `loadAnnouncementCache(scope)` returns
+`Promise<CachedFeed | null>`; `saveAnnouncementCache(cache, isCurrent?)`,
+`queueRead(scope, announcementId: string, versionNo: number, isCurrent?)` and
+`flushPendingReads(api: ApiClient, scope, isCurrent?)` return `Promise<void>`.
+`scope: AnnouncementScope` contains `tenantId`, `userId`, `memberId` strings;
+optional `isCurrent(): boolean` defaults true. `CachedFeed` is the frozen
+scope/fetchedAt/announcements/pendingReads value. These callbacks guard
+lifetime, without introducing another identity or delivery-count promise.
