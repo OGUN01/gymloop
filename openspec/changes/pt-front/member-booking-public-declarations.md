@@ -97,6 +97,14 @@ status truthfully; a replay of a later cancelled/completed session must not
 claim a newly booked session. A closed sheet loses its retry capability and
 must not transfer a previous body to a reopened/new selection.
 
+PTF-Q2 also requires the absolute cancellation cutoff before Confirm, including
+when the slot is already inside the window and the pinned consequence sentence
+contains no date. Reuse the registered `ptCancellationConsequence` cutoff from
+the same freshly parsed policy and selected start; render it with the existing
+date/time formatter and the selected slot's gym-defined trainer/branch timezone
+(proposal quality point 7), naming that zone. Keep the exact consequence
+sentence alongside this neutral cutoff fact; never derive it from a default.
+
 The booking answer does not carry effective consumption. For a returned
 `cancelled_by_member` answer, refresh the original caller's authoritative
 Training projections before choosing a consumption-sensitive label. The
@@ -109,6 +117,10 @@ neutral “Cancelled. Reload to check whether a session was used.” feedback.
 They never infer consumption from current policy, the answer's cancellation
 window, an earlier read, or a hardcoded false value. Recheck original lifetime
 after this awaited read; failure must not automatically resubmit the command.
+The neutral cancellation feedback is ordinary feedback, not an additional
+StatusWord/Status label: PTF-Q5's six existing status words remain the complete
+status vocabulary. Only established effective consumption enables its matching
+cancelled status word.
 
 ## Verification ownership
 
