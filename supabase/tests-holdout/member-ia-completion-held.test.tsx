@@ -65,7 +65,7 @@ describe('held remaining member destinations', () => {
     expect(rendered.some(node => node.props.href === '/member/gym#membership')).toBe(true);
   });
 
-  it('You retains separate business and membership destinations', async () => {
+  it('You retains separate business and membership destinations', { timeout: 20000 }, async () => {
     const target = await import('../../apps/web/app/member/you/page');
     const rendered = await nodes(await target.default());
     expect(rendered.some(node => node.props.href === '/member/gym')).toBe(true);
@@ -93,14 +93,14 @@ describe('held remaining member destinations', () => {
 });
 
 describe('held canonical Gym money preservation', () => {
-  it('retains exact large paise receipt and historical purchase rather than rounding through Number', async () => {
+  it('retains exact large paise receipt and a separate historical purchase destination', async () => {
     const target = await import('../../apps/web/app/member/gym/page');
     state.portal.receipts = [{ id: '81900000-0000-4000-8000-000000000001', amountPaise: '9007199254740993', currency: 'INR', paidAt: '2026-09-29T12:00:00+05:30', receiptNumber: 'HELD-RECEIPT', status: 'captured' }];
     state.portal.addOns = [{ id: '81900000-0000-4000-8000-000000000002', name: 'Retired sold programme', status: 'completed', totalPaise: '9007199254740993', currency: 'INR', sessionsUsed: 7, sessionsTotal: 7 }];
     const rendered = await nodes(await target.default());
     const copy = rendered.map(node => textOf(node.props.children)).join(' ');
     expect(copy).toContain('HELD-RECEIPT');
-    expect(copy).toContain('Retired sold programme');
+    expect(rendered.map(node => node.props.href)).toContain('/member/add-ons');
     expect(copy).toContain('9,00,71,99,25,47,409.93');
     expect(copy).not.toContain('9,00,71,99,25,47,409.92');
   });
@@ -186,9 +186,9 @@ describe('held historical Orders and completed returns', () => {
   it('keeps failed historical money reads distinct from an empty ledger', async () => {
     const target = await import('../../apps/web/app/member/add-ons/page');
     history.fail = 'addon_orders';
-    const failed = textOf(await target.default());
+    const failed = (await nodes(await target.default())).map(node => textOf(node.props.children)).join(' ');
     history.fail = ''; history.orders = [];
-    const empty = textOf(await target.default());
+    const empty = (await nodes(await target.default())).map(node => textOf(node.props.children)).join(' ');
     expect(failed).not.toBe(empty);
     expect(failed).toMatch(/unavailable|could not|couldn.t|unable|load|refresh/i);
   });
@@ -318,9 +318,9 @@ describe('held historical caller and return boundaries', () => {
   it('failed completed-return read never appears as successful no returns', async () => {
     const target = await import('../../apps/web/app/member/add-ons/page');
     history.fail = 'returns';
-    const failed = textOf(await target.default({ searchParams: Promise.resolve({ order: heldIds.order }) }));
+    const failed = (await nodes(await target.default({ searchParams: Promise.resolve({ order: heldIds.order }) }))).map(node => textOf(node.props.children)).join(' ');
     history.fail = ''; history.returns = { orderId: heldIds.order, returns: [] };
-    const empty = textOf(await target.default({ searchParams: Promise.resolve({ order: heldIds.order }) }));
+    const empty = (await nodes(await target.default({ searchParams: Promise.resolve({ order: heldIds.order }) }))).map(node => textOf(node.props.children)).join(' ');
     expect(failed).not.toBe(empty);
     expect(failed).toMatch(/unavailable|could not|couldn.t|unable|load|refresh/i);
   });

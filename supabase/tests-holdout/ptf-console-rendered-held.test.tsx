@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { businessNouns, type BusinessNouns } from '@gymloop/shared';
 import type { Database } from '../../packages/db/types/database';
 
 type HeldRole = Database['public']['Enums']['app_role'];
@@ -14,12 +15,15 @@ vi.mock('react', async () => {
     useEffect: (effect: () => void | (() => void), deps?: unknown[]) => { const index = boundary.effectCursor++; const previous = boundary.effects[index]; if (!previous || !deps || deps.some((dep, offset) => !Object.is(dep, previous.deps?.[offset]))) { previous?.cleanup?.(); boundary.effects[index] = { deps, cleanup: effect() || undefined }; } },
   };
 });
+vi.mock('server-only', () => ({}));
+vi.mock('next/image', () => ({ default: (props: Record<string, unknown>) => ({ type: 'img', props }) }));
+vi.mock('next/link', () => ({ default: (props: Record<string, unknown>) => ({ type: 'a', props }) }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: boundary.refresh, push: vi.fn() }), notFound: () => { throw new Error('NOT_FOUND'); }, redirect: () => { throw new Error('REDIRECT'); } }));
 vi.mock('../../apps/web/lib/identity-session', () => ({ requireAudience: boundary.audience }));
 vi.mock('../../apps/web/lib/media-upload', () => ({ uploadMediaFile: boundary.send }));
 vi.mock('../../apps/web/app/(console)/field', () => ({ Field: ({ label, children }: { label: string; children: unknown }) => ({ type: 'label', props: { children: [label, children] } }), inputClass: 'cl-input' }));
 const viewer: { role: HeldRole; staffId: string; readOnly: boolean; scopeKey: string } = { role: 'gym_owner', staffId: '80200000-0000-4000-8000-000000000001', readOnly: false, scopeKey: 'tenant:actor:owner' };
-const nouns = { place: 'studio', person: 'client', people: 'clients', membership: 'membership', memberships: 'memberships', trainer: 'coach', trainers: 'coaches', activity: 'activity' };
+const nouns = businessNouns('studio') satisfies BusinessNouns;
 async function exported(path: string, name: string): Promise<(props: Record<string, unknown>) => unknown> {
   const module = await import(path).catch(() => ({})) as Record<string, unknown>; expect(module[name], `Frozen ${path}#${name} must be renderable`).toBeTypeOf('function'); return module[name] as (props: Record<string, unknown>) => unknown;
 }
@@ -141,15 +145,15 @@ describe('held control ownership and permanent feedback revocation', () => {
 vi.mock('../../apps/web/lib/business-type', () => ({ loadBusinessNouns: async () => nouns }));
 vi.mock('../../apps/web/lib/media', () => ({ mediaDisplayUrl: async () => null }));
 function pageClient() {
-  const rpc = vi.fn(async () => ({ data: [], error: null })); const from = vi.fn(() => { const query: Record<string, unknown> = {}; for (const method of ['select', 'eq', 'in', 'is', 'order', 'range', 'limit', 'gt', 'gte', 'lt', 'lte']) query[method] = () => query; query.then = (done: (value: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(done); query.maybeSingle = async () => ({ data: null, error: null }); query.single = query.maybeSingle; return query; }); return { rpc, from };
+  const rpc = vi.fn(async () => ({ data: [], error: null })); const from = vi.fn((table: string) => { const query: Record<string, unknown> = {}; for (const method of ['select', 'eq', 'in', 'is', 'order', 'range', 'limit', 'gt', 'gte', 'lt', 'lte']) query[method] = () => query; query.then = (done: (value: unknown) => unknown) => Promise.resolve({ data: table === 'organizations' ? [{ timezone: 'Asia/Kolkata' }] : [], error: null }).then(done); query.maybeSingle = async () => ({ data: table === 'organizations' ? { timezone: 'Asia/Kolkata' } : null, error: null }); query.single = query.maybeSingle; return query; }); return { rpc, from };
 }
 const pagePaths = ['../../apps/web/app/(console)/training/page', '../../apps/web/app/(console)/training/packs/page', '../../apps/web/app/(console)/training/trainers/page', '../../apps/web/app/(console)/training/trainers/[staffId]/page', '../../apps/web/app/(console)/training/policy/page'];
 describe('held server page role, empty and invalid-input boundaries', () => {
   it.each(pagePaths)('%s denies unsupported identity before feature data', async path => {
     const page = await exported(path, 'default'); const client = pageClient(); boundary.audience.mockResolvedValue({ supabase: client, identity: { kind: 'staff', userId: viewer.staffId, tenantId: viewer.staffId, staffId: viewer.staffId, role: 'accountant' } }); await expect(page({ searchParams: Promise.resolve({}), params: Promise.resolve({ staffId: viewer.staffId }) })).rejects.toThrow('NOT_FOUND'); expect(client.rpc).not.toHaveBeenCalled(); expect(client.from).not.toHaveBeenCalled();
   });
-  it.each([['../../apps/web/app/(console)/training/page', 'No sessions in this range.'], ['../../apps/web/app/(console)/training/packs/page', 'No packs match.'], ['../../apps/web/app/(console)/training/trainers/page', 'No trainers yet. Invite one from Team.']])('%s renders successful empty separately from failed reads', async (path, empty) => {
-    const page = await exported(path, 'default'); const client = pageClient(); boundary.audience.mockResolvedValue({ supabase: client, identity: { kind: 'staff', userId: viewer.staffId, tenantId: viewer.staffId, staffId: viewer.staffId, role: 'gym_owner' } }); const view = await page({ searchParams: Promise.resolve({ from: '2027-01-01T00:00:00Z', to: '2027-01-02T00:00:00Z' }) }); expect(text(view)).toContain(empty);
+  it.each([['../../apps/web/app/(console)/training/page', `No ${nouns.sessions} in this range.`], ['../../apps/web/app/(console)/training/packs/page', 'No packs match.'], ['../../apps/web/app/(console)/training/trainers/page', `No ${nouns.trainer}s yet. Invite one from Team.`]])('%s renders successful empty separately from failed reads', async (path, empty) => {
+    const page = await exported(path, 'default'); const client = pageClient(); boundary.audience.mockResolvedValue({ supabase: client, identity: { kind: 'staff', userId: viewer.staffId, tenantId: viewer.staffId, staffId: viewer.staffId, role: 'gym_owner' } }); const view = await page({ searchParams: Promise.resolve({ from: '2027-01-01T00:00:00Z', to: '2027-01-02T00:00:00Z' }) }); expect(text(view).replace(/\s+/g, ' ').trim(), text(view)).toContain(empty);
   });
   it.each(['../../apps/web/app/(console)/training/page', '../../apps/web/app/(console)/training/packs/page'])('%s names own-trainer scope without leaking verified identity/client props', async path => {
     const page = await exported(path, 'default'); const client = pageClient(); boundary.audience.mockResolvedValue({ supabase: client, identity: { kind: 'staff', userId: 'PRIVATE_ACTOR_IDENTIFIER', tenantId: 'PRIVATE_TENANT_IDENTIFIER', staffId: viewer.staffId, role: 'trainer' } }); const view = await page({ searchParams: Promise.resolve({ from: '2027-01-01T00:00:00Z', to: '2027-01-02T00:00:00Z' }) }); expect(text(view)).toContain('Showing your own clients.'); const serialized = JSON.stringify(view); expect(serialized).not.toContain('PRIVATE_ACTOR_IDENTIFIER'); expect(serialized).not.toContain('PRIVATE_TENANT_IDENTIFIER');
@@ -206,7 +210,7 @@ function changeField(view: unknown, label: RegExp, value: unknown) {
 async function activate(view: unknown, words: RegExp) {
   const button = flatten(view).find(node => node.type === 'button' && words.test(text(node)) && !node.props?.disabled); expect(button, `Enabled action ${words} must exist`).toBeTruthy(); const callback = button?.props?.onClick ?? flatten(view).find(node => node.type === 'form')?.props?.onSubmit; expect(callback).toBeTypeOf('function'); await (callback as (event: unknown) => unknown)({ preventDefault: () => undefined });
 }
-function acceptedResponse(data: unknown) { return { ok: true, status: 200, json: async () => ({ data }), text: async () => JSON.stringify({ data }) }; }
+function acceptedResponse(data: unknown) { return { ok: true, status: 200, json: async () => ({ ok: true, data }), text: async () => JSON.stringify({ ok: true, data }) }; }
 function sent() { expect(boundary.fetch).toHaveBeenCalledTimes(1); const [url, init] = boundary.fetch.mock.calls[0] as [string, { method?: string; body?: string }]; expect(init.method).toBe('POST'); return { url, body: JSON.parse(init.body ?? '{}') as Record<string, unknown> }; }
 const destinationId = '80200000-0000-4000-8000-000000000002';
 const heldOrderA = '80200000-0000-4000-8000-000000000010';
@@ -238,6 +242,7 @@ describe('held explicit frozen source and real reassignment POST', () => {
   });
   it('explicit source selection submits only selected IDs and their scheduled count', async () => {
     const component = await exported(controls[1].path, controls[1].name); const props = reassignProps(); boundary.fetch.mockResolvedValue(acceptedResponse({ results: [{ orderId: heldOrderA, changed: true, cancelledSessions: 3 }] })); chooseDestination(render(component, props)); changeField(render(component, props), /reason/i, 'Trainer moving away');
+    const modeView = render(component, props); const specific = labelledControls(modeView).find(field => /select specific packs/i.test(field.label)); expect(specific, 'Specific-pack mode is exposed accessibly').toBeTruthy(); const selectSpecific = specific?.node.props?.onChange; expect(selectSpecific).toBeTypeOf('function'); (selectSpecific as (event: unknown) => unknown)({ target: { checked: true, value: specific?.node.props?.value } });
     const view = render(component, props); const checkbox = labelledControls(view).find(field => field.node.props?.type === 'checkbox' && (field.node.props?.value === heldOrderA || /Held client 0|H-0/.test(field.label))); expect(checkbox, 'Pack selection identifies the selected member').toBeTruthy(); (checkbox?.node.props?.onChange as (event: unknown) => unknown)({ target: { checked: true, value: heldOrderA } }); await activate(render(component, props), /reassign|review|continue/i); const confirmation = render(component, props); expect(text(confirmation)).toMatch(/3\s+(?:scheduled\s+)?sessions/i); expect(text(confirmation)).toMatch(/notif/i); await activate(confirmation, /confirm/i);
     expect(sent()).toEqual({ url: '/api/pt-reassignments', body: { fromStaffId: viewer.staffId, toStaffId: destinationId, orderIds: [heldOrderA], reason: 'Trainer moving away' } });
   });
@@ -287,4 +292,7 @@ describe('held actual console service-command envelopes', () => {
     const component = await exported(controls[5].path, controls[5].name); const props = { ...controls[5].props, viewer, nouns }; boundary.fetch.mockResolvedValue({ ok: false, status: 500, json: async () => ({ error: { code: 'UNKNOWN', message: 'PRIVATE SQL JWT contact@example.com' } }) }); await activate(render(component, props), /save/i); expect(boundary.refresh).not.toHaveBeenCalled(); expect(text(render(component, props))).not.toMatch(/PRIVATE|SQL|JWT|contact@/);
   });
 });
+
+
+
 
