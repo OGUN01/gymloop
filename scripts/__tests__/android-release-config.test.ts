@@ -49,7 +49,7 @@ describe('HARD-002 Android release configuration', () => {
     expect(expo.name).toBe('FitCruxx');
     expect(android.package).toBe('in.fitcruxx.app');
     expect((expo.ios as JsonObject).bundleIdentifier).toBe('in.fitcruxx.app');
-    expect(cameraPlugin?.[1]?.cameraPermission).toBe('Allow FitCruxx to scan the current QR code at your gym.');
+    expect(cameraPlugin?.[1]?.cameraPermission).toBe('Allow FitCruxx to scan the check-in QR code displayed where you train.');
   });
 
   it('registers only the fitcruxx deep-link scheme so the OS never offers a Gymloop chooser', () => {

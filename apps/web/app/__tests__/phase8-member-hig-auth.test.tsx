@@ -24,12 +24,13 @@ const repoSource = (relativePath: string) => readFileSync(resolve(repoRoot, rela
 const gymNouns = businessNouns('gym');
 
 describe('Phase 8 member HIG/auth boundary', () => {
-  it('gives web and native members four labelled icon destinations with a selected state', async () => {
+  it('gives web and native members five labelled icon destinations with a selected state', async () => {
     const web = source('member/member-navigation.tsx');
     expect(web).toMatch(/Home/);
     expect(web).toMatch(/Activity/);
-    expect(web).toMatch(/My\s+\$?\{\s*nouns\.place\s*\}/);
-    expect(web.replace(/\$?\{\s*nouns\.place\s*\}/g, gymNouns.place)).toMatch(/My gym/);
+    expect(web).toMatch(/Classes|nouns\.classes/);
+    expect(web).toMatch(/Shop/);
+    expect(web).not.toMatch(/href:\s*['"]\/member\/(?:gym|my-gym)['"]/);
     expect(web).toMatch(/You/);
     expect(web).toMatch(/aria-current/);
     expect(web).toMatch(/icon|Icon/);
@@ -37,9 +38,9 @@ describe('Phase 8 member HIG/auth boundary', () => {
     expect(source('../../mobile/components/role-tabs.tsx')).toMatch(/title:\s*'Home'[^\n]*Icon/);
   });
 
-  it('keeps check-in actions in the thumb-zone on Home and My gym', async () => {
+  it('keeps check-in actions in the thumb-zone on Home and Gym', async () => {
     expect(source('member/page.tsx')).toMatch(/check.?in|scan/i);
-    expect(source('member/my-gym/page.tsx')).toMatch(/check.?in|scan/i);
+    expect(source('member/gym/page.tsx')).toMatch(/check.?in|scan/i);
   });
 
   it('renders real profile facts without exposing internal UUID content', async () => {
@@ -163,7 +164,7 @@ describe('Phase 8 member HIG/auth boundary', () => {
 
   it('keeps member surfaces grouped and puts their primary actions in the footer zone', () => {
     const home = source('member/page.tsx');
-    const myGym = source('member/my-gym/page.tsx');
+    const myGym = source('member/gym/page.tsx');
     expect(home).toMatch(/Your week|Membership/);
     expect(home).toMatch(/Scan to check in|check.?in/i);
     expect(home).toMatch(/member-primary-action|footer|thumb/i);

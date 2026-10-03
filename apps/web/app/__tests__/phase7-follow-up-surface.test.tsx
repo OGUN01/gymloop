@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { businessNouns } from '@gymloop/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
@@ -12,6 +13,14 @@ const loadCases = vi.hoisted(() => vi.fn(async () => state.result));
 vi.mock('../../lib/red-list', () => ({
   loadRedList: loadCases,
 }));
+
+vi.mock('server-only', () => ({}));
+vi.mock('next/navigation', () => ({ redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); } }));
+vi.mock('../../lib/business-type', () => ({ loadBusinessNouns: async () => businessNouns('gym') }));
+vi.mock('../../lib/supabase/server', () => ({ createServerSupabase: async () => ({
+  auth: { getClaims: async () => ({ data: { claims: { sub: 'a6400000-0000-4000-8000-000000000001', role: 'authenticated', app_role: 'front_desk', tenant_id: 'a6400000-0000-4000-8000-000000000002', staff_id: 'a6400000-0000-4000-8000-000000000004' } }, error: null }) },
+  rpc: async () => ({ data: [], error: null }),
+}) }));
 
 vi.mock('../preview-context', () => ({
   usePreviewReadOnly: () => false,

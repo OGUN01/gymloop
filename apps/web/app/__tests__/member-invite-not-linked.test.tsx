@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
   identity: { kind: 'unlinked' } as Record<string, unknown>,
 }));
 
+vi.mock('server-only', () => ({}));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); },
@@ -114,14 +115,14 @@ describe('INV web /not-linked adds one sentence about the invite link and no inp
 });
 
 describe('INV-023 /privacy gains a sentence on invite-based account linking', () => {
-  it('says that accepting a gym invite links the person\'s Google account to their membership record at that gym', async () => {
+  it('says that accepting a business invite links the person\'s Google account to their membership record at that business', async () => {
     const { default: Privacy } = await import('../(public)/privacy/page') as unknown as { default: Page };
     const text = textOf(renderToStaticMarkup(await Privacy()));
     const linking = sentences(text).filter((sentence) => /\binvite/i.test(sentence) && /\blink/i.test(sentence));
     expect(linking.length, 'a sentence about linking through an invite').toBeGreaterThan(0);
     const joined = linking.join(' ');
     expect(joined).toMatch(/google/i);
-    expect(joined).toMatch(/\bgym\b/i);
+    expect(joined).toMatch(/\bbusiness\b/i);
     expect(joined).toMatch(/member/i);
   });
 });

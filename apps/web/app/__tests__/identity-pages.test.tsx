@@ -8,11 +8,13 @@ const state = vi.hoisted(() => ({
   error: null as null | { message: string },
   selections: [] as Array<{ table: string; columns: string }>,
 }));
+vi.mock('server-only', () => ({}));
 vi.mock('next/navigation', () => ({ redirect: (path: string) => { throw new Error(`REDIRECT:${path}`); }, usePathname: () => '/console' }));
 vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
 vi.mock('../../lib/supabase/server', () => ({ createServerSupabase: async () => ({
   auth: { getClaims: async () => ({ data: state.claims && { claims: state.claims }, error: null }) },
   rpc: async (name: string) => {
+    if (name === 'read_member_addon_returns') return { data: { orderId: previewId, returns: [] }, error: state.error };
     if (name !== 'fleet_metrics') return { data: null, error: state.error };
     const gyms = (state.rows.organizations ?? []).map((organization) => ({
       tenantId: organization.id,
@@ -52,11 +54,12 @@ vi.mock('../../lib/supabase/server', () => ({ createServerSupabase: async () => 
       select: (columns: string) => { state.selections.push({ table, columns }); return query; },
       eq: (key: string, value: unknown) => { rows = rows.filter((row) => row[key] === value); return query; },
       order: () => query, limit: () => query,
+      gt: () => query,
       in: (key: string, values: unknown[]) => { rows = rows.filter((row) => values.includes(row[key])); return query; },
       single: async () => ({ data: rows[0] ?? null, error: state.error }),
       maybeSingle: async () => ({ data: rows[0] ?? null, error: state.error }),
       then: (resolve: (result: { data: typeof rows | null; error: typeof state.error }) => unknown) =>
-        Promise.resolve({ data: state.error ? null : rows, error: state.error }).then(resolve),
+        Promise.resolve({ data: state.error ? null : rows, error: state.error, count: rows.length }).then(resolve),
     };
     return query;
   },
@@ -69,7 +72,7 @@ const staffId = 'a6400000-0000-4000-8000-000000000004';
 const previewId = 'a6400000-0000-4000-8000-000000000005';
 const member = { sub: userId, role: 'authenticated', app_role: 'member', tenant_id: tenantId, member_id: memberId };
 const pageProps = { searchParams: Promise.resolve({}) };
-beforeEach(() => { state.claims = member; state.rows = {}; state.error = null; state.selections = []; });
+beforeEach(() => { state.claims = member; state.rows = { organizations: [{ id: tenantId, name: 'Caller gym', gym_code: 'CALL25', timezone: 'Asia/Kolkata', business_type: 'gym' }] }; state.error = null; state.selections = []; });
 
 describe('NAV-002 entry points use the same identity home', () => {
   const identities = [
@@ -128,27 +131,28 @@ describe('NAV-005 read homes are useful and truthful', () => {
     expect(failure).not.toBe(empty);
     expect(failure).not.toContain('sensitive backend detail');
   });
-  it('shows active offer data and inactive-product own history using text money projections', async () => {
-    const product = { id: staffId, tenant_id: tenantId, name: 'Visible coaching', kind: 'diet_plan', description: 'Personal plan', price_paise: '9007199254740993', currency: 'INR', validity_days: 30, cancellation_terms: 'Cancel before delivery', is_active: true };
+  it('shows inactive-product sold history with exact decimal money and no competing offer catalogue', async () => {
+    const product = { id: staffId, tenant_id: tenantId, name: 'Visible coaching', kind: 'diet_plan', price_paise: '9007199254740993', currency: 'INR', is_active: true };
     const historic = { ...product, id: previewId, name: 'Historic coaching', is_active: false };
     state.rows.addon_products = [product, historic];
-    state.rows.addon_orders = [{ id: previewId, tenant_id: tenantId, member_id: memberId, addon_product_id: previewId, status: 'completed', quantity: 1, unit_price_paise: '10000', total_paise: '10000', currency: 'INR', sessions_used: 2, sessions_total: 2, addon_products: historic }];
+    state.rows.addon_orders = [{ id: previewId, tenant_id: tenantId, member_id: memberId, addon_product_id: previewId, status: 'completed', quantity: 1, unit_price_paise: '9007199254740993', total_paise: '9007199254740993', currency: 'INR', sessions_used: 2, sessions_total: 2, addon_products: historic, sale_snapshot: { kind: 'diet_plan', name: 'Historic coaching', description: 'Sold personal plan', cancellationTerms: 'Cancel before delivery', validityDays: 30, trainerQualification: null } }];
     const { default: Page } = await import('../member/add-ons/page');
-    const html = markup(await Page());
-    expect(html).toContain('Visible coaching');
-    expect(html).toContain('Cancel before delivery');
+    const html = markup(await Page({ searchParams: Promise.resolve({ order: previewId, offer: staffId, offerAfter: staffId }) }));
+    expect(html).not.toContain('Visible coaching');
     expect(html).toContain('Historic coaching');
+    expect(html).toContain('Cancel before delivery');
     expect(html).toMatch(/completed/i);
     expect(html.replace(/,/g, '')).toContain('90071992547409.93');
-    expect(state.selections.some(({ table, columns }) => table === 'addon_products' && columns.includes('price_paise::text'))).toBe(true);
+    expect(state.selections.some(({ table }) => table === 'addon_products')).toBe(false);
     expect(state.selections.some(({ table, columns }) => table === 'addon_orders' && columns.includes('unit_price_paise::text') && columns.includes('total_paise::text'))).toBe(true);
   });
-  it('labels incomplete legacy offers unavailable without inventing terms', async () => {
+  it('cannot restore a legacy offer catalogue through historical offer parameters', async () => {
     state.rows.addon_products = [{ id: staffId, tenant_id: tenantId, name: 'Legacy offer', kind: 'diet_plan', price_paise: '10000', currency: 'INR', is_active: true, description: null, cancellation_terms: null, validity_days: null }];
     const { default: Page } = await import('../member/add-ons/page');
-    const html = markup(await Page());
-    expect(html).toContain('Legacy offer');
-    expect(html).toMatch(/unavailable|incomplete|pending.*completion/i);
+    const html = markup(await Page({ searchParams: Promise.resolve({ offer: staffId, offerAfter: staffId }) }));
+    expect(html).not.toContain('Legacy offer');
+    expect(html).toMatch(/no .*order|nothing|not .*purchased|empty/i);
+    expect(state.selections.some(({ table }) => table === 'addon_products')).toBe(false);
   });
   it('fleet shows real values and support has no product mutation forms', async () => {
     state.claims = { sub: userId, role: 'authenticated', app_role: 'platform_support' };
@@ -161,6 +165,7 @@ describe('NAV-005 read homes are useful and truthful', () => {
   });
   it('fleet distinguishes empty and error states', async () => {
     state.claims = { sub: userId, role: 'authenticated', app_role: 'super_admin' };
+    state.rows.organizations = [];
     const { default: Page } = await import('../platform/page');
     const empty = markup(await Page());
     expect(empty).toMatch(/no gyms|no organizations|empty/i);

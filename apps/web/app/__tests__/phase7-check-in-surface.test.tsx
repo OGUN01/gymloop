@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { businessNouns } from '@gymloop/shared';
 import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('server-only', () => ({}));
 
 vi.mock('../preview-context', () => ({ usePreviewReadOnly: () => false }));
 
@@ -14,7 +17,7 @@ describe('Phase 7 check-in surface', () => {
   it('keeps the labelled GET search and existing Red list/Members destinations', async () => {
     const { MemberSearchPage } = await import('../(console)/console/member-search-page');
     const html = renderToStaticMarkup(MemberSearchPage({
-      title: 'Check-in', linkHref: '/console', linkLabel: 'Members',
+      nouns: businessNouns('gym'), title: 'Check-in', linkHref: '/console', linkLabel: 'Members',
       phone: '9876', errorMessage: null, nextCursor: 'cursor-2', pageSize: 25,
       children: '<member-results />',
     }));
@@ -32,9 +35,9 @@ describe('Phase 7 check-in surface', () => {
     const { MemberSearchPage } = await import('../(console)/console/member-search-page');
     const { CheckInGate } = await import('../(console)/console/check-in/check-in-gate');
     const workspace = renderToStaticMarkup(MemberSearchPage({
-      title: 'Check-in', linkHref: '/console', linkLabel: 'Members',
+      nouns: businessNouns('gym'), title: 'Check-in', linkHref: '/console', linkLabel: 'Members',
       phone: '', errorMessage: null, nextCursor: '', pageSize: 25,
-      children: createElement(CheckInGate, { members }),
+      children: createElement(CheckInGate, { members, nouns: businessNouns('gym') }),
     }));
 
     for (const hook of ['check-in-workspace', 'check-in-search', 'check-in-gate', 'check-in-member-row', 'check-in-member-identity', 'check-in-actions']) {
@@ -44,7 +47,7 @@ describe('Phase 7 check-in surface', () => {
 
   it('keeps direct check-in disabled without a code while desk action remains available', async () => {
     const { CheckInGate } = await import('../(console)/console/check-in/check-in-gate');
-    const html = renderToStaticMarkup(createElement(CheckInGate, { members }));
+    const html = renderToStaticMarkup(createElement(CheckInGate, { members, nouns: businessNouns('gym') }));
 
     expect(html).toMatch(/check.?in/i);
     expect(html).toMatch(/disabled(?:="disabled")?/i);
@@ -53,7 +56,7 @@ describe('Phase 7 check-in surface', () => {
 
   it('keeps non-active status explicit and outcomes announced with persistent retry/dismiss hooks', async () => {
     const { CheckInGate } = await import('../(console)/console/check-in/check-in-gate');
-    const html = renderToStaticMarkup(createElement(CheckInGate, { members }));
+    const html = renderToStaticMarkup(createElement(CheckInGate, { members, nouns: businessNouns('gym') }));
     const gateSource = readFileSync(new URL('../(console)/console/check-in/check-in-gate.tsx', import.meta.url), 'utf8');
 
     expect(html).toContain('paused');
@@ -67,7 +70,7 @@ describe('Phase 7 check-in surface', () => {
 
     expect(gateSource).toContain("from 'qrcode.react'");
     expect(gateSource).toMatch(/<QRCodeSVG[\s\S]*value=\{issuedCode\}/);
-    expect(gateSource).toContain('aria-label="Member check-in QR code"');
+    expect(gateSource).toMatch(/aria-label=(?:"Member check-in QR code"|\{`\$\{humanize\(nouns\.member\)\} check-in QR code`\})/);
     expect(gateSource).toContain('<p className="check-in-issued-code">{issuedCode}</p>');
   });
 
