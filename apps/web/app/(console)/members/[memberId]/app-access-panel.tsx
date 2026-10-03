@@ -249,7 +249,7 @@ function AppAccessSection({ memberId, memberName, gymName, email, phone, role, a
 
           {access.state === 'linked' ? (
             <p className="app-access-note">
-              {guardian == null ? `${memberName} signs in to the app with their own Google account.` : `The guardian's Google account remains linked to ${memberName}'s membership after they turn 18. An owner or manager must explicitly hand over or unlink the account to end that guardian sign-in.`}
+              {guardian == null ? staff ? `${memberName} signs in to the app with their own Google account.` : `The member app is connected to ${memberName}'s membership.` : `The guardian's Google account remains linked to ${memberName}'s membership. An owner or manager must explicitly hand over or unlink the account to end that guardian sign-in.`}
               {canUnlink ? ' Unlinking ends their app sessions; they need a new invite to link again.' : ' Only an owner or manager can unlink the account.'}
             </p>
           ) : null}

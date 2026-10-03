@@ -153,7 +153,7 @@ export default async function MemberDetailPage({
               gymName={gym?.data?.name ?? 'Your gym'}
               email={guardian?.linkEmail ?? null}
               phone={guardian === null ? null : guardian.ageState === 'minor' ? guardian.guardianComplete ? guardian.guardianPhone : null : member.phone}
-              guardian={guardian !== null && (guardian.ageState === 'minor' || (appAccess?.state === 'linked' && guardian.guardianLinkedAt !== null && guardian.handoverDue)) ? { name: guardian.guardianName ?? 'Guardian', memberFirstName: member.full_name.trim().split(/\s+/)[0] ?? '' } : null}
+              guardian={guardian !== null && (appAccess?.state === 'linked' ? guardian.guardianLinkedAt !== null : guardian.ageState === 'minor') ? { name: guardian.guardianName ?? 'Guardian', memberFirstName: member.full_name.trim().split(/\s+/)[0] ?? '' } : null}
               role={appAccessRole}
               access={guardian === null ? null : appAccess}
               readOnly={identity.kind === 'impersonation'}
