@@ -146,9 +146,12 @@ export function findNonRolledBackTests(files) {
       found.push({ path, reason: 'does not end with ROLLBACK' });
     }
     // `END` is a synonym for COMMIT only as a top-level statement; inside a
-    // plpgsql body it closes the block and means nothing of the sort.
+    // plpgsql body it closes the block and means nothing of the sort. WORK,
+    // TRANSACTION and chaining clauses do not make a completion rollback-safe.
+    // Match the complete command so identifier substrings are never commands.
     const commits =
-      stmts.some((s) => s === 'COMMIT' || s === 'END') || bodies.some((b) => COMMIT_IN_BODY_RE.test(b));
+      stmts.some((s) => /^(?:COMMIT|END)(?:[ \t\r\n\f\v]+(?:WORK|TRANSACTION))?(?:[ \t\r\n\f\v]+AND(?:[ \t\r\n\f\v]+NO)?[ \t\r\n\f\v]+CHAIN)?$/.test(s)) ||
+      bodies.some((b) => COMMIT_IN_BODY_RE.test(b));
     if (commits) {
       found.push({ path, reason: 'contains COMMIT' });
     }
