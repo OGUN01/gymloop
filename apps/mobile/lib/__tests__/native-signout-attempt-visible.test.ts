@@ -11,6 +11,13 @@ function caller(signOut: () => Promise<{ error: null | Error }>): SupabaseClient
 }
 describe('native completed logout and failed private cleanup', () => {
   beforeEach(() => { cleanup.clear.mockReset().mockResolvedValue(undefined); });
+  it('attempts SDK logout once even when offline cleanup throws before returning a promise', async () => {
+    cleanup.clear.mockImplementation(() => { throw new Error('Synchronous private queue failure'); });
+    const signOut = vi.fn(async () => ({ error: null }));
+    await expect(signOutMobile(caller(signOut))).rejects.toThrow();
+    expect(cleanup.clear).toHaveBeenCalledTimes(1);
+    expect(signOut).toHaveBeenCalledTimes(1);
+  });
   it('still attempts SDK logout once when offline queue cleanup fails and reports failure', async () => {
     cleanup.clear.mockRejectedValue(new Error('Private queue cleanup failed'));
     const signOut = vi.fn(async () => ({ error: null }));
