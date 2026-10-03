@@ -138,6 +138,7 @@ declare function BookingRowActions(props: {
 }): React.JSX.Element;
 // apps/web/app/(console)/training/reassign-panel.tsx
 declare function ReassignPacksPanel(props: {
+  fromStaffId: string | null;
   candidates: ReadValue<{ packs: StaffPack[]; scheduledCount: number; overLimit: boolean }>;
   trainers: TrainerChoice[]; viewer: ConsoleViewer; nouns: BusinessNouns;
 }): React.JSX.Element;
@@ -173,6 +174,8 @@ declare function usePtCommand<TBody, TResult>(options: {
   submit: (body: TBody) => Promise<TResult | null>;
 };
 ```
+
+ReassignPacksPanel receives the exact validated source trainer from the packs page's trainerStaffId query, or null when no source is selected. Selecting a source navigates to that existing page for a fresh complete candidate read. Neither the viewer nor the first trainer or pack supplies an implicit source. The source ID, complete candidate facts and confirmation belong to the same operation lease; a changed source invalidates prior selection, confirmation and pending feedback. Null source, failed/incomplete candidate facts or rows belonging to a different source cannot submit. A successfully empty candidate set for a valid source displays zero active packs and cannot submit an all-source command. Explicit and all-source command bodies use that exact provided source ID; all-source is never silently truncated to the command cap.
 
 Root accepts the declared prop shapes and companion filenames. Parent pages never mount editable forms from failed reads. Reassignment candidates are prepared for the selected source; source change invalidates prior counts and confirmation, and every source needing all-active confirmation must have its own complete authoritative render. No arbitrary browser database read or new read route is implied.
 
