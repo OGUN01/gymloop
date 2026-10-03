@@ -67,7 +67,17 @@ describe('MEDIA independent primitive', () => {
     expect(s.mediaUploadRequestSchema.safeParse({ kind: 'product', mime: 'image/png', bytes: 2097152 }).success).toBe(true);
     for (const bytes of [0, 2097153, 1.5, '10']) expect(s.mediaUploadRequestSchema.safeParse({ kind: 'product', mime: 'image/png', bytes }).success).toBe(false);
     for (const mime of ['image/svg+xml', 'image/gif', 'image/png; charset=utf8']) expect(s.mediaUploadRequestSchema.safeParse({ kind: 'product', mime, bytes: 10 }).success).toBe(false);
-    expect(s.memberMediaUrlRequestSchema).toBe(s.mediaConfirmRequestSchema);
+    // The frozen proposal requires the same UUID validator and strict wire shape,
+    // rather than identity of the enclosing strict-object schema.
+    const memberMedia = s.memberMediaUrlRequestSchema as unknown as { shape: { assetId: unknown } };
+    const confirmMedia = s.mediaConfirmRequestSchema as unknown as { shape: { assetId: unknown } };
+    expect(memberMedia.shape.assetId).toBe(confirmMedia.shape.assetId);
+    for (const schema of [s.memberMediaUrlRequestSchema, s.mediaConfirmRequestSchema]) {
+      expect(schema.safeParse({ assetId: id }).success).toBe(true);
+      for (const body of [{}, { assetId: 'not-a-uuid' }, { assetId: null }, { assetId: id, tenantId: id }, { assetId: id, objectKey: 'PRIVATE' }, { assetId: id, checked: true }]) {
+        expect(schema.safeParse(body).success).toBe(false);
+      }
+    }
     expect(s.mediaConfirmRequestSchema.safeParse({ assetId: id, checked: true }).success).toBe(false);
   });
   it('signature validates bytes rather than extension and rejects short or wrong headers', () => {
