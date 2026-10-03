@@ -23,7 +23,7 @@ SELECT 'version',v.id,to_jsonb(v) FROM public.announcement_versions v
 WHERE v.id::text LIKE '00000090-0000-4000-8000-%';
 
 -- ROOT_INSERT_BATCH2_SCENARIOS_HERE
-SELECT plan(30);
+SELECT plan(31);
 
 WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
 SELECT ok((SELECT count(*)=1 AND bool_and(published_at IS NOT NULL) FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001'::uuid), 'Closure supplies one persisted replay anchor');
@@ -122,6 +122,12 @@ SELECT ok(NOT EXISTS (SELECT 1 FROM b2_visible_existing_clock b LEFT JOIN LATERA
   UNION ALL SELECT 'version',v.id,to_jsonb(v) FROM public.announcement_versions v) c
  ON c.kind=b.kind AND c.id=b.id WHERE c.facts IS DISTINCT FROM b.facts),
  'Existing immutable closure clock versions and original owner attribution survive replay');
+
+SELECT ok((SELECT count(*) = 2
+ AND bool_and(n.template_id IS NULL AND n.recipient_phone IS NULL)
+ FROM public.notifications n
+ WHERE n.id::text LIKE '00000087-0000-4000-8000-%'),
+ 'Both replayed in-app cancellation notices have no outgoing template or recipient phone');
 
 SELECT * FROM finish();
 ROLLBACK;

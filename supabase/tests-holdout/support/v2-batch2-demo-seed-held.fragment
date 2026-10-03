@@ -25,7 +25,7 @@ CREATE TEMP VIEW held_owned AS
  UNION ALL SELECT 'consents',id,to_jsonb(x) FROM public.consents x WHERE id::text LIKE '00000091-%';
 CREATE TEMP TABLE held_owned_before AS SELECT * FROM held_owned;
 -- ROOT_INSERT_BATCH2_SCENARIOS_HERE
-SELECT plan(22);
+SELECT plan(23);
 CREATE TEMP VIEW held_anchor AS SELECT published_at + interval '10 minutes' AS r,
  ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t
  FROM public.announcements WHERE id = '00000089-0000-4000-8000-000000000001';
@@ -99,5 +99,10 @@ SELECT ok((SELECT count(*) FROM public.shop_categories WHERE id::text LIKE '0000
 SELECT ok(NOT EXISTS(SELECT 1 FROM public.attendance WHERE member_id IN(SELECT id FROM held_members)) AND NOT EXISTS(SELECT 1 FROM public.no_show_cases WHERE member_id IN(SELECT id FROM held_members)) AND NOT EXISTS(SELECT 1 FROM public.payments WHERE member_id IN(SELECT id FROM held_members)) AND NOT EXISTS(SELECT 1 FROM public.addon_orders WHERE member_id IN(SELECT id FROM held_members)) AND NOT EXISTS(SELECT 1 FROM public.shop_reservations WHERE member_id IN(SELECT id FROM held_members)), 'cohort has no fabricated attendance retention payment sale or reservation history');
 SELECT ok(EXISTS(SELECT 1 FROM held_sessions s CROSS JOIN held_anchor a JOIN held_bookings b ON b.session_id=s.id JOIN public.memberships m ON m.member_id=b.member_id WHERE s.id='00000084-0000-4000-8000-000000000006' AND s.ends_at<a.r AND b.status='booked' AND b.marked_at IS NULL AND m.status='expired' AND m.ends_on=a.t-1)
  AND EXISTS(SELECT 1 FROM held_sessions s CROSS JOIN held_anchor a WHERE s.id='00000084-0000-4000-8000-000000000005' AND s.starts_at-interval '2 hours'=a.r-interval '60 minutes'), 'anchored lapsed unmarked history and original two-hour closed-window facts');
+SELECT is((SELECT count(*) FROM public.notifications
+ WHERE id IN ('00000087-0000-4000-8000-000000000001'::uuid,
+              '00000087-0000-4000-8000-000000000002'::uuid)
+ AND template_id IS NULL AND recipient_phone IS NULL), 2::bigint,
+ 'both owned in-app cancellation notices retain no outgoing template or phone snapshot after replay');
 SELECT * FROM finish();
 ROLLBACK;
