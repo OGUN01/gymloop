@@ -301,10 +301,11 @@ HTTP 500 rather than success. Public result fields and paise SQLSTATE responses
 above govern the new unit. This corrects the consumer table's former accidental
 303 wording; no form redirect is introduced.
 
-The retained native22023 response is HTTP400 `invalid_request`; it is not
-changed into422 by the currency cutover. New paise22003 remains explicitly
-HTTP422 `paise_out_of_range`. Optional mapper context preserves the other
-existing comms callers' legacy credit vocabulary; wallet calls default to paise.
+The new paise-specific22023 response is HTTP400 `invalid_request`, rather
+than422. The previous shared credit mapper had no explicit22023 case and
+retains its original unknown-error response for other callers. New paise22003
+is explicitly HTTP422 `paise_out_of_range`. Optional mapper context preserves
+the other existing comms callers' legacy vocabulary; wallet calls default to paise.
 The original phase6§1 signed PostgreSQL bigint input bounds remain mandatory:
 canonical delta strings must fit -9223372036854775808 through9223372036854775807.
 Zero remains parseable and is refused by SQL23514 in the existing validation
