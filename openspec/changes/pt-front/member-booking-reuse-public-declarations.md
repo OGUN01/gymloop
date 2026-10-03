@@ -93,3 +93,50 @@ and all three original-caller equality checks. Their tests commit before the
 separate source builder. Existing web/native rendered booking, focus, cutoff,
 uncertain replay and changed-caller tests remain unchanged and are rerun after
 integration. No duplication exclusion or formatting workaround is allowed.
+
+## Remaining cancellation feedback and open-slot grouping reuse
+
+Frozen engineering continuation, 2026-10-03. This changes no business rule,
+retry, asynchronous lifetime or presentation vocabulary. Two remaining shared
+responsibilities belong in the existing platform-free pt-front-data module:
+
+```ts
+export function ptBookingCancellationFeedback(
+  sessions: PtReadSection<PtSession> | undefined,
+  answer: Pick<PtSession, 'sessionId' | 'orderId' | 'startsAt' | 'endsAt'>,
+  placeNoun: string,
+): { message: string | null; label: string | null };
+
+export function ptBookingOpenSlotGroups(
+  pack: PtPack | null | undefined,
+  slots: PtReadSection<{
+    startsAt: string; endsAt: string; timezone: string;
+  }> | undefined,
+  orderId: string,
+  now: number,
+): Map<string, { startsAt: string; endsAt: string; timezone: string }[]>;
+```
+
+Cancellation feedback delegates to registered ptBookingCancellationConsumption.
+Unavailable consumption returns exactly message `Cancelled. Reload to check
+whether a session was used.` and null label. An authoritative boolean returns
+null message and the existing ptBookingStatusLabel('cancelled_by_member',
+consumed, placeNoun). False remains authoritative no-consumption evidence.
+Both surfaces still publish their initial neutral acknowledgement, await their
+own fresh read and verify their original permanent lifetime before this helper.
+They publish through their existing web status object/native status string;
+there is no shared asynchronous control, seventh status or changed copy.
+
+Open-slot grouping returns an empty Map for a nonfinite now, missing/wrong-order
+pack, non-live pack, canBook other than true, failed/missing/nonarray slots.
+For a succeeded section, retain only valid ptRecordedInterval rows whose start
+is strictly after supplied now; group using registered toLocalDate in each
+row's own timezone. Preserve day insertion order and original slot order and
+objects, without mutating inputs or reading a clock. Both surfaces supply their
+own Date.now(), and retain existing selection/rendering. No generated calendar,
+new availability inference, filtering by current product or alternate timezone.
+The existing groupSlotsByLocalDay uses one timezone and cannot own this exact
+row-zone and own-live-pack boundary without changing its public contract.
+
+Independent visible/holdout additions commit RED before the separate builder
+adds these exports or integrates them. Earlier tests remain unchanged.
