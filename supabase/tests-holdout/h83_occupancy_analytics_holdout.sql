@@ -3,7 +3,11 @@
 -- No implementation, no visible suite, no other holdout, no registry was read.
 --
 -- Pinned seam (from the owner-approved loader): public.owner_occupancy_analytics(
---   p_from date, p_through date, p_branch_id uuid default null) returns jsonb.
+--   p_from date, p_through date, p_branch_id uuid default null,
+--   p_exclude_holidays boolean default true) returns jsonb.
+-- OCC-005's "visibly reversible" is RPC-side: the fourth parameter turns the
+-- holiday exclusion off, and the snapshot then carries the holiday date back
+-- in the exposure (eligible dates, arrivals) with no exclusions disclosure.
 --
 -- Pattern: hybrid dispatch, stated honestly.
 --   Section A pins the REAL object's shape/security in public (RED, via
@@ -27,7 +31,7 @@
 begin;
 set local role postgres;
 set local search_path to public, extensions, holdout_occ;
-select plan(66);
+select plan(67);
 
 create schema if not exists holdout_occ;
 create table if not exists holdout_occ.occ_attendance(
@@ -88,7 +92,8 @@ end $seed$;
 -- the real migration is absent. Never grants anything; schema-private.
 -- ---------------------------------------------------------------------------
 create or replace function holdout_occ.owner_occupancy_analytics(
-  p_from date, p_through date, p_branch_id uuid default null)
+  p_from date, p_through date, p_branch_id uuid default null,
+  p_exclude_holidays boolean default true)
 returns jsonb
 language plpgsql stable security invoker set search_path = '' as $fn$
 declare
@@ -139,6 +144,9 @@ begin
     'rangeStartInstant', v_start, 'rangeEndInstant', v_end,
     'branchScope', p_branch_id,
     -- OCC-004/005/006 raw arrivals: one row per branch-local date/weekday/hour.
+    -- OCC-005: when p_exclude_holidays is on (the default) holiday-date visits
+    -- leave the arrival series and the exposure; with the toggle off they are
+    -- reinstated and no exclusion is disclosed.
     'arrivals', coalesce((
       select jsonb_agg(jsonb_build_object(
         'localDate', d, 'weekday', extract(dow from d)::int,
@@ -154,13 +162,18 @@ begin
           and (p_branch_id is null or a.branch_id = p_branch_id)
           and a.checked_in_at >= v_start and a.checked_in_at < v_end
           and a.checked_in_at < v_asof
+          and (not p_exclude_holidays or not exists (
+                select 1 from public.organization_holidays h
+                where h.tenant_id = a.tenant_id
+                  and h.holiday_on = (a.checked_in_at at time zone coalesce(b.timezone, v_org.timezone))::date))
         group by a.branch_id, d, h
       ) x join lateral (select x.d::date as d, x.h as h) y on true
     ), '[]'::jsonb),
     'excludedHolidayDates', coalesce((
       select jsonb_agg(distinct h.holiday_on::text)
       from public.organization_holidays h
-      where h.tenant_id = v_tenant
+      where p_exclude_holidays
+        and h.tenant_id = v_tenant
         and h.holiday_on between p_from and p_through
         and exists (select 1 from holdout_occ.occ_attendance a
                     where a.tenant_id = v_tenant
@@ -252,15 +265,18 @@ begin
   );
 end $fn$;
 
--- Dispatcher: real public RPC once it exists; stand-in before that.
+-- Dispatcher: real public RPC once it exists; stand-in before that. Both take
+-- the OCC-005 exclusion toggle; the default (true) keeps every existing call
+-- site's semantics unchanged.
 create or replace function holdout_occ.occ_call(
-  p_from date, p_through date, p_branch_id uuid default null)
+  p_from date, p_through date, p_branch_id uuid default null,
+  p_exclude_holidays boolean default true)
 returns jsonb language plpgsql volatile set search_path = '' as $fn$
 begin
-  if to_regprocedure('public.owner_occupancy_analytics(date,date,uuid)') is not null then
-    return public.owner_occupancy_analytics(p_from, p_through, p_branch_id);
+  if to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)') is not null then
+    return public.owner_occupancy_analytics(p_from, p_through, p_branch_id, p_exclude_holidays);
   end if;
-  return holdout_occ.owner_occupancy_analytics(p_from, p_through, p_branch_id);
+  return holdout_occ.owner_occupancy_analytics(p_from, p_through, p_branch_id, p_exclude_holidays);
 end $fn$;
 
 -- ---------------------------------------------------------------------------
@@ -364,15 +380,15 @@ insert into holdout_occ.occ_class_bookings(id, session_id, member_id, status) va
 -- ---------------------------------------------------------------------------
 -- Section A: the real object's shape and security (RED until the migration).
 -- ---------------------------------------------------------------------------
-select is(to_regprocedure('public.owner_occupancy_analytics(date,date,uuid)'),to_regprocedure('public.owner_occupancy_analytics(date,date,uuid)'),'real analytics operation exists with the pinned signature');
-select is((select format_type(prorettype,0) from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid)')),'jsonb','real operation returns one jsonb snapshot');
-select is((select proconfig->>'search_path' from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid)')),'','real operation runs an empty search path');
-select is((select pg_get_userbyid(proowner) from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid)')),'postgres','real operation is postgres-owned');
-select is((select prosecdef::text from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid)')),'false','real operation is security invoker: reads stay under caller RLS');
-select ok(has_function_privilege('authenticated','public.owner_occupancy_analytics(date,date,uuid)','EXECUTE'),'authenticated may execute the real operation');
-select ok(not has_function_privilege('anon','public.owner_occupancy_analytics(date,date,uuid)','EXECUTE'),'anon may not execute');
-select ok(not has_function_privilege('service_role','public.owner_occupancy_analytics(date,date,uuid)','EXECUTE'),'service_role may not execute');
-select ok(not has_function_privilege('PUBLIC','public.owner_occupancy_analytics(date,date,uuid)','EXECUTE'),'PUBLIC revocation is explicit');
+select is(to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)'),to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)'),'real analytics operation exists with the pinned signature');
+select is((select format_type(prorettype,0) from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'jsonb','real operation returns one jsonb snapshot');
+select is((select proconfig->>'search_path' from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'','real operation runs an empty search path');
+select is((select pg_get_userbyid(proowner) from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'postgres','real operation is postgres-owned');
+select is((select prosecdef::text from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'false','real operation is security invoker: reads stay under caller RLS');
+select ok(has_function_privilege('authenticated','public.owner_occupancy_analytics(date,date,uuid,boolean)','EXECUTE'),'authenticated may execute the real operation');
+select ok(not has_function_privilege('anon','public.owner_occupancy_analytics(date,date,uuid,boolean)','EXECUTE'),'anon may not execute');
+select ok(not has_function_privilege('service_role','public.owner_occupancy_analytics(date,date,uuid,boolean)','EXECUTE'),'service_role may not execute');
+select ok(not has_function_privilege('PUBLIC','public.owner_occupancy_analytics(date,date,uuid,boolean)','EXECUTE'),'PUBLIC revocation is explicit');
 
 -- ---------------------------------------------------------------------------
 -- Section B: actor matrix (OCC-001)
@@ -430,6 +446,9 @@ select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(curren
 select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'arrivals') v
            where (v->>'localDate') = current_date::text and (v->>'branchId') = '83900000-0000-4000-8000-000000000011') = 0,'holiday-date arrival is excluded from the arrival series');
 select ok((holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')->'excludedHolidayDates') ? (current_date::text),'excluded holiday dates stay available from the same snapshot');
+select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011', false)::jsonb -> 'arrivals') v
+           where (v->>'localDate') = current_date::text and (v->>'branchId') = '83900000-0000-4000-8000-000000000011') >= 1
+       and not (holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011', false)->'excludedHolidayDates') ? (current_date::text),'OCC-005 reversibility is RPC-side: with the exclusion toggle off the holiday-date arrival returns to the exposure and no exclusion is disclosed');
 select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'collection') v
            where v->>'currency' = 'INR' and (v->>'month') = to_char((now() at time zone 'Asia/Kolkata'),'YYYY-MM')
              and (v->>'collectedPaise') = ((150000 + 100000 + 9007199254740993)::numeric)::text) = 1,'holiday-date payment still counts as actual collected cash');

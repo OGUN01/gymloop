@@ -36,9 +36,7 @@ function expectExport(name: string): Promise<never> | Promise<AnyRecord> {
 
 const tenant = '74000000-0000-4000-8000-000000000001';
 const branchA = '74000000-0000-4000-8000-000000000002';
-const branchB = '74000000-0000-4000-8000-000000000003';
 const member1 = '74000000-0000-4000-8000-000000000004';
-const member2 = '74000000-0000-4000-8000-000000000005';
 const membershipFirst = '74000000-0000-4000-8000-000000000006';
 const membershipRenewal = '74000000-0000-4000-8000-000000000007';
 const addonOrder = '74000000-0000-4000-8000-000000000008';
@@ -95,8 +93,7 @@ describe('OCC-003 selected range and zone rules', () => {
   });
 
   it('converts inclusive calendar dates to [local midnight from, local midnight after through)', async () => {
-    const occupancyRangeBounds = (await expectExport('occupancyRangeBounds')) as
-      (from: string, through: string, timeZone: string) => AnyRecord;
+    const occupancyRangeBounds = (await expectExport('occupancyRangeBounds')) as unknown as (from: string, through: string, timeZone: string) => AnyRecord;
     const bounds = occupancyRangeBounds('2026-10-02', '2026-10-03', 'Asia/Kolkata');
     // Asia/Kolkata is UTC+05:30 with no DST: local midnight = 18:30Z previous day.
     expect(bounds.startInstant).toBe('2026-10-01T18:30:00.000Z');
@@ -105,28 +102,24 @@ describe('OCC-003 selected range and zone rules', () => {
   });
 
   it('rejects a reversed or invalid range instead of clamping it', async () => {
-    const occupancyRangeBounds = (await expectExport('occupancyRangeBounds')) as
-      (from: string, through: string, timeZone: string) => AnyRecord;
+    const occupancyRangeBounds = (await expectExport('occupancyRangeBounds')) as unknown as (from: string, through: string, timeZone: string) => AnyRecord;
     expect(occupancyRangeBounds('2026-10-03', '2026-10-02', 'Asia/Kolkata').error).toBeTypeOf('string');
     expect(occupancyRangeBounds('not-a-date', '2026-10-02', 'Asia/Kolkata').error).toBeTypeOf('string');
   });
 
   it('discloses an inherited gym zone when the branch zone is null (no silent fallback)', async () => {
-    const occupancyRangeBounds = (await expectExport('occupancyRangeBounds')) as
-      (from: string, through: string, timeZone: string) => AnyRecord;
+    const occupancyRangeBounds = (await expectExport('occupancyRangeBounds')) as unknown as (from: string, through: string, timeZone: string) => AnyRecord;
     const bounds = occupancyRangeBounds('2026-10-02', '2026-10-02', 'Asia/Kolkata');
     expect(bounds.zone).toBe('Asia/Kolkata');
   });
 
   it('raises an explicit zone error for an invalid nonnull zone instead of a fabricated zero', async () => {
-    const occupancyRangeBounds = (await expectExport('occupancyRangeBounds')) as
-      (from: string, through: string, timeZone: string) => AnyRecord;
+    const occupancyRangeBounds = (await expectExport('occupancyRangeBounds')) as unknown as (from: string, through: string, timeZone: string) => AnyRecord;
     expect(occupancyRangeBounds('2026-10-02', '2026-10-02', 'Not/A-Zone').error).toBeTypeOf('string');
   });
 
   it('bounds events at the lower bound in and at the upper bound out', async () => {
-    const arrivalBucket = (await expectExport('arrivalBucket')) as
-      (instant: string, timeZone: string) => AnyRecord;
+    const arrivalBucket = (await expectExport('arrivalBucket')) as unknown as (instant: string, timeZone: string) => AnyRecord;
     // 2026-10-01T18:30:00Z is exactly local midnight opening 2026-10-02 in Asia/Kolkata.
     expect(arrivalBucket('2026-10-01T18:30:00.000Z', 'Asia/Kolkata').localDate).toBe('2026-10-02');
     // 2026-10-02T18:30:00Z is the exclusive upper bound — the next local day.
@@ -134,8 +127,7 @@ describe('OCC-003 selected range and zone rules', () => {
   });
 
   it('OCC-002/OCC-003: events at or after asOf do not contribute; asOf is disclosed', async () => {
-    const isCompletedLocalDate = (await expectExport('isCompletedLocalDate')) as
-      (localDate: string, asOfInstant: string, timeZone: string) => boolean;
+    const isCompletedLocalDate = (await expectExport('isCompletedLocalDate')) as unknown as (localDate: string, asOfInstant: string, timeZone: string) => boolean;
     // Next local midnight of 2026-10-02 is 2026-10-02T18:30:00Z.
     expect(isCompletedLocalDate('2026-10-02', '2026-10-02T18:30:00.000Z', 'Asia/Kolkata')).toBe(true);
     expect(isCompletedLocalDate('2026-10-02', '2026-10-02T18:29:59.999Z', 'Asia/Kolkata')).toBe(false);
@@ -149,8 +141,7 @@ describe('OCC-003 selected range and zone rules', () => {
 
 describe('OCC-004 check-in arrivals bucketing', () => {
   it('counts each accepted visit once by recorded branch and branch-local date/weekday/hour', async () => {
-    const arrivalBucket = (await expectExport('arrivalBucket')) as
-      (instant: string, timeZone: string) => AnyRecord;
+    const arrivalBucket = (await expectExport('arrivalBucket')) as unknown as (instant: string, timeZone: string) => AnyRecord;
     // 2026-10-02 is a Friday; 13:15 local = 07:45Z.
     const bucket = arrivalBucket('2026-10-02T07:45:00.000Z', 'Asia/Kolkata');
     expect(bucket.localDate).toBe('2026-10-02');
@@ -159,8 +150,7 @@ describe('OCC-004 check-in arrivals bucketing', () => {
   });
 
   it('does not reassign historical visits by home branch, status or invented dwell time', async () => {
-    const arrivalBucket = (await expectExport('arrivalBucket')) as
-      (instant: string, timeZone: string) => AnyRecord;
+    const arrivalBucket = (await expectExport('arrivalBucket')) as unknown as (instant: string, timeZone: string) => AnyRecord;
     const bucket = arrivalBucket('2026-10-02T07:45:00.000Z', 'Asia/Kolkata');
     expect(bucket).not.toHaveProperty('memberHomeBranch');
     expect(bucket).not.toHaveProperty('dwellMinutes');
@@ -169,7 +159,7 @@ describe('OCC-004 check-in arrivals bucketing', () => {
 
 describe('OCC-005 holiday exclusion', () => {
   it('excludes a holiday visit from numerator and denominator when exclusion is on (default)', async () => {
-    const heatmapExposure = (await expectExport('heatmapExposure')) as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const heatmapExposure = (await expectExport('heatmapExposure')) as unknown as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
     const holiday = { localDate: '2026-10-02', weekday: 5, hour: 7, isHoliday: true };
     const normal = { localDate: '2026-10-09', weekday: 5, hour: 7, isHoliday: false };
     const result = heatmapExposure([holiday, normal], {
@@ -177,26 +167,26 @@ describe('OCC-005 holiday exclusion', () => {
       completedThroughInstant: '2026-10-31T18:30:00.000Z',
       timeZone: 'Asia/Kolkata',
     });
-    const cell = result.cells.find((c: AnyRecord) => c.weekday === 5 && c.hour === 7) as AnyRecord;
+    const cell = (result.cells as AnyRecord[]).find((c: AnyRecord) => c.weekday === 5 && c.hour === 7) as AnyRecord;
     expect(cell.arrivals).toBe(1); // holiday visit excluded from the numerator
     expect(cell.eligibleDates).toBe(1); // holiday date excluded from the denominator
   });
 
   it('is reversible: with exclusion off the holiday date and its visits return', async () => {
-    const heatmapExposure = (await expectExport('heatmapExposure')) as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const heatmapExposure = (await expectExport('heatmapExposure')) as unknown as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
     const holiday = { localDate: '2026-10-02', weekday: 5, hour: 7, isHoliday: true };
     const result = heatmapExposure([holiday], {
       excludeHolidays: false,
       completedThroughInstant: '2026-10-31T18:30:00.000Z',
       timeZone: 'Asia/Kolkata',
     });
-    const cell = result.cells.find((c: AnyRecord) => c.weekday === 5 && c.hour === 7) as AnyRecord;
+    const cell = (result.cells as AnyRecord[]).find((c: AnyRecord) => c.weekday === 5 && c.hour === 7) as AnyRecord;
     expect(cell.arrivals).toBe(1);
     expect(cell.eligibleDates).toBe(1);
   });
 
   it('an all-holiday range yields "No eligible days", never a quiet branch', async () => {
-    const heatmapExposure = (await expectExport('heatmapExposure')) as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const heatmapExposure = (await expectExport('heatmapExposure')) as unknown as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
     const holiday = { localDate: '2026-10-02', weekday: 5, hour: 7, isHoliday: true };
     const result = heatmapExposure([holiday], {
       excludeHolidays: true,
@@ -206,11 +196,22 @@ describe('OCC-005 holiday exclusion', () => {
     expect(result.noEligibleDays).toBe(true);
     expect(result.message).toBe('No eligible days');
   });
+
+  it('the loader carries the exclusion toggle to the snapshot read (default on, request can turn it off)', async () => {
+    const lib = (await import('../lib/occupancy')) as unknown as AnyRecord;
+    const load = lib.loadOccupancyAnalytics as (identity: unknown, client: unknown, request: unknown) => Promise<unknown>;
+    const snapshot = { asOf: '2026-10-03T04:00:00.000Z', months: [], heatmap: { excludedDates: [{ localDate: '2026-10-02', visits: 3 }], arrivalDays: [{ localDate: '2026-10-02', visits: 3, isHoliday: true, incomplete: false }] }, classes: {}, warnings: {} };
+    const client = { rpc: vi.fn().mockResolvedValue({ data: snapshot, error: null }) };
+    await load(owner, client, { branchId: null });
+    expect(client.rpc).toHaveBeenCalledWith('owner_occupancy_analytics', expect.objectContaining({ p_exclude_holidays: true }));
+    await load(owner, client, { branchId: null, excludeHolidays: false });
+    expect(client.rpc).toHaveBeenLastCalledWith('owner_occupancy_analytics', expect.objectContaining({ p_exclude_holidays: false }));
+  });
 });
 
 describe('OCC-006 exact exposure normalization', () => {
   it('fraction numerator contains only visits on denominator dates; today is separate', async () => {
-    const heatmapExposure = (await expectExport('heatmapExposure')) as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const heatmapExposure = (await expectExport('heatmapExposure')) as unknown as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
     const result = heatmapExposure(
       [
         { localDate: '2026-10-02', weekday: 5, hour: 7, isHoliday: false, incomplete: false },
@@ -223,14 +224,14 @@ describe('OCC-006 exact exposure normalization', () => {
         timeZone: 'Asia/Kolkata',
       },
     );
-    const cell = result.cells.find((c: AnyRecord) => c.weekday === 5 && c.hour === 7) as AnyRecord;
+    const cell = (result.cells as AnyRecord[]).find((c: AnyRecord) => c.weekday === 5 && c.hour === 7) as AnyRecord;
     expect(cell.arrivals).toBe(2); // today's visit is not mixed in
     expect(cell.eligibleDates).toBe(1);
     expect(cell.todayArrivals).toBe(1);
   });
 
   it('a day with zero accepted visits counts as a zero observation, not a disappearance', async () => {
-    const heatmapExposure = (await expectExport('heatmapExposure')) as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const heatmapExposure = (await expectExport('heatmapExposure')) as unknown as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
     const result = heatmapExposure(
       [{ localDate: '2026-10-02', weekday: 5, hour: 7, isHoliday: false, incomplete: false }],
       {
@@ -240,13 +241,13 @@ describe('OCC-006 exact exposure normalization', () => {
         eligibleDates: ['2026-10-02', '2026-10-09'], // second Friday had zero visits
       },
     );
-    const cell = result.cells.find((c: AnyRecord) => c.weekday === 5 && c.hour === 7) as AnyRecord;
+    const cell = (result.cells as AnyRecord[]).find((c: AnyRecord) => c.weekday === 5 && c.hour === 7) as AnyRecord;
     expect(cell.eligibleDates).toBe(2);
     expect(cell.arrivals).toBe(1);
   });
 
   it('DST: a missing local hour has no exposure; a repeated hour combines and counts its date once', async () => {
-    const heatmapExposure = (await expectExport('heatmapExposure')) as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const heatmapExposure = (await expectExport('heatmapExposure')) as unknown as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
     // America/New_York: 2026-03-08 spring forward (no 02:xx), 2026-11-01 fall back (01:xx twice).
     const spring = heatmapExposure([], {
       excludeHolidays: false,
@@ -254,7 +255,7 @@ describe('OCC-006 exact exposure normalization', () => {
       timeZone: 'America/New_York',
       eligibleDates: ['2026-03-08'],
     });
-    const gapCell = spring.cells.find((c: AnyRecord) => c.weekday === 0 && c.hour === 2) as AnyRecord | undefined;
+    const gapCell = (spring.cells as AnyRecord[]).find((c: AnyRecord) => c.weekday === 0 && c.hour === 2) as AnyRecord | undefined;
     expect(gapCell === undefined || gapCell.eligibleDates === 0).toBe(true);
 
     const fall = heatmapExposure(
@@ -269,25 +270,25 @@ describe('OCC-006 exact exposure normalization', () => {
         eligibleDates: ['2026-11-01'],
       },
     );
-    const repeatCell = fall.cells.find((c: AnyRecord) => c.weekday === 0 && c.hour === 1) as AnyRecord;
+    const repeatCell = (fall.cells as AnyRecord[]).find((c: AnyRecord) => c.weekday === 0 && c.hour === 1) as AnyRecord;
     expect(repeatCell.arrivals).toBe(2); // both occurrences combine
     expect(repeatCell.eligibleDates).toBe(1); // the date is counted once
   });
 
   it('zero exposure stays unavailable rather than ranking lowest (OCC-008)', async () => {
-    const heatmapExposure = (await expectExport('heatmapExposure')) as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const heatmapExposure = (await expectExport('heatmapExposure')) as unknown as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
     const result = heatmapExposure([], {
       excludeHolidays: false,
       completedThroughInstant: '2026-10-31T18:30:00.000Z',
       timeZone: 'Asia/Kolkata',
       eligibleDates: ['2026-10-02'],
     });
-    const cell = result.cells.find((c: AnyRecord) => c.weekday === 5 && c.hour === 7) as AnyRecord;
+    const cell = (result.cells as AnyRecord[]).find((c: AnyRecord) => c.weekday === 5 && c.hour === 7) as AnyRecord;
     expect(cell.fraction).toBeNull(); // denominator dates exist but no eligible hour exposure? no — zero denominator only
   });
 
   it('denominator zero returns no average (never a fabricated zero)', async () => {
-    const heatmapExposure = (await expectExport('heatmapExposure')) as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const heatmapExposure = (await expectExport('heatmapExposure')) as unknown as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
     const result = heatmapExposure([], {
       excludeHolidays: true,
       completedThroughInstant: '2026-10-31T18:30:00.000Z',
@@ -300,7 +301,7 @@ describe('OCC-006 exact exposure normalization', () => {
 
 describe('OCC-007 limited history', () => {
   it('below 14 eligible completed dates the cell is limited and raw numbers are disclosed', async () => {
-    const heatmapExposure = (await expectExport('heatmapExposure')) as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const heatmapExposure = (await expectExport('heatmapExposure')) as unknown as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
     const eligibleDates = Array.from({ length: 13 }, (_, i) => {
       const day = 2 + i * 7 > 31 ? 2 + i * 7 - 31 : 2 + i * 7;
       return `2026-10-${String(day).padStart(2, '0')}`;
@@ -314,7 +315,7 @@ describe('OCC-007 limited history', () => {
         eligibleDates,
       },
     );
-    const cell = result.cells.find((c: AnyRecord) => c.weekday === 5 && c.hour === 7) as AnyRecord;
+    const cell = (result.cells as AnyRecord[]).find((c: AnyRecord) => c.weekday === 5 && c.hour === 7) as AnyRecord;
     expect(cell.limited).toBe(true);
     expect(cell.message).toBe('Limited history');
     expect(cell.arrivals).toBe(1); // raw numerator still visible
@@ -323,7 +324,7 @@ describe('OCC-007 limited history', () => {
   });
 
   it('at 14 eligible dates the exact fraction is shown', async () => {
-    const heatmapExposure = (await expectExport('heatmapExposure')) as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const heatmapExposure = (await expectExport('heatmapExposure')) as unknown as (arrivals: AnyRecord[], options: AnyRecord) => AnyRecord;
     const eligibleDates = Array.from({ length: 14 }, (_, i) => `2026-09-${String(1 + i).padStart(2, '0')}`);
     const result = heatmapExposure(
       [{ localDate: eligibleDates[0], weekday: 2, hour: 7, isHoliday: false, incomplete: false }],
@@ -334,7 +335,7 @@ describe('OCC-007 limited history', () => {
         eligibleDates,
       },
     );
-    const cell = result.cells.find((c: AnyRecord) => c.weekday === 2 && c.hour === 7) as AnyRecord;
+    const cell = (result.cells as AnyRecord[]).find((c: AnyRecord) => c.weekday === 2 && c.hour === 7) as AnyRecord;
     expect(cell.limited).toBe(false);
     expect(cell.fraction).toBe('0.0714…'); // exact fraction disclosed, raw retained
   });
@@ -357,8 +358,7 @@ const paidPayment = (overrides: AnyRecord): AnyRecord => ({
 
 describe('OCC-009 monthly actual collection', () => {
   it('groups arrived payments by paid_at gym-local month and explicit currency, full amount once', async () => {
-    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as
-      (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
+    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as unknown as (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
     const result = classifyMonthlyCollection(
       [
         paidPayment({}),
@@ -368,15 +368,14 @@ describe('OCC-009 monthly actual collection', () => {
       [],
       [],
     );
-    const inr = result.months.find((m: AnyRecord) => m.month === '2026-10' && m.currency === 'INR') as AnyRecord;
+    const inr = (result.months as AnyRecord[]).find((m: AnyRecord) => m.month === '2026-10' && m.currency === 'INR') as AnyRecord;
     expect(inr.collectedPaise).toBe('100250'); // exact decimal strings, integer paise
-    const usd = result.months.find((m: AnyRecord) => m.month === '2026-10' && m.currency === 'USD') as AnyRecord;
+    const usd = (result.months as AnyRecord[]).find((m: AnyRecord) => m.month === '2026-10' && m.currency === 'USD') as AnyRecord;
     expect(usd.collectedPaise).toBe('500'); // currencies never summed together
   });
 
   it('created/pending/failed attempts, invoices, promised prices and screenshot claims contribute no cash', async () => {
-    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as
-      (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
+    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as unknown as (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
     const result = classifyMonthlyCollection(
       [
         paidPayment({ status: 'created' }),
@@ -390,18 +389,16 @@ describe('OCC-009 monthly actual collection', () => {
   });
 
   it('an arrived payment without paid_at stays in a visible all-date warning instead of a month', async () => {
-    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as
-      (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
+    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as unknown as (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
     const result = classifyMonthlyCollection([paidPayment({ paidAt: null })], [], []);
     expect(result.months).toHaveLength(0);
-    expect(result.warnings.undatedPayments).toHaveLength(1);
+    expect((result.warnings as AnyRecord).undatedPayments).toHaveLength(1);
   });
 });
 
 describe('OCC-010 completed returns and net', () => {
   it('only completed returns with processed_at reduce their completion month', async () => {
-    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as
-      (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
+    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as unknown as (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
     const result = classifyMonthlyCollection(
       [paidPayment({ amountPaise: '100000' })],
       [
@@ -411,18 +408,17 @@ describe('OCC-010 completed returns and net', () => {
       ],
       [],
     );
-    const october = result.months.find((m: AnyRecord) => m.month === '2026-10' && m.currency === 'INR') as AnyRecord;
-    const november = result.months.find((m: AnyRecord) => m.month === '2026-11' && m.currency === 'INR') as AnyRecord;
+    const october = (result.months as AnyRecord[]).find((m: AnyRecord) => m.month === '2026-10' && m.currency === 'INR') as AnyRecord;
+    const november = (result.months as AnyRecord[]).find((m: AnyRecord) => m.month === '2026-11' && m.currency === 'INR') as AnyRecord;
     expect(october.collectedPaise).toBe('100000');
     expect(november.returnedPaise).toBe('40000'); // later month, original payment outside range is fine
     expect(november.netPaise).toBe('-40000'); // returns-only month may be negative and stays visible
   });
 
   it('a completed undated return is a visible all-date warning (OCC-009/OCC-010)', async () => {
-    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as
-      (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
+    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as unknown as (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
     const result = classifyMonthlyCollection([], [{ returnId: 'r1', status: 'completed', processedAt: null, amountPaise: '1', currency: 'INR' }], []);
-    expect(result.warnings.undatedReturns).toHaveLength(1);
+    expect((result.warnings as AnyRecord).undatedReturns).toHaveLength(1);
   });
 });
 
@@ -433,8 +429,7 @@ describe('OCC-012 frozen cash classification', () => {
   ];
 
   it('first-membership payment is new-member money; successor is renewal money; whole receipt', async () => {
-    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as
-      (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
+    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as unknown as (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
     const result = classifyMonthlyCollection(
       [
         paidPayment({ amountPaise: '60000', membershipId: membershipFirst }),
@@ -443,27 +438,25 @@ describe('OCC-012 frozen cash classification', () => {
       [],
       memberships,
     );
-    const october = result.months.find((m: AnyRecord) => m.month === '2026-10' && m.currency === 'INR') as AnyRecord;
-    expect(october.classification.newMemberPaise).toBe('60000');
-    expect(october.classification.renewalPaise).toBe('40000');
-    expect(october.classification.label).toContain('derived');
+    const october = (result.months as AnyRecord[]).find((m: AnyRecord) => m.month === '2026-10' && m.currency === 'INR') as AnyRecord;
+    expect((october.classification as AnyRecord).newMemberPaise as string).toBe('60000');
+    expect((october.classification as AnyRecord).renewalPaise as string).toBe('40000');
+    expect((october.classification as AnyRecord).label as string).toContain('derived');
   });
 
   it('a part payment on a first membership classifies whole as new-member money', async () => {
-    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as
-      (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
+    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as unknown as (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
     const result = classifyMonthlyCollection(
       [paidPayment({ amountPaise: '1', membershipId: membershipFirst })],
       [],
       memberships,
     );
-    const october = result.months.find((m: AnyRecord) => m.month === '2026-10' && m.currency === 'INR') as AnyRecord;
-    expect(october.classification.newMemberPaise).toBe('1');
+    const october = (result.months as AnyRecord[]).find((m: AnyRecord) => m.month === '2026-10' && m.currency === 'INR') as AnyRecord;
+    expect((october.classification as AnyRecord).newMemberPaise as string).toBe('1');
   });
 
   it('add-on-linked payments are a separate category; unlinked payments stay unallocated', async () => {
-    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as
-      (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
+    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as unknown as (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
     const result = classifyMonthlyCollection(
       [
         paidPayment({ amountPaise: '300', addonOrderId: addonOrder }),
@@ -472,16 +465,15 @@ describe('OCC-012 frozen cash classification', () => {
       [],
       memberships,
     );
-    const october = result.months.find((m: AnyRecord) => m.month === '2026-10' && m.currency === 'INR') as AnyRecord;
-    expect(october.classification.addonPaise).toBe('300');
-    expect(october.classification.unallocatedPaise).toBe('700');
-    expect(october.classification.newMemberPaise).toBe('0');
-    expect(october.classification.renewalPaise).toBe('0');
+    const october = (result.months as AnyRecord[]).find((m: AnyRecord) => m.month === '2026-10' && m.currency === 'INR') as AnyRecord;
+    expect((october.classification as AnyRecord).addonPaise as string).toBe('300');
+    expect((october.classification as AnyRecord).unallocatedPaise as string).toBe('700');
+    expect((october.classification as AnyRecord).newMemberPaise as string).toBe('0');
+    expect((october.classification as AnyRecord).renewalPaise as string).toBe('0');
   });
 
   it('categories reconcile to the exact collected total including unknowns', async () => {
-    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as
-      (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
+    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as unknown as (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
     const result = classifyMonthlyCollection(
       [
         paidPayment({ amountPaise: '60000', membershipId: membershipFirst }),
@@ -491,18 +483,17 @@ describe('OCC-012 frozen cash classification', () => {
       [],
       memberships,
     );
-    const october = result.months.find((m: AnyRecord) => m.month === '2026-10' && m.currency === 'INR') as AnyRecord;
+    const october = (result.months as AnyRecord[]).find((m: AnyRecord) => m.month === '2026-10' && m.currency === 'INR') as AnyRecord;
     const sum =
-      BigInt(october.classification.newMemberPaise) +
-      BigInt(october.classification.renewalPaise) +
-      BigInt(october.classification.addonPaise) +
-      BigInt(october.classification.unallocatedPaise);
-    expect(sum).toBe(BigInt(october.collectedPaise));
+      BigInt((october.classification as AnyRecord).newMemberPaise as string) +
+      BigInt((october.classification as AnyRecord).renewalPaise as string) +
+      BigInt((october.classification as AnyRecord).addonPaise as string) +
+      BigInt((october.classification as AnyRecord).unallocatedPaise as string);
+    expect(sum).toBe(BigInt(october.collectedPaise as string));
   });
 
   it('a return allocates whole to the original receipt category; an unallocated original stays unknown', async () => {
-    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as
-      (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
+    const classifyMonthlyCollection = (await expectExport('classifyMonthlyCollection')) as unknown as (payments: AnyRecord[], returns: AnyRecord[], memberships: AnyRecord[]) => AnyRecord;
     const result = classifyMonthlyCollection(
       [
         paidPayment({ amountPaise: '60000', membershipId: membershipFirst }),
@@ -514,10 +505,10 @@ describe('OCC-012 frozen cash classification', () => {
       ],
       memberships,
     );
-    const november = result.months.find((m: AnyRecord) => m.month === '2026-11' && m.currency === 'INR') as AnyRecord;
-    expect(november.classification.newMemberPaise).toBe('-10000'); // whole-receipt allocation, no split
-    expect(november.classification.unknownReturnPaise).toBe('-700'); // unallocated original stays unknown
-    expect(november.classification.renewalPaise).toBe('0');
+    const november = (result.months as AnyRecord[]).find((m: AnyRecord) => m.month === '2026-11' && m.currency === 'INR') as AnyRecord;
+    expect((november.classification as AnyRecord).newMemberPaise).toBe('-10000'); // whole-receipt allocation, no split
+    expect((november.classification as AnyRecord).unknownReturnPaise).toBe('-700'); // unallocated original stays unknown
+    expect((november.classification as AnyRecord).renewalPaise).toBe('0');
   });
 });
 
@@ -557,7 +548,7 @@ const ranSession = (overrides: AnyRecord): AnyRecord => ({
 
 describe('OCC-014 elapsed session cohort', () => {
   it('uses only same-tenant selected-branch sessions that are scheduled with ends_at < asOf', async () => {
-    const bookedFillSummary = (await expectExport('bookedFillSummary')) as (sessions: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const bookedFillSummary = (await expectExport('bookedFillSummary')) as unknown as (sessions: AnyRecord[], options: AnyRecord) => AnyRecord;
     const result = bookedFillSummary(
       [
         ranSession({}),
@@ -571,7 +562,7 @@ describe('OCC-014 elapsed session cohort', () => {
   });
 
   it('a holiday session that remained scheduled stays in the cohort', async () => {
-    const bookedFillSummary = (await expectExport('bookedFillSummary')) as (sessions: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const bookedFillSummary = (await expectExport('bookedFillSummary')) as unknown as (sessions: AnyRecord[], options: AnyRecord) => AnyRecord;
     const result = bookedFillSummary(
       [ranSession({ onHoliday: true })],
       { asOfInstant: '2026-10-02T12:00:00.000Z', branchId: branchA, tenantId: tenant },
@@ -582,7 +573,7 @@ describe('OCC-014 elapsed session cohort', () => {
 
 describe('OCC-015 booked fill, not presence', () => {
   it('booked fill is sum(holding)/sum(stored capacity), capacity-weighted, no-shows count', async () => {
-    const bookedFillSummary = (await expectExport('bookedFillSummary')) as (sessions: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const bookedFillSummary = (await expectExport('bookedFillSummary')) as unknown as (sessions: AnyRecord[], options: AnyRecord) => AnyRecord;
     const result = bookedFillSummary(
       [
         ranSession({ capacity: 10, booked: 6, attended: 4, noShow: 1 }), // 6 holding
@@ -596,7 +587,7 @@ describe('OCC-015 booked fill, not presence', () => {
   });
 
   it('cancelled sessions contribute neither bookings nor capacity', async () => {
-    const bookedFillSummary = (await expectExport('bookedFillSummary')) as (sessions: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const bookedFillSummary = (await expectExport('bookedFillSummary')) as unknown as (sessions: AnyRecord[], options: AnyRecord) => AnyRecord;
     const result = bookedFillSummary(
       [
         ranSession({}),
@@ -611,7 +602,7 @@ describe('OCC-015 booked fill, not presence', () => {
 
 describe('OCC-016 explicit marked presence', () => {
   it('attended, no_show and unmarked stay separate with a marking-coverage disclosure', async () => {
-    const bookedFillSummary = (await expectExport('bookedFillSummary')) as (sessions: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const bookedFillSummary = (await expectExport('bookedFillSummary')) as unknown as (sessions: AnyRecord[], options: AnyRecord) => AnyRecord;
     const result = bookedFillSummary(
       [ranSession({ capacity: 10, booked: 6, attended: 4, noShow: 1 })], // 1 unmarked
       { asOfInstant: '2026-10-02T12:00:00.000Z', branchId: branchA, tenantId: tenant },
@@ -624,7 +615,7 @@ describe('OCC-016 explicit marked presence', () => {
   });
 
   it('presence is never inferred from gym attendance, elapsed time or unmarked bookings', async () => {
-    const bookedFillSummary = (await expectExport('bookedFillSummary')) as (sessions: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const bookedFillSummary = (await expectExport('bookedFillSummary')) as unknown as (sessions: AnyRecord[], options: AnyRecord) => AnyRecord;
     const result = bookedFillSummary(
       [ranSession({ attended: 0, noShow: 0, booked: 6 })],
       { asOfInstant: '2026-10-02T12:00:00.000Z', branchId: branchA, tenantId: tenant },
@@ -636,7 +627,7 @@ describe('OCC-016 explicit marked presence', () => {
   });
 
   it('class fill below 10 elapsed sessions is limited history with raw counts (OCC-007)', async () => {
-    const bookedFillSummary = (await expectExport('bookedFillSummary')) as (sessions: AnyRecord[], options: AnyRecord) => AnyRecord;
+    const bookedFillSummary = (await expectExport('bookedFillSummary')) as unknown as (sessions: AnyRecord[], options: AnyRecord) => AnyRecord;
     const sessions = Array.from({ length: 9 }, (_, i) =>
       ranSession({ sessionId: `74000000-0000-4000-8000-0000000000c${i}` }),
     );
@@ -661,9 +652,10 @@ describe('OCC-001 audience and tenancy', () => {
       await expect(load(denied, { rpc: vi.fn() }, { branchId: branchA })).rejects.toThrow();
     }
     for (const allowed of [owner, manager]) {
-      // Authorized callers reach the snapshot path (the mocked client returns no rows;
-      // the contract point is that they are not refused by audience).
-      const client = { rpc: vi.fn().mockResolvedValue({ data: [], error: null }) };
+      // Authorized callers reach the snapshot path (the mocked client returns one
+      // scalar jsonb snapshot object, as supabase-js supplies it for a `returns
+      // jsonb` RPC; the contract point is that they are not refused by audience).
+      const client = { rpc: vi.fn().mockResolvedValue({ data: { asOf: '2026-10-03T04:00:00.000Z', months: [], heatmap: {}, classes: {}, warnings: {} }, error: null }) };
       await expect(load(allowed, client, { branchId: null })).resolves.toBeDefined();
     }
   });
@@ -687,10 +679,26 @@ describe('OCC-002 one snapshot', () => {
   it('one statement supplies totals and drill-downs with a single disclosed asOf', async () => {
     const lib = (await import('../lib/occupancy')) as unknown as AnyRecord;
     const load = lib.loadOccupancyAnalytics as (identity: unknown, client: unknown, request: unknown) => Promise<unknown>;
-    const client = { rpc: vi.fn().mockResolvedValue({ data: [{ asOf: '2026-10-03T04:00:00.000Z', months: [], heatmap: {}, classes: {}, warnings: {} }], error: null }) };
+    // The RPC returns one jsonb snapshot VALUE (suite 83: not proretset, jsonb
+    // return) — supabase-js supplies the object directly, never an array.
+    const client = { rpc: vi.fn().mockResolvedValue({ data: { asOf: '2026-10-03T04:00:00.000Z', months: [], heatmap: {}, classes: {}, warnings: {} }, error: null }) };
     const snapshot = (await load(owner, client, { branchId: null })) as AnyRecord;
     expect(client.rpc).toHaveBeenCalledTimes(1); // one snapshot, not page-by-page sums
     expect(snapshot.asOf).toBe('2026-10-03T04:00:00.000Z');
+  });
+
+  it('a null or absent snapshot is an unavailable outcome, never an empty success', async () => {
+    const lib = (await import('../lib/occupancy')) as unknown as AnyRecord;
+    const load = lib.loadOccupancyAnalytics as (identity: unknown, client: unknown, request: unknown) => Promise<unknown>;
+    const client = { rpc: vi.fn().mockResolvedValue({ data: null, error: null }) };
+    try {
+      const result = (await load(owner, client, { branchId: null })) as AnyRecord | null | undefined;
+      // The loader may refuse (throw) or resolve to an explicitly unavailable
+      // outcome — it must not fabricate a snapshot: no asOf means no claim.
+      expect(result == null || result.asOf == null || result.asOf === '').toBe(true);
+    } catch (error) {
+      expect((error as Error).message).not.toContain('SECRET');
+    }
   });
 });
 

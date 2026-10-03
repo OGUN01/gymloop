@@ -29,7 +29,7 @@ begin;
 set local role postgres;
 set local search_path=extensions,public;
 select set_config('request.jwt.claims','',true);
-select plan(43);
+select plan(44);
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$select ('83000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.claim(r text default 'gym_owner', s integer default null, m integer default null, a integer default 901, t integer default 1, p boolean default false) returns void language plpgsql as $$begin perform set_config('request.jwt.claims',jsonb_strip_nulls(jsonb_build_object('sub',pg_temp.u(a),'role','authenticated','app_role',r,'tenant_id',pg_temp.u(t),'staff_id',case when s is not null then pg_temp.u(s) end,'member_id',case when m is not null then pg_temp.u(m) end,'impersonation_session_id',case when p then pg_temp.u(999) end))::text,true); end$$;
 create function pg_temp.probe(q text) returns text language plpgsql as $$begin execute q; return 'OK'; exception when others then return sqlstate; end$$;
@@ -40,7 +40,8 @@ create function pg_temp.state(q text) returns text language plpgsql as $$begin e
 -- assertion; the only seeded visit on that day is 616 (now()).
 create function pg_temp.gym_today() returns date language sql volatile as $$select (now() at time zone (select timezone from public.organizations where id = pg_temp.u(1)))::date$$;
 create function pg_temp.snap(p_from date, p_through date, p_branch_id uuid default null) returns text language plpgsql as $$declare r text; begin execute 'select public.owner_occupancy_analytics($1::date,$2::date,$3::uuid)::text' using p_from,p_through,p_branch_id into r; return r; exception when others then return sqlstate; end$$;
-grant execute on function pg_temp.u(integer),pg_temp.claim(text,integer,integer,integer,integer,boolean),pg_temp.probe(text),pg_temp.state(text),pg_temp.snap(date,date,uuid),pg_temp.gym_today() to authenticated,anon,service_role;
+create function pg_temp.snapx(p_from date, p_through date, p_branch_id uuid, p_exclude_holidays boolean) returns text language plpgsql as $$declare r text; begin execute 'select public.owner_occupancy_analytics($1::date,$2::date,$3::uuid,$4::boolean)::text' using p_from,p_through,p_branch_id,p_exclude_holidays into r; return r; exception when others then return sqlstate; end$$;
+grant execute on function pg_temp.u(integer),pg_temp.claim(text,integer,integer,integer,integer,boolean),pg_temp.probe(text),pg_temp.state(text),pg_temp.snap(date,date,uuid),pg_temp.snapx(date,date,uuid,boolean),pg_temp.gym_today() to authenticated,anon,service_role;
 
 -- ============ fixtures (existing schema only) ============
 insert into auth.users(id) select pg_temp.u(n) from generate_series(901,916) n;
@@ -148,13 +149,13 @@ set local role authenticated;
 
 -- ============ A. signature and security shape ============
 -- 1
-select is((select array_to_string(proargtypes::regtype[],' ') from pg_proc where oid=to_regprocedure('public.owner_occupancy_analytics(date,date,uuid)')),'date date uuid','OCC: owner_occupancy_analytics exact argument types');
+select is((select array_to_string(proargtypes::regtype[],' ') from pg_proc where oid=to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'date date uuid boolean','OCC: owner_occupancy_analytics exact argument types including the holiday-exclusion toggle');
 -- 2
 select is((select array_to_string(proargtypes::regtype[],' ') from pg_proc where oid=to_regprocedure('public.owner_occupancy_analytics(date,date)')),'date date','OCC: the branch argument is nullable by default');
 -- 3
-select ok(exists(select 1 from pg_proc p where p.oid=to_regprocedure('public.owner_occupancy_analytics(date,date,uuid)') and not p.proretset and p.prorettype=to_regtype('jsonb')),'OCC: returns one jsonb snapshot value so one containing snapshot reaches the loader');
+select ok(exists(select 1 from pg_proc p where p.oid=to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)') and not p.proretset and p.prorettype=to_regtype('jsonb')),'OCC: returns one jsonb snapshot value so one containing snapshot reaches the loader');
 -- 4
-select ok(exists(select 1 from pg_proc p where p.oid=to_regprocedure('public.owner_occupancy_analytics(date,date,uuid)') and not p.prosecdef and pg_get_userbyid(p.proowner)='postgres' and p.proconfig @> array['search_path=""'] and has_function_privilege('authenticated',p.oid,'EXECUTE') and not has_function_privilege('anon',p.oid,'EXECUTE') and not has_function_privilege('service_role',p.oid,'EXECUTE') and not exists(select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where a.grantee=0 and a.privilege_type='EXECUTE')),'OCC: invoker, postgres-owned, empty search path, authenticated-only execute');
+select ok(exists(select 1 from pg_proc p where p.oid=to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)') and not p.prosecdef and pg_get_userbyid(p.proowner)='postgres' and p.proconfig @> array['search_path=""'] and has_function_privilege('authenticated',p.oid,'EXECUTE') and not has_function_privilege('anon',p.oid,'EXECUTE') and not has_function_privilege('service_role',p.oid,'EXECUTE') and not exists(select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where a.grantee=0 and a.privilege_type='EXECUTE')),'OCC: invoker, postgres-owned, empty search path, authenticated-only execute');
 
 -- ============ B. actor revalidation precedes any read ============
 -- 5
@@ -256,6 +257,8 @@ select is((select pg_temp.snap('2026-09-14','2026-09-27',pg_temp.u(12)))::jsonb-
 -- 42
 select ok(to_regprocedure('public.owner_metrics(date,date)') is not null and (select provolatile from pg_proc where oid=to_regprocedure('public.owner_metrics(date,date)'))='s' and not (select prosecdef from pg_proc where oid=to_regprocedure('public.owner_metrics(date,date)')),'OCC: the existing owner_metrics seam is untouched (still stable, still invoker)');
 -- 43
-select ok(to_regprocedure('public.owner_metrics(date,date)') is distinct from to_regprocedure('public.owner_occupancy_analytics(date,date,uuid)'),'OCC: the analytics read is one versioned extension, not a changed owner_metrics');
+select ok(to_regprocedure('public.owner_metrics(date,date)') is distinct from to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)'),'OCC: the analytics read is one versioned extension, not a changed owner_metrics');
+-- 44
+select ok((select pg_temp.snapx('2026-09-14','2026-09-27',null,false))::jsonb->'heatmap'->>'eligibleDateCount' = '14' and (select pg_temp.snapx('2026-09-14','2026-09-27',null,false))::jsonb->'heatmap'->'excludedDates' = '[]'::jsonb and exists(select 1 from jsonb_array_elements((select pg_temp.snapx('2026-09-14','2026-09-27',null,false))::jsonb->'heatmap'->'cells') c where (c->>'weekday')='1' and (c->>'hour')='7' and (c->>'arrivals')='3'),'OCC-005: with the exclusion toggle off the holiday date returns to the exposure (14 eligible dates, no exclusions, the Monday 07:00 cell counts all three same-hour arrivals incl. the two holiday-date visits)');
 
 rollback;
