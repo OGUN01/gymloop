@@ -271,7 +271,8 @@ describe('CLS independent held actual native rendered boundaries', () => {
     seam.mobile.identity = { kind: 'staff', userId: id('1'), tenantId: id('2'), staffId: id('7'), role: 'front_desk' };
     seam.loadDesk.mockResolvedValue([timetable({ startsAt: '2026-10-03T07:30:00Z', endsAt: '2026-10-03T08:30:00Z' })]);
     const view = mount(ClassesPane, { desk: true }); await view.settle(); await view.press(/Held yoga/); await view.press(/^(?:Mark attended|Attended)$/i);
-    expect(seam.mark).toHaveBeenCalledWith(seam.mobile.api, id('20'), 'attended'); expect(seam.book).not.toHaveBeenCalled(); view.unmount();
+    expect(seam.mark).toHaveBeenCalledWith(seam.mobile.api, id('20'), 'attended', expect.any(Function)); expect(seam.book).not.toHaveBeenCalled();
+    const guard = seam.mark.mock.calls[0]?.at(-1) as (() => boolean) | undefined; expect(guard?.()).toBe(true); view.unmount(); expect(guard?.()).toBe(false);
   });
   it('cancelled desk session keeps roster readable and mutation controls absent', async () => {
     seam.mobile.identity = { kind: 'staff', userId: id('1'), tenantId: id('2'), staffId: id('7'), role: 'front_desk' }; seam.loadDesk.mockResolvedValue([timetable({ sessionStatus: 'cancelled' })]);
@@ -299,7 +300,8 @@ describe('CLS independent held actual native rendered boundaries', () => {
     seam.loadMember.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]);
     const view = mount(ClassesPane); await view.settle(); await view.press(/^Cancel(?: booking)?$/i);
     expect(view.text()).toMatch(/4[:.]00|16:00/); await view.press(/^Confirm(?: cancellation)?$/i);
-    expect(seam.cancel).toHaveBeenCalledWith(seam.mobile.api, id('20')); expect(seam.loadMember.mock.calls.length).toBeGreaterThan(1); view.unmount();
+    expect(seam.cancel).toHaveBeenCalledWith(seam.mobile.api, id('20'), expect.any(Function)); expect(seam.loadMember.mock.calls.length).toBeGreaterThan(1);
+    const guard = seam.cancel.mock.calls[0]?.at(-1) as (() => boolean) | undefined; expect(guard?.()).toBe(true); view.unmount(); expect(guard?.()).toBe(false);
   });
   it.each([
     ['cancel_window_closed', "It's too close to the start time to cancel online. Speak to the front desk if you can't make it."],
@@ -351,7 +353,8 @@ describe('CLS independent held actual native rendered boundaries', () => {
     expect(seam.deskCancel).not.toHaveBeenCalled(); expect(view.controls(/^Confirm(?: cancellation)?$/i).filter(node => !node.props.disabled)).toHaveLength(0);
     const input = view.nodes().find(node => typeof node.props.onChangeText === 'function' && /reason/i.test(String(node.props.placeholder ?? node.props.accessibilityLabel ?? ''))); expect(input).toBeDefined();
     const change = input?.props.onChangeText; if (typeof change === 'function') change('Member asked at desk'); await view.settle(); await view.press(/^Confirm(?: cancellation)?$/i);
-    expect(seam.deskCancel).toHaveBeenCalledWith(seam.mobile.api, id('20'), 'Member asked at desk'); view.unmount();
+    expect(seam.deskCancel).toHaveBeenCalledWith(seam.mobile.api, id('20'), 'Member asked at desk', expect.any(Function));
+    const guard = seam.deskCancel.mock.calls[0]?.at(-1) as (() => boolean) | undefined; expect(guard?.()).toBe(true); view.unmount(); expect(guard?.()).toBe(false);
   });
 });
 
@@ -433,8 +436,9 @@ describe('CLS held public current-facts and permanent command lifetime', () => {
     const refreshSession = vi.fn().mockResolvedValueOnce(cancellable()).mockResolvedValue(cancellable({ canCancel: false }));
     const view = mount(ClassActions, { session: cancellable(), cancelWindowHours: null, scopeKey: 'A', refreshSession });
     await view.settle(); await view.press(/^Cancel(?: booking)?$/i);
-    const closer = view.nodes().find(node => typeof node.props.onClick === 'function' && /close|cancel|back|keep booking|not now/i.test(String(node.props['aria-label'] ?? node.props.children ?? '')) && !/Cancel booking/i.test(String(node.props.children)));
-    expect(closer).toBeDefined(); const close = closer?.props.onClick; if (typeof close === 'function') close(); await view.settle(); await view.press(/^Cancel(?: booking)?$/i);
+    const closer = view.nodes().find(node => typeof node.props.onClick === 'function' && /^(?:close\b.*|back|keep booking|not now)$/i.test(String(node.props['aria-label'] ?? node.props.children ?? '').trim()));
+    expect(closer).toBeDefined(); const close = closer?.props.onClick; if (typeof close === 'function') close(); await view.settle();
+    expect(fetch).not.toHaveBeenCalled(); expect(refreshSession).toHaveBeenCalledTimes(1); await view.press(/^Cancel(?: booking)?$/i);
     expect(refreshSession).toHaveBeenCalledTimes(2); expect(view.controls(/^Confirm(?: cancellation)?$/i).filter(node => !node.props.disabled)).toHaveLength(0); view.unmount();
   });
   it('native roster refresh uses externally cancelled current timetable rather than its old selection', async () => {
