@@ -1,5 +1,5 @@
 {
-  "verifiedAtUtc": "2026-10-03T16:23:40.546310+00:00",
+  "verifiedAtUtc": "2026-10-03T16:35:22.528499+00:00",
   "scope": [
     "INV",
     "STI",
@@ -75,7 +75,7 @@
   },
   "browserCurrentBuild": {
     "buildId": "L3yG7nDHjnDv4gsKokRPr",
-    "passedCases": 12,
+    "passedCases": 37,
     "runs": [
       {
         "name": "Canonical FOUR responsive console",
@@ -110,7 +110,49 @@
       "No phone/Metro/device/DB CLI or source/test edits by verifier",
       "No new invite creation to prove runtimeHTTPSgenerated origin; old wrong-origin failures remain qualified historical evidence"
     ],
-    "priorFailuresPreserved": true
+    "priorFailuresPreserved": true,
+    "additionalReadOnly": {
+      "passedCases": 25,
+      "runs": [
+        {
+          "name": "remaining-readonly-report.json",
+          "passedCases": 15,
+          "durationMs": 73138.71100000001,
+          "reportSha256": "e9d586b6995245f261a3bdefe1bc7f84b9e58f159cfff4e91bc98e9b1dd9d6bc",
+          "rawLogSha256": "7a409491979357b3d105283d2ab157c2c7c86d0366979407332f41a71bbd1024"
+        },
+        {
+          "name": "remaining-identity-readonly-report.json",
+          "passedCases": 10,
+          "durationMs": 37396.217000000004,
+          "reportSha256": "b6185ee757170f513ef9cae193a1736526b6a933d6646d46cc488a372e885075",
+          "rawLogSha256": "68aa24018da3d7ef10303c5a2fcb0085808d136041283dcaf2097ee1ebb303c4"
+        }
+      ],
+      "configSha256": "abc731f08147d1270812ce6ca141cb716dddedc64dfcaac8ef19c6034838c86d",
+      "visibleTestHashes": {
+        "tests/e2e/classes-visible.spec.ts": "4a8a7e043a6b722f041f035d63e3071c62ce2049776ebbcaffd26085da456532",
+        "tests/e2e/pt-front-visible.spec.ts": "f9843f9851b83d2ec024141bdf9ef8782ca83225cdfe6c31f3b8bbd464eb5a89",
+        "tests/e2e/shop-visible.spec.ts": "fa86dc8808b63d0d1dcfab8449157e13999cf23cf377c248b31d4b46b3a4a09c",
+        "tests/e2e/google-provider-font.spec.ts": "5c948d88c50b336cac0f94e6936456a50ad1a014a4611119d2f44ebb53490d28",
+        "tests/e2e/phase8-accessibility.spec.ts": "ec193c285e24bc2fdb33852c4f27f71cfbe9a03e05ef1470dcd42059dc21f3ff"
+      },
+      "currentRepositoryTestHashes": {
+        "tests/e2e/classes-visible.spec.ts": "4a8a7e043a6b722f041f035d63e3071c62ce2049776ebbcaffd26085da456532",
+        "tests/e2e/pt-front-visible.spec.ts": "f9843f9851b83d2ec024141bdf9ef8782ca83225cdfe6c31f3b8bbd464eb5a89",
+        "tests/e2e/shop-visible.spec.ts": "2cdf5b2c351aa24999b9714d9c62997f50cac72812f8e0e526668a8a81664d05",
+        "tests/e2e/google-provider-font.spec.ts": "6c3a12a704d9566a266e9a42f6b8eca53ced45a9bcd4f9da48c8f8ac3d9157c5",
+        "tests/e2e/phase8-accessibility.spec.ts": "5099fd9575751c2a317262ace57f90f543bc5c42d9a84f07cddb31f6df20db8c"
+      },
+      "lineEndingOnlyDifferences": [
+        "tests/e2e/shop-visible.spec.ts",
+        "tests/e2e/google-provider-font.spec.ts",
+        "tests/e2e/phase8-accessibility.spec.ts"
+      ],
+      "screenshots": 26,
+      "screenshotManifestSha256": "d38a140edd80fe1977aff44b410d0e8b068c9a32b0e279ba93b29fcf2a845fdf",
+      "qualification": "CLS8, PTF4, SHP3, INV-font5, role-routing5. Training/Classes are empty states; Shop empty offline flow is bounded. No populated booking, guardian handover, invite redemption, user/auth mutation or device acceptance."
+    }
   },
   "freshRenderedCritic": {
     "verdict": "bounded GO",
