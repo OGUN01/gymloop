@@ -622,6 +622,15 @@ export const WSP_DISPATCH_TICKET_SECONDS = 120;
 export const WSP_TENANT_REQUESTS_PER_MINUTE = 30;
 export const WSP_OPERATIONS_PAGE_MAX = 100;
 
+/** Frozen SLF-001…018 member freeze request bounds (member-self-service proposal). */
+export const SLF_LIMITS = { reasonMaxChars: 2000, decisionReasonMinChars: 3, decisionReasonMaxChars: 200, maxOpenRequestsPerMember: 1 } as const;
+
+/** Frozen OCC-007 sparse-data thresholds and default range (occupancy-analytics proposal). */
+export const OCC_LIMITS = { minHeatmapEligibleDates: 14, minElapsedSessions: 10, defaultRangeDays: 28 } as const;
+
+/** Frozen RPE-003/004 CSV export bounds, staged delivery (report-exports proposal). */
+export const RPE_LIMITS = { bodyMaxBytes: 2048, maxRangeDays: 366, csvMaxRows: 5000, csvMaxBytes: 8_388_608, generationDeadlineMs: 15_000 } as const;
+
 /** Chalkline native font roles, registered by the mobile provider (ADR-170). */
 export const FONT = {
   regular: 'Archivo_400Regular', medium: 'Archivo_500Medium', semibold: 'Archivo_600SemiBold', bold: 'Archivo_700Bold',

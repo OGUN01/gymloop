@@ -33,3 +33,5 @@ export * from './api/announcements';
 export * from './api/purchase';
 export * from './api/push';
 export * from './api/whatsapp';
+export * from './api/occupancy-analytics';
+export * from './api/freeze-requests';
