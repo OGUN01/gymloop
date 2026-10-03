@@ -110,8 +110,22 @@ describe('PTF actual member server page read boundary', () => {
   it('renders exact status vocabulary and explains an unmarked past booked row', async () => {
     const fixture = data(); fixture.upcoming.data[0] = { ...session, startsAt: '2026-01-01T06:30:00Z', endsAt: '2026-01-01T07:30:00Z', canCancel: false };
     fixture.history.data = [{ ...session, status: 'attended' }, { ...session, status: 'no_show' }, { ...session, status: 'cancelled_by_member' }, { ...session, status: 'cancelled_by_member', consumed: true }, { ...session, status: 'cancelled_by_gym' }]; h.load.mockResolvedValue(fixture);
-    const html = await markup(); for (const word of ['Booked', 'Attended', 'No-show', 'Cancelled by you', 'Cancelled by your academy', 'Cancelled late - session used']) expect(html).toContain(word); expect(html).toContain('Waiting for your trainer to record it.');
+    const html = await markup(); for (const word of ['Booked', 'Attended', 'No-show', 'Cancelled by you', 'Cancelled by your academy', 'Cancelled late - session used']) expect(html).toContain(word); expect(html).toContain('Waiting for your instructor to record it.');
     expect(html).toMatch(/data-status="booked"[\s\S]*?aria-hidden="true"/);
+  });
+  it.each([
+    ['started but not ended', '2026-10-07T07:00:00Z', false],
+    ['exact end instant', '2026-10-07T07:30:00Z', false],
+    ['strictly after end', '2026-10-07T07:30:00.001Z', true],
+  ] as const)('shows the waiting caption only after the end: %s', async (_label, now, waiting) => {
+    vi.setSystemTime(new Date(now));
+    const fixture = data(); fixture.upcoming.data = [{ ...session, canCancel: false }]; fixture.history.data = []; h.load.mockResolvedValue(fixture);
+    const html = await markup();
+    expect(html).toContain('Booked'); expect(html).toMatch(/data-status="booked"/);
+    expect(/Waiting for your (?:trainer|instructor|teacher) to record it\./.test(html)).toBe(waiting);
+    if (waiting) expect(html).toContain('Waiting for your instructor to record it.');
+    expect(html).not.toMatch(/data-status="(?:attended|no_show)"/);
+    expect(h.fetch).not.toHaveBeenCalled();
   });
   it.each([{ afterId: id }, { afterStartsAt: session.startsAt }, { afterId: 'not-a-uuid', afterStartsAt: session.startsAt }, { afterId: id, afterStartsAt: 'not-an-instant' }])('rejects incomplete/malformed history cursor without invalid feature read: %j', async query => {
     const html = await markup(query); expect(h.history).not.toHaveBeenCalled(); expect(html).toContain(pack.programmeName); expect(html).toMatch(/history|History/); expect(html).toMatch(/error|loaded|readable|Try again/i);
