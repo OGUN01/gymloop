@@ -12,11 +12,15 @@ function client() {
     return chain;
   } };
 }
+// Vitest executes the public server-page seam outside Next's server runtime.
+vi.mock('server-only', () => ({}));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }), notFound: () => { throw Error('not-found'); }, redirect: () => { throw Error('redirect'); } }));
 vi.mock('next/link', () => ({ default: ({ children, href }: { children: React.ReactNode; href: string }) => React.createElement('a', { href }, children) }));
 vi.mock('../../apps/web/lib/supabase/server', () => ({ createServerSupabase: async () => client() }));
 vi.mock('../../apps/web/lib/identity-session', () => ({
-  requireAudience: async () => ({ supabase: client(), identity: { kind: h.role === 'member' ? 'member' : 'staff', role: h.role, tenantId: ids.tenant, userId: ids.member, memberId: ids.member, staffId: ids.trainer } }),
+  requireAudience: async () => ({ supabase: client(), identity: h.role === 'member'
+    ? { kind: 'member', tenantId: ids.tenant, userId: ids.member, memberId: ids.member }
+    : { kind: 'staff', role: h.role, tenantId: ids.tenant, userId: ids.member, staffId: ids.trainer } }),
   readIdentity: async () => ({ supabase: client(), identity: { kind: 'member', tenantId: ids.tenant, userId: ids.member, memberId: ids.member } }),
 }));
 async function resolveServer(node: React.ReactNode): Promise<React.ReactNode> {

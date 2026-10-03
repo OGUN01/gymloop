@@ -294,11 +294,12 @@ describe('held native information architecture', () => {
     expect(rendered.some(node => node.type === 'legal')).toBe(true);
   });
 
-  it('desk keeps its four registered primary tabs', async () => {
+  it('desk composes five primary tabs with Classes after Check-in', async () => {
     const target = await import('../../apps/mobile/app/(desk)/_layout');
     const rendered = await nativeRender(target.default);
     const tabs = rendered.filter(node => node.type === 'TabScreen' && node.props.options && typeof node.props.options === 'object' && !('href' in node.props.options && node.props.options.href === null));
-    expect(tabs.map(node => node.props.name)).toEqual(['index', 'members', 'follow-ups', 'more']);
+    expect(tabs.map(node => node.props.name)).toEqual(['index', 'classes', 'members', 'follow-ups', 'more']);
+    expect(tabs.map(node => node.props.options.title)).toEqual(['Check-in', 'Batches', 'Students', 'Follow-ups', 'More']);
   });
 });
 
