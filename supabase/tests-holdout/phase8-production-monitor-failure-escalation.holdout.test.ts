@@ -59,7 +59,7 @@ async function loadFailureModule(): Promise<FailureModule> {
 }
 
 function workflowSource(): string {
-  return readFileSync(WORKFLOW_PATH, 'utf8');
+  return readFileSync(WORKFLOW_PATH, 'utf8').replace(/\r\n/g, '\n');
 }
 
 function stepSources(source: string): readonly { offset: number; source: string }[] {
