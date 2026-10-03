@@ -123,3 +123,73 @@ describe('PT cancellation consumption evidence', () => {
     }
   });
 });
+
+describe('PT booking cancellation feedback reuse', () => {
+  it('uses the established labels for authoritative true and false consumption', async () => {
+    const { ptBookingCancellationFeedback } = await import('../pt-front-data');
+    expect(ptBookingCancellationFeedback({ data: [session], error: null }, session, 'gym')).toEqual({
+      message: null, label: 'Cancelled late - session used',
+    });
+    expect(ptBookingCancellationFeedback({ data: [{ ...session, consumed: false }], error: null }, session, 'studio')).toEqual({
+      message: null, label: 'Cancelled by you',
+    });
+  });
+  it('keeps unavailable, failed and duplicate evidence neutral', async () => {
+    const { ptBookingCancellationFeedback } = await import('../pt-front-data');
+    for (const section of [undefined, { data: null, error: 'retryable' }, { data: [session, { ...session }], error: null }]) {
+      expect(ptBookingCancellationFeedback(section, session, 'gym')).toEqual({
+        message: 'Cancelled. Reload to check whether a session was used.', label: null,
+      });
+    }
+  });
+});
+
+describe('PT booking open-slot grouping reuse', () => {
+  it('groups using each row timezone while preserving day insertion, row order and input objects', async () => {
+    const { ptBookingOpenSlotGroups } = await import('../pt-front-data');
+    const later = { startsAt: '2026-10-05T18:45:00.000Z', endsAt: '2026-10-05T19:45:00.000Z', timezone: 'Asia/Kolkata' };
+    const earlier = { startsAt: '2026-10-04T18:45:00.000Z', endsAt: '2026-10-04T19:45:00.000Z', timezone: 'UTC' };
+    const sameInstantDifferentDay = { ...earlier, timezone: 'Asia/Kolkata' };
+    const sameDaySecond = { startsAt: '2026-10-04T19:00:00.000Z', endsAt: '2026-10-04T20:00:00.000Z', timezone: 'UTC' };
+    const slots = { data: [later, earlier, sameInstantDifferentDay, sameDaySecond], error: null };
+    const before = structuredClone({ pack, slots });
+    const result = ptBookingOpenSlotGroups(pack, slots, command.orderId, Date.parse('2026-10-04T00:00:00.000Z'));
+    expect([...result.entries()]).toEqual([
+      ['2026-10-06', [later]], ['2026-10-04', [earlier, sameDaySecond]],
+      ['2026-10-05', [sameInstantDifferentDay]],
+    ]);
+    expect(result.get('2026-10-06')?.[0]).toBe(later);
+    expect(result.get('2026-10-04')?.[1]).toBe(sameDaySecond);
+    expect({ pack, slots }).toEqual(before);
+  });
+  it('requires an own live explicitly bookable pack, successful array slots and finite now', async () => {
+    const { ptBookingOpenSlotGroups } = await import('../pt-front-data');
+    const slot = { startsAt: session.startsAt, endsAt: session.endsAt, timezone: session.timezone };
+    const slots = { data: [slot], error: null };
+    const now = Date.parse('2026-10-04T00:00:00.000Z');
+    for (const unavailablePack of [null, undefined, { ...pack, orderId: 'foreign' }, { ...pack, state: 'closed' as const }, { ...pack, state: 'fully_booked' as const }, { ...pack, canBook: false }]) {
+      expect(ptBookingOpenSlotGroups(unavailablePack, slots, command.orderId, now)).toEqual(new Map());
+    }
+    for (const unavailableSlots of [undefined, { data: null, error: null }, { data: [slot], error: 'retryable' }, { data: 'invalid', error: null } as unknown as typeof slots]) {
+      expect(ptBookingOpenSlotGroups(pack, unavailableSlots, command.orderId, now)).toEqual(new Map());
+    }
+    for (const invalidNow of [NaN, Infinity, -Infinity]) {
+      expect(ptBookingOpenSlotGroups(pack, slots, command.orderId, invalidNow)).toEqual(new Map());
+    }
+  });
+  it('skips expired, exact-now and invalid interval or timezone rows without losing valid future rows', async () => {
+    const { ptBookingOpenSlotGroups } = await import('../pt-front-data');
+    const valid = { startsAt: session.startsAt, endsAt: session.endsAt, timezone: session.timezone };
+    const now = Date.parse('2026-10-04T04:00:00.000Z');
+    const slots = { data: [
+      { ...valid, startsAt: '2026-10-04T03:59:00.000Z' },
+      { ...valid, startsAt: '2026-10-04T04:00:00.000Z' },
+      { ...valid, startsAt: 'invalid' }, { ...valid, endsAt: valid.startsAt },
+      { ...valid, endsAt: '2026-10-04T04:29:00.000Z' },
+      { ...valid, timezone: 'Invalid/Zone' }, valid,
+    ], error: null };
+    expect([...ptBookingOpenSlotGroups(pack, slots, command.orderId, now).entries()]).toEqual([
+      ['2026-10-04', [valid]],
+    ]);
+  });
+});

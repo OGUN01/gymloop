@@ -147,6 +147,83 @@ const original = {
   memberId: '66000000-0000-4000-8000-000000000006',
 };
 
+describe('held shared cancellation feedback', () => {
+  it('uses exact canonical cancellation labels for authoritative false and true', async () => {
+    const { ptBookingCancellationFeedback } = await import('../../packages/shared/src/api/pt-front-data');
+    expect(ptBookingCancellationFeedback({ data: [session], error: null }, answer, 'studio'))
+      .toEqual({ message: null, label: 'Cancelled by you' });
+    expect(ptBookingCancellationFeedback({ data: [{ ...session, consumed: true }], error: null }, answer, 'studio'))
+      .toEqual({ message: null, label: 'Cancelled late - session used' });
+  });
+
+  it('keeps the exact neutral acknowledgement for unavailable or ambiguous evidence', async () => {
+    const { ptBookingCancellationFeedback } = await import('../../packages/shared/src/api/pt-front-data');
+    for (const facts of [undefined, { data: [session], error: 'retryable' },
+      { data: [session, session], error: null },
+      { data: [{ ...session, timezone: 'Bad/Timezone' }], error: null },
+    ]) expect(ptBookingCancellationFeedback(facts, answer, 'studio')).toEqual({
+      message: 'Cancelled. Reload to check whether a session was used.', label: null,
+    });
+  });
+});
+
+describe('held own future row-zone slot grouping', () => {
+  it('preserves row-zone day insertion, slot order, exact objects and inputs', async () => {
+    const { ptBookingOpenSlotGroups } = await import('../../packages/shared/src/api/pt-front-data');
+    const now = Date.parse('2026-10-10T18:00:00Z');
+    const indian = { startsAt: '2026-10-10T23:30:00Z', endsAt: '2026-10-11T00:30:00Z', timezone: 'Asia/Kolkata' };
+    const utc = { ...indian, timezone: 'UTC' };
+    const earlierIndian = { startsAt: '2026-10-10T22:00:00Z', endsAt: '2026-10-10T23:00:00Z', timezone: 'Asia/Kolkata' };
+    const slots = { data: [indian, utc, earlierIndian], error: null };
+    const before = structuredClone({ pack, slots });
+    const groups = ptBookingOpenSlotGroups(pack, slots, command.orderId, now);
+    expect([...groups.entries()]).toEqual([
+      ['2026-10-11', [indian, earlierIndian]], ['2026-10-10', [utc]],
+    ]);
+    expect(groups.get('2026-10-11')?.[0]).toBe(indian);
+    expect(groups.get('2026-10-11')?.[1]).toBe(earlierIndian);
+    expect(groups.get('2026-10-10')?.[0]).toBe(utc);
+    expect({ pack, slots }).toEqual(before);
+  });
+
+  it('refuses nonfinite clocks, foreign/non-live/nonbookable packs and failed slot sections', async () => {
+    const { ptBookingOpenSlotGroups } = await import('../../packages/shared/src/api/pt-front-data');
+    const slots = { data: [{ startsAt: session.startsAt, endsAt: session.endsAt, timezone: session.timezone }], error: null };
+    const now = Date.parse('2026-10-10T07:00:00Z');
+    for (const clock of [NaN, Infinity, -Infinity]) {
+      expect(ptBookingOpenSlotGroups(pack, slots, command.orderId, clock).size).toBe(0);
+    }
+    for (const candidate of [null, undefined, { ...pack, orderId: command.sessionId },
+      { ...pack, state: 'fully_booked' as const }, { ...pack, state: 'expired' as const },
+      { ...pack, state: 'closed' as const }, { ...pack, state: 'spent' as const },
+      { ...pack, canBook: false }, { ...pack, canBook: undefined } as unknown as PtPack,
+    ]) expect(ptBookingOpenSlotGroups(candidate, slots, command.orderId, now).size).toBe(0);
+    for (const section of [undefined, { data: null, error: null }, { data: slots.data, error: 'retryable' },
+      { data: {}, error: null } as unknown as typeof slots,
+    ]) expect(ptBookingOpenSlotGroups(pack, section, command.orderId, now).size).toBe(0);
+  });
+
+  it('retains only valid recorded intervals strictly after the supplied instant', async () => {
+    const { ptBookingOpenSlotGroups } = await import('../../packages/shared/src/api/pt-front-data');
+    const now = Date.parse(session.startsAt);
+    const valid = { startsAt: '2026-10-10T08:00:00.001Z', endsAt: session.endsAt, timezone: 'UTC' };
+    const rows = [
+      { ...valid, startsAt: session.startsAt },
+      { ...valid, startsAt: '2026-10-10T07:59:59Z' },
+      { ...valid, endsAt: valid.startsAt },
+      { ...valid, endsAt: '2026-10-10T07:00:00Z' },
+      { ...valid, endsAt: '2026-10-10T09:00:00' },
+      { ...valid, startsAt: 'invalid' },
+      { ...valid, timezone: 'Missing/Zone' },
+      valid,
+    ];
+    const before = structuredClone(rows);
+    expect([...ptBookingOpenSlotGroups(pack, { data: rows, error: null }, command.orderId, now)])
+      .toEqual([['2026-10-10', [valid]]]);
+    expect(rows).toEqual(before);
+  });
+});
+
 describe('held fresh captured member guard', () => {
   it('freshly guards every invocation and returns its exact current caller/client', async () => {
     const first = { identity: { kind: 'member', ...original }, supabase: {} };
