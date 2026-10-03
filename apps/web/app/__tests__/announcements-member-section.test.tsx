@@ -1,10 +1,11 @@
 import { createElement, isValidElement, type ReactNode } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { Writable } from 'node:stream';
+import { renderToPipeableStream, renderToStaticMarkup } from 'react-dom/server';
 import { businessNouns } from '@gymloop/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ count: 4, fail: false, calls: 0 }));
+const state = vi.hoisted(() => ({ count: 4, fail: false, calls: 0, pending: null as Promise<void> | null }));
 const cards = () => Array.from({ length: state.count }, (_, index) => ({ announcementId: `75000000-0000-4000-8000-${String(index + 201).padStart(12, '0')}`, kind: index === 0 ? 'transactional' : 'promotional', title: `Notice ${index + 1}`, body: 'Plain text <script>no markup</script> https://example.test', imageUrl: null, versionNo: index === 0 ? 2 : 1, publishedAt: '2026-10-02T00:00:00Z', editedAt: index === 0 ? '2026-10-02T01:00:00Z' : null, expiresAt: null, changeNote: index === 0 ? 'Opening time corrected' : null, readState: index === 0 ? 'updated' : 'unread', readAt: null }));
-vi.mock('../../lib/member-announcements', () => ({ loadMemberAnnouncementFeed: async () => { state.calls++; if (state.fail) throw new Error('PRIVATE SQL detail'); return { asOf: '2026-10-02T01:30:00Z', announcements: cards() }; } }));
+vi.mock('../../lib/member-announcements', () => ({ loadMemberAnnouncementFeed: async () => { state.calls++; if (state.pending) await state.pending; if (state.fail) throw new Error('PRIVATE SQL detail'); return { asOf: '2026-10-02T01:30:00Z', announcements: cards() }; } }));
 vi.mock('../../lib/member-portal', () => ({ loadMemberPortal: async () => ({ errorMessage: null, nouns: businessNouns('dance'), businessType: 'dance', member: { full_name: 'Aarav Sharma', member_code: '75' }, gym: { name: 'ANC Academy', gym_code: 'ANC75A', business_type: 'dance', timezone: 'Asia/Kolkata', branchName: 'Main' }, membership: null, visits: [], weekStart: '2026-09-28', weekVisits: 0, weeklyGoal: 3, streak: { current: 0, unit: 'week', rule: 'weekly_goal' }, latestMessage: null }) }));
 const db = { from: () => { const result = { data: { business_type: 'dance', timezone: 'Asia/Kolkata' }, error: null }; const chain = { select: () => chain, eq: () => chain, maybeSingle: async () => result }; return chain; } };
 vi.mock('../../lib/identity-session', () => ({ requireAudience: async () => ({ supabase: db, identity: { kind: 'member', userId: '75000000-0000-4000-8000-000000000906', tenantId: '75000000-0000-4000-8000-000000000001', memberId: '75000000-0000-4000-8000-000000000101' } }) }));
@@ -18,7 +19,7 @@ const resolveServer = async (node: ReactNode): Promise<ReactNode> => {
   return createElement(node.type, { ...props }, await resolveServer(props.children));
 };
 const render = async () => { const { default: Page } = await import('../member/page'); return renderToStaticMarkup(await resolveServer(await Page())); };
-beforeEach(() => { state.count = 4; state.fail = false; state.calls = 0; });
+beforeEach(() => { state.count = 4; state.fail = false; state.calls = 0; state.pending = null; });
 describe('ANC-020 Home inline announcement section', () => {
   it('initially offers three calm expandable cards and Show all without a read command', async () => {
     const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
@@ -35,5 +36,24 @@ describe('ANC-020 Home inline announcement section', () => {
   });
   it('feed failure has one inline retry sentence and leaves Home usable', async () => {
     state.fail = true; const html = await render(); expect(html).toContain('Announcements couldn&#x27;t be loaded. Try again.'); expect(html).toContain('/member/check-in'); expect(html).not.toContain('PRIVATE SQL');
+  });
+});
+
+describe('ANC-Q3/Q10 frozen Home anchor and independent streaming', () => {
+  it('cards follow both week figure and scan action in document order', async () => {
+    const html = await render(); const anchor = html.indexOf('From your academy');
+    expect(anchor).toBeGreaterThan(html.indexOf('/member/check-in'));
+    const week = html.search(/this week|This week|Week/); expect(week).toBeGreaterThanOrEqual(0); expect(anchor).toBeGreaterThan(week);
+  });
+  it('unsettled announcements cannot hold the usable Home shell', async () => {
+    let finish!: () => void; state.pending = new Promise<void>(resolve => { finish = resolve; });
+    const { default: Page } = await import('../member/page'); let output = '';
+    const sink = new Writable({ write(chunk, _encoding, done) { output += String(chunk); done(); } });
+    const stream = renderToPipeableStream(createElement(async () => await Page()), { onShellReady() { stream.pipe(sink); } });
+    try {
+      await vi.waitFor(() => { expect(state.calls).toBeGreaterThan(0); expect(output).toContain('/member/check-in'); });
+      expect(output).not.toContain('Notice 1');
+      finish(); await vi.waitFor(() => expect(output).toContain('Notice 1'));
+    } finally { finish(); stream.abort(); }
   });
 });

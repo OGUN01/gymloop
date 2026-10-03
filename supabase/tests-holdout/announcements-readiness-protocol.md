@@ -92,3 +92,21 @@ remain usable and keep their position. Browser offline uses its inline error
 row; only native has Saved copy. Record a pass/fail with concrete evidence for
 each Q criterion; an unavailable surface stays unverified, never a source-only
 UI win. Three rejections of a dimension escalate the frozen requirement.
+
+## Public lifetime clarification follow-up
+
+The delegated application-interface clarification supersedes the old Home
+insertion anchor: the announcement section follows both week figure and scan
+action in document order. Start announcement streaming early and independently;
+failure stays inline below those controls. Native collapsed cards have a separate
+two-line body preview, title accessible name and expanded accessibility state.
+
+Unmount while a real command, composer save or upload is pending. Complete the
+request after unmount and confirm no refresh, navigation or upload application to
+a replacement form. Retain native reload/markRead functions across each complete
+caller change and unmount; they cannot act for the preceding caller. Current
+version recorded-false/404 acknowledgement cannot leave phantom read state;
+authoritative loads reconcile exact versions. Simultaneous delivery preserves a
+later pending version and idempotent database counts; multiple HTTP requests are
+permitted. Rendered native/browser and real form completion evidence remains
+pending. The owner-pending failure-truth amendment supplies no new expectations.

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const disk = vi.hoisted(() => new Map<string, string>());
 vi.mock('expo-secure-store', () => ({ getItemAsync: async (key: string) => disk.get(key) ?? null, setItemAsync: async (key: string, value: string) => { disk.set(key, value); }, deleteItemAsync: async (key: string) => { disk.delete(key); } }));
-const { ANNOUNCEMENT_CACHE_KEY, applyLocalRead, resolveAnnouncementFeed, loadAnnouncementCache, flushPendingReads } = await import('../announcements');
+const { ANNOUNCEMENT_CACHE_KEY, applyLocalRead, resolveAnnouncementFeed, loadAnnouncementCache, flushPendingReads, queueRead } = await import('../announcements');
 const scope = { tenantId: '75000000-0000-4000-8000-000000000001', userId: '75000000-0000-4000-8000-000000000906', memberId: '75000000-0000-4000-8000-000000000101' };
 const id = '75000000-0000-4000-8000-000000000201';
 const card = { announcementId: id, kind: 'transactional' as const, title: 'Notice', body: 'Plain', imageUrl: null, versionNo: 2, publishedAt: '2026-10-02T00:00:00Z', editedAt: '2026-10-02T01:00:00Z', expiresAt: null, changeNote: 'Changed time', readState: 'updated' as const, readAt: '2026-10-02T00:30:00Z' };
@@ -48,4 +48,25 @@ describe('ANC-021 scope-bound saved feed and pending reads', () => {
     await flushPendingReads({ post } as never, { ...scope, userId: 'other' }); expect(post).not.toHaveBeenCalled();
     await flushPendingReads({ post } as never, scope); expect((await loadAnnouncementCache(scope))?.pendingReads).toEqual(cache.pendingReads);
   });
+});
+
+it('ANC-021 concurrent deliveries preserve a newly queued exact version without requiring single HTTP dispatch', async () => {
+  const cache = cached(); cache.pendingReads = [{ announcementId: id, versionNo: 2 }];
+  disk.set(ANNOUNCEMENT_CACHE_KEY, JSON.stringify(cache));
+  const acknowledgements: Array<() => void> = [];
+  const delivered = new Set<string>();
+  const post = vi.fn((path: string, body: { versionNo: number }) => new Promise(resolve => {
+    acknowledgements.push(() => { delivered.add(`${path}:${body.versionNo}`); resolve({ ok: true, data: { recorded: true } }); });
+  }));
+  const first = flushPendingReads({ post } as never, scope); const second = flushPendingReads({ post } as never, scope);
+  await vi.waitFor(() => expect(acknowledgements.length).toBeGreaterThan(0));
+  await queueRead(scope, id, 3);
+  acknowledgements.forEach(acknowledge => acknowledge());
+  // A serialized second delivery may start after the first completes.
+  for (let step = 0; step < 40; step++) { await Promise.resolve(); acknowledgements.forEach(acknowledge => acknowledge()); }
+  await Promise.all([first, second]);
+  const remaining = (await loadAnnouncementCache(scope))?.pendingReads ?? [];
+  expect(remaining).not.toContainEqual({ announcementId: id, versionNo: 2 });
+  // The new pair must either remain queued or have its own successful delivery.
+  expect(remaining.some(value => value.announcementId === id && value.versionNo === 3) || delivered.has(`/api/member/announcements/${id}/read:3`)).toBe(true);
 });
