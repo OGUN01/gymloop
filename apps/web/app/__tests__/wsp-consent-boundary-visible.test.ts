@@ -88,6 +88,29 @@ describe('WSP operations role and paired keyset boundary', () => {
     expect(whatsappOperationsCursor(page)).toBeNull();
   });
 
+  it.each(['0', '2026-10-03', '2026-10-03T09:00:00', '2026-02-30T09:00:00Z',
+    '2026-04-31T09:00:00+05:30', '2026-13-03T09:00:00Z'])(
+    'returns the safe refusal envelope before RPC for incomplete or impossible timestamp %s', async (timestamp) => {
+      const { loadWhatsappOperations } = await import('../../lib/whatsapp-operations');
+      const result = await loadWhatsappOperations({ cursor: `${timestamp}|${requestKey}` });
+      expect.soft(result).toEqual({
+        view: null, errorMessage: 'The WhatsApp operations list could not be loaded.', isPreview: false,
+      });
+      expect(boundary.rpc).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['2026-10-03T09:00:00Z', '2026-10-03T09:00:00.123+05:30', '2024-02-29T23:59:59-04:00'])(
+    'preserves the complete calendar-valid timestamp and id verbatim: %s', async (timestamp) => {
+      const { loadWhatsappOperations } = await import('../../lib/whatsapp-operations');
+      const result = await loadWhatsappOperations({ cursor: `${timestamp}|${requestKey}` });
+      expect(result).toEqual({ view: emptyPage, errorMessage: null, isPreview: false });
+      expect(boundary.rpc).toHaveBeenCalledExactlyOnceWith('read_whatsapp_operations', {
+        p_after_created_at: timestamp, p_after_id: requestKey, p_limit: 100,
+      });
+    },
+  );
+
   it('emits the complete paired cursor for a continuing page', async () => {
     const { whatsappOperationsCursor } = await import('../../lib/whatsapp-operations');
     expect(whatsappOperationsCursor({ ...emptyPage, nextAfter: '2026-10-03T09:00:00Z', nextAfterId: requestKey }))

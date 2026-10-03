@@ -104,6 +104,23 @@ async function observeMemberWhatsappSettingsPage() {
 }
 
 describe('held member WhatsApp settings boundary', () => {
+  it.each([
+    '+91 80955 50001',
+    '+91 (80955)-50001',
+    '•• +91 80955 50001',
+    '+91 80•955•50•001',
+  ])('concealment rejects all visible phone digits together: %s', async maskedPhone => {
+    const lib = tas<LibExports>(await import(targets.lib));
+    expect(lib.memberWhatsappSettings({ service: true, marketing: false,
+      recipientKind: 'self', maskedPhone, noticeVersion: 'wsp-v1', available: true })).toBeNull();
+  }, 20_000);
+
+  it.each(['+91 •••• 417', '+91 **** 862'])('legitimate settings concealment survives unchanged: %s', async maskedPhone => {
+    const lib = tas<LibExports>(await import(targets.lib));
+    const data = { service: false, marketing: false, recipientKind: 'guardian',
+      maskedPhone, noticeVersion: 'wsp-v1', available: true };
+    expect(lib.memberWhatsappSettings(data)).toEqual(data);
+  }, 20_000);
   it('accepts the exact safe projection', async () => {
     const lib = tas<LibExports>(await import(targets.lib));
     const value: MemberWhatsappSettings = {
@@ -190,6 +207,59 @@ describe('held WhatsApp operations reader', () => {
     vi.doMock('../../apps/web/lib/identity-session', () => ({ requireAudience }));
   });
   afterEach(() => { vi.doUnmock('../../apps/web/lib/identity-session'); });
+
+  it.each([
+    '+91 80955 50001',
+    '+91 (80955)-50001',
+    '•• +91 80955 50001',
+    '+91 80•955•50•001',
+  ])('operations concealment refuses grouped or decorated full phone: %s', async maskedPhone => {
+    rpc.mockResolvedValue({ data: opPayload(null, [opRow({ maskedPhone })]), error: null });
+    const lib = tas<{ loadWhatsappOperations(params: { cursor?: string }): Promise<unknown> }>(await import(targets.operations));
+    await expect(lib.loadWhatsappOperations({})).resolves.toEqual({
+      view: null, errorMessage: 'The WhatsApp operations list could not be loaded.', isPreview: false,
+    });
+    expect(rpc).toHaveBeenCalledTimes(1);
+  }, 20_000);
+
+  it.each(['+91 •••• 417', '+91 **** 862'])('legitimate operations concealment survives unchanged: %s', async maskedPhone => {
+    rpc.mockResolvedValue({ data: opPayload(null, [opRow({ maskedPhone })]), error: null });
+    const screen = await load();
+    expect(screen.errorMessage).toBeNull();
+    expect(screen.operations).toEqual([opRow({ maskedPhone })]);
+  }, 20_000);
+
+  it.each([
+    ['bare date', '2026-10-03'],
+    ['numeric date', '42'],
+    ['missing timezone', '2026-10-03T09:00:00'],
+    ['non-leap February', '2026-02-29T09:00:00Z'],
+    ['April overflow', '2026-04-31T09:00:00+05:30'],
+    ['zero month', '2026-00-03T09:00:00Z'],
+    ['month overflow', '2026-13-03T09:00:00Z'],
+    ['zero day', '2026-10-00T09:00:00Z'],
+    ['hour overflow', '2026-10-03T25:00:00Z'],
+    ['minute overflow', '2026-10-03T09:60:00Z'],
+    ['offset overflow', '2026-10-03T09:00:00+25:00'],
+    ['trailing text', '2026-10-03T09:00:00Z extra'],
+  ])('malformed calendar cursor %s refuses before RPC without restarting', async (_label, timestamp) => {
+    rpc.mockResolvedValue({ data: opPayload(null), error: null });
+    const lib = tas<{ loadWhatsappOperations(params: { cursor: string }): Promise<unknown> }>(await import(targets.operations));
+    await expect(lib.loadWhatsappOperations({ cursor: `${timestamp}|${ids.cursorId}` })).resolves.toEqual({
+      view: null, errorMessage: 'The WhatsApp operations list could not be loaded.', isPreview: false,
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it.each(['2024-02-29T23:45:12.123+05:30', '2026-10-03T04:15:00-04:00'])('valid timezone cursor is preserved verbatim: %s', async timestamp => {
+    rpc.mockResolvedValue({ data: opPayload(null), error: null });
+    const screen = await load({ cursor: `${timestamp}|${ids.cursorId}` });
+    expect(screen.errorMessage).toBeNull();
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc.mock.calls[0]).toEqual(['read_whatsapp_operations', {
+      p_after_created_at: timestamp, p_after_id: ids.cursorId, p_limit: 100,
+    }]);
+  }, 20_000);
 
   it('owner projection surfaces the wallet amounts and cursor envelope', async () => {
     rpc.mockResolvedValue({ data: opPayload({ balancePaise: '450000', currency: 'INR' }), error: null });

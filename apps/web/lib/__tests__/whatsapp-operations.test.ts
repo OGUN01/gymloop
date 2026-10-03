@@ -105,6 +105,20 @@ describe('memberWhatsappSettings — exact six keys, channel permission not gene
     expect(memberWhatsappSettings({ ...adultAvailable, recipientKind: 'sibling' })).toBeNull();
   });
 
+  it.each(['80955 55810', '80955-55810', '+91 80955 55810 •', '•8095555810', '80955-55810*'])(
+    'refuses complete phone digits despite grouping or mask decoration: %s', async (maskedPhone) => {
+      const { memberWhatsappSettings } = await whatsapp();
+      expect(memberWhatsappSettings({ ...adultAvailable, maskedPhone })).toBeNull();
+    },
+  );
+
+  it.each(['+91 ••••• 810', '•••••••810', '*******810'])(
+    'preserves genuinely concealed phone output: %s', async (maskedPhone) => {
+      const { memberWhatsappSettings } = await whatsapp();
+      expect(memberWhatsappSettings({ ...adultAvailable, maskedPhone })).toEqual({ ...adultAvailable, maskedPhone });
+    },
+  );
+
   it('refuses non-boolean service/marketing (they are channel permission, nothing else)', async () => {
     const { memberWhatsappSettings } = await whatsapp();
     expect(memberWhatsappSettings({ ...adultAvailable, service: 'granted' })).toBeNull();
@@ -225,6 +239,24 @@ describe('readWhatsappOperationsPage — frozen envelope, no secrets in any row'
     const rows = Array.from({ length: 101 }, () => baseRow);
     expect(readWhatsappOperationsPage({ ...page, operations: rows })).toBeNull();
   });
+
+  it.each(['80955 55810', '80955-55810', '+91 80955 55810 •', '•8095555810', '80955-55810*'])(
+    'refuses operations containing complete phone digits despite grouping or decoration: %s', async (maskedPhone) => {
+      const { readWhatsappOperationsPage, whatsappOperationsView } = await whatsapp();
+      const unsafePage = { ...page, operations: [{ ...baseRow, maskedPhone }] };
+      expect.soft(readWhatsappOperationsPage(unsafePage)).toBeNull();
+      expect.soft(whatsappOperationsView(OWNER, unsafePage)).toBeNull();
+      expect.soft(whatsappOperationsView(DESK, unsafePage)).toBeNull();
+    },
+  );
+
+  it.each(['+91 ••••• 810', '•••••••810', '*******810'])(
+    'preserves operations with concealed phone output: %s', async (maskedPhone) => {
+      const { readWhatsappOperationsPage } = await whatsapp();
+      const safePage = { ...page, operations: [{ ...baseRow, maskedPhone }] };
+      expect(readWhatsappOperationsPage(safePage)).toEqual(safePage);
+    },
+  );
 
   it.each(['phone', 'recipientPhone', 'providerReadReceipt', 'rawReceipt', 'leaseTicket'])(
     'refuses undeclared operations row key %s', async (key) => {
