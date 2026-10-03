@@ -239,6 +239,34 @@ describe('PTF visible TrainingSection reads and existing-session cancellation', 
     await press(action(/Confirm|Cancel session/)); expect(h.post).not.toHaveBeenCalled(); expect(visible()).toContain('Cancelling will use 1 session from your pack.');
     await press(action(/Confirm|Cancel session/)); expect(h.post).toHaveBeenCalledTimes(1);
   });
+  it.each([
+    { at: '2026-10-07T06:29:59.999Z', sends: true },
+    { at: '2026-10-07T06:30:00.000Z', sends: false },
+    { at: '2026-10-07T06:30:00.001Z', sends: false },
+  ].flatMap(boundary => [true, false].map(consumesNow => ({ ...boundary, consumesNow }))))('checks the final start clock at $at with late consumption $consumesNow after a paused confirming read', async ({ at, sends, consumesNow }) => {
+    vi.setSystemTime(new Date('2026-10-07T06:29:00Z'));
+    const fresh = data(); fresh.upcoming.data[0] = { ...session, lateNow: true, consumesNow };
+    h.load.mockResolvedValue(fresh); await mount(); await press(action(/^Cancel(?: session)?$/));
+    expect(visible()).toContain(consumesNow ? 'This is inside your cancellation window. Cancelling will use 1 session from your pack.' : "This is inside your cancellation window. Cancelling won't use a session from your pack.");
+    const pending = deferred<ReturnType<typeof data>>(); h.load.mockReturnValueOnce(pending.promise);
+    const before = h.load.mock.calls.length; const operation = (action(/Confirm|Cancel session/).props.onPress as () => unknown)();
+    await new Promise(resolve => setTimeout(resolve, 0)); expect(h.load.mock.calls.length).toBeGreaterThan(before); expect(h.post).not.toHaveBeenCalled();
+    vi.setSystemTime(new Date(at)); pending.resolve(fresh); await operation; await render();
+    if (sends) expect(h.post).toHaveBeenCalledExactlyOnceWith('/api/member/pt-bookings/cancel', { sessionId });
+    else {
+      expect(h.post).not.toHaveBeenCalled();
+      expect(visible()).toContain("This session has already started, so it can't be cancelled here. Ask your trainer or the front desk.");
+    }
+    expect(h.queue).not.toHaveBeenCalled(); expect(h.store).not.toHaveBeenCalled();
+  });
+  it('positive network listener loss shows offline, stale and retry copy before any press and never submits on reconnect', async () => {
+    await mount(); expect(h.listeners.length).toBeGreaterThan(0);
+    h.online = false; h.listeners.forEach(listener => listener({ isConnected: false, isInternetReachable: false })); await render();
+    expect(visible()).toContain("You're offline. Showing what was last loaded."); expect(visible()).toMatch(/stale/i); expect(visible()).toContain('Please try again.');
+    expect(h.post).not.toHaveBeenCalled(); expect(h.queue).not.toHaveBeenCalled(); expect(h.store).not.toHaveBeenCalled();
+    h.online = true; h.listeners.forEach(listener => listener({ isConnected: true, isInternetReachable: true })); await render();
+    expect(h.post).not.toHaveBeenCalled(); expect(h.queue).not.toHaveBeenCalled(); expect(h.store).not.toHaveBeenCalled(); expect(h.navigate).not.toHaveBeenCalled();
+  });
   it.each(['api', 'client', 'readiness'] as const)('same-identity %s change permanently revokes retained cancellation handlers', async capability => {
     await mount(); await press(action(/^Cancel(?: session)?$/)); const oldConfirm = action(/Confirm|Cancel session/);
     const originalApi = h.api; const originalClient = h.client; revoke(capability); await render();
