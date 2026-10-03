@@ -22,7 +22,7 @@ type MobileContextValue = {
   signOut(): Promise<void>;
   webOrigin: string;
 };
-declare function MobileProvider(props: { children: ReactNode }): React.JSX.Element;
+declare function MobileProvider(props: { children: ReactNode }): React.JSX.Element | null;
 declare function useMobile(): MobileContextValue;
 
 // apps/mobile/lib/session.ts: public outcome used by native-session.ts
