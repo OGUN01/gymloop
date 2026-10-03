@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const targets = {
   lib: '../../apps/web/lib/whatsapp',
   operations: '../../apps/web/lib/whatsapp-operations',
+  memberSettingsPage: '../../apps/web/app/member/whatsapp-consent/page',
   memberConsent: '../../apps/web/app/api/member/whatsapp-consent/route',
   staffConsent: '../../apps/web/app/api/members/[memberId]/whatsapp-consent/route',
   dispatch: '../../apps/web/app/api/notifications/[notificationId]/whatsapp-dispatch/route',
@@ -42,9 +43,8 @@ type WhatsappOperationsScreen = {
   errorMessage: string | null;
 };
 type LibExports = {
-  whatsappConsentResult(data: unknown): WhatsappConsentResult | null;
-  memberWhatsappSettingsResult(data: unknown): MemberWhatsappSettings | null;
-  loadMemberWhatsappSettings(): Promise<{ settings: MemberWhatsappSettings | null; errorMessage: string | null }>;
+  whatsappConsentWriteResult(data: unknown): WhatsappConsentResult | null;
+  memberWhatsappSettings(data: unknown): MemberWhatsappSettings | null;
 };
 type MemberRoute = { POST(request: Request): Promise<Response> };
 type StaffConsentRoute = { POST(request: Request, context: { params: Promise<{ memberId: string }> }): Promise<Response> };
@@ -71,6 +71,30 @@ const ids = {
 
 // ─── Settings validator and member loader ────────────────────────────────────
 
+// Observe the real page's element tree; never replace its read or validator.
+async function observeMemberWhatsappSettingsPage() {
+  const page = tas<{ default(): Promise<unknown> }>(await import(targets.memberSettingsPage));
+  const tree = await page.default();
+  let settings: MemberWhatsappSettings | null = null;
+  const renderedText: string[] = [];
+  const walk = (node: unknown): void => {
+    if (typeof node === 'string') { renderedText.push(node); return; }
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (node === null || typeof node !== 'object') return;
+    const record = tas<Record<string, unknown>>(node);
+    if (['service', 'marketing', 'recipientKind', 'maskedPhone', 'noticeVersion', 'available']
+      .every(key => Object.hasOwn(record, key))) settings = tas<MemberWhatsappSettings>(record);
+    // Observe actual props/children, without invoking components or inventing data.
+    for (const [key, value] of Object.entries(record)) {
+      if (key !== 'type' && key !== '_owner' && key !== '_store') walk(value);
+    }
+  };
+  walk(tree);
+  const errorMessage = renderedText.find(value =>
+    /unavailable|could not|unable|error|not available|failed/i.test(value)) ?? null;
+  return { settings, errorMessage };
+}
+
 describe('held member WhatsApp settings boundary', () => {
   it('accepts the exact safe projection', async () => {
     const lib = tas<LibExports>(await import(targets.lib));
@@ -78,7 +102,7 @@ describe('held member WhatsApp settings boundary', () => {
       service: true, marketing: false, recipientKind: 'self',
       maskedPhone: '+91 •••• 001', noticeVersion: 'wsp-v1', available: true,
     };
-    expect(lib.memberWhatsappSettingsResult(value)).toEqual(value);
+    expect(lib.memberWhatsappSettings(value)).toEqual(value);
   }, 20_000);
 
   it.each([
@@ -90,7 +114,7 @@ describe('held member WhatsApp settings boundary', () => {
     ['wrong recipient kind', { service: true, marketing: false, recipientKind: 'guardian_raw', maskedPhone: 'x', noticeVersion: 'wsp-v1', available: true }],
   ])('refuses %s', async (_label, data) => {
     const lib = tas<LibExports>(await import(targets.lib));
-    expect(lib.memberWhatsappSettingsResult(data)).toBeNull();
+    expect(lib.memberWhatsappSettings(data)).toBeNull();
   }, 20_000);
 
   it('member loader reads through requireAudience and never fabricates availability', async () => {
@@ -99,14 +123,13 @@ describe('held member WhatsApp settings boundary', () => {
       supabase: { rpc }, identity: { kind: 'member', userId: ids.user, tenantId: ids.tenant, memberId: ids.member },
     });
     vi.doMock('../../apps/web/lib/identity-session', () => ({ requireAudience }));
-    const lib = tas<LibExports>(await import(targets.lib));
     const ok: MemberWhatsappSettings = { service: false, marketing: false, recipientKind: 'guardian', maskedPhone: '+91 •••• 002', noticeVersion: 'wsp-v1', available: true };
     rpc.mockResolvedValueOnce({ data: ok, error: null });
-    await expect(lib.loadMemberWhatsappSettings()).resolves.toEqual({ settings: ok, errorMessage: null });
+    await expect(observeMemberWhatsappSettingsPage()).resolves.toEqual({ settings: ok, errorMessage: null });
     expect(rpc).toHaveBeenCalledTimes(1);
     expect(rpc.mock.calls[0]?.[0]).toBe('read_member_whatsapp_settings');
     rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'Held denial' } });
-    const failed = await lib.loadMemberWhatsappSettings();
+    const failed = await observeMemberWhatsappSettingsPage();
     expect(failed.settings).toBeNull();
     expect(failed.errorMessage).not.toBeNull();
     expect(failed).not.toMatchObject({ settings: { available: true } });
@@ -432,6 +455,12 @@ describe('held front-office WhatsApp routes', () => {
   }
 
   it('recorder marks the write impersonation-hostile', async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: { consentId: ids.consent, purpose: 'service', granted: true,
+        noticeVersion: 'wsp-v1', recordedAt: ids.cursorAt }, error: null,
+    });
+    staffSession.mockResolvedValue({ session: { supabase: { rpc }, userId: ids.user,
+      tenantId: ids.tenant, staffId: ids.staff, role: 'gym_manager' } });
     staffSession.mockClear();
     const route = tas<StaffConsentRoute>(await import(targets.staffConsent));
     await route.POST(json(consentValid), { params: Promise.resolve({ memberId: ids.member }) });
