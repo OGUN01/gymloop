@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { findNonRolledBackTests } from '../../scripts/check-pgtap-rollback.mjs';
 
 describe('rollback guard quoted-content contract', () => {
+  it('refuses completion variants at actual command boundaries', () => {
+    for (const completion of ['COMMIT WORK', 'COMMIT TRANSACTION AND CHAIN', 'COMMIT AND NO CHAIN', 'END TRANSACTION', 'END WORK AND NO CHAIN', 'END AND CHAIN']) {
+      expect(findNonRolledBackTests([{ path: 'completion-variant.sql', content: `BEGIN; SELECT 'COMMIT TRANSACTION'; ${completion}; ROLLBACK;` }])).toEqual([expect.objectContaining({ path: 'completion-variant.sql', reason: expect.any(String) })]);
+    }
+  });
+
+  it('accepts completion variant text in literals and identifiers', () => {
+    expect(findNonRolledBackTests([{ path: 'completion-decoys.sql', content: `BEGIN; SELECT 'COMMIT WORK AND CHAIN; END TRANSACTION AND NO CHAIN;' AS "END WORK AND CHAIN"; SELECT 1 AS commit_work, 2 AS end_transaction; ROLLBACK;` }])).toEqual([]);
+  });
+
   it('retains E escapes across a multi-segment newline and comment continuation', () => {
     expect(findNonRolledBackTests([{ path: 'continued.sql', content: String.raw`BEGIN; SELECT E'first'
 'second\' ; -- /* $decoy$'

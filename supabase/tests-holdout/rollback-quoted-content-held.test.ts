@@ -3,6 +3,31 @@ import { describe, expect, it } from 'vitest';
 import { findNonRolledBackTests } from '../../scripts/check-pgtap-rollback.mjs';
 
 describe('rollback guard quoted-content holdout', () => {
+  it('refuses completion variants after quoted decoys and intervening comments', () => {
+    for (const command of [
+      'COMMIT WORK',
+      'END TRANSACTION',
+      'commit /* separation */ transaction AND NO CHAIN',
+      'end -- separation\n WORK AND CHAIN',
+      'COMMIT AND CHAIN',
+      'END AND NO CHAIN',
+    ]) {
+      expect(findNonRolledBackTests([{
+        path: 'completion-variant.sql',
+        content: `BEGIN; SELECT '$hidden$; COMMIT WORK', 1 AS "END TRANSACTION"; ${command}; ROLLBACK;`,
+      }])).toEqual([
+        expect.objectContaining({ path: 'completion-variant.sql', reason: expect.any(String) }),
+      ]);
+    }
+  });
+
+  it('leaves completion variant text and identifier substrings inert', () => {
+    expect(findNonRolledBackTests([{
+      path: 'completion-variant-decoys.sql',
+      content: 'BEGIN; SELECT \'COMMIT TRANSACTION AND CHAIN; END WORK AND NO CHAIN\' AS "COMMIT WORK", 1 AS weekend_transaction, 1 AS commit_workflow; ROLLBACK;',
+    }])).toEqual([]);
+  });
+
   it('keeps initial escape semantics through a chain of newline and comment separators', () => {
     for (const separator of ['\n', ' /* join\n/* nested */ tail */ ', ' -- join\n']) {
       expect(findNonRolledBackTests([{
