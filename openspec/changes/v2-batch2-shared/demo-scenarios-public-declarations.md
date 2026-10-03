@@ -140,6 +140,8 @@ and 201: in_app, class_update, class_session_cancelled, related_type class_sessi
 related_id session 3, dedupe_key `class-cancelled:<session-3-id>:<member-id>`,
 payload body/kind/sessionId/reason per CLS-011, sent through the ordinary legal
 scheduled→sent lifecycle. Both lack any marketing/service-consent requirement.
+These in-app notices have null template_id and recipient_phone; no outgoing
+template or phone snapshot is part of the static fixture or accepted on replay.
 201 remains unlinked and therefore contributes one to members_without_app.
 Never revive cancelled session 3 on rerun. Static rows show the terminal state;
 only an owner/manager cancel command proves atomic notices/audit/counters.

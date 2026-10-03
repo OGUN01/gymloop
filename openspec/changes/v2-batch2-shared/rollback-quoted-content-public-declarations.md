@@ -28,6 +28,9 @@ only that first segment needs the prefix. Retain this state through the entire
 chain, then reset it at an intervening substantive token or statement boundary.
 Comment-looking text inside a continued escaped literal stays quoted, and a real
 completion command following the chain must remain visible to the guard.
+Transaction-ending command variants are the same prohibited completion: COMMIT
+or END with optional WORK/TRANSACTION and chaining clauses must be refused.
+Matching is at an actual top-level command boundary, not an identifier substring.
 
 Examples independently generated for this contract include a SELECT literal
 `'demo$sha256$active$location$0001'`, a literal containing `; -- /*`, a quoted
