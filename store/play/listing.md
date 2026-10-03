@@ -12,24 +12,24 @@
 
 ## Full description
 
-FitCruxx is for members of gyms that use FitCruxx and the staff who help them at the front desk. Your gym provides and links your account; there is no sign-up in the app. Sign in with the account your gym linked to you.
+FitCruxx is for members of the gyms, studios and academies that use it — fitness and activity businesses — and the staff who help them at the front desk. Your gym, studio or academy provides and links your account; there is no sign-up in the app. Sign in with the account the business linked to you.
 
 For members:
-- Scan your gym's current QR code to check in. If you are offline, the check-in is saved on your device; the app retries it after you reconnect and return to Home. It counts only after your gym confirms it.
+- Scan the current check-in QR code to check in. If you are offline, the check-in is saved on your device; the app retries it after you reconnect and return to Home. It counts only after the business confirms it.
 - See your recorded visits, weekly rhythm and streak status.
-- View your membership, receipts recorded by your gym and add-on order history. The app does not take payments or sell add-ons.
-- Read messages from your gym and see your consent history. Ask the front desk if you want to change a consent choice.
+- View your membership, receipts recorded by the business and add-on order history. The app does not take payments or sell add-ons.
+- Read messages from the business and see your consent history. Ask the front desk if you want to change a consent choice.
 
 For front-desk staff:
 - Find members by name or phone and record an assisted check-in with a reason.
 - See follow-ups for members who have been away, call using your phone's dialer and record a no-answer attempt.
 - Capture a walk-in lead's name and phone number for your team to follow up.
 
-Choose System, Light or Dark appearance. Available information and actions depend on the account and gym linked to you.
+Choose System, Light or Dark appearance. Available information and actions depend on the account and business linked to you.
 
 ## Release notes — 1.0.0
 
-First Android release for members and front-desk staff at gyms using FitCruxx. Scan the gym's QR code for check-in, with offline saving and later confirmation; view visits, memberships, receipts, messages and add-ons. Staff can assist with check-ins, search members, review follow-ups and capture walk-in leads. Includes System, Light and Dark appearance.
+First Android release for members and front-desk staff at fitness and activity businesses using FitCruxx. Scan the check-in QR code for check-in, with offline saving and later confirmation; view visits, memberships, receipts, messages and add-ons. Staff can assist with check-ins, search members, review follow-ups and capture walk-in leads. Includes System, Light and Dark appearance.
 
 ## Suggested screenshot shot-list
 

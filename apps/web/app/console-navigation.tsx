@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
-  Boxes, CalendarCheck, CreditCard, IdCard, House, LogIn, MessageSquare, Target, Upload, Users, type LucideIcon,
+  Boxes, CalendarCheck, CreditCard, IdCard, House, LogIn, MessageSquare, Target, Settings, Upload, Users, type LucideIcon,
 } from 'lucide-react';
 import { UI_TOKENS } from '@gymloop/shared';
 
@@ -12,7 +12,7 @@ type NavigationItem = { href: string; label: string };
 
 const ICONS: Record<string, LucideIcon> = {
   '/dashboard': House, '/console/check-in': LogIn, '/red-list': CalendarCheck, '/console': Users, '/memberships': IdCard,
-  '/team': Users, '/payments': CreditCard, '/messages': MessageSquare, '/add-ons': Boxes, '/leads': Target, '/imports': Upload,
+  '/team': Users, '/payments': CreditCard, '/messages': MessageSquare, '/add-ons': Boxes, '/leads': Target, '/imports': Upload, '/settings': Settings,
 };
 
 /** Presentation-only console navigation; server loaders remain route authority. */

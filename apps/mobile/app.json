@@ -15,7 +15,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow FitCruxx to scan the current QR code at your gym.",
+          "cameraPermission": "Allow FitCruxx to scan the check-in QR code displayed where you train.",
           "recordAudioAndroid": false
         }
       ],

@@ -1,3 +1,4 @@
+import { useBusinessNouns } from '../../lib/use-business-nouns';
 import { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_TIMEZONE, formatPhone, humanize, toLocalDate, UI_TOKENS } from '@gymloop/shared';
 import { Phone } from 'lucide-react-native';
@@ -32,6 +33,7 @@ function caseLine(row: DeskFollowUp, today: string): CaseLine {
 }
 
 export default function FollowUpsScreen() {
+  const nouns = useBusinessNouns();
   const { identity, palette, supabase } = useMobile();
   const [branch, setBranch] = useState<string | null>(null);
   const [rows, setRows] = useState<DeskFollowUp[]>([]);
@@ -82,8 +84,8 @@ export default function FollowUpsScreen() {
       <SearchField accessibilityLabel="Search follow-ups" placeholder="Search name or phone" value={query} onChangeText={setQuery} />
       {loadState === 'loading' ? <View style={styles.listState}><LoadingState /></View> : null}
       {loadState === 'error' ? <View style={styles.listState}><ErrorRetry message="Follow-ups could not be loaded." onRetry={() => void reload()} /></View> : null}
-      {loadState === 'ready' && rows.length === 0 ? <EmptyState title="No open follow-ups">Everyone on the list has been contacted or is back in the gym.</EmptyState> : null}
-      {loadState === 'ready' && rows.length > 0 && shown.length === 0 ? <EmptyState title="No matching members">Check the spelling, or search by phone number.</EmptyState> : null}
+      {loadState === 'ready' && rows.length === 0 ? <EmptyState title="No open follow-ups">Everyone on the list has been contacted or is back in the {nouns.place}.</EmptyState> : null}
+      {loadState === 'ready' && rows.length > 0 && shown.length === 0 ? <EmptyState title={`No matching ${nouns.members}`}>Check the spelling, or search by phone number.</EmptyState> : null}
       {loadState === 'ready' ? <View>{shown.map((row) => {
         const status = caseLine(row, today);
         const since = row.lastAttendedOn ? day(row.lastAttendedOn) : null;

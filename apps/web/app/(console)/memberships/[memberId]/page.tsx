@@ -1,3 +1,6 @@
+import { requireAudience } from '../../../../lib/identity-session';
+import { loadBusinessNouns } from '../../../../lib/business-type';
+import { businessNouns, type BusinessNouns } from '@gymloop/shared';
 import { MutationForm } from '../../../preview-context';
 import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
@@ -113,6 +116,8 @@ export default async function MemberMembershipsPage({
   params: Promise<{ memberId: string }>;
   searchParams: Promise<{ error?: string }>;
 }) {
+  const businessCaller = await requireAudience('console');
+  const nouns = await loadBusinessNouns(businessCaller.supabase, businessCaller.identity.tenantId);
   const { memberId } = await params;
   const { error } = await searchParams;
   const supabase = await createServerSupabase();
@@ -201,7 +206,7 @@ export default async function MemberMembershipsPage({
     <main className="cl-page">
       {/* Where this is, the same way the receipt says it: the ledger, then this member. */}
       <nav aria-label="Breadcrumb" className="cl-back money-back money-crumbs">
-        <Link href="/memberships">Memberships</Link>
+        <Link href="/memberships">All {nouns.members}</Link>
         <span aria-hidden="true">/</span>
         <span aria-current="page" className="money-crumb-current">{member.data.full_name}</span>
       </nav>
@@ -213,7 +218,7 @@ export default async function MemberMembershipsPage({
             <h1 className="cl-title money-member-title">{member.data.full_name}</h1>
             <p className="cl-lede money-member-facts">
               {member.data.member_code === null ? null : (
-                <span>Member code <span className="tabular-nums">{member.data.member_code}</span></span>
+                <span>{humanize(nouns.member)} code <span className="tabular-nums">{member.data.member_code}</span></span>
               )}
               <span className="tabular-nums">{formatPhone(member.data.phone)}</span>
               {live !== undefined ? (
@@ -226,14 +231,16 @@ export default async function MemberMembershipsPage({
             </p>
             {/* On a phone the profile is a text link under the facts, not a third full-width button. */}
             <Link href={`/members/${memberId}`} className="money-for-link money-member-profile-link">
-              Member profile
+
+              {humanize(nouns.member)} profile
               <ChevronRight aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />
             </Link>
           </div>
         </div>
         <div className="cl-actions money-member-profile-action">
           <Link href={`/members/${memberId}`} className="cl-btn">
-            Member profile
+
+            {humanize(nouns.member)} profile
           </Link>
         </div>
       </div>
@@ -264,7 +271,8 @@ export default async function MemberMembershipsPage({
                   <dd><Price paise={membershipNetPrice(lapsed.price_paise, lapsed.discount_paise)} currency={lapsed.currency} days={lapsed.duration_days} /></dd>
                 </dl>
                 <p className="cl-alert money-note" data-tone="warn">
-                  This member is refused at the gate until it is renewed — take the payment and it
+
+                  This {nouns.member} is refused at the gate until it is renewed — take the payment and it
                   runs again from today.
                 </p>
               </>
@@ -357,8 +365,8 @@ export default async function MemberMembershipsPage({
             <h2 className="cl-section-title" id="payment-heading">Record payment</h2>
           </div>
           <p className="cl-muted money-copy">
-            Cash, UPI, card or bank transfer taken at the desk. The receipt is numbered in your
-            gym&rsquo;s own series.
+
+            Cash, UPI, card or bank transfer taken at the desk. The receipt is numbered in your {nouns.place}&rsquo;s own series.
           </p>
 
           <MutationForm method="post" action="/api/payments" className="cl-form money-form">
@@ -414,7 +422,8 @@ export default async function MemberMembershipsPage({
                 price that the money against it has reached (ADR-087). */}
             {renewable === undefined ? (
               <p className="cl-muted money-copy">
-                This member has no membership to renew, so this records money taken for something else and extends nothing.
+
+                This {nouns.member} has no membership to renew, so this records money taken for something else and extends nothing.
               </p>
             ) : renewablePrice === 0 ? (
               <p className="cl-muted money-copy">
@@ -501,11 +510,12 @@ export default async function MemberMembershipsPage({
             <h2 className="cl-section-title" id="pauses-heading">Pauses</h2>
           </div>
           <PauseHistory
+            nouns={nouns}
             memberId={memberId}
             memberships={rows}
             hasLive={live !== undefined}
             allowance={settings.data === null
-              ? 'No pause approver or allowance is configured for this gym'
+              ? `No pause approver or allowance is configured for this ${nouns.place}`
               : `Up to ${settings.data.max_freeze_days_per_year} days a year · approved by ${humanize(settings.data.pause_approver_role).toLowerCase()}`}
           />
         </section>
@@ -551,13 +561,14 @@ type MembershipRow = {
  * period — a freeze history that reset on renewal would hide exactly the
  * pattern an owner is looking for.
  */
-function PauseHistory({ memberId, memberships, hasLive, allowance }: {
+function PauseHistory({ memberId, memberships, hasLive, allowance, nouns = businessNouns(null) }: {
+  nouns?: BusinessNouns;
   memberId: string; memberships: MembershipRow[]; hasLive: boolean; allowance: string;
 }) {
   const pauses = memberships
     .flatMap((membership) => membership.membership_pauses)
     .sort((a, b) => b.starts_on.localeCompare(a.starts_on));
-  const noLive = 'A pause attaches to a live membership. This member has none.';
+  const noLive = `A pause attaches to a live membership. This ${nouns.member} has none.`;
 
   if (pauses.length === 0) {
     // One ruled row, so an empty history reads as intentionally empty: what is absent, and the rule.

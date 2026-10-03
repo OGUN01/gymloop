@@ -1,3 +1,5 @@
+import { loadBusinessNouns } from '../../../lib/business-type';
+import { humanize } from '@gymloop/shared';
 import Link from 'next/link';
 import { ChevronRight, Plus, Upload } from 'lucide-react';
 import { AVATAR_INITIALS_MAX, formatPhone } from '@gymloop/shared';
@@ -15,6 +17,8 @@ export default async function MembersPage({
 }: {
   searchParams: Promise<{ q?: string; cursor?: string; limit?: string; access?: string; status?: string }>;
 }) {
+  const businessCaller = await requireAudience('console');
+  const nouns = await loadBusinessNouns(businessCaller.supabase, businessCaller.identity.tenantId);
   const { identity, supabase } = await requireAudience('console');
   const showInvites = identity.kind === 'staff' && identity.role !== 'trainer';
   const { access, ...rest } = await searchParams;
@@ -27,7 +31,8 @@ export default async function MembersPage({
 
   return (
     <MemberSearchPage
-      title="Members"
+      nouns={nouns}
+      title={humanize(nouns.members)}
       linkHref="/console/check-in"
       linkLabel="Check-in gate"
       phone={search.phone}
@@ -39,21 +44,21 @@ export default async function MembersPage({
         <>
           {/* The import screen is owner/manager only — imports create members — so
               the link applies through the same helper the loader's refusal reads. */}
-          {canImportMembers(identity) ? <Link href="/imports" className="cl-btn"><Upload aria-hidden="true" className="desk-icon" />Import members</Link> : null}
-          <Link href="/members/new" className="cl-btn cl-btn--primary"><Plus aria-hidden="true" className="desk-icon" />Add a member</Link>
+          {canImportMembers(identity) ? <Link href="/imports" className="cl-btn"><Upload aria-hidden="true" className="desk-icon" />Import {nouns.members}</Link> : null}
+          <Link href="/members/new" className="cl-btn cl-btn--primary"><Plus aria-hidden="true" className="desk-icon" />Add a {nouns.member}</Link>
         </>
       }
     >
-      {showInvites ? <nav className="cl-actions" aria-label="App access filter"><Link href={`?${new URLSearchParams({ ...(search.phone ? { q: search.phone } : {}), limit: String(search.pageSize), ...(search.filters.status === undefined ? {} : { status: search.filters.status }) }).toString()}`} className="cl-btn cl-btn--small" aria-current={search.filters.access === undefined ? 'page' : undefined}>All members</Link><Link href={`?${new URLSearchParams({ ...search.filters, ...(search.phone ? { q: search.phone } : {}), limit: String(search.pageSize), access: 'not_joined' }).toString()}`} className="cl-btn cl-btn--small" aria-current={search.filters.access === 'not_joined' ? 'page' : undefined}>Not joined yet</Link></nav> : identity.kind === 'impersonation' ? <p className="app-access-note">App access is unavailable in support preview.</p> : null}
+      {showInvites ? <nav className="cl-actions" aria-label="App access filter"><Link href={`?${new URLSearchParams({ ...(search.phone ? { q: search.phone } : {}), limit: String(search.pageSize), ...(search.filters.status === undefined ? {} : { status: search.filters.status }) }).toString()}`} className="cl-btn cl-btn--small" aria-current={search.filters.access === undefined ? 'page' : undefined}>All {nouns.members}</Link><Link href={`?${new URLSearchParams({ ...search.filters, ...(search.phone ? { q: search.phone } : {}), limit: String(search.pageSize), access: 'not_joined' }).toString()}`} className="cl-btn cl-btn--small" aria-current={search.filters.access === 'not_joined' ? 'page' : undefined}>Not joined yet</Link></nav> : identity.kind === 'impersonation' ? <p className="app-access-note">App access is unavailable in support preview.</p> : null}
       {search.errorMessage !== null ? null : count > 0 ? (
         <>
           <p className="desk-count">
-            {count === 1 ? '1 member' : `${count} members`}
+            {count === 1 ? `1 ${nouns.member}` : `${count} ${nouns.members}`}
             {search.phone ? ` matching “${search.phone}”` : ''}
           </p>
-          <ul className="console-roster-list" aria-label="Members">
+          <ul className="console-roster-list" aria-label={humanize(nouns.members)}>
             <li className="console-roster-headings" aria-hidden="true">
-              <span>Member</span><span>Plan</span><span>Ends</span><span>Status</span>
+              <span>{humanize(nouns.member)}</span><span>Plan</span><span>Ends</span><span>Status</span>
             </li>
             {search.members.map((member) => {
               const state = standing.get(member.id);
@@ -81,8 +86,8 @@ export default async function MembersPage({
         </>
       ) : (
         <div className="cl-empty console-roster-empty">
-          <strong>{search.phone ? 'No member matched' : 'No members yet'}</strong>
-          <p>{search.phone ? 'No member of this gym has that phone number.' : 'No members yet. Add the first one, or import your existing list.'}</p>
+          <strong>{search.phone ? `No ${nouns.member} matched` : `No ${nouns.members} yet`}</strong>
+          <p>{search.phone ? `No ${nouns.member} of this ${nouns.place} has that phone number.` : `No ${nouns.members} yet. Add the first one, or import your existing list.`}</p>
         </div>
       )}
     </MemberSearchPage>

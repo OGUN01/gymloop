@@ -6,7 +6,7 @@ import { ThemeTokenStyle } from './theme-token-style';
 
 export const metadata: Metadata = {
   title: PRODUCT_NAME,
-  description: 'Multi-tenant gym retention SaaS.',
+  description: 'Attendance, renewal and retention tools for gyms, studios and academies.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

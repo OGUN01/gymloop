@@ -1,3 +1,5 @@
+import { loadConsoleBusinessNouns } from '../../../lib/console-business-nouns';
+
 import { PAYMENT_PAGE_SIZE_DEFAULT, formatDateTime, formatMoney, humanize } from '@gymloop/shared';
 import Link from 'next/link';
 import { Alert } from '../alert';
@@ -38,6 +40,7 @@ export default async function PaymentsPage({
 }: {
   searchParams: Promise<{ cursor?: string; limit?: string; error?: string }>;
 }) {
+  const nouns = await loadConsoleBusinessNouns();
   const params = await searchParams;
   const { payments, pageSize, timezone, nextCursor, errorMessage } = await loadPayments(searchParams);
   const problem =
@@ -70,8 +73,8 @@ export default async function PaymentsPage({
           <p className="cl-eyebrow">Money</p>
           <h1 className="cl-title money-page-title">Payments</h1>
           <p className="cl-lede money-lede">
-            Desk and online payments, newest entries first. Take a payment from a
-            member&rsquo;s page.
+
+            Desk and online payments, newest entries first. Take a payment from a {nouns.member}&rsquo;s page.
           </p>
         </div>
       </div>
@@ -85,7 +88,7 @@ export default async function PaymentsPage({
       {payments.length === 0 ? (
         <div className="cl-empty cl-section">
           <strong>No payments recorded yet.</strong>
-          <p>Take a payment from a member&rsquo;s page and it appears here.</p>
+          <p>Take a payment from a {nouns.member}&rsquo;s page and it appears here.</p>
         </div>
       ) : (
         <div className="cl-section money-pay-list">
@@ -95,7 +98,7 @@ export default async function PaymentsPage({
               <thead>
                 <tr>
                   <th scope="col">Receipt</th>
-                  <th scope="col">Member</th>
+                  <th scope="col">{humanize(nouns.member)}</th>
                   <th scope="col" className="cl-num">Amount</th>
                   <th scope="col" className="money-method">Method</th>
                   <th scope="col" className="money-takenby">Taken by</th>

@@ -301,8 +301,12 @@ export async function signOutMobile(supabase: SupabaseClient<Database>): Promise
   const { work, revision } = beginNativeSessionWork();
   authStorageRevision = {};
   googleCodeExchanges.clear();
-  await clearOfflineCheckIns();
+  const cleanup = await Promise.resolve().then(() => clearOfflineCheckIns()).then(
+    () => ({ ok: true as const }),
+    (error: unknown) => ({ ok: false as const, error }),
+  );
   persistNativeIdentity(work, revision, null, () => true);
   const result = await supabase.auth.signOut();
   if (result.error) throw result.error;
+  if (!cleanup.ok) throw cleanup.error;
 }

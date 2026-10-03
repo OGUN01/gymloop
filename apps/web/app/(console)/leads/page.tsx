@@ -1,3 +1,6 @@
+import { requireAudience } from '../../../lib/identity-session';
+import { loadBusinessNouns } from '../../../lib/business-type';
+
 import { Constants } from '@gymloop/db';
 import Link from 'next/link';
 import { ChevronDown, Plus } from 'lucide-react';
@@ -114,6 +117,8 @@ function nextPageHref(params: Record<string, string | undefined>, cursor: string
 }
 
 export default async function LeadsPage({ searchParams }: { searchParams: SearchParams }) {
+  const businessCaller = await requireAudience('console');
+  const nouns = await loadBusinessNouns(businessCaller.supabase, businessCaller.identity.tenantId);
   const [params, screen] = await Promise.all([searchParams, loadLeads(searchParams)]);
   const now = Date.now();
 
@@ -128,7 +133,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
       <div>
         <p className="cl-eyebrow">Front office</p>
         <h1 className="cl-title">Leads</h1>
-        <p className="cl-lede">Every enquiry from first contact to a converted member or a recorded loss.</p>
+        <p className="cl-lede">Every enquiry from first contact to a converted {nouns.member} or a recorded loss.</p>
       </div>
       <div className="cl-actions">
         <a href="#record-enquiry" className="cl-btn"><Plus aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />New enquiry</a>
@@ -223,7 +228,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               </span>
               <span className="leads-cell-action">
                 {member !== null
-                  ? <Link className="cl-btn cl-btn--small" href={`/members/${member}`}>Open member</Link>
+                  ? <Link className="cl-btn cl-btn--small" href={`/members/${member}`}>{`Open ${nouns.member}`}</Link>
                   : null}
                 {open ? <details className="leads-toggle leads-toggle--act">
                   <summary className="cl-btn cl-btn--small">{row.stage === 'trial_done' ? 'Convert' : 'Change stage'}</summary>
@@ -234,7 +239,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               </span>
               {open ? <div className="leads-panel leads-panel--act">
                 {row.stage === 'trial_done'
-                  ? <LeadConvertDialog leadId={row.id} revision={row.revision} fullName={row.fullName} />
+                  ? <LeadConvertDialog nouns={nouns} leadId={row.id} revision={row.revision} fullName={row.fullName} />
                   : null}
                 <LeadStageForm leadId={row.id} revision={row.revision} stage={row.stage} timezone={screen.timezone} trialAt={row.trialAt} />
               </div> : null}

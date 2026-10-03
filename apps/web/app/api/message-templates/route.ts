@@ -1,6 +1,6 @@
 import { Constants } from '@gymloop/db';
-import { messageTemplateRequestSchema, RESERVED_RENEWAL_TEMPLATE_KEY } from '@gymloop/shared';
-import { apiFail, staffJson, type StaffSession } from '../../../lib/api';
+import { messageTemplateRequestSchema, RESERVED_RENEWAL_TEMPLATE_KEY, SYSTEM_OWNED_MESSAGE_CATEGORIES } from '@gymloop/shared';
+import { apiFail, staffJson, noStore, type StaffSession } from '../../../lib/api';
 import { commsOk, commsRpcFailure } from '../../../lib/comms';
 
 /**
@@ -102,6 +102,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!(Constants.public.Enums.message_category as readonly string[]).includes(category)) {
     return apiFail('bad_request', 'invalid_request', 'That category is not recognized.');
   }
+  if ((SYSTEM_OWNED_MESSAGE_CATEGORIES as readonly string[]).includes(category)) return noStore(apiFail('unprocessable', 'system_owned_category', 'That category is managed by the system.'));
   if (key === RESERVED_RENEWAL_TEMPLATE_KEY) {
     return apiFail('bad_request', 'invalid_request', '"renewal_reminder" is a reserved system key and cannot be authored here.');
   }

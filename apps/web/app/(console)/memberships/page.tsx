@@ -1,3 +1,5 @@
+import { loadConsoleBusinessNouns } from '../../../lib/console-business-nouns';
+import { humanize } from '@gymloop/shared';
 import { AVATAR_INITIALS_MAX, formatMoney, formatPhone } from '@gymloop/shared';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
@@ -24,6 +26,7 @@ export default async function MembershipsPage({
 }: {
   searchParams: Promise<{ q?: string; cursor?: string; limit?: string }>;
 }) {
+  const nouns = await loadConsoleBusinessNouns();
   const search = await loadMemberSearch(searchParams);
   const standing = await loadMembershipStanding(search.members, { money: true });
   const count = search.members.length;
@@ -34,9 +37,10 @@ export default async function MembershipsPage({
 
   return (
     <MemberSearchPage
+      nouns={nouns}
       title="Memberships"
       linkHref="/console"
-      linkLabel="Members"
+      linkLabel={humanize(nouns.members)}
       phone={search.phone}
       errorMessage={search.errorMessage}
       nextCursor={search.nextCursor}
@@ -46,7 +50,7 @@ export default async function MembershipsPage({
       {count > 0 ? (
         <>
           <p className="desk-count">
-            {count === 1 ? '1 member' : `${count} members`}
+            {count === 1 ? `1 ${nouns.member}` : `${count} ${nouns.members}`}
             {search.phone ? ` matching “${search.phone}”` : ''}
             {` · ${held.length} with a membership`}
           </p>
@@ -55,7 +59,7 @@ export default async function MembershipsPage({
               <table className="cl-ledger memberships-ledger">
                 <thead>
                   <tr>
-                    <th scope="col">Member</th>
+                    <th scope="col">{humanize(nouns.member)}</th>
                     <th scope="col">Plan</th>
                     <th scope="col">Ends</th>
                     <th scope="col" className="cl-num memberships-price">Price</th>
@@ -118,7 +122,7 @@ export default async function MembershipsPage({
         </>
       ) : (
         <div className="cl-empty cl-section">
-          <strong>{search.phone ? 'No member of this gym has that phone number.' : 'No members yet.'}</strong>
+          <strong>{search.phone ? `No ${nouns.member} of this ${nouns.place} has that phone number.` : `No ${nouns.members} yet.`}</strong>
         </div>
       )}
     </MemberSearchPage>

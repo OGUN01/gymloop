@@ -1,3 +1,5 @@
+import type { BusinessNouns } from '@gymloop/shared';
+import { loadBusinessNouns } from './business-type';
 import { requireAudience } from './identity-session';
 
 /**
@@ -27,6 +29,7 @@ type MemberMessageRow = {
 type MemberConsentRow = { purpose: string; granted: boolean; recordedAt: string };
 
 export type MemberMessagesScreen = {
+  nouns: BusinessNouns;
   messages: MemberMessageRow[];
   consents: MemberConsentRow[];
   errorMessage: string | null;
@@ -39,7 +42,8 @@ type RawNotificationRow = {
 type RawConsentRow = { purpose: string; granted: boolean; recorded_at: string };
 
 export async function loadMemberMessages(): Promise<MemberMessagesScreen> {
-  const { supabase } = await requireAudience('member');
+  const { supabase, identity } = await requireAudience('member');
+  const nouns = await loadBusinessNouns(supabase, identity.tenantId);
 
   // `notifications.category` and `consents.request_key` land with this
   // phase's migration; the generated types have not caught up yet, so the
@@ -70,7 +74,7 @@ export async function loadMemberMessages(): Promise<MemberMessagesScreen> {
   ]);
 
   if (messages.error || consents.error) {
-    return { messages: [], consents: [], errorMessage: 'Your messages could not be loaded.' };
+    return { nouns, messages: [], consents: [], errorMessage: 'Your messages could not be loaded.' };
   }
 
   const rows: MemberMessageRow[] = (messages.data ?? [])
@@ -86,5 +90,5 @@ export async function loadMemberMessages(): Promise<MemberMessagesScreen> {
     purpose: row.purpose, granted: row.granted, recordedAt: row.recorded_at,
   }));
 
-  return { messages: rows, consents: consentRows, errorMessage: null };
+  return { nouns, messages: rows, consents: consentRows, errorMessage: null };
 }

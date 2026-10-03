@@ -1,6 +1,8 @@
+import { businessNouns, BUSINESS_TYPE_LABELS, isBusinessType } from '@gymloop/shared';
 import { DEFAULT_TIMEZONE, UI_TOKENS, formatDateTime, formatDay, humanize } from '@gymloop/shared';
 import { ArrowLeft } from 'lucide-react';
 import { Fragment } from 'react';
+import { loadBusinessOrganization } from '../../../lib/business-type';
 import { requireAudience } from '../../../lib/identity-session';
 import { UUID_PATTERN } from '../../../lib/keyset';
 import { fleetMetrics } from '../../../lib/platform';
@@ -30,6 +32,9 @@ export default async function PlatformGymPage({ params }: { params: Promise<{ id
   const gym = result.data.gyms.find((row) => row.tenantId === id);
   if (!gym) return <main className="cl-page"><Alert>That gym is not available.</Alert></main>;
 
+  const typeRead = await loadBusinessOrganization(supabase, id);
+  const businessType = !typeRead.error && isBusinessType(typeRead.data?.business_type) ? typeRead.data.business_type : null;
+  const nouns = businessNouns(businessType);
   const isAdmin = identity.role === 'super_admin';
   // Owner names are a super-admin read, exactly as on the fleet screen; support sees only whether access is linked.
   const staffRead = isAdmin
@@ -52,15 +57,15 @@ export default async function PlatformGymPage({ params }: { params: Promise<{ id
         <h1 className="cl-title">{title}{branch === '' ? null : <span className="sr-only"> — {branch}</span>}</h1>
         <p className="cl-lede platform-gym-meta">
           {branch === '' ? null : <><span aria-hidden="true">{branch}</span><span aria-hidden="true">·</span></>}
-          <StatusWord status={gym.status} />
+          <StatusWord status={gym.status} /><span aria-hidden="true">·</span><span>Type: {businessType ? BUSINESS_TYPE_LABELS[businessType] : 'Unavailable'}</span>
         </p>
       </div>
       {isAdmin ? <div className="cl-actions"><a href={`/platform?manage=${gym.tenantId}#manage-${gym.tenantId}`} className="cl-btn cl-btn--primary">Manage gym</a></div> : null}
     </div>
 
     <div className="cl-metrics platform-kpis">
-      <div className="cl-metric"><span className="cl-eyebrow">Active members</span><span className="cl-metric-value tabular-nums">{gym.activeMembers ?? '—'}</span><small>{gym.activeMembers === null ? 'Unavailable' : 'With a live membership'}</small></div>
-      <div className="cl-metric"><span className="cl-eyebrow">Open cases</span><span className="cl-metric-value tabular-nums">{gym.openCases}</span><small>Members to bring back</small></div>
+      <div className="cl-metric"><span className="cl-eyebrow">Active {nouns.members}</span><span className="cl-metric-value tabular-nums">{gym.activeMembers ?? '—'}</span><small>{gym.activeMembers === null ? 'Unavailable' : 'With a live membership'}</small></div>
+      <div className="cl-metric"><span className="cl-eyebrow">Open cases</span><span className="cl-metric-value tabular-nums">{gym.openCases}</span><small>{humanize(nouns.members)} to bring back</small></div>
       <div className="cl-metric"><span className="cl-eyebrow">Failed sends</span><span className="cl-metric-value tabular-nums">{gym.failedNotifications}</span><small>Did not go out</small></div>
       <div className="cl-metric"><span className="cl-eyebrow">Trial ends</span>{trialDay === null
         ? <><span className="cl-metric-value platform-metric-none" aria-hidden="true">—</span><small>No trial</small></>

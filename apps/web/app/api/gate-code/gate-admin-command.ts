@@ -1,4 +1,5 @@
 import { apiFail, jsonBody, staffSession, type StaffSession } from '../../../lib/api';
+import type { StaffRole } from '@gymloop/shared';
 
 type GateCommand<Input> = { failure: Response } | { session: StaffSession; input: Input };
 
@@ -8,8 +9,9 @@ export async function gateAdminCommand<Input>(
   schema: { safeParse(payload: unknown): { success: true; data: Input } | { success: false } },
   invalidCode: string,
   invalidMessage: string,
+  roles: readonly StaffRole[] = ['gym_owner', 'gym_manager'],
 ): Promise<GateCommand<Input>> {
-  const caller = await staffSession(['gym_owner', 'gym_manager'], { completeWrongAudience: 'forbidden' });
+  const caller = await staffSession(roles, { completeWrongAudience: 'forbidden' });
   if ('failure' in caller) return { failure: caller.failure };
   const body = await jsonBody(request);
   if ('failure' in body) return { failure: body.failure };

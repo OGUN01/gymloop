@@ -1,3 +1,4 @@
+import { businessNouns } from '@gymloop/shared';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { DEFAULT_TIMEZONE, UI_TOKENS } from '@gymloop/shared';
@@ -20,13 +21,14 @@ const CONSENT_SCOPE: Record<string, string> = { service: 'Renewal and visit remi
 export default async function MemberMessagesPage(_props: object = {}) {
   void _props;
   const screen = await loadMemberMessages();
+  const nouns = screen.nouns ?? businessNouns(null);
   const day = (instant: string) => memberShortDate(new Date(instant).toLocaleDateString('en-CA', { timeZone: DEFAULT_TIMEZONE }));
 
   return <main className="member-route member-portal member-messages">
     <header>
-      <Link href="/member/my-gym" className="cl-back"><ArrowLeft aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />My gym</Link>
+      <Link href="/member/my-gym" className="cl-back"><ArrowLeft aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />My {nouns.place}</Link>
       <h1 className="member-title member-title--long">Messages &amp; consent</h1>
-      <p className="cl-lede member-lede">Notes from your gym, and your choices about hearing from them.</p>
+      <p className="cl-lede member-lede">Notes from your {nouns.place}, and your choices about hearing from them.</p>
     </header>
 
     {screen.errorMessage !== null ? <p role="alert" className="cl-alert">{screen.errorMessage}</p> : null}
@@ -34,7 +36,7 @@ export default async function MemberMessagesPage(_props: object = {}) {
     <section className="member-section" aria-labelledby="messages-heading">
       <h2 id="messages-heading" className="cl-eyebrow member-eyebrow">Your messages</h2>
       {screen.messages.length === 0 && screen.errorMessage === null
-        ? <div className="cl-empty"><strong>No messages yet</strong><p>When your gym sends you a note, it appears here.</p></div>
+        ? <div className="cl-empty"><strong>No messages yet</strong><p>When your {nouns.place} sends you a note, it appears here.</p></div>
         : <ul className="cl-rows">
           {screen.messages.map((message) => <li key={message.id} className="member-message">
             <span><span className="cl-row-title member-message-body">{message.body}</span>{message.sentAt ? <small className="cl-row-meta">{day(message.sentAt)}</small> : null}</span>
@@ -46,7 +48,7 @@ export default async function MemberMessagesPage(_props: object = {}) {
     <section className="member-section" aria-labelledby="consent-heading">
       <h2 id="consent-heading" className="cl-eyebrow member-eyebrow">Consent history</h2>
       {screen.consents.length === 0 && screen.errorMessage === null
-        ? <div className="cl-empty"><strong>No consent decisions recorded yet</strong><p>Your gym records your choices here when you give or withdraw them.</p></div>
+        ? <div className="cl-empty"><strong>No consent decisions recorded yet</strong><p>Your {nouns.place} records your choices here when you give or withdraw them.</p></div>
         : <>
           <ul className="cl-rows">
             {screen.consents.map((consent, index) => <li key={index}>

@@ -1,3 +1,4 @@
+import { businessNouns, type BusinessNouns } from '@gymloop/shared';
 import { MutationForm } from '../../preview-context';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
@@ -59,6 +60,7 @@ function Field({
 }
 
 export async function MemberForm({
+  nouns = businessNouns(null),
   title,
   action,
   cancelHref,
@@ -66,6 +68,7 @@ export async function MemberForm({
   member,
   submitted,
 }: {
+  nouns?: BusinessNouns;
   title: string;
   action: string;
   cancelHref: string;
@@ -107,7 +110,7 @@ export async function MemberForm({
       </Link>
       <div className="cl-page-header">
         <div>
-          <p className="cl-eyebrow">Members</p>
+          <p className="cl-eyebrow">{humanize(nouns.members)}</p>
           <h1 className="cl-title">{title}</h1>
         </div>
       </div>
@@ -188,7 +191,7 @@ export async function MemberForm({
 
           <div className="member-form-actions">
             <button type="submit" className="cl-btn cl-btn--primary">
-              {creating ? 'Add member' : 'Save changes'}
+              {creating ? `Add ${nouns.member}` : 'Save changes'}
             </button>
             <Link href={cancelHref} className="cl-btn">
               Cancel
@@ -203,12 +206,12 @@ export async function MemberForm({
           </h2>
           {creating ? (
             <ol>
-              <li>The member appears in Members straight away, searchable by phone.</li>
+              <li>The {nouns.member} appears in {humanize(nouns.members)} straight away, searchable by phone.</li>
               <li>Open their page and sell a membership, so renewals and visits are tracked.</li>
               <li>After you save, open their page to send an app invite. It needs an email address on file, and you share the link yourself.</li>
             </ol>
           ) : (
-            <p>Memberships, payments and visits stay on the member&apos;s page and are not changed here.</p>
+            <p>Memberships, payments and visits stay on the {nouns.member}&apos;s page and are not changed here.</p>
           )}
         </aside>
       </div>

@@ -1,4 +1,4 @@
-import { fleetMetricsSchema, platformRpcArgs, type OnboardGymRequest, type SetGymStatusRequest, type SetGymTierRequest, type LinkGymOwnerRequest, type DeactivateGymOwnerRequest } from '@gymloop/shared';
+import { setGymBusinessTypeRequestSchema, fleetMetricsSchema, platformRpcArgs, type OnboardGymRequest, type SetGymStatusRequest, type SetGymTierRequest, type LinkGymOwnerRequest, type DeactivateGymOwnerRequest } from '@gymloop/shared';
 import { apiFail, apiOk, formFields, jsonBody, platformSession, seeOther, type PlatformSession } from './api';
 import { UUID_PATTERN } from './keyset';
 
@@ -100,3 +100,5 @@ export const fleetMetrics = async (client: RpcClient) => {
   const parsed = fleetMetricsSchema.safeParse(result.data);
   return parsed.success ? { data: parsed.data } as const : { error: platformError({ code: 'XX000' }) } as const;
 };
+
+export const setGymBusinessType = (client: RpcClient, tenantId: string, request: ReturnType<typeof setGymBusinessTypeRequestSchema.parse>, httpRequest: Request) => rpc(client, 'set_gym_business_type', { p_tenant_id: tenantId, p_expected_business_type: request.expectedBusinessType, p_business_type: request.businessType, p_request_key: request.requestKey }, httpRequest, '/platform');

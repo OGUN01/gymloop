@@ -1,5 +1,7 @@
 'use client';
 
+import { businessNouns, SYSTEM_OWNED_MESSAGE_CATEGORIES, type BusinessNouns } from '@gymloop/shared';
+
 import { Constants } from '@gymloop/db';
 import { MESSAGE_TEMPLATE_LOCALES, UI_TOKENS, humanize, type MessageTemplateLocale } from '@gymloop/shared';
 import { ChevronRight } from 'lucide-react';
@@ -105,7 +107,7 @@ function useMutationSubmit(
  * one; with a longer list the select starts on a prompt, so a decision is
  * never recorded against whoever happened to sort first.
  */
-export function ConsentForm({ members }: { members: MemberChoice[] }) {
+export function ConsentForm({ members, nouns = businessNouns(null) }: { members: MemberChoice[]; nouns?: BusinessNouns }) {
   const [memberId, setMemberId] = useState(members.length === 1 ? members[0]?.id ?? '' : '');
   const [purpose, setPurpose] = useState<(typeof Constants.public.Enums.consent_purpose)[number]>('marketing');
   const [granted, setGranted] = useState(true);
@@ -114,7 +116,7 @@ export function ConsentForm({ members }: { members: MemberChoice[] }) {
   const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
   const replaceRequestKey = () => setRequestKey(crypto.randomUUID());
   const { pending, problem, submit } = useMutationSubmit(
-    () => memberId === '' ? 'Choose the member first. Search by phone to find them.'
+    () => memberId === '' ? `Choose the ${nouns.member} first. Search by phone to find them.`
       : (version.trim() === '' || source.trim() === '') ? 'Enter the version and source, then try again.' : null,
     () => postJson('/api/consents', { memberId, purpose, granted, version, source, requestKey }),
     () => {},
@@ -126,9 +128,9 @@ export function ConsentForm({ members }: { members: MemberChoice[] }) {
 
   return <MutationForm onSubmit={submit} className="cl-form comms-consent">
     <div className="cl-form-row">
-    <Field label="Member">
+    <Field label={humanize(nouns.member)}>
       <select value={memberId} disabled={members.length === 0} onChange={(event) => { setMemberId(event.target.value); replaceRequestKey(); }} className={inputClass}>
-        {members.length === 1 ? null : <option value="" disabled>{members.length === 0 ? 'No member matches that search' : 'Search to choose a member'}</option>}
+        {members.length === 1 ? null : <option value="" disabled>{members.length === 0 ? `No ${nouns.member} matches that search` : `Search to choose a ${nouns.member}`}</option>}
         {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
       </select>
     </Field>
@@ -200,12 +202,13 @@ export function MessageTemplateForm({ template }: { template?: { id: string; key
 
   const categoryField = <Field label="Category">
     <select value={category} onChange={(event) => setCategory(event.target.value as typeof category)} className={inputClass}>
-      {Constants.public.Enums.message_category.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}
+      {Constants.public.Enums.message_category.filter((value) => !(SYSTEM_OWNED_MESSAGE_CATEGORIES as readonly string[]).includes(value)).map((value) => <option key={value} value={value}>{humanize(value)}</option>)}
     </select>
   </Field>;
 
   // An existing template's key, channel and language are fixed (contract §8):
   // its row already names them, so only the editable facts are controls here.
+  if (template && (SYSTEM_OWNED_MESSAGE_CATEGORIES as readonly string[]).includes(template.category)) return <p>This message category is managed by the system.</p>;
   return <MutationForm onSubmit={submit} className="cl-form comms-editor">
     {template !== undefined ? <div className="comms-editor-grid">{categoryField}</div> : <div className="comms-editor-grid">
       <Field label="Internal name"><input value={keyInput} onChange={(event) => setKeyInput(event.target.value)} className={inputClass} /><small>How it appears in your template list, for example “Birthday wish”.</small></Field>

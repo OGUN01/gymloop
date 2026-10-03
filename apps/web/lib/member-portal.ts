@@ -1,5 +1,6 @@
-import { DAYS_PER_WEEK, DEFAULT_TIMEZONE, MEMBER_PAGE_SIZE_DEFAULT, MS_PER_DAY, memberStreak, toLocalDate } from '@gymloop/shared';
+import { businessNouns, DEFAULT_BUSINESS_TYPE, isBusinessType, DAYS_PER_WEEK, DEFAULT_TIMEZONE, MEMBER_PAGE_SIZE_DEFAULT, MS_PER_DAY, memberStreak, toLocalDate } from '@gymloop/shared';
 import { requireAudience } from './identity-session';
+import { loadBusinessOrganization } from './business-type';
 
 type MemberPortalSettings = {
   city: string | null;
@@ -37,7 +38,7 @@ export async function loadMemberPortal() {
   const { supabase, identity } = await requireAudience('member');
   const [memberRead, gymRead, settingsRead, branchRead, membershipRead, attendanceRead, messageRead, pausesRead, holidaysRead, moneyRead] = await Promise.all([
     supabase.from('members').select('full_name,member_code,email,phone,weekly_goal_visits,rest_days').eq('id', identity.memberId).single(),
-    supabase.from('organizations').select('name,gym_code,timezone').eq('id', identity.tenantId).single(),
+    loadBusinessOrganization(supabase, identity.tenantId),
     memberPortalSettings(supabase),
     supabase.from('branches').select('name,address').order('is_default', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('memberships').select('status,starts_on,ends_on,plans(name)').eq('member_id', identity.memberId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
@@ -48,8 +49,10 @@ export async function loadMemberPortal() {
     memberMoney(supabase),
   ]);
   const error = [memberRead, gymRead, settingsRead, branchRead, membershipRead, attendanceRead, messageRead, pausesRead, holidaysRead].find((read) => read.error !== null)?.error;
+  const businessType = !gymRead.error && isBusinessType(gymRead.data?.business_type) ? gymRead.data.business_type : DEFAULT_BUSINESS_TYPE;
+  const nouns = businessNouns(businessType);
   const settings = settingsRead.data?.[0] ?? null;
-  if (error || !memberRead.data || !gymRead.data || !settings) return { errorMessage: 'Your member information could not be loaded.' } as const;
+  if (error || !memberRead.data || !gymRead.data || !settings) return { nouns, businessType, errorMessage: `Your ${nouns.member} information could not be loaded.` } as const;
 
   const timezone = gymRead.data.timezone || DEFAULT_TIMEZONE;
   const today = toLocalDate(new Date(), timezone);
@@ -71,7 +74,7 @@ export async function loadMemberPortal() {
   const membership = membershipRead.data;
   const plan = membership && 'plans' in membership ? membership.plans as { name?: unknown } | null : null;
   return {
-    errorMessage: null,
+    errorMessage: null, nouns, businessType,
     member: memberRead.data,
     gym: { ...gymRead.data, city: settings.city, state: settings.state, branchName: branchRead.data?.name ?? 'Main branch', branchAddress: branchRead.data?.address ?? null },
     membership: membership ? { status: membership.status, startsOn: membership.starts_on, endsOn: membership.ends_on, planName: typeof plan?.name === 'string' ? plan.name : 'Membership' } : null,

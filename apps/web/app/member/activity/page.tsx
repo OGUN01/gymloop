@@ -1,3 +1,4 @@
+import { businessNouns, humanize } from '@gymloop/shared';
 import { ChevronDown } from 'lucide-react';
 import { groupByMonth, UI_TOKENS } from '@gymloop/shared';
 import { loadMemberPortal } from '../../../lib/member-portal';
@@ -5,6 +6,7 @@ import { MemberWeekRhythm, memberShortDate } from '../member-ui';
 
 export default async function MemberActivityPage() {
   const portal = await loadMemberPortal();
+  const nouns = portal.nouns ?? businessNouns(null);
   if (portal.errorMessage) return <main className="member-route member-portal"><h1 className="member-title">Activity</h1><p className="cl-alert" role="alert">{portal.errorMessage}</p></main>;
   const timeZone = portal.gym.timezone;
   const time = new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit', timeZone });
@@ -23,7 +25,7 @@ export default async function MemberActivityPage() {
     <ul className="cl-rows">{month.items.map((visit) => {
       const at = new Date(visit.checked_in_at);
       return <li key={visit.id}>
-        <span><strong className="cl-row-title member-visit-time">{at.toLocaleDateString('en-GB', { weekday: 'short', timeZone })}, {memberShortDate(at.toLocaleDateString('en-CA', { timeZone }))} <span className="member-visit-sep">·</span> {time.formatToParts(at).map((part) => part.type === 'dayPeriod' ? <span key={part.type} className="member-visit-meridiem">{part.value}</span> : part.value)}</strong><small className="cl-row-meta">{visit.source === 'qr' ? 'Gym QR' : 'Desk assisted'}</small></span>
+        <span><strong className="cl-row-title member-visit-time">{at.toLocaleDateString('en-GB', { weekday: 'short', timeZone })}, {memberShortDate(at.toLocaleDateString('en-CA', { timeZone }))} <span className="member-visit-sep">·</span> {time.formatToParts(at).map((part) => part.type === 'dayPeriod' ? <span key={part.type} className="member-visit-meridiem">{part.value}</span> : part.value)}</strong><small className="cl-row-meta">{visit.source === 'qr' ? `${humanize(nouns.place)} QR` : 'Desk assisted'}</small></span>
         <span className="cl-status" data-tone="ok">Confirmed</span>
       </li>;
     })}</ul>
@@ -44,7 +46,7 @@ export default async function MemberActivityPage() {
     <section aria-labelledby="visits-heading">
       <h2 id="visits-heading" className="sr-only">Visits</h2>
       {latest === undefined
-        ? <div className="cl-empty"><strong>No confirmed visits yet</strong><p>Your visits appear here once the gym confirms a check-in.</p></div>
+        ? <div className="cl-empty"><strong>No confirmed visits yet</strong><p>Your visits appear here once the {nouns.place} confirms a check-in.</p></div>
         : <>
           {renderMonth(latest)}
           {older.length > 0 ? <details className="member-activity-older">

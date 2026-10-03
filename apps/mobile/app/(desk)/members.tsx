@@ -1,3 +1,5 @@
+import { humanize } from '@gymloop/shared';
+import { useBusinessNouns } from '../../lib/use-business-nouns';
 import { useEffect, useState } from 'react';
 import { formatPhone, MEMBER_PAGE_SIZE_DEFAULT, UI_TOKENS } from '@gymloop/shared';
 import { StyleSheet, View } from 'react-native';
@@ -6,6 +8,7 @@ import { useMobile } from '../../lib/mobile-context';
 import { loadDefaultBranch, loadDeskMembers, type DeskMember } from '../../lib/mobile-data';
 
 export default function MembersScreen() {
+  const nouns = useBusinessNouns();
   const { supabase } = useMobile();
   const [query, setQuery] = useState('');
   const [branch, setBranch] = useState<string | null>(null);
@@ -22,15 +25,15 @@ export default function MembersScreen() {
   // The roster read is capped at one page, so a full page is "50+" rather than a false total.
   const count = `${rows.length}${rows.length >= MEMBER_PAGE_SIZE_DEFAULT ? '+' : ''}`;
   // The roster is read-only here, and the header says so before the first tap.
-  const context = state !== 'ready' ? 'Edit on the web' : `${count} ${query.trim() === '' ? (rows.length === 1 ? 'member' : 'members') : (rows.length === 1 ? 'match' : 'matches')} · Edit on the web`;
+  const context = state !== 'ready' ? 'Edit on the web' : `${count} ${query.trim() === '' ? (rows.length === 1 ? nouns.member : nouns.members) : (rows.length === 1 ? 'match' : 'matches')} · Edit on the web`;
 
   return <Screen>
-    <View><Eyebrow>{branch ?? 'Front desk'}</Eyebrow><Title>Members</Title><Body muted>{context}</Body></View>
+    <View><Eyebrow>{branch ?? 'Front desk'}</Eyebrow><Title>{humanize(nouns.members)}</Title><Body muted>{context}</Body></View>
     <View style={styles.roster}>
-      <SearchField accessibilityLabel="Search members" placeholder="Search name or phone" value={query} onChangeText={setQuery} />
+      <SearchField accessibilityLabel={`Search ${nouns.members}`} placeholder="Search name or phone" value={query} onChangeText={setQuery} />
       {state === 'loading' ? <View style={styles.listState}><LoadingState /></View> : null}
-      {state === 'error' ? <View style={styles.listState}><ErrorRetry message="Members could not be loaded." onRetry={() => setAttempt((value) => value + 1)} /></View> : null}
-      {state === 'ready' && rows.length === 0 ? <EmptyState title="No matching members">Check the spelling, or search by phone number.</EmptyState> : null}
+      {state === 'error' ? <View style={styles.listState}><ErrorRetry message={`${humanize(nouns.members)} could not be loaded.`} onRetry={() => setAttempt((value) => value + 1)} /></View> : null}
+      {state === 'ready' && rows.length === 0 ? <EmptyState title={`No matching ${nouns.members}`}>Check the spelling, or search by phone number.</EmptyState> : null}
       {/* The one roster row (as on Check-in): the name over one meta line — member code, phone, then the dot-and-word
           status. Still rows open nothing here, so the trailing slot stays empty: no chevron, no pressed state. */}
       {state === 'ready' ? <View>{rows.map((member) => <Row key={member.id} icon={<Initials name={member.fullName} />} title={member.fullName}

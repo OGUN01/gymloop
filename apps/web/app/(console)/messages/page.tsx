@@ -1,3 +1,6 @@
+import { requireAudience } from '../../../lib/identity-session';
+import { loadBusinessNouns } from '../../../lib/business-type';
+import { type BusinessNouns } from '@gymloop/shared';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { loadMessages, type MessageListRow, type MessageStatusCounts } from '../../../lib/messages';
 import { ConsentForm, MessageTemplateForm, WhatsAppOpenButton } from './message-forms';
@@ -38,9 +41,9 @@ function canOpenWhatsApp(row: MessageListRow): boolean {
 }
 
 /** What each count means, in the caption slot under its number ("Did not go out" is the platform gym page's Failed caption too). */
-const COUNT_CAPTIONS: Record<(typeof STATUS_ORDER)[number], string> = {
-  scheduled: 'Waiting to send', sent: 'Not yet confirmed', delivered: 'Reached the member', failed: 'Did not go out',
-};
+const countCaptions = (nouns: BusinessNouns): Record<(typeof STATUS_ORDER)[number], string> => ({
+  scheduled: 'Waiting to send', sent: 'Not yet confirmed', delivered: `Reached the ${nouns.member}`, failed: 'Did not go out',
+});
 /** Opted-out messages were held back by a consent decision, so they are counted where consent is recorded. */
 const optedOutNote = (count: string) => count === '0'
   ? 'No messages held back by an opt-out.'
@@ -60,6 +63,8 @@ const iconProps = { 'aria-hidden': true, size: UI_TOKENS.icons.controlSize, stro
 export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ channel?: string; q?: string; memberCursor?: string; log?: string }> }) {
   const { log, ...params } = await searchParams;
   const screen = await loadMessages(Promise.resolve(params));
+  const businessCaller = await requireAudience('console');
+  const nouns = await loadBusinessNouns(businessCaller.supabase, businessCaller.identity.tenantId);
   const nextMemberQuery = new URLSearchParams();
   if (params.channel) nextMemberQuery.set('channel', params.channel);
   if (params.q) nextMemberQuery.set('q', params.q);
@@ -78,9 +83,9 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
   return <main className="cl-page comms-messages">
     <div className="cl-page-header">
       <div>
-        <p className="cl-eyebrow">Reach members</p>
+        <p className="cl-eyebrow">Reach {nouns.members}</p>
         <h1 className="cl-title">Messages</h1>
-        <p className="cl-lede">Every renewal, payment, fulfilment, promotion and motivation message this gym has queued or sent.</p>
+        <p className="cl-lede">Every renewal, payment, fulfilment, promotion and motivation message this {nouns.place} has queued or sent.</p>
       </div>
       {screen.asOf !== null ? <p className="cl-muted comms-updated">Updated <time dateTime={screen.asOf}>{formatDateTime(screen.asOf, DEFAULT_TIMEZONE)}</time></p> : null}
     </div>
@@ -101,7 +106,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
         {STATUS_ORDER.map((status) => <div key={status} className="cl-metric">
           <span className="cl-eyebrow">{STATUS_LABELS[status]}</span>
           <span className="cl-metric-value tabular-nums">{screen.statusCounts[status]}</span>
-          <small>{COUNT_CAPTIONS[status]}</small>
+          <small>{countCaptions(nouns)[status]}</small>
         </div>)}
       </div>
     </section>
@@ -119,7 +124,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       {screen.rows.length === 0 ? null : <div className="cl-ledger-wrap">
         <table className={`cl-ledger comms-log${showAll ? '' : ' comms-log--preview'}`}>
           <thead><tr>
-            <th scope="col">Member</th><th scope="col">Channel</th><th scope="col">Type</th><th scope="col">When</th><th scope="col">Status</th><th scope="col"><span className="sr-only">Action</span></th>
+            <th scope="col">{humanize(nouns.member)}</th><th scope="col">Channel</th><th scope="col">Type</th><th scope="col">When</th><th scope="col">Status</th><th scope="col"><span className="sr-only">Action</span></th>
           </tr></thead>
           <tbody>
             {visibleRows.map((row) => <tr key={row.id}>
@@ -145,29 +150,29 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       <div className="comms-section-head"><h2 id="consent-heading" className="cl-section-title">Consent</h2></div>
       <div className="comms-band">
         <div className="comms-band-intro">
-          <p>Record a member's marketing or service consent decision. Find them by phone, then record what they agreed to.</p>
+          <p>Record a {nouns.member}'s marketing or service consent decision. Find them by phone, then record what they agreed to.</p>
           <p className="comms-band-note">{optedOutNote(screen.statusCounts.opted_out)}</p>
         </div>
         <div className="comms-band-body">
           {!screen.isPreview ? <form action="/messages" method="get" className="cl-form">
             {params.channel ? <input type="hidden" name="channel" value={params.channel} /> : null}
             <div className="comms-search">
-              <label className="cl-field"><span>Find member by phone</span>
+              <label className="cl-field"><span>Find {nouns.member} by phone</span>
                 <input type="search" name="q" defaultValue={params.q ?? ''} placeholder="Last four digits or full phone" className="cl-input" />
               </label>
-              <button type="submit" className="cl-btn">Search members</button>
+              <button type="submit" className="cl-btn">Search {nouns.members}</button>
             </div>
           </form> : null}
-          {screen.memberSearchError ? <Alert>Member search could not be loaded.</Alert> : null}
-          <ConsentForm key={`${params.q ?? ''}:${params.memberCursor ?? ''}`} members={screen.members} />
-          {screen.memberNextCursor ? <a className="comms-section-link" href={`/messages?${nextMemberQuery.toString()}`}>More members<ChevronRight {...iconProps} /></a> : null}
+          {screen.memberSearchError ? <Alert>{humanize(nouns.member)} search could not be loaded.</Alert> : null}
+          <ConsentForm nouns={nouns} key={`${params.q ?? ''}:${params.memberCursor ?? ''}`} members={screen.members} />
+          {screen.memberNextCursor ? <a className="comms-section-link" href={`/messages?${nextMemberQuery.toString()}`}>More {nouns.members}<ChevronRight {...iconProps} /></a> : null}
         </div>
       </div>
     </section>
 
     {screen.isAdmin ? <section id="templates" aria-labelledby="templates-heading" className="comms-section comms-anchor">
       <div className="comms-section-head"><h2 id="templates-heading" className="cl-section-title">Message templates</h2></div>
-      {screen.templates.length === 0 ? <div className="cl-empty"><strong>No templates yet.</strong><p>{screen.isPreview ? 'Templates appear here once the gym writes one.' : 'Create the first one below.'}</p></div> : <div className="comms-templates">
+      {screen.templates.length === 0 ? <div className="cl-empty"><strong>No templates yet.</strong><p>{screen.isPreview ? `Templates appear here once the ${nouns.place} writes one.` : 'Create the first one below.'}</p></div> : <div className="comms-templates">
         <div className="comms-template-head" aria-hidden="true"><span>Template</span><span>Channel</span><span>Locale</span><span>State</span><span /></div>
         {screen.templates.map((template) => <details key={template.id} name="message-template" className="comms-template">
           <summary>
@@ -187,7 +192,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       {!screen.isPreview ? <div className="comms-subsection">
         <div className="comms-subsection-head"><h3 className="comms-subsection-title">New template</h3></div>
         <div className="comms-band">
-          <p className="comms-band-intro">Write a message once and reuse it. Templates are plain text: the member reads exactly what you type here.</p>
+          <p className="comms-band-intro">Write a message once and reuse it. Templates are plain text: the {nouns.member} reads exactly what you type here.</p>
           <div className="comms-band-body"><MessageTemplateForm /></div>
         </div>
       </div> : null}

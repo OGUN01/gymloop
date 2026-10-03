@@ -1,3 +1,5 @@
+import { humanize } from '@gymloop/shared';
+import { useBusinessNouns } from '../../lib/use-business-nouns';
 import { groupByMonth, toLocalDate, UI_TOKENS } from '@gymloop/shared';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -7,6 +9,7 @@ import { rhythmFor } from '../../lib/mobile-data';
 import { useMemberSnapshot } from '../../lib/use-member-snapshot';
 
 export default function ActivityScreen() {
+  const nouns = useBusinessNouns();
   const { palette } = useMobile();
   const { data, error, loading, reload } = useMemberSnapshot();
   const [showOlder, setShowOlder] = useState(false);
@@ -35,7 +38,7 @@ export default function ActivityScreen() {
       // Intl joins the clock and its meridiem with a narrow space the condensed cut all but closes, and spaces the "·"
       // just as tightly, so both gaps are set in the normal-width cut; the meridiem is upper case ("10:10 PM"), as on web.
       const [clock, meridiem] = time.format(at).split(/\s+/u);
-      return <Row key={visit.id} reserveChevron title={<Text style={[styles.visitTitle, { color: palette.primaryText }]}>{at.toLocaleDateString('en-GB', { weekday: 'short', timeZone })}, {dayLabel(toLocalDate(at, timeZone), timeZone)}<Text style={styles.visitGap}> · </Text>{clock}{meridiem ? <><Text style={styles.visitGap}> </Text>{meridiem.toUpperCase()}</> : null}</Text>} meta={visit.source === 'qr' ? 'Gym QR' : 'Desk assisted'} trailing={<View style={styles.visitStatus}><Status tone="ok">Confirmed</Status></View>} />;
+      return <Row key={visit.id} reserveChevron title={<Text style={[styles.visitTitle, { color: palette.primaryText }]}>{at.toLocaleDateString('en-GB', { weekday: 'short', timeZone })}, {dayLabel(toLocalDate(at, timeZone), timeZone)}<Text style={styles.visitGap}> · </Text>{clock}{meridiem ? <><Text style={styles.visitGap}> </Text>{meridiem.toUpperCase()}</> : null}</Text>} meta={visit.source === 'qr' ? `${humanize(nouns.place)} QR` : 'Desk assisted'} trailing={<View style={styles.visitStatus}><Status tone="ok">Confirmed</Status></View>} />;
     })}</View>
   </View>;
   return <Screen>
@@ -56,7 +59,7 @@ export default function ActivityScreen() {
       <Rule />
     </View>
     {latest === undefined
-      ? <View style={styles.empty}><Body strong>No confirmed visits yet</Body><Body muted>Your visits appear here once the gym confirms a check-in.</Body></View>
+      ? <View style={styles.empty}><Body strong>No confirmed visits yet</Body><Body muted>Your visits appear here once the {nouns.place} confirms a check-in.</Body></View>
       : <View style={styles.visits}>
         {renderMonth(latest)}
         {older.length > 0 ? <Row title="Show older visits" meta={`${older.reduce((total, month) => total + month.items.length, 0)} earlier`} expanded={showOlder} onPress={() => setShowOlder((value) => !value)} accessibilityLabel="Show older visits" /> : null}

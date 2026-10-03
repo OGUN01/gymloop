@@ -1,4 +1,6 @@
+import { loadBusinessNouns } from '../../../../lib/business-type';
 import { requireAudience } from '../../../../lib/identity-session';
+
 import { loadMemberSearch } from '../../../../lib/members';
 import { loadMembershipStanding } from '../../../../lib/membership-state';
 import { MemberSearchPage } from '../member-search-page';
@@ -18,8 +20,9 @@ export default async function CheckInPage({
 }: {
   searchParams: Promise<{ q?: string; cursor?: string; limit?: string }>;
 }) {
-  const search = await loadMemberSearch(searchParams);
   const { supabase, identity } = await requireAudience('console');
+  const nouns = await loadBusinessNouns(supabase, identity.tenantId);
+  const search = await loadMemberSearch(searchParams);
   const { data: settings } = await supabase.from('organization_settings')
     .select('checkin_gate_mode').maybeSingle();
   // Remove the narrow assertion after CI applies the migration and DB types regenerate.
@@ -36,6 +39,7 @@ export default async function CheckInPage({
 
   return (
     <MemberSearchPage
+      nouns={nouns}
       title="Check-in"
       linkHref="/console"
       linkLabel="Members"
@@ -44,7 +48,7 @@ export default async function CheckInPage({
       nextCursor={search.nextCursor}
       pageSize={search.pageSize}
     >
-      <CheckInGate members={members} mode={mode} canManageGate={canManageGate} />
+      <CheckInGate nouns={nouns} members={members} mode={mode} canManageGate={canManageGate} />
     </MemberSearchPage>
   );
 }

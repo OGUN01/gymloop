@@ -1,3 +1,4 @@
+import { useBusinessNouns } from '../lib/use-business-nouns';
 import { AVATAR_INITIALS_MAX, formatDay, humanize, PRODUCT_NAME, toLocalDate, UI_TOKENS } from '@gymloop/shared';
 import { ChevronRight, Search } from 'lucide-react-native';
 import { AccessibilityInfo, ActivityIndicator, Animated, Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View, useColorScheme, type PressableProps, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
@@ -344,8 +345,9 @@ export function ErrorRetry({ message, onRetry }: { message: string; onRetry: () 
 }
 
 export function LoadingState() {
+  const nouns = useBusinessNouns();
   const { palette } = useMobile();
-  return <View style={styles.loading} accessibilityLabel="Loading your gym" accessible><ActivityIndicator color={palette.primaryAction} /><Body muted>Loading your gym…</Body></View>;
+  return <View style={styles.loading} accessibilityLabel={`Loading your ${nouns.place}`} accessible><ActivityIndicator color={palette.primaryAction} /><Body muted>Loading your {nouns.place}…</Body></View>;
 }
 
 const styles = StyleSheet.create({
@@ -443,3 +445,25 @@ const styles = StyleSheet.create({
   pressed: { opacity: UI_TOKENS.opacity.pressed },
   disabled: { opacity: UI_TOKENS.opacity.disabled },
 });
+
+/** Controlled presentation tabs; the containing screen owns selection and data. */
+export function SegmentedControl({ value, onChange }: {
+  value: 'classes' | 'training';
+  onChange(value: 'classes' | 'training'): void;
+}) {
+  const { palette } = useMobile();
+  return <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[1] }}>
+    {(['classes', 'training'] as const).map((tab) => {
+      const selected = tab === value;
+      const label = tab === 'classes' ? 'Classes' : 'Training';
+      return <Pressable key={tab} accessibilityRole="tab" accessibilityLabel={label}
+        accessibilityState={{ selected }} onPress={() => { if (!selected) onChange(tab); }}
+        style={[styles.action, {
+          flexGrow: 1, flexBasis: 0, minWidth: UI_TOKENS.geometry.targets.touch,
+          paddingVertical: space[2], borderColor: selected ? palette.primaryAction : palette.requiredControlOutline,
+          backgroundColor: selected ? palette.primaryAction : palette.surface,
+        }]}
+      ><Text style={[styles.actionText, { fontFamily: FONT.semibold, color: selected ? palette.textOnPrimary : palette.primaryText }]}>{label}</Text></Pressable>;
+    })}
+  </View>;
+}

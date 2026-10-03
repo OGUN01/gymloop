@@ -1,5 +1,7 @@
 'use client';
 
+import { businessNouns, humanize, type BusinessNouns } from '@gymloop/shared';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ChevronDown } from 'lucide-react';
@@ -73,7 +75,8 @@ function barcodeDetector(): BarcodeDetectorCtor | undefined {
 const FIELD_CLASS =
   'check-in-field';
 
-export function CheckInGate({ members, mode, canManageGate = false }: {
+export function CheckInGate({ members, mode, canManageGate = false, nouns = businessNouns(null) }: {
+  nouns?: BusinessNouns;
   members: Member[]; mode?: GateMode | undefined; canManageGate?: boolean;
 }) {
   const readOnly = usePreviewReadOnly();
@@ -358,11 +361,11 @@ export function CheckInGate({ members, mode, canManageGate = false }: {
           </h2>
           <p className="check-in-gate-copy">
             {activeMode === 'printed_poster'
-              ? gateCode ? 'Permanent until replaced. A member may scan once per branch-local day during opening hours.'
+              ? gateCode ? `Permanent until replaced. A ${nouns.member} may scan once per branch-local day during opening hours.`
                 : posterUnavailable ? 'Poster could not be displayed. Reload or ask an owner to replace it.'
                   : 'No poster yet. Ask an owner or manager to create and print one.'
               : gateCode ? 'Scans are recorded against this code until it expires.'
-                : 'Generate one for members to scan. Until then, check-ins are recorded at the desk with a reason.'}
+                : `Generate one for ${nouns.members} to scan. Until then, check-ins are recorded at the desk with a reason.`}
           </p>
 
           {activeMode === 'rotating_screen' ? (
@@ -393,12 +396,12 @@ export function CheckInGate({ members, mode, canManageGate = false }: {
 
           {issuedCode ? (
             <div className="check-in-issued-gate">
-              <div className="check-in-issued-qr" aria-label="Member check-in QR code">
+              <div className="check-in-issued-qr" aria-label={`${humanize(nouns.member)} check-in QR code`}>
                 <QRCodeSVG
                   value={issuedCode}
                   level="M"
                   marginSize={1}
-                  title={`Scan this QR in the ${PRODUCT_NAME} member app`}
+                  title={`Scan this QR in the ${PRODUCT_NAME} ${nouns.member} app`}
                 />
               </div>
               <p className="check-in-issued-code">{issuedCode}</p>
@@ -460,11 +463,11 @@ export function CheckInGate({ members, mode, canManageGate = false }: {
       </section>
 
       <p className="check-in-roster-meta">
-        <span className="check-in-count">{members.length === 1 ? '1 member' : `${members.length} members`}</span>
+        <span className="check-in-count">{members.length === 1 ? `1 ${nouns.member}` : `${members.length} ${nouns.members}`}</span>
       </p>
 
-      <ul className="check-in-members" aria-label="Members">
-        <li className="check-in-member-headings" aria-hidden="true"><span>Member</span><span className="check-in-heading-phone">Phone</span><span>Status</span><span>Check in</span></li>
+      <ul className="check-in-members" aria-label={humanize(nouns.members)}>
+        <li className="check-in-member-headings" aria-hidden="true"><span>{humanize(nouns.member)}</span><span className="check-in-heading-phone">Phone</span><span>Status</span><span>Check in</span></li>
         {members.map((member) => {
           const barred = BARRED.has(member.status);
           return (
@@ -537,7 +540,7 @@ export function CheckInGate({ members, mode, canManageGate = false }: {
       </ul>
 
       {members.length === 0 ? (
-        <div className="cl-empty check-in-empty"><strong>No member matched</strong><p>No member of this gym matched. Check the number, or search with fewer digits.</p></div>
+        <div className="cl-empty check-in-empty"><strong>No {nouns.member} matched</strong><p>No {nouns.member} of this {nouns.place} matched. Check the number, or search with fewer digits.</p></div>
       ) : null}
     </fieldset>
   );

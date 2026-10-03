@@ -105,11 +105,17 @@ export async function loadMemberSnapshot(client: DbClient, identity: MemberIdent
 
 export type DeskMember = { id: string; fullName: string; phone: string; status: string; memberCode: string | null };
 export async function loadDeskMembers(client: DbClient, query: string): Promise<DeskMember[]> {
-  const request = client.from('members').select('id,full_name,phone,status,member_code').order('full_name').limit(MEMBER_PAGE_SIZE_DEFAULT);
+  let request = client.from('members').select('id,full_name,phone,status,member_code');
   const normalized = query.trim();
-  const { data, error } = await request;
+  if (normalized) {
+    // Quote the complete PostgREST value so punctuation cannot become OR grammar.
+    // Escape LIKE metacharacters to preserve literal substring search semantics.
+    const pattern = JSON.stringify(`%${normalized.replace(/[\\%_*]/g, '\\$&')}%`);
+    request = request.or(`full_name.ilike.${pattern},phone.ilike.${pattern}`);
+  }
+  const { data, error } = await request.order('full_name').limit(MEMBER_PAGE_SIZE_DEFAULT);
   if (error) throw new Error(error.message);
-  return (data ?? []).filter((row) => normalized === '' || row.full_name.toLocaleLowerCase().includes(normalized.toLocaleLowerCase()) || row.phone.includes(normalized)).map((row) => ({ id: row.id, fullName: row.full_name, phone: row.phone, status: row.status, memberCode: row.member_code }));
+  return (data ?? []).map((row) => ({ id: row.id, fullName: row.full_name, phone: row.phone, status: row.status, memberCode: row.member_code }));
 }
 
 export type DeskFollowUp = { id: string; memberId: string; memberName: string; memberPhone: string; daysAbsent: number; nextFollowUpAt: string | null; status: string; openedOn: string | null; lastAttendedOn: string | null; lastFollowUpAt: string | null; lastFollowUpOutcome: string | null };

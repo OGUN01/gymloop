@@ -1,5 +1,7 @@
 'use client';
 
+import { businessNouns, type BusinessNouns } from '@gymloop/shared';
+
 import {
   BASIS_POINTS_PER_PERCENT,
   OWNER_OVERVIEW_CASE_PREVIEW_LIMIT,
@@ -88,7 +90,7 @@ function detailSummaries(metrics: OwnerMetrics, selected: CardKey): string[] {
   }
 }
 
-export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
+export function MetricsDashboard({ metrics, nouns = businessNouns(null) }: { metrics: OwnerMetrics; nouns?: BusinessNouns }) {
   const [selected, setSelected] = useState<CardKey | null>(null);
   const range = shortRange(metrics.range.from, metrics.range.through, metrics.localToday);
   const renewalsDue = metrics.components.renewals.length;
@@ -104,8 +106,8 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
   const leads = ratioParts(metrics.cards.leads.converted, metrics.cards.leads.total);
   const pt = ratioParts(metrics.cards.pt.sessionsUsed, metrics.cards.pt.sessionsTotal);
   const secondaryCards: Array<{ key: CardKey; label: string; value: string; caption?: string }> = [
-    { key: 'liveMembers', label: 'Live members', value: metrics.cards.liveMembers },
-    { key: 'pausedMembers', label: 'Paused members', value: metrics.cards.pausedMembers },
+    { key: 'liveMembers', label: `Live ${nouns.members}`, value: metrics.cards.liveMembers },
+    { key: 'pausedMembers', label: `Paused ${nouns.members}`, value: metrics.cards.pausedMembers },
     { key: 'leads', label: 'Lead conversion', value: leads.value, caption: leads.percent === null ? 'No cohort' : `${leads.percent} converted` },
     { key: 'addonCash', label: 'Add-on cash', value: moneySummary(metrics.cards.addonCash) },
     { key: 'ptOrders', label: 'PT sessions used', value: pt.value, caption: pt.percent === null ? 'No cohort' : `${pt.percent} used` },
@@ -126,7 +128,7 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
     <header className="dashboard-header">
       <div>
         <h1>Overview</h1>
-        <p className="dashboard-subtitle">Your gym at a glance<span className="money-dash-sep"> · </span><span className="money-dash-updated">updated {formatSnapshotInstant(metrics.asOf, metrics.timezone)}</span></p>
+        <p className="dashboard-subtitle">Your {nouns.place} at a glance<span className="money-dash-sep"> · </span><span className="money-dash-updated">updated {formatSnapshotInstant(metrics.asOf, metrics.timezone)}</span></p>
       </div>
       <div className="dashboard-controls">
         <details className="dashboard-period">
@@ -138,7 +140,7 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
           </form>
         </details>
         <div className="dashboard-actions">
-          <a className="dashboard-secondary-action" href="/console/check-in"><UserPlus aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />Check in a member</a>
+          <a className="dashboard-secondary-action" href="/console/check-in"><UserPlus aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />Check in a {nouns.member}</a>
           <a className="dashboard-primary-action" href="/console"><CreditCard aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} />Record payment</a>
         </div>
       </div>
@@ -153,7 +155,7 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
         <div className="dashboard-panel-heading"><h2 id="dashboard-cases-heading">People to follow up with</h2><p>Longest-open cases first.</p><a href="/red-list">{metrics.cards.openCases} open {chevron}</a></div>
         {cases.length === 0 ? <div className="cl-empty dashboard-empty"><strong>Nobody to chase</strong><p>No open follow-up cases in this snapshot.</p></div> : <>
           {/* The same ledger as Renewals: who (with the case's status), the next step, the way in. */}
-          <div className="dashboard-columns dashboard-case-columns" aria-hidden="true"><span>Member</span><span>Next step</span></div>
+          <div className="dashboard-columns dashboard-case-columns" aria-hidden="true"><span>{humanize(nouns.member)}</span><span>Next step</span></div>
           <ul className="dashboard-case-list">{cases.map((item) => {
             const next = item.nextFollowUpAt === null ? null : splitInstant(item.nextFollowUpAt, metrics.timezone);
             return <li key={item.caseId}><a href={`/members/${item.memberId}`}><div className="dashboard-case-who"><strong>{item.memberName}</strong><p><span className="cl-status" data-tone={item.due ? 'risk' : 'warn'}>{humanizeStatus(item.status)}</span></p></div><span className="money-dash-next">{item.due ? <span className="money-dash-now">Contact now</span> : next === null ? <span className="dashboard-muted">Not scheduled</span> : <time dateTime={item.nextFollowUpAt ?? undefined}>{next.day}<small>{next.time}</small></time>}</span><ChevronRight className="dashboard-row-chevron" aria-hidden="true" size={UI_TOKENS.icons.controlSize} strokeWidth={UI_TOKENS.icons.strokeWidth} /></a></li>;
@@ -165,15 +167,15 @@ export function MetricsDashboard({ metrics }: { metrics: OwnerMetrics }) {
         <section className="dashboard-panel" aria-labelledby="dashboard-renewals-heading">
           <div className="dashboard-panel-heading"><h2 id="dashboard-renewals-heading">Renewals due</h2><p>{formatDayRange(metrics.range.from, metrics.range.through)}</p>{renewalsDue === 0 ? null : <a href="/memberships">{renewalsDue} due {chevron}</a>}</div>
           {renewals.length === 0 ? <div className="cl-empty dashboard-empty"><strong>No renewals due</strong><p>No renewals due in this range.</p></div> : <>
-            <div className="dashboard-columns dashboard-renewal-columns" aria-hidden="true"><span>Member</span><span>Due</span><span>Amount</span></div>
+            <div className="dashboard-columns dashboard-renewal-columns" aria-hidden="true"><span>{humanize(nouns.member)}</span><span>Due</span><span>Amount</span></div>
             <ul className="dashboard-renewal-list">{renewals.map((item) => <li key={item.membershipId}><a href={`/memberships/${item.memberId}`}>{item.memberName}<small><span className="cl-status" data-tone={item.endsOn < metrics.localToday ? 'risk' : 'warn'}>{item.endsOn < metrics.localToday ? 'Overdue' : 'Due'}</span></small></a><time dateTime={item.endsOn}>{formatLocalDay(item.endsOn)}</time><span className="money-dash-amount">{formatDisplayMoney(item.duePaise, item.currency)}</span></li>)}</ul>
             {renewalsDue > renewals.length ? <p className="money-dash-more">Showing {renewals.length} of {renewalsDue}{renewalAmounts}</p> : null}
           </>}
         </section>
         <section className="dashboard-panel dashboard-recovery" aria-labelledby="dashboard-recovery-heading">
-          <div className="dashboard-panel-heading"><h2 id="dashboard-recovery-heading">Back in the gym</h2><p>Recovered after a follow-up</p></div>
+          <div className="dashboard-panel-heading"><h2 id="dashboard-recovery-heading">Back in the {nouns.place}</h2><p>Recovered after a follow-up</p></div>
           {/* An ink count at the snapshot's figure size: a number, not a status. */}
-          <p className="money-dash-recovered"><strong>{metrics.cards.recovered}</strong> {metrics.cards.recovered === '1' ? 'member' : 'members'} returned</p>
+          <p className="money-dash-recovered"><strong>{metrics.cards.recovered}</strong> {metrics.cards.recovered === '1' ? nouns.member : nouns.members} returned</p>
           {recoveries.length > 0 && <ul>{recoveries.map((item) => <li key={item.caseId}><a href={`/members/${item.memberId}`}>{item.memberName}</a><span>{formatSnapshotInstant(item.returnedAt, metrics.timezone)}</span></li>)}</ul>}
         </section>
       </aside>

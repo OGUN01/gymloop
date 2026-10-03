@@ -1,5 +1,7 @@
 'use client';
 
+import { businessNouns, type BusinessNouns } from '@gymloop/shared';
+
 import { Constants } from '@gymloop/db';
 import { formatDateTime, formatPhone, gymWallClockFormatter, humanize } from '@gymloop/shared';
 import { useState, useRef, type FormEvent } from 'react';
@@ -216,7 +218,7 @@ type LinkMember = { memberId: string; fullName: string; phone: string; status: s
  * key: a retry of the same decision after an uncertain outcome replays the
  * original write, never a second member.
  */
-export function LeadConvertDialog({ leadId, revision, fullName }: { leadId: string; revision: string; fullName: string }) {
+export function LeadConvertDialog({ leadId, revision, fullName, nouns = businessNouns(null) }: { leadId: string; revision: string; fullName: string; nouns?: BusinessNouns }) {
   const [member, setMember] = useState<LinkMember | null>(null);
   const [mode, setMode] = useState<'create' | 'link_existing'>('create');
   const [pending, setPending] = useState(false);
@@ -293,13 +295,13 @@ export function LeadConvertDialog({ leadId, revision, fullName }: { leadId: stri
 
   return <form method="post" onSubmit={submit} className="cl-form leads-convert">
     {notice !== '' ? <p role="status" className="cl-alert" data-tone="warn">{notice}</p> : null}
-    {member !== null ? <p className="text-sm font-medium">Existing member: {member.fullName} · <span className="tabular-nums">{formatPhone(member.phone)}</span> · <StatusWord status={member.status} /></p> : null}
+    {member !== null ? <p className="text-sm font-medium">Existing {nouns.member}: {member.fullName} · <span className="tabular-nums">{formatPhone(member.phone)}</span> · <StatusWord status={member.status} /></p> : null}
     {problem !== '' ? <Alert>{problem}</Alert> : null}
     <div className="cl-actions">
       <button type="submit" disabled={pending} className="cl-btn cl-btn--primary">
         {pending ? 'Converting…' : member !== null
           ? `Connect ${member.fullName} to this lead explicitly`
-          : `Convert ${fullName} to a member`}
+          : `Convert ${fullName} to a ${nouns.member}`}
       </button>
       {member !== null ? <Link href="/leads" className="cl-btn cl-btn--quiet">Leave without converting</Link> : null}
     </div>
@@ -370,7 +372,7 @@ export function LeadStageForm({ leadId, revision, stage, timezone, trialAt }: {
     const trialLocal = String(form.get('trialLocal') ?? '');
     const lostReason = String(form.get('lostReason') ?? '');
     if (needsTrial && trialLocal === '') {
-      command.setProblem('Choose the gym-local trial time for this stage move.');
+      command.setProblem('Choose the local trial time for this stage move.');
       return;
     }
     if (toStage === 'lost' && lostReason.trim() === '') {
@@ -397,14 +399,14 @@ export function LeadStageForm({ leadId, revision, stage, timezone, trialAt }: {
         {options.map((option) => <option key={option} value={option}>{humanize(option)}</option>)}
       </select></Field>
       {needsTrial
-        ? <Field label="Trial time (gym-local)"><input name="trialLocal" type="datetime-local" required defaultValue={prefill} className={inputClass} /></Field>
+        ? <Field label="Trial time (local)"><input name="trialLocal" type="datetime-local" required defaultValue={prefill} className={inputClass} /></Field>
         : null}
       {toStage === 'lost' ? <Field label="Loss reason"><input name="lostReason" required className={inputClass} /></Field> : null}
     </div>
     {needsTrial && trialAt !== null
       ? <p className="cl-hint">Currently scheduled: {formatDateTime(trialAt, timezone)}. Change the time only if the plan changed.</p>
       : null}
-    {needsTrial ? <p className="cl-hint">Times are the gym's local time.</p> : null}
+    {needsTrial ? <p className="cl-hint">Times are shown in local time.</p> : null}
     {command.problem !== '' ? <Alert>{command.problem}</Alert> : null}
     <div>
       <button type="submit" disabled={command.pending} className={stage === 'trial_done' ? 'cl-btn' : 'cl-btn cl-btn--primary'}>

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PRODUCT_NAME, PUBLISHER_NAME, PUBLIC_PAGE_PATHS, SUPPORT_EMAIL } from '@gymloop/shared';
 
-export const metadata: Metadata = { title: `Support | ${PRODUCT_NAME}`, description: `Find the right contact for ${PRODUCT_NAME} account, gym membership and privacy questions.` };
+export const metadata: Metadata = { title: `Support | ${PRODUCT_NAME}`, description: `Find the right contact for ${PRODUCT_NAME} account, membership and privacy questions.` };
 
 export default function SupportPage() {
   return <main className="public-main">
@@ -13,22 +13,22 @@ export default function SupportPage() {
       <p className="public-effective">{PRODUCT_NAME} is operated by {PUBLISHER_NAME}</p>
     </header>
     <section className="public-section" aria-labelledby="support-gym">
-      <p className="cl-eyebrow">Your gym first</p>
+      <p className="cl-eyebrow">The business first</p>
       <h2 id="support-gym" className="cl-section-title">Membership and visit questions</h2>
-      <p>Contact your gym&rsquo;s front desk about your plan, check-ins, receipts, payments collected by the gym, add-ons or a detail the gym entered incorrectly. Your gym manages these records and can check them with you.</p>
+      <p>{PRODUCT_NAME} supports fitness and activity businesses (“the business”). Contact the front desk of your gym, studio or academy about your plan, check-ins, receipts, payments collected by the business, add-ons or a detail the business entered incorrectly. The business manages these records and can check them with you.</p>
     </section>
     <section className="public-section" aria-labelledby="support-platform">
       <p className="cl-eyebrow">{PRODUCT_NAME} support</p>
       <h2 id="support-platform" className="cl-section-title">Sign-in and service problems</h2>
-      <p>For trouble signing in, a technical problem or a privacy grievance, email <a className="public-text-link" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>. Tell us your gym&rsquo;s name, the email you sign in with, what you were trying to do and what happened. Do not send your password or payment card details.</p>
-      <p>For access, correction, a copy of your data or an erasure request, you may also contact your gym. We handle member data requests with the gym and check identity before changing data.</p>
+      <p>For trouble signing in, a technical problem or a privacy grievance, email <a className="public-text-link" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>. Tell us the name of your gym, studio or academy, the email you sign in with, what you were trying to do and what happened. Do not send your password or payment card details.</p>
+      <p>For access, correction, a copy of your data or an erasure request, you may also contact the business. We handle member data requests with the business and check identity before changing data.</p>
     </section>
     <section className="public-section" aria-labelledby="support-read">
       <p className="cl-eyebrow">Useful reading</p>
       <h2 id="support-read" className="cl-section-title">Learn more</h2>
       <ul className="public-list public-list--ruled">
         <li><Link className="public-text-link" href={PUBLIC_PAGE_PATHS.privacy}>Privacy policy</Link> explains what is held and how long.</li>
-        <li><Link className="public-text-link" href={PUBLIC_PAGE_PATHS.terms}>Terms of use</Link> explains the gym&rsquo;s and your role.</li>
+        <li><Link className="public-text-link" href={PUBLIC_PAGE_PATHS.terms}>Terms of use</Link> explains the business&rsquo;s and your role.</li>
         <li><Link className="public-text-link" href={`${PUBLIC_PAGE_PATHS.deleteAccount}#request`}>Delete my account</Link> gives the request steps.</li>
       </ul>
     </section>

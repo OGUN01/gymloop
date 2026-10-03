@@ -1,3 +1,5 @@
+import { humanize } from '@gymloop/shared';
+import { useBusinessNouns } from '../../lib/use-business-nouns';
 import { useCallback, useEffect, useState } from 'react';
 import * as Crypto from 'expo-crypto';
 import { formatPhone, MEMBER_PAGE_SIZE_DEFAULT, UI_TOKENS } from '@gymloop/shared';
@@ -14,6 +16,7 @@ const OTHER_REASON = 'Other';
 const REASONS = ['Forgot phone', 'App issue', DEFAULT_REASON, OTHER_REASON].map((reason) => ({ value: reason, label: reason === DEFAULT_REASON ? 'Asked for desk help' : reason }));
 
 export default function DeskCheckIn() {
+  const nouns = useBusinessNouns();
   const { api, palette, supabase } = useMobile();
   const [query, setQuery] = useState('');
   const [branch, setBranch] = useState<string | null>(null);
@@ -58,16 +61,16 @@ export default function DeskCheckIn() {
   };
   const close = () => { if (pending) return; setSelected(null); setFeedback(null); };
   // The roster read is capped at one page, so a full page is "50+" rather than a false total (as on Members).
-  const count = `${members.length}${members.length >= MEMBER_PAGE_SIZE_DEFAULT ? '+' : ''} ${query.trim() === '' ? (members.length === 1 ? 'member' : 'members') : (members.length === 1 ? 'match' : 'matches')}`;
+  const count = `${members.length}${members.length >= MEMBER_PAGE_SIZE_DEFAULT ? '+' : ''} ${query.trim() === '' ? (members.length === 1 ? nouns.member : nouns.members) : (members.length === 1 ? 'match' : 'matches')}`;
 
   return <Screen>
-    <View><Eyebrow>{branch ?? 'Front desk'}</Eyebrow><Title>Check-in</Title>{loadState === 'ready' ? <Body muted>{count}</Body> : null}<Body muted>For members who can’t scan.</Body></View>
+    <View><Eyebrow>{branch ?? 'Front desk'}</Eyebrow><Title>Check-in</Title>{loadState === 'ready' ? <Body muted>{count}</Body> : null}<Body muted>For {nouns.members} who can’t scan.</Body></View>
     {feedback && !selected ? <StateMessage tone={feedback.tone}>{feedback.text}</StateMessage> : null}
     <View style={styles.roster}>
-      <SearchField accessibilityLabel="Search members" placeholder="Search name or phone" value={query} onChangeText={setQuery} />
+      <SearchField accessibilityLabel={`Search ${nouns.members}`} placeholder="Search name or phone" value={query} onChangeText={setQuery} />
       {loadState === 'loading' ? <View style={styles.listState}><LoadingState /></View> : null}
-      {loadState === 'error' ? <View style={styles.listState}><ErrorRetry message="Members could not be loaded." onRetry={() => void load()} /></View> : null}
-      {loadState === 'ready' && members.length === 0 ? <EmptyState title="No matching members">Check the spelling, or search by phone number.</EmptyState> : null}
+      {loadState === 'error' ? <View style={styles.listState}><ErrorRetry message={`${humanize(nouns.members)} could not be loaded.`} onRetry={() => void load()} /></View> : null}
+      {loadState === 'ready' && members.length === 0 ? <EmptyState title={`No matching ${nouns.members}`}>Check the spelling, or search by phone number.</EmptyState> : null}
       {/* The one roster row (as on Members): the name over one meta line, phone then the dot-and-word status. */}
       {loadState === 'ready' ? <View>{members.map((member) => <Row key={member.id} icon={<Initials name={member.fullName} />} title={member.fullName} meta={formatPhone(member.phone)}
         status={<Status tone={statusTone(member.status)}>{statusWord(member.status)}</Status>}

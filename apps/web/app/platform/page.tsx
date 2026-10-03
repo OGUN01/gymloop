@@ -1,4 +1,5 @@
 import {
+  BUSINESS_TYPES, BUSINESS_TYPE_LABELS, isBusinessType, type BusinessType,
   DEFAULT_TIMEZONE,
   GYM_PRESETS,
   ORGANIZATION_STATUSES,
@@ -50,7 +51,8 @@ const iconProps = { 'aria-hidden': true, size: UI_TOKENS.icons.controlSize, stro
 export default async function PlatformPage(props?: { searchParams?: Promise<{ manage?: string }> }) {
   const manage = (await props?.searchParams)?.manage;
   const { supabase, identity } = await requireAudience('platform');
-  const result = await fleetMetrics(supabase);
+  const [result, typesRead] = await Promise.all([fleetMetrics(supabase), Promise.resolve(supabase.from('organizations').select('id,business_type')).catch(() => ({ data: null, error: true }))]);
+  const types = new Map<string, BusinessType>((typesRead.error ? [] : typesRead.data ?? []).flatMap((row) => isBusinessType(row.business_type) ? [[row.id, row.business_type] as const] : []));
   if ('error' in result) {
     return <main className="cl-page"><Alert>We couldn’t load the gym fleet. Please try again.</Alert></main>;
   }
@@ -89,6 +91,8 @@ export default async function PlatformPage(props?: { searchParams?: Promise<{ ma
       <div className="cl-metric"><span className="cl-eyebrow">Trial expired</span><span className="cl-metric-value tabular-nums">{exceptions.trialExpired.length}</span><small>Past the trial end date</small></div>
     </div>
 
+    <p className="cl-muted">By type: {BUSINESS_TYPES.flatMap((type) => { const count = gyms.filter((gym) => types.get(gym.tenantId) === type).length; return count ? [`${BUSINESS_TYPE_LABELS[type]} ${count}`] : []; }).join(' · ') || 'Unavailable'}</p>
+
     {!gyms.length ? <div className="cl-empty"><strong>No gyms yet.</strong><p>{isAdmin ? 'Onboard the first gym below.' : 'Gyms appear here once a platform admin onboards them.'}</p></div> : <>
       <section className="cl-section platform-zone" aria-labelledby="fleet-heading">
         <div className="platform-zone-head">
@@ -98,13 +102,14 @@ export default async function PlatformPage(props?: { searchParams?: Promise<{ ma
         <div className="cl-ledger-wrap">
           <table className="cl-ledger platform-ledger">
             <thead><tr>
-              <th scope="col">Gym</th><th scope="col">Status</th><th scope="col" className="platform-col-wide">Tier</th><th scope="col" className="platform-col-mid">Trial ends</th>
+              <th scope="col">Gym</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col" className="platform-col-wide">Tier</th><th scope="col" className="platform-col-mid">Trial ends</th>
               <th scope="col" className="cl-num">Members</th><th scope="col" className="cl-num platform-col-mid">Open cases</th><th scope="col" className="cl-num">Failed sends</th>
               <th scope="col" className="platform-col-readiness">Readiness</th><th scope="col"><span className="sr-only">Open</span></th>
             </tr></thead>
             <tbody>
               {gyms.map((gym) => <tr key={gym.tenantId}>
                 <td className="platform-cell-gym"><span className="cl-row-title">{gym.name}</span><span className="cl-row-meta">{gym.gymCode}</span></td>
+                <td className="platform-cell-fact platform-cell-type"><Cell label="Type" /><span>{types.has(gym.tenantId) ? BUSINESS_TYPE_LABELS[types.get(gym.tenantId)!] : 'Unavailable'}</span></td>
                 <td className="platform-cell-status"><StatusWord status={gym.status} /></td>
                 <td className="platform-cell-fact platform-cell-plan platform-col-wide"><Cell label="Tier" /><span>{gym.tier === null ? NO_TIER : humanize(gym.tier)}</span></td>
                 <td className="platform-cell-fact platform-cell-plan platform-col-mid"><Cell label="Trial ends" /><span>{gym.trialEndsAt === null ? 'No trial' : dayOf(gym.trialEndsAt, zoneOf(gym))}</span></td>
@@ -125,6 +130,7 @@ export default async function PlatformPage(props?: { searchParams?: Promise<{ ma
           <p className="cl-muted">Status, tier, support preview and owner sign-in for each gym. Open one to change it.</p>
         </div>
         {gyms.map((gym) => {
+          const businessType = types.get(gym.tenantId);
           const gymOwners = owners.filter((owner) => owner.tenant_id === gym.tenantId);
           return <details key={gym.tenantId} id={`manage-${gym.tenantId}`} className="cl-disclosure platform-manage" open={manage === gym.tenantId}>
             <summary>
@@ -132,6 +138,12 @@ export default async function PlatformPage(props?: { searchParams?: Promise<{ ma
               <span className="platform-manage-toggle" aria-hidden="true">Manage<ChevronDown {...iconProps} /></span>
             </summary>
             <div className="platform-manage-body">
+              {businessType ? <form action={`/api/platform/gyms/${gym.tenantId}/business-type`} method="post" className="platform-control">
+                <input type="hidden" name="requestKey" value={crypto.randomUUID()} />
+                <input type="hidden" name="expectedBusinessType" value={businessType} />
+                <label className="cl-field platform-control-wide"><span>Business type</span><select name="businessType" defaultValue={businessType} className="cl-input">{BUSINESS_TYPES.map((type) => <option key={type} value={type}>{BUSINESS_TYPE_LABELS[type]}</option>)}</select></label>
+                <button type="submit" className="cl-btn">Save business type</button>
+              </form> : <p className="cl-muted">Business type unavailable. Reload before changing it.</p>}
               <form action={`/api/platform/gyms/${gym.tenantId}/status`} method="post" className="platform-control">
                 <input type="hidden" name="requestKey" value={crypto.randomUUID()} />
                 <input type="hidden" name="expectedStatus" value={gym.status} />
