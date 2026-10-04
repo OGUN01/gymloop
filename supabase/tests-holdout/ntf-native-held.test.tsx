@@ -39,15 +39,15 @@ vi.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: h.online
 vi.mock('expo-notifications', () => ({
   getPermissionsAsync: async () => ({ status: h.permission, granted: h.permission === 'granted' }),
   requestPermissionsAsync: async () => { h.requestPermission(); return { status: h.permission, granted: h.permission === 'granted' }; },
-  getDevicePushTokenAsync: async () => ({ type: 'fcm', data: h.deviceToken }),
+  getDevicePushTokenAsync: async () => ({ type: 'android', data: h.deviceToken }),
   getLastNotificationResponseAsync: async () => null,
   setNotificationHandler: vi.fn(),
   addNotificationResponseReceivedListener: (listener: (event: unknown) => unknown) => { h.responseListener = listener; return { remove: vi.fn() }; },
   addNotificationReceivedListener: (listener: (event: unknown) => unknown) => { h.registerListener = listener; return { remove: vi.fn() }; },
-  setNotificationChannelAsync: vi.fn(),
+  setNotificationChannelAsync: vi.fn().mockResolvedValue({ id: 'fitcruxx-updates' }),
   AndroidImportance: { DEFAULT: 3, HIGH: 4 },
 }));
-vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', Image: 'Image', ScrollView: 'ScrollView', Modal: 'Modal', ActivityIndicator: 'ActivityIndicator', TextInput: 'TextInput', StyleSheet: { create: (styles: unknown) => styles }, AppState: { addEventListener: () => ({ remove: vi.fn() }) }, useColorScheme: () => 'light', Linking: { openSettings: h.openSettings } }));
+vi.mock('react-native', () => ({ Platform: { OS: 'android' }, View: 'View', Text: 'Text', Pressable: 'Pressable', Image: 'Image', ScrollView: 'ScrollView', Modal: 'Modal', ActivityIndicator: 'ActivityIndicator', TextInput: 'TextInput', StyleSheet: { create: (styles: unknown) => styles }, AppState: { addEventListener: () => ({ remove: vi.fn() }) }, useColorScheme: () => 'light', Linking: { openSettings: h.openSettings } }));
 vi.mock('lucide-react-native', () => ({ Bell: 'Bell', BellOff: 'BellOff', ChevronRight: 'ChevronRight', Check: 'Check', RefreshCw: 'RefreshCw', X: 'X' }));
 vi.mock('../../apps/mobile/components/ui', () => {
   const widgets = ['Screen', 'Eyebrow', 'Title', 'Display', 'Body', 'Rule', 'Status', 'Row', 'LedgerSection', 'SheetHeader', 'ActionButton', 'RowAction', 'StateMessage', 'EmptyState', 'LoadingState', 'ErrorRetry', 'Field', 'ChoiceList'];
@@ -77,7 +77,8 @@ async function render() {
 function text() { return JSON.stringify(nodes.map(node => node.props)); }
 function action(label: RegExp) {
   const node = nodes.find(node => typeof node.props.onPress === 'function' && label.test(String(node.props.children ?? node.props.title ?? node.props.accessibilityLabel ?? '')));
-  expect(node, `Missing actual screen control ${label}`).toBeDefined(); return node!;
+  expect(node, `Missing actual screen control ${label}`).toBeDefined();
+  return node as Node & { props: { onPress: () => void } };
 }
 beforeEach(async () => {
   vi.resetModules(); h.cursor = 0; h.slots = []; h.effects = []; h.changed = false; h.online = true; h.permission = 'granted';

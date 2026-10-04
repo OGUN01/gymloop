@@ -20,6 +20,8 @@ const h = vi.hoisted(() => ({
   registerCalls: [] as Array<Record<string, unknown>>,
   openSettings: vi.fn(),
   requestPermission: vi.fn(),
+  createChannel: vi.fn(),
+  readNetwork: vi.fn(),
 }));
 function mockReactHooks(actual: Record<string, unknown>) {
   const memo = (factory: () => unknown, deps?: unknown[]) => {
@@ -44,18 +46,19 @@ vi.mock('react', async original => mockReactHooks(await original<Record<string, 
 vi.mock('../mobile-context', () => ({ useMobile: () => ({ identity: h.identity, api: { post: h.post }, ready: true, nouns: { place: 'gym', plural: 'gyms', member: 'member', trainer: 'trainer', class: 'class' }, palette: {}, businessType: 'gym', appearance: 'light', supabase: h.supabase, session: h.identity.kind === 'member' ? {} : null, signOut: vi.fn() }) }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useLocalSearchParams: () => ({}), Link: 'Link', Redirect: 'Redirect' }));
 vi.mock('expo-secure-store', () => ({ setItemAsync: vi.fn(), getItemAsync: async () => null, deleteItemAsync: vi.fn() }));
-vi.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: h.online, isInternetReachable: h.online }), getNetworkStateAsync: async () => ({ isConnected: h.online, isInternetReachable: h.online }), addNetworkStateListener: () => ({ remove: vi.fn() }) }));
+vi.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: h.online, isInternetReachable: h.online }), getNetworkStateAsync: h.readNetwork, addNetworkStateListener: () => ({ remove: vi.fn() }) }));
 // The contract pins the native FCM token path (getDevicePushTokenAsync), no Expo
 // token masquerading as FCM. The dependency is added during implementation;
 // the mock here defines the API shape the screen must use.
 vi.mock('expo-notifications', () => ({
   getPermissionsAsync: async () => ({ status: h.permission, granted: h.permission === 'granted' }),
   requestPermissionsAsync: async () => { h.requestPermission(); return { status: h.permission, granted: h.permission === 'granted' }; },
-  getDevicePushTokenAsync: async () => ({ type: 'fcm', data: h.deviceToken }),
+  getDevicePushTokenAsync: async () => ({ type: 'android', data: h.deviceToken }),
   setNotificationHandler: vi.fn(),
+  setNotificationChannelAsync: h.createChannel,
   AndroidImportance: { DEFAULT: 3, HIGH: 4 },
 }));
-vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', Image: 'Image', ScrollView: 'ScrollView', Modal: 'Modal', ActivityIndicator: 'ActivityIndicator', TextInput: 'TextInput', StyleSheet: { create: (styles: unknown) => styles }, AppState: { addEventListener: () => ({ remove: vi.fn() }) }, useColorScheme: () => 'light', Linking: { openSettings: h.openSettings } }));
+vi.mock('react-native', () => ({ Platform: { OS: 'android' }, View: 'View', Text: 'Text', Pressable: 'Pressable', Image: 'Image', ScrollView: 'ScrollView', Modal: 'Modal', ActivityIndicator: 'ActivityIndicator', TextInput: 'TextInput', StyleSheet: { create: (styles: unknown) => styles }, AppState: { addEventListener: () => ({ remove: vi.fn() }) }, useColorScheme: () => 'light', Linking: { openSettings: h.openSettings } }));
 vi.mock('lucide-react-native', () => ({ Bell: 'Bell', BellOff: 'BellOff', ChevronRight: 'ChevronRight', Check: 'Check', RefreshCw: 'RefreshCw', X: 'X' }));
 vi.mock('../../components/ui', () => {
   const widgets = ['Screen', 'Eyebrow', 'Title', 'Display', 'Body', 'Rule', 'Status', 'Row', 'LedgerSection', 'SheetHeader', 'ActionButton', 'RowAction', 'StateMessage', 'EmptyState', 'ErrorRetry', 'LoadingState', 'Field', 'ChoiceList'];
@@ -94,6 +97,9 @@ const youSettings = {
 };
 beforeEach(async () => {
   vi.resetModules(); h.cursor = 0; h.slots = []; h.effects = []; h.changed = false; h.online = true; h.permission = 'undetermined'; h.deviceToken = 'fcm-fixture-token'; h.registerCalls = [];
+  h.requestPermission.mockReset().mockImplementation(() => { h.permission = 'granted'; }); h.openSettings.mockClear();
+  h.createChannel.mockReset().mockResolvedValue({ id: 'fitcruxx-updates' });
+  h.readNetwork.mockReset().mockImplementation(async () => ({ isConnected: h.online, isInternetReachable: h.online }));
   h.post.mockReset().mockImplementation(async (path: string, body: unknown) => {
     if (path === '/api/member/push-device') { h.registerCalls.push(body as Record<string, unknown>); return { ok: true, data: { deviceId: '78100000-0000-4000-8000-000000000001', tokenRevision: 1, active: true } }; }
     if (path === '/api/member/push-preference') return { ok: true, data: body };
@@ -118,7 +124,9 @@ describe('NTF native notifications section (red until built)', () => {
   it('asks through an explicit member control, then registers the native FCM token', async () => {
     await render();
     press(/enable|turn on|allow/i);
-    expect(h.requestPermission).toHaveBeenCalled();
+    await vi.waitFor(() => expect(h.requestPermission).toHaveBeenCalled());
+    expect(h.createChannel).toHaveBeenCalledWith('fitcruxx-updates', expect.objectContaining({ name: 'FitCruxx updates', importance: 3 }));
+    expect(h.createChannel.mock.invocationCallOrder[0]).toBeLessThan(h.requestPermission.mock.invocationCallOrder[0]!);
     await new Promise(resolve => setTimeout(resolve, 0));
     await render();
     expect(h.registerCalls[0]).toMatchObject({ platform: 'android' });
@@ -147,6 +155,11 @@ describe('NTF native notifications section (red until built)', () => {
     await new Promise(resolve => setTimeout(resolve, 0));
     await render();
     expect(h.registerCalls).toEqual([]);
+    expect(h.requestPermission).toHaveBeenCalled();
+    expect(h.requestPermission.mock.invocationCallOrder[0]).toBeLessThan(h.readNetwork.mock.invocationCallOrder[0]!);
     expect(text()).toMatch(/that didn't go through|no connection|offline|try again/i);
   });
 });
+
+
+

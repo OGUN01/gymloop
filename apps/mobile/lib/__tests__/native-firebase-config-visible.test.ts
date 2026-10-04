@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
@@ -34,3 +35,4 @@ describe('NFC-001/002 public Android configuration', () => {
     expect(config).not.toMatch(/BEGIN (?:RSA )?PRIVATE KEY|private_key|client_email|service_account|PUSH_DISPATCH_SECRET|FCM_SERVICE_ACCOUNT_JSON|server_key|access_token/i);
   });
 });
+

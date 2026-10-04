@@ -99,7 +99,12 @@ describe('NFC-003/004 independent enable-action channel contract', () => {
   });
 
   it.each(['rejected', 'missing'])('refuses registration with actionable feedback when channel API is %s', async (failure) => {
-    if (failure === 'missing') delete fixture.module.setNotificationChannelAsync;
+    if (failure === 'missing') {
+      delete fixture.module.setNotificationChannelAsync;
+      vi.resetModules();
+      vi.doMock('expo-notifications', () => fixture.module);
+      ({ useMemberPush } = await import('../../apps/mobile/lib/use-member-push'));
+    }
     else fixture.channel.mockRejectedValue(new Error('channel unavailable'));
     await (await mount()).enableNotifications();
     await settle();
