@@ -253,15 +253,18 @@ test.describe('HARD-010 member You hierarchy', () => {
     const main = page.getByRole('main');
     const profile = page.locator('.member-profile');
     await expect(main.getByText('Aarav Deshpande', { exact: true })).toBeVisible();
-    await expect(profile.getByText('Verified student', { exact: true })).toBeVisible();
+    // The verified line's noun follows the demo gym's business_type (BIZ vertical copy:
+    // dance renders 'Verified student', gym renders 'Verified member') — pin the
+    // verified-badge line by its stable class, never by the vertical's noun string.
+    await expect(profile.locator('.member-verified')).toHaveText(/^Verified \S+$/);
     await expect(profile).toContainText('Iron Box Fitness');
     await expect(profile).toContainText('IRNBX1');
 
     const email = profile.getByText('aarav.deshpande@example.com', { exact: true });
     await expect(email).toBeVisible();
     const profileText = await main.innerText();
-    expect(profileText.indexOf('Aarav Deshpande')).toBeLessThan(profileText.indexOf('Verified student'));
-    expect(profileText.indexOf('Verified student')).toBeLessThan(profileText.indexOf('Iron Box Fitness'));
+    expect(profileText.indexOf('Aarav Deshpande')).toBeLessThan(profileText.indexOf('Verified'));
+    expect(profileText.indexOf('Verified')).toBeLessThan(profileText.indexOf('Iron Box Fitness'));
     expect(profileText.indexOf('Iron Box Fitness')).toBeLessThan(profileText.indexOf('IRNBX1'));
     expect(profileText.indexOf('IRNBX1')).toBeLessThan(profileText.indexOf('aarav.deshpande@example.com'));
 
@@ -269,7 +272,11 @@ test.describe('HARD-010 member You hierarchy', () => {
     await expect(accountList).toHaveCount(1);
     const rows = accountList.getByRole('listitem');
     await expect(rows).toHaveCount(4);
-    for (const label of ['Personal details', 'Membership', 'Academy', 'Appearance'] as const) {
+    // The gym-destination row's label is the vertical's own place noun (BIZ copy:
+    // 'Gym'/'Academy'/'Studio'…); derive it from the rendered row — the only
+    // account row whose link lands on /member/gym exactly.
+    const gymLabel = ((await rows.locator('a[href="/member/gym"]').first().innerText()).split('\n')[0] ?? 'Gym').trim();
+    for (const label of ['Personal details', 'Membership', gymLabel, 'Appearance'] as const) {
       const row = rows.filter({ hasText: label });
       await expect(row, `${label} account destination`).toHaveCount(1);
       await expect(row).toHaveAccessibleName(new RegExp(label, 'i'));
