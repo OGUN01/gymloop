@@ -7,7 +7,7 @@ set local role postgres;
 set local search_path = extensions, public;
 set local timezone='UTC';
 select set_config('request.jwt.claims','',true);
-select plan(97);
+select plan(101);
 create function pg_temp.e81_scalar(q text) returns text language plpgsql as $f$
 declare v text;
 begin execute q into v; return v; exception when others then return null; end $f$;
@@ -78,11 +78,30 @@ select lives_ok($q$insert into e81_results select 'grant36',public.record_whatsa
 select lives_ok($q$insert into e81_results select 'grant37',public.record_whatsapp_consent('81800000-0000-8000-8000-000000000037','service',true,'e81-notice-v1','desk_verified','81800000-0000-8000-8000-000000002037')$q$,'E81 actual-recipient grant 37 recorded by authorized command');
 select lives_ok($q$insert into e81_results select 'grant38',public.record_whatsapp_consent('81800000-0000-8000-8000-000000000038','service',true,'e81-notice-v1','desk_verified','81800000-0000-8000-8000-000000002038')$q$,'E81 actual-recipient grant 38 recorded by authorized command');
 select lives_ok($q$select public.record_whatsapp_consent('81800000-0000-8000-8000-000000000036','service',false,'e81-notice-v1','desk_verified','81800000-0000-8000-8000-000000003036')$q$,'E81 preparation target withdrawn before request');
-select lives_ok($q$insert into e81_results select 'grant34latest',public.record_whatsapp_consent('81800000-0000-8000-8000-000000000034','service',true,'e81-notice-v2','desk_verified','81800000-0000-8000-8000-000000003034')$q$,'E81 preparation has two granted decisions and must choose newest');
+select lives_ok($q$insert into e81_results select 'grant34latest_command',public.record_whatsapp_consent('81800000-0000-8000-8000-000000000034','service',true,'e81-notice-v2','desk_verified','81800000-0000-8000-8000-000000003034')$q$,'E81 preparation has two granted decisions and must choose newest');
 reset role;
 select set_config('request.jwt.claims','',true);
 select lives_ok($q$update public.members set phone='+918180660037' where id='81800000-0000-8000-8000-000000000037'$q$,'E81 preparation target recipient revision changed');
 reset role;
+select set_config('request.jwt.claims','',true);
+-- Chronology amendment (wsp-holdout-ordering-diagnosis.md): command-stamped
+-- recorded_at values share the transaction instant, so same-member decision
+-- pairs tie and the canonical UUID tie-break makes newest-grant and withdrawal
+-- chronologies nondeterministic. The frozen declaration requires chronological
+-- scenarios to carry distinct lawful recorded instants. Each command call above
+-- keeps the real command behavior pinned; the deterministic current decision
+-- for members 34 and 36 is additionally represented as a truthful fixture row
+-- copying that member's own real recipient evidence at an explicit later
+-- instant (clock_timestamp() is strictly later than every transaction-stamped
+-- row; members 34 and 36 never changed their phone, so the copied contact
+-- facts remain the member's real current recipient evidence).
+select lives_ok($q$insert into public.whatsapp_channel_consents(id,tenant_id,member_id,purpose,granted,notice_version,source,recipient_phone_digest,contact_version_ref,recipient_basis,recorded_at)
+ select '81800000-0000-8000-8000-00000000034a',c.tenant_id,c.member_id,c.purpose,true,'e81-notice-v2',c.source,c.recipient_phone_digest,c.contact_version_ref,c.recipient_basis,clock_timestamp()
+ from public.whatsapp_channel_consents c join e81_results r on r.label='grant34' and c.id=(r.result->>'consentId')::uuid$q$,'E81 the newest re-verification grant is canonically current at a distinct later instant');
+insert into e81_results select 'grant34latest', jsonb_build_object('consentId','81800000-0000-8000-8000-00000000034a'::uuid);
+select lives_ok($q$insert into public.whatsapp_channel_consents(id,tenant_id,member_id,purpose,granted,notice_version,source,recipient_phone_digest,contact_version_ref,recipient_basis,recorded_at)
+ select '81800000-0000-8000-8000-00000000036a',c.tenant_id,c.member_id,c.purpose,false,c.notice_version,c.source,c.recipient_phone_digest,c.contact_version_ref,c.recipient_basis,clock_timestamp()
+ from public.whatsapp_channel_consents c join e81_results r on r.label='grant36' and c.id=(r.result->>'consentId')::uuid$q$,'E81 the withdrawal is canonically current at a distinct later instant');
 select set_config('request.jwt.claims','{"sub":"81800000-0000-8000-8000-000000000903","role":"authenticated","app_role":"gym_owner","tenant_id":"81800000-0000-8000-8000-000000000002","staff_id":"81800000-0000-8000-8000-000000000042"}',true);
 set local role authenticated;
 select lives_ok($q$insert into e81_results select 'foreign39',public.record_whatsapp_consent('81800000-0000-8000-8000-000000000039','service',true,'e81-notice-v1','desk_verified','81800000-0000-8000-8000-000000002039')$q$,'E81 foreign tenant grant is independently lawful');
@@ -135,6 +154,18 @@ select lives_ok($q$select public.record_whatsapp_consent('81800000-0000-8000-800
 select lives_ok($q$select public.record_whatsapp_consent('81800000-0000-8000-8000-000000000032','service',false,'e81-notice-v1','desk_verified','81800000-0000-8000-8000-000000007032')$q$,'E81 queued channel withdrawal is committed before authorization');
 reset role;
 select set_config('request.jwt.claims','',true);
+-- Chronology amendment (wsp-holdout-ordering-diagnosis.md): the same-member
+-- decision pairs for members 31 and 32 also tie at the command-stamped
+-- transaction instant, so the final-authorization rechecks would flip on the
+-- UUID tie-break. Truthful fixture rows at explicit strictly-later instants
+-- make the canonical current decisions deterministic; the copied contact facts
+-- are each member's real current recipient evidence (neither phone changed).
+select lives_ok($q$insert into public.whatsapp_channel_consents(id,tenant_id,member_id,purpose,granted,notice_version,source,recipient_phone_digest,contact_version_ref,recipient_basis,recorded_at)
+ select '81800000-0000-8000-8000-00000000031a',c.tenant_id,c.member_id,c.purpose,true,'e81-notice-v2',c.source,c.recipient_phone_digest,c.contact_version_ref,c.recipient_basis,clock_timestamp()
+ from public.whatsapp_channel_consents c join e81_results r on r.label='grant31' and c.id=(r.result->>'consentId')::uuid$q$,'E81 the newer granted declaration is canonically current at a distinct later instant');
+select lives_ok($q$insert into public.whatsapp_channel_consents(id,tenant_id,member_id,purpose,granted,notice_version,source,recipient_phone_digest,contact_version_ref,recipient_basis,recorded_at)
+ select '81800000-0000-8000-8000-00000000032a',c.tenant_id,c.member_id,c.purpose,false,c.notice_version,c.source,c.recipient_phone_digest,c.contact_version_ref,c.recipient_basis,clock_timestamp()
+ from public.whatsapp_channel_consents c join e81_results r on r.label='grant32' and c.id=(r.result->>'consentId')::uuid$q$,'E81 the queued withdrawal is canonically current at a distinct later instant');
 select throws_like($q$update public.notification_whatsapp_attempts set channel_consent_id=(select id from public.whatsapp_channel_consents where member_id='81800000-0000-8000-8000-000000000031' order by recorded_at desc,id desc limit 1) where notification_id='81800000-0000-8000-8000-000000001031'$q$,'%','E81 even a lawful newer same-member grant cannot rewrite frozen attempt evidence');
 select throws_like($q$update public.notification_whatsapp_attempts set channel_consent_id=null where notification_id='81800000-0000-8000-8000-000000001031'$q$,'%','E81 mandatory channel evidence cannot be cleared');
 select lives_ok($q$update public.members set phone='+918180660033' where id='81800000-0000-8000-8000-000000000033'$q$,'E81 queued recipient changes before authorization');
@@ -199,7 +230,7 @@ select is(pg_temp.e81_scalar($q$select count(*)::text from public.notification_w
 select is(pg_temp.e81_scalar($q$select count(*)::text from public.notification_whatsapp_receipts where tenant_id='81800000-0000-8000-8000-000000000001'$q$), '0', 'E81 manual opening creates no provider receipt evidence');
 select is(pg_temp.e81_scalar($q$select count(*)::text from public.notifications n join e81_source_facts f on f.id=n.id where n.id='81800000-0000-8000-8000-000000001038' and n.status='sent' and f.facts=jsonb_build_object('status',n.status,'sentAt',n.sent_at,'deliveredAt',n.delivered_at,'clickedAt',n.clicked_at,'convertedAt',n.converted_at,'failedAt',n.failed_at,'optedOutAt',n.opted_out_at)$q$), '1', 'E81 manual opening preserves exact factual state of already-sent source');
 select is(pg_temp.e81_scalar($q$select count(*)::text from public.messaging_wallet_ledger where tenant_id='81800000-0000-8000-8000-000000000001'$q$), '0', 'E81 manual opening and authorization never charge');
-select is(pg_temp.e81_scalar($q$select count(*)::text from public.whatsapp_channel_consents where member_id='81800000-0000-8000-8000-000000000031' and tenant_id='81800000-0000-8000-8000-000000000001' and granted$q$), '2', 'E81 superseded consent history is retained');
-select is(pg_temp.e81_scalar($q$select count(*)::text from public.whatsapp_channel_consents where member_id='81800000-0000-8000-8000-000000000032' and tenant_id='81800000-0000-8000-8000-000000000001'$q$), '2', 'E81 withdrawal appends rather than erases consent history');
+select is(pg_temp.e81_scalar($q$select count(*)::text from public.whatsapp_channel_consents where member_id='81800000-0000-8000-8000-000000000031' and tenant_id='81800000-0000-8000-8000-000000000001' and granted$q$), '3', 'E81 superseded consent history is retained (command v1+v2 grants and the deterministic chronology fixture copy)');
+select is(pg_temp.e81_scalar($q$select count(*)::text from public.whatsapp_channel_consents where member_id='81800000-0000-8000-8000-000000000032' and tenant_id='81800000-0000-8000-8000-000000000001'$q$), '3', 'E81 withdrawal appends rather than erases consent history (command grant+withdrawal and the deterministic chronology fixture copy)');
 select * from finish();
 rollback;

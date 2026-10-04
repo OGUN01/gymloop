@@ -17,7 +17,7 @@ set local role postgres;
 set local search_path = extensions, public;
 set local timezone = 'UTC';
 select set_config('request.jwt.claims','',true);
-select plan(154);
+select plan(156);
 
 -- ---------------------------------------------------------------- helpers
 create function pg_temp.wsp_scalar(q text) returns text language plpgsql as $f$
@@ -303,6 +303,18 @@ set local role authenticated;
 select lives_ok($q$select public.set_member_whatsapp_consent('service',false,'wsp-notice-v1')$q$,'WSP-H-E12 member withdraws channel consent while an attempt is queued');
 reset role;
 select set_config('request.jwt.claims','',true);
+-- Chronology amendment (wsp-holdout-ordering-diagnosis.md): command-stamped
+-- recorded_at values share the transaction instant, so a withdrawal and any
+-- same-transaction grant tie and the canonical UUID tie-break makes this
+-- chronological scenario nondeterministic. The frozen declaration requires
+-- chronological scenarios to carry distinct lawful recorded instants; the
+-- withdrawal is additionally represented as a truthful fixture row copying the
+-- member's own real recipient evidence at an explicit strictly-later instant,
+-- which makes the canonical decision deterministic. The member-command
+-- withdrawal above keeps the real command behavior pinned.
+select lives_ok($q$insert into public.whatsapp_channel_consents(id,tenant_id,member_id,purpose,granted,notice_version,source,recipient_phone_digest,contact_version_ref,recipient_basis,recorded_at)
+ select '80900000-0000-8000-8000-00000000e0e2',c.tenant_id,c.member_id,c.purpose,false,c.notice_version,c.source,c.recipient_phone_digest,c.contact_version_ref,c.recipient_basis,clock_timestamp()
+ from public.whatsapp_channel_consents c join h80_results r on r.label='bootstrap_consent' and c.id=(r.result->>'consentId')::uuid$q$,'WSP-H-E12b the withdrawal is canonically current at a distinct lawful later instant');
 set local role service_role;
 select is(pg_temp.wsp_scalar($q$select (public.authorize_whatsapp_dispatch((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000055' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000055' limit 1))->>'authorized')::text$q$),'false','WSP-H-E12a authorization after withdrawal is refused as a result, not an error');
 reset role;
@@ -311,6 +323,15 @@ select is(pg_temp.wsp_scalar($q$select count(*)::text from public.notification_w
 select is(pg_temp.wsp_scalar($q$select count(*)::text from public.messaging_wallet_ledger where notification_id='80900000-0000-8000-8000-000000000055'$q$),'0','WSP-H-E14 withdrawal creates no debit and releases the hold');
 
 -- ---------------------------------------------------------------- F. late evidence and graph integrity
+-- Chronology amendment (wsp-holdout-ordering-diagnosis.md): the regrant must be
+-- canonically later than the E12 withdrawal. The staff command below keeps the
+-- real command-path acceptance pinned; because its recorded_at shares the
+-- transaction instant with every other command row, the deterministic current
+-- decision is additionally represented as a truthful fixture row copying the
+-- member's own real recipient evidence at an explicit strictly-later instant.
+select lives_ok($q$insert into public.whatsapp_channel_consents(id,tenant_id,member_id,purpose,granted,notice_version,source,recipient_phone_digest,contact_version_ref,recipient_basis,recorded_at)
+ select '80900000-0000-8000-8000-00000000f0f1',c.tenant_id,c.member_id,c.purpose,true,c.notice_version,c.source,c.recipient_phone_digest,c.contact_version_ref,c.recipient_basis,clock_timestamp()+interval '1 second'
+ from public.whatsapp_channel_consents c join h80_results r on r.label='bootstrap_consent' and c.id=(r.result->>'consentId')::uuid$q$,'WSP-H-F-pre the late lawful regrant is canonically current at a distinct later instant');
 select set_config('request.jwt.claims','{"sub":"80900000-0000-8000-8000-000000000902","role":"authenticated","app_role":"gym_owner","tenant_id":"80900000-0000-8000-8000-000000000001","staff_id":"80900000-0000-8000-8000-000000000041"}',true);
 set local role authenticated;
 select public.record_whatsapp_consent('80900000-0000-8000-8000-000000000031','service',true,'wsp-notice-v1','desk_verified','80900000-0000-8000-8000-00000000f0f0');

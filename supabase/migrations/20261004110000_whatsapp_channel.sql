@@ -64,7 +64,7 @@ create table public.whatsapp_template_revisions (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.organizations (id),
   sender_account_id uuid not null,
-  template_id uuid not null references public.message_templates (id),
+  template_id uuid not null,
   body_hash text not null
     constraint whatsapp_template_revisions_body_hash_chk check (btrim(body_hash) <> '' and char_length(btrim(body_hash)) <= 128),
   parameter_schema_hash text not null
@@ -84,6 +84,8 @@ create table public.whatsapp_template_revisions (
   constraint whatsapp_template_revisions_tenant_id_sender_id_fkey
     foreign key (tenant_id, sender_account_id)
       references public.whatsapp_sender_accounts (tenant_id, id),
+  constraint whatsapp_template_revisions_tenant_id_template_id_fkey
+    foreign key (tenant_id, template_id) references public.message_templates (tenant_id, id),
   constraint whatsapp_template_revisions_tenant_id_template_id_key unique (tenant_id, template_id),
   constraint whatsapp_template_revisions_tenant_id_id_key unique (tenant_id, id)
 );
@@ -239,6 +241,7 @@ create table public.whatsapp_channel_consents (
   recorded_by_staff_id uuid,
   recorded_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
+  constraint whatsapp_channel_consents_tenant_member_id_key unique (tenant_id, member_id, id),
   constraint whatsapp_channel_consents_tenant_id_member_id_fkey
     foreign key (tenant_id, member_id) references public.members (tenant_id, id),
   constraint whatsapp_channel_consents_tenant_id_staff_id_fkey
@@ -294,6 +297,10 @@ create trigger whatsapp_channel_consents_append_only before update or delete
 -- ---------------------------------------------------------------------------
 -- 5. Dispatch attempts — the durable causal record; no recipient phone column.
 -- ---------------------------------------------------------------------------
+-- WSP makes retained service-consent evidence a tenant-qualified FK parent.
+alter table public.consents
+  add constraint consents_tenant_id_id_key unique (tenant_id, id);
+
 create table public.notification_whatsapp_attempts (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null,
@@ -303,6 +310,7 @@ create table public.notification_whatsapp_attempts (
   template_revision_id uuid not null,
   rate_version_id uuid not null,
   consent_id uuid,
+  channel_consent_id uuid not null,
   request_key uuid not null,
   lease_ticket uuid not null,
   lease_expires_at timestamptz not null,
@@ -312,6 +320,7 @@ create table public.notification_whatsapp_attempts (
     constraint notification_whatsapp_attempts_hold_chk check (hold_max_paise > 0::bigint),
   hold_currency text not null
     constraint notification_whatsapp_attempts_hold_currency_chk check (hold_currency = 'INR'),
+  currency text generated always as (hold_currency) stored not null,
   authorized_at timestamptz,
   io_started_at timestamptz,
   accepted_at timestamptz,
@@ -344,7 +353,10 @@ create table public.notification_whatsapp_attempts (
     foreign key (tenant_id, rate_version_id)
       references public.whatsapp_rate_versions (tenant_id, id),
   constraint notification_whatsapp_attempts_consent_id_fkey
-    foreign key (consent_id) references public.consents (id)
+    foreign key (tenant_id, consent_id) references public.consents (tenant_id, id),
+  constraint notification_whatsapp_attempts_channel_consent_id_fkey
+    foreign key (tenant_id, member_id, channel_consent_id)
+      references public.whatsapp_channel_consents (tenant_id, member_id, id)
 );
 
 alter table public.notification_whatsapp_attempts enable row level security;
@@ -360,6 +372,9 @@ create index notification_whatsapp_attempts_tenant_id_notification_id_idx
 
 create index notification_whatsapp_attempts_tenant_id_created_at_idx
   on public.notification_whatsapp_attempts (tenant_id, created_at desc);
+
+create index notification_whatsapp_attempts_tenant_member_channel_consent_idx
+  on public.notification_whatsapp_attempts (tenant_id, member_id, channel_consent_id);
 
 create unique index notification_whatsapp_attempts_sender_provider_id_key
   on public.notification_whatsapp_attempts (sender_account_id, provider_message_id)
@@ -392,6 +407,7 @@ begin
      or new.template_revision_id is distinct from old.template_revision_id
      or new.rate_version_id is distinct from old.rate_version_id
      or new.consent_id is distinct from old.consent_id
+     or new.channel_consent_id is distinct from old.channel_consent_id
      or new.request_key is distinct from old.request_key
      or new.lease_ticket is distinct from old.lease_ticket
      or new.recipient_contact_revision is distinct from old.recipient_contact_revision
@@ -685,17 +701,17 @@ begin
     from public.whatsapp_channel_consents c
    where c.tenant_id = v_member.tenant_id and c.member_id = v_member.id
      and c.purpose = 'service'::public.consent_purpose
-   order by c.recorded_at desc, c.ctid desc limit 1;
+   order by c.recorded_at desc, c.id desc limit 1;
   select c.granted into v_marketing
     from public.whatsapp_channel_consents c
    where c.tenant_id = v_member.tenant_id and c.member_id = v_member.id
      and c.purpose = 'marketing'::public.consent_purpose
-   order by c.recorded_at desc, c.ctid desc limit 1;
+   order by c.recorded_at desc, c.id desc limit 1;
 
   select c.notice_version into v_notice
     from public.whatsapp_channel_consents c
    where c.tenant_id = v_member.tenant_id and c.member_id = v_member.id
-   order by c.recorded_at desc, c.ctid desc limit 1;
+   order by c.recorded_at desc, c.id desc limit 1;
 
   return jsonb_build_object(
     'service', coalesce(v_service, false),
@@ -790,6 +806,9 @@ begin
     raise exception 'A consent decision is explicit' using errcode = '22023';
   end if;
 
+  perform 1 from public.members m
+   where m.tenant_id = app.current_tenant_id() and m.id = app.current_member_id()
+   for update;
   v_member := app.wsp_member_actor();
   v_minor := app.member_is_minor_on(v_member.date_of_birth, app.gym_today(v_member.tenant_id));
   if v_minor and app.member_guardian_complete(v_member) then
@@ -809,7 +828,7 @@ begin
     from public.whatsapp_channel_consents c
    where c.tenant_id = v_member.tenant_id and c.member_id = v_member.id
      and c.purpose = p_purpose
-   order by c.recorded_at desc, c.ctid desc limit 1;
+   order by c.recorded_at desc, c.id desc limit 1;
 
   if v_latest.id is not null
      and v_latest.granted is not distinct from p_granted
@@ -901,6 +920,9 @@ begin
     raise exception 'A consent decision is explicit' using errcode = '22023';
   end if;
 
+  perform 1 from public.members m
+   where m.tenant_id = v_tenant and m.id = p_member_id
+   for update;
   v_member := app.wsp_member_consent_target(v_tenant, p_member_id);
   v_minor := app.member_is_minor_on(v_member.date_of_birth, app.gym_today(v_member.tenant_id));
   if v_minor and app.member_guardian_complete(v_member) then
@@ -1163,7 +1185,7 @@ begin
   v_purpose := app.notification_consent_purpose(v_row.category);
   select c.granted into v_granted from public.consents c
    where c.tenant_id = v_tenant and c.member_id = v_member.id and c.purpose = v_purpose
-   order by c.recorded_at desc, c.ctid desc limit 1;
+   order by c.recorded_at desc, c.id desc limit 1;
   if coalesce(v_granted, false) is not true then
     return jsonb_build_object('notificationId', v_row.id, 'queued', false, 'reason', 'consent_withdrawn');
   end if;
@@ -1301,22 +1323,24 @@ begin
      or btrim(app.member_contact_phone(p_tenant, p_member)) = '' then
     return false;
   end if;
-  -- CURRENT = latest per member+purpose. The table is append-only, so ctid
-  -- is the stable insertion order; uuid ids are not time-ordered and a
-  -- same-recorded_at withdrawal must never lose the tiebreak to them. This
-  -- ordering REQUIRES the append-only discipline: ctid is stable only
-  -- because consent rows are never updated and the table is never
-  -- rewritten (no VACUUM FULL / CLUSTER on it).
+  -- CURRENT = exactly the first row ordered recorded_at DESC, id DESC per
+  -- member+purpose (frozen consent-ordering declaration): equal recording
+  -- instants break ties by UUID order, never by physical ctid, insertion
+  -- order, created_at or vacuum layout. Both grant and withdrawal rows
+  -- participate before granted/recipient eligibility is evaluated.
   select c.* into v_row from public.whatsapp_channel_consents c
    where c.tenant_id = p_tenant and c.member_id = p_member and c.purpose = p_purpose
-   order by c.recorded_at desc, c.ctid desc limit 1;
+   order by c.recorded_at desc, c.id desc limit 1;
   -- STRICT OPT-IN (serial adjudication): a missing row is no dispatch; the
   -- recorded consent must be granted for this purpose AND recorded for the
   -- recipient-phone basis (self or the complete guardian) the member and
   -- their contact currently resolve to.
   return v_row.id is not null
      and v_row.granted is true
-     and v_row.recipient_basis = v_current_basis;
+     and v_row.recipient_basis = v_current_basis
+     and v_row.recipient_phone_digest = encode(pg_catalog.sha256(pg_catalog.convert_to(
+       app.member_contact_phone(p_tenant, p_member), 'UTF8')), 'hex')
+     and v_row.contact_version_ref = v_row.recipient_phone_digest;
 end
 $fn$;
 alter function app.wsp_channel_consent_ok(uuid,uuid,public.consent_purpose) owner to postgres;
@@ -1415,7 +1439,8 @@ begin
     end if;
 
     select m.* into v_member from public.members m
-     where m.tenant_id = v_row.tenant_id and m.id = v_row.member_id;
+     where m.tenant_id = v_row.tenant_id and m.id = v_row.member_id
+     for update;
     select o.* into v_org from public.organizations o where o.id = v_row.tenant_id;
     if v_member.id is null
        or v_member.erased_at is not null
@@ -1436,7 +1461,7 @@ begin
     v_purpose := app.notification_consent_purpose(v_row.category);
     select c.granted into v_granted from public.consents c
      where c.tenant_id = v_row.tenant_id and c.member_id = v_member.id and c.purpose = v_purpose
-     order by c.recorded_at desc, c.ctid desc limit 1;
+     order by c.recorded_at desc, c.id desc limit 1;
     if coalesce(v_granted, false) is not true then
       -- Withdrawn purpose consent never retries: the queue row closes and
       -- the source records the refusal on its legal graph edge.
@@ -1449,7 +1474,11 @@ begin
     -- no dispatch; the consent must be currently granted for this purpose
     -- and for the recipient the member currently resolves to. A permanent
     -- channel refusal closes the queued request exactly like a withdrawal.
-    if not app.wsp_channel_consent_ok(v_row.tenant_id, v_member.id, v_purpose) then
+    select c.* into v_channel_latest from public.whatsapp_channel_consents c
+     where c.tenant_id = v_row.tenant_id and c.member_id = v_member.id and c.purpose = v_purpose
+     order by c.recorded_at desc, c.id desc limit 1;
+    if v_channel_latest.id is null
+       or not app.wsp_channel_consent_ok(v_row.tenant_id, v_member.id, v_purpose) then
       perform app.wsp_close_queue_row(v_row.tenant_id, v_row.notification_id);
       perform app.wsp_mark_source_opted_out(v_row.tenant_id, v_row.notification_id, 'consent_withdrawn');
       continue;
@@ -1478,7 +1507,7 @@ begin
     v_ticket := gen_random_uuid();
     insert into public.notification_whatsapp_attempts (
       tenant_id, member_id, notification_id, sender_account_id,
-      template_revision_id, rate_version_id, consent_id, request_key,
+      template_revision_id, rate_version_id, consent_id, channel_consent_id, request_key,
       lease_ticket, lease_expires_at, recipient_contact_revision,
       hold_max_paise, hold_currency
     ) values (
@@ -1488,6 +1517,7 @@ begin
         where c.tenant_id = v_row.tenant_id and c.member_id = v_member.id
           and c.purpose = v_purpose
         order by c.recorded_at desc, c.id desc limit 1),
+      v_channel_latest.id,
       case
         when not exists (
           select 1 from public.notification_whatsapp_attempts a2
@@ -1498,7 +1528,7 @@ begin
               where a3.tenant_id = v_row.tenant_id and a3.notification_id = v_row.notification_id)))
       end,
       v_ticket, clock_timestamp() + interval '120 seconds',
-      encode(pg_catalog.sha256(pg_catalog.convert_to(v_contact, 'UTF8')), 'hex'),
+      v_channel_latest.contact_version_ref,
       v_tariff, 'INR'
     ) returning * into v_attempt;
 
@@ -1614,6 +1644,10 @@ begin
     raise exception 'Authorization cannot grant a second send'
       using errcode = 'GL120';
   end if;
+  if v_attempt.completed_at is not null or v_attempt.released_at is not null then
+    raise exception 'A closed reservation cannot authorize provider I/O'
+      using errcode = 'GL120';
+  end if;
   if clock_timestamp() > v_attempt.lease_expires_at then
     perform app.wsp_close_refused_attempt(v_attempt.id, 'lease_expired');
     raise exception 'The authorization lease has expired' using errcode = 'GL120';
@@ -1622,7 +1656,8 @@ begin
   select n.* into v_row from public.notifications n
    where n.tenant_id = v_attempt.tenant_id and n.id = v_attempt.notification_id;
   select m.* into v_member from public.members m
-   where m.tenant_id = v_attempt.tenant_id and m.id = v_attempt.member_id;
+   where m.tenant_id = v_attempt.tenant_id and m.id = v_attempt.member_id
+   for update;
   select o.* into v_org from public.organizations o where o.id = v_attempt.tenant_id;
 
   if v_row.id is null
@@ -1643,24 +1678,18 @@ begin
   v_purpose := app.notification_consent_purpose(v_row.category);
   select c.granted into v_granted from public.consents c
    where c.tenant_id = v_attempt.tenant_id and c.member_id = v_member.id and c.purpose = v_purpose
-   order by c.recorded_at desc, c.ctid desc limit 1;
+   order by c.recorded_at desc, c.id desc limit 1;
+  select c.* into v_channel_latest from public.whatsapp_channel_consents c
+   where c.tenant_id = v_attempt.tenant_id and c.member_id = v_member.id and c.purpose = v_purpose
+   order by c.recorded_at desc, c.id desc limit 1;
   if coalesce(v_granted, false) is not true
+     or v_channel_latest.id is distinct from v_attempt.channel_consent_id
+     or v_channel_latest.contact_version_ref is distinct from v_attempt.recipient_contact_revision
      or not app.wsp_channel_consent_ok(v_attempt.tenant_id, v_member.id, v_purpose) then
-    perform app.wsp_close_refused_attempt(v_attempt.id, 'consent_withdrawn');
-    -- WSP-003: a withdrawal (or a missing strict opt-in) decided before
-    -- authorization is recorded on the current graph; the held funds were
-    -- released above.
-    select n.* into v_row from public.notifications n
-     where n.tenant_id = v_attempt.tenant_id and n.id = v_attempt.notification_id
-     for update;
-    if v_row.status = 'sent'::public.notification_status then
-      -- sent has no opted_out edge in the canonical graph; the refusal is
-      -- recorded as the terminal failure reason instead.
-      update public.notifications n
-         set status = 'failed'::public.notification_status,
-             failed_reason = 'consent_withdrawn'
-       where n.tenant_id = v_attempt.tenant_id and n.id = v_attempt.notification_id;
-    end if;
+    -- The refusal belongs to this reserved attempt. Its already-sent in-app
+    -- source remains factual history; no paid child exists before successful
+    -- authorization. Return normally so release/refusal evidence commits.
+    perform app.wsp_close_refused_attempt(v_attempt.id, 'opted_out');
     return jsonb_build_object(
       'authorized', false, 'attemptId', v_attempt.id, 'ticket', v_attempt.lease_ticket::text,
       'reason', 'consent_withdrawn', 'deferredUntil', null, 'recipient', null
@@ -3160,7 +3189,7 @@ begin
   if v_member.id is null
      or v_member.status in ('cancelled'::public.member_status, 'blocked'::public.member_status)
      or v_member.erased_at is not null
-     or v_member.phone is null
+     or app.member_contact_phone(v_tenant, v_member.id) is null
      or v_org.id is null
      or not (v_org.status = 'active'::public.organization_status
              or (v_org.status = 'trial'::public.organization_status
@@ -3213,7 +3242,7 @@ begin
      and n.dedupe_key = 'whatsapp:' || v_source.id::text;
 
   if found then
-    if v_child.recipient_phone is distinct from v_member.phone then
+    if v_child.recipient_phone is distinct from app.member_contact_phone(v_tenant, v_member.id) then
       raise exception 'The member''s phone number has changed since this message was sent'
         using errcode = 'GL066';
     end if;
@@ -3231,7 +3260,7 @@ begin
       related_type, related_id, scheduled_for, payload
     ) values (
       v_tenant, v_member.id, 'whatsapp_link', 'scheduled', v_source.category,
-      v_source.id, v_member.phone, v_dedupe,
+      v_source.id, app.member_contact_phone(v_tenant, v_member.id), v_dedupe,
       v_source.related_type, v_source.related_id, statement_timestamp(), v_source.payload
     )
     returning * into v_child;

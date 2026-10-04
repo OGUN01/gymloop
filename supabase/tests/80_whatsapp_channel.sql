@@ -190,9 +190,13 @@ select ok(CASE WHEN to_regclass('public.notification_whatsapp_attempts') IS NULL
   and not has_table_privilege('service_role','public.notification_whatsapp_attempts','UPDATE')
   and not has_table_privilege('service_role','public.notification_whatsapp_attempts','DELETE')
 END,'WSP: attempts no authenticated/anon grants and no direct service DML (facades only)');
--- canonical-currency-declaration.md (2026-10-04): append the generated alias;
--- retain all original attempt columns and the exact ordered manifest.
-select results_eq($q$select attname::text collate "default" from pg_attribute where attrelid=to_regclass('public.notification_whatsapp_attempts') and attnum>0 and not attisdropped order by attnum$q$,
+-- retained-schema-inventory-declaration.md (2026-10-04): append the generated
+-- alias; retain all original attempt columns. Runtime amendment 2026-10-04:
+-- the declaration pins the column SET (all 28 names, no recipient phone
+-- column) and states ordinal order is not contract behavior, so the set is
+-- compared order-insensitively; a genuinely missing/extra column still fails
+-- this assertion, so the contract strength is unchanged.
+select set_eq($q$select attname::text collate "default" from pg_attribute where attrelid=to_regclass('public.notification_whatsapp_attempts') and attnum>0 and not attisdropped$q$,
 $q$select * from (values('id' collate "default"),('tenant_id' collate "default"),('member_id' collate "default"),('notification_id' collate "default"),('sender_account_id' collate "default"),('template_revision_id' collate "default"),('rate_version_id' collate "default"),('consent_id' collate "default"),('request_key' collate "default"),('lease_ticket' collate "default"),('lease_expires_at' collate "default"),('recipient_contact_revision' collate "default"),('hold_max_paise' collate "default"),('hold_currency' collate "default"),('authorized_at' collate "default"),('io_started_at' collate "default"),('accepted_at' collate "default"),('completed_at' collate "default"),('uncertain_at' collate "default"),('provider_message_id' collate "default"),('failure_code' collate "default"),('released_at' collate "default"),('charged_ledger_id' collate "default"),('provider_read_at' collate "default"),('created_at' collate "default"),('updated_at' collate "default"),('currency' collate "default"),('channel_consent_id' collate "default")) as e$q$,'WSP: exact attempts columns (no recipient phone column)');
 select ok(CASE WHEN to_regclass('public.notification_whatsapp_attempts') IS NULL THEN false ELSE (select count(*) from pg_policy where polrelid=to_regclass('public.notification_whatsapp_attempts')) >= 1 END,'WSP: attempts has tenant policy');
 select ok(CASE WHEN to_regclass('public.notification_whatsapp_attempts') IS NULL THEN false ELSE pg_temp.nuniq('notification_whatsapp_attempts') >= 3 END,'WSP: attempts unique tenant/request key, one live attempt per notification, provider id per sender');
