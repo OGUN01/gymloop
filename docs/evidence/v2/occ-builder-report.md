@@ -684,3 +684,32 @@ Static: both bodies balance; zero coalesce-uuid claim casts remain. New
 migration sha256:
 `246e834d43b4d73b117ea7d5752ac79994bfda060afeb2c6af30ebe2a3f9d9f7`
 New loaded-body md5 (4-arg core): `ef8e949bd44d10045774bed2bfded2f5`.
+
+## #56/#76 decode with captured triples (2026-10-04)
+
+- **#56b/#56c is fixture-side and resolvable by restage, not source:**
+  the staged gate-scan row is tenant …1 / branch …11 /
+  checked_in_at 2026-10-04T16:05:47Z (= 21:35:47 IST, hour 21), while the
+  pin's snapshot range is Sep 14–27 — the Oct 4 arrival is categorically
+  outside that range, and my `day_visits` aggregation (verified twice: no
+  state filter, all accepted arrivals per branch/local-date before asOf)
+  then correctly produces zero for the Sep days. Once the author's
+  round-12 restage uses a range including Oct 4, my bytes return
+  day visits "1" and hour-21 visits "1" with NO source change. The
+  16:05Z→21:35 IST→hour-21 mapping is verified present in my hour bins
+  (hours 0..23 always exist).
+- **#76 — one chunk narrowed, none left in my bytes:** a grep across ALL
+  spliced migrations shows no function writes to `request.jwt.claims` at
+  all (only app.* command-scoped GUCs — staff-binding/media/PT/purchase
+  commands — none reachable from my RPC), so nothing between the helper's
+  set_config and my guard can rewrite the claims. The remaining unknowns
+  live inside `zone76` itself; the two productive captures are (a)
+  `pg_get_functiondef(zone76)` — if the claims payload handed to
+  set_config is BUILT from `app.current_tenant_id()` (or any helper) at a
+  moment when tenant-1 claims were live, the payload literal itself
+  contains …1 and the echo lies about intent, not about routing — verify
+  the literal, or (b) an intermediate wrapper between set_config and the
+  direct `public.owner_occupancy_analytics(...)` statement. My tenant
+  surface remains: one GUC read, one parse, zero helper references.
+No source change this round; sha unchanged
+`fa1c090d1cea948b4378212b7dedada9fcbb2f21c569811fa159ecbf0c4595d8`.
