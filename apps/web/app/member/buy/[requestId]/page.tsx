@@ -9,7 +9,7 @@ import { MemberPurchaseActions } from '../purchase-actions';
 
 function StageList({ status }: { status: string }) {
   return <ol className="space-y-1 list-none" aria-label="Request progress">
-    {purchaseStatusSequence.map(stage => <li key={stage.status}>{stage.status === status ? <strong>{stage.word}</strong> : <span>{stage.word}</span>}</li>)}
+    {purchaseStatusSequence.map(stage => <li key={stage.status}>{stage.status === status ? <strong><span aria-hidden="true">● </span>{stage.word}</strong> : <span>{stage.word}</span>}</li>)}
   </ol>;
 }
 
@@ -30,7 +30,8 @@ function Body({ request, timezone }: { request: ReturnType<typeof presentPurchas
       </div> : null}
     {request.reason ? <p>{request.reason}</p> : null}
     {request.status === 'expired' ? <p>{purchaseRequestCopy.expiredNote}</p> : null}
-    {request.status === 'owner_accepted' || request.status === 'payment_proof_uploaded' ? <MemberPurchaseActions requestId={request.requestId} proofStatus={request.proofStatus} /> : null}
+    {request.status === 'cancelled' ? <p>This request was cancelled and nothing was charged. Raise a new request any time from the shop, a training programme or your plan.</p> : null}
+    {request.status === 'owner_accepted' || request.status === 'payment_proof_uploaded' ? <MemberPurchaseActions requestId={request.requestId} proofStatus={request.proofStatus} status={request.status} acceptedRevision={request.acceptedRevision} /> : null}
   </section>;
 }
 

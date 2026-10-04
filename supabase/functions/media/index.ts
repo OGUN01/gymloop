@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { MEDIA_LIMITS, MEDIA_IMAGE_SIGNATURES, MEDIA_RUNTIME_LIMITS, MEDIA_HTTP_STATUS } from '../../../packages/shared/src/config/constants.ts';
+import { BUY_LIMITS, MEDIA_LIMITS, MEDIA_IMAGE_SIGNATURES, MEDIA_RUNTIME_LIMITS, MEDIA_HTTP_STATUS } from '../../../packages/shared/src/config/constants.ts';
 
 declare const Deno: { env: { get(name: string): string | undefined }; serve(handler: (request: Request) => Promise<Response>): void };
 
@@ -14,9 +14,11 @@ const COPY = {
   storage_unavailable: "Photo storage isn't available right now. Try again in a few minutes.", media_not_ready: 'That photo is no longer available. Choose it again.', media_in_use: 'That photo is already in use.', media_failed: "That photo couldn't be saved. Try again.",
 } as const;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const KEY = /^([0-9a-f-]+)\/(staging|published)\/(product|trainer|announcement)\/([0-9a-f-]+)\.(jpg|png|webp)$/;
+const KEY = /^([0-9a-f-]+)\/(staging|published)\/(product|trainer|announcement|payment_proof)\/([0-9a-f-]+)\.(jpg|png|webp)$/;
 const SAFE = 'id,tenant_id,kind,mime,bytes,created_by_staff_id,created_at,confirmed_at,deleted_at,attached_to_id';
-const PRIVATE = `${SAFE},staging_object_key,object_key,verified_source_etag,published_etag`;
+// The member creator is service-only: the authenticated grant does not carry
+// the column, so naming it in a caller-scoped read would fail at runtime.
+const PRIVATE = `${SAFE},staging_object_key,object_key,verified_source_etag,published_etag,created_by_member_id`;
 type Row = Record<string, unknown>;
 type Actor = { userId: string; tenantId: string; staffId?: string; memberId?: string; previewId?: string; role: string; preview: boolean };
 type Config = { url: string; anon: string; service: string; endpoint: string; bucket: string; key: string; secret: string };
@@ -151,6 +153,17 @@ async function confirm(c: Config, token: string, actor: Actor, id: string, safe:
   if (!sameRegistration(safe, value)) reject('asset_not_found');
   const stage = scoped(value, actor, 'staging');
   if (value.confirmed_at) { published(value, actor); return { assetId: id, confirmed: true }; }
+  return publishAndFinalize(c, token, actor, id, value, stage, actor.role, () => activeActor(c, token, actor));
+}
+/**
+ * The verified publication pipeline shared by the photo and proof flows:
+ * ranged If-Match verification, ETag-conditional copy to a fresh unpublished
+ * destination, independent destination recheck, then exactly one service-only
+ * finalizer call. `role` is the actor identity the finalizer revalidates;
+ * `recheck` re-proves live caller authority wherever an await could have
+ * outlived it (revocation, concurrent winner, unknown commit outcome).
+ */
+async function publishAndFinalize(c: Config, token: string, actor: Actor, id: string, value: Row, stage: string, role: string, recheck: () => Promise<void>): Promise<unknown> {
   let sourceEtag: string;
   try { sourceEtag = await checked(c, stage, value); }
   catch (error) {
@@ -173,14 +186,14 @@ async function confirm(c: Config, token: string, actor: Actor, id: string, safe:
     const xml = await copy.text(); const copyEtag = /<ETag>([^<]+)<\/ETag>/.exec(xml)?.[1]?.replace(/&quot;/g, '"');
     if (!copy.ok || /<Error(?:\s|>)/.test(xml) || !copyEtag) reject('storage_unavailable');
     const destinationEtag = await checked(c, candidate, value, copyEtag);
-    const args = { p_asset_id: id, p_actor_user_id: actor.userId, p_actor_staff_id: actor.staffId, p_actor_role: actor.role, p_tenant_id: actor.tenantId, p_kind: value.kind, p_mime: value.mime, p_bytes: value.bytes, p_staging_object_key: stage, p_source_etag: sourceEtag, p_published_object_key: candidate, p_published_etag: destinationEtag };
+    const args = { p_asset_id: id, p_actor_user_id: actor.userId, p_actor_staff_id: role === 'member' ? null : actor.staffId ?? null, p_actor_role: role, p_tenant_id: actor.tenantId, p_kind: value.kind, p_mime: value.mime, p_bytes: value.bytes, p_staging_object_key: stage, p_source_etag: sourceEtag, p_published_object_key: candidate, p_published_etag: destinationEtag };
     let outcome: unknown;
     try { outcome = await rest(c, token, 'rpc/finalize_media_asset', args, true); }
     catch (error) {
       // A network failure is an unknown commit outcome. An unconfirmed reread
       // cannot prove rollback; retain the object until locked reconciliation.
       if (error instanceof Refused && error.code !== 'storage_unavailable') { await cleanup(c, candidate); throw error; }
-      await activeActor(c, token, actor);
+      await recheck();
       const rereadSafe = await asset(c, token, id);
       const reread = await asset(c, token, id, true);
       if (reread.confirmed_at && sameRegistration(rereadSafe, reread) && reread.object_key === candidate && published(reread, actor) === candidate) return { assetId: id, confirmed: true };
@@ -188,7 +201,7 @@ async function confirm(c: Config, token: string, actor: Actor, id: string, safe:
     }
     if (outcome === true) { await cleanup(c, stage); return { assetId: id, confirmed: true }; }
     if (outcome === false) {
-      await activeActor(c, token, actor);
+      await recheck();
       const winnerSafe = await asset(c, token, id);
       const winner = await asset(c, token, id, true);
       if (!sameRegistration(winnerSafe, winner)) reject('storage_unavailable');
@@ -204,6 +217,58 @@ async function confirm(c: Config, token: string, actor: Actor, id: string, safe:
     if (error instanceof Refused && error.code === 'upload_changed') await cleanup(c, candidate);
     throw error;
   }
+}
+/**
+ * PAY proof boundary (BUY-008/009): the caller's own RLS-scoped purchase
+ * request read is the authorization evidence and strictly precedes every
+ * privileged lookup or storage access. A foreign, unexposed or unknown target
+ * shares the one external refusal. Confirm requires a live owned request;
+ * proof-url serves the adjudicated served statuses (owner decision
+ * 2026-10-04: a bound proof stays viewable on its recorded request).
+ */
+const PROOF_LIVE_STATUSES = ['owner_accepted', 'payment_proof_uploaded'] as const;
+const PROOF_SERVED_STATUSES = [...PROOF_LIVE_STATUSES, 'recorded', 'mismatch_recorded'] as const;
+async function proofExposure(c: Config, token: string, actor: Actor, id: string, statuses: readonly string[], requireBound = false): Promise<void> {
+  const rpc = actor.memberId ? 'read_member_purchase_requests' : 'read_purchase_requests';
+  const data = await rest(c, token, `rpc/${rpc}`, { p_limit: 0, p_after_created_at: null, p_after_id: null });
+  const rows = Array.isArray(data) ? data : data !== null && typeof data === 'object' && Array.isArray((data as Row).requests) ? (data as Row).requests as unknown[] : null;
+  if (!rows || rows.length === 0) reject('asset_not_found');
+  // When a request already carries this asset as its active proof (replay,
+  // replacement or a bound history view), the flow binds to exactly that
+  // registered request. At proof-url time the frozen attach flow has always
+  // set that linkage, so with requireBound nothing else may pass: superseded,
+  // unlinked and arbitrary ids share the one refusal from this caller read
+  // alone, before any privileged metadata read. A first proof-upload has no
+  // linkage yet and leans on the attach command's revalidation.
+  const bound = rows.find(item => item !== null && typeof item === 'object' && (item as Row).activeProofAssetId === id);
+  if (bound) {
+    if (!statuses.includes(String((bound as Row).status))) reject('asset_not_found');
+    return;
+  }
+  if (requireBound) reject('asset_not_found');
+  if (!rows.some(item => item !== null && typeof item === 'object' && statuses.includes(String((item as Row).status)))) reject('asset_not_found');
+}
+async function proofConfirm(c: Config, token: string, actor: Actor, id: string): Promise<unknown> {
+  await proofExposure(c, token, actor, id, PROOF_LIVE_STATUSES);
+  const value = await asset(c, token, id, true);
+  if (value.tenant_id !== actor.tenantId || value.kind !== 'payment_proof' || value.created_by_member_id !== actor.memberId) reject('asset_not_found');
+  const stage = scoped(value, actor, 'staging');
+  if (value.confirmed_at) { published(value, actor); return { assetId: id, confirmed: true }; }
+  return publishAndFinalize(c, token, actor, id, value, stage, 'member', () => proofExposure(c, token, actor, id, PROOF_LIVE_STATUSES));
+}
+async function proofUrl(c: Config, token: string, actor: Actor, id: string): Promise<unknown> {
+  // The caller read alone refuses anything that is not the currently active
+  // proof of a request visible to this caller — before any privileged
+  // metadata read (BUY-009: superseded/unknown share the one refusal).
+  await proofExposure(c, token, actor, id, PROOF_SERVED_STATUSES, true);
+  const value = await asset(c, token, id, true);
+  if (value.tenant_id !== actor.tenantId || value.kind !== 'payment_proof') reject('asset_not_found');
+  if (actor.memberId && value.created_by_member_id !== actor.memberId) reject('asset_not_found');
+  // Only a verified, immutably published proof is signable: missing verified
+  // state shares the one external refusal (BUY-009/018).
+  const key = published(value, actor);
+  const signedRequest = await signed(c, 'GET', key, {}, BUY_LIMITS.privateProofGetTtlSeconds, String(value.mime));
+  return { imageUrl: signedRequest.url.toString() };
 }
 type Exposure = { kind: string; parent: string };
 async function exposure(c: Config, token: string, id: string): Promise<Exposure> {
@@ -233,16 +298,32 @@ Deno.serve(async (request: Request): Promise<Response> => {
     const actor = await identify(c, bearer);
     let body: Row;
     try { body = await request.json() as Row; } catch { reject('invalid_request'); }
-    if (request.method !== 'POST' || !body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).sort().join(',') !== 'assetId,operation' || !uuid(body.assetId) || !['confirm', 'member-url', 'staff-url'].includes(String(body.operation))) reject('invalid_request');
+    if (request.method !== 'POST' || !body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).sort().join(',') !== 'assetId,operation' || !uuid(body.assetId) || !['confirm', 'member-url', 'staff-url', 'proof-confirm', 'proof-url'].includes(String(body.operation))) reject('invalid_request');
     const id = body.assetId.toLowerCase(); const operation = body.operation;
-    if ((operation === 'member-url') !== !!actor.memberId || (operation === 'confirm' && actor.preview)) reject('not_permitted');
-    await activeActor(c, bearer, actor);
+    const proof = String(operation).startsWith('proof-');
+    if (!proof && (operation === 'member-url') !== !!actor.memberId) reject('not_permitted');
+    if (operation === 'confirm' && actor.preview) reject('not_permitted');
+    // Proof verification is member-work only; the private proof URL serves the
+    // owning member or a real same-tenant front-office verifier (BUY-009).
+    if (proof && actor.preview) reject('not_permitted');
+    if (operation === 'proof-confirm' && !actor.memberId) reject('not_permitted');
+    if (operation === 'proof-url' && !actor.memberId && !actor.staffId) reject('not_permitted');
+    if (operation === 'proof-confirm') return json({ ok: true, data: await proofConfirm(c, bearer, actor, id) });
+    if (operation === 'proof-url') return json({ ok: true, data: await proofUrl(c, bearer, actor, id) });
     let exposed: Exposure | undefined;
     let safe: Row | undefined;
-    if (operation === 'member-url') exposed = await exposure(c, bearer, id);
+    if (operation === 'member-url') {
+      // Member exposure is the caller-JWT feature read itself; the member
+      // active-actor revalidation joins the pre-mint gate below (BUY-009).
+      exposed = await exposure(c, bearer, id);
+    }
     else {
+      await activeActor(c, bearer, actor);
       safe = await asset(c, bearer, id);
       if (safe.tenant_id !== actor.tenantId) reject('asset_not_found');
+      // The photo boundary signs and finalizes the original photo kinds only:
+      // proof objects and any future private kind never come through here.
+      if (String(safe.kind) === 'payment_proof') reject('asset_not_found');
       if (operation === 'confirm') return json({ ok: true, data: await confirm(c, bearer, actor, id, safe) });
     }
     const value = await asset(c, bearer, id, true);
@@ -250,6 +331,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     const key = published(value, actor);
     if (exposed) attachment(value, actor, exposed);
     // Repeat caller authorization after every privileged lookup/signing await.
+    if (exposed) await activeActor(c, bearer, actor);
     const signedRequest = await signed(c, 'GET', key, {}, MEDIA_LIMITS.displayUrlTtlSeconds, String(value.mime));
     await activeActor(c, bearer, actor);
     if (exposed) attachment(value, actor, await exposure(c, bearer, id));

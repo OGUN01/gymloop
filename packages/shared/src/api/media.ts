@@ -2,15 +2,17 @@ import { z } from 'zod';
 import { MEDIA_IMAGE_SIGNATURES, MEDIA_LIMITS, MEDIA_RUNTIME_LIMITS, GATE_CODE_HEX_DIGITS_PER_BYTE } from '../config/constants';
 import { lookupInviteCopy } from './member-invites';
 
-export const MEDIA_KINDS = ['product', 'trainer', 'announcement'] as const;
+export const MEDIA_KINDS = ['product', 'trainer', 'announcement', 'payment_proof'] as const;
 export type MediaKind = (typeof MEDIA_KINDS)[number];
 export const MEDIA_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 export type MediaMime = (typeof MEDIA_MIME_TYPES)[number];
 export const MEDIA_EXTENSIONS: Record<MediaMime, 'jpg' | 'png' | 'webp'> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
-export const mediaUploadRequestSchema = z.strictObject({ kind: z.enum(MEDIA_KINDS), mime: z.enum(MEDIA_MIME_TYPES), bytes: z.number().int().min(1).max(MEDIA_LIMITS.maxBytes) });
+/** The generic photo registration kinds; payment_proof registers only through its own proof boundary. */
+const PHOTO_KINDS = ['product', 'trainer', 'announcement'] as const;
+export const mediaUploadRequestSchema = z.strictObject({ kind: z.enum(PHOTO_KINDS), mime: z.enum(MEDIA_MIME_TYPES), bytes: z.number().int().min(1).max(MEDIA_LIMITS.maxBytes) });
 export const mediaConfirmRequestSchema = z.strictObject({ assetId: z.uuid() });
 export const memberMediaUrlRequestSchema = z.strictObject(mediaConfirmRequestSchema.shape);
-const KEY = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(staging|published)\/(product|trainer|announcement)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(jpg|png|webp)$/;
+const KEY = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(staging|published)\/(product|trainer|announcement|payment_proof)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(jpg|png|webp)$/;
 
 export function parseMediaObjectKey(key: string): { tenantId: string; kind: MediaKind; objectUuid: string; extension: string; storageArea: 'staging' | 'published' } | null {
   const match = KEY.exec(key);

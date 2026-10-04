@@ -17,7 +17,7 @@ export default async function MemberBuyPage({ searchParams = Promise.resolve({})
     return <main className="p-6 space-y-4"><h1 className="member-title">Buy / payments</h1><p role="alert">The purchase requests couldn&apos;t be loaded.</p><Link className="cl-btn" href="/member/buy">Retry</Link></main>;
   }
   return <main className="p-6 space-y-6 min-w-0">
-    <header><p className="cl-eyebrow">Buy / payments</p><h1 className="member-title">Your purchase requests</h1><p className="cl-muted">Raise a request from the shop, a training programme or your plan, pay outside the app, and the desk verifies the money.</p></header>
+    <header><p className="cl-eyebrow">Buy / payments</p><h1 className="member-title">Your purchase requests</h1><p className="cl-muted">You pay outside the app; the desk verifies the money before your purchase counts.</p></header>
     {requests.length ?
       <section aria-label="Your purchase requests" className="space-y-4">
         {requests.map(request =>
@@ -29,7 +29,7 @@ export default async function MemberBuyPage({ searchParams = Promise.resolve({})
             <Link className="cl-btn cl-btn--quiet" href={`/member/buy/${request.requestId}`}>Open request</Link>
           </article>)}
       </section>
-      : <p className="cl-muted">No purchase requests yet. Start one from what you want — a shop item, training or your plan renewal.</p>}
+      : <p className="cl-muted">No purchase requests yet.</p>}
     <section className="space-y-2" aria-label="Start a request">
       <h2 className="cl-section-title">Raise a request from</h2>
       <div className="flex flex-wrap gap-3">

@@ -16,7 +16,7 @@ export function createMediaStorage() {
   } };
 }
 /** Forward an already verified caller capability; no private metadata lookup. */
-export async function invokeMedia(supabase: Client, operation: 'confirm' | 'member-url' | 'staff-url', assetId: string, verifiedToken?: string): Promise<unknown> {
+export async function invokeMedia(supabase: Client, operation: 'confirm' | 'member-url' | 'staff-url' | 'proof-confirm' | 'proof-url', assetId: string, verifiedToken?: string): Promise<unknown> {
   const token = verifiedToken ?? (await supabase.auth.getSession()).data.session?.access_token;
   if (!token) throw new Error('Photo storage unavailable');
   const result = await supabase.functions.invoke('media', { body: { operation, assetId }, headers: { Authorization: `Bearer ${token}` } });

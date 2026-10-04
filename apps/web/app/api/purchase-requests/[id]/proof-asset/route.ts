@@ -21,8 +21,9 @@ function generic(): Response {
 }
 
 type ProofSupabase = {
+  auth?: { getSession?: () => Promise<{ data: { session?: { access_token?: string } | null } | null }> };
   rpc: (name: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { code: string } | null }>;
-  functions: { invoke: (name: string, options: { body: Record<string, unknown> }) => Promise<{ data: unknown; error: unknown }> };
+  functions: { invoke: (name: string, options: { body: Record<string, unknown>; headers?: Record<string, string> }) => Promise<{ data: unknown; error: unknown }> };
 };
 
 export async function GET(request: Request, context: { params: Promise<Record<string, string>> }): Promise<Response> {
@@ -50,9 +51,16 @@ export async function GET(request: Request, context: { params: Promise<Record<st
   }
   if (typeof row.asset_id !== 'string' || !UUID_PATTERN.test(row.asset_id)) return generic();
   // Private MEDIA proof objects stream through the MEDIA verifier's proof
-  // operation; the signed private URL never reaches the caller.
-  const media = await supabase.functions.invoke('media', { body: { operation: 'proof-url', assetId: row.asset_id } }).catch(() => null);
-  const signedUrl = typeof (media?.data as { url?: unknown } | null)?.url === 'string' ? (media!.data as { url: string }).url : null;
+  // operation; the signed private URL never reaches the caller. The verifier
+  // answers the frozen `{ ok, data: { imageUrl } }` signer envelope and the
+  // verified caller capability is forwarded explicitly, header bearer first
+  // and the verified cookie session otherwise (the repo's media convention).
+  const header = request.headers.get('authorization');
+  const bearer = header?.startsWith('Bearer ') ? header.slice('Bearer '.length) : undefined;
+  const token = bearer ?? (await supabase.auth?.getSession?.().catch(() => null))?.data?.session?.access_token;
+  const media = await supabase.functions.invoke('media', { body: { operation: 'proof-url', assetId: row.asset_id }, ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}) }).catch(() => null);
+  const envelope = (media?.data ?? null) as { ok?: unknown; data?: { imageUrl?: unknown } } | null;
+  const signedUrl = envelope?.ok === true && typeof envelope.data?.imageUrl === 'string' ? envelope.data.imageUrl : null;
   if (!signedUrl) return generic();
   const bytes = await fetch(signedUrl).catch(() => null);
   if (!bytes?.ok || !bytes.body) return generic();

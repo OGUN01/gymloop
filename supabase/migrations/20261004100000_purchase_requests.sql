@@ -52,6 +52,8 @@ create table public.purchase_requests (
   recorded_membership_id uuid,
   recorded_amount_paise bigint,
   recorded_currency text,
+  currency text generated always as (coalesce(recorded_currency, 'INR'::text)) stored not null
+    constraint purchase_requests_currency_format_chk check (currency ~ '^[A-Z]{3}$'),
   recorded_at timestamptz,
   recorded_by_user_id uuid,
   recorded_by_staff_id uuid,
@@ -552,6 +554,17 @@ alter table public.media_assets add constraint media_assets_tenant_id_created_by
 create index media_assets_tenant_id_created_by_member_created_idx
   on public.media_assets (tenant_id, created_by_member_id, created_at desc);
 
+-- Registration-time request linkage: the member's staging registration binds
+-- the asset to the live accepted request it was staged for, so the trusted
+-- finalizer can re-prove that exact request live and accepted at publish
+-- time (BUY-008/010) — including before the first attach.
+alter table public.media_assets add column linked_request_id uuid;
+alter table public.media_assets add constraint media_assets_tenant_id_linked_request_fkey
+  foreign key (tenant_id, linked_request_id) references public.purchase_requests(tenant_id, id);
+create index media_assets_tenant_id_linked_request_idx
+  on public.media_assets (tenant_id, linked_request_id)
+  where linked_request_id is not null;
+
 alter table public.media_assets drop constraint media_assets_kind_chk;
 alter table public.media_assets add constraint media_assets_kind_chk
   check (kind in ('product', 'trainer', 'announcement', 'payment_proof'));
@@ -617,9 +630,9 @@ begin
     return new;
   end if;
   if row(new.id, new.tenant_id, new.kind, new.staging_object_key, new.mime, new.bytes,
-         new.created_by_staff_id, new.created_by_member_id, new.created_at)
+         new.created_by_staff_id, new.created_by_member_id, new.linked_request_id, new.created_at)
     is distinct from row(old.id, old.tenant_id, old.kind, old.staging_object_key, old.mime, old.bytes,
-         old.created_by_staff_id, old.created_by_member_id, old.created_at)
+         old.created_by_staff_id, old.created_by_member_id, old.linked_request_id, old.created_at)
     or (old.deleted_at is not null and new is distinct from old) then
     raise exception 'Media registration and tombstones are immutable' using errcode='GL086',detail='media_verification_invariant';
   end if;
@@ -678,6 +691,7 @@ declare
   v_id uuid;
   v_ext text;
   v_key text;
+  v_prior record;
 begin
   select * into v_actor from app.shop_actor('member');
   if p_request_id is null or p_mime is null or p_bytes is null then
@@ -716,17 +730,144 @@ begin
   v_ext := case p_mime when 'image/jpeg' then 'jpg' when 'image/png' then 'png' else 'webp' end;
   v_id := gen_random_uuid();
   v_key := v_actor.tenant_id::text || '/staging/payment_proof/' || v_id::text || '.' || v_ext;
+  -- Replacement (BUY-010): this registration supersedes the member's own
+  -- still-unconfirmed candidate for the same request — tombstoned, never
+  -- deleted, and never touching a confirmed or attached winner.
+  for v_prior in
+    select m.id from public.media_assets m
+     where m.tenant_id = v_actor.tenant_id and m.kind = 'payment_proof'
+       and m.created_by_member_id = v_actor.member_id
+       and m.linked_request_id = v_request.id
+       and m.confirmed_at is null and m.deleted_at is null and m.attached_to_id is null
+       and m.created_at <= statement_timestamp()
+     for update
+  loop
+    update public.media_assets set deleted_at = statement_timestamp()
+     where id = v_prior.id and tenant_id = v_actor.tenant_id;
+    perform app.media_audit(v_actor.tenant_id, v_actor.user_id, 'member',
+      'media_asset.deleted', v_prior.id,
+      jsonb_build_object('deleted', false), jsonb_build_object('deleted', true));
+  end loop;
   insert into public.media_assets(
     tenant_id, kind, staging_object_key, mime, bytes,
-    created_by_staff_id, created_by_member_id, created_at
+    created_by_staff_id, created_by_member_id, linked_request_id, created_at
   ) values (
     v_actor.tenant_id, 'payment_proof', v_key, p_mime, p_bytes,
-    null, v_actor.member_id, statement_timestamp()
+    null, v_actor.member_id, v_request.id, statement_timestamp()
   ) returning media_assets.id into v_id;
   return jsonb_build_object(
     'assetId', v_id, 'stagingObjectKey', v_key,
     'mime', p_mime, 'bytes', p_bytes
   );
+end
+$fn$;
+
+-- ---------------------------------------------------------------------------
+-- AMENDED (PAY): the credential-only finalizer learns the member-creator path
+-- for payment_proof assets. Staff-created photo behavior is unchanged; a
+-- member-created proof finalizes only through its registered member creator,
+-- into the private payment_proof namespace, and only while the registered
+-- request is still live and accepted (registration-time linkage).
+-- ---------------------------------------------------------------------------
+create or replace function public.finalize_media_asset(p_asset_id uuid,p_actor_user_id uuid,p_actor_staff_id uuid,p_actor_role public.app_role,
+  p_tenant_id uuid,p_kind text,p_mime text,p_bytes integer,p_staging_object_key text,p_source_etag text,p_published_object_key text,p_published_etag text)
+returns boolean language plpgsql volatile security definer set search_path='' as $fn$
+declare
+  v_claims jsonb;
+  v_asset public.media_assets%rowtype;
+  v_prior_marker text;
+  v_member_path boolean := false;
+begin
+  v_claims:=coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb,'{}'::jsonb);
+  if current_setting('role',true) is distinct from 'service_role' or v_claims->>'role' is distinct from 'service_role'
+    or nullif(v_claims->>'sub','') is not null or nullif(v_claims->>'impersonation_session_id','') is not null then
+    raise exception 'Credential-only verifier required' using errcode='42501';
+  end if;
+  -- Lock the active actor before the asset; revocation and finalization serialize.
+  if p_actor_role='member' and p_actor_staff_id is null then
+    if p_actor_user_id is null or p_tenant_id is null then
+      raise exception 'Verified active media actor required' using errcode='42501';
+    end if;
+    -- The member gate re-proves the live member row exactly as the staff path
+    -- re-proves the staff row: status and binding at finalize time. Cancelled,
+    -- blocked, paused, expired or erased creators refuse here (42501), before
+    -- any asset or liveness check.
+    perform 1 from public.members m where m.tenant_id=p_tenant_id and m.user_id=p_actor_user_id
+      and m.status='active' and m.erased_at is null for update;
+    if not found then
+      raise exception 'Verified active media actor required' using errcode='42501';
+    end if;
+    v_member_path:=true;
+  else
+    perform 1 from public.staff s where s.id=p_actor_staff_id and s.tenant_id=p_tenant_id and s.user_id=p_actor_user_id
+      and s.role=p_actor_role and s.is_active and s.role in ('gym_owner','gym_manager','front_desk') for update;
+    if not found or p_actor_user_id is null or p_actor_staff_id is null or p_tenant_id is null
+      or p_actor_role is null or (p_kind in ('product','trainer') and p_actor_role='front_desk') then
+      raise exception 'Verified active media actor required' using errcode='42501';
+    end if;
+  end if;
+  select m.* into v_asset from public.media_assets m where m.id=p_asset_id and m.tenant_id=p_tenant_id for update;
+  if not found then raise exception 'Media asset unavailable' using errcode='42501'; end if;
+  if v_member_path then
+    -- Only the asset's registered member creator, only for a payment_proof asset.
+    if v_asset.kind is distinct from 'payment_proof' or v_asset.created_by_member_id is null
+      or not exists (select 1 from public.members m where m.tenant_id=p_tenant_id
+        and m.id=v_asset.created_by_member_id and m.user_id=p_actor_user_id) then
+      raise exception 'Verified actor cannot finalize this media kind' using errcode='42501';
+    end if;
+  else
+    -- A staff actor can never finalize a member-created proof.
+    if v_asset.created_by_member_id is not null
+      or (v_asset.kind in ('product','trainer') and p_actor_role='front_desk') then
+      raise exception 'Verified actor cannot finalize this media kind' using errcode='42501';
+    end if;
+  end if;
+  if v_asset.deleted_at is not null then
+    raise exception 'Media asset is deleted' using errcode='GL086',detail='media_not_ready';
+  end if;
+  if p_kind is null or p_kind not in ('product','trainer','announcement','payment_proof') or p_kind is distinct from v_asset.kind
+    or p_mime is distinct from v_asset.mime or p_bytes is distinct from v_asset.bytes
+    or p_staging_object_key is distinct from v_asset.staging_object_key
+    or p_source_etag is null or btrim(p_source_etag)='' or p_published_etag is null or btrim(p_published_etag)=''
+    or p_published_object_key is null
+    or p_published_object_key !~ (case when p_kind='payment_proof'
+      then '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/published/payment_proof/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp)$'
+      else '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/published/(product|trainer|announcement)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp)$' end)
+    or split_part(p_published_object_key,'/',1)<>p_tenant_id::text or split_part(p_published_object_key,'/',3)<>p_kind
+    or split_part(p_published_object_key,'.',2)<>(case p_mime when 'image/jpeg' then 'jpg' when 'image/png' then 'png' when 'image/webp' then 'webp' end) then
+    raise exception 'Verified metadata does not match registration' using errcode='22023';
+  end if;
+  if v_asset.confirmed_at is not null then
+    if v_asset.object_key is null or v_asset.verified_source_etag is null or v_asset.published_etag is null
+      or btrim(v_asset.verified_source_etag)='' or btrim(v_asset.published_etag)='' then
+      raise exception 'Media verification is inconsistent' using errcode='GL086',detail='media_not_ready';
+    end if;
+    return false;
+  end if;
+  if v_asset.object_key is not null or v_asset.verified_source_etag is not null or v_asset.published_etag is not null then
+    raise exception 'Media verification is inconsistent' using errcode='GL086',detail='media_not_ready';
+  end if;
+  if v_member_path then
+    -- The registered request must still be live and accepted at publish time.
+    if v_asset.linked_request_id is null then
+      raise exception 'Proof upload needs an accepted live request' using errcode='GL066',detail='request_not_accepted';
+    end if;
+    perform 1 from public.purchase_requests r where r.tenant_id=p_tenant_id and r.id=v_asset.linked_request_id
+      and r.status in ('owner_accepted','payment_proof_uploaded') and r.expires_at>statement_timestamp();
+    if not found then
+      raise exception 'Proof upload needs an accepted live request' using errcode='GL066',detail='request_not_accepted';
+    end if;
+  end if;
+  v_prior_marker:=current_setting('app.media_finalize_command',true);
+  perform set_config('app.media_finalize_command','finalize:'||p_asset_id::text,true);
+  update public.media_assets set object_key=p_published_object_key,verified_source_etag=p_source_etag,
+    published_etag=p_published_etag,confirmed_at=statement_timestamp() where id=p_asset_id and tenant_id=p_tenant_id;
+  perform set_config('app.media_finalize_command',coalesce(v_prior_marker,''),true);
+  perform app.media_audit(p_tenant_id,p_actor_user_id,p_actor_role,'media_asset.confirmed',p_asset_id,
+    jsonb_build_object('confirmed',false),jsonb_build_object('confirmed',true));
+  return true;
+  -- No exception handler is needed: PostgreSQL restores the transaction-local marker with
+  -- the failed command's subtransaction; every successful update restores it immediately.
 end
 $fn$;
 
@@ -1147,6 +1288,16 @@ declare
   v_token text;
   v_delta integer;
 begin
+  -- Preserve ADD's sold-kind refusal before PAY's stock arithmetic. This is
+  -- the same invoker-visible history check as enforce_addon_product; no new
+  -- authority or helper grant is introduced.
+  if new.kind is distinct from old.kind and exists (
+    select 1 from public.addon_orders o
+     where o.tenant_id = old.tenant_id and o.addon_product_id = old.id
+  ) then
+    raise exception 'Add-on catalogue kind cannot change after a sale'
+      using errcode = 'GL055', detail = 'catalogue_incomplete';
+  end if;
   if new.stock_quantity is not distinct from old.stock_quantity then
     return new;
   end if;
@@ -1154,7 +1305,7 @@ begin
     or new.stock_quantity >= old.stock_quantity then
     if new.stock_quantity is null and old.stock_quantity is not null
       and old.kind = 'product'
-      and app.pay_held_quantity(old.tenant_id, old.id) > 0 then
+      and app.pay_held_view(old.tenant_id, old.id) > 0 then
       raise exception 'Accepted purchase requests hold this stock' using errcode='GL123',detail='stock_reserved';
     end if;
     return new;
@@ -2629,10 +2780,14 @@ revoke all on function app.enforce_pay_stock_holds() from public, anon, authenti
 grant execute on function app.expire_purchase_requests(timestamptz) to service_role;
 
 -- ---------------------------------------------------------------------------
--- Coordinator contract addition (2026-10-03): private proof URL authorization.
--- SQL authorizes and bounds; the Edge/web mint composes the final no-store
--- signed GET (MEDIA has no SQL-side signer). Unknown, foreign, unexposed and
--- forbidden ids share one external refusal.
+-- Coordinator contract addition (2026-10-03; amended 2026-10-04, owner
+-- decision 3): private proof URL authorization. SQL authorizes and bounds;
+-- the Edge/web mint composes the final no-store signed GET (MEDIA has no
+-- SQL-side signer). The definer door re-proves the real, unimpersonated
+-- session class itself — a direct invoker read mints no capability token.
+-- Pre-recording states serve the single active proof; the frozen
+-- post-recording states (owner decision 3) serve the causally bound proof.
+-- Every other state keeps the one external refusal.
 -- ---------------------------------------------------------------------------
 create function app.pay_proof_evidence(
   p_tenant_id uuid, p_request_id uuid, p_member_id uuid, p_is_member boolean
@@ -2643,17 +2798,47 @@ declare
   v_request public.purchase_requests%rowtype;
   v_proof public.payment_proofs%rowtype;
 begin
-  perform app.pay_take_capability('proof_url', p_tenant_id, p_request_id,
-    case when p_is_member then 'member' else 'staff' end);
+  if p_is_member is null or p_tenant_id is null or p_request_id is null then
+    raise exception 'Request unavailable' using errcode = 'P0002';
+  end if;
+  if p_is_member then
+    if auth.uid() is null or app.current_app_role() is distinct from 'member'
+      or app.current_staff_id() is not null or app.current_member_id() is null
+      or app.current_impersonation_id() is not null
+      or p_member_id is distinct from app.current_member_id()
+      or not exists (select 1 from public.members m
+           where m.tenant_id = p_tenant_id and m.id = app.current_member_id()
+             and m.user_id = auth.uid()) then
+      raise exception 'Request unavailable' using errcode = 'P0002';
+    end if;
+  else
+    if auth.uid() is null or app.current_impersonation_id() is not null
+      or app.current_member_id() is not null or app.current_staff_id() is null
+      or app.current_app_role() not in ('gym_owner', 'gym_manager', 'front_desk')
+      or not exists (select 1 from public.staff s
+           where s.tenant_id = p_tenant_id and s.id = app.current_staff_id()
+             and s.user_id = auth.uid() and s.role::text = app.current_app_role()
+             and s.is_active) then
+      raise exception 'Request unavailable' using errcode = 'P0002';
+    end if;
+  end if;
   select r.* into v_request from public.purchase_requests r
    where r.tenant_id = p_tenant_id and r.id = p_request_id
      and (not p_is_member or r.member_id = p_member_id);
   if not found then
     raise exception 'Request unavailable' using errcode = 'P0002';
   end if;
-  select p.* into v_proof from public.payment_proofs p
-   where p.tenant_id = p_tenant_id and p.request_id = p_request_id
-     and p.disposition = 'active';
+  if v_request.status in ('owner_accepted', 'payment_proof_uploaded') then
+    select p.* into v_proof from public.payment_proofs p
+     where p.tenant_id = p_tenant_id and p.request_id = p_request_id
+       and p.disposition = 'active';
+  elsif v_request.status in ('recorded', 'mismatch_recorded') then
+    select p.* into v_proof from public.payment_proofs p
+     where p.tenant_id = p_tenant_id and p.request_id = p_request_id
+       and p.disposition = 'bound';
+  else
+    raise exception 'Request unavailable' using errcode = 'P0002';
+  end if;
   if not found then
     raise exception 'Request unavailable' using errcode = 'P0002';
   end if;
@@ -2665,17 +2850,35 @@ create function public.read_purchase_proof_url(p_request_id uuid) returns jsonb
 language plpgsql stable security invoker set search_path = ''
 as $fn$
 declare
-  v_actor record;
+  v_tenant uuid;
+  v_is_member boolean;
+  v_member_id uuid;
   v_proof record;
 begin
   if p_request_id is null then
     raise exception 'Request arguments required' using errcode = '22023';
   end if;
-  select * into v_actor from app.shop_actor('member_or_front_office');
-  if v_actor.member_id is not null then
-    select * into v_proof from app.pay_proof_evidence(v_actor.tenant_id, p_request_id, v_actor.member_id, true);
+  -- One external refusal for every non-provable session shape (trainer,
+  -- impersonation, incomplete or contradictory claims): the member-vs-verifier
+  -- split resolves here; the definer door re-proves the same facts itself.
+  if auth.uid() is not null and app.current_impersonation_id() is null then
+    v_tenant := app.current_tenant_id();
+    if app.current_app_role() = 'member' and app.current_member_id() is not null
+      and app.current_staff_id() is null then
+      v_is_member := true;
+      v_member_id := app.current_member_id();
+    elsif app.is_front_office() is true and app.current_staff_id() is not null
+      and app.current_member_id() is null then
+      v_is_member := false;
+    end if;
+  end if;
+  if v_tenant is null or v_is_member is null then
+    raise exception 'Request unavailable' using errcode = 'P0002';
+  end if;
+  if v_is_member then
+    select * into v_proof from app.pay_proof_evidence(v_tenant, p_request_id, v_member_id, true);
   else
-    select * into v_proof from app.pay_proof_evidence(v_actor.tenant_id, p_request_id, null, false);
+    select * into v_proof from app.pay_proof_evidence(v_tenant, p_request_id, null, false);
   end if;
   return jsonb_build_object(
     'requestId', p_request_id,

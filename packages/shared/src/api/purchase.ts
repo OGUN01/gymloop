@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Constants } from '@gymloop/db';
-import { POSTGRES_BIGINT_MAX } from '../config/constants';
+import { MEDIA_LIMITS, POSTGRES_BIGINT_MAX } from '../config/constants';
+import { MEDIA_MIME_TYPES } from './media';
 
 /**
  * PAY — member purchase requests and private payment claims.
@@ -42,8 +43,12 @@ export type PurchaseCreateRequest = z.infer<typeof purchaseCreateRequestSchema>;
 
 export const purchaseCancelRequestSchema = z.strictObject({ commandKey: id });
 export const purchaseAcceptRequestSchema = z.strictObject({ expectedRevision: id, commandKey: id });
-export const purchaseProofUploadUrlRequestSchema = z.strictObject({});
-export const purchaseProofConfirmRequestSchema = purchaseAcceptRequestSchema.extend({ assetId: id });
+/** Declared file facts only; tenant, kind and object keys stay server-chosen (BUY-008). */
+export const purchaseProofUploadUrlRequestSchema = z.strictObject({
+  mime: z.enum(MEDIA_MIME_TYPES).optional(),
+  bytes: z.number().int().min(1).max(MEDIA_LIMITS.maxBytes).optional(),
+});
+export const purchaseProofConfirmRequestSchema = purchaseAcceptRequestSchema.extend({ assetId: id, requestId: id.optional() });
 
 const shownReason = z.string().min(BUY_SCHEMA_BOUNDS.reasonMinLength).max(BUY_SCHEMA_BOUNDS.reasonMaxLength);
 const decisionEnvelope = z.strictObject({ requestId: id.optional(), expectedRevision: id, commandKey: id, reason: shownReason });
@@ -71,6 +76,7 @@ export const purchaseRequestRowSchema = z.strictObject({
   gstRateBp: z.number().int().nonnegative(),
   createdAt: instant,
   acceptedAt: instant.nullable(),
+  acceptedRevision: id.nullable().optional(),
   expiresAt: instant.nullable(),
   reason: z.string().nullable(),
   proofStatus: z.enum(PURCHASE_PROOF_STATUSES),
