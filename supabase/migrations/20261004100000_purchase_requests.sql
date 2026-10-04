@@ -786,6 +786,10 @@ begin
   perform pg_advisory_xact_lock(hashtextextended(
     'purchase-request:' || v_actor.tenant_id::text || ':' || p_request_id::text, 0));
   v_facts := jsonb_build_object('mime', p_mime, 'bytes', p_bytes);
+  -- The command-table seam's take re-proves a minted capability row; the
+  -- register path mints its own member-class capability here, exactly as the
+  -- attach command does, so the lookup's take resolves instead of starving.
+  perform app.pay_grant_capability('command_note', v_actor.tenant_id, p_request_id, 'member');
   v_existing := app.pay_command_lookup(v_actor.tenant_id, p_request_id, p_command_key, 'register');
   if v_existing is not null then
     if v_existing->'facts' = v_facts and v_existing->>'actor_user_id' = v_actor.user_id::text then
