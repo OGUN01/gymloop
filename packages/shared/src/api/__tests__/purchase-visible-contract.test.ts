@@ -100,8 +100,8 @@ describe('recorded paise stays within the signed-bigint wire contract', () => {
     expect(purchaseRecordRequestSchema.safeParse({ ...valid, actualAmount }).success).toBe(false);
   });
   it('requires method and explicit INR and refuses extra money facts', () => {
-    const { method: _method, ...missingMethod } = valid;
-    const { currency: _currency, ...missingCurrency } = valid;
+    const { method, ...missingMethod } = valid;
+    const { currency, ...missingCurrency } = valid;
     expect(purchaseRecordRequestSchema.safeParse(missingMethod).success).toBe(false);
     expect(purchaseRecordRequestSchema.safeParse(missingCurrency).success).toBe(false);
     for (const method of ['UPI', 'unknown', '', null]) expect(purchaseRecordRequestSchema.safeParse({ ...valid, method }).success).toBe(false);

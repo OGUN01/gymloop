@@ -64,7 +64,9 @@ describe('R1 the scalar page object decodes with camelCase rows and nested snaps
       'cancellationTerms', 'currency', 'description', 'gstRateBp', 'kind', 'pricePaise',
       'productId', 'productName', 'quoteVersion', 'totalPaise', 'unitPricePaise', 'validityDays',
     ]);
-    expect(parsed.data.snapshot.unitPricePaise).toBe('199900');
+    const snap = parsed.data.snapshot;
+    if (!('unitPricePaise' in snap)) throw new Error('the shop snapshot must carry the unit-price field');
+    expect(snap.unitPricePaise).toBe('199900');
   });
   it('keeps the nested PT snapshot keys trainerStaffId and sessionCount', () => {
     const pt = { ...row, kind: 'pt', snapshot: { ...shopSnapshot, trainerStaffId: id, sessionCount: 10 } };
