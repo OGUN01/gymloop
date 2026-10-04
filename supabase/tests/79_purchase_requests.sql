@@ -10,11 +10,12 @@ begin;
 set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims','',true);
-select plan(252);
+select plan(253);
 
 create function pg_temp.sid(n integer) returns uuid language sql immutable as $$select ('79100000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.claim(r text, t integer default 1, s integer default null, m integer default null, u integer default null, extra jsonb default '{}'::jsonb) returns void language plpgsql as $$begin perform set_config('request.jwt.claims',(jsonb_strip_nulls(jsonb_build_object('role','authenticated','app_role',r,'tenant_id',pg_temp.sid(t),'staff_id',pg_temp.sid(s),'member_id',pg_temp.sid(m),'sub',pg_temp.sid(u)))||extra)::text,true); end$$;
 create function pg_temp.refusal(q text) returns text language plpgsql as $$declare d text; c text; begin execute q; return 'NO ERROR'; exception when others then get stacked diagnostics c=returned_sqlstate,d=pg_exception_detail; return c||case when coalesce(d,'')='' then '' else ':'||d end; end$$;
+create function pg_temp.diag(q text) returns text language plpgsql as $$declare d text; c text; m text; begin execute q; return 'NO ERROR'; exception when others then get stacked diagnostics c=returned_sqlstate,d=pg_exception_detail,m=pg_exception_message; return c||':'||coalesce(d,'')||' | '||coalesce(m,''); end$$;
 create function pg_temp.replayed(q text) returns text language plpgsql as $$declare r jsonb; begin execute q into r; return r->>'replayed'; exception when others then return 'ERR '||sqlstate; end$$;
 create function pg_temp.stage(n integer, k text default 'product') returns text language sql immutable as $$select pg_temp.sid(1)::text||'/staging/'||k||'/'||pg_temp.sid(n)::text||'.jpg'$$;
 create function pg_temp.pub(n integer, k text default 'product') returns text language sql immutable as $$select pg_temp.sid(1)::text||'/published/'||k||'/'||pg_temp.sid(n)::text||'.jpg'$$;
@@ -39,7 +40,7 @@ create function pg_temp.reg(l text, rl text) returns void language plpgsql secur
 create function pg_temp.regn(rl text, n integer) returns integer language plpgsql security definer as $$declare c integer := 0; begin for i in 1..n loop begin perform public.register_payment_proof((select id from req where label = rl), 'image/jpeg', 1000); c := c + 1; exception when others then null; end; end loop; return c; end$$;
 create function pg_temp.mst(l text) returns jsonb language plpgsql security definer as $$begin return (select to_jsonb(m) from public.media_assets m where m.id = (select asset from regs where label = l)); end$$;
 create function pg_temp.aaudits(a text, l text) returns integer language plpgsql security definer as $$begin return (select count(*)::integer from public.audit_log where action = a and record_id = (select asset from regs where label = l)); end$$;
-grant execute on function pg_temp.sid(integer),pg_temp.claim(text,integer,integer,integer,integer,jsonb),pg_temp.refusal(text),pg_temp.replayed(text),pg_temp.stage(integer,text),pg_temp.pub(integer,text),pg_temp.cap(text,integer),pg_temp.rq(text),pg_temp.rev(text),pg_temp.nkey(integer),pg_temp.pj(integer),pg_temp.nproof(text,text),pg_temp.aproof(text),pg_temp.audits(text,text),pg_temp.reg(text,text),pg_temp.regn(text,integer),pg_temp.mst(text),pg_temp.aaudits(text,text) to authenticated,anon,service_role;
+grant execute on function pg_temp.sid(integer),pg_temp.claim(text,integer,integer,integer,integer,jsonb),pg_temp.refusal(text),pg_temp.diag(text),pg_temp.replayed(text),pg_temp.stage(integer,text),pg_temp.pub(integer,text),pg_temp.cap(text,integer),pg_temp.rq(text),pg_temp.rev(text),pg_temp.nkey(integer),pg_temp.pj(integer),pg_temp.nproof(text,text),pg_temp.aproof(text),pg_temp.audits(text,text),pg_temp.reg(text,text),pg_temp.regn(text,integer),pg_temp.mst(text),pg_temp.aaudits(text,text) to authenticated,anon,service_role;
 
 -- BUY-005 exact database vocabularies.
 select enum_has_labels('public','purchase_request_kind',array['shop','pt','renewal'],'BUY-005 exact request kind vocabulary');
@@ -369,6 +370,9 @@ select is(pg_temp.audits('purchase_request.recorded','KR1'),1,'BUY-020 replay ap
 -- BUY-014 mismatched funds recorded honestly without entitlement.
 select pg_temp.claim('member',1,null,31,906);
 set local role authenticated;
+-- RUNTIME DIAGNOSTIC (instrumentation, removable after the root is named): the
+-- mismatch scenario's create caught with full diagnostics in the TAP.
+select is(pg_temp.diag($q$select public.create_purchase_request(pg_temp.sid(522),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101)))$q$),'NO ERROR','BUY-014 DIAGNOSTIC the mismatch create with its caught SQLSTATE/detail/message (not a contract pin)');
 select lives_ok($q$insert into req(label,id) select 'KR2',(r->>'requestId')::uuid from (select public.create_purchase_request(pg_temp.sid(522),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101))) as r) v$q$,'captured create returns the labeled request id');
 set local role postgres;
 select is((select count(*) from public.purchase_requests where request_key = pg_temp.sid(522) and tenant_id = pg_temp.sid(1)),1::bigint,'BUY-008/010 the KR2 linkage anchor row exists before the media fixture insert (loud, never a silent NULL)');
