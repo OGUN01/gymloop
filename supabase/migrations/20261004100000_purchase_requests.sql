@@ -719,7 +719,7 @@ begin
          and m.created_by_member_id = v_actor.member_id
          and m.created_at > statement_timestamp() - interval '1 hour')
     >= c_member_hourly then
-    raise exception 'Proof registration limit reached' using errcode = 'GL126', detail = 'proof_limit';
+    raise exception 'Proof registration limit reached' using errcode = '22023', detail = 'purchase_cap';
   end if;
   if (select count(*) from public.media_assets m
        where m.tenant_id = v_actor.tenant_id
@@ -759,6 +759,56 @@ begin
     'assetId', v_id, 'stagingObjectKey', v_key,
     'mime', p_mime, 'bytes', p_bytes
   );
+end
+$fn$;
+
+-- Keyed registration replay (frozen decision 5): one logical upload keeps one
+-- command UUID. Same actor/key and same normalized request/MIME/bytes return
+-- the original registration result read-only — no second candidate, counter
+-- use or deadline; changed facts conflict (GL068). The unkeyed overload above
+-- stays for callers that register without retry identity.
+create function public.register_payment_proof(
+  p_request_id uuid, p_mime text, p_bytes integer, p_command_key uuid
+) returns jsonb
+language plpgsql volatile security definer set search_path = ''
+as $fn$
+declare
+  v_actor record;
+  v_existing jsonb;
+  v_facts jsonb;
+  v_asset public.media_assets%rowtype;
+  v_result jsonb;
+begin
+  select * into v_actor from app.shop_actor('member');
+  if p_command_key is null then
+    raise exception 'Registration arguments required' using errcode = '22023';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(
+    'purchase-request:' || v_actor.tenant_id::text || ':' || p_request_id::text, 0));
+  v_facts := jsonb_build_object('mime', p_mime, 'bytes', p_bytes);
+  v_existing := app.pay_command_lookup(v_actor.tenant_id, p_request_id, p_command_key, 'register');
+  if v_existing is not null then
+    if v_existing->'facts' = v_facts and v_existing->>'actor_user_id' = v_actor.user_id::text then
+      -- Read-only replay of the original registration result: same asset, same
+      -- staging facts, no new candidate, counter use or deadline.
+      select a.* into v_asset from public.media_assets a
+       where a.tenant_id = v_actor.tenant_id and a.id = (v_existing->>'facts'->>'assetId')::uuid;
+      if not found then
+        raise exception 'Proof registration key already named different facts'
+          using errcode = 'GL068', detail = 'idempotency_conflict';
+      end if;
+      return jsonb_build_object(
+        'assetId', v_asset.id, 'stagingObjectKey', v_asset.staging_object_key,
+        'mime', p_mime, 'bytes', p_bytes);
+    end if;
+    raise exception 'Proof registration key already named different facts'
+      using errcode = 'GL068', detail = 'idempotency_conflict';
+  end if;
+  v_result := public.register_payment_proof(p_request_id, p_mime, p_bytes);
+  perform app.pay_command_record(v_actor.tenant_id, p_request_id, p_command_key, 'register',
+    jsonb_build_object('assetId', (v_result->>'assetId')::uuid, 'mime', p_mime, 'bytes', p_bytes),
+    v_actor.user_id);
+  return v_result;
 end
 $fn$;
 
@@ -837,6 +887,19 @@ begin
     or split_part(p_published_object_key,'.',2)<>(case p_mime when 'image/jpeg' then 'jpg' when 'image/png' then 'png' when 'image/webp' then 'webp' end) then
     raise exception 'Verified metadata does not match registration' using errcode='22023';
   end if;
+  if v_member_path then
+    -- The registered request must still be live and accepted at publish time —
+    -- and at replay time: a confirmed-asset replay is read-only but not
+    -- authority-free, so this revalidation precedes the replay return too.
+    if v_asset.linked_request_id is null then
+      raise exception 'Proof upload needs an accepted live request' using errcode='GL066',detail='request_not_accepted';
+    end if;
+    perform 1 from public.purchase_requests r where r.tenant_id=p_tenant_id and r.id=v_asset.linked_request_id
+      and r.status in ('owner_accepted','payment_proof_uploaded') and r.expires_at>statement_timestamp();
+    if not found then
+      raise exception 'Proof upload needs an accepted live request' using errcode='GL066',detail='request_not_accepted';
+    end if;
+  end if;
   if v_asset.confirmed_at is not null then
     if v_asset.object_key is null or v_asset.verified_source_etag is null or v_asset.published_etag is null
       or btrim(v_asset.verified_source_etag)='' or btrim(v_asset.published_etag)='' then
@@ -846,17 +909,6 @@ begin
   end if;
   if v_asset.object_key is not null or v_asset.verified_source_etag is not null or v_asset.published_etag is not null then
     raise exception 'Media verification is inconsistent' using errcode='GL086',detail='media_not_ready';
-  end if;
-  if v_member_path then
-    -- The registered request must still be live and accepted at publish time.
-    if v_asset.linked_request_id is null then
-      raise exception 'Proof upload needs an accepted live request' using errcode='GL066',detail='request_not_accepted';
-    end if;
-    perform 1 from public.purchase_requests r where r.tenant_id=p_tenant_id and r.id=v_asset.linked_request_id
-      and r.status in ('owner_accepted','payment_proof_uploaded') and r.expires_at>statement_timestamp();
-    if not found then
-      raise exception 'Proof upload needs an accepted live request' using errcode='GL066',detail='request_not_accepted';
-    end if;
   end if;
   v_prior_marker:=current_setting('app.media_finalize_command',true);
   perform set_config('app.media_finalize_command','finalize:'||p_asset_id::text,true);
@@ -1450,14 +1502,14 @@ begin
      and status in ('requested', 'owner_accepted', 'payment_proof_uploaded')
      and expires_at > v_now;
   if v_active >= c_open_cap then
-    raise exception 'Too many open purchase requests' using errcode = 'GL126', detail = 'request_limit';
+    raise exception 'Too many open purchase requests' using errcode = '22023', detail = 'purchase_cap';
   end if;
 
   select count(*) into v_today_count from public.purchase_requests
    where tenant_id = v_actor.tenant_id and member_id = v_actor.member_id
      and created_at > v_now - c_ttl;
   if v_today_count >= c_daily_cap then
-    raise exception 'Too many purchase requests raised today' using errcode = 'GL126', detail = 'request_limit';
+    raise exception 'Too many purchase requests raised today' using errcode = '22023', detail = 'purchase_cap';
   end if;
 
   if p_kind = 'shop' then
@@ -1680,7 +1732,7 @@ begin
 
   update public.purchase_requests r
      set status = 'owner_accepted',
-         accepted_revision = case when r.kind = 'renewal' then null else p_expected_revision end,
+         accepted_revision = case when r.kind = 'renewal' then gen_random_uuid() else p_expected_revision end,
          accepted_at = v_now,
          accepted_by_user_id = v_actor.user_id,
          accepted_by_staff_id = v_actor.staff_id,
@@ -1944,14 +1996,15 @@ declare
   v_old_found boolean;
 begin
   select * into v_actor from app.shop_actor('member');
-  if p_request_id is null or p_asset_id is null or p_command_key is null then
+  if p_request_id is null or p_asset_id is null or p_command_key is null
+    or p_expected_revision is null then
     raise exception 'Proof arguments required' using errcode = '22023';
   end if;
 
   perform pg_advisory_xact_lock(hashtextextended(
     'purchase-request:' || v_actor.tenant_id::text || ':' || p_request_id::text, 0));
 
-  v_facts := jsonb_build_object('assetId', p_asset_id);
+  v_facts := jsonb_build_object('assetId', p_asset_id, 'revision', p_expected_revision);
   perform app.pay_grant_capability('command_note', v_actor.tenant_id, p_request_id, 'member');
   v_existing := app.pay_command_lookup(v_actor.tenant_id, p_request_id, p_command_key, 'attach');
   if v_existing is not null then
@@ -1981,12 +2034,22 @@ begin
     raise exception 'Proof upload needs an accepted live request'
       using errcode = 'GL066', detail = 'request_not_accepted';
   end if;
+  -- The attach validates the caller's expected revision server-side (BUY-010/016):
+  -- a stale screen cannot attach against a request it has not seen.
+  if p_expected_revision is distinct from v_request.accepted_revision then
+    raise exception 'The request changed; refresh and try again'
+      using errcode = 'GL066', detail = 'revision_stale';
+  end if;
 
   select a.* into v_asset from public.media_assets a
    where a.tenant_id = v_actor.tenant_id and a.id = p_asset_id;
   if not found or v_asset.kind is distinct from 'payment_proof'
     or v_asset.confirmed_at is null or v_asset.deleted_at is not null
-    or v_asset.created_by_member_id is distinct from v_actor.member_id then
+    or v_asset.created_by_member_id is distinct from v_actor.member_id
+    -- Exact registration-to-request linkage, enforced independently at
+    -- attachment (BUY-008/010): an asset registered for one request can never
+    -- attach to another, first attach included.
+    or v_asset.linked_request_id is distinct from p_request_id then
     -- Unknown, foreign, unexposed and wrong-creator assets share one refusal.
     raise exception 'Proof asset is not a verified payment proof'
       using errcode = 'GL086', detail = 'media_not_ready';
@@ -2341,7 +2404,8 @@ $fn$;
 create function public.record_purchase_request(
   p_request_id uuid, p_expected_revision uuid, p_command_key uuid,
   p_actual_amount text, p_currency text, p_payment_method text,
-  p_initial_slot jsonb
+  p_initial_slot jsonb default null,
+  p_viewed_asset uuid default null, p_viewed_proof_revision uuid default null
 ) returns jsonb
 language plpgsql volatile security invoker set search_path = ''
 as $fn$
@@ -2392,7 +2456,9 @@ begin
     'purchase-request:' || v_actor.tenant_id::text || ':' || p_request_id::text, 0));
 
   v_facts := jsonb_build_object(
-    'amountPaise', v_amount::text, 'currency', p_currency, 'method', v_method::text);
+    'amountPaise', v_amount::text, 'currency', p_currency, 'method', v_method::text,
+    'revision', p_expected_revision,
+    'viewedAsset', p_viewed_asset, 'viewedRevision', p_viewed_proof_revision);
   perform app.pay_grant_capability('command_note', v_actor.tenant_id, p_request_id, 'staff');
   v_existing := app.pay_command_lookup(v_actor.tenant_id, p_request_id, p_command_key, 'record');
   if v_existing is not null then
@@ -2430,6 +2496,25 @@ begin
   end if;
   if v_request.expires_at <= statement_timestamp() then
     raise exception 'The request has expired' using errcode = 'GL066', detail = 'request_expired';
+  end if;
+  -- The recording validates the verifier's expected revision server-side and
+  -- binds the decision to the exact currently viewed proof (BUY-010/012/016,
+  -- frozen decision 3): a replaced proof invalidates the earlier verifier
+  -- context even when the price is unchanged, and a null viewed asset with an
+  -- active proof on file is never a proof-backed recording.
+  if p_expected_revision is null
+    or p_expected_revision is distinct from v_request.accepted_revision then
+    raise exception 'The request changed; refresh and try again'
+      using errcode = 'GL066', detail = 'revision_stale';
+  end if;
+  if (p_viewed_asset is null) <> (v_request.active_proof_asset_id is null)
+    or (p_viewed_asset is null and p_viewed_proof_revision is not null)
+    or (p_viewed_asset is not null and
+      (p_viewed_asset is distinct from v_request.active_proof_asset_id
+       or p_viewed_proof_revision is null
+       or p_viewed_proof_revision is distinct from v_request.accepted_revision)) then
+    raise exception 'Recording requires the exact currently viewed proof'
+      using errcode = 'GL066', detail = 'proof_viewed_stale';
   end if;
   if nullif(v_request.snapshot->>'currency', '') is distinct from p_currency then
     raise exception 'The accepted currency cannot change' using errcode = '22023';
@@ -2693,6 +2778,7 @@ $fn$;
 -- Ownership, volatility and grants for every public surface
 -- ---------------------------------------------------------------------------
 alter function public.register_payment_proof(uuid,text,integer) owner to postgres;
+alter function public.register_payment_proof(uuid,text,integer,uuid) owner to postgres;
 alter function public.create_purchase_request(uuid,public.purchase_request_kind,uuid,integer,uuid) owner to postgres;
 alter function public.accept_purchase_request(uuid,uuid,uuid) owner to postgres;
 alter function public.reconfirm_purchase_quote(uuid,uuid,uuid) owner to postgres;
@@ -2714,7 +2800,10 @@ begin
 end
 $fn$;
 
-alter function public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb) owner to postgres;
+alter function public.record_purchase_request(uuid,uuid,uuid,text,text,text) owner to postgres;
+alter function public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb,uuid,uuid) owner to postgres;
+revoke all on function public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb,uuid,uuid) from public, anon, service_role;
+grant execute on function public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb,uuid,uuid) to authenticated;
 revoke all on function public.record_purchase_request(uuid,uuid,uuid,text,text,text) from public, anon, service_role;
 grant execute on function public.record_purchase_request(uuid,uuid,uuid,text,text,text) to authenticated;
 alter function public.read_member_purchase_requests(integer,timestamptz,uuid) owner to postgres;
@@ -2722,6 +2811,7 @@ alter function public.read_purchase_requests(integer,timestamptz,uuid) owner to 
 alter function public.read_purchase_request(uuid) owner to postgres;
 
 revoke all on function public.register_payment_proof(uuid,text,integer) from public, anon, service_role;
+revoke all on function public.register_payment_proof(uuid,text,integer,uuid) from public, anon, service_role;
 revoke all on function public.create_purchase_request(uuid,public.purchase_request_kind,uuid,integer,uuid) from public, anon, service_role;
 revoke all on function public.accept_purchase_request(uuid,uuid,uuid) from public, anon, service_role;
 revoke all on function public.reconfirm_purchase_quote(uuid,uuid,uuid) from public, anon, service_role;
@@ -2729,12 +2819,13 @@ revoke all on function public.cancel_purchase_request(uuid,uuid) from public, an
 revoke all on function public.attach_payment_proof(uuid,uuid,uuid,uuid) from public, anon, service_role;
 revoke all on function public.reject_purchase_request(uuid,uuid,text,uuid) from public, anon, service_role;
 revoke all on function public.reject_payment_proof(uuid,uuid,uuid,text,uuid) from public, anon, service_role;
-revoke all on function public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb) from public, anon, service_role;
+revoke all on function public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb,uuid,uuid) from public, anon, service_role;
 revoke all on function public.read_member_purchase_requests(integer,timestamptz,uuid) from public, anon, service_role;
 revoke all on function public.read_purchase_requests(integer,timestamptz,uuid) from public, anon, service_role;
 revoke all on function public.read_purchase_request(uuid) from public, anon, service_role;
 
 grant execute on function public.register_payment_proof(uuid,text,integer) to authenticated;
+grant execute on function public.register_payment_proof(uuid,text,integer,uuid) to authenticated;
 grant execute on function public.create_purchase_request(uuid,public.purchase_request_kind,uuid,integer,uuid) to authenticated;
 grant execute on function public.accept_purchase_request(uuid,uuid,uuid) to authenticated;
 grant execute on function public.reconfirm_purchase_quote(uuid,uuid,uuid) to authenticated;
@@ -2742,7 +2833,7 @@ grant execute on function public.cancel_purchase_request(uuid,uuid) to authentic
 grant execute on function public.attach_payment_proof(uuid,uuid,uuid,uuid) to authenticated;
 grant execute on function public.reject_purchase_request(uuid,uuid,text,uuid) to authenticated;
 grant execute on function public.reject_payment_proof(uuid,uuid,uuid,text,uuid) to authenticated;
-grant execute on function public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb) to authenticated;
+grant execute on function public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb,uuid,uuid) to authenticated;
 grant execute on function public.read_member_purchase_requests(integer,timestamptz,uuid) to authenticated;
 grant execute on function public.read_purchase_requests(integer,timestamptz,uuid) to authenticated;
 grant execute on function public.read_purchase_request(uuid) to authenticated;
@@ -2780,23 +2871,27 @@ revoke all on function app.enforce_pay_stock_holds() from public, anon, authenti
 grant execute on function app.expire_purchase_requests(timestamptz) to service_role;
 
 -- ---------------------------------------------------------------------------
--- Coordinator contract addition (2026-10-03; amended 2026-10-04, owner
--- decision 3): private proof URL authorization. SQL authorizes and bounds;
+-- Coordinator contract addition (2026-10-03; amended 2026-10-04, frozen
+-- decisions 1+7): private proof URL authorization. SQL authorizes and bounds;
 -- the Edge/web mint composes the final no-store signed GET (MEDIA has no
 -- SQL-side signer). The definer door re-proves the real, unimpersonated
 -- session class itself — a direct invoker read mints no capability token.
--- Pre-recording states serve the single active proof; the frozen
--- post-recording states (owner decision 3) serve the causally bound proof.
--- Every other state keeps the one external refusal.
+-- ACTIVE-ONLY viewing (frozen decision 1): only the currently active proof of
+-- a LIVE request is viewable — the attached active proof, or while none is
+-- attached yet the member's latest confirmed unattached registration for that
+-- request. Recorded/mismatch/bound history, closed requests and expired
+-- requests keep the one external refusal. The helper returns a concrete named
+-- row type (never an anonymous record).
 -- ---------------------------------------------------------------------------
 create function app.pay_proof_evidence(
   p_tenant_id uuid, p_request_id uuid, p_member_id uuid, p_is_member boolean
-) returns record
+) returns table (proof_id uuid, asset_id uuid)
 language plpgsql stable security definer set search_path = ''
 as $fn$
 declare
   v_request public.purchase_requests%rowtype;
   v_proof public.payment_proofs%rowtype;
+  v_asset public.media_assets%rowtype;
 begin
   if p_is_member is null or p_tenant_id is null or p_request_id is null then
     raise exception 'Request unavailable' using errcode = 'P0002';
@@ -2808,7 +2903,8 @@ begin
       or p_member_id is distinct from app.current_member_id()
       or not exists (select 1 from public.members m
            where m.tenant_id = p_tenant_id and m.id = app.current_member_id()
-             and m.user_id = auth.uid()) then
+             and m.user_id = auth.uid() and m.status = 'active'
+             and m.erased_at is null) then
       raise exception 'Request unavailable' using errcode = 'P0002';
     end if;
   else
@@ -2828,21 +2924,37 @@ begin
   if not found then
     raise exception 'Request unavailable' using errcode = 'P0002';
   end if;
-  if v_request.status in ('owner_accepted', 'payment_proof_uploaded') then
+  -- Active-only: a live request in a pre-recording state serves its current
+  -- proof; recorded, mismatch_recorded, closed and expired requests refuse.
+  if v_request.status in ('owner_accepted', 'payment_proof_uploaded')
+    and v_request.expires_at > statement_timestamp() then
     select p.* into v_proof from public.payment_proofs p
      where p.tenant_id = p_tenant_id and p.request_id = p_request_id
        and p.disposition = 'active';
-  elsif v_request.status in ('recorded', 'mismatch_recorded') then
-    select p.* into v_proof from public.payment_proofs p
-     where p.tenant_id = p_tenant_id and p.request_id = p_request_id
-       and p.disposition = 'bound';
-  else
-    raise exception 'Request unavailable' using errcode = 'P0002';
+    if found then
+      proof_id := v_proof.id;
+      asset_id := v_proof.asset_id;
+      return;
+    end if;
+    -- No attached proof yet: the member's latest confirmed, not-deleted,
+    -- unattached registration for exactly this request is the current proof —
+    -- but only if that asset was never attached (a rejected or superseded
+    -- earlier proof is decision history, never the current view).
+    select a.* into v_asset from public.media_assets a
+     where a.tenant_id = p_tenant_id and a.kind = 'payment_proof'
+       and a.linked_request_id = p_request_id
+       and a.confirmed_at is not null and a.deleted_at is null
+       and a.attached_to_id is null
+     order by a.created_at desc, a.id desc
+     limit 1;
+    if found and not exists (select 1 from public.payment_proofs p
+         where p.tenant_id = p_tenant_id and p.asset_id = v_asset.id) then
+      proof_id := null;
+      asset_id := v_asset.id;
+      return;
+    end if;
   end if;
-  if not found then
-    raise exception 'Request unavailable' using errcode = 'P0002';
-  end if;
-  return row (v_proof.id, v_proof.asset_id, v_request.expires_at);
+  raise exception 'Request unavailable' using errcode = 'P0002';
 end
 $fn$;
 
@@ -2853,7 +2965,8 @@ declare
   v_tenant uuid;
   v_is_member boolean;
   v_member_id uuid;
-  v_proof record;
+  v_proof_id uuid;
+  v_asset_id uuid;
 begin
   if p_request_id is null then
     raise exception 'Request arguments required' using errcode = '22023';
@@ -2876,14 +2989,16 @@ begin
     raise exception 'Request unavailable' using errcode = 'P0002';
   end if;
   if v_is_member then
-    select * into v_proof from app.pay_proof_evidence(v_tenant, p_request_id, v_member_id, true);
+    select proof_id, asset_id into v_proof_id, v_asset_id
+      from app.pay_proof_evidence(v_tenant, p_request_id, v_member_id, true);
   else
-    select * into v_proof from app.pay_proof_evidence(v_tenant, p_request_id, null, false);
+    select proof_id, asset_id into v_proof_id, v_asset_id
+      from app.pay_proof_evidence(v_tenant, p_request_id, null, false);
   end if;
   return jsonb_build_object(
     'requestId', p_request_id,
-    'proofId', v_proof.id,
-    'assetId', v_proof.asset_id,
+    'proofId', v_proof_id,
+    'assetId', v_asset_id,
     'expiresAt', transaction_timestamp() + interval '60 seconds',
     'url', '/api/purchase-requests/' || p_request_id::text || '/proof-asset'
   );

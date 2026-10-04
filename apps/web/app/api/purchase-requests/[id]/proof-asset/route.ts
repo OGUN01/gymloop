@@ -1,19 +1,20 @@
+import { MEDIA_EXTENSIONS, MEDIA_MIME_TYPES, parseMediaObjectKey, serverEnv, type MediaMime } from '@gymloop/shared';
 import { noStore } from '../../../../../lib/api';
+import { verifyProofCapability } from '../../../../../lib/purchase-http';
 import { readRequestIdentity } from '../../../../../lib/identity-session';
 
 /**
- * The one bounded GET the campaign's proof-URL rules pin (BUY-009/018): the
- * private evidence read behind the URL `read_purchase_proof_url` hands out.
- * The POST-only rule pins command routes; this is a bounded evidence read.
- * The same actor checks as the RPC run here (the owning member or the same-
- * tenant front-office verifier — the RPC's own successful row is the
- * authorization), the ≤60s bound is validated, bytes stream through without
- * ever persisting, and unknown/foreign/unexposed requests share one generic
- * refusal. Nothing here answers with storage metadata.
+ * The one bounded GET the campaign's proof-URL rules pin (BUY-009/018 and the
+ * frozen runtime decisions): the private evidence read behind the same-origin
+ * capability `read_purchase_proof_url` issued. The capability is mandatory,
+ * unforgeable and request/proof/asset/actor-bound with the immutable issued
+ * expiry — a GET never resets or extends that deadline, and absent, forged,
+ * expired, changed-tuple or foreign-request capabilities refuse before any
+ * object access. The object key never travels in the URL or the response:
+ * the published key is reconstructed server-side inside the caller's tenant,
+ * bytes stream through without persisting, and every answer is no-store.
  */
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const BOUNDS = { proofGetTtlSeconds: 60, clockSkewMs: 5000, msPerSecond: 1000 } as const;
 const GENERIC_REFUSAL = { status: 404, body: { ok: false, error: { code: 'request_unavailable', message: "That evidence isn't available." } } } as const;
 
 function generic(): Response {
@@ -22,54 +23,52 @@ function generic(): Response {
 
 type ProofSupabase = {
   auth?: { getSession?: () => Promise<{ data: { session?: { access_token?: string } | null } | null }> };
-  rpc: (name: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { code: string } | null }>;
-  functions: { invoke: (name: string, options: { body: Record<string, unknown>; headers?: Record<string, string> }) => Promise<{ data: unknown; error: unknown }> };
 };
 
 export async function GET(request: Request, context: { params: Promise<Record<string, string>> }): Promise<Response> {
   const resolved = await readRequestIdentity(request);
   if (!resolved) return generic();
-  const { requestId } = await context.params;
-  if (!requestId || !UUID_PATTERN.test(requestId)) return generic();
-  const supabase = resolved.supabase as unknown as ProofSupabase;
-  // The RPC freshly re-derives actor permission and the request's currently
-  // ACTIVE proof; a refused or foreign target is indistinguishable from an
-  // unknown one.
-  const proof = await supabase.rpc('read_purchase_proof_url', { p_request_id: requestId });
-  if (proof.error || !Array.isArray(proof.data) || proof.data.length === 0) return generic();
-  const row = proof.data[0] as { request_id?: unknown; url?: unknown; expires_at?: unknown; asset_id?: unknown };
-  if (typeof row.url !== 'string' || typeof row.expires_at !== 'string') return generic();
-  // The bounded URL lives ≤ the frozen 60-second TTL: reject anything
-  // already expired, or minted with a longer life than the cap allows.
-  const minted = Date.parse(row.expires_at);
-  const consumed = new URL(request.url).searchParams.get('e');
-  if (Number.isNaN(minted) || minted < Date.now()) return generic();
-  if (minted > Date.now() + BOUNDS.proofGetTtlSeconds * BOUNDS.msPerSecond + BOUNDS.clockSkewMs) return generic();
-  if (typeof consumed === 'string') {
-    const consumedAt = Number.parseInt(consumed, 10);
-    if (!Number.isFinite(consumedAt) || consumedAt * BOUNDS.msPerSecond < Date.now()) return generic();
+  // Only a real member or front-office identity carries the tenant binding
+  // this boundary authorizes; platform and unlinked identities refuse here.
+  const identityKind = resolved.identity.kind;
+  if (identityKind !== 'member' && identityKind !== 'staff') return generic();
+  // The route lives on the [id] segment; the capability's request binding is
+  // checked against exactly that segment value.
+  const { id: requestId } = await context.params;
+  const capability = new URL(request.url).searchParams.get('capability');
+  if (!requestId || !capability) return generic();
+  const verified = verifyProofCapability(capability);
+  if (!verified.ok) return generic();
+  const payload = verified.payload;
+  // The capability is request-bound and actor-bound: another request path, a
+  // different signed-in account or a foreign tenant refuses identically.
+  if (payload.r !== requestId || payload.u !== resolved.identity.userId || payload.t !== resolved.identity.tenantId) return generic();
+  const mime: MediaMime | null = payload.m && (MEDIA_MIME_TYPES as readonly string[]).includes(payload.m) ? payload.m : null;
+  const extensions = mime ? [MEDIA_EXTENSIONS[mime]] : Object.values(MEDIA_EXTENSIONS);
+  // The published key is reconstructed from the caller's own tenant and the
+  // capability's asset id — never carried in, echoed back, or logged.
+  const tenant = resolved.identity.tenantId;
+  const keys = extensions.map(extension => `${tenant}/published/payment_proof/${payload.a}.${extension}`).filter(key => parseMediaObjectKey(key) !== null);
+  if (keys.length === 0) return generic();
+  const config = serverEnv();
+  const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
+  const client = new S3Client({ region: 'auto', endpoint: config.R2_ENDPOINT, credentials: { accessKeyId: config.R2_ACCESS_KEY_ID, secretAccessKey: config.R2_SECRET_ACCESS_KEY } });
+  let body: ReadableStream<Uint8Array> | null = null;
+  for (const key of keys) {
+    try {
+      const answer = await client.send(new GetObjectCommand({ Bucket: config.R2_BUCKET, Key: key }));
+      if (answer.Body) {
+        body = answer.Body as ReadableStream<Uint8Array>;
+        break;
+      }
+    } catch { /* A missing extension candidate is not an authorization fact. */ }
   }
-  if (typeof row.asset_id !== 'string' || !UUID_PATTERN.test(row.asset_id)) return generic();
-  // Private MEDIA proof objects stream through the MEDIA verifier's proof
-  // operation; the signed private URL never reaches the caller. The verifier
-  // answers the frozen `{ ok, data: { imageUrl } }` signer envelope and the
-  // verified caller capability is forwarded explicitly, header bearer first
-  // and the verified cookie session otherwise (the repo's media convention).
-  const header = request.headers.get('authorization');
-  const bearer = header?.startsWith('Bearer ') ? header.slice('Bearer '.length) : undefined;
-  const token = bearer ?? (await supabase.auth?.getSession?.().catch(() => null))?.data?.session?.access_token;
-  const media = await supabase.functions.invoke('media', { body: { operation: 'proof-url', assetId: row.asset_id }, ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}) }).catch(() => null);
-  const envelope = (media?.data ?? null) as { ok?: unknown; data?: { imageUrl?: unknown } } | null;
-  const signedUrl = envelope?.ok === true && typeof envelope.data?.imageUrl === 'string' ? envelope.data.imageUrl : null;
-  if (!signedUrl) return generic();
-  const bytes = await fetch(signedUrl).catch(() => null);
-  if (!bytes?.ok || !bytes.body) return generic();
-  return new Response(bytes.body, {
+  if (!body) return generic();
+  return new Response(body, {
     status: 200,
     headers: {
-      'content-type': bytes.headers.get('content-type') ?? 'application/octet-stream',
+      'content-type': mime ?? 'application/octet-stream',
       'cache-control': 'no-store',
-      'content-length': bytes.headers.get('content-length') ?? '',
     },
   });
 }

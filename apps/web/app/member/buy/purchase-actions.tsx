@@ -33,6 +33,10 @@ export function MemberPurchaseActions({ requestId, proofStatus, status, accepted
   const [stage, setStage] = useState<UploadStage | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  // One retained registration + attachment command identity per logical
+  // upload (frozen decision 5): keys survive unknown outcomes, so a retry
+  // replays the same facts instead of minting fresh ones.
+  const uploadKeys = useRef<{ commandKey: string; registrationKey: string } | null>(null);
   const run = (path: string, body: Record<string, unknown>) => runPurchaseAction(path, body, { busy, setBusy, setMessage, onOk: () => router.refresh() });
 
   const upload = async (file: File) => {
@@ -45,8 +49,10 @@ export function MemberPurchaseActions({ requestId, proofStatus, status, accepted
     }
     setBusy(true);
     try {
-      await uploadPaymentProof(file, requestId, acceptedRevision, crypto.randomUUID(), transportStage => setStage(STAGE_WORDS_FROM_TRANSPORT[transportStage]));
+      if (!uploadKeys.current) uploadKeys.current = { commandKey: crypto.randomUUID(), registrationKey: crypto.randomUUID() };
+      await uploadPaymentProof(file, requestId, acceptedRevision, uploadKeys.current.commandKey, uploadKeys.current.registrationKey, transportStage => setStage(STAGE_WORDS_FROM_TRANSPORT[transportStage]));
       setMessage('Screenshot uploaded. Pending verification — the gym checks the received money.');
+      uploadKeys.current = null;
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error && error.message ? error.message : purchaseRequestRefusalMessage('operation_failed'));
@@ -57,9 +63,9 @@ export function MemberPurchaseActions({ requestId, proofStatus, status, accepted
   };
 
   return <div className="space-y-2">
-    {status === 'owner_accepted' ? <>
+    {status === 'owner_accepted' || status === 'payment_proof_uploaded' ? <>
       <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label="Payment screenshot" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void upload(file); }} />
-      <button className="cl-btn" disabled={busy} onClick={() => fileInput.current?.click()}>{proofStatus === 'rejected' ? 'Re-upload payment screenshot' : 'Upload payment screenshot'}</button>
+      <button className="cl-btn" disabled={busy} onClick={() => fileInput.current?.click()}>{proofStatus === 'rejected' ? 'Re-upload payment screenshot' : status === 'payment_proof_uploaded' ? 'Replace payment screenshot' : 'Upload payment screenshot'}</button>
       <p>JPG, PNG or WebP up to 2 MB. The gym checks the received money before your purchase counts.</p>
       {stage ? <p role="status">{STAGE_WORDS[stage]}</p> : null}
     </> : null}

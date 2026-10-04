@@ -30,11 +30,16 @@ export async function uploadMediaFile(file: File, kind: MediaKind, onStage?: (st
  * confirms before the guarded attach. A screenshot stays a claim pending
  * verification — this helper never reports money truth.
  */
-export async function uploadPaymentProof(file: File, requestId: string, expectedRevision: string, commandKey: string, onStage?: (stage: MediaUploadStage) => void): Promise<{ assetId: string }> {
-  const declared = purchaseProofUploadUrlRequestSchema.safeParse({ mime: file.type, bytes: file.size });
+export async function uploadPaymentProof(file: File, requestId: string, expectedRevision: string, commandKey: string, registrationKey?: string, onStage?: (stage: MediaUploadStage) => void): Promise<{ assetId: string }> {
+  const declared = purchaseProofUploadUrlRequestSchema.safeParse({ mime: file.type, bytes: file.size, commandKey: registrationKey ?? commandKey });
   if (!declared.success || !declared.data.mime || !declared.data.bytes) throw new Error(purchaseRequestRefusalMessage('upload_rejected'));
   reportUploadStage(onStage, 'uploading');
-  const registration = await fetch(`/api/member/purchase-requests/${requestId}/proof-upload-url`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mime: declared.data.mime, bytes: declared.data.bytes }) });
+  // One registration command UUID per logical upload (frozen decision 5): the
+  // CALLER owns and retains the registration key across unknown outcomes and
+  // hands it to the transport explicitly — a retry transmits the identical
+  // value and never mints a fresh one. Without an explicit key the caller's
+  // attachment command key is the retained identity (the single-command shape).
+  const registration = await fetch(`/api/member/purchase-requests/${requestId}/proof-upload-url`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mime: declared.data.mime, bytes: declared.data.bytes, commandKey: registrationKey ?? commandKey }) });
   const envelope = await registration.json();
   if (!registration.ok || envelope?.ok !== true || typeof envelope.data?.assetId !== 'string' || typeof envelope.data.uploadUrl !== 'string') throw new Error(purchaseRequestRefusalMessage(typeof envelope?.error?.code === 'string' ? envelope.error.code : 'operation_failed'));
   const { assetId, uploadUrl } = envelope.data;

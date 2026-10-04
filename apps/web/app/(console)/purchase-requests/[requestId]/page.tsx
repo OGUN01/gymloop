@@ -34,6 +34,6 @@ export default async function PurchaseRequestDeskDetail({ params = Promise.resol
       {request.receivedPaise ? <p>The gym received {formatMoney(request.receivedPaise, request.currency)}{request.differencePaise ? ` · difference ${formatMoney(request.differencePaise, request.currency)}` : ''}.</p> : null}
       {request.reason ? <p>{request.reason}</p> : null}
     </section>
-    <DeskPurchaseActions requestId={request.requestId} status={request.status} proofStatus={request.proofStatus} amountPaise={request.amountPaise} currency={request.currency} expectedRevision={request.acceptedRevision} />
+    <DeskPurchaseActions requestId={request.requestId} status={request.status} proofStatus={request.proofStatus} amountPaise={request.amountPaise} currency={request.currency} expectedRevision={request.acceptedRevision} activeProofAssetId={request.activeProofAssetId} />
   </main>;
 }
