@@ -94,7 +94,7 @@ const ROUTES: { name: string; path: string }[] = [
   { name: 'member push-device register', path: '../../apps/web/app/api/member/push-device/route' },
   { name: 'member push-device remove', path: '../../apps/web/app/api/member/push-device/remove/route' },
   { name: 'member push-preference', path: '../../apps/web/app/api/member/push-preference/route' },
-  { name: 'member push-event evidence', path: '../../apps/web/app/api/member/notifications/[notificationId]/push-event/route' },
+  { name: 'member push-event evidence', path: '../../apps/web/app/api/member/notifications/[id]/push-event/route' },
   { name: 'campaign push review', path: '../../apps/web/app/api/announcements/[announcementId]/push-review/route' },
   { name: 'campaign cancel', path: '../../apps/web/app/api/push-campaigns/[campaignId]/cancel/route' },
 ];
