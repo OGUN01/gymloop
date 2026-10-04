@@ -50,7 +50,11 @@ jobs:
       # so no tsconfig can reach it and `pnpm -r typecheck` never saw it — the
       # gap `ci.yml`'s `deno-check` job closed at the start of Phase 5. Repeated
       # here so a deploy cannot outrun the check on a path-filtered push.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
       - uses: denoland/setup-deno@v2
         with: { deno-version: v2.x }
-      - run: deno check supabase/functions/**/*.ts
+      - run: deno check --node-modules-dir=auto supabase/functions/**/*.ts
       - run: supabase functions deploy no-show-scan --project-ref "$PROJECT_REF"
