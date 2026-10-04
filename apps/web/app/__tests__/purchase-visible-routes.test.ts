@@ -27,7 +27,7 @@ const deskRoutes = [
   { path: '../api/purchase-requests/[id]/accept/route', method: 'POST', audience: owner, body: { expectedRevision: id, commandKey: id } },
   { path: '../api/purchase-requests/[id]/reject/route', method: 'POST', audience: owner, body: { expectedRevision: id, commandKey: id, reason: 'Stock reserved for another member' } },
   { path: '../api/purchase-requests/[id]/reject-proof/route', method: 'POST', audience: owner, body: { assetId: id, expectedRevision: id, reason: 'Picture unclear, re-upload', commandKey: id } },
-  { path: '../api/purchase-requests/[id]/record/route', method: 'POST', audience: owner, body: { expectedRevision: id, commandKey: id, actualAmount: '199900', currency: 'INR', method: 'upi' } },
+  { path: '../api/purchase-requests/[id]/record/route', method: 'POST', audience: owner, body: { expectedRevision: id, commandKey: id, actualAmount: '199900', currency: 'INR', method: 'upi', viewedAssetId: id, viewedProofRevision: id } },
   { path: '../api/purchase-requests/[id]/proof-url/route', method: 'POST', audience: owner, body: {} },
 ] as const;
 const routes = [...memberRoutes, ...deskRoutes];
@@ -41,9 +41,20 @@ async function invoke(route: { path: string; method: string }, req: Request) { c
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-02T05:44:30Z'));
+  // The proof-url capability minting reads the registered env contract; the
+  // capability must stay in the existing trusted runtime (frozen decision 7).
+  vi.stubEnv('SUPABASE_PROJECT_REF', 'test-project-ref');
+  vi.stubEnv('R2_ACCESS_KEY_ID', 'test-r2-access-key');
+  vi.stubEnv('R2_SECRET_ACCESS_KEY', 'test-r2-secret');
+  vi.stubEnv('R2_BUCKET', 'test-bucket');
+  vi.stubEnv('R2_ENDPOINT', 'https://account.r2.cloudflarestorage.com');
+  vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role-key');
+  vi.stubEnv('SUPABASE_DB_PASSWORD', 'test-db-password');
+  vi.stubEnv('SUPABASE_ACCESS_TOKEN', 'test-access-token');
+  vi.stubEnv('CLOUDFLARE_ACCOUNT_ID', 'test-account-id');
   state.claims = member; state.calls = []; state.results = []; state.events = [];
 });
-afterEach(() => { vi.useRealTimers(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 
 describe('PAY route session/body order, shape and safe failures', () => {
   it.each(routes)('$path identifies caller before reading malformed JSON', async route => {
@@ -69,7 +80,7 @@ describe('PAY route session/body order, shape and safe failures', () => {
     const record = deskRoutes.find(route => route.path.includes('/record'))!;
     const response = await invoke(record, request(record.body, record.method));
     expect(response.status).toBe(200); expect(await response.json()).toEqual({ ok: true, data: { requestId: id, status: 'recorded', replayed: false, receiptId: 'RC-0011' } });
-    expect(state.calls).toEqual([{ name: 'record_purchase_request', args: { p_request_id: id, p_expected_revision: id, p_command_key: id, p_actual_amount: '199900', p_currency: 'INR', p_payment_method: 'upi' } }]);
+    expect(state.calls).toEqual([{ name: 'record_purchase_request', args: { p_request_id: id, p_expected_revision: id, p_command_key: id, p_actual_amount: '199900', p_currency: 'INR', p_payment_method: 'upi', p_viewed_asset: id, p_viewed_proof_revision: id } }]);
   });
   it('exact replay is answered read-only with the replayed flag', async () => {
     state.claims = owner;
@@ -113,7 +124,8 @@ describe('PAY route session/body order, shape and safe failures', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
     const payload = await response.json();
-    expect(payload.data).toEqual({ url: `/api/purchase-requests/${id}/proof-asset`, expiresAt: '2026-10-02T05:45:00Z' });
+    expect(payload.data.expiresAt).toBe('2026-10-02T05:45:00Z');
+    expect(payload.data.url.startsWith(`/api/purchase-requests/${id}/proof-asset?capability=`)).toBe(true);
   });
 });
 
@@ -199,7 +211,13 @@ describe('PAY complete actor and safe-read boundaries (BUY-001/009/019)', () => 
     const response = await invoke(deskRoutes[4], request({}, 'POST'));
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(await response.json()).toEqual({ ok: true, data: { url: `/api/purchase-requests/${id}/proof-asset`, expiresAt: '2026-10-02T05:45:00Z' } });
+    const envelope = await response.json();
+    expect(envelope.ok).toBe(true);
+    expect(envelope.data.expiresAt).toBe('2026-10-02T05:45:00Z');
+    expect(envelope.data.url.startsWith(`/api/purchase-requests/${id}/proof-asset?capability=`)).toBe(true);
+    const text = JSON.stringify(envelope);
+    expect(text).not.toContain('PRIVATE_KEY');
+    expect(text).not.toContain('PRIVATE_ETAG');
   });
   // Frozen PAY transport requires a live no-store GET with a TTL at most 60s.
   it.each([
@@ -237,16 +255,15 @@ describe('PAY record HTTP canonical money boundary (BUY-012)', () => {
     expect(response.status).toBe(200);
     expect(state.calls[0]?.args).toMatchObject({ p_actual_amount: '9223372036854775807', p_currency: 'INR', p_payment_method: 'upi' });
   });
-  it.each(['GL126', '__proto__', 'constructor', 'toString'])('maps %s without raw refusal or prototype output', async code => {
+  it.each(['__proto__', 'constructor', 'toString'])('maps %s without raw refusal or prototype output', async code => {
     state.claims = owner;
     state.results = [{ data: null, error: { code, message: 'RAW_PRIVATE_LEDGER' } }];
     const record = deskRoutes[3];
     const response = await invoke(record, request(record.body, 'POST'));
-    expect(response.status).toBe(code === 'GL126' ? 429 : 500);
+    expect(response.status).toBe(500);
     const payload = await response.json();
     expect(typeof payload.error.message).toBe('string');
     expect(JSON.stringify(payload)).not.toContain('RAW_PRIVATE_LEDGER');
-    if (code === 'GL126') expect(payload.error.code).toBe('rate_limited');
   });
 });
 

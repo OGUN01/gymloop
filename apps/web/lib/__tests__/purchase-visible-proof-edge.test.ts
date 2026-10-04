@@ -32,7 +32,7 @@ const proofDetail = () => ({
   quoteRevision: proofRequest, createdAt: '2026-10-02T05:00:00Z', expiresAt: '2026-10-03T05:00:00Z', proofStatus: requestProofStatus,
   activeProofAssetId: assetId,
 });
-const safeAsset = () => ({ id: assetId, tenant_id: tenant, kind: 'payment_proof', mime: 'image/jpeg', bytes: 12, created_by_member_id: member, created_at: '2026-10-02T00:00:00Z', confirmed_at: confirmed ? '2026-10-02T01:00:00Z' : null, deleted_at: mode === 'deleted' ? '2026-10-02T02:00:00Z' : null, attached_to_id: confirmed ? proofRequest : null });
+const safeAsset = () => ({ id: assetId, tenant_id: tenant, kind: 'payment_proof', mime: 'image/jpeg', bytes: 12, created_by_member_id: member, linked_request_id: proofRequest, created_at: '2026-10-02T00:00:00Z', confirmed_at: confirmed ? '2026-10-02T01:00:00Z' : null, deleted_at: mode === 'deleted' ? '2026-10-02T02:00:00Z' : null, attached_to_id: confirmed ? proofRequest : null });
 const privateAsset = () => ({ ...safeAsset(), tenant_id: mode === 'foreign-tenant' ? '83000000-0000-4000-8000-000000000001' : tenant, staging_object_key: mode === 'wrong-namespace' ? `${tenant}/staging/product/${assetId}.jpg` : staging, object_key: confirmed ? winningKey || `${tenant}/published/payment_proof/${publishedUuid}.jpg` : null, verified_source_etag: confirmed ? '"source"' : null, published_etag: confirmed ? '"published"' : null });
 async function transport(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const req = new Request(input, init); const url = new URL(req.url); const headers = req.headers; const body = await req.text(); calls.push({ url: req.url, method: req.method, headers, body });
@@ -44,6 +44,19 @@ async function transport(input: RequestInfo | URL, init?: RequestInit): Promise<
     }
     if (url.pathname.includes('/.well-known/jwks.json')) return json({ keys: [] });
     const privileged = headers.get('apikey') === 'service-test-key' || headers.get('authorization') === 'Bearer service-test-key';
+    if (url.pathname.endsWith('/staff')) {
+      // BUY-001: the verifier path re-proves an active staff row for the desk caller.
+      return json([{ id: staff, tenant_id: tenant, user_id: staff, role: 'front_desk', is_active: true }]);
+    }
+    if (url.pathname.endsWith('/members')) {
+      // The rebuilt flow re-proves the member actor's live status after awaits
+      // (frozen BUY-001: no blocked/cancelled/erased self-service).
+      if (mode === 'revoked-member') return json([{ id: member, tenant_id: tenant, status: 'cancelled', erased_at: null }]);
+      if (mode === 'erased-member') return json([{ id: member, tenant_id: tenant, status: 'active', erased_at: '2026-10-02T01:30:00Z' }]);
+      const memberRow = { id: member, tenant_id: tenant, status: 'active', erased_at: null, user_id: member };
+      if (headers.get('accept')?.includes('object')) return json(memberRow);
+      return json([memberRow]);
+    }
     if (url.pathname.endsWith('/media_assets')) {
       if (!privileged) {
         if (mode === 'foreign-tenant' || mode === 'invisible') return json([]);
@@ -249,23 +262,20 @@ describe('PAY proof operations at the trusted media Edge', () => {
   it.each([
     ['recorded', 'bound'],
     ['mismatch_recorded', 'bound'],
-  ])('proof-url still serves the owning member after the request is %s (owner decision 2026-10-04)', async (status, proofStatus) => {
+  ])('proof-url refuses the owning member once the request is %s: bound history is metadata only (frozen decision 1)', async (status, proofStatus) => {
     confirmed = true; requestStatus = status; requestProofStatus = proofStatus;
     const response = await invoke('proof-url', {}, memberClaims);
-    expect(response.status).toBe(200);
-    const data = await response.json();
-    expect(data.data.imageUrl).toContain('/published/payment_proof/');
-    expect(data.data.imageUrl).not.toContain('/staging/');
-    const expires = Number(new URL(data.data.imageUrl).searchParams.get('X-Amz-Expires'));
-    expect(expires).toBeGreaterThan(0);
-    expect(expires).toBeLessThanOrEqual(BUY_LIMITS.privateProofGetTtlSeconds);
+    expect([403, 404]).toContain(response.status);
+    expect(r2Calls()).toEqual([]);
   });
   it.each([
     ['recorded', 'bound'],
     ['mismatch_recorded', 'bound'],
-  ])('proof-url still serves the same-tenant verifier after the request is %s (owner decision 2026-10-04)', async (status, proofStatus) => {
+  ])('proof-url refuses the same-tenant verifier after the request is %s (frozen decision 1)', async (status, proofStatus) => {
     confirmed = true; requestStatus = status; requestProofStatus = proofStatus;
-    expect((await invoke('proof-url', {}, deskClaims)).status).toBe(200);
+    const response = await invoke('proof-url', {}, deskClaims);
+    expect([403, 404]).toContain(response.status);
+    expect(r2Calls()).toEqual([]);
   });
   it.each([
     { sub: member, role: 'authenticated', app_role: 'trainer', tenant_id: tenant, staff_id: staff, exp: 2147483647 },

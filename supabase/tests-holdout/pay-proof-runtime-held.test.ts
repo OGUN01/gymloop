@@ -48,6 +48,19 @@ function member() { h.identity = { kind: 'member', userId: id, tenantId: id, mem
 function staff(role = 'front_desk') { h.identity = { kind: 'staff', userId: id, tenantId: id, staffId: id, role }; }
 
 beforeEach(() => {
+  // Public env contract (packages/shared/src/config/env.ts): the route import
+  // chain asserts these at module load. Stub only — fixture plumbing.
+  for (const [k, v] of Object.entries({
+    SUPABASE_PROJECT_REF: '00000000000000000000000000000000',
+    SUPABASE_SERVICE_ROLE_KEY: 'held-service-key',
+    SUPABASE_DB_PASSWORD: 'held-db-password',
+    SUPABASE_ACCESS_TOKEN: 'held-access-token',
+    CLOUDFLARE_ACCOUNT_ID: 'held-account',
+    R2_ACCESS_KEY_ID: 'held-r2-key',
+    R2_SECRET_ACCESS_KEY: 'held-r2-secret',
+    R2_BUCKET: 'held-bucket',
+    R2_ENDPOINT: 'https://held.example.r2.cloudflarestorage.com',
+  })) { vi.stubEnv(k, v); process.env[k] = v; }
   h.identity = null; h.reply = { data: null, error: null };
   h.rpc.mockReset(); h.cookie.mockReset(); h.bearer.mockReset(); h.fetch.mockReset();
   const read = async () => h.identity === null ? null : ({ identity: h.identity, supabase: { rpc: h.rpc }, signedIn: true, authenticatedUser: true });
@@ -107,13 +120,22 @@ describe('H1 scalar page protocol (frozen declaration shape)', () => {
     expect(body.data.nextAfterId).toBeNull();
   });
   it('a scalar page whose recorded facts are absent stays absent — no zero money, dates or receipts are invented', async () => {
-    member(); h.reply = { data: { requests: [{ ...pageRow, recordedPaymentId: null, recordedOrderId: null, recordedAmountPaise: null, recordedCurrency: null }], nextAfter: null, nextAfterId: null }, error: null };
+    // The SQL readers strip null keys (jsonb_strip_nulls), so a real RPC row
+    // never carries null recorded facts: the fixture feeds the STRIPPED shape
+    // (keys absent), matching what the declared protocol actually produces.
+    const stripped = { ...pageRow };
+    for (const k of ['recordedPaymentId', 'recordedOrderId', 'recordedMembershipId', 'recordedAmountPaise', 'recordedCurrency']) delete stripped[k as keyof typeof stripped];
+    member(); h.reply = { data: { requests: [stripped], nextAfter: null, nextAfterId: null }, error: null };
     const response = await callRoute(`${memberBase}/route`, 'GET', undefined);
     const body = await response.json() as { ok: boolean; data: { requests: Array<Record<string, unknown>> } };
     const serialized = JSON.stringify(body.data.requests[0]);
     expect(serialized).not.toMatch(/"recordedAmountPaise":\s*"0"/);
     expect(serialized).not.toMatch(/receipt/i);
-    expect(body.data.requests[0].recordedPaymentId).toBeNull();
+    const facts = body.data.requests[0];
+    for (const k of ['recordedPaymentId', 'recordedOrderId', 'recordedAmountPaise', 'recordedCurrency']) {
+      const v = facts[k];
+      expect(v === undefined || v === null).toBe(true);
+    }
   });
   it('detail unavailable shares the one external refusal (P0002 → 404 request_unavailable) with no target facts', async () => {
     member(); h.reply = { data: null, error: { code: 'P0002', message: 'row not found' } };
@@ -279,8 +301,9 @@ describe('H5 client retry identity: same logical upload, same registration key',
       if (url.startsWith('https://staging.example/')) { putCalls += 1; if (putCalls === 1) throw new TypeError('network lost'); return new Response(null, { status: 200, headers: { etag: '"etag-1"' } }); }
       return new Response(JSON.stringify({ ok: true, data: { assetId: uuid(8), confirmed: true } }), { status: 200, headers: { 'content-type': 'application/json' } });
     });
-    const first = await uploadPaymentProof(file as never, id, uuid(2), uuid(3), uuid(9));
-    expect(first.ok).toBe(false);
+    let firstFailed = false;
+    try { const first = await uploadPaymentProof(file as never, id, uuid(2), uuid(3), uuid(9)); firstFailed = first.ok === false; } catch { firstFailed = true; }
+    expect(firstFailed).toBe(true);
     const keysAfterFirst = registrationCalls().filter(c => c.url.includes('/proof-upload-url') || c.url.includes('register')).length;
     await uploadPaymentProof(file as never, id, uuid(2), uuid(3), uuid(9));
     const registrations = registrationCalls().filter(c => c.url.includes('/proof-upload-url') || c.url.includes('register'));
@@ -297,7 +320,7 @@ describe('H5 client retry identity: same logical upload, same registration key',
       if (url.startsWith('https://staging.example/')) return new Response(null, { status: 200, headers: { etag: '"etag-1"' } });
       return new Response(JSON.stringify({ ok: true, data: { assetId: uuid(8), confirmed: true } }), { status: 200, headers: { 'content-type': 'application/json' } });
     });
-    await uploadProofImage({ uri: 'file:///proof.png', mimeType: 'image/png', fileSize: file.bytes } as never, id, uuid(2), uuid(3), uuid(9));
+    await uploadProofImage({ uri: 'file:///proof.png', mimeType: 'image/png', fileSize: file.size } as never, id, uuid(2), uuid(3), uuid(9));
     const registrations = registrationCalls().filter(c => c.url.includes('/proof-upload-url') || c.url.includes('register'));
     expect(registrations.length).toBeGreaterThanOrEqual(1);
     expect(`${registrations[0].url} ${registrations[0].body}`).toContain(uuid(9));

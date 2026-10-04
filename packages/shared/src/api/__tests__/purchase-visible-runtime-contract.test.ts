@@ -58,10 +58,11 @@ describe('R1 the scalar page object decodes with camelCase rows and nested snaps
   it('survives the exact declared camelCase request keys and nested snapshot keys', () => {
     const parsed = purchaseRequestDetailSchema.safeParse(row);
     expect(parsed.success).toBe(true);
-    if (!parsed.success) return;
+    // Union narrowing: only the shop snapshot carries the unit-price field.
+    if (!parsed.success || parsed.data.kind !== 'shop') throw new Error('the shop fixture row must parse as a shop request');
     expect(Object.keys(parsed.data.snapshot).sort()).toEqual([
       'cancellationTerms', 'currency', 'description', 'gstRateBp', 'kind', 'pricePaise',
-      'productName', 'productId', 'quoteVersion', 'totalPaise', 'unitPricePaise', 'validityDays',
+      'productId', 'productName', 'quoteVersion', 'totalPaise', 'unitPricePaise', 'validityDays',
     ]);
     expect(parsed.data.snapshot.unitPricePaise).toBe('199900');
   });
@@ -107,11 +108,15 @@ describe('R4/R7 the desk evidence facts bind the exact viewed proof, never an em
     expect(purchaseProofRejectRequestSchema.safeParse({ requestId: id, assetId: '', expectedRevision: id, reason: 'Picture unclear', commandKey: id }).success).toBe(false);
     expect(purchaseProofRejectRequestSchema.safeParse({ requestId: id, assetId: id, expectedRevision: id, reason: 'Picture unclear', commandKey: id }).success).toBe(true);
   });
-  it('requires the explicit viewed evidence on the recording command', () => {
-    const base = { requestId: id, expectedRevision: id, commandKey: id, actualAmount: '199900', currency: 'INR', method: 'upi' };
-    expect(purchaseRecordRequestSchema.safeParse({ ...base, viewedAssetId: id, viewedProofRevision: id }).success).toBe(true);
-    expect(purchaseRecordRequestSchema.safeParse(base).success).toBe(false);
-    expect(purchaseRecordRequestSchema.safeParse({ ...base, viewedAssetId: id }).success).toBe(false);
-    expect(purchaseRecordRequestSchema.safeParse({ ...base, viewedProofRevision: id }).success).toBe(false);
+  it('binds the viewed tuple as an optional pair: cash-without-proof parses, half tuples refuse, proof-backed recording carries both', () => {
+    const cashBase = { requestId: id, expectedRevision: id, commandKey: id, actualAmount: '199900', currency: 'INR', method: 'cash' };
+    // BUY-012 explicit received-cash path: recording without a screenshot is lawful, so the
+    // viewed tuple is absent — never a fabricated one.
+    expect(purchaseRecordRequestSchema.safeParse(cashBase).success).toBe(true);
+    // Frozen decision 3: proof-backed recording binds the exact viewed evidence — the pair is
+    // atomic, so a half tuple can never stand in for a viewed proof.
+    expect(purchaseRecordRequestSchema.safeParse({ ...cashBase, viewedAssetId: id }).success).toBe(false);
+    expect(purchaseRecordRequestSchema.safeParse({ ...cashBase, viewedProofRevision: id }).success).toBe(false);
+    expect(purchaseRecordRequestSchema.safeParse({ ...cashBase, viewedAssetId: id, viewedProofRevision: id }).success).toBe(true);
   });
 });

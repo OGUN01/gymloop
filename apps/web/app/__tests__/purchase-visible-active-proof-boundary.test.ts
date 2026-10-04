@@ -29,8 +29,8 @@ async function invoke(claims: Record<string, unknown>) {
   return module.POST(request(), { params: Promise.resolve({ id }) }) as Promise<Response>;
 }
 
-beforeEach(() => { state.claims = null; state.results = []; state.calls = []; });
-afterEach(() => { vi.restoreAllMocks(); });
+beforeEach(() => { state.claims = null; state.results = []; state.calls = []; vi.stubEnv('SUPABASE_PROJECT_REF', 'test-project-ref'); vi.stubEnv('R2_ACCESS_KEY_ID', 'test-r2-access-key'); vi.stubEnv('R2_SECRET_ACCESS_KEY', 'test-r2-secret'); vi.stubEnv('R2_BUCKET', 'test-bucket'); vi.stubEnv('R2_ENDPOINT', 'https://account.r2.cloudflarestorage.com'); vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role-key'); vi.stubEnv('SUPABASE_DB_PASSWORD', 'test-db-password'); vi.stubEnv('SUPABASE_ACCESS_TOKEN', 'test-access-token'); vi.stubEnv('CLOUDFLARE_ACCOUNT_ID', 'test-account-id'); });
+afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
 describe('R9 the private proof URL serves only the currently active proof', () => {
   it('a recorded request refuses the owning member with the one external refusal', async () => {

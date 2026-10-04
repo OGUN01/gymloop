@@ -44,7 +44,7 @@ beforeEach(() => {
 
 describe('member proof staging registration (BUY-008/018)', () => {
   it('grants the owning member a staging-only PUT for a live accepted request', async () => {
-    const response = await invoke({});
+    const response = await invoke({ commandKey: id });
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
     const payload = await response.json();
@@ -57,7 +57,7 @@ describe('member proof staging registration (BUY-008/018)', () => {
     expect(state.rpc.mock.calls.some(call => call[0] === 'register_payment_proof')).toBe(true);
   });
   it('the presigned capability is a bounded staging PUT, never a published one', async () => {
-    await invoke({});
+    await invoke({ commandKey: id });
     expect(state.put).not.toBeNull();
     expect(JSON.stringify(state.args)).toContain('/staging/payment_proof/');
     expect(JSON.stringify(state.args)).not.toContain('/published/');
@@ -66,7 +66,7 @@ describe('member proof staging registration (BUY-008/018)', () => {
   });
   it('a foreign or absent request shares one external refusal without a capability', async () => {
     state.rpc.mockImplementation(async () => ({ data: null, error: { code: 'P0002', message: 'PRIVATE_REQUEST_EXISTS' } }));
-    const response = await invoke({});
+    const response = await invoke({ commandKey: id });
     expect(response.status).toBe(404);
     const payload = await response.json();
     expect(payload.error.code).toBe('request_unavailable');
@@ -74,15 +74,15 @@ describe('member proof staging registration (BUY-008/018)', () => {
     expect(state.signer).not.toHaveBeenCalled();
   });
   it('the registration rate cap maps to the rate-limited refusal without a capability', async () => {
-    state.rpc.mockImplementation(async () => ({ data: null, error: { code: 'GL126', message: 'PRIVATE_LIMITS' } }));
-    const response = await invoke({});
+    state.rpc.mockImplementation(async () => ({ data: null, error: { code: '22023', details: 'purchase_cap', message: 'PRIVATE_LIMITS' } }));
+    const response = await invoke({ commandKey: id });
     expect(response.status).toBe(429);
     expect((await response.json()).error.code).toBe('rate_limited');
     expect(state.signer).not.toHaveBeenCalled();
   });
   it('storage signing failure answers the retryable refusal without a half grant', async () => {
     state.signer.mockRejectedValue(new Error('RAW_R2_CREDENTIAL'));
-    const response = await invoke({});
+    const response = await invoke({ commandKey: id });
     expect(response.status).toBe(500);
     const payload = await response.json();
     expect(payload.ok).toBe(false);
@@ -97,7 +97,7 @@ describe('member proof staging registration (BUY-008/018)', () => {
     expect(state.events).not.toContain('body');
   });
   it('client-chosen storage authority is refused before registration', async () => {
-    const response = await invoke({ objectKey: `${id}/published/payment_proof/${id}.jpg` });
+    const response = await invoke({ commandKey: id, objectKey: `${id}/published/payment_proof/${id}.jpg` });
     expect(response.status).toBe(400);
     expect((await response.json()).error.code).toBe('invalid_request');
     expect(state.rpc).not.toHaveBeenCalled();

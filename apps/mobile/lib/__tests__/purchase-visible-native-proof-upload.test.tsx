@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Native member Buy proof-upload contracts (BUY-008/011/021/022). Mirrors the
 // shop native harness; authored implementation-blind.
@@ -33,12 +33,25 @@ vi.mock('expo-secure-store', () => ({ setItemAsync: vi.fn(), getItemAsync: async
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', Image: 'Image', ScrollView: 'ScrollView', Modal: 'Modal', ActivityIndicator: 'ActivityIndicator', TextInput: 'TextInput', StyleSheet: { create: (styles: unknown) => styles }, AppState: { addEventListener: () => ({ remove: vi.fn() }) }, useColorScheme: () => 'light' }));
 vi.mock('lucide-react-native', () => ({ ShoppingBag: 'ShoppingBag', RefreshCw: 'RefreshCw', X: 'X', ChevronRight: 'ChevronRight', Check: 'Check', Clock: 'Clock', CircleAlert: 'CircleAlert', Upload: 'Upload', ImagePlus: 'ImagePlus' }));
 const picker = vi.hoisted(() => ({ launch: vi.fn() }));
+const wire = vi.hoisted(() => ({ seen: [] as Array<{ url: string; method: string; body: string }> }));
 vi.mock('expo-image-picker', () => ({ launchImageLibraryAsync: picker.launch, MediaTypeImages: 1, MediaType: { Images: 1 }, ImagePickerAsset: {}, ErrorCode: {} }));
 vi.mock('../../components/ui', () => {
   const widgets = ['Screen', 'Eyebrow', 'Title', 'Display', 'Body', 'Rule', 'Status', 'Row', 'LedgerSection', 'SheetHeader', 'ActionButton', 'RowAction', 'StateMessage', 'EmptyState', 'LoadingState', 'Field', 'ChoiceList'];
   return { ...Object.fromEntries(widgets.map(type => [type, (props: Record<string, unknown>) => ({ type, props })])), Sheet: (props: Record<string, unknown>) => props.visible ? { type: 'Sheet', props } : null };
 });
 const id = '72000000-0000-4000-8000-000000000001';
+const jsonResponse = (payload: unknown, status = 200) => new Response(JSON.stringify(payload), { status, headers: { 'content-type': 'application/json' } });
+const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  const url = String(input instanceof Request ? input.url : input);
+  const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+  const body = typeof init?.body === 'string' ? init.body : '';
+  if (!url.startsWith('file:')) wire.seen.push({ url, method, body });
+  if (url.startsWith('file:')) return new Response(new Uint8Array([255, 216, 255, 224, 0, 16, 74, 70, 73, 70, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0]), { status: 200 });
+  if (method === 'PUT') return new Response(null, { status: 200, headers: { etag: '"staging"' } });
+  if (url.includes('/proof-upload-url')) return jsonResponse({ ok: true, data: { assetId: id, uploadUrl: `https://upload.test/${id}/staging/payment_proof/${id}.jpg` } });
+  if (url.includes('/proof-confirm')) return jsonResponse({ ok: true, data: { assetId: id } });
+  return jsonResponse({ ok: false, error: { code: 'invalid_request', message: 'unknown route' } }, 400);
+});
 const request = { requestId: id, kind: 'shop', status: 'owner_accepted', targetName: 'Native proof fixture', quantity: 1, amountPaise: '199900', currency: 'INR', gstRateBp: 1800, createdAt: '2026-10-02T04:30:00Z', acceptedAt: '2026-10-02T05:30:00Z', expiresAt: '2026-10-03T05:30:00Z', reason: null, proofStatus: 'active', receiptId: null };
 let nodes: Node[];
 function flatten(value: unknown): void {
@@ -57,6 +70,7 @@ async function render() {
   }
   throw new Error('Screen did not settle');
 }
+afterEach(() => { vi.unstubAllGlobals(); });
 function text() { return JSON.stringify(nodes.map(node => node.props)); }
 function action(label: RegExp) {
   const node = nodes.find(node => typeof node.props.onPress === 'function' && label.test(String(node.props.children ?? node.props.title ?? node.props.accessibilityLabel ?? '')));
@@ -66,6 +80,9 @@ let screen: () => unknown;
 beforeEach(async () => {
   vi.resetModules(); h.cursor = 0; h.slots = []; h.effects = []; h.changed = false; h.online = true; h.list = [request];
   h.post.mockReset();
+  wire.seen = [];
+  vi.stubGlobal('fetch', fetchMock);
+  fetchMock.mockClear();
   screen = () => null;
   const mod = await import('../../app/(member)/buy') as { default?: () => unknown };
   screen = mod.default!;
@@ -108,10 +125,11 @@ describe('MemberBuy native proof upload surface', () => {
     const upload = action(/upload/i);
     try { await (upload.props.onPress as () => Promise<void>)(); } catch { /* command guards may throw */ }
     expect(picker.launch).toHaveBeenCalled();
-    const posted = h.post.mock.calls.map(call => JSON.stringify(call)).join('\n');
-    expect(posted).toMatch(/proof/i);
-    expect(posted).toMatch(/image\/jpeg|"mime"/i);
-    expect(posted).toMatch(/1234|"bytes"/i);
+    const sent = wire.seen.map(entry => JSON.stringify(entry)).join('\n');
+    expect(sent).toMatch(/proof-upload-url/);
+    expect(sent).toMatch(/image\/jpeg|"mime"/i);
+    expect(sent).toMatch(/1234|"bytes"/i);
+    expect(sent).toMatch(/proof-confirm|proof/i);
     expect(text()).toMatch(/Pending verification/i);
     expect(text()).not.toMatch(/payment successful|money recorded|payment has been recorded/i);
   });
@@ -122,6 +140,7 @@ describe('MemberBuy native proof upload surface', () => {
     try { await (upload.props.onPress as () => Promise<void>)(); } catch { /* command guards may throw */ }
     expect(picker.launch).toHaveBeenCalled();
     expect(h.post).not.toHaveBeenCalled();
+    expect(wire.seen).toEqual([]);
     expect(text()).not.toMatch(/payment successful|Pending verification.*success/i);
   });
   it('offline refuses before the picker or any network call', async () => {

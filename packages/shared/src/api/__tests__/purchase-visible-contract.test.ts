@@ -66,7 +66,7 @@ describe('desk command schemas (BUY-004/011/012/018)', () => {
     expect(purchaseProofRejectRequestSchema.safeParse({ requestId: id, assetId: id, expectedRevision: id, reason: 'Picture unclear, re-upload', commandKey: id }).success).toBe(true);
   });
   it('record requires the frozen signature inputs with decimal-text actual amount and explicit currency', () => {
-    expect(purchaseRecordRequestSchema.safeParse({ requestId: id, expectedRevision: id, commandKey: id, actualAmount: '199900', currency: 'INR', method: 'upi' }).success).toBe(true);
+    expect(purchaseRecordRequestSchema.safeParse({ requestId: id, expectedRevision: id, commandKey: id, actualAmount: '199900', currency: 'INR', method: 'upi', viewedAssetId: id, viewedProofRevision: id }).success).toBe(true);
     expect(purchaseRecordRequestSchema.safeParse({ requestId: id, expectedRevision: id, commandKey: id, actualAmount: '19.99', currency: 'INR', method: 'cash' }).success).toBe(false);
     expect(purchaseRecordRequestSchema.safeParse({ requestId: id, expectedRevision: id, commandKey: id, actualAmount: '199900', currency: 'USD', method: 'upi' }).success).toBe(false);
     expect(purchaseRecordRequestSchema.safeParse({ requestId: id, expectedRevision: id, commandKey: id, actualAmount: '0', currency: 'INR', method: 'cash' }).success).toBe(false);
@@ -90,7 +90,7 @@ describe('refusal vocabulary for PAY surfaces', () => {
 });
 
 describe('recorded paise stays within the signed-bigint wire contract', () => {
-  const valid = { expectedRevision: id, commandKey: id, actualAmount: '199900', currency: 'INR', method: 'upi' };
+  const valid = { expectedRevision: id, commandKey: id, actualAmount: '199900', currency: 'INR', method: 'upi', viewedAssetId: id, viewedProofRevision: id };
   it.each(['1', '9007199254740993', '9223372036854775807'])('accepts exact decimal string %s without Number rounding', actualAmount => {
     const result = purchaseRecordRequestSchema.safeParse({ ...valid, actualAmount });
     expect(result.success).toBe(true);
