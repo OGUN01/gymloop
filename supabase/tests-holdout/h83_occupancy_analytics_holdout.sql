@@ -292,11 +292,18 @@ begin
     insert into public.addon_products(id, tenant_id, kind, name, description, price_paise, currency, gst_rate_bp, stock_quantity, validity_days, cancellation_terms, quote_version, is_active)
       values ('83900000-0000-4000-8000-0000000000ae','83900000-0000-4000-8000-000000000001','product','H83 Towel Pass','H83 towel service for the analytics cohort',25000,'INR',0,10,30,'Non-refundable; usable for 30 days from sale.','83900000-0000-4000-8000-0000000000af',true);
     insert into public.payments(id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, receipt_number, recorded_by_staff_id, idempotency_key, paid_at, created_at)
-      values ('83900000-0000-4000-8000-0000000000ac','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3',null,25000,'INR','paid','cash','H83-RAC','83900000-0000-4000-8000-0000000000a1','addon-sale:83900000-0000-4000-8000-0000000000b0', now() - interval '40 minutes', now() - interval '40 minutes');
+      values ('83900000-0000-4000-8000-0000000000ac','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3',null,25000,'INR','paid','cash','H83-RAC','83900000-0000-4000-8000-0000000000a3','addon-sale:83900000-0000-4000-8000-0000000000b0', now() - interval '40 minutes', now() - interval '40 minutes');
 
-  -- Block B stages the order against the offer and payment rows in the
-  -- same single transaction; the acceptance UPDATE's trigger reads the
-  -- payment directly (invoker visibility).
+  exception when others then
+    declare v_ctx text; v_detail text;
+    begin
+      get stacked diagnostics v_ctx = pg_exception_context, v_detail = pg_exception_detail;
+      insert into h83_seed_errors values ('addon_offer/payment staging: ' || SQLERRM || ' ctx=' || v_ctx || ' detail=' || v_detail);
+    end;
+  end;
+  -- Block 2: the order staging runs in its OWN subtransaction, so a guard
+  -- refusal here can no longer roll the committed offer and payment back.
+  begin
     -- A keyed sale begins pending with complete frozen evidence: snapshot
     -- exactly six keys matching the product (trainerQualification explicit
     -- jsonb null because the product carries none), request exactly nine keys
@@ -306,7 +313,7 @@ begin
     -- arms once payment_id is set, and the acceptance UPDATE is what links
     -- the payment while the row is still pending and unpaid.
     insert into public.addon_orders(id, tenant_id, member_id, addon_product_id, status, quantity, unit_price_paise, total_paise, currency, idempotency_key, sold_by_staff_id, sale_snapshot, sale_request)
-      values ('83900000-0000-4000-8000-0000000000ad','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3','83900000-0000-4000-8000-0000000000ae','pending',1,25000,25000,'INR','83900000-0000-4000-8000-0000000000b0','83900000-0000-4000-8000-0000000000a1',
+      values ('83900000-0000-4000-8000-0000000000ad','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3','83900000-0000-4000-8000-0000000000ae','pending',1,25000,25000,'INR','83900000-0000-4000-8000-0000000000b0','83900000-0000-4000-8000-0000000000a3',
         -- The snapshot derives FROM the live product row at insert time, so
         -- it mirrors every guarded field exactly (including trainer_
         -- qualification as the row actually carries it — jsonb null when the
@@ -341,7 +348,7 @@ begin
       where id = '83900000-0000-4000-8000-0000000000ad';
     -- Restore the fixture's postgres session for the remaining staging.
     set local role postgres;
-    select set_config('request.jwt.claims','',true);
+    perform set_config('request.jwt.claims','',true);
   end;
   -- Unconditional post-block probe: reads the payments row's committed
   -- state after the addon staging (ABSENT if the block rolled back), so the
