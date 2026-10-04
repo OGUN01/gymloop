@@ -37,7 +37,7 @@ import {
   type StaffWhatsappConsentRequest,
 } from '../whatsapp';
 
-const UUID = (n: string) => `${n}0000000-1111-4111-8111-000000000001`;
+const UUID = (n: string) => `${n}000000-1111-4111-8111-000000000001`;
 
 describe('memberWhatsappConsentRequestSchema', () => {
   const valid = { purpose: 'service', granted: true, noticeVersion: '2026-10-wsp-1' };
