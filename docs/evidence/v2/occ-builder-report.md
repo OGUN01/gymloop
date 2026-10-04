@@ -626,3 +626,61 @@ the visible author walks each pin's conjunct list against these raw key
 dumps; if a genuine declaration divergence is claimed after that walk, it
 returns to this builder with the exact conjunct. No source change; sha
 unchanged `fa1c090d1cea948b4378212b7dedada9fcbb2f21c569811fa159ecbf0c4595d8`.
+
+## Runtime repair round 10 (2026-10-04, P1 cross-tenant disclosure finding)
+
+The K1/K2/K3 chain (tenant-2 owner claims in, tenant-1 zone/money out) with
+the shipped derivation (auth.uid/app.current_tenant_id all read the SAME
+GUC the K2 payload shows) admits only a helper-vs-payload desync surface —
+whatever its trigger, it is now STRUCTURALLY ELIMINATED: the gate parses
+`request.jwt.claims` EXACTLY ONCE inside the guarded block and derives the
+whole identity — sub, tenant_id, app_role, staff_id, impersonation — from
+that single payload, then revalidates the live staff binding against the
+parsed values (staff row must exist now, tenant = claims tenant, user =
+claims sub, role = claims app_role, is_active). No app.* helper call sits
+between the parsed claims and any downstream read; every population CTE
+already keys on the parameterized v_tenant via params. A cast failure
+anywhere in the parse collapses into the single 42501. With a verified
+tenant-2 owner (staff …26 = tenant 2), the envelope now derives tenant …2,
+reads the Mars/Phobos org zone, and takes the disclosed invalid-gym-zone
+envelope (months[]/collection null) — making the author's #76 path
+exercisable. RLS remains invoker throughout.
+
+Companion-effect check: auth.uid()/app.* helpers are no longer referenced
+by this function at all; behavior for lawfully formed claims is unchanged
+(the parse is the same fields the helpers read).
+
+Static: both bodies balance. New migration sha256:
+`9c5227faa437ca3f619d6cc7425630003c816564f2d2ef126ab4cb8b6ed794f4`
+Addendum: a leftover helper-based staff block survived the first rewrite
+pass and was removed in the same round — the function now references NO
+identity helpers at all (verified: zero occurrences of auth.uid(),
+app.current_tenant_id/current_app_role/current_staff_id in the body).
+Final sha256:
+`2191fd1cfce289f8957d72b3eebeb4559d4f34b19c9dd33d195536dc6f4b4346`
+Final loaded-body md5 (4-arg core): `3dbd525705ad9c9df17a47c6a74dd9ca`.
+
+## Runtime repair round 11 (2026-10-04, P1 lawful-path regression)
+
+Root cause of the 3→64 failure explosion (NOT the role-adapter theory):
+the round-10 gate parsed claim key values with
+`coalesce(v_claims ->> 'k', '')::uuid` — a claim payload that carries
+EXPLICIT JSON nulls for absent keys (the suite's claim builder emits them)
+turns each such key into the empty string, and `''::uuid` RAISES inside the
+guarded block, collapsing every caller — lawful gym owners included — into
+the single 42501. The removed helpers survived exactly this case by using
+the `nullif(<text>, '')::uuid` pattern, which parses a JSON-null key as a
+NULL uuid and raises only for genuinely malformed values.
+
+Fix: all five claim reads (sub, tenant_id, app_role, staff_id,
+impersonation_session_id) now use the nullif pattern; JSON nulls become
+NULLs, and the whole claims-once self-derivation (tenant from the verified
+payload, staff binding revalidated against it) stands as designed. The
+not-in-staff-role adapter theory is excluded: the staff-row revalidation
+predicates are value-identical to the helpers' (`s.role::text =
+claims app_role` etc.) — only the parse shape differed.
+
+Static: both bodies balance; zero coalesce-uuid claim casts remain. New
+migration sha256:
+`246e834d43b4d73b117ea7d5752ac79994bfda060afeb2c6af30ebe2a3f9d9f7`
+New loaded-body md5 (4-arg core): `ef8e949bd44d10045774bed2bfded2f5`.
