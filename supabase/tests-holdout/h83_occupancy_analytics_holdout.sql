@@ -270,6 +270,11 @@ begin
   exception when others then
     insert into h83_seed_errors values ('class_bookings: ' || SQLERRM);
   end;
+  -- Direction (b), coordinator-approved: the addon staging runs in ONE
+  -- transaction with no inner begin/exception wrapper — an addon trigger
+  -- error aborts the run loudly (never swallowed into h83_seed_errors),
+  -- and the payment IS visible to the addon trigger's invoker read at the
+  -- acceptance UPDATE, so the exact-buy guard sees what it needs.
   begin
     -- Role re-set immediately before the offer staging: the fixtures run as
     -- postgres (row_security_active false), so RLS-gated guard clauses skip;
@@ -289,16 +294,9 @@ begin
     insert into public.payments(id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, receipt_number, recorded_by_staff_id, idempotency_key, paid_at, created_at)
       values ('83900000-0000-4000-8000-0000000000ac','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3',null,25000,'INR','paid','cash','H83-RAC','83900000-0000-4000-8000-0000000000a1','addon-sale:83900000-0000-4000-8000-0000000000b0', now() - interval '40 minutes', now() - interval '40 minutes');
 
-  exception when others then
-    declare v_ctx text; v_detail text;
-    begin
-      get stacked diagnostics v_ctx = pg_exception_context, v_detail = pg_exception_detail;
-      insert into h83_seed_errors values ('addon_offer/payment staging: ' || SQLERRM || ' ctx=' || v_ctx || ' detail=' || v_detail);
-    end;
-  end;
-  -- Block B stages the order itself against the now-committed offer and
-  -- payment rows; its failures no longer roll the offer/payment staging back.
-  begin
+  -- Block B stages the order against the offer and payment rows in the
+  -- same single transaction; the acceptance UPDATE's trigger reads the
+  -- payment directly (invoker visibility).
     -- A keyed sale begins pending with complete frozen evidence: snapshot
     -- exactly six keys matching the product (trainerQualification explicit
     -- jsonb null because the product carries none), request exactly nine keys
@@ -335,12 +333,6 @@ begin
           starts_on = (now() at time zone 'Asia/Kolkata')::date,
           expires_on = (now() at time zone 'Asia/Kolkata')::date + 29
       where id = '83900000-0000-4000-8000-0000000000ad';
-  exception when others then
-    declare v_ctx text; v_detail text;
-    begin
-      get stacked diagnostics v_ctx = pg_exception_context, v_detail = pg_exception_detail;
-      insert into h83_seed_errors values ('addon_orders: ' || SQLERRM || ' ctx=' || v_ctx || ' detail=' || v_detail);
-    end;
   end;
   -- Unconditional post-block probe: reads the payments row's committed
   -- state after the addon staging (ABSENT if the block rolled back), so the
