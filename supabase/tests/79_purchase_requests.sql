@@ -14,6 +14,7 @@ select plan(252);
 
 create function pg_temp.sid(n integer) returns uuid language sql immutable as $$select ('79100000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.claim(r text, t integer default 1, s integer default null, m integer default null, u integer default null, extra jsonb default '{}'::jsonb) returns void language plpgsql as $$begin perform set_config('request.jwt.claims',(jsonb_strip_nulls(jsonb_build_object('role','authenticated','app_role',r,'tenant_id',pg_temp.sid(t),'staff_id',pg_temp.sid(s),'member_id',pg_temp.sid(m),'sub',pg_temp.sid(u)))||extra)::text,true); end$$;
+create function pg_temp.fin(q text) returns text language plpgsql as $$declare r record; c text; d text; begin execute q into r; return 'RESULT ' || coalesce(r::text, 'null'); exception when others then get stacked diagnostics c = returned_sqlstate, d = pg_exception_detail; return 'ERROR ' || c || coalesce(':' || d, ''); end$$;
 create function pg_temp.refusal(q text) returns text language plpgsql as $$declare d text; c text; begin execute q; return 'NO ERROR'; exception when others then get stacked diagnostics c=returned_sqlstate,d=pg_exception_detail; return c||case when coalesce(d,'')='' then '' else ':'||d end; end$$;
 create function pg_temp.replayed(q text) returns text language plpgsql as $$declare r jsonb; begin execute q into r; return r->>'replayed'; exception when others then return 'ERR '||sqlstate; end$$;
 create function pg_temp.stage(n integer, k text default 'product') returns text language sql immutable as $$select pg_temp.sid(1)::text||'/staging/'||k||'/'||pg_temp.sid(n)::text||'.jpg'$$;
@@ -39,7 +40,7 @@ create function pg_temp.reg(l text, rl text) returns void language plpgsql secur
 create function pg_temp.regn(rl text, n integer) returns integer language plpgsql security definer as $$declare c integer := 0; begin for i in 1..n loop begin perform public.register_payment_proof((select id from req where label = rl), 'image/jpeg', 1000); c := c + 1; exception when others then null; end; end loop; return c; end$$;
 create function pg_temp.mst(l text) returns jsonb language plpgsql security definer as $$begin return (select to_jsonb(m) from public.media_assets m where m.id = (select asset from regs where label = l)); end$$;
 create function pg_temp.aaudits(a text, l text) returns integer language plpgsql security definer as $$begin return (select count(*)::integer from public.audit_log where action = a and record_id = (select asset from regs where label = l)); end$$;
-grant execute on function pg_temp.sid(integer),pg_temp.claim(text,integer,integer,integer,integer,jsonb),pg_temp.refusal(text),pg_temp.replayed(text),pg_temp.stage(integer,text),pg_temp.pub(integer,text),pg_temp.cap(text,integer),pg_temp.rq(text),pg_temp.rev(text),pg_temp.nkey(integer),pg_temp.pj(integer),pg_temp.nproof(text,text),pg_temp.aproof(text),pg_temp.audits(text,text),pg_temp.reg(text,text),pg_temp.regn(text,integer),pg_temp.mst(text),pg_temp.aaudits(text,text) to authenticated,anon,service_role;
+grant execute on function pg_temp.sid(integer),pg_temp.claim(text,integer,integer,integer,integer,jsonb),pg_temp.refusal(text),pg_temp.fin(text),pg_temp.replayed(text),pg_temp.stage(integer,text),pg_temp.pub(integer,text),pg_temp.cap(text,integer),pg_temp.rq(text),pg_temp.rev(text),pg_temp.nkey(integer),pg_temp.pj(integer),pg_temp.nproof(text,text),pg_temp.aproof(text),pg_temp.audits(text,text),pg_temp.reg(text,text),pg_temp.regn(text,integer),pg_temp.mst(text),pg_temp.aaudits(text,text) to authenticated,anon,service_role;
 
 -- BUY-005 exact database vocabularies.
 select enum_has_labels('public','purchase_request_kind',array['shop','pt','renewal'],'BUY-005 exact request kind vocabulary');
@@ -121,7 +122,7 @@ insert into assets(label,id) values('product-photo',public.register_media_asset(
 set local role postgres;
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
-select is(public.finalize_media_asset((select id from assets where label='product-photo'),pg_temp.sid(901),pg_temp.sid(21),'gym_owner',pg_temp.sid(1),'product','image/jpeg',1000,pg_temp.stage(142),'source-142',pg_temp.pub(142),'published-142'),true,'MED-002 fixture product photo verified through the ordinary finalizer');
+select is(pg_temp.fin($q$select public.finalize_media_asset((select id from assets where label='product-photo'),pg_temp.sid(901),pg_temp.sid(21),'gym_owner',pg_temp.sid(1),'product','image/jpeg',1000,pg_temp.stage(142),'source-142',pg_temp.pub(142),'published-142')$q$),'RESULT true','MED-002 fixture product photo verified through the ordinary finalizer');
 set local role postgres;
 select set_config('request.jwt.claims','',true);
 
@@ -285,8 +286,8 @@ set local role postgres;
 select is((select count(*) from public.media_assets where id = pg_temp.sid(144) and linked_request_id is not null),1::bigint,'BUY-008/010 linkage present on 144 after insert (key drift is loud here)');
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
-select is(public.finalize_media_asset(pg_temp.sid(144),pg_temp.sid(906),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(144,'payment_proof'),'source-144',pg_temp.pub(144,'payment_proof'),'published-144'),true,'BUY-008 the K6 fixture proof finalizes through the credential verifier');
-select is(public.finalize_media_asset(pg_temp.sid(145),pg_temp.sid(906),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(145,'payment_proof'),'source-145',pg_temp.pub(145,'payment_proof'),'published-145'),true,'BUY-010 the replacement fixture proof finalizes through the credential verifier');
+select is(pg_temp.fin($q$select public.finalize_media_asset(pg_temp.sid(144),pg_temp.sid(906),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(144,'payment_proof'),'source-144',pg_temp.pub(144,'payment_proof'),'published-144')$q$),'RESULT true','BUY-008 the K6 fixture proof finalizes through the credential verifier');
+select is(pg_temp.fin($q$select public.finalize_media_asset(pg_temp.sid(145),pg_temp.sid(906),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(145,'payment_proof'),'source-145',pg_temp.pub(145,'payment_proof'),'published-145')$q$),'RESULT true','BUY-010 the replacement fixture proof finalizes through the credential verifier');
 set local role postgres;
 select set_config('request.jwt.claims','',true);
 
@@ -345,7 +346,7 @@ set local role postgres;
 select is((select count(*) from public.media_assets where id = pg_temp.sid(146) and linked_request_id is not null),1::bigint,'BUY-008/010 linkage present on 146 after insert (key drift is loud here)');
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
-select is(public.finalize_media_asset(pg_temp.sid(146),pg_temp.sid(906),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(146,'payment_proof'),'source-146',pg_temp.pub(146,'payment_proof'),'published-146'),true,'BUY-012 the KR1 fixture proof finalizes through the credential verifier');
+select is(pg_temp.fin($q$select public.finalize_media_asset(pg_temp.sid(146),pg_temp.sid(906),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(146,'payment_proof'),'source-146',pg_temp.pub(146,'payment_proof'),'published-146')$q$),'RESULT true','BUY-012 the KR1 fixture proof finalizes through the credential verifier');
 set local role postgres;
 select set_config('request.jwt.claims','',true);
 select pg_temp.claim('member',1,null,31,906);
@@ -388,7 +389,7 @@ set local role postgres;
 select is((select count(*) from public.media_assets where id = pg_temp.sid(141) and linked_request_id is not null),1::bigint,'BUY-008/010 linkage present on 141 after insert (key drift is loud here)');
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
-select is(public.finalize_media_asset(pg_temp.sid(141),pg_temp.sid(906),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(141,'payment_proof'),'source-141',pg_temp.pub(141,'payment_proof'),'published-141'),true,'BUY-014 the KR2 fixture proof finalizes through the credential verifier');
+select is(pg_temp.fin($q$select public.finalize_media_asset(pg_temp.sid(141),pg_temp.sid(906),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(141,'payment_proof'),'source-141',pg_temp.pub(141,'payment_proof'),'published-141')$q$),'RESULT true','BUY-014 the KR2 fixture proof finalizes through the credential verifier');
 set local role postgres;
 select set_config('request.jwt.claims','',true);
 select pg_temp.claim('member',1,null,31,906);
@@ -520,10 +521,10 @@ select is(pg_temp.refusal($q$select public.register_payment_proof((select id fro
 set local role postgres;
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
-select is(public.finalize_media_asset((select asset from regs where label='M1'),pg_temp.sid(907),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,(select skey from regs where label='M1'),'source-M1',pg_temp.pub(151,'payment_proof'),'published-M1'),true,'BUY-008 member-created proof finalizes into the private payment_proof namespace');
+select is(pg_temp.fin($q$select public.finalize_media_asset((select asset from regs where label='M1'),pg_temp.sid(907),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,(select skey from regs where label='M1'),'source-M1',pg_temp.pub(151,'payment_proof'),'published-M1')$q$),'RESULT true','BUY-008 member-created proof finalizes into the private payment_proof namespace');
 select is(pg_temp.mst('M1')->>'object_key',pg_temp.pub(151,'payment_proof'),'BUY-008 finalization stores the fresh private published key');
 select ok(pg_temp.mst('M1')->>'confirmed_at' is not null and pg_temp.mst('M1')->>'verified_source_etag'='source-M1' and pg_temp.mst('M1')->>'published_etag'='published-M1','BUY-008 finalization records the verified source and published ETags');
-select is(public.finalize_media_asset((select asset from regs where label='M1'),pg_temp.sid(907),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,(select skey from regs where label='M1'),'source-M1',pg_temp.pub(151,'payment_proof'),'published-M1'),false,'BUY-010/016 finalization replay resolves read-only with exactly one confirmation');
+select is(pg_temp.fin($q$select public.finalize_media_asset((select asset from regs where label='M1'),pg_temp.sid(907),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,(select skey from regs where label='M1'),'source-M1',pg_temp.pub(151,'payment_proof'),'published-M1')$q$),'RESULT false','BUY-010/016 finalization replay resolves read-only with exactly one confirmation');
 select is(pg_temp.aaudits('media_asset.confirmed','M1'),1,'BUY-020 finalization replay appended no second audit');
 set local role postgres;
 select set_config('request.jwt.claims','',true);
@@ -580,7 +581,7 @@ set local role postgres;
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
 select is(pg_temp.refusal($q$select public.finalize_media_asset((select asset from regs where label='S1'),pg_temp.sid(907),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,(select skey from regs where label='S1'),'source-S1',pg_temp.pub(154,'payment_proof'),'published-S1')$q$),'GL086:media_not_ready','BUY-010 a tombstoned candidate can never finalize');
-select is(public.finalize_media_asset((select asset from regs where label='S2'),pg_temp.sid(907),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,(select skey from regs where label='S2'),'source-S2',pg_temp.pub(155,'payment_proof'),'published-S2'),true,'BUY-010 the winning candidate finalizes');
+select is(pg_temp.fin($q$select public.finalize_media_asset((select asset from regs where label='S2'),pg_temp.sid(907),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,(select skey from regs where label='S2'),'source-S2',pg_temp.pub(155,'payment_proof'),'published-S2')$q$),'RESULT true','BUY-010 the winning candidate finalizes');
 set local role postgres;
 select set_config('request.jwt.claims','',true);
 select pg_temp.claim('member',1,null,32,907);
@@ -604,7 +605,7 @@ select lives_ok($q$select pg_temp.reg('W1','KF4')$q$,'BUY-010 the confirmed-winn
 set local role postgres;
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
-select is(public.finalize_media_asset((select asset from regs where label='W1'),pg_temp.sid(910),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,(select skey from regs where label='W1'),'source-W1',pg_temp.pub(156,'payment_proof'),'published-W1'),true,'BUY-010 the confirmed-winner scenario finalizes');
+select is(pg_temp.fin($q$select public.finalize_media_asset((select asset from regs where label='W1'),pg_temp.sid(910),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,(select skey from regs where label='W1'),'source-W1',pg_temp.pub(156,'payment_proof'),'published-W1')$q$),'RESULT true','BUY-010 the confirmed-winner scenario finalizes');
 set local role postgres;
 select set_config('request.jwt.claims','',true);
 select pg_temp.claim('member',1,null,35,910);
@@ -616,7 +617,7 @@ select ok(pg_temp.mst('W1')->>'deleted_at' is null and pg_temp.mst('W1')->>'obje
 set local role postgres;
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
-select is(public.finalize_media_asset((select asset from regs where label='W2'),pg_temp.sid(910),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,(select skey from regs where label='W2'),'source-W2',pg_temp.pub(158,'payment_proof'),'published-W2'),true,'BUY-010 the second confirmed-winner candidate finalizes for its own request');
+select is(pg_temp.fin($q$select public.finalize_media_asset((select asset from regs where label='W2'),pg_temp.sid(910),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,(select skey from regs where label='W2'),'source-W2',pg_temp.pub(158,'payment_proof'),'published-W2')$q$),'RESULT true','BUY-010 the second confirmed-winner candidate finalizes for its own request');
 set local role postgres;
 select set_config('request.jwt.claims','',true);
 select pg_temp.claim('member',1,null,35,910);
@@ -736,7 +737,7 @@ select lives_ok($q$select pg_temp.reg('W4','KF6')$q$,'BUY-001 the control scenar
 set local role postgres;
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
-select is(public.finalize_media_asset((select asset from regs where label='W4'),pg_temp.sid(910),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,(select skey from regs where label='W4'),'source-W4',pg_temp.pub(159,'payment_proof'),'published-W4'),true,'BUY-001 the active member creator finalizes (status control)');
+select is(pg_temp.fin($q$select public.finalize_media_asset((select asset from regs where label='W4'),pg_temp.sid(910),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,(select skey from regs where label='W4'),'source-W4',pg_temp.pub(159,'payment_proof'),'published-W4')$q$),'RESULT true','BUY-001 the active member creator finalizes (status control)');
 set local role postgres;
 select set_config('request.jwt.claims','',true);
 update public.members set status='cancelled' where id=pg_temp.sid(35);
