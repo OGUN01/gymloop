@@ -108,12 +108,10 @@ insert into public.memberships(id,tenant_id,member_id,plan_id,status,price_paise
 (pg_temp.sid(133),pg_temp.sid(2),pg_temp.sid(33),pg_temp.sid(123),'active',100000,0,'INR',30,current_date-5,current_date+25,0,now()),
 (pg_temp.sid(134),pg_temp.sid(1),pg_temp.sid(35),pg_temp.sid(122),'active',100000,0,'INR',30,current_date-5,current_date+25,0,now());
 insert into mem_before select id,ends_on from public.memberships where id in(pg_temp.sid(131),pg_temp.sid(132));
--- Proof media: confirmed rows carry a member creator; 143 stays unconfirmed.
-insert into public.media_assets(id,tenant_id,kind,mime,bytes,staging_object_key,object_key,verified_source_etag,published_etag,confirmed_at,created_by_member_id) values
-(pg_temp.sid(141),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(141,'payment_proof'),pg_temp.pub(141,'payment_proof'),'source-141','published-141',now(),pg_temp.sid(31)),
-(pg_temp.sid(144),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(144,'payment_proof'),pg_temp.pub(144,'payment_proof'),'source-144','published-144',now(),pg_temp.sid(31)),
-(pg_temp.sid(145),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(145,'payment_proof'),pg_temp.pub(145,'payment_proof'),'source-145','published-145',now(),pg_temp.sid(31)),
-(pg_temp.sid(146),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(146,'payment_proof'),pg_temp.pub(146,'payment_proof'),'source-146','published-146',now(),pg_temp.sid(31));
+-- Proof media: confirmed rows carry a member creator and the immutable
+-- registration link AT INSERT TIME (the verification trigger forbids any
+-- post-creation mutation); 143 stays unconfirmed and unlinked (refusal-only).
+-- 141/144/145/146 are created per-scenario below, once their request exists.
 insert into public.media_assets(id,tenant_id,kind,mime,bytes,staging_object_key,created_by_member_id) values
 (pg_temp.sid(143),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(143,'payment_proof'),pg_temp.sid(31));
 -- A verified non-proof asset through the ordinary registrar and credential-only finalizer.
@@ -262,7 +260,9 @@ set local role authenticated;
 select lives_ok($q$select public.create_purchase_request(pg_temp.sid(516),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101)))$q$,'BUY-018 open request five of five after the cancellations');
 select pg_temp.cap('K6',516);
 set local role postgres;
-update public.media_assets set linked_request_id = (select id from public.purchase_requests where request_key = pg_temp.sid(516)) where id in (pg_temp.sid(144),pg_temp.sid(145));
+insert into public.media_assets(id,tenant_id,kind,mime,bytes,staging_object_key,object_key,verified_source_etag,published_etag,confirmed_at,created_by_member_id,linked_request_id) values
+(pg_temp.sid(144),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(144,'payment_proof'),pg_temp.pub(144,'payment_proof'),'source-144','published-144',now(),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(516))),
+(pg_temp.sid(145),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(145,'payment_proof'),pg_temp.pub(145,'payment_proof'),'source-145','published-145',now(),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(516)));
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.accept_purchase_request((select id from req where label='K6'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),pg_temp.sid(614))$q$,'BUY-004 desk accepts the proof-flow request at the current quote');
@@ -314,7 +314,8 @@ set local role authenticated;
 select lives_ok($q$select public.create_purchase_request(pg_temp.sid(521),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101)))$q$,'BUY-012 exact-price shop request created');
 select pg_temp.cap('KR1',521);
 set local role postgres;
-update public.media_assets set linked_request_id = (select id from public.purchase_requests where request_key = pg_temp.sid(521)) where id = pg_temp.sid(146);
+insert into public.media_assets(id,tenant_id,kind,mime,bytes,staging_object_key,object_key,verified_source_etag,published_etag,confirmed_at,created_by_member_id,linked_request_id) values
+(pg_temp.sid(146),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(146,'payment_proof'),pg_temp.pub(146,'payment_proof'),'source-146','published-146',now(),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(521)));
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.accept_purchase_request((select id from req where label='KR1'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),pg_temp.sid(628))$q$,'BUY-012 exact-price request accepted');
@@ -347,7 +348,8 @@ set local role authenticated;
 select lives_ok($q$select public.create_purchase_request(pg_temp.sid(522),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101)))$q$,'BUY-014 mismatch scenario request created');
 select pg_temp.cap('KR2',522);
 set local role postgres;
-update public.media_assets set linked_request_id = (select id from public.purchase_requests where request_key = pg_temp.sid(522)) where id = pg_temp.sid(141);
+insert into public.media_assets(id,tenant_id,kind,mime,bytes,staging_object_key,object_key,verified_source_etag,published_etag,confirmed_at,created_by_member_id,linked_request_id) values
+(pg_temp.sid(141),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(141,'payment_proof'),pg_temp.pub(141,'payment_proof'),'source-141','published-141',now(),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(522)));
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.accept_purchase_request((select id from req where label='KR2'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),pg_temp.sid(631))$q$,'BUY-014 mismatch scenario accepted');
