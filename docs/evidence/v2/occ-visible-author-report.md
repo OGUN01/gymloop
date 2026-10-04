@@ -329,3 +329,36 @@ No test weakening anywhere; each amendment preserves (or strengthens) the
 declaration pin. plan(77) preserved (77 verified); rollback guard green (159
 files). SQL NOT executed here.
 - New sha256: `d55452609d73f95ef3a3023966aa51100031ad78818f59e743d6efea4cf3b973`.
+
+## Runtime repair — round 12 (three residual pins)
+
+- #49 — re-walked every conjunct against the captured branch-13 entry: the
+  remaining false conjunct was `->'week' is null` — the captured entry
+  carries `"week": null` as a PRESENT jsonb null, so `is null` is the same
+  type-confusion class rounds 11 fixed elsewhere. Amended to
+  `->'week'='null'::jsonb`. Every other field verified: zone text preserved,
+  zoneSource branch, error {code invalid_branch_timezone}, range present
+  null, totalVisits/excludedVisits/availability SQL-null through `->>`,
+  days and cells both empty.
+- #56 — the seven-day window does include gym_today() at runtime
+  (gym-local date arithmetic on `date`, asOf-tz = Kolkata run day), so the
+  window is fine; the suspect conjunct was the one I could break statically:
+  the disclosed hour was compared against `extract(hour from now())` at
+  ASSERTION time while the fixture insert ran at its own instant — an hour
+  rollover between insert and assertion makes the pin fail without any
+  envelope defect. Amended to derive the expected hour from the STORED
+  check-in instant (row 616's checked_in_at), so the pin is the recorded
+  arrival's own clock hour — stronger, not weaker.
+- #76 — coordinator: request fresh runtime key dumps. Specifically: (a)
+  KEYzone76 — the top-level `{zone, moneyRange.scope, moneyRange.error,
+  months, collection}` of the `('2026-01-01','2026-03-31',null)` snapshot
+  executed under the tenant-2 owner claims as my round-11 restatement now
+  establishes them (the earlier "hit the valid tenant" capture predated
+  that restatement and cannot represent it); and (b) KEYtoday7 — the
+  seven-day window (`gym_today()-6 .. gym_today()`) branch-11 today entry
+  (state/visits/hours) confirming the resolved selection contains the
+  asOf-derived current day. With those two dumps #76's and #56's remaining
+  conjuncts are adjudicable without another full run.
+- plan(77) preserved (77 verified); rollback guard green (159 files). SQL NOT
+  executed here.
+- New sha256: `9ff18cf6f25fa4d2fc60ded84b7ff0f64cc39fa8d6ee8709c2c964ba074d3ff6`.
