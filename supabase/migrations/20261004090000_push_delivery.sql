@@ -69,22 +69,26 @@ create trigger member_devices_legacy_inactive
   before insert or update on public.member_devices
   for each row execute function app.enforce_push_device_legacy();
 
--- Tokens are projected only by RPCs from here on: the table carries no
--- ordinary privileges at all, plus a metadata-only column SELECT grant for
--- self-service device screens. push_token has no column grant, so any direct
--- token read by an ordinary role is refused while own-membership metadata
--- stays queryable under the existing tenant policy.
-revoke select, insert, update, delete on public.member_devices from anon, authenticated, service_role;
-grant select (
-  id, tenant_id, member_id, platform, last_seen_at, is_active, created_at, updated_at,
-  registered_user_id, installation_id, token_revision, invalidated_at, invalidated_reason
-) on public.member_devices to authenticated;
+-- Device tokens and metadata are available only through command-safe RPCs.
+-- Table-level revocation does not remove pre-existing column privileges.
+revoke all on public.member_devices from public, anon, authenticated, service_role;
+do $device_columns$
+declare
+  v_columns text;
+begin
+  select string_agg(quote_ident(a.attname), ', ' order by a.attnum)
+    into v_columns from pg_attribute a
+   where a.attrelid = 'public.member_devices'::regclass
+     and a.attnum > 0 and not a.attisdropped;
+  execute 'revoke all (' || v_columns || ') on public.member_devices from public, anon, authenticated, service_role';
+end
+$device_columns$;
 
 -- ---------------------------------------------------------------------------
--- 2. Push provider configuration (platform-wide single row; absent = unconfigured).
+-- 2. Tenant activation for the one approved Firebase project; absent = unconfigured.
 -- ---------------------------------------------------------------------------
 create table public.push_provider_configurations (
-  id boolean primary key default true check (id),
+  tenant_id uuid primary key references public.organizations(id),
   firebase_project_id text,
   activated_at timestamptz,
   created_at timestamptz not null default now(),
@@ -94,20 +98,47 @@ create table public.push_provider_configurations (
 alter table public.push_provider_configurations enable row level security;
 revoke all on public.push_provider_configurations from public, anon, authenticated, service_role;
 
-create function app.push_configuration_ready()
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
+-- Trusted commands need activation facts without granting configuration reads.
+create function app.push_configuration_ready(p_tenant_id uuid)
+returns boolean language sql stable security definer set search_path = ''
 as $fn$
   select exists (
-    select 1 from public.push_provider_configurations
-    where id and activated_at is not null
+    select 1 from public.push_provider_configurations c
+    where c.tenant_id = p_tenant_id
+      and c.firebase_project_id = 'samuraiapi-51996'
+      and c.activated_at is not null and c.activated_at <= statement_timestamp()
   )
 $fn$;
+alter function app.push_configuration_ready(uuid) owner to postgres;
+revoke all on function app.push_configuration_ready(uuid) from public, anon, authenticated, service_role;
 
-revoke all on function app.push_configuration_ready() from public, anon, service_role;
+-- Existing invoker composition may inspect only its complete ordinary claim.
+create function app.push_configuration_ready()
+returns boolean language plpgsql stable security definer set search_path = ''
+as $fn$
+begin
+  if auth.uid() is null or app.current_tenant_id() is null
+     or app.current_impersonation_id() is not null then
+    return false;
+  end if;
+  if app.current_app_role() = 'member' then
+    if app.current_member_id() is null or app.current_staff_id() is not null then
+      return false;
+    end if;
+  elsif app.current_app_role() in ('gym_owner', 'gym_manager', 'front_desk', 'trainer') then
+    if app.current_staff_id() is null or app.current_member_id() is not null then
+      return false;
+    end if;
+  else
+    return false;
+  end if;
+  return app.push_configuration_ready(app.current_tenant_id());
+exception when invalid_text_representation then
+  return false;
+end
+$fn$;
+alter function app.push_configuration_ready() owner to postgres;
+revoke all on function app.push_configuration_ready() from public, anon, authenticated, service_role;
 grant execute on function app.push_configuration_ready() to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -955,7 +986,8 @@ declare
   v_collected jsonb := '[]'::jsonb;
   v_batch jsonb;
 begin
-  if not app.push_configuration_ready() then
+  if not exists (select 1 from public.push_provider_configurations c
+                  where app.push_configuration_ready(c.tenant_id)) then
     return jsonb_build_object('attempts', '[]'::jsonb, 'configuration', 'provider_unconfigured');
   end if;
 
@@ -966,6 +998,9 @@ begin
      where n.channel = 'push'::public.notification_channel
        and n.status = 'scheduled'::public.notification_status
        and n.scheduled_for <= statement_timestamp()
+       and exists (select 1 from public.push_provider_configurations c
+                    where c.tenant_id = n.tenant_id and app.push_configuration_ready(c.tenant_id)
+                      and n.created_at >= c.activated_at)
        and m.status in ('active'::public.member_status, 'paused'::public.member_status, 'expired'::public.member_status)
        and m.erased_at is null
        and exists (select 1 from public.member_devices d
@@ -1003,6 +1038,9 @@ begin
          and n.channel = 'push'::public.notification_channel
          and n.status = 'scheduled'::public.notification_status
          and n.scheduled_for <= statement_timestamp()
+       and exists (select 1 from public.push_provider_configurations c
+                    where c.tenant_id = n.tenant_id and app.push_configuration_ready(c.tenant_id)
+                      and n.created_at >= c.activated_at)
          and m.status in ('active'::public.member_status, 'paused'::public.member_status, 'expired'::public.member_status)
          and m.erased_at is null
          and d.is_active and d.registered_user_id = m.user_id
@@ -1080,7 +1118,13 @@ begin
     raise exception 'Push work unavailable' using errcode = 'P0002';
   end if;
 
-  if not app.push_configuration_ready() then
+  if not app.push_configuration_ready(v_attempt.tenant_id)
+     or not exists (
+       select 1 from public.notifications n
+       join public.push_provider_configurations c on c.tenant_id = n.tenant_id
+       where n.tenant_id = v_attempt.tenant_id and n.id = v_attempt.notification_id
+         and n.created_at >= c.activated_at
+     ) then
     return jsonb_build_object('authorized', false,
       'attemptId', v_attempt.id, 'reservationId', v_attempt.reservation_id,
       'reason', 'provider_unconfigured', 'deferredUntil', null::timestamptz);
@@ -1386,7 +1430,7 @@ security invoker
 set search_path = ''
 as $fn$
 declare
-  v_configured boolean := app.push_configuration_ready();
+  v_configured boolean := app.push_configuration_ready(p_tenant_id);
   v_activated timestamptz;
   v_events integer := 0;
   v_children integer := 0;
@@ -1400,7 +1444,7 @@ declare
   v_notif uuid;
 begin
   select c.activated_at into v_activated
-    from public.push_provider_configurations c where c.id;
+    from public.push_provider_configurations c where c.tenant_id = p_tenant_id;
 
   -- 1. Reviewed-campaign inbox events (source truth, unconfigured-safe).
   for v_ann, v_ver, v_title, v_kind, v_member in
