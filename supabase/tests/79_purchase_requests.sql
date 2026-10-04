@@ -258,13 +258,12 @@ set local role postgres;
 -- BUY-008/010/011 proof attach, replacement and reasoned rejection on a fresh request.
 select pg_temp.claim('member',1,null,31,906);
 set local role authenticated;
-select lives_ok($q$select public.create_purchase_request(pg_temp.sid(516),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101)))$q$,'BUY-018 open request five of five after the cancellations');
-select pg_temp.cap('K6',516);
+select lives_ok($q$insert into req(label,id) select 'K6',(r->>'requestId')::uuid from (select public.create_purchase_request(pg_temp.sid(516),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101))) as r) v$q$,'captured create returns the labeled request id');
 set local role postgres;
 select is((select count(*) from public.purchase_requests where request_key = pg_temp.sid(516) and tenant_id = pg_temp.sid(1)),1::bigint,'BUY-008/010 the K6 linkage anchor row exists before the media fixture insert (loud, never a silent NULL)');
 insert into public.media_assets(id,tenant_id,kind,mime,bytes,staging_object_key,created_by_member_id,linked_request_id) values
-(pg_temp.sid(144),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(144,'payment_proof'),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(516) and tenant_id = pg_temp.sid(1))),
-(pg_temp.sid(145),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(145,'payment_proof'),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(516) and tenant_id = pg_temp.sid(1)));
+(pg_temp.sid(144),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(144,'payment_proof'),pg_temp.sid(31),(select id from req where label='K6')),
+(pg_temp.sid(145),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(145,'payment_proof'),pg_temp.sid(31),(select id from req where label='K6'));
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.accept_purchase_request((select id from req where label='K6'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),pg_temp.sid(614))$q$,'BUY-004 desk accepts the proof-flow request at the current quote');
@@ -329,12 +328,11 @@ select is((select count(*) from public.payments)=(select p from money_before) an
 -- BUY-012/013 exact-price recording through the unchanged ledger.
 select pg_temp.claim('member',1,null,31,906);
 set local role authenticated;
-select lives_ok($q$select public.create_purchase_request(pg_temp.sid(521),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101)))$q$,'BUY-012 exact-price shop request created');
-select pg_temp.cap('KR1',521);
+select lives_ok($q$insert into req(label,id) select 'KR1',(r->>'requestId')::uuid from (select public.create_purchase_request(pg_temp.sid(521),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101))) as r) v$q$,'captured create returns the labeled request id');
 set local role postgres;
 select is((select count(*) from public.purchase_requests where request_key = pg_temp.sid(521) and tenant_id = pg_temp.sid(1)),1::bigint,'BUY-008/010 the KR1 linkage anchor row exists before the media fixture insert (loud, never a silent NULL)');
 insert into public.media_assets(id,tenant_id,kind,mime,bytes,staging_object_key,created_by_member_id,linked_request_id) values
-(pg_temp.sid(146),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(146,'payment_proof'),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(521) and tenant_id = pg_temp.sid(1)));
+(pg_temp.sid(146),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(146,'payment_proof'),pg_temp.sid(31),(select id from req where label='KR1'));
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.accept_purchase_request((select id from req where label='KR1'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),pg_temp.sid(628))$q$,'BUY-012 exact-price request accepted');
@@ -371,12 +369,11 @@ select is(pg_temp.audits('purchase_request.recorded','KR1'),1,'BUY-020 replay ap
 -- BUY-014 mismatched funds recorded honestly without entitlement.
 select pg_temp.claim('member',1,null,31,906);
 set local role authenticated;
-select lives_ok($q$select public.create_purchase_request(pg_temp.sid(522),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101)))$q$,'BUY-014 mismatch scenario request created');
-select pg_temp.cap('KR2',522);
+select lives_ok($q$insert into req(label,id) select 'KR2',(r->>'requestId')::uuid from (select public.create_purchase_request(pg_temp.sid(522),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101))) as r) v$q$,'captured create returns the labeled request id');
 set local role postgres;
 select is((select count(*) from public.purchase_requests where request_key = pg_temp.sid(522) and tenant_id = pg_temp.sid(1)),1::bigint,'BUY-008/010 the KR2 linkage anchor row exists before the media fixture insert (loud, never a silent NULL)');
 insert into public.media_assets(id,tenant_id,kind,mime,bytes,staging_object_key,created_by_member_id,linked_request_id) values
-(pg_temp.sid(141),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(141,'payment_proof'),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(522) and tenant_id = pg_temp.sid(1)));
+(pg_temp.sid(141),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(141,'payment_proof'),pg_temp.sid(31),(select id from req where label='KR2'));
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.accept_purchase_request((select id from req where label='KR2'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),pg_temp.sid(631))$q$,'BUY-014 mismatch scenario accepted');
@@ -721,8 +718,7 @@ select lives_ok($q$select pg_temp.reg('W3','KF5')$q$,'BUY-001 the member-status 
 set local role postgres;
 select pg_temp.claim('member',1,null,35,910);
 set local role authenticated;
-select lives_ok($q$select public.create_purchase_request(pg_temp.sid(532),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101)))$q$,'BUY-001 member-status control request created');
-select pg_temp.cap('KF6',532);
+select lives_ok($q$insert into req(label,id) select 'KF6',(r->>'requestId')::uuid from (select public.create_purchase_request(pg_temp.sid(532),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101))) as r) v$q$,'captured create returns the labeled request id');
 set local role postgres;
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
