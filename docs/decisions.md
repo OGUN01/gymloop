@@ -1994,3 +1994,13 @@ Registry/code search found the canonical isUuid helper in the web-only keyset mo
 ### NTF Edge adapter reuse record — 2026-10-04
 
 The frozen transport requires an injected, offline-testable adapter. Registry/code searches found the existing shared env accessors, push numeric bounds, generated notification enum, and media/no-show Edge patterns. Reuse central env/config constants and the generated enum. Existing request helpers are web actor mutations or platform-specific Edge transports with incompatible authentication, envelopes and upstream-error handling; they cannot implement this credential-only three-facade contract. The new private handler validators and OAuth encoding/signing stay within the Edge module; shared stays platform-free. The existing Edge Deno import map pins workspace zod for the central env module and Vitest for the unchanged all-functions type gate, which also checks the independent visible adapter file. Vitest is not imported by the runtime entry point. The generated Deno lock records their resolved dependencies. No provider call, deployment or schema activation is implied.
+
+### NFC Android channel reuse record — 2026-10-04
+
+Registry/code search found the existing lazy notificationsModule, useMemberPush,
+installation id storage and caller registration path. Reused those seams and
+preserved response-listener exports and registered device revision evidence.
+No channel identity existed; PUSH_ANDROID_CHANNEL_ID and PUSH_ANDROID_CHANNEL_NAME
+centralize the frozen declaration's channel id/name in shared constants.
+Installed expo-notifications exposes native Android tokens as type android;
+provider FCM identity is not inferred from a mock's fcm discriminator.

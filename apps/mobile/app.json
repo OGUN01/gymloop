@@ -32,13 +32,15 @@
           }
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      ["expo-notifications", { "defaultChannel": "fitcruxx-updates" }]
     ],
     "ios": {
       "bundleIdentifier": "in.fitcruxx.app"
     },
     "android": {
       "package": "in.fitcruxx.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon-foreground.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",

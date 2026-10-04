@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "762123271201",
+    "project_id": "samuraiapi-51996",
+    "storage_bucket": "samuraiapi-51996.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:762123271201:android:35e9d8498bea4f64113760",
+        "android_client_info": {
+          "package_name": "in.fitcruxx.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBS33XZGHXDppdVRtw2DsL9n6vzue02Jvs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

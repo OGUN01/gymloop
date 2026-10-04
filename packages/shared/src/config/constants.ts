@@ -612,6 +612,8 @@ export const PUSH_DEVICE_STALE_DAYS = 30;
 export const PUSH_TOKEN_MAX_CHARS = 4096;
 export const PUSH_PROVIDER_MESSAGE_ID_MAX_CHARS = 256;
 export const PUSH_FAILURE_CODE_MAX_CHARS = 64;
+export const PUSH_ANDROID_CHANNEL_ID = 'fitcruxx-updates';
+export const PUSH_ANDROID_CHANNEL_NAME = 'FitCruxx updates';
 /** Frozen NTF Edge envelope, endpoint confinement and runtime bounds. */
 export const PUSH_DISPATCH_RUNTIME = {
   bodyBytes: 1024, digestBytes: 32, millisecondsPerSecond: 1000, oauthSeconds: 3600, forbiddenStatus: 403,

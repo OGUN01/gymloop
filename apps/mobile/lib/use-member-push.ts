@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getNetworkStateAsync } from 'expo-network';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
+import { PUSH_ANDROID_CHANNEL_ID, PUSH_ANDROID_CHANNEL_NAME } from '@gymloop/shared';
 import { useMobile } from './mobile-context';
 
 /**
@@ -40,14 +41,19 @@ export type MemberPushSettings = {
   pushConfigured: boolean;
 };
 
-type NotificationsModule = {
+export type NotificationsModule = {
+  AndroidImportance?: { DEFAULT: number };
+  setNotificationChannelAsync?(channelId: string, channel: { name: string; importance: number }): Promise<unknown>;
   getPermissionsAsync(): Promise<{ status: string; granted: boolean }>;
   requestPermissionsAsync(): Promise<{ status: string; granted: boolean }>;
   getDevicePushTokenAsync(): Promise<{ type: string; data: string }>;
+  getLastNotificationResponseAsync?(): Promise<unknown>;
+  addNotificationReceivedListener?(listener: (notification: unknown) => void): { remove: () => void };
+  addNotificationResponseReceivedListener?(listener: (response: unknown) => void): { remove: () => void };
 };
 
 /** The expo-notifications module, or null where the native layer is unavailable. */
-async function notificationsModule(): Promise<NotificationsModule | null> {
+export async function notificationsModule(): Promise<NotificationsModule | null> {
   try {
     return await import('expo-notifications') as unknown as NotificationsModule;
   } catch {
@@ -85,18 +91,31 @@ async function ensureInstallationId(): Promise<string> {
 export function useMemberPush() {
   const apiRef = useRef<MobileApi | null>(null);
   const moduleRef = useRef<NotificationsModule | null>(null);
+  const busyRef = useRef(false);
+  const liveRef = useRef(true);
+  const callerRef = useRef<string | null>(null);
+  const memberRef = useRef(false);
+  const registeredCallerRef = useRef<string | null>(null);
   const [settings, setSettings] = useState<MemberPushSettings | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [permission, setPermission] = useState<string>('undetermined');
   const [actionError, setActionError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
-  apiRef.current = useMobile().api as unknown as MobileApi;
+  const [registration, setRegistration] = useState<{ deviceId: string; tokenRevision: number } | null>(null);
+  const mobile = useMobile();
+  apiRef.current = mobile.api as unknown as MobileApi;
+  const caller = mobile.identity?.kind === 'member'
+    ? `${mobile.identity.userId}:${mobile.identity.tenantId}:${mobile.identity.memberId}`
+    : null;
+  callerRef.current = caller;
+  memberRef.current = mobile.identity?.kind === 'member';
 
   const readSettings = useCallback(async (live: { current: boolean }) => {
     const api = apiRef.current;
+    const readCaller = callerRef.current;
     if (api === null) return;
     const reply = await api.post(SETTINGS_PATH, {});
-    if (!live.current) return;
+    if (!live.current || !liveRef.current || callerRef.current !== readCaller || apiRef.current !== api) return;
     if (reply.ok && reply.data !== null && typeof reply.data === 'object') {
       const value = reply.data as Partial<MemberPushSettings>;
       setSettings({
@@ -111,6 +130,15 @@ export function useMemberPush() {
   }, []);
 
   useEffect(() => {
+    liveRef.current = true;
+    return () => { liveRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    setRegistration(null);
+  }, [caller]);
+
+  useEffect(() => {
     const live = { current: true };
     void readSettings(live);
     void notificationsModule()
@@ -121,53 +149,90 @@ export function useMemberPush() {
   }, [readSettings]);
 
   const enableNotifications = useCallback(async () => {
-    if (working) return;
+    if (busyRef.current) return;
     setActionError(null);
+    if (Platform.OS !== 'android') {
+      setActionError('Push notifications are available on Android. Updates remain in the app.');
+      return;
+    }
+    if (!memberRef.current) {
+      setActionError('Sign in as a member to enable notifications. Updates remain in the app.');
+      return;
+    }
     const notifications = moduleRef.current;
     if (notifications === null) {
       setActionError('Notifications are not available on this device. Updates remain in the app.');
       return;
     }
-    // Start the OS permission ask immediately inside the member action (NTF-016):
-    // it is the very first thing the control triggers, before any network work.
-    void notifications.requestPermissionsAsync()
-      .then((asked) => setPermission(asked.status))
-      .catch(() => { /* an unknown ask result keeps the undetermined state */ });
-    const offline = await (async () => {
-      try {
-        const state = await getNetworkStateAsync();
-        return state.isConnected === false || state.isInternetReachable === false;
-      } catch {
-        return false;
-      }
-    })();
-    if (offline) {
-      setActionError("That didn't go through — you are offline. Connect and try again.");
-      return;
-    }
+    const actionCaller = callerRef.current;
+    const actionApi = apiRef.current;
+    const isCurrent = () => liveRef.current && memberRef.current && callerRef.current === actionCaller && apiRef.current === actionApi;
+    busyRef.current = true;
     setWorking(true);
     try {
-      // The ask above ran inside this same member action; the FCM registration
-      // does not depend on the display permission: the token identifies the
-      // installation, the OS permission only gates display.
+      if (typeof notifications.setNotificationChannelAsync !== 'function' || notifications.AndroidImportance?.DEFAULT === undefined) {
+        setActionError('The notification channel is unavailable. Update the app and try again. Updates remain in the app.');
+        return;
+      }
+      try {
+        const channel = await notifications.setNotificationChannelAsync(PUSH_ANDROID_CHANNEL_ID, {
+          name: PUSH_ANDROID_CHANNEL_NAME, importance: notifications.AndroidImportance.DEFAULT,
+        });
+        if (channel === null) throw new Error('notification-channel-unavailable');
+      } catch {
+        if (isCurrent()) setActionError('The notification channel could not be set up. Try again. Updates remain in the app.');
+        return;
+      }
+      if (!isCurrent()) return;
+      const asked = await notifications.requestPermissionsAsync();
+      if (!isCurrent()) return;
+      setPermission(asked.status);
+      if (!asked.granted) {
+        setActionError('Notifications are not allowed. You can enable them in device settings. Updates remain in the app.');
+        return;
+      }
+      const offline = await (async () => {
+        try {
+          const state = await getNetworkStateAsync();
+          return state.isConnected === false || state.isInternetReachable === false;
+        } catch {
+          return false;
+        }
+      })();
+      if (!isCurrent()) return;
+      if (offline) {
+        setActionError("That didn't go through — you are offline. Connect and try again.");
+        return;
+      }
       const tokenResult = await notifications.getDevicePushTokenAsync();
-      if (tokenResult.type !== 'fcm' || typeof tokenResult.data !== 'string' || tokenResult.data === '') {
+      if (!isCurrent()) return;
+      if (tokenResult.type !== 'android' || typeof tokenResult.data !== 'string' || tokenResult.data === '') {
         setActionError('A registration number was not available yet. Try again.');
         return;
       }
       const installationId = await ensureInstallationId();
-      const reply = await apiRef.current?.post('/api/member/push-device', { installationId, pushToken: tokenResult.data, platform: 'android' });
+      if (!isCurrent()) return;
+      const reply = await actionApi?.post('/api/member/push-device', { installationId, pushToken: tokenResult.data, platform: 'android' });
+      if (!isCurrent()) return;
       if (!reply || !reply.ok) {
         setActionError('The device could not be registered. Try again.');
         return;
       }
+      // Keep the registered device identity: push receipt/open evidence
+      // (NTF-009) is only meaningful against this accepted device revision.
+      const registered = reply.data as { deviceId?: string; tokenRevision?: number };
+      if (typeof registered?.deviceId === 'string' && typeof registered?.tokenRevision === 'number') {
+        registeredCallerRef.current = actionCaller;
+        setRegistration({ deviceId: registered.deviceId, tokenRevision: registered.tokenRevision });
+      }
       await readSettings({ current: true });
     } catch {
-      setActionError("Enabling didn't complete. Check your connection and try again.");
+      if (isCurrent()) setActionError("Enabling didn't complete. Check your connection and try again.");
     } finally {
-      setWorking(false);
+      busyRef.current = false;
+      if (liveRef.current) setWorking(false);
     }
-  }, [readSettings, working]);
+  }, [readSettings]);
 
   const setPreference = useCallback(async (category: string, enabled: boolean) => {
     const previous = settings;
@@ -193,6 +258,7 @@ export function useMemberPush() {
     permission,
     actionError,
     working,
+    registration: registeredCallerRef.current === caller ? registration : null,
     enableNotifications,
     setPreference,
     openOsSettings,
