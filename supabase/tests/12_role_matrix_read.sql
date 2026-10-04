@@ -1,15 +1,25 @@
+-- Frozen-contract reconciliation (2026-10-04): Wave C serial freeze grant/actor
+-- matrix closes all authenticated member_devices table and column SELECT.
+-- Each of the twelve existing sessions now proves exact 42501 separately for
+-- table counts, safe metadata and tokens, scoped to both fixture tenants.
+-- The original thirteen assertions retain every non-device query/expectation.
+-- Device rows remain in the postgres-authored fixture; safe metadata is an RPC
+-- concern, never a reason to restore direct SELECT to any authenticated role.
+-- Provenance: NTF proposal, transport/pre-configuration amendments, serial
+-- tenancy/Edge mechanics, readiness/OAuth declaration and Wave C serial freeze;
+-- legacy visible 09_comms_rls.sql and this file only. No implementation read.
 -- 12_role_matrix_read - what each of the seven roles may READ inside a gym it
 -- belongs to, from openspec/changes/phase-2-identity-and-tenancy/design.md
 -- section 8.3 (the authoritative matrix) and .../specs/authorization/spec.md.
 --
 -- WHAT THIS FILE COVERS EXHAUSTIVELY, AND WHAT IT SAMPLES
 --
--- Exhaustive, by behaviour: all thirty-six tables against each of eight
+-- Exhaustive, by behaviour: all thirty-five directly readable tables against each of eight
 -- sessions -- the four gym-side staff roles, the member, the member with no
 -- member_id claim, the trainer holding one, the caller with a tenant claim and no role, and the caller
 -- whose role is outside the vocabulary. Every assertion below is one vector
 -- over the whole of `public`, comparing the rows a session actually sees
--- against the rows the matrix says it should, table by table. That is 288
+-- against the rows the matrix says it should, table by table. That is 280
 -- cells for eight of the assertions, and it is affordable because the fixture makes
 -- the expected
 -- number a property of the gate rather than of the table: gym A holds two rows
@@ -26,7 +36,7 @@
 -- invented -- is asserted once over the catalogue in 04_contract_meta.sql
 -- rather than being restated here. This file is behaviour only.
 --
--- Also exhaustive, and each over all thirty-six tables: the caller with a
+-- Also exhaustive, and each over all thirty-five directly readable tables: the caller with a
 -- tenant claim and no role, the caller with a role outside the vocabulary, and
 -- the member with no member_id claim. The last of those is only interesting
 -- because design.md 8.3 revised M(all) to `current_member_id() is not null`:
@@ -63,7 +73,7 @@ begin;
 -- the owner role is assumed explicitly, never inherited from the connection.
 set local role postgres;
 
-select plan(13);
+select plan(49);
 
 -- Gym A, fully populated: every table in `public` carries rows for it, two
 -- wherever the table's shape allows two, so that a member gate (`member_id =
@@ -245,7 +255,7 @@ insert into public.impersonation_sessions (id, tenant_id, actor_user_id, reason,
   ('12000000-0000-4000-8000-000000000029'::uuid, '12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-00000000002b'::uuid, 'onboarding help', now() - interval '3 hour', now() - interval '2 hour', now() - interval '2 hour');
 
 -- ---------------------------------------------------------------------------
--- 1-4. The four gym-side staff roles, each against all thirty-six tables.
+-- 1-4. The four gym-side staff roles, each against all thirty-five directly readable tables.
 --
 -- gym_owner and gym_manager have identical READ vectors by the matrix -- they
 -- differ only on the write side -- so both are asserted rather than one, which
@@ -262,6 +272,28 @@ select set_config(
   true
 );
 set local role authenticated;
+
+-- Frozen Wave C NTF grant matrix: permission denial supersedes device RLS
+-- visibility for every ordinary/platform session, across both fixture gyms.
+select throws_ok(
+  $$select count(*) from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT the device table in either gym'
+);
+select throws_ok(
+  $$select tenant_id from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT safe device metadata columns'
+);
+select throws_ok(
+  $$select push_token from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT device token columns'
+);
+
 
 select is_empty(
   $$select tbl, seen, want from (
@@ -291,7 +323,6 @@ select is_empty(
     union all select 'pt_sessions', (select count(*) from public.pt_sessions where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'consents', (select count(*) from public.consents where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'notifications', (select count(*) from public.notifications where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
-    union all select 'member_devices', (select count(*) from public.member_devices where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'message_templates', (select count(*) from public.message_templates where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'leads', (select count(*) from public.leads where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'member_imports', (select count(*) from public.member_imports where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
@@ -318,6 +349,28 @@ select set_config(
 );
 set local role authenticated;
 
+-- Frozen Wave C NTF grant matrix: permission denial supersedes device RLS
+-- visibility for every ordinary/platform session, across both fixture gyms.
+select throws_ok(
+  $$select count(*) from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT the device table in either gym'
+);
+select throws_ok(
+  $$select tenant_id from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT safe device metadata columns'
+);
+select throws_ok(
+  $$select push_token from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT device token columns'
+);
+
+
 select is_empty(
   $$select tbl, seen, want from (
     select 'organizations'::text, (select count(*) from public.organizations where id = '12000000-0000-4000-8000-000000000001'::uuid), 1::bigint
@@ -346,7 +399,6 @@ select is_empty(
     union all select 'pt_sessions', (select count(*) from public.pt_sessions where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'consents', (select count(*) from public.consents where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'notifications', (select count(*) from public.notifications where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
-    union all select 'member_devices', (select count(*) from public.member_devices where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'message_templates', (select count(*) from public.message_templates where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'leads', (select count(*) from public.leads where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'member_imports', (select count(*) from public.member_imports where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
@@ -372,6 +424,28 @@ select set_config(
   true
 );
 set local role authenticated;
+
+-- Frozen Wave C NTF grant matrix: permission denial supersedes device RLS
+-- visibility for every ordinary/platform session, across both fixture gyms.
+select throws_ok(
+  $$select count(*) from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT the device table in either gym'
+);
+select throws_ok(
+  $$select tenant_id from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT safe device metadata columns'
+);
+select throws_ok(
+  $$select push_token from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT device token columns'
+);
+
 
 select is_empty(
   $$select tbl, seen, want from (
@@ -401,7 +475,6 @@ select is_empty(
     union all select 'pt_sessions', (select count(*) from public.pt_sessions where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'consents', (select count(*) from public.consents where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'notifications', (select count(*) from public.notifications where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
-    union all select 'member_devices', (select count(*) from public.member_devices where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'message_templates', (select count(*) from public.message_templates where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'leads', (select count(*) from public.leads where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'member_imports', (select count(*) from public.member_imports where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
@@ -427,6 +500,28 @@ select set_config(
   true
 );
 set local role authenticated;
+
+-- Frozen Wave C NTF grant matrix: permission denial supersedes device RLS
+-- visibility for every ordinary/platform session, across both fixture gyms.
+select throws_ok(
+  $$select count(*) from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT the device table in either gym'
+);
+select throws_ok(
+  $$select tenant_id from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT safe device metadata columns'
+);
+select throws_ok(
+  $$select push_token from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT device token columns'
+);
+
 
 select is_empty(
   $$select tbl, seen, want from (
@@ -456,7 +551,6 @@ select is_empty(
     union all select 'pt_sessions', (select count(*) from public.pt_sessions where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'consents', (select count(*) from public.consents where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'notifications', (select count(*) from public.notifications where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
-    union all select 'member_devices', (select count(*) from public.member_devices where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'message_templates', (select count(*) from public.message_templates where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 2
     union all select 'leads', (select count(*) from public.leads where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'member_imports', (select count(*) from public.member_imports where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
@@ -474,7 +568,7 @@ select is_empty(
 set local role postgres;
 
 -- ---------------------------------------------------------------------------
--- 5. The member, against all thirty-six tables. Three shapes have to be
+-- 5. The member, against all thirty-five directly readable tables. Three shapes have to be
 --    distinguished and the fixture distinguishes them: `M` returns member X's
 --    one row out of two, `M(all)` returns both of the gym's rows, and a table
 --    with no member policy returns nothing at all even though the member's own
@@ -492,6 +586,28 @@ select set_config(
   true
 );
 set local role authenticated;
+
+-- Frozen Wave C NTF grant matrix: permission denial supersedes device RLS
+-- visibility for every ordinary/platform session, across both fixture gyms.
+select throws_ok(
+  $$select count(*) from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT the device table in either gym'
+);
+select throws_ok(
+  $$select tenant_id from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT safe device metadata columns'
+);
+select throws_ok(
+  $$select push_token from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT device token columns'
+);
+
 
 select is_empty(
   $$select tbl, seen, want from (
@@ -521,7 +637,6 @@ select is_empty(
     union all select 'pt_sessions', (select count(*) from public.pt_sessions where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 1
     union all select 'consents', (select count(*) from public.consents where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 1
     union all select 'notifications', (select count(*) from public.notifications where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 1
-    union all select 'member_devices', (select count(*) from public.member_devices where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 1
     union all select 'message_templates', (select count(*) from public.message_templates where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'leads', (select count(*) from public.leads where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'member_imports', (select count(*) from public.member_imports where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
@@ -560,9 +675,9 @@ set local role postgres;
 --    policy's correctness depends on a property of a different component: the
 --    hook never pairs a member_id claim with another role, but the POLICY does
 --    not say so. On the five M(all) tables the term grants nothing -- a trainer
---    reads those anyway. On consents, notifications, member_devices and
---    payments it is a real widening, because a trainer is outside those read
---    gates entirely, so those four are what this asserts.
+--    reads those anyway. On consents, notifications and payments it is a
+--    real widening, because a trainer is outside those read gates entirely.
+--    Devices are independently denied above by the frozen NTF privilege gate.
 
 select set_config(
   'request.jwt.claims',
@@ -574,11 +689,32 @@ select set_config(
 );
 set local role authenticated;
 
+-- Frozen Wave C NTF grant matrix: permission denial supersedes device RLS
+-- visibility for every ordinary/platform session, across both fixture gyms.
+select throws_ok(
+  $$select count(*) from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT the device table in either gym'
+);
+select throws_ok(
+  $$select tenant_id from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT safe device metadata columns'
+);
+select throws_ok(
+  $$select push_token from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT device token columns'
+);
+
+
 select is_empty(
   $$select tbl, seen from (
     select 'consents'::text,       (select count(*) from public.consents where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid)
     union all select 'notifications',  (select count(*) from public.notifications where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid)
-    union all select 'member_devices', (select count(*) from public.member_devices where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid)
     union all select 'payments',       (select count(*) from public.payments where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid)
   ) v(tbl, seen)
    where seen <> 0$$,
@@ -587,7 +723,7 @@ select is_empty(
 
 set local role postgres;
 
--- 8. A member claim with NO member_id key, against all thirty-six tables.
+-- 8. A member claim with NO member_id key, against all thirty-five directly readable tables.
 --
 --    Every one must return zero -- including the five the matrix marks M(all),
 --    which is the whole point of design.md 8.3's revision. `M(all)` is
@@ -598,7 +734,7 @@ set local role postgres;
 --    not mention the role either, to a session with no role claim at all,
 --    flatly against the authorization spec's first requirement. Those five
 --    rows are what distinguishes the two gates, and they are why this vector
---    covers all thirty-six tables rather than only the nine gated on
+--    covers all thirty-five directly readable tables rather than only the nine gated on
 --    member_id.
 
 select set_config(
@@ -609,6 +745,28 @@ select set_config(
   true
 );
 set local role authenticated;
+
+-- Frozen Wave C NTF grant matrix: permission denial supersedes device RLS
+-- visibility for every ordinary/platform session, across both fixture gyms.
+select throws_ok(
+  $$select count(*) from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT the device table in either gym'
+);
+select throws_ok(
+  $$select tenant_id from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT safe device metadata columns'
+);
+select throws_ok(
+  $$select push_token from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT device token columns'
+);
+
 
 select is_empty(
   $$select tbl, seen, want from (
@@ -638,7 +796,6 @@ select is_empty(
     union all select 'pt_sessions', (select count(*) from public.pt_sessions where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'consents', (select count(*) from public.consents where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'notifications', (select count(*) from public.notifications where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
-    union all select 'member_devices', (select count(*) from public.member_devices where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'message_templates', (select count(*) from public.message_templates where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'leads', (select count(*) from public.leads where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'member_imports', (select count(*) from public.member_imports where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
@@ -667,6 +824,28 @@ select set_config(
 );
 set local role authenticated;
 
+-- Frozen Wave C NTF grant matrix: permission denial supersedes device RLS
+-- visibility for every ordinary/platform session, across both fixture gyms.
+select throws_ok(
+  $$select count(*) from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT the device table in either gym'
+);
+select throws_ok(
+  $$select tenant_id from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT safe device metadata columns'
+);
+select throws_ok(
+  $$select push_token from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT device token columns'
+);
+
+
 select is_empty(
   $$select tbl, seen, want from (
     select 'organizations'::text, (select count(*) from public.organizations where id = '12000000-0000-4000-8000-000000000001'::uuid), 0::bigint
@@ -695,7 +874,6 @@ select is_empty(
     union all select 'pt_sessions', (select count(*) from public.pt_sessions where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'consents', (select count(*) from public.consents where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'notifications', (select count(*) from public.notifications where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
-    union all select 'member_devices', (select count(*) from public.member_devices where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'message_templates', (select count(*) from public.message_templates where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'leads', (select count(*) from public.leads where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'member_imports', (select count(*) from public.member_imports where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
@@ -733,6 +911,28 @@ select set_config(
 );
 set local role authenticated;
 
+-- Frozen Wave C NTF grant matrix: permission denial supersedes device RLS
+-- visibility for every ordinary/platform session, across both fixture gyms.
+select throws_ok(
+  $$select count(*) from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT the device table in either gym'
+);
+select throws_ok(
+  $$select tenant_id from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT safe device metadata columns'
+);
+select throws_ok(
+  $$select push_token from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT device token columns'
+);
+
+
 select is_empty(
   $$select tbl, seen, want from (
     select 'organizations'::text, (select count(*) from public.organizations where id = '12000000-0000-4000-8000-000000000001'::uuid), 0::bigint
@@ -761,7 +961,6 @@ select is_empty(
     union all select 'pt_sessions', (select count(*) from public.pt_sessions where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'consents', (select count(*) from public.consents where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'notifications', (select count(*) from public.notifications where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
-    union all select 'member_devices', (select count(*) from public.member_devices where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'message_templates', (select count(*) from public.message_templates where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'leads', (select count(*) from public.leads where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
     union all select 'member_imports', (select count(*) from public.member_imports where tenant_id = '12000000-0000-4000-8000-000000000001'::uuid), 0
@@ -784,6 +983,28 @@ set local role postgres;
 
 select set_config('request.jwt.claims', '', true);
 set local role authenticated;
+
+-- Frozen Wave C NTF grant matrix: permission denial supersedes device RLS
+-- visibility for every ordinary/platform session, across both fixture gyms.
+select throws_ok(
+  $$select count(*) from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT the device table in either gym'
+);
+select throws_ok(
+  $$select tenant_id from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT safe device metadata columns'
+);
+select throws_ok(
+  $$select push_token from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT device token columns'
+);
+
 
 select is_empty(
   $$select tbl, seen from (
@@ -813,6 +1034,28 @@ select set_config(
 );
 set local role authenticated;
 
+-- Frozen Wave C NTF grant matrix: permission denial supersedes device RLS
+-- visibility for every ordinary/platform session, across both fixture gyms.
+select throws_ok(
+  $$select count(*) from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT the device table in either gym'
+);
+select throws_ok(
+  $$select tenant_id from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT safe device metadata columns'
+);
+select throws_ok(
+  $$select push_token from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT device token columns'
+);
+
+
 select is_empty(
   $$select tbl, seen, want from (
     select 'organizations'::text, (select count(*) from public.organizations where id in ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)), 2::bigint
@@ -834,6 +1077,28 @@ select set_config(
   true
 );
 set local role authenticated;
+
+-- Frozen Wave C NTF grant matrix: permission denial supersedes device RLS
+-- visibility for every ordinary/platform session, across both fixture gyms.
+select throws_ok(
+  $$select count(*) from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT the device table in either gym'
+);
+select throws_ok(
+  $$select tenant_id from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT safe device metadata columns'
+);
+select throws_ok(
+  $$select push_token from public.member_devices where tenant_id in
+    ('12000000-0000-4000-8000-000000000001'::uuid, '12000000-0000-4000-8000-000000000002'::uuid)$$,
+  '42501'::text, null::text,
+  'NTF: this session cannot directly SELECT device token columns'
+);
+
 
 select is_empty(
   $$select tbl, seen, want from (

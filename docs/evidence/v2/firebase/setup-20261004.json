@@ -22,7 +22,8 @@
     "Google OAuth accepts replacement",
     "protected GitHub secret names and main-only owner review",
     "temporary private file removed",
-    "lost original deletion and refreshed one-key inventory"
+    "lost original deletion and refreshed one-key inventory",
+    "Firebase Cloud Messaging API already enabled in approved project"
   ],
   "serverAccountCreated": true,
   "serverKeyCreated": true,
@@ -35,7 +36,8 @@
     "push-role-created-20261004.jpg",
     "push-sender-grant-20261004.jpg",
     "push-replacement-revoke-prepared-20261004.jpg",
-    "push-key-replacement-complete-20261004.jpg"
+    "push-key-replacement-complete-20261004.jpg",
+    "fcm-api-enabled-20261004.jpg"
   ],
   "serverAccount": "fitcruxx-push-sender@samuraiapi-51996.iam.gserviceaccount.com",
   "serverAccountUniqueId": "105579326043867456906",
@@ -66,5 +68,7 @@
   "temporaryPrivateFileRemoved": true,
   "edgeDeployed": false,
   "nativeBuildWired": false,
-  "messagesSentDuringCustodyVerification": 0
+  "messagesSentDuringCustodyVerification": 0,
+  "fcmApiEnabled": true,
+  "fcmApiEnablementChanged": false
 }
