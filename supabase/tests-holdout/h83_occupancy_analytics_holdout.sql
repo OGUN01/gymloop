@@ -326,6 +326,12 @@ begin
     -- acceptance UPDATE so the staging-health text names any mismatching
     -- exact-buy guard column.
     insert into h83_seed_errors values ('PAYCHECK: member='||(select member_id::text from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' amt='||(select amount_paise::text from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' cur='||(select currency from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' status='||(select status from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' paid_at='||(select coalesce(paid_at::text,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' idemp='||(select coalesce(idempotency_key,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' recby='||(select coalesce(recorded_by_staff_id::text,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' memb_id='||(select coalesce(membership_id::text,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' mandate='||(select coalesce(mandate_id::text,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' coupon='||(select coalesce(coupon_id::text,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' provider='||(select coalesce(provider,'NULL')||'/'||coalesce(provider_order_id,'NULL')||'/'||coalesce(provider_payment_id,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac'));
+    -- The acceptance UPDATE runs as the production desk actor (BUY-013: the
+    -- recording call is the real authenticated staff caller), so the addon
+    -- trigger's invoker read sees the payment under the staff RLS the way
+    -- production's desk session does.
+    set local role authenticated;
+    select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a3","role":"authenticated","app_role":"front_desk","staff_id":"83900000-0000-4000-8000-0000000000a3","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
     update public.addon_orders
       set status = 'paid',
           payment_id = '83900000-0000-4000-8000-0000000000ac',
@@ -333,6 +339,9 @@ begin
           starts_on = (now() at time zone 'Asia/Kolkata')::date,
           expires_on = (now() at time zone 'Asia/Kolkata')::date + 29
       where id = '83900000-0000-4000-8000-0000000000ad';
+    -- Restore the fixture's postgres session for the remaining staging.
+    set local role postgres;
+    select set_config('request.jwt.claims','',true);
   end;
   -- Unconditional post-block probe: reads the payments row's committed
   -- state after the addon staging (ABSENT if the block rolled back), so the
