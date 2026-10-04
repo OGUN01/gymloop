@@ -81,10 +81,10 @@ round-trip. The orchestrator reruns the suite to confirm.
 
 - `check-pgtap-rollback.mjs`: 159 pgTAP files checked, all rollback-wrapped — green.
 - File sha256 after edits:
-  `a76c07751778ab804cc21860854d7795b437465f544503518486288333c287c6`
-  (second fixture round: the seed assertion was first written as
-  `ok(probe(...), 'OK', label)` — three arguments, text first — which pgTAP
-  resolves as `ok(text, unknown, unknown)` and aborts 42883; corrected to the
-  boolean comparison `ok(probe(...) = 'OK', label)`, plan stays 142).
+  `4421abe31c2ac6807d8f56e3a1b0ad173c8f38e81437d08a7405faee16140b19`
+  (third round: #129 cross-member cancel amended 42501 → P0002 per the
+  coordinator's SLF-009 adjudication recorded in the proposal — the
+  target-invisibility collapse the read RPCs use; the earlier ok() boolean
+  correction and the agreement-boundary fixture repair are unchanged).
 - Nothing committed; no SQL executed against any database; implementation
   source never read.

@@ -314,7 +314,11 @@ select is(pg_temp.val($q$select status::text from public.member_freeze_requests 
 select is(pg_temp.val($q$select cancelled_by_user_id::text from public.member_freeze_requests where tenant_id=pg_temp.u(1) and request_key=pg_temp.u(705)$q$),pg_temp.u(915)::text,'SLF-009: withdrawal records the original member subject');
 set local role authenticated;
 select pg_temp.claim('member',null,101,906,1);
-select is(pg_temp.probe('select public.cancel_member_freeze_request((select (v->>''id'')::uuid from proof where k=''r109''),pg_temp.u(729))'),'42501','SLF-009: another member cannot withdraw a request');
+-- SLF-009 adjudication (proposal amendment note, 2026-10-04): a cross-member
+-- withdrawal refuses with the single unavailable signal P0002 — the same
+-- target-invisibility collapse the read RPCs use; an authority-shaped message
+-- would confirm the target exists, so the contract pins P0002 here.
+select is(pg_temp.probe('select public.cancel_member_freeze_request((select (v->>''id'')::uuid from proof where k=''r109''),pg_temp.u(729))'),'P0002','SLF-009: another member cannot withdraw a request');
 select is(pg_temp.probe('select public.cancel_member_freeze_request((select (v->>''id'')::uuid from proof where k=''r101''),pg_temp.u(708))'),'GL066','SLF-009: an approved freeze is never undone by withdrawal');
 set local role postgres;
 select is(pg_temp.probe($q$update public.membership_pauses set approved_by_staff_id=pg_temp.u(22),approved_at=statement_timestamp() where id=(select source_pause_id from public.member_freeze_requests where tenant_id=pg_temp.u(1) and request_key=pg_temp.u(705))$q$),'23514','SLF-014: the additive invariant refuses deciding a linked closed request');

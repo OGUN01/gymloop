@@ -1,296 +1,104 @@
--- Fixture repair 2026-10-04: pg_proc.proconfig is text[], so read its
--- explicit search_path entry instead of applying a JSON operator.
--- 2026-10-04 independent reconciliation: frozen public contracts only; no
--- implementation, migrations, visible suites or private diagnostics read.
--- Independent holdout: frozen OCC-001..017 public contract only
--- (openspec/changes/occupancy-analytics/proposal.md + docs/design/v2/occ-bar.md).
--- No implementation, no visible suite, no other holdout, no registry was read.
+-- Independent holdout repair 2026-10-04: fallback elimination.
+-- Authored from the frozen public contract ONLY (OCC-001..017 in
+-- openspec/changes/occupancy-analytics/proposal.md, the frozen
+-- sql-envelope-declaration.md, docs/design/v2/occ-bar.md). No implementation,
+-- migration, visible suite, other holdout, registry or private diagnostic was
+-- read; docs/data-model.md was not consulted either, so real-table column
+-- guesses for attendance/class staging are exception-swallowed with an
+-- explicit staging-health assertion (loud, never silently green).
 --
--- Pinned seam (from the owner-approved loader): public.owner_occupancy_analytics(
---   p_from date, p_through date, p_branch_id uuid default null,
---   p_exclude_holidays boolean default true) returns jsonb.
--- OCC-005's "visibly reversible" is RPC-side: the fourth parameter turns the
--- holiday exclusion off, and the snapshot then carries the holiday date back
--- in the exposure (eligible dates, arrivals) with no exclusions disclosure.
+-- Repair of the prior revision: the private stand-in mirror
+-- (holdout_occ.owner_occupancy_analytics) and the occ_call dispatcher are
+-- REMOVED. Every behavioral assertion below invokes the real four-argument
+-- public RPC `public.owner_occupancy_analytics(date,date,uuid,boolean)`
+-- directly under real caller identity. If the real call fails, the suite
+-- fails; no helper-built aggregate, mirror selector or separately refreshed
+-- drill proves anything here.
 --
--- Pattern: hybrid dispatch, stated honestly.
---   Section A pins the REAL object's shape/security in public (RED, via
---   to_regprocedure, until the migration lands).
---   Sections B..F are behavioral. A dispatcher prefers the real public RPC and
---   otherwise calls a guarded stand-in (holdout_occ.owner_occupancy_analytics)
---   that implements the frozen contract over: the REAL tenancy/money tables
---   (columns certain from docs/data-model.md; fixture rows seeded there, so the
---   post-migration dispatch reads the same rows) and minimal holdout_occ mirrors
---   for attendance/classes/add-on linkage (the real INSERT paths carry check-in
---   guards and column shapes this blind author must not guess). A guarded block
---   attempts the same fixture rows in the real attendance/class tables so the
---   post-migration dispatch sees them when the shapes allow; a shape mismatch
---   degrades loudly, never silently green.
---   The response keys below are the contract's own disclosure terms (OCC-002/003/
---   004/005/009/010/012/014/015/016). The held contract is the expectations, not
---   the key spellings; a real implementation that discloses the same facts under
---   other names reconciles via spec: round-trip.
+-- Snapshots are materialized ONCE per named capture into pg_temp.h83_snap so
+-- every extracted value provably comes from one returned JSON object
+-- (OCC-002). Refusal checks execute direct calls.
 --
 -- Rollback-only: one lowercase begin;/rollback; pair, nothing commits.
 begin;
 set local role postgres;
-set local search_path to public, extensions, holdout_occ;
-select plan(67);
+set local time zone 'Asia/Kolkata';
+set local search_path = extensions, public;
+select set_config('request.jwt.claims','',true);
+select plan(183);
 
-create schema if not exists holdout_occ;
--- Test adapter lookup only: source-table privileges remain untouched.
-grant usage on schema holdout_occ to authenticated;
-create table if not exists holdout_occ.occ_attendance(
-  id uuid primary key, tenant_id uuid not null, branch_id uuid not null,
-  member_id uuid not null, checked_in_at timestamptz not null,
-  source text not null default 'front_desk');
-create table if not exists holdout_occ.occ_class_sessions(
-  id uuid primary key, tenant_id uuid not null, branch_id uuid not null,
-  session_date date not null, capacity integer not null,
-  status text not null default 'scheduled', ends_at timestamptz not null);
-create table if not exists holdout_occ.occ_class_bookings(
-  id uuid primary key, session_id uuid not null, member_id uuid not null,
-  status text not null);
-create table if not exists holdout_occ.occ_addon_orders(
-  payment_id uuid primary key);
+-- Snapshot/error temp tables are created BEFORE any helper function body,
+-- because language-SQL helper bodies are validated at CREATE time and would
+-- fail with 42P01 if they referenced a not-yet-created relation.
+create temp table h83_snap(k text primary key, r jsonb not null);
+create temp table h83_seed_errors(line text not null);
+grant select, insert on pg_temp.h83_snap to authenticated;
+grant select on pg_temp.h83_seed_errors to authenticated;
 
--- ---------------------------------------------------------------------------
--- Guarded attempt at seeding the REAL attendance/class tables with the same
--- fixture rows (column names from docs/data-model.md; class columns derived
--- from the frozen OCC text). A mismatch degrades to the mirrors, loudly.
--- ---------------------------------------------------------------------------
-do $seed$
-declare
-  v_t1 uuid := '83900000-0000-4000-8000-000000000001';
+-- ---------------------------------------------------------------- helpers
+create function pg_temp.snap(k text) returns jsonb language sql as $f$
+  select r from pg_temp.h83_snap where h83_snap.k = $1
+$f$;
+
+create function pg_temp.branch(js jsonb, bid text) returns jsonb language sql as $f$
+  select b from jsonb_array_elements(js) b
+  where b->>'branchId' = $2 limit 1
+$f$;
+
+create function pg_temp.cell(js jsonb, wd int, hr int) returns jsonb language sql as $f$
+  select c from jsonb_array_elements(js) c
+  where (c->>'weekday')::int = $2 and (c->>'hour')::int = $3 limit 1
+$f$;
+
+create function pg_temp.day(js jsonb, d date) returns jsonb language sql as $f$
+  select x from jsonb_array_elements(js) x
+  where x->>'localDate' = $1::text limit 1
+$f$;
+
+create function pg_temp.sess(js jsonb, sid text) returns jsonb language sql as $f$
+  select x from jsonb_array_elements(js) x
+  where x->>'sessionId' = $2 limit 1
+$f$;
+
+create function pg_temp.cash(js jsonb, cur text) returns jsonb language sql as $f$
+  select c from jsonb_array_elements(js) c
+  where c->>'currency' = $2 limit 1
+$f$;
+
+create function pg_temp.cat(cash_row jsonb, label text) returns jsonb language sql as $f$
+  select c from jsonb_array_elements(cash_row->'categories') c
+  where c->>'label' = $2 limit 1
+$f$;
+
+create function pg_temp.pay(js jsonb, pid text) returns jsonb language sql as $f$
+  select x from jsonb_array_elements(js) x
+  where x->>'paymentId' = $2 limit 1
+$f$;
+
+create function pg_temp.ret(js jsonb, rid text) returns jsonb language sql as $f$
+  select x from jsonb_array_elements(js) x
+  where x->>'returnId' = $2 limit 1
+$f$;
+
+-- Exception-safe real-RPC capture: a failing real call is recorded as an
+-- __error__ snapshot (surfaced by the health assertion) instead of aborting
+-- the whole rollback-only transaction before any TAP is emitted.
+create function pg_temp.capture(k text, fn date, td date, br uuid, ex boolean) returns void language plpgsql as $f$
 begin
-  if to_regclass('public.attendance') is not null then
-    begin
-      insert into public.attendance(id, tenant_id, branch_id, member_id, checked_in_at, source)
-      select a.id, a.tenant_id, a.branch_id, a.member_id, a.checked_in_at, a.source::attendance_source
-      from holdout_occ.occ_attendance a where a.tenant_id = v_t1
-      on conflict do nothing;
-    exception when others then null; -- mirror remains the behavioral source
-    end;
-  end if;
-  if to_regclass('public.class_sessions') is not null then
-    begin
-      insert into public.class_sessions(id, tenant_id, branch_id, session_date, capacity, status, ends_at)
-      select s.id, s.tenant_id, s.branch_id, s.session_date, s.capacity, s.status::booking_status, s.ends_at
-      from holdout_occ.occ_class_sessions s where s.tenant_id = v_t1
-      on conflict do nothing;
-    exception when others then null;
-    end;
-  end if;
-  if to_regclass('public.class_bookings') is not null then
-    begin
-      insert into public.class_bookings(id, session_id, member_id, status)
-      select b.id, b.session_id, b.member_id, b.status::booking_status
-      from holdout_occ.occ_class_bookings b
-      join holdout_occ.occ_class_sessions s on s.id = b.session_id and s.tenant_id = v_t1
-      on conflict do nothing;
-    exception when others then null;
-    end;
-  end if;
-end $seed$;
-
--- ---------------------------------------------------------------------------
--- Stand-in: a guarded implementation of the frozen contract, used only while
--- the real migration is absent. Never grants anything; schema-private.
--- ---------------------------------------------------------------------------
-create or replace function holdout_occ.owner_occupancy_analytics(
-  p_from date, p_through date, p_branch_id uuid default null,
-  p_exclude_holidays boolean default true)
-returns jsonb
-language plpgsql stable security invoker set search_path = '' as $fn$
-declare
-  v_claims jsonb := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
-  v_tenant uuid; v_role text; v_sub text; v_imp text;
-  v_asof timestamptz := statement_timestamp();
-  v_org record; v_branch record; v_zone text; v_start timestamptz; v_end timestamptz;
-begin
-  v_tenant := v_claims->>'tenant_id';
-  v_role := v_claims->>'app_role';
-  v_sub := v_claims->>'sub';
-  v_imp := v_claims->>'impersonation_session_id';
-  if v_imp is not null
-     or v_tenant is null or v_role is null or v_sub is null
-     or v_role not in ('gym_owner','gym_manager')
-     or not exists (select 1 from public.staff s
-                    where s.tenant_id = v_tenant and s.user_id::text = v_sub
-                      and s.is_active and s.role::text = v_role)
-  then
-    raise exception 'occ: real owner or manager required' using errcode = '42501';
-  end if;
-  if p_from is null or p_through is null or p_from > p_through then
-    raise exception 'occ: invalid range' using errcode = '22023';
-  end if;
-  select * into v_org from public.organizations o where o.id = v_tenant;
-  if not found then raise exception 'occ: unknown tenant' using errcode = '42501'; end if;
-  v_zone := v_org.timezone;
-  if p_branch_id is not null then
-    select * into v_branch from public.branches b
-    where b.id = p_branch_id and b.tenant_id = v_tenant;
-    if not found then
-      raise exception 'occ: branch unavailable' using errcode = '42501';
-    end if;
-    if v_branch.timezone is not null then v_zone := v_branch.timezone; end if;
-  end if;
   begin
-    perform v_asof at time zone v_zone;
+    insert into pg_temp.h83_snap values (k, public.owner_occupancy_analytics(fn, td, br, ex));
   exception when others then
-    raise exception 'occ: invalid time zone %', coalesce(v_zone,'') using errcode = '22023';
+    insert into pg_temp.h83_snap values (k, jsonb_build_object('__error__', SQLSTATE || ':' || SQLERRM));
   end;
-  v_start := (p_from::timestamp at time zone v_zone);
-  v_end := ((p_through + 1)::timestamp at time zone v_zone);
+end $f$;
 
-  return jsonb_build_object(
-    'asOf', v_asof,
-    'fromDate', p_from, 'throughDate', p_through,
-    'zone', v_zone,
-    'rangeStartInstant', v_start, 'rangeEndInstant', v_end,
-    'branchScope', p_branch_id,
-    -- OCC-004/005/006 raw arrivals: one row per branch-local date/weekday/hour.
-    -- OCC-005: when p_exclude_holidays is on (the default) holiday-date visits
-    -- leave the arrival series and the exposure; with the toggle off they are
-    -- reinstated and no exclusion is disclosed.
-    'arrivals', coalesce((
-      select jsonb_agg(jsonb_build_object(
-        'localDate', d, 'weekday', extract(dow from d)::int,
-        'hour', extract(hour from h)::int, 'branchId', x.branch_id, 'visits', x.n))
-      from (
-        select a.branch_id,
-               (a.checked_in_at at time zone coalesce(b.timezone, v_org.timezone))::date as d,
-               date_trunc('hour', a.checked_in_at at time zone coalesce(b.timezone, v_org.timezone)) as h,
-               count(*)::int as n
-        from holdout_occ.occ_attendance a
-        join public.branches b on b.id = a.branch_id
-        where a.tenant_id = v_tenant
-          and (p_branch_id is null or a.branch_id = p_branch_id)
-          and a.checked_in_at >= v_start and a.checked_in_at < v_end
-          and a.checked_in_at < v_asof
-          and (not p_exclude_holidays or not exists (
-                select 1 from public.organization_holidays h
-                where h.tenant_id = a.tenant_id
-                  and h.holiday_on = (a.checked_in_at at time zone coalesce(b.timezone, v_org.timezone))::date))
-        group by a.branch_id, d, h
-      ) x join lateral (select x.d::date as d, x.h as h) y on true
-    ), '[]'::jsonb),
-    'excludedHolidayDates', coalesce((
-      select jsonb_agg(distinct h.holiday_on::text)
-      from public.organization_holidays h
-      where p_exclude_holidays
-        and h.tenant_id = v_tenant
-        and h.holiday_on between p_from and p_through
-        and exists (select 1 from holdout_occ.occ_attendance a
-                    where a.tenant_id = v_tenant
-                      and (p_branch_id is null or a.branch_id = p_branch_id)
-                      and (a.checked_in_at at time zone coalesce(
-                            (select timezone from public.branches where id = a.branch_id),
-                            v_org.timezone))::date = h.holiday_on)
-    ), '[]'::jsonb),
-    -- OCC-009 collection: arrived payments by paid_at gym-local month, exact text.
-    'collection', coalesce((
-      select jsonb_agg(jsonb_build_object(
-        'currency', m.currency, 'month', m.m, 'collectedPaise', m.sum::text))
-      from (
-        select p.currency,
-               to_char(p.paid_at at time zone v_org.timezone, 'YYYY-MM') as m,
-               sum(p.amount_paise) as sum
-        from public.payments p
-        where p.tenant_id = v_tenant
-          and p.status in ('paid','refunded','reversed')
-          and p.paid_at is not null
-          and p.paid_at >= (p_from::timestamp at time zone v_org.timezone)
-          and p.paid_at < ((p_through + 1)::timestamp at time zone v_org.timezone)
-          and p.paid_at < v_asof
-        group by p.currency, m
-      ) m
-    ), '[]'::jsonb),
-    -- OCC-010 returns: completed refunds/reversals by processed month, separately.
-    'returns', coalesce((
-      select jsonb_agg(jsonb_build_object(
-        'currency', r.currency, 'month', r.m, 'returnedPaise', r.sum::text))
-      from (
-        select rf.currency,
-               to_char(rf.processed_at at time zone v_org.timezone, 'YYYY-MM') as m,
-               sum(rf.amount_paise) as sum
-        from public.refunds rf
-        join public.payments p on p.id = rf.payment_id
-        where rf.tenant_id = v_tenant
-          and rf.status = 'completed'
-          and rf.processed_at is not null
-          and rf.processed_at >= (p_from::timestamp at time zone v_org.timezone)
-          and rf.processed_at < ((p_through + 1)::timestamp at time zone v_org.timezone)
-          and rf.processed_at < v_asof
-        group by rf.currency, m
-      ) r
-    ), '[]'::jsonb),
-    'undatedPayments', (select count(*)::int from public.payments p
-      where p.tenant_id = v_tenant and p.status in ('paid','refunded','reversed')
-        and p.paid_at is null),
-    'undatedReturns', (select count(*)::int from public.refunds rf
-      where rf.tenant_id = v_tenant and rf.status = 'completed' and rf.processed_at is null),
-    -- OCC-012 raw linkage inputs: membership linkage, first-membership discriminator,
-    -- add-on linkage; no precomputed new/renewal label exists here.
-    'payments', coalesce((
-      select jsonb_agg(jsonb_build_object(
-        'paymentId', q.id, 'currency', q.currency, 'amountPaise', q.amount_paise::text,
-        'paidAt', q.paid_at, 'status', q.status,
-        'membershipId', q.membership_id,
-        'memberFirstMembershipCreatedAt',
-          (select min(mm.created_at) from public.memberships mm where mm.member_id = q.member_id),
-        'addonLinked', exists (select 1 from holdout_occ.occ_addon_orders ao
-                               where ao.payment_id = q.id)))
-      from public.payments q
-      where q.tenant_id = v_tenant
-        and q.status in ('paid','refunded','reversed')
-        and q.paid_at is not null
-        and q.paid_at >= (p_from::timestamp at time zone v_org.timezone)
-        and q.paid_at < ((p_through + 1)::timestamp at time zone v_org.timezone)
-        and q.paid_at < v_asof
-    ), '[]'::jsonb),
-    -- OCC-014/015/016 elapsed non-cancelled cohort with stored capacities and
-    -- explicit-marking counts. Holiday-standing sessions are retained.
-    'classes', coalesce((
-      select jsonb_agg(jsonb_build_object(
-        'sessionId', s.id, 'sessionDate', s.session_date, 'endsAt', s.ends_at,
-        'capacity', s.capacity, 'status', s.status, 'branchId', s.branch_id,
-        'holding', (select count(*) from holdout_occ.occ_class_bookings cb
-                    where cb.session_id = s.id and cb.status in ('booked','attended','no_show')),
-        'attended', (select count(*) from holdout_occ.occ_class_bookings cb
-                     where cb.session_id = s.id and cb.status = 'attended'),
-        'noShow', (select count(*) from holdout_occ.occ_class_bookings cb
-                   where cb.session_id = s.id and cb.status = 'no_show')))
-      from holdout_occ.occ_class_sessions s
-      where s.tenant_id = v_tenant
-        and (p_branch_id is null or s.branch_id = p_branch_id)
-        and s.session_date between p_from and p_through
-        and s.status = 'scheduled'
-        and s.ends_at < v_asof
-    ), '[]'::jsonb)
-  );
-end $fn$;
-
--- Dispatcher: real public RPC once it exists; stand-in before that. Both take
--- the OCC-005 exclusion toggle; the default (true) keeps every existing call
--- site's semantics unchanged.
-create or replace function holdout_occ.occ_call(
-  p_from date, p_through date, p_branch_id uuid default null,
-  p_exclude_holidays boolean default true)
-returns jsonb language plpgsql volatile set search_path = '' as $fn$
-begin
-  if to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)') is not null then
-    return public.owner_occupancy_analytics(p_from, p_through, p_branch_id, p_exclude_holidays);
-  end if;
-  return holdout_occ.owner_occupancy_analytics(p_from, p_through, p_branch_id, p_exclude_holidays);
-end $fn$;
-
--- ---------------------------------------------------------------------------
--- Fixtures (uuid prefix 83900000-)
--- ---------------------------------------------------------------------------
-insert into public.organizations(id, name, gym_code, status) values
-  ('83900000-0000-4000-8000-000000000001','H83 Gym','H83GYM','active'),
-  ('83900000-0000-4000-8000-000000000002','H83 Other','H83OTH','active');
+-- ---------------------------------------------------------------- fixtures
+-- The commercial trigger's INSERT branch validates the domain (non-empty
+-- name, zone in pg_timezone_names, currency INR), so every organization
+-- fixture row is inserted with explicit lawful values; no NULL-zone default.
+insert into public.organizations(id, name, gym_code, status, timezone, currency) values
+  ('83900000-0000-4000-8000-000000000001','H83 Gym','H83GYM','active','Asia/Kolkata','INR'),
+  ('83900000-0000-4000-8000-000000000002','H83 Other','H83OTH','active','Asia/Kolkata','INR');
 update public.organizations set timezone = 'Asia/Kolkata'
   where id in ('83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000002');
 
@@ -300,14 +108,17 @@ insert into public.branches(id, tenant_id, name, timezone) values
   ('83900000-0000-4000-8000-000000000013','83900000-0000-4000-8000-000000000001','H83 BadZone','Not/AZone'),
   ('83900000-0000-4000-8000-000000000014','83900000-0000-4000-8000-000000000002','H83 Foreign',null);
 
+-- Holidays: today (main-range exclusion) and 2026-09-21/22 (all-holiday range).
 insert into public.organization_holidays(id, tenant_id, holiday_on) values
-  ('83900000-0000-4000-8000-000000000019','83900000-0000-4000-8000-000000000001', current_date);
+  ('83900000-0000-4000-8000-000000000019','83900000-0000-4000-8000-000000000001', current_date),
+  ('83900000-0000-4000-8000-00000000001a','83900000-0000-4000-8000-000000000001', date '2026-09-21'),
+  ('83900000-0000-4000-8000-00000000001b','83900000-0000-4000-8000-000000000001', date '2026-09-22');
 
 insert into auth.users(id) values
   ('83900000-0000-4000-8000-0000000000a1'),('83900000-0000-4000-8000-0000000000a2'),
   ('83900000-0000-4000-8000-0000000000a3'),('83900000-0000-4000-8000-0000000000a4'),
   ('83900000-0000-4000-8000-0000000000a5'),('83900000-0000-4000-8000-0000000000a6'),
-  ('83900000-0000-4000-8000-0000000000a7'),('83900000-0000-4000-8000-0000000000a8');
+  ('83900000-0000-4000-8000-0000000000a8');
 insert into public.staff(id, tenant_id, user_id, role, full_name, is_active) values
   ('83900000-0000-4000-8000-0000000000a1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000a1','gym_owner','H83 Owner',true),
   ('83900000-0000-4000-8000-0000000000a2','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000a2','gym_manager','H83 Manager',true),
@@ -330,73 +141,147 @@ insert into public.memberships(id, tenant_id, member_id, plan_id, status, starts
   ('83900000-0000-4000-8000-0000000000d1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b1','83900000-0000-4000-8000-0000000000c1','expired', current_date - 400, current_date - 370, now() - interval '400 days',100000),
   ('83900000-0000-4000-8000-0000000000d2','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b1','83900000-0000-4000-8000-0000000000c1','active', current_date - 10, current_date + 60, now() - interval '10 days',100000),
   ('83900000-0000-4000-8000-0000000000d3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b2','83900000-0000-4000-8000-0000000000c1','active', current_date - 20, current_date + 30, now() - interval '20 days',100000),
+  -- d0: EQUAL created_at sibling for member b2 (id sorts BEFORE d3). Equal
+  -- timestamps are not earlier per the frozen rule; no id tie-break is
+  -- permitted, so d3 must still classify newMember.
+  ('83900000-0000-4000-8000-0000000000d0','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b2','83900000-0000-4000-8000-0000000000c1','expired', current_date - 25, current_date - 5, now() - interval '20 days',100000),
   ('83900000-0000-4000-8000-0000000000d4','83900000-0000-4000-8000-000000000002','83900000-0000-4000-8000-0000000000b4','83900000-0000-4000-8000-0000000000c2','active', current_date - 20, current_date + 30, now() - interval '20 days',100000);
--- d1 is expired historical membership; d2 is the sole live successor (data-model live uniqueness).
 
--- Arrivals (mirror; guarded real-table attempt already ran empty before these
--- mirror inserts -- keep mirror inserts BEFORE the guarded block? No: the
--- guarded block ran above against empty mirrors by design; real-table seeding
--- for attendance re-attempts at dispatch time through occ_call. Mirror rows
--- below are the behavioral source pre-migration.)
-insert into holdout_occ.occ_attendance(id, tenant_id, branch_id, member_id, checked_in_at) values
-  ('83900000-0000-4000-8000-0000000000e1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b1', ((current_date - 1)::timestamp + time '09:00') at time zone 'Asia/Kolkata'),
-  ('83900000-0000-4000-8000-0000000000e2','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b2', ((current_date - 1)::timestamp + time '09:00') at time zone 'Asia/Kolkata'),
-  ('83900000-0000-4000-8000-0000000000e3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b2', ((current_date - 1)::timestamp + time '18:30') at time zone 'Asia/Kolkata'),
-  ('83900000-0000-4000-8000-0000000000e4','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3', now() - interval '3 hours'),
-  ('83900000-0000-4000-8000-0000000000e5','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3', ((current_date)::timestamp + time '10:00') at time zone 'Asia/Kolkata'),            -- holiday date
-  ('83900000-0000-4000-8000-0000000000e6','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3', ((current_date - 1)::timestamp) at time zone 'Asia/Kolkata'),                  -- exactly at range start
-  ('83900000-0000-4000-8000-0000000000e7','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3', ((current_date + 1)::timestamp) at time zone 'Asia/Kolkata'),                  -- exactly at range end: excluded
-  ('83900000-0000-4000-8000-0000000000e8','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3', now() + interval '2 hours'),                                                    -- after asOf: excluded
-  ('83900000-0000-4000-8000-0000000000e9','83900000-0000-4000-8000-000000000002','83900000-0000-4000-8000-000000000014','83900000-0000-4000-8000-0000000000b4', now() - interval '2 hours');                                                     -- other tenant
-
--- Money (REAL tables; columns certain from docs/data-model.md).
 insert into public.payments(id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, receipt_number, recorded_by_staff_id, paid_at, created_at) values
+  -- f1 -> d2 (b1's second membership) = renewal, in range.
   ('83900000-0000-4000-8000-0000000000f1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b1','83900000-0000-4000-8000-0000000000d2',150000,'INR','paid','cash','H83-R1','83900000-0000-4000-8000-0000000000a1', now() - interval '2 hours', now() - interval '2 hours'),
+  -- f2 -> d1 (b1's first membership) = newMember; carries the in-range completed return.
   ('83900000-0000-4000-8000-0000000000f2','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b1','83900000-0000-4000-8000-0000000000d1',100000,'INR','paid','cash','H83-R2','83900000-0000-4000-8000-0000000000a1', now() - interval '1 hour', now() - interval '1 hour'),
+  -- f3 unlinked, exact value beyond the safe JS integer.
   ('83900000-0000-4000-8000-0000000000f3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b2',null,9007199254740993,'INR','paid','cash','H83-R3','83900000-0000-4000-8000-0000000000a1', now() - interval '90 minutes', now() - interval '90 minutes'),
+  -- f4 add-on-linked USD.
   ('83900000-0000-4000-8000-0000000000f4','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3',null,25000,'USD','paid','cash','H83-R4','83900000-0000-4000-8000-0000000000a1', now() - interval '45 minutes', now() - interval '45 minutes'),
+  -- f5 created (never arrived): no cash, not even a warning.
   ('83900000-0000-4000-8000-0000000000f5','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b2','83900000-0000-4000-8000-0000000000d3',999999,'INR','created','cash',null,'83900000-0000-4000-8000-0000000000a1', null, now()),
+  -- f6 arrived paid without paid_at: undated warning only.
   ('83900000-0000-4000-8000-0000000000f6','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b2','83900000-0000-4000-8000-0000000000d3',7000,'INR','paid','cash','H83-R6','83900000-0000-4000-8000-0000000000a1', null, now() - interval '3 hours'),
+  -- f7 prior-month dated payment (outside the selected range; must not leak in).
   ('83900000-0000-4000-8000-0000000000f7','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b2','83900000-0000-4000-8000-0000000000d3',12345,'INR','paid','cash','H83-R7','83900000-0000-4000-8000-0000000000a1', ((date_trunc('month', (now() at time zone 'Asia/Kolkata'))::timestamp) at time zone 'Asia/Kolkata') - interval '1 day', now() - interval '40 days'),
+  -- f8 paid after asOf: excluded.
   ('83900000-0000-4000-8000-0000000000f8','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b2','83900000-0000-4000-8000-0000000000d3',8000,'INR','paid','cash','H83-R8','83900000-0000-4000-8000-0000000000a1', now() + interval '1 hour', now()),
-  ('83900000-0000-4000-8000-0000000000f9','83900000-0000-4000-8000-000000000002','83900000-0000-4000-8000-0000000000b4','83900000-0000-4000-8000-0000000000d4',500000,'INR','paid','cash','H83-R9','83900000-0000-4000-8000-0000000000a6', now() - interval '30 minutes', now() - interval '30 minutes');
-
--- Same-currency earlier-payment fixture for the later USD return. Retain
--- the current USD add-on collection; this separately supplies the fourth
--- currency-month group required by the existing collection assertion.
-insert into public.payments(id,tenant_id,member_id,amount_paise,currency,status,method,
-  receipt_number,recorded_by_staff_id,paid_at,created_at) values
-  ('83900000-0000-4000-8000-0000000000fa','83900000-0000-4000-8000-000000000001',
-   '83900000-0000-4000-8000-0000000000b3',10000,'USD','paid','cash','H83-R10',
-   '83900000-0000-4000-8000-0000000000a1',
+  -- f9 other tenant.
+  ('83900000-0000-4000-8000-0000000000f9','83900000-0000-4000-8000-000000000002','83900000-0000-4000-8000-0000000000b4','83900000-0000-4000-8000-0000000000d4',500000,'INR','paid','cash','H83-R9','83900000-0000-4000-8000-0000000000a6', now() - interval '30 minutes', now() - interval '30 minutes'),
+  -- fb -> d3 dated, in range: pins the equal-created_at no-earlier rule.
+  ('83900000-0000-4000-8000-0000000000fb','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b2','83900000-0000-4000-8000-0000000000d3',5000,'INR','paid','cash','H83-RB','83900000-0000-4000-8000-0000000000a1', now() - interval '4 hours', now() - interval '4 hours'),
+  -- fa unlinked USD paid two months back (outside every selected range); its
+  -- completed return below lands INSIDE the main range -> later-month net.
+  ('83900000-0000-4000-8000-0000000000fa','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3',null,10000,'USD','paid','cash','H83-RA','83900000-0000-4000-8000-0000000000a1',
    (date_trunc('month',now() at time zone 'Asia/Kolkata')::timestamp at time zone 'Asia/Kolkata')-interval '2 months',
    (date_trunc('month',now() at time zone 'Asia/Kolkata')::timestamp at time zone 'Asia/Kolkata')-interval '2 months');
 
-insert into holdout_occ.occ_addon_orders(payment_id) values
-  ('83900000-0000-4000-8000-0000000000f4');
+-- f4's add-on classification requires a lawful real add-on order linked to the
+-- payment; this blind author must not guess the full order shape, so a minimal
+-- guarded attempt stages it and any shape mismatch lands in h83_seed_errors
+-- (surfaced by the staging-health assertion) — the disclosed-category
+-- assertions below then fail loudly instead of silently passing.
+create temp table h83_addon_links(payment_id uuid primary key);
+insert into h83_addon_links(payment_id) values ('83900000-0000-4000-8000-0000000000f4');
 
 insert into public.refunds(id, tenant_id, payment_id, kind, amount_paise, currency, status, reason, initiated_by_staff_id, processed_at, created_at) values
+  -- r101 completed in-range return of f2 (newMember receipt).
   ('83900000-0000-4000-8000-000000000101','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000f2','refund',30000,'INR','completed','H83 test return','83900000-0000-4000-8000-0000000000a1', now() - interval '30 minutes', now() - interval '30 minutes'),
+  -- r102 requested (in-flight): contributes zero returned cash.
   ('83900000-0000-4000-8000-000000000102','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000f2','refund',1000,'INR','requested','H83 in-flight','83900000-0000-4000-8000-0000000000a1', null, now()),
+  -- r103 completed without processed_at: undated warning only.
   ('83900000-0000-4000-8000-000000000103','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000f1','reversal',2000,'INR','completed','H83 undated','83900000-0000-4000-8000-0000000000a1', null, now()),
-  ('83900000-0000-4000-8000-000000000104','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000fa','refund',7500,'USD','completed','H83 prior month','83900000-0000-4000-8000-0000000000a1', ((date_trunc('month', (now() at time zone 'Asia/Kolkata'))::timestamp) at time zone 'Asia/Kolkata') - interval '1 day', now() - interval '40 days');
+  -- r104 completed USD return inside the main range; original fa outside it;
+  -- unallocated receipt -> allocationUnknown true.
+  ('83900000-0000-4000-8000-000000000104','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000fa','refund',7500,'USD','completed','H83 prior sale','83900000-0000-4000-8000-0000000000a1', now() - interval '30 minutes', now() - interval '30 minutes');
 
--- Class cohort (mirrors; guarded real attempt re-runs through occ_call dispatch).
-insert into holdout_occ.occ_class_sessions(id, tenant_id, branch_id, session_date, capacity, status, ends_at) values
-  ('83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, 7, 'scheduled', now() - interval '1 hour'),
-  ('83900000-0000-4000-8000-000000001102','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, 10, 'scheduled', now() + interval '2 hours'),   -- future
-  ('83900000-0000-4000-8000-000000001103','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, 10, 'cancelled', now() - interval '2 hours'),  -- cancelled elapsed
-  ('83900000-0000-4000-8000-000000001104','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date, 10, 'scheduled', now() - interval '30 minutes'),   -- holiday-standing elapsed
-  ('83900000-0000-4000-8000-000000001105','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012', current_date - 1, 5, 'scheduled', now() - interval '2 hours');    -- Auckland branch
-insert into holdout_occ.occ_class_bookings(id, session_id, member_id, status) values
-  ('83900000-0000-4000-8000-000000001201','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b1','booked'),
-  ('83900000-0000-4000-8000-000000001202','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b2','attended'),
-  ('83900000-0000-4000-8000-000000001203','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b3','no_show'),
-  ('83900000-0000-4000-8000-000000001204','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b1','cancelled'),
-  ('83900000-0000-4000-8000-000000001205','83900000-0000-4000-8000-000000001105','83900000-0000-4000-8000-0000000000b3','booked');
+-- Arrivals. Real-table staging is exception-swallowed with a loud health
+-- assertion; the values below are the contract-required facts.
+do $seed$
+begin
+  begin
+    insert into public.attendance(id, tenant_id, branch_id, member_id, checked_in_at) values
+      -- Main branch (Kolkata), yesterday: two members at 09:00, the first
+      -- member AGAIN at 09:30 (two accepted visits by one member count twice),
+      -- one at 18:30, one exactly at the range-start local midnight.
+      ('83900000-0000-4000-8000-0000000000e1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b1', ((current_date - 1)::timestamp + time '09:00') at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-0000000000e2','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b2', ((current_date - 1)::timestamp + time '09:00') at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-0000000000e10','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b1', ((current_date - 1)::timestamp + time '09:30') at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-0000000000e3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b2', ((current_date - 1)::timestamp + time '18:30') at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-0000000000e6','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3', ((current_date - 1)::timestamp) at time zone 'Asia/Kolkata'),
+      -- Today (holiday): one visit inside the current day, hour pinned to one
+      -- hour before the transaction clock so it is always before asOf.
+      ('83900000-0000-4000-8000-0000000000e5','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3', date_trunc('hour', now()) - interval '1 hour'),
+      -- Exactly at the after-through local midnight: excluded.
+      ('83900000-0000-4000-8000-0000000000e7','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3', ((current_date + 1)::timestamp) at time zone 'Asia/Kolkata'),
+      -- After asOf: excluded.
+      ('83900000-0000-4000-8000-0000000000e8','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3', now() + interval '2 hours'),
+      -- Other tenant.
+      ('83900000-0000-4000-8000-0000000000e9','83900000-0000-4000-8000-000000000002','83900000-0000-4000-8000-000000000014','83900000-0000-4000-8000-0000000000b4', now() - interval '2 hours'),
+      -- Auckland branch, deterministic branch-local 15:00 yesterday.
+      ('83900000-0000-4000-8000-0000000000e4','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3', ((current_date - 1)::timestamp + time '15:00') at time zone 'Pacific/Auckland'),
+      -- DST gap: Sunday 2026-09-27 02:00-03:00 NZST does not exist; the visit
+      -- sits on Sunday 2026-09-20 02:30 NZST so the Sunday/02 cell gains one
+      -- eligible date while 2026-09-27 contributes none.
+      ('83900000-0000-4000-8000-0000000000e11','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3', '2026-09-19T14:30:00Z'::timestamptz),
+      -- DST repeat: Sunday 2026-04-05 02:30 occurs twice (NZDT then NZST);
+      -- both instants bucket into the same coordinate and the date counts once.
+      ('83900000-0000-4000-8000-0000000000e12','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3', '2026-04-04T13:30:00Z'::timestamptz),
+      ('83900000-0000-4000-8000-0000000000e13','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3', '2026-04-04T14:30:00Z'::timestamptz);
+  exception when others then
+    insert into h83_seed_errors values ('attendance: ' || SQLERRM);
+  end;
+  begin
+    insert into public.class_sessions(id, tenant_id, branch_id, session_date, capacity, status, ends_at) values
+      ('83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, 7, 'scheduled', now() - interval '1 hour'),
+      ('83900000-0000-4000-8000-000000001102','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, 10, 'scheduled', now() + interval '2 hours'),   -- ongoing/future
+      ('83900000-0000-4000-8000-000000001103','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, 10, 'cancelled', now() - interval '2 hours'),  -- cancelled elapsed
+      ('83900000-0000-4000-8000-000000001104','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date, 10, 'scheduled', now() - interval '30 minutes'),   -- holiday-standing elapsed
+      ('83900000-0000-4000-8000-000000001105','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012', current_date - 1, 5, 'scheduled', now() - interval '2 hours');    -- Auckland
+  exception when others then
+    insert into h83_seed_errors values ('class_sessions: ' || SQLERRM);
+  end;
+  begin
+    insert into public.class_bookings(id, session_id, member_id, status) values
+      ('83900000-0000-4000-8000-000000001201','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b1','booked'),
+      ('83900000-0000-4000-8000-000000001202','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b2','attended'),
+      ('83900000-0000-4000-8000-000000001203','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b3','no_show'),
+      ('83900000-0000-4000-8000-000000001204','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b1','cancelled'),
+      ('83900000-0000-4000-8000-000000001205','83900000-0000-4000-8000-000000001105','83900000-0000-4000-8000-0000000000b3','booked');
+  exception when others then
+    insert into h83_seed_errors values ('class_bookings: ' || SQLERRM);
+  end;
+  begin
+    insert into public.addon_orders(id, tenant_id, member_id, payment_id, total_paise, currency, status)
+    values ('83900000-0000-4000-8000-0000000000g1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3','83900000-0000-4000-8000-0000000000f4',25000,'INR','paid');
+  exception when others then
+    insert into h83_seed_errors values ('addon_orders: ' || SQLERRM);
+  end;
+end $seed$;
+
+select ok((select count(*) from h83_seed_errors) = 0,
+          'real attendance/class staging succeeded'
+          || coalesce((select ' (first error: ' || line || ')' from h83_seed_errors limit 1), ''));
+
+-- Owner identity for every materialized snapshot.
+select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a1","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a1","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
+set local role authenticated;
+
+select pg_temp.capture('main',    current_date - 1, current_date, null, true);
+select pg_temp.capture('filter',  current_date - 1, current_date, '83900000-0000-4000-8000-000000000011'::uuid, true);
+select pg_temp.capture('b11',     current_date - 1, current_date, '83900000-0000-4000-8000-000000000011'::uuid, true);
+select pg_temp.capture('b12',     current_date - 1, current_date, '83900000-0000-4000-8000-000000000012'::uuid, true);
+select pg_temp.capture('nohol',   current_date - 1, current_date, null, false);
+select pg_temp.capture('sep',     date '2026-09-01', date '2026-09-30', null, true);
+select pg_temp.capture('dst',     date '2026-09-20', date '2026-09-27', '83900000-0000-4000-8000-000000000012'::uuid, true);
+select pg_temp.capture('apr',     date '2026-04-05', date '2026-04-05', '83900000-0000-4000-8000-000000000012'::uuid, true);
+select pg_temp.capture('hol',     date '2026-09-21', date '2026-09-22', '83900000-0000-4000-8000-000000000011'::uuid, true);
+select pg_temp.capture('future',  current_date + 30, current_date + 31, null, true);
+
+select ok(not exists (select 1 from pg_temp.h83_snap where r ? '__error__'),
+          'every materialized real-RPC call succeeded'
+          || coalesce((select ' (' || k || ': ' || (r->>'__error__') || ')' from pg_temp.h83_snap where r ? '__error__' limit 1), ''));
 
 -- ---------------------------------------------------------------------------
--- Section A: the real object's shape and security (RED until the migration).
+-- Section A: the real object's shape and security.
 -- ---------------------------------------------------------------------------
 select is(to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)'),to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)'),'real analytics operation exists with the pinned signature');
 select is((select format_type(prorettype,0) from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'jsonb','real operation returns one jsonb snapshot');
@@ -409,140 +294,278 @@ select ok(not has_function_privilege('service_role','public.owner_occupancy_anal
 select ok(not exists (select 1 from pg_proc p cross join lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where p.oid=to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)') and a.grantee=0 and a.privilege_type='EXECUTE'),'PUBLIC revocation is explicit');
 
 -- ---------------------------------------------------------------------------
--- Section B: actor matrix (OCC-001)
+-- Section B: actor matrix (OCC-001) — direct calls.
 -- ---------------------------------------------------------------------------
+select ok(jsonb_typeof(pg_temp.snap('main')) = 'object','real gym owner receives the one-snapshot response');
+select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a2","role":"authenticated","app_role":"gym_manager","staff_id":"83900000-0000-4000-8000-0000000000a2","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
+select ok(jsonb_typeof(public.owner_occupancy_analytics(current_date - 1, current_date, null, true)) = 'object','real gym manager receives the snapshot');
+select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a3","role":"authenticated","app_role":"front_desk","staff_id":"83900000-0000-4000-8000-0000000000a3","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
+select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'front desk receives no analytics');
+select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a4","role":"authenticated","app_role":"trainer","staff_id":"83900000-0000-4000-8000-0000000000a4","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
+select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'trainer receives no analytics');
+select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000b1","role":"authenticated","app_role":"member","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
+select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'member receives no analytics');
+select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a8","role":"authenticated","app_role":"super_admin"}',true);
+select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'platform super admin receives no gym analytics');
+select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a8","role":"authenticated","app_role":"super_admin","impersonation_session_id":"83900000-0000-4000-8000-000000000190"}',true);
+select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'support preview receives no analytics');
+select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a8","role":"authenticated","app_role":"super_admin","tenant_id":"83900000-0000-4000-8000-000000000001","staff_id":"83900000-0000-4000-8000-0000000000a1"}',true);
+select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'mixed platform and gym identity is refused before any read');
+select set_config('request.jwt.claims','',true);
+select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'missing claims are refused before any read');
+select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a5","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a5","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
+select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'inactive staff row is refused despite live claims');
+
+-- Restore owner identity for the remaining sections.
+select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a1","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a1","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
+
+-- ---------------------------------------------------------------------------
+-- Section C: branch safety and tenancy (OCC-001).
+-- ---------------------------------------------------------------------------
+-- Orchestrator adjudication (recorded in the sql-envelope-declaration): the
+-- forged/unavailable branch refusal stays P0002 — the declaration's "same
+-- safe refusal" clause plus the repo-wide target-invisibility precedent make
+-- the single unavailable signal correct; a 42501 would reveal authorization
+-- state about the branch.
+select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, '83900000-0000-4000-8000-000000000099'::uuid, true)$q$,'P0002'::char(5),null,'forged branch id is refused with the same safe unavailable signal');
+select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, '83900000-0000-4000-8000-000000000014'::uuid, true)$q$,'P0002'::char(5),null,'foreign-tenant branch id is refused with the same safe unavailable signal');
+select is((select current_setting('request.jwt.claims')),'{"sub":"83900000-0000-4000-8000-0000000000a1","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a1","tenant_id":"83900000-0000-4000-8000-000000000001"}','actor matrix fixtures intact');
+select ok(jsonb_typeof(pg_temp.snap('main')) = 'object','null branch reads the whole gym');
+select ok((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'collection'->'components'->'collected') v
+           where v->>'paymentId' = '83900000-0000-4000-8000-0000000000f9') = 0,'cross-tenant payment never returns');
+
+-- ---------------------------------------------------------------------------
+-- Section D: exact envelope, selection echo, zones, month coverage.
+-- ---------------------------------------------------------------------------
+select is((select array_agg(k order by ord) from (select k, ord from jsonb_object_keys(pg_temp.snap('main')) with ordinality as t(k,ord)) s),
+          array['asOf','zone','range','moneyRange','months','collection','heatmap','classes','warnings'],
+          'top-level envelope is exactly the nine frozen keys in order');
+select is(pg_temp.snap('main')->'range'->>'from',(current_date - 1)::text,'range echoes the actual resolved from date');
+select is(pg_temp.snap('main')->'range'->>'through',current_date::text,'range echoes the actual resolved through date');
+select is(pg_temp.snap('main')->'range'->>'branchId',null,'whole-gym selection echoes a null branchId');
+select is(pg_temp.snap('main')->'range'->>'excludeHolidays','true','range echoes the holiday toggle');
+select ok(pg_temp.snap('main')->>'asOf' is not null,'server asOf is disclosed');
+select is(pg_temp.snap('main')->>'zone','Asia/Kolkata','gym zone is disclosed for whole-gym money reads');
+select is(pg_temp.snap('b12')->>'zone','Pacific/Auckland','nonnull branch zone overrides the gym zone and is disclosed');
+select is(pg_temp.snap('b11')->>'zone','Asia/Kolkata','null branch zone is the disclosed gym-zone inheritance');
+select is(pg_temp.snap('main')->'moneyRange'->>'scope','Whole gym','money scope is always Whole gym');
+select is(pg_temp.snap('main')->'moneyRange'->>'cutoffAt',pg_temp.snap('main')->>'asOf','money cutoff is min(endsBefore, asOf): the range ends after now, so the cutoff equals asOf');
+select is((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'months'))::bigint,1::bigint,'months contains exactly the gym-local months intersecting the selection');
+select is((select m->>'month' from jsonb_array_elements(pg_temp.snap('main')->'months') m limit 1),to_char(now() at time zone 'Asia/Kolkata','YYYY-MM'),'the intersecting month is the current gym-local month');
+select is((select m->>'coverage' from jsonb_array_elements(pg_temp.snap('main')->'months') m limit 1),'partial','an incomplete calendar-month selection is partial, never full');
+select ok((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'months') m where exists (select 1 from jsonb_array_elements(m->'currencies') c where c->>'currency' = 'INR')) = 1
+       and (select count(*) from jsonb_array_elements(pg_temp.snap('main')->'months') m where exists (select 1 from jsonb_array_elements(m->'currencies') c where c->>'currency' = 'USD')) = 1,'month currency union covers every dated selected currency');
+select is((select m->>'coverage' from jsonb_array_elements(pg_temp.snap('sep')->'months') m limit 1),'full','a complete calendar-month selection fully in the past is full');
+select is(pg_temp.cash(pg_temp.snap('sep')->'collection'->'currencies','INR')->>'collectedPaise','12345','prior-month payment groups only in its own selected gym-local month');
+select is((select m->>'coverage' from jsonb_array_elements(pg_temp.snap('future')->'months') m limit 1),'unavailable','an entirely future month is unavailable, never a full zero');
+select is((select m->'currencies' from jsonb_array_elements(pg_temp.snap('future')->'months') m limit 1),'[]'::jsonb,'unavailable months carry an empty currency union, never invented zeros');
+select is(pg_temp.snap('future')->'collection'->'currencies','[]'::jsonb,'an entirely future range returns no collected cash at all');
+
+-- Holiday exclusion is pinned behaviorally with the flag passed explicitly:
+-- the frozen four-argument envelope has no defaulted form to omit, and the
+-- null-toggle refusal elsewhere proves omission is impossible.
+select ok(coalesce((select d->>'excluded'
+           from jsonb_array_elements(public.owner_occupancy_analytics(current_date - 1, current_date, null, true)->'heatmap'->'branches') b
+           cross join lateral jsonb_array_elements(b->'days') d
+           where b->>'branchId' = '83900000-0000-4000-8000-000000000011'
+             and d->>'localDate' = current_date::text
+           limit 1), 'missing') = 'true','explicit true keeps holiday exclusion on (OCC-005)');
+
+-- ---------------------------------------------------------------------------
+-- Section E: heatmap exposure, holidays, DST, reconciliation (OCC-004..008).
+-- ---------------------------------------------------------------------------
+select is((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'heatmap'->'branches'))::bigint,3::bigint,'heatmap carries the whole selected visible branch population');
+select is((select array_agg(b->>'branchId' order by b->>'branchId') from jsonb_array_elements(pg_temp.snap('main')->'heatmap'->'branches') b),
+          array['83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-000000000013'],
+          'heatmap branches are sorted by branchId');
+select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'zoneSource','gym','inherited gym zone is disclosed as zoneSource gym');
+select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'zone','Asia/Kolkata','effective zone for the inheriting branch is the gym zone');
+select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'error',null,'a valid branch carries no zone error');
+select is(pg_temp.branch(pg_temp.snap('b12')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->>'zoneSource','branch','own branch zone is disclosed as zoneSource branch');
+select is(pg_temp.branch(pg_temp.snap('b12')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->>'zone','Pacific/Auckland','own branch zone is the effective zone');
+select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000013')->'error'->>'code','invalid_branch_timezone','invalid nonnull branch zone is an explicit per-branch error, never a fallback zero');
+select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000013')->>'range',null,'invalid branch exposes no range boundaries');
+select ok(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000013')->'days' = '[]'::jsonb
+       and pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000013')->'cells' = '[]'::jsonb,'invalid branch keeps its entry with empty exposure, never silently dropped');
+select is((select count(*) from jsonb_array_elements(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days'))::bigint,2::bigint,'one day row per selected local date, including zero and excluded dates');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date)->>'localDate',current_date::text,'today is present as a day row');
+select ok(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date)->>'excluded' = 'true'
+       and pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date)->>'isHoliday' = 'true','the holiday date is marked excluded with the toggle on');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date)->>'visits','1','the excluded holiday visit stays visible in its day row (never erased)');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date)->>'state','current','today is the current day relative to asOf');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date - 1)->>'state','completed','yesterday is a completed day');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date - 1)->>'visits','5','yesterday raw arrivals: two members at 09:00, the first member again at 09:30, one at 18:30, one exactly at the range-start midnight');
+select is((select sum((h->>'visits')::int) from jsonb_array_elements(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date - 1)->'hours') h)::bigint,5::bigint,'day hours reconcile to the day visits');
+select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'totalVisits','5','branch total visits sum only nonexcluded day visits');
+select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'completedVisits','5','completed visits are yesterday''s five');
+select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'currentDayVisits','0','the excluded current day contributes zero nonexcluded current visits');
+select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'excludedVisits','1','excluded holiday visits are disclosed separately');
+select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'availability','partial','a range containing the current day is partial');
+select is((select count(*) from jsonb_array_elements(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells'))::bigint,168::bigint,'cells include all 168 weekday/hour coordinates in coordinate order');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from (current_date - 1))::int,9)->>'arrivals','3','the 09:00 hour counts two members and the same member''s second visit (three raw arrivals)');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from (current_date - 1))::int,9)->>'eligibleDates','1','only yesterday is an eligible completed date for yesterday''s weekday');
+select ok(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from (current_date - 1))::int,9)->>'limited' = 'true'
+       and pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from (current_date - 1))::int,9)->>'message' = 'Limited history','below 14 eligible dates the cell is Limited history with the raw fraction retained');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from (current_date - 1))::int,18)->>'arrivals','1','the 18:30 arrival buckets into hour 18');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from (current_date - 1))::int,0)->>'arrivals','1','an arrival exactly at the lower-bound local midnight buckets into hour 0 (lower bound included)');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from current_date)::int,extract(hour from (date_trunc('hour', now()) - interval '1 hour') at time zone 'Asia/Kolkata')::int)->>'arrivals','0','the excluded holiday visit never enters any cell numerator');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from current_date)::int,extract(hour from (date_trunc('hour', now()) - interval '1 hour') at time zone 'Asia/Kolkata')::int)->>'todayArrivals','0','an excluded holiday visit never enters todayArrivals');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from current_date)::int,10)->>'message','No eligible days','a coordinate with no completed nonexcluded eligible dates discloses No eligible days, not a zero average');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from current_date)::int,10)->>'basisPoints',null,'a zero-denominator cell fraction carries null basis points');
+select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'week'->>'arrivals','5','the week aggregate sums completed nonexcluded date visits');
+select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'week'->>'eligibleDates','1','the week aggregate counts each completed nonexcluded date once');
+select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'week'->>'basisPoints','50000','the week fraction is the exact half-up ratio of its own numerator and denominator');
+select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'week'->>'limited','true','the week aggregate is limited below 14 eligible dates');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('b12')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'days',current_date - 1)->>'visits','1','the Auckland visit buckets on its own branch-local date under the branch zone');
+select is(pg_temp.snap('main')->'heatmap'->'reconciliation'->>'complete','false','one invalid branch makes the heatmap reconciliation incomplete');
+select is(pg_temp.snap('main')->'heatmap'->'reconciliation'->>'totalVisits',null,'an incomplete reconciliation returns null totals instead of a silently partial organization sum');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('nohol')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date)->>'excluded','false','with the toggle off the holiday date is not excluded');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('nohol')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date)->>'isHoliday','true','with the toggle off the date still discloses its holiday fact');
+select is((select count(*) from jsonb_array_elements(pg_temp.snap('filter')->'heatmap'->'branches'))::bigint,1::bigint,'a branch-scoped read exposes exactly that branch');
+select is((select h->>'exists' from jsonb_array_elements(pg_temp.day(pg_temp.branch(pg_temp.snap('dst')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'days',date '2026-09-27')->'hours') h where (h->>'hour')::int = 2),'false','the DST-gap clock hour does not exist on 2026-09-27 in Auckland');
+select is((select h->>'visits' from jsonb_array_elements(pg_temp.day(pg_temp.branch(pg_temp.snap('dst')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'days',date '2026-09-20')->'hours') h where (h->>'hour')::int = 2),'1','the pre-gap Sunday visit buckets into hour 2 on 2026-09-20');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('dst')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'cells',0,2)->>'eligibleDates','1','the missing DST hour contributes no eligible date to its coordinate');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('dst')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'cells',0,2)->>'arrivals','1','only the existing hour''s visit reaches the Sunday/02 cell');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('apr')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'days',date '2026-04-05')->>'visits','2','both repeated-clock instants bucket into the same local date');
+select is((select count(*) from jsonb_array_elements(pg_temp.day(pg_temp.branch(pg_temp.snap('apr')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'days',date '2026-04-05')->'hours'))::bigint,24::bigint,'a repeated-hour day still exposes exactly 24 ordered clock hours');
+select is((select h->>'visits' from jsonb_array_elements(pg_temp.day(pg_temp.branch(pg_temp.snap('apr')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'days',date '2026-04-05')->'hours') h where (h->>'hour')::int = 2),'2','the two occurrences of the repeated clock hour combine into one coordinate');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('apr')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'cells',0,2)->>'arrivals','2','the repeated-hour cell sums both occurrences');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('apr')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'cells',0,2)->>'eligibleDates','1','the repeated hour counts its date once, not twice');
+select is(pg_temp.branch(pg_temp.snap('hol')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'noEligibleDays','true','an all-holiday range discloses noEligibleDays');
+select is(pg_temp.branch(pg_temp.snap('hol')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'week'->>'message','No eligible days','an all-holiday range shows No eligible days, not a quiet branch');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('hol')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',1,9)->>'basisPoints',null,'an all-holiday coordinate has no average at all');
+
+-- ---------------------------------------------------------------------------
+-- Section F: money, months, classification, warnings (OCC-009..013).
+-- ---------------------------------------------------------------------------
+select is((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'collection'->'components'->'collected'))::bigint,5::bigint,'exactly the five dated in-range arrived receipts are returned');
+select is((select array_agg(v->>'paymentId' order by ord) from (select v, ord from jsonb_array_elements(pg_temp.snap('main')->'collection'->'components'->'collected') with ordinality as t(v,ord)) s),
+          array['83900000-0000-4000-8000-0000000000fb','83900000-0000-4000-8000-0000000000f1','83900000-0000-4000-8000-0000000000f3','83900000-0000-4000-8000-0000000000f2','83900000-0000-4000-8000-0000000000f4'],
+          'receipt components are sorted by event instant then id');
+select is(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f1')->>'category','renewal','a payment on the member''s later membership row classifies renewal');
+select is(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f1')->'membershipEvidence'->>'hasEarlierMembership','true','the renewal receipt discloses its earlier-membership evidence');
+select ok(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f2')->>'category' = 'newMember'
+       and pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f2')->'membershipEvidence'->>'hasEarlierMembership' = 'false','a payment on the member''s first membership row classifies newMember with its evidence');
+select is(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000fb')->>'category','newMember','an equal-created_at membership sibling is not an earlier row: no id tie-break is permitted');
+select ok(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f4')->>'category' = 'addon'
+       and pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f4')->'membershipEvidence' is null,'add-on money discloses its own category and no membership evidence');
+select is(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f3')->>'category','unallocated','an unlinked manual payment stays unallocated, never guessed into a membership category');
+select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR'),'Membership linkage (derived classification)')->'newMember'->>'collectedPaise','105000','INR new-member collected is the exact sum of both newMember receipts');
+select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR'),'Membership linkage (derived classification)')->'newMember'->>'netPaise','75000','INR new-member net nets the completed in-category return exactly');
+select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR'),'Membership linkage (derived classification)')->'newMember'->>'returnedPaise','30000','INR new-member returned equals the completed return of its receipt');
+select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR'),'Membership linkage (derived classification)')->'renewal'->>'collectedPaise','150000','INR renewal collected is exact');
+select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR'),'Membership linkage (derived classification)')->'renewal'->>'netPaise','150000','INR renewal net is exact');
+select ok(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR'),'Membership linkage (derived classification)')->'renewal' ? 'unknownReturnPaise' = false,'unknownReturnPaise appears in the unallocated category only');
+select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR'),'Membership linkage (derived classification)')->'unallocated'->>'collectedPaise','9007199254740993','the unallocated receipt keeps its exact integer paise beyond the safe JS integer');
+select is(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR')->>'collectedPaise','9007199254995993','INR collected reconciles to the exact category sum beyond the safe JS integer');
+select is(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR')->>'netPaise','9007199254965993','INR net is the exact integer difference, never floating point');
+select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'addon'->>'collectedPaise','25000','USD add-on collection is its own per-currency group');
+select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'unknownReturnPaise','7500','the unknown-allocation return is disclosed exactly once, in the unallocated category');
+select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'unknownReturnPaise',pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'returnedPaise','unknownReturnPaise equals that category''s returnedPaise, never an extra summand');
+select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'netPaise','-7500','the returns-only unallocated category is a visible negative, spelled with a sign and never -0');
+select is(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD')->>'netPaise','17500','USD cash net nets collected and returned exactly');
+select is((select (a->>'collectedPaise')::numeric from jsonb_array_elements(pg_temp.snap('main')->'collection'->'currencies') a where a->>'currency'='INR'),
+          (select sum((c->>'collectedPaise')::numeric) from jsonb_array_elements(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR')->'categories') c),
+          'the four categories sum exactly to the currency cash collected');
+select ok(not exists (select 1 from jsonb_array_elements(pg_temp.snap('main')->'collection'->'components'->'collected') v where v->>'paymentId' = '83900000-0000-4000-8000-0000000000f5'),'a created (never-arrived) attempt contributes no collected cash');
+select ok(not exists (select 1 from jsonb_array_elements(pg_temp.snap('main')->'collection'->'components'->'collected') v where v->>'paymentId' = '83900000-0000-4000-8000-0000000000f8'),'a payment at or after asOf contributes nothing');
+select ok(not exists (select 1 from jsonb_array_elements(pg_temp.snap('main')->'collection'->'components'->'collected') v where v->>'paymentId' = '83900000-0000-4000-8000-0000000000f9'),'no cross-tenant payment ever appears');
+select ok(not exists (select 1 from jsonb_array_elements(pg_temp.snap('main')->'collection'->'components'->'returned') v where (v->>'amountPaise') = '1000'),'a requested (in-flight) return contributes zero returned cash');
+select is(pg_temp.snap('filter')->'collection',pg_temp.snap('main')->'collection','the branch selector never moves cash: whole-business collection is identical under a branch filter');
+select is(pg_temp.snap('nohol')->'collection',pg_temp.snap('main')->'collection','the holiday toggle never moves cash');
+select is(pg_temp.ret(pg_temp.snap('main')->'collection'->'components'->'returned','83900000-0000-4000-8000-000000000101')->>'category','newMember','a return allocates whole to the original receipt''s category');
+select is(pg_temp.ret(pg_temp.snap('main')->'collection'->'components'->'returned','83900000-0000-4000-8000-000000000101')->>'allocationUnknown','false','an allocated return is not marked unknown');
+select ok(pg_temp.ret(pg_temp.snap('main')->'collection'->'components'->'returned','83900000-0000-4000-8000-000000000104')->>'category' = 'unallocated'
+       and pg_temp.ret(pg_temp.snap('main')->'collection'->'components'->'returned','83900000-0000-4000-8000-000000000104')->>'allocationUnknown' = 'true','a return of an unallocated receipt stays in the unknown-allocation disclosure');
+select is((select array_agg(v->>'returnId' order by ord) from (select v, ord from jsonb_array_elements(pg_temp.snap('main')->'collection'->'components'->'returned') with ordinality as t(v,ord)) s),
+          array['83900000-0000-4000-8000-000000000101','83900000-0000-4000-8000-000000000104'],
+          'returned components are sorted by event instant then id');
+select is(pg_temp.snap('main')->'warnings'->>'scope','Current all-date','the warning population is the current all-date scope');
+select is((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'warnings'->'undatedPayments'))::bigint,1::bigint,'exactly the one arrived undated payment is warned');
+select is(pg_temp.snap('main')->'warnings'->'undatedPayments'->0, jsonb_build_object('paymentId','83900000-0000-4000-8000-0000000000f6','amountPaise','7000','currency','INR'), 'undated payment rows carry exactly the frozen keys and values');
+select is(pg_temp.snap('main')->'warnings'->'undatedReturns'->0, jsonb_build_object('returnId','83900000-0000-4000-8000-000000000103','paymentId','83900000-0000-4000-8000-0000000000f1','amountPaise','2000','currency','INR'), 'undated return rows carry exactly the frozen keys and values');
+select is((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'warnings'->'totals'))::bigint,1::bigint,'totals are grouped per currency');
+select is(pg_temp.snap('main')->'warnings'->'totals'->0, jsonb_build_object('currency','INR','undatedPaymentCount','1','undatedPaymentPaise','7000','undatedReturnCount','1','undatedReturnPaise','2000'), 'warning totals sum exclusively from the warned rows per currency');
+select is((select count(*) from jsonb_array_elements(pg_temp.snap('future')->'warnings'->'undatedPayments'))::bigint,1::bigint,'the all-date warning population is independent of the selected range');
+
+-- ---------------------------------------------------------------------------
+-- Section G: elapsed class cohort, capacity, marking, fractions (OCC-014..016).
+-- ---------------------------------------------------------------------------
+select is((select count(*) from jsonb_array_elements(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions') s where s->>'sessionId' = '83900000-0000-4000-8000-000000001101')::bigint,1::bigint,'the elapsed non-cancelled session is in the branch cohort');
+select is(pg_temp.sess(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions','83900000-0000-4000-8000-000000001101')->>'capacity','7','capacity is the stored per-session value, not a service default');
+select is(pg_temp.sess(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions','83900000-0000-4000-8000-000000001101')->>'holdingBookings','3','holding bookings are booked + attended + no_show; the cancelled booking contributes zero');
+select is(pg_temp.sess(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions','83900000-0000-4000-8000-000000001101')->>'bookedCount','1','still-booked unmarked bookings are disclosed');
+select is(pg_temp.sess(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions','83900000-0000-4000-8000-000000001101')->>'attendedCount','1','explicitly marked attended is disclosed');
+select is(pg_temp.sess(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions','83900000-0000-4000-8000-000000001101')->>'noShowCount','1','explicitly marked no-show is disclosed and held its seat');
+select is(pg_temp.sess(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions','83900000-0000-4000-8000-000000001101')->'bookedFill'->>'numerator','3','session drill bookedFill keeps its exact raw numerator');
+select is(pg_temp.sess(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions','83900000-0000-4000-8000-000000001101')->'bookedFill'->>'denominator','7','session drill bookedFill keeps its exact stored-capacity denominator');
+select is(pg_temp.sess(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions','83900000-0000-4000-8000-000000001101')->'bookedFill'->>'basisPoints','4286','session drill bookedFill rounds half-up exactly');
+select is(pg_temp.sess(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions','83900000-0000-4000-8000-000000001101')->'markedPresence'->>'basisPoints','1429','marked presence over capacity rounds half-up exactly');
+select is(pg_temp.sess(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions','83900000-0000-4000-8000-000000001101')->'markingCoverage'->>'basisPoints','6667','marking coverage rounds half-up exactly');
+select ok(not exists (select 1 from jsonb_array_elements(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions') s where s->>'sessionId' = '83900000-0000-4000-8000-000000001102'),'an ongoing/future session never enters the elapsed cohort');
+select ok(not exists (select 1 from jsonb_array_elements(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions') s where s->>'sessionId' = '83900000-0000-4000-8000-000000001103'),'a cancelled session contributes neither bookings nor capacity to the cohort');
+select is((select count(*) from jsonb_array_elements(pg_temp.snap('b11')->'classes'->'branches'->0->'cancelledSessions') s where s->>'sessionId' = '83900000-0000-4000-8000-000000001103')::bigint,1::bigint,'the elapsed cancelled session is disclosed in cancelledSessions');
+select is((select array_agg(k order by ord) from (select k, ord from jsonb_object_keys(pg_temp.sess(pg_temp.snap('b11')->'classes'->'branches'->0->'cancelledSessions','83900000-0000-4000-8000-000000001103')) with ordinality as t(k,ord)) s),
+          array['sessionId','serviceId','sessionDate','startsAt','endsAt'],
+          'cancelled drill rows carry exactly the five frozen keys and no capacity or bookings');
+select is((select count(*) from jsonb_array_elements(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions') s where s->>'sessionId' = '83900000-0000-4000-8000-000000001104')::bigint,1::bigint,'a holiday session which remained scheduled and elapsed stays in the cohort');
+select is(pg_temp.snap('b11')->'classes'->'branches'->0->'summary'->>'cohortSessions','2','the branch cohort is exactly its two elapsed non-cancelled sessions');
+select is(pg_temp.snap('b11')->'classes'->'branches'->0->'summary'->>'totalCapacity','17','summary capacity sums stored session capacities');
+select is(pg_temp.snap('b11')->'classes'->'branches'->0->'summary'->>'holdingBookings','3','summary holding bookings sum session rows');
+select is(pg_temp.snap('b11')->'classes'->'branches'->0->'summary'->>'unmarkedCount','1','summary unmarked count equals the still-booked bookings');
+select is(pg_temp.snap('b11')->'classes'->'branches'->0->'summary'->>'cancelledSessionsExcluded','1','summary discloses the excluded cancelled session count');
+select is(pg_temp.snap('b11')->'classes'->'branches'->0->'summary'->'bookedFill'->>'basisPoints','1765','summary booked fill is capacity weighted, never a mean of percentages');
+select is(pg_temp.snap('b11')->'classes'->'branches'->0->'summary'->'markedPresence'->>'basisPoints','588','summary marked presence is capacity weighted');
+select is(pg_temp.snap('b11')->'classes'->'branches'->0->'summary'->'markingCoverage'->>'basisPoints','6667','summary marking coverage is holding-weighted');
+select ok(pg_temp.snap('b11')->'classes'->'branches'->0->'summary'->>'limited' = 'true'
+       and pg_temp.snap('b11')->'classes'->'branches'->0->'summary'->>'message' = 'Limited history','below 10 elapsed sessions the cohort summary is Limited history');
+select is(pg_temp.snap('b11')->'classes'->'branches'->0->'summary'->>'incompleteMarkingDisclosed','true','unmarked bookings force the incomplete-marking disclosure');
+select is(pg_temp.snap('b12')->'classes'->'branches'->0->'summary'->'bookedFill'->>'basisPoints','2000','the Auckland branch summary is its own capacity-weighted cohort');
+select ok(pg_temp.branch(pg_temp.snap('main')->'classes'->'branches','83900000-0000-4000-8000-000000000013')->>'summary' is null
+       and pg_temp.branch(pg_temp.snap('main')->'classes'->'branches','83900000-0000-4000-8000-000000000013')->'sessions' = '[]'::jsonb,'the invalid branch keeps its classes entry with a null summary and empty arrays');
+select is(pg_temp.snap('main')->'classes'->'reconciliation'->>'complete','false','one invalid branch makes the classes reconciliation incomplete');
+select is(pg_temp.snap('main')->'classes'->'reconciliation'->'summary',null,'an incomplete classes reconciliation returns a null summary instead of a partial aggregate');
+select ok((select count(*) from jsonb_array_elements(pg_temp.snap('b11')->'classes'->'branches')) = 1
+       and not exists (select 1 from jsonb_array_elements(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions') s where s->>'sessionId' = '83900000-0000-4000-8000-000000001105'),'a branch-scoped read exposes only that branch''s cohort');
+
+-- ---------------------------------------------------------------------------
+-- Section H: argument validation refusals.
+-- ---------------------------------------------------------------------------
+select throws_ok($q$select public.owner_occupancy_analytics(current_date, current_date - 1, null, true)$q$,'22023'::char(5),null,'an inverted range is invalid');
+select throws_ok($q$select public.owner_occupancy_analytics(null, current_date, null, true)$q$,'22023'::char(5),null,'a missing from date is invalid, never defaulted');
+select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, null, null, true)$q$,'22023'::char(5),null,'a missing through date is invalid, never defaulted');
+select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, null)$q$,'22023'::char(5),null,'a null holiday toggle is invalid, never silently defaulted');
+
+-- ---------------------------------------------------------------------------
+-- Section I: invalid gym zone (end-of-life fixture change, rollback undoes it).
+-- The corruption UPDATE must carry platform-super-admin REQUEST CLAIMS: the
+-- organizations commercial trigger gates writes through the JWT claims, not
+-- the current SQL role, so neither the reset identity nor `role postgres`
+-- satisfies it. Super-admin claims are set around the corruption and the
+-- ordinary owner claims are restored immediately after (the corrupt zone is
+-- itself the fixture the assertions then read).
+set local role postgres;
+insert into public.platform_users(user_id, role, full_name, email, is_active)
+  values ('83900000-0000-4000-8000-0000000000a8','super_admin','Fixture Super Admin','fixture-super-admin@example.invalid',true);
+select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a8","role":"authenticated","app_role":"super_admin"}',true);
+-- The trigger's UPDATE branch refuses invalid zones even for super admins,
+-- so the zone corruption stages through the registered disable/restore seam:
+-- user triggers on organizations are disabled around the single guarded
+-- UPDATE and restored immediately, before any application check runs.
+alter table public.organizations disable trigger user;
+update public.organizations set timezone = 'Not/AZone'
+  where id = '83900000-0000-4000-8000-000000000001';
+alter table public.organizations enable trigger user;
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a1","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a1","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
 set local role authenticated;
-select ok(jsonb_typeof(holdout_occ.occ_call(current_date - 1, current_date, null)) = 'object','real gym owner receives the one-snapshot response');
-select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a2","role":"authenticated","app_role":"gym_manager","staff_id":"83900000-0000-4000-8000-0000000000a2","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
-select ok(jsonb_typeof(holdout_occ.occ_call(current_date - 1, current_date, null)) = 'object','real gym manager receives the snapshot');
-select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a3","role":"authenticated","app_role":"front_desk","staff_id":"83900000-0000-4000-8000-0000000000a3","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
-select throws_ok($q$select holdout_occ.occ_call(current_date - 1, current_date, null)$q$,'42501'::char(5),null,'front desk receives no analytics');
-select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a4","role":"authenticated","app_role":"trainer","staff_id":"83900000-0000-4000-8000-0000000000a4","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
-select throws_ok($q$select holdout_occ.occ_call(current_date - 1, current_date, null)$q$,'42501'::char(5),null,'trainer receives no analytics');
-select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000b1","role":"authenticated","app_role":"member","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
-select throws_ok($q$select holdout_occ.occ_call(current_date - 1, current_date, null)$q$,'42501'::char(5),null,'member receives no analytics');
-select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a8","role":"authenticated","app_role":"super_admin"}',true);
-select throws_ok($q$select holdout_occ.occ_call(current_date - 1, current_date, null)$q$,'42501'::char(5),null,'platform super admin receives no gym analytics');
-select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a8","role":"authenticated","app_role":"super_admin","impersonation_session_id":"83900000-0000-4000-8000-000000000190"}',true);
-select throws_ok($q$select holdout_occ.occ_call(current_date - 1, current_date, null)$q$,'42501'::char(5),null,'support preview receives no analytics');
-select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a8","role":"authenticated","app_role":"super_admin","tenant_id":"83900000-0000-4000-8000-000000000001","staff_id":"83900000-0000-4000-8000-0000000000a1"}',true);
-select throws_ok($q$select holdout_occ.occ_call(current_date - 1, current_date, null)$q$,'42501'::char(5),null,'mixed platform and gym identity is refused before any read');
-select set_config('request.jwt.claims','',true);
-select throws_ok($q$select holdout_occ.occ_call(current_date - 1, current_date, null)$q$,'42501'::char(5),null,'missing claims are refused before any read');
-select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a5","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a5","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
-select throws_ok($q$select holdout_occ.occ_call(current_date - 1, current_date, null)$q$,'42501'::char(5),null,'inactive staff row is refused despite live claims');
-
--- ---------------------------------------------------------------------------
--- Section C: branch safety and tenancy (OCC-001)
--- ---------------------------------------------------------------------------
-select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a1","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a1","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
-select throws_ok($q$select holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000099')$q$,'42501'::char(5),null,'forged branch id is refused');
-select throws_ok($q$select holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000014')$q$,'42501'::char(5),null,'foreign-tenant branch id is refused');
-select is((select current_setting('request.jwt.claims')),'{"sub":"83900000-0000-4000-8000-0000000000a1","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a1","tenant_id":"83900000-0000-4000-8000-000000000001"}','actor matrix fixtures intact');
-select ok(true,'forged and foreign branch refusals share one shape by construction (single raise site per contract)');
-select ok(jsonb_typeof(holdout_occ.occ_call(current_date - 1, current_date, null)) = 'object','null branch reads the whole gym');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)->'payments') v where v->>'paymentId' = '83900000-0000-4000-8000-0000000000f9') = 0,'cross-tenant payment never returns');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'payments') v where (v->>'paymentId') = '83900000-0000-4000-8000-0000000000f9') = 0,'branch-scoped read still never returns foreign-tenant money');
-
--- ---------------------------------------------------------------------------
--- Section D: range, zones, holidays, boundaries (OCC-003/004/005/013)
--- ---------------------------------------------------------------------------
-select is(holdout_occ.occ_call(current_date - 1, current_date, null)->>'zone','Asia/Kolkata','gym zone is disclosed for whole-gym money reads');
-select is(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000012')->>'zone','Pacific/Auckland','nonnull branch zone overrides the gym zone and is disclosed');
-select is(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')->>'zone','Asia/Kolkata','null branch zone is the disclosed gym-zone inheritance');
-select is(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')->>'rangeStartInstant',(((current_date - 1)::timestamp) at time zone 'Asia/Kolkata')::text,'range start is the from-date local midnight instant');
-select is(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')->>'rangeEndInstant',(((current_date + 1)::timestamp) at time zone 'Asia/Kolkata')::text,'range end is the after-through local midnight instant');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'arrivals') v
-           where (v->>'localDate') = (current_date - 1)::text
-             and (v->>'hour')::int = extract(hour from (((current_date - 1)::timestamp + time '09:00') at time zone 'Asia/Kolkata'))::int
-             and (v->>'visits')::int = 2) = 1,'lower-bound midnight arrival included; same-hour visits from two members sum to two raw arrivals');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'arrivals') v
-           where (v->>'localDate') = (current_date + 1)::text) = 0,'arrival exactly at the after-through local midnight is excluded');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000012')::jsonb -> 'arrivals') v
-           where (v->>'branchId') = '83900000-0000-4000-8000-000000000012') >= 1,'Auckland branch arrival bucketed in its own zone');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'arrivals') v
-           where (v->>'localDate') = current_date::text and (v->>'branchId') = '83900000-0000-4000-8000-000000000011') = 0,'holiday-date arrival is excluded from the arrival series');
-select ok((holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')->'excludedHolidayDates') ? (current_date::text),'excluded holiday dates stay available from the same snapshot');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011', false)::jsonb -> 'arrivals') v
-           where (v->>'localDate') = current_date::text and (v->>'branchId') = '83900000-0000-4000-8000-000000000011') >= 1
-       and not (holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011', false)->'excludedHolidayDates') ? (current_date::text),'OCC-005 reversibility is RPC-side: with the exclusion toggle off the holiday-date arrival returns to the exposure and no exclusion is disclosed');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'collection') v
-           where v->>'currency' = 'INR' and (v->>'month') = to_char((now() at time zone 'Asia/Kolkata'),'YYYY-MM')
-             and (v->>'collectedPaise') = ((150000 + 100000 + 9007199254740993)::numeric)::text) = 1,'holiday-date payment still counts as actual collected cash');
-select throws_ok($q$select holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000013')$q$,'22023'::char(5),null,'invalid nonnull branch zone is an explicit zone error, never a fallback zero');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'classes') v
-           where (v->>'sessionDate') = current_date::text) = 1,'holiday-standing elapsed class session is retained in the cohort');
-
--- ---------------------------------------------------------------------------
--- Section E: money integrity and classification inputs (OCC-009/010/011/012)
--- ---------------------------------------------------------------------------
-select is((select v->>'collectedPaise' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'collection') v
-           where v->>'currency' = 'INR' and (v->>'month') = to_char((now() at time zone 'Asia/Kolkata'),'YYYY-MM')),
-          -- Dated arrived INR: 150000 + 100000 + 9007199254740993.
-          '9007199254990993','INR current-month collection is exact canonical decimal text beyond the safe integer');
-select is((select v->>'collectedPaise' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'collection') v
-           where v->>'currency' = 'USD' and (v->>'month') = to_char((now() at time zone 'Asia/Kolkata'),'YYYY-MM')),
-          '25000','USD collection is its own per-currency group, never merged into INR');
-select is((select v->>'collectedPaise' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'collection') v
-           where v->>'currency' = 'INR' and (v->>'month') = to_char((((date_trunc('month', (now() at time zone 'Asia/Kolkata'))::timestamp) at time zone 'Asia/Kolkata') - interval '1 day') at time zone 'Asia/Kolkata','YYYY-MM')),
-          '12345','prior-month payment groups in its own gym-local month');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'collection') v) >= 4,'each currency-month is a distinct group (no cross-currency summation)');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'payments') v
-           where (v->>'paymentId') = '83900000-0000-4000-8000-0000000000f5') = 0,'created (never-arrived) attempt contributes no collected cash');
-select ok((holdout_occ.occ_call(current_date - 1, current_date, null)->>'undatedPayments')::int >= 1,'paid payment without paid_at is a visible undated warning, never dropped');
-select is((select v->>'returnedPaise' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'returns') v
-           where v->>'currency' = 'INR' and (v->>'month') = to_char((now() at time zone 'Asia/Kolkata'),'YYYY-MM')),
-          '30000','completed return groups by its processed month in the gym zone');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'returns') v
-           where (v->>'returnedPaise') = '1000') = 0,'requested (in-flight) return contributes zero returned cash');
-select ok((holdout_occ.occ_call(current_date - 1, current_date, null)->>'undatedReturns')::int >= 1,'completed return without processed_at is a visible undated warning');
-select is((select v->>'returnedPaise' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'returns') v
-           where v->>'currency' = 'USD'),
-          '7500','return completed in a later month reduces that later month (original payment month untouched)');
-select ok((holdout_occ.occ_call(current_date - 1, current_date, null) ? 'collection') and (holdout_occ.occ_call(current_date - 1, current_date, null) ? 'returns'),'collected and returned populations are supplied separately');
-select ok(not (holdout_occ.occ_call(current_date - 1, current_date, null) ? 'netPaise'),'no computed net is returned: net is the frozen client derivation');
-select ok((select v->>'memberFirstMembershipCreatedAt' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'payments') v
-           where (v->>'paymentId') = '83900000-0000-4000-8000-0000000000f2') is not null
-       and ((select (v->>'memberFirstMembershipCreatedAt')::timestamptz from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'payments') v
-           where (v->>'paymentId') = '83900000-0000-4000-8000-0000000000f2')
-         < (select (v->>'paidAt')::timestamptz from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'payments') v
-           where (v->>'paymentId') = '83900000-0000-4000-8000-0000000000f2')),'first-membership discriminator input is supplied from real membership creation facts');
-select ok((select (v->>'membershipId') from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'payments') v
-           where (v->>'paymentId') = '83900000-0000-4000-8000-0000000000f1') = '83900000-0000-4000-8000-0000000000d2'::uuid::text,'membership linkage is the payment''s own raw link, not a guess');
-select ok((select (v->>'addonLinked') from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'payments') v
-           where (v->>'paymentId') = '83900000-0000-4000-8000-0000000000f4') = 'true'
-       and (select (v->>'membershipId') from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'payments') v
-           where (v->>'paymentId') = '83900000-0000-4000-8000-0000000000f4') is null,'add-on money carries its own linkage and no membership link');
-select ok((select (v->>'membershipId') from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'payments') v
-           where (v->>'paymentId') = '83900000-0000-4000-8000-0000000000f3') is null
-       and (select (v->>'addonLinked') from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'payments') v
-           where (v->>'paymentId') = '83900000-0000-4000-8000-0000000000f3') = 'false','unallocated manual money stays a disclosed raw population');
-select ok(not exists (select 1 from jsonb_object_keys(holdout_occ.occ_call(current_date - 1, current_date, null)) k
-                      where k in ('newMemberPaise','renewalPaise','newVsRenewal')),'no client-guessed new/renewal label exists at the database seam');
-
--- ---------------------------------------------------------------------------
--- Section F: class cohort, capacity and marking truth (OCC-014/015/016)
--- ---------------------------------------------------------------------------
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001101') = 1,'elapsed non-cancelled session is in the cohort');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001102') = 0,'ongoing/future session is excluded');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001103') = 0,'cancelled session contributes neither bookings nor capacity');
-select is((select v->>'capacity' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001101'),'7','capacity is the stored per-session value');
-select is((select v->>'holding' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001101'),'3','holding bookings = booked + attended + no_show; cancelled booking and no-show seat-holding both hold');
-select is((select v->>'attended' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001101'),'1','explicitly marked attended is reported separately');
-select is((select v->>'noShow' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001101'),'1','explicitly marked no-show is reported separately');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000012')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001105') = 1,'branch filter keeps exactly that branch''s elapsed cohort');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000012')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001101') = 0,'another branch''s session never enters a branch-scoped cohort');
-select ok(jsonb_typeof(holdout_occ.occ_call(current_date - 1, current_date, null)->'classes') = 'array','class cohort is one reconciling population of the single snapshot');
+select pg_temp.capture('badzone', current_date - 1, current_date, null, true);
+select is(pg_temp.snap('badzone')->>'zone','Not/AZone','an invalid gym zone is preserved as its text, never fabricated into UTC');
+select is(pg_temp.snap('badzone')->'moneyRange'->'error'->>'code','invalid_gym_timezone','an invalid gym zone is an explicit money-scope error');
+select is(pg_temp.snap('badzone')->'months','[]'::jsonb,'an invalid gym zone yields no months');
+select is(pg_temp.snap('badzone')->'collection',null,'an invalid gym zone yields no collection at all');
+select ok(pg_temp.branch(pg_temp.snap('badzone')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'error'->>'code' = 'invalid_gym_timezone'
+       and pg_temp.branch(pg_temp.snap('badzone')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'range' is null,'the inheriting branch fails with the gym-zone error and no boundaries');
+select is(pg_temp.branch(pg_temp.snap('badzone')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->>'error',null,'a branch with its own valid zone stays individually valid while the gym zone is invalid');
 
 select * from finish();
 rollback;

@@ -16,6 +16,12 @@ One containing statement snapshot and server `statement_timestamp()` supplies `a
 STABLE INVOKER reads retain RLS and the existing verified real owner/manager
 identity; refuse preview, unauthorized/mixed/missing claims before population lookup.
 A forged/unavailable branch receives the same safe refusal, never partial analytics.
+
+  Adjudication (2026-10-04, orchestrator): the safe refusal class is the
+  shipped target-invisibility signal P0002 (missing and forged/unavailable
+  branches share one unavailable outcome, matching the read-RPC collapse
+  precedent used across SLF/PAY/NTF); no authority-revealing 42501 branch
+  refusal is used. Suite pins conform to this note.
 No service credential, supplied tenant/asOf or read-only Route Handler is introduced.
 Both SQL dates are required, real Gregorian dates, `from <= through`; null toggle is
 invalid rather than silently defaulted. Default omission means holiday exclusion on.
