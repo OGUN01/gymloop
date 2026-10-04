@@ -143,11 +143,13 @@ describe('independent actual native Training current cancellation', () => {
     expect(seam.post).not.toHaveBeenCalled();
   });
   it('confirm rereads using current exact supplied caller client', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-04T05:00:00Z'));
     const screen = await mount(); await press(screen.render(), /^Cancel/i); const before = seam.load.mock.calls.length;
     await press(screen.render(), /Confirm|Cancel session/i); expect(seam.load.mock.calls.length).toBeGreaterThan(before);
     expect(seam.load.mock.calls.at(-1)?.[0]).toBe(client); expect(seam.post).toHaveBeenCalledOnce();
   });
   it('API refusal keeps pinned sentence without fake success', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-04T05:00:00Z'));
     seam.post.mockResolvedValue({ ok: false, error: { code: 'too_late_to_cancel', message: 'PRIVATE server transport' } });
     const screen = await mount(); await press(screen.render(), /^Cancel/i); await press(screen.render(), /Confirm|Cancel session/i);
     expect(text(screen.render())).toContain("This session has already started, so it can't be cancelled here. Ask your trainer or the front desk.");
@@ -172,6 +174,7 @@ describe('independent native permanent supplied-capability lease', () => {
     expect(seam.post).not.toHaveBeenCalled(); expect(seam.load).not.toHaveBeenCalled();
   });
   it('unmount invalidates late command feedback and prevents post-command reads', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-04T05:00:00Z'));
     const result = deferred<unknown>(); seam.post.mockReturnValue(result.promise);
     const screen = await mount(); await press(screen.render(), /^Cancel/i);
     const pending = (action(screen.render(), /Confirm|Cancel session/i).props.onPress as () => Promise<void>)(); await flush();
@@ -187,6 +190,7 @@ describe('independent native permanent supplied-capability lease', () => {
     facts.resolve(data()); await pending; await flush(); expect(seam.post).not.toHaveBeenCalled(); expect(replacement).not.toHaveBeenCalled();
   });
   it('API A B A cannot publish old accepted command feedback or post-command reads', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-04T05:00:00Z'));
     const result = deferred<unknown>(); seam.post.mockReturnValue(result.promise);
     const screen = await mount(); await press(screen.render(), /^Cancel/i);
     const pending = (action(screen.render(), /Confirm|Cancel session/i).props.onPress as () => Promise<void>)(); await flush();
