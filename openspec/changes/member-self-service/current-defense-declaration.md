@@ -58,3 +58,22 @@ as authenticated ordinary actors to prove no additional authority. Deferred
 checks run within bounded rollback-only fixtures using SET CONSTRAINTS; no
 test commits against Cloud, changes extension functions or invents privileges.
 All newly exposed helper/signature needs must be declared before source work.
+
+## Body-free SQL result metadata
+
+The SQL JSON boundary uses snake-case names. Safe detail identifies `id`,
+`source_pause_id`, persisted `status`, derived `effective_state` and decimal
+string `revision`. Mutation results identify `request_id`, persisted `status`,
+decimal string `revision` and boolean `replayed`; exact replay adds current
+`effective_state` without changing the original stored result's status/facts.
+Presentation adapters may map names, but cannot guess a second SQL protocol.
+Regression authors may resolve IDs relationally from their own fixture rows.
+Positive prepare facts are not needed for malicious unprepared finish probes;
+valid public wrappers prove the permitted path independently.
+
+Membership dates remain protected by GL045. Do not bypass that guard to create
+a shortening scenario. Lawful membership retirement/replacement proves current
+availability; the body-free ineffective predicate can separately receive an
+in-memory `member_freeze_requests` composite whose interval exceeds an existing
+current membership span. It must classify that candidate ineffective without
+persisting an impossible membership or weakening the commercial date guard.
