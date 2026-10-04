@@ -25,7 +25,8 @@ select ok((select bool_and(not has_function_privilege('anon',to_regprocedure(s),
  ('public.reject_purchase_request(uuid,uuid,text,uuid)'),
  ('public.attach_payment_proof(uuid,uuid,uuid,uuid)'),
  ('public.reject_payment_proof(uuid,uuid,uuid,text,uuid)'),
- ('public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb)')
+ ('public.record_purchase_request(uuid,uuid,uuid,text,text,text)'),
+ ('public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb,uuid,uuid)')
  ) v(s)),'H79-A9 anon holds no EXECUTE on any purchase command');
 select ok((select bool_and(has_function_privilege('authenticated',to_regprocedure(s),'EXECUTE')) from (values
  ('public.create_purchase_request(uuid,public.purchase_request_kind,uuid,integer,uuid)'),
@@ -35,10 +36,11 @@ select ok((select bool_and(has_function_privilege('authenticated',to_regprocedur
  ('public.reject_purchase_request(uuid,uuid,text,uuid)'),
  ('public.attach_payment_proof(uuid,uuid,uuid,uuid)'),
  ('public.reject_payment_proof(uuid,uuid,uuid,text,uuid)'),
- ('public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb)')
+ ('public.record_purchase_request(uuid,uuid,uuid,text,text,text)'),
+ ('public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb,uuid,uuid)')
  ) v(s)),'H79-A10 authenticated holds EXECUTE on every frozen command');
-select ok((select not prosecdef and provolatile='v' from pg_proc where oid=to_regprocedure('public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb)')),'H79-A11 recording is a volatile INVOKER: no definer escalation impersonates staff (BUY-013)');
-select has_function('public','record_purchase_request',array['uuid','uuid','uuid','text','text','text','jsonb'],'H79-A12 the frozen 7-arg reco the frozen 7-arg recording wrapper exists');
+select ok((select not prosecdef and provolatile='v' from pg_proc where oid=to_regprocedure('public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb,uuid,uuid)')),'H79-A11 recording is a volatile INVOKER: no definer escalation impersonates staff (BUY-013)');
+select has_function('public','record_purchase_request',array['uuid','uuid','uuid','text','text','text'],'H79-A12 the frozen recording signature exists');
 select has_function('public','record_purchase_request',array['uuid','uuid','uuid','text','text','text','jsonb','uuid','uuid'],'H79-A12b the amended recording signature carries the PT slot and the exact viewed evidence (frozen decisions 2+3)');
 select has_function('public','register_payment_proof',array['uuid','text','integer','uuid'],'H79-A12c the registration seam carries a retained command key (frozen decision 5)');
 select has_function('public','read_member_purchase_requests',array['integer','timestamptz','uuid'],'H79-A13 member read exists');
