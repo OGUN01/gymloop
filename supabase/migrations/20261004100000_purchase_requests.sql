@@ -2045,14 +2045,18 @@ begin
    where a.tenant_id = v_actor.tenant_id and a.id = p_asset_id;
   if not found or v_asset.kind is distinct from 'payment_proof'
     or v_asset.confirmed_at is null or v_asset.deleted_at is not null
-    or v_asset.created_by_member_id is distinct from v_actor.member_id
-    -- Exact registration-to-request linkage, enforced independently at
-    -- attachment (BUY-008/010): an asset registered for one request can never
-    -- attach to another, first attach included.
-    or v_asset.linked_request_id is distinct from p_request_id then
+    or v_asset.created_by_member_id is distinct from v_actor.member_id then
     -- Unknown, foreign, unexposed and wrong-creator assets share one refusal.
     raise exception 'Proof asset is not a verified payment proof'
       using errcode = 'GL086', detail = 'media_not_ready';
+  end if;
+  -- Exact registration-to-request linkage, enforced independently at
+  -- attachment (BUY-008/010): an asset registered for one request is already
+  -- bound to that request, so attaching it elsewhere — first attach included —
+  -- is the frozen GL124 binding conflict, not a media-seam refusal.
+  if v_asset.linked_request_id is distinct from p_request_id then
+    raise exception 'This proof already belongs to another request'
+      using errcode = 'GL124', detail = 'proof_bound';
   end if;
 
   select p.id into v_conflict from public.payment_proofs p
