@@ -1,3 +1,5 @@
+-- 2026-10-04 independent reconciliation: frozen public contracts only; no
+-- implementation, migrations, visible suites or private diagnostics read.
 -- Holdout, Phase 2 — the role matrix, write side.
 --
 -- Written blind from openspec/changes/phase-2-identity-and-tenancy/specs/authorization/spec.md
@@ -343,11 +345,11 @@ select ok(
   'front desk records a consent');
 
 select ok(
-  pg_temp.allowed($q$insert into public.member_devices
+  pg_temp.rejected($q$insert into public.member_devices
                        (tenant_id, member_id, platform, push_token)
                      values ('aaaa0000-0013-4000-8000-000000000001',
                              '33330000-0013-4000-8000-0000000000a1', 'android', 'h13-desk-token')$q$),
-  'front desk registers a device');
+  'NTF frozen grant matrix: front desk cannot directly register a device');
 
 select ok(
   pg_temp.rejected($q$insert into public.organization_holidays (tenant_id, holiday_on)

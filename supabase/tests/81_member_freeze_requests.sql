@@ -33,6 +33,8 @@ grant all on proof to authenticated;
 
 -- ============ fixtures (existing schema only) ============
 insert into auth.users(id) select pg_temp.u(n) from generate_series(901,916) n;
+-- SLF/OCC frozen actor contract: platform subjects also require auth.users provenance.
+insert into auth.users(id) values(pg_temp.u(928));
 insert into public.platform_users(user_id,role,full_name,email,is_active) values(pg_temp.u(928),'super_admin','SLF root','slf81-root@example.test',true);
 insert into public.organizations(id,name,gym_code,status,timezone) values(pg_temp.u(1),'SLF A','SLF81A','active','Asia/Kolkata'),(pg_temp.u(2),'SLF B','SLF81B','active','Asia/Kolkata');
 insert into public.branches(id,tenant_id,name,is_default) values(pg_temp.u(11),pg_temp.u(1),'A',true),(pg_temp.u(12),pg_temp.u(2),'B',true);

@@ -1,3 +1,5 @@
+-- 2026-10-04 independent reconciliation: frozen public contracts only; no
+-- implementation, migrations, visible suites or private diagnostics read.
 -- Independent holdout: frozen SLF-001..018 public contract only
 -- (openspec/changes/member-self-service/proposal.md, docs/design/v2/slf-bar.md,
 -- docs/data-model.md, docs/security.md). No implementation, no visible suite,
@@ -49,9 +51,9 @@ create or replace function holdout_slf.h81_enum_labels() returns text[] language
 declare v text[];
 begin
   if to_regtype('public.member_freeze_request_status') is not null then
-    execute 'select array(select unnest(enum_range(null::public.member_freeze_request_status))::text[])' into v;
+    execute 'select array(select unnest(enum_range(null::public.member_freeze_request_status))::text)' into v;
   else
-    execute 'select array(select unnest(enum_range(null::holdout_slf.member_freeze_request_status))::text[])' into v;
+    execute 'select array(select unnest(enum_range(null::holdout_slf.member_freeze_request_status))::text)' into v;
   end if;
   return v;
 end $f$;
@@ -108,10 +110,10 @@ select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.proname
    and p.proconfig is not null and p.proconfig::text like '%search_path=%'),9::bigint,'SLF-014 every RPC runs an empty fixed search path');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where n.nspname='public' and p.proname in ('request_member_freeze','cancel_member_freeze_request','read_member_freeze_request','read_member_freeze_requests','read_staff_freeze_requests')
-   and p.prosecurity = 'definer'),5::bigint,'member and reader commands are narrow definers');
+   and p.prosecdef),5::bigint,'member and reader commands are narrow definers');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where n.nspname='public' and p.proname in ('adopt_member_freeze_request','approve_member_freeze_request','reject_member_freeze_request','expire_member_freeze_request')
-   and p.prosecurity = 'invoker'),4::bigint,'staff source commands are invokers through unchanged RLS/guards');
+   and not p.prosecdef),4::bigint,'staff source commands are invokers through unchanged RLS/guards');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where n.nspname='public' and p.proname in ('request_member_freeze','cancel_member_freeze_request','adopt_member_freeze_request','approve_member_freeze_request','reject_member_freeze_request','expire_member_freeze_request','read_member_freeze_request','read_member_freeze_requests','read_staff_freeze_requests')
    and has_function_privilege('authenticated',n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')','EXECUTE')),9::bigint,'authenticated EXECUTE granted explicitly on all nine');

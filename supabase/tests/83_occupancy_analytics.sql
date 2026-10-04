@@ -45,6 +45,8 @@ grant execute on function pg_temp.u(integer),pg_temp.claim(text,integer,integer,
 
 -- ============ fixtures (existing schema only) ============
 insert into auth.users(id) select pg_temp.u(n) from generate_series(901,916) n;
+-- SLF/OCC frozen actor contract: platform subjects also require auth.users provenance.
+insert into auth.users(id) values(pg_temp.u(928));
 insert into public.platform_users(user_id,role,full_name,email,is_active) values(pg_temp.u(928),'super_admin','OCC root','occ83-root@example.test',true);
 insert into public.organizations(id,name,gym_code,status,timezone) values(pg_temp.u(1),'OCC A','OCC83A','active','Asia/Kolkata'),(pg_temp.u(2),'OCC B','OCC83B','active','Asia/Kolkata');
 -- Branch 11 inherits the gym zone (null override), 12 overrides to New York,

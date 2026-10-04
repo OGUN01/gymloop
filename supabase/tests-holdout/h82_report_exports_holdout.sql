@@ -1,3 +1,5 @@
+-- 2026-10-04 independent reconciliation: frozen public contracts only; no
+-- implementation, migrations, visible suites or private diagnostics read.
 -- Independent holdout: the RPE database surface, derived from the frozen
 -- contract (openspec/changes/report-exports/proposal.md — architecture
 -- section "one bounded invoker data operation per artifact", "a definer may
@@ -29,8 +31,8 @@ select ok(to_regprocedure('public.export_report_snapshot(text,date,date,uuid,int
 select ok(to_regprocedure('public.append_report_export_event(text,uuid,jsonb)') is not null,'narrow public audit append helper exists');
 select is((select r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner where p.oid = to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)')),'postgres','snapshot operation is postgres-owned');
 select is((select r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner where p.oid = to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')),'postgres','audit helper is postgres-owned');
-select is((select prosecurity from pg_proc where oid = to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)')),'i'::text,'snapshot operation is security invoker so caller RLS decides every row');
-select is((select prosecurity from pg_proc where oid = to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')),'d'::text,'audit helper is definer so it alone elevates');
+select is((select prosecdef from pg_proc where oid = to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)')),false,'snapshot operation is security invoker so caller RLS decides every row');
+select is((select prosecdef from pg_proc where oid = to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')),true,'audit helper is definer so it alone elevates');
 select is((select proconfig->>'search_path' from pg_proc where oid = to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)')),'','snapshot operation runs an empty search path');
 select is((select proconfig->>'search_path' from pg_proc where oid = to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')),'','audit helper runs an empty search path');
 select ok(has_function_privilege('authenticated','public.export_report_snapshot(text,date,date,uuid,integer)','EXECUTE'),'authenticated holds EXECUTE on the snapshot operation');

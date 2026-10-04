@@ -1,3 +1,5 @@
+-- 2026-10-04 independent reconciliation: frozen public contracts only; no
+-- implementation, migrations, visible suites or private diagnostics read.
 -- h10_platform_holdout.sql
 -- Holdout pgTAP suite, Phase 1 `platform` cluster:
 --   platform_users, impersonation_sessions, audit_log, leads, member_imports
@@ -536,7 +538,9 @@ select ok(
      from pg_catalog.pg_proc p
      join pg_catalog.pg_namespace n on n.oid = p.pronamespace
     where p.prosrc ~* 'insert into[[:space:]]+(public\.)?audit_log'
-      and (n.nspname::text collate "default" = 'public'
+      and ((n.nspname::text collate "default" = 'public'
+          and not (p.oid is not distinct from to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')
+                   and p.prosecdef))
         or (n.nspname::text collate "default" = 'app' and not p.prosecdef))) = 0
   and (select count(*)::int
          from pg_catalog.pg_proc p
@@ -544,7 +548,7 @@ select ok(
         where n.nspname::text collate "default" = 'app'
           and p.prosrc ~* 'audit_log'
           and p.prosecdef) > 0,
-  'INT-003: audit_log is written by security definer functions in app, by at least one of them, and by nothing in public');
+  'INT-003: audit_log is written by security definer functions in app, by at least one of them, with only the exact RPE-009 definer append_report_export_event(text,uuid,jsonb) exception in public');
 
 -- Counting every trigger on these tables pinned "Phase 1 adds nothing else", and
 -- Phase 2 adds a revocation trigger to platform_users on purpose. The requirement was

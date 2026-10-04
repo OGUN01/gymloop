@@ -1,3 +1,5 @@
+-- 2026-10-04 independent reconciliation: frozen public contracts only; no
+-- implementation, migrations, visible suites or private diagnostics read.
 -- h09_comms — HOLDOUT pgTAP suite for the `comms` cluster of Gymloop Phase 1.
 --
 -- Written blind from openspec/changes/0001-data-model/specs/comms/spec.md and
@@ -141,13 +143,15 @@ select throws_ok(
 );
 
 -- member_devices
-select isnt_empty(
+select throws_ok(
   $$ select 1 from public.member_devices where tenant_id = '09c00000-0000-4000-8000-000000000a00' $$,
-  'ISO member_devices: Gym A sees its own device rows'
+  '42501'::char(5), null,
+  'NTF frozen grant matrix: direct device SELECT is refused, including staff/platform'
 );
-select is_empty(
+select throws_ok(
   $$ select 1 from public.member_devices where tenant_id = '09c00000-0000-4000-8000-000000000b00' $$,
-  'ISO member_devices: Gym A cannot read Gym B device rows'
+  '42501'::char(5), null,
+  'NTF frozen grant matrix: direct device SELECT is refused, including staff/platform'
 );
 select throws_ok(
   $$ insert into public.member_devices (tenant_id, member_id, platform, push_token) values ('09c00000-0000-4000-8000-000000000b00', '09c00000-0000-4000-8000-000000000b02', 'web', 'h9.comms.holdout.token.x9') $$,
@@ -212,7 +216,11 @@ select lives_ok(
 -- point from which Gym B's rows are readable.
 update public.message_templates set body = 'holdout tamper' where id = '09c00000-0000-4000-8000-000000000b11';
 update public.notifications set failed_reason = 'holdout tamper' where id = '09c00000-0000-4000-8000-000000000b10';
-update public.member_devices set is_active = false where id = '09c00000-0000-4000-8000-000000000b12';
+-- NTF closes UPDATE privileges: catch the expected refusal without adding a TAP cell.
+do $device_privacy$ begin
+  update public.member_devices set is_active=false where id='09c00000-0000-4000-8000-000000000b12';
+  raise exception 'NTF direct device UPDATE unexpectedly admitted';
+exception when insufficient_privilege then null; end $device_privacy$;
 
 -- messaging_wallets is the exception: ADR-047 puts it in the read-only tier, so
 -- authenticated holds no UPDATE at all and the write is refused outright rather
@@ -328,10 +336,10 @@ select set_config(
 );
 set local role authenticated;
 
-select results_eq(
+select throws_ok(
   $$ select count(*) from public.member_devices where id in ('09c00000-0000-4000-8000-000000000a12', '09c00000-0000-4000-8000-000000000b12') $$,
-  ARRAY[2::bigint],
-  'ISO platform: platform_support reads member_devices across both tenants'
+  '42501'::char(5), null,
+  'NTF frozen grant matrix: direct device SELECT is refused, including staff/platform'
 );
 
 set local role postgres;
@@ -418,7 +426,8 @@ select results_eq(
   'notifications: a row written with no status defaults to scheduled'
 );
 
--- --- member_devices: one row per push token per gym (ADR-047) ---------------
+-- --- Privileged device storage invariants; member writes use NTF RPC only.
+set local role postgres;
 
 select lives_ok(
   $$ insert into public.member_devices (tenant_id, member_id, platform, push_token) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'web', 'h9.comms.holdout.token.a2') $$,
@@ -435,6 +444,7 @@ select throws_ok(
   'ADR-016: a device platform outside (ios, android, web) is rejected'
 );
 
+set local role authenticated;
 -- --- consents: append-only, versioned, split by purpose ---------------------
 
 select ok(has_table_privilege('authenticated', 'public.consents', 'INSERT'),

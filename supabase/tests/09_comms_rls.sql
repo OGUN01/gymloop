@@ -1,3 +1,4 @@
+-- Fixture reconciliation: frozen Wave C NTF grant/actor matrix supersedes direct device access.
 -- 09_comms_rls.sql — visible pgTAP suite, cluster: comms (cross-tenant leak matrix).
 --
 -- Gate 7: a leak matrix per table. All six comms tables, four caller shapes:
@@ -145,11 +146,7 @@ select results_eq(
   $w$ values ('a0000000-0000-4000-8000-000000000001'::uuid) $w$,
   'gate 7: gym A sees only its own notifications'
 );
-select results_eq(
-  $q$ select tenant_id from public.member_devices $q$,
-  $w$ values ('a0000000-0000-4000-8000-000000000001'::uuid) $w$,
-  'gate 7: gym A sees only its own member_devices — a push token is member personal data (DPD-001)'
-);
+select throws_ok($q$ select tenant_id from public.member_devices $q$, '42501'::text, null::text, 'NTF: owner cannot directly read device metadata or tokens');
 select results_eq(
   $q$ select tenant_id from public.consents $q$,
   $w$ values ('a0000000-0000-4000-8000-000000000001'::uuid) $w$,
@@ -189,12 +186,7 @@ with u as (
 )
 select is(count(*), 0::bigint, 'gate 7: gym A updating gym B notifications by pk affects zero rows') from u;
 
-with u as (
-  update public.member_devices set is_active = false
-   where id = 'b0000000-0000-4000-8000-000000000007'::uuid
-  returning 1
-)
-select is(count(*), 0::bigint, 'gate 7: gym A updating gym B member_devices by pk affects zero rows') from u;
+select throws_ok($q$ update public.member_devices set is_active=false where id='b0000000-0000-4000-8000-000000000007'::uuid $q$, '42501'::text, null::text, 'NTF: direct device UPDATE refused including cross-tenant attempts');
 
 -- The move outward. The lifecycle invariant and RLS WITH CHECK are both
 -- required defenses; PostgreSQL may report either first, so do not make their
@@ -327,10 +319,7 @@ select is((select count(*) from public.notifications
    where tenant_id in ('a0000000-0000-4000-8000-000000000001',
                        'b0000000-0000-4000-8000-000000000001')), 2::bigint,
   'gate 7: a super_admin sees notifications from both gyms');
-select is((select count(*) from public.member_devices
-   where tenant_id in ('a0000000-0000-4000-8000-000000000001',
-                       'b0000000-0000-4000-8000-000000000001')), 2::bigint,
-  'gate 7: a super_admin sees member_devices from both gyms');
+select throws_ok($q$ select count(*) from public.member_devices $q$, '42501'::text, null::text, 'NTF: platform sessions cannot directly read devices');
 select is((select count(*) from public.consents
    where tenant_id in ('a0000000-0000-4000-8000-000000000001',
                        'b0000000-0000-4000-8000-000000000001')), 2::bigint,
@@ -357,7 +346,6 @@ set local role authenticated;
 select lives_ok(
   $q$ select count(*) from public.message_templates
       union all select count(*) from public.notifications
-      union all select count(*) from public.member_devices
       union all select count(*) from public.consents
       union all select count(*) from public.messaging_wallets
       union all select count(*) from public.messaging_wallet_ledger $q$,
@@ -368,8 +356,7 @@ select is_empty($q$ select id from public.message_templates $q$,
   'gate 7: no claims, no message_templates rows');
 select is_empty($q$ select id from public.notifications $q$,
   'gate 7: no claims, no notifications rows');
-select is_empty($q$ select id from public.member_devices $q$,
-  'gate 7: no claims, no member_devices rows');
+select throws_ok($q$ select id from public.member_devices $q$, '42501'::text, null::text, 'NTF: gate 7: no claims, no member_devices rows; direct SELECT refused');
 select is_empty($q$ select id from public.consents $q$,
   'gate 7: no claims, no consents rows');
 select is_empty($q$ select tenant_id from public.messaging_wallets $q$,
@@ -433,7 +420,6 @@ set local role authenticated;
 select lives_ok(
   $q$ select count(*) from public.message_templates
       union all select count(*) from public.notifications
-      union all select count(*) from public.member_devices
       union all select count(*) from public.consents
       union all select count(*) from public.messaging_wallets
       union all select count(*) from public.messaging_wallet_ledger $q$,
@@ -444,8 +430,7 @@ select is_empty($q$ select id from public.message_templates $q$,
   'gate 7: empty tenant_id claim, no message_templates rows');
 select is_empty($q$ select id from public.notifications $q$,
   'gate 7: empty tenant_id claim, no notifications rows');
-select is_empty($q$ select id from public.member_devices $q$,
-  'gate 7: empty tenant_id claim, no member_devices rows');
+select throws_ok($q$ select id from public.member_devices $q$, '42501'::text, null::text, 'NTF: gate 7: empty tenant_id claim, no member_devices rows; direct SELECT refused');
 select is_empty($q$ select id from public.consents $q$,
   'gate 7: empty tenant_id claim, no consents rows');
 select is_empty($q$ select tenant_id from public.messaging_wallets $q$,

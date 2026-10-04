@@ -1,3 +1,5 @@
+-- 2026-10-04 independent reconciliation: frozen public contracts only; no
+-- implementation, migrations, visible suites or private diagnostics read.
 -- Holdout, Phase 2 — the role matrix, read side, plus the shape of every policy.
 --
 -- Written blind from openspec/changes/phase-2-identity-and-tenancy/specs/authorization/spec.md
@@ -84,7 +86,6 @@ insert into matrix (tbl, read_gate, write_gate, member_gate) values
   ('pt_sessions',             'app.is_staff()',         'app.is_staff()',         'own'),
   ('consents',                'app.is_front_office()',  'app.is_front_office()',  'own'),
   ('notifications',           'app.is_front_office()',  'app.is_gym_admin()',     'own'),
-  ('member_devices',          'app.is_front_office()',  'app.is_front_office()',  'own'),
   ('message_templates',       'app.is_staff()',         'app.is_gym_admin()',     null),
   ('leads',                   'app.is_front_office()',  'app.is_front_office()',  null),
   ('member_imports',          'app.is_gym_admin()',     'app.is_gym_admin()',     null),
@@ -112,7 +113,16 @@ insert into approved_batch2_tables (tbl) values
   ('trainer_profiles'), ('trainer_availability'), ('trainer_time_off'),
   ('pt_cancellations'),
   ('services'), ('class_rules'), ('class_sessions'), ('class_bookings'),
-  ('announcements'), ('announcement_versions'), ('announcement_receipts');
+  ('announcements'), ('announcement_versions'), ('announcement_receipts'),
+  -- Frozen Wave C/D declarations: direct device privacy and tenant configurations.
+  ('member_devices'), ('member_notification_preferences'),
+  ('notification_push_campaigns'), ('notification_push_attempts'),
+  ('push_provider_configurations'),
+  ('whatsapp_sender_accounts'), ('whatsapp_template_revisions'),
+  ('whatsapp_rate_versions'), ('whatsapp_channel_consents'),
+  ('notification_whatsapp_attempts'), ('notification_whatsapp_receipts'),
+  ('purchase_requests'), ('payment_proofs'),
+  ('member_freeze_requests'), ('member_freeze_commands');
 
 create temp view approved_public_tables as
   select tbl from matrix
@@ -146,8 +156,8 @@ create temp view named_pol as
 select is(
   (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relkind = 'r'),
-  53::bigint,
-  'public holds exactly the fifty-three legacy and approved batch-2 tables');
+  (select count(*) from approved_public_tables),
+  'public holds exactly the declared legacy and approved Wave B/C/D tables');
 
 select is_empty(
   $q$ select tbl from approved_public_tables
@@ -614,7 +624,7 @@ select is_empty(
         union all select 'leads',             count(*) from public.leads
         union all select 'consents',          count(*) from public.consents
         union all select 'notifications',     count(*) from public.notifications
-        union all select 'member_devices',    count(*) from public.member_devices
+        union all select 'member_devices', has_table_privilege('authenticated','public.member_devices','SELECT')::integer
       ) x where c > 0 $q$,
   'a trainer reads no money table and no personal-contact table');
 
@@ -795,8 +805,7 @@ select is_empty(
           where member_id <> '33330000-0012-4000-8000-0000000000a1'
         union all select 'notifications', count(*) from public.notifications
           where member_id <> '33330000-0012-4000-8000-0000000000a1'
-        union all select 'member_devices', count(*) from public.member_devices
-          where member_id <> '33330000-0012-4000-8000-0000000000a1'
+        union all select 'member_devices', has_table_privilege('authenticated','public.member_devices','SELECT')::integer
         union all select 'consents', count(*) from public.consents
           where member_id <> '33330000-0012-4000-8000-0000000000a1'
         union all select 'addon_orders', count(*) from public.addon_orders
@@ -812,7 +821,7 @@ select is_empty(
         union all select 'memberships',    count(*) from public.memberships
         union all select 'payments',       count(*) from public.payments
         union all select 'notifications',  count(*) from public.notifications
-        union all select 'member_devices', count(*) from public.member_devices
+        union all select 'member_devices', (not has_table_privilege('authenticated','public.member_devices','SELECT'))::integer
         union all select 'consents',       count(*) from public.consents
         union all select 'addon_orders',   count(*) from public.addon_orders
         union all select 'pt_sessions',    count(*) from public.pt_sessions
@@ -855,7 +864,7 @@ select is_empty(
         union all select 'memberships',    count(*) from public.memberships
         union all select 'payments',       count(*) from public.payments
         union all select 'notifications',  count(*) from public.notifications
-        union all select 'member_devices', count(*) from public.member_devices
+        union all select 'member_devices', has_table_privilege('authenticated','public.member_devices','SELECT')::integer
         union all select 'consents',       count(*) from public.consents
         union all select 'addon_orders',   count(*) from public.addon_orders
         union all select 'pt_sessions',    count(*) from public.pt_sessions
@@ -877,7 +886,7 @@ select is_empty(
         union all select 'memberships',    count(*) from public.memberships
         union all select 'payments',       count(*) from public.payments
         union all select 'notifications',  count(*) from public.notifications
-        union all select 'member_devices', count(*) from public.member_devices
+        union all select 'member_devices', has_table_privilege('authenticated','public.member_devices','SELECT')::integer
         union all select 'consents',       count(*) from public.consents
         union all select 'addon_orders',   count(*) from public.addon_orders
         union all select 'pt_sessions',    count(*) from public.pt_sessions

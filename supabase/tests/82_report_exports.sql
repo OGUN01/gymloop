@@ -45,7 +45,7 @@ insert into auth.users(id) select pg_temp.u(n) from generate_series(901,906) n;
 insert into public.organizations(id,name,gym_code,status,timezone) values
 (pg_temp.u(1),'RPE A','RPE82A','active','Asia/Kolkata'),
 (pg_temp.u(2),'RPE B','RPE82B','active','Asia/Kolkata'),
-(pg_temp.u(3),'RPE C','RPE82C','active','Mars/Phobos');
+(pg_temp.u(3),'RPE C','RPE82C','active','Asia/Kolkata');
 insert into public.branches(id,tenant_id,name,is_default,timezone) values
 (pg_temp.u(11),pg_temp.u(1),'A',true,null),
 (pg_temp.u(12),pg_temp.u(2),'B',true,null),
@@ -138,10 +138,21 @@ select pg_temp.claim('front_desk',22,null,902,1);
 select is(pg_temp.probe($q$select public.export_report_snapshot('nonsense','2026-13-01',date '2026-01-31',null,100)$q$),'42501','RPE B17: authorization precedes validation — a refused role learns no validation facts');
 select pg_temp.claim('gym_owner',25,null,905,2);
 select is(pg_temp.probe($q$select public.export_report_snapshot('payments',date '2026-01-01',date '2026-01-31',null,100)$q$),'OK','RPE B18: tenant 2 owner reads (their own, empty) — the invalid-zone refusal is a separate case');
+-- RPE-003 historical bad-zone coverage: valid BIZ setup first. Only the registered
+-- commercial trigger is suspended for this rollback-only fixture corruption;
+-- restore it before invoking the production reader and restore the value afterwards.
+set local role postgres;
+select set_config('request.jwt.claims','',true);
+alter table public.organizations disable trigger organizations_commercial_invariant;
+update public.organizations set timezone='Mars/Phobos' where id=pg_temp.u(3);
+alter table public.organizations enable trigger organizations_commercial_invariant;
+set local role authenticated;
 select pg_temp.claim('gym_owner',26,null,906,3);
 select is(pg_temp.probe($q$select public.export_report_snapshot('payments',date '2026-01-01',date '2026-01-31',null,100)$q$),'22023','RPE B19: an invalid configured gym zone refuses explicitly, never a fabricated fallback zone');
 set local role postgres;
 select set_config('request.jwt.claims','',true);
+
+update public.organizations set timezone='Asia/Kolkata' where id=pg_temp.u(3);
 
 -- ============ C. payments dataset: projection, money text, ordering, blanks ============
 set local role authenticated;
