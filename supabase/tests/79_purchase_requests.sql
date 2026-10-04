@@ -451,16 +451,16 @@ set local role service_role;
 -- BUY-012 p_initial_slot (owner-approved serial amendment): exact-price PT
 -- recording validates the slot server-side through the existing PTF locks and
 -- never strands the request unbound.
-select pg_temp.claim('member',1,null,31,906);
+select pg_temp.claim('member',1,null,32,907);
 set local role authenticated;
-select lives_ok($q$select public.create_purchase_request(pg_temp.sid(530),'pt',pg_temp.sid(105),1,(select quote_version from public.addon_products where id=pg_temp.sid(105)))$q$,'BUY-003 the PT recording scenario request is created');
-select pg_temp.cap('KPT',530);
+select lives_ok($q$select public.create_purchase_request(pg_temp.sid(530),'pt',pg_temp.sid(105),1,(select(select quote_version from public.addon_products where id=pg_temp.sid(105)))$q$,'BUY-003 the PT recording scenario request is created');
+select pg_temp.cap('KP2',530);
 set local role postgres;
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
-select lives_ok($q$select public.accept_purchase_request((select id from req where label='KPT'),(select quote_version from public.addon_products where id=pg_temp.sid(105)),pg_temp.sid(652))$q$,'BUY-004 the PT recording scenario is accepted');
-select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KPT'),pg_temp.rev('KPT'),pg_temp.sid(653),(select price_paise::text from public.addon_products where id=pg_temp.sid(105)),'INR','cash',null,null,null)$q$) <> 'NO ERROR',true,'BUY-012 exact-price PT recording without a valid initial slot refuses');
-select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KPT'),pg_temp.rev('KPT'),pg_temp.sid(654),(select price_paise::text from public.addon_products where id=pg_temp.sid(105)),'INR','cash',jsonb_build_object('trainerStaffId',pg_temp.sid(24),'slotId',pg_temp.sid(999)),null,null)$q$) <> 'NO ERROR',true,'BUY-012 a fabricated slot is never client-trusted: PT recording validates it server-side');
+select lives_ok($q$select public.accept_purchase_request((select id from req where label='KP2'),(select quote_version from public.addon_products where id=pg_temp.sid(105)),pg_temp.sid(652))$q$,'BUY-004 the PT recording scenario is accepted');
+select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KP2'),pg_temp.rev('KPT'),pg_temp.sid(653),(select price_paise::text from public.addon_products where id=pg_temp.sid(105)),'INR','cash',null,null,null)$q$) <> 'NO ERROR',true,'BUY-012 exact-price PT recording without a valid initial slot refuses');
+select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KP2'),pg_temp.rev('KPT'),pg_temp.sid(654),(select price_paise::text from public.addon_products where id=pg_temp.sid(105)),'INR','cash',jsonb_build_object('trainerStaffId',pg_temp.sid(24),'slotId',pg_temp.sid(999)),null,null)$q$) <> 'NO ERROR',true,'BUY-012 a fabricated slot is never client-trusted: PT recording validates it server-side');
 set local role postgres;
 select is(pg_temp.refusal('select public.record_purchase_request(null,null,null,null,null,null,null,null,null)') like '42501%',true,'BUY-019 service_role holds no application-command EXECUTE');
 set local role postgres;
