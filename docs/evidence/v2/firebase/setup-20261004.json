@@ -12,10 +12,59 @@
   "publicConfigSha256": "44babffefef9ca11f0de585ec45b5ac1a1f7f80f63328efe1b4fbf9d68a4d10a",
   "registeredAppsBefore": 0,
   "apiUsageInventoryClaimed": false,
-  "verified": ["project display name", "Android registration", "downloaded public configuration identity"],
-  "serverAccountCreated": false,
-  "serverKeyCreated": false,
+  "verified": [
+    "project display name",
+    "Android registration",
+    "downloaded public configuration identity",
+    "custom role sole permission",
+    "dedicated account project grant",
+    "public certificate matches local private key",
+    "Google OAuth accepts replacement",
+    "protected GitHub secret names and main-only owner review",
+    "temporary private file removed",
+    "lost original deletion and refreshed one-key inventory"
+  ],
+  "serverAccountCreated": true,
+  "serverKeyCreated": true,
   "protectedProvisioningCompleted": false,
   "providerAcceptanceClaimed": false,
-  "screenshots": ["project-renamed-20261004.jpg", "android-registered-20261004.jpg", "push-role-prepared-20261004.jpg"]
+  "screenshots": [
+    "project-renamed-20261004.jpg",
+    "android-registered-20261004.jpg",
+    "push-role-prepared-20261004.jpg",
+    "push-role-created-20261004.jpg",
+    "push-sender-grant-20261004.jpg",
+    "push-replacement-revoke-prepared-20261004.jpg",
+    "push-key-replacement-complete-20261004.jpg"
+  ],
+  "serverAccount": "fitcruxx-push-sender@samuraiapi-51996.iam.gserviceaccount.com",
+  "serverAccountUniqueId": "105579326043867456906",
+  "customRole": "projects/samuraiapi-51996/roles/fitcruxxPushSender",
+  "customRolePermissions": [
+    "cloudmessaging.messages.create"
+  ],
+  "activeKeyId": "adffc28dde43a0ae04001e7bc658716b5e4c24a3",
+  "activeKeyExpires": "2027-10-04",
+  "activeKeyCount": 1,
+  "lostOriginalKeyId": "180b6985079eff43b8dff12d72e0c7df705d2d91",
+  "lostOriginalRevoked": true,
+  "ownerApprovedLostKeyDeletion": true,
+  "publicCertificateSha256": "006350bfe18a304f2f2b33c5f22fb33e119b4ab6547a2faac19cdca0b1eb8b72",
+  "oauthVerified": true,
+  "oauthScope": "https://www.googleapis.com/auth/firebase.messaging",
+  "oauthTokenDisplayed": false,
+  "githubCredentialCustodyCompleted": true,
+  "githubRepository": "OGUN01/gymloop",
+  "githubEnvironment": "production-push",
+  "githubReviewer": "OGUN01",
+  "githubAllowedBranch": "main",
+  "githubStoredSecretNames": [
+    "FCM_SERVICE_ACCOUNT_JSON",
+    "FCM_PROJECT_ID",
+    "PUSH_DISPATCH_SECRET"
+  ],
+  "temporaryPrivateFileRemoved": true,
+  "edgeDeployed": false,
+  "nativeBuildWired": false,
+  "messagesSentDuringCustodyVerification": 0
 }

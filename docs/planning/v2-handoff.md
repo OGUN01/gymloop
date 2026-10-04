@@ -9,20 +9,24 @@ current checkpoint below supersedes the historical session-1 snapshot.
 - Latest owner-directed infrastructure/scope checkpoint (2026-10-04): reuse
   Samurai API, now named FitCruxx, project `samuraiapi-51996`, under approved
   account `sharmaharsh9887@gmail.com`. Android `in.fitcruxx.app` is registered;
-  public configuration identity/download verified. Restricted push sender
-  role/account/key are prepared but not created or granted; exact pending
-  access/custody packet is `openspec/changes/push-notifications/firebase-provisioning-packet.md`.
+  public configuration identity/download verified. Exact send-only custom
+  role/account are created and granted after owner approval. The replacement
+  key verifies through Google OAuth and is stored with project/wakeup secrets
+  in owner-reviewed, main-only GitHub environment `production-push`; the exact
+  temporary private file is removed. Owner-approved revocation of the lost
+  original key is complete; Google inventory shows one active replacement.
+  Access/custody packet: `openspec/changes/push-notifications/firebase-provisioning-packet.md`.
   Receipt: `docs/evidence/v2/firebase/setup-20261004.json`. Push adapter and
   protected deployment/client-build wiring remain open. Owner explicitly
   replaces automated WhatsApp release with manual handoff, frozen in
   `openspec/changes/whatsapp-channel/manual-release-scope-amendment.md`:
   no Meta/WABA setup or paid-send activation is required. Guardian/consent,
   factual-open-only and retained wallet/security invariants remain required.
-  WSP app visible211 pass; expanded held101 currently has97 pass and4 RED
-  dispatch-UUID refusals. Separate implementer is aligning the remaining
-  dispatch consumer. Blind source GO covers consent/read boundaries and the
+  WSP app visible211 and expanded held101 pass after separate dispatch/schema
+  repairs; source committed a0194fee and independent UUID fixture repair
+  b556f349. Fresh scoped source GO covers consent/read/dispatch boundaries and the
   four-line SQL patch (canonical currency alias and three GRD resolver sites),
-  not the dispatch gap or runtime SQL. PAY read/money boundary has fresh
+  not runtime SQL. PAY read/money source committed f0fcd641 has fresh
   source GO, visible79/shared32/NTF23 pass and held112/114 pass; trusted MEDIA
   proof confirmation/private namespace remain RED, with UI models/PT slot
   integration also unfinished. Full integrated nine-migration baseline before
@@ -32,8 +36,10 @@ current checkpoint below supersedes the historical session-1 snapshot.
   embedded PERFORM details remain unavailable and final CI pg_prove unchanged.
   Private diagnosis: `scratchpad/v2-integrated-failure-classification.md`;
   never forward held content to implementers. Post-repair full sweep remains
-  required. Exact current source/SQL patches are uncommitted pending scoped
-  checks/reviews; original external C/D changes remain preserved. No follow-up
+  required. Independent SQL fixture corrections/supplements and NTF transport
+  tests are drafted; tests-first commits, separate SQL/Edge builders and fresh
+  reviews remain required. WSP four-line SQL patch is uncommitted; original
+  external C/D changes remain preserved. No follow-up
   push, whole C/D acceptance, final Android acceptance or release is claimed.
 
 - Latest primary A/B verification checkpoint (2026-10-03, supersedes the
