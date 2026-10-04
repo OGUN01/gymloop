@@ -1484,3 +1484,11 @@ These scoped rows register application source; rendered-surface and live accepta
 |---|---|---|---|
 | `app.slf_freeze_preparations` / `slf_freeze_preparations_tenant_request_transaction_idx` | `supabase/migrations/20261005100000_member_freeze_requests.sql` | Frozen private full-transaction actor/request/action capability with tenant-preserving FKs, RLS and no session grants; never a GUC or temporary-object trust marker | Existing SLF prepare/finish and source consistency hook |
 | `membership_pauses_freeze_source_lock` / `member_freeze_requests_source_consistency` / `membership_pauses_freeze_source_deferred` / `member_freeze_requests_source_deferred` | `supabase/migrations/20261005100000_member_freeze_requests.sql` | Shared source/request resource acquisition, exact new-source preparation binding and deferred reciprocal decision checks; existing source policies and business guards retained | Existing `enforce_freeze_source_consistency` |
+
+## RPE authoritative preparation metadata
+
+| Symbol | File | Purpose | Consumers |
+|---|---|---|---|
+| `app.report_export_preparations` / `report_export_preparations_tenant_actor_export_idx` | `supabase/migrations/20261005110000_report_exports.sql` | Original-caller validated, immutable tenant/actor metadata only; input-column INSERT and own-owner RLS, no exported rows or contact data persisted | Real bounded RPE snapshot and release linkage |
+| `app.derive_report_export_preparation()` / `app.audit_report_export_preparation()` / `report_export_preparations_derive` / `report_export_preparations_audit` | `supabase/migrations/20261005110000_report_exports.sql` | Private migration-installed invoker derivation and audit-only definer triggers, no ordinary EXECUTE; authoritative one-statement count/stamp preparation | RPE snapshot preparation |
+| `audit_log_report_export_event_unique` | `supabase/migrations/20261005110000_report_exports.sql` | Partial event uniqueness for one prepared and one released audit per real export UUID | RPE release concurrency |

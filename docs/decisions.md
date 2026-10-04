@@ -2016,3 +2016,12 @@ serialization and reciprocal decisions. The exact new relation/index/trigger
 metadata is frozen in `openspec/changes/member-self-service/prepared-command-declaration.md`
 before independent metadata tests and new source construction. This adds no
 public RPC, allowance, role, policy exception or new SQLSTATE.
+**RPE authoritative metadata reuse (mechanical declaration, 2026-10-04).**
+The original-caller invoker cannot execute an ungranted audit helper, while a
+caller-supplied prepared payload does not prove its count or snapshot. Reuse the
+registered snapshot/release/CSV seams with a private app-schema metadata relation:
+one containing statement and invoker derivation retain original source RLS,
+then a migration-installed private audit-only trigger appends the prepared event.
+No source privilege or policy is expanded and no exported row/contact payload is
+persisted. Exact grants, immutable metadata, snapshot reconciliation and release
+uniqueness are declared in the RPE SQL envelope before independent real-RPC tests.
