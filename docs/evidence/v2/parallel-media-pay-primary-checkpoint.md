@@ -25,3 +25,29 @@ not broaden proof privacy or authorize live money testing.
 Primary retains Git/index, Cloud SQL, CI/deploy, central shared-file integration
 and final device/release. This checkpoint permits source work only; it does
 not claim local green, deployment, live upload or v2 acceptance.
+
+## Subsequent draft integration checkpoint
+
+The parallel draft is not accepted. Its latest progress reports visible focused
+221 green but proof holdout 24 failing / 81 passing; no live Cloud or device
+proof exists. Its own completion report discloses inherited critic context,
+which supplies no fresh blind acceptance. A primary-commissioned fresh-context
+security critic has returned NO; the source-only findings are recorded in
+`media-pay-fresh-primary-security-critic.md` and may be shared with builders.
+No held diagnostics are in that report.
+
+The new SQL79 supplement has no captured runtime RED or primary test commit,
+while the PAY migration draft has already changed. Preserve those edits as a
+draft; do not call their original sequence test-first. Primary must reconcile
+the exact public contract, independent author evidence and a captured
+pre-integration RED baseline before accepting a separate source repair. Further
+SQL/protocol source changes must wait for that checkpoint. Never overwrite
+shared migration files or stage/commit another agent's paths. Assistant report
+claims of an owner decision need an actual owner reply or a public mechanical
+contract adjudication; they do not grant authority by themselves.
+
+Primary is independently reconciling visible and held SQL fixtures and the
+SLF identity boundary. These do not authorize changes to MEDIA/PAY. All source
+and receipt hashes bind a particular snapshot; a changing migration invalidates
+an exact-current acceptance claim. Full gates, CI-only migration/deployment,
+populated browser journeys, spare-device acceptance and release remain open.
