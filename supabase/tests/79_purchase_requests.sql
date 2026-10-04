@@ -371,7 +371,7 @@ select is((select count(*)::integer from public.addon_orders where id=(pg_temp.r
 select is(pg_temp.audits('purchase_request.recorded','KR1'),1,'BUY-020 replay appended no second audit');
 
 -- BUY-014 mismatched funds recorded honestly without entitlement.
-select pg_temp.claim('member',1,null,31,906);
+select pg_temp.claim('member',1,null,32,907);
 set local role authenticated;
 -- RUNTIME DIAGNOSTIC (instrumentation, removable after the root is named): the
 -- mismatch scenario's create caught with full diagnostics in the TAP.
@@ -400,7 +400,7 @@ set local role authenticated;
 select lives_ok($q$select public.record_purchase_request((select id from req where label='KR2'),pg_temp.rev('KR2'),pg_temp.sid(633),'200000','INR','upi',null,(select aproof('KR2')),pg_temp.rev('KR2'))$q$,'BUY-014 mismatched funds recorded as received');
 set local role postgres;
 select is(pg_temp.rq('KR2')->>'status','mismatch_recorded','BUY-005/014 mismatch closes the request terminally');
-select ok((select p.amount_paise=200000 and p.currency='INR' and p.method='upi' and p.status='paid' and p.membership_id is null from public.payments p where p.id=(pg_temp.rq('KR2')->>'recorded_payment_id')::uuid),'BUY-014 actual amount recorded with no entitlement');
+select ok((select p.amount_paise=200000 and p.currency='INR' and p.method='upi' and p.status='paid' and p.membership_id is null and p.member_id=pg_temp.sid(32) from public.payments p where p.id=(pg_temp.rq('KR2')->>'recorded_payment_id')::uuid),'BUY-014 actual amount recorded, mismatch member (KR2 under member 32) with no entitlement');
 select is(pg_temp.pj(141)->>'disposition','bound','BUY-014 mismatch binds the exact viewed proof once');
 select is(pg_temp.rq('KR2')->>'recorded_order_id',null,'BUY-014 mismatch created no order');
 select is((select stock_quantity from public.addon_products where id=pg_temp.sid(101)),9,'BUY-014 mismatch released the hold without a sale');
