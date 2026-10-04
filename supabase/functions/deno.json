@@ -1,5 +1,7 @@
 {
   "imports": {
-    "@gymloop/db": "../../packages/db/types/database.ts"
+    "@gymloop/db": "../../packages/db/types/database.ts",
+    "zod": "npm:zod@4.5.4",
+    "vitest": "npm:vitest@5.0.0"
   }
 }

@@ -1990,3 +1990,7 @@ Registry/code search found no reusable concealed-phone total-digit bound; the ex
 
 Registry/code search found the canonical isUuid helper in the web-only keyset module. Importing it into platform-free shared would reverse the dependency boundary. The existing Zod dependency's guid schema supplies the same case-insensitive 8-4-4-4-12 grouping without an RFC version restriction, replacing WSP's local permissive stripped-hex helper. No new exported symbol or authority change.
 
+
+### NTF Edge adapter reuse record — 2026-10-04
+
+The frozen transport requires an injected, offline-testable adapter. Registry/code searches found the existing shared env accessors, push numeric bounds, generated notification enum, and media/no-show Edge patterns. Reuse central env/config constants and the generated enum. Existing request helpers are web actor mutations or platform-specific Edge transports with incompatible authentication, envelopes and upstream-error handling; they cannot implement this credential-only three-facade contract. The new private handler validators and OAuth encoding/signing stay within the Edge module; shared stays platform-free. The existing Edge Deno import map pins workspace zod for the central env module and Vitest for the unchanged all-functions type gate, which also checks the independent visible adapter file. Vitest is not imported by the runtime entry point. The generated Deno lock records their resolved dependencies. No provider call, deployment or schema activation is implied.

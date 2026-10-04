@@ -1466,3 +1466,12 @@ These scoped rows register application source; rendered-surface and live accepta
 | `pushMemberCommandRoute` / `memberPushSession` / `MemberPushSession` / `pushJsonBody` / `pushRpc` | `apps/web/lib/push-http.ts` | Shared push command skeleton: verified session (member audience, fail-closed before body), JSON body preamble, guarded RPC round-trip with first-row unwrap and mapped failure envelope | The five member push routes |
 | `whatsappStaffCaller` | `apps/web/lib/whatsapp.ts` | Shared staff preamble for the WSP routes: allowed roles, no-impersonation posture, unauthorized/forbidden refusals in one place | WSP consent/dispatch routes |
 | `gregorianIsoDayParts` | `packages/shared/src/api/member-imports.ts` | Exact `YYYY-MM-DD` text to real proleptic-Gregorian parts (no JS rollover), shared by the import parser and report-export day-span validation | member-import-parse, report-exports |
+
+## NTF frozen Edge transport
+
+| Symbol | File | Purpose | Consumers |
+|---|---|---|---|
+| `PushDispatchDependencies` / `createPushDispatchHandler` | `supabase/functions/push-dispatch/handler.ts` | Injected, count-only authenticated FCM transport over exactly three SQL facades; no import-time I/O | Edge composition, independent adapter suites |
+| `pushDispatchEnv` | `packages/shared/src/config/env.ts` | Uncached reader-injected five-name Edge configuration accessor with value-free errors | push-dispatch handler |
+| `PUSH_DISPATCH_RUNTIME` / `PUSH_DISPATCH_HTTP_STATUS` | `packages/shared/src/config/constants.ts` | Frozen Edge request/digest/OAuth bounds, approved endpoint identities and response status mapping | push-dispatch handler |
+| `PUSH_DISPATCH_SECRET` / `FCM_PROJECT_ID` / `FCM_SERVICE_ACCOUNT_JSON` | `packages/shared/src/config/env.ts` | Protected Edge wakeup and approved FCM identity/credential names; never client configuration | pushDispatchEnv |

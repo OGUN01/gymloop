@@ -612,6 +612,17 @@ export const PUSH_DEVICE_STALE_DAYS = 30;
 export const PUSH_TOKEN_MAX_CHARS = 4096;
 export const PUSH_PROVIDER_MESSAGE_ID_MAX_CHARS = 256;
 export const PUSH_FAILURE_CODE_MAX_CHARS = 64;
+/** Frozen NTF Edge envelope, endpoint confinement and runtime bounds. */
+export const PUSH_DISPATCH_RUNTIME = {
+  bodyBytes: 1024, digestBytes: 32, millisecondsPerSecond: 1000, oauthSeconds: 3600, forbiddenStatus: 403,
+  controlCharacterLimit: 32, deleteCharacter: 127,
+  supabaseOrigin: 'https://pecxrpskmfeuyzngvewq.supabase.co', project: 'samuraiapi-51996',
+  account: 'fitcruxx-push-sender@samuraiapi-51996.iam.gserviceaccount.com',
+  oauthUrl: 'https://oauth2.googleapis.com/token', scope: 'https://www.googleapis.com/auth/firebase.messaging',
+  fcmUrl: 'https://fcm.googleapis.com/v1/projects/samuraiapi-51996/messages:send',
+  genericBody: 'You have an update. Open the app to view it.',
+} as const;
+export const PUSH_DISPATCH_HTTP_STATUS = { ok: 200, method_not_allowed: 405, unauthorized: 401, bad_request: 400, payload_too_large: 413, configuration_invalid: 503, upstream_failed: 502 } as const;
 
 /** Frozen BUY-001…025 member purchase request bounds (member-purchases proposal). */
 export const BUY_LIMITS = { requestTtlSecondsAfterAcceptance: 86_400, requestTtlSecondsUnaccepted: 86_400, openRequestsPerMember: 5, creationsPerMemberPerDay: 10, proofRegistrationsPerMemberPerHour: 10, maxQuantity: 10, reasonMinLength: 3, reasonMaxLength: 200, proofMaxBytes: 2_097_152, privateProofGetTtlSeconds: 60 } as const;

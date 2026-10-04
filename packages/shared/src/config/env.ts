@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+// Type only: keeps lazy Node accessors checkable when imported by Deno.
+declare const process: { env: Record<string, string | undefined> };
+
 /**
  * Env vars safe to reach from client (browser) bundles — Next.js only
  * inlines NEXT_PUBLIC_* vars into client code, but keeping the schema split
@@ -179,4 +182,21 @@ export function env(): ClientEnv & ServerEnv {
 /** Fail fast at boot (server entrypoints) instead of on first lazy access. */
 export function assertEnv(): void {
   env();
+}
+
+/** Uncached, injected Edge configuration; errors contain no supplied values. */
+export function pushDispatchEnv(readEnvironment: (name: string) => string | undefined): {
+  SUPABASE_URL: string; SUPABASE_SERVICE_ROLE_KEY: string; PUSH_DISPATCH_SECRET: string;
+  FCM_PROJECT_ID: string; FCM_SERVICE_ACCOUNT_JSON: string;
+} {
+  const required = (name: string): string => {
+    const value = readEnvironment(name);
+    if (typeof value !== 'string' || !value.trim()) throw new Error('Invalid push configuration');
+    return value;
+  };
+  return {
+    SUPABASE_URL: required('SUPABASE_URL'), SUPABASE_SERVICE_ROLE_KEY: required('SUPABASE_SERVICE_ROLE_KEY'),
+    PUSH_DISPATCH_SECRET: required('PUSH_DISPATCH_SECRET'), FCM_PROJECT_ID: required('FCM_PROJECT_ID'),
+    FCM_SERVICE_ACCOUNT_JSON: required('FCM_SERVICE_ACCOUNT_JSON'),
+  };
 }
