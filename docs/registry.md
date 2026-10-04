@@ -1477,3 +1477,10 @@ These scoped rows register application source; rendered-surface and live accepta
 | `pushDispatchEnv` | `packages/shared/src/config/env.ts` | Uncached reader-injected five-name Edge configuration accessor with value-free errors | push-dispatch handler |
 | `PUSH_DISPATCH_RUNTIME` / `PUSH_DISPATCH_HTTP_STATUS` | `packages/shared/src/config/constants.ts` | Frozen Edge request/digest/OAuth bounds, approved endpoint identities and response status mapping | push-dispatch handler |
 | `PUSH_DISPATCH_SECRET` / `FCM_PROJECT_ID` / `FCM_SERVICE_ACCOUNT_JSON` | `packages/shared/src/config/env.ts` | Protected Edge wakeup and approved FCM identity/credential names; never client configuration | pushDispatchEnv |
+
+## SLF private preparation capability
+
+| Symbol | File | Purpose | Consumers |
+|---|---|---|---|
+| `app.slf_freeze_preparations` / `slf_freeze_preparations_tenant_request_transaction_idx` | `supabase/migrations/20261005100000_member_freeze_requests.sql` | Frozen private full-transaction actor/request/action capability with tenant-preserving FKs, RLS and no session grants; never a GUC or temporary-object trust marker | Existing SLF prepare/finish and source consistency hook |
+| `membership_pauses_freeze_source_lock` / `member_freeze_requests_source_consistency` / `membership_pauses_freeze_source_deferred` / `member_freeze_requests_source_deferred` | `supabase/migrations/20261005100000_member_freeze_requests.sql` | Shared source/request resource acquisition, exact new-source preparation binding and deferred reciprocal decision checks; existing source policies and business guards retained | Existing `enforce_freeze_source_consistency` |

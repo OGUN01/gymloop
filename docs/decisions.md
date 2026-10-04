@@ -2004,3 +2004,15 @@ No channel identity existed; PUSH_ANDROID_CHANNEL_ID and PUSH_ANDROID_CHANNEL_NA
 centralize the frozen declaration's channel id/name in shared constants.
 Installed expo-notifications exposes native Android tokens as type android;
 provider FCM identity is not inferred from a mock's fcm discriminator.
+<!-- SLF private preparation reuse declaration, 2026-10-04. -->
+
+**SLF private preparation capability (mechanical implementation declaration,
+2026-10-04).** Existing prepare/finish/lock/consistency helpers are reused; an
+ordinary GUC, caller temporary object or advisory marker cannot prove exact
+validated preparation. A tenant-scoped private transaction capability relation
+therefore records only the required current actor/request/command and source
+binding, with RLS and no session grants. Existing hooks enforce every-writer
+serialization and reciprocal decisions. The exact new relation/index/trigger
+metadata is frozen in `openspec/changes/member-self-service/prepared-command-declaration.md`
+before independent metadata tests and new source construction. This adds no
+public RPC, allowance, role, policy exception or new SQLSTATE.
