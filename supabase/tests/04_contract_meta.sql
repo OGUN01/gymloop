@@ -313,7 +313,9 @@ select is_empty(
       ('webhook_events',          'is_gym_admin',    null,              null),
       ('audit_log',               'is_gym_admin',    null,              null),
       ('impersonation_sessions',  'is_gym_admin',    null,              null),
-      ('platform_users',          null,              null,              null)
+      ('platform_users',          null,              null,              null),
+      ('purchase_requests',       'is_front_office', null,              'own'),
+      ('payment_proofs',          null,              null,              null)
     ),
     x as (
       select m.tbl, m.read_gate, m.write_gate, m.member_gate,
@@ -1130,7 +1132,13 @@ select is_empty(
       join (values ('media_assets', 'media_assets_verified_immutable',
                     'enforce_media_asset_verification', 31),
                    ('shop_reservations', 'shop_reservations_enforce',
-                    'enforce_shop_reservation', 23))
+                    'enforce_shop_reservation', 23),
+                   ('payment_proofs', 'payment_proofs_enforce',
+                    'enforce_payment_proof', 23),
+                   ('purchase_requests', 'purchase_requests_enforce',
+                    'enforce_purchase_request', 23),
+                   ('addon_products', 'addon_products_pay_stock_holds',
+                    'enforce_pay_stock_holds', 19))
            expected(tbl, trigger_name, function_name, trigger_type)
         on c.relname::text = expected.tbl
        and t.tgname::text = expected.trigger_name
