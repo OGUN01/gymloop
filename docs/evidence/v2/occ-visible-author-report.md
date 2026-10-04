@@ -512,3 +512,28 @@ SQL NOT executed here.
   row's hour-15 cell is not `visits='1'`, the divergence is in the heatmap
   population's day/hour bucketing state source, which may fold into the same
   round-18 tenant/actor sourcing finding.
+
+## Round 19 — rollback-theory verification (builder diagnosis)
+
+- Static verification: every #76 claims statement is a TOP-LEVEL `select`
+  (the section-header `pg_temp.claim`, the defensive re-assertion, and the
+  per-call `set_config`) — no probe/DO wrapper encloses any of them, so the
+  subtransaction-rollback mechanism cannot apply to this suite's own bytes.
+  Moreover the #76 assertion itself already ran the claims read and the
+  snapshot call in ONE statement: had a rollback cleared the claims, the
+  FIRST conjunct (exact claims-object equality with `current_setting`) would
+  be false — the recorded failure mode (routing conjunct passes, zone wrong)
+  contradicts the rollback theory for my suite's own execution.
+- Strengthening per the coordinator's specified verification: the pin now
+  leads with the RAW one-statement echo —
+  `current_setting('request.jwt.claims',true)::jsonb->>'tenant_id' =
+  pg_temp.u(2)::text` — before the exact-object equality conjunct, so the
+  live settings at the same execution context as the `pg_temp.snapj` call
+  are named directly. If a rerun still shows tenant-2 echoed and
+  Asia/Kolkata returned in that single statement, the builder's derivation
+  theory is falsified in-suite and the packet goes to the owner as a
+  derivation defect. If instead the echo fails, the wrapper lives in the
+  capture harness that re-executes this region, not in the suite.
+- plan(77) preserved (77 verified); rollback guard green (159 files). SQL NOT
+  executed here.
+- New sha256: `499d7497265c6073d91c325c971af5b6607596991190c813fedc7e1661e114ff`.
