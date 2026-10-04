@@ -1,9 +1,10 @@
 # SLF quality bar
 
-**DRAFT — NOT FROZEN, 2026-10-03.** Companion to
-`openspec/changes/member-self-service/proposal.md`; public reference research
-and own criteria only. Wave C precedes Wave D; no implementation or acceptance
-evidence is claimed.
+**FROZEN 2026-10-03.** Companion to
+`openspec/changes/member-self-service/proposal.md`; the owner approved the bar
+with the allowance contract frozen as today's source behavior (SLF-012) and
+OPEN-016 recorded as a residual. No implementation or acceptance evidence is
+claimed.
 
 Primary official references opened 2026-10-03:
 

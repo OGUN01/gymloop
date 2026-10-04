@@ -1,10 +1,15 @@
 # Report exports (RPE) — owner downloads from recorded truth
 
-**DRAFT NOT FROZEN — 2026-10-03.** Public contract preparation for F18 / V2-D5.
-Wave C (NTF, PAY, WSP) precedes Wave D. This draft neither changes that order
-nor authorizes implementation. Owner approval, closed-test feedback and the
-invoice prerequisites below precede freeze and independent test authoring.
-Only this file and `docs/design/v2/rpe-bar.md` belong to this drafting task.
+**FROZEN 2026-10-03 — staged delivery: CSV first.** Owner approved this
+EARS/bar for Wave D execution with the D-RPE-1 staging decision: the three CSV
+datasets and the owner Exports screen (RPE-001…009, RPE-013) ship this wave;
+the invoice-PDF half (RPE-010…012 and the `/api/invoices/[invoiceId]/download`
+route) is **deferred** until a separately approved immutable invoice snapshot +
+issuance-producer prerequisite exists. Per the RPE bar's GO boundary this is
+recorded as a narrower delivery that does not mark F18's invoice outcome
+complete. Qualified legal applicability (D-RPE-2) stays owner-gated for the
+deferred half. The contract is fixed and must not be edited while authors work
+against it.
 
 ## Why and scope
 
@@ -21,6 +26,9 @@ qualified review; it is not a property obtained by formatting arbitrary JSON
 as a PDF. RPE refuses insufficient invoices and never badges an export as
 legally compliant. The owner alone coordinates and accepts qualified legal
 sign-off; agents cannot provide that sign-off or mark its gate passed.
+**Staging decision 2026-10-03:** this delivery ships CSV only; invoice PDF
+work waits for its own approved snapshot prerequisite, so no invoice surface,
+PDF dependency or legal profile is built or claimed in this wave.
 
 ## Existing public contracts and reuse
 
@@ -46,8 +54,9 @@ requires a registry entry and a reuse decision in `docs/decisions.md`.
 ## Proposed request and file contract
 
 One synchronous download request per file. Proposed Node Route Handlers:
-`POST /api/report-exports` for CSV and
-`POST /api/invoices/[invoiceId]/download` for one PDF. Both accept the original
+`POST /api/report-exports` for CSV in this delivery, and
+`POST /api/invoices/[invoiceId]/download` for one PDF — **deferred with the
+invoice half**. Both accept the original
 owner session and CSRF/same-origin protection. Success is an attachment; failures
 use `apiFail`, never an error body disguised by a CSV/PDF MIME type.
 
@@ -194,7 +203,7 @@ The existing owner audit surface SHALL show who/what/when/range/count and the
 prepared/released distinction. Only narrow audited helpers may append events;
 authenticated callers SHALL gain no direct audit INSERT or arbitrary event forge.
 
-**RPE-010 — Stored invoice integrity.** WHEN an invoice PDF is requested THE
+**RPE-010 — Stored invoice integrity (DEFERRED — not in this delivery).** WHEN an invoice PDF is requested THE
 SYSTEM SHALL read an already issued immutable invoice snapshot and its linked
 RLS-visible payment in the same database statement snapshot, preserve its number,
 financial year, issue facts, buyer/seller, currency and exact per-line tax breakup,
@@ -210,7 +219,7 @@ divide a header tax across lines, infer CGST/SGST from IGST, infer tax inclusion
 round away a difference, substitute current catalogue/customer/settings facts,
 or mutate an invoice, payment or counter to make export succeed.
 
-**RPE-011 — Refunds and original documents.** WHEN the linked original payment
+**RPE-011 — Refunds and original documents (DEFERRED — not in this delivery).** WHEN the linked original payment
 has later been refunded or reversed THE SYSTEM SHALL compare invoice total to
 the original payment amount, keep the issued invoice/tax snapshot unchanged and
 show the payment's present state separately from the invoice. THE SYSTEM SHALL
@@ -218,7 +227,7 @@ not subtract refunds from invoice lines, treat requested/processing refunds as
 returned cash, invent a credit note or imply that downloading an invoice records
 a payment, settles a gateway transaction or grants another membership period.
 
-**RPE-012 — Legal field provenance and refusal.** WHEN validating a tax invoice
+**RPE-012 — Legal field provenance and refusal (DEFERRED — not in this delivery).** WHEN validating a tax invoice
 THE SYSTEM SHALL require a qualified-review-approved applicability profile and
 issuance-time stored provenance for every field that profile requires, including
 seller legal identity/address/GSTIN; lawful number/date; buyer identity and
@@ -258,7 +267,8 @@ Release attribution derives from the same actor and the prepared attempt.
 The final authorization recheck precedes audit/release; no claim refresh or
 role elevation is performed on behalf of the requester.
 
-For PDF, propose **PDFKit in `apps/web` only**, direct text/table drawing with
+For PDF, propose **PDFKit in `apps/web` only** (deferred with the invoice
+half), direct text/table drawing with
 locally bundled embedded fonts and bounded page breaking. Its official Node
 stream API supports server generation; use a bounded in-memory artifact so an
 error cannot follow an already released partial PDF. No headless browser,
@@ -271,29 +281,26 @@ This is a proposal to resolve OPEN-003, not a dependency installation or a claim
 that the existing app already generates PDFs. It requires a documented reuse
 decision and registration at implementation time.
 
-## Real freeze prerequisites and owner decisions
+## Freeze prerequisites — RESOLVED 2026-10-03 (staged)
 
-1. **Invoice snapshot/schema producer.** The public `invoices` schema provides
-   aggregate paise and untyped `line_items: Json`, plus buyer name/GSTIN,
-   seller GSTIN and place of supply. It does not itself establish a typed line
-   contract, seller legal name/address, conditional buyer address/classification,
-   tax-policy provenance or immutable issuance facts. Update privileges alone
-   prove no immutability. Owner must authorize a forward-only immutable snapshot
-   and its issuance producer, or explicitly leave invoice PDFs unavailable until
-   a separate approved prerequisite supplies them. Do not backfill unknowable
-   facts or implement new issuance implicitly inside Download. Before freeze,
-   fix the exact line/legal snapshot schema, provenance/version and immutable
-   enforcement in the public contract; generated types alone cannot settle it.
-2. **Qualified legal applicability.** Owner obtains qualified review of the
-   supported supplier/document/supply profiles, current Rule 46 amendments,
-   conditional fields, tax components, HSN/SAC, signature exemptions and any
-   e-invoice/QR applicability. Unsupported profiles remain refused. Rendering
-   cannot certify a filing obligation or substitute for that review.
+1. **Invoice snapshot/schema producer — deferred with the invoice half.**
+   Verified 2026-10-03: the `invoices` table has untyped `line_items jsonb`,
+   buyer name/GSTIN, seller GSTIN and place of supply, and **no seller legal
+   name/address columns and no immutability/version columns**. Owner approved
+   CSV-first staging (D-RPE-1): the immutable snapshot + issuance producer
+   becomes a separate approved prerequisite before any invoice-PDF work;
+   unknowable facts are never backfilled and no issuance is implemented
+   implicitly inside Download.
+2. **Qualified legal applicability — owner-gated for the deferred half
+   (D-RPE-2).** Owner obtains qualified review of supported
+   supplier/document/supply profiles, current Rule 46 amendments, conditional
+   fields, tax components, HSN/SAC, signature exemptions and any
+   e-invoice/QR applicability before any invoice PDF is enabled. Unsupported
+   profiles remain refused. No agent action substitutes.
 
-These are actual schema/legal blockers, not invitations to reopen payment,
-refund, renewal or receipt decisions. Owner-only downloads, caps rather than
-async, fixed projections and Node PDF generation are the draft's proposed
-product/engineering choices for approval with the whole contract.
+Owner-only downloads, caps rather than async, fixed projections and the
+proper `attachment; filename="…"` header form (an improvement over the
+CSV-D15 precedent's bare filename value) are approved with the CSV contract.
 
 ## Primary references and acceptance handoff
 

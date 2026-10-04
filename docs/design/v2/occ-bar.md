@@ -1,10 +1,12 @@
 # OCC quality bar — decisions from arrivals, collection and booked fill
 
-**DRAFT NOT FROZEN — 2026-10-03.** Companion to
-`openspec/changes/occupancy-analytics/proposal.md`, F14 / V2-D4. Wave C remains
-before Wave D. No implementation, visible/holdout suite or private evidence was
-inspected; no Cloud, browser or device acceptance was performed. Owner choices
-OCC-OPEN-01…03 must be resolved before this bar and its EARS contract freeze.
+**FROZEN 2026-10-03.** Companion to
+`openspec/changes/occupancy-analytics/proposal.md`, F14 / V2-D4. Owner choices
+OCC-OPEN-01…03 are resolved as recorded in the proposal (derived
+membership-linkage classification; raw observations with limited-history
+thresholds; “Booked fill” terminology). No implementation, visible/holdout
+suite or private evidence was inspected at drafting; no Cloud, browser or
+device acceptance was performed.
 
 ## Fetchable primary comparators and evidence limits
 

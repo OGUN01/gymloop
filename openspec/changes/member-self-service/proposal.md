@@ -125,6 +125,17 @@ configured role. A solo owner has no approvable two-staff path; show that truth.
   pause remains unapproved historical evidence; cancellation SHALL not forge
   a staff rejection. Every subsequent attempt, including a direct staff
   source-pause approval, SHALL refuse that closed request's source approval.
+
+  Adjudication (2026-10-04, orchestrator): the contract does not pin the
+  refusal class when a member who is not the request's owner invokes the
+  cancel command. The shipped pattern is target invisibility — the read RPCs
+  collapse missing and foreign ids to one unavailable signal (P0002), and the
+  money/reach features use one unavailable outcome per target class — so a
+  cross-member cancel SHALL refuse with the same single unavailable signal
+  (P0002) rather than an authority message that would confirm the target
+  exists. Foreign-tenant CLAIMS that cannot resolve an actor at all keep the
+  declared SLF-003 outcome (42501 `Member freeze authority unavailable`)
+  because there is no target signal to protect there.
 - **SLF-010 (lifecycle).** WHILE a request's start day has elapsed before
   approval, its target becomes retired/unavailable, or the member becomes
   unavailable THE SYSTEM SHALL treat an unapproved request as expired and

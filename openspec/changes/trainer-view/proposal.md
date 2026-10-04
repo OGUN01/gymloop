@@ -1,9 +1,10 @@
 # TRV — My clients today
 
-**DRAFT NOT FROZEN — early public contract, 2026-10-03.** No tests, build,
-deployment, schedule change or owner approval is implied. Wave D / V2-D2 remains
-after Wave C. Freeze after closed-test feedback and owner approval, then commit
-the spec before commissioning independent tests. Read with F12 in
+**FROZEN 2026-10-03.** Owner approved the final EARS/bar, the native entry
+placement (trainer-only fifth desk tab) and the OPEN-015 documented-residual
+acceptance (see the amended sections below). Independent visible and holdout
+test authors are commissioned from this frozen text only; the contract is now
+fixed and must not be edited while authors work against it. Read with F12 in
 `docs/planning/v2-feature-map.md`, `docs/planning/v2-campaign-goal.md`,
 `docs/design/v2/trv-bar.md` and the approved PTF proposal/bar.
 
@@ -56,9 +57,15 @@ with `../pt-front/web-console-public-declarations.md` before independent fanout.
 
 Web consumer: trainer rendering of existing
 `apps/web/app/(console)/training/page.tsx`; retain other staff's PTF rendering.
-Native consumer: proposed `apps/mobile/app/(desk)/training.tsx`, reached by a
-trainer-only “My clients today” entry in the existing desk navigation. That
-placement remains an owner choice. Reuse `useMobile`, verified
+Verified fact: that page already forces the trainer's own staffId (line 21) and
+shows "Showing your own clients." while hiding the trainer select (lines
+40–41); TRV's web consumer builds on that existing trainer branch rather than
+introducing a second one.
+Native consumer: `apps/mobile/app/(desk)/training.tsx`, reached by a
+**trainer-only fifth desk tab “Training”** in
+`apps/mobile/components/role-tabs.tsx` (rendered only when
+`identity.role === 'trainer'`; other roles see no change) — owner decision
+2026-10-03. Reuse `useMobile`, verified
 `GymloopIdentity`, `requireAudience` / `readIdentity`, and the current
 staff/trainer binding checks. Native staff routing already exists; no new role,
 claim, root audience, login path or persisted capability is proposed.
@@ -89,9 +96,11 @@ after all pages complete. See the companion for cursor progress and freshness.
 No SDK dependency, native package, money helper or runtime environment variable
 is planned. Proposed host/hook/screen exports require the usual registry review. Shared remains platform-free and uses its
 existing type-only `@gymloop/db` dependency. Reuse PTF `ptPackStateLabel`,
-`ptBookingStatusLabel`, `ptApiError`, `PT_BOOKING_LIMITS`, existing page-size
-constants, `businessNouns`, `toLocalDate`, `offsetInstantFromGymWallTime`,
-`formatDateTime`, `UI_TOKENS`, web `StatusWord` and native Chalkline primitives.
+`ptBookingStatusLabel`, `ptApiError`, `PT_BOOKING_LIMITS`, `PT_READ_PAGE_MAX`
+(`packages/shared/src/config/constants.ts:570`, already used by the console
+adapters), existing page-size constants, `businessNouns`, `toLocalDate`,
+`offsetInstantFromGymWallTime`, `formatDateTime`, `UI_TOKENS`, web
+`StatusWord` and native Chalkline primitives.
 Before any new export, repeat the registry/code search and record a reuse gap in
 `docs/decisions.md`; register every final export and actual consumer in the build
 unit. This draft authorizes no registry or decision edit.
@@ -172,24 +181,21 @@ unit. This draft authorizes no registry or decision edit.
   duplicate PTF booking locks, calendars of availability or money logic. Existing
   trainer completion authority and binding validation SHALL remain unchanged.
 
-## Owner choices before freeze versus routine reuse
+## Owner choices — RESOLVED 2026-10-03
 
-Owner approval is required for this final EARS/bar and the proposed native entry
-placement after closed-test feedback. Advancing TRV across waves requires an
-explicit owner build-order decision. A combined CLS/PT timetable or fulfilment
-actions would change this scope and require approval, not an implementation
-shortcut. Reusing PTF reads, Chalkline, generated types and verified session
-checks is routine and creates no owner question.
+The owner approved this final EARS/bar, the **trainer-only fifth desk tab**
+native entry, and **acceptance of the OPEN-015 documented residual** (below).
+A combined CLS/PT timetable or fulfilment actions would still change this scope
+and require a new approval. Reusing PTF reads, Chalkline, generated types and
+verified session checks is routine and created no owner question.
 
-**OPEN-015 remains a security decision, not solved by this screen.** Approved
+**OPEN-015 recorded residual — accepted by the owner 2026-10-03.** Approved
 PTF-022/032 provides own-trainer RPC projection, but pre-existing direct-table
 trainer reads of `pt_sessions`, `addon_orders` and broader member fields remain.
-This draft promises own-client scope for TRV, not database-wide prohibition of
-every legacy trainer read. Before freeze the owner must either accept that
-documented residual for this surface or commission separate narrowing of the
-legacy grants/policies with full-blind authoring and all affected regressions.
-No policy change or extra table is justified for this read-only view. Any later
-need must be recorded as a decision before work, outside this draft's file scope.
+TRV promises own-client scope in its own reads and adds no new policy or table;
+the legacy residual stays documented, not solved. Narrowing the legacy
+grants/policies later is a separate full-blind contract change and is not
+authorized by TRV.
 
 ## Tests-first and actual end-to-end acceptance plan
 

@@ -1,9 +1,10 @@
 # TRV quality bar — My clients today
 
-**DRAFT NOT FROZEN — 2026-10-03.** Early Wave D contract companion to
-`openspec/changes/trainer-view/proposal.md`; no build-order change or execution
-approval. Freeze after owner approval and closed-test feedback. Applicable IDs:
-TRV-001…011. No implementation tests, holdout or private evidence was read.
+**FROZEN 2026-10-03.** Owner approved the bar with the native entry decided as
+the trainer-only fifth desk tab and the OPEN-015 residual accepted as
+documented. Companion to `openspec/changes/trainer-view/proposal.md`.
+Applicable IDs: TRV-001…011. No implementation tests, holdout or private
+evidence was read at drafting.
 
 ## Comparable and evidence limits
 

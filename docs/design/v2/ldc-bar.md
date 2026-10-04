@@ -1,10 +1,11 @@
 # LDC quality bar — convert a lead without retyping
 
-**DRAFT NOT FROZEN — 2026-10-03.** Companion to
-`openspec/changes/lead-conversion/proposal.md`, F13 / V2-D3. Wave C remains before
-Wave D. No implementation, visible/holdout tests or private evidence was inspected;
-no browser/device/cloud acceptance was performed. Freeze after owner approval and
-closed-test feedback. Applicable requirements: LDC-001…011 and LEAD-001…005.
+**FROZEN 2026-10-03.** Owner approved for Wave D execution. Companion to
+`openspec/changes/lead-conversion/proposal.md`, F13 / V2-D3. Verified fact:
+the conversion UI already exists, so this bar's Gauntlet is regression and
+acceptance first — existing behavior is pinned and the missing contract pieces
+are built against RED tests. Applicable requirements: LDC-001…011 and
+LEAD-001…005.
 
 ## Fetchable comparable references and evidence limits
 

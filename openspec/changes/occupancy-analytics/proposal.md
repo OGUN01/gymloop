@@ -1,11 +1,11 @@
 # OCC — occupancy, collection and class fill analytics
 
-**DRAFT NOT FROZEN — 2026-10-03.** Public contract preparation only for F14 /
-V2-D4. Wave C remains before Wave D; this document neither advances that order
-nor authorizes build, tests or deployment. Owner approval and relevant
-closed-test feedback must resolve the choices below before the contract is
-frozen. No implementation, visible/holdout suite, private evidence, Cloud,
-browser or device acceptance was inspected or performed for this draft.
+**FROZEN 2026-10-03.** Owner approved this EARS/bar for Wave D execution and
+resolved all three open choices exactly as drafted below with the frozen
+parameters recorded in OCC-007 (sparse-data thresholds and default range) and
+OCC-012 (derived membership-linkage cash classification). No schema change and
+no migration is introduced. The contract is fixed and must not be edited while
+authors work against it.
 
 ## Purpose and bounds
 
@@ -119,15 +119,21 @@ treated as owner-approved financial definitions.
   Closed-hour exposure is a calendar observation, not a claim that the branch
   was open; current opening-hours settings SHALL not invent historical opening
   hours. Denominator zero SHALL return no average.
-- **OCC-007 (low-data integrity).** WHEN an attendance or class sample falls
-  below the approved minimum THE SYSTEM SHALL disclose its raw numerator,
-  denominator, eligible dates/sessions and “Limited history”, and SHALL not
-  claim a reliable peak, improvement or weak-class ranking. UNTIL the owner
-  approves the smoothing method and minimum in OCC-OPEN-02 THE SYSTEM SHALL
-  permit no fabricated visits, hidden pseudocounts, neighbouring-branch
-  borrowing, smoothed money, or definitive confidence label. Any approved
-  smoothed display SHALL be explicitly labelled, reproducible from the same
-  raw sample and its published parameters, and SHALL preserve raw totals.
+- **OCC-007 (low-data integrity; frozen parameters).** WHEN an attendance or
+  class sample falls below the approved minimum THE SYSTEM SHALL disclose its
+  raw numerator, denominator, eligible dates/sessions and “Limited history”,
+  and SHALL not claim a reliable peak, improvement or weak-class ranking.
+  Owner-approved 2026-10-03: there is **no estimator and no smoothing** — the
+  display is raw exact fractions only. Frozen thresholds (registered as
+  `OCC_LIMITS` at build): a heatmap weekday/hour cell or branch week aggregate
+  shows its exact fraction only with at least **14 eligible completed local
+  dates**; class fill percentages show only with at least **10 elapsed
+  sessions** in the cohort; below a threshold the screen shows the raw
+  numerator/denominator with “Limited history” and suppresses peak/weak-class
+  ranking. The default arrival range is the **last 28 days**,
+  visibly changeable. No fabricated visits, hidden pseudocounts,
+  neighbouring-branch borrowing, smoothed money, or definitive confidence
+  label is permitted.
 - **OCC-008 (cross-branch comparison).** WHEN multiple branches are compared
   THE SYSTEM SHALL use the same selected local dates, weekday/hour coordinates,
   holiday toggle and metric definition for each branch, while applying each
@@ -165,21 +171,28 @@ treated as owner-approved financial definitions.
   allocation. Ratios SHALL reuse `ratioBasisPoints` / `formatBasisPoints` for
   half-up basis-point rounding, retain the exact fraction and show “No cohort”
   for a zero denominator. Display rounding SHALL not change any cash total.
-- **OCC-012 (new-member and renewal split; blocked until owner definition).**
-  WHEN classified monthly collection is displayed THE SYSTEM SHALL apply only
-  the owner-approved OCC-OPEN-01 receipt allocation rule, with reconciling
-  source evidence and no double counting. UNTIL that rule is approved and the
-  required historical evidence exists THE SYSTEM SHALL show membership money
-  as unclassified, preserve its exact collection/returns/net, and SHALL NOT
-  label receipts using current `periods_granted`, member `joined_on`, first
-  observed receipt, or null predecessor as guessed new-member/renewal facts.
-  Known linked add-on money and other/unallocated manual money SHALL be
-  disclosed separately from membership classification. Total collected,
-  returned and net for each currency SHALL reconcile across the disjoint
-  categories, including unknowns. Refund category allocation SHALL follow the
-  approved original receipt allocation, not the member's later status; an
-  unknown original allocation SHALL remain unknown, including a return whose
-  original receipt is outside the selected range.
+- **OCC-012 (new-member and renewal split; frozen classification).** WHEN
+  classified monthly collection is displayed THE SYSTEM SHALL apply the
+  owner-approved derived membership-linkage rule (2026-10-03), whole-receipt,
+  with reconciling source evidence and no double counting: an arrived payment
+  with nonnull `membership_id` is **membership money**, sub-classified as
+  **new-member money** when that membership is the member's first membership
+  row (no earlier membership row for the same member) and **renewal money**
+  otherwise, including part payments and top-ups, which classify whole by
+  their membership's nature; an arrived payment linked to an add-on order is
+  **add-on money**, disclosed separately; an arrived payment with neither link
+  is **unallocated manual** money, disclosed separately and never guessed into
+  a membership category. Returns allocate to the original receipt's category,
+  whole-receipt, with no proportional split and no rounding remainder; a
+  return whose original payment is unallocated stays in an unknown-allocation
+  disclosure; a return whose original receipt is outside the selected range
+  reduces the return's completion month per the settled MET rule. Legacy rows
+  lacking links remain unallocated permanently; no backfill of unknowable
+  facts. The screen labels the split **derived**. THE SYSTEM SHALL NOT label
+  receipts using current `periods_granted`, member `joined_on`, first observed
+  receipt, or null predecessor alone as new-member/renewal facts beyond this
+  rule. Total collected, returned and net for each currency SHALL reconcile
+  across the disjoint categories, including unknowns.
 - **OCC-013 (money scope).** WHEN an attendance/class branch filter is changed
   THE SYSTEM SHALL keep the monthly collection panel explicitly “Whole gym”
   unless an owner-approved historical financial branch attribution exists.
@@ -248,13 +261,13 @@ behavior. This draft does not invent a parallel loader, service-role adapter or
 loose schema. Any genuinely necessary new symbol must be searched and registered
 by that later implementer; no source symbol is added here.
 
-## Owner choices required before freeze
+## Owner choices — RESOLVED 2026-10-03
 
-| ID | Unresolved choice and why it matters | Boundary already fixed |
-|---|---|---|
-| **OCC-OPEN-01 — cash classification** | Define “new-member money” versus “renewal money”: initial membership sale versus an individual's first purchase are different. Choose how a part-payment, later top-up, one receipt buying initial plus later periods, replacement plan, retired/revived membership, overpayment, imported/legacy row and mismatched-currency receipt are allocated. Choose whether durable receipt-time evidence is required going forward and whether legacy unknowns stay unknown. Define how a partial return is allocated across a split receipt, including integer-paise rounding/remainder ownership. Approve the disjoint add-on and unallocated-manual categories so the panel does not hide real cash. Existing rows and current counters do not settle these choices. | Actual gross receipts and completed returns stay exact and visible; no guessed classification, no dues-as-cash, no floats, no changing granting/refund rules. This is a money-contract decision requiring full blind authors after approval. |
-| **OCC-OPEN-02 — smoothing and exposure** | Approve the arrival range default, hourly calendar exposure proposal (OCC-006), minimum observation threshold for arrivals and classes, and what F14 “low-data smoothing” means. Choose raw normalized observations with limited-history disclosure, or a precisely specified labelled estimator with window/weights/minimum and edge behavior. No numeric threshold, prior or smoothing window is frozen here. Confirm whether historical open-hours exposure is demanded; that would require evidence absent from current settings. | Raw facts and denominators remain accessible; no synthetic traffic, no money smoothing, no unqualified low-sample ranking. |
-| **OCC-OPEN-03 — class terminology** | Confirm “Booked fill” for F14's bookings/capacity formula and the separate marked-presence disclosure (OCC-015/016). If the owner requires proof a class actually ran beyond CLS-039's elapsed scheduled proxy, approve that as a separate CLS contract change before OCC tests; OCC cannot assert a new completion fact. | CLS-039's existing proxy, frozen session capacities and explicit marking remain authoritative. Gym check-in never proves class attendance. |
+| ID | Resolution |
+|---|---|
+| **OCC-OPEN-01 — cash classification** | Approved: derived membership-linkage classification, whole-receipt, with separate add-on and unallocated-manual categories; returns allocate whole to the original receipt's category; legacy unlinked rows stay unallocated permanently; no backfill; no schema change. Frozen text in OCC-012. Full blind authors for the money/snapshot suites. |
+| **OCC-OPEN-02 — smoothing and exposure** | Approved: raw normalized observations only, no estimator; “Limited history” below 14 eligible dates (heatmap) / 10 elapsed sessions (class fill); default range last 28 days. Frozen text in OCC-007. |
+| **OCC-OPEN-03 — class terminology** | Approved: “Booked fill” per OCC-015/016 with the separate marked-presence disclosure; no new completion fact; CLS-039's elapsed proxy stands. |
 
 Refund-month treatment is **already settled for actual collection** by MET and
 ADD-012: completion month, independently of original paid month. Original-sale

@@ -1,10 +1,14 @@
 # Lead conversion (LDC) — one action, existing member safety
 
-**DRAFT NOT FROZEN — 2026-10-03.** Public Wave D proposal for F13 / V2-D3.
-This is early contract preparation, not approval to build or change approved
-LEAD rules. Wave C (NTF, PAY, WSP) remains before Wave D. Owner approval and
-closed-test feedback precede freeze, independent tests and implementation.
-Only this proposal and `docs/design/v2/ldc-bar.md` are created by this draft.
+**FROZEN 2026-10-03.** Owner approved this EARS/bar for Wave D execution.
+Verified execution fact (2026-10-03): the conversion UI already exists —
+`apps/web/app/(console)/leads/page.tsx:234/242` renders `LeadConvertDialog`
+with lead id + revision for `trial_done` rows and an "Open member" link for
+converted rows. LDC's Gauntlet is therefore regression/acceptance first: RED
+regression tests pin existing correct behavior and RED tests for contract gaps
+(offline copy, uncertain-result copy, per-row pending state), and only missing
+pieces are built. The contract below is fixed and must not be edited while
+authors work against it.
 
 ## Why and bounded delta
 
@@ -33,11 +37,11 @@ outside this change. Existing subsequent member flows remain separate actions.
 | Existing seam | LDC use |
 |---|---|
 | `docs/domain-rules.md` LEAD-001…005; `openspec/specs/leads/spec.md`; `docs/planning/phase6-leads-contract.md` | Approved stage graph, front-office identity, terminal records, exact normalization, transaction, CAS, retries and privacy |
-| `public.convert_lead(uuid, uuid, uuid, text, uuid)`; `POST /api/leads/[leadId]/convert` | Sole command for create and explicit link; exact existing request/result/error envelopes |
+| `public.convert_lead(uuid, uuid, uuid, text, uuid)`; `POST /api/leads/[leadId]/convert` | Sole command for create and explicit link; exact existing request/result/error envelopes. Verified: `p_expected_revision` is a uuid DB-owned revision token; `p_member_id` is nullable and sent only for `link_existing`. |
 | `public.list_leads`; `loadLeads`, `LeadListRow` / `LeadDetail` | Existing RLS-scoped rows, revision, source, next actions and one-snapshot counts; no added GET endpoint |
-| `LeadConvertDialog`; `convertLeadResult`, `convertLeadFailure`, `staleLeadFailure`, `memberUnavailableFailure` | Existing duplicate decision and validated success/refusal mapping; inspect at build time before adding any symbol |
+| `LeadConvertDialog`; `convertLeadResult`, `convertLeadFailure`, `staleLeadFailure`, `memberUnavailableFailure` | Existing duplicate decision and validated success/refusal mapping; inspect at build time before adding any symbol. Verified: the 409 `link_required` payload carries `{memberId, fullName, phone, status}`. |
 | `(tenant_id, phone)` unique member key; lead request evidence pairs and database-owned `revision` | Exact-phone duplicate ownership, durable actor-bound replay and concurrent mutation safety |
-| `public.owner_metrics`; MET-001…007; `docs/planning/phase6-metrics-contract.md` | Existing acquisition cohort and snapshot/count serialization; no new attribution arithmetic |
+| `public.owner_metrics`; MET-001…008; `docs/planning/phase6-metrics-contract.md` (MET ids are defined there, not in `docs/domain-rules.md`) | Existing acquisition cohort and snapshot/count serialization; no new attribution arithmetic |
 | Web Chalkline kit, `Field`, `inputClass`, `StatusWord`, `UI_TOKENS`; `docs/design/phase9/direction.md` | Existing ledger hierarchy, labelled controls, canonical status words and outcome presentation |
 
 These symbols are already recorded in `docs/registry.md`. This draft adds no

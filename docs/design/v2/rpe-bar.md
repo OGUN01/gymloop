@@ -1,8 +1,11 @@
 # RPE quality bar — clear scope, complete downloads, evidenced invoices
 
-**DRAFT NOT FROZEN — 2026-10-03.** Companion to
-`openspec/changes/report-exports/proposal.md`, F18 / V2-D5. Wave C remains before
-Wave D. This bar describes future acceptance, not shipping or legal approval.
+**FROZEN 2026-10-03 — staged delivery: CSV first.** Companion to
+`openspec/changes/report-exports/proposal.md`, F18 / V2-D5. This delivery's
+applicable rows are RPE-Q1…Q6 and Q10…Q11 (CSV + screen + audit); **RPE-Q7,
+Q8 and Q9 (invoice PDF) are deferred** with the invoice half until its
+separate approved snapshot prerequisite and owner-coordinated qualified
+review exist. This bar describes acceptance, not shipping or legal approval.
 
 ## Fetchable comparable references
 

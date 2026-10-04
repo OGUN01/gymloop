@@ -1408,7 +1408,7 @@ These scoped rows register application source; rendered-surface and live accepta
 | `RPE_LIMITS` + RPE shared | `packages/shared/src/config/constants.ts`, RPE route/lib pins | Export bounds (2 KiB body, 366 days, 5000 rows, 8 MiB, 15s deadline) | RPE route/surfaces |
 | `parseReportExportRequest` / `buildReportCsv` / `csvText` / `csvTyped` / `reportExportFilename` / `validatePaymentMoney` / `ReportExportMeta` | `apps/web/lib/report-exports.ts` | Dataset/request validation, money-safe CSV building, export metadata | RPE route and page |
 | RPE route + screen | `apps/web/app/api/report-exports/route.ts`, `apps/web/app/(console)/exports/{page.tsx,download-form.tsx}` | Bounded snapshot export with 15s deadline race, audit-append, dated CSV download form (owner-gated page) | Owner console Exports |
-| `export_report_snapshot(text,date,date,uuid,integer)` / `append_report_export_event(text,uuid,jsonb)` | `supabase/migrations/20261005110000_report_exports.sql` | STABLE invoker bounded export snapshot (RLS-only) + definer audit-append-only writer | RPE route |
+| `export_report_snapshot(text,date,date,uuid,integer)` / `append_report_export_event(text,uuid,jsonb)` | `supabase/migrations/20261005110000_report_exports.sql` | VOLATILE invoker authoritative scalar export snapshot — exact 19-key payload with server cutoff, stamps, counts and string money (RLS-gated) + release-only definer audit writer with the declared allowlist | RPE route |
 | `loadTrainerZone` / `loadTrainerBookings` / `loadTrainerPacks` / `walkTrainerPages` + `TrainerIdentity` etc. | `apps/mobile/lib/trainer-view.ts` | TRV native zone/bookings/packs readers with exhaust-until-empty keyset walk | TrainerDayPane |
 | `useTrainerDay` / `TrainerDayPane` / `app/(desk)/training.tsx` | `apps/mobile/lib/use-trainer-day.ts`, `apps/mobile/components/trainer-day-pane.tsx`, `apps/mobile/app/(desk)/training.tsx` | Trainer-only my-clients-today native surface; RoleTabs trainer Training tab | Native desk |
 | `trainerDayView` | `apps/web/app/(console)/training/trainer-day.tsx` | Web trainer day view composing loadPtBookings/loadPtPacks with staffId injection and no caller-selected filter | Training console trainer branch |
@@ -1479,6 +1479,13 @@ These scoped rows register application source; rendered-surface and live accepta
 | `pushDispatchEnv` | `packages/shared/src/config/env.ts` | Uncached reader-injected five-name Edge configuration accessor with value-free errors | push-dispatch handler |
 | `PUSH_DISPATCH_RUNTIME` / `PUSH_DISPATCH_HTTP_STATUS` | `packages/shared/src/config/constants.ts` | Frozen Edge request/digest/OAuth bounds, approved endpoint identities and response status mapping | push-dispatch handler |
 | `PUSH_DISPATCH_SECRET` / `FCM_PROJECT_ID` / `FCM_SERVICE_ACCOUNT_JSON` | `packages/shared/src/config/env.ts` | Protected Edge wakeup and approved FCM identity/credential names; never client configuration | pushDispatchEnv |
+
+## Push deployment scheduler (inert migration)
+
+| Symbol | File | Purpose | Consumers |
+|---|---|---|---|
+| `app.run_push_dispatch_tick()` / `app.read_push_dispatch_secret()` / `app.enqueue_push_dispatch_wakeup(text)` | `supabase/migrations/20261005130000_push_scheduler.sql` | Bounded private definer helpers: cyclic 100-tenant minute tick with single-snapshot eligibility and seven-key result, exact value-free Vault lookup, private fixed HTTP wakeup enqueue; four-role EXECUTE denials; no activation in-migration | Scheduled activation step (owner-approved), fresh critic |
+| `gymloop_push_dispatch_secret` (Vault name) / `push-dispatch-minute` (approved cron job name) | `supabase/migrations/20261005130000_push_scheduler.sql` | Exact Vault secret reference and cron job identity; never recreated or renamed ad hoc | Activation path, protected deployment wiring |
 
 ## SLF private preparation capability
 
