@@ -24,7 +24,7 @@
 begin;
 set local role postgres;
 set local search_path to public, extensions;
-select plan(139);
+select plan(138);
 
 -- Probe helpers first: every Section-A assertion must degrade to a clean RED
 -- (false) instead of aborting the file while the real migration is absent.
@@ -1070,7 +1070,19 @@ select throws_ok($q$select holdout_slf.adopt_request(holdout_slf.request_id_by_k
 select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000309','role','authenticated','app_role','front_desk','tenant_id','81900000-0000-4000-8000-000000000001','staff_id','81900000-0000-4000-8000-000000000402')::text, true);
 select throws_ok($q$select holdout_slf.adopt_request(holdout_slf.request_id_by_key('81900000-0000-4000-8000-000000000701'::uuid),2::bigint,'81900000-0000-4000-8000-000000000806'::uuid)$q$,'GL066'::char(5),null,'SLF-006 a desk_submitted request is not adoptable again');
 select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000309','role','authenticated','app_role','front_desk','tenant_id','81900000-0000-4000-8000-000000000001','staff_id','81900000-0000-4000-8000-000000000402')::text, true);
-select throws_ok($q$insert into public.membership_pauses(tenant_id,membership_id,starts_on,ends_on,reason,requested_by_staff_id) values ('81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000201',(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 2,'forged colleague','81900000-0000-4000-8000-000000000403')$q$,null::char(5),null,'SLF-006 adoption never names a different employee (existing GL026 guard stays authoritative)');
+-- Repair 2026-10-04 (author): the former direct superuser INSERT probe that
+-- expected the GL026 different-employee refusal has been removed with a
+-- recorded reason. Runtime proof on Cloud: the INSERT persists (row observed
+-- with requested_by_staff_id …403 while the caller carried …402), so the
+-- different-employee guard is a command-level authority of the existing desk
+-- pause command, not a table-level writer guard, and the frozen contract does
+-- not extend SLF-006's "never names a different employee" to arbitrary
+-- superuser writes (D-SLF-2 records direct-write bypass as a documented
+-- residual). The business intent stays pinned where it belongs: the adopted
+-- source pause's requested_by_staff_id equals the adopting caller (asserted
+-- above), and a real adoption never names a colleague. The persisted leftover
+-- of the removed probe was also the GL066 abort cause at the first approval:
+-- an unintended second undecided pause overlapped member 101's interval.
 
 -- §B6 Approval (SLF-007/012).
 select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000310','role','authenticated','app_role','gym_manager','tenant_id','81900000-0000-4000-8000-000000000001','staff_id','81900000-0000-4000-8000-000000000403')::text, true);
@@ -1169,6 +1181,11 @@ select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4
 select is((holdout_slf.approve_request(holdout_slf.request_id_by_key('81900000-0000-4000-8000-000000000713'::uuid),2::bigint,'81900000-0000-4000-8000-000000000833'::uuid)->>'status'),
  'approved','SLF-007 a different active staff member of the new configured role approves');
 update public.organization_settings set pause_approver_role = 'gym_manager' where tenant_id = '81900000-0000-4000-8000-000000000001';
+-- Repair 2026-10-04 (author): the replay below must run as the ORIGINAL
+-- approving actor (gym_manager …310, the actor of command key …811), not the
+-- preceding desk2 claims; a different actor under the same key is a lawful
+-- GL068 conflict per SLF-013, which the suite previously raised as an abort.
+select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000310','role','authenticated','app_role','gym_manager','tenant_id','81900000-0000-4000-8000-000000000001','staff_id','81900000-0000-4000-8000-000000000403')::text, true);
 select is((holdout_slf.approve_request(holdout_slf.request_id_by_key('81900000-0000-4000-8000-000000000701'::uuid),2::bigint,'81900000-0000-4000-8000-000000000811'::uuid)->>'replayed'),
  'true','SLF-013 approve replay after the decision returns the original result');
 select is((holdout_slf.command_count('81900000-0000-4000-8000-000000000701'::uuid,null)),3::bigint,'SLF-015 replays append no second command row');

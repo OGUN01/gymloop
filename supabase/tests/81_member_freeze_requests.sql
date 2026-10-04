@@ -22,7 +22,7 @@ begin;
 set local role postgres;
 set local search_path=extensions,public;
 select set_config('request.jwt.claims','',true);
-select plan(141);
+select plan(142);
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$select ('81000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.claim(r text default 'member', s integer default null, m integer default null, a integer default 901, t integer default 1, p boolean default false) returns void language plpgsql as $$begin perform set_config('request.jwt.claims',jsonb_strip_nulls(jsonb_build_object('sub',pg_temp.u(a),'role','authenticated','app_role',r,'tenant_id',pg_temp.u(t),'staff_id',case when s is not null then pg_temp.u(s) end,'member_id',case when m is not null then pg_temp.u(m) end,'impersonation_session_id',case when p then pg_temp.u(999) end))::text,true); end$$;
 create function pg_temp.probe(q text) returns text language plpgsql as $$begin execute q; return 'OK'; exception when others then return sqlstate; end$$;
@@ -146,8 +146,17 @@ select is(pg_temp.probe($q$insert into public.member_freeze_requests(id,tenant_i
 select is(pg_temp.probe($q$insert into public.member_freeze_requests(id,tenant_id,member_id,membership_id,requested_by_user_id,request_key,starts_on,ends_on,reason,status,decided_by_staff_id,decided_at,closed_at) values(pg_temp.u(410),pg_temp.u(1),pg_temp.u(101),pg_temp.u(301),pg_temp.u(906),pg_temp.u(520),app.gym_today(pg_temp.u(1))+1,app.gym_today(pg_temp.u(1))+3,'No reason','rejected',pg_temp.u(23),statement_timestamp(),statement_timestamp())$q$),'23514','SLF-014: rejected without a decision reason refused');
 select is(pg_temp.probe($q$insert into public.member_freeze_requests(id,tenant_id,member_id,membership_id,requested_by_user_id,request_key,starts_on,ends_on,reason,status,decided_by_staff_id,decided_at,decision_reason,closed_at) values(pg_temp.u(411),pg_temp.u(1),pg_temp.u(101),pg_temp.u(301),pg_temp.u(906),pg_temp.u(521),app.gym_today(pg_temp.u(1))+1,app.gym_today(pg_temp.u(1))+3,'Short reason','rejected',pg_temp.u(23),statement_timestamp(),'No',statement_timestamp())$q$),'23514','SLF-014: decision reason below three characters refused');
 select is(pg_temp.probe($q$insert into public.member_freeze_requests(id,tenant_id,member_id,membership_id,requested_by_user_id,request_key,starts_on,ends_on,reason) values(pg_temp.u(412),pg_temp.u(1),pg_temp.u(101),pg_temp.u(301),pg_temp.u(906),pg_temp.u(511),app.gym_today(pg_temp.u(1))+6,app.gym_today(pg_temp.u(1))+8,'Duplicate key')$q$),'23505','SLF-014: duplicate (tenant_id,request_key) refused');
-select pg_temp.probe($q$insert into public.member_freeze_requests(id,tenant_id,member_id,membership_id,requested_by_user_id,request_key,starts_on,ends_on,reason,status,cancelled_by_user_id,closed_at,source_pause_id,adopted_by_staff_id,adopted_at) values(pg_temp.u(413),pg_temp.u(1),pg_temp.u(102),pg_temp.u(302),pg_temp.u(907),pg_temp.u(522),app.gym_today(pg_temp.u(1))+1,app.gym_today(pg_temp.u(1))+2,'Linked one','cancelled',pg_temp.u(907),statement_timestamp(),pg_temp.u(603),pg_temp.u(23),statement_timestamp())$q$);
-select is(pg_temp.probe($q$insert into public.member_freeze_requests(id,tenant_id,member_id,membership_id,requested_by_user_id,request_key,starts_on,ends_on,reason,status,cancelled_by_user_id,closed_at,source_pause_id,adopted_by_staff_id,adopted_at) values(pg_temp.u(414),pg_temp.u(1),pg_temp.u(102),pg_temp.u(302),pg_temp.u(907),pg_temp.u(523),app.gym_today(pg_temp.u(1))+1,app.gym_today(pg_temp.u(1))+2,'Linked two','cancelled',pg_temp.u(907),statement_timestamp(),pg_temp.u(603),pg_temp.u(23),statement_timestamp())$q$),'23505','SLF-014: a source pause binds at most one request');
+-- Fixture correction (author, 2026-10-04): both linked rows now satisfy the
+-- frozen every-writer agreement boundary ("request/member/membership/source
+-- tenant, member, dates, reason and staff provenance agree for every
+-- writer", current-defense-declaration.md): each request's span equals its
+-- undecided source pause 603's own +10..+12 span, the reason and the
+-- adopting-staff provenance match the pause row, and the span sits outside
+-- every other fixture interval and effective request. The seed insert is now
+-- asserted, so a refused seed can no longer silently hollow out the
+-- uniqueness assertion that follows (the unguarded probe hid exactly that).
+select ok(pg_temp.probe($q$insert into public.member_freeze_requests(id,tenant_id,member_id,membership_id,requested_by_user_id,request_key,starts_on,ends_on,reason,status,cancelled_by_user_id,closed_at,source_pause_id,adopted_by_staff_id,adopted_at) values(pg_temp.u(413),pg_temp.u(1),pg_temp.u(102),pg_temp.u(302),pg_temp.u(907),pg_temp.u(522),app.gym_today(pg_temp.u(1))+10,app.gym_today(pg_temp.u(1))+12,'Closed-request evidence pause','cancelled',pg_temp.u(907),statement_timestamp(),pg_temp.u(603),pg_temp.u(21),statement_timestamp())$q$) = 'OK','SLF-014: a lawful closed source-linked request row inserts cleanly');
+select is(pg_temp.probe($q$insert into public.member_freeze_requests(id,tenant_id,member_id,membership_id,requested_by_user_id,request_key,starts_on,ends_on,reason,status,cancelled_by_user_id,closed_at,source_pause_id,adopted_by_staff_id,adopted_at) values(pg_temp.u(414),pg_temp.u(1),pg_temp.u(102),pg_temp.u(302),pg_temp.u(907),pg_temp.u(523),app.gym_today(pg_temp.u(1))+10,app.gym_today(pg_temp.u(1))+12,'Closed-request evidence pause','cancelled',pg_temp.u(907),statement_timestamp(),pg_temp.u(603),pg_temp.u(21),statement_timestamp())$q$),'23505','SLF-014: a source pause binds at most one request');
 select is(pg_temp.probe($q$insert into public.member_freeze_commands(id,tenant_id,request_id,actor_user_id,command_key,action,facts,result) values(pg_temp.u(420),pg_temp.u(1),pg_temp.u(401),pg_temp.u(906),pg_temp.u(524),'create','{}','{}')$q$),'OK','SLF-014: a valid command row satisfies every invariant');
 select is(pg_temp.probe($q$insert into public.member_freeze_commands(id,tenant_id,request_id,actor_user_id,command_key,action,facts,result) values(pg_temp.u(421),pg_temp.u(1),pg_temp.u(401),pg_temp.u(906),pg_temp.u(525),'steal','{}','{}')$q$),'23514','SLF-014: command action outside the frozen vocabulary refused');
 select is(pg_temp.probe($q$insert into public.member_freeze_commands(id,tenant_id,request_id,actor_user_id,command_key,action,facts,result) values(pg_temp.u(422),pg_temp.u(1),pg_temp.u(401),pg_temp.u(906),pg_temp.u(524),'create','{}','{}')$q$),'23505','SLF-014: duplicate (tenant_id,command_key) refused');
@@ -252,13 +261,19 @@ set local role authenticated;
 select is(pg_temp.probe('select public.approve_member_freeze_request((select (v->>''id'')::uuid from proof where k=''r101''),3,pg_temp.u(715))'),'GL066','SLF-013: an approved request is terminal');
 -- Budget recheck: tighten the gym allowance, then a member whose approved
 -- history plus the proposal exceeds it must fail at final approval only.
+-- Fixture correction (author, 2026-10-04): the approval caller below is the
+-- configured gym_manager 22 — a different real staff member than the adopting
+-- front desk — so authorization passes and the allowance branch is the one
+-- actually exercised. The earlier front-desk caller was both the adopter and
+-- not the configured approver role, so a correct implementation refuses 42501
+-- before any allowance recheck and the GL067 expectation could never be
+-- reached.
 -- Deterministic on any run date: pause 602 is elapsed approved history
--- (four days in the run's current calendar year) and the budget is 2, so the
--- refusal holds whether or not request 705's start (gym-local tomorrow) lands
--- in the same accounting year as that history (same-year: 4 used + 3 proposed
--- = 7 > 2; a Dec-31 run puts tomorrow in the next year: 0 used + 3 = 3 > 2 —
--- GL067 either way, with the used-history contribution shown on 364 of 365
--- run dates).
+-- (seven inclusive days, today-10..today-4, in the run's current calendar
+-- year) and the budget is 2, so the refusal holds whether or not request
+-- 705's start (gym-local tomorrow) lands in the same accounting year as that
+-- history (same-year: 7 used + 3 proposed = 10 > 2; a Dec-31 run puts tomorrow
+-- in the next year: 0 used + 3 = 3 > 2 — GL067 either way).
 set local role postgres;
 update public.organization_settings set max_freeze_days_per_year=2 where tenant_id=pg_temp.u(1);
 set local role authenticated;
@@ -272,6 +287,7 @@ select is(pg_temp.probe('select public.adopt_member_freeze_request((select (v->>
 set local role postgres;
 select pg_temp.probe('update public.membership_pauses set approved_by_staff_id=pg_temp.u(22),approved_at=statement_timestamp() where id=pg_temp.u(602)');
 set local role authenticated;
+select pg_temp.claim('gym_manager',22,null,902,1);
 select is(pg_temp.probe('select public.approve_member_freeze_request((select (v->>''id'')::uuid from proof where k=''r109''),2,pg_temp.u(728))'),'GL067','SLF-012: final approval rechecks the frozen annual allowance');
 -- Rejection flow for member 108.
 select pg_temp.claim('member',null,108,914,1);
