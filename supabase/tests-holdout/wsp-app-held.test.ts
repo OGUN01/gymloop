@@ -16,7 +16,7 @@ const targets = {
   memberSettingsPage: '../../apps/web/app/member/whatsapp-consent/page',
   memberConsent: '../../apps/web/app/api/member/whatsapp-consent/route',
   staffConsent: '../../apps/web/app/api/members/[memberId]/whatsapp-consent/route',
-  dispatch: '../../apps/web/app/api/notifications/[notificationId]/whatsapp-dispatch/route',
+  dispatch: '../../apps/web/app/api/notifications/[id]/whatsapp-dispatch/route',
 } as const;
 
 type MemberWhatsappSettings = {
@@ -48,7 +48,7 @@ type LibExports = {
 };
 type MemberRoute = { POST(request: Request): Promise<Response> };
 type StaffConsentRoute = { POST(request: Request, context: { params: Promise<{ memberId: string }> }): Promise<Response> };
-type DispatchRoute = { POST(request: Request, context: { params: Promise<{ notificationId: string }> }): Promise<Response> };
+type DispatchRoute = { POST(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> };
 
 const tas = <T,>(value: unknown): T => value as T;
 const json = (body: unknown): Request =>
@@ -551,7 +551,7 @@ describe('held front-office WhatsApp routes', () => {
     staffSession.mockResolvedValue({ session: { supabase: { rpc }, userId: ids.user,
       tenantId: ids.tenant, staffId: ids.staff, role: 'front_desk' } });
     const route = tas<DispatchRoute>(await import(targets.dispatch));
-    const reply = await route.POST(json({ requestKey }), { params: Promise.resolve({ notificationId: ids.notification }) });
+    const reply = await route.POST(json({ requestKey }), { params: Promise.resolve({ id: ids.notification }) });
     expect.soft(reply.status).toBe(400);
     expect.soft(await reply.json()).toMatchObject({ ok: false, error: { code: 'invalid_request' } });
     expect(rpc).not.toHaveBeenCalled();
@@ -624,7 +624,7 @@ describe('held front-office WhatsApp routes', () => {
     });
     staffSession.mockResolvedValue({ session: { supabase: { rpc }, userId: ids.user, tenantId: ids.tenant, staffId: ids.staff, role: 'front_desk' } });
     const route = tas<DispatchRoute>(await import(targets.dispatch));
-    const reply = await route.POST(json(dispatchValid), { params: Promise.resolve({ notificationId: ids.notification }) });
+    const reply = await route.POST(json(dispatchValid), { params: Promise.resolve({ id: ids.notification }) });
     expect(reply.status).toBeLessThan(300);
     expect(staffSession.mock.calls[0]?.[0]).toEqual(expect.not.arrayContaining(['trainer']));
     expect(rpc).toHaveBeenCalledTimes(1);
@@ -638,7 +638,7 @@ describe('held front-office WhatsApp routes', () => {
     });
     staffSession.mockResolvedValue({ session: { supabase: { rpc }, userId: ids.user, tenantId: ids.tenant, staffId: ids.staff, role: 'front_desk' } });
     const route = tas<DispatchRoute>(await import(targets.dispatch));
-    const reply = await route.POST(json(dispatchValid), { params: Promise.resolve({ notificationId: ids.notification }) });
+    const reply = await route.POST(json(dispatchValid), { params: Promise.resolve({ id: ids.notification }) });
     expect(reply.status).toBeLessThan(300);
     expect(await reply.json()).toMatchObject({ ok: true, data: { queued: false } });
   }, 20_000);
@@ -647,7 +647,7 @@ describe('held front-office WhatsApp routes', () => {
     const rpc = vi.fn().mockResolvedValue({ data: null, error: { code: 'GL067', message: 'Held funds' } });
     staffSession.mockResolvedValue({ session: { supabase: { rpc }, userId: ids.user, tenantId: ids.tenant, staffId: ids.staff, role: 'front_desk' } });
     const route = tas<DispatchRoute>(await import(targets.dispatch));
-    const reply = await route.POST(json(dispatchValid), { params: Promise.resolve({ notificationId: ids.notification }) });
+    const reply = await route.POST(json(dispatchValid), { params: Promise.resolve({ id: ids.notification }) });
     expect(reply.status).toBeGreaterThanOrEqual(400);
     const body = tas<{ data?: { queued?: boolean } }>(await reply.json());
     expect(body.data?.queued).toBeUndefined();
@@ -661,7 +661,7 @@ describe('held front-office WhatsApp routes', () => {
   ];
   it.each(dispatchBadRows)('dispatch body abuse %s is refused before the command', async (_label, body) => {
     const route = tas<DispatchRoute>(await import(targets.dispatch));
-    const reply = await route.POST(json(body), { params: Promise.resolve({ notificationId: ids.notification }) });
+    const reply = await route.POST(json(body), { params: Promise.resolve({ id: ids.notification }) });
     expect(reply.status).toBeGreaterThanOrEqual(400);
     expect(reply.status).toBeLessThan(500);
     expect(rpcOfSession()).not.toHaveBeenCalled();
@@ -675,7 +675,7 @@ describe('held front-office WhatsApp routes', () => {
     const rpc = vi.fn().mockResolvedValue({ data, error: null });
     staffSession.mockResolvedValue({ session: { supabase: { rpc }, userId: ids.user, tenantId: ids.tenant, staffId: ids.staff, role: 'front_desk' } });
     const route = tas<DispatchRoute>(await import(targets.dispatch));
-    const reply = await route.POST(json(dispatchValid), { params: Promise.resolve({ notificationId: ids.notification }) });
+    const reply = await route.POST(json(dispatchValid), { params: Promise.resolve({ id: ids.notification }) });
     expect(reply.status).toBeGreaterThanOrEqual(400);
   }, 20_000);
 
@@ -685,8 +685,8 @@ describe('held front-office WhatsApp routes', () => {
     });
     staffSession.mockResolvedValue({ session: { supabase: { rpc }, userId: ids.user, tenantId: ids.tenant, staffId: ids.staff, role: 'front_desk' } });
     const route = tas<DispatchRoute>(await import(targets.dispatch));
-    await route.POST(json(dispatchValid), { params: Promise.resolve({ notificationId: ids.notification }) });
-    await route.POST(json(dispatchValid), { params: Promise.resolve({ notificationId: ids.notification }) });
+    await route.POST(json(dispatchValid), { params: Promise.resolve({ id: ids.notification }) });
+    await route.POST(json(dispatchValid), { params: Promise.resolve({ id: ids.notification }) });
     expect(rpc).toHaveBeenCalledTimes(2);
   }, 20_000);
 
@@ -696,7 +696,7 @@ describe('held front-office WhatsApp routes', () => {
     });
     staffSession.mockResolvedValue({ session: { supabase: { rpc }, userId: ids.user, tenantId: ids.tenant, staffId: ids.staff, role: 'front_desk' } });
     const route = tas<DispatchRoute>(await import(targets.dispatch));
-    await route.POST(json(dispatchValid), { params: Promise.resolve({ notificationId: ids.notification }) });
+    await route.POST(json(dispatchValid), { params: Promise.resolve({ id: ids.notification }) });
     for (const call of rpc.mock.calls) expect(call[0]).toBe('request_whatsapp_dispatch');
   }, 20_000);
 });
