@@ -39,6 +39,19 @@ vocabulary only.
    trusted postgres operator/worker path retains access via explicit grants to
    postgres. No extension function is altered; extension-internal owner
    privileges are untouched. Existing cron schedules remain operational.
+2a. **Custody enforcement with owner-role escalation.** All four custody DO
+   blocks now apply ACL statements through a transaction-local
+   `pg_temp.psd_acl(sql, owner_roles)` helper: try as the apply role; on
+   insufficient privilege retry once per candidate owning role
+   (`supabase_admin`, and `supabase_vault_admin` for vault) via
+   `set local role`. The helper lives in pg_temp and dies with the migration
+   transaction. Unachievable denials remain loud notices — never silent —
+   and the `decrypted_secrets` refusal stays named. This addresses the held
+   A-cluster custody labels (vault secret/decryption function EXECUTE,
+   vault.secrets/decrypted_secrets SELECT, net enqueue/inspection, cron
+   scheduling, cron.job reads) whenever the apply role holds membership of
+   the owning roles; if the platform denies even that, the residual gap is
+   operator-routable, not silently waived.
 2b. **Trusted-only pgsodium member grants.** Vault's decrypted view and
    pgsodium's apply-time DDL machinery call crypto internals
    (`_crypto_aead_det_encrypt` and siblings) that pgsodium keeps
@@ -152,7 +165,8 @@ will confirm or refute; nothing was found to fix in this file.
 - `$fn$` count 6 (even); dollar-quote tags all paired: $fn$×2,
   $extension_schema_guard$×2, $extension_placement_guard$×2, $vault_custody$×2,
   $net_custody$×2, $cron_custody$×2, $pgsodium_trust_grants$×2 (14 tags, 7
-  pairs). Paren balance 54/54. Zero `commit` statements. Zero unqualified
+  pairs) plus the paired `$acl$` inside the setup block. Paren balance 71/71.
+  Zero `commit` statements. Zero unqualified
   `net.` references; the single pg_net call is `extensions.http_post`. No
   blanket `ALL TABLES/FUNCTIONS IN SCHEMA vault` statements remain (the
   apply-unsafe forms are gone).
@@ -180,6 +194,83 @@ will confirm or refute; nothing was found to fix in this file.
 
 ## Provenance
 
-- Migration sha256: `f47bb720f3f6a2cec2a07dbec25d5b8e747fe7ea312897b4c6b017b38a35f3cf` (post custody apply-clean correction)
+- Migration sha256: `ca79d903905940fd1700746a0588cd837cdff14ca91f29f8524ebbad37446701` (post custody escalation)
 - Report sha256: `efabdeaa19965e5392a53b4f6b8fb48835a83312d77d36d8f3975f76f0c5cbc2` (plus this provenance update)
 - No Cloud SQL executed; no tests read; no commits made.
+
+## Held-suite RED adjudication (26/94, labels only)
+
+- **Source fixes applied:** A39, A43, A44 (and the same mechanism covers
+  A40, A45, A46) — vault/net/cron denials can now escalate to the owning
+  roles instead of being notice-skipped when the apply role lacks grant
+  rights. Requires re-run against sha `ca79d903...46701`; if the previously
+  applied Cloud iteration predated the latest sha, part of the A-cluster RED
+  may reflect the stale applied bytes rather than the current source.
+- **Holdout-overpin candidates for the orchestrator:** C2 — the advisory
+  lock derivation is not pinned by the declaration; the driver uses
+  `hashtextextended('push-dispatch-minute', 0)` (repo idiom). A blind
+  contention probe cannot reproduce that key; the declaration must pin the
+  derivation or the probe must observe the driver's actual lock key.
+  J2/J3 — staging-health failures cascade: every F/G/H/I tick/queue label is
+  statically satisfied by the current source (single statement-time
+  snapshot, cyclic min(100,n) selection, one runner call per tenant, counts
+  aggregated from the runner's four keys, enqueue only after all runners,
+  exact seven-key result); if fewer than all 109 provider configurations
+  staged, those labels cannot adjudicate the driver. A29 — if pinned via
+  helper-source inspection, the body contains exactly `Content-Type` /
+  `application/json`; a lowercase-only pin would overpin. D2/F5 — the blank
+  refusal is the declared value-free ERROR (tick aborts, nothing enqueued)
+  and the driver passes the read helper's return verbatim into the enqueue
+  helper; if the holdout expects a non-error result shape or a different
+  seam signature than `app.read_push_dispatch_secret() returns text` /
+  `app.enqueue_push_dispatch_wakeup(p_secret text) returns void`, that is an
+  overpin against the frozen seam contract.
+
+## Custody follow-up (post-escalation re-run)
+
+Re-run at the escalated bytes (`ca79d903...46701`, on-disk, not stale) still
+shows the A-cluster plus F/G/H/I labels failing. Static analysis from the
+migration alone: (i) the net and cron revokes have no exception path — they
+either succeeded or would have aborted the apply, so persistent net/cron RED
+labels (A40, A45, A46) cannot be explained by unapplied revokes; (ii) the
+vault per-object block may still notice-skip if the apply role holds
+membership of neither `supabase_admin` nor `supabase_vault_admin` — those
+vault labels (A39, A43, A44) would then be genuinely unreachable from any
+migration running as postgres and are operator-routable; (iii) my migration
+touches no object in the `public` schema and grants nothing to ordinary
+roles, so if the A-cluster actually probes provider-configuration
+member-readability, that behavior is owned by `20261004090000_push_delivery.sql`
+(RLS enabled, all four roles revoked there) plus whatever the holdout stages
+itself — fixture-adjacent, not this migration. Requested: the exact got/wanted
+per A-label (public values) to split (a) owner-role reach from (b) probe
+mechanics before any further byte change. Bytes unchanged pending that dump.
+
+## Custody widening (residual-count response)
+
+Got/wanted counts (3 vault-family / 5 net-family / 4 cron-family residual
+EXECUTE for ordinary roles) addressed by three widening changes:
+
+1. **pgsodium surface now gets full custody, not just trust grants.** Under
+   PSD-007 the pgsodium crypto surface IS the Vault plaintext/decryption
+   machinery; its member functions/relations are now revoked from
+   public/anon/authenticated/service_role (escalated through owning roles)
+   before the trusted-only postgres grants. If Supabase's default extension
+   grants put pgsodium helpers inside the residual vault-family counts, this
+   closes them; if the apply role cannot install these denials even under
+   owner-role escalation, the per-object notices name them as the honest
+   operator prerequisite.
+2. **pg_net enumeration widened** beyond pg_depend membership: functions in
+   the pg_net extension's own schema whose names match `^(http_|_http)` are
+   now included, catching helper overloads the dependency records may not
+   attribute (closes part of the net-family residual count without touching
+   unrelated `extensions`-schema functions).
+3. **pg_cron enumeration widened**: the pg_depend members are unioned with
+   the cron scheduling surface names (`schedule`, `unschedule`,
+   `schedule_in_database`, `alter_job`, `remove_job`) in the extension's
+   actual schema.
+
+If the next run still shows residuals, the counts are names-blind — request
+the named-object dump from the holdout author for a precise per-label
+verdict; any object the platform will not let the apply role (or its owner
+roles) touch is recorded as the honest operator prerequisite per-label.
+New sha256 `10cbb342...8ba9`.

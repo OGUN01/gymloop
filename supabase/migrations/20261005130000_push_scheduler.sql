@@ -100,43 +100,91 @@ $extension_placement_guard$;
 --    Existing unrelated cron schedules remain operational: their worker path
 --    does not depend on caller EXECUTE of the scheduling functions.
 -- ---------------------------------------------------------------------------
+-- A transaction-local ACL applier: try the statement as the apply role; on
+-- insufficient privilege, retry once per candidate owning role via
+-- `set local role` (the apply role may hold membership of the extension
+-- owners). The helper lives in pg_temp and dies with the migration
+-- transaction — no persistent object, no public facade.
+do $custody_acl_setup$
+begin
+  create function pg_temp.psd_acl(p_sql text, p_owner_roles text[])
+  returns boolean
+  language plpgsql
+  volatile
+  as $acl$
+  declare
+    own text;
+  begin
+    begin
+      execute p_sql;
+      return true;
+    exception when insufficient_privilege then
+      null;
+    end;
+    foreach own in array p_owner_roles loop
+      begin
+        execute 'set local role ' || quote_ident(own);
+        execute p_sql;
+        execute 'reset role';
+        return true;
+      exception when others then
+        begin
+          execute 'reset role';
+        exception when others then
+          null;
+        end;
+      end;
+    end loop;
+    return false;
+  end
+  $acl$;
+end
+$custody_acl_setup$;
+
 do $vault_custody$
 declare
   r record;
+  v_ok boolean;
+  v_owners text[] := array['supabase_admin', 'supabase_vault_admin'];
 begin
-  begin
-    revoke usage on schema vault from public, anon, authenticated, service_role;
-  exception when insufficient_privilege then
-    raise notice 'push_scheduler: vault schema-usage denial skipped (not grantable by the apply role)';
-  end;
+  if not pg_temp.psd_acl(
+    'revoke usage on schema vault from public, anon, authenticated, service_role',
+    v_owners) then
+    raise notice 'push_scheduler: vault schema-usage denial skipped (not grantable by the apply role or its owner roles)';
+  end if;
   for r in
     select c.oid::regclass as obj, c.relname
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'vault' and c.relkind in ('r', 'v', 'p', 'f')
   loop
-    begin
-      execute 'revoke all on ' || r.obj::text ||
-              ' from public, anon, authenticated, service_role';
-      execute 'grant select on ' || r.obj::text || ' to postgres';
-    exception when insufficient_privilege then
+    v_ok := pg_temp.psd_acl(
+      'revoke all on ' || r.obj::text || ' from public, anon, authenticated, service_role',
+      v_owners);
+    if v_ok then
+      v_ok := pg_temp.psd_acl('grant select on ' || r.obj::text || ' to postgres', v_owners);
+    end if;
+    if not v_ok then
       if r.relname = 'decrypted_secrets' then
         raise exception 'push_scheduler: custody_refused vault view decrypted_secrets is not grantable by the apply role; the driver Vault read path cannot be installed';
       end if;
-      raise notice 'push_scheduler: vault custody skipped for % (not grantable by the apply role)', r.obj::text;
-    end;
+      raise notice 'push_scheduler: vault custody skipped for % (not grantable by the apply role or its owner roles)', r.obj::text;
+    end if;
   end loop;
   for r in
     select p.oid::regprocedure as obj
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'vault'
   loop
-    begin
-      execute 'revoke execute on function ' || r.obj::text ||
-              ' from public, anon, authenticated, service_role';
-      execute 'grant execute on function ' || r.obj::text || ' to postgres';
-    exception when insufficient_privilege then
-      raise notice 'push_scheduler: vault custody skipped for % (not grantable by the apply role)', r.obj::text;
-    end;
+    v_ok := pg_temp.psd_acl(
+      'revoke execute on function ' || r.obj::text ||
+      ' from public, anon, authenticated, service_role',
+      v_owners);
+    if v_ok then
+      v_ok := pg_temp.psd_acl('grant execute on function ' || r.obj::text || ' to postgres', v_owners);
+    end if;
+    if not v_ok then
+      raise notice 'push_scheduler: vault custody skipped for % (not grantable by the apply role or its owner roles)', r.obj::text;
+    end if;
   end loop;
 end
 $vault_custody$;
@@ -147,6 +195,8 @@ grant usage on schema vault to postgres;
 do $net_custody$
 declare
   r record;
+  v_ok boolean;
+  v_owners text[] := array['supabase_admin'];
 begin
   for r in
     select p.oid::regprocedure as obj
@@ -156,10 +206,23 @@ begin
      where e.extname = 'pg_net'
        and d.classid = 'pg_proc'::regclass
        and d.deptype = 'e'
+    union
+    select p.oid::regprocedure as obj
+      from pg_proc p
+      join pg_extension e on e.extnamespace = p.pronamespace
+     where e.extname = 'pg_net'
+       and p.proname ~ '^(http_|_http)'
   loop
-    execute 'revoke execute on function ' || r.obj::text ||
-            ' from public, anon, authenticated, service_role';
-    execute 'grant execute on function ' || r.obj::text || ' to postgres';
+    v_ok := pg_temp.psd_acl(
+      'revoke execute on function ' || r.obj::text ||
+      ' from public, anon, authenticated, service_role',
+      v_owners);
+    if v_ok then
+      v_ok := pg_temp.psd_acl('grant execute on function ' || r.obj::text || ' to postgres', v_owners);
+    end if;
+    if not v_ok then
+      raise notice 'push_scheduler: net custody skipped for % (not grantable by the apply role or its owner roles)', r.obj::text;
+    end if;
   end loop;
   for r in
     select c.oid::regclass as obj
@@ -171,9 +234,16 @@ begin
        and d.deptype = 'e'
        and c.relkind in ('r', 'v', 'p', 'f')
   loop
-    execute 'revoke all on ' || r.obj::text ||
-            ' from public, anon, authenticated, service_role';
-    execute 'grant select on ' || r.obj::text || ' to postgres';
+    v_ok := pg_temp.psd_acl(
+      'revoke all on ' || r.obj::text ||
+      ' from public, anon, authenticated, service_role',
+      v_owners);
+    if v_ok then
+      v_ok := pg_temp.psd_acl('grant select on ' || r.obj::text || ' to postgres', v_owners);
+    end if;
+    if not v_ok then
+      raise notice 'push_scheduler: net custody skipped for % (not grantable by the apply role or its owner roles)', r.obj::text;
+    end if;
   end loop;
 end
 $net_custody$;
@@ -184,6 +254,8 @@ $net_custody$;
 do $cron_custody$
 declare
   r record;
+  v_ok boolean;
+  v_owners text[] := array['supabase_admin'];
 begin
   for r in
     select p.oid::regprocedure as obj
@@ -193,10 +265,24 @@ begin
      where e.extname = 'pg_cron'
        and d.classid = 'pg_proc'::regclass
        and d.deptype = 'e'
+    union
+    select p.oid::regprocedure as obj
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = (select n2.nspname from pg_extension e2 join pg_namespace n2 on n2.oid = e2.extnamespace where e2.extname = 'pg_cron')
+       and p.proname in ('schedule', 'unschedule', 'schedule_in_database',
+                         'alter_job', 'remove_job')
   loop
-    execute 'revoke execute on function ' || r.obj::text ||
-            ' from public, anon, authenticated, service_role';
-    execute 'grant execute on function ' || r.obj::text || ' to postgres';
+    v_ok := pg_temp.psd_acl(
+      'revoke execute on function ' || r.obj::text ||
+      ' from public, anon, authenticated, service_role',
+      v_owners);
+    if v_ok then
+      v_ok := pg_temp.psd_acl('grant execute on function ' || r.obj::text || ' to postgres', v_owners);
+    end if;
+    if not v_ok then
+      raise notice 'push_scheduler: cron custody skipped for % (not grantable by the apply role or its owner roles)', r.obj::text;
+    end if;
   end loop;
   for r in
     select c.oid::regclass as obj
@@ -208,9 +294,16 @@ begin
        and d.deptype = 'e'
        and c.relkind in ('r', 'v', 'p', 'f')
   loop
-    execute 'revoke all on ' || r.obj::text ||
-            ' from public, anon, authenticated, service_role';
-    execute 'grant select on ' || r.obj::text || ' to postgres';
+    v_ok := pg_temp.psd_acl(
+      'revoke all on ' || r.obj::text ||
+      ' from public, anon, authenticated, service_role',
+      v_owners);
+    if v_ok then
+      v_ok := pg_temp.psd_acl('grant select on ' || r.obj::text || ' to postgres', v_owners);
+    end if;
+    if not v_ok then
+      raise notice 'push_scheduler: cron custody skipped for % (not grantable by the apply role or its owner roles)', r.obj::text;
+    end if;
   end loop;
 end
 $cron_custody$;
@@ -230,12 +323,17 @@ do $pgsodium_trust_grants$
 declare
   r record;
   v_present boolean;
+  v_ok boolean;
+  v_owners text[] := array['supabase_admin'];
 begin
   select exists (select 1 from pg_extension where extname = 'pgsodium') into v_present;
   if not v_present then
     raise notice 'push_scheduler: pgsodium is not installed; the vault read path cannot be verified here';
     return;
   end if;
+  -- The pgsodium crypto surface is the Vault plaintext/decryption machinery
+  -- (PSD-007): ordinary roles lose EXECUTE regardless of schema placement,
+  -- then only the trusted postgres path is granted back.
   for r in
     select p.oid::regprocedure as obj
       from pg_depend d
@@ -245,11 +343,16 @@ begin
        and d.classid = 'pg_proc'::regclass
        and d.deptype = 'e'
   loop
-    begin
-      execute 'grant execute on function ' || r.obj::text || ' to postgres';
-    exception when insufficient_privilege then
-      raise notice 'push_scheduler: pgsodium trust grant skipped for % (not grantable by the apply role)', r.obj::text;
-    end;
+    v_ok := pg_temp.psd_acl(
+      'revoke execute on function ' || r.obj::text ||
+      ' from public, anon, authenticated, service_role',
+      v_owners);
+    if v_ok then
+      v_ok := pg_temp.psd_acl('grant execute on function ' || r.obj::text || ' to postgres', v_owners);
+    end if;
+    if not v_ok then
+      raise notice 'push_scheduler: pgsodium custody skipped for % (not grantable by the apply role or its owner roles)', r.obj::text;
+    end if;
   end loop;
   for r in
     select c.oid::regclass as obj
@@ -261,11 +364,16 @@ begin
        and d.deptype = 'e'
        and c.relkind in ('r', 'v', 'p', 'f')
   loop
-    begin
-      execute 'grant select on ' || r.obj::text || ' to postgres';
-    exception when insufficient_privilege then
-      raise notice 'push_scheduler: pgsodium trust grant skipped for % (not grantable by the apply role)', r.obj::text;
-    end;
+    v_ok := pg_temp.psd_acl(
+      'revoke all on ' || r.obj::text ||
+      ' from public, anon, authenticated, service_role',
+      v_owners);
+    if v_ok then
+      v_ok := pg_temp.psd_acl('grant select on ' || r.obj::text || ' to postgres', v_owners);
+    end if;
+    if not v_ok then
+      raise notice 'push_scheduler: pgsodium custody skipped for % (not grantable by the apply role or its owner roles)', r.obj::text;
+    end if;
   end loop;
 end
 $pgsodium_trust_grants$;
