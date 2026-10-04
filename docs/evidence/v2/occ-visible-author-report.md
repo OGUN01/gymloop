@@ -410,3 +410,105 @@ files). SQL NOT executed here.
   plan(77) preserved (77 verified); rollback guard green (159 files). SQL NOT
   executed here.
 - New sha256: `d6b884e25699c206f67458e044b9391e33dd194d92d28743a567c4eb97a82bed`.
+
+## Runtime repair — round 15 (GL010 root: front-office-only RLS on qr_sessions)
+
+- Root cause: the attendance trigger is SECURITY INVOKER
+  (20260908081957), so its qr_sessions SELECT runs under the caller's RLS —
+  and `qr_sessions_tenant_select` grants read to front office only. A member
+  claims context is structurally blind to the session row, so every direct
+  member-context INSERT-with-session staging can only ever see GL010
+  "QR session is unavailable". The suite-82 rows-430 shape was never proven
+  to pass this guard: its own run aborted earlier in the same staging region
+  ("offline replay requires a member gate event").
+- Repair — the staging now uses the production member gate-scan path:
+  `public.member_mobile_check_in('<64-hex token hash of the live session>',
+  client_event_id 460, statement_timestamp())` under the member's own claims
+  (sub 911, member 101, tenant 1). The definer
+  (`app.record_member_mobile_check_in`) resolves the live session BY TOKEN
+  HASH with RLS bypassed, inserts with trigger-owned checked_in_at/replayed_at,
+  and the returned row is captured into `occ_today_arrival`. The member RPC
+  requires an active linked member (101's user 911, active membership 301) —
+  satisfied.
+- #56's hour derivation re-pointed to the captured RPC row
+  (`occ_today_arrival.checked_in_at`), keeping the stored-instant pin; the
+  direct attendance-616 lookup is gone along with the un-guardable direct
+  insert. plan(77) preserved (77 verified); rollback guard green (159 files).
+  SQL NOT executed here.
+- New sha256: `ab2f401ffbb7f570055cd3e647ae85ec615d2d0e813a01d8028687a187817be7`.
+
+## Runtime repair — round 16 (member identity binding)
+
+- Root cause: the gate-scan RPC resolves identity through the claims' sub →
+  members.user_id binding; my member claims used sub …911 while member 101's
+  fixture binding is user …906 — the same binding the suite's own member-gate
+  refusal pin already used. The RPC refused with "Member command requires an
+  active linked member".
+- Edit: the staging claims context now uses sub …906 (member 101's actual
+  linked user); status/active and the auth.users row already exist. No
+  assertion touched; plan(77) preserved; rollback guard green (159 files).
+SQL NOT executed here.
+- New sha256: `ce4a0b0fcbc2504e242b5fa9483af3caa7d96be339fa072c0eef08e4e4ddb7fc`.
+
+## Runtime repair — round 17 (owner-binding routing for the corrupt gym; #56 hour confirmation)
+
+- #56 answer (coordinator question): yes — the pin derives the disclosed hour
+  from `occ_today_arrival.checked_in_at`, the exact instant the gate-scan RPC
+  stamped, and the snapshot day-row's hours carry arrivals from that same
+  recorded instant; both sides derive the identical value (15 in the
+  captured run). Additional rollover hazards are structurally excluded:
+  `gym_today()`, the fixture `now()`/`statement_timestamp()` stamps and the
+  snapshot's own asOf/cutoff all evaluate inside one transaction, so no
+  midnight/hour flip can separate fixture time from assertion time. If the
+  pin still fails with hour 15 on both sides, the residual difference is
+  runtime-vs-fixture elsewhere and a targeted K capture will name it.
+- #76 — adjudication option (a) implemented: the corrupt gym's zone is now
+  reached through an OWNED tenant-2 owner binding. New fixture staff row 26
+  (tenant 2, branch 14, gym_owner, user 916 — within the staged auth.users
+  901..916 series, unbound elsewhere), and section J's claims route through
+  that identity (sub 916, staff 26, tenant 2). Every lawful resolution path
+  — claims tenant_id, staff binding, or owned tenant — now lands on
+  organizations …2. The routing-precondition conjunct and the per-call
+  top-level restatement were updated to the same identity.
+- Decisive K captures requested for the next runtime round:
+  K1 — in-transaction `select timezone from public.organizations where
+  id=pg_temp.u(2)` evaluated immediately before the #76 snapshot call
+  (proves the corruption seam took: expect `Mars/Phobos`); K2 — the
+  snapshot's top-level `zone` (and `moneyRange.error`) under the new
+  owner-bound claims. If K1 shows `Mars/Phobos` and K2 still resolves
+  `Asia/Kolkata`, the envelope's gym-zone state sourcing reads a row other
+  than the actor-resolved organizations row — a public contract finding
+  (source delta), not a suite edit.
+- plan(77) preserved (77 verified); rollback guard green (159 files). SQL NOT
+  executed here.
+- New sha256: `4cce6417449e1198a47eebbadee960aab0b885bdef8d27ef92d66fa482c03f32`.
+
+## Round 18 — #76 closure adjudication (coordinator K data)
+
+- K1: `organizations…2.timezone = Mars/Phobos` in-transaction immediately
+  before the pin call — the corruption seam took. K2: the claims context at
+  the call is exactly the routed tenant-2 owner identity (sub 916, staff 26,
+  tenant_id …2) — the routing-precondition conjunct passes. K3: the snapshot
+  STILL returned `zone = Asia/Kolkata` with `moneyRange.error = null` — under
+  a tenant-2 owner whose staff binding lives in tenant 2 and a tenant-2
+  stored corrupt zone.
+- Classification per the round-17 split: PUBLIC CONTRACT FINDING. The
+  analytics envelope's gym-zone/tenant state-source does not follow the
+  tenant resolved from the verified actor context — under BOTH plausible
+  resolution paths (claims tenant_id; staff-join tenant) the resolved row is
+  organizations …2, so returning tenant …0001's zone proves the envelope
+  reads a different row/state (member-link, GUC ordering, or a stable
+  app-level tenant picker that mis-resolves). Held as the builder's item:
+  relocate the sourcing to the actor-resolved tenant.
+- Pin #76 stays as authored: its first conjunct (exact claims equality)
+  remains valid routing proof; the residual failure is genuine downstream
+  divergence, not a suite defect. No further suite edits for #76.
+- Remaining open item: #56 residual — awaiting the coordinator's targeted
+  capture of (a) the snapshot's branch-11 today day-row
+  (`state`, `visits`, the hours array around hour 15) under the same
+  seven-day window with the gate-scan row present, and (b) in-tx
+  `select checked_in_at, extract(hour from checked_in_at at time zone
+  'Asia/Kolkata') from occ_today_arrival` — if both name hour 15 and the day
+  row's hour-15 cell is not `visits='1'`, the divergence is in the heatmap
+  population's day/hour bucketing state source, which may fold into the same
+  round-18 tenant/actor sourcing finding.
