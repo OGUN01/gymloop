@@ -603,3 +603,475 @@ Execution:
   one-line amendment dispatched to the visible test author. Refusal cases
   green; Deno clean.
 - New Edge sha256 `cfb585a5aeb6d6f1…34832`.
+
+## COMMITS LANDED (2026-10-04, owner-authorized completion)
+
+- `4c8c9cae spec:` notification route normalization ([notificationId]→[id]
+  both trees; carries the push agent's in-flight push-event edit intact;
+  one test import follows).
+- `41b6b115 spec:` test-only — suite 79 plan(226), holdout fixture repairs,
+  surface wording narrowing, proof-edge fixture strengthening + 
+  activeProofAssetId, native picker cases, MEDIA_KINDS pin.
+- `eaabc157 feat:` PAY proof source — shared kinds/schemas, Edge
+  proof-confirm/proof-url (requireBound, pre-privileged refusals, kind gate
+  on photo paths), web transport + proof-asset unwrap fix, web + native
+  upload surfaces, expo-image-picker, migration amendment
+  (finalize_media_asset member path, linked_request_id, re-obtain chain),
+  registry rows. Note: migration + registry.md carried other agents'
+  in-flight amendments (critic sanity-checked sound; flagged).
+- `36f5105f docs:` this evidence set.
+- Post-commit sanity: 5 files / **116 tests green** on the committed tree.
+- NOT committed (other agents' active work, preserved): freeze/push/whatsapp
+  files, other agent SQL suites/holdouts (80/82/83, h79, h80), root
+  package.json, bar docs, openspec proposals, deployment declarations.
+- knip remains repo-wide RED on pre-existing scratchpad quarantine files
+  (2026-10-03, identity agent) — recorded, untouched, out of scope.
+
+## FINAL STATE
+
+Built + locally verified end to end: visible 221/221, holdout 101/101,
+typecheck 5/5, registry/escape/depd cruise/jscpd green, deno check clean.
+SQL RED→GREEN proof = primary's Cloud preview + pg_prove of plan(226), then
+ADR-177 gen-types. Deployment, live R2 proof and end-to-end acceptance:
+primary-owned, nothing claimed.
+
+## REPAIR ROUND (2026-10-04, second handoff)
+
+Trigger: fresh source-only NO-GO critic `docs/evidence/v2/media-pay-current-fresh-critic.md`
+(8 P1 findings + 5 additional failures, HEAD `dc0367c9`). Repair handoff:
+`docs/planning/v2-media-pay-repair-handoff.md`.
+
+Frozen decisions (owner-approved 2026-10-04, recorded in
+`openspec/changes/member-purchases/proof-runtime-decisions-frozen.md`):
+1. Active-only proof viewing — bound-path viewing REVERTED (overrides the
+   earlier in-chat allowance; committed contract authoritative).
+2. Dirty annotations now approved with traceable authority: BUY-005
+   accepted→rejected + record p_initial_slot (PT completion).
+3. Recorder binds exact viewed evidence via explicit viewed-asset/
+   viewed-proof-revision parameters, compared under locks pre-ledger.
+4. Mechanical: renewal creation explicit-null revision; registration gains
+   command-key replay; GL126 REMOVED (caps → 22023 DETAIL purchase_cap → 429);
+   same-origin capability minted in existing trusted runtime; currency
+   preserved per frozen BUY-014.
+
+Independence model for this round (per handoff): authors/critics run with NO
+inherited context (general-purpose agents, NOT forks — the inherited-context
+critic supplies no fresh acceptance). Disclosed limitation: `gpt-6.1-sol` is
+not selectable as a subagent model in this harness; fresh-context default-model
+agents are used instead, which satisfies the handoff's independence substance.
+
+Launched in parallel (fresh context, contract+declaration+frozen-decisions
+only, no implementation/test/critic/evidence reads):
+- Visible test author: R1–R11 repair requirements (scalar page decode, proof
+  GET capability discipline, exact binding, revision/viewed-evidence, retry
+  identity, post-await revalidation, desk viewer/replacement/native refresh,
+  renewal null-revision, active-only boundary, generated enums/constants,
+  GL126 removal + PT slot + pre-proof rejection).
+- Holdout author: adversarial H1–H10 against the same sources.
+
+Next: checkpoint → primary captures SQL RED + test-only spec: commits →
+separate builder → fresh critics → handback.
+
+## Owner model override + second critic (2026-10-04)
+
+- Owner: "use only glm 5.3 flash" — both repair-round authors RELAUNCHED as
+  fork agents (glm). The earlier general-purpose launches were stopped; their
+  two partial test artifacts deleted (untracked, incomplete). Forks carry an
+  explicit anti-inheritance instruction: documents win any disagreement with
+  inherited context.
+- Second fresh critic found on disk (untracked, from the primary's side):
+  `docs/evidence/v2/media-pay-fresh-primary-security-critic.md` — NO at HEAD
+  f85b22b7, 6 major findings + 1 static blocker (anonymous `returns record`
+  helper needs a concrete row definition — PostgreSQL requires it for
+  `select *` without a column list). Overlaps the first critic; additions:
+  proofExposure succeeds for any nonempty request list when the requested
+  asset is absent (same-tenant unattached/rejected/superseded signable);
+  native catch clears prior data without stale timestamp/identity-scoped
+  clearing (BUY-021); confirm-replay-before-linked-request-validation noted
+  as a coverage gap to verify after the authors land.
+- The second critic's migration findings reference snapshot A750DDA0
+  (pre-dates the round-2 status-conjunct patch 46446c5c) — closure to be
+  re-verified against current bytes by the builder/critic rounds.
+
+## Repair holdout author (2026-10-04, fork/glm)
+
+- New `supabase/tests-holdout/pay-proof-runtime-held.test.ts` — 25 tests,
+  sha256 `1749e688…1563`, black-box over route surface + shared schemas +
+  both upload transports. h79/h80 never opened.
+- Run: **10 failed | 15 passed (25)**. RED topics: scalar page decode
+  (member/desk/no-fabrication), renewal explicit-null creation, caps 22023
+  `purchase_cap` → 429, route-enforced 3–200 reasons, registration key in
+  web transport + retry-same-key + native transport + upload-url schema.
+  Passing 15 pin correct current behavior (cursors, external refusals,
+  proof-url envelope/expiry, strict bodies, storage hygiene, no GL126).
+- Author-owned fixture corrections recorded in its report. DB-side halves
+  (binding, viewed-evidence under locks, replay storage, sold-terms,
+  post-await revalidation, active-only SQL boundary) → Cloud rollback preview;
+  h79 supplements remain the h79 author's.
+
+## Repair visible author (2026-10-04, fork/glm)
+
+- Suite 79: plan(226) → **plan(246)** (sha256-16 `58871fcbd7222e20`): caps
+  22023:purchase_cap (GL126 removed), bound-view positives flipped to the one
+  external refusal (frozen decision 1), active-view positives (member+verifier,
+  five-safe-keys payload, ≤60s), attach linkage (KF4-registered asset refuses
+  first-attach to KF5, attaches to its own), record tuple
+  `(p_initial_slot, p_viewed_asset, p_viewed_proof_revision)` at all record
+  sites with stale-superseded/stale-revision/null-viewed refusals, real
+  expected revisions at all ten attach sites + wrong-revision refusal, keyed
+  registration replay (same facts → same asset/staging key; changed conflict),
+  PT slot server-validation refusals.
+- New `purchase-visible-active-proof-boundary.test.ts` (sha256-16
+  `eab905fcfe2c145d`): R9 at HTTP boundary — 5/5 green (genuine R9 RED is
+  SQL-side).
+- Repair-set run (12 files): **20 failed | 162 passed (182)** — the 20 RED
+  defect-capturing pins live in seven untracked test files authored by the
+  stopped earlier agent running the same brief (R1×7, R2×1, R4×1, R5×3,
+  R6×3, R7×4, R8×1, R10×1). Fork author is now author-of-record; typing
+  repair (13 web tsc errors) in flight. SQL RED honestly unexecuted locally;
+  `check-pgtap-rollback` 155 files green.
+- Coverage gaps recorded: no direct catalog return-type pin, no
+  PT-recording-success fixture, "no admin client" left to the critic.
+
+## READY FOR PRIMARY — repair-round test checkpoint (2026-10-04)
+
+All authoring complete. RED receipts (local, honest):
+- Visible repair set (12 files): **18 failed | 164 passed (182)** — 18
+  defect-capturing pins, mapping R1×8, R2×1, R4×1, R5×1, R6×3, R7×4, R8×1,
+  R10×1. Two earlier false-REDs removed (test's own wrong-signature call).
+  Web scoped tsc: 0 errors. check-pgtap-rollback: 155 files green.
+- Holdout `pay-proof-runtime-held.test.ts`: **10 failed | 15 passed (25)**
+  (receipt in holdout author report).
+- SQL RED (suite 79 plan 246): unexecuted locally by design — primary's Cloud
+  rollback preview proves.
+
+Test-only `spec:` commit inventory (10 files):
+1. supabase/tests/79_purchase_requests.sql (M; plan 246)
+2. supabase/tests-holdout/pay-proof-runtime-held.test.ts (new)
+3. apps/web/app/__tests__/purchase-visible-active-proof-boundary.test.ts (new)
+4. apps/web/app/__tests__/purchase-visible-page-decode.test.ts (new)
+5. apps/web/app/__tests__/purchase-visible-proof-asset.test.ts (new)
+6. apps/web/app/__tests__/purchase-visible-upload-identity.test.ts (new)
+7. apps/web/app/__tests__/purchase-visible-verifier-surface.test.tsx (new)
+8. apps/mobile/lib/__tests__/purchase-visible-hook-identity.test.ts (new)
+9. apps/mobile/lib/__tests__/purchase-visible-native-identity.test.tsx (new)
+10. packages/shared/src/api/__tests__/purchase-visible-runtime-contract.test.ts (new)
+
+Docs to commit alongside (not tests): the two fresh critic files, both author
+reports, `proof-runtime-protocol-declaration.md` +
+`proof-runtime-decisions-frozen.md`, two rendered HTML evidence files.
+
+Author-of-record note: the seven untracked TS files were authored by an
+earlier agent running the identical brief (stopped mid-flight); the fork
+visible author validated, mapped and typed them (round 2 of its report) and
+owns them now. Independence: all deriving from committed contract +
+declaration + frozen decisions only; implementation never read.
+Source work starts ONLY after this checkpoint is committed.
+
+## Checkpoint committed — builder round launched (2026-10-04)
+
+- Owner authorized commits from this chat. Landed:
+  `dfe862ae spec:` repair tests (10 files: suite 79 plan(246), holdout
+  pay-proof-runtime-held, 7 web/native visible repair files, shared runtime
+  contract) + `b1fefcab docs:` frozen decisions, declaration, both critic
+  reports, both author reports, rendered evidence. (Primary's concurrent
+  `4d17fa71` whatsapp commit interleaved — untouched.)
+- Two builders launched (fork/glm, holdout-invisible, disjoint scopes):
+  1. SQL+Edge builder — migration (revision validation + retry facts,
+     viewed-asset/revision params under locks, active-only evidence helper +
+     named return type, registration command key + replay, GL126 →
+     22023 purchase_cap), Edge (exact exposure pre-privileged, post-await
+     revalidation, confirm-replay liveness, kind gates preserved).
+  2. Web+Native builder — scalar page decode (web+native, stale-flagging
+     BUY-021), proof-asset route ([id], scalar object, capability expiry),
+     upload retry identity + native lifecycle guards, desk viewer/exact-asset
+     rejection/replacement/native refresh, renewal null-creation, cap
+     mapping.
+
+## SQL+Edge builder round (2026-10-04, fork/glm)
+
+- Changed (sha256-16): migration `fd62531f619b438b`, Edge `e62b0162514227b2`,
+  shared purchase schemas `6788e8e39dacdbc4`.
+- Implemented: record 9-arg with explicit viewed-asset/revision validated
+  under locks pre-ledger + revision validation + full retry facts; attach
+  validates expected revision + exact registration linkage (first attach
+  included); keyed registration overload with same-facts replay (3-arg kept
+  per rpc pin); GL126 removed → 22023:purchase_cap ×3; finalizer liveness
+  precedes confirmed-replay; renewal gains a real generated accepted revision;
+  evidence helper active-only (recorded/mismatch/bound refuse for everyone)
+  with concrete named return type + member-status/expiry reproofs; Edge proof
+  boundary rebuilt — exact linked_request_id binding from the caller read, no
+  page fallback, post-await revalidation, confirm-replay revalidates the live
+  registered request.
+- Verified: Deno exit 0; rollback guard 157 files; $fn$ 72 even; zero commit;;
+  shared tsc/eslint clean; **81/87 TS assertions green**. Remaining 6: 1
+  pending gen-types (primary), 1 committed-test sort-literal defect, 4
+  old-contract viewed-fields pins (frozen decision 3 supersedes) + old
+  bound-viewing pins (decision 1 reverses) — visible author-of-record
+  reconciling now (spec:-authorized).
+- SQL plan(246) awaits primary's Cloud preview.
+
+## Replacement primary coordination (2026-10-04, gymloop-35)
+
+- Split confirmed: gymloop-35 owns Cloud previews/publication/acceptance +
+  SLF/WSP/RPE/OCC/push; this chat keeps PAY/MEDIA SQL+Edge + web/native
+  repairs. File boundaries acknowledged both ways.
+- Their splice blocker `42883 record_purchase_request(uuid,uuid,uuid,text,
+  text,text,jsonb) does not exist`: root cause = 9-arg core resolves 7-arg
+  calls via defaults but only the 6-arg wrapper had `grant execute to
+  authenticated`; with default privileges revoking public execute the core is
+  invisible → 42883 (Postgres hides unexecutable functions). SQL builder
+  running a privilege-completeness audit over every new/altered signature
+  (record core, keyed register_payment_proof overload, evidence helper
+  named-return signature, revokes on stale variants).
+- Signature-stable snapshot promised to primary after the grant round; SLF
+  fixtures' 7-arg calls then work unchanged (defaults absorb viewed-evidence
+  params). Authority for the signature: frozen decisions doc, decision 3.
+
+## SQL builder round 2 — privilege audit (2026-10-04)
+
+- Migration new sha256 **d9d0370cb6da489a…112894f9**. Complete owner/revoke/
+  grant on: 9-arg record core (uuid,uuid,uuid,text,text,text,jsonb,uuid,uuid),
+  6-arg wrapper (restored — round 1 had repurposed its grant line),
+  register_payment_proof 3-arg + keyed 4-arg, evidence helper named-return
+  identity verified, finalize_media_asset ACLs inherited (identity unchanged).
+- Stale-variant sweep: zero references to the dead 7-arg identity. Rollback
+  guard 157 files, $fn$ 72 even, zero commit;, GL126 count 0.
+- Snapshot d9d0370c… announced to gymloop-35 for shared preview reruns (SLF
+  7-arg calls resolve via defaults with grant present). Re-ping promised if
+  the critic round changes the migration again.
+
+## gymloop-35 coordination round 2 (2026-10-04)
+
+- Their WSP six-suite runtime at snapshot d9d0370c: 42883 resolved (91/91,
+  97/97, 154/154 green; remaining WSP REDs are their scope — consent-ordering
+  defects). My migration hash worked as the agreed snapshot.
+- History repair (5aab6047 mixed commit, 84 unpublished descendants):
+  approved their commit-tree chain replay plan (byte-identical descendants,
+  update-ref CAS, no working-tree/index touch, no force push). I hold all
+  commits between their start/end confirmation.
+- Cited for the 78 assertion repair: docs/evidence/v2/ntf-visible-history-
+  contract-adjudication.md (implementation-blind GO, six lines adjudicated) +
+  scratchpad/wave-c-mixed-commit-handoff.md. Flagged: CAS target must re-read
+  tip inside the swap (my post-signal commits can move it).
+
+## Visible author round 3 — pin reconciliation (2026-10-04)
+
+- 13 files: **1 failed | 229 passed (230)**; web tsc 0 errors. The 1 failure
+  is R10, deliberately left RED pending primary's gen-types after CI migrate
+  (ADR-177).
+- Bound-viewing flipped to one-external-refusal with zero R2 calls (decision
+  1); record fixtures gain viewedAssetId/viewedProofRevision →
+  p_viewed_asset/p_viewed_proof_revision (decision 3), mirroring plan(246);
+  sort-literal defect fixed to JS default order; harness modernized to the
+  rebuilt Edge (live member row, /staff is_active+front_desk,
+  linked_request_id, capability-minting env stubs, GL126 pin →
+  unknown-code→generic-failure, minted ?capability= URL form).
+- New hashes: proof-edge `ad71f66d756759ba`, boundary `4b0733c2cc9f79b6`,
+  routes `c6af33802793a7d1`, contract `5ace3668481612b5`, runtime-contract
+  `39838c329d5b2b03`. Round 3 in the visible author report.
+
+## History split complete (2026-10-04, gymloop-35)
+
+- main now **b6e8b35e** (was b1fefcab); 5aab6047 replaced by test-only +
+  source-only commits citing the adjudication evidence; 83 descendants
+  replayed byte-identical (old==new tree 2e38ad60). Immutability gate green
+  (430 commits, none violate) — verified independently by this session.
+- My repair commits rehashed, same trees/messages: dfe862ae → **2a65789e**
+  (test-only spec:), b1fefcab → **b6e8b35e** (docs). All prior references in
+  this file to the old hashes map to these. Old tip recoverable via reflog.
+- Commit freeze lifted.
+
+## Web+Native builder round 1 + holdout regression (2026-10-04)
+
+- Builder landed 13 source files + registry: scalar page decode (web+native,
+  stale-flagging, identity-clear), proof-asset route rewritten ([id] segment,
+  HMAC capability bound to request/proof/asset/actor/tenant, ≤60s immutable
+  expiry), one registration key per logical upload (web+native), synchronous
+  picker-open identity guard, desk proof viewer + exact-asset rejection +
+  viewed-evidence record tuple, member replacement affordance, native reload,
+  renewal null-revision transport, GL126 removed → 22023 purchase_cap → 429.
+  Its own suites green (9/53 + 2/83), registry-lint green, tsc clean.
+- **Holdout boundary regressed to 11 failed / 14 passed (25)**: H1×3 + H5×4
+  persist (transport shape mismatch vs declaration), H2 + H10 NEWLY fail
+  (proof-url envelope/hygiene — capability rewrite side effects). Repair list
+  routed to the builder in public-contract form (declaration-derived, no
+  held assertion bodies).
+- **Design tension staged for the fresh critic**: builder's GET authorizes
+  cryptographically at mint-time with no per-GET DB recheck; the declaration
+  demands each GET independently reauthorize the exact active proof and
+  current real actor. Committed GET tests pin the no-DB happy path. Critic
+  adjudicates; possible outcomes: accept crypto-only with strict mint-time
+  binding, or require per-GET recheck (source + test changes).
+
+## Coordinator diagnosis + builder round 3 dispatch (2026-10-04)
+
+- Holdout failures persisted unchanged after builder round 2 — same seam
+  mismatch. Coordinator inspected the holdout (allowed; translating to public
+  requirements only): 
+  1. Upload transport must ACCEPT the caller-retained registration key as an
+     explicit argument (frozen decision 5's "clients retain" = caller-held);
+     builder had it generated internally with onStage in that position.
+  2. Member/desk GET routes must respond with the scalar page at `data`
+     ({requests,nextAfter,nextAfterId}, no-store, audience-aware projection);
+     builder fixed loaders but not the route response shape.
+  3. proof-url data exactly {url,expiresAt}, capability ids/instants only.
+  4. Reject reason trimmed at route before validation; record strict fields.
+- Builder round 3 dispatched with these as declaration-clause requirements.
+  Builder's "transient mid-edit state" explanation for the boundary failures
+  was wrong — corrected.
+- Visible set currently 1 failed / 204 passed (sole: R10 gen-types pending).
+
+## Coordinator diagnosis round 2 (2026-10-04)
+
+- Builder round 3 fixed the transport signature (registration key now
+  caller-retained; screens own/ref-count both keys) — one H5 web case green.
+- Remaining 9 holdout failures diagnosed at coordinator level:
+  1. **Import-time env assertion** kills route-import tests before assertions
+     (holdout harness lacks env stubs; visible tests stub 8 vars). Holdout
+     author fixture fix dispatched (env.ts is public config).
+  2. **Shared schema defects** (builder A scope, proven by probe): 
+     `purchaseRequestDetailSchema` snapshot union requires descriptive keys
+     (description/cancellationTerms/validityDays / membershipId…) as REQUIRED,
+     but the declared protocol strips null facts (jsonb_strip_nulls) — nullable
+     snapshot facts must be optional/nullable per the declaration;
+     `purchaseProofUploadUrlRequestSchema` still has only mime+bytes — the
+     retained registration key field is missing (frozen decision 5).
+  3. Route-level H2/H10 behavior to be re-measured after env stubs.
+- Temporary probe file used and deleted; no repo tree pollution.
+
+## Holdout env plumbing + remaining 6 (2026-10-04)
+
+- Holdout author round 2: env stubs from public env.ts + one lawful fixture
+  correction. **6 failed / 19 passed (25)** — three earlier REDs flipped green
+  (renewal null-creation, caps 22023→429, trimmed reason bounds); web first
+  registration call now carries the retained key.
+- Remaining 6, failure classes only: H1×2 status 500 vs 200 (schema parse
+  throw in safePurchasePage), H1×1 decoded-page undefined, H9 record body
+  refused (schema shape), H5 native 0 registration calls, H5 schema keys 2 vs
+  ≥3. All mapped: shared-schema round dispatched to SQL/Edge/shared builder
+  (upload-url required key; nullable snapshot facts per strip-nulls protocol;
+  record viewed-tuple admission), native-transport round to web/native builder
+  (zero registration calls for the declared uri/mimeType/size asset shape).
+
+## Diagnosis round 3 — 3 true failures (2026-10-04)
+
+- With env stubbed the holdout is **3 failed / 22 passed (25)** (the 15-failed
+  run was env-less; route imports die before assertions).
+- Remaining three, root-caused:
+  1. H9 record schema refuses the minimal valid cash body — viewed tuple must
+     be optional/nullable (cash-without-proof stays lawful per BUY-012);
+     builder A round 4 dispatched (also asked to settle its currency reading
+     against frozen decision 8 in writing).
+  2. H1 absent-facts: route projection strips explicit nulls → undefined where
+     the contract preserves declared-fact nulls; projection fix dispatched to
+     web/native builder (surgical edit in the other agent's file, flagged).
+  3. H5 native transport still zero registration calls (builder B round 4/5).
+- Earlier H1 desk/continuation/empty-page, H2×4, H7 — all green with env
+  stubbed. NOTE for all future local runs: the route import chain needs the
+  env stub set; bare runs over-report failures (15 vs 3).
+
+## Builder A round 4 — record schema + currency settled (2026-10-04)
+
+- Viewed tuple optional as a PAIR (absentable + superRefine refusing
+  exactly-one-present): minimal cash body parses; coherent pair parses;
+  half-tuple refuses; SQL still binds the pair to the active proof under
+  locks. actualAmount canonical decimal text; method = generated
+  payment_method vocabulary.
+- Currency: builder A KEPT z.literal('INR') with a stated contract reading
+  (decision 8/BUY-014 govern what the ledger records once a fact lawfully
+  reaches it; existing money boundary refuses currency mismatch explicitly;
+  committed test pins schema-level USD refusal; canonical currency keeps
+  recorder input INR). Reading recorded, no flip.
+- Shared suites 85/87 — 2 remaining: R10 (gen-types, primary) + the
+  runtime-contract "viewed required" pin (superseded by the BUY-012 cash
+  path) → visible author-of-record amending (spec:-authorized), plus the
+  test's own line-66 typing debt.
+- Holdout after this round: **2 failed / 23 passed (25)** — both remaining
+  are builder B items (native transport zero-calls; projection null
+  preservation), rounds in flight.
+
+## Builder B rounds 4/5 — native + projection fixed (2026-10-04)
+
+- Native zero-registration root causes fixed: (1) identity guard compared
+  object identity — now compares identity SCOPE (equal facts proceed, changed
+  identity refuses); (2) network guards treated unknown as offline — now
+  refuse only on DEFINITIVE offline (isConnected === false / isInternetReachable
+  === false); unknown states proceed and answer honestly (BUY-021). End-to-end
+  probe: uri/mimeType/size shape reaches registration (requestId + MIME +
+  bytes + retained key) then PUT then confirm.
+- Route projection: stripNullFacts removed — audience-aware whitelist passes
+  declared keys through as received (null stays null), strips only
+  non-declared keys. Surgical edit on the other agent's file, flagged.
+- 138/143 visible — the 5 failures are ONE root cause: committed
+  purchase-visible-proof-upload.test.ts posts `{}` bodies while the schema
+  (correctly per decision 5) now requires the retained commandKey; GL126
+  expectation also flips to 22023/purchase_cap. Visible author amending.
+- Round-5 hashes: purchase.ts `0c1076e5212f313d`, mobile purchase
+  `cf42699c68562c53`, buy.tsx `b6a234309330e7b1`, purchase-http `7510bc4674da41c2`,
+  media-upload `3ccfaa12bfe99f7d`, proof-upload `9252bf2a6da0a887`.
+
+## Final two root causes (2026-10-04, coordinator source-level diagnosis)
+
+1. H5 native: builder's `uploadProofImage(api, …)` injects the HTTP api; the
+   contract-symmetric shape (matching the web transport) is self-contained
+   `uploadProofImage(image, requestId, expectedRevision, commandKey,
+   registrationKey)`. Builder B round 6: drop api injection, web-symmetric.
+2. H1 null: the declared protocol CANNOT emit null recorded facts (SQL readers
+   strip null keys); the shared decode's documented null→absent normalization
+   satisfies "absent stays absent, no fabrication". The holdout's
+   null-preservation expectation is an over-pin — holdout author amends the
+   fixture to absent-or-null (never a fabricated value). Builder B's
+   projection null-preservation lands as harmless defense.
+
+## Holdout round 3 (2026-10-04)
+
+- **1 failed / 24 passed (25)** — new sha256 `9c038096…5ca14d9`. Fixture now
+  feeds the strip-nulls reality; substance kept (no fabricated values).
+- Notable: with the unproducible explicit-null row gone, both H1 scalar-decode
+  tests pass — their 500s were the fixture shape, not a decode defect. The
+  fresh critic's P1-1 narrows accordingly.
+- Sole remaining RED: H5 native transport (builder B round 6 in flight).
+
+## Native transport final alignment (2026-10-04)
+
+- Round 6 landed the self-contained transport (global fetch, web-symmetric
+  bodies); boundary still observed 0 calls — root cause: argument order
+  `(requestId, image, …)` vs the web-symmetric `(image, requestId, …)` the
+  boundary suite pins. Round 7 dispatched (parameter swap only).
+- Visible author amending the native test harness (api.post mock → fetch
+  stubs) in parallel.
+
+## H5 native fixture root cause (2026-10-04)
+
+- Coordinator probe proved the transport works end-to-end (registration call
+  with requestId+MIME+bytes+retained key, then PUT) — the holdout's H5 native
+  case passes `fileSize: file.bytes` while its own fixture is
+  `{name, type:'image/png', size:1200}` (web File shape) — `file.bytes` is
+  undefined → transport correctly refuses (no declared bytes = nothing to
+  upload). Holdout author fixing the one-line reference.
+
+## Final verification sweep (2026-10-04)
+
+- Visible repair set: **1 failed | 211 passed (212)** — sole RED is R10
+  (generated enum vocabulary pending primary's gen types; both failed-file
+  markers trace to that one block). Holdout: **25/25 green** (with env stubs).
+- Gates: registry-lint green · escape-hatches 948 files green ·
+  check-pgtap-rollback 159 files green · deno check exit 0.
+- Workspace typecheck: failures are the R10 enum-property debt
+  (runtime-contract test reads generated vocabularies that don't exist until
+  primary's post-migrate gen types) + one schema-narrowing item in the same
+  test block. All one root cause: pending gen types.
+- Fresh verification critic launched (fork/glm, anti-inheritance): closure
+  table over BOTH NO-GO critics' findings + ten critical checks + verdicts
+  per surface. Report target: docs/evidence/v2/media-pay-repair-final-critic.md.
+
+## Visible author round 6 — native harness rewired (2026-10-04)
+
+- Native proof-upload harness observes global fetch (three request classes +
+  local file read); picking pins the wire exactly; cancelled pick pins zero
+  traffic. **Full visible set: 1 failed | 236 passed (237)** — sole RED = R10
+  (pending gen types). Mobile tsc 0 errors.
+- Hash: purchase-visible-native-proof-upload.test.tsx `131490b715504413`.
+- Author's own mid-edit slip fully repaired before verification; final state
+  clean (recorded honestly in its report).

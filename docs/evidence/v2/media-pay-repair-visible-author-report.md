@@ -146,3 +146,94 @@ unchanged green (155 files). Unchanged files keep their round-1 hashes:
 suite 79 `58871fcbd7222e20`, active-proof-boundary `eab905fcfe2c145d`.
 SQL RED remains honestly unexecuted locally — the primary's Cloud preview
 proves plan(246).
+
+## Round 3 — post-builder reconciliation (author of record)
+
+Builder landed migration/Edge/shared-schema changes per plan(246); reconciled
+the committed visible tests to the frozen decisions, fixtures only:
+
+- `purchase-visible-proof-edge.test.ts` (sha256-16 `ad71f66d756759ba`):
+  (1) the two bound-viewing `it.each` positives (recorded/mismatch served to
+  member and verifier) flipped to the one external refusal with zero R2 calls
+  (frozen decision 1); (2) the harness modernized to the rebuilt Edge's
+  documented caller-read contract: `/members` branch (live member row,
+  status/erased_at, object-Accept support), `/staff` branch (`is_active`,
+  role aligned to the desk claims), `linked_request_id` on the media-asset
+  fixture — derived from the builder report's flow description plus probe
+  runs of the harness itself (path-only probes; no implementation read).
+- `purchase-visible-active-proof-boundary.test.ts` (sha256-16
+  `4b0733c2cc9f79b6`): the registered env contract stubs added (the
+  capability minting reads the shared env schema; frozen decision 7 keeps it
+  in the existing trusted runtime).
+- `purchase-visible-routes.test.ts` (sha256-16 `c6af33802793a7d1`): env
+  stubs; record route bodies + forwarded-args pin gain `viewedAssetId`/
+  `viewedProofRevision` → `p_viewed_asset`/`p_viewed_proof_revision`
+  (decision 3; `p_initial_slot` stays absent unless the desk sends one);
+  GL126 removed from the mapping pin and replaced by an explicit
+  unknown-code→generic-failure assertion (decision 6); both proof-url pins
+  updated to the minted same-origin `?capability=` URL form (decision 7)
+  while keeping the storage-metadata strip pins.
+- `purchase-visible-contract.test.ts` (sha256-16 `5ace3668481612b5`): the two
+  record-schema fixture objects gain the mandatory viewed fields (decision 3).
+- `purchase-visible-runtime-contract.test.ts` (sha256-16
+  `39838c329d5b2b03`): snapshot-key literal fixed to JS default sort order
+  (`productId` < `productName` — the builder-reported test-own defect).
+
+**Final: 13 files → `Tests 1 failed | 229 passed (230)`.** The single
+remaining RED is the R10 generated-types vocabulary pin — pending the
+primary's `supabase gen types` regeneration after CI migrate (ADR-177), as
+the coordinator directed; left untouched. Scoped web `tsc --noEmit`: 0
+errors. No source edits; SQL-side plan(246) pins unchanged; no commits.
+
+## Round 4 — viewed-pair precision + union narrowing (author of record)
+
+`packages/shared/src/api/__tests__/purchase-visible-runtime-contract.test.ts`
+(sha256-16 `12d2911fbfbceb0c`):
+- The viewed-tuple pin amended to the schema's lawful shape (frozen decision 3
+  + BUY-012): minimal cash body (no viewed fields) parses — the explicit
+  received-cash path; each half tuple refuses (`viewedAssetId` alone,
+  `viewedProofRevision` alone); both present parses (proof-backed). The pin is
+  more precise than before, not weaker. Title updated accordingly.
+- Line-66 union narrowing: the shop-snapshot key assertions now narrow via
+  `parsed.data.kind !== 'shop'` with a throwing guard (no non-null assertion,
+  no suppression; the `toHaveLength`-style expectations preserved).
+- Shared suites after: `Tests 1 failed | 55 passed (56)` — the single RED is
+  R10, deliberately pending the primary's `gen types` regeneration.
+
+## Round 5 — registration commandKey + cap marker (frozen decisions 5/6)
+
+`apps/web/app/__tests__/purchase-visible-proof-upload.test.ts`
+(sha256-16 `df52d14960ac10a6`): every registration-reaching body now carries
+the retained `commandKey` (the shared upload-url schema correctly requires
+it — same five cases, one root cause); the rate-cap case mocks
+`22023` + DETAIL `purchase_cap` instead of the unapproved GL126 and still pins
+`429 rate_limited` with no capability minted; staff-refusal and
+client-storage-authority cases untouched except the commandKey addition so
+their refusal reasons stay single-cause. All 7 cases green.
+
+**Final full visible repair set (14 files): `Tests 1 failed | 236 passed
+(237)`** — the sole RED is R10, deliberately pending the primary's
+`gen types` after CI migrate. Scoped web `tsc --noEmit`: 0 errors. No source
+edits, no commits, no holdout access.
+
+## Round 6 — native harness rewired to the self-contained transport
+
+`apps/mobile/lib/__tests__/purchase-visible-native-proof-upload.test.tsx`
+(sha256-16 `131490b715504413`): the transport `uploadProofImage` is now
+self-contained (global fetch, no injected api), so the harness observes the
+upload through a `vi.stubGlobal('fetch')` double covering exactly the three
+request classes — registration POST `/proof-upload-url`, staging PUT (etag
+header for the read-back), `proof-confirm` POST — plus the local `file:` asset
+read, mirroring the file's other fetch-based harnesses. All behavioral
+assertions keep their intent: the picking test now pins the wire facts
+(`proof-upload-url`, declared `image/jpeg`/mime, byte count `1234`,
+`proof-confirm`), the cancelled-pick test pins BOTH zero `api.post` commands
+and zero upload wire traffic, and the offline/copy/type-cap cases are
+untouched. Imports `afterEach`; the intermediate literal-newline/definition
+slips during editing were repaired before any verification claim.
+
+**Full visible repair set (14 files): `Tests 1 failed | 236 passed (237)`**
+— the sole RED remains the R10 generated-types vocabulary pin, deliberately
+pending the primary's `gen types` after CI migrate. Native screenshot test
+file: 7/7 green. Scoped mobile `tsc --noEmit`: 0 errors. No source edits, no
+commits, no holdout access.
