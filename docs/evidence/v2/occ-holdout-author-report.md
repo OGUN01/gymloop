@@ -940,3 +940,45 @@ disabled, no protected timestamp forced null, nothing committed.
   the surrounding desk-actor context are unchanged. Audit green. plan(185)
   preserved. Rollback guard green (159 files).
 - New sha256: `d20cf72a648eb794bd36382d7961d9c51856850fda567c71498c1ebc8335b84e`.
+
+## Runtime repair round 45 (2026-10-04) — actor-context re-derivation
+
+- Coordinator handback note: the peer author's desk-claim fix (BUY-013: the
+  acceptance UPDATE runs as the real authenticated desk caller) landed in
+  the shared tree at 65fd67b5-era bytes (verified present: line ~333
+  `set local role authenticated` + front-desk claims for staff …a3).
+- Re-derivation of the guard's conditional context under that desk-claims
+  update: with `row_security_active` TRUE during the authenticated UPDATE,
+  the seller-ownership clause becomes live — it requires
+  `sold_by_staff_id = app.current_staff_id()` — but the order's sold_by was
+  the gym-owner …a1 while the acting desk staff is …a3 → GL056
+  `seller_not_yours` (and, inside the exact-buy matrix,
+  `recorded_by_staff_id = sold_by_staff_id` reads the SAME pairing).
+- Edit (actor alignment): the order's `sold_by_staff_id` and the payment …ac's
+  `recorded_by_staff_id` both stage as the desk staff …a3, matching the
+  acting desk identity the acceptance UPDATE runs under (BUY-013: the
+  recording call is the real front-office caller). The pending INSERT runs
+  as postgres (RLS inactive → seller clause skipped), the UPDATE under the
+  desk claims where the clause is live — both sides now agree.
+  Audit green. plan(185) preserved. Rollback guard green (159 files).
+- New sha256: `a97048bb6d7024c384c7ed24974d1d3a0d4736531fd0704ae5cfd9caaa91d07f`.
+
+## Runtime repair round 46 (2026-10-04) — block structure restored
+
+- Coordinator ask: verify block 1 (offer+payment) and block 2 (order) are
+  ADJACENT INDEPENDENT `begin…exception…end;` structures. They were NOT —
+  the peer's merged desk-claim edits had collapsed the region back into a
+  single block (the round-41 split was overwritten, and the exception
+  handler had been dropped), so any order-guard refusal still rolled the
+  product+payment back.
+- Edit: re-split into two adjacent, independent subtransactions — block 1
+  (offer …ae + payment …ac inserts; handler label `addon_offer/payment
+  staging:` with stacked context/detail logging), block 2 (keyed pending
+  INSERT + desk-claims acceptance UPDATE + its own handler); also repaired
+  the peer-introduced bare `select set_config` in the restore lines to
+  `perform set_config` (the same plpgsql no-destination class fixed in
+  round 44) and repaired a mangled `begin).` token from the splice.
+- Verified structurally: block 1 opens at line 278, exception at 297, closes
+  303; block 2 opens 306, closes 352 — adjacent and independent. Audit
+  green. plan(185) preserved. Rollback guard green (159 files).
+- New sha256: `bd6013d055a33a25a9018fc23f263a1cff3dab803cae52e8491ca5beff08210d`.
