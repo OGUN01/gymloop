@@ -946,50 +946,7 @@ grant execute on all functions in schema holdout_slf to authenticated, anon;
 -- staff: owner …401 U …308, desk …402 U …309, mgr …403 U …310, mgr2 …404 U …311,
 -- trainer …405 U …312, desk2 …406 U …313, deskB …407 U …314
 
--- §B4 Creation (SLF-003/004/005). d0 = gym-local today of org A.
-select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000301','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001','member_id','81900000-0000-4000-8000-000000000101')::text, true);
-select is((holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,
-        (now() at time zone 'Asia/Kolkata')::date, (now() at time zone 'Asia/Kolkata')::date + 4, ' family trip ',
-        '81900000-0000-4000-8000-000000000701'::uuid)->>'status'),
- 'requested','SLF-004 eligible member creates one requested row with trimmed reason');
-select is((holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,
-        (now() at time zone 'Asia/Kolkata')::date, (now() at time zone 'Asia/Kolkata')::date + 4, 'family trip',
-        '81900000-0000-4000-8000-000000000701'::uuid)->>'replayed'),
- 'true','SLF-013 identical normalized facts replay read-only');
-select is((holdout_slf.request_row_json('81900000-0000-4000-8000-000000000701'::uuid)->>'revision'),'1','creation starts at revision 1');
-select is((select count(*) from jsonb_array_elements(holdout_slf.read_member_list(200::integer,null::timestamptz,null::uuid)) e
-            where e->>'requestId' = holdout_slf.request_id_by_key('81900000-0000-4000-8000-000000000701'::uuid)),1::bigint,'replay created no second row');
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date + 1,(now() at time zone 'Asia/Kolkata')::date + 4,'family trip','81900000-0000-4000-8000-000000000701'::uuid)$q$,'GL068'::char(5),null,'SLF-013 changed facts under the create key conflict');
-select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000302','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001','member_id','81900000-0000-4000-8000-000000000102')::text, true);
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'family trip','81900000-0000-4000-8000-000000000701'::uuid)$q$,'GL068'::char(5),null,'SLF-013 changed actor under the create key conflicts without leaking facts');
-select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000301','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001','member_id','81900000-0000-4000-8000-000000000101')::text, true);
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date - 1,(now() at time zone 'Asia/Kolkata')::date + 4,'backdated','81900000-0000-4000-8000-000000000731'::uuid)$q$,'22023'::char(5),null,'SLF-004 interval may not start before gym-local today');
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'   ','81900000-0000-4000-8000-000000000732'::uuid)$q$,'22023'::char(5),null,'SLF-004 blank trimmed reason refused');
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,repeat('x',2001),'81900000-0000-4000-8000-000000000733'::uuid)$q$,'22023'::char(5),null,'SLF-004 reason above 2000 refused');
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000214'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'pending plan','81900000-0000-4000-8000-000000000734'::uuid)$q$,'GL066'::char(5),null,'SLF-002 pending membership grants no freeze creation');
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date + 400,(now() at time zone 'Asia/Kolkata')::date + 404,'beyond span','81900000-0000-4000-8000-000000000735'::uuid)$q$,'22023'::char(5),null,'SLF-004 interval must lie within the membership span');
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date + 10,(now() at time zone 'Asia/Kolkata')::date + 14,'second open','81900000-0000-4000-8000-000000000736'::uuid)$q$,'GL067'::char(5),null,'SLF_LIMITS one effective open request per member');
-select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000312','role','authenticated','app_role','trainer','tenant_id','81900000-0000-4000-8000-000000000001')::text, true);
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'trainer','81900000-0000-4000-8000-000000000737'::uuid)$q$,'42501'::char(5),null,'SLF-003 trainer gains no member self-service');
-select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000344','role','authenticated','app_role','super_admin')::text, true);
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'platform','81900000-0000-4000-8000-000000000738'::uuid)$q$,'42501'::char(5),null,'SLF-003 platform identity gains no member self-service');
-select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000344','role','authenticated','app_role','super_admin','impersonation_session_id','81900000-0000-4000-8000-000000000999')::text, true);
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'preview','81900000-0000-4000-8000-000000000739'::uuid)$q$,'42501'::char(5),null,'SLF-003 support preview gains no member self-service');
-select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000303','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001','member_id','81900000-0000-4000-8000-000000000103')::text, true);
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'erased','81900000-0000-4000-8000-000000000740'::uuid)$q$,'P0002'::char(5),null,'SLF-003 erased member gains no self-service');
-select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000399','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001')::text, true);
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'unlinked','81900000-0000-4000-8000-000000000741'::uuid)$q$,'P0002'::char(5),null,'SLF-003 a live token alone preserves no unlinked actor permission');
-select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000301','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000002','member_id','81900000-0000-4000-8000-000000000101')::text, true);
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'cross tenant','81900000-0000-4000-8000-000000000742'::uuid)$q$,'P0002'::char(5),null,'SLF-003 foreign tenant claims expose no target');
-select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000302','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001','member_id','81900000-0000-4000-8000-000000000102')::text, true);
-select is((holdout_slf.request_freeze('81900000-0000-4000-8000-000000000203'::uuid,
-        (now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'adjacent ok',
-        '81900000-0000-4000-8000-000000000703'::uuid)->>'status'),
- 'requested','SLF-005 adjacent intervals sharing no date are allowed');
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000203'::uuid,(now() at time zone 'Asia/Kolkata')::date + 7,(now() at time zone 'Asia/Kolkata')::date + 9,'overlap','81900000-0000-4000-8000-000000000743'::uuid)$q$,'GL067'::char(5),null,'SLF-005 inclusive overlap with an approved source pause is refused');
-select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000341','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001','member_id','81900000-0000-4000-8000-000000000114')::text, true);
-select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000218'::uuid,(now() at time zone 'Asia/Kolkata')::date + 12,(now() at time zone 'Asia/Kolkata')::date + 13,'other membership','81900000-0000-4000-8000-000000000744'::uuid)$q$,null::char(5),null,'SLF-005 a different membership id does not bypass member-level conflict');
-
+-- Fixture helpers must exist before creation/replay assertions call them.
 create or replace function holdout_slf.request_id_by_key(p_key uuid) returns uuid language plpgsql as $f$
 declare v uuid;
 begin
@@ -1041,6 +998,50 @@ begin
   update public.membership_pauses set approved_at = now(), approved_by_staff_id = '81900000-0000-4000-8000-000000000403' where id = v;
 end $f$;
 grant execute on all functions in schema holdout_slf to authenticated, anon;
+
+-- §B4 Creation (SLF-003/004/005). d0 = gym-local today of org A.
+select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000301','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001','member_id','81900000-0000-4000-8000-000000000101')::text, true);
+select is((holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,
+        (now() at time zone 'Asia/Kolkata')::date, (now() at time zone 'Asia/Kolkata')::date + 4, ' family trip ',
+        '81900000-0000-4000-8000-000000000701'::uuid)->>'status'),
+ 'requested','SLF-004 eligible member creates one requested row with trimmed reason');
+select is((holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,
+        (now() at time zone 'Asia/Kolkata')::date, (now() at time zone 'Asia/Kolkata')::date + 4, 'family trip',
+        '81900000-0000-4000-8000-000000000701'::uuid)->>'replayed'),
+ 'true','SLF-013 identical normalized facts replay read-only');
+select is((holdout_slf.request_row_json('81900000-0000-4000-8000-000000000701'::uuid)->>'revision'),'1','creation starts at revision 1');
+select is((select count(*) from jsonb_array_elements(holdout_slf.read_member_list(200::integer,null::timestamptz,null::uuid)) e
+            where e->>'requestId' = holdout_slf.request_id_by_key('81900000-0000-4000-8000-000000000701'::uuid)::text),1::bigint,'replay created no second row');
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date + 1,(now() at time zone 'Asia/Kolkata')::date + 4,'family trip','81900000-0000-4000-8000-000000000701'::uuid)$q$,'GL068'::char(5),null,'SLF-013 changed facts under the create key conflict');
+select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000302','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001','member_id','81900000-0000-4000-8000-000000000102')::text, true);
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'family trip','81900000-0000-4000-8000-000000000701'::uuid)$q$,'GL068'::char(5),null,'SLF-013 changed actor under the create key conflicts without leaking facts');
+select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000301','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001','member_id','81900000-0000-4000-8000-000000000101')::text, true);
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date - 1,(now() at time zone 'Asia/Kolkata')::date + 4,'backdated','81900000-0000-4000-8000-000000000731'::uuid)$q$,'22023'::char(5),null,'SLF-004 interval may not start before gym-local today');
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'   ','81900000-0000-4000-8000-000000000732'::uuid)$q$,'22023'::char(5),null,'SLF-004 blank trimmed reason refused');
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,repeat('x',2001),'81900000-0000-4000-8000-000000000733'::uuid)$q$,'22023'::char(5),null,'SLF-004 reason above 2000 refused');
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000214'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'pending plan','81900000-0000-4000-8000-000000000734'::uuid)$q$,'GL066'::char(5),null,'SLF-002 pending membership grants no freeze creation');
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date + 400,(now() at time zone 'Asia/Kolkata')::date + 404,'beyond span','81900000-0000-4000-8000-000000000735'::uuid)$q$,'22023'::char(5),null,'SLF-004 interval must lie within the membership span');
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date + 10,(now() at time zone 'Asia/Kolkata')::date + 14,'second open','81900000-0000-4000-8000-000000000736'::uuid)$q$,'GL067'::char(5),null,'SLF_LIMITS one effective open request per member');
+select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000312','role','authenticated','app_role','trainer','tenant_id','81900000-0000-4000-8000-000000000001')::text, true);
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'trainer','81900000-0000-4000-8000-000000000737'::uuid)$q$,'42501'::char(5),null,'SLF-003 trainer gains no member self-service');
+select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000344','role','authenticated','app_role','super_admin')::text, true);
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'platform','81900000-0000-4000-8000-000000000738'::uuid)$q$,'42501'::char(5),null,'SLF-003 platform identity gains no member self-service');
+select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000344','role','authenticated','app_role','super_admin','impersonation_session_id','81900000-0000-4000-8000-000000000999')::text, true);
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'preview','81900000-0000-4000-8000-000000000739'::uuid)$q$,'42501'::char(5),null,'SLF-003 support preview gains no member self-service');
+select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000303','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001','member_id','81900000-0000-4000-8000-000000000103')::text, true);
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'erased','81900000-0000-4000-8000-000000000740'::uuid)$q$,'P0002'::char(5),null,'SLF-003 erased member gains no self-service');
+select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000399','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001')::text, true);
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'unlinked','81900000-0000-4000-8000-000000000741'::uuid)$q$,'P0002'::char(5),null,'SLF-003 a live token alone preserves no unlinked actor permission');
+select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000301','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000002','member_id','81900000-0000-4000-8000-000000000101')::text, true);
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000201'::uuid,(now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'cross tenant','81900000-0000-4000-8000-000000000742'::uuid)$q$,'P0002'::char(5),null,'SLF-003 foreign tenant claims expose no target');
+select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000302','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001','member_id','81900000-0000-4000-8000-000000000102')::text, true);
+select is((holdout_slf.request_freeze('81900000-0000-4000-8000-000000000203'::uuid,
+        (now() at time zone 'Asia/Kolkata')::date,(now() at time zone 'Asia/Kolkata')::date + 4,'adjacent ok',
+        '81900000-0000-4000-8000-000000000703'::uuid)->>'status'),
+ 'requested','SLF-005 adjacent intervals sharing no date are allowed');
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000203'::uuid,(now() at time zone 'Asia/Kolkata')::date + 7,(now() at time zone 'Asia/Kolkata')::date + 9,'overlap','81900000-0000-4000-8000-000000000743'::uuid)$q$,'GL067'::char(5),null,'SLF-005 inclusive overlap with an approved source pause is refused');
+select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000341','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001','member_id','81900000-0000-4000-8000-000000000114')::text, true);
+select throws_ok($q$select holdout_slf.request_freeze('81900000-0000-4000-8000-000000000218'::uuid,(now() at time zone 'Asia/Kolkata')::date + 12,(now() at time zone 'Asia/Kolkata')::date + 13,'other membership','81900000-0000-4000-8000-000000000744'::uuid)$q$,null::char(5),null,'SLF-005 a different membership id does not bypass member-level conflict');
 
 -- §B5 Adoption (SLF-006). R1 = key …701 (M1), R3 = …703 (M3).
 select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000309','role','authenticated','app_role','front_desk','tenant_id','81900000-0000-4000-8000-000000000001','staff_id','81900000-0000-4000-8000-000000000402')::text, true);
@@ -1192,10 +1193,14 @@ select is((holdout_slf.cancel_request(holdout_slf.request_id_by_key('81900000-00
  'cancelled','SLF-009 the original member cancels a requested row');
 select is((holdout_slf.request_row_json('81900000-0000-4000-8000-000000000715'::uuid)->>'cancelled_by_user_id'),
  '81900000-0000-4000-8000-000000000341','SLF-009 cancellation carries the original member subject');
+-- Restore M10's original member for the successful withdrawal of R10.
+select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000317','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001','member_id','81900000-0000-4000-8000-000000000109')::text, true);
 select is((holdout_slf.cancel_request(holdout_slf.request_id_by_key('81900000-0000-4000-8000-000000000710'::uuid),'81900000-0000-4000-8000-000000000839'::uuid)->>'status'),
  'cancelled','SLF-009 withdrawal works for a desk_submitted row and needs ownership, not eligibility');
 select ok((select approved_at is null and rejected_at is null from public.membership_pauses where id = (holdout_slf.request_row_json('81900000-0000-4000-8000-000000000710'::uuid)->>'source_pause_id')::uuid),
  'SLF-009 the linked undecided source pause remains unapproved historical evidence');
+-- Probe closed-source approval as the real distinct configured approver.
+select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000310','role','authenticated','app_role','gym_manager','tenant_id','81900000-0000-4000-8000-000000000001','staff_id','81900000-0000-4000-8000-000000000403')::text, true);
 select throws_ok($q$select holdout_slf.h81_approve_cancelled_pause()$q$,null::char(5),null,'SLF-009 every subsequent attempt, including a direct staff approval, refuses the closed request source');
 select set_config('request.jwt.claims', json_build_object('sub','81900000-0000-4000-8000-000000000341','role','authenticated','app_role','member','tenant_id','81900000-0000-4000-8000-000000000001','member_id','81900000-0000-4000-8000-000000000114')::text, true);
 select throws_ok($q$select holdout_slf.cancel_request(holdout_slf.request_id_by_key('81900000-0000-4000-8000-000000000710'::uuid),'81900000-0000-4000-8000-000000000840'::uuid)$q$,'P0002'::char(5),null,'SLF-009 a member cannot cancel another member request');
