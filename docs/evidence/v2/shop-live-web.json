@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "scope": "SHP bounded live browser acceptance across three affected runs",
-  "recordedAt": "2026-10-03T02:00:29.6475573Z",
-  "sourceCommit": "664b8e6 plus test-first uncommitted application source",
+  "scope": "SHP bounded live browser acceptance across five affected runs",
+  "recordedAt": "2026-10-03T02:41:20.9398236Z",
+  "sourceCommit": "2698883 plus test-first uncommitted application source",
   "browser": "Chromium",
   "previewOrigin": "http://127.0.0.1:3000",
   "databaseProject": "pecxrpskmfeuyzngvewq",
@@ -36,10 +36,24 @@
         "empty desk offline and reconnect with no automatic command"
       ],
       "failed": 0
+    },
+    {
+      "name": "collapsed catalogue before page fix",
+      "passed": 0,
+      "failed": 1,
+      "failure": "Successful catalogue hid offline status with every product panel closed"
+    },
+    {
+      "name": "collapsed catalogue after page fix",
+      "passed": 1,
+      "failed": 0,
+      "durationSeconds": 12.7,
+      "cases": [
+        "populated collapsed console catalogue offline and reconnect with no command"
+      ]
     }
   ],
-  "distinctCasesWithObservedPass": 9,
-  "allNineOnSingleCurrentHead": false,
+  "distinctCasesWithObservedPass": 10,
   "checks": [
     "Real member reserve, authoritative new read and exact cancellation",
     "Desk uncertain sale key and cancellation reason using intercepted commands",
@@ -47,7 +61,8 @@
     "Trimmed category refusal using intercepted command",
     "Chosen photo staging PUT then verification rejection using intercepted upload",
     "Positive populated and empty offline states",
-    "390px and 1440px, light and dark, axe, 200 percent text, reduced motion and 44px controls"
+    "390px and 1440px, light and dark, axe, 200 percent text, reduced motion and 44px controls",
+    "Offline status remains visible with all console product panels closed"
   ],
   "actualMoneyWrite": false,
   "actualMediaPublication": false,
@@ -63,15 +78,19 @@
     "Fresh full feature acceptance"
   ],
   "sourceHashes": {
-    "tests/e2e/shop-visible.spec.ts": "35ff35574ecf5a3f42933748410f094aa2e6b7d99161c47b5a26465fa1d7814f",
+    "tests/e2e/shop-visible.spec.ts": "2cdf5b2c351aa24999b9714d9c62997f50cac72812f8e0e526668a8a81664d05",
     "apps/web/app/(console)/shop/reservations/page.tsx": "3f568a3c17f1e1db1d07e78ddb1a01cae8ed14b8c4cea88f8046fc701676a053",
     "apps/web/lib/use-shop-command.tsx": "271a14024d27bd160d55ce4ba55a5c62f7c80666322d6986e39ed994813e87ab",
     "apps/web/app/member/shop/page.tsx": "653bdd486a9619be21c0d6b778eb956e135493a716bd7995e632127264ea03bd",
-    "apps/web/app/member/shop/shop-actions.tsx": "43ab1ff1b8f3f1ca5091975b4d6ba3d87fea6dbe9e90ff34538005fa71e697df"
+    "apps/web/app/member/shop/shop-actions.tsx": "43ab1ff1b8f3f1ca5091975b4d6ba3d87fea6dbe9e90ff34538005fa71e697df",
+    "apps/web/app/(console)/shop/page.tsx": "c99a44aee37fc2e92ca91d8ad5dcd30d620e8b2bce36bf955d1ebc324807cbe0"
   },
   "rawLogHashes": {
     "scratchpad/shop-live-browser.log": "c5db8f88fe41c50ea9c732fd3f10892f93f63a64c1f9b65aaf01d8616099a7dc",
     "scratchpad/shop-fixture-browser.log": "0d024188a73588f901735ea0787b23960f12d774956ab9f6a2b74d52c97ca657",
-    "scratchpad/shop-final-browser.log": "bd97d419152b3f24014c67dbfd903ea8a4dce08cc27daf1a336cf15dd641919c"
-  }
+    "scratchpad/shop-final-browser.log": "bd97d419152b3f24014c67dbfd903ea8a4dce08cc27daf1a336cf15dd641919c",
+    "scratchpad/shop-collapsed-red-browser.log": "2924f36e0ba853ae59faaca4c491ef74a0cb7d5064fe7312b21150c586d27551",
+    "scratchpad/shop-collapsed-final-browser.log": "4014ff7c3f360e32ad9cbde57995050042478c1923cabd7c2aa167f2c536a05c"
+  },
+  "allDistinctCasesOnSingleCurrentHead": false
 }

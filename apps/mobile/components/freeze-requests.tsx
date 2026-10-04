@@ -1,4 +1,4 @@
-import { formatMoney, UI_TOKENS, type FreezeRequestCopy } from '@gymloop/shared';
+import { formatMoney, freezeRequestCancellable, freezeRequestStateWord, UI_TOKENS, type FreezeRequestCopy } from '@gymloop/shared';
 import type { BusinessNouns } from '@gymloop/shared';
 import { StyleSheet, Text, View } from 'react-native';
 import { ActionButton, ErrorRetry, LedgerSection, LoadingState, StateMessage } from './ui';
@@ -23,8 +23,6 @@ const styles = StyleSheet.create({
   actionRow: { paddingVertical: 6 },
 });
 
-const CANCELLABLE = new Set(['requested', 'desk_submitted']);
-
 export type MemberFreezeBodyProps = {
   state: MemberFreezeState;
   copy: FreezeRequestCopy;
@@ -36,17 +34,8 @@ export type MemberFreezeBodyProps = {
 };
 
 function requestStateWord(copy: FreezeRequestCopy, row: MemberFreezeState['requests'][number]): string {
-  switch (row.status) {
-    case 'requested': return copy.awaitingAdoption;
-    case 'desk_submitted': return copy.awaitingApproval;
-    case 'approved': return row.effective === 'scheduled' ? copy.scheduled : row.effective === 'paused' ? copy.paused : row.effective === 'completed' ? copy.completed : copy.approved;
-    case 'rejected': return copy.rejected;
-    case 'cancelled': return copy.cancelled;
-    case 'expired': return copy.expired;
-    default: return copy.awaitingAdoption;
-  }
+  return freezeRequestStateWord(copy, row.status, row.effective);
 }
-
 export function MemberFreezeBody({ state, copy, onRetry, onRenew, onCancel }: MemberFreezeBodyProps) {
   if (state.phase === 'loading') return <LoadingState />;
   if (state.phase === 'error') return <ErrorRetry message={copy.errorNote} onRetry={onRetry} />;
@@ -76,7 +65,7 @@ export function MemberFreezeBody({ state, copy, onRetry, onRenew, onCancel }: Me
         <Text>{`${row.startsOn} – ${row.endsOn}`}</Text>
         {row.reason ? <Text>{row.reason}</Text> : null}
         {row.status === 'rejected' && row.decisionReason ? <Text>{row.decisionReason}</Text> : null}
-        {!offline && CANCELLABLE.has(row.status) && onCancel ? <View style={styles.actionRow}>
+        {!offline && freezeRequestCancellable(row.status) && onCancel ? <View style={styles.actionRow}>
           <ActionButton quiet onPress={() => onCancel(row.requestId)}>{copy.cancelCta}</ActionButton>
         </View> : null}
       </View>)}

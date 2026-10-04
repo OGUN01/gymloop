@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { formatMoney, freezeRequestCopy, type MemberFreezeRequestRow } from '@gymloop/shared';
+import { formatMoney, freezeRequestCancellable, freezeRequestCopy, freezeRequestStateWord, type MemberFreezeRequestRow } from '@gymloop/shared';
 import { StatusWord } from '../status-word';
 import { Field, inputClass } from '../(console)/field';
 import { runFrozenCommand, type KeySlot } from '../../lib/freeze-commands';
@@ -34,19 +34,6 @@ export type MemberFreezeRequestsSurfaceProps = {
   permissionDenied?: boolean;
 };
 
-const CANCELLABLE = new Set(['requested', 'desk_submitted']);
-
-function requestStateWord(copy: ReturnType<typeof freezeRequestCopy>, row: MemberFreezeRequestRow): string {
-  switch (row.status) {
-    case 'requested': return copy.awaitingAdoption;
-    case 'desk_submitted': return copy.awaitingApproval;
-    case 'approved': return row.effective === 'scheduled' ? copy.scheduled : row.effective === 'paused' ? copy.paused : row.effective === 'completed' ? copy.completed : copy.approved;
-    case 'rejected': return copy.rejected;
-    case 'cancelled': return copy.cancelled;
-    case 'expired': return copy.expired;
-    default: return copy.awaitingAdoption;
-  }
-}
 
 // The props parameter is optional so the surface also satisfies a bare
 // component slot; every real mount passes the full prop set.
@@ -107,11 +94,11 @@ export default function MemberFreezeRequestsSurface(props?: MemberFreezeRequests
     {requests.length === 0 && !offline ? <p className="member-quiet">{copy.emptyNote}</p> : null}
     <ul className="freeze-request-list" aria-label={copy.sectionTitle}>
       {requests.map((row) => <li key={row.requestId} className="freeze-request-row">
-        <p className="cl-row-title"><StatusWord status={row.status} label={requestStateWord(copy, row)} /></p>
+        <p className="cl-row-title"><StatusWord status={row.status} label={freezeRequestStateWord(copy, row.status, row.effective)} /></p>
         <p className="member-quiet"><time dateTime={row.startsOn}>{row.startsOn}</time> – <time dateTime={row.endsOn}>{row.endsOn}</time></p>
         {row.reason ? <p className="member-quiet">{row.reason}</p> : null}
         {row.status === 'rejected' && row.decisionReason ? <p className="member-quiet">{row.decisionReason}</p> : null}
-        {!offline && CANCELLABLE.has(row.status) ? <p><button className="cl-btn cl-btn--quiet" disabled={busy} onClick={() => cancel(row.requestId)}>{copy.cancelCta}</button></p> : null}
+        {!offline && freezeRequestCancellable(row.status) ? <p><button className="cl-btn cl-btn--quiet" disabled={busy} onClick={() => cancel(row.requestId)}>{copy.cancelCta}</button></p> : null}
       </li>)}
     </ul>
     {message ? <p role="status">{message}</p> : null}

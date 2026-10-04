@@ -1,5 +1,34 @@
 # SLF builder round — held-suite findings adjudication, 2026-10-04
 
+Round 2 (post-critic): the final fresh blind critic's P2 and P3s are also
+applied here. P2 — preparation cleanup is now scoped
+`and prepared.request_id = v_request.id`: a same-request preparation implies
+the same member advisory resource this transaction already holds, so cleanup
+can never revoke a concurrent in-flight transaction's capability
+(prepared-command-declaration); same-actor other-request abandoned rows linger
+until a separately declared bounded sweeper (recorded note, not built).
+P3-3 — the approve wrapper refuses a null `pause_approver_role` with 42501
+instead of skipping the boundary (missing settings refuse, never default;
+today unreachable, hardened anyway). P3-6 — the two public SLF tables now
+revoke from `service_role` as well, matching the preparations table
+(defense-in-depth; proposal's verbatim three-role revoke widened, flagged).
+P3-2 — registry helper row amended to name the three sanctioned authenticated
+EXECUTE grants. P3-4 — proposal index sentence amended to the per-row partial
+source-pause index. P3-7 — deliberate DPDP retention choice for member freeze
+reason text recorded in docs/security.md's audit_log row. P3-5 — the desk
+prepare target-class oracle (P0002 missing vs 42501 foreign) stays a recorded
+note, unchanged: the split-vs-collapse choice is contract-ambiguous and no
+held finding demands it.
+
+New migration sha256 (round 2):
+`b6dd638ac7346fbc8f54bf8773d0d60d845d51bd18e247074fb3ddae1ef92312`
+Static: $fn$ 40 even, parens balanced, cleanup scoping verified, both public
+tables carry the four-role revoke.
+
+---
+
+Round 1 record follows.
+
 Separate source builder. Read only `20261005100000_member_freeze_requests.sql`
 (in full), the four contract files in `openspec/changes/member-self-service/`,
 and the fresh critic's P3 sections. No test file, holdout file or scratchpad
@@ -146,5 +175,5 @@ difference. Per the rules I changed nothing and record each precisely:
 
 ## Hash
 
-New migration sha256:
+Round-1 migration sha256:
 `0faadbaadec9910a05e61b59d84b69d5c6eb76742753bdc0c123ca0137f18326`

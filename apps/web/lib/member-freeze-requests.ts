@@ -1,5 +1,6 @@
-import { DEFAULT_TIMEZONE, MEMBER_PAGE_SIZE_DEFAULT, memberAgreedPrice, toLocalDate, freezeEffectiveCondition, freezeRequestEligible, type MemberFreezeRequestRow, type FreezeEffectiveState } from '@gymloop/shared';
+import { DEFAULT_TIMEZONE, MEMBER_PAGE_SIZE_DEFAULT, memberAgreedPrice, toLocalDate, freezeRequestEligible, type MemberFreezeRequestRow } from '@gymloop/shared';
 import { requireAudience } from './identity-session';
+import { freezeText, toMemberFreezeRow, type FreezeRpcClient } from './freeze-rows';
 
 /**
  * The member freeze surface's single caller-session, RLS-scoped fact source:
@@ -7,10 +8,6 @@ import { requireAudience } from './identity-session';
  * requests through the safe read RPC. Nothing here decides, prices or
  * approves a pause — the ledger and the desk command do that.
  */
-
-type FreezeRpcClient = {
-  rpc(name: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: { code: string } | null }>;
-};
 
 type MembershipRead = {
   status: string | null;
@@ -23,34 +20,6 @@ type MembershipRead = {
 };
 
 type MembershipQuery = PromiseLike<{ data: MembershipRead | null; error: { message: string } | null }>;
-
-function text(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
-}
-
-/** Map one safe RPC row defensively; the SQL side owns the authoritative shape. */
-function toRequestRow(raw: unknown, todayIso: string): MemberFreezeRequestRow | null {
-  if (typeof raw !== 'object' || raw === null) return null;
-  const row = raw as Record<string, unknown>;
-  const requestId = text(row.request_id);
-  const status = text(row.status);
-  const startsOn = text(row.starts_on);
-  const endsOn = text(row.ends_on);
-  if (!requestId || !status || !startsOn || !endsOn) return null;
-  const effective = text(row.effective);
-  return {
-    requestId,
-    status: status as MemberFreezeRequestRow['status'],
-    startsOn,
-    endsOn,
-    reason: text(row.reason) ?? '',
-    decisionReason: text(row.decision_reason),
-    effective: (effective === 'scheduled' || effective === 'paused' || effective === 'completed'
-      ? effective
-      : freezeEffectiveCondition(status, startsOn, endsOn, todayIso)) as FreezeEffectiveState | null,
-    replayed: row.replayed === true,
-  };
-}
 
 /** The membership facts the surface discloses before any action (SLF-001). */
 export async function loadMemberFreezeContext() {
@@ -75,12 +44,12 @@ export async function loadMemberFreezeContext() {
   const membershipId = membershipIdResult.data?.id ?? null;
   const membership = membershipRow
     ? {
-      planName: text(planRelation?.name) ?? 'Membership',
-      status: text(membershipRow.status) ?? '',
-      startsOn: text(membershipRow.starts_on),
-      endsOn: text(membershipRow.ends_on),
+      planName: freezeText(planRelation?.name) ?? 'Membership',
+      status: freezeText(membershipRow.status) ?? '',
+      startsOn: freezeText(membershipRow.starts_on),
+      endsOn: freezeText(membershipRow.ends_on),
       recordedAgreedPricePaise: agreed === null ? null : String(agreed),
-      currency: text(membershipRow.currency) ?? 'INR',
+      currency: freezeText(membershipRow.currency) ?? 'INR',
     }
     : null;
   const result = await (supabase as unknown as FreezeRpcClient).rpc('read_member_freeze_requests', {
@@ -90,7 +59,7 @@ export async function loadMemberFreezeContext() {
   });
   const todayIso = toLocalDate(new Date(), DEFAULT_TIMEZONE);
   const requests = Array.isArray(result.data)
-    ? (result.data as unknown[]).map((row) => toRequestRow(row, todayIso)).filter((row): row is MemberFreezeRequestRow => row !== null)
+    ? (result.data as unknown[]).map((row) => toMemberFreezeRow(row, todayIso)).filter((row): row is MemberFreezeRequestRow => row !== null)
     : [];
   return {
     membership,

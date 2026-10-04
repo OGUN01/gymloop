@@ -1,5 +1,6 @@
 import { MEMBER_PAGE_SIZE_DEFAULT, type DeskFreezeRequestRow } from '@gymloop/shared';
 import { requireAudience } from './identity-session';
+import { freezeText, toDeskFreezeRow, type FreezeRpcClient } from './freeze-rows';
 
 /**
  * The desk queue's single caller-session, RLS-scoped fact source: the tenant's
@@ -9,38 +10,7 @@ import { requireAudience } from './identity-session';
  * identity, and the RPC revalidates it again server-side.
  */
 
-type FreezeRpcClient = {
-  rpc(name: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: { code: string } | null }>;
-};
-
 type SettingsQuery = PromiseLike<{ data: { pause_approver_role?: string } | null; error: { message: string } | null }>;
-
-function text(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
-}
-
-function toDeskRow(raw: unknown): DeskFreezeRequestRow | null {
-  if (typeof raw !== 'object' || raw === null) return null;
-  const row = raw as Record<string, unknown>;
-  const requestId = text(row.request_id);
-  const status = text(row.status);
-  const startsOn = text(row.starts_on);
-  const endsOn = text(row.ends_on);
-  if (!requestId || !status || !startsOn || !endsOn) return null;
-  return {
-    requestId,
-    status: status as DeskFreezeRequestRow['status'],
-    startsOn,
-    endsOn,
-    reason: text(row.reason) ?? '',
-    decisionReason: text(row.decision_reason),
-    effective: null,
-    memberName: text(row.member_name) ?? 'Member',
-    memberCode: text(row.member_code) ?? '',
-    adoptedByStaffId: text(row.adopted_by_staff_id),
-    revision: (typeof row.revision === 'string' || typeof row.revision === 'number') ? String(row.revision) : '',
-  };
-}
 
 /** The desk queue facts, loaded under the acting staff member's own RLS context. */
 export async function loadStaffFreezeQueue() {
@@ -57,12 +27,12 @@ export async function loadStaffFreezeQueue() {
   ]);
   if (requestsResult.error || settingsRead.error) return { error: 'The freeze queue could not be loaded.' } as const;
   const requests = Array.isArray(requestsResult.data)
-    ? (requestsResult.data as unknown[]).map(toDeskRow).filter((row): row is DeskFreezeRequestRow => row !== null)
+    ? (requestsResult.data as unknown[]).map(toDeskFreezeRow).filter((row): row is DeskFreezeRequestRow => row !== null)
     : [];
   return {
     viewerStaffId: identity.staffId,
     viewerRole: identity.role,
-    approverRole: text(settingsRead.data?.pause_approver_role) ?? 'gym_manager',
+    approverRole: freezeText(settingsRead.data?.pause_approver_role) ?? 'gym_manager',
     requests,
     loadedAt: new Date().toISOString(),
   } as const;

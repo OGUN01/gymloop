@@ -1075,3 +1075,1602 @@ Source work starts ONLY after this checkpoint is committed.
 - Hash: purchase-visible-native-proof-upload.test.tsx `131490b715504413`.
 - Author's own mid-edit slip fully repaired before verification; final state
   clean (recorded honestly in its report).
+
+## Runtime preview round — first real SQL evidence (2026-10-04, gymloop-35)
+
+- Suite 79 plan(246) ABORTS: uncaught `42501 Media asset unavailable` on an
+  expected-success path (first runtime evidence; the prior SQL critic was
+  static-only). h79: 121 ran / 29 failures (its author never opened it —
+  failures presumed to be my migration's runtime amendments breaking older
+  pins).
+- TAP label extraction requested from gymloop-35 (exact 79 abort location +
+  h79 failure labels at label level).
+- SQL builder dispatched for code-level diagnosis: trace every
+  `Media asset unavailable`/capability-seam 42501 site, map to suite-79
+  fixture paths, classify source-vs-fixture defect, fix source / write the
+  fixture-setup requirement for the visible author.
+- gymloop-35's own scope converging: WSP all six suites GREEN (609
+  assertions); SLF/RPE/OCC in author-repair rounds. Their queue: 79 fix
+  confirmation → proposal reconciliation → push + CI migrate + gen types +
+  protected deploy.
+
+## TAP labels + systemic hypothesis (2026-10-04, gymloop-35 extraction)
+
+- Suite 79 abort: unguarded expected-success finalize call — finalizer line-37
+  RAISE `42501 Media asset unavailable`; linkage/capability-state hypothesis
+  consistent.
+- h79's 29 failing labels form ONE pattern: the entire record/renewal/
+  mismatch chain after the proof/attach flow — exact-price, mismatch (all
+  E-labels), renewals, replay/conflict, C2/C3 refusal pins, release/restock,
+  tombstone survival, unavailable-member recheck.
+- Leading hypothesis routed to SQL builder: the amended viewed-evidence
+  validation lacks the no-proof cash branch (BUY-012's lawful received-cash
+  path) — every recording without an attached proof raises, so all
+  record-dependent labels fail regardless of expected outcome. Secondary:
+  finalizer member path uncaught raise semantics.
+- Builder classifying SOURCE vs FIXTURE per label pattern; runtime evidence
+  authoritative over static reading.
+
+## SQL builder rounds 5+6 — SOURCE clean, four fixture defects (2026-10-04)
+
+- Cash-path hypothesis REFUTED at current bytes: viewed-evidence branches
+  correctly for no-proof (null,null) tuples; grants/identity are the
+  round-2-fixed ones. Uniform record death at 42883 signature = pre-round-2
+  privilege bytes (the preview may have spliced stale bytes — diff check for
+  the primary).
+- Suite-79 aborts are FIXTURE defects (builder's exact requirements, visible
+  author applying): F1 keyed registrations tombstone W2 before its finalize
+  (reorder after attach); F2 replayed create key + label PK violation (fresh
+  key/label); F3 hand-inserted media fixtures 141/144/145/146 lack
+  `linked_request_id` → attach-time linkage refuses the success attaches →
+  the record-chain pins starve downstream (set 141→KR2, 144/145→K6, 146→KR1;
+  143/148 stay null); F4 no change needed.
+- h79 hypotheses stubbed pending label-level confirmation: renewal revision
+  pins, linkage-era attach fixtures, confirmed-replay GL066, C2/C3 drift —
+  all fixture/spec-debt shapes so far.
+- Static checks re-verified: 159 files rollback-green, GL126 absent, no
+  source change this round.
+
+## Suite-79 fixtures committed — h79 repair dispatched (2026-10-04)
+
+- Visible author applied F1–F4 exactly (plan(246) unchanged; rollback guard
+  green; TS set still 236/237). Suite 79 sha256-16 `2799847e2f35a877`,
+  committed `spec:` (fixture ordering + linkage setup). Primary can re-preview.
+- h79 repair dispatched to my holdout author (now permitted to open h79 —
+  prior exclusion was the other agent's active edit): label-level
+  classification of the 29 failures into linkage-era fixture gaps, renewal
+  revision pins, confirmed-replay GL066, C2/C3 refusal shapes; FIXTURE fixes
+  vs SPEC-DEBT documentation vs SOURCE-defect escalation. plan/prefix
+  conventions unchanged; no weakening.
+
+## h79 repair + GL124 adjudication (2026-10-04)
+
+- Holdout author's label-level classification: (a) rejected as stated — h79
+  registers via RPC; real root = NULL quote_version from self-referencing
+  subselects, surfaced by the amended revision gates (FIXTURE: literals);
+  (b) renewals echo the generated accepted revision, creation sends
+  explicit-null (FIXTURE); (c) no such pin; (d) proof-backed recordings move
+  to the 9-arg viewed tuple; G2 now reaches the member-status recheck. New
+  coverage: plan 121 → **126** (9-arg pin, keyed 4-arg seam, keyed read-only
+  replay, GL068 conflict).
+- h79 committed `spec:` (194+/136−).
+- SOURCE tension adjudicated: attach-time linkage refusal must raise **GL124**
+  per the frozen allocation ("an asset already bound to a request"); the
+  GL086 routing deviated. Migration fix dispatched (external mapping
+  unchanged — still the one external refusal). Awaiting builder round 6 hash.
+
+## GL124 fix committed — snapshot updated (2026-10-04)
+
+- Migration sha256 **a12ca1cc02cd0bbc…45b1f1** (committed `fix:`): attach-time
+  linkage refusal raises GL124/DETAIL proof_bound (own statement after the
+  generic media-seam check); GL123 ×9, GL124 ×5, GL125 reserved-but-unraised
+  (guard conditions unreachable — residue noted for the preview), GL126
+  absent. Rollback guard 159 green; suite-79 pin 591 satisfied.
+- Preview set announced to gymloop-35: suite 79 `2799847e…` plan(246) +
+  h79 plan(126) `2f90f546…`. GL125 residue: route to me if any label expects
+  it; otherwise the allocation note stands.
+
+## Preview round 2 at a12ca1cc (2026-10-04, gymloop-35)
+
+- Suite 79 still aborts: my F3 UPDATE-based linkage placement collides with
+  `app.enforce_media_asset_verification()` — the MEDIA verification trigger
+  refuses ANY update to an existing media asset row (immutability). Fixture
+  restructure dispatched: request-row creation moved BEFORE each affected
+  media insert so `linked_request_id` is present AT INSERT (inline subselect
+  valid); post-hoc UPDATEs deleted; no trigger bypass.
+- h79: 32/121 (was 29) — the three new failures ARE the GL124 attach-refusal
+  landing (the adjudicated allocation; holdout pin was right). Holdout author
+  notified to reconcile the three changed labels; extraction requested for
+  any that don't match GL124.
+
+## Insert-time linkage restructure committed (2026-10-04)
+
+- Suite 79 sha256-16 **31ddd081af4c79d7** (committed `spec:`): media fixtures
+  insert immediately after their request rows with linked_request_id inline;
+  refusal-only fixture isolated; zero update-media-assets statements. Cause
+  confirmed: the MEDIA verification trigger enforces row immutability — any
+  post-creation UPDATE is refused, so UPDATE-based linkage could never run.
+- gymloop-35 notified for re-preview; asked to confirm which h79 bytes their
+  32-failure run spliced (the holdout author's round-5 file 8a0022cd may
+  postdate that preview — tree 2f90f546 == HEAD).
+- In flight: SQL builder's keyed-replay byte verification (D3 65–67: source
+  defect vs fixture-state).
+
+## Preview round 3 in flight (2026-10-04)
+
+- gymloop-35 rerunning suite 79 at 31ddd081; checking their h79 manifest hash
+  against tree 2f90f546 (their 32-failure run may have spliced pre-round-5
+  bytes). SQL builder's keyed-replay byte walk in flight (D3 65–67). Their
+  RPE suite 82 whack-a-mole is their author's scope.
+
+## Byte confirmation (2026-10-04, gymloop-35)
+
+- The 32-failure h79 run spliced the CURRENT committed bytes (2f90f546 ==
+  working tree) — the three D3 keyed-replay failures are LIVE against the
+  round-5 commit. SQL builder's code-walk verdict decides source-defect vs
+  fixture-state. 79 rerun + h79 rerun in flight.
+
+## D3 root cause: SOURCE defect, fixed (2026-10-04)
+
+- The keyed 4-arg registration delegated to the command seam, which
+  classified `register` as a STAFF command — pay_take_capability demanded a
+  front-office session, so every keyed registration by the owning member died
+  42501 before its read-only replay. The D3 pins were right; the bytes
+  deviated.
+- Fixed (committed `fix:`): pay_command_record/lookup classify register as a
+  member command. New migration sha256 **85b9ca72f018d973…c12785**
+  (supersedes a12ca1cc for previews).
+- Holdout author notified: D3 pins should pass at next preview against the
+  new bytes; h79 finalize paths may need the credential-verifier role
+  wrapping (same class as the suite-79 fix in flight).
+- Visible author's round 9 (credential-verifier wrapping for 79 finalize
+  calls) in flight.
+
+## h79 round 6 reconciled + committed (2026-10-04)
+
+- Three-way: 67 fixture defect (fresh key ≠ GL068; reuses retained key);
+  65/66 fixture-design defects (ORIGINAL registration carries the retained
+  key; cross-key equality never contract-true per BUY-010's lawful
+  new-candidate tombstone); 42501 = the migration's register-classification
+  defect (already fixed at 85b9ca72). D-series tombstone race removed.
+- h79 committed `spec:` — sha256-16 a1dabfb8…055d, plan(126). Credential
+  wrapping already present (mirror duty N/A).
+- Preview pair for gymloop-35: migration 85b9ca72 + suite 79 31ddd081
+  (round-9 hash pending) + h79 a1dabfb8.
+
+## Credential wrapping committed — preview trio ready (2026-10-04)
+
+- Suite 79 sha256-16 **02da7712fef335ac** (committed `spec:`): the seven
+  expected-success finalize calls were already wrapped; round-8's
+  scenario-local INSERTs now wrapped (postgres → service_role claims →
+  INSERT → postgres); refusal-path calls intentionally unwrapped.
+  Intermediate script slip disclosed and repaired before verification.
+- Preview trio announced: migration 85b9ca72 + suite 79 02da7712 + h79
+  a1dabfb8, all committed. Expecting the D-chain and the 79 publication path
+  to clear at the next combined preview.
+
+## Preview round 4 (2026-10-04, gymloop-35)
+
+- 79 publication-gate abort past; next abort `42501 permission denied for
+  table media_assets` — the credential-wrapped INSERTs demand a service_role
+  table grant production deliberately lacks (registration inserts happen
+  inside the definer RPC; the Edge stamps verification only via the
+  finalizer). Grant widening refused by design — fixture-shape fix instead:
+  plain rows at INSERT (linked_request_id inline), verification state
+  produced by the wrapped finalize call through the finalizer's guarded
+  path. Round 10 dispatched to the visible author.
+- h79 38/126 (up from 32 — the register-classification fix changed more
+  outcomes). Label diff requested from gymloop-35.
+
+## h79 diff at 85b9ca72 (2026-10-04, gymloop-35)
+
+- **#66 now passes** — the keyed-replay read-only pin holds at the fixed
+  bytes (register-classification fix validated at runtime).
+- Seven NEW failures (#64 D3, #68 D4, #70 D6, #71 D7, #77 D12, #78 D13,
+  #118 F4) cluster on the registration→publication→attach chain — same
+  production-shape class as suite 79's (staged publications vs the
+  verifier/actor context, plain-row/finalize-stamp sequence). Got/wanted
+  dumps requested; holdout author standing by to classify each as fixture
+  restructure vs source defect.
+- #95 bare failure persists (D-series restructure may have moved it;
+  got/wanted will tell).
+
+## h79 dumps classified — three source candidates (2026-10-04)
+
+- #64: capability mint-vs-lookup label mismatch on the register path (the
+  lookup case-expression fix landed; the MINT side may still label
+  differently) — source seam, dispatched.
+- #68: refusal-class ordering — staging-only attach must raise GL086
+  (immutable publication) BEFORE the generic 22023 shape guard — source,
+  dispatched.
+- #70/#118: attach raises 22023 "Proof arguments required" on a legitimate
+  four-arg call — decision 3 puts viewed-evidence on RECORD only; if attach
+  demands viewed args, remove (source). #71/#77/#78 cascades of #70.
+- Holdout author holding classification until the builder's fix lands + next
+  preview. #66 passing already validates the register-classification fix at
+  runtime.
+
+## Holdout author refinement (2026-10-04)
+
+- #70/#118 downgraded to CASCADE: the attach guard checks exactly the frozen
+  four args, demands no viewed evidence (decision 3 correctly record-only);
+  the 22023 fires on NULL asset subselects after #64's registration failure.
+  Builder must NOT remove a viewed-args demand from attach — there isn't one.
+- #64 refined: mint (pay_command_record line ~316) and lookup (line 337) both
+  classify register → member; the live asymmetry is the RECORD BODY's
+  pre-grant at ~line 2454 granting `command_note` with audience 'staff'
+  before the lookup takes it — grant/take audience diff is the exact fix
+  site.
+- #68 also reads as the #64 cascade (NULL assetId → arg guard), not ordering.
+- Holdout author holding; classification round on my go after builder fix +
+  preview.
+
+## Capability mint fix committed (2026-10-04)
+
+- Migration sha256 **c3cb0d8ff46f3b56…c44f45** (committed `fix:`): the keyed
+  register path mints its own member-class command_note capability before
+  the lookup (the record body's staff-audience pre-grant was starving every
+  keyed registration — #64 root cause). Cascades #68/#70/#118/#71/#77/#78
+  confirmed against bytes as #64-dependent, no changes needed.
+- Preview trio re-announced: migration c3cb0d8f + suite 79 02da7712 +
+  h79 a1dabfb8. Expected: D3 trio passes, #64 + cascades clear. Knowns
+  remaining: the 29-label record chain (byte-diff question open) + #95 bare.
+
+## Round 10 committed — production-shaped verification (2026-10-04)
+
+- Suite 79 sha256-16 **1f457511e6537664** (committed `spec:`): plain media
+  rows (linkage inline, no verification-state columns) + credential-wrapped
+  finalize calls re-sequenced after each scenario's desk accept and right
+  before the attach pins they feed — the finalizer's guarded path is the
+  only verification-state producer, as in production. This also covers the
+  GL066 finalize-before-accept ordering.
+- Preview pair re-announced: suite 79 1f457511 + h79 a1dabfb8 + migration
+  c3cb0d8f. Awaiting: fresh h79 diff + the C21 cash-recording got/wanted
+  (one dump should explain the 29-label record chain).
+
+## 42725 root cause — the whole record chain (2026-10-04, gymloop-35)
+
+- ONE dump explains all 29 labels: h79's six-arg record calls are AMBIGUOUS
+  now that the migration ships both the 7-arg wrapper and the 9-arg core with
+  defaults (42725 not unique). Every E-series record/renewal label is
+  downstream. Holdout fixture fix dispatched: call the exact declared form
+  per scenario (9-arg with the viewed tuple where a proof is viewed per
+  decision 3; explicit 7-arg/nulls for cash; never rely on defaults across
+  two overloads).
+- #66 staying green + D3 passing at 85b9ca72 + #95 gone confirm the earlier
+  fixes held. Suite 79 `1f457511` + h79's disambiguation → next preview
+  should collapse the class.
+
+## GL066 class verified already fixed (2026-10-04, visible author round 11)
+
+- Walked all 12 success finalize calls: every accept commits before its
+  finalize (rounds 9–10 corrected the ordering). The GL066 abort gymloop-35
+  saw matched the PRE-round-10 sequence. Refusal pins probe-guarded,
+  untouched. Suite sha256-16 `1f457511e6537664` unchanged — no edit needed,
+  stated plainly rather than inventing one.
+- Awaiting: gymloop-35 re-preview of 79 (1f457511) + h79's 42725
+  disambiguation round (in flight).
+
+## h79 disambiguation committed — preview trio final (2026-10-04)
+
+- h79 sha256-16 **8fccf54fb5461bce…6417** (committed `spec:`): 8 cash calls →
+  explicit 7-arg wrapper (positional null viewed tuple); A-series pins on
+  amended forms; zero six-arg forms remain; plan(126)/labels unchanged.
+- Final preview trio: migration `c3cb0d8f…` + suite 79 `1f457511…` plan(246)
+  + h79 `8fccf54f…` plan(126) — everything my scope can fix is committed.
+  This preview should collapse both classes; residue routes back to me.
+
+## Preview round 5 — h79 32→14, 79 abort persists (2026-10-04)
+
+- h79 collapsed 32→14: A11/A12 (signature/ACL pin re-pins), D3 65/66/67
+  (should pass at fixed bytes — residual keyed-path deviation or fixture
+  state), E2/E3/E4/E12/E13 (post-42725 disambiguation, now failing
+  differently), F1/G2/G3, bare #95. Got/wanted dumps requested for all 14.
+- Suite 79 STILL aborts GL066 at finalize line 72 despite accept-before-
+  finalize resequencing (round 11 walk verified all 12 calls accept-first).
+  Statement-level extraction requested — suspect: keyed-register path
+  minting + auto-finalize interaction, or a media insert preceding an accept
+  on the probe path.
+
+## Byte-version question raised (2026-10-04)
+
+- The GL066 aborting preview's suite-79 bytes unconfirmed: the call-site map
+  matches the round-10 state, and the author's walk verified accept-first at
+  round-10 bytes (1f457511). If the preview spliced pre-round-10 bytes
+  (02da7712), the abort is the already-fixed sequence. Asked gymloop-35 to
+  confirm the suite + migration hashes for that run.
+- h79 dumps still incoming.
+
+## Byte-mapping resolved (2026-10-04)
+
+- gymloop-35's manifest was stale: their GL066 run spliced a pre-round-10
+  suite state despite recording 1f457511. Current definitive pair: suite 79
+  `1f457511…026` @ commit `162d835e` (round 10) + migration `c3cb0d8f…`
+  (unchanged through rounds 9–10). The three "newer" commits they found are
+  my rounds 8/9/10 themselves. Re-preview requested at current HEAD.
+- h79's 14-label classification routed: 4 malformed-string + arg-order
+  fixture fixes to the holdout author (in flight); #65/#113 to the SQL
+  builder (keyed facts-diff + create-path refusal allocation); #66 cascade;
+  #11/#12 re-pins after builder confirms the wrapper's current signature.
+
+## h79 syntax repairs committed (2026-10-04)
+
+- Four record-call strings had unbalanced parens from the 9-arg amendment
+  (E2/E12/G2/E6 — E6 also had its is() expected value/label swapped, the
+  bare label-less failure); one extra close on a D3d probe caught by a
+  whole-file audit (now zero unbalanced bodies). A11/A12 verified already on
+  the amended forms — mechanics updated, contract expectations intact.
+- h79 sha256-16 **f4383781186188fe** (committed `spec:`), plan(126).
+- In flight: visible author round 12 (KR2 accept commitment walk + M/S
+  staging-row restoration per the per-statement capture).
+
+## Visible author rounds 12/13 — one fix, two escalations (2026-10-04)
+
+- Fixed: the member-status control scenario REPLAYED the PT request (reused
+  key sid(530), F2-class) desyncing the KF6/W4 chain — fresh sid(532).
+  Committed `spec:`, suite 79 sha256-16 `6f79b2f7239b9067`.
+- Escalated (need preview TAP): (1) KR2 GL066 — the accept is a real
+  unguarded front-desk lives_ok; if it PASSES and finalize still refuses,
+  that's a source finalizer defect; (2) M1/M3/S1 42501 cluster — RPC-registered
+  with valid staging keys, round 10 untouched; stale-capture (abort at 379)
+  vs source gate change decidable only post-fix.
+- h79 syntax repairs committed separately (f4383781).
+- Preview set: suite 79 6f79b2f7 + h79 f4383781 + migration c3cb0d8f.
+
+## KR2 verdict + source walk dispatched (2026-10-04)
+
+- gymloop-35's definitive capture at round-12 bytes: the KR2 accept (374)
+  PASSES, the finalize (379) still dies GL066 — walk vs runtime disagree.
+- SQL builder dispatched: (a) row mismatch vs gate mismatch on KR2 (linkage
+  column same-row check + the finalizer's line-72 status-set gate vs what
+  accept_purchase_request writes — contract state set = owner_accepted/
+  payment_proof_uploaded per frozen decision 1); (b) M1/M3/S1 42501
+  reproduces at round-12 bytes — the finalizer's availability query vs the
+  registration RPC's actual inserted shape (columns filtered vs populated).
+- Full S/E tape requested from gymloop-35 for empirical settlement.
+
+## Root cause: claims leakage in the suite helper seam (2026-10-04)
+
+- S/E tape settles GL066 + M/S as ONE class: labels 120/121 (mismatch create
+  + accept) FAIL before the finalize; captured results carry
+  `{"role":"service_role"}` where the accept's result should be; every M/S
+  42501 is immediately preceded by a service-role-claims result; refusal
+  paths healthy. NOT a finalizer gate defect — the earlier starvation
+  hypothesis was right, the gate was innocent.
+- Shape: after the round-9/10 wrapped verifier blocks, later create/accept/
+  register commands run under service-role claims (the claims GUC survives
+  `reset role`) — audience/actor gates refuse them, the chain starves.
+- Visible author round 14 dispatched: restore session role AND claims GUC
+  after every wrapped block (reset role alone does not clear
+  request.jwt.claims); no helper captures stale claims across scenarios.
+- SQL builder's gate/availability walk overtaken by events — no source
+  defect found there; awaiting the fixture fix before closing its round.
+
+## SQL builder round 8 — gates walk clean (2026-10-04)
+
+- Both source candidates walked CLEAN against the bytes: the finalizer's
+  liveness gate reads the canonical status enum against exactly frozen
+  decision 1's admissible set (same column/values accept writes, keyed on
+  the same linked_request_id); the availability select filters only
+  id+tenant_id (always populated). No source defect provable.
+- Decision table in the builder report partitions the three 42501 messages
+  by gate body — consistent with the claims-leakage root cause (register
+  swallowed/refused under leaked claims → NULL regs row → "Media asset
+  unavailable"; request left the live set → GL066).
+- Migration hash unchanged c3cb0d8f. The claims-leakage fixture fix (round
+  14, in flight) is the deciding round; preview proves.
+
+## Claims-leakage fix committed — collapse preview ready (2026-10-04)
+
+- Suite 79 sha256-16 **03242e5b709b7686** (committed `spec:`): claims GUC
+  reset to the empty baseline after all 15 wrapped verifier blocks
+  (set_config(...,true)); subsequent commands re-issue their own claims;
+  plan(246) unchanged; rollback guard green.
+- Preview set final: suite 79 03242e5b + h79 f4383781 + migration c3cb0d8f.
+  The tape's captured claims at labels 120/121 must now show the
+  front-desk/member context — the deciding evidence.
+
+## Round-14 sharpened diagnosis (2026-10-04, gymloop-35 capture)
+
+- Labels 120/121 now PASS (claims fix worked for the mismatch scenario).
+- KR2: accept PASSES, finalize refuses GL066, captured value before the
+  failing finalize still carries service_role claims — two live hypotheses:
+  1. **Reset placement**: the round-14 reset may clear the VERIFIER's own
+     claims BEFORE some finalize calls (reset must come strictly after the
+     block's finalize call, not after the INSERT) — matches the six 42501
+     media-read sites exactly. Visible author round 15: walk every wrapped
+     block's placement.
+  2. **KR2 binding**: the finalize's request-state lookup keys on the
+     REGISTERED linkage — if the KR2 keyed-register bound a replayed/
+     different request id than the accepted row, the gate reads the wrong
+     row. SQL builder checking the keyed-register linked_request_id binding.
+
+## Builder addendum — binding divergence unreachable (2026-10-04)
+
+- The keyed path writes linked_request_id from a three-column predicate
+  (tenant + caller-supplied request id + member) — replay cannot rebind
+  (command lookup keys on tenant/request/key/command; stored linkage
+  immutable from original registration). The finalize's gate reads the
+  CURRENT status of the same row; accept passing immediately before leaves
+  it owner_accepted.
+- Consequence: KR2's GL066 = fixture-layer divergence (the finalize's asset
+  was registered against a different request id than the row accept mutated
+  — stale/other label's registration result or a create-replay/label
+  collision of the F2 class). Claims-reset theory confirmed independent and
+  consistent with the six-site 42501 signature.
+- No source change; migration unchanged c3cb0d8f. Both fixes are the visible
+  author's (placement + KR2 fixture registration identity), round 15 in
+  flight.
+
+## Round 15 audit — fixture clean, escalation stands (2026-10-04)
+
+- Placement audit: all 15 wrap-opens immediately followed by their finalize
+  (no reset/postgres between); round-14 resets strictly after terminal
+  postgres. KR2 contains NO register call — hand-inserted asset 141 with
+  linked_request_id inline to the same request_key-522 row the accept
+  mutates (single row by key uniqueness). Claims-free-finalize theory
+  eliminated. Suite unchanged 03242e5b.
+- Escalation to SQL builder: the finalize's request-read path under the
+  tenant-less verifier claims shape — if any claim-derived tenant context
+  participates in the gate's read (instead of the p_tenant_id/p_request_id
+  arguments), that's the source defect explaining GL066 at runtime while
+  accept passes. Builder walking.
+
+## Builder round 8 addendum 2 — gate argument-clean (2026-10-04)
+
+- Full claims/context audit of the finalize body: ONE claims read (line 835,
+  the credential gate — satisfied by the simulation shape); all other reads
+  key on p_tenant_id ARGUMENT + v_asset.linked_request_id column + stored
+  status/expires_at. No claims-derived tenant anywhere; no FORCE RLS. The
+  tenant-less-claims hypothesis is eliminated at the byte level.
+- Two captures requested from gymloop-35 at the CURRENT bytes (their GL066
+  captures so far came from pre-round-14 bytes — the claims fix may have
+  changed KR2's behavior entirely): (1) pg_get_functiondef of the spliced
+  finalize gate (splice divergence check); (2) the gate's four binds
+  (p_tenant_id, p_asset_id, v_asset.linked_request_id, row status/expires_at
+  + statement_timestamp) — settling linkage vs status/expiry vs splice
+  divergence.
+- Visible author's fixture audit to exhaustion; suite unchanged 03242e5b.
+
+## Decisive capture — KR2 finalize targets the refusal-only asset (2026-10-04)
+
+- gymloop-35's binds capture: the failing finalize targets media_assets
+  id …143 with **linked_request_id: null**, confirmed_at null — asset 143 is
+  the SUITE'S OWN refusal-only fixture (F3 mapping: "143/148 stay null").
+  The KR2 finalize references the wrong asset id — the request gate
+  correctly refuses because the asset genuinely has no registered linkage.
+  Cascade explanation for the request staying owner_accepted holds.
+- Six 42501 sites have a candidate unified cause: finalizes hitting assets
+  whose registration linkage/state is null (the refusal-only hand-inserted
+  rows) instead of the RPC-registered assets.
+- Visible author dispatched: rewire the KR2 expected-success finalize to the
+  correct RPC-registered asset (or register via RPC with linkage, keeping
+  143 refusal-only); verify the register RPC inserts WITH linked_request_id.
+- gymloop-35's functiondef divergence probe was invalid (read the permanent
+  cloud catalog, not the preview transaction) — disregarded.
+
+## 143 reading challenged — tape-index misattribution likely (2026-10-04)
+
+- Visible author's verbatim walk: the KR2 finalize targets asset 141 (which
+  HAS linkage to the KR2 request); 143 appears ONLY inside refusal() pins
+  (lines 551/749 — the erased-member refusal pin uses asset 143 + actor 906,
+  the same actor id as the KR2 finalize). No 141/143 swap in the restructure.
+- The tape's "id …143" reading is likely index misattribution — the
+  restructures shifted execution positions; the erased-member pin (pinned
+  refusal, not an abort) is the likely mis-attributed statement.
+- Registration linkage confirmed from migration bytes: RPC-registered assets
+  carry linked_request_id from birth.
+- gymloop-35 asked to re-derive the capture at 03242e5b with current indices
+  + confirm whether the GL066 abort reproduces at the round-14 bytes at all.
+
+## Runtime truth: 141's linkage is NULL — stale subselect class (2026-10-04)
+
+- Decisive row capture at round-14 bytes: asset 141 has linked_request_id
+  NULL at the finalize instant (E-marker named sid(141) directly). The
+  author's walk vs runtime reconciled: the insert's linked_request_id
+  SUBSELECT silently evaluated to no row (stale label/filter after the
+  restructures — NULL, no error).
+- Visible author round 18: audit 141's insert expression + the six 42501
+  region's inserts for the same stale-subselect class; harden each linkage
+  subselect to a strict single-row join on the scenario's unique label so a
+  future restructure fails loudly instead of writing NULL.
+
+## Round 19 — fixture exhausted, trigger suspect routed (2026-10-04)
+
+- Fixture side exhausted: 141's linkage selects by request_key alone
+  (nothing to rot), ordering proven by char offsets, M/S rows RPC-inserted
+  with linkage from birth. Anchor pins added: plan(246) → **plan(249)** — a
+  future restructure now fails loudly instead of silently NULLing linkage.
+- Sharpened escalation to the SQL builder: if anchors pass and linkage is
+  still NULL at the finalize, the MEDIA verification trigger strips
+  `linked_request_id` on INSERT (whitelist/rewrite behavior). If confirmed:
+  SOURCE defect — the frozen media amendment requires registration to bind
+  linkage durably at registration; the trigger's immutability protection
+  must govern UPDATES, not strip the INSERT-carried linkage. Suite sha256-16
+  `bfbcf9a4d3c0e70d`.
+
+## Trigger cleared — static work exhausted (2026-10-04)
+
+- Trigger audit: no strip behavior exists (INSERT passes through; UPDATE
+  immutability includes linked_request_id and RAISES, never rewrites; FK is
+  NO ACTION; production symmetry holds — a trigger-level strip would break
+  every registration).
+- Final capture list handed to gymloop-35: (1) the three anchor pins
+  (plan 249) — loud fixture defect if failing; (2) if anchors pass and
+  linkage still NULL: pg_get_functiondef + triggerdef captured IN THE
+  PREVIEW SESSION (the earlier probe read the permanent catalog — invalid) +
+  the four gate binds. If all audited-text: defect is below the SQL layer
+  (spliced migration-set mismatch, primary's to resolve).
+- Static evidence complete: every gate/trigger/fixture audit clean.
+
+## Anchor-pin cast fix (2026-10-04, gymloop-35 capture)
+
+- The three anchor pins aborted `42883 is(bigint,integer,unknown) does not
+  exist` — count(*) is bigint, the literal 1 is integer. Cast fix dispatched
+  (both sides ::bigint, the repo's adjudicated pattern).
+- Progressive-execution note: the abort now happens BEFORE the KR2 chain —
+  execution reached past the earlier GL066 point. After the casts, the
+  anchors pass/fail verdict finally lands, and the finalize question settles
+  at bfbcf9a4 + c3cb0d8f. h79 stable at 4 failures.
+
+## Anchor casts committed (2026-10-04)
+
+- Suite 79 sha256-16 **455d39a1aed101cb** (committed `spec:`): all three
+  anchor pins `1::bigint`; plan(249) unchanged; rollback guard green.
+- Re-preview announced: the anchors' verdict now lands decisively — pass =
+  NULL origin post-insert (functiondef capture decides); fail = loud fixture
+  ordering defect.
+
+## Two finalize-failure signatures mapped (2026-10-04, gymloop-35 capture)
+
+- Line-72 class (GL066): finalizes whose asset linkage is null-at-runtime —
+  the silently-NULL-linkage assets; anchors will say which scenario.
+- Line-37 class (42501 availability): finalizes whose asset registration
+  didn't land at all — RPC-registered vs fixture-inserted split decides
+  source-seam (register-to-availability) vs loud fixture path.
+- Visible author round 20: per-signature asset-id walk. The plain run still
+  aborts at the first failure (anchors not observable without per-statement
+  capture).
+
+## Round 20 — complete decision table (2026-10-04)
+
+- Signature 1 (GL066): four plain-insert assets (144/145/146/141) with typed
+  anchors — anchor FAIL = fixture ordering (loud); anchor PASS = source
+  class (escalate with receipt). RPC assets can't hit it.
+- Signature 2 (42501 availability): RPC-registered rows (M1/S2/W1/W2/W4) —
+  any error = register-to-availability seam, SOURCE candidate. Product-photo
+  erroring = source. 143/148/M3 = refusal-only (42501 reading = tape-index
+  misalignment).
+- M1 GL066 = upstream starvation (check the accept's TAP result first).
+- Decision table handed to gymloop-35 for the next capture round.
+
+## Anchors PASS — source class confirmed; round-trip dispatched (2026-10-04)
+
+- gymloop-35's capture: all three anchor pins PASS (no E markers) → per the
+  split rule, the null linkage arises POST-insert (trigger-rewrite/source
+  class). Four finalize targets still fail: GL066 at ~384 (KR2) + six 42501
+  at ~516/519/576/600/612/733 (M1/S2/W-region RPC-registered assets).
+- Round-trip capture dispatched to gymloop-35 with the insert-site labels
+  (K6 ~264 → 144/145; KR1 ~334 → 146; KR2 ~375 → 141): insert → immediate
+  SELECT of linked_request_id under the same session state. NULL inside the
+  insert = trigger/constraint from any migration; present post-insert but
+  NULL at finalize = in-session divergence.
+- SQL builder round 10 dispatched: extended trigger audit across the FULL
+  spliced set (every media_assets trigger/deferred constraint from every
+  migration, not just the two cleared).
+
+## Builder round 10 — extended audit CLEAN (2026-10-04)
+
+- Full spliced inventory of media_assets: exactly two triggers (both
+  cleared), zero rules, composite FK NO ACTION/not deferrable, no DEFERRABLE
+  constructs, policies SELECT-only. No spliced SQL construct can null or
+  rewrite linked_request_id between insert and finalize.
+- Consequence: NULL-at-finalize is not producible by spliced SQL — if the
+  round-trip shows linkage present post-insert but NULL at finalize, the
+  finalize read a DIFFERENT ROW (asset-id/tenant divergence in the binds).
+  gymloop-35's round-trip capture is the decisive instrument.
+- No source change; hash unchanged c3cb0d8f.
+
+## MECHANISM FOUND (2026-10-04, gymloop-35 runtime capture)
+
+- The hand inserts' linkage subselects reference request-key LITERALS
+  (sid(516)/sid(521)/sid(522)) that no longer match the scenarios' actual
+  CREATE keys after the F2/restructure renumbering — silent NULL or mislink.
+- Two defects in one shape: (a) stale key literals, (b) NO tenant_id filter
+  in the subselect (cross-tenant collision picks a wrong row silently).
+- Round 21 dispatched to the visible author: re-derive key literals against
+  current bytes, add tenant_id to every linkage subselect, add post-insert
+  linkage-present pins (anchors prove the request exists pre-insert, not
+  that the inserts saw it).
+
+## Round 21 committed — tenant scoping + post-insert pins (2026-10-04)
+
+- Suite 79 sha256-16 **2c9475015ab1bcb2** (committed `spec:`): all four
+  linkage subselects tenant-scoped; three post-insert linkage pins (plan 252).
+- Notable: the re-derivation found NO stale literals — the subselects already
+  matched the create keys. The runtime NULL must be the tenant-collision
+  class (now closed) or will resolve at the preview; the post-insert pins
+  localize any residue to the exact insert site.
+- Preview trio final: suite 79 2c947501 plan(252) + migration c3cb0d8f +
+  h79 f4383781 plan(126).
+
+## Structural fix dispatched — label-keyed id capture (2026-10-04)
+
+- Runtime capture: NO request with key sid(522) exists at the sid(141)
+  insert — the KR2 create sends a different key than the media insert's
+  literal (the round-21 re-derivation read the INSERT's expression, not the
+  CREATE's argument). Also: key 516's row is 'rejected' — rejected requests
+  can't anchor accepted flows.
+- Structural fix dispatched (kills the silent-NULL/mislink class
+  permanently): capture each create's returned request id into a label-keyed
+  temp row (the regs pattern); every downstream reference (accept, media
+  linkage, finalize wiring) reads the stored id by label — zero key literals
+  remain to rot.
+
+## Label-capture restructure committed (2026-10-04)
+
+- Suite 79 sha256-16 **fe5a9787f0798e63** (committed `spec:`): all four media
+  scenarios capture the create's RETURNED requestId by label into the req
+  temp table; every downstream reference reads the stored id — the
+  silent-NULL/mislink class is structurally dead (zero key literals between
+  create and media insert). Pre-insert anchors assert by key (loud drift);
+  post-insert pins prove linkage. plan(252) unchanged; rollback guard green.
+- Preview trio: suite 79 fe5a9787 + migration c3cb0d8f + h79 f4383781 —
+  the collapse preview.
+
+## Capture table exposed the missing creates (2026-10-04, gymloop-35)
+
+- DECISIVE: the req capture table contains {K1, KPT, KA, KB, K4, K5, K6,
+  KR1} — NO 'KR2' row. The KR2 media insert's label subselect resolves NULL
+  (silent) → asset 141 NULL linkage → finalize GL066. The label-capture
+  structure did exactly its job: the missing create is now loud.
+- Same class likely explains the six 42501 sites (W-series creates
+  missing/mislabeled — W requests never captured).
+- Visible author round 23 dispatched: grep every create that should produce
+  a captured label; verify unconditional execution, exact label-string match
+  against downstream references, no conditional/DO skipping. KR2 + W-series.
+
+## Round 23 + full-tape pivot (2026-10-04)
+
+- Visible author round 23: NO missing/mislabeled create — all four captures
+  unconditional, exact label matches. W/S/M-feeding scenarios (KF1/KF3/KF4)
+  converted from the key-literal `cap` seam to label capture (14 cap calls
+  remain, all outside media/proof blast radius). Suite sha256-16
+  `01800527f9154704`.
+- CONTRADICTION at fragment level: runtime req table lacks KR2 while the
+  static audit proves the capture is unconditional; S0171–S0178 (mismatch
+  chain) PASSED in the same run. Both true only if the batch aborted EARLIER
+  (K6/KR1 finalize) and downstream creates never ran, OR two scenarios share
+  the ~370 region. Fragments can't resolve it — FULL S/E tape requested from
+  gymloop-35 (execution order + abort point + captured values); the visible
+  author maps it in one round.
+
+## Full S/E tape routed (2026-10-04, gymloop-35)
+
+- `scratchpad/tape79-fe5a9787.txt` — 389 statements, execution order, suite
+  source text per row. Seven E markers: idx 179 (GL066, suite ~389, the
+  KR2-region finalize) + 255/258/295/309/316/376 (six 42501 availability).
+- The KR2-create mystery (abort PAST the create, but no KR2 row in the req
+  table) is now resolvable: the tape shows every create with its actual
+  suite line and execution order. Visible author round 24 mapping: create
+  execution + capture visibility under the wrapped-claims context + the six
+  42501 sites against the round-20 signature table.
+- gymloop-35's OCC 42725 note is their queue, not mine.
+
+## Round 24 — the capture harness is the defect (2026-10-04)
+
+- Author's tape analysis: the per-statement capture splitter SWALLOWS
+  `$q$`-quoted lives_ok capture statements (23 create rows taped, only 1
+  capture row) — the "no KR2 row" inference was an artifact; the captures
+  executed (req table proves it; the KR2 accept passed by resolving
+  label='KR2'). All seven E rows carry the wrapped block's FIRST line —
+  splitter grouping artifact, so the earlier line-level attributions were
+  wrong.
+- Real state: suite structure sound; SEVEN wrapped finalize groups genuinely
+  fail (KR2 GL066 + six 42501). The capture tooling fix (splitter must not
+  swallow $q$-quoted statements) is gymloop-35's.
+- Targeted-cap extraction requested for the seven failing groups (four gate
+  binds + linked_request_id/confirmed_at at the gate instant), at current
+  HEAD (01800527) — the closure data.
+- Suite current sha256-16 `01800527f9154704` (rounds 22/23).
+
+## Gate-bind captures — two concrete mechanisms (2026-10-04)
+
+- **CLASS A (six 42501 availability) — SOURCE candidate routed to builder**:
+  assets 144/145/146 healthy (linkage, owner_accepted, tenant, staging key)
+  yet refused under service_role claims. The finalize's availability/
+  verification read is claims-dependent (auth.uid()-derived actor lookup
+  yields nothing under service_role); must be definer-broad or
+  parameter-keyed. Builder auditing the availability select's joins
+  specifically.
+- **CLASS B (141/143/148 null linkage) — fixture ordering routed to the
+  visible author**: the three scenarios' media inserts run before their
+  label captures land (or capture subselects resolve null). Healthy K6
+  sequence is the template: capture → media insert → finalize. Per-scenario
+  ordering fix dispatched.
+
+## Builder round 11 — availability path argument-clean (2026-10-04)
+
+- Byte-exhaustive audit of the finalize body: zero auth.uid()/current_* hits
+  except the line-835 credential-gate claims read; availability, member
+  gate, creator binding, metadata, liveness ALL parameter-keyed; audit seam
+  takes actor as parameter. Under service_role claims, healthy assets
+  resolve from parameters alone.
+- Runtime 42501 on healthy assets therefore cannot originate in the audited
+  path. Remaining: (a) splice divergence — gymloop-35's functiondef capture
+  decides in one shot; (b) the holdout's actor-argument shape —
+  p_actor_user_id must be the member's AUTH user id (members.user_id
+  binding), not the member row id; holdout author auditing their six sites'
+  call arguments.
+- No source change; hash unchanged c3cb0d8f. Class B with the visible
+  author as routed.
+
+## h79 real starvation: cap exhaustion (2026-10-04)
+
+- Actor-argument audit clean: all six finalize sites pass auth-user bindings
+  correctly — the argument-defect hypothesis does not reproduce.
+- REAL mechanism: member 31 carries 27 creation calls — the BUY-018
+  10/member rolling-day cap refuses every create past the tenth → later
+  regions' creates refuse → empty req captures → NULL linkage → 42501s.
+  Fixture-state (cap exhaustion).
+- Remedy approved: spread later regions' creates across other eligible
+  members (or reorder), labels/pins unchanged, member-31 consumption within
+  10 for dependent pins, member-35 cap pins intact. Round 10 in flight.
+
+## h79 cap census + remedy; Class B re-dispatched (2026-10-04)
+
+- h79 cap census: member 31 = 11 successful creates (cap 10) — the 11th (KPT
+  PT-scenario create) was the only cap-refused one, emptying the KPT capture
+  and starving its chain; 141's own create (KR2, ninth) succeeds — its
+  earlier "linked: null" reads as downstream of the rolling-day arithmetic.
+- Redistribution applied: KPT → member 32 (5/10 after move; live membership
+  132 satisfies PT's gate; member-35 pins untouched at 9). Labels/pins
+  unchanged. h79 ready for preview (f4383781, plan 126).
+- ROUTING CORRECTION: Class B (suite 79's 141/143/148 null linkage) was
+  mistakenly routed to the holdout author — properly dispatched to the
+  visible author (suite 79, spec:): reorder the three scenarios' label
+  captures strictly before their media inserts per the healthy K6 template.
+  Round 20 in flight.
+
+## Boundary violation + clean redo dispatched (2026-10-04)
+
+- The holdout author's round-10 "remedy" edited SUITE 79 (visible author's
+  file — holdout brief is h79 + report only) AND the KPT lives_ok string was
+  malformed (duplicated arguments — syntax error). Suite 79 restored to the
+  committed state (`60b9d86c`); violation logged to the holdout author with
+  the role rule restated (visible-suite fixes route through me).
+- Legitimate core (KPT redistribution member 31→32 for the cap exhaustion)
+  redone by the visible author cleanly. If the holdout author's census
+  actually covered h79's bytes, that re-census is still owed (h79 unchanged
+  f4383781).
+- Suite 79 restored sha256-16 `60b9d86cfde40c4f` (committed state: claims fix
+  + label capture).
+
+## Clean KPT redo committed + h79 census clarified (2026-10-04)
+
+- Visible author round 21: KPT claim moved to member 32 (within caps; PT gate
+  satisfied); fresh KP2 label (the committed KPT label was already bound to
+  the original sid(507) request — a second cap('KPT',530) would violate the
+  req PK). Committed `spec:`, suite 79 sha256-16 `6034a550554e04dc`;
+  plan(252) unchanged; TS spot-check 159/159; rollback guard green.
+- Holdout author's census clarified: their round-9/10 census covered SUITE 79
+  (routed); h79 re-censused against its own bytes — **cap exhaustion does NOT
+  apply to h79** (member 31: 8 creates, under cap; the earlier count
+  over-counted replays and other members' rows). h79 unchanged f4383781,
+  plan 126. Violation acknowledged, standing rule restated.
+- Preview set: suite 79 6034a550 plan(252) + h79 f4383781 plan(126) +
+  migration c3cb0d8f.
+
+## Round 22 — execution-order reconciliation dispatched (2026-10-04)
+
+- gymloop-35's decisive facts at 6034a550: at the finalize instant the req
+  table has NO KR2 row and asset 141's linkage is NULL — the media insert
+  ran before the create's capture row was written. The author's walk says
+  impossible; the tape (389 rows, execution order, suite source text) is the
+  arbiter.
+- Visible author round 22: map KR2 create/capture, media insert, finalize in
+  EXECUTION order against the tape (bytes fe5a9787; current 6034a550 differs
+  only by KPT member/label). Specific suspect: the KR2 create+capture
+  lives_ok — if the wrapper class runs the create in a savepoint that rolled
+  back (a refusal-class wrapper misused on an expected-success statement),
+  the create's effects vanish while the test passes — exactly this
+  signature. Report round 23 with the divergence point + fix.
+
+## Tape convicts the gate — transitive callee audit dispatched (2026-10-04)
+
+- Execution-true mapping: KR2 create+capture executed (swallowed by the
+  splitter), INSERT 141 ok, accept idx 178 PASSED (req row existed), finalize
+  idx 179 → GL066, then attach idx 184 + record idx 187 PASSED — enforcing
+  the IDENTICAL registered-linkage + live-acceptance checks five statements
+  after the finalize refused the same state. Fixture provably correct; the
+  finalize's gate fails under the credential wrap.
+- The builder's earlier audit covered the finalize BODY only. Runtime proves
+  a claims-dependent read exists in the CALL TREE: round 12 dispatched —
+  transitive audit of app.pay_proof_evidence / app.media_audit / every
+  request-read helper for auth.uid()/claims-derived resolution under bare
+  service_role claims. Fix = argument-keyed reads (the availability select's
+  existing discipline). If the whole tree is clean at current bytes →
+  in-session functiondef capture set (splice divergence in a callee).
+- Round-24 splitter finding stands and deepens: only the last result of a
+  grouped batch surfaces (144's finalize row swallowed).
+
+## Builder round 12 — transitive audit CLEAN; short-circuit taken (2026-10-04)
+
+- Callee inventory at current bytes: app.media_audit (parameter-keyed), the
+  two media_assets triggers (only claims read = trusted-verifier check) —
+  nothing else. The liveness/request reads are INLINE in the finalize body,
+  argument-keyed; the finalize does not call pay_proof_evidence or any
+  capability seam. No callee resolves request/actor via claims.
+- Short-circuit: GL066:request_not_accepted is raised from FOUR sites
+  (register line 715, finalize liveness 899/904, attach 2039) with identical
+  message+code — the tape's "finalize refused" identification rests on
+  statement shape. Verbatim call text at idx 179 requested: finalize →
+  in-session functiondef captures; register → register's gate (its request
+  read scopes by member_id — claim-context divergence there produces exactly
+  the observed signature, and the D3-series context is register).
+- No source change; hash unchanged c3cb0d8f.
+
+## gymloop-35 CRITICAL CORRECTION — tape semantics (2026-10-04)
+
+- Their S/E tape records only NO-SQL-ERROR: a FAILED pgTAP assertion still
+  shows S=ok. Every "accept passed because S=ok" inference — both directions
+  — was invalid, mine included. Apology accepted; two rounds were spent on
+  conclusions built on the misread.
+- Durable truth (the req table): the mismatch scenario's CREATE did not
+  produce its req row — the whole remaining GL066/42501/linkage residual
+  cascades from that ONE root.
+- Round 24 dispatched to the visible author: guarded-capture variant of that
+  single create (caught SQLSTATE/message dumped via TAP; original lives_ok
+  kept as the contract pin) — one preview names the root. Pre-check: the
+  mismatch create's key/target against every other create in the file
+  (F2-class collision/replay).
+
+## Diagnostic probe committed (2026-10-04)
+
+- Suite 79 sha256-16 **b9228f9fe108430e** (committed `spec:`, plan 253): one
+  guarded-capture probe before the mismatch create (caught SQLSTATE/detail/
+  message dumped; labeled non-contract, removable). sid(522) pre-checked
+  unique among create keys.
+- Awaiting the preview's probe row — it names the root verbatim; fix
+  follows in one round.
+
+## Diag helper compile abort (2026-10-04, gymloop-35)
+
+- The probe helper's handler used a nonexistent GET DIAGNOSTICS item
+  (`pg_exception_message`) — MESSAGE is not a GET DIAGNOSTICS item; the
+  handler must use SQLERRM. Fix dispatched to the visible author (keep
+  RETURNED_SQLSTATE + PG_EXCEPTION_DETAIL), re-commit + re-preview next.
+
+## ROOT CAPTURED (2026-10-04, gymloop-35)
+
+- The mismatch create fails **22023:purchase_cap** — BUY-018's daily-create
+  cap refuses it (member 31's successful-create count at that point exceeds
+  the refusable budget; runtime cap count exceeds the static census —
+  rejections count too, and scenario ordering landed more member-31 creates
+  than file order suggested).
+- THE one root for the entire GL066 + 42501 cascade class in suite 79; all
+  other captured facts (asset 141 linked null, req misses) were downstream.
+- Fix dispatched: redistribute one member-31 create to a different fixture
+  member (or fresh member for the mismatch scenario) — cap pins keep testing
+  the REAL cap; diagnostic probe removed; plan 253 → 252. Round 26 in
+  flight — this should be the collapse.
+
+## Cap redistribution committed (2026-10-04)
+
+- Suite 79 sha256-16 **26af4a29100e5bf1** (committed `spec:`): the unused
+  sid(507) PT create remaps to member 32 (claim switch around its single
+  lives_ok; budget 6/10 after) — freeing exactly one member-31 slot so the
+  mismatch create lands within BUY-018's cap. Diagnostic probe removed;
+  plan(252) restored; member-35 pins untouched; rollback guard green.
+- Collapse preview announced to gymloop-35: suite 79 26af4a29 + migration
+  c3cb0d8f + h79 f4383781.
+
+## Diagnostic tooling handoff — Cloud boundary kept (2026-10-04)
+
+- gymloop-35 handed the self-serve per-statement diagnostic tool
+  (`scratchpad/make-err-diag.py` + `supabase db query --linked`). Cloud
+  EXECUTION stays primary-owned (the repair packet's rule — a peer handoff
+  cannot relax an owner rule); boundary declined and middle path agreed:
+  my visible author BUILDS the instrumented compiled file (own inline DO
+  diagnostics at the true positions — the real mismatch create, the six
+  availability finalizes, the KR2 finalize — recording sqlstate + detail +
+  asset id per statement); gymloop-35 EXECUTES under their serialization and
+  returns the E rows.
+- Facts banked: S=ok means only no-SQL-error; assertion contents swallowed
+  (label-only); pg_temp.diag does not survive across bytes.
+- Open question: does the REAL mismatch create still refuse 22023 at its
+  true position post-redistribution — the instrumented capture settles it.
+
+## Redistribute insufficient — instrumented artifact round (2026-10-04)
+
+- Preview at 26af4a29: STILL 7-error signature — the freed slot did not clear
+  the mismatch create's refusal. Possibilities: the refusal is now the NEW
+  member's cap (K-series creates may share the member-32 budget after the
+  KPT move) or a different guard (member status/eligibility).
+- Instrumented artifact build in flight (visible author): the real mismatch
+  create instrumented PRE-WRAP (under the member's own claims — its caught
+  refusal names the actual guard), the six availability finalizes + KR2
+  finalize instrumented inside their wraps (verifier claims live, asset id +
+  linked_request_id + caught refusal each). gymloop-35 executes under their
+  serialization; verbatim E rows route the fix.
+
+## Instrumented artifact handed off (2026-10-04)
+
+- `scratchpad/suite79-errdiag-26af4a29.sql` (sha256-16 `5ccc6b8c7ed8e66e`;
+  injector `scratchpad/inject-observers.py`): 391 statements probed,
+  zero-mutation observers.
+- KR2 create pre-wrap under member claims (`$diagkr2$`: OK requestId=… or
+  REFUSED <sqlstate> detail=…) + 10 observers inside the wraps (F144, F145,
+  F146, F141, M1 ×2, S2, W1, W2, W4) reading asset existence, linkage,
+  confirmed_at, staging key, linked request status at read time — splitting
+  asset-missing / linkage-NULL / request-state-wrong per site.
+- gymloop-35 executes under their lock; E/DIAG rows return verbatim; the fix
+  routes from the complete per-site mechanism.
+
+## Artifact compile fix + misrouted keys (2026-10-04, gymloop-35)
+
+- The instrumented artifact refused at compile: `42703 column "v_sqlstate"
+  does not exist` — the $diagkr2$ DO block lacked a DECLARE scope. Fix
+  dispatched (DECLARE inside the DO, GET STACKED DIAGNOSTICS in the handler,
+  SQLERRM for message; audit all 10 observers' blocks for the same class).
+  Regenerated artifact → gymloop-35 runs immediately.
+- key-zone76/key-today7 captures: OCC-class, outside MEDIA/PAY scope —
+  misrouted; returned to gymloop-35.
+
+## Regenerated artifact ready (2026-10-04)
+
+- `scratchpad/suite79-errdiag-26af4a29.sql` sha256-16 **7a02faba659a0758**:
+  DECLARE fixed in $diagkr2$ (returned_sqlstate + pg_exception_detail only;
+  injector source corrected); all 10 observers re-verified with full
+  DECLARE scopes (the earlier reading was the verifier's own regex).
+- gymloop-35 executing under their lock; the DIAG rows name the KR2 create's
+  caught root and each availability finalize's gate inputs at read time.
+
+## Observer assertion fix (2026-10-04, gymloop-35)
+
+- The regenerated artifact aborted at compile: observers called public.is()
+  with untyped boolean args — pgTAP's is() lives in the extensions schema.
+  Fix (b) adopted: observers are captures, not assertions — all is()/ok()
+  calls dropped from the observer DO blocks; captured values ride the
+  existing _diagtap rows. Regeneration in flight.
+
+## Pure-capture artifact ready (2026-10-04)
+
+- `scratchpad/suite79-errdiag-26af4a29.sql` sha256-16 **17621f76cc5223b0**:
+  zero is()/ok() inside the instruments; all captured values via _diagtap
+  rows. Known labeled plan drift (ran one below plan(252) — intentional,
+  diagnostic-only; committed suite untouched).
+- gymloop-35 executes under their lock; E/DIAG rows return verbatim.
+
+## Complete mechanism captured (2026-10-04, gymloop-35 pure-capture rows)
+
+- `DIAG KR2-create: REFUSED 22023 detail=purchase_cap` — the redistribute
+  moved the sid(507) create's budget but freed a slot that does NOT execute
+  before the mismatch create in the TRUE execution order (file order ≠
+  execution order at the observed positions).
+- ALL TEN observers: rows=0 — the media_assets rows the finalizes need were
+  NEVER INSERTED by the finalize instant (not linkage-null rows; absent
+  rows). The six 42501s = "the media row was never created at read time" —
+  inserts later in the flow than the finalizes referencing them, or refused
+  upstream.
+- Round 28 dispatched: instrument asset 144's INSERT (sqlstate + detail —
+  refusal vs committed-elsewhere); redistribute a create that runs BEFORE
+  the mismatch create in TRUE execution order (or stage the mismatch
+  scenario on a member with headroom at that point), reconciling the
+  member-31 create count from the tape's true order, not file order.
+
+## Convergence status (2026-10-04, gymloop-35)
+
+- Their side runtime-GREEN: RPE pair (82 206/206, h82 179/179) with the
+  release-writer ordering fix; WSP all six suites + canonical ordering
+  migration; SLF both suites with the P2 fix. Remaining their-side RED:
+  suite 83 (2 pins), h83 (staging chain/addon_orders guard), h84 (A-cluster
+  custody).
+- My side: round-28 instrumented capture in flight (the mismatch create's
+  own refusal pre-wrap at true position); fix + redistribution route from
+  it; then both suites re-preview together → full-sweep → push → CI migrate
+  → gen types → protected deploy. No further claims either side.
+
+## True-order redistribution committed (2026-10-04)
+
+- Suite 79 sha256-16 **4de6a12e26f691f9** (committed `spec:`); artifact
+  `1085b4fdfaee4c8b`. The tape exposed sid(509) — a create invisible to the
+  file-order census (member 31's ninth success; the mismatch create was the
+  tenth). Mismatch scenario remapped to member 32 wholesale; four insobs
+  DOs decide refused-upstream vs committed-without-linkage.
+- gymloop-35 executing under their lock.
+
+## CRITICAL: injector broke the artifact (2026-10-04, gymloop-35)
+
+- The compiled artifact's media INSERT lost its VALUES rows (the observer
+  injection split the multi-row INSERT) — all "rows=0" reports across the
+  diagnostic rounds were artifacts of the BROKEN ARTIFACT, not runtime
+  truth. The original suite bytes (26af4a29) have intact INSERTs.
+- Single still-real runtime fact: the mismatch create's cap refusal. The
+  redistribution may already have fixed it (the "asset absent" readings were
+  all about the broken artifact).
+- Round 29 dispatched: rebuild with per-statement integrity checks (every
+  INSERT ends with a semicolon before the next statement keyword; observers
+  never split multi-row VALUES statements), recompile at 4de6a12e, re-capture
+  the mismatch create's refusal with intact inserts.
+
+## Rebuilt artifact with per-statement integrity (2026-10-04)
+
+- `scratchpad/suite79-errdiag-26af4a29.sql` sha256-16 **1405525f147a4a19**:
+  corruption root = make-err-diag's scanner split the multi-line media
+  INSERTs. New flatten stage (scratchpad/flatten-inserts.py) collapses all
+  media INSERTs to single lines before the scanner; integrity verified
+  programmatically (5 INSERTs single-line ending `);`; observers only after
+  terminating semicolons; zero blocks inside statement bodies).
+- The mismatch create's cap refusal re-captures at true position with intact
+  inserts — if it succeeds, the seven-error signature was entirely the
+  split-insert artifact. gymloop-35 executing.
+
+## KR2 create OK — redistribute held (2026-10-04, gymloop-35)
+
+- `DIAG KR2-create: OK requestId=68515886-…` — the GL066 chain is GONE; the
+  redistribution held at runtime.
+- Remaining: six 42501 availability refusals — the hand-media INSERTs either
+  refuse inside their lives_ok wrappers (TAP RED, no abort — invisible to
+  the error list) or stage on the wrong tenant.
+- Round 30-diag dispatched: instrument the four media hand-INSERT statements
+  directly (caught sqlstate/detail pre-wrap + tenant-context snapshot at
+  insert time + observer-read rows). One pass names the insert-side
+  mechanism; consistent with insert-stage failure, NOT a migration source
+  defect.
+
+## Insert-instrumented artifact ready (2026-10-04)
+
+- `scratchpad/suite79-errdiag-26af4a29.sql` sha256-16 **09a88913d79d88e2**:
+  3 DIAG-INSERT wrappers (144+145 share K6's two-row statement; 146; 141),
+  each recording OK tenant/linked/claims or REFUSED sqlstate/detail/claims.
+  Decision power: OK+observer-0 = read-side; REFUSED = insert-side guard
+  named; OK+linked-non-null+finalize-42501 = availability gate source-side.
+- Suite file unchanged (4de6a12e). gymloop-35 executing under their lock.
+
+## Observer interleave explained; staging-key diff dispatched (2026-10-04)
+
+- The observer/insert contradiction resolved: the observers measure the
+  PRE-INSERT state (interleave ordering — probes read before their inserts).
+  Instrumentation placement, not runtime truth.
+- REAL truth: the finalize call still refuses availability against a row the
+  probe verified present+linked. Two parallel decodes: (1) visible author —
+  static diff of each INSERT's staging_object_key value vs the finalize
+  call's p_staging_object_key argument (a suffix/format mismatch after the
+  restructures fails the gate despite the row existing); (2) SQL builder —
+  decode the exact SQL read feeding the "Media asset unavailable" raise at
+  current bytes (multiple raise sites share the message; identify the
+  availability one's filters beyond id+tenant).
+
+## Builder round 13 addendum — metadata gate cleared (2026-10-04)
+
+- The availability 42501 has ONE raise site fed by id+tenant only (healthy
+  linked rows can't fail it). The staging-key comparison lives in the
+  metadata gate with a DIFFERENT signature (22023 Verified metadata does not
+  match registration), firing BEFORE liveness. Gate order: availability →
+  member/creator → deleted → metadata (incl. staging key) → liveness.
+- KR2's observed GL066 therefore PROVES: row found, member/creator passed,
+  not deleted, metadata incl. staging key passed — the refusal is purely the
+  liveness predicate on the row `id = linked_request_id`. Staging-key
+  mismatch eliminated at both levels (shared deterministic helper).
+- One capture closes it: the liveness gate's actual binds (linked_request_id
+  + the linked row's status/expires_at) — (a) row-identity divergence
+  (fixture), (b) predicate status-set mismatch (SOURCE, fix to frozen
+  decision 1's set), (c) expiry timing. Requested from gymloop-35.
+
+## Round 14 — joint static walkthrough dispatched (2026-10-04)
+
+- gymloop-35's latest: KR2 create OK; GL066 chain gone; the six wrapped
+  finalize availability refusals are the only remaining class (observer
+  placement mismatch acknowledged on their side).
+- The back-and-forth capture cycle has consumed many rounds — consolidated:
+  SQL builder traces the finalize's availability read path statement-by-
+  statement INCLUDING callee/GUC interactions the body-level audit couldn't
+  see; the visible author supplies the exact fixture values (INSERT's
+  tenant_id, the finalize's p_tenant_id/p_asset_id/p_staging_object_key as
+  written) byte-compared. If they provably align at the audited bytes and
+  runtime still refuses → in-session functiondef/triggerdef capture set
+  (primary's closing instrument).
+
+## Builder round 14 — joint trace complete (2026-10-04)
+
+- Statement-by-statement trace delivered: all nine statements of the
+  finalize's availability path with GUC context; call-tree closure verified
+  (finalize invokes exactly app.media_audit + the two triggers — no
+  security-invoker views re-read claims); only claims reads are #1 and the
+  trigger's, both satisfied by the wrap's shape.
+- Reconciliation: with fixture values byte-compared (rounds 5–13 alignment),
+  at the audited bytes the availability read cannot refuse a present row and
+  the liveness read cannot refuse a row accept just set live.
+- **Closing instrument (primary's)**: in-preview capture of pg_get_functiondef
+  (four functions) + pg_get_triggerdef (both triggers) + the tape's four gate
+  binds. Any differing byte = splice divergence; identical bytes with a
+  still-refusing gate = PostgreSQL-layer anomaly outside the SQL audit's
+  reach.
+- No source change; hash unchanged c3cb0d8f.
+
+## In-tx functiondef captures delivered (2026-10-04, gymloop-35)
+
+- `scratchpad/79-funcdef-captures.txt`: in-tx finalize_media_asset md5
+  `9e31dbbc…aafc` (clen 7159, full prosrc in the FDEF row); app.media_audit
+  md5 `887da0dc…7e7b` (7-arg header); trigger set = the two expected
+  enforcement triggers + RI triggers, nothing unexpected.
+- Hash verdict dispatched to the SQL builder: byte-compare the captured
+  prosrc against the committed migration's create-function body (pg_
+  get_functiondef canonical formatting applied) + verify app.media_audit's
+  7-arg signature. MATCH → the live body is the audited text → the evidence
+  packet for the owner (PostgreSQL-layer anomaly) is gymloop-35's write; DIFF
+  → the diverging lines route the fix.
+
+## Hash verdict round — capture incomplete (2026-10-04)
+
+- Builder's verdict on the captures: app.media_audit signature MATCH;
+  trigger set MATCH; finalize length CONSISTENT (7159 = 6659 body + ~500
+  canonical header) — but the full prosrc was absent from the file, so the
+  md5 comparison couldn't run. Evidence packet must say INCOMPLETE, not
+  MATCH.
+- Closing instrument reduced to ONE in-session query:
+  `select md5(prosrc), length(prosrc) from pg_proc where oid =
+  'public.finalize_media_asset'::regproc;`
+  Builder precomputed the committed side: body md5 `431cba90…809c`, 6659
+  chars. Match → splice question closes MATCH (evidence packet to owner);
+  differ → the diverging body is the splice defect, line-by-line diff.
+  Requested from gymloop-35.
+
+## Splice divergence explained — stale manifest (2026-10-04)
+
+- finalize_media_asset is defined ONCE in the committed migration (count=1);
+  no second body shadows it (record_purchase_request's two definitions are
+  the designed core+wrapper pair).
+- The preview's live prosrc (a0e38620, len 6759) ≠ committed (431cba90,
+  6659): gymloop-35's splice manifest pinned purchase **d9d0370c** — but the
+  committed migration moved three commits since (a12ca1cc GL124 → 85b9ca72
+  register classification → c3cb0d8f register capability mint). Their
+  preview ran an OLDER/intermediate finalize body, never audited.
+- Action: recompile the artifact at the CURRENT committed migration
+  (c3cb0d8f…16c44f45) and re-run; in-session md5(prosrc) should equal
+  431cba90/6659. Manifest update requested.
+
+## Round 15 dispatch — the decisive pair (2026-10-04)
+
+- gymloop-35's preview at c3cb0d8f still shows six 42501s but did NOT report
+  the in-session md5(prosrc) verdict — the decisive instrument from two
+  rounds ago was never re-run at the current bytes. Demanded: md5(prosrc) +
+  length at c3cb0d8f (expected 431cba90/6659) + the four gate binds at the
+  first failing finalize, in ONE preview.
+- Decision tree: md5 mismatch → their splice pipeline; md5 match + healthy
+  binds → PostgreSQL-anomaly escalation to owner; md5 match + row-absent →
+  fixture identity fix.
+- Also: the six 42501s are SQL-ABORT points (the run stops at the first) —
+  the visible author auditing whether all six finalize calls are lives_ok-
+  wrapped (unwrapped ones abort instead of capture; wrapping them lets all
+  six capture in one pass).
+- h79 note: 4 failures stable (#11/#12 signature probes — newer register
+  signature; #65 D3c keyed replay GL068 — the fixed keyed path now refuses
+  the old fixture's replay expectation; #66 downstream) — holdout author's
+  fixtures regenerate to the retyped facts.
+
+## fin-wrap committed (2026-10-04)
+
+- Suite 79 sha256-16 **5aa405b350968159** (committed `spec:`): all 11 direct
+  finalize calls wrapped in pg_temp.fin(q) — asserts BOTH no-exception AND
+  the exact original return value (nothing weakened; the M1 replay pin still
+  expects RESULT false). The six 42501s now capture as ERROR sqlstate:detail
+  instead of aborting.
+- Re-preview trio announced: suite 79 5aa405b3 plan(252) + h79 f4383781
+  plan(126) + migration c3cb0d8f. gymloop-35's one-run verdict (md5(prosrc)
+  at c3cb0d8f + four gate binds) lands with all six refusals captured.
+
+## Measurement-technique question — truncated-body hypothesis (2026-10-04)
+
+- gymloop-35's critical observation: the finalize body may CONTAIN an inner
+  `$fn$` occurrence — both extractions (6659 builder / 6658 theirs) would be
+  TRUNCATED, and the TRUE body (per PG parsing, = the live prosrc at 6759)
+  contains ~101 chars the audit never saw. That would explain the entire
+  contradiction: audit clean on a truncated body, defect in the unseen tail.
+- Builder round 16 dispatched: re-extract per PostgreSQL's actual parsing
+  (first $fn$ after AS → next $fn$), check for inner $fn$ occurrences, audit
+  the unseen ~101 chars line-by-line against the runtime GL066/42501
+  behavior, compare against gymloop-35's held live prosrc (file scope
+  extended for that one capture file). If the true body is 6659 and the live
+  is genuinely 6759 → splice divergence (their pipeline).
+
+## Round 16 — truncation refuted (2026-10-04)
+
+- Committed finalize body: 6659 chars, ZERO inner $fn$ occurrences — the
+  terminator is byte-identical to the round-15 extraction; no unaudited tail
+  exists; the 6658-vs-6659 delta is trailing-newline noise. The audits
+  covered the whole body.
+- Branch 3 remains: if the live prosrc is genuinely 6759 (+100), the +100
+  exists ONLY in the preview's deployed function — splice/pipeline
+  divergence on gymloop-35's side.
+- Their verification capture was incomplete AGAIN (155 bytes, media_audit
+  header only). Closing sequence issued: in-session md5(prosrc)+length +
+  FULL prosrc written to file; committed side precomputed (431cba90/6659).
+  Match → splice closes MATCH, the four-binds capture decides
+  fixture-vs-PostgreSQL; differ → their pipeline's defect, line-by-line
+  diff.
+
+## SPLICE CLOSES MATCH — diagnostic variant approved (2026-10-04)
+
+- Full prosrc captured live (base64 chunks): raw 6759 = CRLF; LF-normalized
+  6659, md5 `431cba90…809c` — **exactly the committed bytes**. Zero splice
+  divergence; the live body IS the audited body. (The earlier a0e38620/6759
+  was raw CRLF text.)
+- The four 42501s = the AVAILABILITY gate (earlier line than liveness)
+  refusing — the finalize's own `select … where id=p_asset_id and
+  tenant_id=p_tenant_id` doesn't find the row the DI-INSERT committed.
+- Decision: **option (a)** — a temp-scoped diagnostic variant
+  (pg_temp.fin_diag) runs in the preview: the availability select verbatim
+  with the same binds + a tenantless variant, called at the exact finalize
+  position with the wrapped call's actual arguments. Never committed,
+  dropped after. Three-way tree: binds-match-but-finalize-refuses = sid
+  divergence (fixture); tenantless-finds = tenant mismatch (fixture); both
+  find nothing = row genuinely absent (owner packet with the full evidence
+  chain).
+
+## Option (b) approved — in-spike diagnostic copy (2026-10-04)
+
+- State at the wrapped-capture round: 79 failures / 252 ran — the whole plan
+  runs; every finalize refuses against provably-present rows; the mechanism
+  is stable and reproduction-resistant to source-side analysis.
+- Decision: the in-spike diagnostic copy runs FIRST (the finalize body's
+  compiled-artifact copy gains one diagnostic RAISE dumping row_to_json(
+  v_asset) + the availability condition's operands before the raise).
+  Constraints: modification lives ONLY in the compiled artifact (committed
+  migration stays byte-exact); documented as preview-only instrumentation.
+- Outcomes: correct v_asset + condition still false → PostgreSQL-layer
+  anomaly, owner packet with the final machine-provable exhibit; wrong/NULL
+  v_asset → the divergence is in what the finalize read (row
+  identity/visibility) — back to fixture/source with a concrete target.
+- The evidence catalogue (79 labels + both capture files) is packet-ready;
+  gymloop-35 holds it.
+
+## h83 staging chain assigned + tooling handoff (2026-10-04, gymloop-35)
+
+- gymloop-35's diagnosis for h83's 30-round addon chain: the addon block's
+  begin/exception is a SUBTRANSACTION rolling back its own inserts — the
+  payment is never visible to the addon trigger. Fix directions approved:
+  record_addon_sale directly (production RPC, signature at
+  20260915100003_phase6_addon_sales.sql:766+) or same-single-transaction
+  staging (no inner wrapper).
+- Role extension: h83 + its tooling joins my holdout author's brief (local
+  compile/instrument/extract self-serve via gymloop-35's scripts; Cloud RUN
+  stays primary-owned — bytes prepared, gymloop-35 reruns at the sha).
+- Unified-mechanism question raised to gymloop-35: are suite 79's hand-media
+  INSERTs also inside begin/exception wrappers? If yes, the subtransaction
+  class explains BOTH suites' media invisibility and my author fixes both
+  at once.
+- Their side: OCC keys resolved (their author), RPE/WSP/SLF green.
+
+## Round 30 — unified mechanism confirmed; role-context fix dispatched (2026-10-04)
+
+- gymloop-35 confirmed: the suite's media INSERT runs as AUTHENTICATED under
+  member claims (between role switches), while production's registration
+  INSERT runs inside the definer RPC (postgres, RLS bypassed). If the INSERT
+  RLS policy disallows the member-claims insert, it refuses silently (lives_ok
+  swallows it) — the row never lands, and the finalize's availability gate
+  correctly refuses the absent row. The peer's DIAG-INSERT "OK" ran under a
+  different context (proving the table accepts the row, not that the suite's
+  INSERT committed).
+- Round 31 dispatched to the visible author: audit media_assets' INSERT RLS
+  policy against the fixture row under member claims; mirror production —
+  media INSERTs under `set local role postgres` (the definer-context
+  equivalent of the registration RPC), claims GUC managed for the trigger,
+  then wrapped finalize under service_role. Wrappers stay (honest success
+  assertions).
+
+## Round 31 audit + round 32 dispatched (2026-10-04)
+
+- Visible author round 31: the media_assets INSERT policy audit — NO INSERT
+  policy exists (all DML revoked; production inserts exclusively inside the
+  definer registration RPC). Role context verified: all four media INSERT
+  sites ALREADY run under `set local role postgres` (round-10 fix) — no role
+  move needed, stated plainly. Wrappers are raw statements (loud aborts on
+  refusal — honest fixture-setup failure mode).
+- Both sides' static audits now exhausted (fixture placement/role/policy;
+  source gates argument-keyed). The remaining discrepancy needs the ONE
+  capture reading the finalize's actual runtime row state: round 32 — the
+  option-(b) in-spike diagnostic copy (RAISE dumping row_to_json(v_asset) +
+  the compared argument values, in the compiled ARTIFACT only), plus
+  insert-aftermath _diagtap rows (what the insert WROTE). The gate-sees vs
+  insert-wrote divergence becomes a fact.
+
+## h83 single-transaction staging committed (2026-10-04)
+
+- Mechanism confirmed by the holdout author: Block A (offer+payment) and
+  Block B (order+acceptance UPDATE) each ran in begin/exception
+  subtransactions — Block-A errors swallowed into h83_seed_errors, A's
+  inserts rolled back, the payment never existing for the trigger's invoker
+  read; the exact-buy guard permanently blind.
+- Direction (b) applied: both exception handlers removed; blocks merged
+  under one begin…end; ids/labels/pins byte-identical; addon-trigger errors
+  abort loudly. Committed `spec:` — h83 sha256-16 **7bd9dd21f1ccff85**
+  (matches gymloop-35's instrumented run sha). plan unchanged; rollback
+  guard green.
+- Ready for gymloop-35's Cloud run; label-level residue routes back.
+
+## h83 role-context fix dispatched (2026-10-04)
+
+- The addon trigger's invoker read can't see the payment under the current
+  member claims — in production the recording call is a real front-office
+  staff caller (BUY-013), and payment RLS shows staff the payment.
+- Fix dispatched: the addon_orders acceptance UPDATE runs under the
+  FRONT-DESK claim (matching production's desk actor), not the member's
+  authenticated claims; payment-row RLS audit if the desk claim still misses.
+  Labels/pins unchanged; guard real. Round 13 in flight.
+
+## h83 desk-claim fix committed (2026-10-04)
+
+- h83 sha256-16 **65fd67b5e1df1583** (committed `spec:`): the acceptance
+  UPDATE runs under the front-desk claim (BUY-013's real-staff-caller
+  discipline; payment RLS shows staff the payment), post-UPDATE restore,
+  guard real. Fallback audit pre-authorized (payments staff-SELECT policy)
+  if the desk claim still misses.
+- gymloop-35's convergence state: 83 at 2 residuals, h83 33 (peer-side,
+  desk-claim fix committed), h84 25, suite 79 79 (the six 42501s), h79 4.
+  All other suites green. 484+ commits ready for push.
+- In flight on my side: suite 79 round-32 in-spike diagnostic copy (gate-
+  sees vs insert-wrote) + h79's 4-residual fixture regeneration.
+
+## Final convergence survey ack (2026-10-04, gymloop-35)
+
+- 488 commits ahead of origin, all committed; runtime-GREEN: RPE pair, WSP
+  ×6, SLF pair, push scheduler visible 84.
+- Remaining with owners: (a) OCC visible 83 at 2-3 pins (their author), (b)
+  h83 ~31 (my desk-claim fix committed `65fd67b5` — closes with their
+  rerun), (c) h84 25 A-cluster (8 operator revokes = the custodian gap,
+  primary's), (d) suite 79 six 42501s (peer-side — round-32 in-spike diag
+  building), (e) h79 4 (peer-side — fixture regeneration to the retyped
+  keyed-path facts).
+- The push migration 04090000 dirty in their tree = mine (leave for my
+  rounds). Their consolidation phase: commit + push the full sweep when my
+  items converge.
+
+## Round-32 artifact ready (2026-10-04)
+
+- `scratchpad/suite79-errdiag-26af4a29.sql` sha256-16 **84e0c330e986918d**,
+  rebuilt from the CURRENT suite bytes (flatten pipeline, per-statement
+  integrity, zero assertions inside injected blocks).
+- Complete instrumentation: 4 insobs DOs (loud LINKAGE-NULL after each media
+  insert), 10 finalize observers (full gate inputs at read time), Site A
+  ($diagkr2$: the KR2 create+capture pre-wrap under member-32 claims).
+- gymloop-35 executing under their lock — the gate-sees vs insert-wrote
+  divergence resolves from these rows.
+
+## Injector terminator fix dispatched (2026-10-04, gymloop-35 abort)
+
+- The round-32 artifact aborted at compile: `unterminated dollar-quoted
+  string at or near "$insobs144$"` — the insobs DO block's closing tag
+  missing/mismatched (injector terminator handling).
+- Round 33 dispatched: fix the injector (closing tag matches opening label
+  exactly) + programmatic balance check (every $tag$ opener has one matching
+  closer, in order) so the class dies. Regenerate from current suite bytes.
+
+## Final instrumented artifact ready (2026-10-04)
+
+- `scratchpad/suite79-errdiag-26af4a29.sql` sha256-16 **a5fe2054f931af12**:
+  terminator fixed (the injector's literal dropped a closing `$`);
+  programmatic balance check added (zero unbalanced tags); 15 pure-capture
+  points ($diagkr2$ ×1, $diagins$ ×3 covering 4 assets — INSERT wrapped with
+  caught refusal/inserted-row readback, $obs$ ×10). insobs subsumed by the
+  diagins read-backs. Suite file unchanged (5aa405b3).
+- gymloop-35 runs under their lock; the DIAG/E rows route the fix.
+
+## gymloop-35 convergence update (2026-10-04)
+
+- Suite 83 precision diagnostics: #56a GREEN (today's day row exists);
+  #56b/c RED (aggregation doesn't count today's gate-scan arrival); #78 RED
+  (in-invocation coupling: the snapshot reads tenant-1's data even under
+  tenant-2 owner claims) — routed to their builder with runtime facts. #78
+  flagged as a potential owner decision (cross-tenant analytics disclosure).
+- Push scheduler builder closed their side (8 operator revokes recorded).
+- Consolidation point: remaining items advance with owners. Sequence when
+  converged: full sweep → push → CI migrate → gen types → protected deploy →
+  browser E2E → Android handoff.
+- My side unchanged: final suite-79 artifact (a5fe2054) in their execution
+  queue; h79 regeneration in flight.
+
+## Artifact fix: _diagtap creation dropped (2026-10-04, gymloop-35 abort)
+
+- The artifact aborted `42P01: relation "_diagtap" does not exist` — this
+  round's injector dropped the temp-table creation. Fix dispatched: restore
+  `create temp table _diagtap(r text); grant insert, select …` right after
+  `begin;` + a programmatic referenced-temp-table check in the rebuild.
+  Regenerate + route to gymloop-35's lock.
+
+## Artifact fixed — _diagtap restored (2026-10-04)
+
+- `scratchpad/suite79-errdiag-26af4a29.sql` sha256-16 **4f72dc7c0a5c725e**:
+  the _diagtap creation restored right after `begin;`; programmatic
+  reference audit added (every temp-table reference has its preceding
+  creation — class dead). 15 injection points; plan(252)/labels preserved.
+  gymloop-35 executing.
+
+## Consolidation ack (2026-10-04)
+
+- gymloop-35 consolidating: OCC items route to their builder/author; the
+  #78 cross-tenant disclosure escalation to the owner is their call if the
+  builder's tenant-derivation fix fails. RPE/WSP/SLF green.
+- Correction sent: the fixed suite-79 artifact (`4f72dc7c…`) was already
+  delivered before their message — re-execute at that sha. h79's 4
+  residuals with my holdout author.
+
+## Diag SELECT repositioned (2026-10-04, gymloop-35 CLI behavior)
+
+- The CLI returns only the LAST result set — the diag SELECT after `_sweep`
+  didn't surface. Fix dispatched: move the `select string_agg(r, …) from
+  _diagtap` to be the artifact's FINAL statement (after the suite's terminal
+  rollback — the captures survive in the session-scoped temp table).
+  Rebuild + integrity checks, then gymloop-35's lock.
+
+## gymloop-35 status broadcast acked (2026-10-04)
+
+- Their side: suite 83's 3 diagnostic pins (2 need author adjudication —
+  re-pin to days[].visits/hours[].visits/cells[].todayArrivals per the
+  builder's field correction); #76's K-capture route continues. h83 addon
+  staging self-serving (TRY guards). h84: 8 named revokes recorded. 488+
+  commits ahead, clean for push at full convergence.
+- My side in flight: the round-35 diag-SELECT reposition (artifact-final
+  position) + h79's fixture regeneration. No new routing needed.
+
+## Diag SELECT repositioned — artifact ready (2026-10-04)
+
+- `scratchpad/suite79-errdiag-26af4a29.sql` sha256-16 **9713236ad0666b19**:
+  the diag SELECT is the artifact's FINAL statement (after the terminal
+  rollback — the session-scoped temp-table captures survive it);
+  byte-verified; all 15 instrumentation points intact; labels balanced.
+  gymloop-35 executing.
+
+## _diagtap creation outside the transaction (2026-10-04, gymloop-35)
+
+- The `_diagtap` creation sat INSIDE the begin block — the rollback dropped
+  it (temp tables created inside a rolled-back transaction are dropped).
+  Fix dispatched: the creation + grant move BEFORE the `begin;` statement,
+  plus the programmatic placement check (creation before the first begin).
+  Rebuild → gymloop-35's lock.
+
+## Placement fixed — artifact ready (2026-10-04)
+
+- `scratchpad/suite79-errdiag-26af4a29.sql` sha256-16 **b878aadc3b964bf5**:
+  the _diagtap creation + grant sit BEFORE the first begin (outside the
+  transaction — survives the rollback); the final statement remains the diag
+  SELECT; placement programmatically verified; all 15 points intact.
+  gymloop-35 executing.
+
+## Round 33 — standard pipeline only; custom injector dropped (2026-10-04)
+
+- The suite-79 instrumented loop paused and switched: rebuild using ONLY
+  flatten-inserts.py + make-err-diag.py (the standard tool handles
+  per-statement wrapping) + the diag SELECT as the artifact-final statement
+  (+ the _diagtap creation pre-begin). No custom injector — the tooling loop
+  was consuming rounds.
+- Sequencing agreed: gymloop-35's OCC visible/holdout rerun (their builder's
+  tenant fix at 246e834d landed) proceeds in parallel; my h79 regeneration
+  continues; the suites share the next preview batch.
+
+## Standard-pipeline artifact ready (2026-10-04)
+
+- `scratchpad/suite79-errdiag-r33.sql` sha256-16 **84c4fbf25a4629ee**: built
+  with splice → flatten → make-err-diag (391 statements, _diagtap S/E rows)
+  + minimal post-processing (_diagtap creation moved pre-begin; media INSERTs
+  re-flattened; diag SELECT appended last after the rollback). No custom
+  injector. The six 42501 finalize sites carry fin-wrapped RESULT values
+  (sqlstate:detail readable from the TAP) — the md5 verdict + gate binds
+  stay readable in the same run. gymloop-35 executing.
+
+## Acceleration: pre-staged fix variants (2026-10-04)
+
+- Owner directive: fix and complete fast. gymloop-35 pressed to execute the
+  artifact NOW and return rows immediately.
+- Acceleration dispatched to the visible author: PRE-STAGE all three fix
+  variants as separate staged patches (cap redistribution final form /
+  tenant-identity fix / owner-escalation draft) with application
+  instructions — whichever branch the DIAG rows name commits within minutes.
+- gymloop-35's convergence mapped: 490+ commits; SLF/WSP/RPE/scheduler
+  green; remaining RED = OCC 83 (3 pins, #78 pre-call fix), h83 (peer
+  author self-serving), h84 25 (operator revokes recorded), suite 79
+  (my in-spike diagnostic).
+
+## Three fix variants pre-staged (2026-10-04, visible author)
+
+- `scratchpad/prestaged/`:
+  1. **v1-cap-branch.sql** (87 KB full suite copy): K6's create (sid(516) —
+     the true-order predecessor of the mismatch create) remapped to member 32
+     (true-order budget 3/10; member 31 at 7 before KR2). Trigger: DIAG
+     KR2-create REFUSED 22023 at true position.
+  2. **v2-tenant-branch.md**: identity fix — align the KR2 finalize call's
+     p_tenant_id/p_asset_id with DIAG-INSERT-141's committed values (the
+     DIAG V row carries both). Single-line suite change ~391. Trigger: DIAG V
+     binds diverge.
+  3. **v3-splice-branch.md**: owner-escalation summary draft (DIAG V +
+     DIAG-INSERT committed values + fin-wrapped refusals). No suite change.
+- Instrumented artifact unchanged (`84c4fbf25a4629ee`) — awaiting gymloop-35's
+  execution. The fix lands within minutes of the rows returning.
+
+## OWNER AUTHORIZATION: Cloud diagnostics self-serve (2026-10-04)
+
+- The owner authorized Cloud diagnostic execution from this chat
+  (read-only SELECT diagnostics + the migration-text capture against
+  pecxrpskmfeuyzngvewq — the CORRECT project; NO mutations). The
+  round-trip through gymloop-35 is removed; the pre-staged fix variants
+  land within minutes of the rows.
+- Visible author dispatched: execute `scratchpad/suite79-errdiag-26af4a29.sql`
+  (per-statement DO diagnostics + final diag SELECT — the suite is
+  rollback-only) + the md5(prosrc) verdict (expected 431cba90/6659) in one
+  session. Mutations/deploys remain forbidden.
+- gymloop-35 notified; their OCC/h84 items unchanged.
+
+## gymloop-35 coordination — migration ownership clarified (2026-10-04)
+
+- gymloop-35 asked about the dirty push migration 04090000: NOT my builder's
+  (my scope = 20261004100000_purchase_requests.sql, committed c3cb0d8f,
+  clean). The 04090000 modification (69+/25−) belongs to the push-agent
+  lineage (last commit `0621227a feat: remove pgTAP shims and enforce push
+  target invisibility`). Routed: gymloop-35 commits it under their push
+  scope after verifying the push agent's rounds are complete.
+- My MEDIA/PAY files: all clean and committed (no in-flight migration edits).
+
+## Ownership corrections restated (2026-10-04)
+
+- Migration 04090000: NOT this chat's scope (push-agent lineage,
+  `0621227a` last commit) — gymloop-35 commits under their push scope. My
+  MEDIA/PAY migration (20261004100000) is committed and clean.
+- h83 ownership question raised: gymloop-35's state says the addon staging
+  chain is "the peer's author self-serving" — my holdout author holds the
+  desk-claim fix (committed `65fd67b5`, awaiting their rerun). Ownership
+  confirmation requested: h83's guard semantics = their author or mine.
+- My active items: the diagnostic artifact execution (self-serve Cloud,
+  authorized) + h79's 4 residuals.
+
+## Routing locked (2026-10-04, gymloop-35)
+
+- FINAL split: gymloop-35 = OCC visible 83 + h83 (their OCC holdout author
+  a52ba3d owns the guard semantics — my holdout author's h83 rounds cease;
+  their committed desk-claim fix `65fd67b5` + the round-13 mechanism notes
+  transfer to gymloop-35's author for continuation) + push scheduler.
+- Mine: suite 79/h79/PAY (the diagnostic execution + h79's 4 residuals).
+- 04090000 committed at `077bcf9a` under their push scope. 493+ commits
+  ready for the sequence.
+
+## THE RESOLUTION — the capture loop closes (2026-10-04)
+
+- The visible author's execution returned BOTH verdicts: (1) E rows ZERO —
+  all 391 statements S/ok; the redistribute FIXED the 22023 root (the
+  mismatch create landed); the six 42501s were captured inside their fin()
+  wrappers (never propagating to E rows — their captured values live in the
+  assertion texts). (2) md5 verdict: in-session `5212bb48…/4137` vs expected
+  `431cba90…/6659` — **MISMATCH**.
+- **THE MECHANISM (final)**: the Cloud DB's finalize_media_asset is the last
+  CI-APPLIED version (4137 chars — the pre-repair body from the original PAY
+  push). The repair-round amendments exist ONLY in local commits
+  (b76d6032/113b087e/89320c71) + the working tree (c3cb0d8f) — never pushed,
+  never CI-applied. The runtime previews ran the OLD function throughout:
+  the six 42501s + GL066 were the OLD body's legitimate behavior, not the
+  repair's. Every fixture/source audit was correct — they audited different
+  layers (committed migration vs CI-applied DB).
+- **The capture loop was structurally doomed**: no fixture or diagnostic
+  round could validate the NEW body against a database that never received
+  it. The runtime failures reflect the OLD code.
+- **Resolution**: my scope is COMPLETE — all repairs committed on main
+  (working tree = final state; migration committed b76d6032). Runtime
+  validation of the new body is gated on gymloop-35's sequence: push → CI
+  applies → THEN the previews test the new body. No further pre-push capture
+  rounds are meaningful.
+- Manifest note to gymloop-35: the Cloud DB sits at the PRE-repair migration
+  state until CI applies.
+
+## Final h79 round dispatched for the sweep (2026-10-04)
+
+- gymloop-35 starting the full rollback sweep (488+ suites); requested my
+  h79 sha for inclusion.
+- Holdout author round 14 dispatched (final): regenerate the four failing
+  h79 fixtures to the retyped keyed-path facts — #65 D3c (the fixed keyed
+  path's GL068 on the old fixture's replay expectation — the replay facts
+  must match the original registration exactly), #66 downstream, #11/#12
+  signature pins to the amended 9-arg/7-arg forms per the frozen decisions.
+  Labels/pins stay contract-true; spec-debt documented if superseded.
+- gymloop-35's push sequence: full rollback sweep (all suites) → push → CI
+  applies the migrations (the repaired finalize lands in the DB) → gen
+  types → protected deploy + 8 operator revokes. The round-32 diagnostic's
+  remaining findings re-evaluate against the repaired body post-CI.

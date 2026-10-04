@@ -252,8 +252,10 @@ would permit an old key to recreate a commercial effect.
 
 Indexes: requests `(tenant_id,member_id,created_at desc,id desc)`,
 `(tenant_id,membership_id,starts_on,ends_on)`,
-`(tenant_id,status,created_at desc,id desc)`, tenant-leading source/adopter/
-decider/subject indexes; commands tenant-leading request/actor indexes in
+`(tenant_id,status,created_at desc,id desc)`, tenant-leading adopter/
+decider/subject indexes plus the per-row partial `(source_pause_id)` lookup
+index the additive source invariant's per-row lookup requires; commands
+tenant-leading request/actor indexes in
 addition to the command unique key. FK referenced pairs require same-tenant
 unique keys, not global cross-tenant slot arbitration. No blanket platform
 policy exception is proposed: standard platform SELECT only, matching the

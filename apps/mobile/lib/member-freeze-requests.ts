@@ -11,7 +11,7 @@ import { useMobile } from './mobile-context';
  * every read and disables the request and renewal commands (SLF-002).
  */
 
-export type FreezeMembership = {
+type FreezeMembership = {
   planName: string | null;
   status: string;
   startsOn: string | null;

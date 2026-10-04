@@ -16,7 +16,7 @@ import {
   formatMoney as formatDisplayMoney,
   humanize,
 } from '@gymloop/shared';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ChevronRight, CreditCard, UserPlus } from 'lucide-react';
 
 type CardKey =
@@ -90,7 +90,7 @@ function detailSummaries(metrics: OwnerMetrics, selected: CardKey): string[] {
   }
 }
 
-export function MetricsDashboard({ metrics, nouns = businessNouns(null) }: { metrics: OwnerMetrics; nouns?: BusinessNouns }) {
+export function MetricsDashboard({ metrics, nouns = businessNouns(null), occupancy = null }: { metrics: OwnerMetrics; nouns?: BusinessNouns; occupancy?: ReactNode | null }) {
   const [selected, setSelected] = useState<CardKey | null>(null);
   const range = shortRange(metrics.range.from, metrics.range.through, metrics.localToday);
   const renewalsDue = metrics.components.renewals.length;
@@ -189,5 +189,7 @@ export function MetricsDashboard({ metrics, nouns = businessNouns(null) }: { met
       {metrics.warnings.undatedPtOrders.map((row) => <p key={row.orderId} id={`warning-pt-${row.orderId}`}><a href={`#warning-pt-${row.orderId}`}>All-date data quality: undated PT order {row.orderId} · {row.status}</a></p>)}
       {metrics.warnings.incompletePtOrders.map((row) => <p key={row.orderId} id={`warning-incomplete-pt-${row.orderId}`}><a href={`#warning-incomplete-pt-${row.orderId}`}>All-date data quality: incomplete PT order {row.orderId} · {row.status} · excluded incomplete row</a></p>)}
     </section>}
+    {/* Occupancy and collection load on explicit request only, so the default overview stays one snapshot read. */}
+    {occupancy}
   </main>;
 }

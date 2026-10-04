@@ -1,7 +1,7 @@
 import { purchaseRequestRefusalMessage } from '@gymloop/shared';
 
 /** One shared POST runner for the member and desk purchase client components. */
-export async function postPurchaseCommand(path: string, body: Record<string, unknown>): Promise<{ ok: boolean; refusal: string | null; payload: unknown }> {
+async function postPurchaseCommand(path: string, body: Record<string, unknown>): Promise<{ ok: boolean; refusal: string | null; payload: unknown }> {
   try {
     const answer = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' });
     const payload = await answer.json() as { ok: boolean; data?: unknown; error?: { code: string } };

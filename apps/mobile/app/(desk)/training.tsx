@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { Screen, Eyebrow, Title, StateMessage } from '../../components/ui';
 import { TrainerDayPane } from '../../components/trainer-day-pane';
 import { useMobile } from '../../lib/mobile-context';
 import { loadTrainerBookings, loadTrainerPacks, loadTrainerZone, type BookingArgs, type PackArgs } from '../../lib/trainer-view';
+import { useRuntimeOnline } from '../../lib/online-probe';
 import { useTrainerDay } from '../../lib/use-trainer-day';
 
 /**
@@ -15,15 +16,7 @@ export default function TrainerTrainingScreen() {
   const { supabase, identity, session } = useMobile();
   const isTrainer = identity.kind === 'staff' && identity.role === 'trainer';
   const scopeKey = isTrainer ? `${identity.tenantId}:${identity.staffId}:${session?.user.id ?? ''}` : null;
-  const [online, setOnline] = useState(false);
-  useEffect(() => {
-    let active = true;
-    // probed at runtime so the route imports no network module at load time
-    void import('expo-network').then(Network => Network.getNetworkStateAsync()).then(network => {
-      if (active) setOnline(network.isConnected === true && network.isInternetReachable === true);
-    }).catch(() => { if (active) setOnline(false); });
-    return () => { active = false; };
-  }, []);
+  const online = useRuntimeOnline();
   const loadZone = useCallback(() => loadTrainerZone(supabase, identity), [supabase, identity]);
   const loadBookings = useCallback((args: BookingArgs) => loadTrainerBookings(supabase, identity, args), [supabase, identity]);
   const loadPacks = useCallback((args: PackArgs) => loadTrainerPacks(supabase, identity, args), [supabase, identity]);
