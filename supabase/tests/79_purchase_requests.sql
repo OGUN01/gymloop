@@ -10,7 +10,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims','',true);
-select plan(249);
+select plan(252);
 
 create function pg_temp.sid(n integer) returns uuid language sql immutable as $$select ('79100000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.claim(r text, t integer default 1, s integer default null, m integer default null, u integer default null, extra jsonb default '{}'::jsonb) returns void language plpgsql as $$begin perform set_config('request.jwt.claims',(jsonb_strip_nulls(jsonb_build_object('role','authenticated','app_role',r,'tenant_id',pg_temp.sid(t),'staff_id',pg_temp.sid(s),'member_id',pg_temp.sid(m),'sub',pg_temp.sid(u)))||extra)::text,true); end$$;
@@ -263,8 +263,8 @@ select pg_temp.cap('K6',516);
 set local role postgres;
 select is((select count(*) from public.purchase_requests where request_key = pg_temp.sid(516) and tenant_id = pg_temp.sid(1)),1::bigint,'BUY-008/010 the K6 linkage anchor row exists before the media fixture insert (loud, never a silent NULL)');
 insert into public.media_assets(id,tenant_id,kind,mime,bytes,staging_object_key,created_by_member_id,linked_request_id) values
-(pg_temp.sid(144),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(144,'payment_proof'),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(516))),
-(pg_temp.sid(145),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(145,'payment_proof'),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(516)));
+(pg_temp.sid(144),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(144,'payment_proof'),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(516) and tenant_id = pg_temp.sid(1))),
+(pg_temp.sid(145),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(145,'payment_proof'),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(516) and tenant_id = pg_temp.sid(1)));
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.accept_purchase_request((select id from req where label='K6'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),pg_temp.sid(614))$q$,'BUY-004 desk accepts the proof-flow request at the current quote');
@@ -279,6 +279,7 @@ set local role authenticated;
 -- The verified/published state is produced through the guarded credential-only
 -- finalizer (production shape), never by fixture INSERT columns.
 set local role postgres;
+select is((select count(*) from public.media_assets where id = pg_temp.sid(144) and linked_request_id is not null),1::bigint,'BUY-008/010 linkage present on 144 after insert (key drift is loud here)');
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
 select is(public.finalize_media_asset(pg_temp.sid(144),pg_temp.sid(906),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(144,'payment_proof'),'source-144',pg_temp.pub(144,'payment_proof'),'published-144'),true,'BUY-008 the K6 fixture proof finalizes through the credential verifier');
@@ -333,12 +334,13 @@ select pg_temp.cap('KR1',521);
 set local role postgres;
 select is((select count(*) from public.purchase_requests where request_key = pg_temp.sid(521) and tenant_id = pg_temp.sid(1)),1::bigint,'BUY-008/010 the KR1 linkage anchor row exists before the media fixture insert (loud, never a silent NULL)');
 insert into public.media_assets(id,tenant_id,kind,mime,bytes,staging_object_key,created_by_member_id,linked_request_id) values
-(pg_temp.sid(146),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(146,'payment_proof'),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(521)));
+(pg_temp.sid(146),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(146,'payment_proof'),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(521) and tenant_id = pg_temp.sid(1)));
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.accept_purchase_request((select id from req where label='KR1'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),pg_temp.sid(628))$q$,'BUY-012 exact-price request accepted');
 set local role postgres;
 set local role postgres;
+select is((select count(*) from public.media_assets where id = pg_temp.sid(146) and linked_request_id is not null),1::bigint,'BUY-008/010 linkage present on 146 after insert (key drift is loud here)');
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
 select is(public.finalize_media_asset(pg_temp.sid(146),pg_temp.sid(906),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(146,'payment_proof'),'source-146',pg_temp.pub(146,'payment_proof'),'published-146'),true,'BUY-012 the KR1 fixture proof finalizes through the credential verifier');
@@ -374,12 +376,13 @@ select pg_temp.cap('KR2',522);
 set local role postgres;
 select is((select count(*) from public.purchase_requests where request_key = pg_temp.sid(522) and tenant_id = pg_temp.sid(1)),1::bigint,'BUY-008/010 the KR2 linkage anchor row exists before the media fixture insert (loud, never a silent NULL)');
 insert into public.media_assets(id,tenant_id,kind,mime,bytes,staging_object_key,created_by_member_id,linked_request_id) values
-(pg_temp.sid(141),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(141,'payment_proof'),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(522)));
+(pg_temp.sid(141),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(141,'payment_proof'),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(522) and tenant_id = pg_temp.sid(1)));
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.accept_purchase_request((select id from req where label='KR2'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),pg_temp.sid(631))$q$,'BUY-014 mismatch scenario accepted');
 set local role postgres;
 set local role postgres;
+select is((select count(*) from public.media_assets where id = pg_temp.sid(141) and linked_request_id is not null),1::bigint,'BUY-008/010 linkage present on 141 after insert (key drift is loud here)');
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
 select is(public.finalize_media_asset(pg_temp.sid(141),pg_temp.sid(906),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(141,'payment_proof'),'source-141',pg_temp.pub(141,'payment_proof'),'published-141'),true,'BUY-014 the KR2 fixture proof finalizes through the credential verifier');
