@@ -847,3 +847,85 @@ disabled, no protected timestamp forced null, nothing committed.
   id=…ac),'ABSENT')`. Audit green. plan(183) unchanged. Rollback guard
   green (159 files).
 - New sha256: `ef2f626016b865699a7640e7cd8deaca69487c53caa18b88581fcf0bc0dfdb22`.
+
+## Runtime repair round 40 (2026-10-04)
+
+- Runtime fact: `more than one row returned by a subquery used as an
+  expression` — the culprit was NOT the addon lookups (all three are
+  PK-scoped single rows) but the round-38 staging-health label rewrite: the
+  outer `(select ' (errors: ' || (select string_agg(...)) || ')' from
+  h83_seed_errors)` selected per-row output from a multi-row table.
+- Edit: the label is now a single scalar expression —
+  `coalesce(' (errors: ' || (select string_agg(line, ' ;; ' order by ctid)
+  from h83_seed_errors), '')` — one aggregation, no per-row projection.
+  Audit green. plan(183) preserved. Rollback guard green (159 files).
+- New sha256: `7e2b84bf167d3920397573d9d8bac4fa0e9527b30ffe114ef83ef2cff15dd69c`.
+
+## Runtime repair round 41 (2026-10-04) — root cause captured
+
+- Runtime fact: `PAYCHECK-POST ABSENT` — payment …ac never committed. The
+  addon block's own `begin…exception…end` is a subtransaction: every order-
+  guard error rolled the whole block back, including the product …ae and the
+  payment …ac whose exact-buy matrix was already correct — the guard could
+  never see a live payment row.
+- Edit: the addon staging is split into two blocks — (1) offer + payment
+  inserts in their own begin/exception (label
+  `addon_offer/payment staging:` with context/detail logging; only
+  product/payment constraints apply there), and (2) the keyed order INSERT +
+  acceptance UPDATE in a separate block whose failures no longer erase the
+  offer/payment staging. The unconditional PAYCHECK-POST probe still runs
+  after block 2. Audit green (addon_products 13/1, addon_orders 13/1).
+  plan(183) preserved. Rollback guard green (159 files).
+- New sha256: `36c3f65c5126af452241507c0b975bef1653087b8cb3dc4899c6ef92682a24ce`.
+
+## RPC-route assessment (2026-10-04, round 42 — analysis first, no edit)
+
+- Coordinator proposed staging through the production RPC
+  `record_addon_sale(p_member_id, p_product_id, p_quantity, p_quote_version,
+  p_trainer_staff_id, p_initial_starts_at, p_initial_ends_at, p_method,
+  p_reason, p_idempotency_key)` (committed phase6 signature verified).
+- Three findings change the picture:
+  1. The round-41 block split already provides what the RPC would provide:
+     the offer …ae and payment …ac are committed in their own subtransaction
+     before the order block runs, so the exact-buy guard now sees a live
+     payment row with the verified-correct matrix. The pending→paid two-step
+     plus that committed pair is the same state the RPC would reach.
+  2. The RPC mints its OWN payment (a new uuid unknowable at authoring
+     time) — the money pins pin exact receipt-component counts and id
+     arrays (exactly five dated in-range receipts; the sorted paymentId
+     array), so the RPC path forces those pins to dynamic-id churn. My
+     staged …ac keeps them static and lawful.
+  3. Either path (RPC or my INR order) exposes an AUTHORING defect in my
+     own money pins, flagged for adjudication, NOT fixable by staging: the
+     USD payment …f4's expected category 'addon' (and the USD addon 25000
+     pin) requires a REAL addon_orders row linked to …f4, but products must
+     be INR (the offer-match guard refuses non-INR products), so a USD
+     add-on order is unachievable — …f4 can only classify 'unallocated' —
+     and symmetrically my staged INR order …ad (+25000 addon) shifts the
+     INR absolute Cash pins (9007199254995993/…965993) which were authored
+     WITHOUT any INR addon contribution. The two pin families are mutually
+     inconsistent under the real linkage rule; the honest outcome is a
+     public envelope/adjudication question (which USD/INR classification
+     set is the intended evidence) — raised to the coordinator, not bent
+     silently.
+- Recommendation to the coordinator: rerun the current tree (sha
+  36c3f65c…) — the split makes the guards see committed rows — and
+  adjudicate finding 3 before I amend either pin family.
+- No suite edit this round; sha256 unchanged:
+  `36c3f65c5126af452241507c0b975bef1653087b8cb3dc4899c6ef92682a24ce`.
+
+## Adjudication amendments (2026-10-04, round 43)
+
+- Coordinator adjudication applied, both runtime-truth corrections:
+  1. …f4 USD classification 'addon'→'unallocated' (the offer guard requires
+     INR products, so a USD addon order is genuinely unachievable); message
+     and comment record the adjudication.
+  2. INR absolute Cash totals include the staged addon's +25000 INR:
+     collectedPaise 9007199254995993 → 9007199255020993, netPaise
+     9007199254965993 → 9007199254990993.
+  3. Strengthening additions: the USD unallocated group now pins 25000
+     explicitly, and the INR addon category pins its exact 25000 collected.
+  The two additions grow the plan by two: plan(183) → plan(185) (the same
+  strengthening-precedent as the WSP ordering suite); disclosed here, no
+  weakening anywhere. Audit green; rollback guard green (159 files).
+- New sha256: `04b524322222b6045f3ab38d35a92983936c765d37b4b31c77111c002d80d45e`.

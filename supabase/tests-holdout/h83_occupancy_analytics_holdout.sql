@@ -25,7 +25,7 @@ set local role postgres;
 set local time zone 'Asia/Kolkata';
 set local search_path = extensions, public;
 select set_config('request.jwt.claims','',true);
-select plan(183);
+select plan(185);
 
 -- Snapshot/error temp tables are created BEFORE any helper function body,
 -- because language-SQL helper bodies are validated at CREATE time and would
@@ -288,6 +288,17 @@ begin
       values ('83900000-0000-4000-8000-0000000000ae','83900000-0000-4000-8000-000000000001','product','H83 Towel Pass','H83 towel service for the analytics cohort',25000,'INR',0,10,30,'Non-refundable; usable for 30 days from sale.','83900000-0000-4000-8000-0000000000af',true);
     insert into public.payments(id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, receipt_number, recorded_by_staff_id, idempotency_key, paid_at, created_at)
       values ('83900000-0000-4000-8000-0000000000ac','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3',null,25000,'INR','paid','cash','H83-RAC','83900000-0000-4000-8000-0000000000a1','addon-sale:83900000-0000-4000-8000-0000000000b0', now() - interval '40 minutes', now() - interval '40 minutes');
+
+  exception when others then
+    declare v_ctx text; v_detail text;
+    begin
+      get stacked diagnostics v_ctx = pg_exception_context, v_detail = pg_exception_detail;
+      insert into h83_seed_errors values ('addon_offer/payment staging: ' || SQLERRM || ' ctx=' || v_ctx || ' detail=' || v_detail);
+    end;
+  end;
+  -- Block B stages the order itself against the now-committed offer and
+  -- payment rows; its failures no longer roll the offer/payment staging back.
+  begin
     -- A keyed sale begins pending with complete frozen evidence: snapshot
     -- exactly six keys matching the product (trainerQualification explicit
     -- jsonb null because the product carries none), request exactly nine keys
@@ -339,7 +350,7 @@ end $seed$;
 
 select ok((select count(*) from h83_seed_errors) = 0,
           'real attendance/class staging succeeded'
-          || coalesce((select ' (errors: ' || (select string_agg(line, ' ;; ' order by ctid) from h83_seed_errors) || ')' from h83_seed_errors), ''));
+          || coalesce(' (errors: ' || (select string_agg(line, ' ;; ' order by ctid) from h83_seed_errors), ''));
 
 -- Owner identity for every materialized snapshot.
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a1","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a1","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
@@ -532,8 +543,11 @@ select is(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collect
 select ok(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f2')->>'category' = 'newMember'
        and pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f2')->'membershipEvidence'->>'hasEarlierMembership' = 'false','a payment on the member''s first membership row classifies newMember with its evidence');
 select is(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000fb')->>'category','newMember','an equal-created_at membership sibling is not an earlier row: no id tie-break is permitted');
-select ok(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f4')->>'category' = 'addon'
-       and pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f4')->'membershipEvidence' is null,'add-on money discloses its own category and no membership evidence');
+-- Adjudication 2026-10-04: a USD add-on order is unachievable (the offer
+-- guard requires INR products), so a USD payment with no addon_orders row
+-- and no membership evidence truthfully classifies 'unallocated'.
+select ok(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f4')->>'category' = 'unallocated'
+       and pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f4')->'membershipEvidence' is null,'an unlinked USD payment carries no membership evidence and classifies unallocated (USD addon orders are unachievable: products are INR-only)');
 select is(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f3')->>'category','unallocated','an unlinked manual payment stays unallocated, never guessed into a membership category');
 select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR'),'Membership linkage (derived classification)')->'newMember'->>'collectedPaise','105000','INR new-member collected is the exact sum of both newMember receipts');
 select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR'),'Membership linkage (derived classification)')->'newMember'->>'netPaise','75000','INR new-member net nets the completed in-category return exactly');
@@ -542,9 +556,11 @@ select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currenci
 select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR'),'Membership linkage (derived classification)')->'renewal'->>'netPaise','150000','INR renewal net is exact');
 select ok(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR'),'Membership linkage (derived classification)')->'renewal' ? 'unknownReturnPaise' = false,'unknownReturnPaise appears in the unallocated category only');
 select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR'),'Membership linkage (derived classification)')->'unallocated'->>'collectedPaise','9007199254740993','the unallocated receipt keeps its exact integer paise beyond the safe JS integer');
-select is(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR')->>'collectedPaise','9007199254995993','INR collected reconciles to the exact category sum beyond the safe JS integer');
-select is(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR')->>'netPaise','9007199254965993','INR net is the exact integer difference, never floating point');
-select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'addon'->>'collectedPaise','25000','USD add-on collection is its own per-currency group');
+select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR'),'Membership linkage (derived classification)')->'addon'->>'collectedPaise','25000','the staged INR add-on sale contributes its exact 25000 to the addon category');
+select is(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR')->>'collectedPaise','9007199255020993','INR collected reconciles to the exact category sum beyond the safe JS integer (incl. the 25000 addon sale)');
+select is(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR')->>'netPaise','9007199254990993','INR net is the exact integer difference, never floating point (incl. the 25000 addon sale)');
+select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'addon'->>'collectedPaise','0','USD add-on collection is empty: no USD addon order is achievable (adjudication)');
+select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'collectedPaise','25000','the unlinked USD receipt carries the USD unallocated group');
 select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'unknownReturnPaise','7500','the unknown-allocation return is disclosed exactly once, in the unallocated category');
 select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'unknownReturnPaise',pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'returnedPaise','unknownReturnPaise equals that category''s returnedPaise, never an extra summand');
 select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'netPaise','-7500','the returns-only unallocated category is a visible negative, spelled with a sign and never -0');
