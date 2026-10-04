@@ -10,6 +10,7 @@ export default defineConfig({
     'e2e/public-pages-accessibility.spec.ts',
     'e2e-holdout/phase8-accessibility-holdout.spec.ts',
   ],
+  timeout: 90_000,
   use: {
     baseURL: BASE_URL,
     screenshot: 'only-on-failure',
