@@ -55,6 +55,10 @@ describe('member proof upload affordance and copy truth', () => {
     state.response = { ...base, status: 'payment_proof_uploaded' };
     const html = await renderDetail();
     expect(html).toContain('Pending verification');
-    expect(html).not.toMatch(/payment successful|Payment recorded/);
+    // Owner decision 2026-10-04: the ruled stepper may show "Payment recorded"
+    // as a FUTURE stage label; only a money-received state claim is banned
+    // before a bound ledger receipt (BUY-022).
+    expect(html).toMatch(/Payment recorded/);
+    expect(html).not.toMatch(/payment successful|payment has been recorded|money recorded|payment received|bank verified/i);
   });
 });

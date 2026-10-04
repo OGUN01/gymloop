@@ -20,21 +20,28 @@ let calls: Array<{ url: string; method: string; headers: Headers; body: string }
 let claims: Record<string, unknown>;
 let mode: string;
 let confirmed: boolean;
+let requestStatus: string;
+let requestProofStatus: string;
 let candidate: string;
 let winningKey: string;
 const publishedCandidates = new Set<string>();
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
 const proofDetail = () => ({
-  requestId: proofRequest, requestKey: proofRequest, kind: 'shop', status: 'owner_accepted', targetId: '72000000-0000-4000-8000-000000000007',
+  requestId: proofRequest, requestKey: proofRequest, kind: 'shop', status: requestStatus, targetId: '72000000-0000-4000-8000-000000000007',
   quantity: 1, snapshot: { currency: 'INR', productId: '72000000-0000-4000-8000-000000000007', productName: 'Proof fixture', kind: 'product', gstRateBp: 0, unitPricePaise: '199900', pricePaise: '199900', totalPaise: '199900', quoteVersion: proofRequest },
-  quoteRevision: proofRequest, createdAt: '2026-10-02T05:00:00Z', expiresAt: '2026-10-03T05:00:00Z',
+  quoteRevision: proofRequest, createdAt: '2026-10-02T05:00:00Z', expiresAt: '2026-10-03T05:00:00Z', proofStatus: requestProofStatus,
+  activeProofAssetId: assetId,
 });
 const safeAsset = () => ({ id: assetId, tenant_id: tenant, kind: 'payment_proof', mime: 'image/jpeg', bytes: 12, created_by_member_id: member, created_at: '2026-10-02T00:00:00Z', confirmed_at: confirmed ? '2026-10-02T01:00:00Z' : null, deleted_at: mode === 'deleted' ? '2026-10-02T02:00:00Z' : null, attached_to_id: confirmed ? proofRequest : null });
 const privateAsset = () => ({ ...safeAsset(), tenant_id: mode === 'foreign-tenant' ? '83000000-0000-4000-8000-000000000001' : tenant, staging_object_key: mode === 'wrong-namespace' ? `${tenant}/staging/product/${assetId}.jpg` : staging, object_key: confirmed ? winningKey || `${tenant}/published/payment_proof/${publishedUuid}.jpg` : null, verified_source_etag: confirmed ? '"source"' : null, published_etag: confirmed ? '"published"' : null });
 async function transport(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const req = new Request(input, init); const url = new URL(req.url); const headers = req.headers; const body = await req.text(); calls.push({ url: req.url, method: req.method, headers, body });
   if (url.host === 'supabase.test') {
-    if (url.pathname.includes('/auth/v1/user')) return mode === 'invalid-token' ? json({ message: 'invalid' }, 401) : json({ id: claims.member_id ?? claims.sub, app_metadata: claims, user_metadata: {}, aud: 'authenticated', role: 'authenticated' });
+    if (url.pathname.includes('/auth/v1/user')) {
+      if (mode === 'invalid-token') return json({ message: 'invalid' }, 401);
+      const payload = JSON.parse(atob(((headers.get('authorization') ?? '').replace(/^Bearer /, '')).split('.')[1] ?? '{}'));
+      return json({ id: payload.member_id ?? payload.sub, app_metadata: payload, user_metadata: {}, aud: 'authenticated', role: 'authenticated' });
+    }
     if (url.pathname.includes('/.well-known/jwks.json')) return json({ keys: [] });
     const privileged = headers.get('apikey') === 'service-test-key' || headers.get('authorization') === 'Bearer service-test-key';
     if (url.pathname.endsWith('/media_assets')) {
@@ -53,7 +60,7 @@ async function transport(input: RequestInfo | URL, init?: RequestInit): Promise<
       const args = JSON.parse(body); candidate = args.p_published_object_key;
       if (mode === 'timeout-unconfirmed') throw new Error(`RAW_SERVICE_CREDENTIAL https://r2.test/${candidate}?X-Amz-Signature=private`);
       if (mode === 'timeout-winning') { confirmed = true; winningKey = candidate; throw new Error('Timeout after commit'); }
-      if (mode === 'loser') { confirmed = true; return json(false); }
+      if (mode === 'loser') { confirmed = true; winningKey = `${tenant}/published/payment_proof/${publishedUuid}.jpg`; return json(false); }
       confirmed = true; winningKey = args.p_published_object_key; return json(true);
     }
     if (url.pathname.endsWith('/rpc/delete_media_asset')) return json(null);
@@ -89,7 +96,7 @@ async function transport(input: RequestInfo | URL, init?: RequestInit): Promise<
   throw new Error(`Unexpected fake R2 operation ${req.method}`);
 }
 beforeEach(async () => {
-  calls = []; mode = ''; confirmed = false; candidate = ''; winningKey = ''; publishedCandidates.clear();
+  calls = []; mode = ''; confirmed = false; candidate = ''; winningKey = ''; publishedCandidates.clear(); requestStatus = 'owner_accepted'; requestProofStatus = 'active';
   claims = { sub: member, role: 'authenticated', app_role: 'member', tenant_id: tenant, member_id: member, exp: 2147483647 };
   const config: Record<string, string> = { SUPABASE_URL: 'https://supabase.test', SUPABASE_ANON_KEY: 'anon-test-key', SUPABASE_SERVICE_ROLE_KEY: 'service-test-key', R2_ENDPOINT: 'https://r2.test', R2_BUCKET: 'bucket', R2_ACCESS_KEY_ID: 'r2-test-key', R2_SECRET_ACCESS_KEY: 'r2-test-secret' };
   vi.stubGlobal('Deno', { env: { get: (name: string) => config[name] }, serve: (callback: typeof handler) => { handler = callback; } });
@@ -224,6 +231,7 @@ describe('PAY proof operations at the trusted media Edge', () => {
     expect(observedCall(deletes).headers.get('authorization')).not.toBe('Bearer service-test-key');
   });
   it('proof-url signs a bounded private URL for the owning member only', async () => {
+    confirmed = true; // BUY-008/009: proof-url signs only a confirmed, privately published proof
     const response = await invoke('proof-url', {}, memberClaims);
     expect(response.status).toBe(200);
     const data = await response.json();
@@ -235,7 +243,39 @@ describe('PAY proof operations at the trusted media Edge', () => {
     expect(expires).toBeLessThanOrEqual(BUY_LIMITS.privateProofGetTtlSeconds);
   });
   it('proof-url also serves the real same-tenant front-office verifier', async () => {
+    confirmed = true; // same verified-state gate; the verifier sees the bound, published proof
     expect((await invoke('proof-url', {}, deskClaims)).status).toBe(200);
+  });
+  it.each([
+    ['recorded', 'bound'],
+    ['mismatch_recorded', 'bound'],
+  ])('proof-url still serves the owning member after the request is %s (owner decision 2026-10-04)', async (status, proofStatus) => {
+    confirmed = true; requestStatus = status; requestProofStatus = proofStatus;
+    const response = await invoke('proof-url', {}, memberClaims);
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.data.imageUrl).toContain('/published/payment_proof/');
+    expect(data.data.imageUrl).not.toContain('/staging/');
+    const expires = Number(new URL(data.data.imageUrl).searchParams.get('X-Amz-Expires'));
+    expect(expires).toBeGreaterThan(0);
+    expect(expires).toBeLessThanOrEqual(BUY_LIMITS.privateProofGetTtlSeconds);
+  });
+  it.each([
+    ['recorded', 'bound'],
+    ['mismatch_recorded', 'bound'],
+  ])('proof-url still serves the same-tenant verifier after the request is %s (owner decision 2026-10-04)', async (status, proofStatus) => {
+    confirmed = true; requestStatus = status; requestProofStatus = proofStatus;
+    expect((await invoke('proof-url', {}, deskClaims)).status).toBe(200);
+  });
+  it.each([
+    { sub: member, role: 'authenticated', app_role: 'trainer', tenant_id: tenant, staff_id: staff, exp: 2147483647 },
+    { ...memberClaims, impersonation_session_id: member },
+    { sub: member, role: 'authenticated', app_role: 'member', tenant_id: '83000000-0000-4000-8000-000000000001', member_id: member, exp: 2147483647 },
+  ])('bound-path proof-url keeps the single external refusal for unprivileged callers', async badClaims => {
+    confirmed = true; requestStatus = 'recorded'; requestProofStatus = 'bound';
+    const response = await invoke('proof-url', {}, badClaims);
+    expect([403, 404]).toContain(response.status);
+    expect(r2Calls()).toEqual([]);
   });
   it.each([
     { sub: member, role: 'authenticated', app_role: 'trainer', tenant_id: tenant, staff_id: staff, exp: 2147483647 },

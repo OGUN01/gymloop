@@ -32,6 +32,8 @@ vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.f
 vi.mock('expo-secure-store', () => ({ setItemAsync: vi.fn(), getItemAsync: async () => null, deleteItemAsync: vi.fn() }));
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', Image: 'Image', ScrollView: 'ScrollView', Modal: 'Modal', ActivityIndicator: 'ActivityIndicator', TextInput: 'TextInput', StyleSheet: { create: (styles: unknown) => styles }, AppState: { addEventListener: () => ({ remove: vi.fn() }) }, useColorScheme: () => 'light' }));
 vi.mock('lucide-react-native', () => ({ ShoppingBag: 'ShoppingBag', RefreshCw: 'RefreshCw', X: 'X', ChevronRight: 'ChevronRight', Check: 'Check', Clock: 'Clock', CircleAlert: 'CircleAlert', Upload: 'Upload', ImagePlus: 'ImagePlus' }));
+const picker = vi.hoisted(() => ({ launch: vi.fn() }));
+vi.mock('expo-image-picker', () => ({ launchImageLibraryAsync: picker.launch, MediaTypeImages: 1, MediaType: { Images: 1 }, ImagePickerAsset: {}, ErrorCode: {} }));
 vi.mock('../../components/ui', () => {
   const widgets = ['Screen', 'Eyebrow', 'Title', 'Display', 'Body', 'Rule', 'Status', 'Row', 'LedgerSection', 'SheetHeader', 'ActionButton', 'RowAction', 'StateMessage', 'EmptyState', 'LoadingState', 'Field', 'ChoiceList'];
   return { ...Object.fromEntries(widgets.map(type => [type, (props: Record<string, unknown>) => ({ type, props })])), Sheet: (props: Record<string, unknown>) => props.visible ? { type: 'Sheet', props } : null };
@@ -99,5 +101,35 @@ describe('MemberBuy native proof upload surface', () => {
     const words = text();
     expect(words).toMatch(/JPG|JPEG|PNG|WebP/i);
     expect(words).toMatch(/2\s*MB|2\s*MiB/i);
+  });
+  it('picking an image runs the staged proof upload with declared mime/bytes and honest pending copy', async () => {
+    await render();
+    picker.launch.mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///proof.jpg', mimeType: 'image/jpeg', fileName: 'proof.jpg', fileSize: 1234 }] });
+    const upload = action(/upload/i);
+    try { await (upload.props.onPress as () => Promise<void>)(); } catch { /* command guards may throw */ }
+    expect(picker.launch).toHaveBeenCalled();
+    const posted = h.post.mock.calls.map(call => JSON.stringify(call)).join('\n');
+    expect(posted).toMatch(/proof/i);
+    expect(posted).toMatch(/image\/jpeg|"mime"/i);
+    expect(posted).toMatch(/1234|"bytes"/i);
+    expect(text()).toMatch(/Pending verification/i);
+    expect(text()).not.toMatch(/payment successful|money recorded|payment has been recorded/i);
+  });
+  it('a cancelled pick makes no network call and shows no fake success', async () => {
+    await render();
+    picker.launch.mockResolvedValue({ canceled: true, assets: [] });
+    const upload = action(/upload/i);
+    try { await (upload.props.onPress as () => Promise<void>)(); } catch { /* command guards may throw */ }
+    expect(picker.launch).toHaveBeenCalled();
+    expect(h.post).not.toHaveBeenCalled();
+    expect(text()).not.toMatch(/payment successful|Pending verification.*success/i);
+  });
+  it('offline refuses before the picker or any network call', async () => {
+    await render();
+    h.online = false;
+    const upload = action(/upload/i);
+    try { await (upload.props.onPress as () => Promise<void>)(); } catch { /* command guards may throw */ }
+    expect(h.post).not.toHaveBeenCalled();
+    expect(text()).toMatch(/offline|network/i);
   });
 });

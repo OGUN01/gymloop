@@ -7,9 +7,9 @@ describe('frozen MEDIA shared boundary', () => {
   it('pins storage caps, TTLs, verification data and registration limit', () => {
     expect(MEDIA_LIMITS).toEqual({ maxBytes: 2097152, uploadUrlTtlSeconds: 300, displayUrlTtlSeconds: 900, registrationsPerTenantPerHour: 60, signatureHeadBytes: 12, unconfirmedObjectPruneDays: 7, deletedObjectPruneDays: 30 });
     expect(MEDIA_IMAGE_SIGNATURES).toEqual({ jpegHex: 'FFD8FF', pngHex: '89504E470D0A1A0A', webpContainer: 'RIFF', webpFormat: 'WEBP', webpFormatOffset: 8 });
-    expect(media.MEDIA_KINDS).toEqual(['product', 'trainer', 'announcement']); expect(media.MEDIA_MIME_TYPES).toEqual(['image/jpeg', 'image/png', 'image/webp']); expect(media.MEDIA_EXTENSIONS).toEqual({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' });
+    expect(media.MEDIA_KINDS).toEqual(['product', 'trainer', 'announcement', 'payment_proof']); expect(media.MEDIA_MIME_TYPES).toEqual(['image/jpeg', 'image/png', 'image/webp']); expect(media.MEDIA_EXTENSIONS).toEqual({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' });
   });
-  it.each(['product', 'trainer', 'announcement'] as const)('round trips both immutable namespaces for %s', kind => {
+  it.each(['product', 'trainer', 'announcement', 'payment_proof'] as const)('round trips both immutable namespaces for %s', kind => {
     for (const storageArea of ['staging', 'published'] as const) for (const [mime, extension] of [['image/jpeg', 'jpg'], ['image/png', 'png'], ['image/webp', 'webp']] as const) {
       const key = media.buildMediaObjectKey({ tenantId, objectUuid, kind, storageArea, mime });
       expect(key).toBe(`${tenantId}/${storageArea}/${kind}/${objectUuid}.${extension}`);
