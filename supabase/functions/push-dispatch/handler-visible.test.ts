@@ -117,7 +117,7 @@ test('NTF transport: one fresh individual authorization, one send, factual accep
   }
 });
 test('NTF transport: refusal/expiry cannot become send permission', async () => {
-  const f = await fixture({ authorize: { authorized: false, ...lease, reason: 'consent', deferredUntil: null } });
+  const f = await fixture({ authorize: { authorized: false, attemptId: lease.attemptId, reservationId: lease.reservationId, reason: 'consent', deferredUntil: null } });
   await envelope(await f.handler(request()), 200, null, 'ready', { ...zero, reserved: 1, deferred: 1 });
   check(!f.calls.some(call => call.url.includes('messages:send') || call.url.endsWith('finish_push_attempt')), 'Refusal cannot send/finalize');
   const expired = await fixture({ authorize: { ...authorization, expiresAt: '2026-10-04T10:00:00Z' } }); await expired.handler(request());
