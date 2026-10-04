@@ -120,11 +120,23 @@ insert into public.attendance(id,tenant_id,branch_id,member_id,membership_id,che
 (pg_temp.u(612),pg_temp.u(1),pg_temp.u(11),pg_temp.u(102),pg_temp.u(305),'2026-09-21T02:00:00Z','front_desk',pg_temp.u(23),'OCC fixture'),
 (pg_temp.u(613),pg_temp.u(1),pg_temp.u(11),pg_temp.u(101),pg_temp.u(301),'2026-09-14T04:00:00Z','front_desk',pg_temp.u(23),'OCC fixture'),
 (pg_temp.u(614),pg_temp.u(1),pg_temp.u(12),pg_temp.u(102),pg_temp.u(305),'2026-09-14T02:00:00Z','front_desk',pg_temp.u(23),'OCC fixture'),
-(pg_temp.u(615),pg_temp.u(1),pg_temp.u(12),pg_temp.u(102),pg_temp.u(305),'2026-09-15T02:00:00Z','front_desk',pg_temp.u(23),'OCC fixture'),
-(pg_temp.u(616),pg_temp.u(1),pg_temp.u(11),pg_temp.u(101),pg_temp.u(301),now(),'front_desk',pg_temp.u(23),'OCC fixture today');
+(pg_temp.u(615),pg_temp.u(1),pg_temp.u(12),pg_temp.u(102),pg_temp.u(305),'2026-09-15T02:00:00Z','front_desk',pg_temp.u(23),'OCC fixture');
 select pg_temp.claim('gym_owner',25,null,905,2);
 insert into public.attendance(id,tenant_id,branch_id,member_id,membership_id,checked_in_at,source,assisted_by_staff_id,assist_reason) values
 (pg_temp.u(617),pg_temp.u(2),pg_temp.u(14),pg_temp.u(106),pg_temp.u(306),'2026-09-15T02:00:00Z','front_desk',pg_temp.u(25),'OCC fixture foreign');
+-- The today arrival (616) is the settled member-gate shape (suite-82 lawful
+-- mirror): rotating_screen gate setting, a live qr_sessions row, and the check-in
+-- recorded under the member's own claims through that session — the trigger owns
+-- checked_in_at (= the offline instant) and the replay stamp. No staff, no reason.
+set local role postgres;
+select set_config('request.jwt.claims','',true);
+insert into public.organization_settings(tenant_id,checkin_gate_mode) values(pg_temp.u(1),'rotating_screen');
+insert into public.qr_sessions(id,tenant_id,branch_id,token_hash,issued_at,expires_at,gate_mode,created_at) values
+(pg_temp.u(440),pg_temp.u(1),pg_temp.u(11),'a6f2c9d4e1b37f80a5c2d9e4f1b8a3c6d9e2f5a8b1c4d7e0f3a6b9c2d5e8f1a4',statement_timestamp()-interval '1 hour',statement_timestamp()+interval '1 hour','rotating_screen',statement_timestamp());
+set local role authenticated;
+select pg_temp.claim('member',null,101,911,1);
+insert into public.attendance(id,tenant_id,branch_id,member_id,source,qr_session_id,client_event_id,offline_recorded_at) values
+(pg_temp.u(616),pg_temp.u(1),pg_temp.u(11),pg_temp.u(101),'qr',pg_temp.u(440),pg_temp.u(460),statement_timestamp());
 set local role postgres;
 select set_config('request.jwt.claims','',true);
 
@@ -386,7 +398,10 @@ select pg_temp.claim('gym_owner',25,null,905,2);
 -- owner identity.
 select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.u(905),'role','authenticated','app_role','gym_owner','tenant_id',pg_temp.u(2),'staff_id',pg_temp.u(25))::text,true);
 -- 76
-select ok(pg_temp.snapj('2026-01-01','2026-03-31',null)->>'zone' is null and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->>'scope'='Whole gym' and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->>'zone' is null and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->'error'=$j${"code":"invalid_gym_timezone"}$j$::jsonb and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->>'startsAt' is null and pg_temp.snapj('2026-01-01','2026-03-31',null)->'months'=$j$[]$j$::jsonb and pg_temp.snapj('2026-01-01','2026-03-31',null)->'collection' is null,'OCC-003: an invalid gym zone yields explicit derived-field nulls, empty months and null collection — no fabricated UTC analytics');
+-- Per-call routing (capture adjudication round 13): the tenant-2 owner claims are
+-- set immediately before this call, at top level, outside any wrapper.
+select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.u(905),'role','authenticated','app_role','gym_owner','tenant_id',pg_temp.u(2),'staff_id',pg_temp.u(25))::text,true);
+select ok((select jsonb_build_object('sub',pg_temp.u(905),'role','authenticated','app_role','gym_owner','tenant_id',pg_temp.u(2),'staff_id',pg_temp.u(25))::text)=current_setting('request.jwt.claims',true) and pg_temp.snapj('2026-01-01','2026-03-31',null)->>'zone' is null and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->>'scope'='Whole gym' and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->>'zone' is null and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->'error'=$j${"code":"invalid_gym_timezone"}$j$::jsonb and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->>'startsAt' is null and pg_temp.snapj('2026-01-01','2026-03-31',null)->'months'=$j$[]$j$::jsonb and pg_temp.snapj('2026-01-01','2026-03-31',null)->'collection' is null,'OCC-003 (routing first): the snapshot call executes under the corrupt gym''s owner identity — the claims context itself is pinned as the first conjunct so a fallthrough to the valid tenant is named, and the invalid gym zone yields explicit derived-field nulls, empty months and null collection');
 -- 77
 select ok(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->>'zone'='Mars/Phobos' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->>'zoneSource'='gym' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->'error'=$j${"code":"invalid_gym_timezone"}$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->'days'=$j$[]$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->'cells'=$j$[]$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->>'availability' is null,'OCC-003: a branch inheriting an invalid gym zone discloses the inherited zone text, its source and the gym-zone error');
 select pg_temp.claim('gym_owner',21,null,901,1);

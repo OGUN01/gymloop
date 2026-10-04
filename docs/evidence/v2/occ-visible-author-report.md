@@ -362,3 +362,51 @@ files). SQL NOT executed here.
 - plan(77) preserved (77 verified); rollback guard green (159 files). SQL NOT
   executed here.
 - New sha256: `9ff18cf6f25fa4d2fc60ded84b7ff0f64cc39fa8d6ee8709c2c964ba074d3ff6`.
+
+## Runtime repair — round 13 (today arrival restaged as lawful QR; #76 routing pinned)
+
+- #56 fixture: the today arrival (616) was a `front_desk` row staged before the
+  Sep window — the capture showed today's visits 0 because that row's provenance
+  chain was the desk path, not a member-gate self check-in. Restaged: 616 is
+  now staged in its own insert under the member's own claims context
+  (sub 911, member 101, tenant 1) with `source='qr'` and no staff/reason — the
+  settled member-gate provenance (suite 06 precedent: a QR check-in needs
+  neither). checked_in_at stays `now()`, so the round-12 stored-instant hour
+  derivation still pins the recorded arrival's own clock hour. Sep-window
+  counts and holiday/eligible-date arithmetic are untouched (the row lives in
+  the today window only).
+- #76: per adjudication, the routing itself is now pinned inside the existing
+  assertion as its FIRST conjunct — the exact tenant-2 owner claims object
+  (sub 905, gym_owner, tenant 2, staff 25) must equal
+  `current_setting('request.jwt.claims',true)` at execution — and the claims
+  are restated at top level immediately before the call. If the snapshot still
+  resolves the valid tenant under those claims, the pin now fails naming the
+  routing context rather than silently, and the KEYzone76-style capture gains
+  a decisive diagnostic: the captured `request.jwt.claims` value itself proves
+  whether the fallthrough is a claims-context artifact of the capture harness
+  or a real tenant-derivation defect in the RPC (which would then be a public
+  contract finding, not a suite edit).
+- plan(77) preserved (77 verified); rollback guard green (159 files). SQL NOT
+  executed here.
+- New sha256: `066cc6ca1f027ceeb5abd4d098c4301d4c7c5f6101b77fd780e430b37d78ce8e`.
+
+## Runtime repair — round 14 (exact trigger condition mirrored)
+
+- Trigger condition (coordinator): a member claims-context insert refuses
+  unless `source='qr' AND qr_session_id is not null AND assist_reason is null
+  AND assisted_by_staff_id is null AND membership_id is null`. The round-13
+  bare-QR row failed precisely on the missing live session.
+- Staging now mirrors the settled lawful shape word-for-word (suite-82
+  "pure member gate replay"): `organization_settings` gains
+  `checkin_gate_mode='rotating_screen'` for tenant 1; a live `qr_sessions`
+  row (440, tenant 1, branch 11, rotating_screen, statement-window validity)
+  is staged under postgres with cleared claims; the attendance row (616) is
+  recorded under the member's own claims (sub 911, member_id 101) with
+  `source='qr'`, `qr_session_id=440`, `client_event_id=460`,
+  `offline_recorded_at=statement_timestamp()` — membership_id, staff and
+  reason all absent, checked_in_at and replayed_at owned by the trigger.
+- Context hygiene: the settings/session inserts run as postgres with cleared
+  claims (no stale tenant-2 owner context); the doubled role switch tidied.
+  plan(77) preserved (77 verified); rollback guard green (159 files). SQL NOT
+  executed here.
+- New sha256: `d6b884e25699c206f67458e044b9391e33dd194d92d28743a567c4eb97a82bed`.
