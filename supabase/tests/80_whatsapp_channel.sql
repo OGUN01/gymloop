@@ -177,7 +177,7 @@ END,'WSP: attempts no authenticated/anon grants and no direct service DML (facad
 -- canonical-currency-declaration.md (2026-10-04): append the generated alias;
 -- retain all original attempt columns and the exact ordered manifest.
 select results_eq($q$select attname::text collate "default" from pg_attribute where attrelid=to_regclass('public.notification_whatsapp_attempts') and attnum>0 and not attisdropped order by attnum$q$,
-$q$select * from (values('id' collate "default"),('tenant_id' collate "default"),('member_id' collate "default"),('notification_id' collate "default"),('sender_account_id' collate "default"),('template_revision_id' collate "default"),('rate_version_id' collate "default"),('consent_id' collate "default"),('request_key' collate "default"),('lease_ticket' collate "default"),('lease_expires_at' collate "default"),('recipient_contact_revision' collate "default"),('hold_max_paise' collate "default"),('hold_currency' collate "default"),('authorized_at' collate "default"),('io_started_at' collate "default"),('accepted_at' collate "default"),('completed_at' collate "default"),('uncertain_at' collate "default"),('provider_message_id' collate "default"),('failure_code' collate "default"),('released_at' collate "default"),('charged_ledger_id' collate "default"),('provider_read_at' collate "default"),('created_at' collate "default"),('updated_at' collate "default"),('currency' collate "default")) as e$q$,'WSP: exact attempts columns (no recipient phone column)');
+$q$select * from (values('id' collate "default"),('tenant_id' collate "default"),('member_id' collate "default"),('notification_id' collate "default"),('sender_account_id' collate "default"),('template_revision_id' collate "default"),('rate_version_id' collate "default"),('consent_id' collate "default"),('request_key' collate "default"),('lease_ticket' collate "default"),('lease_expires_at' collate "default"),('recipient_contact_revision' collate "default"),('hold_max_paise' collate "default"),('hold_currency' collate "default"),('authorized_at' collate "default"),('io_started_at' collate "default"),('accepted_at' collate "default"),('completed_at' collate "default"),('uncertain_at' collate "default"),('provider_message_id' collate "default"),('failure_code' collate "default"),('released_at' collate "default"),('charged_ledger_id' collate "default"),('provider_read_at' collate "default"),('created_at' collate "default"),('updated_at' collate "default"),('currency' collate "default"),('channel_consent_id' collate "default")) as e$q$,'WSP: exact attempts columns (no recipient phone column)');
 select ok(CASE WHEN to_regclass('public.notification_whatsapp_attempts') IS NULL THEN false ELSE (select count(*) from pg_policy where polrelid=to_regclass('public.notification_whatsapp_attempts')) >= 1 END,'WSP: attempts has tenant policy');
 select ok(CASE WHEN to_regclass('public.notification_whatsapp_attempts') IS NULL THEN false ELSE pg_temp.nuniq('notification_whatsapp_attempts') >= 3 END,'WSP: attempts unique tenant/request key, one live attempt per notification, provider id per sender');
 
@@ -726,12 +726,12 @@ select ok(exists(select 1 from pg_constraint c where c.contype='f'
       from unnest(c.conkey,c.confkey) with ordinality x(num,refnum,ord)
       join pg_attribute a on a.attrelid=c.conrelid and a.attnum=x.num
       join pg_attribute b on b.attrelid=c.confrelid and b.attnum=x.refnum)
-     @> array['tenant_id=tenant_id','consent_id=id']
+     @> array['tenant_id=tenant_id','member_id=member_id','channel_consent_id=id']
  and (select array_agg(a.attname::text||'='||b.attname::text order by x.ord)
       from unnest(c.conkey,c.confkey) with ordinality x(num,refnum,ord)
       join pg_attribute a on a.attrelid=c.conrelid and a.attnum=x.num
       join pg_attribute b on b.attrelid=c.confrelid and b.attnum=x.refnum)
-     <@ array['tenant_id=tenant_id','consent_id=id','member_id=member_id']),
+     <@ array['tenant_id=tenant_id','member_id=member_id','channel_consent_id=id']),
  'WSP ADR-052: attempt consent reference enforces the matching tenant');
 
 
@@ -752,18 +752,26 @@ values(pg_temp.aid(8503),pg_temp.aid(1),pg_temp.aid(501),pg_temp.aid(8451),'bh-f
 -- revision and grant remain the same; only the referenced consent's tenant differs.
 insert into public.whatsapp_channel_consents(id,tenant_id,member_id,purpose,granted,notice_version,source,recipient_phone_digest,contact_version_ref,recipient_basis,recorded_at)
 values(pg_temp.aid(8461),pg_temp.aid(2),pg_temp.aid(107),'service',true,'wsp-notice-v1','signup',repeat('0',64),'cv-fk','self',now());
--- Renewal children require a real front-office actor even for trusted fixture DML.
+-- Public COM §4/5 and Wave C: ordinary payment-availability source events are
+-- independently scheduled; manual children are created only by the command.
 select pg_temp.claim('gym_owner',21,null,901,1);
-insert into public.notifications(id,tenant_id,member_id,channel,status,category,dedupe_key,scheduled_for,payload,source_notification_id)
-values
-(pg_temp.aid(8601),pg_temp.aid(1),pg_temp.aid(101),'whatsapp_link','scheduled','renewal','wsp-fk-consent-own',now(),'{"body":"Consent reference fixture"}',(select id from wsp_ids where k='src_101')),
-(pg_temp.aid(8602),pg_temp.aid(1),pg_temp.aid(101),'whatsapp_link','scheduled','renewal','wsp-fk-consent-foreign',now(),'{"body":"Consent reference fixture"}',(select id from wsp_ids where k='src_101'));
+insert into public.message_templates(id,tenant_id,key,channel,locale,category,body,is_active)
+values(pg_temp.aid(8504),pg_temp.aid(1),'wsp_fk_payment_notice','whatsapp_link','en','payment','Your receipt is available in the app.',true);
+insert into public.whatsapp_template_revisions(id,tenant_id,sender_account_id,template_id,body_hash,parameter_schema_hash,provider_template_name,provider_template_id,locale,category,approved_at,checked_at)
+values(pg_temp.aid(8505),pg_temp.aid(1),pg_temp.aid(501),pg_temp.aid(8504),'bh-payment-fk','psh-payment-fk','payment_fk','tpl-payment-fk','en','payment',now(),now());
+insert into public.notifications(id,tenant_id,member_id,channel,status,category,dedupe_key,payload)
+values(pg_temp.aid(8601),pg_temp.aid(1),pg_temp.aid(101),'in_app','scheduled','payment','wsp-fk-payment-own','{"body":"Your receipt is available in the app."}'),
+(pg_temp.aid(8602),pg_temp.aid(1),pg_temp.aid(101),'in_app','scheduled','payment','wsp-fk-payment-foreign','{"body":"Your receipt is available in the app."}');
+select public.send_notification(pg_temp.aid(8601));
+select public.send_notification(pg_temp.aid(8602));
+select public.open_notification_whatsapp(pg_temp.aid(8601));
+select public.open_notification_whatsapp(pg_temp.aid(8602));
 select set_config('request.jwt.claims','',true);
-select lives_ok($q$insert into public.notification_whatsapp_attempts(id,tenant_id,member_id,notification_id,sender_account_id,template_revision_id,rate_version_id,consent_id,request_key,lease_ticket,lease_expires_at,recipient_contact_revision,hold_max_paise,hold_currency)
-values(pg_temp.aid(8701),pg_temp.aid(1),pg_temp.aid(101),pg_temp.aid(8601),pg_temp.aid(501),pg_temp.aid(502),pg_temp.aid(503),pg_temp.aid(461),pg_temp.aid(8801),pg_temp.aid(8901),now()+interval '120 seconds','cv-1',100,'INR')$q$,
+select lives_ok($q$insert into public.notification_whatsapp_attempts(id,tenant_id,member_id,notification_id,sender_account_id,template_revision_id,rate_version_id,consent_id,channel_consent_id,request_key,lease_ticket,lease_expires_at,recipient_contact_revision,hold_max_paise,hold_currency)
+values(pg_temp.aid(8701),pg_temp.aid(1),pg_temp.aid(101),pg_temp.aid(8601),pg_temp.aid(501),pg_temp.aid(8505),pg_temp.aid(503),pg_temp.aid(401),(select id from public.whatsapp_channel_consents where tenant_id=pg_temp.aid(1) and member_id=pg_temp.aid(101) and purpose='service' order by recorded_at desc,id desc limit 1),pg_temp.aid(8801),pg_temp.aid(8901),now()+interval '120 seconds',(select contact_version_ref from public.whatsapp_channel_consents where tenant_id=pg_temp.aid(1) and member_id=pg_temp.aid(101) and purpose='service' order by recorded_at desc,id desc limit 1),100,'INR')$q$,
 'WSP ADR-052: valid fresh same-tenant consent reference accepted');
-select throws_ok($q$insert into public.notification_whatsapp_attempts(id,tenant_id,member_id,notification_id,sender_account_id,template_revision_id,rate_version_id,consent_id,request_key,lease_ticket,lease_expires_at,recipient_contact_revision,hold_max_paise,hold_currency)
-values(pg_temp.aid(8702),pg_temp.aid(1),pg_temp.aid(101),pg_temp.aid(8602),pg_temp.aid(501),pg_temp.aid(502),pg_temp.aid(503),pg_temp.aid(8461),pg_temp.aid(8802),pg_temp.aid(8902),now()+interval '120 seconds','cv-1',100,'INR')$q$,
+select throws_ok($q$insert into public.notification_whatsapp_attempts(id,tenant_id,member_id,notification_id,sender_account_id,template_revision_id,rate_version_id,consent_id,channel_consent_id,request_key,lease_ticket,lease_expires_at,recipient_contact_revision,hold_max_paise,hold_currency)
+values(pg_temp.aid(8702),pg_temp.aid(1),pg_temp.aid(101),pg_temp.aid(8602),pg_temp.aid(501),pg_temp.aid(8505),pg_temp.aid(503),pg_temp.aid(401),pg_temp.aid(8461),pg_temp.aid(8802),pg_temp.aid(8902),now()+interval '120 seconds',(select contact_version_ref from public.whatsapp_channel_consents where tenant_id=pg_temp.aid(1) and member_id=pg_temp.aid(101) and purpose='service' order by recorded_at desc,id desc limit 1),100,'INR')$q$,
 '23503',null,'WSP ADR-052: existing foreign-tenant consent reference refused');
 
 select * from finish();

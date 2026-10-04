@@ -17,7 +17,7 @@ set local role postgres;
 set local search_path = extensions, public;
 set local timezone = 'UTC';
 select set_config('request.jwt.claims','',true);
-select plan(150);
+select plan(151);
 
 -- ---------------------------------------------------------------- helpers
 create function pg_temp.wsp_scalar(q text) returns text language plpgsql as $f$
@@ -411,9 +411,18 @@ select ok(exists (
       join pg_attribute src on src.attrelid=k.conrelid and src.attnum=x.srcnum
       join pg_attribute dst on dst.attrelid=k.confrelid and dst.attnum=x.dstnum
       order by src.attname::text)
-      in (array['consent_id->id','tenant_id->tenant_id'],
-          array['consent_id->id','member_id->member_id','tenant_id->tenant_id'])),
-  'WSP-H-J03 attempt opt-in evidence is constrained to the same tenant');
+      = array['channel_consent_id->id','member_id->member_id','tenant_id->tenant_id']),
+  'WSP-H-J03 exact channel opt-in evidence is constrained to the same tenant and member');
+select ok(exists (
+  select 1 from pg_constraint k
+  where k.contype='f' and k.conrelid=to_regclass('public.notification_whatsapp_attempts')
+    and k.confrelid=to_regclass('public.consents')
+    and exists (
+      select 1 from unnest(k.conkey,k.confkey) x(srcnum,dstnum)
+      join pg_attribute src on src.attrelid=k.conrelid and src.attnum=x.srcnum
+      join pg_attribute dst on dst.attrelid=k.confrelid and dst.attnum=x.dstnum
+      where src.attname='consent_id' and dst.attname='id')),
+  'WSP-H-J04 generic-purpose consent_id keeps its independent public.consents reference');
 
 select * from finish();
 rollback;
